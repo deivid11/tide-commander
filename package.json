@@ -4,6 +4,7 @@
   "description": "RTS/MOBA-style Claude Code agents commander",
   "type": "module",
   "scripts": {
+    "dev": "concurrently \"bun run dev:client\" \"bun run dev:server\"",
     "dev:client": "vite",
     "dev:server": "tsx watch src/packages/server/index.ts",
     "build": "tsc && vite build",

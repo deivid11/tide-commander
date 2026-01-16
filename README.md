@@ -2,10 +2,15 @@
 
 RTS/MOBA-style Claude Code agents commander. Deploy, position, and command multiple Claude Code instances on a strategic battlefield.
 
+## Why Tide Commander?
+
+Working on large projects often requires juggling multiple tasks simultaneously - exploring the codebase, implementing features, fixing bugs, and writing tests. Tide Commander lets you spin up multiple Claude Code agents, each focused on a specific task or area of your project, and manage them all from a single visual interface.
+
+Think of it like having a team of AI developers at your command. Assign one agent to investigate a bug while another implements a feature. Watch them work in real-time, send follow-up commands, and keep your project moving forward on multiple fronts.
+
 ## Features
 
 - **3D Battlefield** - Visual command center with Three.js
-- **Agent Classes** - Scout, Builder, Debugger, Architect, Warrior, Support
 - **RTS Controls** - Click to select, right-click to move, number keys for quick selection
 - **Real-time Activity Feed** - Watch your agents work in real-time
 - **Multi-Agent Management** - Spawn and control multiple Claude Code instances
@@ -13,132 +18,31 @@ RTS/MOBA-style Claude Code agents commander. Deploy, position, and command multi
 
 ## Prerequisites
 
-- Node.js 18+
+- Node.js 18+ or Bun
 - Claude Code CLI (`claude` command available in PATH)
 
-## Installation
+## Getting Started
 
 ```bash
 # Install dependencies
-npm install
+bun install
 
 # Start the application
-npm run dev
+bun run dev
 ```
 
-Then open http://localhost:5173 in your browser.
+Open http://localhost:5173 in your browser and you're ready to go.
 
-## How It Works
+## How to Use
 
-### Overview
+1. **Deploy an agent** - Click the **+ New Agent** button
+2. **Configure it** - Give it a name and choose a working directory (the folder it will operate in)
+3. **Select it** - Click on the agent in the 3D view or press 1-9
+4. **Send commands** - Type your task in the command bar and press Enter
+5. **Watch it work** - The activity feed shows real-time progress
+6. **Send follow-ups** - Agents maintain context, so you can have ongoing conversations
 
-Tide Commander provides a visual interface for managing multiple Claude Code CLI instances simultaneously. Each "agent" you spawn is a real Claude Code process running in the background, and you can send commands to them and watch their output in real-time.
-
-### Core Components
-
-**1. Frontend (React + Three.js)**
-- 3D battlefield where agents are visualized as characters
-- WebSocket connection to receive real-time updates
-- Command input for sending tasks to agents
-- Activity feed showing what each agent is doing
-
-**2. Backend (Node.js + Express)**
-- REST API for agent CRUD operations
-- WebSocket server for real-time event streaming
-- Process manager that spawns and controls Claude CLI instances
-
-**3. Claude CLI Integration**
-- Each agent runs `claude` with `--output-format stream-json`
-- Events (tool usage, text output, errors) are parsed from stdout
-- Commands are sent via stdin in stream-json format
-- Sessions are persisted in `~/.claude/projects/` and can be resumed
-
-### Agent Lifecycle
-
-```
-1. User clicks "+ New Agent"
-   └─> Server creates agent record with unique ID
-
-2. User sends a command
-   └─> Server spawns: claude --print --verbose --output-format stream-json --input-format stream-json
-   └─> Command sent via stdin as JSON
-   └─> Agent status: "working"
-
-3. Claude processes the command
-   └─> stdout emits JSON events (tool_use, text, result, etc.)
-   └─> Server parses events and broadcasts via WebSocket
-   └─> Frontend updates agent status and activity feed
-
-4. Claude finishes
-   └─> "result" event received with token usage
-   └─> Agent status: "idle"
-   └─> Process stays alive for follow-up commands
-
-5. User sends another command
-   └─> Sent directly to existing process stdin
-   └─> Session context preserved
-```
-
-### Data Flow
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         FRONTEND                                 │
-├─────────────────────────────────────────────────────────────────┤
-│  React App                                                       │
-│    ├── SceneManager (Three.js) - 3D visualization               │
-│    ├── AgentBar - agent selection                               │
-│    ├── CommandInput - send commands                             │
-│    ├── ClaudeOutputPanel - conversation history                 │
-│    └── ActivityFeed - real-time events                          │
-└────────────────────────┬────────────────────────────────────────┘
-                         │ WebSocket + REST API
-┌────────────────────────▼────────────────────────────────────────┐
-│                         BACKEND                                  │
-├─────────────────────────────────────────────────────────────────┤
-│  Express Server (:5174)                                          │
-│    ├── /api/agents - CRUD for agents                            │
-│    ├── /api/files - file browser for working directories        │
-│    └── WebSocket - broadcasts events to all clients             │
-│                                                                  │
-│  Services                                                        │
-│    ├── AgentService - manages agent state                       │
-│    ├── ClaudeService - orchestrates Claude processes            │
-│    └── ClaudeRunner - spawns/manages CLI processes              │
-└────────────────────────┬────────────────────────────────────────┘
-                         │ stdin/stdout (JSON)
-┌────────────────────────▼────────────────────────────────────────┐
-│                    CLAUDE CODE CLI                               │
-├─────────────────────────────────────────────────────────────────┤
-│  Multiple independent processes                                  │
-│    ├── Agent 1: claude --output-format stream-json ...          │
-│    ├── Agent 2: claude --output-format stream-json ...          │
-│    └── Agent N: claude --output-format stream-json ...          │
-│                                                                  │
-│  Session files: ~/.claude/projects/<encoded-path>/<session>.jsonl│
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Key Files
-
-| File | Purpose |
-|------|---------|
-| `src/server/claude/runner.ts` | Spawns Claude CLI processes, handles stdin/stdout |
-| `src/server/claude/backend.ts` | Builds CLI args, parses JSON events |
-| `src/server/services/claude-service.ts` | High-level agent command orchestration |
-| `src/server/services/agent-service.ts` | Agent state management and persistence |
-| `src/App.tsx` | Main React app, WebSocket connection |
-| `src/scene/SceneManager.ts` | Three.js 3D scene setup |
-
-## Usage
-
-1. Open http://localhost:5173 in your browser
-2. Click **+ New Agent** to deploy an agent
-3. Choose a name, class, and working directory
-4. Select an agent by clicking on it (or press 1-9)
-5. Enter commands in the command bar
-6. Watch the agent work in real-time via the activity feed
-7. Right-click on the battlefield to move selected agents (visual only)
+You can spawn multiple agents, each working in different directories or on different tasks. Switch between them by clicking or using number keys.
 
 ## Keyboard Shortcuts
 
@@ -149,20 +53,32 @@ Tide Commander provides a visual interface for managing multiple Claude Code CLI
 | Alt+N | Spawn new agent |
 | Enter | Send command (when input focused) |
 
-## Agent Classes
+## How It Works
 
-Classes are cosmetic labels to help organize your agents:
+### Overview
 
-| Class | Icon | Suggested Use |
-|-------|------|---------------|
-| Scout | 🔍 | Codebase exploration, finding files |
-| Builder | 🔨 | Feature implementation |
-| Debugger | 🐛 | Bug hunting and fixing |
-| Architect | 📐 | Planning, design, architecture |
-| Warrior | ⚔️ | Refactoring, code cleanup |
-| Support | 💚 | Documentation, tests |
+Tide Commander provides a visual interface for managing multiple Claude Code CLI instances simultaneously. Each "agent" you spawn is a real Claude Code process running in the background, and you can send commands to them and watch their output in real-time.
 
-## Architecture
+### Core Components
+
+**Frontend (React + Three.js)**
+- 3D battlefield where agents are visualized as characters
+- WebSocket connection to receive real-time updates
+- Command input for sending tasks to agents
+- Activity feed showing what each agent is doing
+
+**Backend (Node.js + Express)**
+- REST API for agent CRUD operations
+- WebSocket server for real-time event streaming
+- Process manager that spawns and controls Claude CLI instances
+
+**Claude CLI Integration**
+- Each agent runs `claude` with `--output-format stream-json`
+- Events (tool usage, text output, errors) are parsed from stdout
+- Commands are sent via stdin in stream-json format
+- Sessions are persisted and can be resumed
+
+### Architecture
 
 ```
 ┌─────────────────────────────────────────┐
@@ -190,16 +106,16 @@ Classes are cosmetic labels to help organize your agents:
 
 ```bash
 # Run client only (Vite dev server on :5173)
-npm run dev:client
+bun run dev:client
 
 # Run server only (Express + WebSocket on :5174)
-npm run dev:server
+bun run dev:server
 
 # Run both concurrently
-npm run dev
+bun run dev
 
 # Build for production
-npm run build
+bun run build
 ```
 
 ## Troubleshooting
