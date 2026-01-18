@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo, memo } from 'react';
 import ReactMarkdown, { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { useStore, store, ClaudeOutput } from '../store';
+import { useStore, useHideCost, store, ClaudeOutput } from '../store';
 import type { Agent, AgentAnalysis, PermissionRequest } from '../../shared/types';
 import { BOSS_CONTEXT_START, BOSS_CONTEXT_END } from '../../shared/types';
 import { AGENT_CLASS_CONFIG } from '../scene/config';
@@ -643,6 +643,34 @@ export function ClaudeOutputPanel() {
     return Array.from(state.agents.values()).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
   }, [state.agents]);
 
+  // Memoized filtered history messages based on view mode
+  const filteredHistory = useMemo(() => {
+    if (viewMode === 'advanced') return history;
+    if (viewMode === 'chat') {
+      // Only show user messages and the LAST assistant message before each user message
+      return history.filter((msg, index, arr) => {
+        if (msg.type === 'user') return true;
+        if (msg.type === 'assistant') {
+          const nextMsg = arr[index + 1];
+          return !nextMsg || nextMsg.type === 'user';
+        }
+        return false;
+      });
+    }
+    // simple mode
+    return history.filter(msg => msg.type === 'user' || msg.type === 'assistant' || msg.type === 'tool_use');
+  }, [history, viewMode]);
+
+  // Memoized filtered outputs based on view mode
+  const filteredOutputs = useMemo(() => {
+    if (viewMode === 'advanced') return outputs;
+    return outputs.filter(output => {
+      if (output.isUserPrompt) return true;
+      if (viewMode === 'chat') return isChatViewOutput(output.text);
+      return isSimpleViewOutput(output.text);
+    });
+  }, [outputs, viewMode]);
+
   // Handle resize drag
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -1197,24 +1225,7 @@ export function ClaudeOutputPanel() {
                   )}
                 </div>
               )}
-              {history
-                .filter((msg, index, arr) => {
-                  if (viewMode === 'advanced') return true;
-                  if (viewMode === 'chat') {
-                    // Only show user messages and the LAST assistant message before each user message
-                    if (msg.type === 'user') return true;
-                    if (msg.type === 'assistant') {
-                      // Check if this is the last assistant message before a user message or end of array
-                      const nextMsg = arr[index + 1];
-                      // Show if next message is user, or this is the last message
-                      return !nextMsg || nextMsg.type === 'user';
-                    }
-                    return false;
-                  }
-                  // simple mode
-                  return msg.type === 'user' || msg.type === 'assistant' || msg.type === 'tool_use';
-                })
-                .map((msg, index) => (
+              {filteredHistory.map((msg, index) => (
                   <HistoryLine
                     key={`h-${index}`}
                     message={msg}
@@ -1223,15 +1234,7 @@ export function ClaudeOutputPanel() {
                     onFileClick={handleFileClick}
                   />
                 ))}
-              {outputs
-                .filter(output => {
-                  if (viewMode === 'advanced') return true;
-                  if (output.isUserPrompt) return true;
-                  if (viewMode === 'chat') return isChatViewOutput(output.text);
-                  // simple mode
-                  return isSimpleViewOutput(output.text);
-                })
-                .map((output, index) => (
+              {filteredOutputs.map((output, index) => (
                   <OutputLine
                     key={`o-${index}`}
                     output={output}
@@ -1826,8 +1829,7 @@ function renderReadToolInput(content: string, onFileClick?: (path: string) => vo
 }
 
 const HistoryLine = memo(function HistoryLine({ message, highlight, simpleView, onImageClick, onFileClick }: HistoryLineProps) {
-  const state = useStore();
-  const hideCost = state.settings.hideCost;
+  const hideCost = useHideCost();
   const { type, content: rawContent, toolName } = message;
   const content = filterCostText(rawContent, hideCost);
 
@@ -1981,8 +1983,7 @@ interface OutputLineProps {
 }
 
 const OutputLine = memo(function OutputLine({ output, agentId, onImageClick, onFileClick }: OutputLineProps) {
-  const state = useStore();
-  const hideCost = state.settings.hideCost;
+  const hideCost = useHideCost();
   const { text: rawText, isStreaming, isUserPrompt } = output;
   const text = filterCostText(rawText, hideCost);
 

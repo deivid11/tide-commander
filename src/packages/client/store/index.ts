@@ -1895,6 +1895,16 @@ export function useSettings(): Settings {
 }
 
 /**
+ * Get hideCost setting. Only re-renders when hideCost changes.
+ * Optimized selector for components that only need this single setting.
+ */
+export function useHideCost(): boolean {
+  return useSelector(
+    useCallback((state: StoreState) => state.settings.hideCost, [])
+  );
+}
+
+/**
  * Get shortcuts. Only re-renders when shortcuts change.
  */
 export function useShortcuts(): ShortcutConfig[] {
