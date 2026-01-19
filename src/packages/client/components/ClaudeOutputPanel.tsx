@@ -1342,11 +1342,6 @@ export function ClaudeOutputPanel() {
               onPaste={handlePaste}
             />
           )}
-          {(selectedAgent.pendingCommands?.length || 0) > 0 && (
-            <span className="queue-badge" title="Commands in queue">
-              {selectedAgent.pendingCommands.length} queued
-            </span>
-          )}
           <button
             onClick={handleSendCommand}
             disabled={!command.trim() && attachedFiles.length === 0}
@@ -1365,17 +1360,6 @@ export function ClaudeOutputPanel() {
               />
             ))}
         </div>
-        {selectedAgent.pendingCommands?.length > 0 && (
-          <div className="guake-queue">
-            <div className="guake-queue-header">Queued Commands:</div>
-            {selectedAgent.pendingCommands.map((cmd, index) => (
-              <div key={index} className="guake-queue-item">
-                <span className="guake-queue-index">{index + 1}.</span>
-                <span className="guake-queue-command">{cmd.length > 60 ? cmd.substring(0, 60) + '...' : cmd}</span>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
       {/* Resize handle - only visible when terminal is open */}
       {isOpen && (

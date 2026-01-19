@@ -48,6 +48,7 @@ export interface SceneConfig {
   timeMode: TimeMode;
   terrain: TerrainConfig;
   animations: AnimationConfig;
+  fpsLimit: number; // 0 = unlimited, otherwise max FPS (e.g., 30, 60)
 }
 
 interface ToolboxProps {
@@ -827,6 +828,19 @@ function ConfigSection({ config, onChange }: ConfigSectionProps) {
           checked={config.gridVisible}
           onChange={(e) => onChange({ ...config, gridVisible: e.target.checked })}
         />
+      </div>
+      <div className="config-row">
+        <span className="config-label">FPS Limit</span>
+        <input
+          type="range"
+          className="config-slider"
+          min="0"
+          max="120"
+          step="10"
+          value={config.fpsLimit}
+          onChange={(e) => onChange({ ...config, fpsLimit: parseInt(e.target.value) })}
+        />
+        <span className="config-value">{config.fpsLimit === 0 ? '∞' : config.fpsLimit}</span>
       </div>
       <div className="config-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4 }}>
         <span className="config-label">Time of Day</span>

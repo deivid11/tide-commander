@@ -710,18 +710,6 @@ class Store {
     this.notify();
   }
 
-  // Update pending commands queue for an agent
-  updatePendingCommands(agentId: string, pendingCommands: string[]): void {
-    const agent = this.state.agents.get(agentId);
-    if (agent) {
-      const updatedAgent = { ...agent, pendingCommands };
-      const newAgents = new Map(this.state.agents);
-      newAgents.set(agentId, updatedAgent);
-      this.state.agents = newAgents;
-      this.notify();
-    }
-  }
-
   moveAgent(agentId: string, position: { x: number; y: number; z: number }): void {
     // Update local state with new Map to trigger React updates
     const agent = this.state.agents.get(agentId);

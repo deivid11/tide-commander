@@ -48,8 +48,6 @@ export function initAgents(): void {
         contextLimit,
         taskCount: stored.taskCount ?? 0, // Migration for existing agents
         permissionMode: stored.permissionMode ?? 'bypass', // Migration for existing agents
-        // Initialize empty pending commands queue
-        pendingCommands: [],
       };
       agents.set(agent.id, agent);
     }
@@ -141,7 +139,6 @@ export async function createAgent(
     contextUsed: 0,
     contextLimit: 200000, // Claude's default context limit
     taskCount: 0, // Initialize task counter
-    pendingCommands: [], // Initialize empty command queue
     createdAt: Date.now(),
     lastActivity: Date.now(),
     sessionId: sessionId,

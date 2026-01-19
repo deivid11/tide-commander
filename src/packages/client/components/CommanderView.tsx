@@ -963,9 +963,7 @@ function AgentPanel({ agent, history, outputs, isExpanded, isFocused, advancedVi
         {useTextarea ? (
           <textarea
             ref={inputRef as React.RefCallback<HTMLTextAreaElement>}
-            placeholder={agent.status === 'working'
-              ? `Queue for ${agent.name}... (paste image)`
-              : `Command ${agent.name}... (paste image)`}
+            placeholder={`Command ${agent.name}... (paste image)`}
             value={command}
             onChange={e => setCommand(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -976,33 +974,17 @@ function AgentPanel({ agent, history, outputs, isExpanded, isFocused, advancedVi
           <input
             ref={inputRef as React.RefCallback<HTMLInputElement>}
             type="text"
-            placeholder={agent.status === 'working'
-              ? `Queue for ${agent.name}... (paste image)`
-              : `Command ${agent.name}... (paste image)`}
+            placeholder={`Command ${agent.name}... (paste image)`}
             value={command}
             onChange={e => setCommand(e.target.value)}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
           />
         )}
-        {(agent.pendingCommands?.length || 0) > 0 && (
-          <span className="queue-badge" title="Commands in queue">
-            {agent.pendingCommands.length}
-          </span>
-        )}
         <button onClick={handleSend} disabled={!command.trim() && attachedFiles.length === 0}>
-          {agent.status === 'working' ? 'Queue' : 'Send'}
+          Send
         </button>
       </div>
-      {agent.pendingCommands?.length > 0 && (
-        <div className="agent-panel-queue">
-          {agent.pendingCommands.map((cmd, i) => (
-            <div key={i} className="agent-panel-queue-item" title={cmd}>
-              {i + 1}. {cmd.length > 30 ? cmd.substring(0, 30) + '...' : cmd}
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

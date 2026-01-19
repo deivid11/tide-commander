@@ -3,7 +3,7 @@
  * Spawns and manages Claude Code CLI processes with streaming output
  */
 
-import { spawn, ChildProcess } from 'child_process';
+import { spawn, ChildProcess, execSync } from 'child_process';
 import { StringDecoder } from 'string_decoder';
 import type {
   CLIBackend,
@@ -126,6 +126,35 @@ export class ClaudeRunner {
     log.log(` Sending additional message to ${agentId}: ${stdinInput.substring(0, 100)}...`);
     activeProcess.process.stdin.write(stdinInput + '\n');
     return true;
+  }
+
+  /**
+   * Interrupt a running agent process (like Ctrl+C) without killing it
+   * This stops the current operation but keeps the process alive for more input
+   * Returns true if interrupt was sent, false if no running process
+   */
+  interrupt(agentId: string): boolean {
+    const activeProcess = this.activeProcesses.get(agentId);
+    if (!activeProcess) {
+      log.log(` No active process to interrupt for agent ${agentId}`);
+      return false;
+    }
+
+    const pid = activeProcess.process.pid;
+    if (!pid) {
+      log.log(` No PID for agent ${agentId}`);
+      return false;
+    }
+
+    log.log(` Sending SIGINT (interrupt) to agent ${agentId} (pid: ${pid})`);
+    try {
+      // Send SIGINT to the process (like Ctrl+C)
+      activeProcess.process.kill('SIGINT');
+      return true;
+    } catch (e) {
+      log.error(` Failed to interrupt agent ${agentId}:`, e);
+      return false;
+    }
   }
 
   /**
@@ -363,5 +392,68 @@ export class ClaudeRunner {
    */
   getSessionId(agentId: string): string | undefined {
     return this.activeProcesses.get(agentId)?.sessionId;
+  }
+
+  /**
+   * Get memory usage for an agent's process in MB
+   * Returns undefined if process is not running or memory cannot be determined
+   */
+  getProcessMemoryMB(agentId: string): number | undefined {
+    const activeProcess = this.activeProcesses.get(agentId);
+    if (!activeProcess || !activeProcess.process.pid) {
+      return undefined;
+    }
+
+    const pid = activeProcess.process.pid;
+
+    try {
+      // On Linux, read from /proc/{pid}/status for VmRSS (Resident Set Size)
+      // This is the actual physical memory used by the process
+      const status = execSync(`cat /proc/${pid}/status 2>/dev/null | grep VmRSS`, {
+        encoding: 'utf8',
+        timeout: 1000,
+      });
+
+      // Parse "VmRSS:    12345 kB"
+      const match = status.match(/VmRSS:\s+(\d+)\s+kB/);
+      if (match) {
+        const kB = parseInt(match[1], 10);
+        return Math.round(kB / 1024); // Convert to MB
+      }
+    } catch {
+      // Process might have died or /proc not available (non-Linux)
+      // Try ps as fallback (works on macOS too)
+      try {
+        const psOutput = execSync(`ps -o rss= -p ${pid}`, {
+          encoding: 'utf8',
+          timeout: 1000,
+        });
+        const kB = parseInt(psOutput.trim(), 10);
+        if (!isNaN(kB)) {
+          return Math.round(kB / 1024); // Convert to MB
+        }
+      } catch {
+        // Process not found or error
+      }
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Get memory usage for all active processes
+   * Returns a Map of agentId -> memoryMB
+   */
+  getAllProcessMemory(): Map<string, number> {
+    const memoryMap = new Map<string, number>();
+
+    for (const [agentId] of this.activeProcesses) {
+      const memMB = this.getProcessMemoryMB(agentId);
+      if (memMB !== undefined) {
+        memoryMap.set(agentId, memMB);
+      }
+    }
+
+    return memoryMap;
   }
 }

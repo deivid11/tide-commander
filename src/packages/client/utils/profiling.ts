@@ -203,17 +203,21 @@ class FPSTracker {
 
   /**
    * Call this at the start of each frame.
+   * @param maxExpectedDelta - If delta exceeds this (ms), skip recording (frame was throttled)
    */
-  tick(): void {
+  tick(maxExpectedDelta = 200): void {
     const now = performance.now();
 
     if (this.lastFrameTime > 0) {
       const delta = now - this.lastFrameTime;
-      this.frames.push(delta);
+      // Only record if delta is reasonable (not a throttled/skipped frame gap)
+      if (delta < maxExpectedDelta) {
+        this.frames.push(delta);
 
-      // Keep last 60 frames for rolling average
-      if (this.frames.length > 60) {
-        this.frames.shift();
+        // Keep last 60 frames for rolling average
+        if (this.frames.length > 60) {
+          this.frames.shift();
+        }
       }
     }
 

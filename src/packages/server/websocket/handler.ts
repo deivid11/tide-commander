@@ -1370,14 +1370,6 @@ function setupServiceListeners(): void {
     sendActivity(agentId, `Error: ${error}`);
   });
 
-  // Set up queue update callback
-  claudeService.setQueueUpdateCallback((agentId, pendingCommands) => {
-    broadcast({
-      type: 'queue_update',
-      payload: { agentId, pendingCommands },
-    });
-  });
-
   // Set up command started callback
   claudeService.setCommandStartedCallback((agentId, command) => {
     broadcast({

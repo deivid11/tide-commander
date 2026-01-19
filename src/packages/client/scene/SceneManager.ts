@@ -41,11 +41,14 @@ export class SceneManager {
   private lastCameraSave = 0;
   private lastTimeUpdate = 0;
   private lastFrameTime = 0;
+  private lastRenderTime = 0; // For FPS limiting
   private lastIdleTimerUpdate = 0;
   private characterScale = 0.5;
   private indicatorScale = 1.0;
   private idleAnimation: string = ANIMATIONS.SIT;
   private workingAnimation: string = ANIMATIONS.WALK;
+  private fpsLimit = 0; // 0 = unlimited
+  private frameInterval = 0; // Calculated from fpsLimit
 
   // Callbacks
   private onAreaDoubleClickCallback: ((areaId: string) => void) | null = null;
@@ -664,6 +667,16 @@ export class SceneManager {
   }
 
   /**
+   * Set FPS limit for the render loop.
+   * @param limit - Maximum FPS (0 = unlimited)
+   */
+  setFpsLimit(limit: number): void {
+    this.fpsLimit = limit;
+    this.frameInterval = limit > 0 ? 1000 / limit : 0;
+    console.log(`[Tide] FPS limit set to ${limit}, frameInterval: ${this.frameInterval}ms`);
+  }
+
+  /**
    * Set grid visibility.
    */
   setGridVisible(visible: boolean): void {
@@ -896,6 +909,16 @@ export class SceneManager {
   private animate = (): void => {
     requestAnimationFrame(this.animate);
 
+    // FPS limiting: skip frame if not enough time has passed
+    const now = Date.now();
+    if (this.frameInterval > 0) {
+      const elapsed = now - this.lastRenderTime;
+      if (elapsed < this.frameInterval) {
+        return; // Skip this frame
+      }
+      this.lastRenderTime = now;
+    }
+
     // Track FPS
     fpsTracker.tick();
     perf.start('scene:frame');
@@ -903,7 +926,6 @@ export class SceneManager {
     this.controls.update();
 
     // Calculate delta time
-    const now = Date.now();
     const deltaTime = this.lastFrameTime ? (now - this.lastFrameTime) / 1000 : 0.016;
     this.lastFrameTime = now;
 

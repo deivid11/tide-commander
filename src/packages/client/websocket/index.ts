@@ -211,11 +211,6 @@ function handleServerMessage(message: ServerMessage): void {
           previousAgent.position.z !== updatedAgent.position.z
         : false;
 
-      // Preserve client-side pendingCommands (managed separately via queue_update)
-      if (previousAgent?.pendingCommands) {
-        updatedAgent.pendingCommands = previousAgent.pendingCommands;
-      }
-
       store.updateAgent(updatedAgent);
       onAgentUpdated?.(updatedAgent, positionChanged);
       break;
@@ -308,15 +303,6 @@ function handleServerMessage(message: ServerMessage): void {
         console.log('[WebSocket] Calling __spawnModalDirNotFound');
         (window as any).__spawnModalDirNotFound(path);
       }
-      break;
-    }
-
-    case 'queue_update': {
-      const { agentId, pendingCommands } = message.payload as {
-        agentId: string;
-        pendingCommands: string[];
-      };
-      store.updatePendingCommands(agentId, pendingCommands);
       break;
     }
 

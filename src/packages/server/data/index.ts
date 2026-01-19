@@ -178,7 +178,6 @@ export function updateAgentSession(agentId: string, sessionId: string): void {
     agent.lastSessionId = agent.sessionId;
     agent.sessionId = sessionId;
     // Re-save with proper typing - ensure context fields have defaults
-    // Note: pendingCommands is runtime-only and initialized to [] when loaded
     saveAgents(agents.map(a => ({
       ...a,
       status: 'offline' as const,
@@ -186,7 +185,6 @@ export function updateAgentSession(agentId: string, sessionId: string): void {
       contextLimit: a.contextLimit ?? 200000,
       taskCount: a.taskCount ?? 0,
       permissionMode: a.permissionMode ?? 'bypass',
-      pendingCommands: [], // Runtime-only, always empty when saved
     })));
   }
 }

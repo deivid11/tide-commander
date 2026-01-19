@@ -55,9 +55,6 @@ export interface Agent {
   // Task counter - number of user messages/commands sent to this agent
   taskCount: number;
 
-  // Command queue - commands sent while agent is busy
-  pendingCommands: string[];
-
   // Timestamps
   createdAt: number;
   lastActivity: number;
@@ -381,15 +378,6 @@ export interface RenameAgentMessage extends WSMessage {
 export interface ErrorMessage extends WSMessage {
   type: 'error';
   payload: { message: string };
-}
-
-// Queue update message - sent when pending commands change
-export interface QueueUpdateMessage extends WSMessage {
-  type: 'queue_update';
-  payload: {
-    agentId: string;
-    pendingCommands: string[];
-  };
 }
 
 // Command started message - sent when a command begins execution
@@ -771,7 +759,6 @@ export type ServerMessage =
   | OutputMessage
   | ErrorMessage
   | DirectoryNotFoundMessage
-  | QueueUpdateMessage
   | CommandStartedMessage
   | SupervisorReportMessage
   | SupervisorStatusMessage

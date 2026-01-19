@@ -1355,8 +1355,9 @@
   flex: 1;
   padding: 0 8px;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  // Never truncate diff content - show full lines
+  overflow-x: auto;
+  white-space: pre;
 }
 
 // Read tool input

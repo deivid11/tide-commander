@@ -26,28 +26,11 @@ const eventListeners = new Map<keyof ClaudeServiceEvents, Set<EventListener<any>
 // Claude Runner instance
 let runner: ClaudeRunner | null = null;
 
-// Command queue per agent
-const commandQueues = new Map<string, string[]>();
-
-// Queue update callback (set by websocket handler)
-let queueUpdateCallback: ((agentId: string, pendingCommands: string[]) => void) | null = null;
-
 // Command started callback (set by websocket handler)
 let commandStartedCallback: ((agentId: string, command: string) => void) | null = null;
 
-export function setQueueUpdateCallback(callback: (agentId: string, pendingCommands: string[]) => void): void {
-  queueUpdateCallback = callback;
-}
-
 export function setCommandStartedCallback(callback: (agentId: string, command: string) => void): void {
   commandStartedCallback = callback;
-}
-
-function notifyQueueUpdate(agentId: string): void {
-  const queue = commandQueues.get(agentId) || [];
-  if (queueUpdateCallback) {
-    queueUpdateCallback(agentId, queue);
-  }
 }
 
 function notifyCommandStarted(agentId: string, command: string): void {
@@ -164,23 +147,20 @@ function handleEvent(agentId: string, event: StandardEvent): void {
           (agent.tokensUsed || 0) + event.tokens.input + event.tokens.output;
         // contextUsed = tokensUsed (total tokens as proxy for conversation fullness)
         log.log(` Agent ${agentId} step_complete: input=${event.tokens.input}, output=${event.tokens.output}, cacheCreation=${event.tokens.cacheCreation}, cacheRead=${event.tokens.cacheRead}, newTokens=${newTokens}, cost=${event.cost}, setting to idle`);
-        const updated = agentService.updateAgent(agentId, {
+        agentService.updateAgent(agentId, {
           tokensUsed: newTokens,
           contextUsed: newTokens,
-          status: 'idle',
-          currentTask: undefined,
-          currentTool: undefined,
         });
-        log.log(` Agent ${agentId} after update: status=${updated?.status}, contextUsed=${updated?.contextUsed}`);
-      } else {
-        log.log(` Agent ${agentId} step_complete but no tokens, setting to idle anyway`);
-        const updated = agentService.updateAgent(agentId, {
-          status: 'idle',
-          currentTask: undefined,
-          currentTool: undefined,
-        });
-        log.log(` Agent ${agentId} after update (no tokens): status=${updated?.status}`);
       }
+
+      // Set to idle
+      log.log(` Agent ${agentId} setting to idle`);
+      const updated = agentService.updateAgent(agentId, {
+        status: 'idle',
+        currentTask: undefined,
+        currentTool: undefined,
+      });
+      log.log(` Agent ${agentId} after update: status=${updated?.status}, contextUsed=${updated?.contextUsed}`);
       break;
 
     case 'error':
@@ -267,7 +247,8 @@ async function executeCommand(agentId: string, command: string, systemPrompt?: s
   });
 }
 
-// Public function to send a command - sends directly to running process or starts new one
+// Public function to send a command - sends directly to running process if busy
+// This allows users to send messages while Claude is working - Claude will see them in stdin
 // systemPrompt is only used when starting a new process (not for messages to running process)
 // disableTools disables all tools (used for boss team questions to force direct response)
 // forceNewSession: when true, don't resume existing session (for boss team questions with context)
@@ -281,22 +262,30 @@ export async function sendCommand(agentId: string, command: string, systemPrompt
     throw new Error(`Agent not found: ${agentId}`);
   }
 
-  // Increment task counter for this agent
-  agentService.updateAgent(agentId, { taskCount: (agent.taskCount || 0) + 1 });
-
-  // If agent has a running process and we're NOT disabling tools or forcing new session, send message directly
-  // Note: systemPrompt, disableTools, forceNewSession are ignored for running processes (only applies to new sessions)
+  // Check if agent is currently busy (has a running process)
+  // If busy, send the message directly to the running process via stdin
+  // Claude will process it as part of its current turn - no interruption needed
   if (runner.isRunning(agentId) && !disableTools && !forceNewSession) {
+    log.log(` Agent ${agentId} is busy, sending message directly to running process...`);
+
+    // Send directly to the running process via stdin
     const sent = runner.sendMessage(agentId, command);
     if (sent) {
-      log.log(` Sent message directly to running process for ${agentId}: ${command.substring(0, 50)}...`);
-      // Notify that command started (for UI feedback)
+      log.log(` Sent message to running process for ${agentId}: ${command.substring(0, 50)}...`);
       notifyCommandStarted(agentId, command);
+      agentService.updateAgent(agentId, {
+        taskCount: (agent.taskCount || 0) + 1,
+        lastAssignedTask: command,
+        lastAssignedTaskTime: Date.now(),
+      });
       return;
     }
-    // If sending failed, fall through to start new process
-    log.log(` Failed to send to running process, starting new one for ${agentId}`);
+    // If sending failed (process died), fall through to start new process
+    log.log(` Failed to send to running process, starting new process for ${agentId}`);
   }
+
+  // Increment task counter for this agent
+  agentService.updateAgent(agentId, { taskCount: (agent.taskCount || 0) + 1 });
 
   // Agent is idle, sending failed, or we need special options - execute with new process
   await executeCommand(agentId, command, systemPrompt, disableTools, forceNewSession);
@@ -305,22 +294,10 @@ export async function sendCommand(agentId: string, command: string, systemPrompt
 export async function stopAgent(agentId: string): Promise<void> {
   if (!runner) return;
   await runner.stop(agentId);
-  // Clear the queue when agent is stopped
-  commandQueues.delete(agentId);
-  notifyQueueUpdate(agentId);
 }
 
 export function isAgentRunning(agentId: string): boolean {
   return runner?.isRunning(agentId) ?? false;
-}
-
-export function getPendingCommands(agentId: string): string[] {
-  return commandQueues.get(agentId) || [];
-}
-
-export function clearPendingCommands(agentId: string): void {
-  commandQueues.delete(agentId);
-  notifyQueueUpdate(agentId);
 }
 
 /**

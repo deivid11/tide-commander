@@ -8,8 +8,9 @@
  *   <FPSMeter visible={showFPS} />
  */
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { fpsTracker, memory, perf } from '../utils/profiling';
+import { useAgentsArray } from '../store';
 
 interface FPSMeterProps {
   visible?: boolean;
@@ -27,41 +28,46 @@ export function FPSMeter({ visible = true, position = 'top-right' }: FPSMeterPro
   const rafRef = useRef<number>(0);
   const lastUpdateRef = useRef(0);
 
+  // Get agents for RAM tracking
+  const agents = useAgentsArray();
+
+  // Calculate total agent RAM usage
+  const agentMemoryStats = useMemo(() => {
+    const agentsWithMemory = agents.filter(a => a.memoryUsageMB !== undefined && a.memoryUsageMB > 0);
+    const totalMB = agentsWithMemory.reduce((sum, a) => sum + (a.memoryUsageMB || 0), 0);
+    return {
+      totalMB,
+      agentCount: agentsWithMemory.length,
+      agents: agentsWithMemory.map(a => ({
+        name: a.name,
+        memoryMB: a.memoryUsageMB || 0,
+        status: a.status,
+      })).sort((a, b) => b.memoryMB - a.memoryMB), // Sort by memory usage desc
+    };
+  }, [agents]);
+
   useEffect(() => {
     if (!isDev || !visible) return;
 
-    let frameCount = 0;
+    // Update display every second using setInterval (don't call tick - SceneManager does that)
+    const intervalId = setInterval(() => {
+      fpsTracker.update();
+      const stats = fpsTracker.getStats();
+      setFps(stats.current);
+      setFpsHistory(prev => {
+        const next = [...prev, stats.current];
+        return next.slice(-60); // Keep last 60 seconds
+      });
 
-    const tick = (time: number) => {
-      fpsTracker.tick();
-      frameCount++;
-
-      // Update display every second
-      if (time - lastUpdateRef.current >= 1000) {
-        fpsTracker.update();
-        const stats = fpsTracker.getStats();
-        setFps(stats.current);
-        setFpsHistory(prev => {
-          const next = [...prev, stats.current];
-          return next.slice(-60); // Keep last 60 seconds
-        });
-
-        // Update memory if available
-        const mem = memory.getUsage();
-        if (mem) {
-          setMemoryUsage({ usedMB: mem.usedMB, totalMB: mem.totalMB });
-        }
-
-        lastUpdateRef.current = time;
+      // Update memory if available
+      const mem = memory.getUsage();
+      if (mem) {
+        setMemoryUsage({ usedMB: mem.usedMB, totalMB: mem.totalMB });
       }
-
-      rafRef.current = requestAnimationFrame(tick);
-    };
-
-    rafRef.current = requestAnimationFrame(tick);
+    }, 1000);
 
     return () => {
-      cancelAnimationFrame(rafRef.current);
+      clearInterval(intervalId);
     };
   }, [visible]);
 
@@ -109,9 +115,9 @@ export function FPSMeter({ visible = true, position = 'top-right' }: FPSMeterPro
           {fps}
         </span>
         <span style={{ color: '#888' }}>FPS</span>
-        {memoryUsage && (
-          <span style={{ color: '#888', marginLeft: '6px' }}>
-            {memoryUsage.usedMB}MB
+        {agentMemoryStats.totalMB > 0 && (
+          <span style={{ color: '#4aff9e', marginLeft: '6px', fontWeight: 'bold' }}>
+            {agentMemoryStats.totalMB}MB
           </span>
         )}
       </div>
@@ -150,10 +156,53 @@ export function FPSMeter({ visible = true, position = 'top-right' }: FPSMeterPro
             </div>
           </div>
 
-          {/* Memory */}
+          {/* Agent RAM */}
+          {agentMemoryStats.agentCount > 0 && (
+            <div style={{ marginBottom: '6px' }}>
+              <div style={{ color: '#888', marginBottom: '2px' }}>
+                Agent RAM ({agentMemoryStats.agentCount} active):
+              </div>
+              <div style={{ fontSize: '10px' }}>
+                <div style={{ color: '#4aff9e', fontWeight: 'bold', marginBottom: '4px' }}>
+                  Total: {agentMemoryStats.totalMB}MB
+                </div>
+                <div style={{ maxHeight: '60px', overflowY: 'auto' }}>
+                  {agentMemoryStats.agents.slice(0, 5).map((agent, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        gap: '8px',
+                        marginBottom: '2px',
+                      }}
+                    >
+                      <span style={{
+                        color: agent.status === 'working' ? '#4aff9e' : '#888',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        maxWidth: '100px',
+                      }}>
+                        {agent.name}
+                      </span>
+                      <span style={{ color: '#4a9eff' }}>{agent.memoryMB}MB</span>
+                    </div>
+                  ))}
+                  {agentMemoryStats.agents.length > 5 && (
+                    <div style={{ color: '#666', fontSize: '9px' }}>
+                      +{agentMemoryStats.agents.length - 5} more...
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Browser Memory */}
           {memoryUsage && (
             <div style={{ marginBottom: '6px' }}>
-              <div style={{ color: '#888', marginBottom: '2px' }}>Memory:</div>
+              <div style={{ color: '#888', marginBottom: '2px' }}>Browser Heap:</div>
               <div style={{ fontSize: '10px' }}>
                 {memoryUsage.usedMB}MB / {memoryUsage.totalMB}MB
                 <div

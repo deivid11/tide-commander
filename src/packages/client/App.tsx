@@ -45,6 +45,9 @@ const DEFAULT_ANIMATIONS = {
   workingAnimation: 'sprint' as const,
 };
 
+// Default FPS limit (0 = unlimited)
+const DEFAULT_FPS_LIMIT = 0;
+
 // Load config from localStorage
 function loadConfig(): SceneConfig {
   try {
@@ -58,12 +61,13 @@ function loadConfig(): SceneConfig {
         timeMode: parsed.timeMode ?? 'auto',
         terrain: { ...DEFAULT_TERRAIN, ...parsed.terrain },
         animations: { ...DEFAULT_ANIMATIONS, ...parsed.animations },
+        fpsLimit: parsed.fpsLimit ?? DEFAULT_FPS_LIMIT,
       };
     }
   } catch (err) {
     console.warn('[Tide] Failed to load config:', err);
   }
-  return { characterScale: 0.5, indicatorScale: 1.0, gridVisible: true, timeMode: 'auto', terrain: DEFAULT_TERRAIN, animations: DEFAULT_ANIMATIONS };
+  return { characterScale: 0.5, indicatorScale: 1.0, gridVisible: true, timeMode: 'auto', terrain: DEFAULT_TERRAIN, animations: DEFAULT_ANIMATIONS, fpsLimit: DEFAULT_FPS_LIMIT };
 }
 
 // Save config to localStorage
@@ -125,6 +129,7 @@ function AppContent() {
       scene.setFloorStyle(savedConfig.terrain.floorStyle, true); // force=true on initial load
       scene.setIdleAnimation(savedConfig.animations.idleAnimation);
       scene.setWorkingAnimation(savedConfig.animations.workingAnimation);
+      scene.setFpsLimit(savedConfig.fpsLimit);
 
       // Load character models then upgrade any existing agents
       scene.loadCharacterModels().then(() => {
@@ -255,6 +260,7 @@ function AppContent() {
     sceneRef.current?.setFloorStyle(config.terrain.floorStyle);
     sceneRef.current?.setIdleAnimation(config.animations.idleAnimation);
     sceneRef.current?.setWorkingAnimation(config.animations.workingAnimation);
+    sceneRef.current?.setFpsLimit(config.fpsLimit);
   }, []);
 
   // Handle tool changes

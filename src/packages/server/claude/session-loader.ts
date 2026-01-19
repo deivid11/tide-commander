@@ -170,13 +170,10 @@ export async function loadSession(
               const content = typeof block.content === 'string'
                 ? block.content
                 : JSON.stringify(block.content);
-              // Truncate large tool results
-              const truncated = content.length > 500
-                ? content.substring(0, 500) + '...'
-                : content;
+              // Never truncate - show full content
               messages.push({
                 type: 'tool_result',
-                content: truncated,
+                content,
                 timestamp: entry.timestamp,
                 uuid: entry.uuid,
                 toolName: block.tool_use_id,
@@ -286,9 +283,10 @@ export async function searchSession(
       // Helper to check if content matches query
       const checkMatch = (content: string, type: SessionMessage['type'], toolName?: string) => {
         if (content.toLowerCase().includes(queryLower)) {
+          // Never truncate - show full content
           matches.push({
             type,
-            content: content.length > 500 ? content.substring(0, 500) + '...' : content,
+            content,
             timestamp: entry.timestamp,
             uuid: entry.uuid,
             toolName,
@@ -317,9 +315,10 @@ export async function searchSession(
             } else if (block.type === 'tool_use' && block.name) {
               const inputStr = JSON.stringify(block.input || {});
               if (block.name.toLowerCase().includes(queryLower) || inputStr.toLowerCase().includes(queryLower)) {
+                // Never truncate - show full content
                 matches.push({
                   type: 'tool_use',
-                  content: inputStr.length > 500 ? inputStr.substring(0, 500) + '...' : inputStr,
+                  content: inputStr,
                   timestamp: entry.timestamp,
                   uuid: entry.uuid,
                   toolName: block.name,

@@ -32,7 +32,7 @@ interface SearchResult {
   action: () => void;
   _searchText?: string; // Internal field for searching
   _modifiedFiles?: string[]; // Internal field for file search
-  _userQueries?: string[]; // Internal field for user query search (lastAssignedTask + pendingCommands)
+  _userQueries?: string[]; // Internal field for user query search (lastAssignedTask)
   _historyEntries?: { text: string; timestamp: number }[]; // All supervisor history entries for search
 }
 
@@ -226,14 +226,10 @@ export function Spotlight({
       const uniqueFiles = [...new Set(agentFiles)];
       const fileNames = uniqueFiles.map(fp => fp.split('/').pop() || fp);
 
-      // Get user queries (lastAssignedTask + pending commands)
+      // Get user queries (lastAssignedTask)
       const userQueries: string[] = [];
       if (agent.lastAssignedTask) {
         userQueries.push(agent.lastAssignedTask);
-      }
-      // Add pending commands (user messages waiting to be processed)
-      if (agent.pendingCommands && agent.pendingCommands.length > 0) {
-        userQueries.push(...agent.pendingCommands.slice(0, 4)); // Add up to 4 pending
       }
 
       // Build subtitle with basic info

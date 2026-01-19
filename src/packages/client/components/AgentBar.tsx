@@ -407,14 +407,6 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
                   </span>
                 </div>
               )}
-              {(hoveredAgent.pendingCommands?.length || 0) > 0 && (
-                <div className="agent-bar-tooltip-row">
-                  <span className="agent-bar-tooltip-label">Queued:</span>
-                  <span className="agent-bar-tooltip-value agent-bar-tooltip-queue">
-                    {hoveredAgent.pendingCommands.length} command(s)
-                  </span>
-                </div>
-              )}
               {hoveredLastPrompt && (
                 <div className="agent-bar-tooltip-row">
                   <span className="agent-bar-tooltip-label">Last Query:</span>
