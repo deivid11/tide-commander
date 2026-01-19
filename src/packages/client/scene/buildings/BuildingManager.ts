@@ -1410,10 +1410,23 @@ export class BuildingManager {
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d')!;
 
-    canvas.width = 256;
-    canvas.height = 64;
+    const fontSize = 24;
+    const padding = 20;
+    const canvasHeight = 64;
 
+    // Set initial canvas size for accurate text measurement
+    canvas.width = 1024;
+    canvas.height = canvasHeight;
+    context.font = `bold ${fontSize}px Arial`;
+    const measuredWidth = context.measureText(text).width;
+
+    // Resize canvas to fit text (with minimum width)
+    const minCanvasWidth = 256;
+    canvas.width = Math.max(minCanvasWidth, measuredWidth + padding * 2);
+
+    // Clear canvas and reset context after resize
     context.clearRect(0, 0, canvas.width, canvas.height);
+    context.font = `bold ${fontSize}px Arial`;
 
     // Background
     context.fillStyle = 'rgba(0, 0, 0, 0.7)';
@@ -1421,7 +1434,6 @@ export class BuildingManager {
     context.fill();
 
     // Text
-    context.font = 'bold 24px Arial';
     context.textAlign = 'center';
     context.textBaseline = 'middle';
     context.fillStyle = '#ffffff';
@@ -1436,8 +1448,12 @@ export class BuildingManager {
       depthTest: false,
     });
 
+    // Scale must match canvas aspect ratio to avoid distortion
+    // Original: 256x64 canvas = 2x0.5 sprite (both 4:1 ratio)
     const sprite = new THREE.Sprite(material);
-    sprite.scale.set(2, 0.5, 1);
+    const baseHeight = 0.5;
+    const widthScale = 2 * (canvas.width / 256);
+    sprite.scale.set(widthScale, baseHeight, 1);
 
     return sprite;
   }

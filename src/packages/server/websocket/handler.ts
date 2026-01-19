@@ -1019,7 +1019,7 @@ If there are alternative agents, briefly mention:
 **🔄 Alternatives:** [Other agents who could do this and why you didn't pick them]
 
 ### 3. Delegation Block (REQUIRED for auto-forwarding)
-At the END of your response, include a JSON block with an array of delegations. You can delegate to ONE or MULTIPLE agents:
+At the END of your response, include a JSON block with delegations:
 
 \`\`\`delegation
 [
@@ -1029,34 +1029,55 @@ At the END of your response, include a JSON block with an array of delegations. 
     "taskCommand": "<SPECIFIC task command for THIS agent>",
     "reasoning": "<why this agent>",
     "confidence": "high|medium|low"
-  },
-  {
-    "selectedAgentId": "<another agent ID if needed>",
-    "selectedAgentName": "<Another Agent Name>",
-    "taskCommand": "<SPECIFIC task command for THIS agent - can be different>",
-    "reasoning": "<why this agent>",
-    "confidence": "high|medium|low"
   }
 ]
 \`\`\`
 
-**CRITICAL:**
+**CRITICAL RULES:**
 - Use an ARRAY format - even for single delegation, wrap in [ ]
 - "selectedAgentId" MUST be the exact Agent ID string (e.g., \`hj8ojr7i\`). Copy it exactly!
-- "taskCommand" is what gets sent to each agent. Can be different per agent or the same.
-- For multi-agent tasks (like "tell everyone hello"), include ALL agents in the array.
+- "taskCommand" is what gets sent to each agent
+
+## SINGLE vs MULTI-AGENT DELEGATION:
+
+**⚠️ DEFAULT TO SINGLE AGENT.** One capable agent with full context beats multiple agents with fragmented knowledge.
+
+### When to use SINGLE agent (the default):
+- Tasks are sequential phases of the same work (review → implement → test)
+- One step needs context from a previous step
+- A single competent agent can handle the full scope
+- Example: "review POC, improve stdin feature, add tests" → ONE agent does all three because they build on each other
+
+### When MULTI-agent delegation is appropriate:
+- Tasks are truly independent (no shared context needed)
+- Tasks require different specializations AND can run in parallel (e.g., frontend UI + backend API)
+- User explicitly asks to split work across agents
+- Broadcasting a message to all agents (like "tell everyone hello")
+
+### DON'T split tasks when:
+- The tasks share context (investigating → implementing → testing is ONE workflow)
+- One agent would need to re-discover what another agent already learned
+- The tasks are phases of one larger task, not independent units
 
 ---
 
 ## SPAWNING NEW AGENTS:
-When you need an agent with a specific skill that isn't on your team, you can spawn a new one.
+You can ONLY spawn new agents when the user EXPLICITLY requests it.
 
 ### When to Spawn:
-- User requests a task but you have no suitable agent
-- You need a specialist (e.g., "I need a debugger to investigate this")
-- Building out your team for a project
+- User explicitly says "create an agent", "spawn a debugger", "add X to the team", etc.
+- User directly asks you to add a new team member
+- **NEVER spawn automatically** just because no suitable agent exists
 
-### Spawn Block Format:
+### When NOT to Spawn:
+- User asks for a task but you have no suitable agent → **Delegate to the closest available agent** OR **ask the user if they want to spawn a specialist**
+- You think you need a specialist → **Ask the user first** before spawning
+
+### What to Do When No Suitable Agent Exists:
+1. **Option A:** Delegate to the closest matching agent (e.g., a builder can do debugging tasks, a scout can help with planning)
+2. **Option B:** Ask the user: "I don't have a specialized [agent type] on my team. Would you like me to spawn one, or should I delegate this to [available agent]?"
+
+### Spawn Block Format (ONLY when user explicitly requests):
 Include at the END of your response (can be combined with delegation):
 
 \`\`\`spawn
@@ -1077,17 +1098,37 @@ Include at the END of your response (can be combined with delegation):
 - **warrior**: Aggressive refactoring, migrations
 - **support**: Documentation, tests, cleanup
 
-### Example:
-If user asks "fix the login bug" but you have no debugger:
+### Example 1 - User explicitly requests spawning:
+User: "Create a debugger to help with bug fixes"
 
 **🔧 Spawning new agent:**
-I don't have a debugger on my team. Let me create one to investigate this issue.
+I'll create a debugger for your team.
 
 \`\`\`spawn
 [{"name": "BugHunter", "class": "debugger"}]
 \`\`\`
 
-After spawning, the agent will automatically be added to your team and you can delegate to them.
+### Example 2 - No suitable agent, ask user:
+User: "Fix the login bug"
+You have: builder, scout (no debugger)
+
+**Response:**
+I don't have a debugger on my team currently. I can either:
+1. Delegate this to **BuilderBot** (builder) who can investigate and fix code issues
+2. Spawn a specialized **debugger** agent if you'd like
+
+Would you like me to spawn a debugger, or should I delegate to BuilderBot?
+
+### Example 3 - No suitable agent, delegate to closest:
+User: "Fix this typo in the error message"
+You have: builder, scout (no debugger)
+
+**Response:**
+This is a simple fix. I'll delegate to BuilderBot since it's a straightforward code change.
+
+\`\`\`delegation
+[{"selectedAgentId": "abc123", "selectedAgentName": "BuilderBot", "taskCommand": "Fix the typo in the error message", "reasoning": "Simple code fix within builder capabilities", "confidence": "high"}]
+\`\`\`
 
 ---`;
 }
@@ -1253,6 +1294,21 @@ function setupServiceListeners(): void {
             payload: decision,
           });
 
+          // Broadcast delegation message as output for the subordinate's conversation panel
+          if (decision.selectedAgentId) {
+            const delegationMessage = `📋 **Task delegated from ${bossName}:**\n\n${decision.userCommand}`;
+            broadcast({
+              type: 'output',
+              payload: {
+                agentId: decision.selectedAgentId,
+                text: delegationMessage,
+                isStreaming: false,
+                timestamp: Date.now(),
+                isDelegation: true,
+              },
+            });
+          }
+
           // Auto-forward the command to the subordinate agent (backend handles this to prevent duplicates)
           if (decision.selectedAgentId && decision.userCommand) {
             log.log(`🟢🟢🟢 SENDING COMMAND to ${decision.selectedAgentName} (${decision.selectedAgentId}): "${decision.userCommand.slice(0, 50)}..."`);
@@ -1351,15 +1407,19 @@ function setupServiceListeners(): void {
   }
 
   claudeService.on('output', (agentId, text, isStreaming) => {
+    const timestamp = Date.now();
+    log.log(`📤 [OUTPUT] Received output for agent ${agentId}, isStreaming=${isStreaming}, textLen=${text.length}, timestamp=${timestamp}`);
+    log.log(`📤 [OUTPUT] Text preview: "${text.substring(0, 100)}..."`);
     broadcast({
       type: 'output' as any,
       payload: {
         agentId,
         text,
         isStreaming: isStreaming || false,
-        timestamp: Date.now(),
+        timestamp,
       },
     });
+    log.log(`📤 [OUTPUT] Broadcast complete for timestamp=${timestamp}`);
   });
 
   claudeService.on('complete', (agentId, success) => {

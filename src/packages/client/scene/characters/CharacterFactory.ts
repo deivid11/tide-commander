@@ -12,6 +12,7 @@ const STATUS_COLORS: Record<string, number> = {
   waiting: 0xff9e4a,
   waiting_permission: 0xffcc00, // Yellow/gold for awaiting permission
   error: 0xff4a4a,
+  orphaned: 0xff00ff, // Magenta/purple for orphaned (untracked) processes
   default: 0x888888,
 };
 
@@ -170,19 +171,27 @@ export class CharacterFactory {
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d')!;
 
-    // High resolution canvas (2:1 aspect ratio) for crisp text
-    canvas.width = 512;
-    canvas.height = 256;
-
-    // Clear canvas
-    context.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Set font first to measure text - larger for high-res canvas
-    context.font = 'bold 72px Arial';
-    const measuredWidth = context.measureText(name).width;
+    const fontSize = 72;
     const padding = 32;
-    const bgWidth = Math.min(measuredWidth + padding * 2, canvas.width - 16);
     const bgHeight = 100;
+    const canvasHeight = 256;
+
+    // Measure text to determine required canvas width
+    canvas.width = 2048;
+    canvas.height = canvasHeight;
+    context.font = `bold ${fontSize}px Arial`;
+    const measuredWidth = context.measureText(name).width;
+
+    // Set canvas width to fit text (minimum 512 for short names)
+    const minCanvasWidth = 512;
+    const requiredWidth = measuredWidth + padding * 2 + 16;
+    canvas.width = Math.max(minCanvasWidth, requiredWidth);
+
+    // Clear canvas and reset context after resize
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.font = `bold ${fontSize}px Arial`;
+
+    const bgWidth = measuredWidth + padding * 2;
     const bgX = (canvas.width - bgWidth) / 2;
     const bgY = (canvas.height - bgHeight) / 2;
 
@@ -211,12 +220,17 @@ export class CharacterFactory {
       depthTest: false,
     });
 
-    // Create sprite - proper 2:1 aspect ratio matching canvas
+    // Create sprite - scale must match canvas aspect ratio to avoid distortion
     const sprite = new THREE.Sprite(material);
-    // Position higher for boss agents
-    sprite.position.y = isBoss ? -0.2 : -0.3; // Below the character (at feet level)
-    sprite.scale.set(isBoss ? 1.5 : 1.2, isBoss ? 0.75 : 0.6, 1); // Larger for boss
+    sprite.position.y = isBoss ? -0.2 : -0.3;
+    const baseHeight = isBoss ? 0.75 : 0.6;
+    // Scale width proportionally to canvas width (original: 512x256 canvas = 1.2x0.6 sprite)
+    const baseWidth = isBoss ? 1.5 : 1.2;
+    const widthScale = baseWidth * (canvas.width / 512);
+    sprite.scale.set(widthScale, baseHeight, 1);
     sprite.name = 'nameLabel';
+    // Store aspect ratio for SceneManager to use when scaling
+    sprite.userData.aspectRatio = canvas.width / canvas.height;
 
     return sprite;
   }
@@ -284,8 +298,25 @@ export class CharacterFactory {
     const barHeight = height - 12 * scale;
     const borderRadius = 6 * scale;
 
-    // Draw status dot (left side)
-    const dotColor = status === 'working' ? '#4a9eff' : '#ff5555'; // blue if working, red if idle
+    // Draw status dot (left side) - color based on status
+    let dotColor: string;
+    switch (status) {
+      case 'working':
+        dotColor = '#4a9eff'; // blue
+        break;
+      case 'orphaned':
+        dotColor = '#ff00ff'; // magenta - untracked process running
+        break;
+      case 'error':
+        dotColor = '#ff4a4a'; // red
+        break;
+      case 'waiting':
+      case 'waiting_permission':
+        dotColor = '#ffcc00'; // yellow/gold
+        break;
+      default:
+        dotColor = '#4aff9e'; // green for idle
+    }
     const dotX = dotSize / 2 + 4 * scale;
     const dotY = height / 2;
 
@@ -574,7 +605,6 @@ export class CharacterFactory {
 
   /**
    * Update the idle timer for an agent.
-   * Optimized: reuses canvas to avoid memory leaks.
    */
   updateIdleTimer(group: THREE.Group, status: string, lastActivity: number): void {
     const idleTimer = group.getObjectByName('idleTimer') as THREE.Sprite;
@@ -583,13 +613,17 @@ export class CharacterFactory {
     const material = idleTimer.material as THREE.SpriteMaterial;
     if (!material.map) return;
 
-    // Reuse canvas instead of creating new one
-    const { canvas, ctx } = this.getIdleTimerCanvas();
+    // Get the canvas that's already attached to this sprite's texture
+    // Each sprite has its own canvas created in createIdleTimer
+    const existingCanvas = material.map.image as HTMLCanvasElement;
+    if (!existingCanvas || !(existingCanvas instanceof HTMLCanvasElement)) return;
 
-    this.drawIdleTimer(ctx, canvas.width, canvas.height, status, lastActivity);
+    const ctx = existingCanvas.getContext('2d');
+    if (!ctx) return;
 
-    // Update texture - reuse existing texture, just update the image data
-    material.map.image = canvas;
+    this.drawIdleTimer(ctx, existingCanvas.width, existingCanvas.height, status, lastActivity);
+
+    // Mark texture as needing update
     material.map.needsUpdate = true;
   }
 
@@ -604,13 +638,17 @@ export class CharacterFactory {
     const material = manaBar.material as THREE.SpriteMaterial;
     if (!material.map) return;
 
-    // Reuse canvas instead of creating new one
-    const { canvas, ctx } = this.getManaBarCanvas();
+    // Get the canvas that's already attached to this sprite's texture
+    // Each sprite has its own canvas created in createManaBar
+    const existingCanvas = material.map.image as HTMLCanvasElement;
+    if (!existingCanvas || !(existingCanvas instanceof HTMLCanvasElement)) return;
 
-    this.drawManaBar(ctx, canvas.width, canvas.height, contextUsed, contextLimit, status);
+    const ctx = existingCanvas.getContext('2d');
+    if (!ctx) return;
 
-    // Update texture - reuse existing texture, just update the image data
-    material.map.image = canvas;
+    this.drawManaBar(ctx, existingCanvas.width, existingCanvas.height, contextUsed, contextLimit, status);
+
+    // Mark texture as needing update
     material.map.needsUpdate = true;
   }
 

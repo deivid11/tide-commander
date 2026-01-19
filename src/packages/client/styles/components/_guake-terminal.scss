@@ -992,8 +992,8 @@
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  margin-bottom: 4px;
-  display: block;
+  margin-right: 6px;
+  display: inline;  // Inline with timestamp
 }
 
 .output-session {
@@ -1013,6 +1013,19 @@
   border-radius: $radius-sm;
 }
 
+// Timestamp display - inline with role, with background for legibility
+.output-timestamp {
+  font-family: $font-mono;
+  font-size: 9px;
+  color: $dracula-comment;
+  background: rgba($dracula-bg, 0.7);
+  padding: 1px 4px;
+  border-radius: 3px;
+  margin-right: 6px;
+  flex-shrink: 0;
+  user-select: none;
+}
+
 .output-tool-icon {
   font-size: 16px;
   line-height: 1;
@@ -1025,6 +1038,25 @@
   color: $dracula-orange;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.output-tool-param {
+  font-family: $font-mono;
+  font-size: 11px;
+  color: $dracula-cyan;
+  opacity: 0.9;
+  margin-left: 4px;
+  // NO truncation - show full content
+  white-space: pre-wrap;
+  word-break: break-all;
+
+  // Add a subtle separator before the param
+  &::before {
+    content: '›';
+    margin-right: 6px;
+    color: $dracula-comment;
+    opacity: 0.6;
+  }
 }
 
 .output-tool-loading {
@@ -1045,6 +1077,11 @@
 
   .output-tool-name {
     font-size: 11px;
+  }
+
+  .output-tool-param {
+    font-size: 10px;
+    // NO max-width - show full content
   }
 }
 
@@ -1411,6 +1448,127 @@
   font-size: 10px;
 }
 
+// TodoWrite tool input - checklist view
+.todo-tool-input {
+  width: 100%;
+}
+
+.todo-tool-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: rgba($dracula-green, 0.1);
+  border-bottom: 1px solid rgba($dracula-green, 0.2);
+  border-radius: $radius-sm $radius-sm 0 0;
+}
+
+.todo-tool-title {
+  font-family: $font-mono;
+  font-size: 12px;
+  font-weight: 600;
+  color: $dracula-green;
+}
+
+.todo-tool-stats {
+  display: flex;
+  gap: 10px;
+}
+
+.todo-stat {
+  font-family: $font-mono;
+  font-size: 11px;
+  font-weight: 500;
+
+  &.completed {
+    color: $dracula-green;
+  }
+
+  &.in-progress {
+    color: $dracula-cyan;
+  }
+
+  &.pending {
+    color: $dracula-comment;
+  }
+}
+
+.todo-tool-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 0;
+  background: rgba($dracula-bg, 0.3);
+  border-radius: 0 0 $radius-sm $radius-sm;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.todo-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 10px;
+  font-family: $font-mono;
+  font-size: 11px;
+  transition: background $transition-fast;
+
+  &:hover {
+    background: rgba($dracula-fg, 0.05);
+  }
+
+  &.todo-completed {
+    .todo-status-icon {
+      color: $dracula-green;
+    }
+    .todo-content {
+      color: $dracula-comment;
+      text-decoration: line-through;
+      opacity: 0.7;
+    }
+  }
+
+  &.todo-in_progress {
+    background: rgba($dracula-cyan, 0.08);
+
+    .todo-status-icon {
+      color: $dracula-cyan;
+      animation: pulse-icon 1.5s ease-in-out infinite;
+    }
+    .todo-content {
+      color: $dracula-cyan;
+      font-weight: 500;
+    }
+  }
+
+  &.todo-pending {
+    .todo-status-icon {
+      color: $dracula-comment;
+    }
+    .todo-content {
+      color: $dracula-fg;
+    }
+  }
+}
+
+.todo-status-icon {
+  flex-shrink: 0;
+  width: 14px;
+  text-align: center;
+  font-size: 12px;
+}
+
+.todo-content {
+  flex: 1;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+@keyframes pulse-icon {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
 // Tool result in live streaming
 .output-tool-result {
   display: flex;
@@ -1506,8 +1664,8 @@
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  margin-bottom: 4px;
-  display: block;
+  margin-right: 6px;
+  display: inline;  // Inline with timestamp
 
   .history-assistant & {
     color: $dracula-green;

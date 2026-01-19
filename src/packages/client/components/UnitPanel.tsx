@@ -349,6 +349,7 @@ const STATUS_COLORS: Record<string, string> = {
   waiting_permission: '#ffcc00', // Yellow/gold for awaiting permission
   error: '#ff4a4a',
   offline: '#888888',
+  orphaned: '#ff00ff', // Magenta for orphaned (untracked) processes
 };
 
 // Remembered pattern type (matches server)

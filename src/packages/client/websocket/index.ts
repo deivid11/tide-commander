@@ -270,12 +270,19 @@ function handleServerMessage(message: ServerMessage): void {
         text: string;
         isStreaming: boolean;
         timestamp: number;
+        isDelegation?: boolean;
       };
+      const receiveTime = Date.now();
+      const latency = receiveTime - output.timestamp;
+      console.log(`📥 [WS OUTPUT] Received output for agent ${output.agentId}, isStreaming=${output.isStreaming}, isDelegation=${output.isDelegation}, textLen=${output.text.length}, serverTs=${output.timestamp}, latency=${latency}ms`);
+      console.log(`📥 [WS OUTPUT] Text preview: "${output.text.substring(0, 100)}..."`);
       store.addOutput(output.agentId, {
         text: output.text,
         isStreaming: output.isStreaming,
         timestamp: output.timestamp,
+        isDelegation: output.isDelegation,
       });
+      console.log(`📥 [WS OUTPUT] store.addOutput completed at ${Date.now()}, total processing time=${Date.now() - receiveTime}ms`);
       break;
     }
 

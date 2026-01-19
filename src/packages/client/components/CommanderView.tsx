@@ -6,6 +6,11 @@ import type { Agent, DrawingArea, AgentClass } from '../../shared/types';
 import { AGENT_CLASS_CONFIG, LOTR_NAMES, CHARACTER_MODELS } from '../scene/config';
 import { FileExplorerPanel } from './FileExplorerPanel';
 import { matchesShortcut } from '../store/shortcuts';
+import {
+  TOOL_ICONS,
+  isHumanReadableOutput,
+  isErrorResult,
+} from '../utils/outputRendering';
 
 interface HistoryMessage {
   type: 'user' | 'assistant' | 'tool_use' | 'tool_result';
@@ -531,39 +536,7 @@ interface AgentPanelProps {
   onLoadMore?: () => void;
 }
 
-// Tool icons mapping
-const TOOL_ICONS: Record<string, string> = {
-  Read: '📖',
-  Write: '✏️',
-  Edit: '📝',
-  Bash: '💻',
-  Glob: '🔍',
-  Grep: '🔎',
-  Task: '📋',
-  WebFetch: '🌐',
-  WebSearch: '🌍',
-  TodoWrite: '✅',
-  NotebookEdit: '📓',
-  AskFollowupQuestion: '❓',
-  AttemptCompletion: '✨',
-  ListFiles: '📂',
-  SearchFiles: '🔎',
-  ExecuteCommand: '⚙️',
-  default: '⚡',
-};
-
-// Helper to determine if output is human-readable (not tool calls/results/stats)
-function isHumanReadableOutput(text: string): boolean {
-  if (text.startsWith('Using tool:')) return false;
-  if (text.startsWith('Tool result:')) return false;
-  if (text.startsWith('Tokens:')) return false;
-  if (text.startsWith('Cost:')) return false;
-  if (text.startsWith('[thinking]')) return false;
-  if (text.startsWith('[raw]')) return false;
-  if (text.startsWith('Session started:')) return false;
-  if (text.startsWith('Session initialized')) return false;
-  return true;
-}
+// Tool icons and helper functions imported from ../utils/outputRendering
 
 function AgentPanel({ agent, history, outputs, isExpanded, isFocused, advancedView, onExpand, onFocus, inputRef, onLoadMore }: AgentPanelProps) {
   const state = useStore();
@@ -649,7 +622,7 @@ function AgentPanel({ agent, history, outputs, isExpanded, isFocused, advancedVi
       return {
         id: fileCountRef.current,
         name: data.filename,
-        path: data.path,
+        path: data.absolutePath, // Use absolute filesystem path for Claude Code to read
         isImage: data.isImage,
         size: data.size,
       };
@@ -1019,8 +992,8 @@ function MessageLine({ message }: { message: HistoryMessage }) {
   }
 
   if (type === 'tool_result') {
-    // Determine if result is success/error
-    const isError = content.toLowerCase().includes('error') || content.toLowerCase().includes('failed');
+    // Determine if result is success/error using shared utility
+    const isError = isErrorResult(content);
     const resultIcon = isError ? '❌' : '✓';
 
     return (
@@ -1079,7 +1052,7 @@ function OutputLine({ output }: { output: ClaudeOutput }) {
   // Handle tool result messages
   if (text.startsWith('Tool result:')) {
     const resultContent = text.replace('Tool result:', '').trim();
-    const isError = resultContent.toLowerCase().includes('error') || resultContent.toLowerCase().includes('failed');
+    const isError = isErrorResult(resultContent);
     const resultIcon = isError ? '❌' : '✓';
     return (
       <div className={`msg-line msg-result msg-live ${isError ? 'msg-result-error' : 'msg-result-success'}`}>

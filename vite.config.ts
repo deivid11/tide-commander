@@ -28,6 +28,10 @@ export default defineConfig({
         target: `ws://localhost:${SERVER_PORT}`,
         ws: true,
       },
+      '/uploads': {
+        target: `http://localhost:${SERVER_PORT}`,
+        changeOrigin: true,
+      },
     },
   },
   build: {

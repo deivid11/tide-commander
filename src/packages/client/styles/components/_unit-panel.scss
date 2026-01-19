@@ -609,6 +609,21 @@
   }
   &.error { background: $accent-red; }
   &.offline { background: $text-secondary; }
+  &.orphaned {
+    background: #ff00ff;
+    animation: pulse-orphaned 2s ease-in-out infinite;
+  }
+}
+
+@keyframes pulse-orphaned {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(255, 0, 255, 0.4);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(255, 0, 255, 0);
+    transform: scale(1.15);
+  }
 }
 
 @keyframes pulse-permission {

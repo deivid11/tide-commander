@@ -12,7 +12,8 @@ export const AGENT_CLASSES: Record<AgentClass, { icon: string; color: string; de
 };
 
 // Agent Status
-export type AgentStatus = 'idle' | 'working' | 'waiting' | 'waiting_permission' | 'error' | 'offline';
+// 'orphaned' = tmux session has active Claude process but agent state is out of sync (e.g., shows idle when actually working)
+export type AgentStatus = 'idle' | 'working' | 'waiting' | 'waiting_permission' | 'error' | 'offline' | 'orphaned';
 
 // Permission Mode - controls how Claude asks for permissions
 export type PermissionMode = 'bypass' | 'interactive';
@@ -285,6 +286,7 @@ export interface OutputMessage extends WSMessage {
     text: string;
     isStreaming: boolean;
     timestamp: number;
+    isDelegation?: boolean; // True if this is a delegation message from a boss agent
   };
 }
 

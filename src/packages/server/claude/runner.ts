@@ -103,28 +103,53 @@ export class ClaudeRunner {
     });
 
     // Send the prompt via stdin (keep stdin open for additional messages)
-    if (this.backend.requiresStdinInput()) {
+    if (this.backend.requiresStdinInput() && childProcess.stdin) {
       const stdinInput = this.backend.formatStdinInput(prompt);
       log.log(` Sending stdin: ${stdinInput.substring(0, 100)}...`);
-      childProcess.stdin?.write(stdinInput + '\n');
+      childProcess.stdin.write(stdinInput + '\n', 'utf8', (err) => {
+        if (err) {
+          log.error(` Failed to write initial prompt to stdin for ${agentId}:`, err);
+        }
+      });
       // Don't close stdin - allow sending additional messages
     }
   }
 
   /**
    * Send an additional message to a running agent process
-   * Returns true if message was sent, false if no running process
+   * Returns true if message was queued for sending, false if no running process
    */
   sendMessage(agentId: string, message: string): boolean {
     const activeProcess = this.activeProcesses.get(agentId);
-    if (!activeProcess || !activeProcess.process.stdin?.writable) {
+    if (!activeProcess) {
+      log.log(` No active process for agent ${agentId}`);
+      return false;
+    }
+
+    const stdin = activeProcess.process.stdin;
+    if (!stdin || !stdin.writable) {
       log.log(` No writable stdin for agent ${agentId}`);
       return false;
     }
 
     const stdinInput = this.backend.formatStdinInput(message);
     log.log(` Sending additional message to ${agentId}: ${stdinInput.substring(0, 100)}...`);
-    activeProcess.process.stdin.write(stdinInput + '\n');
+
+    // Write to stdin with error handling
+    const success = stdin.write(stdinInput + '\n', 'utf8', (err) => {
+      if (err) {
+        log.error(` Failed to write to stdin for ${agentId}:`, err);
+      }
+    });
+
+    if (!success) {
+      // Buffer is full, wait for drain event
+      log.log(` stdin buffer full for ${agentId}, waiting for drain...`);
+      stdin.once('drain', () => {
+        log.log(` stdin drained for ${agentId}`);
+      });
+    }
+
     return true;
   }
 
@@ -239,6 +264,7 @@ export class ClaudeRunner {
 
       case 'text':
         if (event.text) {
+          log.log(`🔵 [TEXT EVENT] agent=${agentId}, isStreaming=${event.isStreaming}, textLen=${event.text.length}, text="${event.text.substring(0, 80)}..."`);
           this.callbacks.onOutput(agentId, event.text, event.isStreaming);
         }
         break;

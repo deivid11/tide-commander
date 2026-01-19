@@ -3,6 +3,7 @@
  * Manages Claude Code runner and command execution
  */
 
+import { execSync } from 'child_process';
 import { ClaudeRunner, StandardEvent } from '../claude/index.js';
 import { getSessionActivityStatus } from '../claude/session-loader.js';
 import * as agentService from './agent-service.js';
@@ -123,11 +124,17 @@ function handleEvent(agentId: string, event: StandardEvent): void {
 
   switch (event.type) {
     case 'init':
+      if (agent.status !== 'working') {
+        log.log(`🟢 [${agent.name}] status: ${agent.status} → working (init event)`);
+      }
       agentService.updateAgent(agentId, { status: 'working' });
       break;
 
     case 'tool_start':
       log.log(` Agent ${agentId} tool_start: toolName=${event.toolName}`);
+      if (agent.status !== 'working') {
+        log.log(`🟢 [${agent.name}] status: ${agent.status} → working (tool_start)`);
+      }
       agentService.updateAgent(agentId, {
         status: 'working',
         currentTool: event.toolName,
@@ -154,7 +161,7 @@ function handleEvent(agentId: string, event: StandardEvent): void {
       }
 
       // Set to idle
-      log.log(` Agent ${agentId} setting to idle`);
+      log.log(`🔴 [${agent.name}] status: ${agent.status} → idle (step_complete)`);
       const updated = agentService.updateAgent(agentId, {
         status: 'idle',
         currentTask: undefined,
@@ -164,6 +171,7 @@ function handleEvent(agentId: string, event: StandardEvent): void {
       break;
 
     case 'error':
+      log.log(`❌ [${agent.name}] status: ${agent.status} → error`);
       agentService.updateAgent(agentId, { status: 'error' });
       break;
   }
@@ -184,7 +192,11 @@ function handleSessionId(agentId: string, sessionId: string): void {
 }
 
 function handleComplete(agentId: string, success: boolean): void {
-  log.log(` Agent ${agentId} completed, success: ${success}`);
+  const agent = agentService.getAgent(agentId);
+  const agentName = agent?.name || agentId;
+  const prevStatus = agent?.status || 'unknown';
+
+  log.log(`${success ? '✅' : '🔴'} [${agentName}] status: ${prevStatus} → idle (process ${success ? 'completed' : 'failed'})`);
 
   // Process completed, set to idle
   agentService.updateAgent(agentId, {
@@ -197,7 +209,11 @@ function handleComplete(agentId: string, success: boolean): void {
 }
 
 function handleError(agentId: string, error: string): void {
-  log.error(` Agent ${agentId} error:`, error);
+  const agent = agentService.getAgent(agentId);
+  const agentName = agent?.name || agentId;
+  const prevStatus = agent?.status || 'unknown';
+
+  log.error(`❌ [${agentName}] status: ${prevStatus} → error: ${error}`);
   agentService.updateAgent(agentId, { status: 'error' });
   emit('error', agentId, error);
 }
@@ -226,13 +242,15 @@ async function executeCommand(agentId: string, command: string, systemPrompt?: s
   // Notify that command is starting (so client can show user prompt in conversation)
   notifyCommandStarted(agentId, command);
 
+  const prevStatus = agent.status;
+  log.log(`🟢 [${agent.name}] status: ${prevStatus} → working (command started)`);
+
   const updated = agentService.updateAgent(agentId, {
     status: 'working',
     currentTask: command.substring(0, 100),
     lastAssignedTask: command, // Store full command for supervisor context
     lastAssignedTaskTime: Date.now(),
   });
-  log.log(` Agent ${agentId} status updated to 'working', updated agent:`, updated?.status);
 
   await runner.run({
     agentId,
@@ -301,6 +319,41 @@ export function isAgentRunning(agentId: string): boolean {
 }
 
 /**
+ * Check if a tmux session exists and has an active Claude process running
+ * This detects "orphaned" sessions where Claude is running but we're not tracking it
+ */
+function checkTmuxHasClaudeProcess(tmuxSession: string): boolean {
+  try {
+    // Check if tmux session exists
+    execSync(`tmux has-session -t ${tmuxSession} 2>/dev/null`, { encoding: 'utf8' });
+
+    // Get the pane PID from the tmux session
+    const panePid = execSync(`tmux list-panes -t ${tmuxSession} -F '#{pane_pid}' 2>/dev/null`, {
+      encoding: 'utf8',
+      timeout: 2000,
+    }).trim();
+
+    if (!panePid) return false;
+
+    // Check if there's a claude process under that pane PID
+    // Use pgrep to find claude processes with the pane PID as ancestor
+    try {
+      execSync(`pgrep -P ${panePid} -f claude 2>/dev/null || pstree -p ${panePid} 2>/dev/null | grep -q claude`, {
+        encoding: 'utf8',
+        timeout: 2000,
+      });
+      return true;
+    } catch {
+      // No claude process found
+      return false;
+    }
+  } catch {
+    // tmux session doesn't exist or error occurred
+    return false;
+  }
+}
+
+/**
  * Sync agent status with actual process state and session activity
  * Called on startup and client reconnection to ensure UI shows correct status
  *
@@ -309,6 +362,8 @@ export function isAgentRunning(agentId: string): boolean {
  * 2. If agent shows 'working' but no tracked process AND session is not active -> set to idle
  * 3. If agent shows 'idle' but session is RECENTLY active (< 30s) with pending work -> set to working
  *    (This handles server restart while Claude was processing)
+ * 4. If agent shows 'idle' but tmux session has active Claude process -> set to orphaned
+ *    (This handles out-of-sync state where Claude is running but we lost track)
  */
 export async function syncAgentStatus(agentId: string): Promise<void> {
   const agent = agentService.getAgent(agentId);
@@ -339,9 +394,12 @@ export async function syncAgentStatus(agentId: string): Promise<void> {
     }
   }
 
+  // Check 3: Does the tmux session have an active Claude process?
+  const hasOrphanedProcess = checkTmuxHasClaudeProcess(agent.tmuxSession);
+
   // Case 1: Agent shows 'working' but no tracked process and not recently active -> set to idle
-  if (agent.status === 'working' && !isRecentlyActive) {
-    log.log(` Agent ${agent.name} status sync: was 'working' but no process and not recently active, setting to 'idle'`);
+  if (agent.status === 'working' && !isRecentlyActive && !hasOrphanedProcess) {
+    log.log(`🔴 [${agent.name}] status: working → idle (no process, not recently active)`);
     agentService.updateAgent(agentId, {
       status: 'idle',
       currentTask: undefined,
@@ -351,10 +409,28 @@ export async function syncAgentStatus(agentId: string): Promise<void> {
   // Case 2: Agent shows 'idle' but session is recently active with pending work -> set to working
   // This handles server restart while Claude was processing
   else if (agent.status === 'idle' && isRecentlyActive) {
-    log.log(` Agent ${agent.name} status sync: was 'idle' but session recently active with pending work, setting to 'working'`);
+    log.log(`🟢 [${agent.name}] status: idle → working (session recently active)`);
     agentService.updateAgent(agentId, {
       status: 'working',
       currentTask: 'Processing...',
+    });
+  }
+  // Case 3: Agent shows 'idle' but tmux session has active Claude process -> set to orphaned
+  // This handles out-of-sync state where Claude is running but we lost track of it
+  else if ((agent.status === 'idle' || agent.status === 'error') && hasOrphanedProcess) {
+    log.log(`⚠️ [${agent.name}] status: ${agent.status} → orphaned (tmux has active Claude process)`);
+    agentService.updateAgent(agentId, {
+      status: 'orphaned',
+      currentTask: 'Orphaned process detected',
+    });
+  }
+  // Case 4: Agent shows 'orphaned' but no longer has an orphaned process -> set back to idle
+  else if (agent.status === 'orphaned' && !hasOrphanedProcess) {
+    log.log(`🔄 [${agent.name}] status: orphaned → idle (process ended)`);
+    agentService.updateAgent(agentId, {
+      status: 'idle',
+      currentTask: undefined,
+      currentTool: undefined,
     });
   }
 }

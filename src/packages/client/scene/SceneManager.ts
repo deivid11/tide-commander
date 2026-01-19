@@ -338,6 +338,7 @@ export class SceneManager {
       waiting_permission: ANIMATIONS.IDLE, // Standing when waiting for permission
       error: ANIMATIONS.EMOTE_NO,     // Error shake
       offline: ANIMATIONS.STATIC,     // Static when offline
+      orphaned: this.workingAnimation, // Orphaned processes appear to be working (because they are)
     };
 
     const animation = statusAnimations[agent.status] || ANIMATIONS.IDLE;
@@ -1058,10 +1059,12 @@ export class SceneManager {
       // Calculate zoom-based scale for indicators
       const indicatorScale = this.calculateIndicatorScale(meshData.group.position);
 
-      // Scale name label (50% smaller)
+      // Scale name label - preserve aspect ratio to avoid text distortion
       const nameLabel = meshData.group.getObjectByName('nameLabel') as THREE.Sprite;
       if (nameLabel) {
-        nameLabel.scale.set(0.6 * indicatorScale, 0.3 * indicatorScale, 1);
+        const baseHeight = 0.3 * indicatorScale;
+        const aspectRatio = nameLabel.userData.aspectRatio || 2; // default 2:1 for backwards compat
+        nameLabel.scale.set(baseHeight * aspectRatio, baseHeight, 1);
       }
 
       // Scale mana bar

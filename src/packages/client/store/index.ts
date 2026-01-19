@@ -1,3 +1,4 @@
+import { useCallback, useRef, useState, useEffect } from 'react';
 import type {
   Agent,
   AgentAnalysis,
@@ -36,6 +37,7 @@ export interface ClaudeOutput {
   isStreaming: boolean;
   timestamp: number;
   isUserPrompt?: boolean; // True if this is a user-sent command
+  isDelegation?: boolean; // True if this is a delegation message from a boss agent
 }
 
 // Tool execution entry
@@ -603,23 +605,39 @@ class Store {
 
   // Claude output management
   addOutput(agentId: string, output: ClaudeOutput): void {
+    const startTime = performance.now();
     perf.start('store:addOutput');
-    let outputs = this.state.agentOutputs.get(agentId);
-    if (!outputs) {
-      outputs = [];
-      this.state.agentOutputs.set(agentId, outputs);
-    }
-    outputs.push(output);
+    console.log(`📦 [STORE] addOutput called for agent ${agentId}, isStreaming=${output.isStreaming}, textLen=${output.text.length}`);
+
+    // Get current outputs (or empty array)
+    const currentOutputs = this.state.agentOutputs.get(agentId) || [];
+
+    // Create NEW array with the new output appended (immutable update for React reactivity)
+    let newOutputs = [...currentOutputs, output];
+
     // Keep last 200 outputs per agent
-    if (outputs.length > 200) {
-      outputs.shift();
+    if (newOutputs.length > 200) {
+      newOutputs = newOutputs.slice(1); // Remove first element immutably
     }
+
+    // Create new Map reference to ensure React detects the change
+    const newAgentOutputs = new Map(this.state.agentOutputs);
+    newAgentOutputs.set(agentId, newOutputs);
+    this.state.agentOutputs = newAgentOutputs;
+
+    const beforeNotify = performance.now();
+    console.log(`📦 [STORE] About to notify ${this.listeners.size} listeners, outputs count now: ${newOutputs.length}`);
     this.notify();
+    const afterNotify = performance.now();
+    console.log(`📦 [STORE] notify() took ${(afterNotify - beforeNotify).toFixed(2)}ms, total addOutput took ${(afterNotify - startTime).toFixed(2)}ms`);
     perf.end('store:addOutput');
   }
 
   clearOutputs(agentId: string): void {
-    this.state.agentOutputs.delete(agentId);
+    // Create new Map reference to ensure React detects the change
+    const newAgentOutputs = new Map(this.state.agentOutputs);
+    newAgentOutputs.delete(agentId);
+    this.state.agentOutputs = newAgentOutputs;
     this.notify();
   }
 
@@ -1458,9 +1476,6 @@ class Store {
 // Singleton store instance
 export const store = new Store();
 
-// Import React for the hooks
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-
 // ============================================================================
 // LEGACY HOOK - Use granular selectors below instead for better performance
 // ============================================================================
@@ -1528,6 +1543,12 @@ function useSelector<T>(
 ): T {
   const [value, setValue] = useState(() => selector(store.getState()));
   const valueRef = useRef(value);
+
+  // Keep valueRef in sync with the current value state
+  // This is important because setValue is async and valueRef might be stale
+  useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
 
   useEffect(() => {
     const checkForUpdates = () => {

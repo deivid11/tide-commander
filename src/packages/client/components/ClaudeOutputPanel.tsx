@@ -6,6 +6,14 @@ import type { Agent, AgentAnalysis, PermissionRequest } from '../../shared/types
 import { BOSS_CONTEXT_START, BOSS_CONTEXT_END } from '../../shared/types';
 import { AGENT_CLASS_CONFIG } from '../scene/config';
 import { formatIdleTime, getIdleTimerColor, filterCostText } from '../utils/formatting';
+import {
+  TOOL_ICONS,
+  getToolIcon,
+  getTodoStatusIcon,
+  extractToolKeyParam,
+  isErrorResult,
+  getStatusColor,
+} from '../utils/outputRendering';
 
 // Custom markdown components with inline styles for guaranteed rendering
 const markdownComponents: Components = {
@@ -69,40 +77,8 @@ const VIEW_MODES: ViewMode[] = ['simple', 'chat', 'advanced'];
 const MESSAGES_PER_PAGE = 30;
 const SCROLL_THRESHOLD = 100; // px from top to trigger load more
 
-// Tool icons mapping (shared between HistoryLine, OutputLine, and AgentLinks)
-const TOOL_ICONS: Record<string, string> = {
-  Read: '📖',
-  Write: '✏️',
-  Edit: '📝',
-  Bash: '💻',
-  Glob: '🔍',
-  Grep: '🔎',
-  Task: '📋',
-  WebFetch: '🌐',
-  WebSearch: '🌍',
-  TodoWrite: '✅',
-  NotebookEdit: '📓',
-  AskFollowupQuestion: '❓',
-  AttemptCompletion: '✨',
-  ListFiles: '📂',
-  SearchFiles: '🔎',
-  ExecuteCommand: '⚙️',
-  default: '⚡',
-};
-
-// Status colors for agent indicators
-const getStatusColor = (status: Agent['status']) => {
-  switch (status) {
-    case 'idle': return '#4aff9e';
-    case 'working': return '#4a9eff';
-    case 'waiting': return '#ff9e4a';
-    case 'error': return '#ff4a4a';
-    case 'offline': return '#888888';
-    default: return '#888888';
-  }
-};
-
 // Helper to determine if output should be shown in simple view
+// NOTE: This extends the shared isSimpleViewOutput with additional patterns specific to this component
 function isSimpleViewOutput(text: string): boolean {
   // SHOW tool names (will render with nice icons)
   if (text.startsWith('Using tool:')) return true;
@@ -182,6 +158,17 @@ function isChatViewOutput(text: string): boolean {
 
   // SHOW only what appears to be final responses (summaries, answers, etc.)
   return true;
+}
+
+// Helper to format timestamp for display (HH:MM:SS)
+function formatTimestamp(timestamp: number): string {
+  const date = new Date(timestamp);
+  return date.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
 }
 
 // Helper to parse boss context from content
@@ -443,6 +430,11 @@ export function ClaudeOutputPanel() {
   // Use the reactive hook for outputs instead of direct store access
   const outputs = useAgentOutputs(selectedAgentId);
 
+  // Debug: Log when outputs change
+  useEffect(() => {
+    console.log(`🖥️ [PANEL] outputs changed for agent ${selectedAgentId}, count=${outputs.length}, lastOutput=${outputs.length > 0 ? outputs[outputs.length - 1].text.substring(0, 50) : 'none'}...`);
+  }, [outputs, selectedAgentId]);
+
   // Get pending permission requests for this agent
   const pendingPermissions = selectedAgentId
     ? store.getPendingPermissionsForAgent(selectedAgentId)
@@ -525,7 +517,7 @@ export function ClaudeOutputPanel() {
       return {
         id: fileCountRef.current,
         name: data.filename,
-        path: data.path,
+        path: data.absolutePath, // Use absolute filesystem path for Claude Code to read
         isImage: data.isImage,
         size: data.size,
       };
@@ -663,13 +655,60 @@ export function ClaudeOutputPanel() {
   }, [history, viewMode]);
 
   // Memoized filtered outputs based on view mode
+  // For simple view, we enrich 'Using tool:' lines with the key parameter from the following 'Tool input:' line
   const filteredOutputs = useMemo(() => {
     if (viewMode === 'advanced') return outputs;
-    return outputs.filter(output => {
-      if (output.isUserPrompt) return true;
-      if (viewMode === 'chat') return isChatViewOutput(output.text);
-      return isSimpleViewOutput(output.text);
-    });
+
+    if (viewMode === 'chat') {
+      return outputs.filter(output => {
+        if (output.isUserPrompt) return true;
+        return isChatViewOutput(output.text);
+      });
+    }
+
+    // Simple view: enrich tool lines with key parameters
+    const result: (ClaudeOutput & { _toolKeyParam?: string })[] = [];
+    for (let i = 0; i < outputs.length; i++) {
+      const output = outputs[i];
+
+      if (output.isUserPrompt) {
+        result.push(output);
+        continue;
+      }
+
+      // Check if this is a "Using tool:" line
+      if (output.text.startsWith('Using tool:')) {
+        const toolName = output.text.replace('Using tool:', '').trim();
+
+        // Look ahead for the next Tool input: line
+        let keyParam: string | null = null;
+        for (let j = i + 1; j < outputs.length && j <= i + 3; j++) {
+          const nextOutput = outputs[j];
+          if (nextOutput.text.startsWith('Tool input:')) {
+            const inputJson = nextOutput.text.replace('Tool input:', '').trim();
+            keyParam = extractToolKeyParam(toolName, inputJson);
+            break;
+          }
+          // Stop looking if we hit another tool or non-input line
+          if (nextOutput.text.startsWith('Using tool:') || nextOutput.text.startsWith('Tool result:')) {
+            break;
+          }
+        }
+
+        // Create enriched output with tool name + key param
+        result.push({
+          ...output,
+          _toolKeyParam: keyParam || undefined,
+        });
+        continue;
+      }
+
+      // Apply normal simple view filter for other outputs
+      if (isSimpleViewOutput(output.text)) {
+        result.push(output);
+      }
+    }
+    return result;
   }, [outputs, viewMode]);
 
   // Handle resize drag
@@ -805,8 +844,15 @@ export function ClaudeOutputPanel() {
 
         // Clear live outputs when history is loaded to avoid duplicates
         // History contains the definitive record from the transcript file
+        // BUT: preserve delegation messages since they're not persisted to the session file
         if (messages.length > 0) {
+          const currentOutputs = store.getOutputs(selectedAgentId);
+          const delegationMessages = currentOutputs.filter(o => o.isDelegation);
           store.clearOutputs(selectedAgentId);
+          // Re-add delegation messages so they're preserved
+          for (const delegation of delegationMessages) {
+            store.addOutput(selectedAgentId, delegation);
+          }
         }
 
         // Extract last user message and store it as lastPrompt (if not already set)
@@ -1071,18 +1117,9 @@ export function ClaudeOutputPanel() {
 
               if (!lastInput && !agentAnalysis) return null;
 
-              const truncatedInput = lastInput
-                ? (lastInput.length > 50 ? lastInput.substring(0, 50) + '...' : lastInput)
-                : null;
-
-              // Truncate supervisor description for display (with cost filtering)
+              // NO TRUNCATION - show full content
               const filteredStatus = agentAnalysis?.statusDescription
                 ? filterCostText(agentAnalysis.statusDescription, state.settings.hideCost)
-                : null;
-              const supervisorSummary = filteredStatus
-                ? (filteredStatus.length > 60
-                    ? filteredStatus.substring(0, 60) + '...'
-                    : filteredStatus)
                 : null;
 
               return (
@@ -1098,11 +1135,11 @@ export function ClaudeOutputPanel() {
                       🎖️ {agentAnalysis.progress.replace('_', ' ')}
                     </span>
                   )}
-                  {supervisorSummary && (
-                    <span className="guake-supervisor-summary">{supervisorSummary}</span>
+                  {filteredStatus && (
+                    <span className="guake-supervisor-summary">{filteredStatus}</span>
                   )}
-                  {!supervisorSummary && truncatedInput && (
-                    <span className="guake-last-input">{truncatedInput}</span>
+                  {!filteredStatus && lastInput && (
+                    <span className="guake-last-input">{lastInput}</span>
                   )}
                 </span>
               );
@@ -1283,7 +1320,7 @@ export function ClaudeOutputPanel() {
                 className={`guake-attachment ${file.isImage ? 'is-image clickable' : ''}`}
                 onClick={() => {
                   if (file.isImage) {
-                    setImageModal({ url: file.path, name: file.name });
+                    setImageModal({ url: getImageWebUrl(file.path), name: file.name });
                   }
                 }}
               >
@@ -1484,6 +1521,23 @@ function highlightText(text: string, query?: string): React.ReactNode {
   );
 }
 
+// Helper to convert image path to web URL for display in browser
+// Handles: http URLs, /uploads/ paths, and absolute /tmp/ paths
+function getImageWebUrl(imagePath: string): string {
+  if (imagePath.startsWith('http')) {
+    return imagePath;
+  } else if (imagePath.startsWith('/uploads/')) {
+    return imagePath;
+  } else if (imagePath.includes('tide-commander-uploads')) {
+    // Absolute path like /tmp/tide-commander-uploads/image.png - extract filename
+    const imageName = imagePath.split('/').pop() || 'image';
+    return `/uploads/${imageName}`;
+  } else {
+    // Default: assume it's a relative path
+    return imagePath;
+  }
+}
+
 // Helper to render content with clickable image references
 function renderContentWithImages(
   content: string,
@@ -1511,20 +1565,7 @@ function renderContentWithImages(
     // Add clickable image placeholder
     const imagePath = match[1].trim();
     const imageName = imagePath.split('/').pop() || 'image';
-
-    // Build URL: handle http URLs, /uploads/ paths, and legacy /tmp/ absolute paths
-    let imageUrl: string;
-    if (imagePath.startsWith('http')) {
-      imageUrl = imagePath;
-    } else if (imagePath.startsWith('/uploads/')) {
-      imageUrl = imagePath;
-    } else if (imagePath.includes('tide-commander-uploads')) {
-      // Legacy absolute path - extract filename and use /uploads/
-      imageUrl = `/uploads/${imageName}`;
-    } else {
-      // Default: assume it's a relative path
-      imageUrl = imagePath;
-    }
+    const imageUrl = getImageWebUrl(imagePath);
 
     parts.push(
       <span
@@ -1813,32 +1854,90 @@ function renderReadToolInput(content: string, onFileClick?: (path: string) => vo
   }
 }
 
+// Helper to render TodoWrite tool with checklist view
+interface TodoItem {
+  content: string;
+  status: 'pending' | 'in_progress' | 'completed';
+  activeForm?: string;
+}
+
+function renderTodoWriteInput(content: string): React.ReactNode {
+  try {
+    const input = JSON.parse(content);
+    const todos: TodoItem[] = input.todos;
+
+    if (!Array.isArray(todos) || todos.length === 0) {
+      return <pre className="output-input-content">{content}</pre>;
+    }
+
+    // Count by status
+    const counts = {
+      completed: todos.filter(t => t.status === 'completed').length,
+      in_progress: todos.filter(t => t.status === 'in_progress').length,
+      pending: todos.filter(t => t.status === 'pending').length,
+    };
+
+    return (
+      <div className="todo-tool-input">
+        <div className="todo-tool-header">
+          <span className="todo-tool-title">📋 Task List</span>
+          <div className="todo-tool-stats">
+            {counts.completed > 0 && (
+              <span className="todo-stat completed">✓ {counts.completed}</span>
+            )}
+            {counts.in_progress > 0 && (
+              <span className="todo-stat in-progress">► {counts.in_progress}</span>
+            )}
+            {counts.pending > 0 && (
+              <span className="todo-stat pending">○ {counts.pending}</span>
+            )}
+          </div>
+        </div>
+        <div className="todo-tool-list">
+          {todos.map((todo, idx) => (
+            <div key={idx} className={`todo-item todo-${todo.status}`}>
+              <span className="todo-status-icon">
+                {todo.status === 'completed' ? '✓' : todo.status === 'in_progress' ? '►' : '○'}
+              </span>
+              <span className="todo-content">{todo.content}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  } catch {
+    return <pre className="output-input-content">{content}</pre>;
+  }
+}
+
 const HistoryLine = memo(function HistoryLine({ message, highlight, simpleView, onImageClick, onFileClick }: HistoryLineProps) {
   const hideCost = useHideCost();
-  const { type, content: rawContent, toolName } = message;
+  const { type, content: rawContent, toolName, timestamp } = message;
   const content = filterCostText(rawContent, hideCost);
+
+  // Format timestamp for display (HistoryMessage has ISO string timestamp)
+  const timeStr = timestamp ? formatTimestamp(new Date(timestamp).getTime()) : '';
 
   // For user messages, parse boss context BEFORE truncation
   // The boss context can be very long, so we need to extract it first
   const parsedBoss = type === 'user' ? parseBossContext(content) : null;
 
-  // Truncate long messages (but not for Edit tool - we want full diff)
-  // For user messages with boss context, only truncate the user message part
-  const truncatedContent = toolName === 'Edit'
-    ? content
-    : parsedBoss?.hasContext
-      ? content // Keep full content for boss messages (context is collapsible)
-      : (content.length > 2000 ? content.substring(0, 2000) + '...' : content);
+  // NO TRUNCATION - show full content always
+  const truncatedContent = content;
 
   if (type === 'tool_use') {
     const icon = TOOL_ICONS[toolName || ''] || TOOL_ICONS.default;
 
-    // Simple view: just show icon and tool name
+    // Simple view: show icon, tool name, and key parameter
     if (simpleView) {
+      // Extract key parameter from the content (which contains the tool input JSON)
+      const keyParam = toolName && truncatedContent ? extractToolKeyParam(toolName, truncatedContent) : null;
       return (
         <div className="output-line output-tool-use output-tool-simple">
+          {timeStr && <span className="output-timestamp">{timeStr}</span>}
           <span className="output-tool-icon">{icon}</span>
           <span className="output-tool-name">{toolName}</span>
+          {keyParam && <span className="output-tool-param">{keyParam}</span>}
         </div>
       );
     }
@@ -1848,6 +1947,7 @@ const HistoryLine = memo(function HistoryLine({ message, highlight, simpleView, 
       return (
         <>
           <div className="output-line output-tool-use">
+            {timeStr && <span className="output-timestamp">{timeStr}</span>}
             <span className="output-tool-icon">{icon}</span>
             <span className="output-tool-name">{toolName}</span>
           </div>
@@ -1863,6 +1963,7 @@ const HistoryLine = memo(function HistoryLine({ message, highlight, simpleView, 
       return (
         <>
           <div className="output-line output-tool-use">
+            {timeStr && <span className="output-timestamp">{timeStr}</span>}
             <span className="output-tool-icon">{icon}</span>
             <span className="output-tool-name">{toolName}</span>
           </div>
@@ -1873,10 +1974,27 @@ const HistoryLine = memo(function HistoryLine({ message, highlight, simpleView, 
       );
     }
 
+    // Special rendering for TodoWrite tool - show checklist
+    if (toolName === 'TodoWrite' && truncatedContent) {
+      return (
+        <>
+          <div className="output-line output-tool-use">
+            {timeStr && <span className="output-timestamp">{timeStr}</span>}
+            <span className="output-tool-icon">{icon}</span>
+            <span className="output-tool-name">{toolName}</span>
+          </div>
+          <div className="output-line output-tool-input">
+            {renderTodoWriteInput(truncatedContent)}
+          </div>
+        </>
+      );
+    }
+
     // Default tool rendering
     return (
       <>
         <div className="output-line output-tool-use">
+          {timeStr && <span className="output-timestamp">{timeStr}</span>}
           <span className="output-tool-icon">{icon}</span>
           <span className="output-tool-name">{toolName}</span>
         </div>
@@ -1893,6 +2011,7 @@ const HistoryLine = memo(function HistoryLine({ message, highlight, simpleView, 
     const isError = truncatedContent.toLowerCase().includes('error') || truncatedContent.toLowerCase().includes('failed');
     return (
       <div className={`output-line output-tool-result ${isError ? 'is-error' : ''}`}>
+        {timeStr && <span className="output-timestamp">{timeStr}</span>}
         <span className="output-result-icon">{isError ? '❌' : '✓'}</span>
         <pre className="output-result-content">{highlightText(truncatedContent, highlight)}</pre>
       </div>
@@ -1904,13 +2023,12 @@ const HistoryLine = memo(function HistoryLine({ message, highlight, simpleView, 
 
   // For user messages, check for boss context (use pre-parsed result)
   if (isUser && parsedBoss) {
-    // Truncate only the user message part if needed
-    const displayMessage = parsedBoss.userMessage.length > 2000
-      ? parsedBoss.userMessage.substring(0, 2000) + '...'
-      : parsedBoss.userMessage;
+    // NO TRUNCATION - show full message
+    const displayMessage = parsedBoss.userMessage;
 
     return (
       <div className={className}>
+        {timeStr && <span className="output-timestamp">{timeStr}</span>}
         <span className="history-role">You</span>
         <span className="history-content markdown-content">
           {parsedBoss.hasContext && parsedBoss.context && (
@@ -1931,6 +2049,7 @@ const HistoryLine = memo(function HistoryLine({ message, highlight, simpleView, 
   if (delegationParsed.hasDelegation && delegationParsed.delegations.length > 0) {
     return (
       <div className={className}>
+        {timeStr && <span className="output-timestamp">{timeStr}</span>}
         <span className="history-role">Claude</span>
         <span className="history-content markdown-content">
           {highlight ? (
@@ -1948,6 +2067,7 @@ const HistoryLine = memo(function HistoryLine({ message, highlight, simpleView, 
 
   return (
     <div className={className}>
+      {timeStr && <span className="output-timestamp">{timeStr}</span>}
       <span className="history-role">Claude</span>
       <span className="history-content markdown-content">
         {highlight ? (
@@ -1961,7 +2081,7 @@ const HistoryLine = memo(function HistoryLine({ message, highlight, simpleView, 
 });
 
 interface OutputLineProps {
-  output: ClaudeOutput;
+  output: ClaudeOutput & { _toolKeyParam?: string };
   agentId: string | null;
   onImageClick?: (url: string, name: string) => void;
   onFileClick?: (path: string) => void;
@@ -1969,8 +2089,11 @@ interface OutputLineProps {
 
 const OutputLine = memo(function OutputLine({ output, agentId, onImageClick, onFileClick }: OutputLineProps) {
   const hideCost = useHideCost();
-  const { text: rawText, isStreaming, isUserPrompt } = output;
+  const { text: rawText, isStreaming, isUserPrompt, timestamp, _toolKeyParam } = output as ClaudeOutput & { _toolKeyParam?: string };
   const text = filterCostText(rawText, hideCost);
+
+  // Format timestamp for display
+  const timeStr = formatTimestamp(timestamp || Date.now());
 
   // Check if this agent has a pending delegated task
   const delegation = agentId ? store.getLastDelegationReceived(agentId) : null;
@@ -1984,6 +2107,7 @@ const OutputLine = memo(function OutputLine({ output, agentId, onImageClick, onF
 
     return (
       <div className="output-line output-user">
+        <span className="output-timestamp">{timeStr}</span>
         {isDelegatedTask ? (
           <DelegatedTaskHeader bossName={delegation.bossName} taskCommand={delegation.taskCommand} />
         ) : (
@@ -2005,8 +2129,12 @@ const OutputLine = memo(function OutputLine({ output, agentId, onImageClick, onF
     const icon = TOOL_ICONS[toolName] || TOOL_ICONS.default;
     return (
       <div className={`output-line output-tool-use ${isStreaming ? 'output-streaming' : ''}`}>
+        <span className="output-timestamp">{timeStr}</span>
         <span className="output-tool-icon">{icon}</span>
         <span className="output-tool-name">{toolName}</span>
+        {_toolKeyParam && (
+          <span className="output-tool-param">{_toolKeyParam}</span>
+        )}
         {isStreaming && <span className="output-tool-loading">...</span>}
       </div>
     );
@@ -2023,6 +2151,7 @@ const OutputLine = memo(function OutputLine({ output, agentId, onImageClick, onF
         // Render Edit tool with diff view
         return (
           <div className="output-line output-tool-input">
+            <span className="output-timestamp">{timeStr}</span>
             {renderEditToolDiff(inputText, onFileClick)}
           </div>
         );
@@ -2031,7 +2160,17 @@ const OutputLine = memo(function OutputLine({ output, agentId, onImageClick, onF
       if (parsed.file_path && parsed.old_string === undefined && parsed.new_string === undefined) {
         return (
           <div className="output-line output-tool-input">
+            <span className="output-timestamp">{timeStr}</span>
             {renderReadToolInput(inputText, onFileClick)}
+          </div>
+        );
+      }
+      // Check if it's a TodoWrite input (has todos array)
+      if (Array.isArray(parsed.todos)) {
+        return (
+          <div className="output-line output-tool-input">
+            <span className="output-timestamp">{timeStr}</span>
+            {renderTodoWriteInput(inputText)}
           </div>
         );
       }
@@ -2041,6 +2180,7 @@ const OutputLine = memo(function OutputLine({ output, agentId, onImageClick, onF
 
     return (
       <div className="output-line output-tool-input">
+        <span className="output-timestamp">{timeStr}</span>
         <pre className="output-input-content">{inputText}</pre>
       </div>
     );
@@ -2052,6 +2192,7 @@ const OutputLine = memo(function OutputLine({ output, agentId, onImageClick, onF
     const isError = resultText.toLowerCase().includes('error') || resultText.toLowerCase().includes('failed');
     return (
       <div className={`output-line output-tool-result ${isError ? 'is-error' : ''}`}>
+        <span className="output-timestamp">{timeStr}</span>
         <span className="output-result-icon">{isError ? '❌' : '✓'}</span>
         <pre className="output-result-content">{resultText}</pre>
       </div>
@@ -2090,6 +2231,7 @@ const OutputLine = memo(function OutputLine({ output, agentId, onImageClick, onF
     if (parsed.hasDelegation && parsed.delegations.length > 0) {
       return (
         <div className={className}>
+          <span className="output-timestamp">{timeStr}</span>
           <span className="output-role">Claude</span>
           <div className="markdown-content">
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{parsed.contentWithoutBlock}</ReactMarkdown>
@@ -2104,6 +2246,7 @@ const OutputLine = memo(function OutputLine({ output, agentId, onImageClick, onF
 
   return (
     <div className={className}>
+      <span className="output-timestamp">{timeStr}</span>
       {isClaudeMessage && <span className="output-role">Claude</span>}
       {useMarkdown ? (
         <div className="markdown-content">
@@ -2157,7 +2300,7 @@ function GuakeAgentLink({ agent, isSelected, onClick }: GuakeAgentLinkProps) {
     <div
       className={`guake-agent-link ${isSelected ? 'selected' : ''} ${agent.status}`}
       onClick={onClick}
-      title={`${agent.name} - ${agent.status}${agent.currentTool ? ` (${agent.currentTool})` : ''}${agent.lastActivity ? ` • Idle: ${formatIdleTime(agent.lastActivity)}` : ''}${agent.lastAssignedTask ? `\n📋 ${agent.lastAssignedTask.substring(0, 100)}${agent.lastAssignedTask.length > 100 ? '...' : ''}` : ''}`}
+      title={`${agent.name} - ${agent.status}${agent.currentTool ? ` (${agent.currentTool})` : ''}${agent.lastActivity ? ` • Idle: ${formatIdleTime(agent.lastActivity)}` : ''}${agent.lastAssignedTask ? `\n📋 ${agent.lastAssignedTask}` : ''}`}
     >
       <span className="guake-agent-link-icon">{config.icon}</span>
       <span
@@ -2191,7 +2334,7 @@ interface PermissionRequestCardProps {
 function PermissionRequestCard({ request, onApprove, onDeny }: PermissionRequestCardProps) {
   const toolIcon = TOOL_ICONS[request.tool] || TOOL_ICONS.default;
 
-  // Format tool input for display
+  // Format tool input for display - NO TRUNCATION
   const formatToolInput = (input: Record<string, unknown>): string => {
     if (request.tool === 'Bash' && input.command) {
       return String(input.command);
@@ -2202,9 +2345,9 @@ function PermissionRequestCard({ request, onApprove, onDeny }: PermissionRequest
     if (request.tool === 'WebFetch' && input.url) {
       return String(input.url);
     }
-    // Default: stringify first few keys
-    const keys = Object.keys(input).slice(0, 2);
-    return keys.map(k => `${k}: ${JSON.stringify(input[k]).substring(0, 50)}`).join(', ');
+    // Default: stringify all keys - no truncation
+    const keys = Object.keys(input);
+    return keys.map(k => `${k}: ${JSON.stringify(input[k])}`).join(', ');
   };
 
   const isPending = request.status === 'pending';
@@ -2247,20 +2390,16 @@ interface PermissionRequestInlineProps {
 function PermissionRequestInline({ request, onApprove, onDeny }: PermissionRequestInlineProps) {
   const toolIcon = TOOL_ICONS[request.tool] || TOOL_ICONS.default;
 
-  // Format tool input for display - very compact
+  // Format tool input for display - NO TRUNCATION
   const formatToolInputCompact = (input: Record<string, unknown>): string => {
     if (request.tool === 'Bash' && input.command) {
-      const cmd = String(input.command);
-      return cmd.length > 40 ? cmd.substring(0, 40) + '...' : cmd;
+      return String(input.command); // Full command
     }
     if ((request.tool === 'Write' || request.tool === 'Edit' || request.tool === 'Read') && input.file_path) {
-      const path = String(input.file_path);
-      const filename = path.split('/').pop() || path;
-      return filename;
+      return String(input.file_path); // Full path
     }
     if (request.tool === 'WebFetch' && input.url) {
-      const url = String(input.url);
-      return url.length > 30 ? url.substring(0, 30) + '...' : url;
+      return String(input.url); // Full URL
     }
     return request.tool;
   };
