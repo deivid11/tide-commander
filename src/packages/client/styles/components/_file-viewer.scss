@@ -17,10 +17,10 @@
 }
 
 .file-viewer-modal {
-  width: 80%;
-  max-width: 900px;
-  height: 80%;
-  max-height: 700px;
+  width: 90%;
+  max-width: 1200px;
+  height: 90%;
+  max-height: 900px;
   background: $dracula-bg;
   border: 1px solid $dracula-current;
   border-radius: $radius-xl;
@@ -169,6 +169,113 @@
 
     .file-path {
       color: $accent-blue;
+    }
+  }
+}
+
+// Highlight for Edit tool changes
+.file-viewer-highlight {
+  background: rgba($dracula-green, 0.25);
+  border-left: 2px solid $dracula-green;
+  padding: 2px 4px;
+  margin-left: -4px;
+  border-radius: 2px;
+  display: inline;
+}
+
+// Prism.js syntax highlighting (Dracula theme)
+.file-viewer-code {
+  .token {
+    &.comment,
+    &.prolog,
+    &.doctype,
+    &.cdata {
+      color: $dracula-comment;
+    }
+
+    &.punctuation {
+      color: $dracula-fg;
+    }
+
+    &.property,
+    &.tag,
+    &.constant,
+    &.symbol,
+    &.deleted {
+      color: $dracula-pink;
+    }
+
+    &.boolean,
+    &.number {
+      color: $dracula-purple;
+    }
+
+    &.selector,
+    &.attr-name,
+    &.string,
+    &.char,
+    &.builtin,
+    &.inserted {
+      color: $dracula-green;
+    }
+
+    &.operator,
+    &.entity,
+    &.url,
+    &.variable {
+      color: $dracula-fg;
+    }
+
+    &.atrule,
+    &.attr-value,
+    &.function,
+    &.class-name {
+      color: $dracula-yellow;
+    }
+
+    &.keyword {
+      color: $dracula-pink;
+    }
+
+    &.regex,
+    &.important {
+      color: $dracula-orange;
+    }
+
+    &.important,
+    &.bold {
+      font-weight: bold;
+    }
+
+    &.italic {
+      font-style: italic;
+    }
+
+    &.entity {
+      cursor: help;
+    }
+
+    // TypeScript/JavaScript specific
+    &.namespace {
+      color: $dracula-cyan;
+    }
+
+    &.module {
+      color: $dracula-cyan;
+    }
+
+    &.type-definition,
+    &.type {
+      color: $dracula-cyan;
+    }
+
+    &.decorator,
+    &.meta {
+      color: $dracula-green;
+    }
+
+    &.parameter {
+      color: $dracula-orange;
     }
   }
 }

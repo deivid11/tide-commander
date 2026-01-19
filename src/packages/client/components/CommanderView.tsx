@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useStore, store, ClaudeOutput } from '../store';
 import type { Agent, DrawingArea, AgentClass } from '../../shared/types';
-import { AGENT_CLASS_CONFIG, LOTR_NAMES, CHARACTER_MODELS } from '../scene/config';
+import { AGENT_CLASS_CONFIG, DEFAULT_NAMES, CHARACTER_MODELS } from '../scene/config';
 import { FileExplorerPanel } from './FileExplorerPanel';
 import { matchesShortcut } from '../store/shortcuts';
 import {
@@ -12,6 +12,7 @@ import {
   isErrorResult,
   formatTimestamp,
 } from '../utils/outputRendering';
+import { formatTokens } from '../utils/formatting';
 
 interface HistoryMessage {
   type: 'user' | 'assistant' | 'tool_use' | 'tool_result';
@@ -566,6 +567,33 @@ function AgentPanel({ agent, history, outputs, isExpanded, isFocused, advancedVi
     );
   }, [state.supervisor?.lastReport, agent.id, agent.name]);
 
+  // Calculate context usage info
+  const contextInfo = useMemo(() => {
+    const stats = agent.contextStats;
+    if (stats) {
+      const usedPercent = stats.usedPercent;
+      const freePercent = 100 - usedPercent;
+      return {
+        usedPercent,
+        freePercent,
+        hasData: true,
+        totalTokens: stats.totalTokens,
+        contextWindow: stats.contextWindow,
+      };
+    }
+    // Fallback to basic calculation
+    const used = agent.contextUsed || 0;
+    const limit = agent.contextLimit || 200000;
+    const usedPercent = (used / limit) * 100;
+    return {
+      usedPercent,
+      freePercent: 100 - usedPercent,
+      hasData: false,
+      totalTokens: used,
+      contextWindow: limit,
+    };
+  }, [agent.contextStats, agent.contextUsed, agent.contextLimit]);
+
   // Handle scroll to detect when to load more
   const handleScroll = useCallback(() => {
     if (!outputRef.current || loadingMore || !history?.hasMore || !onLoadMore) return;
@@ -815,6 +843,26 @@ function AgentPanel({ agent, history, outputs, isExpanded, isFocused, advancedVi
           <span className="agent-panel-class">{agent.class}</span>
           <span className="agent-panel-id" title={`ID: ${agent.id}`}>
             [{agent.id.substring(0, 4)}]
+          </span>
+        </div>
+        {/* Context usage indicator */}
+        <div
+          className="agent-panel-context"
+          title={`Context: ${Math.round(contextInfo.usedPercent)}% used (${formatTokens(contextInfo.totalTokens)} / ${formatTokens(contextInfo.contextWindow)})`}
+        >
+          <div
+            className="agent-panel-context-bar"
+            style={{
+              background: contextInfo.freePercent < 20
+                ? '#ff4a4a'
+                : contextInfo.freePercent < 50
+                  ? '#ff9e4a'
+                  : '#4aff9e',
+              width: `${contextInfo.freePercent}%`,
+            }}
+          />
+          <span className="agent-panel-context-text">
+            {Math.round(contextInfo.freePercent)}%
           </span>
         </div>
         <div className="agent-panel-actions">
@@ -1107,7 +1155,7 @@ interface SpawnFormProps {
 function SpawnForm({ currentArea, onClose }: SpawnFormProps) {
   const [name, setName] = useState(() => {
     const usedNames = new Set(Array.from(store.getState().agents.values()).map(a => a.name));
-    return LOTR_NAMES.find(n => !usedNames.has(n)) || `Agent-${Date.now().toString(36)}`;
+    return DEFAULT_NAMES.find(n => !usedNames.has(n)) || `Agent-${Date.now().toString(36)}`;
   });
   const [cwd, setCwd] = useState(() => localStorage.getItem('tide-last-cwd') || '');
   const [selectedClass, setSelectedClass] = useState<AgentClass>('scout');

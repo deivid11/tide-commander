@@ -13,7 +13,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import type { Agent, DrawingArea, AgentSupervisorHistory, AgentSupervisorHistoryEntry, Building, DelegationDecision, Skill, StoredSkill, CustomAgentClass } from '../../shared/types.js';
+import type { Agent, DrawingArea, AgentSupervisorHistory, AgentSupervisorHistoryEntry, Building, DelegationDecision, Skill, StoredSkill, CustomAgentClass, ContextStats } from '../../shared/types.js';
 import { createLogger } from '../utils/logger.js';
 
 const log = createLogger('Data');
@@ -48,6 +48,7 @@ export interface StoredAgent {
   tokensUsed: number;
   contextUsed?: number;  // May be missing in older data
   contextLimit?: number; // May be missing in older data
+  contextStats?: ContextStats; // Detailed context stats from /context command
   taskCount?: number;    // May be missing in older data
   permissionMode?: Agent['permissionMode']; // May be missing in older data
   createdAt: number;
@@ -111,6 +112,7 @@ export function saveAgents(agents: Agent[]): void {
       tokensUsed: agent.tokensUsed,
       contextUsed: agent.contextUsed,
       contextLimit: agent.contextLimit,
+      contextStats: agent.contextStats, // Persist detailed context stats
       taskCount: agent.taskCount,
       permissionMode: agent.permissionMode, // Persist permission mode
       createdAt: agent.createdAt,

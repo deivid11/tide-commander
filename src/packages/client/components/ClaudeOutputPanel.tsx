@@ -1,11 +1,29 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo, memo } from 'react';
 import ReactMarkdown, { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { useStore, useHideCost, useAgentOutputs, store, ClaudeOutput } from '../store';
-import type { Agent, AgentAnalysis, PermissionRequest } from '../../shared/types';
+import { useStore, useHideCost, useAgentOutputs, store, ClaudeOutput, useCustomAgentClassesArray, useContextModalAgentId, useFileViewerPath, useFileViewerEditData } from '../store';
+import type { Agent, AgentAnalysis, PermissionRequest, CustomAgentClass } from '../../shared/types';
 import { BOSS_CONTEXT_START, BOSS_CONTEXT_END } from '../../shared/types';
 import { AGENT_CLASS_CONFIG } from '../scene/config';
-import { formatIdleTime, getIdleTimerColor, filterCostText } from '../utils/formatting';
+import { formatIdleTime, getIdleTimerColor, filterCostText, intToHex } from '../utils/formatting';
+import { ContextViewModal } from './ContextViewModal';
+import { FileViewerModal } from './FileViewerModal';
+
+// Helper to get class config (built-in or custom)
+function getClassConfig(agentClass: string, customClasses: CustomAgentClass[]): { icon: string; color: string } {
+  const builtIn = AGENT_CLASS_CONFIG[agentClass];
+  if (builtIn) {
+    const color = typeof builtIn.color === 'number' ? intToHex(builtIn.color) : builtIn.color;
+    return { icon: builtIn.icon, color };
+  }
+
+  const custom = customClasses.find(c => c.id === agentClass);
+  if (custom) {
+    return { icon: custom.icon, color: custom.color };
+  }
+
+  return { icon: '🤖', color: '#888888' };
+}
 import {
   TOOL_ICONS,
   getToolIcon,
@@ -170,15 +188,24 @@ interface ParsedBossContent {
 }
 
 function parseBossContext(content: string): ParsedBossContent {
-  const startIdx = content.indexOf(BOSS_CONTEXT_START);
-  const endIdx = content.indexOf(BOSS_CONTEXT_END);
+  // Boss context is ONLY valid when it starts at the very beginning of the content
+  // This prevents false matches when the delimiters appear as literal text in the message
+  const trimmedContent = content.trimStart();
 
-  if (startIdx === -1 || endIdx === -1 || startIdx >= endIdx) {
+  if (!trimmedContent.startsWith(BOSS_CONTEXT_START)) {
     return { hasContext: false, context: null, userMessage: content };
   }
 
-  const context = content.slice(startIdx + BOSS_CONTEXT_START.length, endIdx).trim();
-  const userMessage = content.slice(endIdx + BOSS_CONTEXT_END.length).trim();
+  // IMPORTANT: Use lastIndexOf because the boss context itself may contain the delimiters
+  // as literal text (e.g., when a task description mentions "<<<BOSS_CONTEXT_START>>>")
+  const endIdx = trimmedContent.lastIndexOf(BOSS_CONTEXT_END);
+
+  if (endIdx === -1) {
+    return { hasContext: false, context: null, userMessage: content };
+  }
+
+  const context = trimmedContent.slice(BOSS_CONTEXT_START.length, endIdx).trim();
+  const userMessage = trimmedContent.slice(endIdx + BOSS_CONTEXT_END.length).trim();
 
   return { hasContext: true, context, userMessage };
 }
@@ -624,8 +651,8 @@ export function ClaudeOutputPanel() {
     setImageModal({ url, name });
   }, []);
 
-  const handleFileClick = useCallback((path: string) => {
-    store.setFileViewerPath(path);
+  const handleFileClick = useCallback((path: string, editData?: { oldString: string; newString: string }) => {
+    store.setFileViewerPath(path, editData);
   }, []);
 
   // Memoized sorted agents list for the agent links bar
@@ -666,7 +693,7 @@ export function ClaudeOutputPanel() {
     // Simple view: enrich tool lines with key parameters
     // Truncate Bash command output to 300 chars max in simple view
     const BASH_TRUNCATE_LENGTH = 300;
-    const result: (ClaudeOutput & { _toolKeyParam?: string })[] = [];
+    const result: (ClaudeOutput & { _toolKeyParam?: string; _editData?: { oldString: string; newString: string } })[] = [];
     for (let i = 0; i < outputs.length; i++) {
       const output = outputs[i];
 
@@ -681,11 +708,21 @@ export function ClaudeOutputPanel() {
 
         // Look ahead for the next Tool input: line
         let keyParam: string | null = null;
+        let editData: { oldString: string; newString: string } | undefined;
         for (let j = i + 1; j < outputs.length && j <= i + 3; j++) {
           const nextOutput = outputs[j];
           if (nextOutput.text.startsWith('Tool input:')) {
             const inputJson = nextOutput.text.replace('Tool input:', '').trim();
             keyParam = extractToolKeyParam(toolName, inputJson);
+            // For Edit tool, extract edit data for diff view
+            if (toolName === 'Edit') {
+              try {
+                const parsed = JSON.parse(inputJson);
+                if (parsed.old_string !== undefined || parsed.new_string !== undefined) {
+                  editData = { oldString: parsed.old_string || '', newString: parsed.new_string || '' };
+                }
+              } catch { /* ignore parse errors */ }
+            }
             break;
           }
           // Stop looking if we hit another tool or non-input line
@@ -699,10 +736,11 @@ export function ClaudeOutputPanel() {
           keyParam = keyParam.substring(0, BASH_TRUNCATE_LENGTH - 3) + '...';
         }
 
-        // Create enriched output with tool name + key param
+        // Create enriched output with tool name + key param + edit data
         result.push({
           ...output,
           _toolKeyParam: keyParam || undefined,
+          _editData: editData,
         });
         continue;
       }
@@ -1253,6 +1291,7 @@ export function ClaudeOutputPanel() {
                 <HistoryLine
                   key={`s-${index}`}
                   message={msg}
+                  agentId={selectedAgentId}
                   highlight={searchQuery}
                   onImageClick={(url, name) => setImageModal({ url, name })}
                   onFileClick={(path) => store.setFileViewerPath(path)}
@@ -1283,6 +1322,7 @@ export function ClaudeOutputPanel() {
                   <HistoryLine
                     key={`h-${index}`}
                     message={msg}
+                    agentId={selectedAgentId}
                     simpleView={viewMode !== 'advanced'}
                     onImageClick={handleImageClick}
                     onFileClick={handleFileClick}
@@ -1514,16 +1554,63 @@ export function ClaudeOutputPanel() {
           </div>
         </div>
       )}
+
+      {/* Context View Modal - global state driven */}
+      <ContextModalFromGuake />
+
+      {/* File Viewer Modal - global state driven */}
+      <FileViewerFromGuake />
     </div>
+  );
+}
+
+// Separate component for context modal to avoid re-renders
+function ContextModalFromGuake() {
+  const contextModalAgentId = useContextModalAgentId();
+  const state = useStore();
+  const agent = contextModalAgentId ? state.agents.get(contextModalAgentId) : null;
+
+  if (!agent) return null;
+
+  return (
+    <ContextViewModal
+      agent={agent}
+      isOpen={!!contextModalAgentId}
+      onClose={() => store.closeContextModal()}
+      onRefresh={() => {
+        if (contextModalAgentId) {
+          store.sendCommand(contextModalAgentId, '/context');
+        }
+      }}
+    />
+  );
+}
+
+// Separate component for file viewer modal to avoid re-renders
+function FileViewerFromGuake() {
+  const fileViewerPath = useFileViewerPath();
+  const editData = useFileViewerEditData();
+
+  if (!fileViewerPath) return null;
+
+  return (
+    <FileViewerModal
+      isOpen={!!fileViewerPath}
+      onClose={() => store.clearFileViewerPath()}
+      filePath={fileViewerPath}
+      action={editData ? 'modified' : 'read'}
+      editData={editData || undefined}
+    />
   );
 }
 
 interface HistoryLineProps {
   message: HistoryMessage;
+  agentId?: string | null;
   highlight?: string;
   simpleView?: boolean;
   onImageClick?: (url: string, name: string) => void;
-  onFileClick?: (path: string) => void;
+  onFileClick?: (path: string, editData?: { oldString: string; newString: string }) => void;
 }
 
 // Helper to highlight search terms in text
@@ -1706,7 +1793,7 @@ function computeSideBySideDiff(oldStr: string, newStr: string): {
   return { leftLines, rightLines, stats: { added, removed } };
 }
 
-function EditToolDiffComponent({ content, onFileClick }: { content: string; onFileClick?: (path: string) => void }) {
+function EditToolDiffComponent({ content, onFileClick }: { content: string; onFileClick?: (path: string, editData?: { oldString: string; newString: string }) => void }) {
   const leftRef = useRef<HTMLDivElement>(null);
   const rightRef = useRef<HTMLDivElement>(null);
   const isScrollingRef = useRef<'left' | 'right' | null>(null);
@@ -1768,8 +1855,8 @@ function EditToolDiffComponent({ content, onFileClick }: { content: string; onFi
         <div className="edit-tool-header">
           <span
             className="edit-tool-file clickable"
-            onClick={() => onFileClick?.(file_path)}
-            title={`Open ${file_path}`}
+            onClick={() => onFileClick?.(file_path, { oldString: old_string || '', newString: new_string || '' })}
+            title={`Open ${file_path} with diff view`}
           >
             📄 {fileName}
           </span>
@@ -1830,12 +1917,12 @@ function EditToolDiffComponent({ content, onFileClick }: { content: string; onFi
   }
 }
 
-function renderEditToolDiff(content: string, onFileClick?: (path: string) => void): React.ReactNode {
+function renderEditToolDiff(content: string, onFileClick?: (path: string, editData?: { oldString: string; newString: string }) => void): React.ReactNode {
   return <EditToolDiffComponent content={content} onFileClick={onFileClick} />;
 }
 
 // Helper to render Read tool with file link
-function renderReadToolInput(content: string, onFileClick?: (path: string) => void): React.ReactNode {
+function renderReadToolInput(content: string, onFileClick?: (path: string, editData?: { oldString: string; newString: string }) => void): React.ReactNode {
   try {
     const input = JSON.parse(content);
     const { file_path, offset, limit } = input;
@@ -1926,13 +2013,131 @@ function renderTodoWriteInput(content: string): React.ReactNode {
   }
 }
 
-const HistoryLine = memo(function HistoryLine({ message, highlight, simpleView, onImageClick, onFileClick }: HistoryLineProps) {
+const HistoryLine = memo(function HistoryLine({ message, agentId, highlight, simpleView, onImageClick, onFileClick }: HistoryLineProps) {
   const hideCost = useHideCost();
   const { type, content: rawContent, toolName, timestamp } = message;
   const content = filterCostText(rawContent, hideCost);
 
   // Format timestamp for display (HistoryMessage has ISO string timestamp)
   const timeStr = timestamp ? formatTimestamp(new Date(timestamp).getTime()) : '';
+
+  // Hide utility slash commands like /context, /cost, /compact
+  if (type === 'user') {
+    const trimmedContent = content.trim();
+    if (trimmedContent === '/context' || trimmedContent === '/cost' || trimmedContent === '/compact') {
+      return null;
+    }
+  }
+
+  // Check for boss context FIRST (before context output check)
+  // Boss context messages contain "Context Usage" for each agent, which would otherwise match the context output check
+  // Boss context is ONLY valid when the delimiter is at the START of the content (not when it appears as literal text)
+  const hasBossContext = content.trimStart().startsWith(BOSS_CONTEXT_START);
+
+  // Check if this is context stats output (from /context command)
+  // It may come wrapped in <local-command-stdout> tags from history
+  // Skip this check if content has boss context (boss context contains "Context Usage" per agent)
+  const hasContextStdout = !hasBossContext && content.includes('<local-command-stdout>') && content.includes('Context Usage');
+  const isContextOutput = !hasBossContext && (
+    content.includes('## Context Usage') ||
+    (content.includes('Context Usage') && content.includes('Tokens:') && content.includes('Free space')) ||
+    hasContextStdout
+  );
+
+  if (isContextOutput) {
+    // Extract content from tags if present
+    const tagMatch = content.match(/<local-command-stdout>([\s\S]*?)<\/local-command-stdout>/);
+    const contextContent = tagMatch ? tagMatch[1] : content;
+
+    // Parse and render compact context stats (handle both **bold** markdown and plain text)
+    const modelMatch = contextContent.match(/\*?\*?Model:\*?\*?\s*(.+)/);
+    const tokensMatch = contextContent.match(/\*?\*?Tokens:\*?\*?\s*([\d.]+)k?\s*\/\s*([\d.]+)k?\s*\((\d+)%\)/);
+
+    // Parse categories from the table (handles both markdown table and plain text format)
+    const parseCategory = (name: string): { tokens: string; percent: string } | null => {
+      // Match markdown table: | Free space | 85.9k | 43.0% |
+      const tableRegex = new RegExp(`\\|\\s*${name}\\s*\\|\\s*([\\d.]+)k?\\s*\\|\\s*([\\d.]+)%`, 'i');
+      const tableMatch = contextContent.match(tableRegex);
+      if (tableMatch) {
+        return { tokens: tableMatch[1] + 'k', percent: tableMatch[2] + '%' };
+      }
+      // Fallback: plain whitespace format (tab-separated from history)
+      const plainRegex = new RegExp(`${name}\\s+([\\d.]+)k?\\s+([\\d.]+)%`, 'i');
+      const plainMatch = contextContent.match(plainRegex);
+      if (plainMatch) {
+        return { tokens: plainMatch[1] + 'k', percent: plainMatch[2] + '%' };
+      }
+      return null;
+    };
+
+    const freeSpace = parseCategory('Free space');
+    const messages = parseCategory('Messages');
+    const usedPercent = tokensMatch ? parseInt(tokensMatch[3]) : 0;
+    // Free percent is simply 100 - used percent (NOT the "Free space" category which excludes autocompact buffer)
+    const freePercent = 100 - usedPercent;
+    const percentColor = usedPercent >= 80 ? '#ff4a4a' : usedPercent >= 60 ? '#ff9e4a' : usedPercent >= 40 ? '#ffd700' : '#4aff9e';
+
+    const handleContextClick = () => {
+      if (agentId) {
+        store.setContextModalAgentId(agentId);
+      }
+    };
+
+    return (
+      <div
+        className="output-line output-context-stats"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '4px 0',
+          cursor: agentId ? 'pointer' : 'default',
+        }}
+        onClick={handleContextClick}
+        title={agentId ? 'Click to view detailed context stats' : undefined}
+      >
+        {timeStr && <span className="output-timestamp">{timeStr}</span>}
+        <span style={{ color: '#bd93f9', fontSize: '12px' }}>📊</span>
+        <span style={{ fontSize: '11px', color: '#6272a4' }}>Context:</span>
+        <div style={{
+          width: '80px',
+          height: '6px',
+          background: 'rgba(98, 114, 164, 0.3)',
+          borderRadius: '3px',
+          overflow: 'hidden',
+          flexShrink: 0,
+        }}>
+          <div style={{
+            height: '100%',
+            width: `${usedPercent}%`,
+            background: percentColor,
+            borderRadius: '3px',
+          }} />
+        </div>
+        <span style={{ fontSize: '11px', color: percentColor, fontWeight: 600 }}>
+          {tokensMatch ? `${tokensMatch[1]}k/${tokensMatch[2]}k` : '?'}
+        </span>
+        <span style={{ fontSize: '11px', color: '#6272a4' }}>
+          ({freePercent.toFixed(0)}% free)
+        </span>
+        {messages && (
+          <span style={{ fontSize: '10px', color: '#4aff9e', opacity: 0.7 }}>
+            msgs: {messages.tokens}
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  // Hide local-command tags (caveat, command-name, etc.) for utility commands in history
+  // BUT NOT if this is a boss context message (boss context can include these tags from subordinate history)
+  if (!hasBossContext && (
+      content.includes('<local-command-caveat>') ||
+      content.includes('<command-name>/context</command-name>') ||
+      content.includes('<command-name>/cost</command-name>') ||
+      content.includes('<command-name>/compact</command-name>'))) {
+    return null;
+  }
 
   // For user messages, parse boss context BEFORE truncation
   // The boss context can be very long, so we need to extract it first
@@ -1952,12 +2157,45 @@ const HistoryLine = memo(function HistoryLine({ message, highlight, simpleView, 
       if (toolName === 'Bash' && keyParam && keyParam.length > 300) {
         keyParam = keyParam.substring(0, 297) + '...';
       }
+
+      // Check if this tool uses file paths that should be clickable
+      const fileTools = ['Read', 'Edit', 'Write', 'Glob', 'Grep', 'NotebookEdit'];
+      const isFileTool = fileTools.includes(toolName || '');
+      // Check if the param looks like a file path (starts with / or contains path separators)
+      const isFilePath = keyParam && (keyParam.startsWith('/') || keyParam.includes('/'));
+      const isClickable = isFileTool && isFilePath && onFileClick;
+
+      const handleParamClick = () => {
+        if (isClickable && keyParam) {
+          // For Edit tool, extract and pass edit data for diff view
+          if (toolName === 'Edit' && truncatedContent) {
+            try {
+              const parsed = JSON.parse(truncatedContent);
+              if (parsed.old_string !== undefined || parsed.new_string !== undefined) {
+                onFileClick(keyParam, { oldString: parsed.old_string || '', newString: parsed.new_string || '' });
+                return;
+              }
+            } catch { /* ignore parse errors */ }
+          }
+          onFileClick(keyParam);
+        }
+      };
+
       return (
         <div className="output-line output-tool-use output-tool-simple">
           {timeStr && <span className="output-timestamp">{timeStr}</span>}
           <span className="output-tool-icon">{icon}</span>
           <span className="output-tool-name">{toolName}</span>
-          {keyParam && <span className="output-tool-param">{keyParam}</span>}
+          {keyParam && (
+            <span
+              className={`output-tool-param ${isClickable ? 'clickable-path' : ''}`}
+              onClick={isClickable ? handleParamClick : undefined}
+              title={isClickable ? 'Click to view file' : undefined}
+              style={isClickable ? { cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' } : undefined}
+            >
+              {keyParam}
+            </span>
+          )}
         </div>
       );
     }
@@ -2052,7 +2290,7 @@ const HistoryLine = memo(function HistoryLine({ message, highlight, simpleView, 
         <span className="history-role">You</span>
         <span className="history-content markdown-content">
           {parsedBoss.hasContext && parsedBoss.context && (
-            <BossContext context={parsedBoss.context} />
+            <BossContext key={`boss-${timestamp || content.slice(0, 50)}`} context={parsedBoss.context} />
           )}
           {highlight ? (
             <div>{highlightText(displayMessage, highlight)}</div>
@@ -2101,15 +2339,15 @@ const HistoryLine = memo(function HistoryLine({ message, highlight, simpleView, 
 });
 
 interface OutputLineProps {
-  output: ClaudeOutput & { _toolKeyParam?: string };
+  output: ClaudeOutput & { _toolKeyParam?: string; _editData?: { oldString: string; newString: string } };
   agentId: string | null;
   onImageClick?: (url: string, name: string) => void;
-  onFileClick?: (path: string) => void;
+  onFileClick?: (path: string, editData?: { oldString: string; newString: string }) => void;
 }
 
 const OutputLine = memo(function OutputLine({ output, agentId, onImageClick, onFileClick }: OutputLineProps) {
   const hideCost = useHideCost();
-  const { text: rawText, isStreaming, isUserPrompt, timestamp, _toolKeyParam } = output as ClaudeOutput & { _toolKeyParam?: string };
+  const { text: rawText, isStreaming, isUserPrompt, timestamp, _toolKeyParam, _editData } = output as ClaudeOutput & { _toolKeyParam?: string; _editData?: { oldString: string; newString: string } };
   const text = filterCostText(rawText, hideCost);
 
   // Format timestamp for display
@@ -2120,6 +2358,12 @@ const OutputLine = memo(function OutputLine({ output, agentId, onImageClick, onF
 
   // Handle user prompts separately
   if (isUserPrompt) {
+    // Hide utility slash commands like /context, /cost, /compact
+    const trimmedText = text.trim();
+    if (trimmedText === '/context' || trimmedText === '/cost' || trimmedText === '/compact') {
+      return null;
+    }
+
     const parsed = parseBossContext(text);
 
     // Check if this user prompt matches a delegated task (text matches taskCommand)
@@ -2134,7 +2378,7 @@ const OutputLine = memo(function OutputLine({ output, agentId, onImageClick, onF
           <>
             <span className="output-role">You</span>
             {parsed.hasContext && parsed.context && (
-              <BossContext context={parsed.context} />
+              <BossContext key={`boss-stream-${text.slice(0, 50)}`} context={parsed.context} />
             )}
             {renderContentWithImages(parsed.userMessage, onImageClick)}
           </>
@@ -2147,13 +2391,39 @@ const OutputLine = memo(function OutputLine({ output, agentId, onImageClick, onF
   if (text.startsWith('Using tool:')) {
     const toolName = text.replace('Using tool:', '').trim();
     const icon = TOOL_ICONS[toolName] || TOOL_ICONS.default;
+
+    // Check if this tool uses file paths that should be clickable
+    const fileTools = ['Read', 'Edit', 'Write', 'Glob', 'Grep', 'NotebookEdit'];
+    const isFileTool = fileTools.includes(toolName);
+    // Check if the param looks like a file path (starts with / or contains path separators)
+    const isFilePath = _toolKeyParam && (_toolKeyParam.startsWith('/') || _toolKeyParam.includes('/'));
+    const isClickable = isFileTool && isFilePath && onFileClick;
+
+    const handleParamClick = () => {
+      if (isClickable && _toolKeyParam) {
+        // For Edit tool, pass edit data for diff view
+        if (toolName === 'Edit' && _editData) {
+          onFileClick(_toolKeyParam, _editData);
+        } else {
+          onFileClick(_toolKeyParam);
+        }
+      }
+    };
+
     return (
       <div className={`output-line output-tool-use ${isStreaming ? 'output-streaming' : ''}`}>
         <span className="output-timestamp">{timeStr}</span>
         <span className="output-tool-icon">{icon}</span>
         <span className="output-tool-name">{toolName}</span>
         {_toolKeyParam && (
-          <span className="output-tool-param">{_toolKeyParam}</span>
+          <span
+            className={`output-tool-param ${isClickable ? 'clickable-path' : ''}`}
+            onClick={isClickable ? handleParamClick : undefined}
+            title={isClickable ? (toolName === 'Edit' && _editData ? 'Click to view diff' : 'Click to view file') : undefined}
+            style={isClickable ? { cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' } : undefined}
+          >
+            {_toolKeyParam}
+          </span>
         )}
         {isStreaming && <span className="output-tool-loading">...</span>}
       </div>
@@ -2217,6 +2487,110 @@ const OutputLine = memo(function OutputLine({ output, agentId, onImageClick, onF
         <pre className="output-result-content">{resultText}</pre>
       </div>
     );
+  }
+
+  // Handle /context command output with special rendering
+  // Match both wrapped in <local-command-stdout> tags and plain format
+  const isContextOutput = text.includes('## Context Usage') ||
+    (text.includes('Context Usage') && text.includes('Tokens:') && text.includes('Free space'));
+
+  if (isContextOutput) {
+    // Extract content - either from tags or use full text
+    const tagMatch = text.match(/<local-command-stdout>([\s\S]*?)<\/local-command-stdout>/);
+    const contextOutput = tagMatch ? tagMatch[1] : text;
+
+    // Parse the context stats (handle both **bold** markdown and plain text)
+      const modelMatch = contextOutput.match(/\*?\*?Model:\*?\*?\s*(.+)/);
+      const tokensMatch = contextOutput.match(/\*?\*?Tokens:\*?\*?\s*([\d.]+)k?\s*\/\s*([\d.]+)k?\s*\((\d+)%\)/);
+
+      // Parse categories from the table (handles both markdown table and plain text format)
+      const parseCategory = (name: string): { tokens: string; percent: string } | null => {
+        // Match markdown table: | Free space | 85.9k | 43.0% |
+        const tableRegex = new RegExp(`\\|\\s*${name}\\s*\\|\\s*([\\d.]+)k?\\s*\\|\\s*([\\d.]+)%`, 'i');
+        const tableMatch = contextOutput.match(tableRegex);
+        if (tableMatch) {
+          return { tokens: tableMatch[1] + 'k', percent: tableMatch[2] + '%' };
+        }
+        // Fallback: plain whitespace format
+        const plainRegex = new RegExp(`${name}\\s+([\\d.]+)k?\\s+([\\d.]+)%`, 'i');
+        const plainMatch = contextOutput.match(plainRegex);
+        if (plainMatch) {
+          return { tokens: plainMatch[1] + 'k', percent: plainMatch[2] + '%' };
+        }
+        return null;
+      };
+
+      const systemPrompt = parseCategory('System prompt');
+      const systemTools = parseCategory('System tools');
+      const messages = parseCategory('Messages');
+      const freeSpace = parseCategory('Free space');
+      const autocompactBuffer = parseCategory('Autocompact buffer');
+
+      const usedPercent = tokensMatch ? parseInt(tokensMatch[3]) : 0;
+      // Free percent is simply 100 - used percent (NOT the "Free space" category which excludes autocompact buffer)
+      const freePercent = 100 - usedPercent;
+      const percentColor = usedPercent >= 80 ? '#ff4a4a' : usedPercent >= 60 ? '#ff9e4a' : usedPercent >= 40 ? '#ffd700' : '#4aff9e';
+
+      const handleContextClick = () => {
+        if (agentId) {
+          store.setContextModalAgentId(agentId);
+        }
+      };
+
+      // Compact single-line context display
+      return (
+        <div
+          className="output-line output-context-stats"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '4px 0',
+            cursor: agentId ? 'pointer' : 'default',
+          }}
+          onClick={handleContextClick}
+          title={agentId ? 'Click to view detailed context stats' : undefined}
+        >
+          <span className="output-timestamp">{timeStr}</span>
+          <span style={{ color: '#bd93f9', fontSize: '12px' }}>📊</span>
+          <span style={{ fontSize: '11px', color: '#6272a4' }}>Context:</span>
+          {/* Mini progress bar */}
+          <div style={{
+            width: '80px',
+            height: '6px',
+            background: 'rgba(98, 114, 164, 0.3)',
+            borderRadius: '3px',
+            overflow: 'hidden',
+            flexShrink: 0,
+          }}>
+            <div style={{
+              height: '100%',
+              width: `${usedPercent}%`,
+              background: percentColor,
+              borderRadius: '3px',
+            }} />
+          </div>
+          <span style={{ fontSize: '11px', color: percentColor, fontWeight: 600 }}>
+            {tokensMatch ? `${tokensMatch[1]}k/${tokensMatch[2]}k` : '?'}
+          </span>
+          <span style={{ fontSize: '11px', color: '#6272a4' }}>
+            ({freePercent.toFixed(0)}% free)
+          </span>
+          {messages && (
+            <span style={{ fontSize: '10px', color: '#4aff9e', opacity: 0.7 }}>
+              msgs: {messages.tokens}
+            </span>
+          )}
+        </div>
+      );
+  }
+
+  // Hide local-command tags (caveat, command-name, etc.) for utility commands
+  if (text.includes('<local-command-caveat>') ||
+      text.includes('<command-name>/context</command-name>') ||
+      text.includes('<command-name>/cost</command-name>') ||
+      text.includes('<command-name>/compact</command-name>')) {
+    return null;
   }
 
   // Categorize other output types
@@ -2301,8 +2675,9 @@ interface GuakeAgentLinkProps {
 }
 
 function GuakeAgentLink({ agent, isSelected, onClick }: GuakeAgentLinkProps) {
+  const customClasses = useCustomAgentClassesArray();
   const [, setTick] = useState(0);
-  const config = AGENT_CLASS_CONFIG[agent.class];
+  const config = getClassConfig(agent.class, customClasses);
 
   // Update timer every second when agent is idle
   useEffect(() => {

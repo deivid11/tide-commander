@@ -1,11 +1,37 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
+import Prism from 'prismjs';
+import { DiffViewer } from './DiffViewer';
+import 'prismjs/components/prism-typescript';
+import 'prismjs/components/prism-javascript';
+import 'prismjs/components/prism-jsx';
+import 'prismjs/components/prism-tsx';
+import 'prismjs/components/prism-python';
+import 'prismjs/components/prism-rust';
+import 'prismjs/components/prism-go';
+import 'prismjs/components/prism-java';
+import 'prismjs/components/prism-c';
+import 'prismjs/components/prism-cpp';
+import 'prismjs/components/prism-css';
+import 'prismjs/components/prism-scss';
+import 'prismjs/components/prism-json';
+import 'prismjs/components/prism-yaml';
+import 'prismjs/components/prism-bash';
+import 'prismjs/components/prism-sql';
+import 'prismjs/components/prism-markdown';
+import 'prismjs/components/prism-toml';
+import 'prismjs/components/prism-docker';
 
 interface FileViewerModalProps {
   isOpen: boolean;
   onClose: () => void;
   filePath: string;
   action: 'created' | 'modified' | 'deleted' | 'read';
+  // Optional: edit data for showing diff view
+  editData?: {
+    oldString: string;
+    newString: string;
+  };
 }
 
 interface FileData {
@@ -56,10 +82,11 @@ const EXTENSION_LANGUAGES: Record<string, string> = {
 
 const MARKDOWN_EXTENSIONS = ['.md', '.mdx', '.markdown'];
 
-export function FileViewerModal({ isOpen, onClose, filePath, action }: FileViewerModalProps) {
+export function FileViewerModal({ isOpen, onClose, filePath, action, editData }: FileViewerModalProps) {
   const [fileData, setFileData] = useState<FileData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const codeRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     if (isOpen && filePath) {
@@ -69,6 +96,25 @@ export function FileViewerModal({ isOpen, onClose, filePath, action }: FileViewe
       setError(null);
     }
   }, [isOpen, filePath]);
+
+  // Apply syntax highlighting when file data changes (only when not showing diff)
+  useEffect(() => {
+    if (fileData && codeRef.current && !MARKDOWN_EXTENSIONS.includes(fileData.extension) && !editData) {
+      Prism.highlightElement(codeRef.current);
+    }
+  }, [fileData, editData]);
+
+  // Compute original content by reversing the edit (replace newString back with oldString)
+  const originalContent = useMemo(() => {
+    if (!fileData || !editData) return null;
+    const { oldString, newString } = editData;
+    // The current file has newString, so we replace it with oldString to get the original
+    const index = fileData.content.indexOf(newString);
+    if (index === -1) return null; // Can't find the edit, skip diff view
+    return fileData.content.slice(0, index) + oldString + fileData.content.slice(index + newString.length);
+  }, [fileData, editData]);
+
+  const showDiffView = editData && originalContent !== null;
 
   const loadFile = async () => {
     setLoading(true);
@@ -172,13 +218,21 @@ export function FileViewerModal({ isOpen, onClose, filePath, action }: FileViewe
           )}
 
           {fileData && !loading && !error && (
-            isMarkdown ? (
+            showDiffView ? (
+              // Show side-by-side diff view for Edit tool
+              <DiffViewer
+                originalContent={originalContent!}
+                modifiedContent={fileData.content}
+                filename={fileData.filename}
+                language={language}
+              />
+            ) : isMarkdown ? (
               <div className="file-viewer-markdown markdown-content">
                 <ReactMarkdown>{fileData.content}</ReactMarkdown>
               </div>
             ) : (
               <pre className="file-viewer-code">
-                <code data-language={language}>{fileData.content}</code>
+                <code ref={codeRef} className={`language-${language}`}>{fileData.content}</code>
               </pre>
             )
           )}

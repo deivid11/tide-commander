@@ -373,3 +373,71 @@
   border-radius: $radius-sm;
   text-transform: uppercase;
 }
+
+// Class features display (read-only) - shows instructions and default skills
+.class-features-display {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px;
+  background: $bg-tertiary;
+  border: 1px solid $border-color;
+  border-radius: $radius-md;
+}
+
+.class-feature-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 100px;
+  font-size: 11px;
+
+  &.skill {
+    background: rgba($dracula-cyan, 0.15);
+    border: 1px solid rgba($dracula-cyan, 0.3);
+    color: $dracula-cyan;
+  }
+
+  &.instructions {
+    background: rgba($dracula-purple, 0.15);
+    border: 1px solid rgba($dracula-purple, 0.3);
+    color: $dracula-purple;
+  }
+}
+
+.class-feature-icon {
+  font-size: 12px;
+}
+
+.class-feature-name {
+  font-weight: 500;
+}
+
+// Agent edit modal
+.agent-edit-modal {
+  width: 480px;
+  max-width: 95vw;
+}
+
+// Context view modal
+.context-view-modal {
+  width: 520px;
+  max-width: 95vw;
+
+  .modal-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+}
+
+// Spin animation for refresh button
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

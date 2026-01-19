@@ -14,7 +14,8 @@ export interface StandardEvent {
     | 'step_complete'
     | 'error'
     | 'block_start'
-    | 'block_end';
+    | 'block_end'
+    | 'context_stats';  // Response from /context command
   blockType?: 'text' | 'thinking';
   sessionId?: string;
   text?: string;
@@ -26,6 +27,15 @@ export interface StandardEvent {
     output: number;
     cacheCreation?: number;  // cache_creation_input_tokens
     cacheRead?: number;      // cache_read_input_tokens
+  };
+  // Model usage info from result event (contains actual context window size)
+  modelUsage?: {
+    contextWindow?: number;      // Model's context window size
+    maxOutputTokens?: number;    // Model's max output tokens
+    inputTokens?: number;        // Total input tokens this turn
+    outputTokens?: number;       // Total output tokens this turn
+    cacheReadInputTokens?: number;
+    cacheCreationInputTokens?: number;
   };
   cost?: number;
   durationMs?: number;
@@ -39,6 +49,13 @@ export interface StandardEvent {
     toolUseId: string;
     toolInput: Record<string, unknown>;
   }>;
+  contextStatsRaw?: string;  // Raw /context command output for parsing
+}
+
+// Custom agent definition for --agents flag
+export interface CustomAgentDefinition {
+  description: string;
+  prompt: string;
 }
 
 // Configuration for backend
@@ -50,7 +67,11 @@ export interface BackendConfig {
   prompt?: string;
   systemPrompt?: string;
   useChrome?: boolean;
-  disableTools?: boolean;  // Disable all tools (for boss team questions)
+  // Custom agent configuration (uses --agents and --agent flags)
+  customAgent?: {
+    name: string;  // Agent name to use with --agent flag
+    definition: CustomAgentDefinition;
+  };
 }
 
 // Raw event from Claude CLI (partial typing for flexibility)
@@ -78,6 +99,17 @@ export interface ClaudeRawEvent {
     output_tokens: number;
     cache_creation_input_tokens?: number;
     cache_read_input_tokens?: number;
+  };
+  // Model usage stats from result event (per-model breakdown with context window info)
+  modelUsage?: {
+    [modelName: string]: {
+      inputTokens: number;
+      outputTokens: number;
+      cacheReadInputTokens?: number;
+      cacheCreationInputTokens?: number;
+      contextWindow?: number;
+      maxOutputTokens?: number;
+    };
   };
   event?: {
     type: string;
@@ -133,8 +165,12 @@ export interface RunnerRequest {
   useChrome?: boolean;
   permissionMode?: 'bypass' | 'interactive';
   systemPrompt?: string;
-  disableTools?: boolean;  // Disable all tools (for boss team questions)
   forceNewSession?: boolean;  // Don't resume existing session (for boss team questions)
+  // Custom agent configuration (for custom class instructions)
+  customAgent?: {
+    name: string;
+    definition: CustomAgentDefinition;
+  };
 }
 
 // Runner callbacks

@@ -4,6 +4,9 @@
  */
 
 import { EventEmitter } from 'events';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
 import { loadCustomAgentClasses, saveCustomAgentClasses } from '../data/index.js';
 import type { CustomAgentClass } from '../../shared/types.js';
 import { createLogger } from '../utils/logger.js';
@@ -16,13 +19,71 @@ let customClasses: Map<string, CustomAgentClass> = new Map();
 // Event emitter for broadcasting changes
 export const customClassEvents = new EventEmitter();
 
+// Directory for storing instruction markdown files
+const INSTRUCTIONS_DIR = path.join(os.homedir(), '.tide-commander', 'class-instructions');
+
+/**
+ * Ensure the instructions directory exists
+ */
+function ensureInstructionsDir(): void {
+  if (!fs.existsSync(INSTRUCTIONS_DIR)) {
+    fs.mkdirSync(INSTRUCTIONS_DIR, { recursive: true });
+    log.log(`Created instructions directory: ${INSTRUCTIONS_DIR}`);
+  }
+}
+
+/**
+ * Get the file path for a class's instruction markdown
+ */
+function getInstructionsFilePath(classId: string): string {
+  return path.join(INSTRUCTIONS_DIR, `${classId}.md`);
+}
+
+/**
+ * Save instructions to a markdown file on disk
+ */
+function saveInstructionsFile(classId: string, instructions: string | undefined): void {
+  ensureInstructionsDir();
+  const filePath = getInstructionsFilePath(classId);
+
+  if (instructions && instructions.trim()) {
+    fs.writeFileSync(filePath, instructions, 'utf-8');
+    log.log(`Saved instructions for class ${classId} to ${filePath} (${instructions.length} chars)`);
+  } else {
+    // Remove file if instructions are empty
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+      log.log(`Removed instructions file for class ${classId}`);
+    }
+  }
+}
+
+/**
+ * Delete instructions file for a class
+ */
+function deleteInstructionsFile(classId: string): void {
+  const filePath = getInstructionsFilePath(classId);
+  if (fs.existsSync(filePath)) {
+    fs.unlinkSync(filePath);
+    log.log(`Deleted instructions file for class ${classId}`);
+  }
+}
+
 /**
  * Initialize the custom class service - load from disk
  */
 export function initCustomClasses(): void {
+  ensureInstructionsDir();
   const loaded = loadCustomAgentClasses();
   customClasses = new Map(loaded.map(c => [c.id, c]));
   log.log(`Initialized with ${customClasses.size} custom agent classes`);
+
+  // Sync instructions files with stored data
+  for (const customClass of customClasses.values()) {
+    if (customClass.instructions) {
+      saveInstructionsFile(customClass.id, customClass.instructions);
+    }
+  }
 }
 
 /**
@@ -82,6 +143,11 @@ export function createCustomClass(
   customClasses.set(uniqueId, customClass);
   persistClasses();
 
+  // Save instructions to disk as markdown file
+  if (customClass.instructions) {
+    saveInstructionsFile(uniqueId, customClass.instructions);
+  }
+
   log.log(`Created custom class: ${customClass.name} (${uniqueId})`);
   customClassEvents.emit('created', customClass);
 
@@ -112,6 +178,9 @@ export function updateCustomClass(
   customClasses.set(id, updated);
   persistClasses();
 
+  // Update instructions file on disk
+  saveInstructionsFile(id, updated.instructions);
+
   log.log(`Updated custom class: ${updated.name} (${id})`);
   customClassEvents.emit('updated', updated);
 
@@ -129,6 +198,9 @@ export function deleteCustomClass(id: string): boolean {
 
   customClasses.delete(id);
   persistClasses();
+
+  // Delete instructions file
+  deleteInstructionsFile(id);
 
   log.log(`Deleted custom class: ${id}`);
   customClassEvents.emit('deleted', id);
@@ -178,6 +250,46 @@ export function getClassDefaultSkillIds(classId: string): string[] {
   return customClass?.defaultSkillIds || [];
 }
 
+/**
+ * Get instructions (CLAUDE.md content) for a custom class
+ * Returns undefined if class doesn't exist or has no instructions
+ */
+export function getClassInstructions(classId: string): string | undefined {
+  const customClass = customClasses.get(classId);
+  return customClass?.instructions;
+}
+
+/**
+ * Get the path to the instructions markdown file for a class
+ * Returns undefined if class doesn't exist or has no instructions
+ */
+export function getClassInstructionsPath(classId: string): string | undefined {
+  const customClass = customClasses.get(classId);
+  if (customClass?.instructions) {
+    return getInstructionsFilePath(classId);
+  }
+  return undefined;
+}
+
+/**
+ * Build a custom agent definition for the --agents flag
+ * Returns undefined if class doesn't have instructions
+ */
+export function buildCustomAgentConfig(classId: string): { name: string; definition: { description: string; prompt: string } } | undefined {
+  const customClass = customClasses.get(classId);
+  if (!customClass?.instructions) {
+    return undefined;
+  }
+
+  return {
+    name: classId,
+    definition: {
+      description: customClass.description || `Custom agent class: ${customClass.name}`,
+      prompt: customClass.instructions,
+    },
+  };
+}
+
 // Export as a service object for consistency
 export const customClassService = {
   initCustomClasses,
@@ -190,4 +302,7 @@ export const customClassService = {
   getClassModelFile,
   getClassInfo,
   getClassDefaultSkillIds,
+  getClassInstructions,
+  getClassInstructionsPath,
+  buildCustomAgentConfig,
 };

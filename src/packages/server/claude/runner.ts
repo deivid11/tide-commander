@@ -31,7 +31,7 @@ export class ClaudeRunner {
    * Run a prompt for an agent
    */
   async run(request: RunnerRequest): Promise<void> {
-    const { agentId, prompt, workingDir, sessionId, model, useChrome, permissionMode = 'bypass', systemPrompt, disableTools, forceNewSession } = request;
+    const { agentId, prompt, workingDir, sessionId, model, useChrome, permissionMode = 'bypass', systemPrompt, forceNewSession, customAgent } = request;
 
     // Kill existing process for this agent if any
     await this.stop(agentId);
@@ -45,7 +45,7 @@ export class ClaudeRunner {
       permissionMode,
       useChrome,
       systemPrompt,
-      disableTools,
+      customAgent,
     });
 
     // Get executable path
@@ -56,6 +56,7 @@ export class ClaudeRunner {
 
     // Spawn process with its own process group (detached: true)
     // This allows us to kill the entire process tree when stopping
+    // Note: shell: false to avoid issues with special characters in args
     const childProcess = spawn(executable, args, {
       cwd: workingDir,
       env: {
@@ -63,7 +64,7 @@ export class ClaudeRunner {
         LANG: 'en_US.UTF-8',
         LC_ALL: 'en_US.UTF-8',
       },
-      shell: true,
+      shell: false,
       detached: true,
     });
 
@@ -334,6 +335,13 @@ export class ClaudeRunner {
 
       case 'error':
         this.callbacks.onError(agentId, event.errorMessage || 'Unknown error');
+        break;
+
+      case 'context_stats':
+        // Send context stats raw output to client for rendering
+        if (event.contextStatsRaw) {
+          this.callbacks.onOutput(agentId, event.contextStatsRaw);
+        }
         break;
     }
   }

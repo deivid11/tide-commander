@@ -114,6 +114,69 @@ Tide Commander provides a visual interface for managing multiple Claude Code CLI
 - Directory names encode the working directory path (e.g., `/home/user/project` → `-home-user-project`)
 - Tide Commander reads these to resume sessions and display conversation history
 
+## 🔐 Permission Modes
+
+Agents can operate in two permission modes:
+
+### Bypass Mode (Default)
+Agents run with `--dangerously-skip-permissions`, allowing them to execute any tool (Bash, Edit, Write, etc.) without asking for approval. This is ideal for trusted, autonomous work.
+
+### Interactive Mode
+Agents require user approval for potentially dangerous operations. This mode uses a hook-based system:
+
+```
+┌─────────────────────────────────────────┐
+│         Claude Code Agent               │
+│  Wants to run: Bash "rm -rf ./temp"     │
+└─────────────────┬───────────────────────┘
+                  │ PreToolUse hook
+┌─────────────────▼───────────────────────┐
+│       permission-hook.sh                │
+│  1. Auto-approves safe tools (Read,     │
+│     Glob, Grep, etc.)                   │
+│  2. Checks remembered patterns          │
+│  3. Sends dangerous ops to server       │
+└─────────────────┬───────────────────────┘
+                  │ HTTP POST /api/permission-request
+┌─────────────────▼───────────────────────┐
+│       Tide Commander Server             │
+│  - Broadcasts to UI via WebSocket       │
+│  - Holds request until user responds    │
+└─────────────────┬───────────────────────┘
+                  │ WebSocket
+┌─────────────────▼───────────────────────┐
+│       Browser UI                        │
+│  - Shows permission dialog              │
+│  - User approves/denies                 │
+│  - Optional: Remember for this session  │
+└─────────────────────────────────────────┘
+```
+
+#### Safe Tools (Auto-Approved)
+These read-only tools are automatically approved without prompting:
+- `Read`, `Glob`, `Grep` - File reading and searching
+- `Task`, `TaskOutput` - Agent task management
+- `WebFetch`, `WebSearch` - Web content fetching
+- `TodoWrite` - Task list management
+- `AskUserQuestion` - User interaction
+- `EnterPlanMode`, `ExitPlanMode`, `Skill` - Planning tools
+
+#### Dangerous Tools (Require Approval)
+These tools prompt for user permission:
+- `Bash` - Shell command execution
+- `Edit`, `Write` - File modifications
+- `NotebookEdit` - Jupyter notebook edits
+
+#### Remembered Patterns
+When approving a permission request, you can check "Remember this" to auto-approve similar future requests:
+- **File operations**: Remembers the directory (e.g., approving `/project/src/file.ts` remembers `/project/src/`)
+- **Bash commands**: Remembers the command prefix (e.g., approving `npm test` remembers `npm`)
+
+Remembered patterns are stored in `~/.tide-commander/remembered-permissions.json` and can be cleared via the API or by deleting the file.
+
+#### Setting Permission Mode
+When spawning an agent, select the permission mode in the spawn dialog. You can also change it later by editing the agent configuration.
+
 ## ⚙️ Configuration
 
 Ports can be configured via environment variables:

@@ -185,6 +185,9 @@ function AppContent() {
       onDelegation: (bossId, subordinateId) => {
         sceneRef.current?.showDelegationEffect(bossId, subordinateId);
       },
+      onCustomClassesSync: (classes) => {
+        sceneRef.current?.setCustomAgentClasses(classes);
+      },
     });
 
     // Connect to server only if not already connected

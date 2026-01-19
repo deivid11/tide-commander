@@ -6,11 +6,12 @@
 import { Server as HttpServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import * as fs from 'fs';
-import type { Agent, AgentClass, ClientMessage, ServerMessage, DrawingArea, Building, PermissionRequest, DelegationDecision, Skill, CustomAgentClass } from '../../shared/types.js';
-import { BOSS_CONTEXT_START, BOSS_CONTEXT_END } from '../../shared/types.js';
+import type { Agent, AgentClass, ClientMessage, ServerMessage, DrawingArea, Building, PermissionRequest, DelegationDecision, Skill, CustomAgentClass, BuiltInAgentClass } from '../../shared/types.js';
+import { BOSS_CONTEXT_START, BOSS_CONTEXT_END, BUILT_IN_AGENT_CLASSES } from '../../shared/types.js';
 import { agentService, claudeService, supervisorService, permissionService, bossService, skillService, customClassService } from '../services/index.js';
 import { loadAreas, saveAreas, loadBuildings, saveBuildings } from '../data/index.js';
 import { loadSession, loadToolHistory } from '../claude/session-loader.js';
+import { parseContextOutput } from '../claude/backend.js';
 import { logger, createLogger } from '../utils/logger.js';
 
 const log = logger.ws;
@@ -209,9 +210,7 @@ function handleClientMessage(ws: WebSocket, message: ClientMessage): void {
           // Instructions go via system prompt, context is in the message for visibility
           buildBossMessage(agentId, command)
             .then(({ message: bossMessage, systemPrompt }) => {
-              const disableTools = isTeamQuestion; // Disable tools for team questions
-              log.log(` Boss ${agent.name}: disableTools=${disableTools}`);
-              claudeService.sendCommand(agentId, bossMessage, systemPrompt, disableTools);
+              claudeService.sendCommand(agentId, bossMessage, systemPrompt);
             })
             .catch((err) => {
               log.error(` Boss ${agent.name}: failed to build boss message:`, err);
@@ -219,18 +218,50 @@ function handleClientMessage(ws: WebSocket, message: ClientMessage): void {
             });
 
           if (isTeamQuestion) {
-            log.log(` Boss ${agent.name}: detected team question, boss will answer directly (tools disabled)`);
+            log.log(` Boss ${agent.name}: detected team question`);
           } else {
             log.log(` Boss ${agent.name}: detected coding task, delegation will be in response`);
           }
-        } else {
-          // Regular agent - send command directly
+        } else if (agent) {
+          // Regular agent - build custom agent config combining:
+          // 1. Custom class instructions (if any)
+          // 2. Skills assigned to this agent (via class or directly)
+
+          const classInstructions = customClassService.getClassInstructions(agent.class);
+          const skillsContent = skillService.buildSkillPromptContent(agentId, agent.class);
+
+          // Combine instructions and skills into a single prompt
+          let combinedPrompt = '';
+          if (classInstructions) {
+            combinedPrompt += classInstructions;
+          }
+          if (skillsContent) {
+            if (combinedPrompt) combinedPrompt += '\n\n';
+            combinedPrompt += skillsContent;
+          }
+
+          // Build custom agent config if we have any instructions or skills
+          let customAgentConfig: { name: string; definition: { description: string; prompt: string } } | undefined;
+          if (combinedPrompt) {
+            const customClass = customClassService.getCustomClass(agent.class);
+            customAgentConfig = {
+              name: customClass?.id || agent.class,
+              definition: {
+                description: customClass?.description || `Agent class: ${agent.class}`,
+                prompt: combinedPrompt,
+              },
+            };
+            log.log(` Agent ${agent.name} using custom agent config (${combinedPrompt.length} chars: ${classInstructions ? 'instructions' : ''}${classInstructions && skillsContent ? ' + ' : ''}${skillsContent ? 'skills' : ''})`);
+          }
+
           claudeService
-            .sendCommand(agentId, command)
+            .sendCommand(agentId, command, undefined, undefined, customAgentConfig)
             .catch((err) => {
               log.error(' Failed to send command:', err);
               sendActivity(agentId, `Error: ${err.message}`);
             });
+        } else {
+          log.error(` Agent not found: ${agentId}`);
         }
       }
       break;
@@ -310,6 +341,22 @@ function handleClientMessage(ws: WebSocket, message: ClientMessage): void {
       }
       break;
 
+    case 'request_context_stats':
+      // Request detailed context stats - send /context command to Claude
+      {
+        const agentId = message.payload.agentId;
+        const agent = agentService.getAgent(agentId);
+        if (agent && agent.status === 'idle') {
+          // Send the /context command which returns detailed breakdown
+          claudeService.sendCommand(agentId, '/context').catch(err => {
+            log.error(` Failed to request context stats: ${err}`);
+          });
+        } else {
+          log.log(` Cannot request context stats while agent ${agentId} is busy`);
+        }
+      }
+      break;
+
     case 'remove_agent':
       // Unlink from boss/subordinates before deleting
       unlinkAgentFromBossHierarchy(message.payload.agentId);
@@ -323,6 +370,55 @@ function handleClientMessage(ws: WebSocket, message: ClientMessage): void {
         name: message.payload.name,
       }, false);
       break;
+
+    case 'update_agent_properties': {
+      const { agentId, updates } = message.payload;
+      const agent = agentService.getAgent(agentId);
+
+      if (!agent) {
+        ws.send(JSON.stringify({
+          type: 'error',
+          payload: { message: `Agent not found: ${agentId}` },
+        }));
+        break;
+      }
+
+      // Update agent properties
+      const agentUpdates: Partial<Agent> = {};
+
+      if (updates.class !== undefined) {
+        agentUpdates.class = updates.class;
+      }
+
+      if (updates.permissionMode !== undefined) {
+        agentUpdates.permissionMode = updates.permissionMode;
+      }
+
+      // Apply agent property updates if any
+      if (Object.keys(agentUpdates).length > 0) {
+        agentService.updateAgent(agentId, agentUpdates, false);
+      }
+
+      // Handle skill reassignment
+      if (updates.skillIds !== undefined) {
+        // First, unassign all current skills from this agent
+        const currentSkills = skillService.getSkillsForAgent(agentId, agent.class);
+        for (const skill of currentSkills) {
+          // Only unassign if it's a direct assignment (not class-based)
+          if (skill.assignedAgentIds.includes(agentId)) {
+            skillService.unassignSkillFromAgent(skill.id, agentId);
+          }
+        }
+
+        // Then assign the new skills
+        for (const skillId of updates.skillIds) {
+          skillService.assignSkillToAgent(skillId, agentId);
+        }
+      }
+
+      log.log(`Updated agent properties for ${agent.name}: ${JSON.stringify(updates)}`);
+      break;
+    }
 
     case 'create_directory':
       try {
@@ -1145,6 +1241,39 @@ async function buildBossContext(bossId: string): Promise<string | null> {
       }
     }
 
+    // Build agent capabilities section (class info, skills, specialization)
+    let capabilitiesSection = '';
+    const customClass = customClassService.getCustomClass(ctx.class);
+    const isBuiltIn = ctx.class in BUILT_IN_AGENT_CLASSES;
+
+    if (customClass) {
+      // Custom class - show name, description, and instructions summary
+      const instructionsSummary = customClass.instructions
+        ? truncate(customClass.instructions.replace(/\n/g, ' ').trim(), 150)
+        : null;
+
+      capabilitiesSection = `\n### Capabilities:
+- **Class Type**: Custom Class "${customClass.name}" ${customClass.icon}
+- **Specialization**: ${customClass.description}`;
+
+      if (instructionsSummary) {
+        capabilitiesSection += `\n- **Custom Instructions**: ${instructionsSummary}`;
+      }
+    } else if (isBuiltIn) {
+      // Built-in class - show specialization
+      const builtInConfig = BUILT_IN_AGENT_CLASSES[ctx.class as BuiltInAgentClass];
+      capabilitiesSection = `\n### Capabilities:
+- **Class Type**: ${builtInConfig.icon} ${ctx.class.charAt(0).toUpperCase() + ctx.class.slice(1)} (built-in)
+- **Specialization**: ${builtInConfig.description}`;
+    }
+
+    // Get agent skills
+    const agentSkills = sub ? skillService.getSkillsForAgent(sub.id, sub.class) : [];
+    if (agentSkills.length > 0) {
+      const skillsList = agentSkills.map(s => `${s.name}`).join(', ');
+      capabilitiesSection += `\n- **Skills**: ${skillsList}`;
+    }
+
     // Build supervisor status updates (last 3 with FULL details)
     let supervisorUpdates = '';
     if (history.entries && history.entries.length > 0) {
@@ -1191,7 +1320,7 @@ async function buildBossContext(bossId: string): Promise<string | null> {
 - **Idle Time**: ${idleTime}
 - **Last Assigned Task**: ${lastTaskInfo}
 - **Working Directory**: ${cwd}
-- **Context Usage**: ${ctx.contextPercent}% (${ctx.tokensUsed?.toLocaleString() || 0} tokens)${fileChangesSection}${conversationSection}${supervisorUpdates}`;
+- **Context Usage**: ${ctx.contextPercent}% (${ctx.tokensUsed?.toLocaleString() || 0} tokens)${capabilitiesSection}${fileChangesSection}${conversationSection}${supervisorUpdates}`;
   }));
 
   // Get recent delegation history for this boss
@@ -1397,6 +1526,112 @@ function formatTimeSince(timestamp: number): string {
 
 
 // ============================================================================
+// Agent Restart on Class Update
+// ============================================================================
+
+/**
+ * Restart all agents using a given skill when the skill is updated.
+ * An agent uses a skill if:
+ * 1. The skill is directly assigned to the agent
+ * 2. The skill is assigned to the agent's class
+ * 3. The agent's custom class has the skill as a default
+ */
+async function restartAgentsWithSkill(skill: Skill): Promise<void> {
+  const allAgents = agentService.getAllAgents();
+  const affectedAgents = allAgents.filter(agent => {
+    // Check direct assignment
+    if (skill.assignedAgentIds.includes(agent.id)) return true;
+
+    // Check class assignment (skill assigned to agent's class)
+    if (skill.assignedAgentClasses.includes(agent.class)) return true;
+
+    // Check custom class default skills
+    const customClass = customClassService.getCustomClass(agent.class);
+    if (customClass?.defaultSkillIds?.includes(skill.id)) return true;
+
+    return false;
+  });
+
+  if (affectedAgents.length === 0) {
+    log.log(`🔄 No agents using skill "${skill.name}" to restart`);
+    return;
+  }
+
+  log.log(`🔄 Restarting ${affectedAgents.length} agent(s) using skill "${skill.name}" due to skill update`);
+
+  for (const agent of affectedAgents) {
+    try {
+      log.log(`🔄 Restarting agent ${agent.name} (${agent.id}) due to skill update`);
+
+      // Stop the current process if running
+      await claudeService.stopAgent(agent.id);
+
+      // Clear session to force a fresh start with new skill content
+      agentService.updateAgent(agent.id, {
+        status: 'idle',
+        currentTask: undefined,
+        currentTool: undefined,
+        sessionId: undefined, // Clear session to start fresh
+        tokensUsed: 0,
+        contextUsed: 0,
+      });
+
+      // Notify the user
+      sendActivity(agent.id, `Session restarted - skill "${skill.name}" updated`);
+
+      log.log(`🔄 Agent ${agent.name} restarted successfully`);
+    } catch (err) {
+      log.error(`🔄 Failed to restart agent ${agent.name}:`, err);
+      sendActivity(agent.id, `Failed to restart after skill update`);
+    }
+  }
+}
+
+/**
+ * Restart all agents with a given class when the class instructions are updated.
+ * This stops the agent's current session and clears the sessionId so the next
+ * command will start a fresh session with the new instructions.
+ */
+async function restartAgentsWithClass(classId: string): Promise<void> {
+  const allAgents = agentService.getAllAgents();
+  const affectedAgents = allAgents.filter(agent => agent.class === classId);
+
+  if (affectedAgents.length === 0) {
+    log.log(`🔄 No agents with class "${classId}" to restart`);
+    return;
+  }
+
+  log.log(`🔄 Restarting ${affectedAgents.length} agent(s) with class "${classId}" due to instructions update`);
+
+  for (const agent of affectedAgents) {
+    try {
+      log.log(`🔄 Restarting agent ${agent.name} (${agent.id}) due to class update`);
+
+      // Stop the current process if running
+      await claudeService.stopAgent(agent.id);
+
+      // Clear session to force a fresh start with new instructions
+      agentService.updateAgent(agent.id, {
+        status: 'idle',
+        currentTask: undefined,
+        currentTool: undefined,
+        sessionId: undefined, // Clear session to start fresh
+        tokensUsed: 0,
+        contextUsed: 0,
+      });
+
+      // Notify the user
+      sendActivity(agent.id, `Session restarted - class instructions updated`);
+
+      log.log(`🔄 Agent ${agent.name} restarted successfully`);
+    } catch (err) {
+      log.error(`🔄 Failed to restart agent ${agent.name}:`, err);
+      sendActivity(agent.id, `Failed to restart after class update`);
+    }
+  }
+}
+
+// ============================================================================
 // Service Event Handlers
 // ============================================================================
 
@@ -1444,6 +1679,21 @@ function setupServiceListeners(): void {
         log.log(`🟣🟣🟣 step_complete EVENT for boss ${agent.name}, resultText length: ${event.resultText.length}`);
         parseBossDelegation(agentId, agent.name, event.resultText);
         parseBossSpawn(agentId, agent.name, event.resultText);
+      }
+    }
+
+    // Parse and broadcast context stats from /context command
+    if (event.type === 'context_stats' && event.contextStatsRaw) {
+      const stats = parseContextOutput(event.contextStatsRaw);
+      if (stats) {
+        log.log(` Parsed context stats for ${agentId}: ${stats.usedPercent}% used (${stats.totalTokens}/${stats.contextWindow})`);
+        // Update agent with the parsed stats
+        agentService.updateAgent(agentId, { contextStats: stats }, false);
+        // Broadcast to clients
+        broadcast({
+          type: 'context_stats',
+          payload: { agentId, stats },
+        });
       }
     }
 
@@ -1747,6 +1997,8 @@ function setupServiceListeners(): void {
           type: 'skill_updated',
           payload: data as Skill,
         });
+        // Auto-restart agents using this skill so they get the updated content
+        restartAgentsWithSkill(data as Skill);
         break;
       case 'deleted':
         broadcast({
@@ -1770,6 +2022,10 @@ function setupServiceListeners(): void {
       type: 'custom_agent_class_updated',
       payload: customClass,
     });
+
+    // Auto-restart agents when their class instructions are updated
+    // This ensures running agents get the new instructions
+    restartAgentsWithClass(customClass.id);
   });
 
   customClassService.customClassEvents.on('deleted', (id: string) => {

@@ -1,10 +1,42 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { useStore, store } from '../store';
+import { useStore, store, useCustomAgentClassesArray } from '../store';
 import { AGENT_CLASS_CONFIG } from '../scene/config';
 import { formatNumber, intToHex, formatTokens, formatTimeAgo, formatIdleTime, getIdleTimerColor, filterCostText } from '../utils/formatting';
 import { ModelPreview } from './ModelPreview';
-import type { Agent, DrawingArea, AgentSupervisorHistoryEntry, PermissionMode, DelegationDecision } from '../../shared/types';
+import { AgentEditModal } from './AgentEditModal';
+import { ContextViewModal } from './ContextViewModal';
+import type { Agent, DrawingArea, AgentSupervisorHistoryEntry, PermissionMode, DelegationDecision, CustomAgentClass } from '../../shared/types';
 import { PERMISSION_MODES, AGENT_CLASSES } from '../../shared/types';
+
+// Helper to normalize color to hex string
+function normalizeColor(color: number | string): string {
+  if (typeof color === 'string') return color;
+  return intToHex(color);
+}
+
+// Helper to get class config (built-in or custom)
+function getClassConfig(agentClass: string, customClasses: CustomAgentClass[]): { icon: string; color: string; description?: string } {
+  const builtIn = AGENT_CLASS_CONFIG[agentClass];
+  if (builtIn) {
+    return {
+      icon: builtIn.icon,
+      color: normalizeColor(builtIn.color),
+      description: builtIn.description,
+    };
+  }
+
+  const custom = customClasses.find(c => c.id === agentClass);
+  if (custom) {
+    return {
+      icon: custom.icon,
+      color: custom.color,
+      description: custom.description,
+    };
+  }
+
+  // Fallback
+  return { icon: '🤖', color: '#888888' };
+}
 
 // Progress indicator colors (used by supervisor status components)
 const PROGRESS_COLORS: Record<string, string> = {
@@ -180,7 +212,8 @@ interface AgentListItemProps {
 
 function AgentListItem({ agent, area }: AgentListItemProps) {
   const state = useStore();
-  const classConfig = AGENT_CLASS_CONFIG[agent.class];
+  const customClasses = useCustomAgentClassesArray();
+  const classConfig = getClassConfig(agent.class, customClasses);
   const isSelected = state.selectedAgentIds.has(agent.id);
   const [, setTick] = useState(0);
 
@@ -215,7 +248,7 @@ function AgentListItem({ agent, area }: AgentListItemProps) {
 
   return (
     <div className={`agent-item ${isSelected ? 'selected' : ''}`} onClick={handleClick}>
-      <div className="agent-item-icon" style={{ background: `${intToHex(classConfig.color)}20` }}>
+      <div className="agent-item-icon" style={{ background: `${classConfig.color}20` }}>
         {classConfig.icon}
       </div>
       <div className="agent-item-info">
@@ -242,6 +275,7 @@ interface GlobalSupervisorStatusProps {
 
 function GlobalSupervisorStatus({ agents }: GlobalSupervisorStatusProps) {
   const state = useStore();
+  const customClasses = useCustomAgentClassesArray();
   const hideCost = state.settings.hideCost;
   const [collapsed, setCollapsed] = useState(() => {
     return localStorage.getItem('tide-global-supervisor-collapsed') === 'true';
@@ -297,7 +331,7 @@ function GlobalSupervisorStatus({ agents }: GlobalSupervisorStatusProps) {
       {!collapsed && (
         <div className="global-supervisor-list">
           {agentStatuses.map(({ agent, entry }) => {
-            const classConfig = AGENT_CLASS_CONFIG[agent.class];
+            const classConfig = getClassConfig(agent.class, customClasses);
             const analysis = entry!.analysis;
 
             return (
@@ -311,9 +345,7 @@ function GlobalSupervisorStatus({ agents }: GlobalSupervisorStatusProps) {
                     className="global-supervisor-progress-dot"
                     style={{ background: PROGRESS_COLORS[analysis.progress] || '#888' }}
                   />
-                  {classConfig && (
-                    <span className="global-supervisor-agent-icon">{classConfig.icon}</span>
-                  )}
+                  <span className="global-supervisor-agent-icon">{classConfig.icon}</span>
                   <span className="global-supervisor-agent-name">{agent.name}</span>
                   <span className="global-supervisor-item-time">
                     {formatRelativeTime(entry!.timestamp)}
@@ -362,9 +394,10 @@ interface RememberedPattern {
 
 function SingleAgentPanel({ agent: agentProp, onFocusAgent, onKillAgent, onCallSubordinates, onOpenAreaExplorer }: SingleAgentPanelProps) {
   const state = useStore();
+  const customClasses = useCustomAgentClassesArray();
   // Get the latest agent data from the store to ensure we have current values
   const agent = state.agents.get(agentProp.id) || agentProp;
-  const classConfig = AGENT_CLASS_CONFIG[agent.class];
+  const classConfig = getClassConfig(agent.class, customClasses);
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState(agent.name);
   const [, setTick] = useState(0); // For forcing re-render of idle timer
@@ -372,6 +405,8 @@ function SingleAgentPanel({ agent: agentProp, onFocusAgent, onKillAgent, onCallS
   const [showPatterns, setShowPatterns] = useState(false);
   const [rememberedPatterns, setRememberedPatterns] = useState<RememberedPattern[]>([]);
   const [contextConfirm, setContextConfirm] = useState<'collapse' | 'clear' | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showContextModal, setShowContextModal] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
 
   // Get supervisor history for this agent
@@ -447,13 +482,41 @@ function SingleAgentPanel({ agent: agentProp, onFocusAgent, onKillAgent, onCallS
     }
   };
 
-  // Calculate remaining context (like the mana bar)
-  const contextRemainingPercent = useMemo(() => {
+  // Calculate remaining context from contextStats (from /context command) or fallback to basic
+  const contextInfo = useMemo(() => {
+    const stats = agent.contextStats;
+    if (stats) {
+      // Use data from /context command
+      // NOTE: freeSpace.percent is just one category (excludes autocompact buffer)
+      // The actual remaining context is 100 - usedPercent
+      const usedPercent = stats.usedPercent;
+      const freePercent = 100 - usedPercent;
+      const freeTokens = stats.contextWindow - stats.totalTokens;
+      return {
+        remainingPercent: freePercent,
+        usedPercent,
+        hasData: true,
+        totalTokens: stats.totalTokens,
+        contextWindow: stats.contextWindow,
+        freeTokens: freeTokens,
+      };
+    }
+    // Fallback to basic calculation if no /context data
     const used = agent.contextUsed || 0;
     const limit = agent.contextLimit || 200000;
     const remaining = Math.max(0, limit - used);
-    return (remaining / limit) * 100;
-  }, [agent.contextUsed, agent.contextLimit]);
+    return {
+      remainingPercent: (remaining / limit) * 100,
+      usedPercent: (used / limit) * 100,
+      hasData: false,
+      totalTokens: used,
+      contextWindow: limit,
+      freeTokens: remaining,
+    };
+  }, [agent.contextStats, agent.contextUsed, agent.contextLimit]);
+
+  // Keep old variable for backwards compatibility
+  const contextRemainingPercent = contextInfo.remainingPercent;
 
   // Get assigned area for this agent
   const assignedArea = store.getAreaForAgent(agent.id);
@@ -504,7 +567,7 @@ function SingleAgentPanel({ agent: agentProp, onFocusAgent, onKillAgent, onCallS
 
       {/* Agent Header */}
       <div className="unit-panel-header">
-        <div className="unit-class-icon" style={{ background: `${intToHex(classConfig.color)}20` }}>
+        <div className="unit-class-icon" style={{ background: `${classConfig.color}20` }}>
           {classConfig.icon}
         </div>
         <div className="unit-header-info">
@@ -549,6 +612,13 @@ function SingleAgentPanel({ agent: agentProp, onFocusAgent, onKillAgent, onCallS
             title="Focus on agent"
           >
             🎯
+          </button>
+          <button
+            className="unit-action-icon"
+            onClick={() => setShowEditModal(true)}
+            title="Edit agent properties"
+          >
+            ✏️
           </button>
           {agent.class === 'boss' && agent.subordinateIds && agent.subordinateIds.length > 0 && (
             <button
@@ -629,23 +699,43 @@ function SingleAgentPanel({ agent: agentProp, onFocusAgent, onKillAgent, onCallS
       </div>
 
       {/* Context Bar - shows remaining context like the mana bar */}
-      <div className="unit-context">
-        <div className="unit-stat-label">Remaining Context</div>
-        <div className="unit-context-bar">
-          <div
-            className="unit-context-fill"
-            style={{
-              width: `${contextRemainingPercent}%`,
-              background:
-                contextRemainingPercent < 20
-                  ? '#ff4a4a'
-                  : contextRemainingPercent < 50
-                    ? '#ff9e4a'
-                    : '#4aff9e',
-            }}
-          />
+      <div
+        className="unit-context unit-context-clickable"
+        onClick={() => setShowContextModal(true)}
+        title={contextInfo.hasData ? "Click for detailed context breakdown" : "Click to fetch context stats"}
+        style={{ cursor: 'pointer' }}
+      >
+        <div className="unit-stat-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <span>Remaining Context</span>
+          {contextInfo.hasData ? (
+            <span style={{ fontSize: '10px', opacity: 0.6 }}>📊</span>
+          ) : (
+            <span style={{ fontSize: '9px', color: '#ff9e4a', opacity: 0.8 }} title="Click to fetch accurate stats">⚠️</span>
+          )}
         </div>
-        <span className="unit-context-value">{Math.round(contextRemainingPercent)}%</span>
+        {contextInfo.hasData ? (
+          <>
+            <div className="unit-context-bar">
+              <div
+                className="unit-context-fill"
+                style={{
+                  width: `${contextRemainingPercent}%`,
+                  background:
+                    contextRemainingPercent < 20
+                      ? '#ff4a4a'
+                      : contextRemainingPercent < 50
+                        ? '#ff9e4a'
+                        : '#4aff9e',
+                }}
+              />
+            </div>
+            <span className="unit-context-value">{Math.round(contextRemainingPercent)}%</span>
+          </>
+        ) : (
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+            Not retrieved yet
+          </div>
+        )}
       </div>
 
       {/* Current Tool */}
@@ -838,6 +928,24 @@ function SingleAgentPanel({ agent: agentProp, onFocusAgent, onKillAgent, onCallS
           </div>
         </div>
       )}
+
+      {/* Agent Edit Modal */}
+      <AgentEditModal
+        agent={agent}
+        isOpen={showEditModal}
+        onClose={() => setShowEditModal(false)}
+      />
+
+      {/* Context View Modal */}
+      <ContextViewModal
+        agent={agent}
+        isOpen={showContextModal}
+        onClose={() => setShowContextModal(false)}
+        onRefresh={() => {
+          // Request context refresh via /context command
+          store.refreshAgentContext(agent.id);
+        }}
+      />
     </div>
   );
 }
@@ -847,6 +955,7 @@ interface MultiAgentPanelProps {
 }
 
 function MultiAgentPanel({ agents }: MultiAgentPanelProps) {
+  const customClasses = useCustomAgentClassesArray();
   const totalTokens = agents.reduce((sum, a) => sum + a.tokensUsed, 0);
   const workingCount = agents.filter((a) => a.status === 'working').length;
 
@@ -875,7 +984,7 @@ function MultiAgentPanel({ agents }: MultiAgentPanelProps) {
 
       <div style={{ padding: '8px 0', maxHeight: 100, overflowY: 'auto' }}>
         {agents.map((a) => {
-          const cfg = AGENT_CLASS_CONFIG[a.class];
+          const cfg = getClassConfig(a.class, customClasses);
           return (
             <div
               key={a.id}
@@ -978,6 +1087,7 @@ interface BossAgentSectionProps {
 
 function BossAgentSection({ agent }: BossAgentSectionProps) {
   const state = useStore();
+  const customClasses = useCustomAgentClassesArray();
   const [showSubordinates, setShowSubordinates] = useState(true);
   const [showDelegationHistory, setShowDelegationHistory] = useState(true);
 
@@ -1022,7 +1132,7 @@ function BossAgentSection({ agent }: BossAgentSectionProps) {
               </div>
             ) : (
               subordinates.map((sub) => {
-                const classConfig = AGENT_CLASSES[sub.class as keyof typeof AGENT_CLASSES];
+                const subClassConfig = getClassConfig(sub.class, customClasses);
                 return (
                   <div
                     key={sub.id}
@@ -1031,9 +1141,9 @@ function BossAgentSection({ agent }: BossAgentSectionProps) {
                   >
                     <span
                       className="boss-subordinate-icon"
-                      style={{ color: classConfig.color }}
+                      style={{ color: subClassConfig.color }}
                     >
-                      {classConfig.icon}
+                      {subClassConfig.icon}
                     </span>
                     <span className="boss-subordinate-name">{sub.name}</span>
                     <span className={`boss-subordinate-status status-${sub.status}`}>

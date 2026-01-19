@@ -1057,6 +1057,20 @@
     color: $dracula-comment;
     opacity: 0.6;
   }
+
+  // Clickable file paths
+  &.clickable-path {
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-underline-offset: 2px;
+
+    &:hover {
+      color: $dracula-green;
+      opacity: 1;
+      text-decoration-style: solid;
+    }
+  }
 }
 
 .output-tool-loading {

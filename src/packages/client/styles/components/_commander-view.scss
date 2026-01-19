@@ -31,7 +31,7 @@
   inset: 0;
   background: rgba(0, 0, 0, 0.85);
   backdrop-filter: blur(4px);
-  z-index: 500;
+  z-index: 900; // Above Guake terminal (200) but below modals (1000)
   display: flex;
   align-items: center;
   justify-content: center;
@@ -412,6 +412,38 @@
   text-overflow: ellipsis;
   font-family: $font-mono;
   max-width: 120px;
+}
+
+// Context usage bar in agent panel header
+.agent-panel-context {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 60px;
+  height: 10px;
+  background: rgba($dracula-bg-darker, 0.8);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+  flex-shrink: 0;
+  border: 1px solid rgba($dracula-current, 0.5);
+}
+
+.agent-panel-context-bar {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease, background 0.3s ease;
+}
+
+.agent-panel-context-text {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 8px;
+  font-family: $font-mono;
+  font-weight: 600;
+  color: $dracula-fg;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.8);
 }
 
 .agent-panel-supervisor-status {

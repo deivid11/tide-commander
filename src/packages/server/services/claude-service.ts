@@ -6,9 +6,12 @@
 import { execSync } from 'child_process';
 import { ClaudeRunner, StandardEvent } from '../claude/index.js';
 import { getSessionActivityStatus } from '../claude/session-loader.js';
+import { parseContextOutput } from '../claude/backend.js';
+import type { CustomAgentDefinition } from '../claude/types.js';
 import * as agentService from './agent-service.js';
 import * as supervisorService from './supervisor-service.js';
 import { logger } from '../utils/logger.js';
+import type { ContextStats } from '../../shared/types.js';
 
 const log = logger.claude;
 
@@ -26,6 +29,9 @@ const eventListeners = new Map<keyof ClaudeServiceEvents, Set<EventListener<any>
 
 // Claude Runner instance
 let runner: ClaudeRunner | null = null;
+
+// Track agents that are currently running /context to avoid infinite loops
+const pendingContextRefresh = new Set<string>();
 
 // Command started callback (set by websocket handler)
 let commandStartedCallback: ((agentId: string, command: string) => void) | null = null;
@@ -147,18 +153,54 @@ function handleEvent(agentId: string, event: StandardEvent): void {
 
     case 'step_complete':
       // step_complete (result event) signals Claude finished processing this turn
-      // Update tokens and set status to idle
-      log.log(` Agent ${agentId} received step_complete event, tokens:`, event.tokens);
-      if (event.tokens) {
-        const newTokens =
-          (agent.tokensUsed || 0) + event.tokens.input + event.tokens.output;
-        // contextUsed = tokensUsed (total tokens as proxy for conversation fullness)
-        log.log(` Agent ${agentId} step_complete: input=${event.tokens.input}, output=${event.tokens.output}, cacheCreation=${event.tokens.cacheCreation}, cacheRead=${event.tokens.cacheRead}, newTokens=${newTokens}, cost=${event.cost}, setting to idle`);
-        agentService.updateAgent(agentId, {
-          tokensUsed: newTokens,
-          contextUsed: newTokens,
-        });
+      // Update tokens and context usage
+      log.log(` Agent ${agentId} received step_complete event, tokens:`, event.tokens, 'modelUsage:', event.modelUsage);
+
+      // Calculate actual context window usage from cache tokens
+      // The context window contains: cached system prompt + conversation history + new input + output
+      // cacheRead = tokens read from cache (system prompt, conversation history)
+      // cacheCreation = new tokens being added to cache
+      // input = new user input tokens (often 0 when using cache)
+      // output = response tokens
+      let contextUsed = agent.contextUsed || 0;
+      let contextLimit = agent.contextLimit || 200000;
+
+      if (event.modelUsage) {
+        // Use modelUsage data which has the most accurate context window info
+        const cacheRead = event.modelUsage.cacheReadInputTokens || 0;
+        const cacheCreation = event.modelUsage.cacheCreationInputTokens || 0;
+        const inputTokens = event.modelUsage.inputTokens || 0;
+        const outputTokens = event.modelUsage.outputTokens || 0;
+        const contextWindow = event.modelUsage.contextWindow || 200000;
+
+        // Context used = everything in the context window
+        // This is the actual snapshot of what's loaded, not accumulated over time
+        contextUsed = cacheRead + cacheCreation + inputTokens + outputTokens;
+        contextLimit = contextWindow;
+
+        log.log(` Agent ${agentId} context calculation from modelUsage: cacheRead=${cacheRead}, cacheCreation=${cacheCreation}, input=${inputTokens}, output=${outputTokens}, contextUsed=${contextUsed}, contextLimit=${contextLimit}`);
+      } else if (event.tokens) {
+        // Fallback: use tokens data
+        const cacheRead = event.tokens.cacheRead || 0;
+        const cacheCreation = event.tokens.cacheCreation || 0;
+        const inputTokens = event.tokens.input || 0;
+        const outputTokens = event.tokens.output || 0;
+
+        // Context used = everything in the context window
+        contextUsed = cacheRead + cacheCreation + inputTokens + outputTokens;
+
+        log.log(` Agent ${agentId} context calculation from tokens: cacheRead=${cacheRead}, cacheCreation=${cacheCreation}, input=${inputTokens}, output=${outputTokens}, contextUsed=${contextUsed}`);
       }
+
+      // Update tokensUsed as cumulative (for cost tracking), contextUsed as snapshot
+      const newTokensUsed = (agent.tokensUsed || 0) + (event.tokens?.input || 0) + (event.tokens?.output || 0);
+
+      agentService.updateAgent(agentId, {
+        tokensUsed: newTokensUsed,
+        contextUsed,
+        contextLimit,
+        // Note: contextStats is populated separately via /context command parsing
+      });
 
       // Set to idle
       log.log(`🔴 [${agent.name}] status: ${agent.status} → idle (step_complete)`);
@@ -167,12 +209,57 @@ function handleEvent(agentId: string, event: StandardEvent): void {
         currentTask: undefined,
         currentTool: undefined,
       });
-      log.log(` Agent ${agentId} after update: status=${updated?.status}, contextUsed=${updated?.contextUsed}`);
+      log.log(` Agent ${agentId} after update: status=${updated?.status}, contextUsed=${updated?.contextUsed}, contextLimit=${updated?.contextLimit}`);
+
+      // Auto-refresh context stats after turn completion (with delay to ensure idle state)
+      // Skip if:
+      // - This agent is already doing a /context refresh (to avoid infinite loop)
+      // - The last assigned task was a /context command (user already ran it)
+      const lastTask = agent.lastAssignedTask?.trim() || '';
+      const isContextCommand = lastTask === '/context' || lastTask === '/cost' || lastTask === '/compact';
+
+      if (agent.sessionId && !pendingContextRefresh.has(agentId) && !isContextCommand) {
+        setTimeout(() => {
+          const currentAgent = agentService.getAgent(agentId);
+          if (currentAgent?.status === 'idle' && !pendingContextRefresh.has(agentId)) {
+            log.log(` Auto-refreshing context stats for ${agent.name} after turn completion`);
+            pendingContextRefresh.add(agentId);
+            import('./claude-service.js').then(({ sendCommand }) => {
+              sendCommand(agentId, '/context')
+                .catch(err => {
+                  log.error(` Failed to auto-refresh context for ${agent.name}:`, err);
+                })
+                .finally(() => {
+                  // Clear the flag after a delay to allow the response to be processed
+                  setTimeout(() => pendingContextRefresh.delete(agentId), 2000);
+                });
+            });
+          }
+        }, 500);
+      }
       break;
 
     case 'error':
       log.log(`❌ [${agent.name}] status: ${agent.status} → error`);
       agentService.updateAgent(agentId, { status: 'error' });
+      break;
+
+    case 'context_stats':
+      // Parse /context command output and update agent's context stats
+      if (event.contextStatsRaw) {
+        log.log(` Agent ${agentId} received context_stats event`);
+        const contextStats = parseContextOutput(event.contextStatsRaw);
+        if (contextStats) {
+          log.log(` Agent ${agentId} parsed context stats: model=${contextStats.model}, used=${contextStats.usedPercent}%`);
+          agentService.updateAgent(agentId, {
+            contextStats,
+            contextUsed: contextStats.totalTokens,
+            contextLimit: contextStats.contextWindow,
+          });
+        } else {
+          log.log(` Agent ${agentId} failed to parse context stats`);
+        }
+      }
       break;
   }
 
@@ -222,9 +309,16 @@ function handleError(agentId: string, error: string): void {
 // Command Execution
 // ============================================================================
 
+// Custom agent config type
+interface CustomAgentConfig {
+  name: string;
+  definition: CustomAgentDefinition;
+}
+
 // Internal function to actually execute a command
 // forceNewSession: when true, don't resume existing session (for boss team questions)
-async function executeCommand(agentId: string, command: string, systemPrompt?: string, disableTools?: boolean, forceNewSession?: boolean): Promise<void> {
+// customAgent: optional custom agent config for --agents flag (used for custom class instructions)
+async function executeCommand(agentId: string, command: string, systemPrompt?: string, forceNewSession?: boolean, customAgent?: CustomAgentConfig): Promise<void> {
   if (!runner) {
     throw new Error('ClaudeService not initialized');
   }
@@ -237,6 +331,9 @@ async function executeCommand(agentId: string, command: string, systemPrompt?: s
   log.log(` Executing command for ${agentId}: ${command.substring(0, 50)}...`);
   if (forceNewSession) {
     log.log(` Force new session mode - not resuming existing session`);
+  }
+  if (customAgent) {
+    log.log(` Using custom agent "${customAgent.name}" for this session`);
   }
 
   // Notify that command is starting (so client can show user prompt in conversation)
@@ -260,7 +357,7 @@ async function executeCommand(agentId: string, command: string, systemPrompt?: s
     useChrome: agent.useChrome,
     permissionMode: agent.permissionMode,
     systemPrompt,
-    disableTools,
+    customAgent,
     forceNewSession,
   });
 }
@@ -268,9 +365,9 @@ async function executeCommand(agentId: string, command: string, systemPrompt?: s
 // Public function to send a command - sends directly to running process if busy
 // This allows users to send messages while Claude is working - Claude will see them in stdin
 // systemPrompt is only used when starting a new process (not for messages to running process)
-// disableTools disables all tools (used for boss team questions to force direct response)
 // forceNewSession: when true, don't resume existing session (for boss team questions with context)
-export async function sendCommand(agentId: string, command: string, systemPrompt?: string, disableTools?: boolean, forceNewSession?: boolean): Promise<void> {
+// customAgent: optional custom agent config for --agents flag (used for custom class instructions)
+export async function sendCommand(agentId: string, command: string, systemPrompt?: string, forceNewSession?: boolean, customAgent?: CustomAgentConfig): Promise<void> {
   if (!runner) {
     throw new Error('ClaudeService not initialized');
   }
@@ -283,7 +380,8 @@ export async function sendCommand(agentId: string, command: string, systemPrompt
   // Check if agent is currently busy (has a running process)
   // If busy, send the message directly to the running process via stdin
   // Claude will process it as part of its current turn - no interruption needed
-  if (runner.isRunning(agentId) && !disableTools && !forceNewSession) {
+  // Note: customAgent config only applies when starting a new process
+  if (runner.isRunning(agentId) && !forceNewSession) {
     log.log(` Agent ${agentId} is busy, sending message directly to running process...`);
 
     // Send directly to the running process via stdin
@@ -306,7 +404,7 @@ export async function sendCommand(agentId: string, command: string, systemPrompt
   agentService.updateAgent(agentId, { taskCount: (agent.taskCount || 0) + 1 });
 
   // Agent is idle, sending failed, or we need special options - execute with new process
-  await executeCommand(agentId, command, systemPrompt, disableTools, forceNewSession);
+  await executeCommand(agentId, command, systemPrompt, forceNewSession, customAgent);
 }
 
 export async function stopAgent(agentId: string): Promise<void> {

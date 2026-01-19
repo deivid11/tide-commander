@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useEffect, useRef, useMemo, useCallback, useState } from 'react';
 import Prism from 'prismjs';
 import 'prismjs/components/prism-typescript';
 import 'prismjs/components/prism-javascript';
@@ -242,6 +242,47 @@ export function DiffViewer({ originalContent, modifiedContent, filename, languag
     return { added, removed };
   }, [leftLines, rightLines]);
 
+  // Find diff hunk positions (line indices where changes start)
+  const diffHunks = useMemo(() => {
+    const hunks: number[] = [];
+    let inHunk = false;
+
+    // Use the right panel (modified) to find hunks
+    rightLines.forEach((line, idx) => {
+      if (line.type === 'added') {
+        if (!inHunk) {
+          hunks.push(idx);
+          inHunk = true;
+        }
+      } else {
+        inHunk = false;
+      }
+    });
+
+    // Also check left panel for removed-only hunks
+    let leftInHunk = false;
+    leftLines.forEach((line, idx) => {
+      if (line.type === 'removed') {
+        if (!leftInHunk) {
+          // Find corresponding position in right panel
+          // Use alignments to map left position to right
+          const rightIdx = Math.min(idx, rightLines.length - 1);
+          if (!hunks.includes(rightIdx)) {
+            hunks.push(rightIdx);
+          }
+          leftInHunk = true;
+        }
+      } else {
+        leftInHunk = false;
+      }
+    });
+
+    return hunks.sort((a, b) => a - b);
+  }, [leftLines, rightLines]);
+
+  // Current hunk index for navigation
+  const [currentHunkIndex, setCurrentHunkIndex] = useState(0);
+
   const LINE_HEIGHT = 20; // Must match CSS
 
   // Intelligent scroll synchronization
@@ -303,10 +344,68 @@ export function DiffViewer({ originalContent, modifiedContent, filename, languag
     };
   }, [handleScroll]);
 
+  // Navigate to a specific hunk
+  const goToHunk = useCallback((hunkIndex: number) => {
+    if (hunkIndex < 0 || hunkIndex >= diffHunks.length) return;
+
+    const lineIndex = diffHunks[hunkIndex];
+    const scrollTop = lineIndex * LINE_HEIGHT;
+
+    // Scroll the right panel (modified), which will sync the left
+    if (rightRef.current) {
+      rightRef.current.scrollTop = scrollTop;
+    }
+
+    setCurrentHunkIndex(hunkIndex);
+  }, [diffHunks]);
+
+  const goToNextHunk = useCallback(() => {
+    const nextIndex = Math.min(currentHunkIndex + 1, diffHunks.length - 1);
+    goToHunk(nextIndex);
+  }, [currentHunkIndex, diffHunks.length, goToHunk]);
+
+  const goToPrevHunk = useCallback(() => {
+    const prevIndex = Math.max(currentHunkIndex - 1, 0);
+    goToHunk(prevIndex);
+  }, [currentHunkIndex, goToHunk]);
+
+  // Jump to first diff on mount
+  useEffect(() => {
+    if (diffHunks.length > 0) {
+      // Small delay to ensure DOM is ready
+      setTimeout(() => goToHunk(0), 100);
+    }
+  }, [diffHunks, goToHunk]);
+
   return (
     <div className="diff-viewer">
       <div className="diff-viewer-header">
         <div className="diff-viewer-filename">{filename}</div>
+        <div className="diff-viewer-nav">
+          {diffHunks.length > 0 && (
+            <>
+              <button
+                className="diff-nav-btn"
+                onClick={goToPrevHunk}
+                disabled={currentHunkIndex === 0}
+                title="Previous change (Up)"
+              >
+                ↑
+              </button>
+              <span className="diff-nav-counter">
+                {currentHunkIndex + 1} / {diffHunks.length}
+              </span>
+              <button
+                className="diff-nav-btn"
+                onClick={goToNextHunk}
+                disabled={currentHunkIndex === diffHunks.length - 1}
+                title="Next change (Down)"
+              >
+                ↓
+              </button>
+            </>
+          )}
+        </div>
         <div className="diff-viewer-stats">
           {stats.added > 0 && <span className="diff-stat added">+{stats.added}</span>}
           {stats.removed > 0 && <span className="diff-stat removed">-{stats.removed}</span>}

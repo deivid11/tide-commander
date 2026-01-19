@@ -11,15 +11,14 @@ export const AGENT_CLASS_CONFIG: Record<AgentClass, { icon: string; color: numbe
   boss: { icon: '👑', color: 0xffd700, description: 'Manages and delegates to subordinates' },
 };
 
-// Default LOTR names for agents
-export const LOTR_NAMES = [
-  'Frodo', 'Sam', 'Gandalf', 'Aragorn', 'Legolas', 'Gimli',
-  'Boromir', 'Merry', 'Pippin', 'Galadriel', 'Elrond', 'Arwen',
-  'Faramir', 'Eowyn', 'Theoden', 'Eomer', 'Treebeard', 'Bilbo',
-  'Thorin', 'Balin', 'Dwalin', 'Gloin', 'Bombur', 'Bofur',
-  'Celeborn', 'Haldir', 'Glorfindel', 'Cirdan', 'Thranduil',
-  'Radagast', 'Saruman', 'Sauron', 'Gollum', 'Shelob',
+// Default names for agents
+export const DEFAULT_NAMES = [
+  'Elon Musk', 'Steve Jobs', 'Linus Torvalds', 'Jensen', 'Jeff Bezos',
+  'Tim Cook', 'Alan Turing', 'Lisa', 'Satoshi Nakamoto',
 ];
+
+// Legacy alias for backwards compatibility
+export const LOTR_NAMES = DEFAULT_NAMES;
 
 // Character model mapping for each agent class (Kenney Mini Characters)
 export const AGENT_CLASS_MODELS: Record<AgentClass, string> = {

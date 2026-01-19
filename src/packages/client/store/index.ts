@@ -127,6 +127,10 @@ export interface StoreState {
   shortcuts: ShortcutConfig[];
   // File viewer path (to open files from other components)
   fileViewerPath: string | null;
+  // File viewer edit data for diff view (old_string, new_string from Edit tool)
+  fileViewerEditData: { oldString: string; newString: string } | null;
+  // Context modal agent ID (to open context modal from other components)
+  contextModalAgentId: string | null;
   // Supervisor state
   supervisor: SupervisorState;
   // Permission requests (interactive permission mode)
@@ -204,6 +208,10 @@ class Store {
     })(),
     // File viewer path
     fileViewerPath: null,
+    // File viewer edit data
+    fileViewerEditData: null,
+    // Context modal agent ID
+    contextModalAgentId: null,
     // Supervisor state
     supervisor: {
       enabled: true,
@@ -287,6 +295,22 @@ class Store {
     this.notify();
   }
 
+  updateAgentContextStats(agentId: string, stats: import('../../shared/types').ContextStats): void {
+    const agent = this.state.agents.get(agentId);
+    if (agent) {
+      const newAgents = new Map(this.state.agents);
+      newAgents.set(agentId, {
+        ...agent,
+        contextStats: stats,
+        // Also update the basic context info from the stats
+        contextUsed: stats.totalTokens,
+        contextLimit: stats.contextWindow,
+      });
+      this.state.agents = newAgents;
+      this.notify();
+    }
+  }
+
   removeAgent(agentId: string): void {
     // Create a new Map to ensure React detects the change
     const newAgents = new Map(this.state.agents);
@@ -344,13 +368,26 @@ class Store {
   }
 
   // File viewer
-  setFileViewerPath(path: string | null): void {
+  setFileViewerPath(path: string | null, editData?: { oldString: string; newString: string }): void {
     this.state.fileViewerPath = path;
+    this.state.fileViewerEditData = editData || null;
     this.notify();
   }
 
   clearFileViewerPath(): void {
     this.state.fileViewerPath = null;
+    this.state.fileViewerEditData = null;
+    this.notify();
+  }
+
+  // Context modal
+  setContextModalAgentId(agentId: string | null): void {
+    this.state.contextModalAgentId = agentId;
+    this.notify();
+  }
+
+  closeContextModal(): void {
+    this.state.contextModalAgentId = null;
     this.notify();
   }
 
@@ -718,6 +755,14 @@ class Store {
     });
   }
 
+  // Request context stats refresh via /context command
+  refreshAgentContext(agentId: string): void {
+    this.sendMessage?.({
+      type: 'request_context_stats',
+      payload: { agentId },
+    });
+  }
+
   // Called when server confirms a command started executing
   addUserPromptToOutput(agentId: string, command: string): void {
     this.addOutput(agentId, {
@@ -815,6 +860,38 @@ class Store {
     this.sendMessage?.({
       type: 'rename_agent',
       payload: { agentId, name },
+    });
+  }
+
+  // Update agent properties (class, permission mode, skills)
+  updateAgentProperties(
+    agentId: string,
+    updates: {
+      class?: AgentClass;
+      permissionMode?: PermissionMode;
+      skillIds?: string[];
+    }
+  ): void {
+    // Update local state immediately for responsive UI
+    const agent = this.state.agents.get(agentId);
+    if (agent) {
+      const updatedAgent = { ...agent };
+      if (updates.class !== undefined) {
+        updatedAgent.class = updates.class;
+      }
+      if (updates.permissionMode !== undefined) {
+        updatedAgent.permissionMode = updates.permissionMode;
+      }
+      const newAgents = new Map(this.state.agents);
+      newAgents.set(agentId, updatedAgent);
+      this.state.agents = newAgents;
+      this.notify();
+    }
+
+    // Send to server
+    this.sendMessage?.({
+      type: 'update_agent_properties',
+      payload: { agentId, updates },
     });
   }
 
@@ -2177,6 +2254,24 @@ export function useTerminalOpen(): boolean {
 export function useFileViewerPath(): string | null {
   return useSelector(
     useCallback((state: StoreState) => state.fileViewerPath, [])
+  );
+}
+
+/**
+ * Get file viewer edit data (for diff view). Only re-renders when it changes.
+ */
+export function useFileViewerEditData(): { oldString: string; newString: string } | null {
+  return useSelector(
+    useCallback((state: StoreState) => state.fileViewerEditData, [])
+  );
+}
+
+/**
+ * Get context modal agent ID. Only re-renders when it changes.
+ */
+export function useContextModalAgentId(): string | null {
+  return useSelector(
+    useCallback((state: StoreState) => state.contextModalAgentId, [])
   );
 }
 

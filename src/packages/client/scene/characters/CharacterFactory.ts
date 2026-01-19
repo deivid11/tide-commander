@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import type { Agent } from '../../../shared/types';
-import { AGENT_CLASS_CONFIG } from '../config';
+import type { Agent, CustomAgentClass } from '../../../shared/types';
+import { AGENT_CLASS_CONFIG, AGENT_CLASS_MODELS } from '../config';
 import { CharacterLoader } from './CharacterLoader';
 
 /**
@@ -17,6 +17,26 @@ const STATUS_COLORS: Record<string, number> = {
 };
 
 /**
+ * Calculate remaining context percentage from agent data.
+ * Uses contextStats (from /context command) when available, otherwise falls back to basic calculation.
+ */
+function getContextRemainingPercent(agent: Agent): number {
+  if (agent.contextStats) {
+    // Remaining context is 100 - usedPercent
+    // NOTE: freeSpace.percent is just one category (excludes autocompact buffer), don't use it
+    return 100 - agent.contextStats.usedPercent;
+  }
+  // Fallback to basic calculation
+  const used = agent.contextUsed || 0;
+  const limit = agent.contextLimit || 200000;
+  const remaining = Math.max(0, limit - used);
+  return (remaining / limit) * 100;
+}
+
+// Default model for custom classes if none specified
+const DEFAULT_CUSTOM_CLASS_MODEL = 'character-male-a.glb';
+
+/**
  * Agent mesh data including animations.
  */
 export interface AgentMeshData {
@@ -30,7 +50,62 @@ export interface AgentMeshData {
  * Creates and manages agent mesh groups with all visual components.
  */
 export class CharacterFactory {
+  private customClasses: Map<string, CustomAgentClass> = new Map();
+
   constructor(private characterLoader: CharacterLoader) {}
+
+  /**
+   * Update the custom classes reference for model lookups
+   */
+  setCustomClasses(classes: Map<string, CustomAgentClass>): void {
+    this.customClasses = classes;
+  }
+
+  /**
+   * Get class config (icon, color) for an agent class (built-in or custom)
+   */
+  private getClassConfig(agentClass: string): { icon: string; color: number; description: string } {
+    // Check built-in classes first
+    const builtIn = AGENT_CLASS_CONFIG[agentClass as keyof typeof AGENT_CLASS_CONFIG];
+    if (builtIn) {
+      return builtIn;
+    }
+
+    // Check custom classes
+    const custom = this.customClasses.get(agentClass);
+    if (custom) {
+      // Convert hex string color to number
+      const colorNum = parseInt(custom.color.replace('#', ''), 16);
+      return {
+        icon: custom.icon,
+        color: isNaN(colorNum) ? 0x888888 : colorNum,
+        description: custom.description,
+      };
+    }
+
+    // Fallback
+    return { icon: '❓', color: 0x888888, description: 'Unknown class' };
+  }
+
+  /**
+   * Get the model file for an agent class (built-in or custom)
+   */
+  private getModelFile(agentClass: string): string {
+    // Check built-in classes first
+    const builtIn = AGENT_CLASS_MODELS[agentClass as keyof typeof AGENT_CLASS_MODELS];
+    if (builtIn) {
+      return builtIn;
+    }
+
+    // Check custom classes
+    const custom = this.customClasses.get(agentClass);
+    if (custom?.model) {
+      return custom.model;
+    }
+
+    // Default model for unknown/custom classes without model specified
+    return DEFAULT_CUSTOM_CLASS_MODEL;
+  }
 
   /**
    * Create a complete agent mesh group with character model and indicators.
@@ -39,7 +114,7 @@ export class CharacterFactory {
     const group = new THREE.Group();
     group.userData.agentId = agent.id;
 
-    const classConfig = AGENT_CLASS_CONFIG[agent.class];
+    const classConfig = this.getClassConfig(agent.class);
 
     // Boss agents are 1.5x larger (scaling is applied by SceneManager.addAgent)
     const isBoss = agent.class === 'boss';
@@ -57,7 +132,8 @@ export class CharacterFactory {
     group.add(nameLabel);
 
     // Mana bar with status indicator (context remaining + status dot) - higher for boss
-    const manaBar = this.createManaBar(agent.contextUsed, agent.contextLimit, agent.status, isBoss);
+    const remainingPercent = getContextRemainingPercent(agent);
+    const manaBar = this.createManaBar(remainingPercent, agent.status, isBoss);
     group.add(manaBar);
 
     // Idle timer indicator (shows when agent is idle) - positioned just above mana bar
@@ -97,8 +173,9 @@ export class CharacterFactory {
     mixer: THREE.AnimationMixer | null;
     animations: Map<string, THREE.AnimationClip>;
   } {
-    // Try to use loaded character model
-    const cloneResult = this.characterLoader.clone(agent.class);
+    // Get the model file for this agent's class (built-in or custom)
+    const modelFile = this.getModelFile(agent.class);
+    const cloneResult = this.characterLoader.cloneByModelFile(modelFile);
 
     if (cloneResult) {
       cloneResult.mesh.name = 'characterBody';
@@ -113,7 +190,7 @@ export class CharacterFactory {
         const normalizedName = clip.name.toLowerCase();
         animations.set(normalizedName, clip);
       }
-      console.log(`[CharacterFactory] Available animations for ${agent.name}:`, Array.from(animations.keys()));
+      console.log(`[CharacterFactory] Loaded model ${modelFile} for ${agent.name} (${agent.class}):`, Array.from(animations.keys()));
 
       return {
         body: cloneResult.mesh,
@@ -121,6 +198,8 @@ export class CharacterFactory {
         animations,
       };
     }
+
+    console.warn(`[CharacterFactory] Failed to load model ${modelFile} for ${agent.name}, using fallback capsule`);
 
     // Fallback to capsule if model not loaded
     const geometry = new THREE.CapsuleGeometry(0.5, 1.0, 4, 16);
@@ -237,8 +316,9 @@ export class CharacterFactory {
 
   /**
    * Create a mana bar showing context remaining with status indicator.
+   * @param remainingPercent - Percentage of context remaining (0-100)
    */
-  private createManaBar(contextUsed: number, contextLimit: number, status: string, isBoss: boolean = false): THREE.Sprite {
+  private createManaBar(remainingPercent: number, status: string, isBoss: boolean = false): THREE.Sprite {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d')!;
 
@@ -246,7 +326,7 @@ export class CharacterFactory {
     canvas.width = 400;
     canvas.height = 64;
 
-    this.drawManaBar(ctx, canvas.width, canvas.height, contextUsed, contextLimit, status);
+    this.drawManaBar(ctx, canvas.width, canvas.height, remainingPercent, status);
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.minFilter = THREE.LinearFilter;
@@ -270,20 +350,17 @@ export class CharacterFactory {
 
   /**
    * Draw the mana bar on a canvas context with status indicator.
+   * @param remainingPercent - Percentage of context remaining (0-100)
    */
   private drawManaBar(
     ctx: CanvasRenderingContext2D,
     width: number,
     height: number,
-    contextUsed: number,
-    contextLimit: number,
+    remainingPercent: number,
     status: string
   ): void {
-    // Calculate percentage remaining
-    const used = contextUsed || 0;
-    const limit = contextLimit || 200000;
-    const remaining = Math.max(0, limit - used);
-    const percentage = remaining / limit;
+    // Convert percentage (0-100) to fraction (0-1)
+    const percentage = Math.max(0, Math.min(100, remainingPercent)) / 100;
 
     // Clear canvas
     ctx.clearRect(0, 0, width, height);
@@ -630,8 +707,9 @@ export class CharacterFactory {
   /**
    * Update the mana bar for an agent.
    * Optimized: reuses canvas to avoid memory leaks.
+   * @param remainingPercent - Percentage of context remaining (0-100)
    */
-  updateManaBar(group: THREE.Group, contextUsed: number, contextLimit: number, status: string): void {
+  updateManaBar(group: THREE.Group, remainingPercent: number, status: string): void {
     const manaBar = group.getObjectByName('manaBar') as THREE.Sprite;
     if (!manaBar) return;
 
@@ -646,7 +724,7 @@ export class CharacterFactory {
     const ctx = existingCanvas.getContext('2d');
     if (!ctx) return;
 
-    this.drawManaBar(ctx, existingCanvas.width, existingCanvas.height, contextUsed, contextLimit, status);
+    this.drawManaBar(ctx, existingCanvas.width, existingCanvas.height, remainingPercent, status);
 
     // Mark texture as needing update
     material.map.needsUpdate = true;
@@ -732,7 +810,8 @@ export class CharacterFactory {
     }
 
     // Update mana bar (includes status dot)
-    this.updateManaBar(group, agent.contextUsed, agent.contextLimit, agent.status);
+    const remainingPercent = getContextRemainingPercent(agent);
+    this.updateManaBar(group, remainingPercent, agent.status);
 
     // Update idle timer
     this.updateIdleTimer(group, agent.status, agent.lastActivity);

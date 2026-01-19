@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { store, useAgents, useSkillsArray, useCustomAgentClassesArray } from '../store';
-import { AGENT_CLASS_CONFIG, LOTR_NAMES, CHARACTER_MODELS } from '../scene/config';
+import { AGENT_CLASS_CONFIG, DEFAULT_NAMES, CHARACTER_MODELS } from '../scene/config';
 import type { AgentClass, PermissionMode, Skill, CustomAgentClass, BuiltInAgentClass } from '../../shared/types';
 import { PERMISSION_MODES, BUILT_IN_AGENT_CLASSES } from '../../shared/types';
 import { intToHex } from '../utils/formatting';
@@ -25,10 +25,10 @@ interface SpawnModalProps {
  * Get a random unused LOTR name.
  */
 function getRandomLotrName(usedNames: Set<string>): string {
-  const availableNames = LOTR_NAMES.filter((n) => !usedNames.has(n));
+  const availableNames = DEFAULT_NAMES.filter((n) => !usedNames.has(n));
   if (availableNames.length === 0) {
     // All names used, add a number suffix
-    const baseName = LOTR_NAMES[Math.floor(Math.random() * LOTR_NAMES.length)];
+    const baseName = DEFAULT_NAMES[Math.floor(Math.random() * DEFAULT_NAMES.length)];
     return `${baseName}-${Date.now() % 1000}`;
   }
   return availableNames[Math.floor(Math.random() * availableNames.length)];
@@ -73,6 +73,13 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd }: SpawnM
   const classMatchingSkills = useMemo(() => {
     return availableSkills.filter(s => s.assignedAgentClasses.includes(selectedClass));
   }, [availableSkills, selectedClass]);
+
+  // Get default skills for selected custom class
+  const classDefaultSkills = useMemo(() => {
+    const customClass = customClasses.find(c => c.id === selectedClass);
+    if (!customClass?.defaultSkillIds?.length) return [];
+    return skills.filter(s => customClass.defaultSkillIds.includes(s.id));
+  }, [customClasses, selectedClass, skills]);
 
   // Get custom class config if selected class is custom
   const selectedCustomClass = useMemo(() => {
@@ -421,17 +428,51 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd }: SpawnM
               </div>
             </div>
 
-            {/* Skills Selection */}
+            {/* Class Features (instructions and default skills) */}
+            {(selectedCustomClass?.instructions || classDefaultSkills.length > 0) && (
+              <div className="form-group">
+                <label className="form-label">
+                  Class Features
+                  <span className="form-label-hint">(included with this class)</span>
+                </label>
+                <div className="class-features-display">
+                  {selectedCustomClass?.instructions && (
+                    <div className="class-feature-tag instructions" title="This class has custom instructions">
+                      <span className="class-feature-icon">📋</span>
+                      <span className="class-feature-name">Custom Instructions</span>
+                    </div>
+                  )}
+                  {classDefaultSkills.map((skill) => (
+                    <div
+                      key={skill.id}
+                      className="class-feature-tag skill"
+                      title={skill.description}
+                    >
+                      <span className="class-feature-icon">📜</span>
+                      <span className="class-feature-name">{skill.name}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="form-hint">
+                  These are automatically applied to all agents of this class
+                </div>
+              </div>
+            )}
+
+            {/* Additional Skills Selection */}
             {availableSkills.length > 0 && (
               <div className="form-group">
                 <label className="form-label">
-                  Initial Skills
+                  Additional Skills
                   <span className="form-label-hint">(optional)</span>
                 </label>
                 <div className="skills-selector">
                   {availableSkills.map((skill) => {
                     const isSelected = selectedSkillIds.has(skill.id);
                     const isClassMatch = skill.assignedAgentClasses.includes(selectedClass);
+                    const isClassDefault = classDefaultSkills.some(s => s.id === skill.id);
+                    // Don't show skills that are already class defaults
+                    if (isClassDefault) return null;
                     return (
                       <div
                         key={skill.id}

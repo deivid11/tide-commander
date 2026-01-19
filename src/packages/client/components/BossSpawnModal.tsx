@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { store, useStore } from '../store';
-import { AGENT_CLASS_CONFIG, LOTR_NAMES } from '../scene/config';
+import { AGENT_CLASS_CONFIG, DEFAULT_NAMES } from '../scene/config';
 import type { Agent, PermissionMode } from '../../shared/types';
 import { PERMISSION_MODES, AGENT_CLASSES } from '../../shared/types';
 
@@ -15,9 +15,9 @@ interface BossSpawnModalProps {
  * Get a random unused LOTR name with "Boss" prefix.
  */
 function getRandomBossName(usedNames: Set<string>): string {
-  const availableNames = LOTR_NAMES.filter((n) => !usedNames.has(`Boss ${n}`));
+  const availableNames = DEFAULT_NAMES.filter((n) => !usedNames.has(`Boss ${n}`));
   if (availableNames.length === 0) {
-    const baseName = LOTR_NAMES[Math.floor(Math.random() * LOTR_NAMES.length)];
+    const baseName = DEFAULT_NAMES[Math.floor(Math.random() * DEFAULT_NAMES.length)];
     return `Boss ${baseName}-${Date.now() % 1000}`;
   }
   return `Boss ${availableNames[Math.floor(Math.random() * availableNames.length)]}`;

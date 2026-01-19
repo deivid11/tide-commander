@@ -30,6 +30,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
   const [classDescription, setClassDescription] = useState('');
   const [classModel, setClassModel] = useState('character-male-a.glb');
   const [classDefaultSkillIds, setClassDefaultSkillIds] = useState<string[]>([]);
+  const [classInstructions, setClassInstructions] = useState('');
 
   // Get current model index for navigation
   const currentModelIndex = useMemo(() => {
@@ -129,6 +130,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
     setClassDescription('');
     setClassModel('character-male-a.glb');
     setClassDefaultSkillIds([]);
+    setClassInstructions('');
     setShowClassEditor(true);
   };
 
@@ -143,6 +145,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
     setClassDescription(customClass.description);
     setClassModel(customClass.model || 'character-male-a.glb');
     setClassDefaultSkillIds(customClass.defaultSkillIds || []);
+    setClassInstructions(customClass.instructions || '');
     setShowClassEditor(true);
   };
 
@@ -154,6 +157,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
       description: classDescription,
       model: classModel,
       defaultSkillIds: classDefaultSkillIds,
+      instructions: classInstructions || undefined,
     };
 
     if (editingClassId) {
@@ -425,11 +429,14 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
                       {customClass.description || 'No description'}
                     </p>
 
-                    {customClass.defaultSkillIds.length > 0 && (
-                      <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--text-secondary)' }}>
-                        {customClass.defaultSkillIds.length} default skill{customClass.defaultSkillIds.length !== 1 ? 's' : ''}
-                      </div>
-                    )}
+                    <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--text-secondary)', display: 'flex', gap: '12px' }}>
+                      {customClass.defaultSkillIds.length > 0 && (
+                        <span>{customClass.defaultSkillIds.length} default skill{customClass.defaultSkillIds.length !== 1 ? 's' : ''}</span>
+                      )}
+                      {customClass.instructions && (
+                        <span style={{ color: 'var(--accent-cyan)' }}>Has instructions</span>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -587,12 +594,12 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
                 />
               </div>
 
-              <div className="form-section">
+              <div className="form-section" style={{ marginBottom: '12px' }}>
                 <label className="form-label">Default Skills</label>
                 <p className="form-hint" style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
                   Skills automatically assigned to agents of this class
                 </p>
-                <div style={{ maxHeight: '150px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '8px' }}>
+                <div style={{ maxHeight: '120px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '8px' }}>
                   {skills.filter(s => s.enabled).length === 0 ? (
                     <div style={{ color: 'var(--text-muted)', fontSize: '12px', textAlign: 'center', padding: '12px' }}>
                       No enabled skills available
@@ -620,6 +627,26 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
                     ))
                   )}
                 </div>
+              </div>
+
+              <div className="form-section">
+                <label className="form-label">Instructions (CLAUDE.md)</label>
+                <p className="form-hint" style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                  Markdown instructions injected as system prompt when spawning agents of this class
+                </p>
+                <textarea
+                  className="form-input"
+                  value={classInstructions}
+                  onChange={(e) => setClassInstructions(e.target.value)}
+                  placeholder="# Agent Instructions&#10;&#10;You are a specialized agent...&#10;&#10;## Guidelines&#10;- Follow these rules...&#10;- Use best practices..."
+                  style={{
+                    minHeight: '150px',
+                    resize: 'vertical',
+                    fontFamily: 'monospace',
+                    fontSize: '12px',
+                    lineHeight: '1.5',
+                  }}
+                />
               </div>
             </div>
             <div className="modal-footer" style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', padding: '12px 16px', borderTop: '1px solid var(--border-color)' }}>

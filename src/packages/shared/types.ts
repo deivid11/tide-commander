@@ -26,6 +26,7 @@ export interface CustomAgentClass {
   description: string;  // What this class does
   defaultSkillIds: string[];  // Skills automatically assigned to agents of this class
   model?: string;       // Character model file (e.g., 'character-male-a.glb') - defaults to 'character-male-a.glb'
+  instructions?: string; // Markdown instructions injected as system prompt (like CLAUDE.md)
   createdAt: number;
   updatedAt: number;
 }
@@ -41,6 +42,29 @@ export const PERMISSION_MODES: Record<PermissionMode, { label: string; descripti
   bypass: { label: 'Permissionless', description: 'Skip all permission prompts (less safe, faster)' },
   interactive: { label: 'Interactive', description: 'Ask for approval before sensitive operations' },
 };
+
+// Detailed context statistics from Claude's /context command
+export interface ContextStats {
+  // Model info
+  model: string;                 // Model name
+  contextWindow: number;         // Model's context window size (e.g., 200000)
+
+  // Total usage
+  totalTokens: number;           // Total tokens used
+  usedPercent: number;           // Percentage of context used
+
+  // Category breakdown (from /context command)
+  categories: {
+    systemPrompt: { tokens: number; percent: number };
+    systemTools: { tokens: number; percent: number };
+    messages: { tokens: number; percent: number };
+    freeSpace: { tokens: number; percent: number };
+    autocompactBuffer: { tokens: number; percent: number };
+  };
+
+  // Timestamp
+  lastUpdated: number;
+}
 
 // Agent State
 export interface Agent {
@@ -63,6 +87,9 @@ export interface Agent {
   tokensUsed: number;
   contextUsed: number;      // Current context window usage
   contextLimit: number;     // Model's context limit (default 200k)
+
+  // Detailed context stats (from Claude's stream-json modelUsage)
+  contextStats?: ContextStats;
 
   // Current task
   currentTask?: string;
@@ -361,6 +388,15 @@ export interface OutputMessage extends WSMessage {
   };
 }
 
+// Context stats response (detailed breakdown from /context command)
+export interface ContextStatsMessage extends WSMessage {
+  type: 'context_stats';
+  payload: {
+    agentId: string;
+    stats: ContextStats;
+  };
+}
+
 // Client -> Server messages
 export interface SpawnAgentMessage extends WSMessage {
   type: 'spawn_agent';
@@ -423,6 +459,14 @@ export interface CollapseContextMessage extends WSMessage {
   };
 }
 
+// Request detailed context stats (triggers /context command)
+export interface RequestContextStatsMessage extends WSMessage {
+  type: 'request_context_stats';
+  payload: {
+    agentId: string;
+  };
+}
+
 export interface CreateDirectoryMessage extends WSMessage {
   type: 'create_directory';
   payload: {
@@ -446,6 +490,19 @@ export interface RenameAgentMessage extends WSMessage {
   payload: {
     agentId: string;
     name: string;
+  };
+}
+
+// Update agent properties (class, permission mode, skills)
+export interface UpdateAgentPropertiesMessage extends WSMessage {
+  type: 'update_agent_properties';
+  payload: {
+    agentId: string;
+    updates: {
+      class?: AgentClass;
+      permissionMode?: PermissionMode;
+      skillIds?: string[];  // Complete list of skill IDs to assign (replaces existing)
+    };
   };
 }
 
@@ -986,7 +1043,8 @@ export type ServerMessage =
   | CustomAgentClassesUpdateMessage
   | CustomAgentClassCreatedMessage
   | CustomAgentClassUpdatedMessage
-  | CustomAgentClassDeletedMessage;
+  | CustomAgentClassDeletedMessage
+  | ContextStatsMessage;
 
 export type ClientMessage =
   | SpawnAgentMessage
@@ -999,6 +1057,7 @@ export type ClientMessage =
   | CreateDirectoryMessage
   | RemoveAgentMessage
   | RenameAgentMessage
+  | UpdateAgentPropertiesMessage
   | SetSupervisorConfigMessage
   | RequestSupervisorReportMessage
   | RequestAgentSupervisorHistoryMessage
@@ -1022,4 +1081,5 @@ export type ClientMessage =
   | RequestAgentSkillsMessage
   | CreateCustomAgentClassMessage
   | UpdateCustomAgentClassMessage
-  | DeleteCustomAgentClassMessage;
+  | DeleteCustomAgentClassMessage
+  | RequestContextStatsMessage;

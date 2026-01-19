@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import type { Agent, DrawingArea } from '../../shared/types';
+import type { Agent, DrawingArea, CustomAgentClass } from '../../shared/types';
 import { store } from '../store';
 import { saveCameraState, loadCameraState } from '../utils/camera';
 import { CAMERA_SAVE_INTERVAL } from './config';
@@ -387,6 +387,14 @@ export class SceneManager {
     for (const agent of agents) {
       this.addAgent(agent);
     }
+  }
+
+  /**
+   * Update the custom agent classes for model lookups.
+   * Should be called when custom classes are loaded/updated from server.
+   */
+  setCustomAgentClasses(classes: Map<string, CustomAgentClass>): void {
+    this.characterFactory.setCustomClasses(classes);
   }
 
   refreshSelectionVisuals(): void {

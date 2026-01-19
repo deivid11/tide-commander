@@ -1,4 +1,4 @@
-import type { Agent, ServerMessage, ClientMessage, PermissionRequest, DelegationDecision } from '../../shared/types';
+import type { Agent, ServerMessage, ClientMessage, PermissionRequest, DelegationDecision, CustomAgentClass } from '../../shared/types';
 import { store } from '../store';
 import { perf } from '../utils/profiling';
 
@@ -18,6 +18,7 @@ let onSpawnSuccess: (() => void) | null = null;
 let onToolUse: ((agentId: string, toolName: string, toolInput?: Record<string, unknown>) => void) | null = null;
 let onDirectoryNotFound: ((path: string) => void) | null = null;
 let onDelegation: ((bossId: string, subordinateId: string) => void) | null = null;
+let onCustomClassesSync: ((classes: Map<string, CustomAgentClass>) => void) | null = null;
 
 export function setCallbacks(callbacks: {
   onToast?: typeof onToast;
@@ -30,6 +31,7 @@ export function setCallbacks(callbacks: {
   onToolUse?: typeof onToolUse;
   onDirectoryNotFound?: typeof onDirectoryNotFound;
   onDelegation?: typeof onDelegation;
+  onCustomClassesSync?: typeof onCustomClassesSync;
 }): void {
   if (callbacks.onToast) onToast = callbacks.onToast;
   if (callbacks.onAgentCreated) onAgentCreated = callbacks.onAgentCreated;
@@ -41,6 +43,7 @@ export function setCallbacks(callbacks: {
   if (callbacks.onToolUse) onToolUse = callbacks.onToolUse;
   if (callbacks.onDirectoryNotFound) onDirectoryNotFound = callbacks.onDirectoryNotFound;
   if (callbacks.onDelegation) onDelegation = callbacks.onDelegation;
+  if (callbacks.onCustomClassesSync) onCustomClassesSync = callbacks.onCustomClassesSync;
 }
 
 export function connect(): void {
@@ -286,6 +289,17 @@ function handleServerMessage(message: ServerMessage): void {
       break;
     }
 
+    case 'context_stats': {
+      // Context stats from /context command
+      const { agentId, stats } = message.payload as {
+        agentId: string;
+        stats: import('../../shared/types').ContextStats;
+      };
+      console.log(`[Tide] Received context stats for agent ${agentId}: ${stats.usedPercent}% used`);
+      store.updateAgentContextStats(agentId, stats);
+      break;
+    }
+
     case 'error': {
       const errorPayload = message.payload as { message: string };
       console.error('[WebSocket] Error from server:', errorPayload.message);
@@ -318,6 +332,11 @@ function handleServerMessage(message: ServerMessage): void {
         agentId: string;
         command: string;
       };
+      // Skip adding utility slash commands to output (they're handled specially)
+      const trimmedCommand = command.trim();
+      if (trimmedCommand === '/context' || trimmedCommand === '/cost' || trimmedCommand === '/compact') {
+        break;
+      }
       // Add user prompt to output when command actually starts executing
       store.addUserPromptToOutput(agentId, command);
       break;
@@ -535,6 +554,12 @@ function handleServerMessage(message: ServerMessage): void {
       const classesArray = message.payload as import('../../shared/types').CustomAgentClass[];
       store.setCustomAgentClassesFromServer(classesArray);
       console.log(`[WebSocket] Received ${classesArray.length} custom agent classes`);
+      // Notify scene to update custom classes for model lookups
+      const classesMap = new Map<string, CustomAgentClass>();
+      for (const c of classesArray) {
+        classesMap.set(c.id, c);
+      }
+      onCustomClassesSync?.(classesMap);
       break;
     }
 
@@ -542,6 +567,8 @@ function handleServerMessage(message: ServerMessage): void {
       const customClass = message.payload as import('../../shared/types').CustomAgentClass;
       store.addCustomAgentClassFromServer(customClass);
       console.log(`[WebSocket] Custom agent class created: ${customClass.name}`);
+      // Update scene with new custom classes
+      onCustomClassesSync?.(store.getState().customAgentClasses);
       break;
     }
 
@@ -549,6 +576,8 @@ function handleServerMessage(message: ServerMessage): void {
       const customClass = message.payload as import('../../shared/types').CustomAgentClass;
       store.updateCustomAgentClassFromServer(customClass);
       console.log(`[WebSocket] Custom agent class updated: ${customClass.name}`);
+      // Update scene with updated custom classes
+      onCustomClassesSync?.(store.getState().customAgentClasses);
       break;
     }
 
@@ -556,6 +585,8 @@ function handleServerMessage(message: ServerMessage): void {
       const { id } = message.payload as { id: string };
       store.removeCustomAgentClassFromServer(id);
       console.log(`[WebSocket] Custom agent class deleted: ${id}`);
+      // Update scene with remaining custom classes
+      onCustomClassesSync?.(store.getState().customAgentClasses);
       break;
     }
   }

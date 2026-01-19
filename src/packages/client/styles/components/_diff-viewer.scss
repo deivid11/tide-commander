@@ -23,6 +23,45 @@
   color: $dracula-fg;
 }
 
+.diff-viewer-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.diff-nav-btn {
+  width: 24px;
+  height: 24px;
+  border: 1px solid $dracula-current;
+  border-radius: $radius-sm;
+  background: $dracula-bg-darker;
+  color: $dracula-fg;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all $transition-fast;
+
+  &:hover:not(:disabled) {
+    background: $dracula-current;
+    border-color: $dracula-purple;
+    color: $dracula-purple;
+  }
+
+  &:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+}
+
+.diff-nav-counter {
+  font-size: 11px;
+  color: $dracula-comment;
+  min-width: 50px;
+  text-align: center;
+}
+
 .diff-viewer-stats {
   display: flex;
   gap: 12px;

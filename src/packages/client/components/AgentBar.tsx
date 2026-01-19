@@ -1,8 +1,24 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useStore, store } from '../store';
-import type { Agent, DrawingArea, AgentSupervisorHistoryEntry } from '../../shared/types';
+import { useStore, store, useCustomAgentClassesArray } from '../store';
+import type { Agent, DrawingArea, AgentSupervisorHistoryEntry, CustomAgentClass } from '../../shared/types';
 import { AGENT_CLASS_CONFIG } from '../scene/config';
-import { formatIdleTime, getIdleTimerColor } from '../utils/formatting';
+import { formatIdleTime, getIdleTimerColor, intToHex } from '../utils/formatting';
+
+// Helper to get class config (built-in or custom)
+function getClassConfig(agentClass: string, customClasses: CustomAgentClass[]): { icon: string; color: string; description: string } {
+  const builtIn = AGENT_CLASS_CONFIG[agentClass];
+  if (builtIn) {
+    const color = typeof builtIn.color === 'number' ? intToHex(builtIn.color) : builtIn.color;
+    return { icon: builtIn.icon, color, description: builtIn.description || '' };
+  }
+
+  const custom = customClasses.find(c => c.id === agentClass);
+  if (custom) {
+    return { icon: custom.icon, color: custom.color, description: custom.description || '' };
+  }
+
+  return { icon: '🤖', color: '#888888', description: 'Custom agent' };
+}
 
 // Tool icons mapping
 const TOOL_ICONS: Record<string, string> = {
@@ -35,6 +51,7 @@ interface AgentGroup {
 
 export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBuildingClick, onNewAreaClick }: AgentBarProps) {
   const state = useStore();
+  const customClasses = useCustomAgentClassesArray();
   const [hoveredAgent, setHoveredAgent] = useState<Agent | null>(null);
   // Track tool bubbles with animation state
   const [toolBubbles, setToolBubbles] = useState<Map<string, { tool: string; key: number }>>(new Map());
@@ -216,7 +233,7 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
               {groupAgents.map((agent) => {
                 const currentIndex = globalIndex++;
                 const isSelected = state.selectedAgentIds.has(agent.id);
-                const config = AGENT_CLASS_CONFIG[agent.class];
+                const config = getClassConfig(agent.class, customClasses);
                 const lastPrompt = state.lastPrompts.get(agent.id);
 
                 const toolBubble = toolBubbles.get(agent.id);
@@ -286,7 +303,7 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
       {hoveredAgent && (() => {
         const hoveredArea = store.getAreaForAgent(hoveredAgent.id);
         const hoveredLastPrompt = state.lastPrompts.get(hoveredAgent.id);
-        const config = AGENT_CLASS_CONFIG[hoveredAgent.class];
+        const config = getClassConfig(hoveredAgent.class, customClasses);
 
         // Get last supervisor analysis for this agent
         const supervisorHistory = store.getAgentSupervisorHistory(hoveredAgent.id);

@@ -3,7 +3,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { AgentClass } from '../../../shared/types';
-import { AGENT_CLASS_MODELS } from '../config';
+import { AGENT_CLASS_MODELS, ALL_CHARACTER_MODELS } from '../config';
 
 /**
  * Cached model data including mesh and animations.
@@ -35,7 +35,12 @@ export class CharacterLoader {
     if (this.loaded) return;
     if (this.loadingPromise) return this.loadingPromise;
 
-    const modelNames = [...new Set(Object.values(AGENT_CLASS_MODELS))];
+    // Load all available character models (not just built-in class models)
+    // This ensures custom classes can use any model
+    const modelNames = [...new Set([
+      ...Object.values(AGENT_CLASS_MODELS),
+      ...ALL_CHARACTER_MODELS.map(m => m.file),
+    ])];
     console.log('[CharacterLoader] Loading models...', modelNames);
 
     this.loadingPromise = Promise.all(
@@ -102,13 +107,23 @@ export class CharacterLoader {
   }
 
   /**
-   * Clone result including mesh and animations.
+   * Clone result including mesh and animations by agent class.
+   * For built-in classes only - use cloneByModelFile for custom classes.
    */
   clone(agentClass: AgentClass): { mesh: THREE.Group; animations: THREE.AnimationClip[] } | null {
     const modelName = AGENT_CLASS_MODELS[agentClass];
-    const cached = this.models.get(modelName);
+    return this.cloneByModelFile(modelName);
+  }
+
+  /**
+   * Clone result including mesh and animations by model filename.
+   * Use this for custom agent classes that specify their own model file.
+   */
+  cloneByModelFile(modelFile: string): { mesh: THREE.Group; animations: THREE.AnimationClip[] } | null {
+    const cached = this.models.get(modelFile);
 
     if (!cached) {
+      console.warn(`[CharacterLoader] Model not found: ${modelFile}`);
       return null;
     }
 

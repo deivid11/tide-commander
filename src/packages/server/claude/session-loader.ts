@@ -163,7 +163,7 @@ export async function loadSession(
       const entry = JSON.parse(line);
 
       if (entry.type === 'user' && entry.message?.content) {
-        // Check if this is a tool result
+        // Check if content is an array (tool results or text blocks)
         if (Array.isArray(entry.message.content)) {
           for (const block of entry.message.content) {
             if (block.type === 'tool_result') {
@@ -178,10 +178,18 @@ export async function loadSession(
                 uuid: entry.uuid,
                 toolName: block.tool_use_id,
               });
+            } else if (block.type === 'text' && block.text) {
+              // User message stored as text block (e.g., boss context messages)
+              messages.push({
+                type: 'user',
+                content: block.text,
+                timestamp: entry.timestamp,
+                uuid: entry.uuid,
+              });
             }
           }
         } else {
-          // Regular user message
+          // Regular user message (string content)
           messages.push({
             type: 'user',
             content: entry.message.content,
