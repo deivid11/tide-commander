@@ -48,6 +48,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd }: SpawnM
   const [sessions, setSessions] = useState<ClaudeSession[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [loadingSessions, setLoadingSessions] = useState(false);
+  const [sessionSearch, setSessionSearch] = useState('');
   const [useChrome, setUseChrome] = useState(true); // Enabled by default
   const [permissionMode, setPermissionMode] = useState<PermissionMode>('bypass'); // Default to permissionless
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set());
@@ -81,6 +82,17 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd }: SpawnM
     if (!customClass?.defaultSkillIds?.length) return [];
     return skills.filter(s => customClass.defaultSkillIds.includes(s.id));
   }, [customClasses, selectedClass, skills]);
+
+  // Filter sessions by search query
+  const filteredSessions = useMemo(() => {
+    if (!sessionSearch.trim()) return sessions;
+    const query = sessionSearch.toLowerCase();
+    return sessions.filter(s =>
+      s.sessionId.toLowerCase().includes(query) ||
+      s.projectPath.toLowerCase().includes(query) ||
+      (s.firstMessage && s.firstMessage.toLowerCase().includes(query))
+    );
+  }, [sessions, sessionSearch]);
 
   // Get custom class config if selected class is custom
   const selectedCustomClass = useMemo(() => {
@@ -129,6 +141,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd }: SpawnM
     } else {
       setSessions([]);
       setSelectedSessionId(null);
+      setSessionSearch('');
     }
   }, [isOpen, fetchSessions]);
 
@@ -348,13 +361,24 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd }: SpawnM
                 Link to Claude Session
                 <span className="form-label-hint">(optional)</span>
               </label>
+              {sessions.length > 0 && (
+                <input
+                  type="text"
+                  className="form-input session-search-input"
+                  placeholder="Search by session ID, path, or message..."
+                  value={sessionSearch}
+                  onChange={(e) => setSessionSearch(e.target.value)}
+                />
+              )}
               <div className="sessions-list">
                 {loadingSessions ? (
                   <div className="sessions-loading">Loading sessions...</div>
                 ) : sessions.length === 0 ? (
                   <div className="sessions-empty">No Claude sessions found</div>
+                ) : filteredSessions.length === 0 ? (
+                  <div className="sessions-empty">No sessions match "{sessionSearch}"</div>
                 ) : (
-                  sessions.map((session) => {
+                  filteredSessions.map((session) => {
                     const isSelected = selectedSessionId === session.sessionId;
                     const age = Date.now() - new Date(session.lastModified).getTime();
                     const ageStr = age < 60000 ? 'just now'
@@ -379,8 +403,14 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd }: SpawnM
                           <span className="session-item-path">{session.projectPath}</span>
                           <span className="session-item-age">{ageStr}</span>
                         </div>
+                        <div className="session-item-id">
+                          {session.sessionId}
+                        </div>
                         <div className="session-item-preview">
                           {session.firstMessage || `${session.messageCount} messages`}
+                        </div>
+                        <div className="session-item-meta">
+                          {session.messageCount} messages
                         </div>
                       </div>
                     );
