@@ -22,56 +22,9 @@ import {
   getDelegationHistory as getHistoryFromStorage,
   deleteDelegationHistory,
 } from '../data/index.js';
-import { logger } from '../utils/logger.js';
+import { logger, sanitizeUnicode, generateId, truncateOrEmpty } from '../utils/index.js';
 
 const log = logger.boss || console;
-
-/**
- * Sanitize a string by removing invalid Unicode surrogate pairs.
- * This fixes "no low surrogate in string" JSON errors.
- * Handles both raw Unicode surrogates and JSON-escaped surrogates like \ud83d.
- */
-function sanitizeUnicode(str: string): string {
-  // First, handle JSON-escaped surrogates (e.g., \ud83d without \udc00-\udfff following)
-  const highPattern = /\\u[dD][89aAbB][0-9a-fA-F]{2}/g;
-  const lowPattern = /\\u[dD][cCdDeEfF][0-9a-fA-F]{2}/;
-
-  let sanitized = str.replace(highPattern, (match, offset) => {
-    const afterMatch = str.slice(offset + match.length);
-    if (lowPattern.test(afterMatch.slice(0, 6))) {
-      return match;
-    }
-    return '\\ufffd';
-  });
-
-  sanitized = sanitized.replace(/\\u[dD][cCdDeEfF][0-9a-fA-F]{2}/g, (match, offset) => {
-    const beforeMatch = sanitized.slice(Math.max(0, offset - 6), offset);
-    if (/\\u[dD][89aAbB][0-9a-fA-F]{2}$/.test(beforeMatch)) {
-      return match;
-    }
-    return '\\ufffd';
-  });
-
-  // Then handle raw Unicode surrogates
-  let result = '';
-  for (let i = 0; i < sanitized.length; i++) {
-    const code = sanitized.charCodeAt(i);
-    if (code >= 0xD800 && code <= 0xDBFF) {
-      const nextCode = sanitized.charCodeAt(i + 1);
-      if (nextCode >= 0xDC00 && nextCode <= 0xDFFF) {
-        result += sanitized[i] + sanitized[i + 1];
-        i++;
-      } else {
-        result += '\uFFFD';
-      }
-    } else if (code >= 0xDC00 && code <= 0xDFFF) {
-      result += '\uFFFD';
-    } else {
-      result += sanitized[i];
-    }
-  }
-  return result;
-}
 
 // Delegation history storage (persisted to disk)
 let delegationHistories: Map<string, DelegationDecision[]> = new Map();
@@ -340,7 +293,7 @@ export async function delegateCommand(
     throw new Error(`Boss ${boss.name} has no subordinates to delegate to`);
   }
 
-  log.log?.(` Boss ${boss.name} delegating: "${truncate(command, 50)}"`);
+  log.log?.(` Boss ${boss.name} delegating: "${truncateOrEmpty(command, 50)}"`);
 
   // Gather subordinate context
   const contexts = await gatherSubordinateContext(bossId);
@@ -453,7 +406,7 @@ function buildDelegationPrompt(command: string, contexts: SubordinateContext[]):
     class: ctx.class,
     status: ctx.status,
     currentTask: sanitizeUnicode(ctx.currentTask || 'None'),
-    lastAssignedTask: ctx.lastAssignedTask ? sanitizeUnicode(truncate(ctx.lastAssignedTask, 200)) : 'None',
+    lastAssignedTask: ctx.lastAssignedTask ? sanitizeUnicode(truncateOrEmpty(ctx.lastAssignedTask, 200)) : 'None',
     recentSupervisorSummary: sanitizeUnicode(ctx.recentSupervisorSummary || 'No recent analysis'),
     contextPercent: ctx.contextPercent,
     tokensUsed: ctx.tokensUsed,
@@ -693,12 +646,3 @@ export function addDelegationToHistory(bossId: string, decision: DelegationDecis
 // ============================================================================
 // Utilities
 // ============================================================================
-
-function generateId(): string {
-  return Math.random().toString(36).substring(2, 10);
-}
-
-function truncate(str: string, maxLen: number): string {
-  if (str.length <= maxLen) return str;
-  return str.slice(0, maxLen - 3) + '...';
-}

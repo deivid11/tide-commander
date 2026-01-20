@@ -9,7 +9,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { loadCustomAgentClasses, saveCustomAgentClasses } from '../data/index.js';
 import type { CustomAgentClass } from '../../shared/types.js';
-import { createLogger } from '../utils/logger.js';
+import { createLogger, generateSlug } from '../utils/index.js';
 
 const log = createLogger('CustomClassService');
 
@@ -105,16 +105,6 @@ export function getAllCustomClasses(): CustomAgentClass[] {
  */
 export function getCustomClass(id: string): CustomAgentClass | undefined {
   return customClasses.get(id);
-}
-
-/**
- * Generate a slug from a name
- */
-function generateSlug(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
 }
 
 /**

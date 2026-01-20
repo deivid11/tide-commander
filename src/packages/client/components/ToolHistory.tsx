@@ -1,36 +1,30 @@
 import React, { useState, useMemo } from 'react';
 import { useToolExecutions, useFileChanges, ToolExecution, FileChange } from '../store';
 import { FileViewerModal } from './FileViewerModal';
+import { STORAGE_KEYS, getStorageBoolean, setStorageBoolean } from '../utils/storage';
 
 interface ToolHistoryProps {
   agentIds: string[];
 }
-
-const TOOLS_COLLAPSED_KEY = 'tide-tools-collapsed';
-const FILES_COLLAPSED_KEY = 'tide-files-collapsed';
 
 export function ToolHistory({ agentIds }: ToolHistoryProps) {
   const allToolExecutions = useToolExecutions();
   const allFileChanges = useFileChanges();
   const [selectedFile, setSelectedFile] = useState<{ path: string; action: FileChange['action'] } | null>(null);
   const [expandedToolIndex, setExpandedToolIndex] = useState<number | null>(null);
-  const [toolsCollapsed, setToolsCollapsed] = useState(() => {
-    return localStorage.getItem(TOOLS_COLLAPSED_KEY) === 'true';
-  });
-  const [filesCollapsed, setFilesCollapsed] = useState(() => {
-    return localStorage.getItem(FILES_COLLAPSED_KEY) === 'true';
-  });
+  const [toolsCollapsed, setToolsCollapsed] = useState(() => getStorageBoolean(STORAGE_KEYS.TOOLS_COLLAPSED));
+  const [filesCollapsed, setFilesCollapsed] = useState(() => getStorageBoolean(STORAGE_KEYS.FILES_COLLAPSED));
 
   const handleToolsToggle = () => {
     const newValue = !toolsCollapsed;
     setToolsCollapsed(newValue);
-    localStorage.setItem(TOOLS_COLLAPSED_KEY, String(newValue));
+    setStorageBoolean(STORAGE_KEYS.TOOLS_COLLAPSED, newValue);
   };
 
   const handleFilesToggle = () => {
     const newValue = !filesCollapsed;
     setFilesCollapsed(newValue);
-    localStorage.setItem(FILES_COLLAPSED_KEY, String(newValue));
+    setStorageBoolean(STORAGE_KEYS.FILES_COLLAPSED, newValue);
   };
 
   // Filter by selected agents - memoized

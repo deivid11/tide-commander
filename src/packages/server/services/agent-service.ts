@@ -13,7 +13,7 @@ import {
   loadToolHistory,
   searchSession,
 } from '../claude/session-loader.js';
-import { logger } from '../utils/logger.js';
+import { logger, generateId } from '../utils/index.js';
 
 const log = logger.agent;
 
@@ -138,7 +138,6 @@ export async function createAgent(
       y: 0,
       z: Math.random() * 10 - 5,
     },
-    tmuxSession: `tide-${id}`,
     cwd,
     useChrome,
     permissionMode,
@@ -156,7 +155,7 @@ export async function createAgent(
   log.log('  Agent object created:', {
     id: agent.id,
     name: agent.name,
-    tmuxSession: agent.tmuxSession,
+    cwd: agent.cwd,
   });
 
   agents.set(id, agent);
@@ -314,7 +313,3 @@ export async function searchAgentHistory(agentId: string, query: string, limit: 
 // ============================================================================
 // Utilities
 // ============================================================================
-
-function generateId(): string {
-  return Math.random().toString(36).substring(2, 10);
-}

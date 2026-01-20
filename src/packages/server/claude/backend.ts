@@ -12,73 +12,9 @@ import type {
   StandardEvent,
   ClaudeRawEvent,
 } from './types.js';
-import { createLogger } from '../utils/logger.js';
+import { createLogger, sanitizeUnicode } from '../utils/index.js';
 
 const log = createLogger('Backend');
-
-/**
- * Sanitize a string by removing invalid Unicode surrogate pairs.
- * This fixes "no low surrogate in string" JSON errors that occur when
- * strings contain unpaired high surrogates (0xD800-0xDBFF without matching 0xDC00-0xDFFF).
- * Also handles JSON-escaped surrogates like \ud83d that lack their low surrogate pair.
- */
-function sanitizeUnicode(str: string): string {
-  // First, handle JSON-escaped surrogates (e.g., \ud83d without \udc00-\udfff following)
-  // High surrogate: \uD800-\uDBFF -> \u[dD][89aAbB][0-9a-fA-F]{2}
-  // Low surrogate: \uDC00-\uDFFF -> \u[dD][cCdDeEfF][0-9a-fA-F]{2}
-  const highPattern = /\\u[dD][89aAbB][0-9a-fA-F]{2}/g;
-  const lowPattern = /\\u[dD][cCdDeEfF][0-9a-fA-F]{2}/;
-
-  // Replace unpaired JSON-escaped surrogates
-  let sanitized = str.replace(highPattern, (match, offset) => {
-    // Check if followed by a low surrogate escape
-    const afterMatch = str.slice(offset + match.length);
-    if (lowPattern.test(afterMatch.slice(0, 6))) {
-      return match; // Valid pair, keep it
-    }
-    return '\\ufffd'; // Replace unpaired high surrogate
-  });
-
-  // Also replace orphan low surrogates (not preceded by high)
-  sanitized = sanitized.replace(/\\u[dD][cCdDeEfF][0-9a-fA-F]{2}/g, (match, offset) => {
-    // Check if preceded by a high surrogate
-    const beforeMatch = sanitized.slice(Math.max(0, offset - 6), offset);
-    if (/\\u[dD][89aAbB][0-9a-fA-F]{2}$/.test(beforeMatch)) {
-      return match; // Valid pair, keep it
-    }
-    return '\\ufffd'; // Replace orphan low surrogate
-  });
-
-  // Then handle raw Unicode surrogates at character level
-  let result = '';
-  for (let i = 0; i < sanitized.length; i++) {
-    const code = sanitized.charCodeAt(i);
-
-    // Check if this is a high surrogate (0xD800-0xDBFF)
-    if (code >= 0xD800 && code <= 0xDBFF) {
-      // Check if next char is a valid low surrogate
-      const nextCode = sanitized.charCodeAt(i + 1);
-      if (nextCode >= 0xDC00 && nextCode <= 0xDFFF) {
-        // Valid surrogate pair - keep both
-        result += sanitized[i] + sanitized[i + 1];
-        i++; // Skip the low surrogate since we already added it
-      } else {
-        // Unpaired high surrogate - replace with replacement char
-        result += '\uFFFD';
-      }
-    }
-    // Check if this is a low surrogate without preceding high surrogate
-    else if (code >= 0xDC00 && code <= 0xDFFF) {
-      // Unpaired low surrogate - replace with replacement char
-      result += '\uFFFD';
-    }
-    else {
-      // Normal character
-      result += sanitized[i];
-    }
-  }
-  return result;
-}
 
 export class ClaudeBackend implements CLIBackend {
   readonly name = 'claude';

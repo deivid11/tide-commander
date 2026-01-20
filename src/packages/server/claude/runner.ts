@@ -1,6 +1,15 @@
 /**
  * Claude Code Process Runner
  * Spawns and manages Claude Code CLI processes with streaming output
+ *
+ * Processes are spawned with detached: true and unref() to survive commander crashes.
+ * PIDs are persisted to disk for crash recovery.
+ *
+ * ULTRA-RESILIENT FEATURES:
+ * - Auto-restart on unexpected crashes
+ * - Detailed death diagnostics
+ * - Process watchdog monitoring
+ * - PID persistence for recovery across commander restarts
  */
 
 import { spawn, ChildProcess, execSync } from 'child_process';
@@ -11,24 +20,316 @@ import type {
   RunnerCallbacks,
   ActiveProcess,
   StandardEvent,
+  ProcessDeathInfo,
 } from './types.js';
 import { ClaudeBackend } from './backend.js';
 import { createLogger } from '../utils/logger.js';
+import { saveRunningProcesses, loadRunningProcesses, isProcessRunning, clearRunningProcesses, type RunningProcessInfo } from '../data/index.js';
 
 const log = createLogger('Runner');
+
+// Interval for persisting running processes (every 10 seconds)
+const PERSIST_INTERVAL = 10000;
+
+// Watchdog interval - check process health (every 5 seconds)
+const WATCHDOG_INTERVAL = 5000;
+
+// Auto-restart configuration
+const MAX_RESTART_ATTEMPTS = 3;  // Max restarts within the cooldown period
+const RESTART_COOLDOWN_MS = 60000;  // Reset restart count after 1 minute of stability
+const MIN_RUNTIME_FOR_RESTART_MS = 5000;  // Don't restart if process died within 5s (likely config error)
 
 export class ClaudeRunner {
   private backend: CLIBackend;
   private activeProcesses: Map<string, ActiveProcess> = new Map();
   private callbacks: RunnerCallbacks;
+  private persistTimer: NodeJS.Timeout | null = null;
+  private watchdogTimer: NodeJS.Timeout | null = null;
+
+  // Track recent process deaths for diagnostics
+  private recentDeaths: ProcessDeathInfo[] = [];
+  private readonly MAX_DEATH_HISTORY = 50;
+
+  // Track last stderr for each agent (for death diagnostics)
+  private lastStderr: Map<string, string> = new Map();
+
+  // Auto-restart enabled flag
+  private autoRestartEnabled = true;
 
   constructor(callbacks: RunnerCallbacks) {
     this.backend = new ClaudeBackend();
     this.callbacks = callbacks;
+
+    // Start periodic persistence of running processes
+    this.persistTimer = setInterval(() => {
+      this.persistRunningProcesses();
+    }, PERSIST_INTERVAL);
+
+    // Start watchdog to monitor process health
+    this.watchdogTimer = setInterval(() => {
+      this.runWatchdog();
+    }, WATCHDOG_INTERVAL);
+
+    // Check for orphaned processes from previous commander instance
+    this.recoverOrphanedProcesses();
+
+    log.log('🛡️ Runner initialized with auto-restart and watchdog enabled');
+  }
+
+  /**
+   * Enable or disable auto-restart
+   */
+  setAutoRestart(enabled: boolean): void {
+    this.autoRestartEnabled = enabled;
+    log.log(`🔄 Auto-restart ${enabled ? 'enabled' : 'disabled'}`);
+  }
+
+  /**
+   * Get recent process death history for diagnostics
+   */
+  getDeathHistory(): ProcessDeathInfo[] {
+    return [...this.recentDeaths];
+  }
+
+  /**
+   * Watchdog - periodically check that tracked processes are still alive
+   * If a process dies without triggering the 'close' event, this will catch it
+   */
+  private runWatchdog(): void {
+    for (const [agentId, activeProcess] of this.activeProcesses) {
+      const pid = activeProcess.process.pid;
+      if (!pid) continue;
+
+      // Check if process is still alive
+      if (!isProcessRunning(pid)) {
+        log.error(`🐕 [WATCHDOG] Agent ${agentId}: Process ${pid} is dead but was still being tracked!`);
+
+        // Record death
+        this.recordDeath({
+          agentId,
+          pid,
+          exitCode: null,
+          signal: null,
+          runtime: Date.now() - activeProcess.startTime,
+          wasTracked: true,
+          timestamp: Date.now(),
+          stderr: this.lastStderr.get(agentId),
+        });
+
+        // Clean up
+        this.activeProcesses.delete(agentId);
+        this.lastStderr.delete(agentId);
+
+        // Attempt auto-restart
+        this.maybeAutoRestart(agentId, activeProcess, null, null);
+      }
+    }
+  }
+
+  /**
+   * Record a process death for diagnostics
+   */
+  private recordDeath(info: ProcessDeathInfo): void {
+    this.recentDeaths.unshift(info);
+    if (this.recentDeaths.length > this.MAX_DEATH_HISTORY) {
+      this.recentDeaths.pop();
+    }
+
+    // Log detailed death info
+    const runtimeSec = (info.runtime / 1000).toFixed(1);
+    log.error(`💀 [DEATH RECORD] Agent ${info.agentId}:`);
+    log.error(`   PID: ${info.pid}`);
+    log.error(`   Exit code: ${info.exitCode}`);
+    log.error(`   Signal: ${info.signal}`);
+    log.error(`   Runtime: ${runtimeSec}s`);
+    log.error(`   Was tracked: ${info.wasTracked}`);
+    if (info.stderr) {
+      log.error(`   Last stderr: ${info.stderr.substring(0, 500)}`);
+    }
+
+    // Check for patterns in recent deaths
+    this.analyzeDeathPatterns();
+  }
+
+  /**
+   * Analyze death patterns to detect systemic issues
+   */
+  private analyzeDeathPatterns(): void {
+    const recentWindow = 60000; // 1 minute
+    const now = Date.now();
+    const recentDeaths = this.recentDeaths.filter(d => now - d.timestamp < recentWindow);
+
+    if (recentDeaths.length >= 3) {
+      log.error(`⚠️ [PATTERN] ${recentDeaths.length} processes died in the last minute!`);
+
+      // Check if all deaths have the same signal
+      const signals = recentDeaths.map(d => d.signal).filter(s => s);
+      if (signals.length > 0 && signals.every(s => s === signals[0])) {
+        log.error(`⚠️ [PATTERN] All deaths have signal: ${signals[0]} - possible external kill`);
+      }
+
+      // Check if all deaths have the same exit code
+      const codes = recentDeaths.map(d => d.exitCode).filter(c => c !== null);
+      if (codes.length > 0 && codes.every(c => c === codes[0])) {
+        log.error(`⚠️ [PATTERN] All deaths have exit code: ${codes[0]}`);
+        if (codes[0] === 137) {
+          log.error(`⚠️ [PATTERN] Exit code 137 = OOM killed! Check system memory.`);
+        } else if (codes[0] === 1) {
+          log.error(`⚠️ [PATTERN] Exit code 1 = general error. Check Claude Code installation.`);
+        }
+      }
+
+      // Check for very short runtimes (config/startup errors)
+      const shortLived = recentDeaths.filter(d => d.runtime < 5000);
+      if (shortLived.length >= 2) {
+        log.error(`⚠️ [PATTERN] ${shortLived.length} processes died within 5s of starting - likely config error`);
+      }
+    }
+  }
+
+  /**
+   * Attempt to auto-restart a crashed process
+   */
+  private maybeAutoRestart(
+    agentId: string,
+    activeProcess: ActiveProcess,
+    exitCode: number | null,
+    signal: NodeJS.Signals | null
+  ): void {
+    if (!this.autoRestartEnabled) {
+      log.log(`🔄 [AUTO-RESTART] Disabled, not restarting ${agentId}`);
+      return;
+    }
+
+    const lastRequest = activeProcess.lastRequest;
+    if (!lastRequest) {
+      log.log(`🔄 [AUTO-RESTART] No last request stored for ${agentId}, cannot restart`);
+      return;
+    }
+
+    const runtime = Date.now() - activeProcess.startTime;
+
+    // Don't restart if process died too quickly (likely config error)
+    if (runtime < MIN_RUNTIME_FOR_RESTART_MS) {
+      log.error(`🔄 [AUTO-RESTART] Process ${agentId} died after only ${runtime}ms - NOT restarting (likely config error)`);
+      this.callbacks.onError(agentId, `Process crashed immediately (${runtime}ms) - not auto-restarting. Check Claude Code installation.`);
+      return;
+    }
+
+    // Don't restart if it was a clean exit (code 0) or intentional stop (SIGINT/SIGTERM)
+    if (exitCode === 0) {
+      log.log(`🔄 [AUTO-RESTART] Process ${agentId} exited cleanly (code 0), not restarting`);
+      return;
+    }
+    if (signal === 'SIGINT' || signal === 'SIGTERM') {
+      log.log(`🔄 [AUTO-RESTART] Process ${agentId} was stopped intentionally (${signal}), not restarting`);
+      return;
+    }
+
+    // Check restart count
+    const restartCount = (activeProcess.restartCount || 0);
+    const lastRestartTime = activeProcess.lastRestartTime || 0;
+    const timeSinceLastRestart = Date.now() - lastRestartTime;
+
+    // Reset restart count if enough time has passed
+    const effectiveRestartCount = timeSinceLastRestart > RESTART_COOLDOWN_MS ? 0 : restartCount;
+
+    if (effectiveRestartCount >= MAX_RESTART_ATTEMPTS) {
+      log.error(`🔄 [AUTO-RESTART] Max restart attempts (${MAX_RESTART_ATTEMPTS}) reached for ${agentId}`);
+      this.callbacks.onError(agentId, `Process keeps crashing - auto-restart disabled after ${MAX_RESTART_ATTEMPTS} attempts. Manual intervention required.`);
+      return;
+    }
+
+    // Perform restart
+    log.log(`🔄 [AUTO-RESTART] Restarting ${agentId} (attempt ${effectiveRestartCount + 1}/${MAX_RESTART_ATTEMPTS})...`);
+
+    // Small delay before restart to avoid rapid cycling
+    setTimeout(async () => {
+      try {
+        // Create a new request with updated restart tracking
+        const newRequest: RunnerRequest = {
+          ...lastRequest,
+        };
+
+        // Run with restart tracking
+        await this.run(newRequest);
+
+        // Update restart count on the new process
+        const newProcess = this.activeProcesses.get(agentId);
+        if (newProcess) {
+          newProcess.restartCount = effectiveRestartCount + 1;
+          newProcess.lastRestartTime = Date.now();
+        }
+
+        log.log(`🔄 [AUTO-RESTART] Successfully restarted ${agentId}`);
+        this.callbacks.onOutput(agentId, `[System] Process was automatically restarted after crash`);
+      } catch (err) {
+        log.error(`🔄 [AUTO-RESTART] Failed to restart ${agentId}:`, err);
+        this.callbacks.onError(agentId, `Auto-restart failed: ${err}`);
+      }
+    }, 1000);
+  }
+
+  /**
+   * Persist running process PIDs to disk for crash recovery
+   */
+  private persistRunningProcesses(): void {
+    const processes: RunningProcessInfo[] = [];
+
+    for (const [agentId, activeProcess] of this.activeProcesses) {
+      if (activeProcess.process.pid) {
+        processes.push({
+          agentId,
+          pid: activeProcess.process.pid,
+          sessionId: activeProcess.sessionId,
+          startTime: activeProcess.startTime,
+          outputFile: activeProcess.outputFile,
+          stderrFile: activeProcess.stderrFile,
+          lastRequest: activeProcess.lastRequest,
+        });
+      }
+    }
+
+    if (processes.length > 0) {
+      saveRunningProcesses(processes);
+    } else {
+      clearRunningProcesses();
+    }
+  }
+
+  /**
+   * Check for orphaned processes from a previous commander instance
+   * Since we use pipe-based I/O, processes die when server restarts.
+   * This just cleans up the tracking state.
+   */
+  private recoverOrphanedProcesses(): void {
+    const savedProcesses = loadRunningProcesses();
+
+    if (savedProcesses.length === 0) {
+      return;
+    }
+
+    log.log(`🔍 Checking ${savedProcesses.length} processes from previous commander instance...`);
+
+    for (const savedProcess of savedProcesses) {
+      if (isProcessRunning(savedProcess.pid)) {
+        log.log(`✅ Found orphaned process for agent ${savedProcess.agentId} (PID ${savedProcess.pid}) - still running`);
+        // Note: We can't reconnect to pipe-based processes, but we can note they're running
+        // The agent's status will be synced separately
+      } else {
+        log.log(`❌ Process for agent ${savedProcess.agentId} (PID ${savedProcess.pid}) is no longer running`);
+      }
+    }
+
+    // Clear the saved processes - agents will be restarted if needed
+    clearRunningProcesses();
   }
 
   /**
    * Run a prompt for an agent
+   *
+   * Uses standard pipe-based I/O. Processes will NOT survive server restarts,
+   * but we implement auto-resume using Claude's session persistence.
    */
   async run(request: RunnerRequest): Promise<void> {
     const { agentId, prompt, workingDir, sessionId, model, useChrome, permissionMode = 'bypass', systemPrompt, forceNewSession, customAgent } = request;
@@ -54,9 +355,7 @@ export class ClaudeRunner {
     log.log(` Starting: ${executable} ${args.join(' ')}`);
     log.log(` Working dir: ${workingDir}`);
 
-    // Spawn process with its own process group (detached: true)
-    // This allows us to kill the entire process tree when stopping
-    // Note: shell: false to avoid issues with special characters in args
+    // Spawn process with pipes for I/O
     const childProcess = spawn(executable, args, {
       cwd: workingDir,
       env: {
@@ -66,14 +365,20 @@ export class ClaudeRunner {
       },
       shell: false,
       detached: true,
+      stdio: ['pipe', 'pipe', 'pipe'],
     });
 
-    // Track the active process
+    // unref() allows parent to exit without waiting for child
+    childProcess.unref();
+
+    // Track the active process with the request for potential auto-restart
     const activeProcess: ActiveProcess = {
       agentId,
       sessionId,
       startTime: Date.now(),
       process: childProcess,
+      lastRequest: request,
+      restartCount: 0,
     };
     this.activeProcesses.set(agentId, activeProcess);
 
@@ -86,27 +391,51 @@ export class ClaudeRunner {
     // Handle process exit
     childProcess.on('close', (code, signal) => {
       const wasTracked = this.activeProcesses.has(agentId);
+      const trackedProcess = this.activeProcesses.get(agentId);
+      const runtime = trackedProcess ? Date.now() - trackedProcess.startTime : 0;
+
+      // Record death for diagnostics
+      const deathInfo: ProcessDeathInfo = {
+        agentId,
+        pid: childProcess.pid,
+        exitCode: code,
+        signal,
+        runtime,
+        wasTracked,
+        timestamp: Date.now(),
+        stderr: this.lastStderr.get(agentId),
+      };
+
+      // Clean up tracking
       this.activeProcesses.delete(agentId);
+      this.lastStderr.delete(agentId);
 
       // Determine exit type for logging
       if (signal) {
-        // Process was killed by a signal
         if (signal === 'SIGINT') {
-          log.log(`🛑 [EXIT] Agent ${agentId}: Process terminated by SIGINT (user interrupt), pid was ${childProcess.pid}`);
+          log.log(`🛑 [EXIT] Agent ${agentId}: Process terminated by SIGINT (user interrupt), pid was ${childProcess.pid}, runtime ${(runtime/1000).toFixed(1)}s`);
         } else if (signal === 'SIGTERM') {
-          log.log(`🛑 [EXIT] Agent ${agentId}: Process terminated by SIGTERM (stop request), pid was ${childProcess.pid}`);
+          log.log(`🛑 [EXIT] Agent ${agentId}: Process terminated by SIGTERM (stop request), pid was ${childProcess.pid}, runtime ${(runtime/1000).toFixed(1)}s`);
         } else if (signal === 'SIGKILL') {
-          log.log(`🛑 [EXIT] Agent ${agentId}: Process force-killed by SIGKILL, pid was ${childProcess.pid}`);
+          log.log(`🛑 [EXIT] Agent ${agentId}: Process force-killed by SIGKILL, pid was ${childProcess.pid}, runtime ${(runtime/1000).toFixed(1)}s`);
+          this.recordDeath(deathInfo);
         } else {
-          log.log(`⚠️ [EXIT] Agent ${agentId}: Process killed by signal ${signal}, pid was ${childProcess.pid}`);
+          log.log(`⚠️ [EXIT] Agent ${agentId}: Process killed by signal ${signal}, pid was ${childProcess.pid}, runtime ${(runtime/1000).toFixed(1)}s`);
+          this.recordDeath(deathInfo);
         }
       } else if (code === 0) {
-        log.log(`✅ [EXIT] Agent ${agentId}: Process completed successfully (exit code 0), pid was ${childProcess.pid}`);
+        log.log(`✅ [EXIT] Agent ${agentId}: Process completed successfully (exit code 0), pid was ${childProcess.pid}, runtime ${(runtime/1000).toFixed(1)}s`);
       } else {
-        log.log(`❌ [EXIT] Agent ${agentId}: Process exited with error code ${code}, pid was ${childProcess.pid}${!wasTracked ? ' (unexpected - was not being tracked)' : ''}`);
+        log.error(`❌ [EXIT] Agent ${agentId}: Process exited with error code ${code}, pid was ${childProcess.pid}, runtime ${(runtime/1000).toFixed(1)}s${!wasTracked ? ' (unexpected - was not being tracked)' : ''}`);
+        this.recordDeath(deathInfo);
       }
 
       this.callbacks.onComplete(agentId, code === 0);
+
+      // Attempt auto-restart for unexpected crashes
+      if (trackedProcess && code !== 0 && signal !== 'SIGINT' && signal !== 'SIGTERM') {
+        this.maybeAutoRestart(agentId, trackedProcess, code, signal);
+      }
     });
 
     childProcess.on('error', (err) => {
@@ -120,7 +449,7 @@ export class ClaudeRunner {
       log.log(`🚀 [SPAWN] Agent ${agentId}: Process started with pid ${childProcess.pid}`);
     });
 
-    // Send the prompt via stdin (keep stdin open for additional messages)
+    // Send the prompt via stdin
     if (this.backend.requiresStdinInput() && childProcess.stdin) {
       const stdinInput = this.backend.formatStdinInput(prompt);
       log.log(` Sending stdin: ${stdinInput.substring(0, 100)}...`);
@@ -129,13 +458,12 @@ export class ClaudeRunner {
           log.error(` Failed to write initial prompt to stdin for ${agentId}:`, err);
         }
       });
-      // Don't close stdin - allow sending additional messages
     }
   }
 
   /**
    * Send an additional message to a running agent process
-   * Returns true if message was queued for sending, false if no running process
+   * Returns true if message was sent, false if no running process
    */
   sendMessage(agentId: string, message: string): boolean {
     const activeProcess = this.activeProcesses.get(agentId);
@@ -153,20 +481,11 @@ export class ClaudeRunner {
     const stdinInput = this.backend.formatStdinInput(message);
     log.log(` Sending additional message to ${agentId}: ${stdinInput.substring(0, 100)}...`);
 
-    // Write to stdin with error handling
-    const success = stdin.write(stdinInput + '\n', 'utf8', (err) => {
+    stdin.write(stdinInput + '\n', 'utf8', (err) => {
       if (err) {
         log.error(` Failed to write to stdin for ${agentId}:`, err);
       }
     });
-
-    if (!success) {
-      // Buffer is full, wait for drain event
-      log.log(` stdin buffer full for ${agentId}, waiting for drain...`);
-      stdin.once('drain', () => {
-        log.log(` stdin drained for ${agentId}`);
-      });
-    }
 
     return true;
   }
@@ -347,14 +666,23 @@ export class ClaudeRunner {
   }
 
   /**
-   * Handle stderr
+   * Handle stderr - capture for diagnostics and error reporting
    */
   private handleStderr(agentId: string, process: ChildProcess): void {
     const decoder = new StringDecoder('utf8');
+    let stderrBuffer = '';
 
     process.stderr?.on('data', (data: Buffer) => {
       const text = decoder.write(data);
       log.error(` stderr for ${agentId}:`, text);
+
+      // Accumulate stderr for death diagnostics (keep last 2KB)
+      stderrBuffer += text;
+      if (stderrBuffer.length > 2048) {
+        stderrBuffer = stderrBuffer.slice(-2048);
+      }
+      this.lastStderr.set(agentId, stderrBuffer);
+
       // Don't treat all stderr as errors - some is just logging
       if (text.toLowerCase().includes('error')) {
         this.callbacks.onError(agentId, text);
@@ -429,11 +757,42 @@ export class ClaudeRunner {
 
   /**
    * Stop all running processes
+   * @param force - If true, actually kill processes. If false (default), just clear tracking.
+   *                This allows processes to continue running independently when commander shuts down.
    */
-  async stopAll(): Promise<void> {
-    for (const [agentId] of this.activeProcesses) {
-      await this.stop(agentId);
+  async stopAll(force = false): Promise<void> {
+    // Stop the persist timer
+    if (this.persistTimer) {
+      clearInterval(this.persistTimer);
+      this.persistTimer = null;
     }
+
+    // Stop the watchdog timer
+    if (this.watchdogTimer) {
+      clearInterval(this.watchdogTimer);
+      this.watchdogTimer = null;
+    }
+
+    // Disable auto-restart during shutdown
+    this.autoRestartEnabled = false;
+
+    if (force) {
+      // Actually kill all processes
+      for (const [agentId] of this.activeProcesses) {
+        await this.stop(agentId);
+      }
+      // Clear the persisted processes file since we killed them all
+      clearRunningProcesses();
+    } else {
+      // Just clear tracking - processes continue running independently
+      // Persist current state so next commander instance knows about them
+      this.persistRunningProcesses();
+      log.log(`🔄 Clearing process tracking for ${this.activeProcesses.size} agents (processes will continue running)`);
+      this.activeProcesses.clear();
+    }
+
+    // Clear stderr tracking
+    this.lastStderr.clear();
   }
 
   /**

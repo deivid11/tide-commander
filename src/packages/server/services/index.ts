@@ -10,4 +10,8 @@ export * as permissionService from './permission-service.js';
 export * as bossService from './boss-service.js';
 export * as skillService from './skill-service.js';
 export * as customClassService from './custom-class-service.js';
+export * as buildingService from './building-service.js';
+export * as bossMessageService from './boss-message-service.js';
+export * as agentLifecycleService from './agent-lifecycle-service.js';
+export * as subordinateContextService from './subordinate-context-service.js';
 export { buildBossSystemPrompt } from './boss-service.js';

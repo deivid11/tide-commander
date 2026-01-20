@@ -273,14 +273,6 @@ export function parseToolInput(text: string): string | null {
 
 /**
  * Status colors for agent indicators (Dracula theme)
+ * @deprecated Use getAgentStatusColor from utils/colors.ts instead
  */
-export function getStatusColor(status: string): string {
-  switch (status) {
-    case 'idle': return '#4aff9e';      // Green
-    case 'working': return '#4a9eff';   // Blue
-    case 'waiting': return '#ff9e4a';   // Orange
-    case 'error': return '#ff5555';     // Red
-    case 'offline': return '#888888';   // Gray
-    default: return '#888888';
-  }
-}
+export { getAgentStatusColor as getStatusColor } from './colors';

@@ -4,6 +4,7 @@ import { AGENT_CLASS_CONFIG, DEFAULT_NAMES, CHARACTER_MODELS } from '../scene/co
 import type { Agent, AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel } from '../../shared/types';
 import { PERMISSION_MODES, AGENT_CLASSES, CLAUDE_MODELS } from '../../shared/types';
 import { intToHex } from '../utils/formatting';
+import { STORAGE_KEYS, getStorageString, setStorageString } from '../utils/storage';
 import { ModelPreview } from './ModelPreview';
 
 interface BossSpawnModalProps {
@@ -29,7 +30,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd }: Bo
   const { agents } = useStore();
   const customClasses = useCustomAgentClassesArray();
   const [name, setName] = useState('');
-  const [cwd, setCwd] = useState(() => localStorage.getItem('tide-last-cwd') || '');
+  const [cwd, setCwd] = useState(() => getStorageString(STORAGE_KEYS.LAST_CWD));
   const [selectedClass, setSelectedClass] = useState<AgentClass>('boss');
   const [isSpawning, setIsSpawning] = useState(false);
   const [hasError, setHasError] = useState(false);
@@ -99,7 +100,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd }: Bo
       return;
     }
 
-    localStorage.setItem('tide-last-cwd', cwd);
+    setStorageString(STORAGE_KEYS.LAST_CWD, cwd);
     setIsSpawning(true);
     onSpawnStart();
 

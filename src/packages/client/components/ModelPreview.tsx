@@ -155,7 +155,8 @@ export function ModelPreview({ agentClass, modelFile, status = 'idle', width = 1
 
     const scene = sceneRef.current;
     // Use direct modelFile if provided, otherwise look up from agent class
-    const resolvedModelFile = modelFile || (agentClass ? AGENT_CLASS_MODELS[agentClass] : 'character-male-a.glb');
+    // Fallback to default model if agent class isn't in the map (e.g., custom classes)
+    const resolvedModelFile = modelFile || (agentClass ? AGENT_CLASS_MODELS[agentClass] : undefined) || 'character-male-a.glb';
     const loader = new GLTFLoader();
 
     loader.load(

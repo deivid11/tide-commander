@@ -13,6 +13,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { execSync } from 'child_process';
 import type { Agent, DrawingArea, AgentSupervisorHistory, AgentSupervisorHistoryEntry, Building, DelegationDecision, Skill, StoredSkill, CustomAgentClass, ContextStats } from '../../shared/types.js';
 import { createLogger } from '../utils/logger.js';
 
@@ -31,6 +32,7 @@ const SUPERVISOR_HISTORY_FILE = path.join(DATA_DIR, 'supervisor-history.json');
 const DELEGATION_HISTORY_FILE = path.join(DATA_DIR, 'delegation-history.json');
 const SKILLS_FILE = path.join(DATA_DIR, 'skills.json');
 const CUSTOM_CLASSES_FILE = path.join(DATA_DIR, 'custom-agent-classes.json');
+const RUNNING_PROCESSES_FILE = path.join(DATA_DIR, 'running-processes.json');
 
 // Maximum history entries per agent
 const MAX_HISTORY_PER_AGENT = 50;
@@ -43,7 +45,6 @@ export interface StoredAgent {
   name: string;
   class: Agent['class'];
   position: Agent['position'];
-  tmuxSession: string;
   cwd: string;
   tokensUsed: number;
   contextUsed?: number;  // May be missing in older data
@@ -108,7 +109,6 @@ export function saveAgents(agents: Agent[]): void {
       name: agent.name,
       class: agent.class,
       position: agent.position,
-      tmuxSession: agent.tmuxSession,
       cwd: agent.cwd,
       tokensUsed: agent.tokensUsed,
       contextUsed: agent.contextUsed,
@@ -532,4 +532,406 @@ export function saveCustomAgentClasses(classes: CustomAgentClass[]): void {
   } catch (err) {
     log.error(' Failed to save custom agent classes:', err);
   }
+}
+
+// ============================================================================
+// Running Processes Persistence (for crash recovery)
+// ============================================================================
+
+export interface RunningProcessInfo {
+  agentId: string;
+  pid: number;
+  sessionId?: string;
+  startTime: number;
+  outputFile?: string;  // File where Claude writes stdout (for reconnection)
+  stderrFile?: string;  // File where Claude writes stderr
+  lastRequest?: unknown; // Last request for auto-restart (serialized)
+}
+
+interface RunningProcessesData {
+  processes: RunningProcessInfo[];
+  savedAt: number;
+  commanderPid: number;  // PID of the commander that saved this
+}
+
+/**
+ * Load running processes info from disk
+ * Used on startup to detect orphaned processes from previous commander instance
+ */
+export function loadRunningProcesses(): RunningProcessInfo[] {
+  ensureDataDir();
+
+  try {
+    if (fs.existsSync(RUNNING_PROCESSES_FILE)) {
+      const data: RunningProcessesData = JSON.parse(fs.readFileSync(RUNNING_PROCESSES_FILE, 'utf-8'));
+      log.log(` Loaded ${data.processes.length} running process records (from commander PID ${data.commanderPid})`);
+      return data.processes;
+    }
+  } catch (err) {
+    log.error(' Failed to load running processes:', err);
+  }
+
+  return [];
+}
+
+/**
+ * Save running processes info to disk
+ * Called periodically and on shutdown to enable crash recovery
+ */
+export function saveRunningProcesses(processes: RunningProcessInfo[]): void {
+  ensureDataDir();
+
+  try {
+    const data: RunningProcessesData = {
+      processes,
+      savedAt: Date.now(),
+      commanderPid: process.pid,
+    };
+
+    fs.writeFileSync(RUNNING_PROCESSES_FILE, JSON.stringify(data, null, 2));
+  } catch (err) {
+    log.error(' Failed to save running processes:', err);
+  }
+}
+
+/**
+ * Clear running processes file (called when all processes are stopped)
+ */
+export function clearRunningProcesses(): void {
+  ensureDataDir();
+
+  try {
+    if (fs.existsSync(RUNNING_PROCESSES_FILE)) {
+      fs.unlinkSync(RUNNING_PROCESSES_FILE);
+      log.log(' Cleared running processes file');
+    }
+  } catch (err) {
+    log.error(' Failed to clear running processes file:', err);
+  }
+}
+
+/**
+ * Check if a process is still running by PID
+ */
+export function isProcessRunning(pid: number): boolean {
+  try {
+    // Sending signal 0 doesn't kill the process, just checks if it exists
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Directory for Claude process output files
+const PROCESS_OUTPUT_DIR = path.join(DATA_DIR, 'process-output');
+
+/**
+ * Ensure process output directory exists
+ */
+export function ensureProcessOutputDir(): void {
+  if (!fs.existsSync(PROCESS_OUTPUT_DIR)) {
+    fs.mkdirSync(PROCESS_OUTPUT_DIR, { recursive: true });
+  }
+}
+
+/**
+ * Get the output file path for an agent's Claude process
+ */
+export function getProcessOutputPath(agentId: string): string {
+  ensureProcessOutputDir();
+  return path.join(PROCESS_OUTPUT_DIR, `${agentId}.out`);
+}
+
+/**
+ * Get the stderr file path for an agent's Claude process
+ */
+export function getProcessStderrPath(agentId: string): string {
+  ensureProcessOutputDir();
+  return path.join(PROCESS_OUTPUT_DIR, `${agentId}.err`);
+}
+
+/**
+ * Get the stdin FIFO path for an agent's Claude process (legacy, kept for compatibility)
+ */
+export function getProcessStdinFifoPath(agentId: string): string {
+  ensureProcessOutputDir();
+  return path.join(PROCESS_OUTPUT_DIR, `${agentId}.stdin`);
+}
+
+/**
+ * Get the stdin file path for an agent's Claude process
+ * This is a regular file read by `tail -f` to feed stdin to Claude
+ */
+export function getProcessStdinPath(agentId: string): string {
+  ensureProcessOutputDir();
+  return path.join(PROCESS_OUTPUT_DIR, `${agentId}.in`);
+}
+
+/**
+ * Create a FIFO (named pipe) for stdin communication (legacy, kept for compatibility)
+ * Returns true if FIFO was created, false if it already exists
+ */
+export function createStdinFifo(agentId: string): boolean {
+  const fifoPath = getProcessStdinFifoPath(agentId);
+
+  // Remove existing FIFO if present
+  try {
+    if (fs.existsSync(fifoPath)) {
+      fs.unlinkSync(fifoPath);
+    }
+  } catch {
+    // Ignore
+  }
+
+  try {
+    // Create FIFO using mkfifo command
+    execSync(`mkfifo "${fifoPath}"`, { encoding: 'utf8' as const });
+    return true;
+  } catch (err) {
+    log.error(`Failed to create stdin FIFO for ${agentId}:`, err);
+    return false;
+  }
+}
+
+/**
+ * Clean up output files for an agent (including stdin file)
+ */
+export function cleanupProcessOutputFiles(agentId: string): void {
+  try {
+    const outPath = getProcessOutputPath(agentId);
+    const errPath = getProcessStderrPath(agentId);
+    const fifoPath = getProcessStdinFifoPath(agentId);
+    const stdinPath = getProcessStdinPath(agentId);
+    if (fs.existsSync(outPath)) fs.unlinkSync(outPath);
+    if (fs.existsSync(errPath)) fs.unlinkSync(errPath);
+    if (fs.existsSync(fifoPath)) fs.unlinkSync(fifoPath);
+    if (fs.existsSync(stdinPath)) fs.unlinkSync(stdinPath);
+  } catch (err) {
+    log.error(`Failed to cleanup output files for ${agentId}:`, err);
+  }
+}
+
+/**
+ * Clean up all stale output files (for processes that are no longer running)
+ */
+export function cleanupStaleOutputFiles(): void {
+  ensureProcessOutputDir();
+  try {
+    const files = fs.readdirSync(PROCESS_OUTPUT_DIR);
+    const runningProcesses = loadRunningProcesses();
+    const runningAgentIds = new Set(runningProcesses.map(p => p.agentId));
+
+    for (const file of files) {
+      const match = file.match(/^(.+)\.(out|err)$/);
+      if (match) {
+        const agentId = match[1];
+        if (!runningAgentIds.has(agentId)) {
+          const filePath = path.join(PROCESS_OUTPUT_DIR, file);
+          fs.unlinkSync(filePath);
+          log.log(`Cleaned up stale output file: ${file}`);
+        }
+      }
+    }
+  } catch (err) {
+    log.error('Failed to cleanup stale output files:', err);
+  }
+}
+
+/**
+ * Ultra-resilient process discovery interface
+ */
+export interface DiscoveredProcess {
+  pid: number;
+  cwd?: string;
+  sessionId?: string;
+  cmdline?: string;
+}
+
+/**
+ * Discover all running Claude processes on the system
+ * This is the ultimate fallback - finds processes even if we lost all tracking
+ * Returns a list of discovered processes with their working directories
+ *
+ * Works on both Linux and macOS
+ */
+export function discoverClaudeProcesses(): DiscoveredProcess[] {
+  const discovered: DiscoveredProcess[] = [];
+  const platform = process.platform;
+
+  try {
+    // Find all processes with 'claude' in their command line
+    let pids: string[] = [];
+
+    if (platform === 'linux') {
+      // Linux: Use pgrep
+      try {
+        const pgrepOutput = execSync('pgrep -f "claude.*--print"', {
+          encoding: 'utf8',
+          timeout: 5000,
+        }).trim();
+        pids = pgrepOutput.split('\n').filter((p: string) => p.trim());
+      } catch {
+        // pgrep returns exit code 1 if no processes found - that's ok
+      }
+
+      // Also try finding by exact command name
+      try {
+        const pgrepOutput2 = execSync('pgrep -x claude', {
+          encoding: 'utf8',
+          timeout: 5000,
+        }).trim();
+        const morePids = pgrepOutput2.split('\n').filter((p: string) => p.trim());
+        for (const pid of morePids) {
+          if (!pids.includes(pid)) {
+            pids.push(pid);
+          }
+        }
+      } catch {
+        // No additional processes found
+      }
+    } else if (platform === 'darwin') {
+      // macOS: Use ps with grep
+      try {
+        // ps aux shows all processes, grep for claude, awk to get PID (column 2)
+        const psOutput = execSync('ps aux | grep -i "[c]laude.*--print" | awk \'{print $2}\'', {
+          encoding: 'utf8' as const,
+          timeout: 5000,
+          shell: '/bin/sh',
+        }).trim();
+        pids = psOutput.split('\n').filter((p: string) => p.trim());
+      } catch {
+        // No processes found
+      }
+
+      // Also try finding claude processes without --print
+      try {
+        const psOutput2 = execSync('ps aux | grep -i "[c]laude" | grep -v grep | awk \'{print $2}\'', {
+          encoding: 'utf8' as const,
+          timeout: 5000,
+          shell: '/bin/sh',
+        }).trim();
+        const morePids = psOutput2.split('\n').filter((p: string) => p.trim());
+        for (const pid of morePids) {
+          if (!pids.includes(pid)) {
+            pids.push(pid);
+          }
+        }
+      } catch {
+        // No additional processes found
+      }
+    }
+
+    log.log(` Process discovery found ${pids.length} potential Claude process(es) on ${platform}`);
+
+    for (const pidStr of pids) {
+      const pid = parseInt(pidStr, 10);
+      if (isNaN(pid)) continue;
+
+      // Skip our own process
+      if (pid === process.pid) continue;
+
+      const processInfo: DiscoveredProcess = { pid };
+
+      if (platform === 'linux') {
+        // Linux: Use /proc filesystem
+        // Try to get working directory from /proc/{pid}/cwd
+        try {
+          const cwd = fs.readlinkSync(`/proc/${pid}/cwd`);
+          processInfo.cwd = cwd;
+        } catch {
+          // Can't read cwd - process might be gone or permission denied
+        }
+
+        // Try to get command line from /proc/{pid}/cmdline
+        try {
+          const cmdline = fs.readFileSync(`/proc/${pid}/cmdline`, 'utf8')
+            .replace(/\0/g, ' ')
+            .trim();
+          processInfo.cmdline = cmdline;
+
+          // Try to extract session ID from command line (--resume <session-id>)
+          const resumeMatch = cmdline.match(/--resume\s+([a-f0-9-]+)/i);
+          if (resumeMatch) {
+            processInfo.sessionId = resumeMatch[1];
+          }
+        } catch {
+          // Can't read cmdline
+        }
+      } else if (platform === 'darwin') {
+        // macOS: Use lsof and ps for process info
+        // Get working directory using lsof
+        try {
+          const lsofOutput = execSync(`lsof -p ${pid} -Fn 2>/dev/null | grep "^n/" | head -1`, {
+            encoding: 'utf8' as const,
+            timeout: 2000,
+            shell: '/bin/sh',
+          }).trim();
+          if (lsofOutput.startsWith('n')) {
+            processInfo.cwd = lsofOutput.slice(1); // Remove 'n' prefix
+          }
+        } catch {
+          // Can't get cwd
+        }
+
+        // Get command line using ps
+        try {
+          const psOutput = execSync(`ps -p ${pid} -o args=`, {
+            encoding: 'utf8',
+            timeout: 2000,
+          }).trim();
+          processInfo.cmdline = psOutput;
+
+          // Try to extract session ID from command line
+          const resumeMatch = psOutput.match(/--resume\s+([a-f0-9-]+)/i);
+          if (resumeMatch) {
+            processInfo.sessionId = resumeMatch[1];
+          }
+        } catch {
+          // Can't get cmdline
+        }
+      }
+
+      discovered.push(processInfo);
+    }
+  } catch (err) {
+    log.error(' Process discovery failed:', err);
+  }
+
+  return discovered;
+}
+
+/**
+ * Find orphaned Claude processes that match known agents
+ * Returns a map of agentId -> DiscoveredProcess for processes we can match
+ */
+export function matchOrphanedProcessesToAgents(
+  agents: Array<{ id: string; cwd: string; sessionId?: string }>,
+  discoveredProcesses: DiscoveredProcess[]
+): Map<string, DiscoveredProcess> {
+  const matches = new Map<string, DiscoveredProcess>();
+
+  for (const process of discoveredProcesses) {
+    // Try to match by session ID first (most reliable)
+    if (process.sessionId) {
+      const matchedAgent = agents.find(a => a.sessionId === process.sessionId);
+      if (matchedAgent) {
+        log.log(` Matched process PID ${process.pid} to agent ${matchedAgent.id} by sessionId`);
+        matches.set(matchedAgent.id, process);
+        continue;
+      }
+    }
+
+    // Try to match by working directory
+    if (process.cwd) {
+      const matchedAgent = agents.find(a => a.cwd === process.cwd);
+      if (matchedAgent && !matches.has(matchedAgent.id)) {
+        log.log(` Matched process PID ${process.pid} to agent ${matchedAgent.id} by cwd`);
+        matches.set(matchedAgent.id, process);
+        continue;
+      }
+    }
+  }
+
+  return matches;
 }

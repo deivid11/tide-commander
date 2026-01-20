@@ -21,13 +21,12 @@ import { SkillsPanel } from './components/SkillsPanel';
 import { matchesShortcut } from './store/shortcuts';
 import { FPSMeter } from './components/FPSMeter';
 import { profileRender } from './utils/profiling';
+import { STORAGE_KEYS, getStorage, setStorage, getStorageString } from './utils/storage';
+import { useModalState, useModalStateWithId } from './hooks';
 
 // Persist scene manager across HMR
 let persistedScene: SceneManager | null = null;
 let wsConnected = false;
-
-// Config storage key
-const CONFIG_STORAGE_KEY = 'tide-commander-config';
 
 // Default terrain config
 const DEFAULT_TERRAIN = {
@@ -49,59 +48,61 @@ const DEFAULT_ANIMATIONS = {
 // Default FPS limit (0 = unlimited)
 const DEFAULT_FPS_LIMIT = 0;
 
-// Load config from localStorage
+// Load config from storage
 function loadConfig(): SceneConfig {
-  try {
-    const stored = localStorage.getItem(CONFIG_STORAGE_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      return {
-        characterScale: parsed.characterScale ?? 0.5,
-        indicatorScale: parsed.indicatorScale ?? 1.0,
-        gridVisible: parsed.gridVisible ?? true,
-        timeMode: parsed.timeMode ?? 'auto',
-        terrain: { ...DEFAULT_TERRAIN, ...parsed.terrain },
-        animations: { ...DEFAULT_ANIMATIONS, ...parsed.animations },
-        fpsLimit: parsed.fpsLimit ?? DEFAULT_FPS_LIMIT,
-      };
-    }
-  } catch (err) {
-    console.warn('[Tide] Failed to load config:', err);
+  const defaultConfig: SceneConfig = {
+    characterScale: 0.5,
+    indicatorScale: 1.0,
+    gridVisible: true,
+    timeMode: 'auto',
+    terrain: DEFAULT_TERRAIN,
+    animations: DEFAULT_ANIMATIONS,
+    fpsLimit: DEFAULT_FPS_LIMIT,
+  };
+
+  const stored = getStorage<Partial<SceneConfig> | null>(STORAGE_KEYS.CONFIG, null);
+  if (stored) {
+    return {
+      characterScale: stored.characterScale ?? defaultConfig.characterScale,
+      indicatorScale: stored.indicatorScale ?? defaultConfig.indicatorScale,
+      gridVisible: stored.gridVisible ?? defaultConfig.gridVisible,
+      timeMode: stored.timeMode ?? defaultConfig.timeMode,
+      terrain: { ...DEFAULT_TERRAIN, ...stored.terrain },
+      animations: { ...DEFAULT_ANIMATIONS, ...stored.animations },
+      fpsLimit: stored.fpsLimit ?? defaultConfig.fpsLimit,
+    };
   }
-  return { characterScale: 0.5, indicatorScale: 1.0, gridVisible: true, timeMode: 'auto', terrain: DEFAULT_TERRAIN, animations: DEFAULT_ANIMATIONS, fpsLimit: DEFAULT_FPS_LIMIT };
+  return defaultConfig;
 }
 
-// Save config to localStorage
+// Save config to storage
 function saveConfig(config: SceneConfig): void {
-  try {
-    localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(config));
-  } catch (err) {
-    console.warn('[Tide] Failed to save config:', err);
-  }
+  setStorage(STORAGE_KEYS.CONFIG, config);
 }
 
 function AppContent() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const selectionBoxRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<SceneManager | null>(null);
-  const [isSpawnModalOpen, setIsSpawnModalOpen] = useState(false);
-  const [isBossSpawnModalOpen, setIsBossSpawnModalOpen] = useState(false);
-  const [isSubordinateModalOpen, setIsSubordinateModalOpen] = useState(false);
-  const [editingBossId, setEditingBossId] = useState<string | null>(null);
-  const [isToolboxOpen, setIsToolboxOpen] = useState(false);
-  const [isCommanderViewOpen, setIsCommanderViewOpen] = useState(false);
-  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
-  const [isSupervisorOpen, setIsSupervisorOpen] = useState(false);
-  const [isSpotlightOpen, setIsSpotlightOpen] = useState(false);
-  const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
-  const [isBuildingModalOpen, setIsBuildingModalOpen] = useState(false);
-  const [isSkillsPanelOpen, setIsSkillsPanelOpen] = useState(false);
-  const [editingBuildingId, setEditingBuildingId] = useState<string | null>(null);
+
+  // Modal states using centralized hooks
+  const spawnModal = useModalState();
+  const bossSpawnModal = useModalState();
+  const subordinateModal = useModalState<string>(); // data = bossId
+  const toolboxModal = useModalState();
+  const commanderModal = useModalState();
+  const deleteConfirmModal = useModalState();
+  const supervisorModal = useModalState();
+  const spotlightModal = useModalState();
+  const shortcutsModal = useModalState();
+  const skillsModal = useModalState();
+  const buildingModal = useModalState<string | null>(); // data = editingBuildingId (null for new)
+  const explorerModal = useModalStateWithId(); // has .id for areaId
+
   const [sceneConfig, setSceneConfig] = useState(loadConfig);
-  const [explorerAreaId, setExplorerAreaId] = useState<string | null>(null);
   const [showFPS, setShowFPS] = useState(() => {
     // Only show FPS meter in development by default, can be toggled
-    return import.meta.env.DEV && localStorage.getItem('tide-show-fps') !== 'false';
+    return import.meta.env.DEV && getStorageString(STORAGE_KEYS.SHOW_FPS) !== 'false';
   });
   const { showToast } = useToast();
   const state = useStore();
@@ -156,13 +157,13 @@ function AppContent() {
     // Set up area double-click callback (always update)
     sceneRef.current?.setOnAreaDoubleClick((areaId) => {
       store.selectArea(areaId);
-      setIsToolboxOpen(true);
+      toolboxModal.open();
     });
 
     // Set up building click callback - open toolbox when building is clicked
     sceneRef.current?.setOnBuildingClick((buildingId) => {
       store.selectBuilding(buildingId);
-      setIsToolboxOpen(true);
+      toolboxModal.open();
     });
 
     // Set up websocket callbacks (always update refs)
@@ -304,14 +305,13 @@ function AppContent() {
 
   // Handle opening file explorer for an area
   const handleOpenAreaExplorer = useCallback((areaId: string) => {
-    setExplorerAreaId(areaId);
-  }, []);
+    explorerModal.open(areaId);
+  }, [explorerModal]);
 
   // Handle opening new building modal
   const handleNewBuilding = useCallback(() => {
-    setEditingBuildingId(null);
-    setIsBuildingModalOpen(true);
-  }, []);
+    buildingModal.open(null); // null = creating new building
+  }, [buildingModal]);
 
   // Handle starting new area drawing
   const handleNewArea = useCallback(() => {
@@ -320,9 +320,8 @@ function AppContent() {
 
   // Handle editing a building
   const handleEditBuilding = useCallback((buildingId: string) => {
-    setEditingBuildingId(buildingId);
-    setIsBuildingModalOpen(true);
-  }, []);
+    buildingModal.open(buildingId);
+  }, [buildingModal]);
 
   // Handle delete selected agents (removes from UI and server, keeps Claude sessions running)
   const handleDeleteSelectedAgents = useCallback(() => {
@@ -333,9 +332,9 @@ function AppContent() {
       // Clean up 3D scene (zzz bubble, etc.)
       sceneRef.current?.removeAgent(id);
     });
-    setIsDeleteConfirmOpen(false);
+    deleteConfirmModal.close();
     showToast('info', 'Agents Removed', `${selectedIds.length} agent(s) removed from view`);
-  }, [state.selectedAgentIds, showToast]);
+  }, [state.selectedAgentIds, showToast, deleteConfirmModal]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -347,8 +346,8 @@ function AppContent() {
       // Escape to deselect or close modal/terminal
       const deselectShortcut = shortcuts.find(s => s.id === 'deselect-all');
       if (matchesShortcut(e, deselectShortcut)) {
-        if (isSpawnModalOpen) {
-          setIsSpawnModalOpen(false);
+        if (spawnModal.isOpen) {
+          spawnModal.close();
         } else if (store.getState().terminalOpen) {
           // Close terminal first if open (prevents selection corruption on double-ESC)
           store.setTerminalOpen(false);
@@ -378,7 +377,7 @@ function AppContent() {
       const spawnShortcut = shortcuts.find(s => s.id === 'spawn-agent');
       if (matchesShortcut(e, spawnShortcut)) {
         e.preventDefault();
-        setIsSpawnModalOpen(true);
+        spawnModal.open();
         return;
       }
 
@@ -386,7 +385,7 @@ function AppContent() {
       const commanderTabShortcut = shortcuts.find(s => s.id === 'toggle-commander-tab');
       if (matchesShortcut(e, commanderTabShortcut) && !isInputFocused) {
         e.preventDefault();
-        setIsCommanderViewOpen(prev => !prev);
+        commanderModal.toggle();
         return;
       }
 
@@ -394,7 +393,7 @@ function AppContent() {
       const commanderShortcut = shortcuts.find(s => s.id === 'toggle-commander');
       if (matchesShortcut(e, commanderShortcut)) {
         e.preventDefault();
-        setIsCommanderViewOpen(prev => !prev);
+        commanderModal.toggle();
         return;
       }
 
@@ -403,13 +402,13 @@ function AppContent() {
       if (matchesShortcut(e, explorerShortcut)) {
         e.preventDefault();
         // Toggle - if open, close; if closed, open with first area that has directories
-        if (explorerAreaId !== null) {
-          setExplorerAreaId(null);
+        if (explorerModal.isOpen) {
+          explorerModal.close();
         } else {
           const areasWithDirs = Array.from(store.getState().areas.values())
             .filter(a => a.directories && a.directories.length > 0);
           if (areasWithDirs.length > 0) {
-            setExplorerAreaId(areasWithDirs[0].id);
+            explorerModal.open(areasWithDirs[0].id);
             // Close terminal when opening file explorer
             store.setTerminalOpen(false);
           }
@@ -421,7 +420,7 @@ function AppContent() {
       const spotlightShortcut = shortcuts.find(s => s.id === 'toggle-spotlight');
       if (matchesShortcut(e, spotlightShortcut) || (e.altKey && !e.ctrlKey && !e.metaKey && e.code === 'KeyP')) {
         e.preventDefault();
-        setIsSpotlightOpen(prev => !prev);
+        spotlightModal.toggle();
         return;
       }
 
@@ -433,7 +432,7 @@ function AppContent() {
         // Check for selected agents first
         if (currentState.selectedAgentIds.size > 0) {
           e.preventDefault();
-          setIsDeleteConfirmOpen(true);
+          deleteConfirmModal.open();
           return;
         }
         // Check for selected buildings
@@ -449,7 +448,7 @@ function AppContent() {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isSpawnModalOpen, explorerAreaId]);
+  }, [spawnModal, commanderModal, explorerModal, spotlightModal, deleteConfirmModal]);
 
   return (
     <div className="app">
@@ -504,7 +503,7 @@ function AppContent() {
       {/* Floating settings button */}
       <button
         className="floating-settings-btn"
-        onClick={() => setIsToolboxOpen(true)}
+        onClick={() => toolboxModal.open()}
         title="Settings & Tools"
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -518,54 +517,45 @@ function AppContent() {
         config={sceneConfig}
         onConfigChange={handleConfigChange}
         onToolChange={handleToolChange}
-        isOpen={isToolboxOpen}
-        onClose={() => setIsToolboxOpen(false)}
-        onOpenBuildingModal={(buildingId) => {
-          setEditingBuildingId(buildingId || null);
-          setIsBuildingModalOpen(true);
-        }}
+        isOpen={toolboxModal.isOpen}
+        onClose={toolboxModal.close}
+        onOpenBuildingModal={(buildingId) => buildingModal.open(buildingId || null)}
       />
 
       {/* Building Config Modal */}
       <BuildingConfigModal
-        isOpen={isBuildingModalOpen}
-        onClose={() => {
-          setIsBuildingModalOpen(false);
-          setEditingBuildingId(null);
-        }}
-        buildingId={editingBuildingId}
+        isOpen={buildingModal.isOpen}
+        onClose={buildingModal.close}
+        buildingId={buildingModal.data}
       />
 
       <SpawnModal
-        isOpen={isSpawnModalOpen}
-        onClose={() => setIsSpawnModalOpen(false)}
+        isOpen={spawnModal.isOpen}
+        onClose={spawnModal.close}
         onSpawnStart={() => {}}
         onSpawnEnd={() => {}}
       />
 
       <BossSpawnModal
-        isOpen={isBossSpawnModalOpen}
-        onClose={() => setIsBossSpawnModalOpen(false)}
+        isOpen={bossSpawnModal.isOpen}
+        onClose={bossSpawnModal.close}
         onSpawnStart={() => {}}
         onSpawnEnd={() => {}}
       />
 
       <SubordinateAssignmentModal
-        isOpen={isSubordinateModalOpen}
-        bossId={editingBossId || ''}
-        onClose={() => {
-          setIsSubordinateModalOpen(false);
-          setEditingBossId(null);
-        }}
+        isOpen={subordinateModal.isOpen}
+        bossId={subordinateModal.data || ''}
+        onClose={subordinateModal.close}
       />
 
       {/* Delete Confirmation Modal */}
-      {isDeleteConfirmOpen && (
+      {deleteConfirmModal.isOpen && (
         <div
           className="modal-overlay visible"
-          onClick={() => setIsDeleteConfirmOpen(false)}
+          onClick={deleteConfirmModal.close}
           onKeyDown={(e) => {
-            if (e.key === 'Escape') setIsDeleteConfirmOpen(false);
+            if (e.key === 'Escape') deleteConfirmModal.close();
             if (e.key === 'Enter') handleDeleteSelectedAgents();
           }}
         >
@@ -576,7 +566,7 @@ function AppContent() {
               <p className="confirm-modal-note">Claude Code sessions will continue running in the background.</p>
             </div>
             <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setIsDeleteConfirmOpen(false)}>
+              <button className="btn btn-secondary" onClick={deleteConfirmModal.close}>
                 Cancel
               </button>
               <button className="btn btn-danger" onClick={handleDeleteSelectedAgents} autoFocus>
@@ -590,7 +580,7 @@ function AppContent() {
       {/* Commander View button */}
       <button
         className="commander-toggle-btn"
-        onClick={() => setIsCommanderViewOpen(true)}
+        onClick={() => commanderModal.open()}
         title="Commander View (⌘K)"
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -604,7 +594,7 @@ function AppContent() {
       {/* Supervisor Overview button */}
       <button
         className="supervisor-toggle-btn"
-        onClick={() => setIsSupervisorOpen(true)}
+        onClick={() => supervisorModal.open()}
         title="Supervisor Overview"
       >
         🎖️
@@ -613,7 +603,7 @@ function AppContent() {
       {/* Keyboard Shortcuts button */}
       <button
         className="shortcuts-toggle-btn"
-        onClick={() => setIsShortcutsModalOpen(true)}
+        onClick={() => shortcutsModal.open()}
         title="Keyboard Shortcuts"
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -625,7 +615,7 @@ function AppContent() {
       {/* Skills Panel button */}
       <button
         className="skills-toggle-btn"
-        onClick={() => setIsSkillsPanelOpen(true)}
+        onClick={() => skillsModal.open()}
         title="Manage Skills"
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -635,64 +625,54 @@ function AppContent() {
 
       <Profiler id="CommanderView" onRender={profileRender}>
         <CommanderView
-          isOpen={isCommanderViewOpen}
-          onClose={() => setIsCommanderViewOpen(false)}
+          isOpen={commanderModal.isOpen}
+          onClose={commanderModal.close}
         />
       </Profiler>
 
       {/* Supervisor Panel */}
       <SupervisorPanel
-        isOpen={isSupervisorOpen}
-        onClose={() => setIsSupervisorOpen(false)}
+        isOpen={supervisorModal.isOpen}
+        onClose={supervisorModal.close}
       />
 
       {/* File Explorer Panel (right side) */}
       <FileExplorerPanel
-        isOpen={explorerAreaId !== null}
-        areaId={explorerAreaId}
-        onClose={() => setExplorerAreaId(null)}
+        isOpen={explorerModal.isOpen}
+        areaId={explorerModal.id}
+        onClose={explorerModal.close}
       />
 
       {/* Bottom Agent Bar */}
       <AgentBar
         onFocusAgent={handleFocusAgent}
-        onSpawnClick={() => setIsSpawnModalOpen(true)}
-        onSpawnBossClick={() => setIsBossSpawnModalOpen(true)}
+        onSpawnClick={() => spawnModal.open()}
+        onSpawnBossClick={() => bossSpawnModal.open()}
         onNewBuildingClick={handleNewBuilding}
         onNewAreaClick={handleNewArea}
       />
 
       {/* Spotlight / Global Search */}
       <Spotlight
-        isOpen={isSpotlightOpen}
-        onClose={() => setIsSpotlightOpen(false)}
-        onOpenSpawnModal={() => setIsSpawnModalOpen(true)}
-        onOpenCommanderView={() => setIsCommanderViewOpen(true)}
-        onOpenToolbox={() => setIsToolboxOpen(true)}
-        onOpenSupervisor={() => setIsSupervisorOpen(true)}
-        onOpenFileExplorer={(areaId) => setExplorerAreaId(areaId)}
+        isOpen={spotlightModal.isOpen}
+        onClose={spotlightModal.close}
+        onOpenSpawnModal={() => spawnModal.open()}
+        onOpenCommanderView={() => commanderModal.open()}
+        onOpenToolbox={() => toolboxModal.open()}
+        onOpenSupervisor={() => supervisorModal.open()}
+        onOpenFileExplorer={(areaId) => explorerModal.open(areaId)}
       />
 
       {/* Keyboard Shortcuts Modal */}
       <KeyboardShortcutsModal
-        isOpen={isShortcutsModalOpen}
-        onClose={() => setIsShortcutsModalOpen(false)}
+        isOpen={shortcutsModal.isOpen}
+        onClose={shortcutsModal.close}
       />
 
       {/* Skills Panel */}
       <SkillsPanel
-        isOpen={isSkillsPanelOpen}
-        onClose={() => setIsSkillsPanelOpen(false)}
-      />
-
-      {/* Building Config Modal */}
-      <BuildingConfigModal
-        isOpen={isBuildingModalOpen}
-        onClose={() => {
-          setIsBuildingModalOpen(false);
-          setEditingBuildingId(null);
-        }}
-        buildingId={editingBuildingId}
+        isOpen={skillsModal.isOpen}
+        onClose={skillsModal.close}
       />
     </div>
   );

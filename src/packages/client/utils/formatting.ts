@@ -61,22 +61,9 @@ export function formatIdleTime(timestamp: number): string {
   return hrs > 0 ? `${days}d ${hrs}h ago` : `${days}d ago`;
 }
 
-// Get color for idle timer based on duration
-// Green: 0-1 min, Yellow: 1-5 min, Orange: 5-30 min, Red: >30 min
-export function getIdleTimerColor(lastActivity: number): string {
-  const seconds = Math.floor((Date.now() - lastActivity) / 1000);
-  const minutes = seconds / 60;
-
-  if (minutes < 1) {
-    return '#50fa7b'; // Green - recently idle
-  } else if (minutes < 5) {
-    return '#f1fa8c'; // Yellow - short idle
-  } else if (minutes < 30) {
-    return '#ffb86c'; // Orange - medium idle
-  } else {
-    return '#ff5555'; // Red - long idle
-  }
-}
+// getIdleTimerColor has been moved to utils/colors.ts
+// Re-export for backwards compatibility
+export { getIdleTimerColor } from './colors';
 
 // Filter out cost/price mentions from text
 // Used globally when hideCost setting is enabled

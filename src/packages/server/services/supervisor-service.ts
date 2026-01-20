@@ -4,8 +4,6 @@
  * Generates human-readable activity narratives
  */
 
-import { spawn } from 'child_process';
-import { StringDecoder } from 'string_decoder';
 import * as agentService from './agent-service.js';
 import type {
   ActivityNarrative,
@@ -18,7 +16,8 @@ import type {
   AgentSupervisorHistory,
 } from '../../shared/types.js';
 import type { StandardEvent } from '../claude/index.js';
-import { ClaudeBackend, loadSession } from '../claude/index.js';
+import { loadSession } from '../claude/index.js';
+import { callClaudeForAnalysis, stripCodeFences } from './supervisor-claude.js';
 import {
   loadSupervisorHistory,
   saveSupervisorHistory,
@@ -26,54 +25,8 @@ import {
   getAgentSupervisorHistory as getAgentHistoryFromStorage,
   deleteSupervisorHistory,
 } from '../data/index.js';
-import { logger } from '../utils/logger.js';
-
-/**
- * Sanitize a string by removing invalid Unicode surrogate pairs.
- * This fixes "no low surrogate in string" JSON errors.
- * Handles both raw Unicode surrogates and JSON-escaped surrogates like \ud83d.
- */
-function sanitizeUnicode(str: string): string {
-  // First, handle JSON-escaped surrogates (e.g., \ud83d without \udc00-\udfff following)
-  const highPattern = /\\u[dD][89aAbB][0-9a-fA-F]{2}/g;
-  const lowPattern = /\\u[dD][cCdDeEfF][0-9a-fA-F]{2}/;
-
-  let sanitized = str.replace(highPattern, (match, offset) => {
-    const afterMatch = str.slice(offset + match.length);
-    if (lowPattern.test(afterMatch.slice(0, 6))) {
-      return match;
-    }
-    return '\\ufffd';
-  });
-
-  sanitized = sanitized.replace(/\\u[dD][cCdDeEfF][0-9a-fA-F]{2}/g, (match, offset) => {
-    const beforeMatch = sanitized.slice(Math.max(0, offset - 6), offset);
-    if (/\\u[dD][89aAbB][0-9a-fA-F]{2}$/.test(beforeMatch)) {
-      return match;
-    }
-    return '\\ufffd';
-  });
-
-  // Then handle raw Unicode surrogates
-  let result = '';
-  for (let i = 0; i < sanitized.length; i++) {
-    const code = sanitized.charCodeAt(i);
-    if (code >= 0xD800 && code <= 0xDBFF) {
-      const nextCode = sanitized.charCodeAt(i + 1);
-      if (nextCode >= 0xDC00 && nextCode <= 0xDFFF) {
-        result += sanitized[i] + sanitized[i + 1];
-        i++;
-      } else {
-        result += '\uFFFD';
-      }
-    } else if (code >= 0xDC00 && code <= 0xDFFF) {
-      result += '\uFFFD';
-    } else {
-      result += sanitized[i];
-    }
-  }
-  return result;
-}
+import { logger, sanitizeUnicode, generateId, truncateOrEmpty, formatToolNarrative, getFileName } from '../utils/index.js';
+import { SINGLE_AGENT_PROMPT, DEFAULT_SUPERVISOR_PROMPT } from './supervisor-prompts.js';
 
 const log = logger.supervisor;
 
@@ -107,9 +60,6 @@ let latestReport: SupervisorReport | null = null;
 // Event listeners
 type SupervisorListener = (event: string, data: unknown) => void;
 const listeners = new Set<SupervisorListener>();
-
-// Claude backend for spawning processes
-const claudeBackend = new ClaudeBackend();
 
 // ============================================================================
 // Initialization
@@ -170,14 +120,14 @@ export function generateNarrative(
     case 'text':
       if (event.text && event.text.length > 10) {
         type = 'output';
-        narrative = `Responding: "${truncate(event.text, 100)}"`;
+        narrative = `Responding: "${truncateOrEmpty(event.text, 100)}"`;
       }
       break;
 
     case 'thinking':
       if (event.text) {
         type = 'thinking';
-        narrative = `Thinking: "${truncate(event.text, 80)}"`;
+        narrative = `Thinking: "${truncateOrEmpty(event.text, 80)}"`;
       }
       break;
 
@@ -262,76 +212,6 @@ function scheduleAgentReportGeneration(agentId: string): void {
   agentReportTimers.set(agentId, timer);
 }
 
-function formatToolNarrative(
-  toolName?: string,
-  toolInput?: Record<string, unknown>
-): string {
-  if (!toolName) return 'Using unknown tool';
-
-  switch (toolName) {
-    case 'Read': {
-      const readPath = toolInput?.file_path as string;
-      return `Reading file "${getFileName(readPath)}" to understand its contents`;
-    }
-
-    case 'Write': {
-      const writePath = toolInput?.file_path as string;
-      return `Writing new content to "${getFileName(writePath)}"`;
-    }
-
-    case 'Edit': {
-      const editPath = toolInput?.file_path as string;
-      return `Making targeted edits to "${getFileName(editPath)}"`;
-    }
-
-    case 'Bash': {
-      const cmd = toolInput?.command as string;
-      return `Running command: ${truncate(cmd, 60)}`;
-    }
-
-    case 'Grep': {
-      const pattern = toolInput?.pattern as string;
-      return `Searching for pattern "${truncate(pattern, 40)}" in codebase`;
-    }
-
-    case 'Glob': {
-      const globPattern = toolInput?.pattern as string;
-      return `Finding files matching "${truncate(globPattern, 40)}"`;
-    }
-
-    case 'WebSearch': {
-      const query = toolInput?.query as string;
-      return `Searching the web for "${truncate(query, 50)}"`;
-    }
-
-    case 'WebFetch': {
-      const url = toolInput?.url as string;
-      return `Fetching content from ${truncate(url, 50)}`;
-    }
-
-    case 'Task': {
-      const desc = toolInput?.description as string;
-      return `Starting sub-task: "${truncate(desc, 60)}"`;
-    }
-
-    case 'TodoWrite': {
-      const todos = toolInput?.todos as unknown[];
-      return `Updating task list with ${todos?.length || 0} items`;
-    }
-
-    case 'AskUserQuestion': {
-      return 'Asking user a question for clarification';
-    }
-
-    case 'NotebookEdit': {
-      const notebookPath = toolInput?.notebook_path as string;
-      return `Editing notebook "${getFileName(notebookPath)}"`;
-    }
-
-    default:
-      return `Using ${toolName} tool`;
-  }
-}
 
 // ============================================================================
 // Narrative Storage
@@ -425,8 +305,8 @@ export async function generateReport(): Promise<SupervisorReport> {
                 type: msg.type === 'user' ? 'task_start' as const :
                       msg.type === 'tool_use' ? 'tool_use' as const :
                       msg.type === 'tool_result' ? 'output' as const : 'output' as const,
-                narrative: msg.type === 'user' ? `User asked: "${truncate(msg.content, 150)}"` :
-                          msg.type === 'assistant' ? `Responded: "${truncate(msg.content, 150)}"` :
+                narrative: msg.type === 'user' ? `User asked: "${truncateOrEmpty(msg.content, 150)}"` :
+                          msg.type === 'assistant' ? `Responded: "${truncateOrEmpty(msg.content, 150)}"` :
                           msg.type === 'tool_use' ? `Used tool: ${msg.toolName}` :
                           `Tool result received`,
                 toolName: msg.toolName,
@@ -556,8 +436,8 @@ async function buildAgentSummary(agent: Agent): Promise<AgentStatusSummary> {
           type: msg.type === 'user' ? 'task_start' as const :
                 msg.type === 'tool_use' ? 'tool_use' as const :
                 msg.type === 'tool_result' ? 'output' as const : 'output' as const,
-          narrative: msg.type === 'user' ? `User asked: "${truncate(msg.content, 150)}"` :
-                    msg.type === 'assistant' ? `Responded: "${truncate(msg.content, 150)}"` :
+          narrative: msg.type === 'user' ? `User asked: "${truncateOrEmpty(msg.content, 150)}"` :
+                    msg.type === 'assistant' ? `Responded: "${truncateOrEmpty(msg.content, 150)}"` :
                     msg.type === 'tool_use' ? `Used tool: ${msg.toolName}` :
                     `Tool result received`,
           toolName: msg.toolName,
@@ -604,7 +484,7 @@ function buildSingleAgentPrompt(summary: AgentStatusSummary): string {
     status: summary.status,
     currentTask: sanitizeUnicode(summary.currentTask || 'None'),
     assignedTask: summary.lastAssignedTask
-      ? sanitizeUnicode(truncate(summary.lastAssignedTask, 500))
+      ? sanitizeUnicode(truncateOrEmpty(summary.lastAssignedTask, 500))
       : 'No task assigned yet',
     taskAssignedSecondsAgo,
     tokensUsed: summary.tokensUsed,
@@ -616,53 +496,12 @@ function buildSingleAgentPrompt(summary: AgentStatusSummary): string {
   return SINGLE_AGENT_PROMPT.replace('{{AGENT_DATA}}', JSON.stringify(agentData, null, 2));
 }
 
-const SINGLE_AGENT_PROMPT = `You are a Supervisor AI analyzing a single coding agent's recent activity.
-
-## Agent Data
-{{AGENT_DATA}}
-
-## CRITICAL RULES
-- If "status" is "working", use present tense: "Working on...", "Editing...", "Implementing..."
-- If "status" is "idle", they finished. Use: "Idle - Last worked on [brief description of assignedTask or recentActivities]"
-- NEVER say "No current task" - always describe what they were working on based on assignedTask or recentActivities
-- Keep statusDescription concise (under 80 characters)
-- Extract file paths from recentActivities if tools like Read, Write, Edit were used
-- Identify blockers if agent seems stuck, has errors, or hasn't made progress
-- Provide actionable suggestions if there are issues or room for improvement
-
-## Response Format
-Respond with ONLY this JSON (no markdown fences):
-{
-  "agentId": "copy from input",
-  "agentName": "copy from input",
-  "statusDescription": "Concise current/last activity",
-  "progress": "on_track" | "stalled" | "blocked" | "completed" | "idle",
-  "recentWorkSummary": "2-3 sentence summary of recent work",
-  "currentFocus": "What the agent is currently focused on or last worked on",
-  "blockers": ["Any issues blocking progress"],
-  "suggestions": ["Actionable suggestions for next steps or improvements"],
-  "filesModified": ["List of file paths that were read/written/edited"],
-  "concerns": []
-}`;
-
 /**
  * Parse Claude's response for a single agent
  */
 function parseSingleAgentResponse(response: string, summary: AgentStatusSummary): AgentAnalysis {
   try {
-    let jsonStr = response.trim();
-
-    // Remove markdown code fences if present
-    if (jsonStr.startsWith('```json')) {
-      jsonStr = jsonStr.slice(7);
-    } else if (jsonStr.startsWith('```')) {
-      jsonStr = jsonStr.slice(3);
-    }
-    if (jsonStr.endsWith('```')) {
-      jsonStr = jsonStr.slice(0, -3);
-    }
-    jsonStr = jsonStr.trim();
-
+    const jsonStr = stripCodeFences(response);
     const parsed = JSON.parse(jsonStr);
 
     return {
@@ -723,7 +562,7 @@ function buildSupervisorPrompt(summaries: AgentStatusSummary[]): string {
       currentTask: sanitizeUnicode(s.currentTask || 'None'),
       // Include the full assigned task so supervisor knows what the agent was asked to do
       assignedTask: s.lastAssignedTask
-        ? sanitizeUnicode(truncate(s.lastAssignedTask, 500))
+        ? sanitizeUnicode(truncateOrEmpty(s.lastAssignedTask, 500))
         : 'No task assigned yet',
       taskAssignedSecondsAgo,
       tokensUsed: s.tokensUsed,
@@ -736,213 +575,12 @@ function buildSupervisorPrompt(summaries: AgentStatusSummary[]): string {
   return customPrompt.replace('{{AGENT_DATA}}', JSON.stringify(agentData, null, 2));
 }
 
-const DEFAULT_SUPERVISOR_PROMPT = `You are a Supervisor AI monitoring a team of autonomous coding agents in the Tide Commander system. Your role is to analyze their activities and provide actionable insights.
-
-## Current Agent Status
-{{AGENT_DATA}}
-
-## Analysis Guidelines
-
-1. **Progress Assessment**: Determine if each agent is making meaningful progress toward their goals
-2. **Bottleneck Detection**: Identify agents that appear stuck, confused, or spinning their wheels
-3. **Coordination**: Note any potential conflicts or duplicated work between agents
-4. **Resource Usage**: Flag agents with high context usage (>70%) who may need context clearing
-5. **Idle Detection**: Note agents that have been idle for extended periods
-
-## CRITICAL STATUS RULES
-- If agent "status" field is "working", they are ACTIVELY working RIGHT NOW. Use present tense: "Working on...", "Editing...", "Implementing..."
-- If agent "status" field is "idle", they have stopped. Show what they last worked on: "Idle - Last worked on [brief task description]"
-- NEVER say "No current task" - always infer the task from "assignedTask" or "recentActivities"
-- NEVER say "Just completed" or "Idle after" for agents with status="working" - they are still working!
-- Look at "recentActivities" and "assignedTask" to understand what the agent is/was doing
-
-## Response Format
-
-Provide a JSON response with exactly this structure. IMPORTANT: Use the exact "id" and "name" values from the input data for each agent.
-{
-  "overallStatus": "healthy" | "attention_needed" | "critical",
-  "agentAnalyses": [
-    {
-      "agentId": "copy the id from input",
-      "agentName": "copy the name from input",
-      "statusDescription": "If working: 'Working on [task]'. If idle: 'Idle - Last worked on [task from assignedTask or recentActivities]'",
-      "progress": "on_track" | "stalled" | "blocked" | "completed" | "idle",
-      "recentWorkSummary": "Brief summary of recent activities (2-3 sentences)",
-      "concerns": ["Array of specific issues, if any"]
-    }
-  ],
-  "insights": [
-    "Key observations about overall team performance",
-    "Patterns or trends noticed across agents"
-  ],
-  "recommendations": [
-    "Specific actionable suggestions for improvement",
-    "Priority items that need human attention"
-  ]
-}
-
-Be concise but insightful. Focus on actionable information that helps the human operator manage the agent team effectively.
-
-Respond ONLY with the JSON object, no markdown code fences or additional text.`;
-
-/**
- * Call Claude Code to analyze agent activities
- * Spawns a one-shot Claude process with --print flag to get the response
- * Uses stdin input format for large prompts (avoids shell argument limits)
- */
-async function callClaudeForAnalysis(prompt: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    log.log(' Spawning Claude Code for analysis...');
-
-    const executable = claudeBackend.getExecutablePath();
-    // Use --print flag for one-shot execution (no interactive mode)
-    // Use --output-format stream-json to get structured output (requires --verbose)
-    // Use --input-format stream-json to send prompt via stdin (avoids shell arg limits)
-    // Use --no-session-persistence to make it ephemeral (don't save/restore context between calls)
-    const args = [
-      '--print',
-      '--verbose',
-      '--output-format', 'stream-json',
-      '--input-format', 'stream-json',
-      '--no-session-persistence',
-    ];
-
-    log.log(` Command: ${executable} ${args.join(' ')}`);
-
-    const childProcess = spawn(executable, args, {
-      env: {
-        ...process.env,
-        LANG: 'en_US.UTF-8',
-        LC_ALL: 'en_US.UTF-8',
-      },
-      shell: true,
-    });
-
-    const decoder = new StringDecoder('utf8');
-    let buffer = '';
-    let textOutput = '';
-    let hasError = false;
-
-    // Handle stdout - collect text events
-    childProcess.stdout?.on('data', (data: Buffer) => {
-      buffer += decoder.write(data);
-
-      // Process complete lines
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        try {
-          const event = JSON.parse(line);
-          // Collect text from assistant messages
-          if (event.type === 'assistant' && event.message?.content) {
-            for (const block of event.message.content) {
-              if (block.type === 'text' && block.text) {
-                textOutput += block.text;
-              }
-            }
-          }
-          // Also collect from stream_event with content_block_delta
-          if (event.type === 'stream_event' && event.event?.type === 'content_block_delta') {
-            if (event.event.delta?.type === 'text_delta' && event.event.delta.text) {
-              textOutput += event.event.delta.text;
-            }
-          }
-        } catch {
-          // Not JSON, might be raw text
-          log.log(' Non-JSON line:', line.substring(0, 100));
-        }
-      }
-    });
-
-    childProcess.stderr?.on('data', (data: Buffer) => {
-      const text = decoder.write(data);
-      log.error(' stderr:', text);
-      if (text.toLowerCase().includes('error')) {
-        hasError = true;
-      }
-    });
-
-    childProcess.on('close', (code) => {
-      // Process remaining buffer
-      const remaining = buffer + decoder.end();
-      if (remaining.trim()) {
-        try {
-          const event = JSON.parse(remaining);
-          if (event.type === 'assistant' && event.message?.content) {
-            for (const block of event.message.content) {
-              if (block.type === 'text' && block.text) {
-                textOutput += block.text;
-              }
-            }
-          }
-        } catch {
-          // Ignore
-        }
-      }
-
-      log.log(` Claude Code exited with code ${code}, output length: ${textOutput.length}`);
-
-      if (code !== 0 && textOutput.length === 0) {
-        reject(new Error(`Claude Code exited with code ${code}`));
-      } else if (!textOutput) {
-        reject(new Error('No response from Claude Code'));
-      } else {
-        resolve(textOutput);
-      }
-    });
-
-    childProcess.on('error', (err) => {
-      log.error(' Process spawn error:', err);
-      reject(err);
-    });
-
-    // Send the prompt via stdin using stream-json format
-    childProcess.on('spawn', () => {
-      log.log(' Process spawned, sending prompt via stdin...');
-      // Sanitize prompt to remove invalid Unicode surrogates that break JSON
-      const sanitizedPrompt = sanitizeUnicode(prompt);
-      const stdinMessage = JSON.stringify({
-        type: 'user',
-        message: {
-          role: 'user',
-          content: sanitizedPrompt,
-        },
-      });
-      childProcess.stdin?.write(stdinMessage + '\n');
-      childProcess.stdin?.end(); // Close stdin to signal we're done
-    });
-
-    // Timeout after 120 seconds (can take a while for large analyses)
-    setTimeout(() => {
-      if (!childProcess.killed) {
-        childProcess.kill('SIGTERM');
-        reject(new Error('Claude Code timed out'));
-      }
-    }, 120000);
-  });
-}
-
 function parseClaudeResponse(
   response: string,
   summaries: AgentStatusSummary[]
 ): SupervisorReport {
   try {
-    // Try to extract JSON from the response (in case there's extra text)
-    let jsonStr = response.trim();
-
-    // Remove markdown code fences if present
-    if (jsonStr.startsWith('```json')) {
-      jsonStr = jsonStr.slice(7);
-    } else if (jsonStr.startsWith('```')) {
-      jsonStr = jsonStr.slice(3);
-    }
-    if (jsonStr.endsWith('```')) {
-      jsonStr = jsonStr.slice(0, -3);
-    }
-    jsonStr = jsonStr.trim();
-
+    const jsonStr = stripCodeFences(response);
     const parsed = JSON.parse(jsonStr);
 
     // Map agentAnalyses to agentSummaries (the field name in our type)
@@ -1080,22 +718,3 @@ export function getStatus(): {
   };
 }
 
-// ============================================================================
-// Utilities
-// ============================================================================
-
-function generateId(): string {
-  return Math.random().toString(36).substring(2, 10);
-}
-
-function truncate(str: string | undefined, maxLen: number): string {
-  if (!str) return '';
-  if (str.length <= maxLen) return str;
-  return str.slice(0, maxLen - 3) + '...';
-}
-
-function getFileName(path: string | undefined): string {
-  if (!path) return 'unknown';
-  const parts = path.split('/');
-  return parts[parts.length - 1] || path;
-}

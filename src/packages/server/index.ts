@@ -13,6 +13,36 @@ import { logger } from './utils/logger.js';
 // Configuration
 const PORT = process.env.PORT || 5174;
 
+// ============================================================================
+// Global Error Handlers
+// ============================================================================
+// These handlers prevent the commander from crashing on unhandled errors.
+// With childProcess.unref(), Claude processes will continue running even if
+// the commander crashes, but these handlers help prevent crashes in the first place.
+
+process.on('uncaughtException', (err) => {
+  logger.server.error('Uncaught exception (commander will continue):', err);
+  // Log the error but don't exit - agents should continue running
+  // In production, you might want to notify monitoring systems here
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  logger.server.error('Unhandled promise rejection (commander will continue):', reason);
+  // Log but don't crash - async errors shouldn't kill all agents
+});
+
+// Ignore SIGHUP - this is sent when a terminal closes
+// We want the commander to keep running even if the terminal is closed
+process.on('SIGHUP', () => {
+  logger.server.warn('Received SIGHUP (terminal closed) - ignoring, commander continues running');
+  // Don't exit - just log and continue
+});
+
+// Handle SIGPIPE gracefully (broken pipe - happens when client disconnects)
+process.on('SIGPIPE', () => {
+  logger.server.warn('Received SIGPIPE (broken pipe) - ignoring');
+});
+
 async function main(): Promise<void> {
   // Initialize services
   agentService.initAgents();
@@ -39,11 +69,24 @@ async function main(): Promise<void> {
   });
 
   // Graceful shutdown
+  // By default, don't kill Claude processes - they should continue running independently
+  // Use SIGTERM (kill) to force-kill all processes, SIGINT (Ctrl+C) leaves them running
   process.on('SIGINT', async () => {
-    logger.server.warn('Shutting down...');
+    logger.server.warn('Shutting down (SIGINT)... Claude processes will continue running');
     supervisorService.shutdown();
     bossService.shutdown();
-    await claudeService.shutdown();
+    await claudeService.shutdown(false); // Don't kill processes - they continue independently
+    agentService.persistAgents();
+    server.close();
+    process.exit(0);
+  });
+
+  // SIGTERM is used for force shutdown - kill all processes
+  process.on('SIGTERM', async () => {
+    logger.server.warn('Force shutting down (SIGTERM)... Killing all Claude processes');
+    supervisorService.shutdown();
+    bossService.shutdown();
+    await claudeService.shutdown(true); // Force kill all processes
     agentService.persistAgents();
     server.close();
     process.exit(0);

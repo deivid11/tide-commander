@@ -19,16 +19,6 @@ console.log('='.repeat(40));
 // Check for dependencies
 console.log('\nChecking dependencies...');
 
-// Check tmux
-try {
-  execSync('which tmux', { stdio: 'pipe' });
-  console.log('✓ tmux is installed');
-} catch {
-  console.error('✗ tmux is not installed');
-  console.error('  Install with: sudo apt install tmux (or brew install tmux)');
-  process.exit(1);
-}
-
 // Check jq (for hook script)
 try {
   execSync('which jq', { stdio: 'pipe' });

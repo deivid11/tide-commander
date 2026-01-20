@@ -32,7 +32,7 @@ export interface CustomAgentClass {
 }
 
 // Agent Status
-// 'orphaned' = tmux session has active Claude process but agent state is out of sync (e.g., shows idle when actually working)
+// 'orphaned' = Claude process is running but agent state is out of sync (e.g., shows idle when actually working)
 export type AgentStatus = 'idle' | 'working' | 'waiting' | 'waiting_permission' | 'error' | 'offline' | 'orphaned';
 
 // Permission Mode - controls how Claude asks for permissions
@@ -87,7 +87,6 @@ export interface Agent {
 
   // Claude Code session
   sessionId?: string;
-  tmuxSession: string;
   cwd: string;
   useChrome?: boolean; // Start with --chrome flag
   permissionMode: PermissionMode; // How permissions are handled

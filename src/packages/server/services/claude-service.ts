@@ -3,13 +3,12 @@
  * Manages Claude Code runner and command execution
  */
 
-import { execSync } from 'child_process';
 import { ClaudeRunner, StandardEvent } from '../claude/index.js';
-import { getSessionActivityStatus } from '../claude/session-loader.js';
 import { parseContextOutput } from '../claude/backend.js';
 import type { CustomAgentDefinition } from '../claude/types.js';
 import * as agentService from './agent-service.js';
 import * as supervisorService from './supervisor-service.js';
+import { loadRunningProcesses, isProcessRunning } from '../data/index.js';
 import { logger } from '../utils/logger.js';
 import type { ContextStats } from '../../shared/types.js';
 
@@ -74,13 +73,19 @@ export function init(): void {
   log.log(' Initialized with periodic status sync');
 }
 
-export async function shutdown(): Promise<void> {
+/**
+ * Shutdown the Claude service
+ * @param killProcesses - If true, kill all running Claude processes.
+ *                        If false (default), processes continue running independently.
+ *                        Set to true for clean shutdown, false for commander restart/crash recovery.
+ */
+export async function shutdown(killProcesses = false): Promise<void> {
   if (statusSyncTimer) {
     clearInterval(statusSyncTimer);
     statusSyncTimer = null;
   }
   if (runner) {
-    await runner.stopAll();
+    await runner.stopAll(killProcesses);
   }
 }
 
@@ -429,51 +434,43 @@ export function isAgentRunning(agentId: string): boolean {
 }
 
 /**
- * Check if a tmux session exists and has an active Claude process running
- * This detects "orphaned" sessions where Claude is running but we're not tracking it
+ * Check if there's an orphaned Claude process for this agent
+ * Uses ONLY PID tracking - not general process discovery
+ * (Process discovery is too aggressive and matches unrelated Claude sessions)
  */
-function checkTmuxHasClaudeProcess(tmuxSession: string): boolean {
+function checkForOrphanedProcess(agentId: string): boolean {
   try {
-    // Check if tmux session exists
-    execSync(`tmux has-session -t ${tmuxSession} 2>/dev/null`, { encoding: 'utf8' });
-
-    // Get the pane PID from the tmux session
-    const panePid = execSync(`tmux list-panes -t ${tmuxSession} -F '#{pane_pid}' 2>/dev/null`, {
-      encoding: 'utf8',
-      timeout: 2000,
-    }).trim();
-
-    if (!panePid) return false;
-
-    // Check if there's a claude process under that pane PID
-    // Use pgrep to find claude processes with the pane PID as ancestor
-    try {
-      execSync(`pgrep -P ${panePid} -f claude 2>/dev/null || pstree -p ${panePid} 2>/dev/null | grep -q claude`, {
-        encoding: 'utf8',
-        timeout: 2000,
-      });
+    // Check our persisted PID records - this is agent-specific
+    const savedProcesses = loadRunningProcesses();
+    const savedProcess = savedProcesses.find((p: { agentId: string }) => p.agentId === agentId);
+    if (savedProcess && isProcessRunning(savedProcess.pid)) {
+      log.log(`🔍 Found orphaned process for ${agentId} via PID tracking (pid=${savedProcess.pid})`);
       return true;
-    } catch {
-      // No claude process found
-      return false;
     }
-  } catch {
-    // tmux session doesn't exist or error occurred
+
+    // NOTE: We intentionally don't use general process discovery here
+    // because it would match ANY Claude process running in the same directory,
+    // including user's manual sessions, causing false positives
+
+    return false;
+  } catch (err) {
+    log.error(`Error checking for orphaned process: ${err}`);
     return false;
   }
 }
 
 /**
- * Sync agent status with actual process state and session activity
+ * Sync agent status with actual process state
  * Called on startup and client reconnection to ensure UI shows correct status
  *
- * The rules are:
+ * SIMPLIFIED RULES (to avoid false positives):
  * 1. If we're tracking the process -> trust the current status
- * 2. If agent shows 'working' but no tracked process AND session is not active -> set to idle
- * 3. If agent shows 'idle' but session is RECENTLY active (< 30s) with pending work -> set to working
- *    (This handles server restart while Claude was processing)
- * 4. If agent shows 'idle' but tmux session has active Claude process -> set to orphaned
- *    (This handles out-of-sync state where Claude is running but we lost track)
+ * 2. If agent shows 'working' but no tracked process and no orphaned process -> set to idle
+ * 3. If agent shows 'idle'/'error' but there's an orphaned process -> set to orphaned
+ * 4. If agent shows 'orphaned' but no orphaned process -> set to idle
+ *
+ * NOTE: We removed the "session activity" check because it was causing false positives
+ * (agents being marked as 'working' when they were actually idle)
  */
 export async function syncAgentStatus(agentId: string): Promise<void> {
   const agent = agentService.getAgent(agentId);
@@ -488,62 +485,31 @@ export async function syncAgentStatus(agentId: string): Promise<void> {
     return;
   }
 
-  // Check 2: Session file activity - is there recent pending work?
-  let isRecentlyActive = false;
-  let hasPendingWork = false;
-  let sessionCheckError: string | null = null;
+  // Check 2: Is there an orphaned Claude process for this agent?
+  // Only uses PID tracking - not general process discovery (to avoid false positives)
+  const hasOrphanedProcess = checkForOrphanedProcess(agentId);
 
-  if (agent.sessionId && agent.cwd) {
-    try {
-      // Use 30 second threshold - if Claude was actively working, session would be very recent
-      const activity = await getSessionActivityStatus(agent.cwd, agent.sessionId, 30);
-      if (activity) {
-        isRecentlyActive = activity.isActive; // Modified within 30s AND has pending work
-        hasPendingWork = activity.hasPendingWork;
-      } else {
-        sessionCheckError = 'session file not found';
-      }
-    } catch (err) {
-      sessionCheckError = String(err);
-    }
-  } else {
-    sessionCheckError = `missing sessionId=${agent.sessionId} or cwd=${agent.cwd}`;
-  }
+  // Debug log
+  log.log(`🔍 [${agent.name}] sync check: status=${agent.status}, tracked=${isTrackedProcess}, orphanedProcess=${hasOrphanedProcess}`);
 
-  // Check 3: Does the tmux session have an active Claude process?
-  const hasOrphanedProcess = checkTmuxHasClaudeProcess(agent.tmuxSession);
-
-  // Debug log for every sync check
-  log.log(`🔍 [${agent.name}] sync check: status=${agent.status}, tracked=${isTrackedProcess}, recentlyActive=${isRecentlyActive}, hasPendingWork=${hasPendingWork}, orphanedProcess=${hasOrphanedProcess}, tmux=${agent.tmuxSession}${sessionCheckError ? `, sessionErr=${sessionCheckError}` : ''}`);
-
-  // Case 1: Agent shows 'working' but no tracked process and not recently active -> set to idle
-  if (agent.status === 'working' && !isRecentlyActive && !hasOrphanedProcess) {
-    log.log(`🔴 [${agent.name}] status: working → idle (no process, not recently active)`);
+  // Case 1: Agent shows 'working' but no tracked process and no orphaned process -> set to idle
+  if (agent.status === 'working' && !hasOrphanedProcess) {
+    log.log(`🔴 [${agent.name}] status: working → idle (no process tracked or orphaned)`);
     agentService.updateAgent(agentId, {
       status: 'idle',
       currentTask: undefined,
       currentTool: undefined,
     });
   }
-  // Case 2: Agent shows 'idle' but session is recently active with pending work -> set to working
-  // This handles server restart while Claude was processing
-  else if (agent.status === 'idle' && isRecentlyActive) {
-    log.log(`🟢 [${agent.name}] status: idle → working (session recently active)`);
-    agentService.updateAgent(agentId, {
-      status: 'working',
-      currentTask: 'Processing...',
-    });
-  }
-  // Case 3: Agent shows 'idle' but tmux session has active Claude process -> set to orphaned
-  // This handles out-of-sync state where Claude is running but we lost track of it
+  // Case 2: Agent shows 'idle'/'error' but there's an orphaned Claude process -> set to orphaned
   else if ((agent.status === 'idle' || agent.status === 'error') && hasOrphanedProcess) {
-    log.log(`⚠️ [${agent.name}] status: ${agent.status} → orphaned (tmux has active Claude process)`);
+    log.log(`⚠️ [${agent.name}] status: ${agent.status} → orphaned (found orphaned Claude process)`);
     agentService.updateAgent(agentId, {
       status: 'orphaned',
       currentTask: 'Orphaned process detected',
     });
   }
-  // Case 4: Agent shows 'orphaned' but no longer has an orphaned process -> set back to idle
+  // Case 3: Agent shows 'orphaned' but no longer has an orphaned process -> set to idle
   else if (agent.status === 'orphaned' && !hasOrphanedProcess) {
     log.log(`🔄 [${agent.name}] status: orphaned → idle (process ended)`);
     agentService.updateAgent(agentId, {

@@ -1,4 +1,4 @@
-const CAMERA_STORAGE_KEY = 'tide-camera-state';
+import { STORAGE_KEYS, getStorage, setStorage } from './storage';
 
 export interface CameraState {
   position: { x: number; y: number; z: number };
@@ -10,16 +10,9 @@ export function saveCameraState(
   target: { x: number; y: number; z: number }
 ): void {
   const state: CameraState = { position, target };
-  localStorage.setItem(CAMERA_STORAGE_KEY, JSON.stringify(state));
+  setStorage(STORAGE_KEYS.CAMERA_STATE, state);
 }
 
 export function loadCameraState(): CameraState | null {
-  const saved = localStorage.getItem(CAMERA_STORAGE_KEY);
-  if (!saved) return null;
-
-  try {
-    return JSON.parse(saved) as CameraState;
-  } catch {
-    return null;
-  }
+  return getStorage<CameraState | null>(STORAGE_KEYS.CAMERA_STATE, null);
 }

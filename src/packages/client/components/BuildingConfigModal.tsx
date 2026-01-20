@@ -6,8 +6,9 @@ import {
   type Building,
   type BuildingType,
   type BuildingStyle,
-  type BuildingStatus,
 } from '../../shared/types';
+import { BUILDING_STATUS_COLORS } from '../utils/colors';
+import { STORAGE_KEYS, getStorageString } from '../utils/storage';
 
 interface BuildingConfigModalProps {
   isOpen: boolean;
@@ -15,15 +16,6 @@ interface BuildingConfigModalProps {
   buildingId?: string | null; // If provided, edit mode; otherwise create mode
   initialPosition?: { x: number; z: number };
 }
-
-const STATUS_COLORS: Record<BuildingStatus, string> = {
-  running: '#4aff9e',
-  stopped: '#888888',
-  error: '#ff4a4a',
-  unknown: '#ffaa00',
-  starting: '#4a9eff',
-  stopping: '#ffaa00',
-};
 
 // Preset colors for building customization
 const BUILDING_COLORS = [
@@ -88,7 +80,7 @@ export function BuildingConfigModal({
         setType('server');
         setStyle('server-rack');
         setColor('');
-        setCwd(localStorage.getItem('tide-last-cwd') || '');
+        setCwd(getStorageString(STORAGE_KEYS.LAST_CWD));
         setStartCmd('');
         setStopCmd('');
         setRestartCmd('');
@@ -179,7 +171,7 @@ export function BuildingConfigModal({
           {isEditMode && building && (
             <span
               className="building-status-badge"
-              style={{ backgroundColor: STATUS_COLORS[building.status] }}
+              style={{ backgroundColor: BUILDING_STATUS_COLORS[building.status] }}
             >
               {building.status}
             </span>

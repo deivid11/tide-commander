@@ -188,4 +188,30 @@ export interface ActiveProcess {
   sessionId?: string;
   startTime: number;
   process: import('child_process').ChildProcess;
+  // Store last request for potential auto-restart
+  lastRequest?: RunnerRequest;
+  // Track restart attempts to prevent infinite loops
+  restartCount?: number;
+  lastRestartTime?: number;
+  // File-based output (for survival across server restarts)
+  outputFile?: string;
+  stderrFile?: string;
+  outputFd?: number;  // File descriptor for output file
+  stderrFd?: number;  // File descriptor for stderr file
+  fileWatcher?: import('fs').FSWatcher;  // Watching output file for changes
+  fileReadPosition?: number;  // Current read position in output file
+  // Flag indicating this is a reconnected orphan process
+  isReconnected?: boolean;
+}
+
+// Process death info for diagnostics
+export interface ProcessDeathInfo {
+  agentId: string;
+  pid: number | undefined;
+  exitCode: number | null;
+  signal: NodeJS.Signals | null;
+  runtime: number;  // How long the process ran in ms
+  wasTracked: boolean;
+  timestamp: number;
+  stderr?: string;  // Last stderr output if any
 }

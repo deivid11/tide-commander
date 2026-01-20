@@ -1,19 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useStore, store } from '../store';
-import type { DrawingArea, DrawingTool, Building, BuildingStatus } from '../../shared/types';
+import type { DrawingArea, DrawingTool, Building } from '../../shared/types';
 import { BUILDING_TYPES, BUILDING_STYLES, type BuildingStyle } from '../../shared/types';
-
-// Color palette for areas
-const AREA_COLORS = [
-  '#4a9eff', // blue
-  '#4aff9e', // green
-  '#ff9e4a', // orange
-  '#ff4a9e', // pink
-  '#9e4aff', // purple
-  '#ff4a4a', // red
-  '#4affff', // cyan
-  '#ffff4a', // yellow
-];
+import { AREA_COLORS, BUILDING_STATUS_COLORS } from '../utils/colors';
 
 // Time mode options
 export type TimeMode = 'auto' | 'day' | 'night' | 'dawn' | 'dusk';
@@ -269,14 +258,7 @@ function AreaItem({ area, isSelected, onClick, onDelete }: AreaItemProps) {
   );
 }
 
-const STATUS_COLORS: Record<Building['status'], string> = {
-  running: '#4aff9e',
-  stopped: '#888888',
-  error: '#ff4a4a',
-  unknown: '#ffaa00',
-  starting: '#4a9eff',
-  stopping: '#ffaa00',
-};
+// Use BUILDING_STATUS_COLORS from utils/colors.ts
 
 interface BuildingItemProps {
   building: Building;
@@ -292,7 +274,7 @@ function BuildingItem({ building, isSelected, onClick, onEdit }: BuildingItemPro
     <div className={`building-item ${isSelected ? 'selected' : ''}`} onClick={onClick}>
       <div
         className="building-status-dot"
-        style={{ backgroundColor: STATUS_COLORS[building.status] }}
+        style={{ backgroundColor: BUILDING_STATUS_COLORS[building.status] }}
         title={building.status}
       />
       <div className="building-icon">{typeInfo.icon}</div>
@@ -342,7 +324,7 @@ function BuildingEditor({ building, onClose, onOpenModal }: BuildingEditorProps)
           <span className="building-editor-title">{building.name}</span>
           <span
             className="building-editor-status"
-            style={{ backgroundColor: STATUS_COLORS[building.status] }}
+            style={{ backgroundColor: BUILDING_STATUS_COLORS[building.status] }}
           >
             {building.status}
           </span>

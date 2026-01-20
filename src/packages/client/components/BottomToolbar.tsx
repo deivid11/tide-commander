@@ -1,20 +1,13 @@
 import React, { useMemo } from 'react';
 import { store, useAgents, useSelectedAgentIds } from '../store';
 import { formatTokens, formatTimeAgo } from '../utils/formatting';
+import { AGENT_STATUS_COLORS } from '../utils/colors';
 import { ModelPreview } from './ModelPreview';
 
 interface BottomToolbarProps {
   onFocusAgent: (agentId: string) => void;
   onKillAgent: (agentId: string) => void;
 }
-
-const STATUS_COLORS: Record<string, string> = {
-  idle: '#4aff9e',
-  working: '#4a9eff',
-  waiting: '#ff9e4a',
-  error: '#ff4a4a',
-  offline: '#888888',
-};
 
 export function BottomToolbar({ onFocusAgent, onKillAgent }: BottomToolbarProps) {
   const agents = useAgents();
@@ -75,7 +68,7 @@ export function BottomToolbar({ onFocusAgent, onKillAgent }: BottomToolbarProps)
             <span className="bt-stat-label">STATUS</span>
             <span
               className="bt-stat-value"
-              style={{ color: STATUS_COLORS[selectedAgent.status] }}
+              style={{ color: AGENT_STATUS_COLORS[selectedAgent.status] || AGENT_STATUS_COLORS.default }}
             >
               {selectedAgent.status.toUpperCase()}
             </span>

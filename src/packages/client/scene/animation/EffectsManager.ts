@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { TOOL_ICONS } from '../../utils/outputRendering';
 
 /**
  * Move order effect data.
@@ -56,22 +57,6 @@ interface PooledSprite {
   sprite: THREE.Sprite;
   inUse: boolean;
 }
-
-/**
- * Tool icons for common tools
- */
-const TOOL_ICONS: Record<string, string> = {
-  WebSearch: '🔍',
-  WebFetch: '🌐',
-  Read: '📖',
-  Write: '✏️',
-  Edit: '📝',
-  Bash: '💻',
-  Grep: '🔎',
-  Glob: '📁',
-  Task: '📋',
-  TodoWrite: '✅',
-};
 
 /**
  * Manages visual effects like move order indicators.

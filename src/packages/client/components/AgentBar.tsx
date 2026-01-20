@@ -1,40 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useStore, store, useCustomAgentClassesArray } from '../store';
-import type { Agent, DrawingArea, AgentSupervisorHistoryEntry, CustomAgentClass, BuiltInAgentClass } from '../../shared/types';
-import { AGENT_CLASS_CONFIG } from '../scene/config';
-import { formatIdleTime, getIdleTimerColor, intToHex } from '../utils/formatting';
-
-// Helper to get class config (built-in or custom)
-function getClassConfig(agentClass: string, customClasses: CustomAgentClass[]): { icon: string; color: string; description: string } {
-  const builtIn = AGENT_CLASS_CONFIG[agentClass as BuiltInAgentClass];
-  if (builtIn) {
-    const color = typeof builtIn.color === 'number' ? intToHex(builtIn.color) : builtIn.color;
-    return { icon: builtIn.icon, color, description: builtIn.description || '' };
-  }
-
-  const custom = customClasses.find(c => c.id === agentClass);
-  if (custom) {
-    return { icon: custom.icon, color: custom.color, description: custom.description || '' };
-  }
-
-  return { icon: '🤖', color: '#888888', description: 'Custom agent' };
-}
-
-// Tool icons mapping
-const TOOL_ICONS: Record<string, string> = {
-  Read: '📖',
-  Write: '✏️',
-  Edit: '📝',
-  Bash: '💻',
-  Glob: '🔍',
-  Grep: '🔎',
-  Task: '📋',
-  WebFetch: '🌐',
-  WebSearch: '🔍',
-  TodoWrite: '✅',
-  NotebookEdit: '📓',
-  default: '⚡',
-};
+import type { Agent, DrawingArea, AgentSupervisorHistoryEntry } from '../../shared/types';
+import { formatIdleTime } from '../utils/formatting';
+import { getClassConfig } from '../utils/classConfig';
+import { getIdleTimerColor, getAgentStatusColor } from '../utils/colors';
+import { TOOL_ICONS } from '../utils/outputRendering';
 
 interface AgentBarProps {
   onFocusAgent?: (agentId: string) => void;
@@ -137,16 +107,7 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
     onFocusAgent?.(agent.id);
   };
 
-  const getStatusColor = (status: Agent['status']) => {
-    switch (status) {
-      case 'idle': return '#4aff9e';
-      case 'working': return '#4a9eff';
-      case 'waiting': return '#ff9e4a';
-      case 'error': return '#ff4a4a';
-      case 'offline': return '#888888';
-      default: return '#888888';
-    }
-  };
+  // Use getAgentStatusColor from utils/colors.ts
 
   const getStatusLabel = (status: Agent['status']) => {
     switch (status) {
@@ -262,7 +223,7 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
                       <span className="agent-bar-icon">{config.icon}</span>
                       <span
                         className="agent-bar-status"
-                        style={{ backgroundColor: getStatusColor(agent.status) }}
+                        style={{ backgroundColor: getAgentStatusColor(agent.status) }}
                       />
                       {agent.status === 'idle' && agent.lastActivity > 0 && (
                         <span
@@ -351,7 +312,7 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
               <span className="agent-bar-tooltip-name">{hoveredAgent.name}</span>
               <span
                 className="agent-bar-tooltip-status"
-                style={{ color: getStatusColor(hoveredAgent.status) }}
+                style={{ color: getAgentStatusColor(hoveredAgent.status) }}
               >
                 {getStatusLabel(hoveredAgent.status)}
               </span>

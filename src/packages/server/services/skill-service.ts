@@ -8,7 +8,7 @@
 
 import type { Skill, AgentClass } from '../../shared/types.js';
 import { loadSkills, saveSkills } from '../data/index.js';
-import { createLogger } from '../utils/logger.js';
+import { createLogger, generateId, generateSlug } from '../utils/index.js';
 
 const log = createLogger('SkillService');
 
@@ -70,24 +70,6 @@ export function getSkillBySlug(slug: string): Skill | undefined {
 
 export function getAllSkills(): Skill[] {
   return Array.from(skills.values());
-}
-
-/**
- * Generate a URL-safe slug from a name
- */
-function generateSlug(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-    .substring(0, 64);
-}
-
-/**
- * Generate a unique ID
- */
-function generateId(): string {
-  return Math.random().toString(36).substring(2, 10);
 }
 
 /**

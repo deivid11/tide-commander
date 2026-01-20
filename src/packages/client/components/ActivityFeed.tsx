@@ -1,20 +1,7 @@
 import React, { useCallback, useMemo } from 'react';
 import { store, useActivities, Activity } from '../store';
 import { formatTime } from '../utils/formatting';
-
-// Tool icons for common tools
-const TOOL_ICONS: Record<string, string> = {
-  WebSearch: '\uD83D\uDD0D',
-  WebFetch: '\uD83C\uDF10',
-  Read: '\uD83D\uDCD6',
-  Write: '\u270F\uFE0F',
-  Edit: '\uD83D\uDCDD',
-  Bash: '\uD83D\uDCBB',
-  Grep: '\uD83D\uDD0E',
-  Glob: '\uD83D\uDCC1',
-  Task: '\uD83D\uDCCB',
-  TodoWrite: '\u2705',
-};
+import { TOOL_ICONS } from '../utils/outputRendering';
 
 // Known tool names for parsing
 const TOOL_NAMES = ['WebSearch', 'WebFetch', 'Read', 'Write', 'Edit', 'Bash', 'Grep', 'Glob', 'Task', 'TodoWrite', 'NotebookEdit', 'AskUserQuestion'];

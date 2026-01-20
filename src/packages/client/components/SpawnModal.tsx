@@ -4,6 +4,7 @@ import { AGENT_CLASS_CONFIG, DEFAULT_NAMES, CHARACTER_MODELS } from '../scene/co
 import type { AgentClass, PermissionMode, Skill, CustomAgentClass, BuiltInAgentClass, ClaudeModel } from '../../shared/types';
 import { PERMISSION_MODES, BUILT_IN_AGENT_CLASSES, CLAUDE_MODELS } from '../../shared/types';
 import { intToHex } from '../utils/formatting';
+import { STORAGE_KEYS, getStorageString, setStorageString } from '../utils/storage';
 import { ModelPreview } from './ModelPreview';
 
 interface ClaudeSession {
@@ -39,7 +40,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd }: SpawnM
   const skills = useSkillsArray();
   const customClasses = useCustomAgentClassesArray();
   const [name, setName] = useState('');
-  const [cwd, setCwd] = useState(() => localStorage.getItem('tide-last-cwd') || '');
+  const [cwd, setCwd] = useState(() => getStorageString(STORAGE_KEYS.LAST_CWD));
   const [selectedClass, setSelectedClass] = useState<AgentClass>('scout');
   const [isSpawning, setIsSpawning] = useState(false);
   const [hasError, setHasError] = useState(false);
@@ -52,7 +53,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd }: SpawnM
   const [useChrome, setUseChrome] = useState(true); // Enabled by default
   const [permissionMode, setPermissionMode] = useState<PermissionMode>('bypass'); // Default to permissionless
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set());
-  const [selectedModel, setSelectedModel] = useState<ClaudeModel>('sonnet'); // Default to sonnet
+  const [selectedModel, setSelectedModel] = useState<ClaudeModel>('opus'); // Default to opus
   const nameInputRef = useRef<HTMLInputElement>(null);
 
   // Get available skills (enabled ones)
@@ -197,7 +198,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd }: SpawnM
       return;
     }
 
-    localStorage.setItem('tide-last-cwd', effectiveCwd);
+    setStorageString(STORAGE_KEYS.LAST_CWD, effectiveCwd);
     setIsSpawning(true);
     onSpawnStart();
 
