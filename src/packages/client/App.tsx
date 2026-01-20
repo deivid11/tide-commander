@@ -344,11 +344,14 @@ function AppContent() {
       const target = e.target as HTMLElement;
       const isInputFocused = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
 
-      // Escape to deselect or close modal
+      // Escape to deselect or close modal/terminal
       const deselectShortcut = shortcuts.find(s => s.id === 'deselect-all');
       if (matchesShortcut(e, deselectShortcut)) {
         if (isSpawnModalOpen) {
           setIsSpawnModalOpen(false);
+        } else if (store.getState().terminalOpen) {
+          // Close terminal first if open (prevents selection corruption on double-ESC)
+          store.setTerminalOpen(false);
         } else {
           store.deselectAll();
           sceneRef.current?.refreshSelectionVisuals();
