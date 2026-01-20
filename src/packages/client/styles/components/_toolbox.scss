@@ -50,6 +50,12 @@
   animation: slide-in-left $transition-normal ease-out;
 }
 
+.toolbox-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
 @keyframes slide-in-left {
   from { transform: translateX(-100%); }
   to { transform: translateX(0); }

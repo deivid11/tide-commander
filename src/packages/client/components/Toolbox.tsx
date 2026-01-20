@@ -109,131 +109,134 @@ export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose,
           </button>
         </div>
 
-        {/* Drawing Tools */}
-        <div className="toolbox-section">
-          <div className="toolbox-section-header">Drawing Tools</div>
-        <div className="tool-buttons">
-          <button
-            className={`tool-btn ${state.activeTool === 'select' ? 'active' : ''}`}
-            onClick={() => handleToolSelect('select')}
-            title="Select"
-          >
-            <span>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z" />
-              </svg>
-            </span>
-            <span className="tool-btn-label">Select</span>
-          </button>
-          <button
-            className={`tool-btn ${state.activeTool === 'rectangle' ? 'active' : ''}`}
-            onClick={() => handleToolSelect('rectangle')}
-            title="Rectangle"
-          >
-            <span>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="3" y="3" width="18" height="18" rx="2" />
-              </svg>
-            </span>
-            <span className="tool-btn-label">Rect</span>
-          </button>
-          <button
-            className={`tool-btn ${state.activeTool === 'circle' ? 'active' : ''}`}
-            onClick={() => handleToolSelect('circle')}
-            title="Circle"
-          >
-            <span>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="9" />
-              </svg>
-            </span>
-            <span className="tool-btn-label">Circle</span>
-          </button>
+        {/* Scrollable content area */}
+        <div className="toolbox-content">
+          {/* Drawing Tools */}
+          <div className="toolbox-section">
+            <div className="toolbox-section-header">Drawing Tools</div>
+            <div className="tool-buttons">
+              <button
+                className={`tool-btn ${state.activeTool === 'select' ? 'active' : ''}`}
+                onClick={() => handleToolSelect('select')}
+                title="Select"
+              >
+                <span>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z" />
+                  </svg>
+                </span>
+                <span className="tool-btn-label">Select</span>
+              </button>
+              <button
+                className={`tool-btn ${state.activeTool === 'rectangle' ? 'active' : ''}`}
+                onClick={() => handleToolSelect('rectangle')}
+                title="Rectangle"
+              >
+                <span>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                  </svg>
+                </span>
+                <span className="tool-btn-label">Rect</span>
+              </button>
+              <button
+                className={`tool-btn ${state.activeTool === 'circle' ? 'active' : ''}`}
+                onClick={() => handleToolSelect('circle')}
+                title="Circle"
+              >
+                <span>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="9" />
+                  </svg>
+                </span>
+                <span className="tool-btn-label">Circle</span>
+              </button>
+            </div>
           </div>
-        </div>
 
-        {/* Areas List */}
-        <div className="toolbox-section" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0 }}>
-          <div className="toolbox-section-header" style={{ padding: '12px 12px 10px' }}>
-            Areas ({areasArray.length})
+          {/* Areas List */}
+          <div className="toolbox-section" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0 }}>
+            <div className="toolbox-section-header" style={{ padding: '12px 12px 10px' }}>
+              Areas ({areasArray.length})
+            </div>
+            <div className="areas-list">
+              {areasArray.length === 0 ? (
+                <div className="areas-empty">
+                  Draw on the battlefield to create areas
+                </div>
+              ) : (
+                areasArray.map((area) => (
+                  <AreaItem
+                    key={area.id}
+                    area={area}
+                    isSelected={state.selectedAreaId === area.id}
+                    onClick={() => handleAreaClick(area.id)}
+                    onDelete={(e) => handleDeleteArea(e, area.id)}
+                  />
+                ))
+              )}
+            </div>
           </div>
-          <div className="areas-list">
-            {areasArray.length === 0 ? (
-              <div className="areas-empty">
-                Draw on the battlefield to create areas
-              </div>
-            ) : (
-              areasArray.map((area) => (
-                <AreaItem
-                  key={area.id}
-                  area={area}
-                  isSelected={state.selectedAreaId === area.id}
-                  onClick={() => handleAreaClick(area.id)}
-                  onDelete={(e) => handleDeleteArea(e, area.id)}
-                />
-              ))
-            )}
-          </div>
-        </div>
 
-        {/* Area Editor */}
-        {state.selectedAreaId && (
-          <AreaEditor
-            area={state.areas.get(state.selectedAreaId)!}
-            onClose={() => store.selectArea(null)}
-          />
-        )}
-
-        {/* Buildings Section */}
-        <div className="toolbox-section buildings-section">
-          <div className="toolbox-section-header">
-            Buildings ({buildingsArray.length})
-            <button
-              className="add-building-btn"
-              onClick={() => onOpenBuildingModal?.()}
-              title="Add Building"
-            >
-              +
-            </button>
-          </div>
-          <div className="buildings-list">
-            {buildingsArray.length === 0 ? (
-              <div className="buildings-empty">
-                Click + to add a building
-              </div>
-            ) : (
-              buildingsArray.map((building) => (
-                <BuildingItem
-                  key={building.id}
-                  building={building}
-                  isSelected={state.selectedBuildingIds.has(building.id)}
-                  onClick={() => {
-                    store.selectBuilding(
-                      state.selectedBuildingIds.has(building.id) ? null : building.id
-                    );
-                  }}
-                  onEdit={() => onOpenBuildingModal?.(building.id)}
-                />
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* Building Editor - show for single selection */}
-        {state.selectedBuildingIds.size === 1 && (() => {
-          const selectedId = Array.from(state.selectedBuildingIds)[0];
-          const building = state.buildings.get(selectedId);
-          return building ? (
-            <BuildingEditor
-              building={building}
-              onClose={() => store.selectBuilding(null)}
-              onOpenModal={() => onOpenBuildingModal?.(selectedId)}
+          {/* Area Editor */}
+          {state.selectedAreaId && (
+            <AreaEditor
+              area={state.areas.get(state.selectedAreaId)!}
+              onClose={() => store.selectArea(null)}
             />
-          ) : null;
-        })()}
+          )}
 
-        {/* Config Section */}
-        <ConfigSection config={config} onChange={onConfigChange} />
+          {/* Buildings Section */}
+          <div className="toolbox-section buildings-section">
+            <div className="toolbox-section-header">
+              Buildings ({buildingsArray.length})
+              <button
+                className="add-building-btn"
+                onClick={() => onOpenBuildingModal?.()}
+                title="Add Building"
+              >
+                +
+              </button>
+            </div>
+            <div className="buildings-list">
+              {buildingsArray.length === 0 ? (
+                <div className="buildings-empty">
+                  Click + to add a building
+                </div>
+              ) : (
+                buildingsArray.map((building) => (
+                  <BuildingItem
+                    key={building.id}
+                    building={building}
+                    isSelected={state.selectedBuildingIds.has(building.id)}
+                    onClick={() => {
+                      store.selectBuilding(
+                        state.selectedBuildingIds.has(building.id) ? null : building.id
+                      );
+                    }}
+                    onEdit={() => onOpenBuildingModal?.(building.id)}
+                  />
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Building Editor - show for single selection */}
+          {state.selectedBuildingIds.size === 1 && (() => {
+            const selectedId = Array.from(state.selectedBuildingIds)[0];
+            const building = state.buildings.get(selectedId);
+            return building ? (
+              <BuildingEditor
+                building={building}
+                onClose={() => store.selectBuilding(null)}
+                onOpenModal={() => onOpenBuildingModal?.(selectedId)}
+              />
+            ) : null;
+          })()}
+
+          {/* Config Section */}
+          <ConfigSection config={config} onChange={onConfigChange} />
+        </div>
       </aside>
     </>
   );
