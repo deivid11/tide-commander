@@ -14,8 +14,10 @@
 
 .battlefield-container {
   flex: 1;
+  min-width: 0; // Allow shrinking below content size
   position: relative;
   background: $bg-primary;
+  overflow: hidden;
 }
 
 #battlefield {
@@ -26,6 +28,8 @@
 
 .sidebar {
   width: $sidebar-width;
+  min-width: $sidebar-width;
+  flex-shrink: 0;
   background: $bg-secondary;
   border-left: 1px solid $border-color;
   display: flex;

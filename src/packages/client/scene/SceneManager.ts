@@ -49,6 +49,7 @@ export class SceneManager {
   private workingAnimation: string = ANIMATIONS.WALK;
   private fpsLimit = 0; // 0 = unlimited
   private frameInterval = 0; // Calculated from fpsLimit
+  private resizeObserver: ResizeObserver | null = null;
 
   // Callbacks
   private onAreaDoubleClickCallback: ((areaId: string) => void) | null = null;
@@ -136,6 +137,15 @@ export class SceneManager {
 
     // Event listeners
     window.addEventListener('resize', this.onWindowResize);
+
+    // Use ResizeObserver for more reliable resize detection
+    // This handles cases where the container resizes without window resize
+    this.resizeObserver = new ResizeObserver(() => {
+      this.onWindowResize();
+    });
+    if (this.canvas.parentElement) {
+      this.resizeObserver.observe(this.canvas.parentElement);
+    }
 
     // Start render loop
     this.animate();
@@ -1134,6 +1144,9 @@ export class SceneManager {
   // ============================================
 
   reattach(canvas: HTMLCanvasElement, selectionBox: HTMLDivElement): void {
+    // Disconnect old observer
+    this.resizeObserver?.disconnect();
+
     // Remove old event listeners
     this.canvas = canvas;
 
@@ -1149,6 +1162,11 @@ export class SceneManager {
     this.inputHandler.reattach(canvas, selectionBox, this.controls);
     this.inputHandler.setReferences(this.battlefield.getGround(), this.agentMeshes);
 
+    // Reattach resize observer
+    if (this.canvas.parentElement) {
+      this.resizeObserver?.observe(this.canvas.parentElement);
+    }
+
     // Trigger resize
     this.onWindowResize();
   }
@@ -1159,6 +1177,8 @@ export class SceneManager {
 
   dispose(): void {
     window.removeEventListener('resize', this.onWindowResize);
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     this.inputHandler.dispose();
     this.drawingManager.dispose();
     this.buildingManager.dispose();
