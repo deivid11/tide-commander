@@ -29,25 +29,25 @@ if [ -f "${CLAUDE_SETTINGS_FILE}" ]; then
   cp "${CLAUDE_SETTINGS_FILE}" "${CLAUDE_SETTINGS_FILE}.backup"
   echo "✓ Backed up existing settings to ${CLAUDE_SETTINGS_FILE}.backup"
 
-  # Update settings with jq
+  # Update settings with jq (new array-based format required since Claude Code 1.0.51+)
   UPDATED_SETTINGS=$(jq --arg hookPath "${TIDE_HOOKS_DIR}/tide-hook.sh" '
     .hooks = (.hooks // {}) |
-    .hooks.PreToolUse = $hookPath |
-    .hooks.PostToolUse = $hookPath |
-    .hooks.Stop = $hookPath |
-    .hooks.UserPromptSubmit = $hookPath
+    .hooks.PreToolUse = [{"hooks": [{"type": "command", "command": $hookPath}]}] |
+    .hooks.PostToolUse = [{"hooks": [{"type": "command", "command": $hookPath}]}] |
+    .hooks.Stop = [{"hooks": [{"type": "command", "command": $hookPath}]}] |
+    .hooks.UserPromptSubmit = [{"hooks": [{"type": "command", "command": $hookPath}]}]
   ' "${CLAUDE_SETTINGS_FILE}")
 
   echo "$UPDATED_SETTINGS" > "${CLAUDE_SETTINGS_FILE}"
 else
-  # Create new settings file
+  # Create new settings file (new array-based format required since Claude Code 1.0.51+)
   cat > "${CLAUDE_SETTINGS_FILE}" << EOF
 {
   "hooks": {
-    "PreToolUse": "${TIDE_HOOKS_DIR}/tide-hook.sh",
-    "PostToolUse": "${TIDE_HOOKS_DIR}/tide-hook.sh",
-    "Stop": "${TIDE_HOOKS_DIR}/tide-hook.sh",
-    "UserPromptSubmit": "${TIDE_HOOKS_DIR}/tide-hook.sh"
+    "PreToolUse": [{"hooks": [{"type": "command", "command": "${TIDE_HOOKS_DIR}/tide-hook.sh"}]}],
+    "PostToolUse": [{"hooks": [{"type": "command", "command": "${TIDE_HOOKS_DIR}/tide-hook.sh"}]}],
+    "Stop": [{"hooks": [{"type": "command", "command": "${TIDE_HOOKS_DIR}/tide-hook.sh"}]}],
+    "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "${TIDE_HOOKS_DIR}/tide-hook.sh"}]}]
   }
 }
 EOF
