@@ -18,7 +18,6 @@ import { Spotlight } from './components/Spotlight';
 import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
 import { BuildingConfigModal } from './components/BuildingConfigModal';
 import { SkillsPanel } from './components/SkillsPanel';
-import { WebSocketDebuggerPanel } from './components/WebSocketDebuggerPanel';
 import { matchesShortcut } from './store/shortcuts';
 import { FPSMeter } from './components/FPSMeter';
 import { profileRender } from './utils/profiling';
@@ -97,15 +96,10 @@ function AppContent() {
   const spotlightModal = useModalState();
   const shortcutsModal = useModalState();
   const skillsModal = useModalState();
-  const debuggerModal = useModalState();
   const buildingModal = useModalState<string | null>(); // data = editingBuildingId (null for new)
   const explorerModal = useModalStateWithId(); // has .id for areaId
 
   const [sceneConfig, setSceneConfig] = useState(loadConfig);
-  const [showFPS, setShowFPS] = useState(() => {
-    // Only show FPS meter in development by default, can be toggled
-    return import.meta.env.DEV && getStorageString(STORAGE_KEYS.SHOW_FPS) !== 'false';
-  });
   const [sidebarOpen, setSidebarOpen] = useState(false); // Mobile sidebar state
   const mobileView = useMobileView(); // Mobile view toggle - from store
   const { showToast } = useToast();
@@ -474,8 +468,8 @@ function AppContent() {
 
   return (
     <div className={`app ${state.terminalOpen ? 'terminal-open' : ''} mobile-view-${mobileView}`}>
-      {/* FPS Meter - development only */}
-      <FPSMeter visible={showFPS} position="bottom-left" />
+      {/* FPS Meter */}
+      <FPSMeter visible={state.settings.showFPS} position="top-left" />
 
       <main className="main-content">
         <div className="battlefield-container">
@@ -551,9 +545,9 @@ function AppContent() {
         onClick={() => toolboxModal.open()}
         title="Settings & Tools"
       >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
           <circle cx="12" cy="12" r="3" />
-          <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
         </svg>
       </button>
 
@@ -669,18 +663,6 @@ function AppContent() {
         </svg>
       </button>
 
-      {/* WebSocket Debugger button */}
-      <button
-        className="debugger-toggle-btn"
-        onClick={() => debuggerModal.open()}
-        title="WebSocket Debugger"
-      >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M12 20h9" />
-          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-        </svg>
-      </button>
-
       <Profiler id="CommanderView" onRender={profileRender}>
         <CommanderView
           isOpen={commanderModal.isOpen}
@@ -731,12 +713,6 @@ function AppContent() {
       <SkillsPanel
         isOpen={skillsModal.isOpen}
         onClose={skillsModal.close}
-      />
-
-      {/* WebSocket Debugger Panel */}
-      <WebSocketDebuggerPanel
-        isOpen={debuggerModal.isOpen}
-        onClose={debuggerModal.close}
       />
     </div>
   );

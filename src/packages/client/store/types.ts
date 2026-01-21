@@ -66,11 +66,13 @@ export interface LastPrompt {
 export interface Settings {
   historyLimit: number;
   hideCost: boolean;
+  showFPS: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   historyLimit: 500,
   hideCost: true,
+  showFPS: false,
 };
 
 // Supervisor state

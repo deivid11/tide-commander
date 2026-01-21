@@ -775,30 +775,20 @@ export function ClaudeOutputPanel() {
           </div>
           <div className="guake-actions">
             <button
-              className={`guake-debug-toggle ${debuggerEnabled ? 'active' : ''}`}
+              className={`guake-debug-toggle ${debugPanelOpen ? 'active' : ''}`}
               onClick={() => {
-                const newEnabled = !debuggerEnabled;
-                setDebuggerEnabled(newEnabled);
-                agentDebugger.setEnabled(newEnabled);
-                if (newEnabled) {
-                  setDebugPanelOpen(true);
-                } else {
-                  setDebugPanelOpen(false);
+                const newOpen = !debugPanelOpen;
+                setDebugPanelOpen(newOpen);
+                // Enable debugger when opening, keep enabled when closing (to preserve data)
+                if (newOpen && !debuggerEnabled) {
+                  setDebuggerEnabled(true);
+                  agentDebugger.setEnabled(true);
                 }
               }}
-              title={debuggerEnabled ? 'Disable Agent Debugger' : 'Enable Agent Debugger'}
+              title={debugPanelOpen ? 'Hide Debug Panel' : 'Show Debug Panel'}
             >
               🐛
             </button>
-            {debuggerEnabled && (
-              <button
-                className={`guake-debug-panel-toggle ${debugPanelOpen ? 'active' : ''}`}
-                onClick={() => setDebugPanelOpen(!debugPanelOpen)}
-                title={debugPanelOpen ? 'Hide Debug Panel' : 'Show Debug Panel'}
-              >
-                {debugPanelOpen ? '◀' : '▶'}
-              </button>
-            )}
             <button
               className={`guake-search-toggle ${searchMode ? 'active' : ''}`}
               onClick={() => {

@@ -15,16 +15,16 @@ export function getDawnConfig(): TimeConfig {
     phase: 'dawn',
     sunPosition: new THREE.Vector3(50, 10, -60), // Sun low on horizon
     moonPosition: new THREE.Vector3(-40, 15, -50), // Moon setting
-    ambientColor: 0xffaa77, // Warm orange ambient
+    ambientColor: 0x7799cc, // Cool blue-ish ambient
     ambientIntensity: 0.5,
-    hemiSkyColor: 0xff8844, // Orange sky from above
-    hemiGroundColor: 0x553322, // Warm ground reflection
+    hemiSkyColor: 0x5588bb, // Blue-purple sky from above
+    hemiGroundColor: 0x334455, // Cool ground reflection
     hemiIntensity: 0.6,
-    mainLightColor: 0xffcc66, // Golden sunlight
+    mainLightColor: 0xaaccff, // Cool blue sunlight
     mainLightIntensity: 0.9,
-    fogColor: 0xffbb88, // Orange/peach fog
+    fogColor: 0x4477aa, // Blue fog
     fogDensity: 0.008,
-    skyColor: 0xff9966, // Orange/coral sky
+    skyColor: 0x3366aa, // Blue dawn sky
     starsOpacity: 0.2, // Few stars still visible
     moonOpacity: 0.3, // Moon fading
     sunOpacity: 0.9, // Sun rising
@@ -41,16 +41,16 @@ export function getDuskConfig(): TimeConfig {
     phase: 'dusk',
     sunPosition: new THREE.Vector3(-50, 8, -60), // Sun setting on opposite side
     moonPosition: new THREE.Vector3(40, 12, -50), // Moon rising
-    ambientColor: 0xff7755, // Warm red-orange ambient
+    ambientColor: 0x5566aa, // Cool blue-purple ambient
     ambientIntensity: 0.45,
-    hemiSkyColor: 0xff6633, // Deep orange sky
-    hemiGroundColor: 0x442222, // Dark warm ground
+    hemiSkyColor: 0x3355aa, // Deep blue-purple sky
+    hemiGroundColor: 0x223344, // Dark cool ground
     hemiIntensity: 0.5,
-    mainLightColor: 0xff9944, // Deep golden sunlight
+    mainLightColor: 0x7799dd, // Cool blue light
     mainLightIntensity: 0.7,
-    fogColor: 0xdd7766, // Red-orange fog
+    fogColor: 0x2244aa, // Blue-purple fog
     fogDensity: 0.01,
-    skyColor: 0xff7744, // Deep orange sky
+    skyColor: 0x2244aa, // Deep blue dusk sky
     starsOpacity: 0.3, // Stars appearing
     moonOpacity: 0.4, // Moon appearing
     sunOpacity: 0.8, // Sun setting
@@ -69,14 +69,14 @@ export function getNightConfig(): TimeConfig {
     moonPosition: new THREE.Vector3(-30, 35, -50),
     ambientColor: 0x334466,
     ambientIntensity: 0.3,
-    hemiSkyColor: 0x223344,
-    hemiGroundColor: 0x111122,
+    hemiSkyColor: 0x223355,
+    hemiGroundColor: 0x111133,
     hemiIntensity: 0.4,
     mainLightColor: 0xaabbff,
     mainLightIntensity: 0.6,
-    fogColor: 0x101020,
+    fogColor: 0x0a1a2a,
     fogDensity: 0.012,
-    skyColor: 0x080810,
+    skyColor: 0x0a1a2a, // Dark blue
     starsOpacity: 0.9,
     moonOpacity: 1.0,
     sunOpacity: 0,
@@ -95,14 +95,14 @@ export function getDayConfig(): TimeConfig {
     moonPosition: new THREE.Vector3(-30, -20, -50),
     ambientColor: 0xffffff,
     ambientIntensity: 0.7,
-    hemiSkyColor: 0x87ceeb,
-    hemiGroundColor: 0x555544,
+    hemiSkyColor: 0x4a90d9,
+    hemiGroundColor: 0x445566,
     hemiIntensity: 0.8,
     mainLightColor: 0xffffee,
     mainLightIntensity: 1.2,
-    fogColor: 0xc8d8e8,
+    fogColor: 0x6aa8e0,
     fogDensity: 0.005,
-    skyColor: 0x87ceeb,
+    skyColor: 0x4a90d9, // Blue sky
     starsOpacity: 0,
     moonOpacity: 0,
     sunOpacity: 1.0,

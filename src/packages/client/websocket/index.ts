@@ -1,7 +1,6 @@
 import type { Agent, ServerMessage, ClientMessage, PermissionRequest, DelegationDecision, CustomAgentClass } from '../../shared/types';
 import { store } from '../store';
 import { perf } from '../utils/profiling';
-import { wsDebugger } from './debugger';
 import { agentDebugger, debugLog } from '../services/agentDebugger';
 
 // Persist WebSocket state across HMR reloads using window object
@@ -175,9 +174,6 @@ export function connect(): void {
     const dataLen = event.data?.length || 0;
     console.log(`[WS RAW] #${seq} received ${dataLen} bytes`);
 
-    // Capture for global debugger FIRST before any processing
-    wsDebugger.captureIncoming(event.data);
-
     try {
       const message = JSON.parse(event.data) as ServerMessage;
 
@@ -229,6 +225,15 @@ function handleServerMessage(message: ServerMessage): void {
   switch (message.type) {
     case 'agents_update': {
       const agentList = message.payload as Agent[];
+      // Debug: log boss agents with their subordinateIds
+      const bossAgents = agentList.filter(a => a.class === 'boss' || a.isBoss);
+      if (bossAgents.length > 0) {
+        console.log('[WS agents_update] Boss agents received:', bossAgents.map(b => ({
+          id: b.id,
+          name: b.name,
+          subordinateIds: b.subordinateIds,
+        })));
+      }
       store.setAgents(agentList);
       onAgentsSync?.(agentList);
       // Load tool history after agents are synced
@@ -707,7 +712,6 @@ export function sendMessage(message: ClientMessage): void {
 
   try {
     const messageStr = JSON.stringify(message);
-    wsDebugger.captureOutgoing(messageStr);
 
     // Capture for agent-specific debugger if message has agentId
     const isDebuggerEnabled = agentDebugger.isEnabled();

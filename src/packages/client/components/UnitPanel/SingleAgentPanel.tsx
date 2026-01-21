@@ -600,7 +600,23 @@ const BossAgentSection = memo(function BossAgentSection({ agent }: BossAgentSect
   const [showSubordinates, setShowSubordinates] = useState(true);
   const [showDelegationHistory, setShowDelegationHistory] = useState(true);
 
-  const subordinates = store.getSubordinates(agent.id);
+  // Get subordinates reactively from the agent's subordinateIds
+  // This ensures re-render when subordinateIds change via WebSocket
+  const subordinates = useMemo(() => {
+    const boss = state.agents.get(agent.id);
+    console.log('[BossAgentSection] Computing subordinates:', {
+      agentId: agent.id,
+      bossFound: !!boss,
+      bossClass: boss?.class,
+      subordinateIds: boss?.subordinateIds,
+      agentsMapSize: state.agents.size,
+    });
+    if (!boss || boss.class !== 'boss' || !boss.subordinateIds) return [];
+    return boss.subordinateIds
+      .map((id) => state.agents.get(id))
+      .filter((a): a is Agent => a !== undefined);
+  }, [state.agents, agent.id]);
+
   const delegationHistory = store.getDelegationHistory(agent.id);
   const pendingDelegation = state.pendingDelegation;
   const isPendingForThisBoss = pendingDelegation?.bossId === agent.id;

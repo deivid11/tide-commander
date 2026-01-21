@@ -71,7 +71,7 @@ export class Battlefield {
     this.createGround();
     this.grass = createGrass(this.scene);
     this.createGrid();
-    this.createLogo();
+    // this.createLogo(); // Logo commented out
 
     // Create celestial bodies
     this.sun = createSun();
@@ -432,8 +432,8 @@ export class Battlefield {
 
   private createFog(): void {
     // Fog will be configured by time of day
-    this.scene.fog = new THREE.FogExp2(0x101020, 0.01);
-    this.scene.background = new THREE.Color(0x101020);
+    this.scene.fog = new THREE.FogExp2(0x0a1a2a, 0.01);
+    this.scene.background = new THREE.Color(0x0a1a2a); // Dark blue
   }
 
   private createLighting(): void {

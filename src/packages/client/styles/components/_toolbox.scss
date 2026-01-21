@@ -101,23 +101,22 @@
 
 .tool-buttons {
   display: flex;
-  gap: 6px;
+  gap: 4px;
+  margin-bottom: 8px;
 }
 
 .tool-btn {
   flex: 1;
-  padding: 8px;
+  padding: 6px;
   background: $bg-tertiary;
-  border: 2px solid $border-color;
-  border-radius: $radius-md;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
   color: $text-primary;
-  font-size: 16px;
   cursor: pointer;
   transition: all $transition-fast;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
 
   &:hover {
     border-color: $text-secondary;
@@ -130,8 +129,7 @@
 }
 
 .tool-btn-label {
-  font-size: 10px;
-  color: $text-secondary;
+  display: none;
 }
 
 // Areas list
@@ -389,29 +387,36 @@
 
 // Config section
 .config-section {
-  padding: 8px 10px;
+  padding: 4px 8px;
   border-top: 1px solid $border-color;
-
-  .toolbox-section-header {
-    font-size: 10px;
-    margin-bottom: 6px;
-  }
 }
 
 .config-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: 4px;
+  gap: 8px;
+}
+
+.config-group {
   margin-bottom: 6px;
+
+  .config-label {
+    display: block;
+    margin-bottom: 4px;
+  }
 }
 
 .config-label {
-  font-size: 11px;
+  font-size: 10px;
   color: $text-secondary;
+  flex-shrink: 0;
 }
 
 .config-slider {
-  width: 70px;
+  flex: 1;
+  max-width: 80px;
   height: 3px;
   -webkit-appearance: none;
   background: $border-color;
@@ -420,8 +425,8 @@
 
   &::-webkit-slider-thumb {
     -webkit-appearance: none;
-    width: 12px;
-    height: 12px;
+    width: 10px;
+    height: 10px;
     border-radius: 50%;
     background: $accent-blue;
     cursor: pointer;
@@ -429,16 +434,17 @@
 }
 
 .config-value {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 500;
-  min-width: 32px;
+  min-width: 24px;
   text-align: right;
+  color: $text-secondary;
 }
 
 .config-input {
-  width: 70px;
-  padding: 4px 8px;
-  font-size: 12px;
+  width: 60px;
+  padding: 3px 6px;
+  font-size: 11px;
   font-family: $font-mono;
   background: $bg-primary;
   border: 1px solid $border-color;
@@ -449,71 +455,144 @@
     outline: none;
     border-color: $dracula-purple;
   }
+
+  &.config-input-sm {
+    width: 50px;
+  }
 }
 
-// Time picker (vertical scroll wheel style)
-.time-picker {
+// Collapsible sections
+.collapsible-section {
+  border-bottom: 1px solid rgba($border-color, 0.5);
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.collapsible-header {
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
   align-items: center;
-  background: $bg-tertiary;
-  border: 1px solid $border-color;
-  border-radius: $radius-sm;
-  padding: 2px;
-  user-select: none;
-}
-
-.time-picker-arrow {
+  width: 100%;
+  padding: 6px 4px;
   background: none;
   border: none;
   color: $text-secondary;
   cursor: pointer;
-  padding: 2px 12px;
-  font-size: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
   transition: color $transition-fast;
 
   &:hover {
-    color: $accent-blue;
+    color: $text-primary;
   }
 }
 
-.time-picker-items {
+.collapsible-header-right {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 1px;
+  gap: 6px;
 }
 
-.time-picker-item {
+.collapsible-arrow {
+  font-size: 8px;
+  opacity: 0.6;
+}
+
+// Collapsible section inside toolbox-section
+.toolbox-section-collapsible {
+  padding: 0 8px;
+
+  .collapsible-header {
+    padding: 8px 4px;
+  }
+
+  .collapsible-content {
+    padding: 0 0 8px;
+  }
+
+  .areas-list,
+  .buildings-list {
+    padding: 0;
+  }
+}
+
+.collapsible-content {
+  padding: 4px 0 8px;
+}
+
+// Compact chip selector
+.chip-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 6px;
+  background: $bg-tertiary;
+  border: 1px solid transparent;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  transition: all $transition-fast;
+  font-size: 11px;
+
+  &:hover {
+    border-color: $border-color;
+  }
+
+  &.active {
+    background: rgba($accent-blue, 0.2);
+    border-color: rgba($accent-blue, 0.4);
+  }
+}
+
+.chip-icon {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.chip-label {
+  font-size: 10px;
+  color: $text-primary;
+}
+
+// Terrain icon buttons
+.terrain-icons {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.terrain-icon-btn {
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 3px 10px;
+  background: $bg-tertiary;
+  border: 1px solid transparent;
   border-radius: $radius-sm;
+  cursor: pointer;
+  font-size: 14px;
+  opacity: 0.4;
   transition: all $transition-fast;
 
-  &.faded {
-    font-size: 12px;
-    opacity: 0.3;
-    transform: scale(0.85);
+  &:hover {
+    opacity: 0.7;
+    border-color: $border-color;
   }
 
-  &.current {
+  &.active {
+    opacity: 1;
     background: rgba($accent-blue, 0.15);
-    border: 1px solid rgba($accent-blue, 0.3);
+    border-color: rgba($accent-blue, 0.3);
   }
-}
-
-.time-picker-icon {
-  font-size: 14px;
-}
-
-.time-picker-label {
-  font-size: 11px;
-  font-weight: 500;
-  color: $text-primary;
-  min-width: 45px;
 }
 
 .areas-empty {
@@ -523,38 +602,9 @@
   font-size: 12px;
 }
 
-// Terrain toggles
+// Legacy terrain toggles (kept for compatibility, hidden by default)
 .terrain-toggles {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4px;
-}
-
-.terrain-toggle {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 6px;
-  background: $bg-tertiary;
-  border-radius: $radius-sm;
-  cursor: pointer;
-  font-size: 11px;
-  transition: background $transition-fast;
-
-  &:hover {
-    background: rgba(255, 255, 255, 0.08);
-  }
-
-  input[type="checkbox"] {
-    margin: 0;
-    cursor: pointer;
-    width: 12px;
-    height: 12px;
-  }
-
-  span {
-    user-select: none;
-  }
+  display: none;
 }
 
 // Buildings section

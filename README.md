@@ -1,12 +1,36 @@
 # 🌊 Tide Commander
 
-RTS/MOBA-style Claude Code agents commander. Deploy, position, and command multiple Claude Code instances on a strategic battlefield.
+A game-like Claude Code orchestrator. Deploy, position, and command multiple Claude Code instances on a strategic battlefield inspired by RTS games like Warcraft.
 
 ## 💡 Why Tide Commander?
 
-Working on large projects often requires juggling multiple tasks simultaneously - exploring the codebase, implementing features, fixing bugs, and writing tests. Tide Commander lets you spin up multiple Claude Code agents, each focused on a specific task or area of your project, and manage them all from a single visual interface.
+Tired of working with tons of terminals with Claude Code open at the same time? Tide Commander transforms your AI-powered development workflow into a real-time strategy interface.
 
-Think of it like having a team of AI developers at your command. 🤖 Assign one agent to investigate a bug while another implements a feature. Watch them work in real-time, send follow-up commands, and keep your project moving forward on multiple fronts.
+This project is not meant to be a game. It looks like a game but internally has many tools for developers, so using an IDE, at least for me, is almost unnecessary. The same interface has file diff viewers on the Claude Code conversation, and a file explorer with differences of uncommitted changes.
+
+Think of it like having a team of AI developers at your command. Assign one agent to investigate a bug while another implements a feature. Watch them work in real-time, send follow-up commands, and keep your project moving forward on multiple fronts.
+
+## 🎖️ Agent Concepts
+
+Tide Commander introduces several powerful concepts for orchestrating your AI agents:
+
+### Boss
+The boss agent has context of other agents assigned to him. The boss can delegate tasks. Imagine you have a single boss to talk with, and the boss decides which of the subordinate agents is the most capable of doing the requested task. This saves a lot of time, without having to know which Claude Code terminal has which context. The boss can also give you a summary of the progress of their workers.
+
+### Supervisor
+Like god, the supervisor sees everything on the field, knows when an agent finished, and generates a summary of their last task, appending it to a global, centralized panel.
+
+### Group Areas
+Help to organize agents in projects and find them quickly. Areas can have assigned folders, enabling the file explorer on those added folders.
+
+### Buildings (WIP)
+The idea is to have a model on the field with customized functionality, like defining a server and being able to restart it from the battlefield.
+
+### Classes
+Like COD or Minecraft classes, you assign a class to the agent character. It has a linked model, a definition of instructions (like a claude.md), and a definition of skills (you can also create skills on the same interface).
+
+### Commander View
+A view where you can see all the Claude Code agent terminals on a single view, grouped by areas.
 
 ## ✨ Features
 
@@ -15,6 +39,14 @@ Think of it like having a team of AI developers at your command. 🤖 Assign one
 - 📡 **Real-time Activity Feed** - Watch your agents work in real-time
 - 🤹 **Multi-Agent Management** - Spawn and control multiple Claude Code instances
 - 💾 **Session Persistence** - Agents resume their Claude Code sessions across restarts
+- 📊 **Context Tracking** - Mana bar visualization showing agent context usage
+- 📁 **File Change Tracking** - See which files each agent has modified
+- 📋 **Large Text & Screenshot Paste** - Compact and send large content easily
+- ⌨️ **Custom Hotkeys** - Configurable keyboard shortcuts
+- 🔐 **Permission Control** - Permissionless or permission-enabled per agent
+- 🎬 **Custom Animations** - Customizable idle and working animations
+- 🌐 **Multiplayer** - WebSocket-based multi-user support
+- 📱 **Mobile Compatible** - Works on mobile devices
 
 ## 📋 Prerequisites
 

@@ -61,7 +61,7 @@ export class SceneManager {
 
     // Initialize Three.js core
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x0a0a12);
+    this.scene.background = new THREE.Color(0x0a1a2a); // Dark blue
 
     this.camera = this.createCamera();
     this.renderer = this.createRenderer();

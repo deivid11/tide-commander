@@ -100,71 +100,69 @@ export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose,
 
         {/* Scrollable content area */}
         <div className="toolbox-content">
-          {/* Drawing Tools */}
-          <div className="toolbox-section">
-            <div className="toolbox-section-header">Drawing Tools</div>
-            <div className="tool-buttons">
-              <button
-                className={`tool-btn ${state.activeTool === 'select' ? 'active' : ''}`}
-                onClick={() => handleToolSelect('select')}
-                title="Select"
-              >
-                <span>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z" />
-                  </svg>
-                </span>
-                <span className="tool-btn-label">Select</span>
-              </button>
-              <button
-                className={`tool-btn ${state.activeTool === 'rectangle' ? 'active' : ''}`}
-                onClick={() => handleToolSelect('rectangle')}
-                title="Rectangle"
-              >
-                <span>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <rect x="3" y="3" width="18" height="18" rx="2" />
-                  </svg>
-                </span>
-                <span className="tool-btn-label">Rect</span>
-              </button>
-              <button
-                className={`tool-btn ${state.activeTool === 'circle' ? 'active' : ''}`}
-                onClick={() => handleToolSelect('circle')}
-                title="Circle"
-              >
-                <span>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="12" cy="12" r="9" />
-                  </svg>
-                </span>
-                <span className="tool-btn-label">Circle</span>
-              </button>
-            </div>
-          </div>
+          {/* Areas Section (includes Drawing Tools) */}
+          <div className="toolbox-section toolbox-section-collapsible">
+            <CollapsibleSection
+              title={`Areas (${areasArray.length})`}
+              storageKey="areas"
+              defaultOpen={true}
+            >
+              {/* Drawing Tools */}
+              <div className="tool-buttons">
+                <button
+                  className={`tool-btn ${state.activeTool === 'select' ? 'active' : ''}`}
+                  onClick={() => handleToolSelect('select')}
+                  title="Select"
+                >
+                  <span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z" />
+                    </svg>
+                  </span>
+                </button>
+                <button
+                  className={`tool-btn ${state.activeTool === 'rectangle' ? 'active' : ''}`}
+                  onClick={() => handleToolSelect('rectangle')}
+                  title="Rectangle"
+                >
+                  <span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="3" y="3" width="18" height="18" rx="2" />
+                    </svg>
+                  </span>
+                </button>
+                <button
+                  className={`tool-btn ${state.activeTool === 'circle' ? 'active' : ''}`}
+                  onClick={() => handleToolSelect('circle')}
+                  title="Circle"
+                >
+                  <span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="9" />
+                    </svg>
+                  </span>
+                </button>
+              </div>
 
-          {/* Areas List */}
-          <div className="toolbox-section" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0 }}>
-            <div className="toolbox-section-header" style={{ padding: '12px 12px 10px' }}>
-              Areas ({areasArray.length})
-            </div>
-            <div className="areas-list">
-              {areasArray.length === 0 ? (
-                <div className="areas-empty">
-                  Draw on the battlefield to create areas
-                </div>
-              ) : (
-                areasArray.map((area) => (
-                  <AreaItem
-                    key={area.id}
-                    area={area}
-                    isSelected={state.selectedAreaId === area.id}
-                    onClick={() => handleAreaClick(area.id)}
-                    onDelete={(e) => handleDeleteArea(e, area.id)}
-                  />
-                ))
-              )}
-            </div>
+              {/* Areas List */}
+              <div className="areas-list">
+                {areasArray.length === 0 ? (
+                  <div className="areas-empty">
+                    Draw on the battlefield to create areas
+                  </div>
+                ) : (
+                  areasArray.map((area) => (
+                    <AreaItem
+                      key={area.id}
+                      area={area}
+                      isSelected={state.selectedAreaId === area.id}
+                      onClick={() => handleAreaClick(area.id)}
+                      onDelete={(e) => handleDeleteArea(e, area.id)}
+                    />
+                  ))
+                )}
+              </div>
+            </CollapsibleSection>
           </div>
 
           {/* Area Editor */}
@@ -176,38 +174,46 @@ export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose,
           )}
 
           {/* Buildings Section */}
-          <div className="toolbox-section buildings-section">
-            <div className="toolbox-section-header">
-              Buildings ({buildingsArray.length})
-              <button
-                className="add-building-btn"
-                onClick={() => onOpenBuildingModal?.()}
-                title="Add Building"
-              >
-                +
-              </button>
-            </div>
-            <div className="buildings-list">
-              {buildingsArray.length === 0 ? (
-                <div className="buildings-empty">
-                  Click + to add a building
-                </div>
-              ) : (
-                buildingsArray.map((building) => (
-                  <BuildingItem
-                    key={building.id}
-                    building={building}
-                    isSelected={state.selectedBuildingIds.has(building.id)}
-                    onClick={() => {
-                      store.selectBuilding(
-                        state.selectedBuildingIds.has(building.id) ? null : building.id
-                      );
-                    }}
-                    onEdit={() => onOpenBuildingModal?.(building.id)}
-                  />
-                ))
-              )}
-            </div>
+          <div className="toolbox-section toolbox-section-collapsible">
+            <CollapsibleSection
+              title={`Buildings (${buildingsArray.length})`}
+              storageKey="buildings"
+              defaultOpen={true}
+              headerExtra={
+                <button
+                  className="add-building-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenBuildingModal?.();
+                  }}
+                  title="Add Building"
+                >
+                  +
+                </button>
+              }
+            >
+              <div className="buildings-list">
+                {buildingsArray.length === 0 ? (
+                  <div className="buildings-empty">
+                    Click + to add a building
+                  </div>
+                ) : (
+                  buildingsArray.map((building) => (
+                    <BuildingItem
+                      key={building.id}
+                      building={building}
+                      isSelected={state.selectedBuildingIds.has(building.id)}
+                      onClick={() => {
+                        store.selectBuilding(
+                          state.selectedBuildingIds.has(building.id) ? null : building.id
+                        );
+                      }}
+                      onEdit={() => onOpenBuildingModal?.(building.id)}
+                    />
+                  ))
+                )}
+              </div>
+            </CollapsibleSection>
           </div>
 
           {/* Building Editor - show for single selection */}
@@ -593,7 +599,7 @@ const FLOOR_STYLE_OPTIONS: { value: FloorStyle; label: string; icon: string }[] 
   { value: 'concrete', label: 'Concrete', icon: '🏗️' },
   { value: 'galactic', label: 'Galactic', icon: '🌌' },
   { value: 'metal', label: 'Metal', icon: '⚙️' },
-  { value: 'hex', label: 'Hexagon', icon: '⬡' },
+  { value: 'hex', label: 'Hex', icon: '⬡' },
   { value: 'circuit', label: 'Circuit', icon: '🔌' },
 ];
 
@@ -611,128 +617,104 @@ const ANIMATION_OPTIONS: { value: AnimationType; label: string; icon: string }[]
   { value: 'emote-no', label: 'No', icon: '👎' },
 ];
 
-function TimeModePicker({ value, onChange }: { value: TimeMode; onChange: (mode: TimeMode) => void }) {
-  const currentIndex = TIME_MODE_OPTIONS.findIndex(opt => opt.value === value);
+// Terrain toggle options for icon-only display
+const TERRAIN_OPTIONS: { key: keyof TerrainConfig; icon: string; label: string }[] = [
+  { key: 'showTrees', icon: '🌳', label: 'Trees' },
+  { key: 'showBushes', icon: '🌿', label: 'Bushes' },
+  { key: 'showHouse', icon: '🏠', label: 'House' },
+  { key: 'showLamps', icon: '💡', label: 'Lamps' },
+  { key: 'showGrass', icon: '🟩', label: 'Grass' },
+];
 
-  const handlePrev = () => {
-    const newIndex = currentIndex > 0 ? currentIndex - 1 : TIME_MODE_OPTIONS.length - 1;
-    onChange(TIME_MODE_OPTIONS[newIndex].value);
-  };
-
-  const handleNext = () => {
-    const newIndex = currentIndex < TIME_MODE_OPTIONS.length - 1 ? currentIndex + 1 : 0;
-    onChange(TIME_MODE_OPTIONS[newIndex].value);
-  };
-
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    if (e.deltaY > 0) {
-      handleNext();
-    } else {
-      handlePrev();
-    }
-  };
-
-  const current = TIME_MODE_OPTIONS[currentIndex];
-  const prev = TIME_MODE_OPTIONS[currentIndex > 0 ? currentIndex - 1 : TIME_MODE_OPTIONS.length - 1];
-  const next = TIME_MODE_OPTIONS[currentIndex < TIME_MODE_OPTIONS.length - 1 ? currentIndex + 1 : 0];
-
+// Compact chip selector for options
+function ChipSelector<T extends string>({
+  options,
+  value,
+  onChange,
+  iconOnly = false,
+}: {
+  options: { value: T; label: string; icon: string }[];
+  value: T;
+  onChange: (value: T) => void;
+  iconOnly?: boolean;
+}) {
   return (
-    <div className="time-picker" onWheel={handleWheel}>
-      <button className="time-picker-arrow up" onClick={handlePrev}>▲</button>
-      <div className="time-picker-items">
-        <div className="time-picker-item faded">{prev.icon}</div>
-        <div className="time-picker-item current">
-          <span className="time-picker-icon">{current.icon}</span>
-          <span className="time-picker-label">{current.label}</span>
-        </div>
-        <div className="time-picker-item faded">{next.icon}</div>
-      </div>
-      <button className="time-picker-arrow down" onClick={handleNext}>▼</button>
+    <div className="chip-selector">
+      {options.map((opt) => (
+        <button
+          key={opt.value}
+          className={`chip ${value === opt.value ? 'active' : ''}`}
+          onClick={() => onChange(opt.value)}
+          title={opt.label}
+        >
+          <span className="chip-icon">{opt.icon}</span>
+          {!iconOnly && <span className="chip-label">{opt.label}</span>}
+        </button>
+      ))}
     </div>
   );
 }
 
-function FloorStylePicker({ value, onChange }: { value: FloorStyle; onChange: (style: FloorStyle) => void }) {
-  const currentIndex = FLOOR_STYLE_OPTIONS.findIndex(opt => opt.value === value);
+// Storage key prefix for collapsible sections
+const TOOLBOX_COLLAPSE_KEY = 'tide-toolbox-collapse';
 
-  const handlePrev = () => {
-    const newIndex = currentIndex > 0 ? currentIndex - 1 : FLOOR_STYLE_OPTIONS.length - 1;
-    onChange(FLOOR_STYLE_OPTIONS[newIndex].value);
-  };
-
-  const handleNext = () => {
-    const newIndex = currentIndex < FLOOR_STYLE_OPTIONS.length - 1 ? currentIndex + 1 : 0;
-    onChange(FLOOR_STYLE_OPTIONS[newIndex].value);
-  };
-
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    if (e.deltaY > 0) {
-      handleNext();
-    } else {
-      handlePrev();
+// Helper to get/set collapse state from localStorage
+function getCollapseState(key: string, defaultValue: boolean): boolean {
+  try {
+    const stored = localStorage.getItem(`${TOOLBOX_COLLAPSE_KEY}-${key}`);
+    if (stored !== null) {
+      return stored === 'true';
     }
-  };
-
-  const current = FLOOR_STYLE_OPTIONS[currentIndex];
-  const prev = FLOOR_STYLE_OPTIONS[currentIndex > 0 ? currentIndex - 1 : FLOOR_STYLE_OPTIONS.length - 1];
-  const next = FLOOR_STYLE_OPTIONS[currentIndex < FLOOR_STYLE_OPTIONS.length - 1 ? currentIndex + 1 : 0];
-
-  return (
-    <div className="time-picker" onWheel={handleWheel}>
-      <button className="time-picker-arrow up" onClick={handlePrev}>▲</button>
-      <div className="time-picker-items">
-        <div className="time-picker-item faded">{prev.icon}</div>
-        <div className="time-picker-item current">
-          <span className="time-picker-icon">{current.icon}</span>
-          <span className="time-picker-label">{current.label}</span>
-        </div>
-        <div className="time-picker-item faded">{next.icon}</div>
-      </div>
-      <button className="time-picker-arrow down" onClick={handleNext}>▼</button>
-    </div>
-  );
+  } catch {
+    // localStorage not available
+  }
+  return defaultValue;
 }
 
-function AnimationPicker({ value, onChange }: { value: AnimationType; onChange: (anim: AnimationType) => void }) {
-  const currentIndex = ANIMATION_OPTIONS.findIndex(opt => opt.value === value);
+function setCollapseState(key: string, isOpen: boolean): void {
+  try {
+    localStorage.setItem(`${TOOLBOX_COLLAPSE_KEY}-${key}`, String(isOpen));
+  } catch {
+    // localStorage not available
+  }
+}
 
-  const handlePrev = () => {
-    const newIndex = currentIndex > 0 ? currentIndex - 1 : ANIMATION_OPTIONS.length - 1;
-    onChange(ANIMATION_OPTIONS[newIndex].value);
-  };
+// Collapsible section component with localStorage persistence
+function CollapsibleSection({
+  title,
+  storageKey,
+  defaultOpen = true,
+  children,
+  headerExtra,
+}: {
+  title: string;
+  storageKey?: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+  headerExtra?: React.ReactNode;
+}) {
+  const [isOpen, setIsOpen] = useState(() =>
+    storageKey ? getCollapseState(storageKey, defaultOpen) : defaultOpen
+  );
 
-  const handleNext = () => {
-    const newIndex = currentIndex < ANIMATION_OPTIONS.length - 1 ? currentIndex + 1 : 0;
-    onChange(ANIMATION_OPTIONS[newIndex].value);
-  };
-
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    if (e.deltaY > 0) {
-      handleNext();
-    } else {
-      handlePrev();
+  const handleToggle = () => {
+    const newState = !isOpen;
+    setIsOpen(newState);
+    if (storageKey) {
+      setCollapseState(storageKey, newState);
     }
   };
 
-  const current = ANIMATION_OPTIONS[currentIndex];
-  const prev = ANIMATION_OPTIONS[currentIndex > 0 ? currentIndex - 1 : ANIMATION_OPTIONS.length - 1];
-  const next = ANIMATION_OPTIONS[currentIndex < ANIMATION_OPTIONS.length - 1 ? currentIndex + 1 : 0];
-
   return (
-    <div className="time-picker" onWheel={handleWheel}>
-      <button className="time-picker-arrow up" onClick={handlePrev}>▲</button>
-      <div className="time-picker-items">
-        <div className="time-picker-item faded">{prev.icon}</div>
-        <div className="time-picker-item current">
-          <span className="time-picker-icon">{current.icon}</span>
-          <span className="time-picker-label">{current.label}</span>
-        </div>
-        <div className="time-picker-item faded">{next.icon}</div>
-      </div>
-      <button className="time-picker-arrow down" onClick={handleNext}>▼</button>
+    <div className={`collapsible-section ${isOpen ? 'open' : 'collapsed'}`}>
+      <button className="collapsible-header" onClick={handleToggle}>
+        <span className="collapsible-title">{title}</span>
+        <span className="collapsible-header-right">
+          {headerExtra}
+          <span className="collapsible-arrow">{isOpen ? '▼' : '▶'}</span>
+        </span>
+      </button>
+      {isOpen && <div className="collapsible-content">{children}</div>}
     </div>
   );
 }
@@ -754,169 +736,168 @@ function ConfigSection({ config, onChange }: ConfigSectionProps) {
     store.updateSettings({ historyLimit: value });
   };
 
+  const toggleTerrain = (key: keyof TerrainConfig) => {
+    const currentValue = config.terrain[key];
+    if (typeof currentValue === 'boolean') {
+      updateTerrain({ [key]: !currentValue });
+    }
+  };
+
   return (
     <div className="config-section">
-      <div className="toolbox-section-header">Settings</div>
+      {/* General Settings */}
+      <CollapsibleSection title="General" storageKey="general" defaultOpen={true}>
+        <div className="config-row">
+          <span className="config-label">History</span>
+          <input
+            type="number"
+            className="config-input config-input-sm"
+            value={historyLimit}
+            onChange={(e) => handleHistoryLimitChange(parseInt(e.target.value) || 100)}
+            min={50}
+            max={2000}
+            step={50}
+          />
+        </div>
+        <div className="config-row">
+          <span className="config-label">Hide Costs</span>
+          <input
+            type="checkbox"
+            checked={state.settings.hideCost}
+            onChange={(e) => store.updateSettings({ hideCost: e.target.checked })}
+          />
+        </div>
+        <div className="config-row">
+          <span className="config-label">Grid</span>
+          <input
+            type="checkbox"
+            checked={config.gridVisible}
+            onChange={(e) => onChange({ ...config, gridVisible: e.target.checked })}
+          />
+        </div>
+        <div className="config-row">
+          <span className="config-label">Show FPS</span>
+          <input
+            type="checkbox"
+            checked={state.settings.showFPS}
+            onChange={(e) => store.updateSettings({ showFPS: e.target.checked })}
+          />
+        </div>
+        <div className="config-row">
+          <span className="config-label">FPS Limit</span>
+          <input
+            type="range"
+            className="config-slider"
+            min="0"
+            max="120"
+            step="10"
+            value={config.fpsLimit}
+            onChange={(e) => onChange({ ...config, fpsLimit: parseInt(e.target.value) })}
+          />
+          <span className="config-value">{config.fpsLimit === 0 ? '∞' : config.fpsLimit}</span>
+        </div>
+      </CollapsibleSection>
 
-      {/* History Limit */}
-      <div className="config-row">
-        <span className="config-label">History Limit</span>
-        <input
-          type="number"
-          className="config-input"
-          value={historyLimit}
-          onChange={(e) => handleHistoryLimitChange(parseInt(e.target.value) || 100)}
-          min={50}
-          max={2000}
-          step={50}
-        />
-        <span className="config-value">msgs</span>
-      </div>
-      <div className="config-row">
-        <span className="config-label">Hide Costs</span>
-        <input
-          type="checkbox"
-          checked={state.settings.hideCost}
-          onChange={(e) => store.updateSettings({ hideCost: e.target.checked })}
-        />
-      </div>
-      <div className="config-row">
-        <span className="config-label">Character Size</span>
-        <input
-          type="range"
-          className="config-slider"
-          min="0.3"
-          max="3.0"
-          step="0.1"
-          value={config.characterScale}
-          onChange={(e) => onChange({ ...config, characterScale: parseFloat(e.target.value) })}
-        />
-        <span className="config-value">{config.characterScale.toFixed(1)}x</span>
-      </div>
-      <div className="config-row">
-        <span className="config-label">Indicator Size</span>
-        <input
-          type="range"
-          className="config-slider"
-          min="0.3"
-          max="2.0"
-          step="0.1"
-          value={config.indicatorScale}
-          onChange={(e) => onChange({ ...config, indicatorScale: parseFloat(e.target.value) })}
-        />
-        <span className="config-value">{config.indicatorScale.toFixed(1)}x</span>
-      </div>
-      <div className="config-row">
-        <span className="config-label">Show Grid</span>
-        <input
-          type="checkbox"
-          checked={config.gridVisible}
-          onChange={(e) => onChange({ ...config, gridVisible: e.target.checked })}
-        />
-      </div>
-      <div className="config-row">
-        <span className="config-label">FPS Limit</span>
-        <input
-          type="range"
-          className="config-slider"
-          min="0"
-          max="120"
-          step="10"
-          value={config.fpsLimit}
-          onChange={(e) => onChange({ ...config, fpsLimit: parseInt(e.target.value) })}
-        />
-        <span className="config-value">{config.fpsLimit === 0 ? '∞' : config.fpsLimit}</span>
-      </div>
-      <div className="config-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4 }}>
-        <span className="config-label">Time of Day</span>
-        <TimeModePicker
-          value={config.timeMode}
-          onChange={(mode) => onChange({ ...config, timeMode: mode })}
-        />
-      </div>
+      {/* Scene Settings */}
+      <CollapsibleSection title="Scene" storageKey="scene" defaultOpen={false}>
+        <div className="config-row">
+          <span className="config-label">Char Size</span>
+          <input
+            type="range"
+            className="config-slider"
+            min="0.3"
+            max="3.0"
+            step="0.1"
+            value={config.characterScale}
+            onChange={(e) => onChange({ ...config, characterScale: parseFloat(e.target.value) })}
+          />
+          <span className="config-value">{config.characterScale.toFixed(1)}x</span>
+        </div>
+        <div className="config-row">
+          <span className="config-label">Indicator</span>
+          <input
+            type="range"
+            className="config-slider"
+            min="0.3"
+            max="2.0"
+            step="0.1"
+            value={config.indicatorScale}
+            onChange={(e) => onChange({ ...config, indicatorScale: parseFloat(e.target.value) })}
+          />
+          <span className="config-value">{config.indicatorScale.toFixed(1)}x</span>
+        </div>
+        <div className="config-group">
+          <span className="config-label">Time</span>
+          <ChipSelector
+            options={TIME_MODE_OPTIONS}
+            value={config.timeMode}
+            onChange={(mode) => onChange({ ...config, timeMode: mode })}
+            iconOnly
+          />
+        </div>
+      </CollapsibleSection>
 
-      <div className="toolbox-section-header" style={{ marginTop: 10 }}>Terrain</div>
-      <div className="terrain-toggles">
-        <label className="terrain-toggle">
+      {/* Terrain Settings */}
+      <CollapsibleSection title="Terrain" storageKey="terrain" defaultOpen={false}>
+        <div className="terrain-icons">
+          {TERRAIN_OPTIONS.map((opt) => (
+            <button
+              key={opt.key}
+              className={`terrain-icon-btn ${config.terrain[opt.key] ? 'active' : ''}`}
+              onClick={() => toggleTerrain(opt.key)}
+              title={opt.label}
+            >
+              {opt.icon}
+            </button>
+          ))}
+        </div>
+        <div className="config-row">
+          <span className="config-label">Fog</span>
           <input
-            type="checkbox"
-            checked={config.terrain.showTrees}
-            onChange={(e) => updateTerrain({ showTrees: e.target.checked })}
+            type="range"
+            className="config-slider"
+            min="0"
+            max="2"
+            step="0.1"
+            value={config.terrain.fogDensity}
+            onChange={(e) => updateTerrain({ fogDensity: parseFloat(e.target.value) })}
           />
-          <span>🌳 Trees</span>
-        </label>
-        <label className="terrain-toggle">
-          <input
-            type="checkbox"
-            checked={config.terrain.showBushes}
-            onChange={(e) => updateTerrain({ showBushes: e.target.checked })}
+          <span className="config-value">
+            {config.terrain.fogDensity === 0 ? 'Off' : config.terrain.fogDensity <= 1 ? 'Low' : 'Hi'}
+          </span>
+        </div>
+        <div className="config-group">
+          <span className="config-label">Floor</span>
+          <ChipSelector
+            options={FLOOR_STYLE_OPTIONS}
+            value={config.terrain.floorStyle}
+            onChange={(style) => updateTerrain({ floorStyle: style })}
+            iconOnly
           />
-          <span>🌿 Bushes</span>
-        </label>
-        <label className="terrain-toggle">
-          <input
-            type="checkbox"
-            checked={config.terrain.showHouse}
-            onChange={(e) => updateTerrain({ showHouse: e.target.checked })}
-          />
-          <span>🏠 House</span>
-        </label>
-        <label className="terrain-toggle">
-          <input
-            type="checkbox"
-            checked={config.terrain.showLamps}
-            onChange={(e) => updateTerrain({ showLamps: e.target.checked })}
-          />
-          <span>💡 Lamps</span>
-        </label>
-        <label className="terrain-toggle">
-          <input
-            type="checkbox"
-            checked={config.terrain.showGrass}
-            onChange={(e) => updateTerrain({ showGrass: e.target.checked })}
-          />
-          <span>🟩 Grass</span>
-        </label>
-      </div>
-      <div className="config-row" style={{ marginTop: 6 }}>
-        <span className="config-label">Fog</span>
-        <input
-          type="range"
-          className="config-slider"
-          min="0"
-          max="2"
-          step="0.1"
-          value={config.terrain.fogDensity}
-          onChange={(e) => updateTerrain({ fogDensity: parseFloat(e.target.value) })}
-        />
-        <span className="config-value">
-          {config.terrain.fogDensity === 0 ? 'Off' : config.terrain.fogDensity <= 1 ? 'Light' : 'Heavy'}
-        </span>
-      </div>
+        </div>
+      </CollapsibleSection>
 
-      <div className="config-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4, marginTop: 8 }}>
-        <span className="config-label">Floor Style</span>
-        <FloorStylePicker
-          value={config.terrain.floorStyle}
-          onChange={(style) => updateTerrain({ floorStyle: style })}
-        />
-      </div>
-
-      <div className="toolbox-section-header" style={{ marginTop: 10 }}>Animations</div>
-      <div className="config-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4 }}>
-        <span className="config-label">Idle Status</span>
-        <AnimationPicker
-          value={config.animations.idleAnimation}
-          onChange={(anim) => updateAnimations({ idleAnimation: anim })}
-        />
-      </div>
-      <div className="config-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4, marginTop: 8 }}>
-        <span className="config-label">Working Status</span>
-        <AnimationPicker
-          value={config.animations.workingAnimation}
-          onChange={(anim) => updateAnimations({ workingAnimation: anim })}
-        />
-      </div>
+      {/* Animations Settings */}
+      <CollapsibleSection title="Animations" storageKey="animations" defaultOpen={false}>
+        <div className="config-group">
+          <span className="config-label">Idle</span>
+          <ChipSelector
+            options={ANIMATION_OPTIONS}
+            value={config.animations.idleAnimation}
+            onChange={(anim) => updateAnimations({ idleAnimation: anim })}
+            iconOnly
+          />
+        </div>
+        <div className="config-group">
+          <span className="config-label">Working</span>
+          <ChipSelector
+            options={ANIMATION_OPTIONS}
+            value={config.animations.workingAnimation}
+            onChange={(anim) => updateAnimations({ workingAnimation: anim })}
+            iconOnly
+          />
+        </div>
+      </CollapsibleSection>
     </div>
   );
 }

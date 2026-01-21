@@ -80,6 +80,10 @@ export function createAgentActions(
       const newAgents = new Map<string, Agent>();
       for (const agent of agentList) {
         newAgents.set(agent.id, agent);
+        // Debug: log boss agents with subordinates
+        if (agent.class === 'boss' || agent.isBoss) {
+          console.log('[Store.setAgents] Boss agent:', agent.name, 'subordinateIds:', agent.subordinateIds);
+        }
       }
 
       // Find a working agent to auto-select (helps with page refresh during streaming)
