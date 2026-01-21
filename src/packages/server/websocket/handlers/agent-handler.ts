@@ -284,6 +284,7 @@ export async function handleUpdateAgentProperties(
       class?: string;
       permissionMode?: string;
       model?: string;
+      useChrome?: boolean;
       skillIds?: string[];
     };
   }
@@ -312,6 +313,10 @@ export async function handleUpdateAgentProperties(
 
   if (updates.model !== undefined) {
     agentUpdates.model = updates.model as any;
+  }
+
+  if (updates.useChrome !== undefined) {
+    agentUpdates.useChrome = updates.useChrome;
   }
 
   // Apply agent property updates if any

@@ -6,7 +6,7 @@
  * - File uploads
  */
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { STORAGE_KEYS, getStorageString, setStorageString, removeStorage } from '../../utils/storage';
 import type { AttachedFile } from './types';
 
@@ -49,6 +49,35 @@ export function useTerminalInput({ selectedAgentId }: UseTerminalInputOptions): 
   const [agentAttachedFiles, setAgentAttachedFiles] = useState<Map<string, AttachedFile[]>>(new Map());
   const agentPastedCountRef = useRef<Map<string, number>>(new Map());
   const fileCountRef = useRef(0);
+
+  // Load persisted data from localStorage when agent changes
+  useEffect(() => {
+    if (!selectedAgentId) return;
+
+    // Check if we already have data loaded for this agent (avoid overwriting in-memory state)
+    if (agentCommands.has(selectedAgentId)) return;
+
+    // Load input text from storage
+    const savedInput = getStorageString(`${STORAGE_KEYS.INPUT_TEXT_PREFIX}${selectedAgentId}`);
+    if (savedInput) {
+      setAgentCommands((prev) => new Map(prev).set(selectedAgentId, savedInput));
+    }
+
+    // Load pasted texts from storage
+    const savedPasted = getStorageString(`${STORAGE_KEYS.PASTED_TEXTS_PREFIX}${selectedAgentId}`);
+    if (savedPasted) {
+      try {
+        const entries = JSON.parse(savedPasted) as [number, string][];
+        const pastedMap = new Map(entries);
+        setAgentPastedTexts((prev) => new Map(prev).set(selectedAgentId, pastedMap));
+        // Restore the pasted count ref to the highest ID
+        const maxId = Math.max(0, ...entries.map(([id]) => id));
+        agentPastedCountRef.current.set(selectedAgentId, maxId);
+      } catch {
+        // Invalid JSON, ignore
+      }
+    }
+  }, [selectedAgentId, agentCommands]);
 
   // Get current agent's values
   const command = selectedAgentId ? agentCommands.get(selectedAgentId) || '' : '';

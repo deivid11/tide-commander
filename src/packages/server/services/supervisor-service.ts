@@ -41,6 +41,7 @@ let config: SupervisorConfig = {
   enabled: true,
   intervalMs: 60000, // Not used for timer anymore, kept for compatibility
   maxNarrativesPerAgent: 20,
+  autoReportOnComplete: true, // Generate report when agent completes task
 };
 
 // Debounce for report generation (avoid generating too many reports in quick succession)
@@ -175,6 +176,11 @@ export function generateNarrative(
 function scheduleAgentReportGeneration(agentId: string): void {
   if (!config.enabled) {
     log.log(' Disabled, skipping scheduled agent report');
+    return;
+  }
+
+  if (config.autoReportOnComplete === false) {
+    log.log(' Auto-report on complete disabled, skipping scheduled agent report');
     return;
   }
 
@@ -707,11 +713,13 @@ export function getLatestReport(): SupervisorReport | null {
 
 export function getStatus(): {
   enabled: boolean;
+  autoReportOnComplete: boolean;
   lastReportTime: number | null;
   nextReportTime: number | null;
 } {
   return {
     enabled: config.enabled,
+    autoReportOnComplete: config.autoReportOnComplete !== false,
     lastReportTime: latestReport?.timestamp || null,
     // Reports are now event-driven (on task start/complete), not scheduled
     nextReportTime: null,

@@ -18,6 +18,7 @@ import { Spotlight } from './components/Spotlight';
 import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
 import { BuildingConfigModal } from './components/BuildingConfigModal';
 import { SkillsPanel } from './components/SkillsPanel';
+import { WebSocketDebuggerPanel } from './components/WebSocketDebuggerPanel';
 import { matchesShortcut } from './store/shortcuts';
 import { FPSMeter } from './components/FPSMeter';
 import { profileRender } from './utils/profiling';
@@ -96,6 +97,7 @@ function AppContent() {
   const spotlightModal = useModalState();
   const shortcutsModal = useModalState();
   const skillsModal = useModalState();
+  const debuggerModal = useModalState();
   const buildingModal = useModalState<string | null>(); // data = editingBuildingId (null for new)
   const explorerModal = useModalStateWithId(); // has .id for areaId
 
@@ -203,13 +205,18 @@ function AppContent() {
         // This fixes the race condition where agents arrive before custom classes
         sceneRef.current?.upgradeAgentModels();
       },
+      onReconnect: () => {
+        // Trigger store reconnect which increments reconnectCount
+        // Components watching reconnectCount will refresh their data
+        store.triggerReconnect();
+      },
     });
 
-    // Connect to server only if not already connected
-    if (!wsConnected || !getSocket() || getSocket()?.readyState !== WebSocket.OPEN) {
-      connect();
-      wsConnected = true;
-    }
+    // Always call connect() - it has internal guards against duplicate connections
+    // and will properly set up the WebSocket if needed (especially after HMR reloads
+    // where the websocket module may have been reset)
+    connect();
+    wsConnected = true;
 
     // Don't dispose on HMR unmount - only on full page unload
     return () => {
@@ -593,11 +600,12 @@ function AppContent() {
 
       {/* Supervisor Overview button */}
       <button
-        className="supervisor-toggle-btn"
+        className={`supervisor-toggle-btn ${state.supervisor.generatingReport ? 'generating' : ''}`}
         onClick={() => supervisorModal.open()}
-        title="Supervisor Overview"
+        title={state.supervisor.generatingReport ? 'Generating report...' : 'Supervisor Overview'}
       >
         🎖️
+        {state.supervisor.generatingReport && <span className="supervisor-generating-indicator" />}
       </button>
 
       {/* Keyboard Shortcuts button */}
@@ -620,6 +628,18 @@ function AppContent() {
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+        </svg>
+      </button>
+
+      {/* WebSocket Debugger button */}
+      <button
+        className="debugger-toggle-btn"
+        onClick={() => debuggerModal.open()}
+        title="WebSocket Debugger"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M12 20h9" />
+          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
         </svg>
       </button>
 
@@ -673,6 +693,12 @@ function AppContent() {
       <SkillsPanel
         isOpen={skillsModal.isOpen}
         onClose={skillsModal.close}
+      />
+
+      {/* WebSocket Debugger Panel */}
+      <WebSocketDebuggerPanel
+        isOpen={debuggerModal.isOpen}
+        onClose={debuggerModal.close}
       />
     </div>
   );

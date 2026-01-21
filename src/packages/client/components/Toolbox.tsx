@@ -921,4 +921,3 @@ function ConfigSection({ config, onChange }: ConfigSectionProps) {
   );
 }
 
-export { AREA_COLORS, TIME_MODE_OPTIONS, FLOOR_STYLE_OPTIONS, ANIMATION_OPTIONS };

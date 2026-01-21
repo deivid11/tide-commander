@@ -127,6 +127,32 @@ export async function listSessions(cwd: string): Promise<SessionInfo[]> {
 }
 
 /**
+ * Wait for file to be stable (not actively being written)
+ * Checks if file size remains constant over a small interval
+ */
+async function waitForFileStable(filePath: string, maxWaitMs: number = 500): Promise<void> {
+  const checkInterval = 50;
+  let lastSize = -1;
+  let elapsed = 0;
+
+  while (elapsed < maxWaitMs) {
+    try {
+      const stats = fs.statSync(filePath);
+      if (stats.size === lastSize) {
+        // File size hasn't changed, consider stable
+        return;
+      }
+      lastSize = stats.size;
+    } catch {
+      // File might not exist yet
+      return;
+    }
+    await new Promise(resolve => setTimeout(resolve, checkInterval));
+    elapsed += checkInterval;
+  }
+}
+
+/**
  * Load conversation history from a session file
  * @param cwd - Working directory
  * @param sessionId - Session ID
@@ -146,6 +172,9 @@ export async function loadSession(
     log.log(` Session file not found: ${sessionFile}`);
     return null;
   }
+
+  // Wait for file to be stable before reading (Claude might still be writing)
+  await waitForFileStable(sessionFile);
 
   const messages: SessionMessage[] = [];
 

@@ -161,6 +161,103 @@ export const BOSS_CONTEXT_START = '<<<BOSS_CONTEXT_START>>>';
 export const BOSS_CONTEXT_END = '<<<BOSS_CONTEXT_END>>>';
 
 // ============================================================================
+// Work Plan Types (Boss Agent Planning)
+// ============================================================================
+
+// Task priority levels
+export type TaskPriority = 'high' | 'medium' | 'low';
+
+// Task status in a work plan
+export type WorkPlanTaskStatus = 'pending' | 'in_progress' | 'completed' | 'blocked' | 'cancelled';
+
+// Phase execution mode
+export type PhaseExecutionMode = 'sequential' | 'parallel';
+
+// Individual task within a work plan phase
+export interface WorkPlanTask {
+  id: string;
+  description: string;
+  suggestedClass: AgentClass;           // Recommended agent class for this task
+  assignedAgentId: string | null;       // Assigned agent (null = auto-assign)
+  assignedAgentName?: string;           // Name of assigned agent (for display)
+  priority: TaskPriority;
+  blockedBy: string[];                  // Task IDs that must complete first
+  status: WorkPlanTaskStatus;
+  result?: string;                      // Summary of task outcome when completed
+  startedAt?: number;
+  completedAt?: number;
+}
+
+// Phase within a work plan (groups related tasks)
+export interface WorkPlanPhase {
+  id: string;
+  name: string;
+  description?: string;
+  execution: PhaseExecutionMode;        // How tasks in this phase run
+  dependsOn: string[];                  // Phase IDs that must complete first
+  tasks: WorkPlanTask[];
+  status: WorkPlanTaskStatus;
+  startedAt?: number;
+  completedAt?: number;
+}
+
+// Complete work plan created by Boss agent
+export interface WorkPlan {
+  id: string;
+  name: string;
+  description: string;
+  phases: WorkPlanPhase[];
+  createdBy: string;                    // Boss agent ID
+  createdAt: number;
+  updatedAt: number;
+  status: 'draft' | 'approved' | 'executing' | 'paused' | 'completed' | 'cancelled';
+  // Summary fields for quick overview
+  totalTasks: number;
+  completedTasks: number;
+  parallelizableTasks: string[];        // Task IDs that can run in parallel
+}
+
+// Analysis request - Boss asks scouts to explore codebase
+export interface AnalysisRequest {
+  id: string;
+  targetAgentId: string;                // Scout agent to perform analysis
+  targetAgentName?: string;
+  query: string;                        // What to analyze
+  focus?: string[];                     // Specific areas to focus on
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  result?: string;                      // Analysis results when completed
+  requestedAt: number;
+  completedAt?: number;
+}
+
+// Work plan created from Boss response (parsed from ```work-plan block)
+export interface WorkPlanDraft {
+  name: string;
+  description: string;
+  phases: {
+    id: string;
+    name: string;
+    execution: PhaseExecutionMode;
+    dependsOn: string[];
+    tasks: {
+      id: string;
+      description: string;
+      suggestedClass: string;
+      assignToAgent: string | null;     // Agent ID or null for auto-assign
+      priority: TaskPriority;
+      blockedBy: string[];
+    }[];
+  }[];
+}
+
+// Analysis request from Boss response (parsed from ```analysis-request block)
+export interface AnalysisRequestDraft {
+  targetAgent: string;                  // Agent ID
+  query: string;
+  focus?: string[];
+}
+
+// ============================================================================
 // Building Types
 // ============================================================================
 
@@ -618,6 +715,7 @@ export interface SupervisorConfig {
   intervalMs: number;
   maxNarrativesPerAgent: number;
   customPrompt?: string;
+  autoReportOnComplete?: boolean; // Generate report when agent completes task (default: true)
 }
 
 // Agent supervisor history entry - a snapshot of supervisor's analysis for a specific agent
@@ -895,6 +993,87 @@ export interface BossSpawnedAgentMessage extends WSMessage {
 }
 
 // ============================================================================
+// Work Plan WebSocket Messages
+// ============================================================================
+
+// Work plan created (Server -> Client)
+export interface WorkPlanCreatedMessage extends WSMessage {
+  type: 'work_plan_created';
+  payload: WorkPlan;
+}
+
+// Work plan updated (Server -> Client)
+export interface WorkPlanUpdatedMessage extends WSMessage {
+  type: 'work_plan_updated';
+  payload: WorkPlan;
+}
+
+// Work plan deleted (Server -> Client)
+export interface WorkPlanDeletedMessage extends WSMessage {
+  type: 'work_plan_deleted';
+  payload: { id: string };
+}
+
+// Work plans sync (Server -> Client) - sent on connect
+export interface WorkPlansUpdateMessage extends WSMessage {
+  type: 'work_plans_update';
+  payload: WorkPlan[];
+}
+
+// Analysis request created (Server -> Client)
+export interface AnalysisRequestCreatedMessage extends WSMessage {
+  type: 'analysis_request_created';
+  payload: AnalysisRequest;
+}
+
+// Analysis request completed (Server -> Client)
+export interface AnalysisRequestCompletedMessage extends WSMessage {
+  type: 'analysis_request_completed';
+  payload: AnalysisRequest;
+}
+
+// Approve work plan (Client -> Server)
+export interface ApproveWorkPlanMessage extends WSMessage {
+  type: 'approve_work_plan';
+  payload: {
+    planId: string;
+    autoExecute?: boolean;  // Start execution immediately after approval
+  };
+}
+
+// Execute work plan (Client -> Server)
+export interface ExecuteWorkPlanMessage extends WSMessage {
+  type: 'execute_work_plan';
+  payload: {
+    planId: string;
+  };
+}
+
+// Pause work plan (Client -> Server)
+export interface PauseWorkPlanMessage extends WSMessage {
+  type: 'pause_work_plan';
+  payload: {
+    planId: string;
+  };
+}
+
+// Cancel work plan (Client -> Server)
+export interface CancelWorkPlanMessage extends WSMessage {
+  type: 'cancel_work_plan';
+  payload: {
+    planId: string;
+  };
+}
+
+// Request work plans for a boss (Client -> Server)
+export interface RequestWorkPlansMessage extends WSMessage {
+  type: 'request_work_plans';
+  payload: {
+    bossId: string;
+  };
+}
+
+// ============================================================================
 // Skill WebSocket Messages
 // ============================================================================
 
@@ -1058,7 +1237,13 @@ export type ServerMessage =
   | CustomAgentClassCreatedMessage
   | CustomAgentClassUpdatedMessage
   | CustomAgentClassDeletedMessage
-  | ContextStatsMessage;
+  | ContextStatsMessage
+  | WorkPlanCreatedMessage
+  | WorkPlanUpdatedMessage
+  | WorkPlanDeletedMessage
+  | WorkPlansUpdateMessage
+  | AnalysisRequestCreatedMessage
+  | AnalysisRequestCompletedMessage;
 
 export type ClientMessage =
   | SpawnAgentMessage
@@ -1096,4 +1281,9 @@ export type ClientMessage =
   | CreateCustomAgentClassMessage
   | UpdateCustomAgentClassMessage
   | DeleteCustomAgentClassMessage
-  | RequestContextStatsMessage;
+  | RequestContextStatsMessage
+  | ApproveWorkPlanMessage
+  | ExecuteWorkPlanMessage
+  | PauseWorkPlanMessage
+  | CancelWorkPlanMessage
+  | RequestWorkPlansMessage;

@@ -130,25 +130,15 @@ function emit<K extends keyof ClaudeServiceEvents>(
 function handleEvent(agentId: string, event: StandardEvent): void {
   const agent = agentService.getAgent(agentId);
   if (!agent) {
-    log.log(` handleEvent: agent ${agentId} not found, ignoring event ${event.type}`);
     return;
   }
 
-  log.log(` handleEvent: agent=${agentId}, event.type=${event.type}, current status=${agent.status}`);
-
   switch (event.type) {
     case 'init':
-      if (agent.status !== 'working') {
-        log.log(`🟢 [${agent.name}] status: ${agent.status} → working (init event)`);
-      }
       agentService.updateAgent(agentId, { status: 'working' });
       break;
 
     case 'tool_start':
-      log.log(` Agent ${agentId} tool_start: toolName=${event.toolName}`);
-      if (agent.status !== 'working') {
-        log.log(`🟢 [${agent.name}] status: ${agent.status} → working (tool_start)`);
-      }
       agentService.updateAgent(agentId, {
         status: 'working',
         currentTool: event.toolName,
@@ -159,65 +149,45 @@ function handleEvent(agentId: string, event: StandardEvent): void {
       agentService.updateAgent(agentId, { currentTool: undefined });
       break;
 
-    case 'step_complete':
+    case 'step_complete': {
       // step_complete (result event) signals Claude finished processing this turn
-      // Update tokens and context usage
-      log.log(` Agent ${agentId} received step_complete event, tokens:`, event.tokens, 'modelUsage:', event.modelUsage);
-
       // Calculate actual context window usage from cache tokens
-      // The context window contains: cached system prompt + conversation history + new input + output
-      // cacheRead = tokens read from cache (system prompt, conversation history)
-      // cacheCreation = new tokens being added to cache
-      // input = new user input tokens (often 0 when using cache)
-      // output = response tokens
       let contextUsed = agent.contextUsed || 0;
       let contextLimit = agent.contextLimit || 200000;
 
       if (event.modelUsage) {
-        // Use modelUsage data which has the most accurate context window info
         const cacheRead = event.modelUsage.cacheReadInputTokens || 0;
         const cacheCreation = event.modelUsage.cacheCreationInputTokens || 0;
         const inputTokens = event.modelUsage.inputTokens || 0;
         const outputTokens = event.modelUsage.outputTokens || 0;
-        const contextWindow = event.modelUsage.contextWindow || 200000;
-
-        // Context used = everything in the context window
-        // This is the actual snapshot of what's loaded, not accumulated over time
         contextUsed = cacheRead + cacheCreation + inputTokens + outputTokens;
-        contextLimit = contextWindow;
-
-        log.log(` Agent ${agentId} context calculation from modelUsage: cacheRead=${cacheRead}, cacheCreation=${cacheCreation}, input=${inputTokens}, output=${outputTokens}, contextUsed=${contextUsed}, contextLimit=${contextLimit}`);
+        contextLimit = event.modelUsage.contextWindow || 200000;
       } else if (event.tokens) {
-        // Fallback: use tokens data
         const cacheRead = event.tokens.cacheRead || 0;
         const cacheCreation = event.tokens.cacheCreation || 0;
         const inputTokens = event.tokens.input || 0;
         const outputTokens = event.tokens.output || 0;
-
-        // Context used = everything in the context window
         contextUsed = cacheRead + cacheCreation + inputTokens + outputTokens;
-
-        log.log(` Agent ${agentId} context calculation from tokens: cacheRead=${cacheRead}, cacheCreation=${cacheCreation}, input=${inputTokens}, output=${outputTokens}, contextUsed=${contextUsed}`);
       }
 
-      // Update tokensUsed as cumulative (for cost tracking), contextUsed as snapshot
       const newTokensUsed = (agent.tokensUsed || 0) + (event.tokens?.input || 0) + (event.tokens?.output || 0);
 
       agentService.updateAgent(agentId, {
         tokensUsed: newTokensUsed,
         contextUsed,
         contextLimit,
-        // Note: contextStats is populated separately via /context command parsing
       });
 
-      // Set to idle
-      log.log(`🔴 [${agent.name}] status: ${agent.status} → idle (step_complete)`);
-      const updated = agentService.updateAgent(agentId, {
-        status: 'idle',
-        currentTask: undefined,
-        currentTool: undefined,
-      });
-      log.log(` Agent ${agentId} after update: status=${updated?.status}, contextUsed=${updated?.contextUsed}, contextLimit=${updated?.contextLimit}`);
+      // Delay setting to idle to ensure output messages are sent to clients first
+      // This fixes a race condition where the status change could arrive before the final output
+      // Using 200ms to ensure all output messages have time to be broadcast
+      setTimeout(() => {
+        agentService.updateAgent(agentId, {
+          status: 'idle',
+          currentTask: undefined,
+          currentTool: undefined,
+        });
+      }, 200);
 
       // Auto-refresh context stats after turn completion (with delay to ensure idle state)
       // Skip if:
@@ -230,15 +200,12 @@ function handleEvent(agentId: string, event: StandardEvent): void {
         setTimeout(() => {
           const currentAgent = agentService.getAgent(agentId);
           if (currentAgent?.status === 'idle' && !pendingContextRefresh.has(agentId)) {
-            log.log(` Auto-refreshing context stats for ${agent.name} after turn completion`);
             pendingContextRefresh.add(agentId);
-            import('./claude-service.js').then(({ sendCommand }) => {
-              sendCommand(agentId, '/context')
-                .catch(err => {
-                  log.error(` Failed to auto-refresh context for ${agent.name}:`, err);
-                })
+            // Use sendSilentCommand to avoid setting agent back to 'working' status
+            import('./claude-service.js').then(({ sendSilentCommand }) => {
+              sendSilentCommand(agentId, '/context')
+                .catch(() => { /* ignore context refresh errors */ })
                 .finally(() => {
-                  // Clear the flag after a delay to allow the response to be processed
                   setTimeout(() => pendingContextRefresh.delete(agentId), 2000);
                 });
             });
@@ -246,26 +213,21 @@ function handleEvent(agentId: string, event: StandardEvent): void {
         }, 500);
       }
       break;
+    }
 
     case 'error':
-      log.log(`❌ [${agent.name}] status: ${agent.status} → error`);
       agentService.updateAgent(agentId, { status: 'error' });
       break;
 
     case 'context_stats':
-      // Parse /context command output and update agent's context stats
       if (event.contextStatsRaw) {
-        log.log(` Agent ${agentId} received context_stats event`);
         const contextStats = parseContextOutput(event.contextStatsRaw);
         if (contextStats) {
-          log.log(` Agent ${agentId} parsed context stats: model=${contextStats.model}, used=${contextStats.usedPercent}%`);
           agentService.updateAgent(agentId, {
             contextStats,
             contextUsed: contextStats.totalTokens,
             contextLimit: contextStats.contextWindow,
           });
-        } else {
-          log.log(` Agent ${agentId} failed to parse context stats`);
         }
       }
       break;
@@ -282,33 +244,28 @@ function handleOutput(agentId: string, text: string, isStreaming?: boolean): voi
 }
 
 function handleSessionId(agentId: string, sessionId: string): void {
-  log.log(` Agent ${agentId} got session ID: ${sessionId}`);
-  agentService.updateAgent(agentId, { sessionId });
+  const agent = agentService.getAgent(agentId);
+  const existingSessionId = agent?.sessionId;
+
+  if (!existingSessionId) {
+    agentService.updateAgent(agentId, { sessionId });
+  } else if (existingSessionId !== sessionId) {
+    // Claude returned a different session ID - resume failed, keep original
+    log.log(`Session mismatch for ${agentId}: expected ${existingSessionId}, got ${sessionId}`);
+  }
 }
 
 function handleComplete(agentId: string, success: boolean): void {
-  const agent = agentService.getAgent(agentId);
-  const agentName = agent?.name || agentId;
-  const prevStatus = agent?.status || 'unknown';
-
-  log.log(`${success ? '✅' : '🔴'} [${agentName}] status: ${prevStatus} → idle (process ${success ? 'completed' : 'failed'})`);
-
-  // Process completed, set to idle
   agentService.updateAgent(agentId, {
     status: 'idle',
     currentTask: undefined,
     currentTool: undefined,
   });
-
   emit('complete', agentId, success);
 }
 
 function handleError(agentId: string, error: string): void {
-  const agent = agentService.getAgent(agentId);
-  const agentName = agent?.name || agentId;
-  const prevStatus = agent?.status || 'unknown';
-
-  log.error(`❌ [${agentName}] status: ${prevStatus} → error: ${error}`);
+  log.error(`Agent ${agentId} error: ${error}`);
   agentService.updateAgent(agentId, { status: 'error' });
   emit('error', agentId, error);
 }
@@ -326,7 +283,8 @@ interface CustomAgentConfig {
 // Internal function to actually execute a command
 // forceNewSession: when true, don't resume existing session (for boss team questions)
 // customAgent: optional custom agent config for --agents flag (used for custom class instructions)
-async function executeCommand(agentId: string, command: string, systemPrompt?: string, forceNewSession?: boolean, customAgent?: CustomAgentConfig): Promise<void> {
+// silent: when true, don't update agent status to 'working' (used for internal commands like /context refresh)
+async function executeCommand(agentId: string, command: string, systemPrompt?: string, forceNewSession?: boolean, customAgent?: CustomAgentConfig, silent?: boolean): Promise<void> {
   if (!runner) {
     throw new Error('ClaudeService not initialized');
   }
@@ -336,32 +294,26 @@ async function executeCommand(agentId: string, command: string, systemPrompt?: s
     throw new Error(`Agent not found: ${agentId}`);
   }
 
-  log.log(` Executing command for ${agentId}: ${command.substring(0, 50)}...`);
-  if (forceNewSession) {
-    log.log(` Force new session mode - not resuming existing session`);
-  }
-  if (customAgent) {
-    log.log(` Using custom agent "${customAgent.name}" for this session`);
-  }
-
   // Notify that command is starting (so client can show user prompt in conversation)
-  notifyCommandStarted(agentId, command);
-
-  const prevStatus = agent.status;
-  log.log(`🟢 [${agent.name}] status: ${prevStatus} → working (command started)`);
+  // Skip notification for silent commands (internal operations)
+  if (!silent) {
+    notifyCommandStarted(agentId, command);
+  }
 
   // Don't update lastAssignedTask for system messages (like auto-resume) to avoid recursive loops
+  // Don't update status for silent commands (internal operations like /context refresh)
   const isSystemMessage = command.startsWith('[System:');
-  const updateData: Partial<Parameters<typeof agentService.updateAgent>[1]> = {
-    status: 'working' as const,
-    currentTask: command.substring(0, 100),
-  };
-  if (!isSystemMessage) {
-    updateData.lastAssignedTask = command;
-    updateData.lastAssignedTaskTime = Date.now();
+  if (!silent) {
+    const updateData: Partial<Parameters<typeof agentService.updateAgent>[1]> = {
+      status: 'working' as const,
+      currentTask: command.substring(0, 100),
+    };
+    if (!isSystemMessage) {
+      updateData.lastAssignedTask = command;
+      updateData.lastAssignedTaskTime = Date.now();
+    }
+    agentService.updateAgent(agentId, updateData);
   }
-
-  const updated = agentService.updateAgent(agentId, updateData);
 
   await runner.run({
     agentId,
@@ -394,17 +346,10 @@ export async function sendCommand(agentId: string, command: string, systemPrompt
 
   // Check if agent is currently busy (has a running process)
   // If busy, send the message directly to the running process via stdin
-  // Claude will process it as part of its current turn - no interruption needed
-  // Note: customAgent config only applies when starting a new process
   if (runner.isRunning(agentId) && !forceNewSession) {
-    log.log(` Agent ${agentId} is busy, sending message directly to running process...`);
-
-    // Send directly to the running process via stdin
     const sent = runner.sendMessage(agentId, command);
     if (sent) {
-      log.log(` Sent message to running process for ${agentId}: ${command.substring(0, 50)}...`);
       notifyCommandStarted(agentId, command);
-      // Don't update lastAssignedTask for system messages (like auto-resume)
       const isSystemMessage = command.startsWith('[System:');
       const updateData: Record<string, unknown> = {
         taskCount: (agent.taskCount || 0) + 1,
@@ -416,8 +361,6 @@ export async function sendCommand(agentId: string, command: string, systemPrompt
       agentService.updateAgent(agentId, updateData);
       return;
     }
-    // If sending failed (process died), fall through to start new process
-    log.log(` Failed to send to running process, starting new process for ${agentId}`);
   }
 
   // Increment task counter for this agent
@@ -427,20 +370,34 @@ export async function sendCommand(agentId: string, command: string, systemPrompt
   await executeCommand(agentId, command, systemPrompt, forceNewSession, customAgent);
 }
 
-export async function stopAgent(agentId: string): Promise<void> {
-  const agent = agentService.getAgent(agentId);
-  const agentName = agent?.name || agentId;
-  const prevStatus = agent?.status || 'unknown';
-
-  log.log(`🛑 [STOP REQUEST] Agent ${agentName} (${agentId}): Stop requested, current status=${prevStatus}`);
-
+/**
+ * Send a silent command that doesn't update agent status
+ * Used for internal operations like auto /context refresh
+ */
+export async function sendSilentCommand(agentId: string, command: string): Promise<void> {
   if (!runner) {
-    log.log(`🛑 [STOP REQUEST] Agent ${agentName}: Runner not initialized, cannot stop`);
+    throw new Error('ClaudeService not initialized');
+  }
+
+  const agent = agentService.getAgent(agentId);
+  if (!agent) {
+    throw new Error(`Agent not found: ${agentId}`);
+  }
+
+  // For silent commands, if agent is busy, just skip - don't interrupt
+  if (runner.isRunning(agentId)) {
     return;
   }
 
+  // Execute silently - no status updates, no notifications
+  await executeCommand(agentId, command, undefined, undefined, undefined, true);
+}
+
+export async function stopAgent(agentId: string): Promise<void> {
+  if (!runner) {
+    return;
+  }
   await runner.stop(agentId);
-  log.log(`🛑 [STOP REQUEST] Agent ${agentName}: Stop sequence initiated`);
 }
 
 export function isAgentRunning(agentId: string): boolean {
@@ -458,17 +415,11 @@ function checkForOrphanedProcess(agentId: string): boolean {
     const savedProcesses = loadRunningProcesses();
     const savedProcess = savedProcesses.find((p: { agentId: string }) => p.agentId === agentId);
     if (savedProcess && isProcessRunning(savedProcess.pid)) {
-      log.log(`🔍 Found orphaned process for ${agentId} via PID tracking (pid=${savedProcess.pid})`);
       return true;
     }
 
-    // NOTE: We intentionally don't use general process discovery here
-    // because it would match ANY Claude process running in the same directory,
-    // including user's manual sessions, causing false positives
-
     return false;
   } catch (err) {
-    log.error(`Error checking for orphaned process: ${err}`);
     return false;
   }
 }
@@ -489,35 +440,24 @@ export async function syncAgentStatus(agentId: string): Promise<void> {
 
   // Check 1: Is our runner tracking this process?
   const isTrackedProcess = runner?.isRunning(agentId) ?? false;
-
-  // If we're tracking the process, trust the current status - no need to sync
-  if (isTrackedProcess) {
-    log.log(`🔍 [${agent.name}] sync skipped - runner is tracking process (status=${agent.status})`);
-    return;
-  }
+  if (isTrackedProcess) return;
 
   // Check 2: Session file activity - is there recent pending work?
   let isRecentlyActive = false;
 
   if (agent.sessionId && agent.cwd) {
     try {
-      // Use 30 second threshold - if Claude was actively working, session would be very recent
       const activity = await getSessionActivityStatus(agent.cwd, agent.sessionId, 30);
       if (activity) {
-        isRecentlyActive = activity.isActive; // Modified within 30s AND has pending work
-        log.log(`🔍 [${agent.name}] session activity: isActive=${activity.isActive}, lastMessage=${activity.lastMessageType}, hasPending=${activity.hasPendingWork}`);
+        isRecentlyActive = activity.isActive;
       }
     } catch (err) {
-      log.log(`🔍 [${agent.name}] session activity check failed:`, err);
+      // Session activity check failed, assume not active
     }
   }
 
-  // Debug log
-  log.log(`🔍 [${agent.name}] sync check: status=${agent.status}, tracked=${isTrackedProcess}, recentlyActive=${isRecentlyActive}`);
-
   // Case 1: Agent shows 'working' but no tracked process and not recently active -> set to idle
   if (agent.status === 'working' && !isRecentlyActive) {
-    log.log(`🔴 [${agent.name}] status: working → idle (no process and not recently active)`);
     agentService.updateAgent(agentId, {
       status: 'idle',
       currentTask: undefined,
@@ -525,17 +465,11 @@ export async function syncAgentStatus(agentId: string): Promise<void> {
     });
   }
   // Case 2: Agent shows 'idle' but session is recently active with pending work -> set to working
-  // This handles server restart while Claude was processing
   else if (agent.status === 'idle' && isRecentlyActive) {
-    log.log(`🟢 [${agent.name}] status: idle → working (session recently active with pending work)`);
     agentService.updateAgent(agentId, {
       status: 'working',
       currentTask: 'Processing...',
     });
-  }
-  // No change needed
-  else {
-    log.log(`✅ [${agent.name}] sync: no change needed (status=${agent.status})`);
   }
 }
 
@@ -545,7 +479,6 @@ export async function syncAgentStatus(agentId: string): Promise<void> {
 export async function syncAllAgentStatus(): Promise<void> {
   const agents = agentService.getAllAgents();
   await Promise.all(agents.map(agent => syncAgentStatus(agent.id)));
-  log.log(` Synced status for ${agents.length} agents`);
 }
 
 /**
@@ -556,27 +489,22 @@ export async function autoResumeWorkingAgents(): Promise<void> {
   const agentsToResume = agentService.getAgentsToResume();
 
   if (agentsToResume.length === 0) {
-    log.log(' No agents to auto-resume');
     return;
   }
 
-  log.log(`🔄 Auto-resuming ${agentsToResume.length} agent(s) that were working before restart...`);
+  log.log(`🔄 Auto-resuming ${agentsToResume.length} agent(s)`);
 
   for (const agentInfo of agentsToResume) {
     try {
       const agent = agentService.getAgent(agentInfo.id);
       if (!agent) {
-        log.log(` Agent ${agentInfo.id} no longer exists, skipping auto-resume`);
         continue;
       }
 
       // Don't resume if agent is already running somehow
       if (runner?.isRunning(agentInfo.id)) {
-        log.log(` Agent ${agentInfo.name} is already running, skipping auto-resume`);
         continue;
       }
-
-      log.log(`🔄 Auto-resuming ${agentInfo.name}: continuing task "${agentInfo.lastTask}"`);
 
       // Build customAgentConfig for the agent's class (same logic as command-handler)
       // This ensures the agent gets its class instructions on auto-resume
@@ -603,25 +531,21 @@ export async function autoResumeWorkingAgents(): Promise<void> {
               prompt: combinedPrompt,
             },
           };
-          log.log(`🔄 Auto-resume ${agentInfo.name}: built customAgentConfig with ${combinedPrompt.length} chars`);
         }
       }
 
       // Send a continuation message to Claude
-      // Claude's session persistence will remember the context and continue
       const resumeMessage = `[System: The commander server was restarted while you were working. Please continue with your previous task. Your last assigned task was: "${agentInfo.lastTask}"]`;
 
       await sendCommand(agentInfo.id, resumeMessage, undefined, undefined, customAgentConfig);
-      log.log(`✅ Auto-resumed ${agentInfo.name}`);
 
       // Small delay between agents to avoid overwhelming the system
       await new Promise(resolve => setTimeout(resolve, 1000));
     } catch (err) {
-      log.error(` Failed to auto-resume ${agentInfo.name}:`, err);
+      log.error(`Failed to auto-resume ${agentInfo.name}:`, err);
     }
   }
 
   // Clear the list after processing
   agentService.clearAgentsToResume();
-  log.log(' Auto-resume complete');
 }

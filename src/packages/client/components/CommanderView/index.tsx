@@ -4,13 +4,13 @@
  * Structure:
  * - index.tsx (this file): Main component orchestration
  * - types.ts: Types and constants
- * - AgentPanel.tsx: Individual agent panel
- * - MessageLine.tsx: History message rendering
- * - OutputLine.tsx: Live output rendering
+ * - AgentPanel.tsx: Individual agent panel (uses ClaudeOutputPanel components)
  * - SpawnForm.tsx: Agent creation form
  * - useAgentHistory.ts: History loading hook
  * - useAgentInput.ts: Input management hook
- * - viewFilters.ts: View mode filtering utilities
+ *
+ * Note: Message/output rendering is shared with ClaudeOutputPanel (Guake terminal)
+ * via HistoryLine and OutputLine components from ../ClaudeOutputPanel/
  */
 
 import React, { useEffect, useRef, useState, useMemo } from 'react';

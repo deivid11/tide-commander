@@ -21,6 +21,7 @@ export interface SupervisorActions {
   getNarratives(agentId: string): ActivityNarrative[];
   setSupervisorStatus(status: {
     enabled: boolean;
+    autoReportOnComplete?: boolean;
     lastReportTime: number | null;
     nextReportTime: number | null;
   }): void;
@@ -93,11 +94,15 @@ export function createSupervisorActions(
 
     setSupervisorStatus(status: {
       enabled: boolean;
+      autoReportOnComplete?: boolean;
       lastReportTime: number | null;
       nextReportTime: number | null;
     }): void {
       setState((state) => {
         state.supervisor.enabled = status.enabled;
+        if (status.autoReportOnComplete !== undefined) {
+          state.supervisor.autoReportOnComplete = status.autoReportOnComplete;
+        }
         state.supervisor.lastReportTime = status.lastReportTime;
         state.supervisor.nextReportTime = status.nextReportTime;
       });

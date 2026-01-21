@@ -342,4 +342,43 @@
     border-color: $dracula-orange;
     color: $dracula-pink;
   }
+
+  // Pulsing state when generating report
+  &.generating {
+    border-color: $accent-blue;
+    animation: supervisor-btn-pulse 1.5s ease-in-out infinite;
+  }
+}
+
+// Generating indicator dot
+.supervisor-generating-indicator {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 10px;
+  height: 10px;
+  background: $accent-blue;
+  border-radius: 50%;
+  border: 2px solid $bg-primary;
+  animation: supervisor-indicator-pulse 1s ease-in-out infinite;
+}
+
+@keyframes supervisor-btn-pulse {
+  0%, 100% {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+  50% {
+    box-shadow: 0 2px 12px rgba($accent-blue, 0.5);
+  }
+}
+
+@keyframes supervisor-indicator-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.7;
+  }
 }

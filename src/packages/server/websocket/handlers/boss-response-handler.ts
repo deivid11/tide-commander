@@ -1,10 +1,10 @@
 /**
  * Boss Response Handler
- * Parses delegation and spawn blocks from boss agent responses
+ * Parses delegation, spawn, work-plan, and analysis-request blocks from boss agent responses
  */
 
 import type { AgentClass, DelegationDecision, ServerMessage } from '../../../shared/types.js';
-import { agentService, claudeService, bossService } from '../../services/index.js';
+import { agentService, claudeService, bossService, workPlanService } from '../../services/index.js';
 import { logger } from '../../utils/index.js';
 import { getLastBossCommand, buildCustomAgentConfig } from './command-handler.js';
 
@@ -178,4 +178,114 @@ export async function parseBossSpawn(
   } catch (err) {
     log.error(` Failed to parse spawn JSON from boss ${bossName}:`, err);
   }
+}
+
+/**
+ * Parse work-plan block from boss response
+ */
+export function parseBossWorkPlan(
+  bossId: string,
+  bossName: string,
+  resultText: string,
+  broadcast: BroadcastFn
+): void {
+  log.log(` Boss ${bossName} checking for work-plan block: ${resultText.includes('```work-plan')}`);
+
+  const workPlanDraft = workPlanService.parseWorkPlanBlock(resultText);
+  if (!workPlanDraft) return;
+
+  log.log(` Boss ${bossName} work-plan match found! Creating plan: "${workPlanDraft.name}"`);
+
+  try {
+    const workPlan = workPlanService.createWorkPlan(bossId, workPlanDraft);
+
+    // Broadcast the created work plan
+    broadcast({
+      type: 'work_plan_created',
+      payload: workPlan,
+    });
+
+    log.log(` Created work plan "${workPlan.name}" with ${workPlan.totalTasks} tasks (${workPlan.parallelizableTasks.length} parallelizable)`);
+  } catch (err) {
+    log.error(` Failed to create work plan from boss ${bossName}:`, err);
+  }
+}
+
+/**
+ * Parse analysis-request block from boss response
+ */
+export function parseBossAnalysisRequest(
+  bossId: string,
+  bossName: string,
+  resultText: string,
+  broadcast: BroadcastFn,
+  sendActivity: SendActivityFn
+): void {
+  log.log(` Boss ${bossName} checking for analysis-request block: ${resultText.includes('```analysis-request')}`);
+
+  const analysisDrafts = workPlanService.parseAnalysisRequestBlock(resultText);
+  if (analysisDrafts.length === 0) return;
+
+  log.log(` Boss ${bossName} analysis-request match found! ${analysisDrafts.length} request(s)`);
+
+  for (const draft of analysisDrafts) {
+    try {
+      // Create the analysis request
+      const request = workPlanService.createAnalysisRequest(bossId, draft);
+
+      // Broadcast the created request
+      broadcast({
+        type: 'analysis_request_created',
+        payload: request,
+      });
+
+      // Start the analysis by sending the query to the target agent
+      workPlanService.startAnalysisRequest(request.id);
+
+      // Get agent name for activity message
+      const targetAgent = agentService.getAgent(draft.targetAgent);
+      const agentName = targetAgent?.name || draft.targetAgent;
+
+      // Send activity notification
+      sendActivity(draft.targetAgent, `Analysis requested by ${bossName}`);
+
+      // Send the analysis query as a command to the scout
+      const focusContext = draft.focus && draft.focus.length > 0
+        ? `\n\nFocus areas: ${draft.focus.join(', ')}`
+        : '';
+
+      const analysisCommand = `[ANALYSIS REQUEST from ${bossName}]\n\n${draft.query}${focusContext}\n\nPlease provide a detailed analysis and report back your findings.`;
+
+      // Build custom config for the target agent
+      const customAgentConfig = targetAgent ? buildCustomAgentConfig(draft.targetAgent, targetAgent.class) : undefined;
+
+      claudeService.sendCommand(draft.targetAgent, analysisCommand, undefined, undefined, customAgentConfig)
+        .catch(err => {
+          log.error(` Failed to send analysis request to ${agentName}:`, err);
+        });
+
+      log.log(` Started analysis request to ${agentName}: "${draft.query.slice(0, 60)}..."`);
+    } catch (err) {
+      log.error(` Failed to create analysis request from boss ${bossName}:`, err);
+    }
+  }
+}
+
+/**
+ * Parse all boss response blocks (delegation, spawn, work-plan, analysis-request)
+ * Call this from the output handler when a boss agent completes a response
+ */
+export async function parseAllBossBlocks(
+  bossId: string,
+  bossName: string,
+  resultText: string,
+  broadcast: BroadcastFn,
+  sendActivity: SendActivityFn
+): Promise<void> {
+  // Parse in order: analysis-request, work-plan, delegation, spawn
+  // This order allows the boss to first request analysis, then create plans, then delegate
+  parseBossAnalysisRequest(bossId, bossName, resultText, broadcast, sendActivity);
+  parseBossWorkPlan(bossId, bossName, resultText, broadcast);
+  parseBossDelegation(bossId, bossName, resultText, broadcast);
+  await parseBossSpawn(bossId, bossName, resultText, broadcast, sendActivity);
 }

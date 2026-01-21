@@ -1,13 +1,55 @@
 import type { Agent, ServerMessage, ClientMessage, PermissionRequest, DelegationDecision, CustomAgentClass } from '../../shared/types';
 import { store } from '../store';
 import { perf } from '../utils/profiling';
+import { wsDebugger } from './debugger';
 
-let ws: WebSocket | null = null;
+// Persist WebSocket state across HMR reloads using window object
+// This prevents orphaned connections and ensures we maintain the same socket
+interface HmrWebSocketState {
+  ws: WebSocket | null;
+  isConnecting: boolean;
+  reconnectAttempts: number;
+  reconnectTimeout: NodeJS.Timeout | null;
+}
+
+declare global {
+  interface Window {
+    __tideWsState?: HmrWebSocketState;
+  }
+}
+
+// Initialize or restore HMR state
+if (!window.__tideWsState) {
+  window.__tideWsState = {
+    ws: null,
+    isConnecting: false,
+    reconnectAttempts: 0,
+    reconnectTimeout: null,
+  };
+}
+
+// Use window state instead of module-level variables for HMR persistence
+const getWs = () => window.__tideWsState!.ws;
+const setWs = (socket: WebSocket | null) => { window.__tideWsState!.ws = socket; };
+const getIsConnecting = () => window.__tideWsState!.isConnecting;
+const setIsConnecting = (v: boolean) => { window.__tideWsState!.isConnecting = v; };
+const getReconnectAttempts = () => window.__tideWsState!.reconnectAttempts;
+const setReconnectAttempts = (v: number) => { window.__tideWsState!.reconnectAttempts = v; };
+const getReconnectTimeout = () => window.__tideWsState!.reconnectTimeout;
+const setReconnectTimeout = (v: NodeJS.Timeout | null) => { window.__tideWsState!.reconnectTimeout = v; };
+
 let connectionPromise: Promise<void> | null = null;
-let isConnecting = false;
-let reconnectAttempts = 0;
-let maxReconnectAttempts = 10;
-let reconnectTimeout: NodeJS.Timeout | null = null;
+const maxReconnectAttempts = 10;
+
+// Use sessionStorage to persist connection state across HMR reloads
+// This ensures we detect reconnections even when the frontend code reloads
+const SESSION_STORAGE_KEY = 'tide_ws_has_connected';
+function getHasConnectedBefore(): boolean {
+  return sessionStorage.getItem(SESSION_STORAGE_KEY) === 'true';
+}
+function setHasConnectedBefore(value: boolean): void {
+  sessionStorage.setItem(SESSION_STORAGE_KEY, value ? 'true' : 'false');
+}
 let onToast: ((type: 'error' | 'success' | 'warning' | 'info', title: string, message: string) => void) | null = null;
 let onAgentCreated: ((agent: Agent) => void) | null = null;
 let onAgentUpdated: ((agent: Agent, positionChanged: boolean) => void) | null = null;
@@ -19,6 +61,7 @@ let onToolUse: ((agentId: string, toolName: string, toolInput?: Record<string, u
 let onDirectoryNotFound: ((path: string) => void) | null = null;
 let onDelegation: ((bossId: string, subordinateId: string) => void) | null = null;
 let onCustomClassesSync: ((classes: Map<string, CustomAgentClass>) => void) | null = null;
+let onReconnect: (() => void) | null = null;
 
 export function setCallbacks(callbacks: {
   onToast?: typeof onToast;
@@ -32,6 +75,7 @@ export function setCallbacks(callbacks: {
   onDirectoryNotFound?: typeof onDirectoryNotFound;
   onDelegation?: typeof onDelegation;
   onCustomClassesSync?: typeof onCustomClassesSync;
+  onReconnect?: typeof onReconnect;
 }): void {
   if (callbacks.onToast) onToast = callbacks.onToast;
   if (callbacks.onAgentCreated) onAgentCreated = callbacks.onAgentCreated;
@@ -44,55 +88,51 @@ export function setCallbacks(callbacks: {
   if (callbacks.onDirectoryNotFound) onDirectoryNotFound = callbacks.onDirectoryNotFound;
   if (callbacks.onDelegation) onDelegation = callbacks.onDelegation;
   if (callbacks.onCustomClassesSync) onCustomClassesSync = callbacks.onCustomClassesSync;
+  if (callbacks.onReconnect) onReconnect = callbacks.onReconnect;
 }
 
 export function connect(): void {
   // Clear any pending reconnect
-  if (reconnectTimeout) {
-    clearTimeout(reconnectTimeout);
-    reconnectTimeout = null;
+  const pendingTimeout = getReconnectTimeout();
+  if (pendingTimeout) {
+    clearTimeout(pendingTimeout);
+    setReconnectTimeout(null);
   }
 
+  const ws = getWs();
+
   // Prevent duplicate connection attempts
-  if (isConnecting || (ws && ws.readyState === WebSocket.CONNECTING)) {
-    console.log('[WebSocket] Connection already in progress, skipping');
-    console.log('[WebSocket] Current state:', ws?.readyState, '(0=CONNECTING, 1=OPEN, 2=CLOSING, 3=CLOSED)');
+  if (getIsConnecting() || (ws && ws.readyState === WebSocket.CONNECTING)) {
     return;
   }
 
   if (ws && ws.readyState === WebSocket.OPEN) {
-    console.log('[WebSocket] Already connected, skipping');
+    // Even if socket is already open (e.g., after HMR), trigger reconnect callback
+    // to ensure components refresh their data
+    if (getHasConnectedBefore() && onReconnect) {
+      onReconnect();
+    }
     return;
   }
 
-  reconnectAttempts++;
-  isConnecting = true;
+  setReconnectAttempts(getReconnectAttempts() + 1);
+  setIsConnecting(true);
 
   // Try different URLs based on environment
   const wsUrl = `ws://${window.location.host}/ws`;
   const altUrl = `ws://localhost:5174/ws`;
-  const url127 = `ws://127.0.0.1:5174/ws`;
 
-  console.log(`[WebSocket] Connection attempt #${reconnectAttempts}`);
-  console.log('[WebSocket] Primary URL:', wsUrl);
-  console.log('[WebSocket] Alternative URL:', altUrl);
-  console.log('[WebSocket] Fallback URL:', url127);
-  console.log('[WebSocket] Window location:', window.location.hostname);
-
+  let newSocket: WebSocket;
   try {
-    ws = new WebSocket(wsUrl);
-    console.log('[WebSocket] WebSocket object created, waiting for connection...');
+    newSocket = new WebSocket(wsUrl);
   } catch (error) {
-    console.error('[WebSocket] Failed to create WebSocket:', error);
-    isConnecting = false;
+    setIsConnecting(false);
 
     // Try alternative URL
     if (wsUrl !== altUrl) {
-      console.log('[WebSocket] Trying alternative URL:', altUrl);
       try {
-        ws = new WebSocket(altUrl);
-      } catch (err2) {
-        console.error('[WebSocket] Alternative URL also failed:', err2);
+        newSocket = new WebSocket(altUrl);
+      } catch {
         handleReconnect();
         return;
       }
@@ -102,68 +142,55 @@ export function connect(): void {
     }
   }
 
-  // At this point, ws is guaranteed to be non-null since we return early in failure cases
-  const socket = ws;
+  setWs(newSocket);
 
-  socket.onopen = () => {
-    console.log('[WebSocket] ✅ Connected successfully!');
-    console.log('[WebSocket] ReadyState:', ws?.readyState);
-    isConnecting = false;
-    reconnectAttempts = 0; // Reset on successful connection
+  newSocket.onopen = () => {
+    const hasConnectedBefore = getHasConnectedBefore();
+    const isReconnection = hasConnectedBefore;
+    setIsConnecting(false);
+    setReconnectAttempts(0); // Reset on successful connection
+    setHasConnectedBefore(true); // Mark that we've connected at least once (persisted in sessionStorage)
     store.setConnected(true);
     // Start status polling as fallback for missed WebSocket updates
     store.startStatusPolling();
-    onToast?.('success', 'Connected', 'Connected to Tide Commander server');
-  };
 
-  socket.onmessage = (event) => {
-    console.log('[WebSocket] Received message from server:', event.data.substring(0, 200));
-    try {
-      const message = JSON.parse(event.data) as ServerMessage;
-      console.log('[WebSocket] Parsed message type:', message.type);
-      handleServerMessage(message);
-    } catch (err) {
-      console.error('[Tide] Failed to parse message:', err, 'Raw data:', event.data);
+    if (isReconnection) {
+      onToast?.('success', 'Reconnected', 'Connection restored - refreshing data...');
+      // Trigger reconnection callback to refresh history and re-establish listeners
+      onReconnect?.();
+    } else {
+      onToast?.('success', 'Connected', 'Connected to Tide Commander server');
     }
   };
 
-  socket.onclose = (event) => {
-    console.log('[WebSocket] Connection closed:', {
-      code: event.code,
-      reason: event.reason,
-      wasClean: event.wasClean
-    });
-    isConnecting = false;
-    ws = null;
+  newSocket.onmessage = (event) => {
+    // Capture for debugger
+    wsDebugger.captureIncoming(event.data);
+    try {
+      const message = JSON.parse(event.data) as ServerMessage;
+      handleServerMessage(message);
+    } catch (err) {
+      console.error('[Tide] Failed to parse message:', err);
+    }
+  };
+
+  newSocket.onclose = () => {
+    setIsConnecting(false);
+    setWs(null);
     store.setConnected(false);
     store.stopStatusPolling();
 
-    if (reconnectAttempts < maxReconnectAttempts) {
-      onToast?.('warning', 'Disconnected', `Connection lost. Reconnecting... (attempt ${reconnectAttempts + 1}/${maxReconnectAttempts})`);
+    const attempts = getReconnectAttempts();
+    if (attempts < maxReconnectAttempts) {
+      onToast?.('warning', 'Disconnected', `Connection lost. Reconnecting... (attempt ${attempts + 1}/${maxReconnectAttempts})`);
       handleReconnect();
     } else {
       onToast?.('error', 'Connection Failed', 'Could not connect to server. Please check if the backend is running on port 5174.');
     }
   };
 
-  socket.onerror = (event) => {
-    console.error('[WebSocket] ❌ Error occurred:', event);
-    console.error('[WebSocket] Error details:', {
-      type: event.type,
-      target: event.target,
-      currentTarget: event.currentTarget,
-      // @ts-ignore
-      message: event.message || 'Unknown error'
-    });
-
-    // Common issues on Mac
-    console.log('[WebSocket] Troubleshooting tips:');
-    console.log('  1. Check if backend is running: npm run dev:server');
-    console.log('  2. Check if port 5174 is available: lsof -i :5174');
-    console.log('  3. Check firewall settings');
-    console.log('  4. Try: curl http://localhost:5174/api/status');
-
-    isConnecting = false;
+  newSocket.onerror = () => {
+    setIsConnecting(false);
   };
 
   // Set up store to use this connection
@@ -283,17 +310,12 @@ function handleServerMessage(message: ServerMessage): void {
         timestamp: number;
         isDelegation?: boolean;
       };
-      const receiveTime = Date.now();
-      const latency = receiveTime - output.timestamp;
-      console.log(`📥 [WS OUTPUT] Received output for agent ${output.agentId}, isStreaming=${output.isStreaming}, isDelegation=${output.isDelegation}, textLen=${output.text.length}, serverTs=${output.timestamp}, latency=${latency}ms`);
-      console.log(`📥 [WS OUTPUT] Text preview: "${output.text.substring(0, 100)}..."`);
       store.addOutput(output.agentId, {
         text: output.text,
         isStreaming: output.isStreaming,
         timestamp: output.timestamp,
         isDelegation: output.isDelegation,
       });
-      console.log(`📥 [WS OUTPUT] store.addOutput completed at ${Date.now()}, total processing time=${Date.now() - receiveTime}ms`);
       break;
     }
 
@@ -368,6 +390,7 @@ function handleServerMessage(message: ServerMessage): void {
     case 'supervisor_status': {
       const status = message.payload as {
         enabled: boolean;
+        autoReportOnComplete?: boolean;
         lastReportTime: number | null;
         nextReportTime: number | null;
       };
@@ -604,31 +627,23 @@ function handleServerMessage(message: ServerMessage): void {
 
 // Helper function to handle reconnection
 function handleReconnect(): void {
-  const delay = Math.min(1000 * Math.pow(2, reconnectAttempts - 1), 30000); // Exponential backoff, max 30s
-  console.log(`[WebSocket] Will retry in ${delay}ms...`);
-  reconnectTimeout = setTimeout(connect, delay);
+  const attempts = getReconnectAttempts();
+  const delay = Math.min(1000 * Math.pow(2, attempts - 1), 30000); // Exponential backoff, max 30s
+  setReconnectTimeout(setTimeout(connect, delay));
 }
 
 export function sendMessage(message: ClientMessage): void {
-  console.log('[WebSocket] sendMessage called with:', message);
-
+  const ws = getWs();
   if (!ws) {
-    console.error('[WebSocket] WebSocket is null - not connected!');
-    console.log('[WebSocket] Attempting to reconnect...');
-    connect(); // Try to connect
+    connect();
     onToast?.('error', 'Not Connected', 'Connecting to server... Please try again in a moment.');
     return;
   }
 
   if (ws.readyState !== WebSocket.OPEN) {
-    const stateNames = ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'];
-    const stateName = stateNames[ws.readyState] || 'UNKNOWN';
-    console.error('[WebSocket] WebSocket state is not OPEN, state:', ws.readyState, `(${stateName})`);
-
     if (ws.readyState === WebSocket.CONNECTING) {
       onToast?.('warning', 'Connecting...', 'WebSocket is still connecting. Please wait a moment and try again.');
     } else if (ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
-      console.log('[WebSocket] Attempting to reconnect...');
       connect();
       onToast?.('warning', 'Reconnecting...', 'Connection lost. Reconnecting to server...');
     }
@@ -637,19 +652,18 @@ export function sendMessage(message: ClientMessage): void {
 
   try {
     const messageStr = JSON.stringify(message);
-    console.log('[WebSocket] Sending message to server:', messageStr);
+    wsDebugger.captureOutgoing(messageStr);
     ws.send(messageStr);
-    console.log('[WebSocket] Message sent successfully');
   } catch (error) {
-    console.error('[WebSocket] Failed to send message:', error);
     onToast?.('error', 'Send Failed', `Failed to send message: ${error}`);
   }
 }
 
 export function isConnected(): boolean {
+  const ws = getWs();
   return ws !== null && ws.readyState === WebSocket.OPEN;
 }
 
 export function getSocket(): WebSocket | null {
-  return ws;
+  return getWs();
 }

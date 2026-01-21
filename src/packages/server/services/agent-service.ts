@@ -234,6 +234,9 @@ export function updateAgent(id: string, updates: Partial<Agent>, updateActivity 
   const agent = agents.get(id);
   if (!agent) return null;
 
+  const sessionIdBefore = agent.sessionId;
+  const hasSessionIdInUpdates = 'sessionId' in updates;
+
   // Only update lastActivity for real activity (not position changes, etc.)
   if (updateActivity) {
     Object.assign(agent, updates, { lastActivity: Date.now() });
@@ -242,6 +245,11 @@ export function updateAgent(id: string, updates: Partial<Agent>, updateActivity 
   }
   agents.set(id, agent);
   persistAgents();
+
+  // Debug logging for sessionId changes
+  if (sessionIdBefore !== agent.sessionId) {
+    log.warn(`🔑 [SESSION CHANGE] Agent ${agent.name} (${id}): sessionId changed from "${sessionIdBefore}" to "${agent.sessionId}". Updates had sessionId: ${hasSessionIdInUpdates}, updates keys: ${Object.keys(updates).join(', ')}`);
+  }
 
   emit('updated', agent);
   return agent;

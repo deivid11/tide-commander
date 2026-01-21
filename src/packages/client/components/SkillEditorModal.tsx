@@ -145,6 +145,24 @@ export function SkillEditorModal({
     };
 
     if (isEditMode && skillId) {
+      // Check if content actually changed (which triggers agent restarts)
+      const contentChanged = skill && (
+        skill.name !== skillData.name ||
+        skill.description !== skillData.description ||
+        skill.content !== skillData.content ||
+        skill.enabled !== skillData.enabled ||
+        JSON.stringify(skill.allowedTools) !== JSON.stringify(skillData.allowedTools)
+      );
+
+      if (contentChanged) {
+        const confirmed = confirm(
+          'Updating this skill will restart all agents using it.\n\n' +
+          'You will need to manually resume any agents that were working.\n\n' +
+          'Continue?'
+        );
+        if (!confirmed) return;
+      }
+
       store.updateSkill(skillId, skillData);
     } else {
       store.createSkill(skillData as Omit<Skill, 'id' | 'createdAt' | 'updatedAt'>);

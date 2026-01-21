@@ -568,6 +568,15 @@
   }
 }
 
+.unit-new-session-indicator {
+  font-size: 10px;
+  font-family: $font-mono;
+  color: $dracula-orange;
+  padding: 4px 6px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: $radius-sm;
+}
+
 .unit-actions {
   display: flex;
   gap: 8px;

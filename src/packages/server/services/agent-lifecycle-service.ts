@@ -92,18 +92,17 @@ async function restartAgent(
     // Stop the current process if running
     await claudeService.stopAgent(agent.id);
 
-    // Clear session to force a fresh start with new instructions/skills
+    // Reset status but preserve sessionId - the session will resume with new instructions
     agentService.updateAgent(agent.id, {
       status: 'idle',
       currentTask: undefined,
       currentTool: undefined,
-      sessionId: undefined, // Clear session to start fresh
-      tokensUsed: 0,
-      contextUsed: 0,
+      // Note: sessionId is preserved - Claude will resume the existing session
+      // with the new instructions/skills on the next command
     });
 
     // Notify the user
-    sendActivity?.(agent.id, `Session restarted - ${reason}`);
+    sendActivity?.(agent.id, `Agent restarted - ${reason}`);
 
     log.log(`🔄 Agent ${agent.name} restarted successfully`);
   } catch (err) {

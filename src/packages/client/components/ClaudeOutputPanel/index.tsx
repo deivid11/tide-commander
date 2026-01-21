@@ -17,13 +17,19 @@ import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
-  useStore,
+  useAgents,
+  useSelectedAgentIds,
+  useTerminalOpen,
+  useLastPrompts,
+  useSupervisor,
+  useSettings,
   useAgentOutputs,
   store,
   ClaudeOutput,
   useContextModalAgentId,
   useFileViewerPath,
   useFileViewerEditData,
+  useReconnectCount,
 } from '../../store';
 import type { AgentAnalysis } from '../../../shared/types';
 import { filterCostText } from '../../utils/formatting';
@@ -61,7 +67,15 @@ import { useTerminalInput } from './useTerminalInput';
 import { getImageWebUrl } from './contentRendering';
 
 export function ClaudeOutputPanel() {
-  const state = useStore();
+  // Use granular selectors instead of useStore() to prevent unnecessary re-renders
+  const agents = useAgents();
+  const selectedAgentIds = useSelectedAgentIds();
+  const terminalOpen = useTerminalOpen();
+  const lastPrompts = useLastPrompts();
+  const supervisor = useSupervisor();
+  const settings = useSettings();
+  const reconnectCount = useReconnectCount(); // Watch for reconnections to refresh history
+
   const outputRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -114,10 +128,10 @@ export function ClaudeOutputPanel() {
   terminalHeightRef.current = terminalHeight;
 
   // Get selected agent
-  const selectedAgentIds = Array.from(state.selectedAgentIds);
-  const isSingleSelection = selectedAgentIds.length === 1;
-  const selectedAgentId = isSingleSelection ? selectedAgentIds[0] : null;
-  const selectedAgent = selectedAgentId ? state.agents.get(selectedAgentId) : null;
+  const selectedAgentIdsArray = Array.from(selectedAgentIds);
+  const isSingleSelection = selectedAgentIdsArray.length === 1;
+  const selectedAgentId = isSingleSelection ? selectedAgentIdsArray[0] : null;
+  const selectedAgent = selectedAgentId ? agents.get(selectedAgentId) : null;
 
   // Use the reactive hook for outputs
   const outputs = useAgentOutputs(selectedAgentId);
@@ -142,18 +156,12 @@ export function ClaudeOutputPanel() {
     getTextareaRows,
   } = terminalInput;
 
-  // Debug: Log when outputs change
-  useEffect(() => {
-    console.log(
-      `🖥️ [PANEL] outputs changed for agent ${selectedAgentId}, count=${outputs.length}, lastOutput=${outputs.length > 0 ? outputs[outputs.length - 1].text.substring(0, 50) : 'none'}...`
-    );
-  }, [outputs, selectedAgentId]);
 
   // Get pending permission requests for this agent
   const pendingPermissions = selectedAgentId ? store.getPendingPermissionsForAgent(selectedAgentId) : [];
 
   // Use store's terminal state
-  const isOpen = state.terminalOpen && selectedAgent !== null;
+  const isOpen = terminalOpen && selectedAgent !== null;
 
   // Memoized callbacks to prevent re-renders of child components
   const handleImageClick = useCallback((url: string, name: string) => {
@@ -166,8 +174,8 @@ export function ClaudeOutputPanel() {
 
   // Memoized sorted agents list for the agent links bar
   const sortedAgents = useMemo(() => {
-    return Array.from(state.agents.values()).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-  }, [state.agents]);
+    return Array.from(agents.values()).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  }, [agents]);
 
   // Memoized filtered history messages based on view mode
   const filteredHistory = useMemo(() => {
@@ -182,7 +190,7 @@ export function ClaudeOutputPanel() {
         return false;
       });
     }
-    // simple mode
+    // simple mode - show user messages, assistant responses, and tool actions (compact)
     return history.filter((msg) => msg.type === 'user' || msg.type === 'assistant' || msg.type === 'tool_use');
   }, [history, viewMode]);
 
@@ -431,7 +439,7 @@ export function ClaudeOutputPanel() {
     }
   };
 
-  // Load conversation history when agent changes
+  // Load conversation history when agent changes or on reconnect
   useEffect(() => {
     if (!selectedAgentId || !selectedAgent?.sessionId) {
       setHistory([]);
@@ -440,30 +448,66 @@ export function ClaudeOutputPanel() {
       return;
     }
 
+    // On reconnect, preserve current outputs BEFORE fetching new history
+    // This ensures we don't lose any messages that weren't persisted to the JSONL file yet
+    let preservedOutputsSnapshot: ClaudeOutput[] | undefined;
+    if (reconnectCount > 0) {
+      const currentOutputs = store.getOutputs(selectedAgentId);
+      if (currentOutputs.length > 0) {
+        preservedOutputsSnapshot = currentOutputs.map(o => ({ ...o }));
+      }
+    }
+
     setLoadingHistory(true);
     fetch(`/api/agents/${selectedAgentId}/history?limit=${MESSAGES_PER_PAGE}&offset=0`)
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+        return res.json();
+      })
       .then((data) => {
         const messages = data.messages || [];
         setHistory(messages);
         setHasMore(data.hasMore || false);
         setTotalCount(data.totalCount || 0);
 
-        const currentAgent = state.agents.get(selectedAgentId);
-        const isAgentWorking = currentAgent?.status === 'working';
-        if (messages.length > 0 && !isAgentWorking) {
-          const currentOutputs = store.getOutputs(selectedAgentId);
-          const thirtySecondsAgo = Date.now() - 30000;
-          const preservedOutputs = currentOutputs.filter(
-            (o) => o.isDelegation || o.isStreaming || (o.timestamp && o.timestamp > thirtySecondsAgo)
-          );
+        // On reconnect, restore preserved outputs (don't merge with history)
+        // History is rendered separately by HistoryLine, outputs by OutputLine
+        // They have different content formats and should not be mixed
+        if (preservedOutputsSnapshot && preservedOutputsSnapshot.length > 0) {
+          // Find the most recent history timestamp to filter out duplicate outputs
+          const lastHistoryTimestamp = messages.length > 0
+            ? Math.max(...messages.map((m: HistoryMessage) => m.timestamp ? new Date(m.timestamp).getTime() : 0))
+            : 0;
+
+          // Only keep preserved outputs that are newer than the last history message
+          // This avoids duplicating messages that are already in history
+          const newerOutputs = preservedOutputsSnapshot.filter(o => o.timestamp > lastHistoryTimestamp);
+
+          // Restore the newer outputs
           store.clearOutputs(selectedAgentId);
-          for (const output of preservedOutputs) {
+          for (const output of newerOutputs) {
             store.addOutput(selectedAgentId, output);
+          }
+        } else {
+          // Normal flow - handle outputs based on agent status
+          const currentAgent = agents.get(selectedAgentId);
+          const isAgentWorking = currentAgent?.status === 'working';
+          if (messages.length > 0 && !isAgentWorking) {
+            const currentOutputs = store.getOutputs(selectedAgentId);
+            const thirtySecondsAgo = Date.now() - 30000;
+            const preservedOutputs = currentOutputs.filter(
+              (o) => o.isDelegation || o.isStreaming || (o.timestamp && o.timestamp > thirtySecondsAgo)
+            );
+            store.clearOutputs(selectedAgentId);
+            for (const output of preservedOutputs) {
+              store.addOutput(selectedAgentId, output);
+            }
           }
         }
 
-        if (!state.lastPrompts.get(selectedAgentId)) {
+        if (!lastPrompts.get(selectedAgentId)) {
           for (let i = messages.length - 1; i >= 0; i--) {
             if (messages[i].type === 'user') {
               store.setLastPrompt(selectedAgentId, messages[i].content);
@@ -477,11 +521,18 @@ export function ClaudeOutputPanel() {
         setHistory([]);
         setHasMore(false);
         setTotalCount(0);
+        // Even on error, restore preserved outputs if we have them
+        if (preservedOutputsSnapshot && preservedOutputsSnapshot.length > 0) {
+          store.clearOutputs(selectedAgentId);
+          for (const output of preservedOutputsSnapshot) {
+            store.addOutput(selectedAgentId, output);
+          }
+        }
       })
       .finally(() => {
         setLoadingHistory(false);
       });
-  }, [selectedAgentId, selectedAgent?.sessionId]);
+  }, [selectedAgentId, selectedAgent?.sessionId, reconnectCount]); // reconnectCount triggers refresh on reconnection
 
   // Load more history when scrolling to top
   const loadMoreHistory = useCallback(async () => {
@@ -585,6 +636,18 @@ export function ClaudeOutputPanel() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, searchMode, imageModal]);
 
+  // Auto-resize textarea to fit content (shrinks when content is removed)
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea || !useTextarea) return;
+
+    // Reset height to auto to get the correct scrollHeight
+    textarea.style.height = 'auto';
+    // Set to scrollHeight (capped by max-height in CSS)
+    const newHeight = Math.min(textarea.scrollHeight, 180);
+    textarea.style.height = `${newHeight}px`;
+  }, [command, useTextarea]);
+
   // Auto-scroll to bottom on new output
   useEffect(() => {
     if (isUserScrolledUpRef.current) return;
@@ -599,7 +662,7 @@ export function ClaudeOutputPanel() {
     return () => cancelAnimationFrame(rafId);
   }, [outputs.length]);
 
-  // Scroll to bottom when switching agents
+  // Scroll to bottom when switching agents or when reconnect triggers history refresh
   useEffect(() => {
     if (loadingHistory) return;
 
@@ -613,7 +676,7 @@ export function ClaudeOutputPanel() {
     });
 
     return () => cancelAnimationFrame(rafId);
-  }, [selectedAgentId, loadingHistory]);
+  }, [selectedAgentId, loadingHistory, reconnectCount]);
 
   // Keyboard shortcut to toggle (backtick key like Guake)
   useEffect(() => {
@@ -672,9 +735,9 @@ export function ClaudeOutputPanel() {
               const lastInput =
                 selectedAgent.currentTask ||
                 selectedAgent.lastAssignedTask ||
-                state.lastPrompts.get(selectedAgentId || '')?.text;
+                lastPrompts.get(selectedAgentId || '')?.text;
 
-              const agentAnalysis = state.supervisor.lastReport?.agentSummaries.find(
+              const agentAnalysis = supervisor.lastReport?.agentSummaries.find(
                 (a: AgentAnalysis) => a.agentId === selectedAgent.id || a.agentName === selectedAgent.name
               );
 
@@ -689,7 +752,7 @@ export function ClaudeOutputPanel() {
               if (!lastInput && !agentAnalysis) return null;
 
               const filteredStatus = agentAnalysis?.statusDescription
-                ? filterCostText(agentAnalysis.statusDescription, state.settings.hideCost)
+                ? filterCostText(agentAnalysis.statusDescription, settings.hideCost)
                 : null;
 
               return (
@@ -911,7 +974,6 @@ export function ClaudeOutputPanel() {
         )}
 
         <div className={`guake-input ${useTextarea ? 'guake-input-expanded' : ''}`}>
-          <span className="guake-prompt">&gt;</span>
           <input
             ref={fileInputRef}
             type="file"
@@ -920,37 +982,38 @@ export function ClaudeOutputPanel() {
             style={{ display: 'none' }}
             accept="image/*,.txt,.md,.json,.js,.ts,.tsx,.jsx,.py,.sh,.css,.scss,.html,.xml,.yaml,.yml,.toml,.ini,.cfg,.conf"
           />
-          <button
-            className="guake-attach-btn"
-            onClick={() => fileInputRef.current?.click()}
-            title="Attach file (or paste image)"
-          >
-            📎
-          </button>
-          {useTextarea ? (
-            <textarea
-              ref={textareaRef}
-              placeholder={`Command ${selectedAgent.name}... (Shift+Enter for newline, paste image)`}
-              value={command}
-              onChange={(e) => setCommand(e.target.value)}
-              onKeyDown={handleKeyDown}
-              onPaste={handlePaste}
-              rows={getTextareaRows()}
-            />
-          ) : (
-            <input
-              ref={inputRef}
-              type="text"
-              placeholder={`Command ${selectedAgent.name}... (Shift+Enter multiline, paste image)`}
-              value={command}
-              onChange={(e) => setCommand(e.target.value)}
-              onKeyDown={handleKeyDown}
-              onPaste={handlePaste}
-            />
-          )}
-          <button onClick={handleSendCommand} disabled={!command.trim() && attachedFiles.length === 0}>
-            Send
-          </button>
+          <div className="guake-input-container">
+            <button
+              className="guake-attach-btn"
+              onClick={() => fileInputRef.current?.click()}
+              title="Attach file (or paste image)"
+            >
+              📎
+            </button>
+            {useTextarea ? (
+              <textarea
+                ref={textareaRef}
+                placeholder={`Message ${selectedAgent.name}...`}
+                value={command}
+                onChange={(e) => setCommand(e.target.value)}
+                onKeyDown={handleKeyDown}
+                onPaste={handlePaste}
+              />
+            ) : (
+              <input
+                ref={inputRef}
+                type="text"
+                placeholder={`Message ${selectedAgent.name}...`}
+                value={command}
+                onChange={(e) => setCommand(e.target.value)}
+                onKeyDown={handleKeyDown}
+                onPaste={handlePaste}
+              />
+            )}
+            <button onClick={handleSendCommand} disabled={!command.trim() && attachedFiles.length === 0} title="Send">
+              ➤
+            </button>
+          </div>
         </div>
 
         {/* Agent Links Indicators */}
@@ -1064,8 +1127,8 @@ export function ClaudeOutputPanel() {
 // Separate component for context modal to avoid re-renders
 function ContextModalFromGuake() {
   const contextModalAgentId = useContextModalAgentId();
-  const state = useStore();
-  const agent = contextModalAgentId ? state.agents.get(contextModalAgentId) : null;
+  const agents = useAgents();
+  const agent = contextModalAgentId ? agents.get(contextModalAgentId) : null;
 
   if (!agent) return null;
 

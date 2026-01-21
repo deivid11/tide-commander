@@ -494,7 +494,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd }: SpawnM
                   ))}
                 </div>
                 <div className="form-hint">
-                  These are automatically applied to all agents of this class
+                  Auto-applied to this class
                 </div>
               </div>
             )}

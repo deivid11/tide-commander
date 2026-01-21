@@ -75,6 +75,7 @@ export const DEFAULT_SETTINGS: Settings = {
 // Supervisor state
 export interface SupervisorState {
   enabled: boolean;
+  autoReportOnComplete: boolean; // Auto-generate report when agent completes task
   lastReport: SupervisorReport | null;
   narratives: Map<string, ActivityNarrative[]>;
   lastReportTime: number | null;
@@ -137,6 +138,9 @@ export interface StoreState {
   skills: Map<string, Skill>;
   // Custom Agent Classes
   customAgentClasses: Map<string, CustomAgentClass>;
+  // Reconnection counter - increments on each WebSocket reconnect
+  // Components can watch this to refresh their data
+  reconnectCount: number;
 }
 
 // Store listener type

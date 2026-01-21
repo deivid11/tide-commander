@@ -99,12 +99,3 @@ export {
   LastPrompt,
   LastResponse,
 } from './AgentStatsRow';
-export {
-  formatIdleCompact,
-  formatRelativeTime,
-  calculateContextInfo,
-  getContextBarColor,
-  groupAgentsByArea,
-  sortAreaIds,
-} from './agentUtils';
-export { useAgentSelection, useIdleTimer, useSupervisorHistory } from './useAgentSelection';

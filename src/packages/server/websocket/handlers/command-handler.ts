@@ -82,6 +82,22 @@ export async function handleSendCommand(
     return;
   }
 
+  // Handle /clear command - clear session and start fresh
+  if (command.trim() === '/clear') {
+    log.log(`Agent ${agent.name}: /clear command - clearing session`);
+    await claudeService.stopAgent(agentId);
+    agentService.updateAgent(agentId, {
+      status: 'idle',
+      currentTask: undefined,
+      currentTool: undefined,
+      sessionId: undefined,
+      tokensUsed: 0,
+      contextUsed: 0,
+    });
+    ctx.sendActivity(agentId, 'Session cleared - new session on next command');
+    return;
+  }
+
   // If this is a boss agent, handle differently
   if (agent.isBoss || agent.class === 'boss') {
     await handleBossCommand(ctx, agentId, command, agent.name, buildBossMessage);

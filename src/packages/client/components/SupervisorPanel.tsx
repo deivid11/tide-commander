@@ -18,7 +18,7 @@ function formatTimeAgo(timestamp: number): string {
 
 export function SupervisorPanel({ isOpen, onClose }: SupervisorPanelProps) {
   const state = useStore();
-  const { lastReport, enabled, lastReportTime, generatingReport } = state.supervisor;
+  const { lastReport, enabled, lastReportTime, generatingReport, autoReportOnComplete } = state.supervisor;
 
   const handleRefresh = () => {
     store.requestSupervisorReport();
@@ -26,6 +26,10 @@ export function SupervisorPanel({ isOpen, onClose }: SupervisorPanelProps) {
 
   const handleToggle = () => {
     store.setSupervisorConfig({ enabled: !enabled });
+  };
+
+  const handleAutoReportToggle = () => {
+    store.setSupervisorConfig({ autoReportOnComplete: !autoReportOnComplete });
   };
 
   if (!isOpen) return null;
@@ -42,9 +46,16 @@ export function SupervisorPanel({ isOpen, onClose }: SupervisorPanelProps) {
             <button
               className={`supervisor-toggle ${enabled ? 'active' : ''}`}
               onClick={handleToggle}
-              title={enabled ? 'Disable auto-reports' : 'Enable auto-reports'}
+              title={enabled ? 'Disable supervisor' : 'Enable supervisor'}
             >
               {enabled ? '● Active' : '○ Paused'}
+            </button>
+            <button
+              className={`supervisor-toggle auto-report ${autoReportOnComplete !== false ? 'active' : ''}`}
+              onClick={handleAutoReportToggle}
+              title={autoReportOnComplete !== false ? 'Disable auto-report on task complete' : 'Enable auto-report on task complete'}
+            >
+              {autoReportOnComplete !== false ? '⚡ Auto' : '◇ Manual'}
             </button>
             <button
               className="supervisor-refresh"
@@ -77,7 +88,8 @@ export function SupervisorPanel({ isOpen, onClose }: SupervisorPanelProps) {
 
         <div className="supervisor-footer">
           {lastReportTime && <span>Last report: {formatTimeAgo(lastReportTime)}</span>}
-          {enabled && <span>Updates on task start/complete</span>}
+          {enabled && autoReportOnComplete !== false && <span>Auto-updates on task complete</span>}
+          {enabled && autoReportOnComplete === false && <span>Manual updates only</span>}
         </div>
       </div>
     </div>

@@ -61,23 +61,16 @@ const clients = new Set<WebSocket>();
 
 export function broadcast(message: ServerMessage): void {
   const data = JSON.stringify(message);
-  log.log(`📡 [BROADCAST] Sending ${message.type} to ${clients.size} clients`);
 
-  let sentCount = 0;
   for (const client of clients) {
     if (client.readyState === WebSocket.OPEN) {
       try {
         client.send(data);
-        sentCount++;
       } catch (err) {
-        log.error(`  Failed to send to client:`, err);
+        log.error(`Failed to send ${message.type} to client:`, err);
       }
-    } else {
-      log.log(`  Skipping client with readyState: ${client.readyState}`);
     }
   }
-
-  log.log(`  Successfully sent to ${sentCount}/${clients.size} clients`);
 }
 
 function sendActivity(agentId: string, message: string): void {
@@ -135,7 +128,6 @@ function createHandlerContext(ws: WebSocket): HandlerContext {
 }
 
 function handleClientMessage(ws: WebSocket, message: ClientMessage): void {
-  log.log(` Received: ${message.type}`);
 
   const ctx = createHandlerContext(ws);
 
@@ -344,11 +336,9 @@ function setupServiceListeners(): void {
         // Already handled in handleClientMessage
         break;
       case 'updated':
-        const updatedAgent = data as Agent;
-        log.log(` Broadcasting agent_updated: ${updatedAgent.id} name=${updatedAgent.name} status=${updatedAgent.status}, contextUsed=${updatedAgent.contextUsed}, tokensUsed=${updatedAgent.tokensUsed}, clients=${clients.size}`);
         broadcast({
           type: 'agent_updated',
-          payload: updatedAgent,
+          payload: data as Agent,
         });
         break;
       case 'deleted':
@@ -377,7 +367,6 @@ function setupServiceListeners(): void {
     if (event.type === 'step_complete' && event.resultText) {
       const agent = agentService.getAgent(agentId);
       if (agent?.isBoss || agent?.class === 'boss') {
-        log.log(`🟣🟣🟣 step_complete EVENT for boss ${agent.name}, resultText length: ${event.resultText.length}`);
         parseBossDelegation(agentId, agent.name, event.resultText, broadcast);
         parseBossSpawn(agentId, agent.name, event.resultText, broadcast, sendActivity);
       }
@@ -387,10 +376,7 @@ function setupServiceListeners(): void {
     if (event.type === 'context_stats' && event.contextStatsRaw) {
       const stats = parseContextOutput(event.contextStatsRaw);
       if (stats) {
-        log.log(` Parsed context stats for ${agentId}: ${stats.usedPercent}% used (${stats.totalTokens}/${stats.contextWindow})`);
-        // Update agent with the parsed stats
         agentService.updateAgent(agentId, { contextStats: stats }, false);
-        // Broadcast to clients
         broadcast({
           type: 'context_stats',
           payload: { agentId, stats },
@@ -406,19 +392,15 @@ function setupServiceListeners(): void {
   });
 
   claudeService.on('output', (agentId, text, isStreaming) => {
-    const timestamp = Date.now();
-    log.log(`📤 [OUTPUT] Received output for agent ${agentId}, isStreaming=${isStreaming}, textLen=${text.length}, timestamp=${timestamp}`);
-    log.log(`📤 [OUTPUT] Text preview: "${text.substring(0, 100)}..."`);
     broadcast({
       type: 'output' as any,
       payload: {
         agentId,
         text,
         isStreaming: isStreaming || false,
-        timestamp,
+        timestamp: Date.now(),
       },
     });
-    log.log(`📤 [OUTPUT] Broadcast complete for timestamp=${timestamp}`);
   });
 
   claudeService.on('complete', (agentId, success) => {
@@ -527,6 +509,15 @@ function setupServiceListeners(): void {
           payload: { id: data as string },
         });
         break;
+      case 'assigned':
+        // Assignment changes (adding/removing agents) - broadcast but don't restart
+        // This fixes the bug where assigning a skill to a new agent would restart
+        // all other agents that already had the skill
+        broadcast({
+          type: 'skill_updated',
+          payload: data as Skill,
+        });
+        break;
     }
   });
 
@@ -565,10 +556,8 @@ export function init(server: HttpServer): WebSocketServer {
   const wss = new WebSocketServer({ server, path: '/ws' });
 
   wss.on('connection', async (ws) => {
-    log.log('🔗 [CONNECTION] New client connected');
-    log.log(`  Total clients: ${clients.size + 1}`);
     clients.add(ws);
-    log.log(`  Client added to set`);
+    log.log(`🔗 Client connected (total: ${clients.size})`);
 
     // Sync agent status with actual process state before sending to client
     // This only corrects 'working' -> 'idle' if the process is dead
@@ -576,57 +565,23 @@ export function init(server: HttpServer): WebSocketServer {
 
     // Send current state
     const agents = agentService.getAllAgents();
-    log.log(` Sending initial agents_update with ${agents.length} agents:`);
-    for (const agent of agents) {
-      console.log(`  - ${agent.name}: status=${agent.status}`);
-    }
-
-    ws.send(
-      JSON.stringify({
-        type: 'agents_update',
-        payload: agents,
-      })
-    );
+    ws.send(JSON.stringify({ type: 'agents_update', payload: agents }));
 
     // Send current areas
     const areas = loadAreas();
-    log.log(` Sending initial areas_update with ${areas.length} areas`);
-    ws.send(
-      JSON.stringify({
-        type: 'areas_update',
-        payload: areas,
-      })
-    );
+    ws.send(JSON.stringify({ type: 'areas_update', payload: areas }));
 
     // Send current buildings
     const buildings = loadBuildings();
-    log.log(` Sending initial buildings_update with ${buildings.length} buildings`);
-    ws.send(
-      JSON.stringify({
-        type: 'buildings_update',
-        payload: buildings,
-      })
-    );
+    ws.send(JSON.stringify({ type: 'buildings_update', payload: buildings }));
 
     // Send current skills
     const skills = skillService.getAllSkills();
-    log.log(` Sending initial skills_update with ${skills.length} skills`);
-    ws.send(
-      JSON.stringify({
-        type: 'skills_update',
-        payload: skills,
-      })
-    );
+    ws.send(JSON.stringify({ type: 'skills_update', payload: skills }));
 
     // Send current custom agent classes
     const customClasses = customClassService.getAllCustomClasses();
-    log.log(` Sending initial custom_agent_classes_update with ${customClasses.length} custom classes`);
-    ws.send(
-      JSON.stringify({
-        type: 'custom_agent_classes_update',
-        payload: customClasses,
-      })
-    );
+    ws.send(JSON.stringify({ type: 'custom_agent_classes_update', payload: customClasses }));
 
     // Send pending permission requests
     const pendingPermissions = permissionService.getPendingRequests();
@@ -644,21 +599,17 @@ export function init(server: HttpServer): WebSocketServer {
 
     ws.on('message', (data) => {
       const dataStr = data.toString();
-      log.log('📨 [MESSAGE] Received from client:', dataStr.substring(0, 200));
       try {
         const message = JSON.parse(dataStr) as ClientMessage;
-        log.log(`  Message type: ${message.type}`);
         handleClientMessage(ws, message);
       } catch (err) {
-        log.error('❌ Invalid message:', err);
-        log.error('  Raw data:', dataStr);
+        log.error('Invalid message:', err, dataStr.substring(0, 100));
       }
     });
 
     ws.on('close', () => {
-      log.log('🔴 [DISCONNECT] Client disconnected');
       clients.delete(ws);
-      log.log(`  Remaining clients: ${clients.size}`);
+      log.log(`🔴 Client disconnected (remaining: ${clients.size})`);
     });
   });
 
@@ -668,3 +619,4 @@ export function init(server: HttpServer): WebSocketServer {
   log.log(' Handler initialized');
   return wss;
 }
+ 

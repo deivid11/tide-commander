@@ -325,7 +325,7 @@
 
 .guake-view-toggle {
   background: transparent;
-  border: 1px solid $dracula-current;
+  border: 1px solid $dracula-comment;
   color: $dracula-comment;
   padding: 4px 12px;
   border-radius: $radius-sm;
@@ -343,20 +343,18 @@
   &.view-mode-chat {
     border-color: $dracula-cyan;
     color: $dracula-cyan;
-    background: rgba($dracula-cyan, 0.1);
   }
 
   // Advanced mode - purple color
   &.view-mode-advanced {
     border-color: $dracula-purple;
     color: $dracula-purple;
-    background: rgba($dracula-purple, 0.1);
   }
 }
 
 .guake-clear {
   background: transparent;
-  border: 1px solid $dracula-current;
+  border: 1px solid $dracula-comment;
   color: $dracula-comment;
   padding: 4px 12px;
   border-radius: $radius-sm;
@@ -373,7 +371,7 @@
 
 .guake-context-btn {
   background: transparent;
-  border: 1px solid $dracula-current;
+  border: 1px solid $dracula-comment;
   color: $dracula-comment;
   padding: 4px 10px;
   border-radius: $radius-sm;
@@ -402,7 +400,7 @@
 
 .guake-search-toggle {
   background: transparent;
-  border: 1px solid $dracula-current;
+  border: 1px solid $dracula-comment;
   color: $dracula-comment;
   padding: 4px 8px;
   border-radius: $radius-sm;
@@ -418,7 +416,6 @@
   &.active {
     border-color: $dracula-cyan;
     color: $dracula-cyan;
-    background: rgba($dracula-cyan, 0.1);
   }
 }
 
@@ -803,42 +800,55 @@
   font-weight: 500;
 }
 
+// =============================================================================
+// Guake Input - Modern Chat-style Input Bar
+// =============================================================================
+
 .guake-input {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 18px;
-  background: rgba($dracula-bg-darker, 0.98);
-  border-top: 2px solid $dracula-purple;
+  align-items: stretch;
+  gap: 0;
+  padding: 8px 12px;
+  background: rgba($dracula-bg-darker, 0.95);
+  border-top: 1px solid rgba($dracula-purple, 0.25);
 }
 
-.guake-prompt {
-  color: $dracula-green;
-  font-family: $font-mono;
-  font-weight: bold;
-  font-size: 14px;
+// Container that groups attach + input + send together
+.guake-input-container {
+  display: flex;
+  align-items: stretch;
+  flex: 1;
+  background: rgba($dracula-bg, 0.5);
+  border: 1px solid rgba($dracula-comment, 0.25);
+  border-radius: 8px;
+  transition: all $transition-fast;
+  min-height: 42px;
+
+  &:focus-within {
+    border-color: rgba($dracula-purple, 0.5);
+    background: rgba($dracula-bg, 0.7);
+    box-shadow: 0 0 0 2px rgba($dracula-purple, 0.12);
+  }
 }
 
 .guake-input input,
 .guake-input textarea {
   flex: 1;
-  background: $dracula-bg;
-  border: 2px solid $dracula-current;
-  border-radius: $radius-sm;
-  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  padding: 10px 12px;
   color: $dracula-fg;
   font-family: $font-mono;
   font-size: 13px;
+  line-height: 1.5;
+  min-width: 0; // Allow shrinking
 
   &:focus {
     outline: none;
-    border-color: $dracula-purple;
-    box-shadow: 0 0 0 3px rgba($dracula-purple, 0.25), inset 0 0 0 1px rgba($dracula-purple, 0.1);
-    background: color.adjust($dracula-bg, $lightness: 3%);
   }
 
   &::placeholder {
-    color: $dracula-comment;
+    color: rgba($dracula-comment, 0.6);
   }
 
   &:disabled {
@@ -848,50 +858,106 @@
 }
 
 .guake-input textarea {
-  resize: none; // Auto-resize based on rows
-  min-height: 50px;
-  max-height: 250px;
-  line-height: 1.4;
+  resize: none;
+  min-height: 20px; // Single line
+  max-height: 180px;
   overflow-y: auto;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  // Use 'auto' height - will be controlled via JS
+  height: auto;
+  // Reset to content-based height - important for shrinking
+  field-sizing: content;
+
+  // Scrollbar styling
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: rgba($dracula-comment, 0.3);
+    border-radius: 2px;
+
+    &:hover {
+      background: rgba($dracula-comment, 0.5);
+    }
+  }
 }
 
+// Expanded mode (multiline)
 .guake-input-expanded {
-  align-items: flex-start;
-
-  .guake-prompt {
-    margin-top: 10px;
+  .guake-input-container {
+    align-items: flex-end;
   }
 
-  button {
-    margin-top: auto;
+  .guake-attach-btn,
+  .guake-send-btn {
     align-self: flex-end;
+    margin-bottom: 2px;
   }
 }
 
-.guake-input button {
-  padding: 10px 18px;
-  background: $dracula-cyan;
+// Attach button - left side of input
+.guake-attach-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  min-height: 40px;
+  background: transparent;
   border: none;
-  border-radius: $radius-sm;
-  color: $dracula-bg;
-  font-weight: 600;
-  font-family: $font-mono;
+  color: rgba($dracula-comment, 0.7);
+  font-size: 14px;
   cursor: pointer;
-  transition: all $transition-normal;
+  transition: all $transition-fast;
+  flex-shrink: 0;
+  border-radius: 7px 0 0 7px;
+
+  &:hover {
+    color: $dracula-cyan;
+    background: rgba($dracula-cyan, 0.08);
+  }
+
+  &:active {
+    background: rgba($dracula-cyan, 0.15);
+  }
+}
+
+// Send button - right side of input
+.guake-send-btn,
+.guake-input button:not(.guake-attach-btn) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  min-height: 40px;
+  background: transparent;
+  border: none;
+  color: $dracula-cyan;
+  font-size: 15px;
+  cursor: pointer;
+  transition: all $transition-fast;
+  flex-shrink: 0;
+  padding: 0;
+  border-radius: 0 7px 7px 0;
 
   &:hover:not(:disabled) {
-    background: color.adjust($dracula-cyan, $lightness: 10%);
-    transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba($dracula-cyan, 0.4);
+    color: color.adjust($dracula-cyan, $lightness: 12%);
+    background: rgba($dracula-cyan, 0.08);
   }
 
   &:active:not(:disabled) {
-    transform: translateY(0);
+    background: rgba($dracula-cyan, 0.15);
   }
 
   &:disabled {
-    opacity: 0.5;
+    opacity: 0.25;
     cursor: not-allowed;
+    color: $dracula-comment;
   }
 }
 
@@ -1814,30 +1880,30 @@
   word-break: break-all;
 }
 
-// File attachments
+// File attachments - shown above input
 .guake-attachments {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  padding: 8px 18px;
-  background: rgba($dracula-bg, 0.9);
-  border-top: 1px solid $dracula-current;
+  gap: 6px;
+  padding: 6px 14px;
+  background: rgba($dracula-bg-darker, 0.95);
+  border-top: 1px solid rgba($dracula-comment, 0.15);
 }
 
 .guake-attachment {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  background: rgba($dracula-cyan, 0.15);
-  border: 1px solid rgba($dracula-cyan, 0.3);
-  border-radius: $radius-sm;
+  gap: 5px;
+  padding: 3px 8px;
+  background: rgba($dracula-current, 0.4);
+  border: 1px solid rgba($dracula-comment, 0.25);
+  border-radius: $radius-md;
   font-family: $font-mono;
   font-size: 11px;
+  transition: all $transition-fast;
 
   &.is-image {
-    background: rgba($dracula-pink, 0.15);
-    border-color: rgba($dracula-pink, 0.3);
+    border-color: rgba($dracula-pink, 0.4);
 
     .guake-attachment-icon {
       color: $dracula-pink;
@@ -1846,23 +1912,22 @@
 
   &.clickable {
     cursor: pointer;
-    transition: all $transition-fast;
 
     &:hover {
-      transform: scale(1.05);
-      box-shadow: 0 2px 8px rgba($dracula-pink, 0.3);
-      border-color: $dracula-pink;
+      background: rgba($dracula-pink, 0.15);
+      border-color: rgba($dracula-pink, 0.5);
     }
   }
 }
 
 .guake-attachment-icon {
-  font-size: 14px;
+  font-size: 12px;
+  line-height: 1;
 }
 
 .guake-attachment-name {
   color: $dracula-fg;
-  max-width: 150px;
+  max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1870,43 +1935,28 @@
 
 .guake-attachment-size {
   color: $dracula-comment;
-  font-size: 10px;
+  font-size: 9px;
 }
 
 .guake-attachment-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   border: none;
-  color: $dracula-comment;
-  font-size: 14px;
+  color: rgba($dracula-comment, 0.6);
+  font-size: 12px;
   line-height: 1;
-  padding: 0 2px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
   cursor: pointer;
-  transition: color $transition-fast;
-
-  &:hover {
-    color: $dracula-red;
-  }
-}
-
-.guake-attach-btn {
-  background: rgba($dracula-cyan, 0.15);
-  border: 2px solid $dracula-cyan;
-  color: $dracula-cyan;
-  padding: 8px 12px;
-  border-radius: $radius-sm;
-  font-size: 14px;
-  cursor: pointer;
+  border-radius: 50%;
   transition: all $transition-fast;
 
   &:hover {
-    border-color: color.adjust($dracula-cyan, $lightness: 10%);
-    color: color.adjust($dracula-cyan, $lightness: 10%);
-    background: rgba($dracula-cyan, 0.25);
-    transform: scale(1.05);
-  }
-
-  &:active {
-    transform: scale(0.98);
+    color: $dracula-red;
+    background: rgba($dracula-red, 0.15);
   }
 }
 

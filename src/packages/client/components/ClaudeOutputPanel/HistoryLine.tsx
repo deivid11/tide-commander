@@ -266,6 +266,11 @@ export const HistoryLine = memo(function HistoryLine({
   }
 
   if (type === 'tool_result') {
+    // Simple view: hide tool results entirely (tool_use already shows the action)
+    if (simpleView) {
+      return null;
+    }
+
     const isError = content.toLowerCase().includes('error') || content.toLowerCase().includes('failed');
     return (
       <div className={`output-line output-tool-result ${isError ? 'is-error' : ''}`}>

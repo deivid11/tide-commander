@@ -1,5 +1,6 @@
 /**
  * AgentPanel component - displays a single agent's output and input in CommanderView
+ * Uses shared components from ClaudeOutputPanel (Guake) for consistent rendering
  */
 
 import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react';
@@ -7,9 +8,9 @@ import type { Agent } from '../../../shared/types';
 import { useStore, store, ClaudeOutput } from '../../store';
 import { formatTokens } from '../../utils/formatting';
 import { useAgentInput } from './useAgentInput';
-import { MessageLine } from './MessageLine';
-import { OutputLine } from './OutputLine';
-import { filterHistoryMessages, filterOutputs } from './viewFilters';
+// Reuse components from ClaudeOutputPanel (Guake) for consistent rendering
+import { HistoryLine } from '../ClaudeOutputPanel/HistoryLine';
+import { OutputLine } from '../ClaudeOutputPanel/OutputLine';
 import type { AgentHistory } from './types';
 import { STATUS_COLORS, SCROLL_THRESHOLD } from './types';
 
@@ -252,11 +253,13 @@ export function AgentPanel({
 
   const statusColor = STATUS_COLORS[agent.status] || '#888888';
 
-  // Filter messages and outputs based on view mode
-  const filteredMessages = history?.messages
-    ? filterHistoryMessages(history.messages, advancedView)
-    : [];
-  const filteredOutputs = filterOutputs(outputs, advancedView);
+  // In simple mode (advancedView=false), we show all messages but HistoryLine renders them simplified
+  // In advanced mode, we show everything with full details
+  const messages = history?.messages || [];
+
+  // Convert live outputs to the format expected by Guake's OutputLine
+  // The Guake OutputLine expects agentId for certain features
+  const liveOutputs = outputs;
 
   return (
     <div
@@ -308,7 +311,10 @@ export function AgentPanel({
           )}
           <button
             className="agent-panel-expand"
-            onClick={onExpand}
+            onClick={e => {
+              e.stopPropagation();
+              onExpand();
+            }}
             title={isExpanded ? 'Collapse (Esc)' : 'Expand'}
           >
             {isExpanded ? (
@@ -366,13 +372,22 @@ export function AgentPanel({
                 )}
               </div>
             )}
-            {filteredMessages.map((msg, i) => (
-              <MessageLine key={`h-${i}`} message={msg} />
+            {messages.map((msg, i) => (
+              <HistoryLine
+                key={`h-${i}`}
+                message={msg}
+                agentId={agent.id}
+                simpleView={!advancedView}
+              />
             ))}
-            {filteredOutputs.map((output, i) => (
-              <OutputLine key={`o-${i}`} output={output} />
+            {liveOutputs.map((output, i) => (
+              <OutputLine
+                key={`o-${i}`}
+                output={output}
+                agentId={agent.id}
+              />
             ))}
-            {!filteredMessages.length && !filteredOutputs.length && (
+            {!messages.length && !liveOutputs.length && (
               <div className="agent-panel-empty">
                 No messages yet
                 {!agent.sessionId && (

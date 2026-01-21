@@ -24,6 +24,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
   const [selectedClass, setSelectedClass] = useState<AgentClass>(agent.class);
   const [permissionMode, setPermissionMode] = useState<PermissionMode>(agent.permissionMode);
   const [selectedModel, setSelectedModel] = useState<ClaudeModel>(agent.model || 'sonnet');
+  const [useChrome, setUseChrome] = useState<boolean>(agent.useChrome || false);
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set());
 
   // Get skills currently assigned to this agent
@@ -50,6 +51,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
       setSelectedClass(agent.class);
       setPermissionMode(agent.permissionMode);
       setSelectedModel(agent.model || 'sonnet');
+      setUseChrome(agent.useChrome || false);
       const directlyAssigned = allSkills
         .filter(s => s.assignedAgentIds.includes(agent.id))
         .map(s => s.id);
@@ -105,6 +107,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
     if (selectedClass !== agent.class) return true;
     if (permissionMode !== agent.permissionMode) return true;
     if (selectedModel !== (agent.model || 'sonnet')) return true;
+    if (useChrome !== (agent.useChrome || false)) return true;
 
     // Check skill changes
     const currentDirectSkills = allSkills
@@ -116,7 +119,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
     if (currentDirectSkills !== newSkills) return true;
 
     return false;
-  }, [selectedClass, permissionMode, selectedModel, selectedSkillIds, agent, allSkills]);
+  }, [selectedClass, permissionMode, selectedModel, useChrome, selectedSkillIds, agent, allSkills]);
 
   // Handle save
   const handleSave = () => {
@@ -124,6 +127,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
       class?: AgentClass;
       permissionMode?: PermissionMode;
       model?: ClaudeModel;
+      useChrome?: boolean;
       skillIds?: string[];
     } = {};
 
@@ -137,6 +141,10 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
 
     if (selectedModel !== (agent.model || 'sonnet')) {
       updates.model = selectedModel;
+    }
+
+    if (useChrome !== (agent.useChrome || false)) {
+      updates.useChrome = useChrome;
     }
 
     // Always send skill IDs if changed
@@ -293,6 +301,31 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                 ⚠️ Changing model will restart the agent session
               </div>
             )}
+          </div>
+
+          {/* Chrome Mode */}
+          <div className="form-section" style={{ marginBottom: '16px' }}>
+            <label
+              className="form-label"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                cursor: 'pointer',
+                userSelect: 'none',
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={useChrome}
+                onChange={(e) => setUseChrome(e.target.checked)}
+                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+              />
+              <span>🌐 Use Chrome Browser</span>
+            </label>
+            <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px', marginLeft: '24px' }}>
+              Enable browser access for web scraping, testing, and automation tasks
+            </div>
           </div>
 
           {/* Skills Assignment */}

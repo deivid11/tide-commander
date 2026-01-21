@@ -57,6 +57,10 @@ export function SingleAgentPanel({
   const agent = state.agents.get(agentProp.id) || agentProp;
   const classConfig = getClassConfig(agent.class, customClasses);
 
+  // Get model file for custom classes
+  const customClass = customClasses.find(c => c.id === agent.class);
+  const modelFile = customClass?.model;
+
   // Name editing state
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState(agent.name);
@@ -187,7 +191,7 @@ export function SingleAgentPanel({
     <div className="unit-panel">
       {/* Model Preview */}
       <div className="unit-model-preview">
-        <ModelPreview agentClass={agent.class} status={agent.status} width={80} height={80} />
+        <ModelPreview agentClass={agent.class} modelFile={modelFile} status={agent.status} width={80} height={80} />
       </div>
 
       {/* Agent Header */}
@@ -321,7 +325,7 @@ export function SingleAgentPanel({
       )}
 
       {/* Resume Session Command */}
-      {agent.sessionId && (
+      {agent.sessionId ? (
         <div className="unit-resume-cmd">
           <div className="unit-stat-label">Resume Session</div>
           <div
@@ -338,6 +342,11 @@ export function SingleAgentPanel({
           >
             claude --resume {agent.sessionId}
           </div>
+        </div>
+      ) : (
+        <div className="unit-resume-cmd">
+          <div className="unit-stat-label">Session</div>
+          <div className="unit-new-session-indicator">New agent, new session</div>
         </div>
       )}
 

@@ -50,6 +50,7 @@ export interface AgentActions {
       class?: AgentClass;
       permissionMode?: PermissionMode;
       model?: ClaudeModel;
+      useChrome?: boolean;
       skillIds?: string[];
     }
   ): void;
@@ -80,8 +81,17 @@ export function createAgentActions(
       for (const agent of agentList) {
         newAgents.set(agent.id, agent);
       }
+
+      // Find a working agent to auto-select (helps with page refresh during streaming)
+      const workingAgent = agentList.find((a) => a.status === 'working');
+
       setState((state) => {
         state.agents = newAgents;
+        // Auto-select working agent if no agent is currently selected
+        if (workingAgent && state.selectedAgentIds.size === 0) {
+          state.selectedAgentIds.add(workingAgent.id);
+          state.terminalOpen = true;
+        }
       });
       notify();
       perf.end('store:setAgents');
@@ -344,6 +354,7 @@ export function createAgentActions(
         class?: AgentClass;
         permissionMode?: PermissionMode;
         model?: ClaudeModel;
+        useChrome?: boolean;
         skillIds?: string[];
       }
     ): void {
@@ -360,6 +371,9 @@ export function createAgentActions(
           }
           if (updates.model !== undefined) {
             updatedAgent.model = updates.model;
+          }
+          if (updates.useChrome !== undefined) {
+            updatedAgent.useChrome = updates.useChrome;
           }
           const newAgents = new Map(s.agents);
           newAgents.set(agentId, updatedAgent);

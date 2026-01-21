@@ -251,6 +251,16 @@ export function useLastPrompt(agentId: string | null): LastPrompt | undefined {
   );
 }
 
+/**
+ * Get all last prompts. Only re-renders when lastPrompts change.
+ */
+export function useLastPrompts(): Map<string, LastPrompt> {
+  return useSelector(
+    useCallback((state: StoreState) => state.lastPrompts, []),
+    shallowMapEqual
+  );
+}
+
 // ============================================================================
 // ACTIVITY SELECTORS
 // ============================================================================
@@ -613,5 +623,15 @@ export function useCustomAgentClass(classId: string | null): CustomAgentClass | 
         classId ? state.customAgentClasses.get(classId) : undefined,
       [classId]
     )
+  );
+}
+
+/**
+ * Get reconnect count. Increments each time WebSocket reconnects after disconnect.
+ * Components can use this to refresh their data on reconnection.
+ */
+export function useReconnectCount(): number {
+  return useSelector(
+    useCallback((state: StoreState) => state.reconnectCount, [])
   );
 }

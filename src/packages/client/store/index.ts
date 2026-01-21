@@ -57,6 +57,7 @@ export {
   useSubordinateAgents,
   useAgentOutputs,
   useLastPrompt,
+  useLastPrompts,
   useActivities,
   useIsConnected,
   useAreas,
@@ -88,6 +89,7 @@ export {
   useCustomAgentClasses,
   useCustomAgentClassesArray,
   useCustomAgentClass,
+  useReconnectCount,
 } from './selectors';
 
 // ============================================================================
@@ -144,6 +146,7 @@ class Store
       contextModalAgentId: null,
       supervisor: {
         enabled: true,
+        autoReportOnComplete: true,
         lastReport: null,
         narratives: new Map(),
         lastReportTime: null,
@@ -159,6 +162,7 @@ class Store
       lastDelegationReceived: new Map(),
       skills: new Map(),
       customAgentClasses: new Map(),
+      reconnectCount: 0,
     };
 
     // Helper functions for domain modules
@@ -224,6 +228,15 @@ class Store
 
   setConnected(isConnected: boolean): void {
     this.state.isConnected = isConnected;
+    this.notify();
+  }
+
+  /**
+   * Called when WebSocket reconnects after a disconnect
+   * Increments reconnectCount so components can refresh their data
+   */
+  triggerReconnect(): void {
+    this.state.reconnectCount++;
     this.notify();
   }
 
@@ -386,6 +399,8 @@ class Store
   addUserPromptToOutput(...args: Parameters<OutputActions['addUserPromptToOutput']>) { return this.outputActions.addUserPromptToOutput(...args); }
   getLastPrompt(...args: Parameters<OutputActions['getLastPrompt']>) { return this.outputActions.getLastPrompt(...args); }
   setLastPrompt(...args: Parameters<OutputActions['setLastPrompt']>) { return this.outputActions.setLastPrompt(...args); }
+  preserveOutputs() { return this.outputActions.preserveOutputs(); }
+  mergeOutputsWithHistory(...args: Parameters<OutputActions['mergeOutputsWithHistory']>) { return this.outputActions.mergeOutputsWithHistory(...args); }
 
   // ============================================================================
   // Supervisor Actions (delegated)

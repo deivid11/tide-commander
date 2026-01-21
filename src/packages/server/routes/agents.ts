@@ -9,7 +9,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { agentService, claudeService } from '../services/index.js';
 import { getClaudeProjectDir } from '../data/index.js';
-import { listSessions, loadSession } from '../claude/session-loader.js';
+// Session listing is done inline for performance
 import { createLogger } from '../utils/logger.js';
 
 const log = createLogger('Routes');
@@ -34,16 +34,67 @@ router.get('/claude-sessions', async (req: Request, res: Response) => {
     const allSessions: SessionWithProject[] = [];
 
     if (cwd) {
-      // List sessions for specific directory
-      const sessions = await listSessions(cwd);
-      for (const session of sessions) {
-        // Get first user message as preview
-        const history = await loadSession(cwd, session.sessionId, 5);
-        const firstUserMsg = history?.messages.find(m => m.type === 'user');
-        allSessions.push({
-          ...session,
-          firstMessage: firstUserMsg?.content?.substring(0, 100),
-        });
+      // List sessions for specific directory - optimized for speed
+      // Only read file metadata and first few KB to find first message
+      const projectDir = path.join(os.homedir(), '.claude', 'projects');
+      const encodedPath = cwd.replace(/\/+$/, '').replace(/[/_]/g, '-');
+      const sessionDir = path.join(projectDir, encodedPath);
+
+      if (fs.existsSync(sessionDir)) {
+        const files = fs.readdirSync(sessionDir);
+
+        for (const file of files) {
+          if (!file.endsWith('.jsonl')) continue;
+
+          const sessionId = file.replace('.jsonl', '');
+          const filePath = path.join(sessionDir, file);
+
+          try {
+            const stats = fs.statSync(filePath);
+
+            // Estimate message count from file size (avg ~500 bytes per message)
+            const estimatedMessages = Math.max(1, Math.round(stats.size / 500));
+
+            // Only read first 8KB to find first user message (much faster)
+            const fd = fs.openSync(filePath, 'r');
+            const buffer = Buffer.alloc(8192);
+            const bytesRead = fs.readSync(fd, buffer, 0, 8192, 0);
+            fs.closeSync(fd);
+
+            const chunk = buffer.toString('utf-8', 0, bytesRead);
+            const lines = chunk.split('\n');
+
+            let firstMessage: string | undefined;
+            for (const line of lines) {
+              if (!line.trim()) continue;
+              try {
+                const parsed = JSON.parse(line);
+                if (parsed.type === 'user' && parsed.message?.content) {
+                  const msg = typeof parsed.message.content === 'string'
+                    ? parsed.message.content
+                    : (Array.isArray(parsed.message.content) && parsed.message.content[0]?.text) || '';
+                  firstMessage = msg.substring(0, 100);
+                  break;
+                }
+              } catch {
+                // Skip invalid/incomplete lines
+              }
+            }
+
+            allSessions.push({
+              sessionId,
+              projectPath: cwd,
+              lastModified: stats.mtime,
+              messageCount: estimatedMessages,
+              firstMessage,
+            });
+          } catch {
+            // Skip files that can't be read
+          }
+        }
+
+        // Sort by last modified, newest first
+        allSessions.sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime());
       }
     } else {
       // List all sessions across all projects
@@ -188,7 +239,14 @@ router.get('/:id', (req: Request<{ id: string }>, res: Response) => {
 
 // PATCH /api/agents/:id - Update agent
 router.patch('/:id', (req: Request<{ id: string }>, res: Response) => {
-  const updated = agentService.updateAgent(req.params.id, req.body);
+  // Protect sessionId from being accidentally cleared via API
+  // Only allow explicit session management through dedicated endpoints
+  const { sessionId, ...safeUpdates } = req.body;
+  if (sessionId !== undefined) {
+    log.warn(`API attempted to modify sessionId for agent ${req.params.id} - blocked`);
+  }
+
+  const updated = agentService.updateAgent(req.params.id, safeUpdates);
 
   if (!updated) {
     res.status(404).json({ error: 'Agent not found' });

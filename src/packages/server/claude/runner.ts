@@ -349,14 +349,10 @@ export class ClaudeRunner {
       systemPrompt,
       customAgent,
     };
-    log.log(` Building args with config: sessionId=${sessionId}, systemPrompt=${systemPrompt ? 'yes' : 'no'}, customAgent=${customAgent ? customAgent.name : 'no'}`);
     const args = this.backend.buildArgs(backendConfig);
-
-    // Get executable path
     const executable = this.backend.getExecutablePath();
 
-    log.log(` Starting: ${executable} ${args.join(' ')}`);
-    log.log(` Working dir: ${workingDir}`);
+    log.log(`🚀 Spawning: ${executable} ${args.join(' ')}`);
 
     // Spawn process with its own process group (detached: true)
     // Note: shell: false is required to properly pass arguments with special characters
@@ -384,14 +380,17 @@ export class ClaudeRunner {
     };
     this.activeProcesses.set(agentId, activeProcess);
 
-    // Handle stdout (stream-json events)
-    this.handleStdout(agentId, childProcess);
+    // Handle stdout (stream-json events) - returns promise when fully processed
+    const stdoutDone = this.handleStdout(agentId, childProcess);
 
     // Handle stderr
     this.handleStderr(agentId, childProcess);
 
-    // Handle process exit
-    childProcess.on('close', (code, signal) => {
+    // Handle process exit - wait for stdout to be fully processed first
+    childProcess.on('close', async (code, signal) => {
+      // Wait for stdout to be fully processed before signaling completion
+      // This fixes a race condition where the last message might not be received
+      await stdoutDone;
       const wasTracked = this.activeProcesses.has(agentId);
       const trackedProcess = this.activeProcesses.get(agentId);
       const runtime = trackedProcess ? Date.now() - trackedProcess.startTime : 0;
@@ -454,10 +453,9 @@ export class ClaudeRunner {
     // Send the prompt via stdin
     if (this.backend.requiresStdinInput() && childProcess.stdin) {
       const stdinInput = this.backend.formatStdinInput(prompt);
-      log.log(` Sending stdin: ${stdinInput.substring(0, 100)}...`);
       childProcess.stdin.write(stdinInput + '\n', 'utf8', (err) => {
         if (err) {
-          log.error(` Failed to write initial prompt to stdin for ${agentId}:`, err);
+          log.error(`Failed to write initial prompt to stdin for ${agentId}:`, err);
         }
       });
     }
@@ -470,22 +468,18 @@ export class ClaudeRunner {
   sendMessage(agentId: string, message: string): boolean {
     const activeProcess = this.activeProcesses.get(agentId);
     if (!activeProcess) {
-      log.log(` No active process for agent ${agentId}`);
       return false;
     }
 
     const stdin = activeProcess.process.stdin;
     if (!stdin || !stdin.writable) {
-      log.log(` No writable stdin for agent ${agentId}`);
       return false;
     }
 
     const stdinInput = this.backend.formatStdinInput(message);
-    log.log(` Sending additional message to ${agentId}: ${stdinInput.substring(0, 100)}...`);
-
     stdin.write(stdinInput + '\n', 'utf8', (err) => {
       if (err) {
-        log.error(` Failed to write to stdin for ${agentId}:`, err);
+        log.error(`Failed to write to stdin for ${agentId}:`, err);
       }
     });
 
@@ -500,56 +494,60 @@ export class ClaudeRunner {
   interrupt(agentId: string): boolean {
     const activeProcess = this.activeProcesses.get(agentId);
     if (!activeProcess) {
-      log.log(`⚡ [INTERRUPT] Agent ${agentId}: No active process to interrupt`);
       return false;
     }
 
     const pid = activeProcess.process.pid;
     if (!pid) {
-      log.log(`⚡ [INTERRUPT] Agent ${agentId}: No PID available`);
       return false;
     }
-
-    log.log(`⚡ [INTERRUPT] Agent ${agentId}: Sending SIGINT to pid ${pid} (graceful interrupt)`);
     try {
-      // Send SIGINT to the process (like Ctrl+C)
       activeProcess.process.kill('SIGINT');
-      log.log(`⚡ [INTERRUPT] Agent ${agentId}: SIGINT sent successfully`);
       return true;
     } catch (e) {
-      log.error(`⚡ [INTERRUPT] Agent ${agentId}: Failed to send SIGINT:`, e);
+      log.error(`Failed to interrupt ${agentId}:`, e);
       return false;
     }
   }
 
   /**
    * Handle stdout streaming with UTF-8 safe parsing
+   * Returns a promise that resolves when stdout is fully processed
    */
-  private handleStdout(agentId: string, process: ChildProcess): void {
-    const decoder = new StringDecoder('utf8');
-    let buffer = '';
+  private handleStdout(agentId: string, process: ChildProcess): Promise<void> {
+    return new Promise((resolve) => {
+      const decoder = new StringDecoder('utf8');
+      let buffer = '';
 
-    process.stdout?.on('data', (data: Buffer) => {
-      // Decode with UTF-8 safety for multi-byte characters
-      buffer += decoder.write(data);
+      process.stdout?.on('data', (data: Buffer) => {
+        // Decode with UTF-8 safety for multi-byte characters
+        buffer += decoder.write(data);
 
-      // Split by newlines
-      const lines = buffer.split('\n');
-      // Keep incomplete line in buffer
-      buffer = lines.pop() || '';
+        // Split by newlines
+        const lines = buffer.split('\n');
+        // Keep incomplete line in buffer
+        buffer = lines.pop() || '';
 
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        this.processLine(agentId, line);
-      }
-    });
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          this.processLine(agentId, line);
+        }
+      });
 
-    // Handle remaining buffer on end
-    process.stdout?.on('end', () => {
-      const remaining = buffer + decoder.end();
-      if (remaining.trim()) {
-        this.processLine(agentId, remaining);
-      }
+      // Handle remaining buffer on end
+      process.stdout?.on('end', () => {
+        const remaining = buffer + decoder.end();
+        if (remaining.trim()) {
+          this.processLine(agentId, remaining);
+        }
+        // Signal that stdout is fully processed
+        resolve();
+      });
+
+      // Also resolve on close in case end doesn't fire
+      process.stdout?.on('close', () => {
+        resolve();
+      });
     });
   }
 
@@ -570,7 +568,13 @@ export class ClaudeRunner {
       if (sessionId) {
         const activeProcess = this.activeProcesses.get(agentId);
         if (activeProcess) {
+          // Always track current session ID from Claude
           activeProcess.sessionId = sessionId;
+          // Only update lastRequest if this is the first session (was undefined)
+          // This preserves the original session ID for auto-restart attempts
+          if (activeProcess.lastRequest && !activeProcess.lastRequest.sessionId) {
+            activeProcess.lastRequest.sessionId = sessionId;
+          }
         }
         this.callbacks.onSessionId(agentId, sessionId);
       }
@@ -604,7 +608,6 @@ export class ClaudeRunner {
 
       case 'text':
         if (event.text) {
-          log.log(`🔵 [TEXT EVENT] agent=${agentId}, isStreaming=${event.isStreaming}, textLen=${event.text.length}, text="${event.text.substring(0, 80)}..."`);
           this.callbacks.onOutput(agentId, event.text, event.isStreaming);
         }
         break;
@@ -698,12 +701,11 @@ export class ClaudeRunner {
   async stop(agentId: string): Promise<void> {
     const activeProcess = this.activeProcesses.get(agentId);
     if (!activeProcess) {
-      log.log(`🛑 [STOP] Agent ${agentId}: No active process to stop`);
       return;
     }
 
     const pid = activeProcess.process.pid;
-    log.log(`🛑 [STOP] Agent ${agentId}: Initiating stop sequence for pid ${pid}`);
+    log.log(`🛑 Stopping agent ${agentId} (pid ${pid})`);
 
     // Remove from tracking immediately
     this.activeProcesses.delete(agentId);
@@ -711,18 +713,15 @@ export class ClaudeRunner {
     // First, try sending SIGINT (Ctrl+C) which Claude CLI handles gracefully
     if (pid) {
       try {
-        // Send SIGINT to process group (like Ctrl+C)
         process.kill(-pid, 'SIGINT');
-        log.log(`🛑 [STOP] Agent ${agentId}: Sent SIGINT to process group ${pid}`);
       } catch (e) {
-        log.log(`🛑 [STOP] Agent ${agentId}: Process group SIGINT failed, trying direct signal`);
+        // Process group SIGINT failed, try direct
       }
     }
 
     // Also send SIGINT to the main process
     try {
       activeProcess.process.kill('SIGINT');
-      log.log(`🛑 [STOP] Agent ${agentId}: Sent direct SIGINT to process`);
     } catch (e) {
       // Ignore if already dead
     }
@@ -734,7 +733,6 @@ export class ClaudeRunner {
     setTimeout(() => {
       try {
         if (pid && !activeProcess.process.killed) {
-          log.log(`🛑 [STOP] Agent ${agentId}: Escalating to SIGTERM for pid ${pid} (process did not exit gracefully)`);
           process.kill(-pid, 'SIGTERM');
           activeProcess.process.kill('SIGTERM');
         }
@@ -747,7 +745,6 @@ export class ClaudeRunner {
     setTimeout(() => {
       try {
         if (pid && !activeProcess.process.killed) {
-          log.log(`🛑 [STOP] Agent ${agentId}: Force killing pid ${pid} with SIGKILL (process unresponsive)`);
           process.kill(-pid, 'SIGKILL');
           activeProcess.process.kill('SIGKILL');
         }
@@ -789,10 +786,33 @@ export class ClaudeRunner {
   }
 
   /**
-   * Check if an agent has an active process
+   * Check if an agent has an active process that is actually running
+   * This verifies both that we're tracking the process AND that the process is alive
    */
   isRunning(agentId: string): boolean {
-    return this.activeProcesses.has(agentId);
+    const activeProcess = this.activeProcesses.get(agentId);
+    if (!activeProcess) {
+      return false;
+    }
+
+    // Verify the process is actually still alive
+    const pid = activeProcess.process.pid;
+    if (!pid) {
+      // No PID means process never started properly - clean up
+      this.activeProcesses.delete(agentId);
+      return false;
+    }
+
+    // Check if process is actually running using signal 0
+    const actuallyRunning = isProcessRunning(pid);
+    if (!actuallyRunning) {
+      // Process died without us knowing - clean up tracking
+      this.activeProcesses.delete(agentId);
+      this.lastStderr.delete(agentId);
+      return false;
+    }
+
+    return true;
   }
 
   /**

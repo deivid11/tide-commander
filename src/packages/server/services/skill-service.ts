@@ -202,7 +202,9 @@ export function assignSkillToAgent(skillId: string, agentId: string): Skill | un
 
   skills.set(skillId, updatedSkill);
   persistSkills();
-  emit('updated', updatedSkill);
+  // Use 'assigned' event for assignment changes - this doesn't restart agents
+  // unlike 'updated' which is for content changes that require agent restarts
+  emit('assigned', updatedSkill);
 
   log.log(` Assigned skill "${skill.name}" to agent ${agentId}`);
   return updatedSkill;
@@ -228,7 +230,9 @@ export function unassignSkillFromAgent(skillId: string, agentId: string): Skill 
 
   skills.set(skillId, updatedSkill);
   persistSkills();
-  emit('updated', updatedSkill);
+  // Use 'assigned' event for assignment changes - this doesn't restart agents
+  // unlike 'updated' which is for content changes that require agent restarts
+  emit('assigned', updatedSkill);
 
   log.log(` Unassigned skill "${skill.name}" from agent ${agentId}`);
   return updatedSkill;
