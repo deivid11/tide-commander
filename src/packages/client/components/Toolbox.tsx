@@ -47,9 +47,10 @@ interface ToolboxProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenBuildingModal?: (buildingId?: string) => void;
+  onOpenAreaExplorer?: (areaId: string) => void;
 }
 
-export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose, onOpenBuildingModal }: ToolboxProps) {
+export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose, onOpenBuildingModal, onOpenAreaExplorer }: ToolboxProps) {
   const state = useStore();
   const areasArray = Array.from(state.areas.values());
   const buildingsArray = Array.from(state.buildings.values());
@@ -170,6 +171,7 @@ export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose,
             <AreaEditor
               area={state.areas.get(state.selectedAreaId)!}
               onClose={() => store.selectArea(null)}
+              onOpenFolder={onOpenAreaExplorer}
             />
           )}
 
@@ -454,9 +456,10 @@ function BuildingEditor({ building, onClose, onOpenModal }: BuildingEditorProps)
 interface AreaEditorProps {
   area: DrawingArea;
   onClose: () => void;
+  onOpenFolder?: (areaId: string) => void;
 }
 
-function AreaEditor({ area, onClose }: AreaEditorProps) {
+function AreaEditor({ area, onClose, onOpenFolder }: AreaEditorProps) {
   const [name, setName] = useState(area.name);
   const [isAddingFolder, setIsAddingFolder] = useState(false);
   const [newFolderPath, setNewFolderPath] = useState('');
@@ -526,7 +529,13 @@ function AreaEditor({ area, onClose }: AreaEditorProps) {
         <div className="area-folders-list">
           {area.directories.map((dir) => (
             <div key={dir} className="area-folder-item" title={dir}>
-              <span className="area-folder-icon">📁</span>
+              <span
+                className="area-folder-icon clickable"
+                onClick={() => onOpenFolder?.(area.id)}
+                title="Open folder in explorer"
+              >
+                📁
+              </span>
               <span className="area-folder-path">{dir.split('/').pop() || dir}</span>
               <button
                 className="area-folder-remove"

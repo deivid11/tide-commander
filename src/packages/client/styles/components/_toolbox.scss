@@ -303,6 +303,17 @@
 .area-folder-icon {
   font-size: 12px;
   flex-shrink: 0;
+
+  &.clickable {
+    cursor: pointer;
+    transition: transform $transition-fast, opacity $transition-fast;
+    opacity: 0.8;
+
+    &:hover {
+      transform: scale(1.2);
+      opacity: 1;
+    }
+  }
 }
 
 .area-folder-path {

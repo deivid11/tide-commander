@@ -559,6 +559,7 @@ function AppContent() {
         isOpen={toolboxModal.isOpen}
         onClose={toolboxModal.close}
         onOpenBuildingModal={(buildingId) => buildingModal.open(buildingId || null)}
+        onOpenAreaExplorer={handleOpenAreaExplorer}
       />
 
       {/* Building Config Modal */}
