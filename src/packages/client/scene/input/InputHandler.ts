@@ -95,6 +95,10 @@ export class InputHandler {
   private longPressTimer: ReturnType<typeof setTimeout> | null = null;
   private longPressTriggered = false;
   private static readonly LONG_PRESS_DURATION = 500; // ms for long-press to trigger move
+  private twoFingerPanStart = { x: 0, y: 0 }; // For two-finger pan (like middle-click)
+  private lastTwoFingerAngle = 0; // For two-finger rotation (tilt camera)
+  private isThreeFingerDrag = false; // For three-finger orbit (like alt+right-click)
+  private threeFingerStart = { x: 0, y: 0 };
 
   // Drawing state
   private isDrawing = false;
@@ -391,6 +395,11 @@ export class InputHandler {
         return;
       }
 
+      // Skip selection box drag on touch devices
+      if (event.pointerType === 'touch') {
+        return;
+      }
+
       const dx = event.clientX - this.dragStart.x;
       const dy = event.clientY - this.dragStart.y;
 
@@ -620,11 +629,26 @@ export class InputHandler {
         this.handleLongPress(touchX, touchY);
       }, InputHandler.LONG_PRESS_DURATION);
     } else if (event.touches.length === 2) {
-      // Two touches - start pinch-to-zoom
+      // Two touches - start pinch-to-zoom, two-finger pan, and rotation
       event.preventDefault();
       this.isPinching = true;
       this.isTouchPanning = false;
+      this.isThreeFingerDrag = false;
       this.lastPinchDistance = this.getTouchDistance(event.touches[0], event.touches[1]);
+      // Track center for two-finger panning
+      const center = this.getTouchCenter(event.touches[0], event.touches[1]);
+      this.twoFingerPanStart = { x: center.x, y: center.y };
+      // Track angle for two-finger rotation
+      this.lastTwoFingerAngle = this.getTwoFingerAngle(event.touches[0], event.touches[1]);
+    } else if (event.touches.length >= 3) {
+      // Three+ touches - orbit/rotate mode (like alt+right-click)
+      event.preventDefault();
+      this.isPinching = false;
+      this.isThreeFingerDrag = true;
+      // Enable OrbitControls rotation
+      this.controls.enableRotate = true;
+      const center = this.getMultiTouchCenter(event.touches);
+      this.threeFingerStart = { x: center.x, y: center.y };
     }
   };
 
@@ -638,25 +662,60 @@ export class InputHandler {
       this.activePointers.set(touch.identifier, { x: touch.clientX, y: touch.clientY });
     }
 
-    if (event.touches.length === 2 && this.isPinching) {
+    if (event.touches.length >= 3 && this.isThreeFingerDrag) {
+      // Three-finger orbit/rotate (like alt+right-click)
+      if (this.longPressTimer) {
+        clearTimeout(this.longPressTimer);
+        this.longPressTimer = null;
+      }
+      event.preventDefault();
+
+      const newCenter = this.getMultiTouchCenter(event.touches);
+      const dx = newCenter.x - this.threeFingerStart.x;
+      const dy = newCenter.y - this.threeFingerStart.y;
+
+      if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
+        this.handleThreeFingerOrbit(dx, dy);
+        this.threeFingerStart = { x: newCenter.x, y: newCenter.y };
+      }
+    } else if (event.touches.length === 2 && this.isPinching) {
       // Cancel long press on pinch
       if (this.longPressTimer) {
         clearTimeout(this.longPressTimer);
         this.longPressTimer = null;
       }
-      // Pinch-to-zoom
       event.preventDefault();
-      const newDistance = this.getTouchDistance(event.touches[0], event.touches[1]);
-      const pinchCenter = this.getTouchCenter(event.touches[0], event.touches[1]);
 
+      const newDistance = this.getTouchDistance(event.touches[0], event.touches[1]);
+      const newCenter = this.getTouchCenter(event.touches[0], event.touches[1]);
+      const newAngle = this.getTwoFingerAngle(event.touches[0], event.touches[1]);
+
+      // Pinch-to-zoom
       if (this.lastPinchDistance > 0) {
         const scale = this.lastPinchDistance / newDistance;
-        this.handlePinchZoom(scale, pinchCenter);
+        this.handlePinchZoom(scale, newCenter);
+      }
+      this.lastPinchDistance = newDistance;
+
+      // Two-finger drag for camera orbit (rotate/tilt camera like alt+right-click)
+      const orbitDx = newCenter.x - this.twoFingerPanStart.x;
+      const orbitDy = newCenter.y - this.twoFingerPanStart.y;
+      if (Math.abs(orbitDx) > 1 || Math.abs(orbitDy) > 1) {
+        this.handleThreeFingerOrbit(orbitDx, orbitDy);
+        this.twoFingerPanStart = { x: newCenter.x, y: newCenter.y };
       }
 
-      this.lastPinchDistance = newDistance;
+      // Two-finger twist rotation (rotate camera around Y when fingers twist)
+      let angleDelta = newAngle - this.lastTwoFingerAngle;
+      // Normalize angle delta to handle wrap-around
+      if (angleDelta > Math.PI) angleDelta -= 2 * Math.PI;
+      if (angleDelta < -Math.PI) angleDelta += 2 * Math.PI;
+      if (Math.abs(angleDelta) > 0.01) {
+        this.handleTwoFingerRotation(angleDelta);
+        this.lastTwoFingerAngle = newAngle;
+      }
     } else if (event.touches.length === 1 && !this.isPinching) {
-      // Single finger pan
+      // Single finger pan (move camera position on the map, like middle-click drag)
       const touch = event.touches[0];
       const dx = touch.clientX - this.touchStartPos.x;
       const dy = touch.clientY - this.touchStartPos.y;
@@ -677,6 +736,7 @@ export class InputHandler {
         event.preventDefault();
         const panDx = touch.clientX - this.touchPanStart.x;
         const panDy = touch.clientY - this.touchPanStart.y;
+        // Pan the camera (move on the map)
         this.handleTouchPan(panDx, panDy);
         this.touchPanStart = { x: touch.clientX, y: touch.clientY };
       }
@@ -714,9 +774,17 @@ export class InputHandler {
       }
 
       this.resetTouchState();
+    } else if (event.touches.length === 2) {
+      // Went from 3+ touches to 2 - stop orbiting, start pinching
+      this.isThreeFingerDrag = false;
+      this.isPinching = true;
+      this.lastPinchDistance = this.getTouchDistance(event.touches[0], event.touches[1]);
+      const center = this.getTouchCenter(event.touches[0], event.touches[1]);
+      this.twoFingerPanStart = { x: center.x, y: center.y };
     } else if (event.touches.length === 1) {
       // Went from 2 touches to 1 - stop pinching, prepare for pan
       this.isPinching = false;
+      this.isThreeFingerDrag = false;
       this.lastPinchDistance = 0;
       const touch = event.touches[0];
       this.touchPanStart = { x: touch.clientX, y: touch.clientY };
@@ -730,6 +798,7 @@ export class InputHandler {
   private resetTouchState(): void {
     this.isTouchPanning = false;
     this.isPinching = false;
+    this.isThreeFingerDrag = false;
     this.lastPinchDistance = 0;
     this.isTouchDragging = false;
     this.longPressTriggered = false;
@@ -756,6 +825,91 @@ export class InputHandler {
       x: (touch1.clientX + touch2.clientX) / 2,
       y: (touch1.clientY + touch2.clientY) / 2,
     };
+  }
+
+  /**
+   * Get angle between two touch points (in radians).
+   */
+  private getTwoFingerAngle(touch1: Touch, touch2: Touch): number {
+    const dx = touch2.clientX - touch1.clientX;
+    const dy = touch2.clientY - touch1.clientY;
+    return Math.atan2(dy, dx);
+  }
+
+  /**
+   * Handle two-finger rotation (tilt camera around X axis).
+   */
+  private handleTwoFingerRotation(angleDelta: number): void {
+    // Get camera offset from target
+    const offset = this.camera.position.clone().sub(this.controls.target);
+
+    // Calculate spherical coordinates
+    const spherical = new THREE.Spherical();
+    spherical.setFromVector3(offset);
+
+    // Apply rotation - horizontal angle change rotates around Y axis
+    spherical.theta += angleDelta;
+
+    // Clamp phi to avoid flipping
+    spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi));
+
+    // Convert back to Cartesian
+    offset.setFromSpherical(spherical);
+
+    // Update camera position
+    this.camera.position.copy(this.controls.target).add(offset);
+    this.camera.lookAt(this.controls.target);
+  }
+
+  /**
+   * Get center point of multiple touches.
+   */
+  private getMultiTouchCenter(touches: TouchList): { x: number; y: number } {
+    let sumX = 0;
+    let sumY = 0;
+    for (let i = 0; i < touches.length; i++) {
+      sumX += touches[i].clientX;
+      sumY += touches[i].clientY;
+    }
+    return {
+      x: sumX / touches.length,
+      y: sumY / touches.length,
+    };
+  }
+
+  /**
+   * Handle three-finger drag for orbit rotation (like alt+right-click).
+   */
+  private handleThreeFingerOrbit(dx: number, dy: number): void {
+    // Rotate camera around target - similar to OrbitControls rotation
+    const rotateSpeed = 0.005;
+
+    // Horizontal rotation (around Y axis)
+    const angleX = -dx * rotateSpeed;
+    // Vertical rotation (around horizontal axis)
+    const angleY = -dy * rotateSpeed;
+
+    // Get camera offset from target
+    const offset = this.camera.position.clone().sub(this.controls.target);
+    const distance = offset.length();
+
+    // Calculate spherical coordinates
+    const spherical = new THREE.Spherical();
+    spherical.setFromVector3(offset);
+
+    // Apply rotation
+    spherical.theta += angleX;
+    spherical.phi += angleY;
+
+    // Clamp phi to avoid flipping
+    spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi));
+
+    // Convert back to Cartesian
+    offset.setFromSpherical(spherical);
+
+    // Update camera position
+    this.camera.position.copy(this.controls.target).add(offset);
+    this.camera.lookAt(this.controls.target);
   }
 
   /**
@@ -830,9 +984,9 @@ export class InputHandler {
     // Calculate forward vector (camera direction projected onto XZ plane)
     const forward = new THREE.Vector3(cameraDirection.x, 0, cameraDirection.z).normalize();
 
-    // Pan sensitivity based on camera distance
+    // Pan sensitivity based on camera distance (higher = more sensitive)
     const distance = this.camera.position.distanceTo(this.controls.target);
-    const panSpeed = distance * 0.002;
+    const panSpeed = distance * 0.005;
 
     // Calculate pan delta in world space
     const panDelta = new THREE.Vector3();

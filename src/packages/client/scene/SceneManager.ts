@@ -208,6 +208,12 @@ export class SceneManager {
     // Disable default zoom - we handle it in InputHandler for mouse-position-aware zooming
     controls.enableZoom = false;
 
+    // Disable OrbitControls touch handling - we use custom touch handlers in InputHandler
+    controls.touches = {
+      ONE: null as unknown as THREE.TOUCH,
+      TWO: null as unknown as THREE.TOUCH,
+    };
+
     return controls;
   }
 
