@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback, Profiler } from 'react';
-import { store, useStore } from './store';
+import { store, useStore, useMobileView } from './store';
 import { connect, setCallbacks, getSocket } from './websocket';
 import { SceneManager } from './scene/SceneManager';
 import { ToastProvider, useToast } from './components/Toast';
@@ -107,7 +107,7 @@ function AppContent() {
     return import.meta.env.DEV && getStorageString(STORAGE_KEYS.SHOW_FPS) !== 'false';
   });
   const [sidebarOpen, setSidebarOpen] = useState(false); // Mobile sidebar state
-  const [mobileView, setMobileView] = useState<'terminal' | '3d'>('terminal'); // Mobile view toggle
+  const mobileView = useMobileView(); // Mobile view toggle - from store
   const { showToast } = useToast();
 
   // Trigger resize when switching to 3D view on mobile (canvas needs to recalculate size)
@@ -486,7 +486,7 @@ function AppContent() {
         {/* Mobile view toggle button (3D / Terminal) */}
         <button
           className="mobile-view-toggle-btn"
-          onClick={() => setMobileView(mobileView === 'terminal' ? '3d' : 'terminal')}
+          onClick={() => store.setMobileView(mobileView === 'terminal' ? '3d' : 'terminal')}
           title={mobileView === 'terminal' ? 'Show 3D View' : 'Show Terminal'}
         >
           {mobileView === 'terminal' ? '🎮' : '💬'}

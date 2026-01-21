@@ -163,6 +163,7 @@ export function ClaudeOutputPanel() {
   // Use store's terminal state
   const isOpen = terminalOpen && selectedAgent !== null;
 
+
   // Memoized callbacks to prevent re-renders of child components
   const handleImageClick = useCallback((url: string, name: string) => {
     setImageModal({ url, name });
@@ -697,8 +698,20 @@ export function ClaudeOutputPanel() {
   useEffect(() => {
     if (!isOpen) return;
 
+    // Small delay to avoid closing immediately after opening via touch
+    let ignoreClicks = true;
+    const timer = setTimeout(() => {
+      ignoreClicks = false;
+    }, 100);
+
     const handleClickOutside = (e: MouseEvent) => {
+      // Ignore clicks right after opening (especially from touch events)
+      if (ignoreClicks) return;
+
       const target = e.target as HTMLElement;
+
+      // Also ignore if the click is on the canvas (3D scene)
+      if (target.tagName === 'CANVAS') return;
 
       if (terminalRef.current && !terminalRef.current.contains(target)) {
         store.setTerminalOpen(false);
@@ -706,7 +719,10 @@ export function ClaudeOutputPanel() {
     };
 
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
   }, [isOpen]);
 
   // Don't render if no agent selected

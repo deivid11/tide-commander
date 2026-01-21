@@ -478,6 +478,13 @@ export function useTerminalOpen(): boolean {
 }
 
 /**
+ * Get mobile view mode. Only re-renders when mobile view changes.
+ */
+export function useMobileView(): 'terminal' | '3d' {
+  return useSelector(useCallback((state: StoreState) => state.mobileView, []));
+}
+
+/**
  * Get file viewer path. Only re-renders when path changes.
  */
 export function useFileViewerPath(): string | null {

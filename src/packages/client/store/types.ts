@@ -114,6 +114,8 @@ export interface StoreState {
   fileChanges: FileChange[];
   // Terminal open state
   terminalOpen: boolean;
+  // Mobile view mode
+  mobileView: 'terminal' | '3d';
   // Settings
   settings: Settings;
   // Keyboard shortcuts

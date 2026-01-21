@@ -77,6 +77,7 @@ export {
   useHideCost,
   useShortcuts,
   useTerminalOpen,
+  useMobileView,
   useFileViewerPath,
   useFileViewerEditData,
   useContextModalAgentId,
@@ -139,6 +140,7 @@ class Store
       toolExecutions: [],
       fileChanges: [],
       terminalOpen: false,
+      mobileView: 'terminal',
       settings: this.loadSettings(),
       shortcuts: this.loadShortcuts(),
       fileViewerPath: null,
@@ -254,7 +256,22 @@ class Store
   }
 
   setTerminalOpen(open: boolean): void {
+    console.log('[Store] setTerminalOpen called with:', open, 'current:', this.state.terminalOpen);
+    if (!open && this.state.terminalOpen) {
+      // Log stack trace when closing terminal to find the culprit
+      console.trace('[Store] Closing terminal - stack trace:');
+    }
     this.state.terminalOpen = open;
+    // On mobile, switch to terminal view when opening terminal
+    if (open) {
+      this.state.mobileView = 'terminal';
+    }
+    this.notify();
+    console.log('[Store] After notify, terminalOpen:', this.state.terminalOpen);
+  }
+
+  setMobileView(view: 'terminal' | '3d'): void {
+    this.state.mobileView = view;
     this.notify();
   }
 

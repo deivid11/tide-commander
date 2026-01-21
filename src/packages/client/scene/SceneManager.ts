@@ -783,6 +783,7 @@ export class SceneManager {
   // ============================================
 
   private handleAgentClick(agentId: string, shiftKey: boolean): void {
+    console.log('[SceneManager] handleAgentClick - single click on agent:', agentId);
     if (shiftKey) {
       store.addToSelection(agentId);
     } else {
@@ -834,10 +835,13 @@ export class SceneManager {
   }
 
   private handleAgentDoubleClick(agentId: string): void {
-    // Select the agent and open terminal
+    // Select the agent and force-open terminal
+    console.log('[SceneManager] handleAgentDoubleClick called for:', agentId);
     store.selectAgent(agentId);
     this.refreshSelectionVisuals();
-    store.toggleTerminal(agentId);
+    console.log('[SceneManager] Calling setTerminalOpen(true)');
+    store.setTerminalOpen(true);
+    console.log('[SceneManager] terminalOpen state is now:', store.getState().terminalOpen);
   }
 
   // Drawing handlers
