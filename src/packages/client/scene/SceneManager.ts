@@ -1134,9 +1134,20 @@ export class SceneManager {
   // ============================================
 
   private onWindowResize = (): void => {
-    this.camera.aspect = this.canvas.clientWidth / this.canvas.clientHeight;
+    // Always use parent container dimensions - the container has the correct size
+    // The canvas itself may have stale dimensions
+    const container = this.canvas.parentElement;
+    if (!container) return;
+
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+
+    // Skip resize if dimensions are invalid
+    if (width <= 0 || height <= 0) return;
+
+    this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
-    this.renderer.setSize(this.canvas.clientWidth, this.canvas.clientHeight);
+    this.renderer.setSize(width, height);
   };
 
   // ============================================

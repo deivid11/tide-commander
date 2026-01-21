@@ -25,8 +25,16 @@ export function FPSMeter({ visible = true, position = 'top-right' }: FPSMeterPro
   const [fpsHistory, setFpsHistory] = useState<number[]>([]);
   const [memoryUsage, setMemoryUsage] = useState<{ usedMB: number; totalMB: number } | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
   const rafRef = useRef<number>(0);
   const lastUpdateRef = useRef(0);
+
+  // Track window resize for responsive positioning
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Get agents for RAM tracking
   const agents = useAgentsArray();
@@ -81,11 +89,15 @@ export function FPSMeter({ visible = true, position = 'top-right' }: FPSMeterPro
 
   const stats = fpsTracker.getStats();
 
+  // On mobile (< 768px), move bottom positions above the agent bar (which is ~70px tall)
+  const isMobile = windowWidth <= 768;
+  const mobileBottomOffset = isMobile ? 80 : 10;
+
   const positionStyles: Record<string, React.CSSProperties> = {
     'top-left': { top: 10, left: 10 },
     'top-right': { top: 10, right: 10 },
-    'bottom-left': { bottom: 10, left: 10 },
-    'bottom-right': { bottom: 10, right: 10 },
+    'bottom-left': { bottom: mobileBottomOffset, left: 10 },
+    'bottom-right': { bottom: mobileBottomOffset, right: 10 },
   };
 
   return (

@@ -1,0 +1,757 @@
+@use 'variables' as *;
+
+// =============================================================================
+// Responsive Breakpoints
+// =============================================================================
+
+$breakpoint-tablet: 1024px;
+$breakpoint-mobile: 768px;
+$breakpoint-small: 480px;
+
+// =============================================================================
+// Mobile Sidebar Toggle Button (hidden on desktop)
+// =============================================================================
+
+.sidebar-toggle-btn {
+  display: none;
+}
+
+.sidebar-overlay {
+  display: none;
+}
+
+.mobile-view-toggle-btn {
+  display: none;
+}
+
+// =============================================================================
+// Tablet Styles (up to 1024px)
+// =============================================================================
+
+@media (max-width: $breakpoint-tablet) {
+  // Reduce sidebar width on tablet
+  .sidebar {
+    width: 280px;
+    min-width: 280px;
+  }
+
+  // Adjust guake terminal
+  .guake-terminal {
+    right: 280px;
+  }
+
+  // Agent bar adjustments
+  .agent-bar {
+    right: 280px;
+  }
+
+  // Tooltip needs smaller width
+  .agent-bar-tooltip {
+    min-width: 320px;
+    max-width: 400px;
+  }
+}
+
+// =============================================================================
+// Mobile Styles (up to 768px)
+// =============================================================================
+
+@media (max-width: $breakpoint-mobile) {
+  // Main layout - stack vertically, fill viewport
+  .main-content {
+    flex-direction: column;
+    position: relative;
+    height: 100%;
+    flex: 1;
+  }
+
+  // Mobile view toggle button
+  .mobile-view-toggle-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    width: 44px;
+    height: 44px;
+    background: rgba($dracula-bg, 0.95);
+    border: 1px solid $dracula-cyan;
+    border-radius: $radius-lg;
+    color: $dracula-fg;
+    font-size: 20px;
+    cursor: pointer;
+    z-index: 250;
+    backdrop-filter: blur(8px);
+    transition: all $transition-fast;
+
+    &:hover,
+    &:active {
+      background: rgba($dracula-cyan, 0.3);
+      border-color: $dracula-green;
+    }
+  }
+
+  // Mobile view mode: Terminal (default) - hide battlefield, show terminal
+  .app.mobile-view-terminal {
+    .battlefield-container {
+      display: none;
+    }
+
+    .guake-terminal {
+      display: flex;
+      position: relative;
+      z-index: 1;
+      flex: 1;
+    }
+  }
+
+  // Mobile view mode: 3D - show battlefield, hide terminal
+  .app.mobile-view-3d {
+    .main-content {
+      // Ensure main content fills available space
+      flex: 1;
+      display: flex;
+    }
+
+    .battlefield-container {
+      display: flex;
+      flex: 1;
+      width: 100%;
+      height: 100%;
+      min-height: 0; // Allow flex shrinking
+    }
+
+    #battlefield {
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    .guake-terminal {
+      display: none !important;
+    }
+
+    // Green border on toggle button in 3D mode
+    .mobile-view-toggle-btn {
+      border-color: $dracula-green;
+    }
+  }
+
+  // Mobile sidebar toggle button
+  .sidebar-toggle-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    width: 44px;
+    height: 44px;
+    background: rgba($dracula-bg, 0.95);
+    border: 1px solid $dracula-purple;
+    border-radius: $radius-lg;
+    color: $dracula-fg;
+    font-size: 20px;
+    cursor: pointer;
+    z-index: 250;
+    backdrop-filter: blur(8px);
+    transition: all $transition-fast;
+
+    &:hover,
+    &:active {
+      background: rgba($dracula-purple, 0.3);
+      border-color: $dracula-pink;
+    }
+  }
+
+  // Sidebar overlay (dark backdrop when sidebar is open)
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 180;
+    backdrop-filter: blur(2px);
+  }
+
+  // Hide sidebar elements when terminal is open
+  .app.terminal-open {
+    .sidebar-toggle-btn {
+      display: none;
+    }
+
+    .sidebar-overlay {
+      display: none;
+    }
+
+    .sidebar {
+      display: none;
+    }
+  }
+
+  // Sidebar becomes slide-out panel from right
+  .sidebar {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 85%;
+    max-width: 320px;
+    min-width: auto;
+    border-left: 1px solid $border-color;
+    border-top: none;
+    z-index: 200;
+    transform: translateX(100%);
+    transition: transform $transition-normal ease-out;
+    overflow-y: auto;
+
+    &.sidebar-open {
+      transform: translateX(0);
+    }
+  }
+
+  // Guake terminal takes full width, with space for agent bar at bottom
+  .guake-terminal {
+    right: 0;
+    left: 0;
+    --terminal-height: 100%;
+    height: calc(100% - 70px); // Reserve space for agent bar
+    position: relative;
+    z-index: 1;
+    margin-bottom: 70px; // Space for agent bar
+
+    &.collapsed {
+      display: none;
+    }
+
+    &.open {
+      display: flex;
+    }
+  }
+
+  // Guake content fills available space
+  .guake-content {
+    flex: 1;
+    border-bottom: none;
+    padding-bottom: 8px;
+  }
+
+  // Hide handle on mobile - always show terminal
+  .guake-handle {
+    display: none;
+  }
+
+  // Hide resize handle on mobile
+  .guake-resize-handle {
+    display: none;
+  }
+
+  // Move FPS meter above the agent bar on mobile
+  // This selector targets the FPSMeter component's inline styles
+  // We use a wrapper approach instead - handled by adding bottom offset
+
+  // Agent bar at bottom, full width with horizontal scroll
+  .agent-bar {
+    right: 0;
+    left: 0;
+    height: auto;
+    min-height: 64px;
+    padding: 8px 0;
+    position: fixed;
+    bottom: 0;
+    z-index: 150;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+
+    // Show scrollbar indicator
+    &::-webkit-scrollbar {
+      height: 4px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: rgba($dracula-bg-darker, 0.5);
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: rgba($dracula-purple, 0.5);
+      border-radius: 2px;
+
+      &:hover {
+        background: rgba($dracula-purple, 0.8);
+      }
+    }
+  }
+
+  // Agent bar list scrollable horizontally
+  .agent-bar-list {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 8px;
+    padding: 0 12px 4px;
+    min-width: max-content;
+    align-items: center;
+  }
+
+  // Smaller agent items on mobile
+  .agent-bar-item {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+  }
+
+  .agent-bar-icon {
+    font-size: 18px;
+  }
+
+  // Agent groups more compact
+  .agent-bar-group {
+    padding: 6px 8px 4px;
+    margin-top: 2px;
+    flex-shrink: 0;
+  }
+
+  .agent-bar-area-label {
+    top: -8px;
+    left: 8px;
+    padding: 1px 6px;
+  }
+
+  .agent-bar-area-name {
+    font-size: 8px;
+  }
+
+  // Hide tooltip on mobile - use tap interaction instead
+  .agent-bar-tooltip {
+    display: none;
+  }
+
+  // Tool bubble smaller
+  .agent-bar-tool-bubble {
+    padding: 3px 6px;
+    font-size: 10px;
+  }
+
+  // Spawn buttons - visible and properly sized on mobile
+  .agent-bar-spawn-btn {
+    display: flex !important;
+    flex-direction: row !important; // Override column layout
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    min-width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    margin-right: 4px;
+    border-radius: 8px;
+    padding: 0;
+  }
+
+  .agent-bar-spawn-icon {
+    font-size: 18px;
+    margin: 0;
+  }
+
+  .agent-bar-spawn-label {
+    display: none !important;
+  }
+
+  // Guake header adjustments
+  .guake-header {
+    padding: 8px 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .guake-header-left {
+    flex: 1 1 100%;
+    order: 1;
+  }
+
+  .guake-actions {
+    order: 2;
+    flex: 1;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  // Hide less important header elements on mobile
+  .guake-last-prompt {
+    display: none;
+  }
+
+  .guake-task {
+    display: none;
+  }
+
+  // Larger touch targets for buttons
+  .guake-view-toggle,
+  .guake-clear,
+  .guake-context-btn,
+  .guake-search-toggle {
+    padding: 8px 12px;
+    font-size: 12px;
+    min-height: 36px;
+  }
+
+  // Input container adjustments
+  .guake-input {
+    padding: 8px;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0));
+  }
+
+  .guake-input-container {
+    min-height: 44px;
+  }
+
+  .guake-attach-btn,
+  .guake-send-btn,
+  .guake-input button:not(.guake-attach-btn) {
+    width: 44px;
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .guake-input textarea,
+  .guake-input input {
+    font-size: 16px; // Prevents iOS zoom on focus
+    padding: 12px;
+  }
+
+  // Hide agent links on mobile - they're already in the bottom bar
+  .guake-agent-links {
+    display: none;
+  }
+
+  // Output area
+  .guake-output {
+    padding: 12px;
+    font-size: 14px;
+  }
+
+  // Permission bar adjustments
+  .permission-bar {
+    padding: 8px;
+  }
+
+  .permission-inline {
+    padding: 6px;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .permission-inline-target {
+    flex: 1 1 100%;
+    order: 2;
+    margin-top: 4px;
+  }
+
+  .permission-inline-btn {
+    width: 36px;
+    height: 36px;
+    font-size: 14px;
+
+    &.approve-remember {
+      width: 40px;
+    }
+  }
+
+  // Sidebar content on mobile
+  .unit-panel {
+    padding: 12px;
+  }
+
+  // Agent items in sidebar
+  .agent-item {
+    padding: 8px;
+    gap: 8px;
+  }
+
+  .agent-item-icon {
+    width: 24px;
+    height: 24px;
+    font-size: 14px;
+  }
+
+  .agent-item-name {
+    font-size: 13px;
+  }
+
+  // Unit panel stats
+  .unit-stats {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  // File viewer/explorer
+  .file-viewer,
+  .file-explorer {
+    font-size: 13px;
+  }
+
+  // Modal adjustments
+  .image-modal {
+    max-width: 95vw;
+    max-height: 95vh;
+  }
+
+  .image-modal-header {
+    padding: 10px 12px;
+  }
+
+  .image-modal-close {
+    width: 32px;
+    height: 32px;
+    font-size: 20px;
+  }
+
+  // Shortcuts modal
+  .shortcuts-modal {
+    width: 95vw;
+    max-height: 80vh;
+  }
+
+  // Spotlight search
+  .spotlight-overlay {
+    align-items: flex-start;
+    padding-top: 10vh;
+  }
+
+  .spotlight-container {
+    width: 95vw;
+    max-width: 95vw;
+  }
+}
+
+// =============================================================================
+// Small Mobile Styles (up to 480px)
+// =============================================================================
+
+@media (max-width: $breakpoint-small) {
+  // Even more compact agent bar
+  .agent-bar {
+    padding: 6px 8px;
+  }
+
+  .agent-bar-item {
+    width: 36px;
+    height: 36px;
+  }
+
+  .agent-bar-icon {
+    font-size: 16px;
+  }
+
+  .agent-bar-spawn-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  // Guake header very compact
+  .guake-header {
+    padding: 6px 10px;
+  }
+
+  .guake-title {
+    font-size: 12px;
+  }
+
+  .guake-actions {
+    gap: 6px;
+  }
+
+  .guake-view-toggle,
+  .guake-clear {
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+
+  // Hide some buttons on very small screens
+  .guake-context-btn {
+    display: none;
+  }
+
+  // Input more compact
+  .guake-input-container {
+    min-height: 40px;
+  }
+
+  .guake-attach-btn,
+  .guake-send-btn {
+    width: 40px;
+    min-height: 40px;
+  }
+
+  // Output text
+  .guake-output {
+    padding: 10px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  // Tool use display more compact
+  .output-tool-use {
+    padding: 4px 8px;
+    gap: 6px;
+  }
+
+  .output-tool-name {
+    font-size: 10px;
+  }
+
+  .output-tool-param {
+    font-size: 10px;
+  }
+
+  // Edit tool panels stack vertically on very small screens
+  .edit-tool-panels {
+    flex-direction: column;
+    max-height: 300px;
+  }
+
+  .edit-panel {
+    border-right: none;
+    border-bottom: 1px solid $dracula-current;
+
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+
+  // Sidebar even more compact
+  .unit-panel {
+    padding: 8px;
+  }
+
+  .unit-stat {
+    padding: 6px;
+  }
+
+  .unit-stat-label {
+    font-size: 9px;
+  }
+
+  .unit-stat-value {
+    font-size: 12px;
+  }
+
+  // Attachments
+  .guake-attachment-name {
+    max-width: 80px;
+  }
+}
+
+// =============================================================================
+// Touch Device Optimizations
+// =============================================================================
+
+@media (pointer: coarse) {
+  // Larger touch targets
+  .guake-view-toggle,
+  .guake-clear,
+  .guake-context-btn,
+  .guake-search-toggle,
+  .unit-action-icon,
+  .unit-action-btn {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  // Disable hover effects that don't work well on touch
+  .agent-bar-item:hover {
+    transform: none;
+  }
+
+  .agent-bar-group:hover {
+    transform: none;
+  }
+
+  // Add active states instead
+  .agent-bar-item:active {
+    transform: scale(0.95);
+    opacity: 0.8;
+  }
+
+  .guake-view-toggle:active,
+  .guake-clear:active,
+  .guake-context-btn:active {
+    opacity: 0.7;
+  }
+
+  // Remove hover-only elements
+  .agent-bar-hotkey {
+    display: none;
+  }
+
+  .agent-bar-last-query {
+    display: none;
+  }
+}
+
+// =============================================================================
+// Landscape Mobile
+// =============================================================================
+
+@media (max-width: $breakpoint-mobile) and (orientation: landscape) {
+  // On landscape mobile, show more horizontal content
+  .guake-terminal {
+    --terminal-height: 100%;
+  }
+
+  // Agent bar spans bottom
+  .agent-bar {
+    height: 56px;
+  }
+
+  // Sidebar narrower on landscape
+  .sidebar {
+    width: 280px;
+    max-width: 280px;
+  }
+}
+
+// =============================================================================
+// Safe Area Insets (for devices with notches)
+// =============================================================================
+
+@supports (padding: env(safe-area-inset-bottom)) {
+  .agent-bar {
+    padding-bottom: calc(8px + env(safe-area-inset-bottom));
+  }
+
+  .guake-input {
+    padding-bottom: calc(8px + env(safe-area-inset-bottom));
+  }
+
+  .sidebar {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+// =============================================================================
+// Print Styles (hide UI chrome)
+// =============================================================================
+
+@media print {
+  .agent-bar,
+  .guake-handle,
+  .guake-header,
+  .guake-input,
+  .guake-agent-links,
+  .sidebar {
+    display: none !important;
+  }
+
+  .guake-terminal {
+    position: static;
+    height: auto;
+  }
+
+  .guake-output {
+    overflow: visible;
+    max-height: none;
+  }
+}

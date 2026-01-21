@@ -100,6 +100,12 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
       // Normal click to select only this agent
       store.selectAgent(agent.id);
     }
+
+    // On mobile, open terminal immediately when agent is clicked
+    const isMobile = window.innerWidth <= 768;
+    if (isMobile) {
+      store.setTerminalOpen(true);
+    }
   };
 
   const handleAgentDoubleClick = (agent: Agent) => {

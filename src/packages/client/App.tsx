@@ -106,7 +106,22 @@ function AppContent() {
     // Only show FPS meter in development by default, can be toggled
     return import.meta.env.DEV && getStorageString(STORAGE_KEYS.SHOW_FPS) !== 'false';
   });
+  const [sidebarOpen, setSidebarOpen] = useState(false); // Mobile sidebar state
+  const [mobileView, setMobileView] = useState<'terminal' | '3d'>('terminal'); // Mobile view toggle
   const { showToast } = useToast();
+
+  // Trigger resize when switching to 3D view on mobile (canvas needs to recalculate size)
+  useEffect(() => {
+    if (mobileView === '3d') {
+      // Multiple resize events to ensure canvas recalculates after CSS transitions complete
+      const timeouts = [
+        setTimeout(() => window.dispatchEvent(new Event('resize')), 0),
+        setTimeout(() => window.dispatchEvent(new Event('resize')), 100),
+        setTimeout(() => window.dispatchEvent(new Event('resize')), 300),
+      ];
+      return () => timeouts.forEach(clearTimeout);
+    }
+  }, [mobileView]);
   const state = useStore();
 
   // Initialize scene and websocket
@@ -458,7 +473,7 @@ function AppContent() {
   }, [spawnModal, commanderModal, explorerModal, spotlightModal, deleteConfirmModal]);
 
   return (
-    <div className="app">
+    <div className={`app ${state.terminalOpen ? 'terminal-open' : ''} mobile-view-${mobileView}`}>
       {/* FPS Meter - development only */}
       <FPSMeter visible={showFPS} position="bottom-left" />
 
@@ -468,7 +483,30 @@ function AppContent() {
           <div ref={selectionBoxRef} id="selection-box"></div>
         </div>
 
-        <aside className="sidebar">
+        {/* Mobile view toggle button (3D / Terminal) */}
+        <button
+          className="mobile-view-toggle-btn"
+          onClick={() => setMobileView(mobileView === 'terminal' ? '3d' : 'terminal')}
+          title={mobileView === 'terminal' ? 'Show 3D View' : 'Show Terminal'}
+        >
+          {mobileView === 'terminal' ? '🎮' : '💬'}
+        </button>
+
+        {/* Mobile sidebar toggle button */}
+        <button
+          className="sidebar-toggle-btn"
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          title={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+        >
+          {sidebarOpen ? '✕' : '☰'}
+        </button>
+
+        {/* Sidebar overlay for mobile */}
+        {sidebarOpen && (
+          <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />
+        )}
+
+        <aside className={`sidebar ${sidebarOpen ? 'sidebar-open' : ''}`}>
           {state.selectedAgentIds.size > 0 ? (
             <>
               <div className="sidebar-section unit-section">
