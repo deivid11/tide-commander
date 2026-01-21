@@ -129,28 +129,55 @@ export class ClaudeBackend implements CLIBackend {
   parseEvent(rawEvent: unknown): StandardEvent | null {
     const event = rawEvent as ClaudeRawEvent;
 
+    // Log ALL events to understand what we're receiving
+    log.log(`parseEvent: type=${event.type}, subtype=${event.subtype || 'none'}, tool_name=${event.tool_name || 'n/a'}`);
+
+    // Log assistant events with tool_use blocks
+    if (event.type === 'assistant' && event.message?.content) {
+      const toolUseBlocks = event.message.content.filter((b: any) => b.type === 'tool_use');
+      if (toolUseBlocks.length > 0) {
+        log.log(`parseEvent: assistant message has ${toolUseBlocks.length} tool_use block(s): ${toolUseBlocks.map((b: any) => b.name).join(', ')}`);
+      }
+    }
+
+    let result: StandardEvent | StandardEvent[] | null = null;
+
     switch (event.type) {
       case 'system':
-        return this.parseSystemEvent(event);
+        result = this.parseSystemEvent(event);
+        break;
 
       case 'assistant':
-        return this.parseAssistantEvent(event);
+        result = this.parseAssistantEvent(event);
+        break;
 
       case 'tool_use':
-        return this.parseToolUseEvent(event);
+        result = this.parseToolUseEvent(event);
+        break;
 
       case 'result':
-        return this.parseResultEvent(event);
+        result = this.parseResultEvent(event);
+        break;
 
       case 'stream_event':
-        return this.parseStreamEvent(event);
+        result = this.parseStreamEvent(event);
+        break;
 
       case 'user':
-        return this.parseUserEvent(event);
+        result = this.parseUserEvent(event);
+        break;
 
       default:
-        return null;
+        log.log(`parseEvent: UNKNOWN event type '${event.type}' - not handled`);
+        result = null;
     }
+
+    if (result === null && event.type !== 'assistant') {
+      // Log when we're dropping events (assistant events may return null for text-only content)
+      log.log(`parseEvent: returned NULL for type=${event.type}, subtype=${event.subtype || 'none'}`);
+    }
+
+    return result;
   }
 
   private parseUserEvent(event: ClaudeRawEvent): StandardEvent | null {
@@ -201,18 +228,35 @@ export class ClaudeBackend implements CLIBackend {
     return null;
   }
 
-  private parseAssistantEvent(event: ClaudeRawEvent): StandardEvent | null {
-    // NOTE: We return null for all assistant event content because:
+  private parseAssistantEvent(event: ClaudeRawEvent): StandardEvent | StandardEvent[] | null {
+    // Check for tool_use blocks in assistant message content
+    // Claude CLI sends tool_use as content blocks within assistant events, not as separate events
+    if (event.message?.content && Array.isArray(event.message.content)) {
+      const toolUseBlocks = event.message.content.filter((b: any) => b.type === 'tool_use');
+      if (toolUseBlocks.length > 0) {
+        // Return array of tool_start events for each tool_use block
+        const events: StandardEvent[] = toolUseBlocks.map((block: any) => ({
+          type: 'tool_start' as const,
+          toolName: block.name || 'unknown',
+          toolInput: block.input,
+        }));
+        log.log(`parseAssistantEvent: extracted ${events.length} tool_use block(s): ${events.map(e => e.toolName).join(', ')}`);
+        return events;
+      }
+    }
+
+    // NOTE: We return null for text/thinking content because:
     // - 'text' and 'thinking' blocks are already sent via streaming deltas (stream_event)
-    // - 'tool_use' blocks are already handled by parseToolUseEvent (tool_use event with subtype: 'input')
-    // Returning anything here would cause duplicate messages.
     return null;
   }
 
   private parseToolUseEvent(event: ClaudeRawEvent): StandardEvent | null {
     const toolName = event.tool_name || 'unknown';
 
+    log.log(`parseToolUseEvent: tool=${toolName}, subtype=${event.subtype}, hasInput=${!!event.input}, hasResult=${!!event.result}`);
+
     if (event.subtype === 'input' && event.input) {
+      log.log(`  -> Emitting tool_start for ${toolName}`);
       return {
         type: 'tool_start',
         toolName,
@@ -223,12 +267,14 @@ export class ClaudeBackend implements CLIBackend {
         typeof event.result === 'string'
           ? event.result
           : JSON.stringify(event.result);
+      log.log(`  -> Emitting tool_result for ${toolName}, output=${output.slice(0, 100)}`);
       return {
         type: 'tool_result',
         toolName,
         toolOutput: output,
       };
     }
+    log.log(`  -> No event emitted (subtype=${event.subtype}, hasInput=${!!event.input})`);
     return null;
   }
 

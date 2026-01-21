@@ -120,6 +120,16 @@ export function WebSocketDebuggerPanel({ isOpen, onClose }: WebSocketDebuggerPan
     navigator.clipboard.writeText(text);
   };
 
+  const copyAllMessages = useCallback(() => {
+    const allJson = filteredMessages.map(msg => ({
+      direction: msg.direction,
+      type: msg.type,
+      timestamp: msg.timestamp,
+      payload: msg.payload,
+    }));
+    navigator.clipboard.writeText(JSON.stringify(allJson, null, 2));
+  }, [filteredMessages]);
+
   if (!isOpen) return null;
 
   return (
@@ -205,6 +215,9 @@ export function WebSocketDebuggerPanel({ isOpen, onClose }: WebSocketDebuggerPan
             </label>
             <button className="btn-link" onClick={expandAll}>Expand All</button>
             <button className="btn-link" onClick={collapseAll}>Collapse All</button>
+            <button className="btn-link" onClick={copyAllMessages} title="Copy all filtered messages as JSON">
+              Copy All
+            </button>
           </div>
         </div>
 

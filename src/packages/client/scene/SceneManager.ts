@@ -268,8 +268,6 @@ export class SceneManager {
 
         // Start status-based animation (sit if idle)
         this.updateStatusAnimation(agent, newMeshData);
-
-        console.log(`[SceneManager] Upgraded ${agent.name} to character model (isCapsule=${isCapsule}, hasCustomClass=${hasCustomClass})`);
       }
     }
 
@@ -369,9 +367,6 @@ export class SceneManager {
     const animation = statusAnimations[agent.status] || ANIMATIONS.IDLE;
     const currentClipName = meshData.currentAction?.getClip()?.name?.toLowerCase();
 
-    console.log(`[SceneManager] Agent ${agent.name} status=${agent.status}, animation=${animation}, current=${currentClipName}, hasAnimations=${meshData.animations.size}`);
-    console.log(`[SceneManager] Available animations:`, Array.from(meshData.animations.keys()));
-
     // One-shot animations that should only play once (not for idle/working status)
     const oneShotAnimations: string[] = [ANIMATIONS.DIE, ANIMATIONS.EMOTE_NO, ANIMATIONS.EMOTE_YES];
     // Jump is only one-shot when NOT used as a configured idle/working animation
@@ -390,7 +385,6 @@ export class SceneManager {
         : isOneShot
           ? { loop: false }
           : {};
-      console.log(`[SceneManager] Playing animation: ${animation}, oneShot: ${isOneShot}`);
       this.movementAnimator.playAnimation(meshData, animation, options);
     }
 
@@ -789,7 +783,6 @@ export class SceneManager {
   // ============================================
 
   private handleAgentClick(agentId: string, shiftKey: boolean): void {
-    console.log('[SceneManager] handleAgentClick - single click on agent:', agentId);
     if (shiftKey) {
       store.addToSelection(agentId);
     } else {
@@ -842,12 +835,9 @@ export class SceneManager {
 
   private handleAgentDoubleClick(agentId: string): void {
     // Select the agent and force-open terminal
-    console.log('[SceneManager] handleAgentDoubleClick called for:', agentId);
     store.selectAgent(agentId);
     this.refreshSelectionVisuals();
-    console.log('[SceneManager] Calling setTerminalOpen(true)');
     store.setTerminalOpen(true);
-    console.log('[SceneManager] terminalOpen state is now:', store.getState().terminalOpen);
   }
 
   // Drawing handlers

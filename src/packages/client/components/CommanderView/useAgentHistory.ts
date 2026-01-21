@@ -150,8 +150,7 @@ export function useAgentHistory({ isOpen, agents }: UseAgentHistoryOptions): Use
           ? [...preserved, ...currentOutputs]
           : currentOutputs;
 
-        // Only keep outputs newer than history to avoid duplicates
-        // This prevents showing the same content in both history and outputs
+        // Only keep outputs newer than history (history already has older messages)
         const newerOutputs = allOutputs.filter(o => o.timestamp > lastHistoryTimestamp);
 
         // Clear and restore only newer outputs

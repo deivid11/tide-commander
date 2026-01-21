@@ -16,7 +16,7 @@ const MAX_MESSAGES = 500;
 
 class WebSocketDebugger {
   private messages: DebugMessage[] = [];
-  private enabled = false;
+  private enabled = true; // Enabled by default for debugging
   private listeners: Set<() => void> = new Set();
   private idCounter = 0;
 

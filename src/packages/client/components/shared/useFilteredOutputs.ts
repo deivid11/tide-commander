@@ -3,9 +3,10 @@
  * Used by both ClaudeOutputPanel (Guake) and CommanderView (AgentPanel)
  */
 
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import type { ClaudeOutput } from '../../store/types';
 import { extractToolKeyParam } from '../../utils/outputRendering';
+import { debugLog } from '../../services/agentDebugger';
 
 // Edit data for file viewer
 export interface EditData {
@@ -211,4 +212,31 @@ export function useFilteredOutputs({
     }
     return result;
   }, [outputs, viewMode]);
+}
+
+/**
+ * Wrapper hook that adds debug logging for filtered outputs
+ */
+export function useFilteredOutputsWithLogging({
+  outputs,
+  viewMode,
+}: UseFilteredOutputsOptions): EnrichedOutput[] {
+  const prevInputLenRef = useRef(0);
+  const prevOutputLenRef = useRef(0);
+
+  const filtered = useFilteredOutputs({ outputs, viewMode });
+
+  // Log when input or output changes
+  if (outputs.length !== prevInputLenRef.current || filtered.length !== prevOutputLenRef.current) {
+    debugLog.info(`Filter: in=${outputs.length} out=${filtered.length} mode=${viewMode}`, {
+      inputLen: outputs.length,
+      outputLen: filtered.length,
+      viewMode,
+      lastInput: outputs.length > 0 ? outputs[outputs.length - 1].text.slice(0, 40) : null,
+    }, 'useFilteredOutputs');
+    prevInputLenRef.current = outputs.length;
+    prevOutputLenRef.current = filtered.length;
+  }
+
+  return filtered;
 }

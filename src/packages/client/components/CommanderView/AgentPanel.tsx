@@ -66,25 +66,8 @@ export function AgentPanel({
     viewMode: advancedView ? 'advanced' : 'simple',
   });
 
-  // Deduplicate outputs against history to prevent showing same content twice
-  // This handles the case where outputs arrive AFTER history is loaded
-  const filteredOutputs = useMemo(() => {
-    if (!history?.messages.length) return viewFilteredOutputs;
-
-    // Create a Set of content hashes from history messages for fast lookup
-    const historyContentHashes = new Set<string>();
-    for (const msg of history.messages) {
-      // Use first 200 chars of content as hash key (same as server-side dedup)
-      const contentKey = msg.content.slice(0, 200);
-      historyContentHashes.add(contentKey);
-    }
-
-    // Filter out outputs whose content already exists in history
-    return viewFilteredOutputs.filter(output => {
-      const outputContentKey = output.text.slice(0, 200);
-      return !historyContentHashes.has(outputContentKey);
-    });
-  }, [viewFilteredOutputs, history?.messages]);
+  // Just use the filtered outputs directly - no dedup
+  const filteredOutputs = viewFilteredOutputs;
 
   // Get supervisor status for this agent
   const supervisorStatus = useMemo(() => {

@@ -58,13 +58,15 @@ import {
 } from './types';
 import type { HistoryMessage, AttachedFile, EditData } from './types';
 import { markdownComponents } from './MarkdownComponents';
-import { useFilteredOutputs } from '../shared/useFilteredOutputs';
+import { useFilteredOutputsWithLogging } from '../shared/useFilteredOutputs';
 import { HistoryLine } from './HistoryLine';
 import { OutputLine } from './OutputLine';
 import { GuakeAgentLink } from './GuakeAgentLink';
 import { PermissionRequestInline } from './PermissionRequest';
 import { useTerminalInput } from './useTerminalInput';
 import { getImageWebUrl } from './contentRendering';
+import { AgentDebugPanel } from './AgentDebugPanel';
+import { agentDebugger } from '../../services/agentDebugger';
 
 export function ClaudeOutputPanel() {
   // Use granular selectors instead of useStore() to prevent unnecessary re-renders
@@ -111,6 +113,18 @@ export function ClaudeOutputPanel() {
 
   // Context action confirmation modal
   const [contextConfirm, setContextConfirm] = useState<'collapse' | 'clear' | null>(null);
+
+  // Debug panel state
+  const [debugPanelOpen, setDebugPanelOpen] = useState(false);
+  const [debuggerEnabled, setDebuggerEnabled] = useState(() => agentDebugger.isEnabled());
+
+  // Auto-enable debugger when panel is opened
+  useEffect(() => {
+    if (debugPanelOpen && !debuggerEnabled) {
+      setDebuggerEnabled(true);
+      agentDebugger.setEnabled(true);
+    }
+  }, [debugPanelOpen, debuggerEnabled]);
 
   // Terminal height state with storage persistence
   const [terminalHeight, setTerminalHeight] = useState(() => {
@@ -195,28 +209,8 @@ export function ClaudeOutputPanel() {
     return history.filter((msg) => msg.type === 'user' || msg.type === 'assistant' || msg.type === 'tool_use');
   }, [history, viewMode]);
 
-  // Memoized filtered outputs based on view mode (using shared hook)
-  const viewFilteredOutputs = useFilteredOutputs({ outputs, viewMode });
-
-  // Deduplicate outputs against history to prevent showing same content twice
-  // This handles the case where outputs arrive AFTER history is loaded
-  const filteredOutputs = useMemo(() => {
-    if (!history.length) return viewFilteredOutputs;
-
-    // Create a Set of content hashes from history messages for fast lookup
-    const historyContentHashes = new Set<string>();
-    for (const msg of history) {
-      // Use first 200 chars of content as hash key (same as server-side dedup)
-      const contentKey = msg.content.slice(0, 200);
-      historyContentHashes.add(contentKey);
-    }
-
-    // Filter out outputs whose content already exists in history
-    return viewFilteredOutputs.filter(output => {
-      const outputContentKey = output.text.slice(0, 200);
-      return !historyContentHashes.has(outputContentKey);
-    });
-  }, [viewFilteredOutputs, history]);
+  // Memoized filtered outputs based on view mode (using shared hook with debug logging)
+  const filteredOutputs = useFilteredOutputsWithLogging({ outputs, viewMode });
 
   // Handle resize drag
   const handleResizeStart = useCallback(
@@ -396,19 +390,34 @@ export function ClaudeOutputPanel() {
     }
   };
 
+  // Track the previous agent ID to detect agent switches
+  const prevAgentIdRef = useRef<string | null>(null);
+
   // Load conversation history when agent changes or on reconnect
+  // IMPORTANT: We do NOT clear outputs during normal streaming - only when:
+  // 1. User switches to a different agent
+  // 2. User reconnects after disconnect
+  const hasSessionId = !!selectedAgent?.sessionId;
   useEffect(() => {
-    if (!selectedAgentId || !selectedAgent?.sessionId) {
+    if (!selectedAgentId || !hasSessionId) {
       setHistory([]);
       setHasMore(false);
       setTotalCount(0);
       return;
     }
 
+    // Detect if this is an agent switch or reconnect vs session establishment
+    const isAgentSwitch = prevAgentIdRef.current !== null && prevAgentIdRef.current !== selectedAgentId;
+    const isReconnect = reconnectCount > 0;
+    const shouldClearOutputs = isAgentSwitch || isReconnect;
+
+    // Update the ref AFTER we check it
+    prevAgentIdRef.current = selectedAgentId;
+
     // On reconnect, preserve current outputs BEFORE fetching new history
     // This ensures we don't lose any messages that weren't persisted to the JSONL file yet
     let preservedOutputsSnapshot: ClaudeOutput[] | undefined;
-    if (reconnectCount > 0) {
+    if (isReconnect) {
       const currentOutputs = store.getOutputs(selectedAgentId);
       if (currentOutputs.length > 0) {
         preservedOutputsSnapshot = currentOutputs.map(o => ({ ...o }));
@@ -429,39 +438,44 @@ export function ClaudeOutputPanel() {
         setHasMore(data.hasMore || false);
         setTotalCount(data.totalCount || 0);
 
-        // On reconnect, restore preserved outputs (don't merge with history)
-        // History is rendered separately by HistoryLine, outputs by OutputLine
-        // They have different content formats and should not be mixed
-        if (preservedOutputsSnapshot && preservedOutputsSnapshot.length > 0) {
-          // Find the most recent history timestamp to filter out duplicate outputs
-          const lastHistoryTimestamp = messages.length > 0
-            ? Math.max(...messages.map((m: HistoryMessage) => m.timestamp ? new Date(m.timestamp).getTime() : 0))
-            : 0;
+        // Only clear and filter outputs on agent switch or reconnect
+        // Do NOT clear when session is first established (new agent starting work)
+        if (shouldClearOutputs) {
+          if (preservedOutputsSnapshot && preservedOutputsSnapshot.length > 0) {
+            // On reconnect, restore preserved outputs (don't merge with history)
+            // History is rendered separately by HistoryLine, outputs by OutputLine
+            // They have different content formats and should not be mixed
+            const lastHistoryTimestamp = messages.length > 0
+              ? Math.max(...messages.map((m: HistoryMessage) => m.timestamp ? new Date(m.timestamp).getTime() : 0))
+              : 0;
 
-          // Only keep preserved outputs that are newer than the last history message
-          // This avoids duplicating messages that are already in history
-          const newerOutputs = preservedOutputsSnapshot.filter(o => o.timestamp > lastHistoryTimestamp);
+            // Only keep preserved outputs that are newer than the last history message
+            // This avoids duplicating messages that are already in history
+            const newerOutputs = preservedOutputsSnapshot.filter(o => o.timestamp > lastHistoryTimestamp);
 
-          // Restore the newer outputs
-          store.clearOutputs(selectedAgentId);
-          for (const output of newerOutputs) {
-            store.addOutput(selectedAgentId, output);
-          }
-        } else if (messages.length > 0) {
-          // Normal flow - filter outputs to only keep those newer than history
-          // This prevents duplicates between history and live outputs
-          const lastHistoryTimestamp = Math.max(
-            ...messages.map((m: HistoryMessage) => m.timestamp ? new Date(m.timestamp).getTime() : 0)
-          );
+            // Restore the newer outputs
+            store.clearOutputs(selectedAgentId);
+            for (const output of newerOutputs) {
+              store.addOutput(selectedAgentId, output);
+            }
+          } else if (messages.length > 0) {
+            // Agent switch - filter outputs to only keep those newer than history
+            // This prevents duplicates between history and live outputs
+            const lastHistoryTimestamp = Math.max(
+              ...messages.map((m: HistoryMessage) => m.timestamp ? new Date(m.timestamp).getTime() : 0)
+            );
 
-          const currentOutputs = store.getOutputs(selectedAgentId);
-          const newerOutputs = currentOutputs.filter(o => o.timestamp > lastHistoryTimestamp);
+            const currentOutputs = store.getOutputs(selectedAgentId);
+            const newerOutputs = currentOutputs.filter(o => o.timestamp > lastHistoryTimestamp);
 
-          store.clearOutputs(selectedAgentId);
-          for (const output of newerOutputs) {
-            store.addOutput(selectedAgentId, output);
+            store.clearOutputs(selectedAgentId);
+            for (const output of newerOutputs) {
+              store.addOutput(selectedAgentId, output);
+            }
           }
         }
+        // When session is first established (not agent switch or reconnect),
+        // we DON'T clear outputs - let streaming messages accumulate naturally
 
         if (!lastPrompts.get(selectedAgentId)) {
           for (let i = messages.length - 1; i >= 0; i--) {
@@ -478,7 +492,7 @@ export function ClaudeOutputPanel() {
         setHasMore(false);
         setTotalCount(0);
         // Even on error, restore preserved outputs if we have them
-        if (preservedOutputsSnapshot && preservedOutputsSnapshot.length > 0) {
+        if (shouldClearOutputs && preservedOutputsSnapshot && preservedOutputsSnapshot.length > 0) {
           store.clearOutputs(selectedAgentId);
           for (const output of preservedOutputsSnapshot) {
             store.addOutput(selectedAgentId, output);
@@ -488,7 +502,7 @@ export function ClaudeOutputPanel() {
       .finally(() => {
         setLoadingHistory(false);
       });
-  }, [selectedAgentId, selectedAgent?.sessionId, reconnectCount]); // reconnectCount triggers refresh on reconnection
+  }, [selectedAgentId, hasSessionId, reconnectCount]); // hasSessionId (boolean) triggers when session is established
 
   // Load more history when scrolling to top
   const loadMoreHistory = useCallback(async () => {
@@ -694,9 +708,17 @@ export function ClaudeOutputPanel() {
   return (
     <div
       ref={terminalRef}
-      className={`guake-terminal ${isOpen ? 'open' : 'collapsed'}`}
+      className={`guake-terminal ${isOpen ? 'open' : 'collapsed'} ${debugPanelOpen && isOpen ? 'with-debug-panel' : ''}`}
       style={{ '--terminal-height': `${terminalHeight}%` } as React.CSSProperties}
     >
+      {/* Debug Panel - Left Side (only visible when terminal is open) */}
+      {debugPanelOpen && isOpen && selectedAgentId && (
+        <AgentDebugPanel
+          agentId={selectedAgentId}
+          onClose={() => setDebugPanelOpen(false)}
+        />
+      )}
+
       <div className="guake-content">
         <div className="guake-header">
           <div className="guake-header-left">
@@ -752,6 +774,31 @@ export function ClaudeOutputPanel() {
             })()}
           </div>
           <div className="guake-actions">
+            <button
+              className={`guake-debug-toggle ${debuggerEnabled ? 'active' : ''}`}
+              onClick={() => {
+                const newEnabled = !debuggerEnabled;
+                setDebuggerEnabled(newEnabled);
+                agentDebugger.setEnabled(newEnabled);
+                if (newEnabled) {
+                  setDebugPanelOpen(true);
+                } else {
+                  setDebugPanelOpen(false);
+                }
+              }}
+              title={debuggerEnabled ? 'Disable Agent Debugger' : 'Enable Agent Debugger'}
+            >
+              🐛
+            </button>
+            {debuggerEnabled && (
+              <button
+                className={`guake-debug-panel-toggle ${debugPanelOpen ? 'active' : ''}`}
+                onClick={() => setDebugPanelOpen(!debugPanelOpen)}
+                title={debugPanelOpen ? 'Hide Debug Panel' : 'Show Debug Panel'}
+              >
+                {debugPanelOpen ? '◀' : '▶'}
+              </button>
+            )}
             <button
               className={`guake-search-toggle ${searchMode ? 'active' : ''}`}
               onClick={() => {

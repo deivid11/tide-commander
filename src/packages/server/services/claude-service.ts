@@ -120,6 +120,14 @@ function emit<K extends keyof ClaudeServiceEvents>(
   ...args: Parameters<ClaudeServiceEvents[K]>
 ): void {
   const listeners = eventListeners.get(event);
+  const listenerCount = listeners?.size || 0;
+
+  // Debug log for event emissions
+  if (event === 'event') {
+    const standardEvent = args[1] as any;
+    log.log(`[EMIT] event: type=${standardEvent?.type} tool=${standardEvent?.toolName || 'n/a'} listeners=${listenerCount}`);
+  }
+
   if (listeners) {
     listeners.forEach((listener) => (listener as Function)(...args));
   }

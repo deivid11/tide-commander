@@ -558,6 +558,9 @@ export class ClaudeRunner {
     try {
       const rawEvent = JSON.parse(line);
 
+      // Log all event types for debugging
+      log.log(`[EVENT] ${agentId.slice(0,4)}: type=${rawEvent.type}, subtype=${rawEvent.subtype || 'none'}`);
+
       // Log result events for debugging context tracking
       if (rawEvent.type === 'result') {
         log.log(` Got result event for ${agentId}:`, JSON.stringify(rawEvent).substring(0, 500));
@@ -579,10 +582,17 @@ export class ClaudeRunner {
         this.callbacks.onSessionId(agentId, sessionId);
       }
 
-      // Parse to normalized event
-      const event = this.backend.parseEvent(rawEvent);
-      if (event) {
-        this.handleEvent(agentId, event);
+      // Parse to normalized event (may return array for multiple tool_use blocks)
+      const eventOrEvents = this.backend.parseEvent(rawEvent);
+      if (eventOrEvents) {
+        if (Array.isArray(eventOrEvents)) {
+          // Handle array of events (e.g., multiple tool_use blocks in assistant message)
+          for (const event of eventOrEvents) {
+            this.handleEvent(agentId, event);
+          }
+        } else {
+          this.handleEvent(agentId, eventOrEvents);
+        }
       }
     } catch {
       // Not JSON - raw output
@@ -623,29 +633,27 @@ export class ClaudeRunner {
         break;
 
       case 'tool_start':
-        // Send tool name and input as separate messages for better formatting
+        // Send tool name as text output (needed for simple view mode display)
         this.callbacks.onOutput(agentId, `Using tool: ${event.toolName}`);
+        // Send tool input as JSON (needed for simple view to show file paths, commands, etc.)
         if (event.toolInput) {
-          try {
-            const inputStr = typeof event.toolInput === 'string'
-              ? event.toolInput
-              : JSON.stringify(event.toolInput, null, 2);
-            this.callbacks.onOutput(agentId, `Tool input: ${inputStr}`);
-          } catch {
-            // Ignore serialization errors
-          }
+          this.callbacks.onOutput(agentId, `Tool input: ${JSON.stringify(event.toolInput)}`);
         }
         break;
 
       case 'tool_result':
-        const output = event.toolOutput?.substring(0, 500) || '';
-        this.callbacks.onOutput(
-          agentId,
-          `Tool result: ${output}${output.length >= 500 ? '...' : ''}`
-        );
+        // Tool results are broadcast via the 'event' channel
+        // Don't send full result as text - too verbose
         break;
 
       case 'step_complete':
+        // Output the result text if available (fallback for non-streamed responses)
+        // This handles cases where Claude returns a quick response without streaming deltas
+        log.log(`step_complete for ${agentId}: resultText="${event.resultText?.slice(0, 50) || 'EMPTY'}", tokens=${event.tokens?.output || 0}`);
+        if (event.resultText) {
+          log.log(`Outputting resultText for ${agentId}: "${event.resultText}"`);
+          this.callbacks.onOutput(agentId, event.resultText);
+        }
         if (event.tokens) {
           this.callbacks.onOutput(
             agentId,

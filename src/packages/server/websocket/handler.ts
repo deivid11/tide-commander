@@ -55,72 +55,7 @@ const supervisorLog = createLogger('Supervisor');
 // Connected clients
 const clients = new Set<WebSocket>();
 
-// ============================================================================
-// Output Deduplication
-// ============================================================================
-
-/**
- * Tracks seen output hashes per agent to prevent duplicates.
- * Key: agentId, Value: Set of output hashes
- */
-const seenOutputs = new Map<string, Set<string>>();
-
-// Max hashes to keep per agent before trimming (FIFO)
-const MAX_SEEN_HASHES = 200;
-
-/**
- * Generate a hash key for an output message.
- * Uses full text content to ensure uniqueness.
- */
-function getOutputHash(text: string): string {
-  // Simple string hash for the full text
-  let hash = 0;
-  for (let i = 0; i < text.length; i++) {
-    hash = ((hash << 5) - hash) + text.charCodeAt(i);
-    hash |= 0;
-  }
-  return (hash >>> 0).toString(16);
-}
-
-/**
- * Check if an output is a duplicate and should be skipped.
- * Simply checks if we've seen this exact text before for this agent.
- */
-function isDuplicateOutput(agentId: string, text: string, _isStreaming: boolean): boolean {
-  const hash = getOutputHash(text);
-
-  // Get or create agent's seen set
-  let seen = seenOutputs.get(agentId);
-  if (!seen) {
-    seen = new Set();
-    seenOutputs.set(agentId, seen);
-  }
-
-  // Check if we've seen this hash before
-  if (seen.has(hash)) {
-    log.log(`[DEDUP] Skipping duplicate output for ${agentId}: "${text.slice(0, 50)}..."`);
-    return true;
-  }
-
-  // Record this hash
-  seen.add(hash);
-
-  // Trim if too many (keep most recent by converting to array and back)
-  if (seen.size > MAX_SEEN_HASHES) {
-    const arr = Array.from(seen);
-    const trimmed = arr.slice(-MAX_SEEN_HASHES);
-    seenOutputs.set(agentId, new Set(trimmed));
-  }
-
-  return false;
-}
-
-/**
- * Clear dedup cache for an agent (called when agent is deleted/killed)
- */
-export function clearOutputDedup(agentId: string): void {
-  seenOutputs.delete(agentId);
-}
+// NOTE: Output deduplication removed - will be rebuilt from scratch
 
 // ============================================================================
 // Broadcasting
@@ -128,15 +63,42 @@ export function clearOutputDedup(agentId: string): void {
 
 export function broadcast(message: ServerMessage): void {
   const data = JSON.stringify(message);
+  let sentCount = 0;
+  let skippedCount = 0;
+  let errorCount = 0;
 
   for (const client of clients) {
     if (client.readyState === WebSocket.OPEN) {
+      // Check if WebSocket buffer is backed up (backpressure)
+      // bufferedAmount > 0 means messages are queued waiting to be sent
+      const buffered = client.bufferedAmount;
+      if (buffered > 1024 * 1024) { // 1MB threshold
+        log.log(`[BROADCAST] WARNING: Client buffer backed up (${buffered} bytes), skipping message`);
+        skippedCount++;
+        continue;
+      }
+
       try {
         client.send(data);
+        sentCount++;
       } catch (err) {
         log.error(`Failed to send ${message.type} to client:`, err);
+        errorCount++;
       }
     }
+  }
+
+  // Log ALL broadcasts for debugging
+  const suffix = skippedCount > 0 ? ` skipped=${skippedCount}` : '';
+  const errSuffix = errorCount > 0 ? ` errors=${errorCount}` : '';
+  if (message.type === 'output') {
+    const payload = message.payload as { text?: string };
+    log.log(`[BROADCAST] type=${message.type} text="${payload.text?.slice(0, 50)}..." sentTo=${sentCount}/${clients.size}${suffix}${errSuffix}`);
+  } else if (message.type === 'event') {
+    const payload = message.payload as { type?: string; toolName?: string };
+    log.log(`[BROADCAST] type=${message.type} eventType=${payload.type} tool=${payload.toolName || 'n/a'} sentTo=${sentCount}/${clients.size}${suffix}${errSuffix}`);
+  } else {
+    log.log(`[BROADCAST] type=${message.type} sentTo=${sentCount}/${clients.size}${suffix}${errSuffix}`);
   }
 }
 
@@ -492,18 +454,8 @@ function setupServiceListeners(): void {
   });
 
   claudeService.on('output', (agentId, text, isStreaming) => {
-    // Server-side deduplication to prevent duplicate messages during streaming
-    const isDuplicate = isDuplicateOutput(agentId, text, isStreaming || false);
-
-    // Debug logging for tool outputs to track duplicates
-    if (text.startsWith('Using tool:') || text.startsWith('Tool input:') || text.startsWith('Tool result:')) {
-      const textPreview = text.slice(0, 80).replace(/\n/g, '\\n');
-      log.log(`[OUTPUT] agent=${agentId.slice(0,4)} streaming=${isStreaming} duplicate=${isDuplicate} text="${textPreview}..."`);
-    }
-
-    if (isDuplicate) {
-      return;
-    }
+    const textPreview = text.slice(0, 80).replace(/\n/g, '\\n');
+    log.log(`[OUTPUT] agent=${agentId.slice(0,4)} streaming=${isStreaming} text="${textPreview}"`);
 
     broadcast({
       type: 'output' as any,

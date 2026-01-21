@@ -191,7 +191,6 @@ export class CharacterFactory {
         const normalizedName = clip.name.toLowerCase();
         animations.set(normalizedName, clip);
       }
-      console.log(`[CharacterFactory] Loaded model ${modelFile} for ${agent.name} (${agent.class}):`, Array.from(animations.keys()));
 
       return {
         body: cloneResult.mesh,
@@ -199,8 +198,6 @@ export class CharacterFactory {
         animations,
       };
     }
-
-    console.warn(`[CharacterFactory] Failed to load model ${modelFile} for ${agent.name}, using fallback capsule`);
 
     // Fallback to capsule if model not loaded
     const geometry = new THREE.CapsuleGeometry(0.5, 1.0, 4, 16);
@@ -770,7 +767,6 @@ export class CharacterFactory {
       animations.set(normalizedName, clip);
     }
 
-    console.log(`[CharacterFactory] Upgraded ${agent.name} to character model, animations:`, Array.from(animations.keys()));
 
     return {
       group,

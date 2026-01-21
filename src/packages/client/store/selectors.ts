@@ -29,6 +29,7 @@ import type {
 } from './types';
 import type { ShortcutConfig } from './shortcuts';
 import { store } from './index';
+import { debugLog } from '../services/agentDebugger';
 
 // ============================================================================
 // UTILITY FUNCTIONS
@@ -227,8 +228,9 @@ export function useSubordinateAgents(): Agent[] {
  */
 export function useAgentOutputs(agentId: string | null): ClaudeOutput[] {
   const emptyArray = useRef<ClaudeOutput[]>([]);
+  const prevLengthRef = useRef(0);
 
-  return useSelector(
+  const outputs = useSelector(
     useCallback(
       (state: StoreState) => {
         if (!agentId) return emptyArray.current;
@@ -238,6 +240,17 @@ export function useAgentOutputs(agentId: string | null): ClaudeOutput[] {
     ),
     shallowArrayEqual
   );
+
+  // Log when outputs change
+  if (outputs.length !== prevLengthRef.current) {
+    debugLog.info(`Selector: ${prevLengthRef.current} -> ${outputs.length}`, {
+      agentId,
+      lastText: outputs.length > 0 ? outputs[outputs.length - 1].text.slice(0, 40) : null,
+    }, 'useAgentOutputs');
+    prevLengthRef.current = outputs.length;
+  }
+
+  return outputs;
 }
 
 /**

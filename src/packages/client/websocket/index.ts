@@ -2,6 +2,7 @@ import type { Agent, ServerMessage, ClientMessage, PermissionRequest, Delegation
 import { store } from '../store';
 import { perf } from '../utils/profiling';
 import { wsDebugger } from './debugger';
+import { agentDebugger, debugLog } from '../services/agentDebugger';
 
 // Persist WebSocket state across HMR reloads using window object
 // This prevents orphaned connections and ensures we maintain the same socket
@@ -163,14 +164,39 @@ export function connect(): void {
     }
   };
 
+  // Track message sequence for debugging dropped messages
+  let messageSeq = 0;
+
   newSocket.onmessage = (event) => {
-    // Capture for debugger
+    messageSeq++;
+    const seq = messageSeq;
+
+    // Log raw data length first (always, even before parsing)
+    const dataLen = event.data?.length || 0;
+    console.log(`[WS RAW] #${seq} received ${dataLen} bytes`);
+
+    // Capture for global debugger FIRST before any processing
     wsDebugger.captureIncoming(event.data);
+
     try {
       const message = JSON.parse(event.data) as ServerMessage;
+
+      // Log ALL incoming messages for debugging
+      console.log(`[WS] #${seq} RECV type=${message.type}`, message.payload ? `payload.type=${(message.payload as any)?.type}` : '');
+
+      // Capture for agent-specific debugger if message has agentId
+      const isDebuggerEnabled = agentDebugger.isEnabled();
+      if (isDebuggerEnabled) {
+        const agentId = extractAgentId(message);
+        console.log('[AgentDebugger] RECEIVED - type:', message.type, 'agentId:', agentId, 'payload:', message.payload);
+        if (agentId) {
+          agentDebugger.captureReceived(agentId, event.data);
+        }
+      }
+
       handleServerMessage(message);
     } catch (err) {
-      console.error('[Tide] Failed to parse message:', err);
+      console.error(`[WS] #${seq} Failed to parse message:`, err, event.data.slice(0, 200));
     }
   };
 
@@ -203,10 +229,6 @@ function handleServerMessage(message: ServerMessage): void {
   switch (message.type) {
     case 'agents_update': {
       const agentList = message.payload as Agent[];
-      console.log(`[Tide] 📋 Initial agents_update: received ${agentList.length} agents`);
-      agentList.forEach(a => {
-        console.log(`[Tide]   - ${a.name}: status=${a.status}, currentTask=${a.currentTask || 'none'}`);
-      });
       store.setAgents(agentList);
       onAgentsSync?.(agentList);
       // Load tool history after agents are synced
@@ -280,6 +302,10 @@ function handleServerMessage(message: ServerMessage): void {
         toolName?: string;
         toolInput?: Record<string, unknown>;
       };
+      debugLog.debug(`Event: ${event.type}`, {
+        agentId: event.agentId,
+        toolName: event.toolName,
+      }, 'ws:event');
       if (event.type === 'tool_start' && event.toolName) {
         onToolUse?.(event.agentId, event.toolName, event.toolInput);
         // Track tool execution with input
@@ -310,6 +336,11 @@ function handleServerMessage(message: ServerMessage): void {
         timestamp: number;
         isDelegation?: boolean;
       };
+      debugLog.debug(`Output: "${output.text.slice(0, 80)}..."`, {
+        agentId: output.agentId,
+        isStreaming: output.isStreaming,
+        length: output.text.length,
+      }, 'ws:output');
       store.addOutput(output.agentId, {
         text: output.text,
         isStreaming: output.isStreaming,
@@ -643,6 +674,19 @@ function handleReconnect(): void {
   setReconnectTimeout(setTimeout(connect, delay));
 }
 
+/**
+ * Extract agentId from a message payload
+ */
+function extractAgentId(message: ServerMessage | ClientMessage): string | null {
+  // Check if payload has agentId
+  if (message.payload && typeof message.payload === 'object') {
+    const payload = message.payload as any;
+    if (payload.agentId) return payload.agentId;
+    if (payload.id) return payload.id;
+  }
+  return null;
+}
+
 export function sendMessage(message: ClientMessage): void {
   const ws = getWs();
   if (!ws) {
@@ -664,6 +708,17 @@ export function sendMessage(message: ClientMessage): void {
   try {
     const messageStr = JSON.stringify(message);
     wsDebugger.captureOutgoing(messageStr);
+
+    // Capture for agent-specific debugger if message has agentId
+    const isDebuggerEnabled = agentDebugger.isEnabled();
+    if (isDebuggerEnabled) {
+      const agentId = extractAgentId(message);
+      console.log('[AgentDebugger] SENT - type:', message.type, 'agentId:', agentId, 'payload:', message.payload);
+      if (agentId) {
+        agentDebugger.captureSent(agentId, messageStr);
+      }
+    }
+
     ws.send(messageStr);
   } catch (error) {
     onToast?.('error', 'Send Failed', `Failed to send message: ${error}`);

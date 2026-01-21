@@ -2686,3 +2686,654 @@
   border-left: 2px solid $dracula-purple;
   margin-top: 4px;
 }
+
+// ========================================
+// AGENT DEBUG PANEL
+// ========================================
+
+.guake-terminal.with-debug-panel {
+  .guake-content {
+    margin-left: 550px;
+  }
+}
+
+.agent-debug-panel {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 550px;
+  background: rgba($dracula-bg-darker, 0.98);
+  border-right: 2px solid $dracula-purple;
+  display: flex;
+  flex-direction: column;
+  z-index: 201;
+  overflow: hidden;
+
+  .agent-debug-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 16px;
+    background: rgba($dracula-bg, 0.95);
+    border-bottom: 1px solid $dracula-current;
+
+    .agent-debug-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: $dracula-orange;
+      font-weight: 600;
+      font-size: 14px;
+      font-family: $font-mono;
+
+      .icon {
+        font-size: 16px;
+      }
+    }
+
+    .close-btn {
+      background: transparent;
+      border: none;
+      color: $dracula-comment;
+      font-size: 18px;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: $radius-sm;
+      transition: all 0.2s;
+
+      &:hover {
+        background: rgba($dracula-red, 0.2);
+        color: $dracula-red;
+      }
+    }
+  }
+
+  .agent-debug-tabs {
+    display: flex;
+    background: rgba($dracula-bg, 0.8);
+    border-bottom: 1px solid $dracula-current;
+
+    .tab {
+      flex: 1;
+      padding: 8px 12px;
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: $dracula-comment;
+      font-family: $font-mono;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.2s;
+
+      &:hover {
+        background: rgba($dracula-purple, 0.1);
+        color: $dracula-fg;
+      }
+
+      &.active {
+        color: $dracula-purple;
+        border-bottom-color: $dracula-purple;
+        background: rgba($dracula-purple, 0.1);
+      }
+    }
+  }
+
+  .agent-debug-stats {
+    display: flex;
+    gap: 12px;
+    padding: 8px 16px;
+    background: rgba($dracula-bg, 0.6);
+    border-bottom: 1px solid $dracula-current;
+    font-family: $font-mono;
+    font-size: 11px;
+    align-items: center;
+
+    .stat {
+      color: $dracula-fg;
+
+      &.stat-sent {
+        color: $dracula-cyan;
+      }
+
+      &.stat-received {
+        color: $dracula-green;
+      }
+    }
+
+    .text-only-toggle {
+      margin-left: auto;
+      padding: 3px 8px;
+      background: rgba($dracula-yellow, 0.1);
+      border: 1px solid $dracula-yellow;
+      border-radius: $radius-sm;
+      color: $dracula-yellow;
+      font-family: $font-mono;
+      font-size: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+
+      &:hover {
+        background: rgba($dracula-yellow, 0.2);
+      }
+
+      &.active {
+        background: rgba($dracula-yellow, 0.3);
+        border-color: lighten($dracula-yellow, 10%);
+      }
+    }
+  }
+
+  .agent-debug-controls {
+    display: flex;
+    gap: 8px;
+    padding: 8px 16px;
+    background: rgba($dracula-bg, 0.4);
+    border-bottom: 1px solid $dracula-current;
+
+    .filter-select {
+      flex: 1;
+      padding: 4px 8px;
+      background: rgba($dracula-bg-darker, 0.8);
+      border: 1px solid $dracula-current;
+      border-radius: $radius-sm;
+      color: $dracula-fg;
+      font-family: $font-mono;
+      font-size: 11px;
+      cursor: pointer;
+
+      &:focus {
+        outline: none;
+        border-color: $dracula-purple;
+      }
+    }
+
+    .search-input {
+      flex: 2;
+      padding: 4px 8px;
+      background: rgba($dracula-bg-darker, 0.8);
+      border: 1px solid $dracula-current;
+      border-radius: $radius-sm;
+      color: $dracula-fg;
+      font-family: $font-mono;
+      font-size: 11px;
+
+      &::placeholder {
+        color: $dracula-comment;
+      }
+
+      &:focus {
+        outline: none;
+        border-color: $dracula-purple;
+      }
+    }
+  }
+
+  .agent-debug-actions {
+    display: flex;
+    gap: 6px;
+    padding: 6px 16px;
+    background: rgba($dracula-bg, 0.4);
+    border-bottom: 1px solid $dracula-current;
+    align-items: center;
+
+    .action-btn {
+      padding: 4px 10px;
+      background: rgba($dracula-purple, 0.2);
+      border: 1px solid $dracula-purple;
+      border-radius: $radius-sm;
+      color: $dracula-purple;
+      font-family: $font-mono;
+      font-size: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+
+      &:hover {
+        background: rgba($dracula-purple, 0.3);
+        border-color: lighten($dracula-purple, 10%);
+      }
+
+      &.clear-btn {
+        background: rgba($dracula-red, 0.2);
+        border-color: $dracula-red;
+        color: $dracula-red;
+
+        &:hover {
+          background: rgba($dracula-red, 0.3);
+          border-color: lighten($dracula-red, 10%);
+        }
+      }
+    }
+
+    .auto-scroll-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: auto;
+      font-family: $font-mono;
+      font-size: 10px;
+      color: $dracula-comment;
+      cursor: pointer;
+
+      // Hide the native checkbox
+      input[type="checkbox"] {
+        position: absolute;
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+
+      // Chrome-style toggle switch
+      .toggle-switch {
+        position: relative;
+        width: 32px;
+        height: 18px;
+        background: rgba($dracula-comment, 0.3);
+        border-radius: 9px;
+        transition: background 0.2s ease;
+
+        &::after {
+          content: '';
+          position: absolute;
+          top: 2px;
+          left: 2px;
+          width: 14px;
+          height: 14px;
+          background: $dracula-fg;
+          border-radius: 50%;
+          transition: transform 0.2s ease, background 0.2s ease;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+        }
+      }
+
+      // Active state
+      input:checked + .toggle-switch {
+        background: $dracula-purple;
+
+        &::after {
+          transform: translateX(14px);
+          background: white;
+        }
+      }
+
+      // Hover state
+      &:hover .toggle-switch {
+        background: rgba($dracula-comment, 0.5);
+      }
+
+      &:hover input:checked + .toggle-switch {
+        background: lighten($dracula-purple, 10%);
+      }
+    }
+  }
+
+  .agent-debug-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+
+    .no-messages {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: $dracula-comment;
+      font-family: $font-mono;
+      font-size: 12px;
+    }
+
+    .debug-message {
+      margin-bottom: 8px;
+      background: rgba($dracula-bg, 0.6);
+      border-radius: $radius-sm;
+      border-left: 3px solid $dracula-current;
+      overflow: hidden;
+
+      &.debug-message-sent {
+        border-left-color: $dracula-cyan;
+      }
+
+      &.debug-message-received {
+        border-left-color: $dracula-green;
+      }
+
+      &.has-text-preview {
+        border-left-color: $dracula-yellow;
+      }
+
+      // Tool event styles
+      &.is-tool-event {
+        border-left-color: $dracula-purple;
+
+        &.tool-start {
+          border-left-color: $dracula-cyan;
+        }
+
+        &.tool-result {
+          border-left-color: $dracula-green;
+        }
+      }
+
+      .tool-icon {
+        margin-right: 4px;
+      }
+
+      .tool-preview {
+        padding: 8px 10px;
+        background: rgba($dracula-purple, 0.1);
+        border-top: 1px solid rgba($dracula-purple, 0.2);
+        font-family: $font-mono;
+        font-size: 11px;
+
+        .tool-name {
+          display: inline-block;
+          background: rgba($dracula-cyan, 0.2);
+          color: $dracula-cyan;
+          padding: 2px 8px;
+          border-radius: $radius-sm;
+          font-weight: 600;
+          margin-bottom: 6px;
+        }
+
+        .tool-inputs {
+          margin-top: 6px;
+          padding-left: 4px;
+          border-left: 2px solid rgba($dracula-purple, 0.3);
+
+          .tool-input-item {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 3px;
+            font-size: 10px;
+            line-height: 1.4;
+
+            .tool-input-key {
+              color: $dracula-pink;
+              font-weight: 500;
+              flex-shrink: 0;
+            }
+
+            .tool-input-value {
+              color: $dracula-fg;
+              word-break: break-all;
+              opacity: 0.9;
+            }
+          }
+        }
+
+        .tool-raw-input {
+          margin-top: 6px;
+          padding: 4px 8px;
+          background: rgba($dracula-bg, 0.5);
+          border-radius: $radius-sm;
+          font-size: 10px;
+          color: $dracula-fg;
+          white-space: pre-wrap;
+          word-break: break-word;
+          max-height: 80px;
+          overflow: hidden;
+          font-family: $font-mono;
+        }
+
+        &.tool-result-preview {
+          background: rgba($dracula-green, 0.1);
+          border-top-color: rgba($dracula-green, 0.2);
+
+          .tool-name {
+            background: rgba($dracula-green, 0.2);
+            color: $dracula-green;
+          }
+
+          .tool-output-preview {
+            margin-top: 6px;
+            padding: 4px 8px;
+            background: rgba($dracula-bg, 0.5);
+            border-radius: $radius-sm;
+            font-size: 10px;
+            color: $dracula-comment;
+            white-space: pre-wrap;
+            word-break: break-word;
+            max-height: 60px;
+            overflow: hidden;
+          }
+        }
+      }
+
+      .message-text-preview {
+        display: flex;
+        gap: 6px;
+        padding: 6px 10px;
+        background: rgba($dracula-yellow, 0.1);
+        border-top: 1px solid rgba($dracula-yellow, 0.2);
+        font-family: $font-mono;
+        font-size: 10px;
+
+        .text-label {
+          flex-shrink: 0;
+          font-size: 11px;
+        }
+
+        .text-content {
+          color: $dracula-fg;
+          white-space: pre-wrap;
+          word-break: break-word;
+          line-height: 1.4;
+        }
+      }
+
+      .message-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        cursor: pointer;
+        transition: background 0.2s;
+        font-family: $font-mono;
+        font-size: 11px;
+
+        &:hover {
+          background: rgba($dracula-purple, 0.1);
+        }
+
+        .expand-icon {
+          color: $dracula-comment;
+          font-size: 10px;
+          width: 12px;
+          flex-shrink: 0;
+        }
+
+        .direction {
+          font-weight: 600;
+          flex-shrink: 0;
+
+          &.direction-sent {
+            color: $dracula-cyan;
+          }
+
+          &.direction-received {
+            color: $dracula-green;
+          }
+        }
+
+        .message-type {
+          color: $dracula-yellow;
+          flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+
+          .event-base {
+            color: $dracula-comment;
+            font-size: 10px;
+          }
+
+          .event-subtype {
+            color: $dracula-orange;
+            font-weight: 600;
+          }
+        }
+
+        .tool-name-inline {
+          color: $dracula-cyan;
+          font-weight: 600;
+          flex-shrink: 1;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          max-width: 120px;
+        }
+
+        .event-summary {
+          color: $dracula-fg;
+          opacity: 0.7;
+          font-size: 10px;
+          flex: 1;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .message-time {
+          color: $dracula-comment;
+          font-size: 10px;
+          flex-shrink: 0;
+        }
+
+        .message-size {
+          color: $dracula-comment;
+          font-size: 10px;
+          flex-shrink: 0;
+        }
+
+        .copy-btn {
+          background: transparent;
+          border: none;
+          cursor: pointer;
+          font-size: 14px;
+          padding: 0 4px;
+          opacity: 0.6;
+          transition: opacity 0.2s;
+          flex-shrink: 0;
+
+          &:hover {
+            opacity: 1;
+          }
+        }
+      }
+
+      .message-body {
+        padding: 8px 10px;
+        background: rgba($dracula-bg-darker, 0.8);
+        border-top: 1px solid $dracula-current;
+
+        pre {
+          margin: 0;
+          font-family: $font-mono;
+          font-size: 10px;
+          color: $dracula-fg;
+          line-height: 1.4;
+          overflow-x: auto;
+          white-space: pre-wrap;
+          word-wrap: break-word;
+
+          // JSON syntax highlighting
+          .json-key {
+            color: $dracula-purple;
+          }
+
+          .json-string {
+            color: $dracula-yellow;
+          }
+
+          .json-number {
+            color: $dracula-cyan;
+          }
+
+          .json-boolean {
+            color: $dracula-pink;
+          }
+
+          .json-null {
+            color: $dracula-orange;
+          }
+
+          .json-punct {
+            color: $dracula-comment;
+          }
+        }
+      }
+
+      // Log entry styles
+      &.debug-log {
+        &.log-debug {
+          border-left-color: $dracula-comment;
+        }
+
+        &.log-info {
+          border-left-color: $dracula-cyan;
+        }
+
+        &.log-warn {
+          border-left-color: $dracula-yellow;
+        }
+
+        &.log-error {
+          border-left-color: $dracula-red;
+        }
+
+        .log-level-icon {
+          flex-shrink: 0;
+        }
+
+        .log-level {
+          font-weight: 600;
+          font-size: 10px;
+          flex-shrink: 0;
+          min-width: 45px;
+        }
+
+        .log-source {
+          color: $dracula-purple;
+          font-size: 10px;
+          flex-shrink: 0;
+        }
+
+        .log-message {
+          flex: 1;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          color: $dracula-fg;
+        }
+      }
+    }
+  }
+}
+
+.guake-debug-toggle,
+.guake-debug-panel-toggle {
+  padding: 4px 10px;
+  background: rgba($dracula-orange, 0.1);
+  border: 1px solid $dracula-orange;
+  border-radius: $radius-sm;
+  color: $dracula-orange;
+  font-family: $font-mono;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background: rgba($dracula-orange, 0.2);
+    border-color: lighten($dracula-orange, 10%);
+  }
+
+  &.active {
+    background: rgba($dracula-orange, 0.3);
+    border-color: $dracula-orange;
+  }
+}
+
+.guake-debug-panel-toggle {
+  padding: 4px 8px;
+  font-size: 14px;
+}

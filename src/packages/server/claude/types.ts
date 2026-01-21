@@ -139,8 +139,8 @@ export interface CLIBackend {
   // Build CLI arguments
   buildArgs(config: BackendConfig): string[];
 
-  // Parse raw event to normalized format
-  parseEvent(rawEvent: unknown): StandardEvent | null;
+  // Parse raw event to normalized format (may return array for events with multiple tool_use blocks)
+  parseEvent(rawEvent: unknown): StandardEvent | StandardEvent[] | null;
 
   // Extract session ID from raw event
   extractSessionId(rawEvent: unknown): string | null;

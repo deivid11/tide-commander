@@ -41,13 +41,11 @@ export class CharacterLoader {
       ...Object.values(AGENT_CLASS_MODELS),
       ...ALL_CHARACTER_MODELS.map(m => m.file),
     ])];
-    console.log('[CharacterLoader] Loading models...', modelNames);
 
     this.loadingPromise = Promise.all(
       modelNames.map((name) => this.loadModel(name))
     ).then(() => {
       this.loaded = true;
-      console.log('[CharacterLoader] All models loaded:', this.models.size);
     });
 
     return this.loadingPromise;
@@ -66,9 +64,6 @@ export class CharacterLoader {
             scene,
             animations: gltf.animations,
           });
-          console.log(
-            `[CharacterLoader] Loaded: ${modelName} with ${gltf.animations.length} animations`
-          );
           resolve();
         },
         undefined,
