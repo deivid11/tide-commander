@@ -898,6 +898,70 @@ function ConfigSection({ config, onChange }: ConfigSectionProps) {
           />
         </div>
       </CollapsibleSection>
+
+      {/* About Section */}
+      <CollapsibleSection title="About" storageKey="about" defaultOpen={false}>
+        <AboutSection />
+      </CollapsibleSection>
+    </div>
+  );
+}
+
+function AboutSection() {
+  return (
+    <div className="about-section">
+      <div className="about-logo">
+        <span className="about-logo-icon">🌊</span>
+        <span className="about-logo-text">Tide Commander</span>
+      </div>
+
+      <div className="about-description">
+        Visual multi-agent orchestration for Claude Code
+      </div>
+
+      <div className="about-principles">
+        <div className="about-principles-title">Core Principles</div>
+        <ul className="about-principles-list">
+          <li>Visual-first agent management</li>
+          <li>Real-time collaboration & delegation</li>
+          <li>Spatial organization with areas & buildings</li>
+          <li>Transparent agent communication</li>
+        </ul>
+      </div>
+
+      <div className="about-links">
+        <a
+          href="https://github.com/deivid11/tide-commander"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="about-link"
+        >
+          <span className="about-link-icon">📦</span>
+          <span>GitHub Repository</span>
+        </a>
+        <a
+          href="https://x.com/Deivid11"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="about-link"
+        >
+          <span className="about-link-icon">𝕏</span>
+          <span>@Deivid11</span>
+        </a>
+      </div>
+
+      <div className="about-credits">
+        <div className="about-credits-title">Special Thanks</div>
+        <a
+          href="https://kenney.nl"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="about-credit-link"
+        >
+          Kenney.nl
+        </a>
+        <span className="about-credit-desc">for the agent character models</span>
+      </div>
     </div>
   );
 }

@@ -981,3 +981,125 @@
     background: rgba($accent-blue, 0.1);
   }
 }
+
+// About section
+.about-section {
+  padding: 4px 0;
+}
+
+.about-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.about-logo-icon {
+  font-size: 20px;
+}
+
+.about-logo-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: $text-primary;
+}
+
+.about-description {
+  font-size: 11px;
+  color: $text-secondary;
+  margin-bottom: 12px;
+  line-height: 1.4;
+}
+
+.about-principles {
+  margin-bottom: 12px;
+}
+
+.about-principles-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: $text-secondary;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.about-principles-list {
+  margin: 0;
+  padding: 0 0 0 16px;
+  font-size: 11px;
+  color: $text-primary;
+  line-height: 1.6;
+
+  li {
+    margin-bottom: 2px;
+
+    &::marker {
+      color: $accent-blue;
+    }
+  }
+}
+
+.about-links {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.about-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: $bg-secondary;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  color: $text-primary;
+  text-decoration: none;
+  font-size: 11px;
+  transition: all $transition-fast;
+
+  &:hover {
+    border-color: $accent-blue;
+    color: $accent-blue;
+    background: rgba($accent-blue, 0.05);
+  }
+}
+
+.about-link-icon {
+  font-size: 14px;
+  width: 18px;
+  text-align: center;
+}
+
+.about-credits {
+  padding-top: 10px;
+  border-top: 1px solid rgba($border-color, 0.5);
+}
+
+.about-credits-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: $text-secondary;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.about-credit-link {
+  color: $accent-blue;
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 500;
+  transition: color $transition-fast;
+
+  &:hover {
+    color: color.adjust($accent-blue, $lightness: 15%);
+    text-decoration: underline;
+  }
+}
+
+.about-credit-desc {
+  font-size: 11px;
+  color: $text-secondary;
+  margin-left: 4px;
+}
