@@ -2,6 +2,8 @@
 
 ![Tide Commander Preview](docs/preview.png)
 
+[![Watch the demo](https://img.shields.io/badge/YouTube-Watch%20Demo-red?style=for-the-badge&logo=youtube)](https://www.youtube.com/watch?v=r1Op_xfhqOM)
+
 A game-like Claude Code orchestrator. Deploy, position, and command multiple Claude Code instances on a strategic battlefield inspired by RTS games like Warcraft.
 
 ## 💡 Why Tide Commander?
