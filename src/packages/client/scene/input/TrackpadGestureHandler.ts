@@ -1,16 +1,9 @@
 /**
- * TrackpadGestureHandler - Mac trackpad gesture recognition
+ * TrackpadGestureHandler - Simple trackpad gesture support
  *
- * Handles trackpad-specific gestures that differ from mouse events:
- * - Two-finger pinch-to-zoom (via wheel events with ctrlKey)
- * - Two-finger scroll for panning
- * - Inertial scrolling
- * - Gesture events (Safari's GestureEvent API)
- *
- * Mac trackpads generate different events than mice:
- * - Wheel events with deltaMode=0 (pixels) and smooth deltas
- * - ctrlKey+wheel for pinch gestures
- * - GestureEvent for rotation (Safari only)
+ * Two gestures only:
+ * - Pinch to zoom (ctrlKey + wheel on trackpads)
+ * - Two-finger drag to pan (follows hand movement)
  */
 
 import { store } from '../../store';
@@ -23,30 +16,24 @@ import type { CameraController } from './CameraController';
 export interface TrackpadConfig {
   enabled: boolean;
   pinchToZoom: boolean;
-  twoFingerScroll: boolean;
-  twoFingerScrollAction: 'pan' | 'orbit';
-  rotationGesture: boolean;
-  inertialScrolling: boolean;
-  naturalScrolling: boolean; // Inverts scroll direction like macOS default
+  twoFingerPan: boolean;
+  shiftTwoFingerOrbit: boolean; // Shift + two-finger drag to orbit
   sensitivity: {
     zoom: number; // 0.1-3.0
-    scroll: number; // 0.1-3.0
-    rotation: number; // 0.1-3.0
+    pan: number; // 0.1-3.0
+    orbit: number; // 0.1-3.0
   };
 }
 
 export const DEFAULT_TRACKPAD_CONFIG: TrackpadConfig = {
   enabled: true,
   pinchToZoom: true,
-  twoFingerScroll: true,
-  twoFingerScrollAction: 'pan',
-  rotationGesture: true,
-  inertialScrolling: true,
-  naturalScrolling: true,
+  twoFingerPan: true,
+  shiftTwoFingerOrbit: true,
   sensitivity: {
     zoom: 1.0,
-    scroll: 1.0,
-    rotation: 1.0,
+    pan: 1.0,
+    orbit: 1.0,
   },
 };
 
@@ -54,15 +41,6 @@ export interface TrackpadCallbacks {
   onPan: (dx: number, dy: number) => void;
   onZoom: (delta: number, centerX: number, centerY: number) => void;
   onOrbit: (dx: number, dy: number) => void;
-  onRotate: (angleDelta: number) => void;
-}
-
-// Safari's GestureEvent interface (not standard)
-interface GestureEvent extends UIEvent {
-  scale: number;
-  rotation: number;
-  clientX: number;
-  clientY: number;
 }
 
 // ============================================================================
@@ -70,44 +48,35 @@ interface GestureEvent extends UIEvent {
 // ============================================================================
 
 /**
- * Heuristics to detect trackpad vs mouse wheel:
- * - Trackpads generate many small delta events (typically < 50 pixels)
- * - Mice generate larger discrete delta events (typically 100-120+ per notch)
- * - Pinch gestures set ctrlKey=true on wheel events
- * - Horizontal scrolling is more common with trackpads
- *
- * NOTE: We can't rely on integer vs non-integer deltas - Linux mice with
- * smooth scrolling report non-integer values too. Instead we use delta magnitude.
+ * Detect trackpad vs mouse wheel:
+ * - Trackpads have horizontal component (deltaX)
+ * - Mice generate large deltaY values (100-200+) with no deltaX
+ * - Pinch gestures have ctrlKey
  */
 function isLikelyTrackpad(event: WheelEvent): boolean {
   const absX = Math.abs(event.deltaX);
   const absY = Math.abs(event.deltaY);
 
-  // Pinch gesture (ctrlKey + wheel) with small delta is trackpad
-  if (event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) {
-    if (absY < 50) {
-      return true;
-    }
-  }
-
-  // Large deltaY (> 50) without deltaX is typically a mouse wheel
-  // Mouse wheels report ~100-200+ per notch, trackpads report smaller values
-  if (absY > 50 && absX === 0) {
-    return false; // This is a mouse wheel
-  }
-
-  // Horizontal-only scrolling is typically trackpad (mice rarely do this)
-  if (absX > 0 && absY === 0) {
+  // Pinch gesture (ctrlKey + wheel) is always trackpad
+  if (event.ctrlKey) {
     return true;
   }
 
-  // Simultaneous X and Y scrolling suggests trackpad
-  if (absX > 5 && absY > 5) {
+  // Any horizontal component strongly suggests trackpad
+  if (absX > 1) {
     return true;
   }
 
-  // Small deltas (< 50) without horizontal component could be trackpad scroll
-  // but we'll be conservative and let mouse handler deal with it
+  // Large deltaY (> 80) without deltaX is a mouse wheel
+  if (absY > 80 && absX < 1) {
+    return false;
+  }
+
+  // Small vertical deltas could be trackpad
+  if (absY > 0 && absY <= 80) {
+    return true;
+  }
+
   return false;
 }
 
@@ -120,20 +89,9 @@ export class TrackpadGestureHandler {
   private callbacks: TrackpadCallbacks;
   private canvas: HTMLCanvasElement;
 
-  // Gesture state
+  // Safari GestureEvent state
   private isGestureActive = false;
   private gestureScale = 1;
-  private gestureRotation = 0;
-
-  // Scroll accumulator for smooth panning
-  private scrollAccumulatorX = 0;
-  private scrollAccumulatorY = 0;
-  private lastScrollTime = 0;
-  private scrollDecayTimer: ReturnType<typeof setTimeout> | null = null;
-
-  // Track recent wheel events to detect trackpad
-  private recentWheelEvents: { timestamp: number; isTrackpad: boolean }[] = [];
-  private isTrackpadMode = false;
 
   constructor(
     cameraController: CameraController,
@@ -148,10 +106,9 @@ export class TrackpadGestureHandler {
   }
 
   /**
-   * Set up Safari GestureEvent listeners
+   * Set up Safari GestureEvent listeners for pinch zoom
    */
   private setupGestureEvents(): void {
-    // Safari-specific gesture events
     if ('GestureEvent' in window) {
       this.canvas.addEventListener('gesturestart', this.onGestureStart as EventListener);
       this.canvas.addEventListener('gesturechange', this.onGestureChange as EventListener);
@@ -160,36 +117,42 @@ export class TrackpadGestureHandler {
   }
 
   /**
-   * Handle wheel events - detect trackpad vs mouse and route accordingly
+   * Handle wheel events
    * Returns true if this handler consumed the event
    */
   handleWheel(event: WheelEvent): boolean {
     const config = store.getTrackpadConfig();
     if (!config.enabled) return false;
 
-    // Check if this specific event looks like a trackpad event
-    const isTrackpad = isLikelyTrackpad(event);
-
-    // Track recent events for mode detection
-    this.updateTrackpadDetection(isTrackpad);
-
-    // IMPORTANT: Only handle events that ARE detected as trackpad
-    // Mouse wheel events should always pass through to the mouse handler
-    if (!isTrackpad) {
+    // Only handle trackpad events
+    if (!isLikelyTrackpad(event)) {
       return false;
     }
 
-    // Pinch-to-zoom (ctrlKey + wheel on Mac)
+    // Pinch-to-zoom (ctrlKey + wheel)
     if (event.ctrlKey && config.pinchToZoom) {
       event.preventDefault();
-      this.handlePinchZoom(event, config);
+      const zoomDelta = -event.deltaY * 0.01 * config.sensitivity.zoom;
+      this.callbacks.onZoom(zoomDelta, event.clientX, event.clientY);
       return true;
     }
 
-    // Two-finger scroll (only for actual trackpad events, not mouse wheel)
-    if (config.twoFingerScroll) {
+    // Shift + two-finger = Orbit camera
+    if (event.shiftKey && config.shiftTwoFingerOrbit) {
       event.preventDefault();
-      this.handleTwoFingerScroll(event, config);
+      const dx = -event.deltaX * config.sensitivity.orbit;
+      const dy = -event.deltaY * config.sensitivity.orbit;
+      this.callbacks.onOrbit(dx, dy);
+      return true;
+    }
+
+    // Two-finger pan (follows hand movement - invert deltas)
+    if (config.twoFingerPan) {
+      event.preventDefault();
+      // Invert so movement follows the hand (drag right = pan right)
+      const dx = -event.deltaX * config.sensitivity.pan;
+      const dy = -event.deltaY * config.sensitivity.pan;
+      this.callbacks.onPan(dx, dy);
       return true;
     }
 
@@ -197,118 +160,47 @@ export class TrackpadGestureHandler {
   }
 
   /**
-   * Handle pinch-to-zoom gesture
+   * Safari GestureEvent handlers for pinch zoom
    */
-  private handlePinchZoom(event: WheelEvent, config: TrackpadConfig): void {
-    // deltaY is negative when zooming in (fingers spreading)
-    const zoomDelta = -event.deltaY * 0.01 * config.sensitivity.zoom;
+  private onGestureStart = (event: Event): void => {
+    const gestureEvent = event as unknown as { scale: number; preventDefault: () => void };
+    gestureEvent.preventDefault();
 
-    this.callbacks.onZoom(zoomDelta, event.clientX, event.clientY);
-  }
-
-  /**
-   * Handle two-finger scroll for pan or orbit
-   */
-  private handleTwoFingerScroll(event: WheelEvent, config: TrackpadConfig): void {
-    let dx = event.deltaX;
-    let dy = event.deltaY;
-
-    // Apply natural scrolling (macOS default inverts direction)
-    if (config.naturalScrolling) {
-      dx = -dx;
-      dy = -dy;
-    }
-
-    // Apply sensitivity
-    dx *= config.sensitivity.scroll;
-    dy *= config.sensitivity.scroll;
-
-    // Accumulate scroll for smoother experience with inertial scrolling
-    if (config.inertialScrolling) {
-      this.scrollAccumulatorX += dx;
-      this.scrollAccumulatorY += dy;
-
-      // Apply accumulated scroll
-      const applyDx = this.scrollAccumulatorX;
-      const applyDy = this.scrollAccumulatorY;
-
-      // Reset accumulator
-      this.scrollAccumulatorX = 0;
-      this.scrollAccumulatorY = 0;
-
-      if (config.twoFingerScrollAction === 'pan') {
-        this.callbacks.onPan(applyDx, applyDy);
-      } else {
-        this.callbacks.onOrbit(applyDx * 0.5, applyDy * 0.5);
-      }
-    } else {
-      if (config.twoFingerScrollAction === 'pan') {
-        this.callbacks.onPan(dx, dy);
-      } else {
-        this.callbacks.onOrbit(dx * 0.5, dy * 0.5);
-      }
-    }
-
-    this.lastScrollTime = performance.now();
-  }
-
-  /**
-   * Track recent wheel events to detect if user is using trackpad
-   */
-  private updateTrackpadDetection(isTrackpad: boolean): void {
-    const now = performance.now();
-
-    // Add this event
-    this.recentWheelEvents.push({ timestamp: now, isTrackpad });
-
-    // Remove events older than 1 second
-    this.recentWheelEvents = this.recentWheelEvents.filter((e) => now - e.timestamp < 1000);
-
-    // If majority of recent events are trackpad-like, enter trackpad mode
-    const trackpadCount = this.recentWheelEvents.filter((e) => e.isTrackpad).length;
-    const total = this.recentWheelEvents.length;
-
-    this.isTrackpadMode = total >= 3 && trackpadCount / total > 0.5;
-  }
-
-  /**
-   * Safari GestureEvent handlers
-   */
-  private onGestureStart = (event: GestureEvent): void => {
-    event.preventDefault();
     const config = store.getTrackpadConfig();
     if (!config.enabled) return;
 
     this.isGestureActive = true;
-    this.gestureScale = event.scale;
-    this.gestureRotation = event.rotation;
+    this.gestureScale = gestureEvent.scale;
   };
 
-  private onGestureChange = (event: GestureEvent): void => {
-    event.preventDefault();
+  private onGestureChange = (event: Event): void => {
+    const gestureEvent = event as unknown as {
+      scale: number;
+      clientX: number;
+      clientY: number;
+      preventDefault: () => void
+    };
+    gestureEvent.preventDefault();
+
     const config = store.getTrackpadConfig();
     if (!config.enabled || !this.isGestureActive) return;
 
-    // Handle scale change (pinch)
-    if (config.pinchToZoom && event.scale !== this.gestureScale) {
-      const scaleDelta = event.scale - this.gestureScale;
-      this.callbacks.onZoom(scaleDelta * config.sensitivity.zoom, event.clientX, event.clientY);
-      this.gestureScale = event.scale;
-    }
-
-    // Handle rotation
-    if (config.rotationGesture && event.rotation !== this.gestureRotation) {
-      const rotationDelta = (event.rotation - this.gestureRotation) * (Math.PI / 180);
-      this.callbacks.onRotate(rotationDelta * config.sensitivity.rotation);
-      this.gestureRotation = event.rotation;
+    // Handle pinch zoom
+    if (config.pinchToZoom && gestureEvent.scale !== this.gestureScale) {
+      const scaleDelta = gestureEvent.scale - this.gestureScale;
+      this.callbacks.onZoom(
+        scaleDelta * config.sensitivity.zoom,
+        gestureEvent.clientX,
+        gestureEvent.clientY
+      );
+      this.gestureScale = gestureEvent.scale;
     }
   };
 
-  private onGestureEnd = (event: GestureEvent): void => {
-    event.preventDefault();
+  private onGestureEnd = (event: Event): void => {
+    (event as unknown as { preventDefault: () => void }).preventDefault();
     this.isGestureActive = false;
     this.gestureScale = 1;
-    this.gestureRotation = 0;
   };
 
   /**
@@ -319,7 +211,6 @@ export class TrackpadGestureHandler {
   }
 
   setCanvas(canvas: HTMLCanvasElement): void {
-    // Remove old listeners
     if ('GestureEvent' in window) {
       this.canvas.removeEventListener('gesturestart', this.onGestureStart as EventListener);
       this.canvas.removeEventListener('gesturechange', this.onGestureChange as EventListener);
@@ -331,13 +222,6 @@ export class TrackpadGestureHandler {
   }
 
   /**
-   * Check if handler is in trackpad mode
-   */
-  get inTrackpadMode(): boolean {
-    return this.isTrackpadMode;
-  }
-
-  /**
    * Clean up
    */
   dispose(): void {
@@ -345,10 +229,6 @@ export class TrackpadGestureHandler {
       this.canvas.removeEventListener('gesturestart', this.onGestureStart as EventListener);
       this.canvas.removeEventListener('gesturechange', this.onGestureChange as EventListener);
       this.canvas.removeEventListener('gestureend', this.onGestureEnd as EventListener);
-    }
-
-    if (this.scrollDecayTimer) {
-      clearTimeout(this.scrollDecayTimer);
     }
   }
 }

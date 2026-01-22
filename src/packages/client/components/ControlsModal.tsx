@@ -586,15 +586,10 @@ function TrackpadSettings({ config }: TrackpadSettingsProps) {
     store.updateTrackpadConfig({ [key]: value });
   }, []);
 
-  const handleSensitivity = useCallback((key: 'zoom' | 'scroll' | 'rotation', value: number) => {
-    // The store merges sensitivity values, so we can pass a partial
+  const handleSensitivity = useCallback((key: 'zoom' | 'pan' | 'orbit', value: number) => {
     store.updateTrackpadConfig({
       sensitivity: { [key]: value } as unknown as TrackpadConfig['sensitivity'],
     });
-  }, []);
-
-  const handleScrollAction = useCallback((value: 'pan' | 'orbit') => {
-    store.updateTrackpadConfig({ twoFingerScrollAction: value });
   }, []);
 
   return (
@@ -603,7 +598,7 @@ function TrackpadSettings({ config }: TrackpadSettingsProps) {
       <div className="shortcuts-context-group">
         <div className="shortcuts-context-header">
           <span className="shortcuts-context-label">Trackpad Gestures</span>
-          <span className="shortcuts-context-description">Enable Mac trackpad gesture support</span>
+          <span className="shortcuts-context-description">Enable trackpad gesture support</span>
         </div>
         <div className="trackpad-toggle-row">
           <label className="trackpad-toggle">
@@ -640,85 +635,27 @@ function TrackpadSettings({ config }: TrackpadSettingsProps) {
           <label className={`trackpad-gesture-item ${!config.enabled ? 'disabled' : ''}`}>
             <input
               type="checkbox"
-              checked={config.twoFingerScroll}
-              onChange={(e) => handleToggle('twoFingerScroll', e.target.checked)}
+              checked={config.twoFingerPan}
+              onChange={(e) => handleToggle('twoFingerPan', e.target.checked)}
               disabled={!config.enabled}
             />
             <div className="trackpad-gesture-info">
-              <span className="trackpad-gesture-name">Two-Finger Scroll</span>
-              <span className="trackpad-gesture-desc">Scroll with two fingers to move camera</span>
+              <span className="trackpad-gesture-name">Two-Finger Pan</span>
+              <span className="trackpad-gesture-desc">Drag with two fingers to move the camera</span>
             </div>
           </label>
 
           <label className={`trackpad-gesture-item ${!config.enabled ? 'disabled' : ''}`}>
             <input
               type="checkbox"
-              checked={config.rotationGesture}
-              onChange={(e) => handleToggle('rotationGesture', e.target.checked)}
+              checked={config.shiftTwoFingerOrbit}
+              onChange={(e) => handleToggle('shiftTwoFingerOrbit', e.target.checked)}
               disabled={!config.enabled}
             />
             <div className="trackpad-gesture-info">
-              <span className="trackpad-gesture-name">Rotation Gesture</span>
-              <span className="trackpad-gesture-desc">Two-finger rotate to turn camera (Safari)</span>
+              <span className="trackpad-gesture-name">Shift + Two-Finger Orbit</span>
+              <span className="trackpad-gesture-desc">Hold Shift and drag to orbit the camera</span>
             </div>
-          </label>
-
-          <label className={`trackpad-gesture-item ${!config.enabled ? 'disabled' : ''}`}>
-            <input
-              type="checkbox"
-              checked={config.inertialScrolling}
-              onChange={(e) => handleToggle('inertialScrolling', e.target.checked)}
-              disabled={!config.enabled}
-            />
-            <div className="trackpad-gesture-info">
-              <span className="trackpad-gesture-name">Inertial Scrolling</span>
-              <span className="trackpad-gesture-desc">Continue movement after releasing</span>
-            </div>
-          </label>
-
-          <label className={`trackpad-gesture-item ${!config.enabled ? 'disabled' : ''}`}>
-            <input
-              type="checkbox"
-              checked={config.naturalScrolling}
-              onChange={(e) => handleToggle('naturalScrolling', e.target.checked)}
-              disabled={!config.enabled}
-            />
-            <div className="trackpad-gesture-info">
-              <span className="trackpad-gesture-name">Natural Scrolling</span>
-              <span className="trackpad-gesture-desc">Content follows finger direction (macOS default)</span>
-            </div>
-          </label>
-        </div>
-      </div>
-
-      {/* Scroll action */}
-      <div className="shortcuts-context-group">
-        <div className="shortcuts-context-header">
-          <span className="shortcuts-context-label">Scroll Action</span>
-          <span className="shortcuts-context-description">What two-finger scroll does</span>
-        </div>
-        <div className="trackpad-scroll-action">
-          <label className={`trackpad-radio ${!config.enabled || !config.twoFingerScroll ? 'disabled' : ''}`}>
-            <input
-              type="radio"
-              name="scrollAction"
-              value="pan"
-              checked={config.twoFingerScrollAction === 'pan'}
-              onChange={() => handleScrollAction('pan')}
-              disabled={!config.enabled || !config.twoFingerScroll}
-            />
-            <span>Pan Camera</span>
-          </label>
-          <label className={`trackpad-radio ${!config.enabled || !config.twoFingerScroll ? 'disabled' : ''}`}>
-            <input
-              type="radio"
-              name="scrollAction"
-              value="orbit"
-              checked={config.twoFingerScrollAction === 'orbit'}
-              onChange={() => handleScrollAction('orbit')}
-              disabled={!config.enabled || !config.twoFingerScroll}
-            />
-            <span>Orbit Camera</span>
           </label>
         </div>
       </div>
@@ -730,7 +667,7 @@ function TrackpadSettings({ config }: TrackpadSettingsProps) {
           <span className="shortcuts-context-description">Adjust gesture sensitivity</span>
         </div>
         <div className="trackpad-sensitivity-sliders">
-          <div className={`trackpad-slider-row ${!config.enabled ? 'disabled' : ''}`}>
+          <div className={`trackpad-slider-row ${!config.enabled || !config.pinchToZoom ? 'disabled' : ''}`}>
             <label>Zoom</label>
             <input
               type="range"
@@ -739,37 +676,37 @@ function TrackpadSettings({ config }: TrackpadSettingsProps) {
               step="0.1"
               value={config.sensitivity.zoom}
               onChange={(e) => handleSensitivity('zoom', parseFloat(e.target.value))}
-              disabled={!config.enabled}
+              disabled={!config.enabled || !config.pinchToZoom}
             />
             <span className="trackpad-slider-value">{config.sensitivity.zoom.toFixed(1)}x</span>
           </div>
 
-          <div className={`trackpad-slider-row ${!config.enabled ? 'disabled' : ''}`}>
-            <label>Scroll</label>
+          <div className={`trackpad-slider-row ${!config.enabled || !config.twoFingerPan ? 'disabled' : ''}`}>
+            <label>Pan</label>
             <input
               type="range"
               min="0.1"
               max="3"
               step="0.1"
-              value={config.sensitivity.scroll}
-              onChange={(e) => handleSensitivity('scroll', parseFloat(e.target.value))}
-              disabled={!config.enabled}
+              value={config.sensitivity.pan}
+              onChange={(e) => handleSensitivity('pan', parseFloat(e.target.value))}
+              disabled={!config.enabled || !config.twoFingerPan}
             />
-            <span className="trackpad-slider-value">{config.sensitivity.scroll.toFixed(1)}x</span>
+            <span className="trackpad-slider-value">{config.sensitivity.pan.toFixed(1)}x</span>
           </div>
 
-          <div className={`trackpad-slider-row ${!config.enabled ? 'disabled' : ''}`}>
-            <label>Rotation</label>
+          <div className={`trackpad-slider-row ${!config.enabled || !config.shiftTwoFingerOrbit ? 'disabled' : ''}`}>
+            <label>Orbit</label>
             <input
               type="range"
               min="0.1"
               max="3"
               step="0.1"
-              value={config.sensitivity.rotation}
-              onChange={(e) => handleSensitivity('rotation', parseFloat(e.target.value))}
-              disabled={!config.enabled}
+              value={config.sensitivity.orbit}
+              onChange={(e) => handleSensitivity('orbit', parseFloat(e.target.value))}
+              disabled={!config.enabled || !config.shiftTwoFingerOrbit}
             />
-            <span className="trackpad-slider-value">{config.sensitivity.rotation.toFixed(1)}x</span>
+            <span className="trackpad-slider-value">{config.sensitivity.orbit.toFixed(1)}x</span>
           </div>
         </div>
       </div>

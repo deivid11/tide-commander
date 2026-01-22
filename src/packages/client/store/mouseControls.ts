@@ -52,15 +52,12 @@ export interface CameraSensitivityConfig {
 export interface TrackpadConfig {
   enabled: boolean;
   pinchToZoom: boolean;
-  twoFingerScroll: boolean;
-  twoFingerScrollAction: 'pan' | 'orbit';
-  rotationGesture: boolean;
-  inertialScrolling: boolean;
-  naturalScrolling: boolean;
+  twoFingerPan: boolean;
+  shiftTwoFingerOrbit: boolean;
   sensitivity: {
     zoom: number;
-    scroll: number;
-    rotation: number;
+    pan: number;
+    orbit: number;
   };
 }
 
@@ -88,15 +85,12 @@ export const DEFAULT_CAMERA_SENSITIVITY: CameraSensitivityConfig = {
 export const DEFAULT_TRACKPAD_CONFIG: TrackpadConfig = {
   enabled: true,
   pinchToZoom: true,
-  twoFingerScroll: true,
-  twoFingerScrollAction: 'pan',
-  rotationGesture: true,
-  inertialScrolling: true,
-  naturalScrolling: true,
+  twoFingerPan: true,
+  shiftTwoFingerOrbit: true,
   sensitivity: {
     zoom: 1.0,
-    scroll: 1.0,
-    rotation: 1.0,
+    pan: 1.0,
+    orbit: 1.0,
   },
 };
 

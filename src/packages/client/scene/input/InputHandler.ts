@@ -119,16 +119,19 @@ export class InputHandler {
       },
     });
 
-    // Trackpad gesture handler for Mac trackpad support
+    // Trackpad gesture handler: pinch zoom, two-finger pan, shift+two-finger orbit
     this.trackpadHandler = new TrackpadGestureHandler(this.cameraController, canvas, {
-      onPan: (dx, dy) => this.cameraController.handlePan(dx, dy),
+      onPan: (dx, dy) => {
+        this.cameraController.handlePan(dx, dy);
+      },
       onZoom: (delta, centerX, centerY) => {
-        // Convert to pinch zoom scale
+        // Convert delta to scale for pinch zoom
         const scale = 1 - delta;
         this.cameraController.handlePinchZoom(scale, { x: centerX, y: centerY });
       },
-      onOrbit: (dx, dy) => this.cameraController.handleOrbit(dx, dy),
-      onRotate: (angleDelta) => this.cameraController.handleTwistRotation(angleDelta),
+      onOrbit: (dx, dy) => {
+        this.cameraController.handleOrbit(dx, dy);
+      },
     });
 
     // Double-click detectors

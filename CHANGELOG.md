@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.1] - 2026-01-21
+
+### Changed
+- Refactored ControlsModal with simplified configuration
+- Streamlined TrackpadGestureHandler for better performance
+- Cleaned up InputHandler event handling
+- Simplified mouse controls store
+
 ## [0.5.0] - 2026-01-21
 
 ### Added
