@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.2] - 2026-01-22
+
+### Added
+- Server logs skill for debugging
+- Enhanced debug logging system with structured log entries
+- Log streaming via WebSocket for real-time debugging
+
+### Changed
+- Improved ClaudeOutputPanel with history line enhancements
+- Enhanced output filtering with additional output types
+- Updated guake terminal styling with expanded features
+- Improved session-loader with better error handling
+- Enhanced backend event parsing
+
+### Fixed
+- Various TypeScript type improvements
+
 ## [0.6.1] - 2026-01-21
 
 ### Changed

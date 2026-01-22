@@ -11,6 +11,8 @@ export interface HistoryMessage {
   content: string;
   timestamp: string;
   toolName?: string;
+  toolUseId?: string; // For linking tool_use with tool_result
+  toolInput?: Record<string, unknown>; // Parsed tool input
 }
 
 /**

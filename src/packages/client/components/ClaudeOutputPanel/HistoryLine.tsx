@@ -11,19 +11,20 @@ import { TOOL_ICONS, extractToolKeyParam, formatTimestamp } from '../../utils/ou
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock } from './BossContext';
 import { EditToolDiff, ReadToolInput, TodoWriteInput } from './ToolRenderers';
 import { highlightText, renderContentWithImages } from './contentRendering';
-import type { HistoryMessage, EditData } from './types';
+import type { EnrichedHistoryMessage, EditData } from './types';
 
 interface HistoryLineProps {
-  message: HistoryMessage;
+  message: EnrichedHistoryMessage;
   agentId?: string | null;
   highlight?: string;
   simpleView?: boolean;
   onImageClick?: (url: string, name: string) => void;
   onFileClick?: (path: string, editData?: EditData) => void;
+  onBashClick?: (command: string, output: string) => void;
 }
 
 // Generate a short debug hash for a history message (for debugging duplicates)
-function getHistoryDebugHash(message: HistoryMessage): string {
+function getHistoryDebugHash(message: EnrichedHistoryMessage): string {
   const textKey = message.content.slice(0, 50);
   const flags = `H${message.type[0].toUpperCase()}`; // H for History, then type initial
   // Simple hash from text
@@ -42,9 +43,10 @@ export const HistoryLine = memo(function HistoryLine({
   simpleView,
   onImageClick,
   onFileClick,
+  onBashClick,
 }: HistoryLineProps) {
   const hideCost = useHideCost();
-  const { type, content: rawContent, toolName, timestamp } = message;
+  const { type, content: rawContent, toolName, timestamp, _bashOutput, _bashCommand } = message;
   const content = filterCostText(rawContent, hideCost);
 
   // Format timestamp for display (HistoryMessage has ISO string timestamp)
@@ -179,10 +181,14 @@ export const HistoryLine = memo(function HistoryLine({
       const fileTools = ['Read', 'Edit', 'Write', 'Glob', 'Grep', 'NotebookEdit'];
       const isFileTool = fileTools.includes(toolName || '');
       const isFilePath = keyParam && (keyParam.startsWith('/') || keyParam.includes('/'));
-      const isClickable = isFileTool && isFilePath && onFileClick;
+      const isFileClickable = isFileTool && isFilePath && onFileClick;
+
+      // Bash tools are clickable if we have onBashClick handler
+      const isBashTool = toolName === 'Bash' && onBashClick;
+      const bashCommand = _bashCommand || keyParam || '';
 
       const handleParamClick = () => {
-        if (isClickable && keyParam) {
+        if (isFileClickable && keyParam) {
           if (toolName === 'Edit' && content) {
             try {
               const parsed = JSON.parse(content);
@@ -198,17 +204,35 @@ export const HistoryLine = memo(function HistoryLine({
         }
       };
 
+      const handleBashClick = () => {
+        if (isBashTool && bashCommand) {
+          onBashClick(bashCommand, _bashOutput || '(No output available)');
+        }
+      };
+
+      // Determine if this line is clickable
+      const isClickable = isFileClickable || isBashTool;
+      const clickHandler = isBashTool ? handleBashClick : (isFileClickable ? handleParamClick : undefined);
+      const clickTitle = isBashTool
+        ? 'Click to view output'
+        : (isFileClickable ? 'Click to view file' : undefined);
+
       return (
-        <div className="output-line output-tool-use output-tool-simple">
+        <div
+          className={`output-line output-tool-use output-tool-simple ${isBashTool ? 'clickable-bash' : ''}`}
+          onClick={isBashTool ? handleBashClick : undefined}
+          style={isBashTool ? { cursor: 'pointer' } : undefined}
+          title={isBashTool ? 'Click to view output' : undefined}
+        >
           {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
           <span className="output-tool-icon">{icon}</span>
           <span className="output-tool-name">{toolName}</span>
           {keyParam && (
             <span
-              className={`output-tool-param ${isClickable ? 'clickable-path' : ''}`}
-              onClick={isClickable ? handleParamClick : undefined}
-              title={isClickable ? 'Click to view file' : undefined}
-              style={isClickable ? { cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' } : undefined}
+              className={`output-tool-param ${isFileClickable ? 'clickable-path' : ''}`}
+              onClick={isFileClickable ? handleParamClick : undefined}
+              title={clickTitle}
+              style={isFileClickable ? { cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' } : undefined}
             >
               {keyParam}
             </span>

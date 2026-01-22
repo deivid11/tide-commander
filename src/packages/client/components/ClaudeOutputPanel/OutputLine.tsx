@@ -15,10 +15,11 @@ import { renderContentWithImages } from './contentRendering';
 import type { EditData } from './types';
 
 interface OutputLineProps {
-  output: ClaudeOutput & { _toolKeyParam?: string; _editData?: EditData };
+  output: ClaudeOutput & { _toolKeyParam?: string; _editData?: EditData; _todoInput?: string; _bashOutput?: string; _bashCommand?: string; _isRunning?: boolean };
   agentId: string | null;
   onImageClick?: (url: string, name: string) => void;
   onFileClick?: (path: string, editData?: EditData) => void;
+  onBashClick?: (command: string, output: string) => void;
 }
 
 // Generate a short debug hash for an output (for debugging duplicates)
@@ -34,9 +35,9 @@ function getDebugHash(output: ClaudeOutput): string {
   return `${flags}:${(hash >>> 0).toString(16).slice(0, 6)}`;
 }
 
-export const OutputLine = memo(function OutputLine({ output, agentId, onImageClick, onFileClick }: OutputLineProps) {
+export const OutputLine = memo(function OutputLine({ output, agentId, onImageClick, onFileClick, onBashClick }: OutputLineProps) {
   const hideCost = useHideCost();
-  const { text: rawText, isStreaming, isUserPrompt, timestamp, _toolKeyParam, _editData } = output;
+  const { text: rawText, isStreaming, isUserPrompt, timestamp, _toolKeyParam, _editData, _todoInput, _bashOutput, _bashCommand, _isRunning } = output;
   const text = filterCostText(rawText, hideCost);
 
   // Format timestamp for display
@@ -84,14 +85,29 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
     const toolName = text.replace('Using tool:', '').trim();
     const icon = TOOL_ICONS[toolName] || TOOL_ICONS.default;
 
+    // Special case: TodoWrite shows the task list inline in simple view
+    if (toolName === 'TodoWrite' && _todoInput) {
+      return (
+        <div className={`output-line output-tool-use output-todo-inline ${isStreaming ? 'output-streaming' : ''}`}>
+          <TodoWriteInput content={_todoInput} />
+        </div>
+      );
+    }
+
     // Check if this tool uses file paths that should be clickable
     const fileTools = ['Read', 'Edit', 'Write', 'Glob', 'Grep', 'NotebookEdit'];
     const isFileTool = fileTools.includes(toolName);
     const isFilePath = _toolKeyParam && (_toolKeyParam.startsWith('/') || _toolKeyParam.includes('/'));
-    const isClickable = isFileTool && isFilePath && onFileClick;
+    const isFileClickable = isFileTool && isFilePath && onFileClick;
 
-    const handleParamClick = () => {
-      if (isClickable && _toolKeyParam) {
+    // Check if this is a Bash tool that should be clickable (with command or output)
+    const isBashTool = toolName === 'Bash' && onBashClick;
+    const hasBashOutput = !!_bashOutput;
+    const bashCommand = _bashCommand || _toolKeyParam || '';
+
+    const handleParamClick = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (isFileClickable && _toolKeyParam) {
         if (toolName === 'Edit' && _editData) {
           onFileClick(_toolKeyParam, _editData);
         } else {
@@ -100,21 +116,38 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
       }
     };
 
+    const handleBashClick = () => {
+      if (isBashTool && bashCommand) {
+        // If command is still running (no output yet), show loading message
+        const outputMessage = _isRunning
+          ? 'Running...'
+          : (_bashOutput || '(No output captured)');
+        onBashClick(bashCommand, outputMessage);
+      }
+    };
+
+    const isClickable = isFileClickable || isBashTool;
+
     return (
-      <div className={`output-line output-tool-use ${isStreaming ? 'output-streaming' : ''}`}>
+      <div
+        className={`output-line output-tool-use ${isStreaming ? 'output-streaming' : ''} ${isBashTool ? 'bash-clickable' : ''}`}
+        onClick={isBashTool ? handleBashClick : undefined}
+        title={isBashTool ? 'Click to view output' : undefined}
+      >
         <span className="output-timestamp" title={`${timestamp} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#666', fontFamily: 'monospace'}}>[{debugHash}]</span></span>
         <span className="output-tool-icon">{icon}</span>
         <span className="output-tool-name">{toolName}</span>
         {_toolKeyParam && (
           <span
-            className={`output-tool-param ${isClickable ? 'clickable-path' : ''}`}
-            onClick={isClickable ? handleParamClick : undefined}
-            title={isClickable ? (toolName === 'Edit' && _editData ? 'Click to view diff' : 'Click to view file') : undefined}
-            style={isClickable ? { cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' } : undefined}
+            className={`output-tool-param ${isFileClickable ? 'clickable-path' : ''}`}
+            onClick={isFileClickable ? handleParamClick : undefined}
+            title={isFileClickable ? (toolName === 'Edit' && _editData ? 'Click to view diff' : 'Click to view file') : undefined}
+            style={isFileClickable ? { cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' } : undefined}
           >
             {_toolKeyParam}
           </span>
         )}
+        {isBashTool && !_isRunning && <span className="bash-output-indicator">{hasBashOutput ? '📄' : '💻'}</span>}
         {isStreaming && <span className="output-tool-loading">...</span>}
       </div>
     );
@@ -172,6 +205,29 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
         <span className="output-timestamp" title={`${timestamp} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#666', fontFamily: 'monospace'}}>[{debugHash}]</span></span>
         <span className="output-result-icon">{isError ? '❌' : '✓'}</span>
         <pre className="output-result-content">{resultText}</pre>
+      </div>
+    );
+  }
+
+  // Handle Bash command output with terminal-like styling
+  if (text.startsWith('Bash output:')) {
+    const bashOutput = text.replace('Bash output:', '').trim();
+    const isError = bashOutput.toLowerCase().includes('error') ||
+                    bashOutput.toLowerCase().includes('failed') ||
+                    bashOutput.toLowerCase().includes('command not found') ||
+                    bashOutput.toLowerCase().includes('permission denied');
+    const isTruncated = bashOutput.includes('... (truncated,');
+    return (
+      <div className={`output-line output-bash-result ${isError ? 'is-error' : ''}`}>
+        <span className="output-timestamp" title={`${timestamp} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#666', fontFamily: 'monospace'}}>[{debugHash}]</span></span>
+        <div className="bash-output-container">
+          <div className="bash-output-header">
+            <span className="bash-output-icon">$</span>
+            <span className="bash-output-label">Terminal Output</span>
+            {isTruncated && <span className="bash-output-truncated">truncated</span>}
+          </div>
+          <pre className="bash-output-content">{bashOutput}</pre>
+        </div>
       </div>
     );
   }

@@ -56,7 +56,7 @@ import {
   SCROLL_THRESHOLD,
   BASH_TRUNCATE_LENGTH,
 } from './types';
-import type { HistoryMessage, AttachedFile, EditData } from './types';
+import type { HistoryMessage, AttachedFile, EditData, EnrichedHistoryMessage } from './types';
 import { markdownComponents } from './MarkdownComponents';
 import { useFilteredOutputsWithLogging } from '../shared/useFilteredOutputs';
 import { HistoryLine } from './HistoryLine';
@@ -110,6 +110,9 @@ export function ClaudeOutputPanel() {
 
   // Image modal state
   const [imageModal, setImageModal] = useState<{ url: string; name: string } | null>(null);
+
+  // Bash output modal state - stores command and whether we're watching for live output
+  const [bashModal, setBashModal] = useState<{ command: string; output: string; isLive?: boolean } | null>(null);
 
   // Context action confirmation modal
   const [contextConfirm, setContextConfirm] = useState<'collapse' | 'clear' | null>(null);
@@ -207,30 +210,78 @@ export function ClaudeOutputPanel() {
     store.setFileViewerPath(path, editData);
   }, []);
 
+  const handleBashClick = useCallback((command: string, output: string) => {
+    // Check if this is a "running" message - mark as live so we can auto-update
+    const isLive = output === 'Running...';
+    setBashModal({ command, output, isLive });
+  }, []);
+
   // Memoized sorted agents list for the agent links bar
   const sortedAgents = useMemo(() => {
     return Array.from(agents.values()).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
   }, [agents]);
 
-  // Memoized filtered history messages based on view mode
-  const filteredHistory = useMemo(() => {
-    if (viewMode === 'advanced') return history;
+  // Memoized filtered and enriched history messages based on view mode
+  const filteredHistory = useMemo((): EnrichedHistoryMessage[] => {
+    // First, build a map of toolUseId -> tool_result content for linking
+    const toolResultMap = new Map<string, string>();
+    for (const msg of history) {
+      if (msg.type === 'tool_result' && msg.toolUseId) {
+        toolResultMap.set(msg.toolUseId, msg.content);
+      }
+    }
+
+    // Enrich tool_use messages with their corresponding tool_result
+    const enrichHistory = (messages: HistoryMessage[]): EnrichedHistoryMessage[] => {
+      return messages.map((msg) => {
+        if (msg.type === 'tool_use' && msg.toolName === 'Bash' && msg.toolUseId) {
+          const bashOutput = toolResultMap.get(msg.toolUseId);
+          let bashCommand: string | undefined;
+          try {
+            const input = msg.toolInput || (msg.content ? JSON.parse(msg.content) : {});
+            bashCommand = input.command;
+          } catch { /* ignore */ }
+          return {
+            ...msg,
+            _bashOutput: bashOutput,
+            _bashCommand: bashCommand,
+          };
+        }
+        return msg as EnrichedHistoryMessage;
+      });
+    };
+
+    if (viewMode === 'advanced') return enrichHistory(history);
     if (viewMode === 'chat') {
-      return history.filter((msg, index, arr) => {
+      return enrichHistory(history.filter((msg, index, arr) => {
         if (msg.type === 'user') return true;
         if (msg.type === 'assistant') {
           const nextMsg = arr[index + 1];
           return !nextMsg || nextMsg.type === 'user';
         }
         return false;
-      });
+      }));
     }
     // simple mode - show user messages, assistant responses, and tool actions (compact)
-    return history.filter((msg) => msg.type === 'user' || msg.type === 'assistant' || msg.type === 'tool_use');
+    return enrichHistory(history.filter((msg) => msg.type === 'user' || msg.type === 'assistant' || msg.type === 'tool_use'));
   }, [history, viewMode]);
 
   // Memoized filtered outputs based on view mode (using shared hook with debug logging)
   const filteredOutputs = useFilteredOutputsWithLogging({ outputs, viewMode });
+
+  // Auto-update bash modal when in live mode and output arrives
+  useEffect(() => {
+    if (!bashModal?.isLive || !bashModal.command) return;
+
+    // Look for the bash output in filteredOutputs
+    for (const output of filteredOutputs) {
+      if (output._bashCommand === bashModal.command && output._bashOutput) {
+        // Found the output, update the modal and mark as no longer live
+        setBashModal({ command: bashModal.command, output: output._bashOutput, isLive: false });
+        return;
+      }
+    }
+  }, [bashModal, filteredOutputs]);
 
   // Handle resize drag
   const handleResizeStart = useCallback(
@@ -615,7 +666,9 @@ export function ClaudeOutputPanel() {
         }
       }
       if (e.key === 'Escape') {
-        if (imageModal) {
+        if (bashModal) {
+          setBashModal(null);
+        } else if (imageModal) {
           setImageModal(null);
         } else if (searchMode) {
           setSearchMode(false);
@@ -626,7 +679,7 @@ export function ClaudeOutputPanel() {
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, searchMode, imageModal]);
+  }, [isOpen, searchMode, imageModal, bashModal]);
 
   // Auto-resize textarea to fit content (shrinks when content is removed)
   useEffect(() => {
@@ -900,11 +953,12 @@ export function ClaudeOutputPanel() {
               {searchResults.map((msg, index) => (
                 <HistoryLine
                   key={`s-${index}`}
-                  message={msg}
+                  message={msg as EnrichedHistoryMessage}
                   agentId={selectedAgentId}
                   highlight={searchQuery}
                   onImageClick={(url, name) => setImageModal({ url, name })}
                   onFileClick={(path) => store.setFileViewerPath(path)}
+                  onBashClick={handleBashClick}
                 />
               ))}
             </>
@@ -931,6 +985,7 @@ export function ClaudeOutputPanel() {
                   simpleView={viewMode !== 'advanced'}
                   onImageClick={handleImageClick}
                   onFileClick={handleFileClick}
+                  onBashClick={handleBashClick}
                 />
               ))}
               {filteredOutputs.map((output, index) => (
@@ -940,6 +995,7 @@ export function ClaudeOutputPanel() {
                   agentId={selectedAgentId}
                   onImageClick={handleImageClick}
                   onFileClick={handleFileClick}
+                  onBashClick={handleBashClick}
                 />
               ))}
             </>
@@ -1098,6 +1154,27 @@ export function ClaudeOutputPanel() {
             </div>
             <div className="image-modal-content">
               <img src={imageModal.url} alt={imageModal.name} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bash Output Modal */}
+      {bashModal && (
+        <div className="bash-modal-overlay" onClick={() => setBashModal(null)}>
+          <div className="bash-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="bash-modal-header">
+              <span className="bash-modal-icon">$</span>
+              <span className="bash-modal-title">Terminal Output</span>
+              <button className="bash-modal-close" onClick={() => setBashModal(null)}>
+                ×
+              </button>
+            </div>
+            <div className="bash-modal-command">
+              <pre>{bashModal.command}</pre>
+            </div>
+            <div className={`bash-modal-content ${bashModal.isLive ? 'is-loading' : ''}`}>
+              <pre>{bashModal.output}</pre>
             </div>
           </div>
         </div>

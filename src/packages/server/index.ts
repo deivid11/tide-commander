@@ -8,7 +8,7 @@ import { createApp } from './app.js';
 import { agentService, claudeService, supervisorService, bossService, skillService, customClassService } from './services/index.js';
 import * as websocket from './websocket/handler.js';
 import { getDataDir } from './data/index.js';
-import { logger } from './utils/logger.js';
+import { logger, closeFileLogging, getLogFilePath } from './utils/logger.js';
 
 // Configuration
 const PORT = process.env.PORT || 5174;
@@ -54,6 +54,7 @@ async function main(): Promise<void> {
   customClassService.initCustomClasses();
 
   logger.server.log(`Data directory: ${getDataDir()}`);
+  logger.server.log(`Log file: ${getLogFilePath()}`);
 
   // Create Express app and HTTP server
   const app = createApp();
@@ -77,6 +78,7 @@ async function main(): Promise<void> {
     await claudeService.shutdown();
     agentService.persistAgents();
     server.close();
+    closeFileLogging();
     process.exit(0);
   });
 }

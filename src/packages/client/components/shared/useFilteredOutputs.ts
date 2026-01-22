@@ -18,6 +18,10 @@ export interface EditData {
 export type EnrichedOutput = ClaudeOutput & {
   _toolKeyParam?: string;
   _editData?: EditData;
+  _todoInput?: string; // TodoWrite input JSON for inline rendering
+  _bashOutput?: string; // Bash command output for modal display
+  _bashCommand?: string; // Full bash command for display in modal
+  _isRunning?: boolean; // True if bash command is still running (no output yet)
 };
 
 // Bash command truncation length in simple view
@@ -33,6 +37,7 @@ export function isSimpleViewOutput(text: string): boolean {
   // HIDE tool input/result details
   if (text.startsWith('Tool input:')) return false;
   if (text.startsWith('Tool result:')) return false;
+  if (text.startsWith('Bash output:')) return false; // Hide bash output in simple view (shown via modal)
 
   // HIDE stats and system messages
   if (text.startsWith('Tokens:')) return false;
@@ -170,9 +175,12 @@ export function useFilteredOutputs({
 
         let keyParam: string | null = null;
         let editData: EditData | undefined;
+        let todoInputText: string | undefined;
+        let bashOutput: string | undefined;
+        let bashCommand: string | undefined;
 
-        // Look ahead for tool input
-        for (let j = i + 1; j < outputs.length && j <= i + 3; j++) {
+        // Look ahead for tool input and output
+        for (let j = i + 1; j < outputs.length && j <= i + 5; j++) {
           const nextOutput = outputs[j];
           if (nextOutput.text.startsWith('Tool input:')) {
             const inputJson = nextOutput.text.replace('Tool input:', '').trim();
@@ -187,9 +195,34 @@ export function useFilteredOutputs({
                 /* ignore parse errors */
               }
             }
-            break;
+            // For TodoWrite, capture the full input so we can render it inline
+            if (toolName === 'TodoWrite') {
+              try {
+                const parsed = JSON.parse(inputJson);
+                if (Array.isArray(parsed.todos)) {
+                  todoInputText = inputJson;
+                }
+              } catch {
+                /* ignore parse errors */
+              }
+            }
+            // For Bash, capture the full command
+            if (toolName === 'Bash') {
+              try {
+                const parsed = JSON.parse(inputJson);
+                if (parsed.command) {
+                  bashCommand = parsed.command;
+                }
+              } catch {
+                /* ignore parse errors */
+              }
+            }
           }
-          if (nextOutput.text.startsWith('Using tool:') || nextOutput.text.startsWith('Tool result:')) {
+          // Capture Bash output
+          if (toolName === 'Bash' && nextOutput.text.startsWith('Bash output:')) {
+            bashOutput = nextOutput.text.replace('Bash output:', '').trim();
+          }
+          if (nextOutput.text.startsWith('Using tool:')) {
             break;
           }
         }
@@ -198,11 +231,18 @@ export function useFilteredOutputs({
           keyParam = keyParam.substring(0, BASH_TRUNCATE_LENGTH - 3) + '...';
         }
 
+        // For Bash: if no output captured yet, mark as running
+        const isRunning = toolName === 'Bash' && !bashOutput;
+
         result.push({
           ...output,
           _toolKeyParam: keyParam || undefined,
           _editData: editData,
-        });
+          _todoInput: todoInputText,
+          _bashOutput: bashOutput,
+          _bashCommand: bashCommand,
+          _isRunning: isRunning,
+        } as EnrichedOutput);
         continue;
       }
 

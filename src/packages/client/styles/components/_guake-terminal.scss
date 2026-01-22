@@ -1822,6 +1822,248 @@
   flex: 1;
 }
 
+// Bash command output - terminal-like styling
+.output-bash-result {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+  margin: 6px 0;
+
+  &.is-error {
+    .bash-output-container {
+      border-color: rgba($dracula-red, 0.4);
+    }
+    .bash-output-header {
+      background: rgba($dracula-red, 0.15);
+    }
+    .bash-output-icon {
+      color: $dracula-red;
+    }
+  }
+}
+
+.bash-output-container {
+  display: flex;
+  flex-direction: column;
+  background: rgba($dracula-bg-darker, 0.8);
+  border: 1px solid rgba($dracula-comment, 0.25);
+  border-radius: $radius-sm;
+  overflow: hidden;
+  flex: 1;
+}
+
+.bash-output-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: rgba($dracula-current, 0.3);
+  border-bottom: 1px solid rgba($dracula-comment, 0.15);
+}
+
+.bash-output-icon {
+  font-family: $font-mono;
+  font-size: 12px;
+  font-weight: 700;
+  color: $dracula-green;
+}
+
+.bash-output-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: $dracula-comment;
+}
+
+.bash-output-truncated {
+  margin-left: auto;
+  font-size: 10px;
+  color: $dracula-orange;
+  background: rgba($dracula-orange, 0.15);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.bash-output-content {
+  margin: 0;
+  padding: 10px 12px;
+  font-family: $font-mono;
+  font-size: 11px;
+  line-height: 1.5;
+  color: $dracula-fg;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 300px;
+  overflow-y: auto;
+
+  // Scrollbar styling
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: rgba($dracula-comment, 0.3);
+    border-radius: 3px;
+    &:hover {
+      background: rgba($dracula-comment, 0.5);
+    }
+  }
+}
+
+// Clickable Bash tool line
+.output-tool-use.bash-clickable {
+  cursor: pointer;
+  transition: background 0.15s ease;
+
+  &:hover {
+    background: rgba($dracula-purple, 0.15);
+  }
+}
+
+.bash-output-indicator {
+  margin-left: auto;
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+// Bash output modal
+.bash-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  backdrop-filter: blur(2px);
+}
+
+.bash-modal {
+  background: $dracula-bg-darker;
+  border: 1px solid rgba($dracula-comment, 0.3);
+  border-radius: $radius-md;
+  width: 90%;
+  max-width: 800px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+
+.bash-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: rgba($dracula-current, 0.4);
+  border-bottom: 1px solid rgba($dracula-comment, 0.2);
+}
+
+.bash-modal-icon {
+  font-family: $font-mono;
+  font-size: 16px;
+  font-weight: 700;
+  color: $dracula-green;
+}
+
+.bash-modal-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: $dracula-fg;
+}
+
+.bash-modal-close {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: $dracula-comment;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: $radius-sm;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: rgba($dracula-red, 0.2);
+    color: $dracula-red;
+  }
+}
+
+.bash-modal-command {
+  padding: 10px 16px;
+  background: rgba($dracula-current, 0.2);
+  border-bottom: 1px solid rgba($dracula-comment, 0.15);
+
+  pre {
+    margin: 0;
+    font-family: $font-mono;
+    font-size: 12px;
+    color: $dracula-cyan;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+}
+
+.bash-modal-content {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+  min-height: 150px;
+  max-height: 60vh;
+
+  pre {
+    margin: 0;
+    font-family: $font-mono;
+    font-size: 12px;
+    line-height: 1.6;
+    color: $dracula-fg;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  // Loading state styling
+  &.is-loading pre {
+    color: $dracula-comment;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    &::after {
+      content: '';
+      width: 12px;
+      height: 12px;
+      border: 2px solid $dracula-comment;
+      border-top-color: $dracula-cyan;
+      border-radius: 50%;
+      animation: bash-loading-spin 0.8s linear infinite;
+    }
+  }
+
+  // Scrollbar styling
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: rgba($dracula-comment, 0.3);
+    border-radius: 4px;
+    &:hover {
+      background: rgba($dracula-comment, 0.5);
+    }
+  }
+}
+
+@keyframes bash-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .output-stats {
   color: $dracula-comment;
   font-size: 11px;

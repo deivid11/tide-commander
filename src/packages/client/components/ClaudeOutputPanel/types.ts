@@ -71,3 +71,17 @@ export interface EditData {
   oldString: string;
   newString: string;
 }
+
+// Enriched history message with linked tool results
+export interface EnrichedHistoryMessage {
+  type: 'user' | 'assistant' | 'tool_use' | 'tool_result';
+  content: string;
+  timestamp: string;
+  toolName?: string;
+  toolUseId?: string;
+  toolInput?: Record<string, unknown>;
+  // Enrichment fields
+  _bashOutput?: string; // Linked tool_result content for Bash tools
+  _bashCommand?: string; // Full bash command for display
+  _editData?: EditData; // For Edit tool diffs
+}

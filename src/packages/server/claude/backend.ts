@@ -16,6 +16,10 @@ import { createLogger, sanitizeUnicode } from '../utils/index.js';
 
 const log = createLogger('Backend');
 
+// Track tool_use_id to tool_name mapping for matching tool_result events
+// This is a module-level map that persists across parseEvent calls
+const toolUseIdToName: Map<string, string> = new Map();
+
 /**
  * Write prompt content to a temp file for use with --system-prompt-file / --append-system-prompt-file
  * This avoids issues with multiline prompts and shell escaping
@@ -180,9 +184,46 @@ export class ClaudeBackend implements CLIBackend {
     return result;
   }
 
-  private parseUserEvent(event: ClaudeRawEvent): StandardEvent | null {
+  private parseUserEvent(event: ClaudeRawEvent): StandardEvent | StandardEvent[] | null {
+    const message = event.message as { content?: string | Array<{ type: string; content?: string; tool_use_id?: string }> };
+
+    // Handle array content (tool_result blocks)
+    if (Array.isArray(message?.content)) {
+      const toolResults: StandardEvent[] = [];
+      for (const block of message.content) {
+        if (block.type === 'tool_result' && block.tool_use_id) {
+          // Prefer tool_use_result.stdout (raw output) over block.content (may be truncated)
+          let content: string;
+          if (event.tool_use_result?.stdout !== undefined) {
+            // Combine stdout and stderr if both present
+            content = event.tool_use_result.stdout;
+            if (event.tool_use_result.stderr) {
+              content += (content ? '\n' : '') + '[stderr] ' + event.tool_use_result.stderr;
+            }
+          } else {
+            content = typeof block.content === 'string'
+              ? block.content
+              : JSON.stringify(block.content);
+          }
+          // Look up the tool name from the tool_use_id mapping
+          const toolName = toolUseIdToName.get(block.tool_use_id) || 'unknown';
+          log.log(`parseUserEvent: Found tool_result for tool_use_id=${block.tool_use_id}, toolName=${toolName}, content length=${content?.length || 0}, hasToolUseResult=${!!event.tool_use_result}`);
+          toolResults.push({
+            type: 'tool_result',
+            toolName,
+            toolOutput: content,
+          });
+          // Clean up the mapping after use (tool_use_id is unique per invocation)
+          toolUseIdToName.delete(block.tool_use_id);
+        }
+      }
+      if (toolResults.length > 0) {
+        log.log(`parseUserEvent: Extracted ${toolResults.length} tool_result(s)`);
+        return toolResults.length === 1 ? toolResults[0] : toolResults;
+      }
+    }
+
     // Check for local-command-stdout (from /context, /cost, /usage etc. commands)
-    const message = event.message as { content?: string };
     if (typeof message?.content === 'string' && message.content.includes('<local-command-stdout>')) {
       // Extract content between tags
       const match = message.content.match(/<local-command-stdout>([\s\S]*?)<\/local-command-stdout>/);
@@ -235,11 +276,19 @@ export class ClaudeBackend implements CLIBackend {
       const toolUseBlocks = event.message.content.filter((b: any) => b.type === 'tool_use');
       if (toolUseBlocks.length > 0) {
         // Return array of tool_start events for each tool_use block
-        const events: StandardEvent[] = toolUseBlocks.map((block: any) => ({
-          type: 'tool_start' as const,
-          toolName: block.name || 'unknown',
-          toolInput: block.input,
-        }));
+        const events: StandardEvent[] = toolUseBlocks.map((block: any) => {
+          const toolName = block.name || 'unknown';
+          // Store tool_use_id to name mapping for later tool_result matching
+          if (block.id) {
+            toolUseIdToName.set(block.id, toolName);
+            log.log(`parseAssistantEvent: Stored mapping ${block.id} -> ${toolName}`);
+          }
+          return {
+            type: 'tool_start' as const,
+            toolName,
+            toolInput: block.input,
+          };
+        });
         log.log(`parseAssistantEvent: extracted ${events.length} tool_use block(s): ${events.map(e => e.toolName).join(', ')}`);
         return events;
       }

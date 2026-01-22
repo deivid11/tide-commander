@@ -559,7 +559,12 @@ export class ClaudeRunner {
       const rawEvent = JSON.parse(line);
 
       // Log all event types for debugging
-      log.log(`[EVENT] ${agentId.slice(0,4)}: type=${rawEvent.type}, subtype=${rawEvent.subtype || 'none'}`);
+      log.log(`[EVENT] ${agentId.slice(0,4)}: type=${rawEvent.type}, subtype=${rawEvent.subtype || 'none'}, tool_name=${rawEvent.tool_name || 'none'}`);
+
+      // Extra debug logging for tool_use events
+      if (rawEvent.type === 'tool_use') {
+        log.log(`[TOOL_USE DETAIL] subtype=${rawEvent.subtype}, hasInput=${!!rawEvent.input}, hasResult=${!!rawEvent.result}, tool=${rawEvent.tool_name}`);
+      }
 
       // Log result events for debugging context tracking
       if (rawEvent.type === 'result') {
@@ -642,8 +647,14 @@ export class ClaudeRunner {
         break;
 
       case 'tool_result':
-        // Tool results are broadcast via the 'event' channel
-        // Don't send full result as text - too verbose
+        // Send Bash tool results as text output for display
+        // Other tool results are too verbose (file contents, etc.)
+        log.log(`tool_result: toolName=${event.toolName}, hasOutput=${!!event.toolOutput}, outputLen=${event.toolOutput?.length || 0}`);
+        if (event.toolName === 'Bash' && event.toolOutput) {
+          // Send full output - no truncation
+          log.log(`Sending Bash output: ${event.toolOutput.slice(0, 100)}...`);
+          this.callbacks.onOutput(agentId, `Bash output:\n${event.toolOutput}`);
+        }
         break;
 
       case 'step_complete':

@@ -89,6 +89,7 @@ export interface ClaudeRawEvent {
       type: string;
       text?: string;
       name?: string;
+      id?: string;  // tool_use block ID for matching with tool_result
       input?: Record<string, unknown>;
     }>;
   };
@@ -130,6 +131,13 @@ export interface ClaudeRawEvent {
     tool_use_id: string;
     tool_input: Record<string, unknown>;
   }>;
+  // Tool execution result (for user events with tool_result content)
+  tool_use_result?: {
+    stdout?: string;
+    stderr?: string;
+    interrupted?: boolean;
+    isImage?: boolean;
+  };
 }
 
 // Backend interface (allows for multiple CLI backends)

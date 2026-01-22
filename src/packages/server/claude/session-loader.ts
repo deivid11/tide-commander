@@ -26,6 +26,7 @@ export interface SessionMessage {
   uuid: string;
   toolName?: string;
   toolInput?: Record<string, unknown>;
+  toolUseId?: string; // For linking tool_use with tool_result
 }
 
 export interface SessionInfo {
@@ -177,6 +178,8 @@ export async function loadSession(
   await waitForFileStable(sessionFile);
 
   const messages: SessionMessage[] = [];
+  // Track tool_use_id to tool_name mapping for linking tool_result
+  const toolUseIdToName: Map<string, string> = new Map();
 
   // Read file line by line
   const fileStream = fs.createReadStream(sessionFile);
@@ -199,13 +202,16 @@ export async function loadSession(
               const content = typeof block.content === 'string'
                 ? block.content
                 : JSON.stringify(block.content);
+              // Look up actual tool name from the mapping
+              const toolName = toolUseIdToName.get(block.tool_use_id) || 'unknown';
               // Never truncate - show full content
               messages.push({
                 type: 'tool_result',
                 content,
                 timestamp: entry.timestamp,
                 uuid: entry.uuid,
-                toolName: block.tool_use_id,
+                toolName,
+                toolUseId: block.tool_use_id,
               });
             } else if (block.type === 'text' && block.text) {
               // User message stored as text block (e.g., boss context messages)
@@ -238,6 +244,10 @@ export async function loadSession(
                 uuid: entry.uuid,
               });
             } else if (block.type === 'tool_use' && block.name) {
+              // Store tool_use_id to name mapping for later tool_result linking
+              if (block.id) {
+                toolUseIdToName.set(block.id, block.name);
+              }
               messages.push({
                 type: 'tool_use',
                 content: JSON.stringify(block.input || {}, null, 2),
@@ -245,6 +255,7 @@ export async function loadSession(
                 uuid: entry.uuid,
                 toolName: block.name,
                 toolInput: block.input,
+                toolUseId: block.id,
               });
             }
             // Skip thinking blocks for display
