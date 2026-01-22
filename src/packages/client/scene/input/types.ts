@@ -7,6 +7,7 @@ import type { AgentMeshData } from '../characters/CharacterFactory';
 export interface InputCallbacks {
   onAgentClick: (agentId: string, shiftKey: boolean) => void;
   onAgentDoubleClick: (agentId: string) => void;
+  onAgentHover?: (agentId: string | null, screenPos: ScreenPosition | null) => void;
   onGroundClick: () => void;
   onMoveCommand: (position: THREE.Vector3, agentIds: string[]) => void;
   onSelectionBox: (agentIds: string[], buildingIds: string[]) => void;

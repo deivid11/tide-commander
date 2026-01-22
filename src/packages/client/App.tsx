@@ -20,6 +20,7 @@ import { ControlsModal } from './components/ControlsModal';
 import { BuildingConfigModal } from './components/BuildingConfigModal';
 import { SkillsPanel } from './components/SkillsPanel';
 import { DrawingModeIndicator } from './components/DrawingModeIndicator';
+import { AgentHoverPopup } from './components/AgentHoverPopup';
 import { matchesShortcut } from './store/shortcuts';
 import { FPSMeter } from './components/FPSMeter';
 import { profileRender } from './utils/profiling';
@@ -104,6 +105,10 @@ function AppContent() {
   const explorerFolderPath = useExplorerFolderPath(); // Direct folder path for file explorer (from store)
   const contextMenu = useContextMenu(); // Right-click context menu
   const [spawnPosition, setSpawnPosition] = useState<{ x: number; z: number } | null>(null);
+  const [hoveredAgentPopup, setHoveredAgentPopup] = useState<{
+    agentId: string;
+    screenPos: { x: number; y: number };
+  } | null>(null);
 
   const [sceneConfig, setSceneConfig] = useState(loadConfig);
   const [sidebarOpen, setSidebarOpen] = useState(false); // Mobile sidebar state
@@ -194,6 +199,15 @@ function AppContent() {
     // Set up context menu callback (right-click on ground, agent, area, or building)
     sceneRef.current?.setOnContextMenu((screenPos, worldPos, target) => {
       contextMenu.open(screenPos, worldPos, target);
+    });
+
+    // Set up agent hover callback (for battlefield tooltip)
+    sceneRef.current?.setOnAgentHover((agentId, screenPos) => {
+      if (agentId && screenPos) {
+        setHoveredAgentPopup({ agentId, screenPos });
+      } else {
+        setHoveredAgentPopup(null);
+      }
     });
 
     // Set up websocket callbacks (always update refs)
@@ -800,6 +814,19 @@ function AppContent() {
         activeTool={state.activeTool}
         onExit={handleExitDrawingMode}
       />
+
+      {/* Agent Hover Popup (battlefield tooltip) */}
+      {hoveredAgentPopup && (() => {
+        const agent = state.agents.get(hoveredAgentPopup.agentId);
+        if (!agent) return null;
+        return (
+          <AgentHoverPopup
+            agent={agent}
+            screenPos={hoveredAgentPopup.screenPos}
+            onClose={() => setHoveredAgentPopup(null)}
+          />
+        );
+      })()}
 
       {/* Toolbox sidebar overlay */}
       <Toolbox

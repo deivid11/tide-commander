@@ -29,6 +29,27 @@ export function setLastBossCommand(bossId: string, command: string): void {
 }
 
 /**
+ * Build the agent identity header with ID and name
+ * This helps agents know who they are for notifications and other self-referential tasks
+ */
+function buildAgentIdentityHeader(agentId: string): string {
+  const agent = agentService.getAgent(agentId);
+  const agentName = agent?.name || 'Unknown';
+  return `# Agent Identity
+
+You are agent **${agentName}** with ID \`${agentId}\`.
+
+Use this ID when sending notifications via the Tide Commander API:
+\`\`\`bash
+curl -s -X POST http://localhost:5174/api/notify -H "Content-Type: application/json" -d '{"agentId":"${agentId}","title":"Title","message":"Message"}'
+\`\`\`
+
+---
+
+`;
+}
+
+/**
  * Build customAgentConfig for an agent based on its class instructions and skills
  * Returns undefined if no instructions or skills are configured
  */
@@ -41,20 +62,18 @@ export function buildCustomAgentConfig(agentId: string, agentClass: string): { n
   const classInstructions = customClassService.getClassInstructions(agentClass);
   const skillsContent = skillService.buildSkillPromptContent(agentId, agentClass);
 
-  // Combine instructions and skills into a single prompt
-  let combinedPrompt = '';
+  // Always include agent identity header so agents know their ID
+  let combinedPrompt = buildAgentIdentityHeader(agentId);
+
   if (classInstructions) {
     combinedPrompt += classInstructions;
   }
   if (skillsContent) {
-    if (combinedPrompt) combinedPrompt += '\n\n';
+    if (classInstructions) combinedPrompt += '\n\n';
     combinedPrompt += skillsContent;
   }
 
-  if (!combinedPrompt) {
-    return undefined;
-  }
-
+  // Even if no class instructions or skills, we still return the config with identity header
   const customClass = customClassService.getCustomClass(agentClass);
   return {
     name: customClass?.id || agentClass,

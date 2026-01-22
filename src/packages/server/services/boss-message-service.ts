@@ -11,8 +11,10 @@ import { buildBossContext } from './subordinate-context-service.js';
  * Build minimal system prompt for boss agent.
  * The detailed instructions are injected in the user message instead.
  */
-export function buildBossSystemPrompt(bossName: string): string {
-  return `You are "${bossName}", a Boss Agent manager. You have access to all tools, but prefer delegating coding tasks to your subordinates when available. Use tools yourself only for quick lookups, exploration, or when you have no subordinates.`;
+export function buildBossSystemPrompt(bossName: string, bossId: string): string {
+  return `You are "${bossName}", a Boss Agent manager with ID \`${bossId}\`. You have access to all tools, but prefer delegating coding tasks to your subordinates when available. Use tools yourself only for quick lookups, exploration, or when you have no subordinates.
+
+Your agent ID for notifications: ${bossId}`;
 }
 
 /**
@@ -293,7 +295,7 @@ export async function buildBossMessage(bossId: string, command: string): Promise
 
   const context = await buildBossContext(bossId);
   const hasSubordinates = context !== null;
-  const systemPrompt = buildBossSystemPrompt(bossName);
+  const systemPrompt = buildBossSystemPrompt(bossName, bossId);
   const instructions = buildBossInstructionsForMessage(bossName, hasSubordinates);
 
   if (!context) {

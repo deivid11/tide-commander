@@ -82,6 +82,12 @@ export class InputHandler {
   private draggingBuildingId: string | null = null;
   private buildingDragStartPos: GroundPosition | null = null;
 
+  // Hover state for agent tooltip
+  private hoveredAgentId: string | null = null;
+  private hoverTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastMousePos: { x: number; y: number } = { x: 0, y: 0 };
+  private static readonly HOVER_DELAY = 200; // 200ms
+
   constructor(
     canvas: HTMLCanvasElement,
     camera: THREE.PerspectiveCamera,
@@ -223,6 +229,7 @@ export class InputHandler {
     this.areaClickDetector.dispose();
     this.touchHandler.dispose();
     this.trackpadHandler.dispose();
+    this.clearHoverTimer();
   }
 
   /**
@@ -451,6 +458,11 @@ export class InputHandler {
       if (this.mouseControlHandler.handlePointerMove(event)) {
         return;
       }
+    }
+
+    // Handle hover detection when no buttons pressed (for agent tooltip)
+    if (event.buttons === 0 && event.pointerType !== 'touch') {
+      this.handleHoverDetection(event);
     }
   };
 
@@ -760,5 +772,49 @@ export class InputHandler {
     }
 
     this.callbacks.onSelectionBox(agentsInBox, buildingsInBox);
+  }
+
+  // --- Hover Detection ---
+
+  private handleHoverDetection(event: PointerEvent): void {
+    this.lastMousePos = { x: event.clientX, y: event.clientY };
+    const agentId = this.raycaster.findAgentAtPosition(event);
+
+    if (agentId !== this.hoveredAgentId) {
+      // Agent changed - clear any pending timer and notify immediately with null
+      this.clearHoverTimer();
+
+      if (this.hoveredAgentId !== null) {
+        // Was hovering an agent, now not - clear the popup
+        this.callbacks.onAgentHover?.(null, null);
+      }
+
+      this.hoveredAgentId = agentId;
+
+      if (agentId) {
+        // Started hovering a new agent - start timer for showing popup
+        this.hoverTimer = setTimeout(() => {
+          this.triggerHoverCallback();
+        }, InputHandler.HOVER_DELAY);
+      }
+    }
+  }
+
+  private triggerHoverCallback(): void {
+    if (this.hoveredAgentId && this.callbacks.onAgentHover) {
+      // Get screen position of the agent for popup placement
+      const meshData = this.raycaster.getAgentMeshes().get(this.hoveredAgentId);
+      if (meshData) {
+        const screenPos = this.raycaster.projectToScreen(meshData.group.position);
+        this.callbacks.onAgentHover(this.hoveredAgentId, screenPos);
+      }
+    }
+  }
+
+  private clearHoverTimer(): void {
+    if (this.hoverTimer) {
+      clearTimeout(this.hoverTimer);
+      this.hoverTimer = null;
+    }
   }
 }

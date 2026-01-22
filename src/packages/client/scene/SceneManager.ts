@@ -60,6 +60,10 @@ export class SceneManager {
     worldPos: { x: number; z: number },
     target: { type: 'ground' | 'agent' | 'area' | 'building'; id?: string }
   ) => void) | null = null;
+  private onAgentHoverCallback: ((
+    agentId: string | null,
+    screenPos: { x: number; y: number } | null
+  ) => void) | null = null;
 
   constructor(canvas: HTMLCanvasElement, selectionBox: HTMLDivElement) {
     this.canvas = canvas;
@@ -89,6 +93,7 @@ export class SceneManager {
       {
         onAgentClick: this.handleAgentClick.bind(this),
         onAgentDoubleClick: this.handleAgentDoubleClick.bind(this),
+        onAgentHover: this.handleAgentHover.bind(this),
         onGroundClick: this.handleGroundClick.bind(this),
         onMoveCommand: this.handleMoveCommand.bind(this),
         onSelectionBox: this.handleSelectionBox.bind(this),
@@ -706,6 +711,18 @@ export class SceneManager {
     this.onContextMenuCallback = callback;
   }
 
+  /**
+   * Set callback for agent hover (for battlefield tooltip).
+   */
+  setOnAgentHover(
+    callback: (
+      agentId: string | null,
+      screenPos: { x: number; y: number } | null
+    ) => void
+  ): void {
+    this.onAgentHoverCallback = callback;
+  }
+
   // ============================================
   // Public API - Config
   // ============================================
@@ -978,6 +995,14 @@ export class SceneManager {
     target: { type: 'ground' | 'agent' | 'area' | 'building'; id?: string }
   ): void {
     this.onContextMenuCallback?.(screenPos, worldPos, target);
+  }
+
+  // Agent hover handler (for battlefield tooltip)
+  private handleAgentHover(
+    agentId: string | null,
+    screenPos: { x: number; y: number } | null
+  ): void {
+    this.onAgentHoverCallback?.(agentId, screenPos);
   }
 
   // ============================================
