@@ -500,6 +500,13 @@ export function useCameraSensitivity(): CameraSensitivityConfig {
 }
 
 /**
+ * Get trackpad config. Only re-renders when trackpad config changes.
+ */
+export function useTrackpadConfig() {
+  return useSelector(useCallback((state: StoreState) => state.mouseControls.trackpad, []));
+}
+
+/**
  * Get terminal open state. Only re-renders when terminal state changes.
  */
 export function useTerminalOpen(): boolean {

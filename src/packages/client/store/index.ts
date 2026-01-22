@@ -31,8 +31,10 @@ import {
   MouseControlConfig,
   MouseControlsState,
   CameraSensitivityConfig,
+  TrackpadConfig,
   DEFAULT_MOUSE_CONTROLS,
   DEFAULT_CAMERA_SENSITIVITY,
+  DEFAULT_TRACKPAD_CONFIG,
 } from './mouseControls';
 
 // Re-export types
@@ -55,10 +57,11 @@ export type { ShortcutConfig } from './shortcuts';
 export { DEFAULT_SHORTCUTS, matchesShortcut, formatShortcut } from './shortcuts';
 
 // Re-export mouse controls
-export type { MouseControlConfig, MouseControlsState, CameraSensitivityConfig } from './mouseControls';
+export type { MouseControlConfig, MouseControlsState, CameraSensitivityConfig, TrackpadConfig } from './mouseControls';
 export {
   DEFAULT_MOUSE_CONTROLS,
   DEFAULT_CAMERA_SENSITIVITY,
+  DEFAULT_TRACKPAD_CONFIG,
   formatMouseBinding,
   findConflictingMouseBindings,
   BUTTON_NAMES,
@@ -116,6 +119,7 @@ export {
   useRefreshingUsage,
   useMouseControls,
   useCameraSensitivity,
+  useTrackpadConfig,
 } from './selectors';
 
 // ============================================================================
@@ -247,11 +251,20 @@ class Store
       return {
         bindings: mergedBindings,
         sensitivity: { ...DEFAULT_CAMERA_SENSITIVITY, ...stored.sensitivity },
+        trackpad: {
+          ...DEFAULT_TRACKPAD_CONFIG,
+          ...stored.trackpad,
+          sensitivity: {
+            ...DEFAULT_TRACKPAD_CONFIG.sensitivity,
+            ...stored.trackpad?.sensitivity,
+          },
+        },
       };
     }
     return {
       bindings: [...DEFAULT_MOUSE_CONTROLS],
       sensitivity: { ...DEFAULT_CAMERA_SENSITIVITY },
+      trackpad: { ...DEFAULT_TRACKPAD_CONFIG },
     };
   }
 
@@ -462,6 +475,25 @@ class Store
     this.state.mouseControls = {
       bindings: [...DEFAULT_MOUSE_CONTROLS],
       sensitivity: { ...DEFAULT_CAMERA_SENSITIVITY },
+      trackpad: { ...DEFAULT_TRACKPAD_CONFIG },
+    };
+    this.saveMouseControls();
+    this.notify();
+  }
+
+  // Trackpad-specific methods
+  getTrackpadConfig(): TrackpadConfig {
+    return this.state.mouseControls.trackpad;
+  }
+
+  updateTrackpadConfig(updates: Partial<TrackpadConfig>): void {
+    this.state.mouseControls.trackpad = {
+      ...this.state.mouseControls.trackpad,
+      ...updates,
+      sensitivity: {
+        ...this.state.mouseControls.trackpad.sensitivity,
+        ...(updates.sensitivity || {}),
+      },
     };
     this.saveMouseControls();
     this.notify();

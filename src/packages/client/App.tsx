@@ -52,10 +52,10 @@ const DEFAULT_FPS_LIMIT = 0;
 // Load config from storage
 function loadConfig(): SceneConfig {
   const defaultConfig: SceneConfig = {
-    characterScale: 0.5,
-    indicatorScale: 1.0,
+    characterScale: 2.0,
+    indicatorScale: 2.0,
     gridVisible: true,
-    timeMode: 'auto',
+    timeMode: 'day',
     terrain: DEFAULT_TERRAIN,
     animations: DEFAULT_ANIMATIONS,
     fpsLimit: DEFAULT_FPS_LIMIT,

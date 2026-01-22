@@ -49,9 +49,25 @@ export interface CameraSensitivityConfig {
   invertOrbitY: boolean;
 }
 
+export interface TrackpadConfig {
+  enabled: boolean;
+  pinchToZoom: boolean;
+  twoFingerScroll: boolean;
+  twoFingerScrollAction: 'pan' | 'orbit';
+  rotationGesture: boolean;
+  inertialScrolling: boolean;
+  naturalScrolling: boolean;
+  sensitivity: {
+    zoom: number;
+    scroll: number;
+    rotation: number;
+  };
+}
+
 export interface MouseControlsState {
   bindings: MouseControlConfig[];
   sensitivity: CameraSensitivityConfig;
+  trackpad: TrackpadConfig;
 }
 
 // ============================================================================
@@ -67,6 +83,21 @@ export const DEFAULT_CAMERA_SENSITIVITY: CameraSensitivityConfig = {
   invertPanY: false,
   invertOrbitX: false,
   invertOrbitY: false,
+};
+
+export const DEFAULT_TRACKPAD_CONFIG: TrackpadConfig = {
+  enabled: true,
+  pinchToZoom: true,
+  twoFingerScroll: true,
+  twoFingerScrollAction: 'pan',
+  rotationGesture: true,
+  inertialScrolling: true,
+  naturalScrolling: true,
+  sensitivity: {
+    zoom: 1.0,
+    scroll: 1.0,
+    rotation: 1.0,
+  },
 };
 
 // Helper to create mouse control config

@@ -129,17 +129,17 @@ export class MouseControlHandler {
 
     switch (this.activeDragAction) {
       case 'camera-pan': {
-        // Pan uses raw dx/dy - CameraController already applies distance-based scaling
-        const panX = sensitivity.invertPanX ? -dx : dx;
-        const panY = sensitivity.invertPanY ? -dy : dy;
+        // Apply pan speed sensitivity and invert flags
+        const panX = (sensitivity.invertPanX ? -dx : dx) * sensitivity.panSpeed;
+        const panY = (sensitivity.invertPanY ? -dy : dy) * sensitivity.panSpeed;
         this.cameraController.handlePan(panX, panY);
         break;
       }
 
       case 'camera-orbit': {
-        // Orbit uses raw dx/dy - CameraController already applies rotation speed
-        const orbitX = sensitivity.invertOrbitX ? -dx : dx;
-        const orbitY = sensitivity.invertOrbitY ? -dy : dy;
+        // Apply orbit speed sensitivity and invert flags
+        const orbitX = (sensitivity.invertOrbitX ? -dx : dx) * sensitivity.orbitSpeed;
+        const orbitY = (sensitivity.invertOrbitY ? -dy : dy) * sensitivity.orbitSpeed;
         this.cameraController.handleOrbit(orbitX, orbitY);
         break;
       }
@@ -192,17 +192,10 @@ export class MouseControlHandler {
     if (!zoomBinding) return false;
 
     // Apply sensitivity to wheel zoom via the camera controller
-    // The camera controller already handles the zoom logic
     const sensitivity = controls.sensitivity;
 
-    // Create a modified event with scaled deltaY
-    // We can't actually modify the event, so we'll handle zoom directly
-    const zoomIn = event.deltaY < 0;
-    const zoomFactor = 0.1 * sensitivity.zoomSpeed;
-
-    // Call the camera controller's wheel zoom with the original event
-    // The sensitivity is applied via the zoomFactor
-    this.cameraController.handleWheelZoom(event);
+    // Pass the zoom speed sensitivity to the camera controller
+    this.cameraController.handleWheelZoom(event, sensitivity.zoomSpeed);
 
     return true;
   }

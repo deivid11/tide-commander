@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useStore, store, useMouseControls } from '../store';
+import { useStore, store, useMouseControls, useTrackpadConfig } from '../store';
 import { ShortcutConfig, formatShortcut } from '../store/shortcuts';
-import type { MouseControlConfig, CameraSensitivityConfig } from '../store/mouseControls';
+import type { MouseControlConfig, CameraSensitivityConfig, TrackpadConfig } from '../store/mouseControls';
 import { formatMouseBinding, findConflictingMouseBindings } from '../store/mouseControls';
 import { KeyCaptureInput } from './KeyCaptureInput';
 
@@ -34,11 +34,12 @@ const MOUSE_GROUP_LABELS: Record<string, string> = {
   interaction: 'Interaction',
 };
 
-type ControlTab = 'keyboard' | 'mouse';
+type ControlTab = 'keyboard' | 'mouse' | 'trackpad';
 
 export function ControlsModal({ isOpen, onClose }: ControlsModalProps) {
   const state = useStore();
   const mouseControls = useMouseControls();
+  const trackpadConfig = useTrackpadConfig();
   const [activeTab, setActiveTab] = useState<ControlTab>('keyboard');
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedContext, setExpandedContext] = useState<ShortcutConfig['context'] | 'all'>('all');
@@ -103,9 +104,13 @@ export function ControlsModal({ isOpen, onClose }: ControlsModalProps) {
       if (confirm('Reset all keyboard shortcuts to defaults?')) {
         store.resetShortcuts();
       }
-    } else {
+    } else if (activeTab === 'mouse') {
       if (confirm('Reset all mouse controls to defaults?')) {
         store.resetMouseControls();
+      }
+    } else if (activeTab === 'trackpad') {
+      if (confirm('Reset trackpad settings to defaults?')) {
+        store.resetMouseControls(); // This resets trackpad too
       }
     }
   };
@@ -163,6 +168,16 @@ export function ControlsModal({ isOpen, onClose }: ControlsModalProps) {
               <line x1="12" y1="7" x2="12" y2="11" />
             </svg>
             Mouse
+          </button>
+          <button
+            className={`controls-main-tab ${activeTab === 'trackpad' ? 'active' : ''}`}
+            onClick={() => setActiveTab('trackpad')}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="2" y="4" width="20" height="16" rx="2" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+            Trackpad
           </button>
         </div>
 
@@ -299,12 +314,30 @@ export function ControlsModal({ isOpen, onClose }: ControlsModalProps) {
           </>
         )}
 
+        {/* Trackpad Tab Content */}
+        {activeTab === 'trackpad' && (
+          <>
+            <div className="shortcuts-modal-toolbar">
+              <span className="mouse-controls-subtitle">Mac trackpad gesture settings</span>
+              <button className="shortcuts-reset-all-btn" onClick={handleResetAll}>
+                Reset
+              </button>
+            </div>
+
+            <div className="shortcuts-modal-content trackpad-controls-content">
+              <TrackpadSettings config={trackpadConfig} />
+            </div>
+          </>
+        )}
+
         {/* Footer */}
         <div className="shortcuts-modal-footer">
           <span className="shortcuts-modal-hint">
             {activeTab === 'keyboard'
               ? 'Click on a shortcut to change it. Press Escape to cancel.'
-              : 'Click binding to change. Hold modifiers (Alt/Shift/Ctrl) while clicking.'}
+              : activeTab === 'mouse'
+                ? 'Click binding to change. Hold modifiers (Alt/Shift/Ctrl) while clicking.'
+                : 'Configure Mac trackpad gestures. Enable/disable features and adjust sensitivity.'}
           </span>
         </div>
       </div>
@@ -449,6 +482,59 @@ function SensitivitySettings({ sensitivity }: SensitivitySettingsProps) {
 
   return (
     <div className="sensitivity-inline-settings">
+      {/* Speed sliders */}
+      <div className="sensitivity-sliders">
+        <div className="sensitivity-slider-row">
+          <label>Pan Speed</label>
+          <input
+            type="range"
+            min="0.1"
+            max="3"
+            step="0.1"
+            value={sensitivity.panSpeed}
+            onChange={(e) => handleChange('panSpeed', parseFloat(e.target.value))}
+          />
+          <span className="sensitivity-slider-value">{sensitivity.panSpeed.toFixed(1)}x</span>
+        </div>
+        <div className="sensitivity-slider-row">
+          <label>Orbit Speed</label>
+          <input
+            type="range"
+            min="0.1"
+            max="3"
+            step="0.1"
+            value={sensitivity.orbitSpeed}
+            onChange={(e) => handleChange('orbitSpeed', parseFloat(e.target.value))}
+          />
+          <span className="sensitivity-slider-value">{sensitivity.orbitSpeed.toFixed(1)}x</span>
+        </div>
+        <div className="sensitivity-slider-row">
+          <label>Zoom Speed</label>
+          <input
+            type="range"
+            min="0.1"
+            max="3"
+            step="0.1"
+            value={sensitivity.zoomSpeed}
+            onChange={(e) => handleChange('zoomSpeed', parseFloat(e.target.value))}
+          />
+          <span className="sensitivity-slider-value">{sensitivity.zoomSpeed.toFixed(1)}x</span>
+        </div>
+        <div className="sensitivity-slider-row">
+          <label>Smoothing</label>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.1"
+            value={sensitivity.smoothing}
+            onChange={(e) => handleChange('smoothing', parseFloat(e.target.value))}
+          />
+          <span className="sensitivity-slider-value">{sensitivity.smoothing.toFixed(1)}</span>
+        </div>
+      </div>
+
+      {/* Invert checkboxes */}
       <div className="sensitivity-checkboxes-inline">
         <label className="sensitivity-checkbox-inline">
           <input
@@ -482,6 +568,210 @@ function SensitivitySettings({ sensitivity }: SensitivitySettingsProps) {
           />
           <span>Invert Orbit Y</span>
         </label>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Trackpad Settings Component
+// ============================================================================
+
+interface TrackpadSettingsProps {
+  config: TrackpadConfig;
+}
+
+function TrackpadSettings({ config }: TrackpadSettingsProps) {
+  const handleToggle = useCallback((key: keyof TrackpadConfig, value: boolean) => {
+    store.updateTrackpadConfig({ [key]: value });
+  }, []);
+
+  const handleSensitivity = useCallback((key: 'zoom' | 'scroll' | 'rotation', value: number) => {
+    // The store merges sensitivity values, so we can pass a partial
+    store.updateTrackpadConfig({
+      sensitivity: { [key]: value } as unknown as TrackpadConfig['sensitivity'],
+    });
+  }, []);
+
+  const handleScrollAction = useCallback((value: 'pan' | 'orbit') => {
+    store.updateTrackpadConfig({ twoFingerScrollAction: value });
+  }, []);
+
+  return (
+    <div className="trackpad-settings">
+      {/* Master toggle */}
+      <div className="shortcuts-context-group">
+        <div className="shortcuts-context-header">
+          <span className="shortcuts-context-label">Trackpad Gestures</span>
+          <span className="shortcuts-context-description">Enable Mac trackpad gesture support</span>
+        </div>
+        <div className="trackpad-toggle-row">
+          <label className="trackpad-toggle">
+            <input
+              type="checkbox"
+              checked={config.enabled}
+              onChange={(e) => handleToggle('enabled', e.target.checked)}
+            />
+            <span className="trackpad-toggle-label">Enable trackpad gestures</span>
+          </label>
+        </div>
+      </div>
+
+      {/* Gesture toggles */}
+      <div className="shortcuts-context-group">
+        <div className="shortcuts-context-header">
+          <span className="shortcuts-context-label">Gesture Controls</span>
+          <span className="shortcuts-context-description">Enable or disable specific gestures</span>
+        </div>
+        <div className="trackpad-gestures-grid">
+          <label className={`trackpad-gesture-item ${!config.enabled ? 'disabled' : ''}`}>
+            <input
+              type="checkbox"
+              checked={config.pinchToZoom}
+              onChange={(e) => handleToggle('pinchToZoom', e.target.checked)}
+              disabled={!config.enabled}
+            />
+            <div className="trackpad-gesture-info">
+              <span className="trackpad-gesture-name">Pinch to Zoom</span>
+              <span className="trackpad-gesture-desc">Two-finger pinch to zoom in/out</span>
+            </div>
+          </label>
+
+          <label className={`trackpad-gesture-item ${!config.enabled ? 'disabled' : ''}`}>
+            <input
+              type="checkbox"
+              checked={config.twoFingerScroll}
+              onChange={(e) => handleToggle('twoFingerScroll', e.target.checked)}
+              disabled={!config.enabled}
+            />
+            <div className="trackpad-gesture-info">
+              <span className="trackpad-gesture-name">Two-Finger Scroll</span>
+              <span className="trackpad-gesture-desc">Scroll with two fingers to move camera</span>
+            </div>
+          </label>
+
+          <label className={`trackpad-gesture-item ${!config.enabled ? 'disabled' : ''}`}>
+            <input
+              type="checkbox"
+              checked={config.rotationGesture}
+              onChange={(e) => handleToggle('rotationGesture', e.target.checked)}
+              disabled={!config.enabled}
+            />
+            <div className="trackpad-gesture-info">
+              <span className="trackpad-gesture-name">Rotation Gesture</span>
+              <span className="trackpad-gesture-desc">Two-finger rotate to turn camera (Safari)</span>
+            </div>
+          </label>
+
+          <label className={`trackpad-gesture-item ${!config.enabled ? 'disabled' : ''}`}>
+            <input
+              type="checkbox"
+              checked={config.inertialScrolling}
+              onChange={(e) => handleToggle('inertialScrolling', e.target.checked)}
+              disabled={!config.enabled}
+            />
+            <div className="trackpad-gesture-info">
+              <span className="trackpad-gesture-name">Inertial Scrolling</span>
+              <span className="trackpad-gesture-desc">Continue movement after releasing</span>
+            </div>
+          </label>
+
+          <label className={`trackpad-gesture-item ${!config.enabled ? 'disabled' : ''}`}>
+            <input
+              type="checkbox"
+              checked={config.naturalScrolling}
+              onChange={(e) => handleToggle('naturalScrolling', e.target.checked)}
+              disabled={!config.enabled}
+            />
+            <div className="trackpad-gesture-info">
+              <span className="trackpad-gesture-name">Natural Scrolling</span>
+              <span className="trackpad-gesture-desc">Content follows finger direction (macOS default)</span>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      {/* Scroll action */}
+      <div className="shortcuts-context-group">
+        <div className="shortcuts-context-header">
+          <span className="shortcuts-context-label">Scroll Action</span>
+          <span className="shortcuts-context-description">What two-finger scroll does</span>
+        </div>
+        <div className="trackpad-scroll-action">
+          <label className={`trackpad-radio ${!config.enabled || !config.twoFingerScroll ? 'disabled' : ''}`}>
+            <input
+              type="radio"
+              name="scrollAction"
+              value="pan"
+              checked={config.twoFingerScrollAction === 'pan'}
+              onChange={() => handleScrollAction('pan')}
+              disabled={!config.enabled || !config.twoFingerScroll}
+            />
+            <span>Pan Camera</span>
+          </label>
+          <label className={`trackpad-radio ${!config.enabled || !config.twoFingerScroll ? 'disabled' : ''}`}>
+            <input
+              type="radio"
+              name="scrollAction"
+              value="orbit"
+              checked={config.twoFingerScrollAction === 'orbit'}
+              onChange={() => handleScrollAction('orbit')}
+              disabled={!config.enabled || !config.twoFingerScroll}
+            />
+            <span>Orbit Camera</span>
+          </label>
+        </div>
+      </div>
+
+      {/* Sensitivity sliders */}
+      <div className="shortcuts-context-group">
+        <div className="shortcuts-context-header">
+          <span className="shortcuts-context-label">Sensitivity</span>
+          <span className="shortcuts-context-description">Adjust gesture sensitivity</span>
+        </div>
+        <div className="trackpad-sensitivity-sliders">
+          <div className={`trackpad-slider-row ${!config.enabled ? 'disabled' : ''}`}>
+            <label>Zoom</label>
+            <input
+              type="range"
+              min="0.1"
+              max="3"
+              step="0.1"
+              value={config.sensitivity.zoom}
+              onChange={(e) => handleSensitivity('zoom', parseFloat(e.target.value))}
+              disabled={!config.enabled}
+            />
+            <span className="trackpad-slider-value">{config.sensitivity.zoom.toFixed(1)}x</span>
+          </div>
+
+          <div className={`trackpad-slider-row ${!config.enabled ? 'disabled' : ''}`}>
+            <label>Scroll</label>
+            <input
+              type="range"
+              min="0.1"
+              max="3"
+              step="0.1"
+              value={config.sensitivity.scroll}
+              onChange={(e) => handleSensitivity('scroll', parseFloat(e.target.value))}
+              disabled={!config.enabled}
+            />
+            <span className="trackpad-slider-value">{config.sensitivity.scroll.toFixed(1)}x</span>
+          </div>
+
+          <div className={`trackpad-slider-row ${!config.enabled ? 'disabled' : ''}`}>
+            <label>Rotation</label>
+            <input
+              type="range"
+              min="0.1"
+              max="3"
+              step="0.1"
+              value={config.sensitivity.rotation}
+              onChange={(e) => handleSensitivity('rotation', parseFloat(e.target.value))}
+              disabled={!config.enabled}
+            />
+            <span className="trackpad-slider-value">{config.sensitivity.rotation.toFixed(1)}x</span>
+          </div>
+        </div>
       </div>
     </div>
   );

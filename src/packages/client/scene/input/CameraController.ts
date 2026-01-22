@@ -52,12 +52,19 @@ export class CameraController {
 
   /**
    * Handle wheel zoom towards mouse position.
+   * @param event - The wheel event
+   * @param speedMultiplier - Optional sensitivity multiplier (default 1.0)
    */
-  handleWheelZoom(event: WheelEvent): void {
+  handleWheelZoom(event: WheelEvent, speedMultiplier: number = 1.0): void {
     event.preventDefault();
 
-    const zoomIn = event.deltaY < 0;
-    const zoomFactor = 0.1;
+    // Normalize deltaY: mice typically send ~100-120 per notch, trackpads send smaller values
+    // We want consistent behavior regardless of device
+    const normalizedDelta = Math.sign(event.deltaY) * Math.min(Math.abs(event.deltaY), 100) / 100;
+    const zoomIn = normalizedDelta < 0;
+
+    // Base zoom factor: 0.03 (3%) per normalized scroll unit, multiplied by sensitivity
+    const zoomFactor = 0.03 * Math.abs(normalizedDelta) * speedMultiplier;
 
     const cameraToTarget = this.camera.position.clone().sub(this.controls.target);
     const currentDistance = cameraToTarget.length();

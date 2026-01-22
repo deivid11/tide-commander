@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.0] - 2026-01-21
+
+### Added
+- `TrackpadGestureHandler` for trackpad gesture support (pinch-to-zoom, two-finger pan)
+- Enhanced controls modal with trackpad gesture settings
+- Additional mouse control bindings and customization options
+
+### Changed
+- Improved CameraController with better zoom and pan handling
+- Enhanced InputHandler with trackpad gesture integration
+- Expanded MouseControlHandler with more action types
+- Updated store with trackpad sensitivity settings
+- Refined shortcuts modal styling with better organization
+
 ## [0.4.0] - 2026-01-21
 
 ### Added

@@ -7,6 +7,7 @@ import type { AgentMeshData } from '../characters/CharacterFactory';
 // Import extracted modules
 import { DoubleClickDetector } from './DoubleClickDetector';
 import { TouchGestureHandler } from './TouchGestureHandler';
+import { TrackpadGestureHandler } from './TrackpadGestureHandler';
 import { SceneRaycaster } from './SceneRaycaster';
 import { CameraController } from './CameraController';
 import { MouseControlHandler } from './MouseControlHandler';
@@ -47,6 +48,7 @@ export class InputHandler {
   private raycaster: SceneRaycaster;
   private cameraController: CameraController;
   private mouseControlHandler: MouseControlHandler;
+  private trackpadHandler: TrackpadGestureHandler;
   private touchHandler: TouchGestureHandler;
   private agentClickDetector: DoubleClickDetector<string>;
   private agentTapDetector: DoubleClickDetector<string>;
@@ -115,6 +117,18 @@ export class InputHandler {
         this.selectionBox.classList.remove('active');
         this.selectAgentsInBox(this.dragStart, { x, y });
       },
+    });
+
+    // Trackpad gesture handler for Mac trackpad support
+    this.trackpadHandler = new TrackpadGestureHandler(this.cameraController, canvas, {
+      onPan: (dx, dy) => this.cameraController.handlePan(dx, dy),
+      onZoom: (delta, centerX, centerY) => {
+        // Convert to pinch zoom scale
+        const scale = 1 - delta;
+        this.cameraController.handlePinchZoom(scale, { x: centerX, y: centerY });
+      },
+      onOrbit: (dx, dy) => this.cameraController.handleOrbit(dx, dy),
+      onRotate: (angleDelta) => this.cameraController.handleTwistRotation(angleDelta),
     });
 
     // Double-click detectors
@@ -205,6 +219,7 @@ export class InputHandler {
     this.buildingClickDetector.dispose();
     this.areaClickDetector.dispose();
     this.touchHandler.dispose();
+    this.trackpadHandler.dispose();
   }
 
   /**
@@ -220,6 +235,8 @@ export class InputHandler {
     this.cameraController.setCanvas(canvas);
     this.cameraController.setControls(controls);
     this.mouseControlHandler.setCameraController(this.cameraController);
+    this.trackpadHandler.setCameraController(this.cameraController);
+    this.trackpadHandler.setCanvas(canvas);
     this.touchHandler.reattach(canvas, controls);
 
     this.setupEventListeners();
@@ -552,7 +569,12 @@ export class InputHandler {
   };
 
   private onWheel = (event: WheelEvent): void => {
-    // Use mouse control handler which applies sensitivity settings
+    // Try trackpad handler first (for pinch-to-zoom and two-finger scroll)
+    if (this.trackpadHandler.handleWheel(event)) {
+      return;
+    }
+
+    // Fall back to mouse control handler which applies sensitivity settings
     this.mouseControlHandler.handleWheel(event);
   };
 
