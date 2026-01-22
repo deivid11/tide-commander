@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0] - 2026-01-21
+
+### Added
+- Mouse controls modal component for configuring mouse interactions
+- Controls modal component for unified settings management
+- `MouseControlHandler` for advanced mouse input handling
+- Mouse controls store with configurable bindings
+- Customizable keyboard shortcuts modal with improved layout
+- Enhanced guake terminal styling with better visual hierarchy
+
+### Changed
+- Refactored App component with improved modal management
+- Enhanced ClaudeOutputPanel with better layout and functionality
+- Improved InputHandler with extended mouse event support
+- Updated store with mouse controls state management
+- Refined file explorer styling with better spacing
+- Overhauled shortcuts modal with categorized sections
+- Improved toolbox styling
+
 ## [0.3.0] - 2026-01-21
 
 ### Added

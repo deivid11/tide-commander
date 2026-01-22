@@ -13,6 +13,7 @@ export const STORAGE_KEYS = {
   SHOW_FPS: 'tide-show-fps',
   SETTINGS: 'tide-settings',
   SHORTCUTS: 'tide-shortcuts',
+  MOUSE_CONTROLS: 'tide-mouse-controls',
 
   // Camera
   CAMERA_STATE: 'tide-camera-state',

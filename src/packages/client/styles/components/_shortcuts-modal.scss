@@ -1,7 +1,7 @@
 @use 'sass:color';
 @use '../variables' as *;
 
-// Floating button for keyboard shortcuts - positioned after supervisor button
+// Floating button for controls - positioned after supervisor button
 .shortcuts-toggle-btn {
   position: fixed;
   bottom: 196px;  // Stacked above supervisor button (154 + 36 + 6)
@@ -48,6 +48,11 @@
 .shortcuts-modal {
   width: 90%;
   max-width: 700px;
+
+  // When used as combined controls modal
+  &.controls-modal {
+    max-width: 750px;
+  }
   max-height: 85vh;
   background: $bg-secondary;
   border: 1px solid $border-color;
@@ -179,6 +184,53 @@
   &:hover {
     border-color: $accent-red;
     color: $accent-red;
+  }
+}
+
+// Main tabs (Keyboard / Mouse)
+.controls-main-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 12px 20px;
+  border-bottom: 1px solid $border-color;
+  background: $bg-tertiary;
+}
+
+.controls-main-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: $radius-md;
+  color: $text-secondary;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  svg {
+    opacity: 0.7;
+  }
+
+  &:hover {
+    background: $bg-primary;
+    color: $text-primary;
+
+    svg {
+      opacity: 1;
+    }
+  }
+
+  &.active {
+    background: rgba($accent-cyan, 0.15);
+    border-color: rgba($accent-cyan, 0.3);
+    color: $accent-cyan;
+
+    svg {
+      opacity: 1;
+    }
   }
 }
 
@@ -417,4 +469,57 @@
   border-radius: $radius-sm;
   white-space: nowrap;
   z-index: 10;
+}
+
+// ============================================================================
+// Mouse Controls (merged into Controls modal)
+// ============================================================================
+
+.mouse-controls-subtitle {
+  font-size: 12px;
+  color: $text-secondary;
+}
+
+.mouse-controls-content {
+  // Content for mouse tab
+}
+
+.mouse-controls-bindings {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+// Sensitivity settings (inline version for merged modal)
+.sensitivity-inline-settings {
+  padding: 12px;
+  background: $bg-tertiary;
+  border-radius: $radius-md;
+}
+
+.sensitivity-checkboxes-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.sensitivity-checkbox-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+
+  input[type="checkbox"] {
+    cursor: pointer;
+    accent-color: $accent-cyan;
+  }
+
+  span {
+    font-size: 12px;
+    color: $text-secondary;
+  }
+
+  &:hover span {
+    color: $text-primary;
+  }
 }

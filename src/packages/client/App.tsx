@@ -15,7 +15,7 @@ import { FileExplorerPanel } from './components/FileExplorerPanel';
 import { AgentBar } from './components/AgentBar';
 import { SupervisorPanel } from './components/SupervisorPanel';
 import { Spotlight } from './components/Spotlight';
-import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
+import { ControlsModal } from './components/ControlsModal';
 import { BuildingConfigModal } from './components/BuildingConfigModal';
 import { SkillsPanel } from './components/SkillsPanel';
 import { matchesShortcut } from './store/shortcuts';
@@ -95,7 +95,7 @@ function AppContent() {
   const deleteConfirmModal = useModalState();
   const supervisorModal = useModalState();
   const spotlightModal = useModalState();
-  const shortcutsModal = useModalState();
+  const controlsModal = useModalState();
   const skillsModal = useModalState();
   const buildingModal = useModalState<string | null>(); // data = editingBuildingId (null for new)
   const explorerModal = useModalStateWithId(); // has .id for areaId
@@ -682,7 +682,7 @@ function AppContent() {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [spawnModal, commanderModal, explorerModal, spotlightModal, deleteConfirmModal]);
+  }, [spawnModal, commanderModal, explorerModal, spotlightModal, deleteConfirmModal, controlsModal]);
 
   return (
     <div className={`app ${state.terminalOpen ? 'terminal-open' : ''} mobile-view-${mobileView}`}>
@@ -861,15 +861,22 @@ function AppContent() {
         {state.supervisor.generatingReport && <span className="supervisor-generating-indicator" />}
       </button>
 
-      {/* Keyboard Shortcuts button */}
+      {/* Controls button (Keyboard & Mouse) */}
       <button
         className="shortcuts-toggle-btn"
-        onClick={() => shortcutsModal.open()}
-        title="Keyboard Shortcuts"
+        onClick={() => controlsModal.open()}
+        title="Controls (Keyboard & Mouse)"
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <rect x="2" y="4" width="20" height="16" rx="2" />
-          <path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M6 12h.01M18 12h.01M8 16h8" />
+          <line x1="4" y1="21" x2="4" y2="14" />
+          <line x1="4" y1="10" x2="4" y2="3" />
+          <line x1="12" y1="21" x2="12" y2="12" />
+          <line x1="12" y1="8" x2="12" y2="3" />
+          <line x1="20" y1="21" x2="20" y2="16" />
+          <line x1="20" y1="12" x2="20" y2="3" />
+          <line x1="1" y1="14" x2="7" y2="14" />
+          <line x1="9" y1="8" x2="15" y2="8" />
+          <line x1="17" y1="16" x2="23" y2="16" />
         </svg>
       </button>
 
@@ -928,10 +935,10 @@ function AppContent() {
         onOpenFileExplorer={(areaId) => explorerModal.open(areaId)}
       />
 
-      {/* Keyboard Shortcuts Modal */}
-      <KeyboardShortcutsModal
-        isOpen={shortcutsModal.isOpen}
-        onClose={shortcutsModal.close}
+      {/* Controls Modal (Keyboard & Mouse) */}
+      <ControlsModal
+        isOpen={controlsModal.isOpen}
+        onClose={controlsModal.close}
       />
 
       {/* Skills Panel */}

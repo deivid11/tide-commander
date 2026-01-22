@@ -118,6 +118,10 @@ export function ClaudeOutputPanel() {
   const [debugPanelOpen, setDebugPanelOpen] = useState(false);
   const [debuggerEnabled, setDebuggerEnabled] = useState(() => agentDebugger.isEnabled());
 
+  // Completion indicator state - shows briefly when agent finishes processing
+  const [showCompletion, setShowCompletion] = useState(false);
+  const prevStatusRef = useRef<string | null>(null);
+
   // Auto-enable debugger when panel is opened
   useEffect(() => {
     if (debugPanelOpen && !debuggerEnabled) {
@@ -149,6 +153,22 @@ export function ClaudeOutputPanel() {
 
   // Use the reactive hook for outputs
   const outputs = useAgentOutputs(selectedAgentId);
+
+  // Detect when agent finishes processing and show completion indicator
+  useEffect(() => {
+    const currentStatus = selectedAgent?.status;
+    const prevStatus = prevStatusRef.current;
+
+    // If agent was working and is now idle, show completion
+    if (prevStatus === 'working' && currentStatus === 'idle') {
+      setShowCompletion(true);
+      // Hide after animation completes
+      const timer = setTimeout(() => setShowCompletion(false), 1000);
+      return () => clearTimeout(timer);
+    }
+
+    prevStatusRef.current = currentStatus || null;
+  }, [selectedAgent?.status]);
 
   // Use terminal input hook for per-agent input state
   const terminalInput = useTerminalInput({ selectedAgentId });
@@ -922,20 +942,6 @@ export function ClaudeOutputPanel() {
                   onFileClick={handleFileClick}
                 />
               ))}
-              {selectedAgent.status === 'working' && (
-                <div className="typing-indicator">
-                  <span className="typing-dot"></span>
-                  <span className="typing-dot"></span>
-                  <span className="typing-dot"></span>
-                  <button
-                    className="stop-button"
-                    onClick={() => store.stopAgent(selectedAgent.id)}
-                    title="Stop current operation"
-                  >
-                    Stop
-                  </button>
-                </div>
-              )}
             </>
           )}
         </div>
@@ -987,7 +993,22 @@ export function ClaudeOutputPanel() {
           </div>
         )}
 
-        <div className={`guake-input ${useTextarea ? 'guake-input-expanded' : ''}`}>
+        <div className={`guake-input-wrapper ${selectedAgent?.status === 'working' ? 'has-stop-btn is-working' : ''} ${showCompletion ? 'is-completed' : ''}`}>
+          {/* Floating stop button - shown when agent is working */}
+          {selectedAgent?.status === 'working' && (
+            <div className="guake-stop-bar">
+              <button
+                className="guake-stop-btn"
+                onClick={() => store.stopAgent(selectedAgent.id)}
+                title="Stop current operation (Esc)"
+              >
+                <span className="stop-icon">■</span>
+                <span className="stop-label">Stop</span>
+              </button>
+            </div>
+          )}
+
+          <div className={`guake-input ${useTextarea ? 'guake-input-expanded' : ''}`}>
           <input
             ref={fileInputRef}
             type="file"
@@ -1027,6 +1048,7 @@ export function ClaudeOutputPanel() {
             <button onClick={handleSendCommand} disabled={!command.trim() && attachedFiles.length === 0} title="Send">
               ➤
             </button>
+          </div>
           </div>
         </div>
 

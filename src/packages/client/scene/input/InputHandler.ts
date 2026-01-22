@@ -9,6 +9,7 @@ import { DoubleClickDetector } from './DoubleClickDetector';
 import { TouchGestureHandler } from './TouchGestureHandler';
 import { SceneRaycaster } from './SceneRaycaster';
 import { CameraController } from './CameraController';
+import { MouseControlHandler } from './MouseControlHandler';
 import type {
   InputCallbacks,
   DrawingModeChecker,
@@ -45,6 +46,7 @@ export class InputHandler {
   // Extracted handlers
   private raycaster: SceneRaycaster;
   private cameraController: CameraController;
+  private mouseControlHandler: MouseControlHandler;
   private touchHandler: TouchGestureHandler;
   private agentClickDetector: DoubleClickDetector<string>;
   private agentTapDetector: DoubleClickDetector<string>;
@@ -95,6 +97,25 @@ export class InputHandler {
     this.raycaster = new SceneRaycaster(camera, canvas);
     this.cameraController = new CameraController(camera, controls, canvas);
     this.cameraController.setRaycastProvider(this.raycaster);
+
+    // Mouse control handler for configurable bindings
+    this.mouseControlHandler = new MouseControlHandler(this.cameraController, {
+      onSelectionBoxStart: (x, y) => {
+        this.dragStart = { x, y };
+        this.dragCurrent = { x, y };
+        this.isDragging = true;
+        this.selectionBox.classList.add('active');
+      },
+      onSelectionBoxMove: (x, y) => {
+        this.dragCurrent = { x, y };
+        this.updateSelectionBox();
+      },
+      onSelectionBoxEnd: (x, y) => {
+        this.isDragging = false;
+        this.selectionBox.classList.remove('active');
+        this.selectAgentsInBox(this.dragStart, { x, y });
+      },
+    });
 
     // Double-click detectors
     this.agentClickDetector = new DoubleClickDetector(300);
@@ -198,6 +219,7 @@ export class InputHandler {
     this.raycaster.setCanvas(canvas);
     this.cameraController.setCanvas(canvas);
     this.cameraController.setControls(controls);
+    this.mouseControlHandler.setCameraController(this.cameraController);
     this.touchHandler.reattach(canvas, controls);
 
     this.setupEventListeners();
@@ -311,13 +333,23 @@ export class InputHandler {
     }
 
     if (event.button === 2) {
-      if (event.altKey) {
-        this.controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
-      } else {
+      // Check if mouse control handler wants this event (e.g., Alt+Right for camera pan)
+      if (this.mouseControlHandler.handlePointerDown(event)) {
         this.controls.mouseButtons.RIGHT = null as unknown as THREE.MOUSE;
+        return;
       }
+
+      this.controls.mouseButtons.RIGHT = null as unknown as THREE.MOUSE;
       this.isRightDragging = false;
       this.rightDragStart = { x: event.clientX, y: event.clientY };
+    }
+
+    // Check middle button for camera controls
+    if (event.button === 1) {
+      if (this.mouseControlHandler.handlePointerDown(event)) {
+        this.controls.mouseButtons.MIDDLE = null as unknown as THREE.MOUSE;
+        return;
+      }
     }
   };
 
@@ -381,11 +413,23 @@ export class InputHandler {
     }
 
     if (event.buttons & 2) {
+      // Check if mouse control handler is handling camera drag
+      if (this.mouseControlHandler.handlePointerMove(event)) {
+        return;
+      }
+
       const dx = event.clientX - this.rightDragStart.x;
       const dy = event.clientY - this.rightDragStart.y;
 
       if (!this.isRightDragging && (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD)) {
         this.isRightDragging = true;
+      }
+    }
+
+    // Handle middle button camera drags
+    if (event.buttons & 4) {
+      if (this.mouseControlHandler.handlePointerMove(event)) {
+        return;
       }
     }
   };
@@ -435,8 +479,16 @@ export class InputHandler {
     }
 
     if (event.button === 2) {
+      // Let mouse control handler clean up if it was handling
+      this.mouseControlHandler.handlePointerUp(event);
       this.controls.mouseButtons.RIGHT = null as unknown as THREE.MOUSE;
       this.isRightDragging = false;
+    }
+
+    // Handle middle button release
+    if (event.button === 1) {
+      this.mouseControlHandler.handlePointerUp(event);
+      this.controls.mouseButtons.MIDDLE = null as unknown as THREE.MOUSE;
     }
   };
 
@@ -500,7 +552,8 @@ export class InputHandler {
   };
 
   private onWheel = (event: WheelEvent): void => {
-    this.cameraController.handleWheelZoom(event);
+    // Use mouse control handler which applies sensitivity settings
+    this.mouseControlHandler.handleWheel(event);
   };
 
   // --- Touch Event Handlers ---

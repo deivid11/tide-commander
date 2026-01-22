@@ -20,6 +20,7 @@ import type {
   GlobalUsageStats,
 } from '../../shared/types';
 import type { ShortcutConfig } from './shortcuts';
+import type { MouseControlsState } from './mouseControls';
 
 // Activity type
 export interface Activity {
@@ -127,6 +128,8 @@ export interface StoreState {
   settings: Settings;
   // Keyboard shortcuts
   shortcuts: ShortcutConfig[];
+  // Mouse controls
+  mouseControls: MouseControlsState;
   // File viewer path (to open files from other components)
   fileViewerPath: string | null;
   // File viewer edit data for diff view (old_string, new_string from Edit tool)

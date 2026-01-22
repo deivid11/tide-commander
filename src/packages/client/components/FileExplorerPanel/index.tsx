@@ -721,8 +721,8 @@ export function FileExplorerPanel({
               </div>
               <div className="file-explorer-folders-list">
                 {directories.map((dir) => (
-                  <div key={dir} className="file-explorer-folder-item" title={dir}>
-                    <span className="file-explorer-folder-icon">📁</span>
+                  <div key={dir} className="file-explorer-folder-item">
+                    <span className="file-explorer-folder-icon">📂</span>
                     <span className="file-explorer-folder-path">
                       {dir.split('/').pop() || dir}
                     </span>
@@ -733,6 +733,10 @@ export function FileExplorerPanel({
                     >
                       ×
                     </button>
+                    <div className="file-explorer-folder-tooltip">
+                      <div className="file-explorer-folder-tooltip-label">Full Path</div>
+                      <div className="file-explorer-folder-tooltip-path">{dir}</div>
+                    </div>
                   </div>
                 ))}
                 {isAddingFolder && (

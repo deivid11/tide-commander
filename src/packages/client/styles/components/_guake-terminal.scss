@@ -804,6 +804,11 @@
 // Guake Input - Modern Chat-style Input Bar
 // =============================================================================
 
+// Wrapper for input area with floating stop button
+.guake-input-wrapper {
+  position: relative;
+}
+
 .guake-input {
   display: flex;
   align-items: stretch;
@@ -819,15 +824,134 @@
   align-items: stretch;
   flex: 1;
   background: rgba($dracula-bg, 0.5);
-  border: 1px solid rgba($dracula-comment, 0.25);
+  border: 2px solid rgba($dracula-comment, 0.25);
   border-radius: 8px;
   transition: all $transition-fast;
   min-height: 42px;
+  position: relative;
 
   &:focus-within {
     border-color: rgba($dracula-purple, 0.5);
     background: rgba($dracula-bg, 0.7);
     box-shadow: 0 0 0 2px rgba($dracula-purple, 0.12);
+  }
+
+  // Working state - animated bars walking around all 4 edges using offset-path
+  .is-working & {
+    --border-color: rgba($dracula-comment, 0.25);
+    border: 2px solid var(--border-color) !important;
+    background: rgba($dracula-bg, 0.95) !important;
+    position: relative;
+    overflow: visible;
+
+    // First bar - bottom border, left to right
+    &::before {
+      content: '';
+      position: absolute;
+      width: 60px;
+      height: 1px;
+      bottom: -2px;
+      left: 0;
+      background: linear-gradient(90deg,
+        transparent 0%,
+        $dracula-cyan 30%,
+        $dracula-purple 70%,
+        transparent 100%
+      );
+      border-radius: 1px;
+      animation: slide-bottom 1.5s ease-in-out infinite alternate;
+      box-shadow: 0 0 8px rgba($dracula-cyan, 0.6);
+    }
+
+    // Second bar - bottom border, right to left (opposite direction)
+    &::after {
+      content: '';
+      position: absolute;
+      width: 60px;
+      height: 1px;
+      bottom: -2px;
+      right: 0;
+      background: linear-gradient(90deg,
+        transparent 0%,
+        $dracula-pink 30%,
+        $dracula-purple 70%,
+        transparent 100%
+      );
+      border-radius: 1px;
+      animation: slide-bottom-reverse 1.5s ease-in-out infinite alternate;
+      box-shadow: 0 0 8px rgba($dracula-pink, 0.6);
+    }
+  }
+
+  // Completed state - green tickle effect (must override focus-within)
+  .is-completed & {
+    border: 2px solid rgba($dracula-green, 0.8) !important;
+    background: rgba($dracula-bg, 0.7) !important;
+    animation: completion-tickle 0.2s ease-in-out 3, completion-border-fade 0.8s ease-out forwards;
+    box-shadow: 0 0 8px rgba($dracula-green, 0.4) !important;
+  }
+}
+
+// Bottom border slide - left to right
+@keyframes slide-bottom {
+  0% {
+    left: -35px;
+  }
+  100% {
+    left: calc(100% - 35px);
+  }
+}
+
+// Bottom border slide - right to left
+@keyframes slide-bottom-reverse {
+  0% {
+    right: -35px;
+  }
+  100% {
+    right: calc(100% - 35px);
+  }
+}
+
+@keyframes completion-tickle {
+  0%, 100% {
+    border-color: rgba($dracula-green, 0.4);
+    box-shadow: 0 0 4px rgba($dracula-green, 0.3);
+  }
+  50% {
+    border-color: $dracula-green;
+    box-shadow: 0 0 12px rgba($dracula-green, 0.6);
+  }
+}
+
+@keyframes completion-border-fade {
+  0%, 60% {
+    border-color: $dracula-green;
+    box-shadow: 0 0 8px rgba($dracula-green, 0.5);
+  }
+  100% {
+    border-color: rgba($dracula-comment, 0.25);
+    box-shadow: none;
+  }
+}
+
+@keyframes completion-fade {
+  0%, 60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes completion-fade {
+  0%, 60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
   }
 }
 
@@ -993,51 +1117,58 @@
   }
 }
 
-// Typing indicator
-.typing-indicator {
+// Floating stop button container - positioned at top center
+.guake-stop-bar {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+}
+
+.guake-stop-btn {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
-  padding: 12px 16px;
-  margin: 4px 0;
-}
+  height: 24px;
+  padding: 0 10px;
+  background: $dracula-bg-darker;
+  border: 1px solid rgba($dracula-red, 0.5);
+  border-radius: 4px;
+  color: $dracula-red;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 
-.typing-dot {
-  width: 8px;
-  height: 8px;
-  background: $dracula-purple;
-  border-radius: 50%;
-  animation: typing-bounce 1.4s infinite ease-in-out both;
-
-  &:nth-child(1) {
-    animation-delay: -0.32s;
+  .stop-icon {
+    font-size: 8px;
   }
 
-  &:nth-child(2) {
-    animation-delay: -0.16s;
+  .stop-label {
+    font-size: 11px;
+    font-weight: 600;
+    font-family: $font-mono;
   }
 
-  &:nth-child(3) {
-    animation-delay: 0s;
+  &:hover {
+    background: mix($dracula-bg-darker, $dracula-red, 85%);
+    border-color: rgba($dracula-red, 0.7);
+    transform: scale(1.05);
   }
-}
 
-@keyframes typing-bounce {
-  0%, 80%, 100% {
-    transform: scale(0.6);
-    opacity: 0.4;
-  }
-  40% {
-    transform: scale(1);
-    opacity: 1;
+  &:active {
+    transform: scale(0.95);
+    background: mix($dracula-bg-darker, $dracula-red, 75%);
   }
 }
 
+// Legacy stop button (keep for compatibility)
 .stop-button {
-  margin-left: 12px;
+  margin-left: auto;
   padding: 4px 12px;
-  background: rgba($dracula-red, 0.2);
-  border: 1px solid $dracula-red;
+  background: rgba($dracula-red, 0.15);
+  border: 1px solid rgba($dracula-red, 0.4);
   border-radius: $radius-sm;
   color: $dracula-red;
   font-size: 11px;
@@ -1048,7 +1179,9 @@
 
   &:hover {
     background: $dracula-red;
+    border-color: $dracula-red;
     color: $dracula-bg;
+    box-shadow: 0 0 12px rgba($dracula-red, 0.4);
   }
 }
 

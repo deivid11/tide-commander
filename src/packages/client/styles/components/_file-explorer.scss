@@ -1057,6 +1057,7 @@
   font-size: 11px;
   cursor: default;
   transition: background $transition-fast;
+  position: relative;
 
   &:hover {
     background: rgba($accent-blue, 0.1);
@@ -1064,11 +1065,17 @@
     .file-explorer-folder-remove {
       opacity: 1;
     }
+
+    .file-explorer-folder-tooltip {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+    }
   }
 }
 
 .file-explorer-folder-icon {
-  font-size: 12px;
+  font-size: 10px;
   flex-shrink: 0;
 }
 
@@ -1095,6 +1102,54 @@
   &:hover {
     color: #ff7777;
   }
+}
+
+// Folder tooltip
+.file-explorer-folder-tooltip {
+  position: absolute;
+  top: 100%;
+  left: 8px;
+  margin-top: 4px;
+  background: rgba($dracula-bg, 0.98);
+  border: 1px solid $dracula-cyan;
+  border-radius: $radius-md;
+  padding: 8px 12px;
+  min-width: 200px;
+  max-width: 350px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  z-index: 1100;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  transition: all 0.15s ease-out;
+  pointer-events: none;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    left: 12px;
+    border: 6px solid transparent;
+    border-bottom-color: $dracula-cyan;
+    border-top: none;
+  }
+}
+
+.file-explorer-folder-tooltip-label {
+  font-size: 9px;
+  font-weight: 600;
+  color: $dracula-comment;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.file-explorer-folder-tooltip-path {
+  font-family: $font-mono;
+  font-size: 11px;
+  color: $dracula-cyan;
+  word-break: break-all;
+  line-height: 1.4;
 }
 
 .file-explorer-add-folder-input-wrapper {

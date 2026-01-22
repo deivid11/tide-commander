@@ -8,10 +8,10 @@
   left: 16px;
   width: 36px;
   height: 36px;
-  background: $bg-secondary;
-  border: 1px solid $border-color;
   border-radius: $radius-lg;
-  color: $text-primary;
+  background: linear-gradient(180deg, $dracula-current 0%, $dracula-bg 100%);
+  border: 1px solid $dracula-comment;
+  color: $dracula-orange;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -21,9 +21,9 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 
   &:hover {
-    background: $bg-tertiary;
-    border-color: $accent-blue;
-    color: $accent-blue;
+    border-color: $dracula-orange;
+    color: $dracula-orange;
+    background: linear-gradient(180deg, color.adjust($dracula-current, $lightness: 5%) 0%, $dracula-current 100%);
   }
 }
 

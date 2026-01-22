@@ -26,6 +26,15 @@ import { createSkillActions, type SkillActions } from './skills';
 // Import shortcuts
 import { ShortcutConfig, DEFAULT_SHORTCUTS } from './shortcuts';
 
+// Import mouse controls
+import {
+  MouseControlConfig,
+  MouseControlsState,
+  CameraSensitivityConfig,
+  DEFAULT_MOUSE_CONTROLS,
+  DEFAULT_CAMERA_SENSITIVITY,
+} from './mouseControls';
+
 // Re-export types
 export type {
   StoreState,
@@ -44,6 +53,17 @@ export { DEFAULT_SETTINGS } from './types';
 // Re-export shortcuts
 export type { ShortcutConfig } from './shortcuts';
 export { DEFAULT_SHORTCUTS, matchesShortcut, formatShortcut } from './shortcuts';
+
+// Re-export mouse controls
+export type { MouseControlConfig, MouseControlsState, CameraSensitivityConfig } from './mouseControls';
+export {
+  DEFAULT_MOUSE_CONTROLS,
+  DEFAULT_CAMERA_SENSITIVITY,
+  formatMouseBinding,
+  findConflictingMouseBindings,
+  BUTTON_NAMES,
+  ACTION_NAMES,
+} from './mouseControls';
 
 // Re-export selectors (React hooks)
 export {
@@ -94,6 +114,8 @@ export {
   useReconnectCount,
   useGlobalUsage,
   useRefreshingUsage,
+  useMouseControls,
+  useCameraSensitivity,
 } from './selectors';
 
 // ============================================================================
@@ -146,6 +168,7 @@ class Store
       mobileView: 'terminal',
       settings: this.loadSettings(),
       shortcuts: this.loadShortcuts(),
+      mouseControls: this.loadMouseControls(),
       fileViewerPath: null,
       fileViewerEditData: null,
       explorerFolderPath: null,
@@ -211,6 +234,25 @@ class Store
       return mergedShortcuts;
     }
     return [...DEFAULT_SHORTCUTS];
+  }
+
+  private loadMouseControls(): MouseControlsState {
+    const stored = getStorage<MouseControlsState | null>(STORAGE_KEYS.MOUSE_CONTROLS, null);
+    if (stored) {
+      // Merge with defaults to handle new controls added in updates
+      const mergedBindings = DEFAULT_MOUSE_CONTROLS.map((defaultBinding) => {
+        const saved = stored.bindings?.find((b) => b.id === defaultBinding.id);
+        return saved ? { ...defaultBinding, ...saved } : defaultBinding;
+      });
+      return {
+        bindings: mergedBindings,
+        sensitivity: { ...DEFAULT_CAMERA_SENSITIVITY, ...stored.sensitivity },
+      };
+    }
+    return {
+      bindings: [...DEFAULT_MOUSE_CONTROLS],
+      sensitivity: { ...DEFAULT_CAMERA_SENSITIVITY },
+    };
   }
 
   // ============================================================================
@@ -380,6 +422,53 @@ class Store
 
   private saveShortcuts(): void {
     setStorage(STORAGE_KEYS.SHORTCUTS, this.state.shortcuts);
+  }
+
+  // ============================================================================
+  // Mouse Controls
+  // ============================================================================
+
+  getMouseControls(): MouseControlsState {
+    return this.state.mouseControls;
+  }
+
+  getMouseBinding(id: string): MouseControlConfig | undefined {
+    return this.state.mouseControls.bindings.find((b) => b.id === id);
+  }
+
+  updateMouseBinding(id: string, updates: Partial<MouseControlConfig>): void {
+    const index = this.state.mouseControls.bindings.findIndex((b) => b.id === id);
+    if (index !== -1) {
+      this.state.mouseControls.bindings = [
+        ...this.state.mouseControls.bindings.slice(0, index),
+        { ...this.state.mouseControls.bindings[index], ...updates },
+        ...this.state.mouseControls.bindings.slice(index + 1),
+      ];
+      this.saveMouseControls();
+      this.notify();
+    }
+  }
+
+  updateCameraSensitivity(updates: Partial<CameraSensitivityConfig>): void {
+    this.state.mouseControls.sensitivity = {
+      ...this.state.mouseControls.sensitivity,
+      ...updates,
+    };
+    this.saveMouseControls();
+    this.notify();
+  }
+
+  resetMouseControls(): void {
+    this.state.mouseControls = {
+      bindings: [...DEFAULT_MOUSE_CONTROLS],
+      sensitivity: { ...DEFAULT_CAMERA_SENSITIVITY },
+    };
+    this.saveMouseControls();
+    this.notify();
+  }
+
+  private saveMouseControls(): void {
+    setStorage(STORAGE_KEYS.MOUSE_CONTROLS, this.state.mouseControls);
   }
 
   // ============================================================================

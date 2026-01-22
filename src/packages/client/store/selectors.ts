@@ -28,6 +28,7 @@ import type {
   FileChange,
 } from './types';
 import type { ShortcutConfig } from './shortcuts';
+import type { MouseControlsState, CameraSensitivityConfig } from './mouseControls';
 import { store } from './index';
 import { debugLog } from '../services/agentDebugger';
 
@@ -482,6 +483,20 @@ export function useShortcuts(): ShortcutConfig[] {
     useCallback((state: StoreState) => state.shortcuts, []),
     shallowArrayEqual
   );
+}
+
+/**
+ * Get mouse controls state. Only re-renders when mouse controls change.
+ */
+export function useMouseControls(): MouseControlsState {
+  return useSelector(useCallback((state: StoreState) => state.mouseControls, []));
+}
+
+/**
+ * Get camera sensitivity settings. Only re-renders when sensitivity changes.
+ */
+export function useCameraSensitivity(): CameraSensitivityConfig {
+  return useSelector(useCallback((state: StoreState) => state.mouseControls.sensitivity, []));
 }
 
 /**
