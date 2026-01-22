@@ -1,4 +1,4 @@
-import type { Agent, ServerMessage, ClientMessage, PermissionRequest, DelegationDecision, CustomAgentClass } from '../../shared/types';
+import type { Agent, ServerMessage, ClientMessage, PermissionRequest, DelegationDecision, CustomAgentClass, AgentNotification } from '../../shared/types';
 import { store } from '../store';
 import { perf } from '../utils/profiling';
 import { agentDebugger, debugLog } from '../services/agentDebugger';
@@ -62,6 +62,7 @@ let onDirectoryNotFound: ((path: string) => void) | null = null;
 let onDelegation: ((bossId: string, subordinateId: string) => void) | null = null;
 let onCustomClassesSync: ((classes: Map<string, CustomAgentClass>) => void) | null = null;
 let onReconnect: (() => void) | null = null;
+let onAgentNotification: ((notification: AgentNotification) => void) | null = null;
 
 export function setCallbacks(callbacks: {
   onToast?: typeof onToast;
@@ -76,6 +77,7 @@ export function setCallbacks(callbacks: {
   onDelegation?: typeof onDelegation;
   onCustomClassesSync?: typeof onCustomClassesSync;
   onReconnect?: typeof onReconnect;
+  onAgentNotification?: typeof onAgentNotification;
 }): void {
   if (callbacks.onToast) onToast = callbacks.onToast;
   if (callbacks.onAgentCreated) onAgentCreated = callbacks.onAgentCreated;
@@ -89,6 +91,7 @@ export function setCallbacks(callbacks: {
   if (callbacks.onDelegation) onDelegation = callbacks.onDelegation;
   if (callbacks.onCustomClassesSync) onCustomClassesSync = callbacks.onCustomClassesSync;
   if (callbacks.onReconnect) onReconnect = callbacks.onReconnect;
+  if (callbacks.onAgentNotification) onAgentNotification = callbacks.onAgentNotification;
 }
 
 export function connect(): void {
@@ -665,6 +668,17 @@ function handleServerMessage(message: ServerMessage): void {
       const usage = message.payload as import('../../shared/types').GlobalUsageStats | null;
       console.log(`[WebSocket] Global usage update:`, usage);
       store.setGlobalUsage(usage);
+      break;
+    }
+
+    // ========================================================================
+    // Agent Notification Messages
+    // ========================================================================
+
+    case 'agent_notification': {
+      const notification = message.payload as AgentNotification;
+      console.log(`[WebSocket] Agent notification from ${notification.agentName}: ${notification.title}`);
+      onAgentNotification?.(notification);
       break;
     }
   }

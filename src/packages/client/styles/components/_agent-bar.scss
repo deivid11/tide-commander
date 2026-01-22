@@ -22,6 +22,23 @@
   align-items: center;
 }
 
+// Version indicator - positioned at left edge
+.agent-bar-version {
+  position: absolute;
+  left: 12px;
+  bottom: 8px;
+  font-size: 10px;
+  font-family: $font-mono;
+  color: $text-muted;
+  opacity: 0.4;
+  user-select: none;
+  transition: opacity $transition-fast;
+
+  &:hover {
+    opacity: 0.7;
+  }
+}
+
 // New Agent spawn button
 .agent-bar-spawn-btn {
   display: flex;

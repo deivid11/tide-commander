@@ -1,0 +1,130 @@
+@use '../variables' as *;
+
+#agent-notification-container {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2100; // Above regular toasts
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+  max-width: 420px;
+  width: 90%;
+}
+
+.agent-notification {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  background: linear-gradient(135deg, $bg-tertiary 0%, rgba($bg-secondary, 0.95) 100%);
+  border: 1px solid var(--agent-color, $border-color);
+  border-left: 3px solid var(--agent-color, $accent-cyan);
+  border-radius: $radius-lg;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), 0 0 20px rgba(var(--agent-color-rgb, 74, 224, 255), 0.1);
+  pointer-events: auto;
+  cursor: pointer;
+  animation: agent-notification-in 0.4s ease-out;
+  transition: transform $transition-fast, box-shadow $transition-fast, border-color $transition-fast;
+
+  &:hover {
+    transform: scale(1.02);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.6), 0 0 30px rgba(var(--agent-color-rgb, 74, 224, 255), 0.2);
+    border-color: var(--agent-color, $accent-cyan);
+
+    .agent-notification-hint {
+      opacity: 1;
+    }
+  }
+}
+
+@keyframes agent-notification-in {
+  from {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.agent-notification-avatar {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: $radius-md;
+  border: 1px solid var(--agent-color, $border-color);
+}
+
+.agent-notification-icon {
+  font-size: 22px;
+}
+
+.agent-notification-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.agent-notification-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.agent-notification-name {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--agent-color, $accent-cyan);
+}
+
+.agent-notification-hint {
+  font-size: 10px;
+  color: $text-muted;
+  opacity: 0;
+  transition: opacity $transition-fast;
+}
+
+.agent-notification-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: $text-primary;
+  margin-bottom: 2px;
+}
+
+.agent-notification-message {
+  font-size: 12px;
+  color: $text-secondary;
+  line-height: 1.4;
+  word-break: break-word;
+  // Limit to 3 lines
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.agent-notification-close {
+  background: none;
+  border: none;
+  color: $text-muted;
+  cursor: pointer;
+  padding: 4px;
+  font-size: 18px;
+  line-height: 1;
+  flex-shrink: 0;
+  opacity: 0.6;
+  transition: color $transition-fast, opacity $transition-fast;
+
+  &:hover {
+    color: $text-primary;
+    opacity: 1;
+  }
+}

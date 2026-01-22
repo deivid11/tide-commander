@@ -3,6 +3,7 @@ import { store, useStore, useMobileView, useExplorerFolderPath } from './store';
 import { connect, setCallbacks, getSocket } from './websocket';
 import { SceneManager } from './scene/SceneManager';
 import { ToastProvider, useToast } from './components/Toast';
+import { AgentNotificationProvider, useAgentNotification } from './components/AgentNotificationToast';
 import { UnitPanel } from './components/UnitPanel';
 import { ToolHistory } from './components/ToolHistory';
 import { SpawnModal } from './components/SpawnModal';
@@ -19,7 +20,6 @@ import { ControlsModal } from './components/ControlsModal';
 import { BuildingConfigModal } from './components/BuildingConfigModal';
 import { SkillsPanel } from './components/SkillsPanel';
 import { DrawingModeIndicator } from './components/DrawingModeIndicator';
-import { VersionDisplay } from './components/VersionDisplay';
 import { matchesShortcut } from './store/shortcuts';
 import { FPSMeter } from './components/FPSMeter';
 import { profileRender } from './utils/profiling';
@@ -109,6 +109,7 @@ function AppContent() {
   const [sidebarOpen, setSidebarOpen] = useState(false); // Mobile sidebar state
   const mobileView = useMobileView(); // Mobile view toggle - from store
   const { showToast } = useToast();
+  const { showAgentNotification } = useAgentNotification();
 
   // Trigger resize when switching to 3D view on mobile (canvas needs to recalculate size)
   useEffect(() => {
@@ -237,6 +238,9 @@ function AppContent() {
         // Components watching reconnectCount will refresh their data
         store.triggerReconnect();
       },
+      onAgentNotification: (notification) => {
+        showAgentNotification(notification);
+      },
     });
 
     // Always call connect() - it has internal guards against duplicate connections
@@ -254,7 +258,7 @@ function AppContent() {
         wsConnected = false;
       }
     };
-  }, [showToast]);
+  }, [showToast, showAgentNotification]);
 
   // Subscribe to selection changes to update scene visuals
   useEffect(() => {
@@ -710,7 +714,6 @@ function AppContent() {
     <div className={`app ${state.terminalOpen ? 'terminal-open' : ''} ${isDrawingMode ? 'drawing-mode' : ''} mobile-view-${mobileView}`}>
       {/* FPS Meter */}
       <FPSMeter visible={state.settings.showFPS} position="top-left" />
-      <VersionDisplay />
 
       <main className="main-content">
         <div className="battlefield-container">
@@ -991,7 +994,9 @@ function AppContent() {
 export function App() {
   return (
     <ToastProvider>
-      <AppContent />
+      <AgentNotificationProvider>
+        <AppContent />
+      </AgentNotificationProvider>
     </ToastProvider>
   );
 }

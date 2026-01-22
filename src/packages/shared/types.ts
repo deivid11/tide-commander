@@ -943,6 +943,37 @@ export interface PermissionResponseMessage extends WSMessage {
 }
 
 // ============================================================================
+// Agent Notification Types
+// ============================================================================
+
+// Agent notification - sent by agents to notify users
+export interface AgentNotification {
+  id: string;
+  agentId: string;
+  agentName: string;
+  agentClass: AgentClass;
+  title: string;
+  message: string;
+  timestamp: number;
+}
+
+// Agent notification message (Server -> Client)
+export interface AgentNotificationMessage extends WSMessage {
+  type: 'agent_notification';
+  payload: AgentNotification;
+}
+
+// Send notification request (Client -> Server, from agent via skill)
+export interface SendNotificationMessage extends WSMessage {
+  type: 'send_notification';
+  payload: {
+    agentId: string;
+    title: string;
+    message: string;
+  };
+}
+
+// ============================================================================
 // Boss Agent WebSocket Messages
 // ============================================================================
 
@@ -1283,7 +1314,8 @@ export type ServerMessage =
   | WorkPlansUpdateMessage
   | AnalysisRequestCreatedMessage
   | AnalysisRequestCompletedMessage
-  | GlobalUsageMessage;
+  | GlobalUsageMessage
+  | AgentNotificationMessage;
 
 export type ClientMessage =
   | SpawnAgentMessage
@@ -1327,4 +1359,5 @@ export type ClientMessage =
   | PauseWorkPlanMessage
   | CancelWorkPlanMessage
   | RequestWorkPlansMessage
-  | RequestGlobalUsageMessage;
+  | RequestGlobalUsageMessage
+  | SendNotificationMessage;

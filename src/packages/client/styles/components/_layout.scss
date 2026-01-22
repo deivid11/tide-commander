@@ -39,22 +39,3 @@
 .sidebar-section {
   border-bottom: 1px solid $border-color;
 }
-
-// Version display - bottom left corner
-.version-display {
-  position: fixed;
-  bottom: 8px;
-  left: 10px;
-  font-size: 10px;
-  font-family: $font-mono;
-  color: $text-muted;
-  opacity: 0.5;
-  z-index: 50;
-  pointer-events: none;
-  user-select: none;
-  transition: opacity $transition-fast;
-
-  &:hover {
-    opacity: 0.8;
-  }
-}

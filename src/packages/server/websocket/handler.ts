@@ -10,6 +10,7 @@ import { agentService, claudeService, supervisorService, permissionService, boss
 import { loadAreas, saveAreas, loadBuildings, saveBuildings } from '../data/index.js';
 import { parseContextOutput } from '../claude/backend.js';
 import { logger, createLogger, formatToolActivity } from '../utils/index.js';
+import { setNotificationBroadcast } from '../routes/index.js';
 import type { HandlerContext } from './handlers/types.js';
 import {
   handleSpawnAgent,
@@ -382,6 +383,35 @@ function handleClientMessage(ws: WebSocket, message: ClientMessage): void {
     case 'delete_custom_agent_class':
       handleDeleteCustomAgentClass(ctx, message.payload);
       break;
+
+    // ========================================================================
+    // Notification Messages
+    // ========================================================================
+
+    case 'send_notification':
+      {
+        const { agentId, title, message: notifMessage } = message.payload;
+        const agent = agentService.getAgent(agentId);
+        if (agent) {
+          const notification = {
+            id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+            agentId,
+            agentName: agent.name,
+            agentClass: agent.class,
+            title,
+            message: notifMessage,
+            timestamp: Date.now(),
+          };
+          log.log(`[Notification] Agent ${agent.name} sent notification: "${title}"`);
+          broadcast({
+            type: 'agent_notification',
+            payload: notification,
+          });
+        } else {
+          log.error(`[Notification] Agent not found: ${agentId}`);
+        }
+      }
+      break;
   }
 }
 
@@ -687,6 +717,9 @@ export function init(server: HttpServer): WebSocketServer {
 
   // Set up service event listeners
   setupServiceListeners();
+
+  // Wire up broadcast function for HTTP notification endpoint
+  setNotificationBroadcast(broadcast);
 
   log.log(' Handler initialized');
   return wss;

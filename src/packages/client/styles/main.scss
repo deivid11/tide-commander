@@ -30,6 +30,7 @@
 @use 'components/building-config';
 @use 'components/boss';
 @use 'components/skills-panel';
+@use 'components/agent-notification';
 
 // Responsive styles (must be last to override component styles)
 @use 'responsive';

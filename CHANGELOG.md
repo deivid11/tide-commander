@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.1] - 2026-01-22
+
+### Added
+- **Agent Notification System** - Agents can now send toast notifications to users
+  - New `AgentNotificationToast` component with styled popups
+  - REST API endpoint `/api/notify` for agents to send notifications via HTTP
+  - WebSocket support for real-time notification delivery
+  - Click notification to focus the sending agent
+  - Auto-dismiss after 8 seconds with manual close option
+- New `send-notification.md` skill for agents to send notifications
+
+### Changed
+- Moved version display from fixed position to agent bar (cleaner UI)
+- Added `AgentNotification` types to shared types
+- Enhanced WebSocket handler with notification broadcast support
+
 ## [0.7.0] - 2026-01-22
 
 ### Added

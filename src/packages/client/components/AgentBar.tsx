@@ -129,8 +129,16 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
   // Calculate global index for hotkeys
   let globalIndex = 0;
 
+  // Get app version
+  const version = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0';
+
   return (
     <div className="agent-bar">
+      {/* Version indicator */}
+      <div className="agent-bar-version" title={`Tide Commander v${version}`}>
+        v{version}
+      </div>
+
       <div className="agent-bar-list">
         {/* New Agent button */}
         <button
