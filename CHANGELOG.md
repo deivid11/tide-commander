@@ -11,6 +11,11 @@ All notable changes to this project will be documented in this file.
 - Enhanced skills section with compact chip display
 - Migrated inline styles to SCSS classes for better maintainability
 
+### Fixed
+- TypeScript errors in AgentDebugPanel and backend
+- Fixed parseEvent return type to match interface
+- Added type assertion for log.data in debug panel
+
 ## [0.6.0] - 2026-01-21
 
 ### Changed
