@@ -544,33 +544,10 @@ export async function autoResumeWorkingAgents(): Promise<void> {
         continue;
       }
 
-      // Build customAgentConfig for the agent's class (same logic as command-handler)
-      // This ensures the agent gets its class instructions on auto-resume
-      let customAgentConfig: CustomAgentConfig | undefined;
-      if (agent.class && agent.class !== 'boss') {
-        const classInstructions = customClassService.getClassInstructions(agent.class);
-        const skillsContent = skillService.buildSkillPromptContent(agentInfo.id, agent.class);
-
-        let combinedPrompt = '';
-        if (classInstructions) {
-          combinedPrompt += classInstructions;
-        }
-        if (skillsContent) {
-          if (combinedPrompt) combinedPrompt += '\n\n';
-          combinedPrompt += skillsContent;
-        }
-
-        if (combinedPrompt) {
-          const customClass = customClassService.getCustomClass(agent.class);
-          customAgentConfig = {
-            name: customClass?.id || agent.class,
-            definition: {
-              description: customClass?.description || `Agent class: ${agent.class}`,
-              prompt: combinedPrompt,
-            },
-          };
-        }
-      }
+      // Build customAgentConfig using the same function as command-handler
+      // This ensures agent ID is properly injected into the prompt
+      const { buildCustomAgentConfig } = await import('../websocket/handlers/command-handler.js');
+      const customAgentConfig = buildCustomAgentConfig(agentInfo.id, agent.class);
 
       // Send a continuation message to Claude
       const resumeMessage = `[System: The commander server was restarted while you were working. Please continue with your previous task. Your last assigned task was: "${agentInfo.lastTask}"]`;
