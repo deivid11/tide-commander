@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.1] - 2026-01-21
+
+### Changed
+- Refactored agent edit modal with improved styling and layout
+- Converted class selection to compact chip buttons
+- Improved form field organization with responsive rows
+- Enhanced skills section with compact chip display
+- Migrated inline styles to SCSS classes for better maintainability
+
 ## [0.6.0] - 2026-01-21
 
 ### Changed
