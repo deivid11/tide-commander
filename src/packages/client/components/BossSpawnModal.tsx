@@ -103,7 +103,6 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
     }
 
     setStorageString(STORAGE_KEYS.LAST_CWD, cwd);
-    setIsSpawning(true);
     onSpawnStart();
 
     store.spawnBossAgent(
@@ -116,6 +115,12 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
       permissionMode,
       selectedModel
     );
+
+    // Close modal immediately after initiating spawn
+    setName('');
+    setSelectedSubordinates(new Set());
+    onSpawnEnd();
+    onClose();
   };
 
   const handleSuccess = () => {
@@ -180,119 +185,139 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
           Deploy Boss Agent
         </div>
 
-        <div className="modal-body boss-spawn-modal-body">
-          {/* Model Preview */}
-          <div className="spawn-preview-section">
-            <ModelPreview agentClass={previewAgentClass} modelFile={previewModelFile} width={180} height={220} />
-            <div className="spawn-preview-name">
-              {selectedCustomClass
-                ? `${selectedCustomClass.icon} ${selectedCustomClass.name}`
-                : selectedClass === 'boss'
-                  ? `${bossConfig.icon} Boss`
-                  : CHARACTER_MODELS.find((c) => c.id === selectedClass)?.name || selectedClass}
+        <div className="modal-body spawn-modal-body">
+          {/* Top: Preview + Class Selection */}
+          <div className="spawn-top-section">
+            <div className="spawn-preview-compact">
+              <ModelPreview agentClass={previewAgentClass} modelFile={previewModelFile} width={100} height={120} />
             </div>
-          </div>
-
-          {/* Form */}
-          <div className="boss-form-section">
-            <div className="form-group">
-              <label className="form-label">Boss Name</label>
-              <input
-                ref={nameInputRef}
-                type="text"
-                className="form-input"
-                placeholder="Enter boss name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Working Directory</label>
-              <input
-                type="text"
-                className={`form-input ${hasError ? 'error' : ''}`}
-                placeholder="/path/to/project"
-                value={cwd}
-                onChange={(e) => {
-                  setCwd(e.target.value);
-                  setHasError(false);
-                }}
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Boss Class</label>
-              <div className="class-selector compact">
-                {/* Custom classes first */}
-                {customClasses.length > 0 && (
-                  <>
-                    {customClasses.map((customClass) => (
-                      <div
-                        key={customClass.id}
-                        className={`class-option ${selectedClass === customClass.id ? 'selected' : ''}`}
-                        onClick={() => setSelectedClass(customClass.id)}
-                      >
-                        <div
-                          className="class-icon"
-                          style={{ background: `${customClass.color}20` }}
-                        >
-                          {customClass.icon}
-                        </div>
-                        <div className="class-name">{customClass.name}</div>
-                      </div>
-                    ))}
-                    <div className="class-selector-divider">
-                      <span>Built-in</span>
-                    </div>
-                  </>
-                )}
-                {/* Boss class option */}
-                <div
-                  className={`class-option ${selectedClass === 'boss' ? 'selected' : ''}`}
-                  onClick={() => setSelectedClass('boss')}
-                >
-                  <div
-                    className="class-icon"
-                    style={{ background: `${bossConfig.color}20` }}
+            <div className="spawn-class-section">
+              <div className="spawn-class-label">Boss Class</div>
+              <div className="class-selector-inline">
+                {customClasses.map((customClass) => (
+                  <button
+                    key={customClass.id}
+                    className={`class-chip ${selectedClass === customClass.id ? 'selected' : ''}`}
+                    onClick={() => setSelectedClass(customClass.id)}
+                    title={customClass.description}
                   >
-                    {bossConfig.icon}
-                  </div>
-                  <div className="class-name">Boss</div>
-                </div>
-                {/* Built-in classes */}
+                    <span className="class-chip-icon">{customClass.icon}</span>
+                    <span className="class-chip-name">{customClass.name}</span>
+                  </button>
+                ))}
+                <button
+                  className={`class-chip ${selectedClass === 'boss' ? 'selected' : ''}`}
+                  onClick={() => setSelectedClass('boss')}
+                  title={bossConfig.description}
+                >
+                  <span className="class-chip-icon">{bossConfig.icon}</span>
+                  <span className="class-chip-name">Boss</span>
+                </button>
                 {CHARACTER_MODELS.map((char) => {
                   const config = AGENT_CLASS_CONFIG[char.id];
                   if (!config) return null;
                   return (
-                    <div
+                    <button
                       key={char.id}
-                      className={`class-option ${selectedClass === char.id ? 'selected' : ''}`}
+                      className={`class-chip ${selectedClass === char.id ? 'selected' : ''}`}
                       onClick={() => setSelectedClass(char.id)}
+                      title={config.description}
                     >
-                      <div
-                        className="class-icon"
-                        style={{ background: `${intToHex(config.color)}20` }}
-                      >
-                        {config.icon}
-                      </div>
-                      <div className="class-name">{char.name}</div>
-                    </div>
+                      <span className="class-chip-icon">{config.icon}</span>
+                      <span className="class-chip-name">{char.name}</span>
+                    </button>
                   );
                 })}
               </div>
             </div>
+          </div>
 
-            <div className="form-group">
-              <label className="form-label">
-                Initial Subordinates
-                <span className="form-label-hint">(optional, can add later)</span>
+          {/* Form Fields */}
+          <div className="spawn-form-section">
+            {/* Row 1: Name + CWD */}
+            <div className="spawn-form-row">
+              <div className="spawn-field">
+                <label className="spawn-label">Name</label>
+                <input
+                  ref={nameInputRef}
+                  type="text"
+                  className="spawn-input"
+                  placeholder="Boss name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </div>
+              <div className="spawn-field spawn-field-wide">
+                <label className="spawn-label">Working Directory</label>
+                <input
+                  type="text"
+                  className={`spawn-input ${hasError ? 'error' : ''}`}
+                  placeholder="/path/to/project"
+                  value={cwd}
+                  onChange={(e) => {
+                    setCwd(e.target.value);
+                    setHasError(false);
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Row 2: Model + Permission */}
+            <div className="spawn-form-row">
+              <div className="spawn-field">
+                <label className="spawn-label">Model</label>
+                <div className="spawn-select-row">
+                  {(Object.keys(CLAUDE_MODELS) as ClaudeModel[]).map((model) => (
+                    <button
+                      key={model}
+                      className={`spawn-select-btn ${selectedModel === model ? 'selected' : ''}`}
+                      onClick={() => setSelectedModel(model)}
+                      title={CLAUDE_MODELS[model].description}
+                    >
+                      <span>{CLAUDE_MODELS[model].icon}</span>
+                      <span>{CLAUDE_MODELS[model].label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="spawn-field">
+                <label className="spawn-label">Permissions</label>
+                <div className="spawn-select-row">
+                  {(Object.keys(PERMISSION_MODES) as PermissionMode[]).map((mode) => (
+                    <button
+                      key={mode}
+                      className={`spawn-select-btn ${permissionMode === mode ? 'selected' : ''}`}
+                      onClick={() => setPermissionMode(mode)}
+                      title={PERMISSION_MODES[mode].description}
+                    >
+                      <span>{mode === 'bypass' ? '⚡' : '🔐'}</span>
+                      <span>{PERMISSION_MODES[mode].label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Row 3: Chrome toggle */}
+            <div className="spawn-form-row spawn-options-row">
+              <label className="spawn-checkbox">
+                <input
+                  type="checkbox"
+                  checked={useChrome}
+                  onChange={(e) => setUseChrome(e.target.checked)}
+                />
+                <span>🌐 Chrome Browser</span>
               </label>
-              <div className="subordinates-selector">
+            </div>
+
+            {/* Subordinates section */}
+            <div className="spawn-subordinates-section">
+              <label className="spawn-label">
+                Initial Subordinates <span className="spawn-label-hint">(optional)</span>
+              </label>
+              <div className="subordinates-selector-compact">
                 {availableSubordinates.length === 0 ? (
-                  <div className="subordinates-empty">
-                    No available agents to assign. Deploy regular agents first.
-                  </div>
+                  <div className="subordinates-empty">No available agents</div>
                 ) : (
                   availableSubordinates.map((agent) => {
                     const isSelected = selectedSubordinates.has(agent.id);
@@ -300,95 +325,26 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                     const customConfig = customClasses.find(c => c.id === agent.class);
                     const classConfig = builtInConfig || customConfig || { icon: '🤖', color: '#888888' };
                     return (
-                      <div
+                      <button
                         key={agent.id}
-                        className={`subordinate-item ${isSelected ? 'selected' : ''}`}
+                        className={`subordinate-chip ${isSelected ? 'selected' : ''}`}
                         onClick={() => toggleSubordinate(agent.id)}
                       >
-                        <div className="subordinate-checkbox">
-                          {isSelected ? '✓' : ''}
-                        </div>
-                        <div
-                          className="subordinate-icon"
-                          style={{ color: classConfig.color }}
-                        >
+                        {isSelected && <span className="subordinate-check">✓</span>}
+                        <span className="subordinate-chip-icon" style={{ color: classConfig.color }}>
                           {classConfig.icon}
-                        </div>
-                        <div className="subordinate-info">
-                          <div className="subordinate-name">{agent.name}</div>
-                          <div className="subordinate-class">{agent.class}</div>
-                        </div>
-                        <div className={`subordinate-status status-${agent.status}`}>
-                          {agent.status}
-                        </div>
-                      </div>
+                        </span>
+                        <span className="subordinate-chip-name">{agent.name}</span>
+                      </button>
                     );
                   })
                 )}
               </div>
               {selectedSubordinates.size > 0 && (
                 <div className="subordinates-count">
-                  {selectedSubordinates.size} agent{selectedSubordinates.size !== 1 ? 's' : ''} selected
+                  {selectedSubordinates.size} selected
                 </div>
               )}
-            </div>
-
-            <div className="form-group">
-              <label className="toggle-switch">
-                <input
-                  type="checkbox"
-                  className="toggle-input"
-                  checked={useChrome}
-                  onChange={(e) => setUseChrome(e.target.checked)}
-                />
-                <div className="toggle-track">
-                  <div className="toggle-thumb" />
-                </div>
-                <span className="toggle-label">
-                  <span className="toggle-icon">🌐</span>
-                  Use Chrome browser
-                </span>
-              </label>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Claude Model</label>
-              <div className="model-selector">
-                {(Object.keys(CLAUDE_MODELS) as ClaudeModel[]).map((model) => (
-                  <div
-                    key={model}
-                    className={`model-option ${selectedModel === model ? 'selected' : ''}`}
-                    onClick={() => setSelectedModel(model)}
-                  >
-                    <div className="model-icon">{CLAUDE_MODELS[model].icon}</div>
-                    <div className="model-info">
-                      <div className="model-label">{CLAUDE_MODELS[model].label}</div>
-                      <div className="model-desc">{CLAUDE_MODELS[model].description}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Permission Mode</label>
-              <div className="permission-mode-selector">
-                {(Object.keys(PERMISSION_MODES) as PermissionMode[]).map((mode) => (
-                  <div
-                    key={mode}
-                    className={`permission-mode-option ${permissionMode === mode ? 'selected' : ''}`}
-                    onClick={() => setPermissionMode(mode)}
-                  >
-                    <div className="permission-mode-icon">
-                      {mode === 'bypass' ? '⚡' : '🔐'}
-                    </div>
-                    <div className="permission-mode-info">
-                      <div className="permission-mode-label">{PERMISSION_MODES[mode].label}</div>
-                      <div className="permission-mode-desc">{PERMISSION_MODES[mode].description}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
             </div>
           </div>
         </div>

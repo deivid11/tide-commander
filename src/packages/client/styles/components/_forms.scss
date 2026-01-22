@@ -116,12 +116,21 @@
 .toggle-switch {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   cursor: pointer;
   user-select: none;
+  padding: 10px 14px;
+  background: $bg-tertiary;
+  border: 1px solid $border-color;
+  border-radius: $radius-md;
+  transition: all $transition-fast;
 
-  &:hover .toggle-track {
+  &:hover {
     border-color: $text-secondary;
+
+    .toggle-track {
+      border-color: $text-secondary;
+    }
   }
 }
 
@@ -129,7 +138,7 @@
   position: relative;
   width: 44px;
   height: 24px;
-  background: $bg-tertiary;
+  background: rgba($bg-primary, 0.5);
   border: 2px solid $border-color;
   border-radius: 12px;
   transition: all $transition-fast;
@@ -164,12 +173,12 @@
 
 .toggle-label {
   font-size: 13px;
-  color: $text-secondary;
+  color: $text-primary;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 
   .toggle-icon {
-    font-size: 16px;
+    font-size: 18px;
   }
 }

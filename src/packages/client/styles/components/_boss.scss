@@ -1,59 +1,87 @@
 // Boss Agent Styles
+@use '../variables' as *;
 
 // ============================================================================
-// Boss Spawn Modal
+// Boss Spawn Modal - Compact Design
 // ============================================================================
 
 .boss-spawn-modal {
-  max-width: 480px;
-  max-height: 90vh;
+  width: 560px;
+  max-width: 95vw;
+  max-height: 85vh;
   display: flex;
   flex-direction: column;
+  padding: 0;
 
   .modal-header {
     display: flex;
     align-items: center;
     gap: 8px;
+    padding: 14px 20px;
+    margin-bottom: 0;
+    border-bottom: 1px solid $border-color;
+    font-size: 16px;
 
     .boss-header-icon {
-      font-size: 24px;
+      font-size: 20px;
     }
+  }
+
+  .modal-footer {
+    padding: 12px 20px;
+    border-top: 1px solid $border-color;
+    justify-content: flex-end;
   }
 }
 
-.boss-spawn-modal-body {
+// Subordinates section for boss modal
+.spawn-subordinates-section {
+  padding-top: 14px;
+  border-top: 1px solid rgba($border-color, 0.5);
+}
+
+.subordinates-selector-compact {
   display: flex;
-  flex-direction: column;
-  gap: 16px;
-  flex: 1;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 120px;
   overflow-y: auto;
-  min-height: 0;
 }
 
-.boss-preview-section {
-  display: flex;
-  flex-direction: column;
+.subordinate-chip {
+  display: inline-flex;
   align-items: center;
-  padding: 16px;
-  background: var(--bg-secondary);
-  border-radius: 8px;
+  gap: 5px;
+  padding: 6px 10px;
+  background: $bg-secondary;
+  border: 1px solid $border-color;
+  border-radius: 100px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all $transition-fast;
+  color: $text-secondary;
+
+  &:hover {
+    border-color: $text-secondary;
+  }
+
+  &.selected {
+    border-color: #ffd700;
+    background: rgba(#ffd700, 0.15);
+    color: #ffd700;
+  }
 }
 
-.boss-preview-icon {
-  font-size: 64px;
-  margin-bottom: 8px;
+.subordinate-check {
+  font-size: 11px;
 }
 
-.boss-preview-desc {
-  font-size: 12px;
-  color: var(--text-secondary);
-  text-align: center;
+.subordinate-chip-icon {
+  font-size: 13px;
 }
 
-.boss-form-section {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+.subordinate-chip-name {
+  font-weight: 500;
 }
 
 // ============================================================================
@@ -70,10 +98,10 @@
 }
 
 .subordinates-empty {
-  padding: 16px;
+  padding: 12px;
   text-align: center;
-  color: var(--text-secondary);
-  font-size: 12px;
+  color: $text-muted;
+  font-size: 11px;
 }
 
 .subordinate-item {
@@ -171,10 +199,9 @@
 }
 
 .subordinates-count {
-  padding: 8px 12px;
-  font-size: 12px;
-  color: var(--text-secondary);
-  border-top: 1px solid var(--border-color);
+  margin-top: 6px;
+  font-size: 10px;
+  color: $text-muted;
 }
 
 // ============================================================================

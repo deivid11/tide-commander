@@ -42,41 +42,267 @@
   gap: 12px;
 }
 
-// Spawn modal specific
+// Spawn modal specific - compact design
 .spawn-modal {
-  width: 580px;
+  width: 560px;
   max-width: 95vw;
-  max-height: 90vh;
+  max-height: 85vh;
   display: flex;
   flex-direction: column;
+  padding: 0;
+
+  .modal-header {
+    padding: 14px 20px;
+    margin-bottom: 0;
+    border-bottom: 1px solid $border-color;
+    font-size: 16px;
+  }
+
+  .modal-footer {
+    padding: 12px 20px;
+    border-top: 1px solid $border-color;
+    justify-content: flex-end;
+  }
 }
 
 .spawn-modal-body {
   display: flex;
-  gap: 20px;
+  flex-direction: column;
+  gap: 16px;
   flex: 1;
   overflow-y: auto;
   min-height: 0;
+  padding: 20px;
 }
 
-.spawn-preview-section {
+// Top section: Preview + Class chips
+.spawn-top-section {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
+  gap: 16px;
+  align-items: flex-start;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba($border-color, 0.5);
+}
+
+.spawn-preview-compact {
   flex-shrink: 0;
+
+  .model-preview {
+    border-radius: $radius-md;
+  }
 }
 
-.spawn-preview-name {
-  font-size: 16px;
-  font-weight: 600;
-  color: $text-primary;
-  text-transform: capitalize;
-}
-
-.spawn-form-section {
+.spawn-class-section {
   flex: 1;
   min-width: 0;
+}
+
+.spawn-class-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: $text-muted;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.class-selector-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.class-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  background: $bg-tertiary;
+  border: 1px solid $border-color;
+  border-radius: 100px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all $transition-fast;
+  color: $text-primary;
+
+  &:hover {
+    border-color: $text-secondary;
+    background: rgba($bg-tertiary, 0.8);
+  }
+
+  &.selected {
+    border-color: $accent-blue;
+    background: rgba($accent-blue, 0.15);
+  }
+}
+
+.class-chip-icon {
+  font-size: 14px;
+}
+
+.class-chip-name {
+  font-weight: 500;
+}
+
+// Form section
+.spawn-form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.spawn-form-row {
+  display: flex;
+  gap: 12px;
+}
+
+.spawn-field {
+  flex: 1;
+  min-width: 0;
+
+  &.spawn-field-wide {
+    flex: 2;
+  }
+}
+
+.spawn-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: $text-secondary;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-bottom: 6px;
+}
+
+.spawn-label-hint {
+  font-weight: 400;
+  text-transform: none;
+  color: $text-muted;
+}
+
+.spawn-input {
+  width: 100%;
+  padding: 10px 12px;
+  background: $bg-tertiary;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  color: $text-primary;
+  font-size: 13px;
+  outline: none;
+
+  &:focus {
+    border-color: $accent-blue;
+  }
+
+  &.error {
+    border-color: $accent-red;
+  }
+}
+
+// Compact select buttons
+.spawn-select-row {
+  display: flex;
+  gap: 6px;
+}
+
+.spawn-select-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 12px;
+  background: $bg-tertiary;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all $transition-fast;
+  color: $text-primary;
+  flex: 1;
+  justify-content: center;
+
+  &:hover {
+    border-color: $text-secondary;
+    background: rgba($bg-tertiary, 0.8);
+  }
+
+  &.selected {
+    border-color: $dracula-cyan;
+    background: rgba($dracula-cyan, 0.15);
+  }
+}
+
+// Options row (chrome + skills)
+.spawn-options-row {
+  align-items: center;
+  flex-wrap: wrap;
+  padding-top: 14px;
+  border-top: 1px solid rgba($border-color, 0.5);
+}
+
+.spawn-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: $bg-tertiary;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  font-size: 12px;
+  cursor: pointer;
+  color: $text-primary;
+
+  input {
+    width: 15px;
+    height: 15px;
+    cursor: pointer;
+  }
+}
+
+// Skills section
+.spawn-skills-section {
+  padding-top: 14px;
+  border-top: 1px solid rgba($border-color, 0.5);
+}
+
+.spawn-skills-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.spawn-skill-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: $bg-secondary;
+  border: 1px solid $border-color;
+  border-radius: 100px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all $transition-fast;
+  color: $text-secondary;
+
+  &:hover {
+    border-color: $text-secondary;
+  }
+
+  &.selected {
+    border-color: $dracula-green;
+    background: rgba($dracula-green, 0.15);
+    color: $dracula-green;
+  }
+}
+
+.spawn-skill-check {
+  font-size: 11px;
+}
+
+// Sessions section
+.spawn-sessions-section {
+  border-top: 1px solid rgba($border-color, 0.5);
+  padding-top: 14px;
 }
 
 .model-preview {
@@ -88,26 +314,29 @@
 .class-selector {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  max-height: 180px;
+  gap: 10px;
+  max-height: 200px;
   overflow-y: auto;
-  padding: 4px;
+  padding: 8px;
+  background: rgba($bg-tertiary, 0.3);
+  border: 1px solid $border-color;
+  border-radius: $radius-md;
 
   &.compact {
-    gap: 6px;
+    gap: 8px;
 
     .class-option {
-      padding: 8px 4px;
+      padding: 10px 6px;
     }
 
     .class-icon {
-      width: 28px;
-      height: 28px;
-      font-size: 16px;
+      width: 32px;
+      height: 32px;
+      font-size: 18px;
     }
 
     .class-name {
-      font-size: 10px;
+      font-size: 11px;
     }
   }
 }
@@ -215,9 +444,11 @@
 // Sessions list
 .form-label-hint {
   font-weight: 400;
-  font-size: 11px;
+  font-size: 10px;
   color: $text-muted;
-  margin-left: 6px;
+  margin-left: 8px;
+  text-transform: none;
+  letter-spacing: normal;
 }
 
 .session-search-input {
@@ -230,24 +461,24 @@
 }
 
 .sessions-list {
-  max-height: 240px;
+  max-height: 140px;
   overflow-y: auto;
   border: 1px solid $border-color;
-  border-radius: $radius-md;
+  border-radius: $radius-sm;
   background: $bg-tertiary;
 }
 
 .sessions-loading,
 .sessions-empty {
-  padding: 20px;
+  padding: 12px;
   text-align: center;
   color: $text-muted;
-  font-size: 12px;
+  font-size: 11px;
   font-family: $font-mono;
 }
 
 .session-item {
-  padding: 12px 14px;
+  padding: 8px 10px;
   border-bottom: 1px solid $border-color;
   cursor: pointer;
   transition: all $transition-fast;
@@ -262,8 +493,8 @@
 
   &.selected {
     background: rgba($dracula-green, 0.15);
-    border-left: 3px solid $dracula-green;
-    padding-left: 11px;
+    border-left: 2px solid $dracula-green;
+    padding-left: 8px;
   }
 }
 
@@ -271,12 +502,12 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
+  gap: 6px;
+  margin-bottom: 2px;
 }
 
 .session-item-path {
-  font-size: 12px;
+  font-size: 11px;
   font-family: $font-mono;
   color: $dracula-cyan;
   white-space: nowrap;
@@ -288,7 +519,7 @@
 }
 
 .session-item-age {
-  font-size: 10px;
+  font-size: 9px;
   color: $text-muted;
   flex-shrink: 0;
 }
@@ -304,14 +535,13 @@
 }
 
 .session-item-preview {
-  font-size: 12px;
-  color: $text-primary;
-  line-height: 1.4;
+  font-size: 10px;
+  color: $text-secondary;
+  line-height: 1.3;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  margin-bottom: 6px;
 }
 
 .session-item-meta {
@@ -323,14 +553,14 @@
 .model-selector {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .model-option {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 10px 12px;
+  gap: 12px;
+  padding: 12px 14px;
   background: $bg-tertiary;
   border: 2px solid $border-color;
   border-radius: $radius-md;
@@ -339,6 +569,7 @@
 
   &:hover {
     border-color: $text-secondary;
+    background: rgba($bg-tertiary, 0.8);
   }
 
   &.selected {
@@ -348,10 +579,11 @@
 }
 
 .model-icon {
-  font-size: 20px;
+  font-size: 22px;
   flex-shrink: 0;
-  width: 28px;
+  width: 32px;
   text-align: center;
+  line-height: 1;
 }
 
 .model-info {
@@ -363,27 +595,27 @@
   font-size: 13px;
   font-weight: 600;
   color: $text-primary;
-  margin-bottom: 2px;
+  margin-bottom: 4px;
 }
 
 .model-desc {
   font-size: 11px;
   color: $text-secondary;
-  line-height: 1.4;
+  line-height: 1.5;
 }
 
 // Permission mode selector
 .permission-mode-selector {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .permission-mode-option {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 10px 12px;
+  gap: 12px;
+  padding: 12px 14px;
   background: $bg-tertiary;
   border: 2px solid $border-color;
   border-radius: $radius-md;
@@ -392,6 +624,7 @@
 
   &:hover {
     border-color: $text-secondary;
+    background: rgba($bg-tertiary, 0.8);
   }
 
   &.selected {
@@ -401,10 +634,11 @@
 }
 
 .permission-mode-icon {
-  font-size: 20px;
+  font-size: 22px;
   flex-shrink: 0;
-  width: 28px;
+  width: 32px;
   text-align: center;
+  line-height: 1;
 }
 
 .permission-mode-info {
@@ -416,23 +650,23 @@
   font-size: 13px;
   font-weight: 600;
   color: $text-primary;
-  margin-bottom: 2px;
+  margin-bottom: 4px;
 }
 
 .permission-mode-desc {
   font-size: 11px;
   color: $text-secondary;
-  line-height: 1.4;
+  line-height: 1.5;
 }
 
 // Skills selector for spawn modal
 .skills-selector {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  max-height: 120px;
+  gap: 8px;
+  max-height: 140px;
   overflow-y: auto;
-  padding: 8px;
+  padding: 12px;
   background: $bg-tertiary;
   border: 1px solid $border-color;
   border-radius: $radius-md;
@@ -441,17 +675,18 @@
 .skill-option {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
+  gap: 6px;
+  padding: 6px 12px;
   background: $bg-secondary;
   border: 1px solid $border-color;
   border-radius: 100px;
-  font-size: 11px;
+  font-size: 12px;
   cursor: pointer;
   transition: all $transition-fast;
 
   &:hover {
     border-color: $text-secondary;
+    background: rgba($bg-secondary, 0.8);
   }
 
   &.selected {
@@ -469,8 +704,8 @@
 }
 
 .skill-check {
-  width: 14px;
-  font-size: 12px;
+  width: 16px;
+  font-size: 13px;
   color: $dracula-green;
 }
 
@@ -480,19 +715,20 @@
 
 .skill-class-badge {
   font-size: 9px;
-  padding: 1px 4px;
+  padding: 2px 6px;
   background: rgba($dracula-purple, 0.3);
   color: $dracula-purple;
   border-radius: $radius-sm;
   text-transform: uppercase;
+  font-weight: 500;
 }
 
 // Class features display (read-only) - shows instructions and default skills
 .class-features-display {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  padding: 8px;
+  gap: 8px;
+  padding: 12px;
   background: $bg-tertiary;
   border: 1px solid $border-color;
   border-radius: $radius-md;
@@ -501,10 +737,10 @@
 .class-feature-tag {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 5px 10px;
+  gap: 6px;
+  padding: 6px 12px;
   border-radius: 100px;
-  font-size: 11px;
+  font-size: 12px;
 
   &.skill {
     background: rgba($dracula-cyan, 0.15);
@@ -520,7 +756,7 @@
 }
 
 .class-feature-icon {
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .class-feature-name {

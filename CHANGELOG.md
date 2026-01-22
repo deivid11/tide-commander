@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.0] - 2026-01-21
+
+### Changed
+- Redesigned BossSpawnModal with improved layout and UX
+- Revamped SpawnModal with streamlined interface
+- Enhanced modal styling with better visual hierarchy
+- Updated boss spawn styling with improved form layout
+- Refined forms styling for better consistency
+- Minor guake terminal styling adjustments
+
 ## [0.5.1] - 2026-01-21
 
 ### Changed

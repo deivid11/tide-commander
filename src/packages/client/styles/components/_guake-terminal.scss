@@ -1152,14 +1152,14 @@
   }
 
   &:hover {
-    background: mix($dracula-bg-darker, $dracula-red, 85%);
+    background: color.mix($dracula-bg-darker, $dracula-red, 85%);
     border-color: rgba($dracula-red, 0.7);
     transform: scale(1.05);
   }
 
   &:active {
     transform: scale(0.95);
-    background: mix($dracula-bg-darker, $dracula-red, 75%);
+    background: color.mix($dracula-bg-darker, $dracula-red, 75%);
   }
 }
 
