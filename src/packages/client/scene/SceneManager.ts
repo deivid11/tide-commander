@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import type { Agent, DrawingArea, CustomAgentClass } from '../../shared/types';
+import type { Agent, DrawingArea, CustomAgentClass, AnimationMapping } from '../../shared/types';
 import { store } from '../store';
 import { saveCameraState, loadCameraState } from '../utils/camera';
 import { CAMERA_SAVE_INTERVAL } from './config';
@@ -9,6 +9,7 @@ import { perf, fpsTracker } from '../utils/profiling';
 // Import modules
 import { CharacterLoader, CharacterFactory, type AgentMeshData } from './characters';
 import { MovementAnimator, EffectsManager, ANIMATIONS } from './animation';
+import { ProceduralAnimator, type ProceduralAnimationState } from './animation/ProceduralAnimator';
 import { Battlefield } from './environment';
 import { InputHandler } from './input';
 import { DrawingManager } from './drawing';
@@ -29,6 +30,7 @@ export class SceneManager {
   private characterLoader: CharacterLoader;
   private characterFactory: CharacterFactory;
   private movementAnimator: MovementAnimator;
+  private proceduralAnimator: ProceduralAnimator;
   private effectsManager: EffectsManager;
   private battlefield: Battlefield;
   private inputHandler: InputHandler;
@@ -80,6 +82,7 @@ export class SceneManager {
     this.characterLoader = new CharacterLoader();
     this.characterFactory = new CharacterFactory(this.characterLoader);
     this.movementAnimator = new MovementAnimator();
+    this.proceduralAnimator = new ProceduralAnimator();
     this.effectsManager = new EffectsManager(this.scene);
     this.battlefield = new Battlefield(this.scene);
     this.drawingManager = new DrawingManager(this.scene);
@@ -265,11 +268,19 @@ export class SceneManager {
         // Use current mesh position, not stored agent position (handles animation)
         newMeshData.group.position.copy(currentPosition);
 
-        // Apply current character scale (with boss multiplier if applicable)
+        // Apply character scale: customModelScale × characterScale × bossMultiplier
         const newBody = newMeshData.group.getObjectByName('characterBody');
         if (newBody) {
+          const customModelScale = newBody.userData.customModelScale ?? 1.0;
           const bossMultiplier = (agent.isBoss || agent.class === 'boss') ? 1.5 : 1.0;
-          newBody.scale.setScalar(this.characterScale * bossMultiplier);
+          newBody.scale.setScalar(customModelScale * this.characterScale * bossMultiplier);
+
+          // Update procedural animator registration based on new model
+          this.proceduralAnimator.unregister(agentId);
+          if (newMeshData.animations.size === 0) {
+            const state = this.getProceduralStateForStatus(agent.status);
+            this.proceduralAnimator.register(agentId, newBody, state);
+          }
         }
 
         // Replace in scene
@@ -298,15 +309,43 @@ export class SceneManager {
       this.agentMeshes.delete(agent.id);
     }
 
+    // Check if this agent's class uses a custom model that needs loading
+    const customClasses = store.getState().customAgentClasses;
+    const customClass = customClasses.get(agent.class);
+    if (customClass?.customModelPath && !this.characterLoader.hasCustomModel(customClass.id)) {
+      // Load custom model first, then add agent
+      this.characterLoader.loadCustomModel(customClass.id).then(() => {
+        this.addAgentInternal(agent);
+      }).catch(err => {
+        console.warn(`[SceneManager] Failed to load custom model for ${agent.class}, using fallback:`, err);
+        this.addAgentInternal(agent);
+      });
+      return;
+    }
+
+    this.addAgentInternal(agent);
+  }
+
+  /**
+   * Internal method to add an agent mesh after model is ready.
+   */
+  private addAgentInternal(agent: Agent): void {
     const meshData = this.characterFactory.createAgentMesh(agent);
     this.scene.add(meshData.group);
     this.agentMeshes.set(agent.id, meshData);
 
-    // Apply current character scale (with boss multiplier if applicable)
+    // Apply character scale: customModelScale × characterScale × bossMultiplier
     const body = meshData.group.getObjectByName('characterBody');
     if (body) {
+      const customModelScale = body.userData.customModelScale ?? 1.0;
       const bossMultiplier = (agent.isBoss || agent.class === 'boss') ? 1.5 : 1.0;
-      body.scale.setScalar(this.characterScale * bossMultiplier);
+      body.scale.setScalar(customModelScale * this.characterScale * bossMultiplier);
+
+      // Register for procedural animation if model has no built-in animations
+      if (meshData.animations.size === 0) {
+        const state = this.getProceduralStateForStatus(agent.status);
+        this.proceduralAnimator.register(agent.id, body, state);
+      }
     }
 
     // Set animation based on agent's current status
@@ -324,6 +363,9 @@ export class SceneManager {
       this.characterFactory.disposeAgentMesh(meshData);
       this.agentMeshes.delete(agentId);
     }
+
+    // Unregister from procedural animator
+    this.proceduralAnimator.unregister(agentId);
 
     // Clean up all visual effects for this agent (zzz bubble, speech bubbles, etc.)
     this.effectsManager.removeAgentEffects(agentId);
@@ -361,10 +403,29 @@ export class SceneManager {
   }
 
   /**
-   * Update agent animation based on status
+   * Get the animation name to use for a specific status, considering per-class custom mappings.
    */
-  private updateStatusAnimation(agent: Agent, meshData: AgentMeshData): void {
-    // Map status to animation (using configurable idle and working animations)
+  private getAnimationForStatus(agent: Agent, meshData: AgentMeshData, status: string): string {
+    // Get custom animation mapping from the character body if available
+    const characterBody = meshData.group.getObjectByName('characterBody');
+    const customMapping = characterBody?.userData?.animationMapping as AnimationMapping | undefined;
+
+    // Check custom mapping first for idle/working/orphaned statuses
+    if (customMapping) {
+      if ((status === 'idle') && customMapping.idle) {
+        // Verify the animation exists in this model
+        if (meshData.animations.has(customMapping.idle) || meshData.animations.has(customMapping.idle.toLowerCase())) {
+          return customMapping.idle;
+        }
+      }
+      if ((status === 'working' || status === 'orphaned') && customMapping.working) {
+        if (meshData.animations.has(customMapping.working) || meshData.animations.has(customMapping.working.toLowerCase())) {
+          return customMapping.working;
+        }
+      }
+    }
+
+    // Fall back to global configured animations
     const statusAnimations: Record<string, string> = {
       idle: this.idleAnimation,       // Configurable idle animation
       working: this.workingAnimation, // Configurable working animation
@@ -375,7 +436,27 @@ export class SceneManager {
       orphaned: this.workingAnimation, // Orphaned processes appear to be working (because they are)
     };
 
-    const animation = statusAnimations[agent.status] || ANIMATIONS.IDLE;
+    return statusAnimations[status] || ANIMATIONS.IDLE;
+  }
+
+  /**
+   * Update agent animation based on status
+   */
+  private updateStatusAnimation(agent: Agent, meshData: AgentMeshData): void {
+    // If model has no animations, update procedural animator state instead
+    if (meshData.animations.size === 0) {
+      if (this.proceduralAnimator.has(agent.id)) {
+        const state = this.getProceduralStateForStatus(agent.status);
+        this.proceduralAnimator.setState(agent.id, state);
+      }
+      // Still update effects
+      this.effectsManager.setAgentMeshes(this.agentMeshes);
+      this.effectsManager.updateWaitingPermissionEffect(agent.id, agent.status === 'waiting_permission');
+      return;
+    }
+
+    // Get the appropriate animation for this agent's status
+    const animation = this.getAnimationForStatus(agent, meshData, agent.status);
     const currentClipName = meshData.currentAction?.getClip()?.name?.toLowerCase();
 
     // One-shot animations that should only play once (not for idle/working status)
@@ -387,8 +468,8 @@ export class SceneManager {
 
     // Don't replay one-shot animations if already playing/finished
     const shouldPlay = isOneShot
-      ? currentClipName !== animation
-      : agent.status === 'idle' || currentClipName !== animation;
+      ? currentClipName !== animation && currentClipName !== animation.toLowerCase()
+      : agent.status === 'idle' || (currentClipName !== animation && currentClipName !== animation.toLowerCase());
 
     if (shouldPlay) {
       const options = agent.status === 'working'
@@ -422,9 +503,20 @@ export class SceneManager {
   /**
    * Update the custom agent classes for model lookups.
    * Should be called when custom classes are loaded/updated from server.
+   * Also preloads any custom models associated with these classes.
    */
   setCustomAgentClasses(classes: Map<string, CustomAgentClass>): void {
     this.characterFactory.setCustomClasses(classes);
+
+    // Preload custom models for classes that have them
+    for (const customClass of classes.values()) {
+      if (customClass.customModelPath) {
+        // Load custom model asynchronously (fire and forget)
+        this.characterLoader.loadCustomModel(customClass.id).catch(err => {
+          console.warn(`[SceneManager] Failed to preload custom model for class ${customClass.id}:`, err);
+        });
+      }
+    }
   }
 
   refreshSelectionVisuals(): void {
@@ -514,11 +606,19 @@ export class SceneManager {
           // Model was replaced, update the stored meshData
           this.agentMeshes.set(agentId, updatedMeshData);
 
-          // Apply current character scale to the new body (with boss multiplier if applicable)
+          // Apply character scale: customModelScale × characterScale × bossMultiplier
           const newBody = updatedMeshData.group.getObjectByName('characterBody');
           if (newBody) {
+            const customModelScale = newBody.userData.customModelScale ?? 1.0;
             const bossMultiplier = (agent.isBoss || agent.class === 'boss') ? 1.5 : 1.0;
-            newBody.scale.setScalar(this.characterScale * bossMultiplier);
+            newBody.scale.setScalar(customModelScale * this.characterScale * bossMultiplier);
+
+            // Update procedural animator registration based on new model
+            this.proceduralAnimator.unregister(agentId);
+            if (updatedMeshData.animations.size === 0) {
+              const proceduralState = this.getProceduralStateForStatus(agent.status);
+              this.proceduralAnimator.register(agentId, newBody, proceduralState);
+            }
           }
 
           // Start animation based on agent's current status
@@ -732,13 +832,14 @@ export class SceneManager {
    */
   setCharacterScale(scale: number): void {
     this.characterScale = scale;
-    // Update all existing character models (with boss multiplier if applicable)
+    // Update all existing character models: customModelScale × characterScale × bossMultiplier
     for (const meshData of this.agentMeshes.values()) {
       const body = meshData.group.getObjectByName('characterBody');
       if (body) {
+        const customModelScale = body.userData.customModelScale ?? 1.0;
         const isBoss = meshData.group.userData.isBoss === true;
         const bossMultiplier = isBoss ? 1.5 : 1.0;
-        body.scale.setScalar(scale * bossMultiplier);
+        body.scale.setScalar(customModelScale * scale * bossMultiplier);
       }
     }
   }
@@ -1055,6 +1156,9 @@ export class SceneManager {
     this.effectsManager.update();
     this.buildingManager.update(deltaTime);
 
+    // Update procedural animations for models without built-in animations
+    this.updateProceduralAnimations(deltaTime);
+
     // Re-apply status animations for agents that just finished moving
     if (completedMovements.length > 0) {
       const state = store.getState();
@@ -1202,6 +1306,47 @@ export class SceneManager {
 
     // Apply user's indicator scale setting
     return zoomScale * this.indicatorScale;
+  }
+
+  // ============================================
+  // Procedural Animation Helpers
+  // ============================================
+
+  /**
+   * Convert agent status to procedural animation state.
+   */
+  private getProceduralStateForStatus(status: string): ProceduralAnimationState {
+    switch (status) {
+      case 'idle':
+        return 'idle';
+      case 'working':
+      case 'orphaned':
+        return 'working';
+      case 'waiting':
+      case 'waiting_permission':
+        return 'waiting';
+      case 'error':
+        return 'error';
+      case 'offline':
+      default:
+        return 'static';
+    }
+  }
+
+  /**
+   * Update procedural animations for all registered models.
+   */
+  private updateProceduralAnimations(deltaTime: number): void {
+    // Build a map of agent ID to character body for the procedural animator
+    const bodies = new Map<string, THREE.Object3D>();
+    for (const [agentId, meshData] of this.agentMeshes) {
+      const body = meshData.group.getObjectByName('characterBody');
+      // Only include agents that have no animations (procedurally animated)
+      if (body && this.proceduralAnimator.has(agentId) && meshData.animations.size === 0) {
+        bodies.set(agentId, body);
+      }
+    }
+    this.proceduralAnimator.update(deltaTime, bodies);
   }
 
   // ============================================

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { MOVE_SPEED } from '../config';
 import type { AgentMeshData } from '../characters/CharacterFactory';
+import type { AnimationMapping } from '../../../shared/types';
 
 /**
  * Movement animation state.
@@ -31,6 +32,11 @@ export const ANIMATIONS = {
 } as const;
 
 /**
+ * Animation state types used for custom animation mapping.
+ */
+export type AnimationState = 'idle' | 'walk' | 'working';
+
+/**
  * Bounce animation config for jump.
  */
 const JUMP_BOUNCE = {
@@ -51,6 +57,58 @@ export class MovementAnimator {
    */
   isMoving(agentId: string): boolean {
     return this.movements.has(agentId);
+  }
+
+  /**
+   * Resolve the actual animation name based on custom mapping.
+   * Falls back to built-in animation names if no custom mapping exists.
+   *
+   * @param meshData - The agent mesh data
+   * @param state - The animation state (idle, walk, working)
+   * @returns The resolved animation name to use
+   */
+  private resolveAnimationName(meshData: AgentMeshData, state: AnimationState): string {
+    const characterBody = meshData.group.getObjectByName('characterBody');
+    const mapping = characterBody?.userData?.animationMapping as AnimationMapping | undefined;
+
+    if (mapping) {
+      const customName = mapping[state];
+      if (customName && meshData.animations.has(customName)) {
+        return customName;
+      }
+      // Also try lowercase version
+      if (customName && meshData.animations.has(customName.toLowerCase())) {
+        return customName.toLowerCase();
+      }
+    }
+
+    // Fall back to built-in names
+    switch (state) {
+      case 'idle':
+        return ANIMATIONS.IDLE;
+      case 'walk':
+        return ANIMATIONS.WALK;
+      case 'working':
+        return ANIMATIONS.JUMP; // Default working animation is jump
+      default:
+        return ANIMATIONS.IDLE;
+    }
+  }
+
+  /**
+   * Play an animation based on state, respecting custom animation mappings.
+   *
+   * @param meshData - The agent mesh data
+   * @param state - The animation state (idle, walk, working)
+   * @param options - Animation options
+   */
+  playAnimationForState(meshData: AgentMeshData, state: AnimationState, options?: {
+    loop?: boolean;
+    fadeTime?: number;
+    timeScale?: number;
+  }): void {
+    const animationName = this.resolveAnimationName(meshData, state);
+    this.playAnimation(meshData, animationName, options);
   }
 
   /**

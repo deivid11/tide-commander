@@ -22,6 +22,9 @@ export const customClassEvents = new EventEmitter();
 // Directory for storing instruction markdown files
 const INSTRUCTIONS_DIR = path.join(os.homedir(), '.tide-commander', 'class-instructions');
 
+// Directory for storing custom model files
+const CUSTOM_MODELS_DIR = path.join(os.homedir(), '.tide-commander', 'custom-models');
+
 /**
  * Ensure the instructions directory exists
  */
@@ -30,6 +33,75 @@ function ensureInstructionsDir(): void {
     fs.mkdirSync(INSTRUCTIONS_DIR, { recursive: true });
     log.log(`Created instructions directory: ${INSTRUCTIONS_DIR}`);
   }
+}
+
+/**
+ * Ensure the custom models directory exists
+ */
+function ensureCustomModelsDir(): void {
+  if (!fs.existsSync(CUSTOM_MODELS_DIR)) {
+    fs.mkdirSync(CUSTOM_MODELS_DIR, { recursive: true });
+    log.log(`Created custom models directory: ${CUSTOM_MODELS_DIR}`);
+  }
+}
+
+/**
+ * Get the file path for a class's custom model
+ */
+function getCustomModelFilePath(classId: string): string {
+  return path.join(CUSTOM_MODELS_DIR, `${classId}.glb`);
+}
+
+/**
+ * Save a custom model file to disk
+ * @param classId The class ID
+ * @param modelData Buffer containing the GLB file data
+ * @returns The relative path to the saved model
+ */
+export function saveCustomModel(classId: string, modelData: Buffer): string {
+  ensureCustomModelsDir();
+  const filePath = getCustomModelFilePath(classId);
+  fs.writeFileSync(filePath, modelData);
+  log.log(`Saved custom model for class ${classId} to ${filePath} (${modelData.length} bytes)`);
+  return `${classId}.glb`;
+}
+
+/**
+ * Delete custom model file for a class
+ */
+function deleteCustomModelFile(classId: string): void {
+  const filePath = getCustomModelFilePath(classId);
+  if (fs.existsSync(filePath)) {
+    fs.unlinkSync(filePath);
+    log.log(`Deleted custom model file for class ${classId}`);
+  }
+}
+
+/**
+ * Check if a custom model exists for a class
+ */
+export function hasCustomModel(classId: string): boolean {
+  return fs.existsSync(getCustomModelFilePath(classId));
+}
+
+/**
+ * Get the full path to a custom model file
+ * Returns undefined if the model doesn't exist
+ */
+export function getCustomModelPath(classId: string): string | undefined {
+  const filePath = getCustomModelFilePath(classId);
+  if (fs.existsSync(filePath)) {
+    return filePath;
+  }
+  return undefined;
+}
+
+/**
+ * Get the custom models directory path (for serving files)
+ */
+export function getCustomModelsDirectory(): string {
+  ensureCustomModelsDir();
+  return CUSTOM_MODELS_DIR;
 }
 
 /**
@@ -74,6 +146,7 @@ function deleteInstructionsFile(classId: string): void {
  */
 export function initCustomClasses(): void {
   ensureInstructionsDir();
+  ensureCustomModelsDir();
   const loaded = loadCustomAgentClasses();
   customClasses = new Map(loaded.map(c => [c.id, c]));
   log.log(`Initialized with ${customClasses.size} custom agent classes`);
@@ -192,6 +265,9 @@ export function deleteCustomClass(id: string): boolean {
   // Delete instructions file
   deleteInstructionsFile(id);
 
+  // Delete custom model file if exists
+  deleteCustomModelFile(id);
+
   log.log(`Deleted custom class: ${id}`);
   customClassEvents.emit('deleted', id);
 
@@ -295,4 +371,9 @@ export const customClassService = {
   getClassInstructions,
   getClassInstructionsPath,
   buildCustomAgentConfig,
+  // Custom model functions
+  saveCustomModel,
+  hasCustomModel,
+  getCustomModelPath,
+  getCustomModelsDirectory,
 };

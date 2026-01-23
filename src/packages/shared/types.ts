@@ -17,6 +17,13 @@ export const BUILT_IN_AGENT_CLASSES: Record<BuiltInAgentClass, { icon: string; c
 // For backwards compatibility
 export const AGENT_CLASSES = BUILT_IN_AGENT_CLASSES;
 
+// Animation mapping for custom models - maps our animation states to model's animation names
+export interface AnimationMapping {
+  idle?: string;      // Animation name for idle state
+  walk?: string;      // Animation name for walking
+  working?: string;   // Animation name for working/busy state
+}
+
 // Custom Agent Class - user-defined agent types with associated skills
 export interface CustomAgentClass {
   id: string;           // Unique identifier (slug)
@@ -25,7 +32,12 @@ export interface CustomAgentClass {
   color: string;        // Hex color
   description: string;  // What this class does
   defaultSkillIds: string[];  // Skills automatically assigned to agents of this class
-  model?: string;       // Character model file (e.g., 'character-male-a.glb') - defaults to 'character-male-a.glb'
+  model?: string;       // Built-in character model file (e.g., 'character-male-a.glb')
+  customModelPath?: string;  // Path to custom uploaded model (stored in ~/.tide-commander/custom-models/)
+  modelScale?: number;       // Scale multiplier for the model (default: 1.0)
+  modelOffset?: { x: number; y: number; z: number };  // Position offset for centering the model (x: horizontal, y: depth, z: vertical)
+  animationMapping?: AnimationMapping;  // Maps our states to model's animation names
+  availableAnimations?: string[];  // List of animations detected in the custom model
   instructions?: string; // Markdown instructions injected as system prompt (like CLAUDE.md)
   createdAt: number;
   updatedAt: number;

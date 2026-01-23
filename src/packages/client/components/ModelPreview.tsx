@@ -29,12 +29,16 @@ const STATUS_COLORS: Record<AgentStatus, number> = {
 interface ModelPreviewProps {
   agentClass?: AgentClass;
   modelFile?: string;  // Direct model file (e.g., 'character-male-a.glb')
+  customModelFile?: File;  // Custom uploaded model file (File object)
+  customModelUrl?: string;  // URL to custom model (e.g., /api/custom-models/:classId)
+  modelScale?: number;  // Scale multiplier for the model
+  modelOffset?: { x: number; y: number; z: number };  // Position offset for centering the model
   status?: AgentStatus;
   width?: number;
   height?: number;
 }
 
-export function ModelPreview({ agentClass, modelFile, status = 'idle', width = 150, height = 200 }: ModelPreviewProps) {
+export function ModelPreview({ agentClass, modelFile, customModelFile, customModelUrl, modelScale = 1.0, modelOffset, status = 'idle', width = 150, height = 200 }: ModelPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -47,6 +51,14 @@ export function ModelPreview({ agentClass, modelFile, status = 'idle', width = 1
   const animationIdRef = useRef<number>(0);
   const clockRef = useRef<THREE.Clock>(new THREE.Clock());
   const [isReady, setIsReady] = useState(false);
+  const hasAnimationsRef = useRef(false);
+  const proceduralTimeRef = useRef(0);
+  const basePositionRef = useRef(new THREE.Vector3());
+
+  // Drag-to-rotate state
+  const isDraggingRef = useRef(false);
+  const previousMouseRef = useRef({ x: 0, y: 0 });
+  const modelRotationRef = useRef({ x: 0, y: 0 });
 
   // Initialize Three.js scene
   useEffect(() => {
@@ -111,18 +123,78 @@ export function ModelPreview({ agentClass, modelFile, status = 'idle', width = 1
 
     setIsReady(true);
 
-    // Animation loop
+    // Mouse event handlers for drag-to-rotate
+    const handleMouseDown = (e: MouseEvent) => {
+      isDraggingRef.current = true;
+      previousMouseRef.current = { x: e.clientX, y: e.clientY };
+      container.style.cursor = 'grabbing';
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDraggingRef.current || !modelRef.current) return;
+
+      const deltaX = e.clientX - previousMouseRef.current.x;
+      const deltaY = e.clientY - previousMouseRef.current.y;
+
+      // Update rotation (Y-axis for horizontal drag, X-axis for vertical drag)
+      modelRotationRef.current.y += deltaX * 0.01;
+      modelRotationRef.current.x += deltaY * 0.01;
+
+      // Clamp vertical rotation to prevent flipping
+      modelRotationRef.current.x = Math.max(-Math.PI / 4, Math.min(Math.PI / 4, modelRotationRef.current.x));
+
+      modelRef.current.rotation.y = modelRotationRef.current.y;
+      modelRef.current.rotation.x = modelRotationRef.current.x;
+
+      previousMouseRef.current = { x: e.clientX, y: e.clientY };
+    };
+
+    const handleMouseUp = () => {
+      isDraggingRef.current = false;
+      container.style.cursor = 'grab';
+    };
+
+    const handleMouseLeave = () => {
+      isDraggingRef.current = false;
+      container.style.cursor = 'grab';
+    };
+
+    // Add event listeners
+    container.addEventListener('mousedown', handleMouseDown);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    container.addEventListener('mouseleave', handleMouseLeave);
+    container.style.cursor = 'grab';
+
+    // Animation loop (no auto-rotation)
     const animate = () => {
       animationIdRef.current = requestAnimationFrame(animate);
 
-      // Rotate model slowly
-      if (modelRef.current) {
-        modelRef.current.rotation.y += 0.01;
-      }
+      const delta = clockRef.current.getDelta();
 
       // Update animations
       if (mixerRef.current) {
-        mixerRef.current.update(clockRef.current.getDelta());
+        mixerRef.current.update(delta);
+      } else if (modelRef.current && !hasAnimationsRef.current) {
+        // Apply procedural animation for models without animations
+        proceduralTimeRef.current += delta;
+        const t = proceduralTimeRef.current;
+
+        // Gentle bobbing
+        const bobAmount = 0.02;
+        const bobSpeed = 1.5;
+        const yOffset = Math.sin(t * bobSpeed) * bobAmount;
+
+        // Subtle sway
+        const swayAmount = 0.01;
+        const swaySpeed = 0.8;
+        const xOffset = Math.sin(t * swaySpeed) * swayAmount;
+
+        modelRef.current.position.set(
+          basePositionRef.current.x + xOffset,
+          basePositionRef.current.y + yOffset,
+          basePositionRef.current.z
+        );
       }
 
       if (rendererRef.current && sceneRef.current && cameraRef.current) {
@@ -134,6 +206,10 @@ export function ModelPreview({ agentClass, modelFile, status = 'idle', width = 1
     // Cleanup
     return () => {
       cancelAnimationFrame(animationIdRef.current);
+      container.removeEventListener('mousedown', handleMouseDown);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      container.removeEventListener('mouseleave', handleMouseLeave);
       if (rendererRef.current) {
         rendererRef.current.dispose();
         if (container.contains(rendererRef.current.domElement)) {
@@ -149,57 +225,136 @@ export function ModelPreview({ agentClass, modelFile, status = 'idle', width = 1
     };
   }, [width, height]);
 
-  // Load model when agentClass/modelFile changes or when ready
+  // Load model when agentClass/modelFile/customModel changes or when ready
   useEffect(() => {
     if (!isReady || !sceneRef.current) return;
 
-    const scene = sceneRef.current;
-    // Use direct modelFile if provided, otherwise look up from agent class
-    // Fallback to default model if agent class isn't in the map (e.g., custom classes)
-    const resolvedModelFile = modelFile || (agentClass ? AGENT_CLASS_MODELS[agentClass] : undefined) || 'character-male-a.glb';
     const loader = new GLTFLoader();
+    let blobUrl: string | null = null;
 
-    loader.load(
-      `/assets/characters/${resolvedModelFile}`,
-      (gltf) => {
-        // Remove previous model
-        if (modelRef.current && sceneRef.current) {
-          sceneRef.current.remove(modelRef.current);
-          modelRef.current = null;
-          mixerRef.current = null;
-        }
+    // Helper to process loaded model
+    const processModel = (gltf: { scene: THREE.Group; animations: THREE.AnimationClip[] }) => {
+      // Remove previous model
+      if (modelRef.current && sceneRef.current) {
+        sceneRef.current.remove(modelRef.current);
+        modelRef.current = null;
+        mixerRef.current = null;
+        currentActionRef.current = null;
+      }
 
-        const model = gltf.scene;
-        model.scale.setScalar(1.0);
-        model.position.set(0, 0, 0);
-        model.visible = true;
+      const model = gltf.scene;
+      model.scale.setScalar(modelScale);
+      // Apply position offset (x: horizontal, y: depth/forward-back, z: vertical height)
+      const offsetX = modelOffset?.x ?? 0;
+      const offsetY = modelOffset?.y ?? 0;
+      const offsetZ = modelOffset?.z ?? 0;
+      model.position.set(offsetX, offsetZ, offsetY);
+      model.visible = true;
 
-        if (sceneRef.current) {
-          sceneRef.current.add(model);
-          modelRef.current = model;
+      // Reset rotation for new model
+      modelRotationRef.current = { x: 0, y: 0 };
+      model.rotation.set(0, 0, 0);
 
-          // Set up animations
-          if (gltf.animations.length > 0) {
-            const mixer = new THREE.AnimationMixer(model);
-            mixerRef.current = mixer;
-
-            // Store all animations by name
-            animationsRef.current.clear();
-            for (const clip of gltf.animations) {
-              animationsRef.current.set(clip.name.toLowerCase(), clip);
+      // Enable shadows and fix materials
+      model.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+          if (child.material) {
+            const mat = child.material as THREE.MeshStandardMaterial;
+            if (mat.map) {
+              mat.map.colorSpace = THREE.SRGBColorSpace;
             }
-
-            // Play initial animation based on current status
-            playStatusAnimation(status);
           }
         }
-      },
-      undefined,
-      (error) => {
-        console.error('[ModelPreview] Failed to load model:', resolvedModelFile, error);
+      });
+
+      if (sceneRef.current) {
+        sceneRef.current.add(model);
+        modelRef.current = model;
+
+        // Store base position for procedural animation
+        basePositionRef.current.copy(model.position);
+
+        // Set up animations
+        if (gltf.animations.length > 0) {
+          hasAnimationsRef.current = true;
+          const mixer = new THREE.AnimationMixer(model);
+          mixerRef.current = mixer;
+
+          // Store all animations by name
+          animationsRef.current.clear();
+          for (const clip of gltf.animations) {
+            animationsRef.current.set(clip.name.toLowerCase(), clip);
+          }
+
+          // Play idle animation by default (or first available)
+          const idleClip = animationsRef.current.get('idle') || gltf.animations[0];
+          if (idleClip) {
+            const action = mixer.clipAction(idleClip);
+            action.reset().play();
+            currentActionRef.current = action;
+          }
+        } else {
+          // No animations - will use procedural animation
+          hasAnimationsRef.current = false;
+          mixerRef.current = null;
+          animationsRef.current.clear();
+        }
       }
-    );
-  }, [agentClass, modelFile, isReady]);
+    };
+
+    // Determine what to load
+    if (customModelFile) {
+      // Load from File object (blob URL)
+      blobUrl = URL.createObjectURL(customModelFile);
+      console.log('[ModelPreview] Loading custom model from file:', customModelFile.name, 'blob URL:', blobUrl);
+      loader.load(
+        blobUrl,
+        (gltf) => {
+          console.log('[ModelPreview] Successfully loaded custom model file, animations:', gltf.animations.length);
+          processModel(gltf);
+        },
+        undefined,
+        (error) => {
+          console.error('[ModelPreview] Failed to load custom model file:', error);
+        }
+      );
+    } else if (customModelUrl) {
+      // Load from custom model URL (server endpoint)
+      console.log('[ModelPreview] Loading custom model from URL:', customModelUrl);
+      loader.load(
+        customModelUrl,
+        (gltf) => {
+          console.log('[ModelPreview] Successfully loaded custom model URL, animations:', gltf.animations.length);
+          processModel(gltf);
+        },
+        undefined,
+        (error) => {
+          console.error('[ModelPreview] Failed to load custom model URL:', customModelUrl, error);
+        }
+      );
+    } else {
+      // Use direct modelFile if provided, otherwise look up from agent class
+      // Fallback to default model if agent class isn't in the map (e.g., custom classes)
+      const resolvedModelFile = modelFile || (agentClass ? AGENT_CLASS_MODELS[agentClass] : undefined) || 'character-male-a.glb';
+      loader.load(
+        `/assets/characters/${resolvedModelFile}`,
+        processModel,
+        undefined,
+        (error) => {
+          console.error('[ModelPreview] Failed to load model:', resolvedModelFile, error);
+        }
+      );
+    }
+
+    // Cleanup blob URL on unmount or when dependencies change
+    return () => {
+      if (blobUrl) {
+        URL.revokeObjectURL(blobUrl);
+      }
+    };
+  }, [agentClass, modelFile, customModelFile, customModelUrl, modelScale, modelOffset, isReady]);
 
   // Helper function to play animation for a status
   const playStatusAnimation = (currentStatus: AgentStatus) => {

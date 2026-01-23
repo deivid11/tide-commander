@@ -60,6 +60,9 @@ export function SingleAgentPanel({
   // Get model file for custom classes
   const customClass = customClasses.find(c => c.id === agent.class);
   const modelFile = customClass?.model;
+  // Check if custom class has an uploaded custom model
+  const customModelUrl = customClass?.customModelPath ? `/api/custom-models/${customClass.id}` : undefined;
+  const modelScale = customClass?.modelScale;
 
   // Name editing state
   const [isEditingName, setIsEditingName] = useState(false);
@@ -191,7 +194,15 @@ export function SingleAgentPanel({
     <div className="unit-panel">
       {/* Model Preview */}
       <div className="unit-model-preview">
-        <ModelPreview agentClass={agent.class} modelFile={modelFile} status={agent.status} width={80} height={80} />
+        <ModelPreview
+          agentClass={agent.class}
+          modelFile={modelFile}
+          customModelUrl={customModelUrl}
+          modelScale={modelScale}
+          status={agent.status}
+          width={80}
+          height={80}
+        />
       </div>
 
       {/* Agent Header */}

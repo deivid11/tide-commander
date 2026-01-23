@@ -89,22 +89,50 @@ export class CharacterFactory {
 
   /**
    * Get the model file for an agent class (built-in or custom)
+   * Returns { file: string, isCustomModel: boolean, customClassId?: string }
    */
-  private getModelFile(agentClass: string): string {
+  private getModelInfo(agentClass: string): {
+    file: string;
+    isCustomModel: boolean;
+    customClassId?: string;
+    scale?: number;
+    offset?: { x: number; y: number; z: number };
+  } {
     // Check built-in classes first
     const builtIn = AGENT_CLASS_MODELS[agentClass as keyof typeof AGENT_CLASS_MODELS];
     if (builtIn) {
-      return builtIn;
+      return { file: builtIn, isCustomModel: false };
     }
 
     // Check custom classes
     const custom = this.customClasses.get(agentClass);
-    if (custom?.model) {
-      return custom.model;
+    if (custom) {
+      // Custom model uploaded?
+      if (custom.customModelPath) {
+        return {
+          file: custom.customModelPath,
+          isCustomModel: true,
+          customClassId: custom.id,
+          scale: custom.modelScale,
+          offset: custom.modelOffset,
+        };
+      }
+      // Using built-in model for custom class
+      if (custom.model) {
+        return { file: custom.model, isCustomModel: false, scale: custom.modelScale, offset: custom.modelOffset };
+      }
     }
 
     // Default model for unknown/custom classes without model specified
-    return DEFAULT_CUSTOM_CLASS_MODEL;
+    return { file: DEFAULT_CUSTOM_CLASS_MODEL, isCustomModel: false };
+  }
+
+  /**
+   * Get the model file for an agent class (built-in or custom)
+   * @deprecated Use getModelInfo instead for full model information
+   */
+  private getModelFile(agentClass: string): string {
+    return this.getModelInfo(agentClass).file;
   }
 
   /**
@@ -174,12 +202,40 @@ export class CharacterFactory {
     mixer: THREE.AnimationMixer | null;
     animations: Map<string, THREE.AnimationClip>;
   } {
-    // Get the model file for this agent's class (built-in or custom)
-    const modelFile = this.getModelFile(agent.class);
-    const cloneResult = this.characterLoader.cloneByModelFile(modelFile);
+    // Get model info for this agent's class (built-in or custom)
+    const modelInfo = this.getModelInfo(agent.class);
+
+    let cloneResult: { mesh: THREE.Group; animations: THREE.AnimationClip[] } | null = null;
+
+    // Try custom model first if applicable
+    if (modelInfo.isCustomModel && modelInfo.customClassId) {
+      cloneResult = this.characterLoader.cloneCustomModel(modelInfo.customClassId);
+    }
+
+    // Fall back to built-in model
+    if (!cloneResult) {
+      cloneResult = this.characterLoader.cloneByModelFile(modelInfo.file);
+    }
 
     if (cloneResult) {
       cloneResult.mesh.name = 'characterBody';
+
+      // Store custom model scale in userData for SceneManager to use
+      // Don't apply scale here - let SceneManager handle all scaling uniformly
+      const customModelScale = modelInfo.scale ?? 1.0;
+      cloneResult.mesh.userData.customModelScale = customModelScale;
+
+      // Apply custom position offset if specified (x: horizontal, y: depth, z: vertical height)
+      // Only apply if there are non-zero values to avoid overwriting default position
+      if (modelInfo.offset && (modelInfo.offset.x !== 0 || modelInfo.offset.y !== 0 || modelInfo.offset.z !== 0)) {
+        cloneResult.mesh.position.set(modelInfo.offset.x, modelInfo.offset.z, modelInfo.offset.y);
+      }
+
+      // Store custom class info for animation mapping
+      const customClass = this.customClasses.get(agent.class);
+      if (customClass?.animationMapping) {
+        cloneResult.mesh.userData.animationMapping = customClass.animationMapping;
+      }
 
       // Create animation mixer
       const mixer = new THREE.AnimationMixer(cloneResult.mesh);
@@ -190,6 +246,8 @@ export class CharacterFactory {
         // Normalize to lowercase to match ANIMATIONS constants
         const normalizedName = clip.name.toLowerCase();
         animations.set(normalizedName, clip);
+        // Also store with original name for custom animation mapping
+        animations.set(clip.name, clip);
       }
 
       return {
@@ -791,9 +849,20 @@ export class CharacterFactory {
 
     console.log(`[CharacterFactory] Agent ${agent.name} class changed: ${currentClass} -> ${agent.class}`);
 
-    // Get the new model file for the new class
-    const newModelFile = this.getModelFile(agent.class);
-    const cloneResult = this.characterLoader.cloneByModelFile(newModelFile);
+    // Get model info for the new class
+    const modelInfo = this.getModelInfo(agent.class);
+
+    let cloneResult: { mesh: THREE.Group; animations: THREE.AnimationClip[] } | null = null;
+
+    // Try custom model first if applicable
+    if (modelInfo.isCustomModel && modelInfo.customClassId) {
+      cloneResult = this.characterLoader.cloneCustomModel(modelInfo.customClassId);
+    }
+
+    // Fall back to built-in model
+    if (!cloneResult) {
+      cloneResult = this.characterLoader.cloneByModelFile(modelInfo.file);
+    }
 
     if (!cloneResult) {
       console.warn(`[CharacterFactory] Could not load model for class ${agent.class}, keeping current model`);
@@ -826,6 +895,24 @@ export class CharacterFactory {
 
     // Add new character body
     cloneResult.mesh.name = 'characterBody';
+
+    // Store custom model scale in userData for SceneManager to use
+    // Don't apply scale here - let SceneManager handle all scaling uniformly
+    const customModelScale = modelInfo.scale ?? 1.0;
+    cloneResult.mesh.userData.customModelScale = customModelScale;
+
+    // Apply custom position offset if specified (x: horizontal, y: depth, z: vertical height)
+    // Only apply if there are non-zero values to avoid overwriting default position
+    if (modelInfo.offset && (modelInfo.offset.x !== 0 || modelInfo.offset.y !== 0 || modelInfo.offset.z !== 0)) {
+      cloneResult.mesh.position.set(modelInfo.offset.x, modelInfo.offset.z, modelInfo.offset.y);
+    }
+
+    // Store custom class info for animation mapping
+    const customClass = this.customClasses.get(agent.class);
+    if (customClass?.animationMapping) {
+      cloneResult.mesh.userData.animationMapping = customClass.animationMapping;
+    }
+
     group.add(cloneResult.mesh);
 
     // Create new mixer and animations
@@ -834,6 +921,8 @@ export class CharacterFactory {
     for (const clip of cloneResult.animations) {
       const normalizedName = clip.name.toLowerCase();
       animations.set(normalizedName, clip);
+      // Also store with original name for custom animation mapping
+      animations.set(clip.name, clip);
     }
 
     // Update stored class
@@ -842,7 +931,7 @@ export class CharacterFactory {
     // Update name label with new class color
     this.updateNameLabel(group, agent.name, agent.class);
 
-    console.log(`[CharacterFactory] Agent ${agent.name} model updated to ${newModelFile}`);
+    console.log(`[CharacterFactory] Agent ${agent.name} model updated to ${modelInfo.file}`);
 
     return {
       group,

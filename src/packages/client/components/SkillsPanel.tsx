@@ -1,11 +1,23 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { store, useSkillsArray, useAgents, useCustomAgentClassesArray } from '../store';
 import { SkillEditorModal } from './SkillEditorModal';
 import { ModelPreview } from './ModelPreview';
-import type { Skill, CustomAgentClass } from '../../shared/types';
+import type { Skill, CustomAgentClass, AnimationMapping } from '../../shared/types';
 import { ALL_CHARACTER_MODELS } from '../scene/config';
+import { parseGlbAnimations, isValidGlbFile, formatFileSize } from '../utils/glbParser';
 
 type PanelTab = 'skills' | 'classes';
+
+/**
+ * Generate a URL-safe slug from a name (must match server-side generateSlug)
+ */
+function generateSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .substring(0, 64);
+}
 
 interface SkillsPanelProps {
   isOpen: boolean;
@@ -31,6 +43,19 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
   const [classModel, setClassModel] = useState('character-male-a.glb');
   const [classDefaultSkillIds, setClassDefaultSkillIds] = useState<string[]>([]);
   const [classInstructions, setClassInstructions] = useState('');
+
+  // Custom model state
+  const [hasCustomModel, setHasCustomModel] = useState(false);
+  const [customModelFile, setCustomModelFile] = useState<File | null>(null);
+  const [customModelAnimations, setCustomModelAnimations] = useState<string[]>([]);
+  const [animationMapping, setAnimationMapping] = useState<AnimationMapping>({});
+  const [modelScale, setModelScale] = useState(1.0);
+  const [modelOffsetX, setModelOffsetX] = useState(0);
+  const [modelOffsetY, setModelOffsetY] = useState(0);
+  const [modelOffsetZ, setModelOffsetZ] = useState(0);
+  const [isUploadingModel, setIsUploadingModel] = useState(false);
+  const [modelUploadError, setModelUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Get current model index for navigation
   const currentModelIndex = useMemo(() => {
@@ -131,6 +156,16 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
     setClassModel('character-male-a.glb');
     setClassDefaultSkillIds([]);
     setClassInstructions('');
+    // Reset custom model state
+    setHasCustomModel(false);
+    setCustomModelFile(null);
+    setCustomModelAnimations([]);
+    setAnimationMapping({});
+    setModelScale(1.0);
+    setModelOffsetX(0);
+    setModelOffsetY(0);
+    setModelOffsetZ(0);
+    setModelUploadError(null);
     setShowClassEditor(true);
   };
 
@@ -146,27 +181,173 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
     setClassModel(customClass.model || 'character-male-a.glb');
     setClassDefaultSkillIds(customClass.defaultSkillIds || []);
     setClassInstructions(customClass.instructions || '');
+    // Set custom model state
+    setHasCustomModel(!!customClass.customModelPath);
+    setCustomModelFile(null); // File reference is not preserved
+    setCustomModelAnimations(customClass.availableAnimations || []);
+    setAnimationMapping(customClass.animationMapping || {});
+    setModelScale(customClass.modelScale || 1.0);
+    setModelOffsetX(customClass.modelOffset?.x || 0);
+    setModelOffsetY(customClass.modelOffset?.y || 0);
+    setModelOffsetZ(customClass.modelOffset?.z || 0);
+    setModelUploadError(null);
     setShowClassEditor(true);
   };
 
-  const handleSaveClass = () => {
-    const classData = {
+  const handleSaveClass = async () => {
+    const classData: Partial<CustomAgentClass> = {
       name: className,
       icon: classIcon || '🔷',
       color: classColor,
       description: classDescription,
-      model: classModel,
       defaultSkillIds: classDefaultSkillIds,
       instructions: classInstructions || undefined,
+      modelScale: modelScale !== 1.0 ? modelScale : undefined,
+      modelOffset: (modelOffsetX !== 0 || modelOffsetY !== 0 || modelOffsetZ !== 0) ? { x: modelOffsetX, y: modelOffsetY, z: modelOffsetZ } : undefined,
+      animationMapping: Object.keys(animationMapping).length > 0 ? animationMapping : undefined,
+      availableAnimations: customModelAnimations.length > 0 ? customModelAnimations : undefined,
     };
 
+    // If using built-in model, set model field; if custom, leave for upload handler
+    if (!hasCustomModel) {
+      classData.model = classModel;
+      classData.customModelPath = undefined;
+    }
+
     if (editingClassId) {
+      // Update existing class
       store.updateCustomAgentClass(editingClassId, classData);
+
+      // Upload custom model if a new file was selected
+      if (customModelFile) {
+        await uploadCustomModel(editingClassId);
+      }
     } else {
-      store.createCustomAgentClass(classData);
+      // Create new class
+      store.createCustomAgentClass(classData as Omit<CustomAgentClass, 'id' | 'createdAt' | 'updatedAt'>);
+
+      // If we have a custom model to upload, predict the class ID and upload it
+      // The server generates the ID using generateSlug(name), same as client-side
+      if (customModelFile) {
+        const predictedId = generateSlug(className);
+        // Small delay to ensure the class is created server-side first
+        await new Promise(resolve => setTimeout(resolve, 100));
+        await uploadCustomModel(predictedId);
+      }
     }
 
     setShowClassEditor(false);
+  };
+
+  // Upload custom model to server
+  const uploadCustomModel = async (classId: string) => {
+    if (!customModelFile) return;
+
+    setIsUploadingModel(true);
+    setModelUploadError(null);
+
+    try {
+      const response = await fetch(`/api/custom-models/upload/${classId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          'X-Filename': customModelFile.name,
+        },
+        body: customModelFile,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Upload failed');
+      }
+
+      // Update class with animation info
+      store.updateCustomAgentClass(classId, {
+        availableAnimations: customModelAnimations,
+        animationMapping,
+        modelScale: modelScale !== 1.0 ? modelScale : undefined,
+      });
+    } catch (err: any) {
+      setModelUploadError(err.message || 'Failed to upload model');
+      console.error('Model upload error:', err);
+    } finally {
+      setIsUploadingModel(false);
+    }
+  };
+
+  // Handle file selection for custom model
+  const handleModelFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setModelUploadError(null);
+
+    // Validate file
+    const isValid = await isValidGlbFile(file);
+    if (!isValid) {
+      setModelUploadError('Invalid file: Please select a valid .glb file');
+      return;
+    }
+
+    // Check file size (50MB max)
+    if (file.size > 50 * 1024 * 1024) {
+      setModelUploadError('File too large: Maximum size is 50MB');
+      return;
+    }
+
+    try {
+      // Parse animations
+      const animations = await parseGlbAnimations(file);
+
+      setCustomModelFile(file);
+      setCustomModelAnimations(animations);
+      setHasCustomModel(true);
+
+      // Auto-map common animation names
+      const autoMapping: AnimationMapping = {};
+      const animLower = animations.map(a => a.toLowerCase());
+
+      // Try to find idle animation
+      const idleIdx = animLower.findIndex(a => a.includes('idle') || a === 'static');
+      if (idleIdx >= 0) autoMapping.idle = animations[idleIdx];
+
+      // Try to find walk animation
+      const walkIdx = animLower.findIndex(a => a.includes('walk') || a.includes('run'));
+      if (walkIdx >= 0) autoMapping.walk = animations[walkIdx];
+
+      // Try to find working animation (action, attack, work)
+      const workIdx = animLower.findIndex(a =>
+        a.includes('work') || a.includes('action') || a.includes('attack') || a.includes('jump')
+      );
+      if (workIdx >= 0) autoMapping.working = animations[workIdx];
+
+      setAnimationMapping(autoMapping);
+    } catch (err: any) {
+      setModelUploadError(err.message || 'Failed to parse model');
+      console.error('Model parse error:', err);
+    }
+
+    // Clear the input so the same file can be selected again
+    event.target.value = '';
+  };
+
+  // Remove custom model
+  const handleRemoveCustomModel = async () => {
+    if (editingClassId) {
+      // Delete from server
+      try {
+        await fetch(`/api/custom-models/${editingClassId}`, { method: 'DELETE' });
+      } catch (err) {
+        console.error('Failed to delete model:', err);
+      }
+    }
+
+    setHasCustomModel(false);
+    setCustomModelFile(null);
+    setCustomModelAnimations([]);
+    setAnimationMapping({});
+    setModelScale(1.0);
+    setClassModel('character-male-a.glb'); // Reset to default
   };
 
   const handleDeleteClass = (classId: string) => {
@@ -491,73 +672,335 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
               {/* Model selector with 3D preview */}
               <div className="form-section" style={{ marginBottom: '16px' }}>
                 <label className="form-label">Character Model</label>
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '12px',
-                  padding: '12px',
-                  background: 'var(--bg-tertiary)',
-                  borderRadius: '8px',
-                  border: '1px solid var(--border-color)'
-                }}>
-                  <button
-                    type="button"
-                    onClick={() => navigateModel('prev')}
-                    style={{
-                      width: '36px',
-                      height: '36px',
-                      borderRadius: '50%',
-                      border: '1px solid var(--border-color)',
-                      background: 'var(--bg-secondary)',
-                      color: 'var(--text-primary)',
-                      cursor: 'pointer',
+
+                {/* Hidden file input */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".glb"
+                  onChange={handleModelFileSelect}
+                  style={{ display: 'none' }}
+                />
+
+                {!hasCustomModel ? (
+                  <>
+                    {/* Built-in model selector */}
+                    <div style={{
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      fontSize: '18px',
-                    }}
-                  >
-                    ‹
-                  </button>
-                  <div style={{ textAlign: 'center' }}>
-                    <ModelPreview modelFile={classModel} width={120} height={150} />
-                    <div style={{
-                      marginTop: '8px',
-                      fontSize: '12px',
-                      fontWeight: 500,
-                      color: 'var(--text-primary)'
+                      gap: '12px',
+                      padding: '12px',
+                      background: 'var(--bg-tertiary)',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-color)'
                     }}>
-                      {currentModelInfo.name}
+                      <button
+                        type="button"
+                        onClick={() => navigateModel('prev')}
+                        style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '50%',
+                          border: '1px solid var(--border-color)',
+                          background: 'var(--bg-secondary)',
+                          color: 'var(--text-primary)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '18px',
+                        }}
+                      >
+                        ‹
+                      </button>
+                      <div style={{ textAlign: 'center' }}>
+                        <ModelPreview modelFile={classModel} width={120} height={150} />
+                        <div style={{
+                          marginTop: '8px',
+                          fontSize: '12px',
+                          fontWeight: 500,
+                          color: 'var(--text-primary)'
+                        }}>
+                          {currentModelInfo.name}
+                        </div>
+                        <div style={{
+                          fontSize: '10px',
+                          color: 'var(--text-secondary)',
+                          marginTop: '2px'
+                        }}>
+                          {currentModelIndex + 1} / {ALL_CHARACTER_MODELS.length}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => navigateModel('next')}
+                        style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '50%',
+                          border: '1px solid var(--border-color)',
+                          background: 'var(--bg-secondary)',
+                          color: 'var(--text-primary)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '18px',
+                        }}
+                      >
+                        ›
+                      </button>
                     </div>
+
+                    {/* Upload custom model button */}
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      style={{
+                        width: '100%',
+                        marginTop: '8px',
+                        padding: '8px 12px',
+                        background: 'var(--bg-secondary)',
+                        border: '1px dashed var(--border-color)',
+                        borderRadius: '6px',
+                        color: 'var(--text-secondary)',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                      }}
+                    >
+                      Upload Custom Model (.glb)
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {/* Custom model info with preview */}
                     <div style={{
-                      fontSize: '10px',
-                      color: 'var(--text-secondary)',
-                      marginTop: '2px'
+                      padding: '12px',
+                      background: 'var(--bg-tertiary)',
+                      borderRadius: '8px',
+                      border: '1px solid var(--accent-cyan)',
                     }}>
-                      {currentModelIndex + 1} / {ALL_CHARACTER_MODELS.length}
+                      {/* 3D Preview for custom model */}
+                      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '12px' }}>
+                        <ModelPreview
+                          customModelFile={customModelFile || undefined}
+                          customModelUrl={!customModelFile && editingClassId ? `/api/custom-models/${editingClassId}` : undefined}
+                          modelScale={modelScale}
+                          modelOffset={{ x: modelOffsetX, y: modelOffsetY, z: modelOffsetZ }}
+                          width={120}
+                          height={150}
+                        />
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                        <div>
+                          <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--accent-cyan)' }}>
+                            Custom Model
+                          </div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                            {customModelFile ? `${customModelFile.name} (${formatFileSize(customModelFile.size)})` : 'Uploaded'}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleRemoveCustomModel}
+                          style={{
+                            padding: '4px 8px',
+                            background: 'transparent',
+                            border: '1px solid var(--accent-red)',
+                            borderRadius: '4px',
+                            color: 'var(--accent-red)',
+                            cursor: 'pointer',
+                            fontSize: '10px',
+                          }}
+                        >
+                          Remove
+                        </button>
+                      </div>
+
+                      {/* Model Scale slider */}
+                      <div style={{ marginBottom: '12px' }}>
+                        <label style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                          Model Scale: {modelScale.toFixed(1)}x
+                        </label>
+                        <input
+                          type="range"
+                          min="0.1"
+                          max="5"
+                          step="0.1"
+                          value={modelScale}
+                          onChange={(e) => setModelScale(parseFloat(e.target.value))}
+                          style={{ width: '100%' }}
+                        />
+                      </div>
+
+                      {/* Model Position Offset sliders */}
+                      <div style={{ marginBottom: '12px' }}>
+                        <label style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                          Position Offset X: {modelOffsetX.toFixed(2)}
+                        </label>
+                        <input
+                          type="range"
+                          min="-1"
+                          max="1"
+                          step="0.01"
+                          value={modelOffsetX}
+                          onChange={(e) => setModelOffsetX(parseFloat(e.target.value))}
+                          style={{ width: '100%' }}
+                        />
+                      </div>
+
+                      <div style={{ marginBottom: '12px' }}>
+                        <label style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                          Position Offset Y: {modelOffsetY.toFixed(2)}
+                        </label>
+                        <input
+                          type="range"
+                          min="-1"
+                          max="1"
+                          step="0.01"
+                          value={modelOffsetY}
+                          onChange={(e) => setModelOffsetY(parseFloat(e.target.value))}
+                          style={{ width: '100%' }}
+                        />
+                      </div>
+
+                      <div style={{ marginBottom: '12px' }}>
+                        <label style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                          Position Offset Z (Height): {modelOffsetZ.toFixed(2)}
+                        </label>
+                        <input
+                          type="range"
+                          min="-1"
+                          max="1"
+                          step="0.01"
+                          value={modelOffsetZ}
+                          onChange={(e) => setModelOffsetZ(parseFloat(e.target.value))}
+                          style={{ width: '100%' }}
+                        />
+                      </div>
+
+                      {/* Animation mapping */}
+                      {customModelAnimations.length > 0 && (
+                        <div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                            Animation Mapping ({customModelAnimations.length} detected)
+                          </div>
+
+                          {/* Idle animation */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                            <span style={{ fontSize: '11px', color: 'var(--text-primary)', width: '60px' }}>Idle:</span>
+                            <select
+                              value={animationMapping.idle || ''}
+                              onChange={(e) => setAnimationMapping(prev => ({ ...prev, idle: e.target.value || undefined }))}
+                              style={{
+                                flex: 1,
+                                padding: '4px 8px',
+                                background: 'var(--bg-secondary)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: '4px',
+                                color: 'var(--text-primary)',
+                                fontSize: '11px',
+                              }}
+                            >
+                              <option value="">None</option>
+                              {customModelAnimations.map(anim => (
+                                <option key={anim} value={anim}>{anim}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {/* Walk animation */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                            <span style={{ fontSize: '11px', color: 'var(--text-primary)', width: '60px' }}>Walk:</span>
+                            <select
+                              value={animationMapping.walk || ''}
+                              onChange={(e) => setAnimationMapping(prev => ({ ...prev, walk: e.target.value || undefined }))}
+                              style={{
+                                flex: 1,
+                                padding: '4px 8px',
+                                background: 'var(--bg-secondary)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: '4px',
+                                color: 'var(--text-primary)',
+                                fontSize: '11px',
+                              }}
+                            >
+                              <option value="">None</option>
+                              {customModelAnimations.map(anim => (
+                                <option key={anim} value={anim}>{anim}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {/* Working animation */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontSize: '11px', color: 'var(--text-primary)', width: '60px' }}>Working:</span>
+                            <select
+                              value={animationMapping.working || ''}
+                              onChange={(e) => setAnimationMapping(prev => ({ ...prev, working: e.target.value || undefined }))}
+                              style={{
+                                flex: 1,
+                                padding: '4px 8px',
+                                background: 'var(--bg-secondary)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: '4px',
+                                color: 'var(--text-primary)',
+                                fontSize: '11px',
+                              }}
+                            >
+                              <option value="">None (bounce)</option>
+                              {customModelAnimations.map(anim => (
+                                <option key={anim} value={anim}>{anim}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      )}
+
+                      {customModelAnimations.length === 0 && (
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                          No animations detected in this model
+                        </div>
+                      )}
                     </div>
+
+                    {/* Change model button */}
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      style={{
+                        width: '100%',
+                        marginTop: '8px',
+                        padding: '6px 12px',
+                        background: 'var(--bg-secondary)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '6px',
+                        color: 'var(--text-secondary)',
+                        cursor: 'pointer',
+                        fontSize: '11px',
+                      }}
+                    >
+                      Replace with Different Model
+                    </button>
+                  </>
+                )}
+
+                {/* Error message */}
+                {modelUploadError && (
+                  <div style={{
+                    marginTop: '8px',
+                    padding: '8px',
+                    background: 'rgba(255, 85, 85, 0.1)',
+                    border: '1px solid var(--accent-red)',
+                    borderRadius: '4px',
+                    fontSize: '11px',
+                    color: 'var(--accent-red)',
+                  }}>
+                    {modelUploadError}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => navigateModel('next')}
-                    style={{
-                      width: '36px',
-                      height: '36px',
-                      borderRadius: '50%',
-                      border: '1px solid var(--border-color)',
-                      background: 'var(--bg-secondary)',
-                      color: 'var(--text-primary)',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '18px',
-                    }}
-                  >
-                    ›
-                  </button>
-                </div>
+                )}
               </div>
 
               <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
@@ -650,15 +1093,15 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
               </div>
             </div>
             <div className="modal-footer" style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', padding: '12px 16px', borderTop: '1px solid var(--border-color)' }}>
-              <button className="btn btn-secondary" onClick={() => setShowClassEditor(false)}>
+              <button className="btn btn-secondary" onClick={() => setShowClassEditor(false)} disabled={isUploadingModel}>
                 Cancel
               </button>
               <button
                 className="btn btn-primary"
                 onClick={handleSaveClass}
-                disabled={!className.trim()}
+                disabled={!className.trim() || isUploadingModel}
               >
-                {editingClassId ? 'Save Changes' : 'Create Class'}
+                {isUploadingModel ? 'Uploading...' : (editingClassId ? 'Save Changes' : 'Create Class')}
               </button>
             </div>
           </div>
