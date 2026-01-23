@@ -359,6 +359,7 @@ export class ClaudeRunner {
 
     // Spawn process with its own process group (detached: true)
     // Note: shell: false is required to properly pass arguments with special characters
+    const isWindows = process.platform === 'win32';
     const childProcess = spawn(executable, args, {
       cwd: workingDir,
       env: {
@@ -368,8 +369,8 @@ export class ClaudeRunner {
         // Pass server URL for permission hooks in interactive mode
         TIDE_SERVER: `http://localhost:${process.env.TIDE_PORT || process.env.PORT || 5174}`,
       },
-      shell: false,
-      detached: true,
+      shell: isWindows ? true : false,
+      detached: isWindows ? false : true,
     });
 
     // Track the active process with the request for potential auto-restart
