@@ -56,6 +56,17 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
     return undefined;
   }, [selectedCustomClass]);
 
+  // Get custom model URL if the class has an uploaded model
+  const previewCustomModelUrl = useMemo((): string | undefined => {
+    if (selectedCustomClass?.customModelPath) {
+      return `/api/custom-models/${selectedCustomClass.id}`;
+    }
+    return undefined;
+  }, [selectedCustomClass]);
+
+  // Get model scale for custom classes
+  const previewModelScale = selectedCustomClass?.modelScale;
+
   // Agent class for ModelPreview (only used when no custom model file)
   const previewAgentClass = useMemo((): BuiltInAgentClass => {
     if (selectedCustomClass) {
@@ -189,7 +200,14 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
           {/* Top: Preview + Class Selection */}
           <div className="spawn-top-section">
             <div className="spawn-preview-compact">
-              <ModelPreview agentClass={previewAgentClass} modelFile={previewModelFile} width={100} height={120} />
+              <ModelPreview
+                agentClass={previewAgentClass}
+                modelFile={previewModelFile}
+                customModelUrl={previewCustomModelUrl}
+                modelScale={previewModelScale}
+                width={100}
+                height={120}
+              />
             </div>
             <div className="spawn-class-section">
               <div className="spawn-class-label">Boss Class</div>

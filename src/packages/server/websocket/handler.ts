@@ -665,7 +665,11 @@ export function init(server: HttpServer): WebSocketServer {
     // This only corrects 'working' -> 'idle' if the process is dead
     await claudeService.syncAllAgentStatus();
 
-    // Send current state
+    // Send custom agent classes FIRST - agents need these for custom model loading
+    const customClasses = customClassService.getAllCustomClasses();
+    ws.send(JSON.stringify({ type: 'custom_agent_classes_update', payload: customClasses }));
+
+    // Send agents AFTER custom classes so models can be resolved correctly
     const agents = agentService.getAllAgents();
     ws.send(JSON.stringify({ type: 'agents_update', payload: agents }));
 
@@ -680,10 +684,6 @@ export function init(server: HttpServer): WebSocketServer {
     // Send current skills
     const skills = skillService.getAllSkills();
     ws.send(JSON.stringify({ type: 'skills_update', payload: skills }));
-
-    // Send current custom agent classes
-    const customClasses = customClassService.getAllCustomClasses();
-    ws.send(JSON.stringify({ type: 'custom_agent_classes_update', payload: customClasses }));
 
     // Send pending permission requests
     const pendingPermissions = permissionService.getPendingRequests();

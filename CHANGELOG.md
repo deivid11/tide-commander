@@ -2,6 +2,43 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.0] - 2026-01-23
+
+### Added
+- **Custom 3D Model Support** - Upload custom `.glb` models for agent classes
+  - GLB file upload with validation and animation parsing
+  - Automatic animation detection and mapping (idle, walk, working)
+  - Custom animation mapping UI for mapping model animations to agent states
+  - Model scale and position offset controls for fine-tuning placement
+  - Live 3D preview with drag-to-rotate interaction
+  - Server-side model storage and streaming API (`/api/custom-models`)
+- **Procedural Animation System** - Models without animations get procedural idle effects
+  - Gentle bobbing and swaying for static models
+  - Automatic fallback when no animations detected
+- **Enhanced Model Preview** - Interactive 3D preview in class editor
+  - Drag-to-rotate functionality (click and drag to rotate model)
+  - Support for custom model files, URLs, and built-in models
+  - Procedural animation for models without built-in animations
+- **GLB Parser Utility** - Client-side GLB parsing for animation extraction
+  - Validates GLB magic bytes and structure
+  - Extracts animation names without full model load
+  - File size formatting helper
+
+### Changed
+- SkillsPanel now supports custom model upload with full configuration UI
+- ModelPreview component accepts custom model files and URLs
+- CharacterFactory and CharacterLoader support custom models from server
+- SceneManager integrates ProceduralAnimator for animation-less models
+- Custom classes can now have per-class animation mappings
+- MovementAnimator supports custom walk animations per agent class
+
+### Technical
+- New `ProceduralAnimator` class for procedural animation state management
+- New `glbParser.ts` utility for client-side GLB file parsing
+- New `/api/custom-models` routes for model upload, retrieval, and deletion
+- Extended `CustomAgentClass` type with model customization fields
+- Added `AnimationMapping` type for per-class animation configuration
+
 ## [0.8.2] - 2026-01-22
 
 > ⚠️ **EXPERIMENTAL RELEASE** - This version includes new features that require testing:

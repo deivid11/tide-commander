@@ -89,6 +89,21 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
     return undefined;
   }, [customClasses, selectedClass]);
 
+  // Get custom model URL if the class has an uploaded model
+  const previewCustomModelUrl = useMemo(() => {
+    const customClass = customClasses.find(c => c.id === selectedClass);
+    if (customClass?.customModelPath) {
+      return `/api/custom-models/${customClass.id}`;
+    }
+    return undefined;
+  }, [customClasses, selectedClass]);
+
+  // Get model scale for preview
+  const previewModelScale = useMemo(() => {
+    const customClass = customClasses.find(c => c.id === selectedClass);
+    return customClass?.modelScale;
+  }, [customClasses, selectedClass]);
+
   // Get custom class instructions if selected class has any
   const selectedCustomClass = useMemo(() => {
     return customClasses.find(c => c.id === selectedClass);
@@ -181,6 +196,8 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
               <ModelPreview
                 agentClass={previewAgentClass}
                 modelFile={previewModelFile}
+                customModelUrl={previewCustomModelUrl}
+                modelScale={previewModelScale}
                 width={100}
                 height={120}
               />
