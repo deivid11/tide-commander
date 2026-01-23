@@ -32,6 +32,7 @@
 @use 'components/skills-panel';
 @use 'components/agent-notification';
 @use 'components/pwa-install';
+@use 'components/pip';
 
 // Responsive styles (must be last to override component styles)
 @use 'responsive';

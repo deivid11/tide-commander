@@ -12,3 +12,4 @@ export {
   registerModal,
 } from './useModalStack';
 export { useSwipeGesture, type SwipeGestureOptions } from './useSwipeGesture';
+export { useDocumentPiP, isDocumentPiPSupported, type DocumentPiPState, type DocumentPiPOptions } from './useDocumentPiP';

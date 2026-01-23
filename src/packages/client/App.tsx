@@ -25,9 +25,10 @@ import { matchesShortcut } from './store/shortcuts';
 import { FPSMeter } from './components/FPSMeter';
 import { profileRender } from './utils/profiling';
 import { STORAGE_KEYS, getStorage, setStorage, getStorageString } from './utils/storage';
-import { useModalState, useModalStateWithId, useContextMenu, useModalStackRegistration, closeTopModal, hasOpenModals } from './hooks';
+import { useModalState, useModalStateWithId, useContextMenu, useModalStackRegistration, closeTopModal, hasOpenModals, useDocumentPiP } from './hooks';
 import { ContextMenu, type ContextMenuAction } from './components/ContextMenu';
 import { PWAInstallBanner } from './components/PWAInstallBanner';
+import { PiPWindow, AgentsPiPView } from './components/PiPWindow';
 
 // Persist scene manager across HMR and StrictMode remounts
 let persistedScene: SceneManager | null = null;
@@ -242,6 +243,7 @@ function AppContent() {
   const explorerModal = useModalStateWithId(); // has .id for areaId
   const explorerFolderPath = useExplorerFolderPath(); // Direct folder path for file explorer (from store)
   const contextMenu = useContextMenu(); // Right-click context menu
+  const pip = useDocumentPiP(); // Document Picture-in-Picture for agents view
   const [spawnPosition, setSpawnPosition] = useState<{ x: number; z: number } | null>(null);
   const [hoveredAgentPopup, setHoveredAgentPopup] = useState<{
     agentId: string;
@@ -1374,6 +1376,25 @@ function AppContent() {
           <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
         </svg>
       </button>
+
+      {/* Picture-in-Picture button */}
+      {pip.isSupported && (
+        <button
+          className={`pip-toggle-btn ${pip.isOpen ? 'active' : ''}`}
+          onClick={() => pip.toggle({ width: 320, height: 400 })}
+          title={pip.isOpen ? 'Close Agents in PiP Mode' : 'Open Agents in PiP Mode'}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <rect x="2" y="3" width="20" height="14" rx="2" />
+            <rect x="12" y="9" width="8" height="6" rx="1" />
+          </svg>
+        </button>
+      )}
+
+      {/* PiP Window with Agents View */}
+      <PiPWindow pip={pip} title="Tide Commander - Agents">
+        <AgentsPiPView />
+      </PiPWindow>
 
       <Profiler id="CommanderView" onRender={profileRender}>
         <CommanderView

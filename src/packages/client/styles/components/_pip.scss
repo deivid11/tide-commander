@@ -1,0 +1,48 @@
+@use 'sass:color';
+@use '../variables' as *;
+
+// Floating button for Picture-in-Picture - positioned after skills button
+.pip-toggle-btn {
+  position: fixed;
+  bottom: 280px;  // Stacked above skills button (238 + 36 + 6)
+  left: 16px;     // Aligned with other buttons
+  width: 36px;
+  height: 36px;
+  border-radius: $radius-lg;
+  background: linear-gradient(180deg, $dracula-current 0%, $dracula-bg 100%);
+  border: 1px solid $dracula-comment;
+  color: $dracula-cyan;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 150;
+  transition: all $transition-fast;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+
+  &:hover {
+    border-color: $dracula-cyan;
+    color: $dracula-cyan;
+    background: linear-gradient(180deg, color.adjust($dracula-current, $lightness: 5%) 0%, $dracula-current 100%);
+  }
+
+  // Active state when PiP window is open
+  &.active {
+    border-color: $dracula-cyan;
+    background: linear-gradient(180deg, color.adjust($dracula-cyan, $lightness: -30%) 0%, $dracula-bg 100%);
+    color: $dracula-cyan;
+    box-shadow: 0 0 12px rgba($dracula-cyan, 0.3);
+  }
+
+  svg {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+// Hide PiP button on mobile (PiP API not well supported)
+@media (max-width: 768px) {
+  .pip-toggle-btn {
+    display: none;
+  }
+}
