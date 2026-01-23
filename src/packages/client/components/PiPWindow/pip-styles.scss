@@ -208,9 +208,12 @@
 
 // Animation for working status
 @keyframes pip-pulse {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 1;
   }
+
   50% {
     opacity: 0.6;
   }
@@ -394,7 +397,8 @@
     }
   }
 
-  ul, ol {
+  ul,
+  ol {
     margin: 4px 0;
     padding-left: 16px;
   }
@@ -427,15 +431,33 @@
     color: $dracula-comment;
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     margin: 8px 0 4px 0;
     font-weight: 600;
   }
 
-  h1 { font-size: 14px; }
-  h2 { font-size: 13px; }
-  h3 { font-size: 12px; }
-  h4, h5, h6 { font-size: 11px; }
+  h1 {
+    font-size: 14px;
+  }
+
+  h2 {
+    font-size: 13px;
+  }
+
+  h3 {
+    font-size: 12px;
+  }
+
+  h4,
+  h5,
+  h6 {
+    font-size: 11px;
+  }
 
   table {
     border-collapse: collapse;
@@ -444,7 +466,8 @@
     width: 100%;
   }
 
-  th, td {
+  th,
+  td {
     border: 1px solid $dracula-comment;
     padding: 4px 6px;
     text-align: left;
@@ -496,8 +519,15 @@
 }
 
 @keyframes pip-typing {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.3;
+  }
 }
 
 // Tool usage style (for "Using tool:" lines)
@@ -1030,7 +1060,12 @@
   cursor: text;
 
   // Markdown styles
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     margin: 8px 0 4px 0;
     font-size: 10px;
     font-weight: 600;
@@ -1041,7 +1076,8 @@
     margin: 4px 0;
   }
 
-  ul, ol {
+  ul,
+  ol {
     margin: 4px 0;
     padding-left: 16px;
   }
@@ -1136,7 +1172,7 @@
   transition: all 0.15s ease;
 
   &:hover:not(:disabled) {
-    background: lighten($dracula-cyan, 10%);
+    background: $dracula-cyan;
     transform: scale(1.05);
   }
 
