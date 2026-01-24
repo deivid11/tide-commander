@@ -4,6 +4,7 @@ import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { AgentClass } from '../../../shared/types';
 import { AGENT_CLASS_MODELS, ALL_CHARACTER_MODELS } from '../config';
+import { apiUrl } from '../../utils/storage';
 
 /**
  * Cached model data including mesh and animations.
@@ -34,8 +35,14 @@ export class CharacterLoader {
    * Safe to call multiple times - will return cached promise.
    */
   async loadAll(): Promise<void> {
-    if (this.loaded) return;
-    if (this.loadingPromise) return this.loadingPromise;
+    if (this.loaded) {
+      console.log('[CharacterLoader] Already loaded, skipping');
+      return;
+    }
+    if (this.loadingPromise) {
+      console.log('[CharacterLoader] Already loading, waiting for existing promise');
+      return this.loadingPromise;
+    }
 
     // Load all available character models (not just built-in class models)
     // This ensures custom classes can use any model
@@ -44,10 +51,13 @@ export class CharacterLoader {
       ...ALL_CHARACTER_MODELS.map(m => m.file),
     ])];
 
+    console.log(`[CharacterLoader] Starting to load ${modelNames.length} models`);
+
     this.loadingPromise = Promise.all(
       modelNames.map((name) => this.loadModel(name))
     ).then(() => {
       this.loaded = true;
+      console.log(`[CharacterLoader] All models loaded. Cache size: ${this.models.size}`);
     });
 
     return this.loadingPromise;
@@ -58,9 +68,12 @@ export class CharacterLoader {
    */
   private loadModel(modelName: string): Promise<void> {
     return new Promise((resolve) => {
+      const assetUrl = `/assets/characters/${modelName}`;
+      console.log(`[CharacterLoader] Loading model: ${assetUrl}`);
       this.loader.load(
-        `/assets/characters/${modelName}`,
+        assetUrl,
         (gltf: GLTF) => {
+          console.log(`[CharacterLoader] Successfully loaded: ${modelName}`);
           const scene = this.prepareModel(gltf.scene);
           this.models.set(modelName, {
             scene,
@@ -68,7 +81,9 @@ export class CharacterLoader {
           });
           resolve();
         },
-        undefined,
+        (progress) => {
+          // Progress callback
+        },
         (error) => {
           console.error(`[CharacterLoader] Failed to load ${modelName}:`, error);
           resolve(); // Don't reject - continue with other models
@@ -184,7 +199,7 @@ export class CharacterLoader {
 
     const loadPromise = new Promise<void>((resolve) => {
       this.loader.load(
-        `/api/custom-models/${classId}`,
+        apiUrl(`/api/custom-models/${classId}`),
         (gltf: GLTF) => {
           const scene = this.prepareModel(gltf.scene);
           this.customModels.set(classId, {
@@ -269,19 +284,91 @@ export class CharacterLoader {
   unloadCustomModel(classId: string): void {
     const cached = this.customModels.get(classId);
     if (cached) {
-      // Dispose of geometries and materials
-      cached.scene.traverse((child) => {
-        if (child instanceof THREE.Mesh) {
-          child.geometry?.dispose();
-          if (Array.isArray(child.material)) {
-            child.material.forEach(m => m.dispose());
-          } else if (child.material) {
-            child.material.dispose();
-          }
-        }
-      });
+      this.disposeCachedModel(cached);
       this.customModels.delete(classId);
       console.log(`[CharacterLoader] Unloaded custom model for class: ${classId}`);
     }
+  }
+
+  /**
+   * Dispose of a cached model's resources (geometries, materials, textures).
+   */
+  private disposeCachedModel(cached: CachedModel): void {
+    cached.scene.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.geometry?.dispose();
+        if (Array.isArray(child.material)) {
+          child.material.forEach(m => this.disposeMaterial(m));
+        } else if (child.material) {
+          this.disposeMaterial(child.material);
+        }
+      }
+    });
+  }
+
+  /**
+   * Dispose a material and all its textures.
+   */
+  private disposeMaterial(material: THREE.Material): void {
+    if (material instanceof THREE.MeshStandardMaterial ||
+        material instanceof THREE.MeshBasicMaterial ||
+        material instanceof THREE.MeshPhongMaterial) {
+      material.map?.dispose();
+      if ('normalMap' in material) material.normalMap?.dispose();
+      if ('roughnessMap' in material) material.roughnessMap?.dispose();
+      if ('metalnessMap' in material) material.metalnessMap?.dispose();
+      if ('emissiveMap' in material) material.emissiveMap?.dispose();
+      if ('aoMap' in material) material.aoMap?.dispose();
+      if ('lightMap' in material) material.lightMap?.dispose();
+      if ('bumpMap' in material) material.bumpMap?.dispose();
+      if ('displacementMap' in material) material.displacementMap?.dispose();
+      if ('alphaMap' in material) material.alphaMap?.dispose();
+      if ('envMap' in material) material.envMap?.dispose();
+    }
+    material.dispose();
+  }
+
+  /**
+   * Dispose all cached models and resources.
+   * Call this on page unload to prevent memory leaks.
+   */
+  dispose(): void {
+    // Dispose built-in model templates
+    for (const [name, cached] of this.models) {
+      this.disposeCachedModel(cached);
+      console.log(`[CharacterLoader] Disposed model template: ${name}`);
+    }
+    this.models.clear();
+
+    // Dispose custom model templates
+    for (const [classId, cached] of this.customModels) {
+      this.disposeCachedModel(cached);
+      console.log(`[CharacterLoader] Disposed custom model: ${classId}`);
+    }
+    this.customModels.clear();
+
+    // Reset state
+    this.loaded = false;
+    this.loadingPromise = null;
+    this.loadingCustomModels.clear();
+
+    console.log('[CharacterLoader] All model caches disposed');
+  }
+
+  /**
+   * Get cache statistics for debugging memory issues.
+   */
+  getCacheStats(): {
+    builtInModels: number;
+    customModels: number;
+    modelNames: string[];
+    customModelIds: string[];
+  } {
+    return {
+      builtInModels: this.models.size,
+      customModels: this.customModels.size,
+      modelNames: Array.from(this.models.keys()),
+      customModelIds: Array.from(this.customModels.keys()),
+    };
   }
 }

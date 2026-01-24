@@ -419,6 +419,7 @@
   }
 }
 
+
 .guake-search {
   display: flex;
   align-items: center;
@@ -2129,6 +2130,46 @@
 
 .history-content {
   color: $dracula-fg;
+}
+
+// View markdown button for assistant responses
+.history-view-md-btn {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  background: transparent;
+  border: 1px solid rgba($dracula-comment, 0.4);
+  color: $dracula-comment;
+  padding: 3px 6px;
+  border-radius: $radius-sm;
+  font-size: 12px;
+  cursor: pointer;
+  opacity: 0;
+  transition: all $transition-fast;
+
+  &:hover {
+    border-color: $dracula-green;
+    color: $dracula-green;
+    background: rgba($dracula-green, 0.1);
+  }
+}
+
+// Show button on hover of parent
+.history-line {
+  position: relative;
+
+  &:hover .history-view-md-btn {
+    opacity: 1;
+  }
+}
+
+// Also apply to output lines
+.output-line.output-claude {
+  position: relative;
+
+  &:hover .history-view-md-btn {
+    opacity: 1;
+  }
 }
 
 .history-tool-use {

@@ -7,6 +7,7 @@
 
 import { useState, useCallback } from 'react';
 import type { FileData, FileType, UseFileContentReturn } from './types';
+import { apiUrl } from '../../utils/storage';
 
 // File extensions that can be displayed as text
 const TEXT_EXTENSIONS = new Set([
@@ -77,7 +78,7 @@ export function useFileContent(): UseFileContentReturn {
 
       // For images, load as blob and create data URL
       if (fileType === 'image') {
-        const res = await fetch(`/api/files/binary?path=${encodeURIComponent(filePath)}`);
+        const res = await fetch(apiUrl(`/api/files/binary?path=${encodeURIComponent(filePath)}`));
 
         if (!res.ok) {
           const errorData = await res.json().catch(() => ({ error: 'Failed to load image' }));
@@ -105,7 +106,7 @@ export function useFileContent(): UseFileContentReturn {
       // For PDFs, create a URL to the binary endpoint
       if (fileType === 'pdf') {
         // Get file info first
-        const infoRes = await fetch(`/api/files/info?path=${encodeURIComponent(filePath)}`);
+        const infoRes = await fetch(apiUrl(`/api/files/info?path=${encodeURIComponent(filePath)}`));
         const info = await infoRes.json();
 
         if (!infoRes.ok) {
@@ -122,14 +123,14 @@ export function useFileContent(): UseFileContentReturn {
           size: info.size,
           modified: info.modified,
           fileType: 'pdf',
-          dataUrl: `/api/files/binary?path=${encodeURIComponent(filePath)}`
+          dataUrl: apiUrl(`/api/files/binary?path=${encodeURIComponent(filePath)}`)
         });
         return;
       }
 
       // For binary files, just get file info for download
       if (fileType === 'binary') {
-        const infoRes = await fetch(`/api/files/info?path=${encodeURIComponent(filePath)}`);
+        const infoRes = await fetch(apiUrl(`/api/files/info?path=${encodeURIComponent(filePath)}`));
         const info = await infoRes.json();
 
         if (!infoRes.ok) {
@@ -146,13 +147,13 @@ export function useFileContent(): UseFileContentReturn {
           size: info.size,
           modified: info.modified,
           fileType: 'binary',
-          dataUrl: `/api/files/binary?path=${encodeURIComponent(filePath)}&download=true`
+          dataUrl: apiUrl(`/api/files/binary?path=${encodeURIComponent(filePath)}&download=true`)
         });
         return;
       }
 
       // For text files, use the existing endpoint
-      const res = await fetch(`/api/files/read?path=${encodeURIComponent(filePath)}`);
+      const res = await fetch(apiUrl(`/api/files/read?path=${encodeURIComponent(filePath)}`));
       const data = await res.json();
 
       if (!res.ok) {

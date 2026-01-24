@@ -14,6 +14,7 @@ import type { AgentHistory } from './types';
 import type { ClaudeOutput } from '../../store/types';
 import { MESSAGES_PER_PAGE } from './types';
 import { useReconnectCount, store } from '../../store';
+import { apiUrl } from '../../utils/storage';
 
 /**
  * Compare two Maps for equality by checking if all keys and values are the same.
@@ -133,7 +134,7 @@ export function useAgentHistory({ isOpen, agents }: UseAgentHistoryOptions): Use
       }
 
       try {
-        const res = await fetch(`/api/agents/${agent.id}/history?limit=${MESSAGES_PER_PAGE}&offset=0`);
+        const res = await fetch(apiUrl(`/api/agents/${agent.id}/history?limit=${MESSAGES_PER_PAGE}&offset=0`));
         const data = await res.json();
         const historyMessages = (data.messages || []) as import('./types').HistoryMessage[];
 
@@ -222,7 +223,7 @@ export function useAgentHistory({ isOpen, agents }: UseAgentHistoryOptions): Use
 
     try {
       const res = await fetch(
-        `/api/agents/${agentId}/history?limit=${MESSAGES_PER_PAGE}&offset=${currentOffset}`
+        apiUrl(`/api/agents/${agentId}/history?limit=${MESSAGES_PER_PAGE}&offset=${currentOffset}`)
       );
       const data = await res.json();
 

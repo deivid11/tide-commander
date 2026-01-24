@@ -13,6 +13,7 @@ import { AgentEditModal } from '../AgentEditModal';
 import { ContextViewModal } from '../ContextViewModal';
 import { useToast } from '../Toast';
 import { PERMISSION_MODES, AGENT_CLASSES } from '../../../shared/types';
+import { apiUrl } from '../../utils/storage';
 import type { Agent, DelegationDecision, AgentSupervisorHistoryEntry } from '../../../shared/types';
 import { calculateContextInfo } from './agentUtils';
 import { formatRelativeTime } from './agentUtils';
@@ -61,7 +62,7 @@ export function SingleAgentPanel({
   const customClass = customClasses.find(c => c.id === agent.class);
   const modelFile = customClass?.model;
   // Check if custom class has an uploaded custom model
-  const customModelUrl = customClass?.customModelPath ? `/api/custom-models/${customClass.id}` : undefined;
+  const customModelUrl = customClass?.customModelPath ? apiUrl(`/api/custom-models/${customClass.id}`) : undefined;
   const modelScale = customClass?.modelScale;
 
   // Name editing state
@@ -115,7 +116,7 @@ export function SingleAgentPanel({
   // Fetch remembered patterns for interactive mode agents
   useEffect(() => {
     if (agent.permissionMode === 'interactive') {
-      fetch('http://localhost:5174/api/remembered-patterns')
+      fetch(apiUrl('/api/remembered-patterns'))
         .then((res) => res.json())
         .then(setRememberedPatterns)
         .catch((err) => console.error('Failed to fetch remembered patterns:', err));
@@ -142,7 +143,7 @@ export function SingleAgentPanel({
   const handleRemovePattern = async (tool: string, pattern: string) => {
     try {
       const res = await fetch(
-        `http://localhost:5174/api/remembered-patterns/${tool}/${encodeURIComponent(pattern)}`,
+        apiUrl(`/api/remembered-patterns/${tool}/${encodeURIComponent(pattern)}`),
         { method: 'DELETE' }
       );
       if (res.ok) {
@@ -156,7 +157,7 @@ export function SingleAgentPanel({
   const handleClearAllPatterns = async () => {
     if (!confirm('Clear all remembered permission patterns?')) return;
     try {
-      const res = await fetch('http://localhost:5174/api/remembered-patterns', { method: 'DELETE' });
+      const res = await fetch(apiUrl('/api/remembered-patterns'), { method: 'DELETE' });
       if (res.ok) {
         setRememberedPatterns([]);
       }

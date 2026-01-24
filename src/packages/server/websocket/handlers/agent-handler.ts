@@ -301,6 +301,9 @@ export async function handleUpdateAgentProperties(
   const modelChanged = updates.model !== undefined && updates.model !== agent.model;
   const sessionId = agent.sessionId; // Save before update
 
+  // Track if Chrome flag changed (requires hot restart to add/remove --chrome flag)
+  const useChromeChanged = updates.useChrome !== undefined && updates.useChrome !== agent.useChrome;
+
   // Track if skills changed (requires hot restart to apply new skills in system prompt)
   let skillsChanged = false;
   if (updates.skillIds !== undefined) {
@@ -364,6 +367,34 @@ export async function handleUpdateAgentProperties(
     log.log(`Agent ${agent.name}: Model changed to ${updates.model}, will apply on next session start`);
   }
 
+  // If Chrome flag changed, do a hot restart to add/remove --chrome flag
+  // Only restart if model didn't already trigger a restart
+  if (useChromeChanged && !modelChanged && sessionId) {
+    const chromeStatus = updates.useChrome ? 'enabled' : 'disabled';
+    log.log(`Agent ${agent.name}: Chrome ${chromeStatus}, hot restarting with --resume to apply change`);
+    try {
+      // Stop the current Claude process
+      await claudeService.stopAgent(agentId);
+
+      // Mark as idle temporarily (the resume will happen on next command)
+      // Keep sessionId to allow resume with chrome flag change
+      agentService.updateAgent(agentId, {
+        status: 'idle',
+        currentTask: undefined,
+        currentTool: undefined,
+        // Keep sessionId! This allows --resume to work with the new chrome setting
+      }, false);
+
+      ctx.sendActivity(agentId, `Chrome browser ${chromeStatus} - context preserved`);
+    } catch (err) {
+      log.error(`Failed to hot restart agent ${agent.name} after Chrome change:`, err);
+    }
+  } else if (useChromeChanged && !sessionId) {
+    // No existing session, chrome flag will apply on next start
+    const chromeStatus = updates.useChrome ? 'enabled' : 'disabled';
+    log.log(`Agent ${agent.name}: Chrome ${chromeStatus}, will apply on next session start`);
+  }
+
   // Handle skill reassignment
   if (updates.skillIds !== undefined) {
     // First, unassign all current skills from this agent
@@ -380,9 +411,9 @@ export async function handleUpdateAgentProperties(
       skillService.assignSkillToAgent(skillId, agentId);
     }
 
-    // If skills changed and we didn't already hot restart for model change, do it now
+    // If skills changed and we didn't already hot restart for model/chrome change, do it now
     // Skills are injected into the system prompt, so we need to restart to apply them
-    if (skillsChanged && !modelChanged && sessionId) {
+    if (skillsChanged && !modelChanged && !useChromeChanged && sessionId) {
       log.log(`Agent ${agent.name}: Skills changed, hot restarting with --resume to apply new system prompt`);
       try {
         // Stop the current Claude process

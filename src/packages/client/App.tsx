@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo, Profiler } from 'react';
 import { store, useStore, useMobileView, useExplorerFolderPath } from './store';
-import { connect, setCallbacks, getSocket } from './websocket';
+import { connect, setCallbacks, clearCallbacks, disconnect, getSocket } from './websocket';
 import { SceneManager } from './scene/SceneManager';
 import { ToastProvider, useToast } from './components/Toast';
 import { AgentNotificationProvider, useAgentNotification } from './components/AgentNotificationToast';
@@ -28,9 +28,137 @@ import { STORAGE_KEYS, getStorage, setStorage, getStorageString } from './utils/
 import { useModalState, useModalStateWithId, useContextMenu } from './hooks';
 import { ContextMenu, type ContextMenuAction } from './components/ContextMenu';
 
-// Persist scene manager across HMR
+// Persist scene manager across HMR and StrictMode remounts
 let persistedScene: SceneManager | null = null;
+let persistedCanvas: HTMLCanvasElement | null = null;
 let wsConnected = false;
+
+// Track if page is actually unloading (not HMR)
+let isPageUnloading = false;
+
+// Cleanup function to dispose scene - called from multiple unload events
+function cleanupScene(source: string): void {
+  console.log(`%c[App] ${source} - disposing scene`, 'color: #ff00ff; font-weight: bold');
+  isPageUnloading = true;
+
+  // Clear the session flag to indicate clean shutdown
+  sessionStorage.removeItem('tide_webgl_active');
+
+  // Disconnect WebSocket and clear all callbacks FIRST to prevent them from holding references
+  disconnect();
+  clearCallbacks();
+
+  // Clear debug reference BEFORE dispose to break reference chains
+  if ((window as any).__tideScene) {
+    (window as any).__tideScene = null;
+  }
+
+  if (persistedScene) {
+    console.log('[App] Calling persistedScene.dispose()');
+    persistedScene.dispose();
+    persistedScene = null;
+  } else {
+    console.log('[App] No persistedScene to dispose');
+  }
+
+  persistedCanvas = null;
+  wsConnected = false;
+
+  // Remove canvas from DOM to help browser release WebGL context
+  const canvas = document.getElementById('battlefield');
+  if (canvas) {
+    canvas.remove();
+  }
+
+  // Clear the app container to remove all React nodes
+  const app = document.getElementById('app');
+  if (app) {
+    app.innerHTML = '';
+  }
+}
+
+// Session storage key to track if we had an active WebGL context
+const WEBGL_SESSION_KEY = 'tide_webgl_active';
+
+if (typeof window !== 'undefined') {
+  // ON PAGE LOAD: Clean up any stale scene references from previous sessions
+  // This handles the case where bfcache or reload preserved old memory
+  (function cleanupStaleContexts() {
+    // Check if previous session didn't clean up properly (refresh without beforeunload)
+    const hadActiveContext = sessionStorage.getItem(WEBGL_SESSION_KEY) === 'true';
+    if (hadActiveContext) {
+      console.log('[App] Detected unclean shutdown from previous session - forcing cleanup');
+    }
+
+    // Clear any stale global references - only if there's actually a stale scene
+    if ((window as any).__tideScene) {
+      console.log('[App] Cleaning up stale __tideScene reference');
+      try {
+        (window as any).__tideScene.dispose?.();
+      } catch {
+        // May already be disposed
+      }
+      (window as any).__tideScene = null;
+    }
+
+    // Clear persistedScene if it exists from a previous load
+    // Note: Cast needed because TS control flow doesn't account for bfcache/HMR edge cases
+    const staleScene = persistedScene as unknown as SceneManager | null;
+    if (staleScene) {
+      console.log('[App] Cleaning up stale persistedScene');
+      try {
+        staleScene.dispose();
+      } catch {
+        // May already be disposed
+      }
+      persistedScene = null;
+    }
+
+    // ALWAYS try to kill any existing WebGL context on the battlefield canvas
+    // This is critical because on refresh, the browser may keep the old context alive
+    const existingCanvas = document.getElementById('battlefield') as HTMLCanvasElement | null;
+    if (existingCanvas) {
+      console.log('[App] Found existing canvas, forcing WebGL context loss and removal');
+      try {
+        // Try to get and lose any existing context
+        const gl = existingCanvas.getContext('webgl2') || existingCanvas.getContext('webgl');
+        if (gl) {
+          const loseContext = gl.getExtension('WEBGL_lose_context');
+          if (loseContext) {
+            loseContext.loseContext();
+          }
+        }
+      } catch {
+        // Context may already be lost
+      }
+      // Always remove the canvas so a fresh one is created
+      existingCanvas.remove();
+    }
+
+    // Clear the session flag since we've done cleanup
+    sessionStorage.removeItem(WEBGL_SESSION_KEY);
+  })();
+
+  // Detect bfcache restore and force cleanup
+  window.addEventListener('pageshow', (event) => {
+    if (event.persisted) {
+      console.log('[App] Page restored from bfcache - cleaning up');
+      cleanupScene('bfcache-restore');
+      // Force reload to get fresh state
+      window.location.reload();
+    }
+  });
+
+  // Cleanup handlers for page unload
+  window.onunload = () => cleanupScene('onunload');
+  window.onbeforeunload = () => {
+    cleanupScene('onbeforeunload');
+    return undefined;
+  };
+  window.addEventListener('pagehide', (event) => {
+    cleanupScene(`pagehide (persisted=${event.persisted})`);
+  });
+}
 
 // Default terrain config
 const DEFAULT_TERRAIN = {
@@ -134,11 +262,19 @@ function AppContent() {
   useEffect(() => {
     if (!canvasRef.current || !selectionBoxRef.current) return;
 
-    // Reuse or create scene manager (persists across HMR)
-    if (persistedScene) {
-      // Reattach to new canvas/selection elements
+    // Check if this is the same canvas as before (StrictMode remount or HMR)
+    const isSameCanvas = persistedCanvas === canvasRef.current;
+
+    // Reuse or create scene manager (persists across HMR and StrictMode remounts)
+    if (persistedScene && isSameCanvas) {
+      // Same canvas, just reuse existing scene (StrictMode remount)
+      sceneRef.current = persistedScene;
+      console.log('[Tide] Reusing existing scene (StrictMode remount)');
+    } else if (persistedScene && !isSameCanvas) {
+      // Different canvas (HMR), need to reattach
       persistedScene.reattach(canvasRef.current, selectionBoxRef.current);
       sceneRef.current = persistedScene;
+      persistedCanvas = canvasRef.current;
       console.log('[Tide] Reattached existing scene (HMR)');
       // Re-apply custom classes from store on reattach (in case they were updated)
       const customClasses = store.getState().customAgentClasses;
@@ -146,9 +282,19 @@ function AppContent() {
         persistedScene.setCustomAgentClasses(customClasses);
       }
     } else {
+      // Mark that we're creating a WebGL context - used for detecting unclean shutdowns
+      sessionStorage.setItem(WEBGL_SESSION_KEY, 'true');
+
       const scene = new SceneManager(canvasRef.current, selectionBoxRef.current);
       sceneRef.current = scene;
       persistedScene = scene;
+      persistedCanvas = canvasRef.current;
+
+      // Expose scene manager for debugging in dev mode
+      if (import.meta.env.DEV && typeof window !== 'undefined') {
+        (window as any).__tideScene = scene;
+        console.log('[Tide] SceneManager available at window.__tideScene (use .logMemoryDiagnostics() for memory info)');
+      }
 
       // Apply saved config
       const savedConfig = loadConfig();
@@ -162,14 +308,19 @@ function AppContent() {
       scene.setWorkingAnimation(savedConfig.animations.workingAnimation);
       scene.setFpsLimit(savedConfig.fpsLimit);
 
-      // Load character models then upgrade any existing agents
+      // Load character models then sync agents from store
       scene.loadCharacterModels().then(() => {
         console.log('[Tide] Character models ready');
         // Apply custom classes from store (they may have arrived via WebSocket before models loaded)
-        const customClasses = store.getState().customAgentClasses;
-        if (customClasses.size > 0) {
-          console.log('[Tide] Applying custom classes from store:', customClasses.size);
-          scene.setCustomAgentClasses(customClasses);
+        const state = store.getState();
+        if (state.customAgentClasses.size > 0) {
+          console.log('[Tide] Applying custom classes from store:', state.customAgentClasses.size);
+          scene.setCustomAgentClasses(state.customAgentClasses);
+        }
+        // Sync agents from store (in case WS sync happened before scene was ready)
+        if (state.agents.size > 0) {
+          console.log('[Tide] Syncing agents from store:', state.agents.size);
+          scene.syncAgents(Array.from(state.agents.values()));
         }
         scene.upgradeAgentModels();
       }).catch((err) => {
@@ -263,21 +414,47 @@ function AppContent() {
     connect();
     wsConnected = true;
 
-    // Don't dispose on HMR unmount - only on full page unload
+    // Don't dispose on HMR or StrictMode unmount - only on full page unload
     return () => {
-      // Only cleanup if page is actually unloading
-      if (!import.meta.hot) {
+      // Only cleanup if page is actually unloading (not HMR or StrictMode)
+      // isPageUnloading is set by beforeunload event
+      // In production, StrictMode causes mount/unmount/remount, so we keep the scene alive
+      if (isPageUnloading) {
         sceneRef.current?.dispose();
         persistedScene = null;
+        persistedCanvas = null;
         wsConnected = false;
       }
     };
   }, [showToast, showAgentNotification]);
 
   // Subscribe to selection changes to update scene visuals
+  // CRITICAL: Only refresh when selection actually changes, not on every store update
+  // This prevents massive geometry churn from boss-subordinate line recreation
   useEffect(() => {
+    let lastSelectedIds = '';
+    let lastAgentsJson = '';
     return store.subscribe(() => {
-      sceneRef.current?.refreshSelectionVisuals();
+      const state = store.getState();
+      // Check if selection changed
+      const selectedIds = Array.from(state.selectedAgentIds).sort().join(',');
+      // Also check if agent positions/statuses changed (for visual updates)
+      const agentsJson = JSON.stringify(
+        Array.from(state.agents.values()).map(a => ({
+          id: a.id,
+          x: a.position.x,
+          z: a.position.z,
+          status: a.status,
+          class: a.class,
+          isBoss: a.isBoss,
+          subordinateIds: a.subordinateIds,
+        }))
+      );
+      if (selectedIds !== lastSelectedIds || agentsJson !== lastAgentsJson) {
+        lastSelectedIds = selectedIds;
+        lastAgentsJson = agentsJson;
+        sceneRef.current?.refreshSelectionVisuals();
+      }
     });
   }, []);
 

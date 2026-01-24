@@ -67,6 +67,8 @@ import { useTerminalInput } from './useTerminalInput';
 import { getImageWebUrl } from './contentRendering';
 import { AgentDebugPanel } from './AgentDebugPanel';
 import { agentDebugger } from '../../services/agentDebugger';
+import { AgentResponseModal } from './AgentResponseModal';
+import { apiUrl } from '../../utils/storage';
 
 export function ClaudeOutputPanel() {
   // Use granular selectors instead of useStore() to prevent unnecessary re-renders
@@ -120,6 +122,9 @@ export function ClaudeOutputPanel() {
   // Debug panel state
   const [debugPanelOpen, setDebugPanelOpen] = useState(false);
   const [debuggerEnabled, setDebuggerEnabled] = useState(() => agentDebugger.isEnabled());
+
+  // Agent response modal state - stores the markdown content to display
+  const [responseModalContent, setResponseModalContent] = useState<string | null>(null);
 
   // Completion indicator state - shows briefly when agent finishes processing
   const [showCompletion, setShowCompletion] = useState(false);
@@ -214,6 +219,10 @@ export function ClaudeOutputPanel() {
     // Check if this is a "running" message - mark as live so we can auto-update
     const isLive = output === 'Running...';
     setBashModal({ command, output, isLive });
+  }, []);
+
+  const handleViewMarkdown = useCallback((content: string) => {
+    setResponseModalContent(content);
   }, []);
 
   // Memoized sorted agents list for the agent links bar
@@ -512,7 +521,7 @@ export function ClaudeOutputPanel() {
     if (!isSessionEstablishment) {
       setLoadingHistory(true);
     }
-    fetch(`/api/agents/${selectedAgentId}/history?limit=${MESSAGES_PER_PAGE}&offset=0`)
+    fetch(apiUrl(`/api/agents/${selectedAgentId}/history?limit=${MESSAGES_PER_PAGE}&offset=0`))
       .then((res) => {
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}: ${res.statusText}`);
@@ -604,7 +613,7 @@ export function ClaudeOutputPanel() {
     const currentOffset = history.length;
 
     try {
-      const res = await fetch(`/api/agents/${selectedAgentId}/history?limit=${MESSAGES_PER_PAGE}&offset=${currentOffset}`);
+      const res = await fetch(apiUrl(`/api/agents/${selectedAgentId}/history?limit=${MESSAGES_PER_PAGE}&offset=${currentOffset}`));
       const data = await res.json();
 
       if (data.messages && data.messages.length > 0) {
@@ -652,7 +661,7 @@ export function ClaudeOutputPanel() {
 
     setSearchLoading(true);
     try {
-      const res = await fetch(`/api/agents/${selectedAgentId}/search?q=${encodeURIComponent(searchQuery)}&limit=100`);
+      const res = await fetch(apiUrl(`/api/agents/${selectedAgentId}/search?q=${encodeURIComponent(searchQuery)}&limit=100`));
       const data = await res.json();
       setSearchResults(data.matches || []);
     } catch (err) {
@@ -682,7 +691,9 @@ export function ClaudeOutputPanel() {
         }
       }
       if (e.key === 'Escape') {
-        if (bashModal) {
+        if (responseModalContent) {
+          setResponseModalContent(null);
+        } else if (bashModal) {
           setBashModal(null);
         } else if (imageModal) {
           setImageModal(null);
@@ -695,7 +706,7 @@ export function ClaudeOutputPanel() {
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, searchMode, imageModal, bashModal]);
+  }, [isOpen, searchMode, imageModal, bashModal, responseModalContent]);
 
   // Auto-resize textarea to fit content (shrinks when content is removed)
   useEffect(() => {
@@ -975,6 +986,7 @@ export function ClaudeOutputPanel() {
                   onImageClick={(url, name) => setImageModal({ url, name })}
                   onFileClick={(path) => store.setFileViewerPath(path)}
                   onBashClick={handleBashClick}
+                  onViewMarkdown={handleViewMarkdown}
                 />
               ))}
             </>
@@ -1002,6 +1014,7 @@ export function ClaudeOutputPanel() {
                   onImageClick={handleImageClick}
                   onFileClick={handleFileClick}
                   onBashClick={handleBashClick}
+                  onViewMarkdown={handleViewMarkdown}
                 />
               ))}
               {filteredOutputs.map((output, index) => (
@@ -1012,6 +1025,7 @@ export function ClaudeOutputPanel() {
                   onImageClick={handleImageClick}
                   onFileClick={handleFileClick}
                   onBashClick={handleBashClick}
+                  onViewMarkdown={handleViewMarkdown}
                 />
               ))}
             </>
@@ -1249,6 +1263,16 @@ export function ClaudeOutputPanel() {
 
       {/* File Viewer Modal */}
       <FileViewerFromGuake />
+
+      {/* Agent Response Modal */}
+      {selectedAgent && (
+        <AgentResponseModal
+          agent={selectedAgent}
+          content={responseModalContent || ''}
+          isOpen={!!responseModalContent}
+          onClose={() => setResponseModalContent(null)}
+        />
+      )}
     </div>
   );
 }

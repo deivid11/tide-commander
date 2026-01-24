@@ -5,6 +5,7 @@ import { ModelPreview } from './ModelPreview';
 import type { Skill, CustomAgentClass, AnimationMapping } from '../../shared/types';
 import { ALL_CHARACTER_MODELS } from '../scene/config';
 import { parseGlbAnimations, isValidGlbFile, formatFileSize } from '../utils/glbParser';
+import { apiUrl } from '../utils/storage';
 
 type PanelTab = 'skills' | 'classes';
 
@@ -247,7 +248,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
     setModelUploadError(null);
 
     try {
-      const response = await fetch(`/api/custom-models/upload/${classId}`, {
+      const response = await fetch(apiUrl(`/api/custom-models/upload/${classId}`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/octet-stream',
@@ -336,7 +337,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
     if (editingClassId) {
       // Delete from server
       try {
-        await fetch(`/api/custom-models/${editingClassId}`, { method: 'DELETE' });
+        await fetch(apiUrl(`/api/custom-models/${editingClassId}`), { method: 'DELETE' });
       } catch (err) {
         console.error('Failed to delete model:', err);
       }
@@ -785,7 +786,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
                       <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '12px' }}>
                         <ModelPreview
                           customModelFile={customModelFile || undefined}
-                          customModelUrl={!customModelFile && editingClassId ? `/api/custom-models/${editingClassId}` : undefined}
+                          customModelUrl={!customModelFile && editingClassId ? apiUrl(`/api/custom-models/${editingClassId}`) : undefined}
                           modelScale={modelScale}
                           modelOffset={{ x: modelOffsetX, y: modelOffsetY, z: modelOffsetZ }}
                           width={120}

@@ -4,7 +4,7 @@ import type { Agent, DrawingArea, CustomAgentClass, AnimationMapping } from '../
 import { store } from '../store';
 import { saveCameraState, loadCameraState } from '../utils/camera';
 import { CAMERA_SAVE_INTERVAL } from './config';
-import { perf, fpsTracker } from '../utils/profiling';
+import { perf, fpsTracker, memory } from '../utils/profiling';
 
 // Import modules
 import { CharacterLoader, CharacterFactory, type AgentMeshData } from './characters';
@@ -40,6 +40,8 @@ export class SceneManager {
   // State
   private agentMeshes = new Map<string, AgentMeshData>();
   private bossSubordinateLines: THREE.Line[] = [];
+  private pendingAgents: Agent[] = []; // Queue for agents that arrive before models load
+  private modelsReady = false;
   private lastCameraSave = 0;
   private lastTimeUpdate = 0;
   private lastFrameTime = 0;
@@ -52,6 +54,7 @@ export class SceneManager {
   private fpsLimit = 0; // 0 = unlimited
   private frameInterval = 0; // Calculated from fpsLimit
   private resizeObserver: ResizeObserver | null = null;
+  private animationFrameId: number | null = null;
 
   // Callbacks
   private onAreaDoubleClickCallback: ((areaId: string) => void) | null = null;
@@ -190,8 +193,37 @@ export class SceneManager {
   }
 
   private createRenderer(): THREE.WebGLRenderer {
-    const renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true });
-    renderer.setSize(this.canvas.clientWidth, this.canvas.clientHeight);
+    // Verify canvas is valid and attached to DOM
+    if (!this.canvas || !this.canvas.parentElement) {
+      throw new Error('[SceneManager] Canvas is not attached to DOM');
+    }
+
+    // Check if canvas has dimensions (can happen if CSS hasn't applied yet)
+    let width = this.canvas.clientWidth || this.canvas.width;
+    let height = this.canvas.clientHeight || this.canvas.height;
+
+    // If dimensions are still 0, use fallback and set explicit canvas size
+    if (!width || !height) {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      // Set explicit canvas dimensions - required for WebGL context creation
+      this.canvas.width = width;
+      this.canvas.height = height;
+      console.log('[SceneManager] Set explicit canvas dimensions:', width, height);
+    }
+
+    console.log('[SceneManager] Creating WebGLRenderer with canvas:', {
+      width,
+      height,
+      parentElement: !!this.canvas.parentElement,
+      isConnected: this.canvas.isConnected,
+    });
+
+    const renderer = new THREE.WebGLRenderer({
+      canvas: this.canvas,
+      antialias: true,
+    });
+    renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -236,7 +268,20 @@ export class SceneManager {
   // ============================================
 
   async loadCharacterModels(): Promise<void> {
+    console.log('[SceneManager] loadCharacterModels called, modelsReady:', this.modelsReady);
     await this.characterLoader.loadAll();
+    this.modelsReady = true;
+    console.log('[SceneManager] Models ready, pending agents:', this.pendingAgents.length);
+
+    // Process any agents that were queued while models were loading
+    if (this.pendingAgents.length > 0) {
+      console.log(`[SceneManager] Processing ${this.pendingAgents.length} pending agents`);
+      const agents = this.pendingAgents;
+      this.pendingAgents = [];
+      for (const agent of agents) {
+        this.addAgent(agent);
+      }
+    }
   }
 
   upgradeAgentModels(): void {
@@ -285,6 +330,8 @@ export class SceneManager {
 
         // Replace in scene
         this.scene.remove(meshData.group);
+        // CRITICAL: Dispose old mesh resources to prevent memory leak
+        this.characterFactory.disposeAgentMesh(meshData);
         this.scene.add(newMeshData.group);
         this.agentMeshes.set(agentId, newMeshData);
 
@@ -302,10 +349,27 @@ export class SceneManager {
   // ============================================
 
   addAgent(agent: Agent): void {
+    // Queue if models aren't loaded yet
+    if (!this.modelsReady) {
+      console.log(`[SceneManager] Queueing agent ${agent.name} (models not ready)`);
+      // Update existing pending agent or add new one
+      const existingIdx = this.pendingAgents.findIndex(a => a.id === agent.id);
+      if (existingIdx >= 0) {
+        this.pendingAgents[existingIdx] = agent;
+      } else {
+        this.pendingAgents.push(agent);
+      }
+      return;
+    }
+
     // Remove existing mesh if present (prevent duplicates)
     const existing = this.agentMeshes.get(agent.id);
     if (existing) {
       this.scene.remove(existing.group);
+      // CRITICAL: Dispose resources to prevent memory leak
+      this.characterFactory.disposeAgentMesh(existing);
+      this.proceduralAnimator.unregister(agent.id);
+      this.effectsManager.removeAgentEffects(agent.id);
       this.agentMeshes.delete(agent.id);
     }
 
@@ -330,6 +394,18 @@ export class SceneManager {
    * Internal method to add an agent mesh after model is ready.
    */
   private addAgentInternal(agent: Agent): void {
+    // CRITICAL: Check for existing mesh and remove it to prevent ghost duplicates
+    // This can happen when async model loading completes after another code path
+    // (like upgradeAgentModels or syncAgents) has already added a mesh
+    const existing = this.agentMeshes.get(agent.id);
+    if (existing) {
+      this.scene.remove(existing.group);
+      this.characterFactory.disposeAgentMesh(existing);
+      this.proceduralAnimator.unregister(agent.id);
+      this.effectsManager.removeAgentEffects(agent.id);
+      this.agentMeshes.delete(agent.id);
+    }
+
     const meshData = this.characterFactory.createAgentMesh(agent);
     this.scene.add(meshData.group);
     this.agentMeshes.set(agent.id, meshData);
@@ -488,16 +564,33 @@ export class SceneManager {
   }
 
   syncAgents(agents: Agent[]): void {
-    // Clear existing
+    console.log(`[SceneManager] syncAgents called with ${agents.length} agents, modelsReady: ${this.modelsReady}`);
+    const previousCount = this.agentMeshes.size;
+
+    // Clear pending agents queue since this is a full sync
+    this.pendingAgents = [];
+
+    // Clear existing - MUST dispose resources to prevent memory leak
     for (const meshData of this.agentMeshes.values()) {
       this.scene.remove(meshData.group);
+      // Properly dispose all geometries, materials, and textures
+      this.characterFactory.disposeAgentMesh(meshData);
     }
     this.agentMeshes.clear();
 
-    // Add new
+    // Clear procedural animator registrations
+    this.proceduralAnimator.clear();
+
+    // Clear effects manager
+    this.effectsManager.clear();
+
+    // Add new (will be queued if models not ready)
     for (const agent of agents) {
       this.addAgent(agent);
     }
+
+    // Debug logging for memory leak investigation
+    console.log(`[SceneManager] syncAgents: disposed ${previousCount} agents, added ${agents.length} new agents`);
   }
 
   /**
@@ -1111,7 +1204,7 @@ export class SceneManager {
   // ============================================
 
   private animate = (): void => {
-    requestAnimationFrame(this.animate);
+    this.animationFrameId = requestAnimationFrame(this.animate);
 
     // FPS limiting: skip frame if not enough time has passed
     const now = Date.now();
@@ -1403,10 +1496,74 @@ export class SceneManager {
   }
 
   // ============================================
+  // Memory Diagnostics
+  // ============================================
+
+  /**
+   * Get memory diagnostics for debugging.
+   * Includes Three.js renderer info and heap usage.
+   */
+  getMemoryDiagnostics(): {
+    threeJs: { geometries: number; textures: number; programs: number } | null;
+    heap: { usedMB: number; totalMB: number; limitMB: number } | null;
+    agentMeshCount: number;
+    bossLineCount: number;
+  } {
+    const rendererInfo = this.renderer.info;
+    return {
+      threeJs: rendererInfo?.memory ? {
+        geometries: rendererInfo.memory.geometries,
+        textures: rendererInfo.memory.textures,
+        programs: rendererInfo.programs?.length ?? 0,
+      } : null,
+      heap: memory.getUsage(),
+      agentMeshCount: this.agentMeshes.size,
+      bossLineCount: this.bossSubordinateLines.length,
+    };
+  }
+
+  /**
+   * Log memory diagnostics to console.
+   */
+  logMemoryDiagnostics(): void {
+    const diag = this.getMemoryDiagnostics();
+    const cacheStats = this.characterLoader.getCacheStats();
+
+    console.group('%c[SceneManager Memory]', 'color: #ff6600; font-weight: bold');
+    if (diag.threeJs) {
+      console.log(`Three.js: ${diag.threeJs.geometries} geometries, ${diag.threeJs.textures} textures, ${diag.threeJs.programs} programs`);
+    }
+    if (diag.heap) {
+      console.log(`Heap: ${diag.heap.usedMB}MB / ${diag.heap.totalMB}MB (limit: ${diag.heap.limitMB}MB)`);
+    }
+    console.log(`Agent meshes: ${diag.agentMeshCount}, Boss lines: ${diag.bossLineCount}`);
+    console.log(`CharacterLoader cache: ${cacheStats.builtInModels} built-in, ${cacheStats.customModels} custom`);
+    if (cacheStats.modelNames.length > 0) {
+      console.log(`  Built-in models: ${cacheStats.modelNames.join(', ')}`);
+    }
+    if (cacheStats.customModelIds.length > 0) {
+      console.log(`  Custom models: ${cacheStats.customModelIds.join(', ')}`);
+    }
+    console.groupEnd();
+  }
+
+  // ============================================
   // Cleanup
   // ============================================
 
   dispose(): void {
+    console.log('%c[SceneManager] dispose() called - starting cleanup', 'color: #ff0000; font-weight: bold');
+
+    // Log pre-dispose state
+    const preStats = this.characterLoader.getCacheStats();
+    console.log(`[SceneManager] Pre-dispose: ${preStats.builtInModels} built-in models, ${preStats.customModels} custom models`);
+
+    // Cancel animation frame first to stop the render loop
+    if (this.animationFrameId !== null) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
+
     window.removeEventListener('resize', this.onWindowResize);
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
@@ -1417,11 +1574,13 @@ export class SceneManager {
     this.effectsManager.dispose();
 
     // Dispose all agent meshes
+    const agentCount = this.agentMeshes.size;
     for (const meshData of this.agentMeshes.values()) {
       this.scene.remove(meshData.group);
       this.characterFactory.disposeAgentMesh(meshData);
     }
     this.agentMeshes.clear();
+    console.log(`[SceneManager] Disposed ${agentCount} agent meshes`);
 
     // Dispose boss-subordinate lines
     for (const line of this.bossSubordinateLines) {
@@ -1433,8 +1592,43 @@ export class SceneManager {
 
     // Dispose battlefield
     this.battlefield.dispose();
+    console.log('[SceneManager] Disposed battlefield');
 
+    // Dispose character loader template caches (critical for memory leak prevention)
+    this.characterLoader.dispose();
+
+    // Clear scene references to help GC BEFORE disposing renderer
+    this.scene.clear();
+
+    // Force WebGL context loss BEFORE renderer dispose to ensure GPU memory is released
+    // This is especially important for browsers like Brave/Firefox that may retain WebGL resources
+    // Getting the context and extension BEFORE dispose ensures we have valid references
+    try {
+      const gl = this.renderer.getContext();
+      const loseContext = gl.getExtension('WEBGL_lose_context');
+      if (loseContext) {
+        console.log('[SceneManager] Forcing WebGL context loss to release GPU memory');
+        loseContext.loseContext();
+      }
+    } catch (e) {
+      // Context may already be lost, which is fine
+      console.log('[SceneManager] WebGL context already lost or unavailable');
+    }
+
+    // Now dispose renderer and controls after context is lost
     this.renderer.dispose();
     this.controls.dispose();
+
+    // Explicitly null out references to help GC
+    // @ts-expect-error - nulling for GC
+    this.scene = null;
+    // @ts-expect-error - nulling for GC
+    this.renderer = null;
+    // @ts-expect-error - nulling for GC
+    this.controls = null;
+    // @ts-expect-error - nulling for GC
+    this.camera = null;
+
+    console.log('%c[SceneManager] dispose() complete - all resources freed', 'color: #00ff00; font-weight: bold');
   }
 }

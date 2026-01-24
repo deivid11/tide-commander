@@ -13,8 +13,10 @@ import type { FloorStyle } from './types';
 export function generateFloorTexture(style: FloorStyle): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d')!;
-  canvas.width = 512;
-  canvas.height = 512;
+  // Use higher resolution for pokemon-stadium since it doesn't tile
+  const size = style === 'pokemon-stadium' ? 1024 : 512;
+  canvas.width = size;
+  canvas.height = size;
 
   switch (style) {
     case 'galactic':
@@ -28,6 +30,9 @@ export function generateFloorTexture(style: FloorStyle): THREE.CanvasTexture {
       break;
     case 'circuit':
       drawCircuitTexture(ctx, canvas.width, canvas.height);
+      break;
+    case 'pokemon-stadium':
+      drawPokemonStadiumTexture(ctx, canvas.width, canvas.height);
       break;
     default:
       drawConcreteTexture(ctx, canvas.width, canvas.height);
@@ -327,4 +332,141 @@ export function drawCircuitTexture(ctx: CanvasRenderingContext2D, w: number, h: 
     ctx.arc(x, y, 4, 0, Math.PI * 2);
     ctx.fill();
   }
+}
+
+/**
+ * Draw Pokemon Stadium floor texture.
+ * Classic green arena with white boundary lines and Pokeball center.
+ */
+export function drawPokemonStadiumTexture(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+  const cx = w / 2;
+  const cy = h / 2;
+
+  // Dark green field base - fills entire canvas
+  ctx.fillStyle = '#2E4F2C';
+  ctx.fillRect(0, 0, w, h);
+
+  // Add subtle grass texture variation (darker tones)
+  for (let i = 0; i < 6000; i++) {
+    const x = Math.random() * w;
+    const y = Math.random() * h;
+    const isDark = Math.random() > 0.5;
+    ctx.fillStyle = isDark ? 'rgba(30, 50, 28, 0.3)' : 'rgba(55, 90, 52, 0.12)';
+    ctx.fillRect(x, y, 2, 4);
+  }
+
+  // Field padding for lines (not for background)
+  const linePadding = w * 0.05;
+
+  // Outer white boundary line (rounded rectangle)
+  const cornerRadius = 30;
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.roundRect(linePadding, linePadding, w - linePadding * 2, h - linePadding * 2, cornerRadius);
+  ctx.stroke();
+
+  // Center line (horizontal)
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(linePadding, cy);
+  ctx.lineTo(w - linePadding, cy);
+  ctx.stroke();
+
+  // Center circle
+  const centerCircleRadius = Math.min(w, h) * 0.2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, centerCircleRadius, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Pokeball in center
+  const pokeballRadius = centerCircleRadius * 0.6;
+
+  // Red top half
+  ctx.fillStyle = '#cc3333';
+  ctx.beginPath();
+  ctx.arc(cx, cy, pokeballRadius, Math.PI, 0);
+  ctx.closePath();
+  ctx.fill();
+
+  // White bottom half
+  ctx.fillStyle = '#f0f0f0';
+  ctx.beginPath();
+  ctx.arc(cx, cy, pokeballRadius, 0, Math.PI);
+  ctx.closePath();
+  ctx.fill();
+
+  // Black center band
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(cx - pokeballRadius, cy - 5, pokeballRadius * 2, 10);
+
+  // Pokeball outline
+  ctx.strokeStyle = '#1a1a1a';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.arc(cx, cy, pokeballRadius, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Center button (white circle with black outline)
+  const buttonRadius = pokeballRadius * 0.28;
+  ctx.fillStyle = '#f0f0f0';
+  ctx.beginPath();
+  ctx.arc(cx, cy, buttonRadius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#1a1a1a';
+  ctx.lineWidth = 4;
+  ctx.stroke();
+
+  // Inner button highlight
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(cx, cy, buttonRadius * 0.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Trainer boxes (rectangles on each side)
+  const boxW = w * 0.08;
+  const boxH = h * 0.05;
+  const boxOffset = centerCircleRadius + h * 0.08;
+
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 3;
+
+  // Top trainer box
+  ctx.strokeRect(cx - boxW / 2, cy - boxOffset - boxH, boxW, boxH);
+
+  // Bottom trainer box
+  ctx.strokeRect(cx - boxW / 2, cy + boxOffset, boxW, boxH);
+
+  // Corner markers (L-shaped lines in corners)
+  const markerSize = w * 0.05;
+  const markerOffset = linePadding + 15;
+  ctx.lineWidth = 3;
+
+  // Top-left
+  ctx.beginPath();
+  ctx.moveTo(markerOffset, markerOffset + markerSize);
+  ctx.lineTo(markerOffset, markerOffset);
+  ctx.lineTo(markerOffset + markerSize, markerOffset);
+  ctx.stroke();
+
+  // Top-right
+  ctx.beginPath();
+  ctx.moveTo(w - markerOffset - markerSize, markerOffset);
+  ctx.lineTo(w - markerOffset, markerOffset);
+  ctx.lineTo(w - markerOffset, markerOffset + markerSize);
+  ctx.stroke();
+
+  // Bottom-left
+  ctx.beginPath();
+  ctx.moveTo(markerOffset, h - markerOffset - markerSize);
+  ctx.lineTo(markerOffset, h - markerOffset);
+  ctx.lineTo(markerOffset + markerSize, h - markerOffset);
+  ctx.stroke();
+
+  // Bottom-right
+  ctx.beginPath();
+  ctx.moveTo(w - markerOffset - markerSize, h - markerOffset);
+  ctx.lineTo(w - markerOffset, h - markerOffset);
+  ctx.lineTo(w - markerOffset, h - markerOffset - markerSize);
+  ctx.stroke();
 }

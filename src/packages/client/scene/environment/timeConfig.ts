@@ -7,6 +7,10 @@
 import * as THREE from 'three';
 import type { TimeConfig, TimePhase } from './types';
 
+// Pooled Vector3 instances for interpolation to avoid allocations
+const pooledSunPos = new THREE.Vector3();
+const pooledMoonPos = new THREE.Vector3();
+
 /**
  * Get dawn configuration.
  */
@@ -113,6 +117,7 @@ export function getDayConfig(): TimeConfig {
 
 /**
  * Interpolate between two time configurations.
+ * Uses pooled Vector3 instances to avoid allocations in the render loop.
  */
 export function interpolateConfig(from: TimeConfig, to: TimeConfig, t: number, phase: TimePhase): TimeConfig {
   const lerp = (a: number, b: number) => a + (b - a) * t;
@@ -125,10 +130,14 @@ export function interpolateConfig(from: TimeConfig, to: TimeConfig, t: number, p
     return (r << 16) | (g << 8) | blue;
   };
 
+  // Use pooled vectors to avoid allocations - caller uses .copy() to read values
+  pooledSunPos.lerpVectors(from.sunPosition, to.sunPosition, t);
+  pooledMoonPos.lerpVectors(from.moonPosition, to.moonPosition, t);
+
   return {
     phase,
-    sunPosition: new THREE.Vector3().lerpVectors(from.sunPosition, to.sunPosition, t),
-    moonPosition: new THREE.Vector3().lerpVectors(from.moonPosition, to.moonPosition, t),
+    sunPosition: pooledSunPos,
+    moonPosition: pooledMoonPos,
     ambientColor: lerpColor(from.ambientColor, to.ambientColor),
     ambientIntensity: lerp(from.ambientIntensity, to.ambientIntensity),
     hemiSkyColor: lerpColor(from.hemiSkyColor, to.hemiSkyColor),

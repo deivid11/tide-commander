@@ -470,6 +470,50 @@
   &.config-input-sm {
     width: 50px;
   }
+
+  &.config-input-full {
+    width: 100%;
+    flex: 1;
+  }
+}
+
+.config-row-stacked {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.config-input-group {
+  display: flex;
+  width: 100%;
+  gap: 6px;
+}
+
+.config-btn {
+  padding: 4px 8px;
+  font-size: 10px;
+  font-weight: 500;
+  background: $dracula-purple;
+  border: none;
+  border-radius: $radius-sm;
+  color: $text-primary;
+  cursor: pointer;
+  transition: background $transition-fast;
+  white-space: nowrap;
+
+  &:hover {
+    background: color.adjust($dracula-purple, $lightness: 10%);
+  }
+
+  &.config-btn-sm {
+    padding: 3px 6px;
+  }
+}
+
+.config-hint {
+  font-size: 9px;
+  color: $text-muted;
+  font-style: italic;
 }
 
 // Collapsible sections

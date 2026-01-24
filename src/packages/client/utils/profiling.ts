@@ -284,9 +284,22 @@ class FPSTracker {
 export const fpsTracker = new FPSTracker();
 
 /**
- * Memory usage tracking (if available).
+ * Memory usage tracking with Three.js resource monitoring.
  */
-export const memory = {
+interface MemorySnapshot {
+  timestamp: number;
+  heapUsedMB: number;
+  heapTotalMB: number;
+  heapLimitMB: number;
+}
+
+class MemoryMonitor {
+  private snapshots: MemorySnapshot[] = [];
+  private readonly maxSnapshots = 120; // 2 minutes at 1/sec
+  private intervalId: ReturnType<typeof setInterval> | null = null;
+  private leakThresholdMB = 50; // Warn if memory grows by this much
+  private baselineUsedMB = 0;
+
   /**
    * Get current memory usage in MB.
    */
@@ -300,7 +313,7 @@ export const memory = {
       totalMB: Math.round(mem.totalJSHeapSize / 1024 / 1024),
       limitMB: Math.round(mem.jsHeapSizeLimit / 1024 / 1024),
     };
-  },
+  }
 
   /**
    * Log memory usage.
@@ -310,8 +323,136 @@ export const memory = {
     if (usage) {
       console.log(`[Memory] Used: ${usage.usedMB}MB / ${usage.totalMB}MB (limit: ${usage.limitMB}MB)`);
     }
-  },
-};
+  }
+
+  /**
+   * Start continuous memory monitoring.
+   */
+  startMonitoring(intervalMs = 1000): void {
+    if (this.intervalId) return;
+
+    const usage = this.getUsage();
+    if (usage) {
+      this.baselineUsedMB = usage.usedMB;
+    }
+
+    this.intervalId = setInterval(() => {
+      this.takeSnapshot();
+    }, intervalMs);
+
+    console.log('[Memory] Monitoring started. Use memory.report() to see analysis.');
+  }
+
+  /**
+   * Stop continuous monitoring.
+   */
+  stopMonitoring(): void {
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
+      this.intervalId = null;
+      console.log('[Memory] Monitoring stopped.');
+    }
+  }
+
+  /**
+   * Take a memory snapshot.
+   */
+  private takeSnapshot(): void {
+    const usage = this.getUsage();
+    if (!usage) return;
+
+    const snapshot: MemorySnapshot = {
+      timestamp: Date.now(),
+      heapUsedMB: usage.usedMB,
+      heapTotalMB: usage.totalMB,
+      heapLimitMB: usage.limitMB,
+    };
+
+    this.snapshots.push(snapshot);
+    if (this.snapshots.length > this.maxSnapshots) {
+      this.snapshots.shift();
+    }
+
+    // Check for potential leak
+    const growth = usage.usedMB - this.baselineUsedMB;
+    if (growth > this.leakThresholdMB) {
+      console.warn(`[Memory] Warning: Heap grew by ${growth}MB since monitoring started (baseline: ${this.baselineUsedMB}MB, current: ${usage.usedMB}MB)`);
+    }
+  }
+
+  /**
+   * Get memory growth rate (MB/minute).
+   */
+  getGrowthRate(): number | null {
+    if (this.snapshots.length < 10) return null;
+
+    const first = this.snapshots[0];
+    const last = this.snapshots[this.snapshots.length - 1];
+    const durationMin = (last.timestamp - first.timestamp) / 1000 / 60;
+
+    if (durationMin < 0.1) return null;
+
+    return (last.heapUsedMB - first.heapUsedMB) / durationMin;
+  }
+
+  /**
+   * Generate a memory analysis report.
+   */
+  report(): void {
+    const usage = this.getUsage();
+    if (!usage) {
+      console.log('[Memory] Memory API not available (Chrome only)');
+      return;
+    }
+
+    console.group('%c[Memory Report]', 'color: #ff6600; font-weight: bold');
+
+    console.log(`Current: ${usage.usedMB}MB / ${usage.totalMB}MB (limit: ${usage.limitMB}MB)`);
+    console.log(`Baseline: ${this.baselineUsedMB}MB`);
+    console.log(`Growth: ${usage.usedMB - this.baselineUsedMB}MB since monitoring started`);
+
+    const growthRate = this.getGrowthRate();
+    if (growthRate !== null) {
+      console.log(`Growth Rate: ${growthRate.toFixed(2)}MB/min`);
+      if (growthRate > 5) {
+        console.warn('POTENTIAL MEMORY LEAK: Growth rate exceeds 5MB/min');
+      }
+    }
+
+    if (this.snapshots.length > 1) {
+      const min = Math.min(...this.snapshots.map(s => s.heapUsedMB));
+      const max = Math.max(...this.snapshots.map(s => s.heapUsedMB));
+      console.log(`Range: ${min}MB - ${max}MB (${max - min}MB variance)`);
+    }
+
+    console.groupEnd();
+  }
+
+  /**
+   * Get Three.js renderer info if available.
+   */
+  getThreeJsInfo(renderer: any): { geometries: number; textures: number } | null {
+    if (!renderer?.info?.memory) return null;
+    return {
+      geometries: renderer.info.memory.geometries,
+      textures: renderer.info.memory.textures,
+    };
+  }
+
+  /**
+   * Reset baseline and clear snapshots.
+   */
+  reset(): void {
+    this.snapshots = [];
+    const usage = this.getUsage();
+    if (usage) {
+      this.baselineUsedMB = usage.usedMB;
+    }
+    console.log('[Memory] Reset. New baseline:', this.baselineUsedMB, 'MB');
+  }
+}
+
+export const memory = new MemoryMonitor();
 
 /**
  * React Profiler callback for measuring render times.
@@ -394,6 +535,14 @@ if (isDev && typeof window !== 'undefined') {
     memory,
     report: () => perf.report(),
     clear: () => perf.clear(),
+    // Memory debugging helpers
+    startMemoryMonitor: () => memory.startMonitoring(),
+    stopMemoryMonitor: () => memory.stopMonitoring(),
+    memoryReport: () => memory.report(),
+    memoryReset: () => memory.reset(),
   };
+  // Enable memory debug flag
+  (window as any).__TIDE_MEMORY_DEBUG__ = false;
   console.log('[Profiling] Performance tools available at window.__tidePerf');
+  console.log('[Profiling] Set window.__TIDE_MEMORY_DEBUG__ = true for verbose memory logging');
 }

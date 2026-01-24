@@ -20,6 +20,7 @@ interface OutputLineProps {
   onImageClick?: (url: string, name: string) => void;
   onFileClick?: (path: string, editData?: EditData) => void;
   onBashClick?: (command: string, output: string) => void;
+  onViewMarkdown?: (content: string) => void;
 }
 
 // Generate a short debug hash for an output (for debugging duplicates)
@@ -35,7 +36,7 @@ function getDebugHash(output: ClaudeOutput): string {
   return `${flags}:${(hash >>> 0).toString(16).slice(0, 6)}`;
 }
 
-export const OutputLine = memo(function OutputLine({ output, agentId, onImageClick, onFileClick, onBashClick }: OutputLineProps) {
+export const OutputLine = memo(function OutputLine({ output, agentId, onImageClick, onFileClick, onBashClick, onViewMarkdown }: OutputLineProps) {
   const hideCost = useHideCost();
   const { text: rawText, isStreaming, isUserPrompt, timestamp, _toolKeyParam, _editData, _todoInput, _bashOutput, _bashCommand, _isRunning } = output;
   const text = filterCostText(rawText, hideCost);
@@ -366,6 +367,15 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
           {parsed.delegations.map((delegation, i) => (
             <DelegationBlock key={`del-${i}`} delegation={delegation} />
           ))}
+          {onViewMarkdown && (
+            <button
+              className="history-view-md-btn"
+              onClick={() => onViewMarkdown(text)}
+              title="View as Markdown"
+            >
+              📄
+            </button>
+          )}
         </div>
       );
     }
@@ -383,6 +393,15 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
         </div>
       ) : (
         text
+      )}
+      {isClaudeMessage && !isStreaming && onViewMarkdown && (
+        <button
+          className="history-view-md-btn"
+          onClick={() => onViewMarkdown(text)}
+          title="View as Markdown"
+        >
+          📄
+        </button>
       )}
     </div>
   );

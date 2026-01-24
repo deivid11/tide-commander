@@ -210,17 +210,75 @@ export function ModelPreview({ agentClass, modelFile, customModelFile, customMod
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
       container.removeEventListener('mouseleave', handleMouseLeave);
+
+      // Dispose model and its resources
+      if (modelRef.current && sceneRef.current) {
+        sceneRef.current.remove(modelRef.current);
+        modelRef.current.traverse((child) => {
+          if (child instanceof THREE.Mesh) {
+            child.geometry?.dispose();
+            if (Array.isArray(child.material)) {
+              child.material.forEach((m) => {
+                if (m.map) m.map.dispose();
+                m.dispose();
+              });
+            } else if (child.material) {
+              if ((child.material as THREE.MeshStandardMaterial).map) {
+                (child.material as THREE.MeshStandardMaterial).map?.dispose();
+              }
+              child.material.dispose();
+            }
+          }
+        });
+        modelRef.current = null;
+      }
+
+      // Dispose status ring
+      if (statusRingRef.current && sceneRef.current) {
+        sceneRef.current.remove(statusRingRef.current);
+        statusRingRef.current.geometry.dispose();
+        (statusRingRef.current.material as THREE.Material).dispose();
+        statusRingRef.current = null;
+      }
+
+      // Dispose ground and other scene objects
+      if (sceneRef.current) {
+        sceneRef.current.traverse((child) => {
+          if (child instanceof THREE.Mesh) {
+            child.geometry?.dispose();
+            if (child.material instanceof THREE.Material) {
+              child.material.dispose();
+            }
+          }
+        });
+        sceneRef.current.clear();
+      }
+
+      // Clear animation data
+      mixerRef.current = null;
+      currentActionRef.current = null;
+      animationsRef.current.clear();
+
+      // Force WebGL context loss before disposing renderer
       if (rendererRef.current) {
+        try {
+          const gl = rendererRef.current.getContext();
+          const loseContext = gl.getExtension('WEBGL_lose_context');
+          if (loseContext) {
+            loseContext.loseContext();
+          }
+        } catch {
+          // Context may already be lost
+        }
         rendererRef.current.dispose();
         if (container.contains(rendererRef.current.domElement)) {
           container.removeChild(rendererRef.current.domElement);
         }
         rendererRef.current = null;
       }
+
       sceneRef.current = null;
       cameraRef.current = null;
-      modelRef.current = null;
-      mixerRef.current = null;
       setIsReady(false);
     };
   }, [width, height]);

@@ -14,7 +14,7 @@ export type TimePhase = 'night' | 'dawn' | 'day' | 'dusk';
 /**
  * Floor texture styles
  */
-export type FloorStyle = 'none' | 'concrete' | 'galactic' | 'metal' | 'hex' | 'circuit';
+export type FloorStyle = 'none' | 'concrete' | 'galactic' | 'metal' | 'hex' | 'circuit' | 'pokemon-stadium';
 
 /**
  * Time-based configuration for the environment

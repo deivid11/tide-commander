@@ -1,14 +1,15 @@
 /**
- * FPSMeter Component
+ * Performance Monitor Component
  *
- * A floating overlay that shows real-time FPS and performance metrics.
+ * A floating overlay that shows real-time FPS, memory, and Three.js metrics.
+ * Helps identify memory leaks and performance issues.
  * Only visible in development mode.
  *
  * Usage:
  *   <FPSMeter visible={showFPS} />
  */
 
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { fpsTracker, memory, perf } from '../utils/profiling';
 import { useAgentsArray } from '../store';
 
@@ -17,17 +18,33 @@ interface FPSMeterProps {
   position?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 }
 
+interface ThreeJsStats {
+  geometries: number;
+  textures: number;
+  programs: number;
+}
+
+interface MemoryHistory {
+  timestamp: number;
+  heapMB: number;
+  geometries: number;
+  textures: number;
+}
+
 // Only show in development
 const isDev = import.meta.env.DEV;
 
 export function FPSMeter({ visible = true, position = 'top-right' }: FPSMeterProps) {
   const [fps, setFps] = useState(0);
   const [fpsHistory, setFpsHistory] = useState<number[]>([]);
-  const [memoryUsage, setMemoryUsage] = useState<{ usedMB: number; totalMB: number } | null>(null);
+  const [memoryUsage, setMemoryUsage] = useState<{ usedMB: number; totalMB: number; limitMB: number } | null>(null);
+  const [memoryHistory, setMemoryHistory] = useState<MemoryHistory[]>([]);
+  const [threeJsStats, setThreeJsStats] = useState<ThreeJsStats | null>(null);
+  const [growthRate, setGrowthRate] = useState<number | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [activeTab, setActiveTab] = useState<'fps' | 'memory' | 'threejs'>('fps');
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
-  const rafRef = useRef<number>(0);
-  const lastUpdateRef = useRef(0);
+  const [baselineMemory, setBaselineMemory] = useState<number | null>(null);
 
   // Track window resize for responsive positioning
   useEffect(() => {
@@ -50,46 +67,97 @@ export function FPSMeter({ visible = true, position = 'top-right' }: FPSMeterPro
         name: a.name,
         memoryMB: (a as any).memoryUsageMB || 0,
         status: a.status,
-      })).sort((a, b) => b.memoryMB - a.memoryMB), // Sort by memory usage desc
+      })).sort((a, b) => b.memoryMB - a.memoryMB),
     };
   }, [agents]);
 
   useEffect(() => {
     if (!isDev || !visible) return;
 
-    // Update display every second using setInterval (don't call tick - SceneManager does that)
+    // Set baseline on mount
+    const mem = memory.getUsage();
+    if (mem && baselineMemory === null) {
+      setBaselineMemory(mem.usedMB);
+    }
+
     const intervalId = setInterval(() => {
+      // FPS update
       fpsTracker.update();
       const stats = fpsTracker.getStats();
       setFps(stats.current);
       setFpsHistory(prev => {
         const next = [...prev, stats.current];
-        return next.slice(-60); // Keep last 60 seconds
+        return next.slice(-60);
       });
 
-      // Update memory if available
-      const mem = memory.getUsage();
-      if (mem) {
-        setMemoryUsage({ usedMB: mem.usedMB, totalMB: mem.totalMB });
+      // Memory update
+      const memUsage = memory.getUsage();
+      if (memUsage) {
+        setMemoryUsage(memUsage);
+      }
+
+      // Three.js stats from scene manager
+      const scene = (window as any).__tideScene;
+      if (scene) {
+        const diag = scene.getMemoryDiagnostics?.();
+        if (diag?.threeJs) {
+          setThreeJsStats(diag.threeJs);
+        }
+      }
+
+      // Memory history for graph
+      if (memUsage) {
+        setMemoryHistory(prev => {
+          const entry: MemoryHistory = {
+            timestamp: Date.now(),
+            heapMB: memUsage.usedMB,
+            geometries: threeJsStats?.geometries ?? 0,
+            textures: threeJsStats?.textures ?? 0,
+          };
+          const next = [...prev, entry];
+          return next.slice(-120); // Keep 2 minutes of history
+        });
+      }
+
+      // Calculate growth rate
+      if (memoryHistory.length >= 10) {
+        const first = memoryHistory[0];
+        const last = memoryHistory[memoryHistory.length - 1];
+        const durationMin = (last.timestamp - first.timestamp) / 1000 / 60;
+        if (durationMin > 0.1) {
+          setGrowthRate((last.heapMB - first.heapMB) / durationMin);
+        }
       }
     }, 1000);
 
     return () => {
       clearInterval(intervalId);
     };
-  }, [visible]);
+  }, [visible, baselineMemory, memoryHistory.length, threeJsStats?.geometries, threeJsStats?.textures]);
 
   if (!isDev || !visible) return null;
 
   const getFpsColor = (fps: number) => {
-    if (fps >= 55) return '#4aff9e'; // Green - good
-    if (fps >= 30) return '#ffcc00'; // Yellow - acceptable
-    return '#ff4a4a'; // Red - bad
+    if (fps >= 55) return '#4aff9e';
+    if (fps >= 30) return '#ffcc00';
+    return '#ff4a4a';
   };
 
-  const stats = fpsTracker.getStats();
+  const getMemoryColor = (usedMB: number, totalMB: number) => {
+    const ratio = usedMB / totalMB;
+    if (ratio < 0.5) return '#4aff9e';
+    if (ratio < 0.8) return '#ffcc00';
+    return '#ff4a4a';
+  };
 
-  // On mobile (< 768px), move bottom positions above the agent bar (which is ~70px tall)
+  const getGrowthColor = (rate: number | null) => {
+    if (rate === null) return '#888';
+    if (rate < 1) return '#4aff9e';
+    if (rate < 5) return '#ffcc00';
+    return '#ff4a4a';
+  };
+
+  const fpsStats = fpsTracker.getStats();
   const isMobile = windowWidth <= 768;
   const mobileBottomOffset = isMobile ? 80 : 10;
 
@@ -100,6 +168,20 @@ export function FPSMeter({ visible = true, position = 'top-right' }: FPSMeterPro
     'bottom-right': { bottom: mobileBottomOffset, right: 10 },
   };
 
+  const memoryGrowth = baselineMemory && memoryUsage
+    ? memoryUsage.usedMB - baselineMemory
+    : 0;
+
+  const tabStyle = (tab: string) => ({
+    padding: '2px 8px',
+    fontSize: '9px',
+    border: 'none',
+    background: activeTab === tab ? 'rgba(74, 158, 255, 0.4)' : 'rgba(255, 255, 255, 0.1)',
+    color: activeTab === tab ? '#4a9eff' : '#888',
+    borderRadius: '3px',
+    cursor: 'pointer',
+  });
+
   return (
     <div
       style={{
@@ -108,169 +190,354 @@ export function FPSMeter({ visible = true, position = 'top-right' }: FPSMeterPro
         zIndex: 99999,
         fontFamily: 'monospace',
         fontSize: '11px',
-        background: 'rgba(0, 0, 0, 0.85)',
+        background: 'rgba(0, 0, 0, 0.9)',
         border: '1px solid rgba(255, 255, 255, 0.2)',
         borderRadius: '4px',
         padding: '6px 10px',
         color: '#fff',
-        cursor: 'pointer',
         userSelect: 'none',
-        minWidth: expanded ? '180px' : '70px',
+        minWidth: expanded ? '220px' : '120px',
         transition: 'all 0.2s ease',
       }}
-      onClick={() => setExpanded(!expanded)}
-      title="Click to expand/collapse"
     >
-      {/* Main FPS display */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+      {/* Compact header - always visible */}
+      <div
+        style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+        onClick={() => setExpanded(!expanded)}
+      >
         <span style={{ color: getFpsColor(fps), fontWeight: 'bold', fontSize: '14px' }}>
           {fps}
         </span>
-        <span style={{ color: '#888' }}>FPS</span>
-        {agentMemoryStats.totalMB > 0 && (
-          <span style={{ color: '#4aff9e', marginLeft: '6px', fontWeight: 'bold' }}>
-            {agentMemoryStats.totalMB}MB
+        <span style={{ color: '#666', fontSize: '10px' }}>FPS</span>
+
+        {memoryUsage && (
+          <>
+            <span style={{ color: '#444' }}>|</span>
+            <span style={{ color: getMemoryColor(memoryUsage.usedMB, memoryUsage.totalMB), fontWeight: 'bold' }}>
+              {memoryUsage.usedMB}
+            </span>
+            <span style={{ color: '#666', fontSize: '10px' }}>MB</span>
+          </>
+        )}
+
+        {growthRate !== null && Math.abs(growthRate) > 0.5 && (
+          <span style={{
+            color: getGrowthColor(growthRate),
+            fontSize: '10px',
+            marginLeft: '4px',
+          }}>
+            {growthRate > 0 ? '+' : ''}{growthRate.toFixed(1)}/m
           </span>
         )}
+
+        <span style={{ color: '#444', marginLeft: 'auto', fontSize: '10px' }}>
+          {expanded ? '▼' : '▶'}
+        </span>
       </div>
 
       {/* Expanded view */}
       {expanded && (
         <div style={{ marginTop: '8px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '8px' }}>
-          {/* FPS Stats */}
-          <div style={{ marginBottom: '6px' }}>
-            <div style={{ color: '#888', marginBottom: '2px' }}>FPS Stats:</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 10px', fontSize: '10px' }}>
-              <span>Min:</span>
-              <span style={{ color: getFpsColor(stats.min) }}>{stats.min}</span>
-              <span>Max:</span>
-              <span style={{ color: getFpsColor(stats.max) }}>{stats.max}</span>
-              <span>Avg:</span>
-              <span style={{ color: getFpsColor(stats.avg) }}>{stats.avg}</span>
-            </div>
+          {/* Tab buttons */}
+          <div style={{ display: 'flex', gap: '4px', marginBottom: '8px' }}>
+            <button style={tabStyle('fps')} onClick={() => setActiveTab('fps')}>FPS</button>
+            <button style={tabStyle('memory')} onClick={() => setActiveTab('memory')}>Memory</button>
+            <button style={tabStyle('threejs')} onClick={() => setActiveTab('threejs')}>Three.js</button>
           </div>
 
-          {/* FPS Graph (simple ASCII-style) */}
-          <div style={{ marginBottom: '6px' }}>
-            <div style={{ color: '#888', marginBottom: '2px' }}>History:</div>
-            <div style={{ display: 'flex', alignItems: 'flex-end', height: '20px', gap: '1px' }}>
-              {fpsHistory.slice(-30).map((f, i) => (
-                <div
-                  key={i}
-                  style={{
-                    width: '3px',
-                    height: `${Math.min(100, (f / 60) * 100)}%`,
-                    background: getFpsColor(f),
-                    opacity: 0.7,
-                  }}
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* Agent RAM */}
-          {agentMemoryStats.agentCount > 0 && (
-            <div style={{ marginBottom: '6px' }}>
-              <div style={{ color: '#888', marginBottom: '2px' }}>
-                Agent RAM ({agentMemoryStats.agentCount} active):
+          {/* FPS Tab */}
+          {activeTab === 'fps' && (
+            <div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 10px', fontSize: '10px', marginBottom: '8px' }}>
+                <span style={{ color: '#888' }}>Current:</span>
+                <span style={{ color: getFpsColor(fpsStats.current) }}>{fpsStats.current}</span>
+                <span style={{ color: '#888' }}>Min:</span>
+                <span style={{ color: getFpsColor(fpsStats.min) }}>{fpsStats.min}</span>
+                <span style={{ color: '#888' }}>Max:</span>
+                <span style={{ color: getFpsColor(fpsStats.max) }}>{fpsStats.max}</span>
+                <span style={{ color: '#888' }}>Avg:</span>
+                <span style={{ color: getFpsColor(fpsStats.avg) }}>{fpsStats.avg}</span>
               </div>
-              <div style={{ fontSize: '10px' }}>
-                <div style={{ color: '#4aff9e', fontWeight: 'bold', marginBottom: '4px' }}>
-                  Total: {agentMemoryStats.totalMB}MB
-                </div>
-                <div style={{ maxHeight: '60px', overflowY: 'auto' }}>
-                  {agentMemoryStats.agents.slice(0, 5).map((agent, i) => (
+
+              {/* FPS Graph */}
+              <div style={{ marginBottom: '8px' }}>
+                <div style={{ color: '#666', fontSize: '9px', marginBottom: '2px' }}>60s History:</div>
+                <div style={{ display: 'flex', alignItems: 'flex-end', height: '30px', gap: '1px', background: 'rgba(0,0,0,0.3)', padding: '2px', borderRadius: '2px' }}>
+                  {fpsHistory.slice(-60).map((f, i) => (
                     <div
                       key={i}
                       style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        gap: '8px',
-                        marginBottom: '2px',
+                        width: '3px',
+                        height: `${Math.min(100, (f / 60) * 100)}%`,
+                        background: getFpsColor(f),
+                        opacity: 0.8,
                       }}
-                    >
-                      <span style={{
-                        color: agent.status === 'working' ? '#4aff9e' : '#888',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        maxWidth: '100px',
-                      }}>
-                        {agent.name}
-                      </span>
-                      <span style={{ color: '#4a9eff' }}>{agent.memoryMB}MB</span>
-                    </div>
+                    />
                   ))}
-                  {agentMemoryStats.agents.length > 5 && (
-                    <div style={{ color: '#666', fontSize: '9px' }}>
-                      +{agentMemoryStats.agents.length - 5} more...
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
           )}
 
-          {/* Browser Memory */}
-          {memoryUsage && (
-            <div style={{ marginBottom: '6px' }}>
-              <div style={{ color: '#888', marginBottom: '2px' }}>Browser Heap:</div>
-              <div style={{ fontSize: '10px' }}>
-                {memoryUsage.usedMB}MB / {memoryUsage.totalMB}MB
-                <div
-                  style={{
-                    height: '4px',
-                    background: 'rgba(255,255,255,0.1)',
-                    borderRadius: '2px',
-                    marginTop: '2px',
-                    overflow: 'hidden',
-                  }}
-                >
+          {/* Memory Tab */}
+          {activeTab === 'memory' && memoryUsage && (
+            <div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 10px', fontSize: '10px', marginBottom: '8px' }}>
+                <span style={{ color: '#888' }}>Used:</span>
+                <span style={{ color: getMemoryColor(memoryUsage.usedMB, memoryUsage.totalMB) }}>
+                  {memoryUsage.usedMB} MB
+                </span>
+                <span style={{ color: '#888' }}>Total:</span>
+                <span>{memoryUsage.totalMB} MB</span>
+                <span style={{ color: '#888' }}>Limit:</span>
+                <span>{memoryUsage.limitMB} MB</span>
+                <span style={{ color: '#888' }}>Baseline:</span>
+                <span>{baselineMemory ?? '—'} MB</span>
+                <span style={{ color: '#888' }}>Growth:</span>
+                <span style={{ color: memoryGrowth > 50 ? '#ff4a4a' : memoryGrowth > 20 ? '#ffcc00' : '#4aff9e' }}>
+                  {memoryGrowth > 0 ? '+' : ''}{memoryGrowth} MB
+                </span>
+                <span style={{ color: '#888' }}>Rate:</span>
+                <span style={{ color: getGrowthColor(growthRate) }}>
+                  {growthRate !== null ? `${growthRate.toFixed(2)} MB/min` : '—'}
+                </span>
+              </div>
+
+              {/* Memory bar */}
+              <div style={{ marginBottom: '8px' }}>
+                <div style={{ height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
                   <div
                     style={{
                       height: '100%',
-                      width: `${(memoryUsage.usedMB / memoryUsage.totalMB) * 100}%`,
-                      background: memoryUsage.usedMB / memoryUsage.totalMB > 0.8 ? '#ff4a4a' : '#4a9eff',
+                      width: `${(memoryUsage.usedMB / memoryUsage.limitMB) * 100}%`,
+                      background: getMemoryColor(memoryUsage.usedMB, memoryUsage.totalMB),
+                      transition: 'width 0.3s ease',
                     }}
                   />
                 </div>
               </div>
+
+              {/* Memory History Graph */}
+              {memoryHistory.length > 1 && (
+                <div>
+                  <div style={{ color: '#666', fontSize: '9px', marginBottom: '2px' }}>Memory History:</div>
+                  <div style={{ display: 'flex', alignItems: 'flex-end', height: '40px', gap: '1px', background: 'rgba(0,0,0,0.3)', padding: '2px', borderRadius: '2px' }}>
+                    {memoryHistory.slice(-60).map((entry, i) => {
+                      const minMem = Math.min(...memoryHistory.map(e => e.heapMB));
+                      const maxMem = Math.max(...memoryHistory.map(e => e.heapMB));
+                      const range = maxMem - minMem || 1;
+                      const height = ((entry.heapMB - minMem) / range) * 100;
+                      return (
+                        <div
+                          key={i}
+                          style={{
+                            width: '3px',
+                            height: `${Math.max(5, height)}%`,
+                            background: entry.heapMB > (baselineMemory ?? 0) + 50 ? '#ff4a4a' : '#4a9eff',
+                            opacity: 0.8,
+                          }}
+                          title={`${entry.heapMB}MB`}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Agent Memory */}
+              {agentMemoryStats.agentCount > 0 && (
+                <div style={{ marginTop: '8px' }}>
+                  <div style={{ color: '#666', fontSize: '9px', marginBottom: '2px' }}>
+                    Agent Memory ({agentMemoryStats.agentCount}):
+                  </div>
+                  <div style={{ fontSize: '10px' }}>
+                    <div style={{ color: '#4aff9e', fontWeight: 'bold', marginBottom: '2px' }}>
+                      Total: {agentMemoryStats.totalMB}MB
+                    </div>
+                    <div style={{ maxHeight: '50px', overflowY: 'auto' }}>
+                      {agentMemoryStats.agents.slice(0, 4).map((agent, i) => (
+                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1px' }}>
+                          <span style={{ color: agent.status === 'working' ? '#4aff9e' : '#666', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {agent.name}
+                          </span>
+                          <span style={{ color: '#4a9eff' }}>{agent.memoryMB}MB</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Three.js Tab */}
+          {activeTab === 'threejs' && (
+            <div>
+              {threeJsStats ? (
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 10px', fontSize: '10px', marginBottom: '8px' }}>
+                    <span style={{ color: '#888' }}>Geometries:</span>
+                    <span style={{ color: '#4aff9e' }}>{threeJsStats.geometries}</span>
+                    <span style={{ color: '#888' }}>Textures:</span>
+                    <span style={{ color: '#ff9e4a' }}>{threeJsStats.textures}</span>
+                    <span style={{ color: '#888' }}>Programs:</span>
+                    <span style={{ color: '#9e4aff' }}>{threeJsStats.programs}</span>
+                  </div>
+
+                  {/* Texture/Geometry history */}
+                  {memoryHistory.length > 1 && (
+                    <div>
+                      <div style={{ color: '#666', fontSize: '9px', marginBottom: '2px' }}>Resource History:</div>
+                      <div style={{ display: 'flex', alignItems: 'flex-end', height: '40px', gap: '1px', background: 'rgba(0,0,0,0.3)', padding: '2px', borderRadius: '2px' }}>
+                        {memoryHistory.slice(-60).map((entry, i) => {
+                          const maxTex = Math.max(...memoryHistory.map(e => e.textures)) || 1;
+                          return (
+                            <div
+                              key={i}
+                              style={{
+                                width: '3px',
+                                height: `${(entry.textures / maxTex) * 100}%`,
+                                background: '#ff9e4a',
+                                opacity: 0.8,
+                              }}
+                              title={`${entry.textures} textures`}
+                            />
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  <div style={{ color: '#666', fontSize: '9px', marginTop: '8px' }}>
+                    Tip: Watch textures count. If it keeps increasing, there's a leak.
+                  </div>
+                </>
+              ) : (
+                <div style={{ color: '#666', fontSize: '10px' }}>
+                  Three.js stats unavailable.
+                  <br />
+                  SceneManager not exposed.
+                </div>
+              )}
             </div>
           )}
 
           {/* Actions */}
-          <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+          <div style={{ display: 'flex', gap: '4px', marginTop: '8px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '8px', flexWrap: 'wrap' }}>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                // Build stats text
+                const lines: string[] = [
+                  '=== Tide Commander Performance Stats ===',
+                  `Timestamp: ${new Date().toISOString()}`,
+                  '',
+                  '--- FPS ---',
+                  `Current: ${fpsStats.current}`,
+                  `Min: ${fpsStats.min}`,
+                  `Max: ${fpsStats.max}`,
+                  `Avg: ${fpsStats.avg}`,
+                ];
+
+                if (memoryUsage) {
+                  lines.push(
+                    '',
+                    '--- Memory ---',
+                    `Heap Used: ${memoryUsage.usedMB} MB`,
+                    `Heap Total: ${memoryUsage.totalMB} MB`,
+                    `Heap Limit: ${memoryUsage.limitMB} MB`,
+                    `Baseline: ${baselineMemory ?? 'N/A'} MB`,
+                    `Growth: ${memoryGrowth > 0 ? '+' : ''}${memoryGrowth} MB`,
+                    `Growth Rate: ${growthRate !== null ? `${growthRate.toFixed(2)} MB/min` : 'N/A'}`,
+                  );
+                }
+
+                if (threeJsStats) {
+                  lines.push(
+                    '',
+                    '--- Three.js ---',
+                    `Geometries: ${threeJsStats.geometries}`,
+                    `Textures: ${threeJsStats.textures}`,
+                    `Programs: ${threeJsStats.programs}`,
+                  );
+                }
+
+                if (agentMemoryStats.agentCount > 0) {
+                  lines.push(
+                    '',
+                    '--- Agent Memory ---',
+                    `Total: ${agentMemoryStats.totalMB} MB`,
+                    `Agents: ${agentMemoryStats.agentCount}`,
+                  );
+                  agentMemoryStats.agents.slice(0, 5).forEach(a => {
+                    lines.push(`  ${a.name}: ${a.memoryMB} MB (${a.status})`);
+                  });
+                }
+
+                const statsText = lines.join('\n');
+                navigator.clipboard.writeText(statsText).then(() => {
+                  // Brief visual feedback
+                  const btn = e.currentTarget;
+                  const original = btn.textContent;
+                  btn.textContent = 'Copied!';
+                  setTimeout(() => { btn.textContent = original; }, 1000);
+                });
+              }}
+              style={{
+                flex: 1,
+                background: 'rgba(74, 255, 158, 0.3)',
+                border: '1px solid rgba(74, 255, 158, 0.5)',
+                color: '#4aff9e',
+                padding: '4px 6px',
+                borderRadius: '3px',
+                fontSize: '9px',
+                cursor: 'pointer',
+              }}
+            >
+              Copy Stats
+            </button>
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 perf.report();
+                memory.report();
+                const scene = (window as any).__tideScene;
+                if (scene?.logMemoryDiagnostics) {
+                  scene.logMemoryDiagnostics();
+                }
               }}
               style={{
+                flex: 1,
                 background: 'rgba(74, 158, 255, 0.3)',
                 border: '1px solid rgba(74, 158, 255, 0.5)',
                 color: '#4a9eff',
-                padding: '2px 6px',
+                padding: '4px 6px',
                 borderRadius: '3px',
-                fontSize: '10px',
+                fontSize: '9px',
                 cursor: 'pointer',
               }}
             >
-              Report
+              Console
             </button>
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 perf.clear();
                 fpsTracker.reset();
+                memory.reset();
                 setFpsHistory([]);
+                setMemoryHistory([]);
+                const mem = memory.getUsage();
+                if (mem) setBaselineMemory(mem.usedMB);
               }}
               style={{
+                flex: 1,
                 background: 'rgba(255, 74, 74, 0.3)',
                 border: '1px solid rgba(255, 74, 74, 0.5)',
                 color: '#ff4a4a',
-                padding: '2px 6px',
+                padding: '4px 6px',
                 borderRadius: '3px',
-                fontSize: '10px',
+                fontSize: '9px',
                 cursor: 'pointer',
               }}
             >

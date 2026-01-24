@@ -52,6 +52,8 @@ export interface StoredAgent {
   contextStats?: ContextStats; // Detailed context stats from /context command
   taskCount?: number;    // May be missing in older data
   permissionMode?: Agent['permissionMode']; // May be missing in older data
+  useChrome?: boolean;   // May be missing in older data
+  model?: Agent['model']; // May be missing in older data
   createdAt: number;
   lastActivity: number;
   sessionId?: string;
@@ -119,6 +121,8 @@ export function saveAgents(agents: Agent[]): void {
       contextStats: agent.contextStats, // Persist detailed context stats
       taskCount: agent.taskCount,
       permissionMode: agent.permissionMode, // Persist permission mode
+      useChrome: agent.useChrome, // Persist Chrome flag
+      model: agent.model, // Persist model selection
       createdAt: agent.createdAt,
       lastActivity: agent.lastActivity,
       sessionId: agent.sessionId,

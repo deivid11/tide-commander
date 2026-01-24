@@ -2,6 +2,50 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.0] - 2026-01-24
+
+### Added
+- **Agent Response Modal** - View Claude responses as formatted markdown in a modal
+  - Click the 📄 button on any Claude message to open the modal
+  - Full markdown rendering with syntax highlighting
+  - Keyboard shortcut (Escape) to close
+- **Performance Monitor** - Enhanced FPS meter with memory and Three.js diagnostics
+  - Memory usage tracking with heap size and limit
+  - Three.js resource counts (geometries, textures, programs)
+  - Memory history graph for detecting leaks
+  - Growth rate indicator
+  - Tabbed interface: FPS / Memory / Three.js
+- **Landing Page Scaffold** - New landing page directory structure
+  - `dev:landing` script for developing the landing page
+
+### Fixed
+- **Memory Leak Prevention** - Comprehensive WebGL context cleanup
+  - Proper disposal on page unload (beforeunload, unload, pagehide events)
+  - bfcache detection and forced cleanup on restore
+  - StrictMode compatibility (no duplicate scene creation on remount)
+  - Session storage tracking for detecting unclean shutdowns
+  - Canvas removal and WebGL context loss on cleanup
+  - WebSocket disconnect and callback cleanup before scene disposal
+- **Selection Visual Performance** - Reduced geometry churn from boss-subordinate lines
+  - Only refresh visuals when selection or agent positions actually change
+  - Prevents massive geometry recreation on every store update
+
+### Changed
+- API calls now use `apiUrl()` helper for proper base URL handling
+  - History fetch, file upload, search all use dynamic base URL
+  - Custom model URLs use `apiUrl()` for correct paths
+  - Image URLs properly prefixed with API base URL
+- FPSMeter renamed to Performance Monitor internally
+- Scene manager exposed on `window.__tideScene` in dev mode for debugging
+
+### Technical
+- New `AgentResponseModal` component for markdown viewing
+- New `disconnect()` and `clearCallbacks()` exports from websocket module
+- `cleanupScene()` function centralizes all disposal logic
+- `WEBGL_SESSION_KEY` for tracking active WebGL contexts across sessions
+- `getApiBaseUrl()` utility for dynamic API base URL
+- `apiUrl()` helper for constructing full API URLs
+
 ## [0.9.0] - 2026-01-23
 
 ### Added

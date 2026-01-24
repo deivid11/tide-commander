@@ -8,6 +8,7 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useStore, store } from '../../store';
 import { DiffViewer } from '../DiffViewer';
+import { apiUrl } from '../../utils/storage';
 
 // Types
 import type {
@@ -225,13 +226,13 @@ export function FileExplorerPanel({
 
         // Always search by filename
         const filenamePromise = fetch(
-          `/api/files/search?path=${encodeURIComponent(currentFolder)}&q=${encodeURIComponent(query)}&limit=20`
+          apiUrl(`/api/files/search?path=${encodeURIComponent(currentFolder)}&q=${encodeURIComponent(query)}&limit=20`)
         ).then(res => res.json()).catch(() => ({ results: [] }));
 
         // Only search content if query is at least 2 chars
         const contentPromise = query.length >= 2
           ? fetch(
-              `/api/files/search-content?path=${encodeURIComponent(currentFolder)}&q=${encodeURIComponent(query)}&limit=20`
+              apiUrl(`/api/files/search-content?path=${encodeURIComponent(currentFolder)}&q=${encodeURIComponent(query)}&limit=20`)
             ).then(res => res.json()).catch(() => ({ results: [] }))
           : Promise.resolve({ results: [] });
 

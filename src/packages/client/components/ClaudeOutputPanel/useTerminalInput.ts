@@ -7,7 +7,7 @@
  */
 
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { STORAGE_KEYS, getStorageString, setStorageString, removeStorage } from '../../utils/storage';
+import { STORAGE_KEYS, getStorageString, setStorageString, removeStorage, apiUrl } from '../../utils/storage';
 import type { AttachedFile } from './types';
 
 interface UseTerminalInputOptions {
@@ -172,7 +172,7 @@ export function useTerminalInput({ selectedAgentId }: UseTerminalInputOptions): 
   // Upload file to server
   const uploadFile = useCallback(async (file: File | Blob, filename?: string): Promise<AttachedFile | null> => {
     try {
-      const response = await fetch('/api/files/upload', {
+      const response = await fetch(apiUrl('/api/files/upload'), {
         method: 'POST',
         headers: {
           'Content-Type': file.type || 'application/octet-stream',

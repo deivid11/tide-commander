@@ -96,6 +96,8 @@ export function initAgents(): void {
         contextLimit,
         taskCount: stored.taskCount ?? 0, // Migration for existing agents
         permissionMode: stored.permissionMode ?? 'bypass', // Migration for existing agents
+        useChrome: stored.useChrome, // Restore Chrome flag
+        model: stored.model, // Restore model selection
         // Boss field - fallback to checking class for backward compatibility
         isBoss: stored.isBoss ?? stored.class === 'boss',
       };

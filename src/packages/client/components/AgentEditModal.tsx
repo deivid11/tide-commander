@@ -9,6 +9,7 @@ import { ModelPreview } from './ModelPreview';
 import { ALL_CHARACTER_MODELS, CHARACTER_MODELS } from '../scene/config';
 import type { Agent, AgentClass, PermissionMode, Skill, BuiltInAgentClass, ClaudeModel } from '../../shared/types';
 import { BUILT_IN_AGENT_CLASSES, PERMISSION_MODES, CLAUDE_MODELS } from '../../shared/types';
+import { apiUrl } from '../utils/storage';
 
 interface AgentEditModalProps {
   agent: Agent;
@@ -93,7 +94,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
   const previewCustomModelUrl = useMemo(() => {
     const customClass = customClasses.find(c => c.id === selectedClass);
     if (customClass?.customModelPath) {
-      return `/api/custom-models/${customClass.id}`;
+      return apiUrl(`/api/custom-models/${customClass.id}`);
     }
     return undefined;
   }, [customClasses, selectedClass]);

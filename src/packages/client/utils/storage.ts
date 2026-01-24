@@ -14,6 +14,7 @@ export const STORAGE_KEYS = {
   SETTINGS: 'tide-settings',
   SHORTCUTS: 'tide-shortcuts',
   MOUSE_CONTROLS: 'tide-mouse-controls',
+  BACKEND_URL: 'tide-backend-url',
 
   // Camera
   CAMERA_STATE: 'tide-camera-state',
@@ -162,6 +163,27 @@ export function hasStorage(key: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * Get the backend API base URL
+ * Uses configured backend URL or defaults to 127.0.0.1:5174
+ */
+export function getApiBaseUrl(): string {
+  const configuredUrl = getStorageString(STORAGE_KEYS.BACKEND_URL, '');
+  if (configuredUrl) {
+    // Remove trailing slash if present
+    return configuredUrl.replace(/\/$/, '');
+  }
+  return 'http://127.0.0.1:5174';
+}
+
+/**
+ * Build a full API URL from a path
+ * @param path - API path starting with /api (e.g., '/api/agents')
+ */
+export function apiUrl(path: string): string {
+  return `${getApiBaseUrl()}${path}`;
 }
 
 /**

@@ -2,6 +2,7 @@ import type { Agent, ServerMessage, ClientMessage, PermissionRequest, Delegation
 import { store } from '../store';
 import { perf } from '../utils/profiling';
 import { agentDebugger, debugLog } from '../services/agentDebugger';
+import { STORAGE_KEYS, getStorageString } from '../utils/storage';
 
 // Persist WebSocket state across HMR reloads using window object
 // This prevents orphaned connections and ensures we maintain the same socket
@@ -40,6 +41,57 @@ const setReconnectTimeout = (v: NodeJS.Timeout | null) => { window.__tideWsState
 
 let connectionPromise: Promise<void> | null = null;
 const maxReconnectAttempts = 10;
+
+// Track if we've added the beforeunload listener
+let beforeUnloadListenerAdded = false;
+
+// Clean up WebSocket on page unload (actual refresh/close, not HMR)
+function handleBeforeUnload(): void {
+  const ws = getWs();
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    // Use synchronous close to ensure it happens before page unload
+    ws.close(1000, 'Page unloading');
+  }
+  // Clear reconnect timeout to prevent reconnection attempts
+  const timeout = getReconnectTimeout();
+  if (timeout) {
+    clearTimeout(timeout);
+  }
+  // Clear all WebSocket state to allow GC
+  if (window.__tideWsState) {
+    window.__tideWsState.ws = null;
+    window.__tideWsState.reconnectTimeout = null;
+    window.__tideWsState.isConnecting = false;
+    window.__tideWsState.reconnectAttempts = 0;
+  }
+  // Clear session storage flag to prevent stale reconnection state on refresh
+  sessionStorage.removeItem(SESSION_STORAGE_KEY);
+  // Clear module-level connection promise
+  connectionPromise = null;
+}
+
+// Add beforeunload listener once (idempotent)
+function ensureBeforeUnloadListener(): void {
+  if (!beforeUnloadListenerAdded) {
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    beforeUnloadListenerAdded = true;
+  }
+}
+
+// Export disconnect for manual cleanup
+export function disconnect(): void {
+  handleBeforeUnload();
+  store.setConnected(false);
+  store.stopStatusPolling();
+}
+
+// Reconnect with potentially new backend URL
+export function reconnect(): void {
+  disconnect();
+  setReconnectAttempts(0);
+  // Small delay to ensure clean disconnect
+  setTimeout(() => connect(), 100);
+}
 
 // Use sessionStorage to persist connection state across HMR reloads
 // This ensures we detect reconnections even when the frontend code reloads
@@ -94,7 +146,30 @@ export function setCallbacks(callbacks: {
   if (callbacks.onAgentNotification) onAgentNotification = callbacks.onAgentNotification;
 }
 
+/**
+ * Clear all callbacks to prevent memory leaks on page unload.
+ * This breaks reference chains that could keep React components alive.
+ */
+export function clearCallbacks(): void {
+  onToast = null;
+  onAgentCreated = null;
+  onAgentUpdated = null;
+  onAgentDeleted = null;
+  onAgentsSync = null;
+  onSpawnError = null;
+  onSpawnSuccess = null;
+  onToolUse = null;
+  onDirectoryNotFound = null;
+  onDelegation = null;
+  onCustomClassesSync = null;
+  onReconnect = null;
+  onAgentNotification = null;
+}
+
 export function connect(): void {
+  // Ensure we have a beforeunload listener to clean up on page refresh
+  ensureBeforeUnloadListener();
+
   // Clear any pending reconnect
   const pendingTimeout = getReconnectTimeout();
   if (pendingTimeout) {
@@ -121,28 +196,31 @@ export function connect(): void {
   setReconnectAttempts(getReconnectAttempts() + 1);
   setIsConnecting(true);
 
-  // Try different URLs based on environment
-  const wsUrl = `ws://${window.location.host}/ws`;
-  const altUrl = `ws://localhost:5174/ws`;
+  // Get configured backend URL or use defaults
+  const configuredUrl = getStorageString(STORAGE_KEYS.BACKEND_URL, '');
 
-  let newSocket: WebSocket;
+  // Build WebSocket URL - use configured URL or default to localhost:5174
+  let wsUrl: string;
+  if (configuredUrl) {
+    // User has configured a custom backend URL
+    // Convert http(s):// to ws(s):// if needed
+    const wsConfigured = configuredUrl
+      .replace(/^https:\/\//, 'wss://')
+      .replace(/^http:\/\//, 'ws://');
+    // Ensure it ends with /ws
+    wsUrl = wsConfigured.endsWith('/ws') ? wsConfigured : `${wsConfigured.replace(/\/$/, '')}/ws`;
+  } else {
+    // Default: connect directly to backend on port 5174
+    wsUrl = 'ws://127.0.0.1:5174/ws';
+  }
+
+  let newSocket: WebSocket | null = null;
   try {
     newSocket = new WebSocket(wsUrl);
-  } catch (error) {
+  } catch {
     setIsConnecting(false);
-
-    // Try alternative URL
-    if (wsUrl !== altUrl) {
-      try {
-        newSocket = new WebSocket(altUrl);
-      } catch {
-        handleReconnect();
-        return;
-      }
-    } else {
-      handleReconnect();
-      return;
-    }
+    handleReconnect();
+    return;
   }
 
   setWs(newSocket);

@@ -4,7 +4,7 @@ import { AGENT_CLASS_CONFIG, DEFAULT_NAMES, CHARACTER_MODELS } from '../scene/co
 import type { Agent, AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel } from '../../shared/types';
 import { PERMISSION_MODES, AGENT_CLASSES, CLAUDE_MODELS } from '../../shared/types';
 import { intToHex } from '../utils/formatting';
-import { STORAGE_KEYS, getStorageString, setStorageString } from '../utils/storage';
+import { STORAGE_KEYS, getStorageString, setStorageString, apiUrl } from '../utils/storage';
 import { ModelPreview } from './ModelPreview';
 
 interface BossSpawnModalProps {
@@ -59,7 +59,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
   // Get custom model URL if the class has an uploaded model
   const previewCustomModelUrl = useMemo((): string | undefined => {
     if (selectedCustomClass?.customModelPath) {
-      return `/api/custom-models/${selectedCustomClass.id}`;
+      return apiUrl(`/api/custom-models/${selectedCustomClass.id}`);
     }
     return undefined;
   }, [selectedCustomClass]);

@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tide Commander - RTS-Style Claude Code Agent Orchestration</title>
+    <meta name="description" content="Command multiple Claude Code AI agents from a Warcraft-style 3D battlefield. Visual multi-agent orchestration for developers." />
+    <meta name="keywords" content="Claude Code, AI agents, orchestration, RTS, Three.js, developer tools" />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="Tide Commander" />
+    <meta property="og:description" content="RTS-style visual commander for Claude Code agents" />
+    <meta property="og:type" content="website" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <!-- Navigation -->
+    <nav class="nav">
+      <div class="nav-content">
+        <a href="#" class="nav-logo">
+          <span class="logo-icon">🌊</span>
+          <span class="logo-text">Tide Commander</span>
+        </a>
+        <div class="nav-links">
+          <a href="#features">Features</a>
+          <a href="#how-it-works">How it Works</a>
+          <a href="#tech">Tech Stack</a>
+          <a href="https://github.com/iamfisho/tide-commander" class="btn btn-outline" target="_blank">
+            <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+            GitHub
+          </a>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <header class="hero">
+      <div class="hero-bg">
+        <div class="grid-overlay"></div>
+        <div class="glow glow-1"></div>
+        <div class="glow glow-2"></div>
+        <div class="glow glow-3"></div>
+      </div>
+
+      <div class="hero-content">
+        <div class="hero-badge">
+          <span class="badge-dot"></span>
+          Open Source &bull; MIT License &bull; v0.9.0
+        </div>
+
+        <h1 class="hero-title">
+          Command Your <span class="gradient-text">AI Army</span>
+        </h1>
+
+        <p class="hero-subtitle">
+          Orchestrate multiple Claude Code agents from a Warcraft-style 3D battlefield.
+          Select, command, and monitor your AI team in real-time.
+        </p>
+
+        <div class="hero-actions">
+          <a href="https://github.com/iamfisho/tide-commander" class="btn btn-primary btn-lg" target="_blank">
+            Get Started
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </a>
+          <a href="#how-it-works" class="btn btn-secondary btn-lg">
+            See How It Works
+          </a>
+        </div>
+
+        <div class="hero-stats">
+          <div class="stat">
+            <span class="stat-value">7+</span>
+            <span class="stat-label">Agent Classes</span>
+          </div>
+          <div class="stat">
+            <span class="stat-value">3D</span>
+            <span class="stat-label">Battlefield View</span>
+          </div>
+          <div class="stat">
+            <span class="stat-value">∞</span>
+            <span class="stat-label">Agents</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-visual">
+        <div class="battlefield-preview">
+          <div class="preview-header">
+            <div class="preview-dots">
+              <span></span><span></span><span></span>
+            </div>
+            <span class="preview-title">Tide Commander</span>
+          </div>
+          <div class="preview-content">
+            <div class="mini-battlefield">
+              <div class="terrain"></div>
+              <div class="agent agent-1" data-class="Scout">
+                <div class="agent-ring"></div>
+                <div class="agent-icon">🔍</div>
+                <div class="agent-status working"></div>
+              </div>
+              <div class="agent agent-2" data-class="Builder">
+                <div class="agent-ring"></div>
+                <div class="agent-icon">🔧</div>
+                <div class="agent-status idle"></div>
+              </div>
+              <div class="agent agent-3" data-class="Boss">
+                <div class="agent-ring selected"></div>
+                <div class="agent-icon">👑</div>
+                <div class="agent-status working"></div>
+                <div class="delegation-line"></div>
+              </div>
+              <div class="agent agent-4" data-class="Debugger">
+                <div class="agent-ring"></div>
+                <div class="agent-icon">🐛</div>
+                <div class="agent-status waiting"></div>
+              </div>
+              <div class="selection-box"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Features Section -->
+    <section id="features" class="features">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-tag">Features</span>
+          <h2>Everything You Need to Command AI Agents</h2>
+          <p>Built specifically for developers who want visual control over multiple Claude Code instances</p>
+        </div>
+
+        <div class="features-grid">
+          <div class="feature-card feature-large">
+            <div class="feature-icon">🎮</div>
+            <h3>RTS-Style Controls</h3>
+            <p>Click to select, drag for box selection, right-click to move. Number keys for quick groups. OrbitControls for camera. It just feels right.</p>
+            <div class="feature-visual controls-visual">
+              <div class="control-hint">
+                <kbd>1-9</kbd>
+                <span>Quick Select</span>
+              </div>
+              <div class="control-hint">
+                <kbd>Click</kbd>
+                <span>Select Agent</span>
+              </div>
+              <div class="control-hint">
+                <kbd>Drag</kbd>
+                <span>Box Select</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon">👑</div>
+            <h3>Boss Delegation</h3>
+            <p>Boss agents understand their team and intelligently delegate tasks to the most capable subordinate.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon">📊</div>
+            <h3>Context Tracking</h3>
+            <p>Visual mana bars show token usage. Never lose track of context windows across your agent army.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon">🔐</div>
+            <h3>Permission Control</h3>
+            <p>Fine-grained permissions per agent. Auto-approve safe tools, prompt for dangerous operations.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon">🎨</div>
+            <h3>Custom 3D Models</h3>
+            <p>Upload .glb models for agent classes. Automatic animation detection and procedural fallbacks.</p>
+          </div>
+
+          <div class="feature-card feature-large">
+            <div class="feature-icon">🔄</div>
+            <h3>Session Persistence</h3>
+            <p>Agents maintain their Claude conversation history across restarts. Pick up right where you left off. Your team remembers everything.</p>
+            <div class="feature-visual session-visual">
+              <div class="session-timeline">
+                <div class="session-point active">
+                  <span class="session-dot"></span>
+                  <span class="session-label">Session Start</span>
+                </div>
+                <div class="session-line"></div>
+                <div class="session-point">
+                  <span class="session-dot"></span>
+                  <span class="session-label">Work Progress</span>
+                </div>
+                <div class="session-line"></div>
+                <div class="session-point">
+                  <span class="session-dot"></span>
+                  <span class="session-label">Restart</span>
+                </div>
+                <div class="session-line"></div>
+                <div class="session-point active">
+                  <span class="session-dot"></span>
+                  <span class="session-label">Resume</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon">📁</div>
+            <h3>File Change Tracking</h3>
+            <p>See exactly which files each agent modified. Integrated diff viewers show every change.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon">⚡</div>
+            <h3>Hot-Reload Skills</h3>
+            <p>Update agent skills in real-time. No restart needed. Context preserved.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Agent Classes Section -->
+    <section class="agent-classes">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-tag">Agent Classes</span>
+          <h2>Specialized Roles for Every Task</h2>
+          <p>Choose from 7 built-in classes or create your own with custom instructions and models</p>
+        </div>
+
+        <div class="classes-showcase">
+          <div class="class-card">
+            <div class="class-icon">🔍</div>
+            <h4>Scout</h4>
+            <p>Explores codebases, finds patterns, maps dependencies</p>
+          </div>
+          <div class="class-card">
+            <div class="class-icon">🔧</div>
+            <h4>Builder</h4>
+            <p>Implements features, writes code, creates components</p>
+          </div>
+          <div class="class-card">
+            <div class="class-icon">🐛</div>
+            <h4>Debugger</h4>
+            <p>Hunts bugs, traces issues, fixes errors</p>
+          </div>
+          <div class="class-card">
+            <div class="class-icon">📐</div>
+            <h4>Architect</h4>
+            <p>Plans structure, designs systems, reviews code</p>
+          </div>
+          <div class="class-card">
+            <div class="class-icon">⚔️</div>
+            <h4>Warrior</h4>
+            <p>Tackles tough problems, refactors legacy code</p>
+          </div>
+          <div class="class-card">
+            <div class="class-icon">💚</div>
+            <h4>Support</h4>
+            <p>Writes docs, tests, maintains quality</p>
+          </div>
+          <div class="class-card class-boss">
+            <div class="class-icon">👑</div>
+            <h4>Boss</h4>
+            <p>Leads teams, delegates tasks, coordinates work</p>
+            <span class="class-badge">Delegates</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- How it Works Section -->
+    <section id="how-it-works" class="how-it-works">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-tag">How It Works</span>
+          <h2>From Terminal Chaos to Visual Control</h2>
+        </div>
+
+        <div class="workflow">
+          <div class="workflow-step">
+            <div class="step-number">1</div>
+            <div class="step-content">
+              <h3>Deploy Agents</h3>
+              <p>Spawn Claude Code instances as agents on the 3D battlefield. Choose their class and specialization.</p>
+            </div>
+            <div class="step-visual">
+              <div class="terminal-mock">
+                <code>bun run dev</code>
+                <span class="cursor">_</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="workflow-step">
+            <div class="step-number">2</div>
+            <div class="step-content">
+              <h3>Select & Command</h3>
+              <p>Click agents, drag-select groups, or use hotkeys. Send tasks through the command interface.</p>
+            </div>
+            <div class="step-visual">
+              <div class="command-mock">
+                <span class="prompt">&gt;</span>
+                <span class="command">Implement dark mode toggle</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="workflow-step">
+            <div class="step-number">3</div>
+            <div class="step-content">
+              <h3>Watch & Monitor</h3>
+              <p>See agents work in real-time. Track context usage, file changes, and task progress visually.</p>
+            </div>
+            <div class="step-visual">
+              <div class="status-mock">
+                <div class="status-item">
+                  <span class="status-dot working"></span>
+                  <span>Scout - Exploring...</span>
+                </div>
+                <div class="status-item">
+                  <span class="status-dot idle"></span>
+                  <span>Builder - Idle</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tech Stack Section -->
+    <section id="tech" class="tech-stack">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-tag">Built With</span>
+          <h2>Modern Tech Stack</h2>
+        </div>
+
+        <div class="tech-grid">
+          <div class="tech-card">
+            <div class="tech-icon">⚛️</div>
+            <span>React 19</span>
+          </div>
+          <div class="tech-card">
+            <div class="tech-icon">🎲</div>
+            <span>Three.js</span>
+          </div>
+          <div class="tech-card">
+            <div class="tech-icon">📘</div>
+            <span>TypeScript</span>
+          </div>
+          <div class="tech-card">
+            <div class="tech-icon">⚡</div>
+            <span>Vite</span>
+          </div>
+          <div class="tech-card">
+            <div class="tech-icon">🟢</div>
+            <span>Node.js</span>
+          </div>
+          <div class="tech-card">
+            <div class="tech-icon">🔌</div>
+            <span>WebSocket</span>
+          </div>
+        </div>
+
+        <div class="architecture">
+          <pre class="arch-diagram">
+┌─────────────────────────────────────────────────────┐
+│               Browser (React + Three.js)            │
+└────────────────────────┬────────────────────────────┘
+                         │ WebSocket
+┌────────────────────────▼────────────────────────────┐
+│            Node.js Server (Express + WS)            │
+└────────────────────────┬────────────────────────────┘
+                         │ stdin/stdout
+┌────────────────────────▼────────────────────────────┐
+│         Claude Code Instances (Multiple CLIs)       │
+└─────────────────────────────────────────────────────┘</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta">
+      <div class="container">
+        <div class="cta-content">
+          <h2>Ready to Command Your AI Army?</h2>
+          <p>Open source, free forever, built by developers for developers.</p>
+          <div class="cta-actions">
+            <a href="https://github.com/iamfisho/tide-commander" class="btn btn-primary btn-lg" target="_blank">
+              <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+              View on GitHub
+            </a>
+            <div class="install-command">
+              <code>git clone https://github.com/iamfisho/tide-commander && cd tide-commander && bun install && bun run dev</code>
+              <button class="copy-btn" onclick="navigator.clipboard.writeText('git clone https://github.com/iamfisho/tide-commander && cd tide-commander && bun install && bun run dev')">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div class="container">
+        <div class="footer-content">
+          <div class="footer-brand">
+            <span class="logo-icon">🌊</span>
+            <span class="logo-text">Tide Commander</span>
+          </div>
+          <p class="footer-tagline">Built entirely with Claude Code</p>
+          <div class="footer-links">
+            <a href="https://github.com/iamfisho/tide-commander" target="_blank">GitHub</a>
+            <a href="https://github.com/iamfisho/tide-commander/issues" target="_blank">Issues</a>
+            <a href="https://github.com/iamfisho/tide-commander/blob/master/LICENSE" target="_blank">MIT License</a>
+          </div>
+        </div>
+      </div>
+    </footer>
+
+    <script>
+      // Smooth scroll for anchor links
+      document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function (e) {
+          e.preventDefault();
+          const target = document.querySelector(this.getAttribute('href'));
+          if (target) {
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        });
+      });
+
+      // Animate agents on battlefield preview
+      const agents = document.querySelectorAll('.mini-battlefield .agent');
+      agents.forEach((agent, i) => {
+        setInterval(() => {
+          const x = Math.random() * 20 - 10;
+          const y = Math.random() * 20 - 10;
+          agent.style.transform = `translate(${x}px, ${y}px)`;
+        }, 2000 + i * 500);
+      });
+
+      // Copy button feedback
+      document.querySelector('.copy-btn')?.addEventListener('click', function() {
+        this.classList.add('copied');
+        setTimeout(() => this.classList.remove('copied'), 2000);
+      });
+    </script>
+  </body>
+</html>

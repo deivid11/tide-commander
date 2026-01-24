@@ -3,12 +3,14 @@ import { useStore, store } from '../store';
 import type { DrawingArea, DrawingTool, Building } from '../../shared/types';
 import { BUILDING_TYPES, BUILDING_STYLES, type BuildingStyle } from '../../shared/types';
 import { AREA_COLORS, BUILDING_STATUS_COLORS } from '../utils/colors';
+import { STORAGE_KEYS, getStorageString, setStorageString } from '../utils/storage';
+import { reconnect } from '../websocket';
 
 // Time mode options
 export type TimeMode = 'auto' | 'day' | 'night' | 'dawn' | 'dusk';
 
 // Floor style options
-export type FloorStyle = 'none' | 'concrete' | 'galactic' | 'metal' | 'hex' | 'circuit';
+export type FloorStyle = 'none' | 'concrete' | 'galactic' | 'metal' | 'hex' | 'circuit' | 'pokemon-stadium';
 
 // Terrain options
 export interface TerrainConfig {
@@ -610,6 +612,7 @@ const FLOOR_STYLE_OPTIONS: { value: FloorStyle; label: string; icon: string }[] 
   { value: 'metal', label: 'Metal', icon: '⚙️' },
   { value: 'hex', label: 'Hex', icon: '⬡' },
   { value: 'circuit', label: 'Circuit', icon: '🔌' },
+  { value: 'pokemon-stadium', label: 'Pokemon', icon: '🔴' },
 ];
 
 const ANIMATION_OPTIONS: { value: AnimationType; label: string; icon: string }[] = [
@@ -731,6 +734,19 @@ function CollapsibleSection({
 function ConfigSection({ config, onChange }: ConfigSectionProps) {
   const state = useStore();
   const [historyLimit, setHistoryLimit] = useState(state.settings.historyLimit);
+  const [backendUrl, setBackendUrl] = useState(() => getStorageString(STORAGE_KEYS.BACKEND_URL, ''));
+  const [backendUrlDirty, setBackendUrlDirty] = useState(false);
+
+  const handleBackendUrlChange = (value: string) => {
+    setBackendUrl(value);
+    setBackendUrlDirty(true);
+  };
+
+  const handleBackendUrlSave = () => {
+    setStorageString(STORAGE_KEYS.BACKEND_URL, backendUrl);
+    setBackendUrlDirty(false);
+    reconnect();
+  };
 
   const updateTerrain = (updates: Partial<TerrainConfig>) => {
     onChange({ ...config, terrain: { ...config.terrain, ...updates } });
@@ -804,6 +820,37 @@ function ConfigSection({ config, onChange }: ConfigSectionProps) {
             onChange={(e) => onChange({ ...config, fpsLimit: parseInt(e.target.value) })}
           />
           <span className="config-value">{config.fpsLimit === 0 ? '∞' : config.fpsLimit}</span>
+        </div>
+      </CollapsibleSection>
+
+      {/* Connection Settings */}
+      <CollapsibleSection title="Connection" storageKey="connection" defaultOpen={false}>
+        <div className="config-row config-row-stacked">
+          <span className="config-label">Backend URL</span>
+          <div className="config-input-group">
+            <input
+              type="text"
+              className="config-input config-input-full"
+              value={backendUrl}
+              onChange={(e) => handleBackendUrlChange(e.target.value)}
+              placeholder="http://127.0.0.1:5174"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && backendUrlDirty) {
+                  handleBackendUrlSave();
+                }
+              }}
+            />
+            {backendUrlDirty && (
+              <button
+                className="config-btn config-btn-sm"
+                onClick={handleBackendUrlSave}
+                title="Save and reconnect"
+              >
+                Apply
+              </button>
+            )}
+          </div>
+          <span className="config-hint">Leave empty for auto-detect</span>
         </div>
       </CollapsibleSection>
 

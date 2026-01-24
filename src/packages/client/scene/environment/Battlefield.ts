@@ -51,6 +51,9 @@ export class Battlefield {
   // Debug: override time for testing (set to null to use real time)
   private debugHourOverride: number | null = null;
 
+  // Reusable Color instance for applyTimeConfig to prevent allocations
+  private tempColor = new THREE.Color();
+
   constructor(scene: THREE.Scene) {
     this.scene = scene;
   }
@@ -189,7 +192,9 @@ export class Battlefield {
     const previousStyle = this.currentFloorStyle;
     this.currentFloorStyle = style;
 
-    console.log(`[Battlefield] Switching floor from ${previousStyle} to ${style} (force=${force})`);
+    if (typeof window !== 'undefined' && (window as any).__TIDE_MEMORY_DEBUG__) {
+      console.log(`[Battlefield] Memory: Switching floor from ${previousStyle} to ${style}`);
+    }
 
     // Clean up galactic elements if switching away from galactic
     if (previousStyle === 'galactic') {
@@ -226,6 +231,9 @@ export class Battlefield {
         material.depthWrite = true;
         this.ground!.renderOrder = 0;
 
+        // CRITICAL: Dispose old texture BEFORE replacing to prevent memory leak
+        const oldTexture = material.map;
+
         // Handle 'none' style - match the grass terrain
         if (style === 'none') {
           material.map = null;
@@ -239,9 +247,18 @@ export class Battlefield {
           const texture = generateFloorTexture(style);
           texture.wrapS = THREE.RepeatWrapping;
           texture.wrapT = THREE.RepeatWrapping;
-          texture.repeat.set(6, 6);
+          // Pokemon stadium should not repeat - single arena covering the floor
+          texture.repeat.set(style === 'pokemon-stadium' ? 1 : 6, style === 'pokemon-stadium' ? 1 : 6);
           material.map = texture;
           material.needsUpdate = true;
+        }
+
+        // Dispose old texture AFTER setting the new one
+        if (oldTexture) {
+          oldTexture.dispose();
+          if (typeof window !== 'undefined' && (window as any).__TIDE_MEMORY_DEBUG__) {
+            console.log('[Battlefield] Memory: Disposed old floor texture');
+          }
         }
 
         // Adjust material properties based on style
@@ -269,6 +286,13 @@ export class Battlefield {
             material.metalness = 0.3;
             material.emissive.setHex(0x003322);
             material.emissiveIntensity = 0.4;
+            break;
+          case 'pokemon-stadium':
+            material.color.setHex(0xaaaaaa); // Darken the texture slightly
+            material.roughness = 1.0; // Fully matte, no reflections
+            material.metalness = 0;
+            material.emissive.setHex(0x000000);
+            material.emissiveIntensity = 0;
             break;
           default: // concrete
             material.color.setHex(0x555555);
@@ -303,8 +327,12 @@ export class Battlefield {
   }
 
   private applyTimeConfig(config: TimeConfig): void {
-    // Update sky/fog
-    this.scene.background = new THREE.Color(config.skyColor);
+    // Update sky/fog - reuse tempColor to avoid allocations
+    if (this.scene.background instanceof THREE.Color) {
+      this.scene.background.setHex(config.skyColor);
+    } else {
+      this.scene.background = this.tempColor.setHex(config.skyColor).clone();
+    }
     if (this.scene.fog instanceof THREE.FogExp2) {
       this.scene.fog.color.setHex(config.fogColor);
       // Apply fog density with user's fog multiplier
@@ -473,6 +501,14 @@ export class Battlefield {
     // Dispose galactic elements
     removeGalacticElements(this.scene, this.galacticState, this.disposeMaterial.bind(this));
     this.galacticState = null;
+
+    // Dispose logo (created in createLogo)
+    const logo = this.scene.getObjectByName('tideLogo') as THREE.Mesh | undefined;
+    if (logo) {
+      logo.geometry?.dispose();
+      this.disposeMaterial(logo.material as THREE.Material);
+      this.scene.remove(logo);
+    }
 
     // Dispose ground
     if (this.ground) {

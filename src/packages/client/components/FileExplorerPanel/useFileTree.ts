@@ -7,6 +7,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { TreeNode, UseFileTreeReturn } from './types';
+import { apiUrl } from '../../utils/storage';
 
 // Initial depth to load (shallow for fast initial load)
 const INITIAL_DEPTH = 3;
@@ -49,7 +50,7 @@ export function useFileTree(currentFolder: string | null): UseFileTreeReturn {
 
     try {
       const res = await fetch(
-        `/api/files/tree?path=${encodeURIComponent(currentFolder)}&depth=${INITIAL_DEPTH}`
+        apiUrl(`/api/files/tree?path=${encodeURIComponent(currentFolder)}&depth=${INITIAL_DEPTH}`)
       );
       const data = await res.json();
 
@@ -105,7 +106,7 @@ export function useFileTree(currentFolder: string | null): UseFileTreeReturn {
   const loadChildren = useCallback(async (dirPath: string) => {
     try {
       const res = await fetch(
-        `/api/files/tree?path=${encodeURIComponent(dirPath)}&depth=${EXPAND_DEPTH}`
+        apiUrl(`/api/files/tree?path=${encodeURIComponent(dirPath)}&depth=${EXPAND_DEPTH}`)
       );
       const data = await res.json();
 

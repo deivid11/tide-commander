@@ -7,6 +7,7 @@
 
 import { useState, useCallback } from 'react';
 import type { GitStatus, UseGitStatusReturn } from './types';
+import { apiUrl } from '../../utils/storage';
 
 /**
  * Hook for managing git status state and operations
@@ -25,7 +26,7 @@ export function useGitStatus(currentFolder: string | null): UseGitStatusReturn {
 
     try {
       const res = await fetch(
-        `/api/files/git-status?path=${encodeURIComponent(currentFolder)}`
+        apiUrl(`/api/files/git-status?path=${encodeURIComponent(currentFolder)}`)
       );
       const data = await res.json();
 
@@ -57,7 +58,7 @@ export async function loadGitOriginalContent(
 ): Promise<{ content: string | null; isNew: boolean }> {
   try {
     const res = await fetch(
-      `/api/files/git-original?path=${encodeURIComponent(filePath)}`
+      apiUrl(`/api/files/git-original?path=${encodeURIComponent(filePath)}`)
     );
     const data = await res.json();
 

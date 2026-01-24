@@ -6,6 +6,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useStore, store } from '../../store';
 import type { Agent } from '../../../shared/types';
 import type { RememberedPattern } from './types';
+import { apiUrl } from '../../utils/storage';
 
 interface UseAgentSelectionOptions {
   agentId?: string;
@@ -73,7 +74,7 @@ export function useAgentSelection({ agentId }: UseAgentSelectionOptions): AgentS
   // Fetch remembered patterns for interactive mode agents
   useEffect(() => {
     if (agent?.permissionMode === 'interactive') {
-      fetch('http://localhost:5174/api/remembered-patterns')
+      fetch(apiUrl('/api/remembered-patterns'))
         .then(res => res.json())
         .then(setRememberedPatterns)
         .catch(err => console.error('Failed to fetch remembered patterns:', err));
@@ -107,7 +108,7 @@ export function useAgentSelection({ agentId }: UseAgentSelectionOptions): AgentS
   // Pattern removal handler
   const handleRemovePattern = async (tool: string, pattern: string) => {
     try {
-      const res = await fetch(`http://localhost:5174/api/remembered-patterns/${tool}/${encodeURIComponent(pattern)}`, {
+      const res = await fetch(apiUrl(`/api/remembered-patterns/${tool}/${encodeURIComponent(pattern)}`), {
         method: 'DELETE',
       });
       if (res.ok) {
@@ -122,7 +123,7 @@ export function useAgentSelection({ agentId }: UseAgentSelectionOptions): AgentS
   const handleClearAllPatterns = async () => {
     if (!confirm('Clear all remembered permission patterns?')) return;
     try {
-      const res = await fetch('http://localhost:5174/api/remembered-patterns', {
+      const res = await fetch(apiUrl('/api/remembered-patterns'), {
         method: 'DELETE',
       });
       if (res.ok) {

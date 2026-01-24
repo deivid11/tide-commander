@@ -21,6 +21,7 @@ interface HistoryLineProps {
   onImageClick?: (url: string, name: string) => void;
   onFileClick?: (path: string, editData?: EditData) => void;
   onBashClick?: (command: string, output: string) => void;
+  onViewMarkdown?: (content: string) => void;
 }
 
 // Generate a short debug hash for a history message (for debugging duplicates)
@@ -44,6 +45,7 @@ export const HistoryLine = memo(function HistoryLine({
   onImageClick,
   onFileClick,
   onBashClick,
+  onViewMarkdown,
 }: HistoryLineProps) {
   const hideCost = useHideCost();
   const { type, content: rawContent, toolName, timestamp, _bashOutput, _bashCommand } = message;
@@ -364,6 +366,15 @@ export const HistoryLine = memo(function HistoryLine({
             <DelegationBlock key={`del-${i}`} delegation={delegation} />
           ))}
         </span>
+        {onViewMarkdown && (
+          <button
+            className="history-view-md-btn"
+            onClick={() => onViewMarkdown(content)}
+            title="View as Markdown"
+          >
+            📄
+          </button>
+        )}
       </div>
     );
   }
@@ -371,10 +382,19 @@ export const HistoryLine = memo(function HistoryLine({
   return (
     <div className={className}>
       {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
-      <span className="history-role">Claude</span>
+      <span className="history-role">{isUser ? 'You' : 'Claude'}</span>
       <span className="history-content markdown-content">
         {highlight ? <div>{highlightText(content, highlight)}</div> : renderContentWithImages(content, onImageClick)}
       </span>
+      {!isUser && onViewMarkdown && (
+        <button
+          className="history-view-md-btn"
+          onClick={() => onViewMarkdown(content)}
+          title="View as Markdown"
+        >
+          📄
+        </button>
+      )}
     </div>
   );
 });

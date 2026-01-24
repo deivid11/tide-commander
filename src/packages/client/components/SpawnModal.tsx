@@ -4,7 +4,7 @@ import { AGENT_CLASS_CONFIG, DEFAULT_NAMES, CHARACTER_MODELS } from '../scene/co
 import type { AgentClass, PermissionMode, Skill, CustomAgentClass, BuiltInAgentClass, ClaudeModel } from '../../shared/types';
 import { PERMISSION_MODES, BUILT_IN_AGENT_CLASSES, CLAUDE_MODELS } from '../../shared/types';
 import { intToHex } from '../utils/formatting';
-import { STORAGE_KEYS, getStorageString, setStorageString } from '../utils/storage';
+import { STORAGE_KEYS, getStorageString, setStorageString, apiUrl } from '../utils/storage';
 import { ModelPreview } from './ModelPreview';
 
 interface ClaudeSession {
@@ -114,7 +114,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
   // Get custom model URL if the class has an uploaded model
   const previewCustomModelUrl = useMemo((): string | undefined => {
     if (selectedCustomClass?.customModelPath) {
-      return `/api/custom-models/${selectedCustomClass.id}`;
+      return apiUrl(`/api/custom-models/${selectedCustomClass.id}`);
     }
     return undefined;
   }, [selectedCustomClass]);
@@ -135,8 +135,8 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
     setLoadingSessions(true);
     try {
       const url = directory
-        ? `/api/agents/claude-sessions?cwd=${encodeURIComponent(directory)}`
-        : '/api/agents/claude-sessions';
+        ? apiUrl(`/api/agents/claude-sessions?cwd=${encodeURIComponent(directory)}`)
+        : apiUrl('/api/agents/claude-sessions');
       const res = await fetch(url);
       const data = await res.json();
       setSessions(data.sessions || []);

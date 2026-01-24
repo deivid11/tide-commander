@@ -6,6 +6,7 @@ import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { markdownComponents } from './MarkdownComponents';
+import { getApiBaseUrl } from '../../utils/storage';
 
 /**
  * Helper to highlight search terms in text
@@ -29,14 +30,15 @@ export function highlightText(text: string, query?: string): React.ReactNode {
  * Handles: http URLs, /uploads/ paths, and absolute /tmp/ paths
  */
 export function getImageWebUrl(imagePath: string): string {
+  const baseUrl = getApiBaseUrl();
   if (imagePath.startsWith('http')) {
     return imagePath;
   } else if (imagePath.startsWith('/uploads/')) {
-    return imagePath;
+    return `${baseUrl}${imagePath}`;
   } else if (imagePath.includes('tide-commander-uploads')) {
     // Absolute path like /tmp/tide-commander-uploads/image.png - extract filename
     const imageName = imagePath.split('/').pop() || 'image';
-    return `/uploads/${imageName}`;
+    return `${baseUrl}/uploads/${imageName}`;
   } else {
     // Default: assume it's a relative path
     return imagePath;
