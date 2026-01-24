@@ -9,7 +9,7 @@
  *   <FPSMeter visible={showFPS} />
  */
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { fpsTracker, memory, perf } from '../utils/profiling';
 import { useAgentsArray } from '../store';
 
@@ -22,6 +22,19 @@ interface ThreeJsStats {
   geometries: number;
   textures: number;
   programs: number;
+}
+
+interface DomStats {
+  nodeCount: number;
+  listenerCount: number;
+  canvasCount: number;
+  imageCount: number;
+  videoCount: number;
+}
+
+interface TextureMemoryEstimate {
+  count: number;
+  estimatedMB: number;
 }
 
 interface MemoryHistory {
@@ -42,7 +55,9 @@ export function FPSMeter({ visible = true, position = 'top-right' }: FPSMeterPro
   const [threeJsStats, setThreeJsStats] = useState<ThreeJsStats | null>(null);
   const [growthRate, setGrowthRate] = useState<number | null>(null);
   const [expanded, setExpanded] = useState(false);
-  const [activeTab, setActiveTab] = useState<'fps' | 'memory' | 'threejs'>('fps');
+  const [activeTab, setActiveTab] = useState<'fps' | 'memory' | 'threejs' | 'dom'>('fps');
+  const [domStats, setDomStats] = useState<DomStats | null>(null);
+  const [textureMemory, setTextureMemory] = useState<TextureMemoryEstimate | null>(null);
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
   const [baselineMemory, setBaselineMemory] = useState<number | null>(null);
 
@@ -70,6 +85,19 @@ export function FPSMeter({ visible = true, position = 'top-right' }: FPSMeterPro
       })).sort((a, b) => b.memoryMB - a.memoryMB),
     };
   }, [agents]);
+
+  // Use refs for values accessed in the interval to avoid recreating it
+  const memoryHistoryRef = useRef<MemoryHistory[]>([]);
+  const threeJsStatsRef = useRef<ThreeJsStats | null>(null);
+
+  // Keep refs in sync with state
+  useEffect(() => {
+    memoryHistoryRef.current = memoryHistory;
+  }, [memoryHistory]);
+
+  useEffect(() => {
+    threeJsStatsRef.current = threeJsStats;
+  }, [threeJsStats]);
 
   useEffect(() => {
     if (!isDev || !visible) return;
@@ -103,26 +131,64 @@ export function FPSMeter({ visible = true, position = 'top-right' }: FPSMeterPro
         if (diag?.threeJs) {
           setThreeJsStats(diag.threeJs);
         }
+        // Estimate texture memory from Three.js renderer
+        const renderer = scene.renderer;
+        if (renderer?.info?.memory) {
+          const texCount = renderer.info.memory.textures || 0;
+          // Rough estimate: assume average texture is 512x512 RGBA = 1MB
+          // This is very approximate since we don't have actual dimensions
+          const estimatedMB = Math.round(texCount * 1);
+          setTextureMemory({ count: texCount, estimatedMB });
+        }
       }
 
-      // Memory history for graph
+      // DOM stats
+      const allElements = document.getElementsByTagName('*');
+      const canvases = document.getElementsByTagName('canvas');
+      const images = document.getElementsByTagName('img');
+      const videos = document.getElementsByTagName('video');
+
+      // Count event listeners (rough estimate via getEventListeners if available in devtools)
+      // In production, we can only estimate based on common patterns
+      let listenerEstimate = 0;
+      // Count elements with onclick, onmouse*, etc attributes
+      for (let i = 0; i < Math.min(allElements.length, 500); i++) {
+        const el = allElements[i];
+        if ((el as any).onclick) listenerEstimate++;
+        if ((el as any).onmousedown) listenerEstimate++;
+        if ((el as any).onkeydown) listenerEstimate++;
+      }
+      // Add rough estimate for React synthetic events (React uses event delegation)
+      listenerEstimate += 10; // Base React listeners on document
+
+      setDomStats({
+        nodeCount: allElements.length,
+        listenerCount: listenerEstimate,
+        canvasCount: canvases.length,
+        imageCount: images.length,
+        videoCount: videos.length,
+      });
+
+      // Memory history for graph (use ref for current threeJs stats)
       if (memUsage) {
         setMemoryHistory(prev => {
+          const currentThreeJs = threeJsStatsRef.current;
           const entry: MemoryHistory = {
             timestamp: Date.now(),
             heapMB: memUsage.usedMB,
-            geometries: threeJsStats?.geometries ?? 0,
-            textures: threeJsStats?.textures ?? 0,
+            geometries: currentThreeJs?.geometries ?? 0,
+            textures: currentThreeJs?.textures ?? 0,
           };
           const next = [...prev, entry];
           return next.slice(-120); // Keep 2 minutes of history
         });
       }
 
-      // Calculate growth rate
-      if (memoryHistory.length >= 10) {
-        const first = memoryHistory[0];
-        const last = memoryHistory[memoryHistory.length - 1];
+      // Calculate growth rate (use ref for current history)
+      const currentHistory = memoryHistoryRef.current;
+      if (currentHistory.length >= 10) {
+        const first = currentHistory[0];
+        const last = currentHistory[currentHistory.length - 1];
         const durationMin = (last.timestamp - first.timestamp) / 1000 / 60;
         if (durationMin > 0.1) {
           setGrowthRate((last.heapMB - first.heapMB) / durationMin);
@@ -133,7 +199,7 @@ export function FPSMeter({ visible = true, position = 'top-right' }: FPSMeterPro
     return () => {
       clearInterval(intervalId);
     };
-  }, [visible, baselineMemory, memoryHistory.length, threeJsStats?.geometries, threeJsStats?.textures]);
+  }, [visible, baselineMemory]);
 
   if (!isDev || !visible) return null;
 
@@ -242,7 +308,8 @@ export function FPSMeter({ visible = true, position = 'top-right' }: FPSMeterPro
           <div style={{ display: 'flex', gap: '4px', marginBottom: '8px' }}>
             <button style={tabStyle('fps')} onClick={() => setActiveTab('fps')}>FPS</button>
             <button style={tabStyle('memory')} onClick={() => setActiveTab('memory')}>Memory</button>
-            <button style={tabStyle('threejs')} onClick={() => setActiveTab('threejs')}>Three.js</button>
+            <button style={tabStyle('threejs')} onClick={() => setActiveTab('threejs')}>3D</button>
+            <button style={tabStyle('dom')} onClick={() => setActiveTab('dom')}>DOM</button>
           </div>
 
           {/* FPS Tab */}
@@ -367,6 +434,31 @@ export function FPSMeter({ visible = true, position = 'top-right' }: FPSMeterPro
                   </div>
                 </div>
               )}
+
+              {/* Memory Breakdown */}
+              <div style={{ marginTop: '8px', padding: '6px', background: 'rgba(0,0,0,0.3)', borderRadius: '4px' }}>
+                <div style={{ color: '#888', fontSize: '9px', marginBottom: '4px' }}>Memory Breakdown (estimated):</div>
+                <div style={{ fontSize: '9px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                    <span style={{ color: '#4a9eff' }}>JS Heap</span>
+                    <span style={{ color: '#4a9eff' }}>{memoryUsage.usedMB} MB</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                    <span style={{ color: '#ff9e4a' }}>GPU/Textures</span>
+                    <span style={{ color: '#ff9e4a' }}>~{textureMemory?.estimatedMB ?? 0} MB</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                    <span style={{ color: '#9e4aff' }}>DOM ({domStats?.nodeCount.toLocaleString() ?? 0} nodes)</span>
+                    <span style={{ color: '#9e4aff' }}>~{Math.round(((domStats?.nodeCount ?? 0) * 0.5) / 1024)} MB</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '4px', marginTop: '4px' }}>
+                    <span style={{ color: '#fff', fontWeight: 'bold' }}>Est. Total</span>
+                    <span style={{ color: '#fff', fontWeight: 'bold' }}>
+                      ~{memoryUsage.usedMB + (textureMemory?.estimatedMB ?? 0) + Math.round(((domStats?.nodeCount ?? 0) * 0.5) / 1024)} MB
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -422,6 +514,71 @@ export function FPSMeter({ visible = true, position = 'top-right' }: FPSMeterPro
             </div>
           )}
 
+          {/* DOM Tab */}
+          {activeTab === 'dom' && (
+            <div>
+              {domStats ? (
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 10px', fontSize: '10px', marginBottom: '8px' }}>
+                    <span style={{ color: '#888' }}>DOM Nodes:</span>
+                    <span style={{ color: domStats.nodeCount > 5000 ? '#ff4a4a' : domStats.nodeCount > 2000 ? '#ffcc00' : '#4aff9e' }}>
+                      {domStats.nodeCount.toLocaleString()}
+                    </span>
+                    <span style={{ color: '#888' }}>Canvases:</span>
+                    <span style={{ color: '#4a9eff' }}>{domStats.canvasCount}</span>
+                    <span style={{ color: '#888' }}>Images:</span>
+                    <span style={{ color: '#ff9e4a' }}>{domStats.imageCount}</span>
+                    <span style={{ color: '#888' }}>Videos:</span>
+                    <span style={{ color: '#9e4aff' }}>{domStats.videoCount}</span>
+                  </div>
+
+                  {textureMemory && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 10px', fontSize: '10px', marginBottom: '8px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '6px' }}>
+                      <span style={{ color: '#888' }}>GPU Textures:</span>
+                      <span style={{ color: '#ff9e4a' }}>{textureMemory.count}</span>
+                      <span style={{ color: '#888' }}>Est. VRAM:</span>
+                      <span style={{ color: textureMemory.estimatedMB > 100 ? '#ff4a4a' : '#4aff9e' }}>
+                        ~{textureMemory.estimatedMB} MB
+                      </span>
+                    </div>
+                  )}
+
+                  <div style={{ marginTop: '8px', padding: '6px', background: 'rgba(0,0,0,0.3)', borderRadius: '4px' }}>
+                    <div style={{ color: '#888', fontSize: '9px', marginBottom: '4px' }}>Memory Breakdown (estimated):</div>
+                    <div style={{ fontSize: '9px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                        <span style={{ color: '#4a9eff' }}>JS Heap</span>
+                        <span style={{ color: '#4a9eff' }}>{memoryUsage?.usedMB ?? 0} MB</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                        <span style={{ color: '#ff9e4a' }}>GPU/Textures</span>
+                        <span style={{ color: '#ff9e4a' }}>~{textureMemory?.estimatedMB ?? 0} MB</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                        <span style={{ color: '#9e4aff' }}>DOM (~0.5KB/node)</span>
+                        <span style={{ color: '#9e4aff' }}>~{Math.round((domStats.nodeCount * 0.5) / 1024)} MB</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '4px', marginTop: '4px' }}>
+                        <span style={{ color: '#fff', fontWeight: 'bold' }}>Est. Total</span>
+                        <span style={{ color: '#fff', fontWeight: 'bold' }}>
+                          ~{(memoryUsage?.usedMB ?? 0) + (textureMemory?.estimatedMB ?? 0) + Math.round((domStats.nodeCount * 0.5) / 1024)} MB
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ color: '#666', fontSize: '9px', marginTop: '8px' }}>
+                    Note: Task Manager shows more due to browser overhead, decoded images, and WebGL buffers.
+                  </div>
+                </>
+              ) : (
+                <div style={{ color: '#666', fontSize: '10px' }}>
+                  Loading DOM stats...
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Actions */}
           <div style={{ display: 'flex', gap: '4px', marginTop: '8px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '8px', flexWrap: 'wrap' }}>
             <button
@@ -472,6 +629,28 @@ export function FPSMeter({ visible = true, position = 'top-right' }: FPSMeterPro
                   agentMemoryStats.agents.slice(0, 5).forEach(a => {
                     lines.push(`  ${a.name}: ${a.memoryMB} MB (${a.status})`);
                   });
+                }
+
+                if (domStats) {
+                  lines.push(
+                    '',
+                    '--- DOM ---',
+                    `DOM Nodes: ${domStats.nodeCount.toLocaleString()}`,
+                    `Canvases: ${domStats.canvasCount}`,
+                    `Images: ${domStats.imageCount}`,
+                    `Videos: ${domStats.videoCount}`,
+                  );
+                }
+
+                if (textureMemory) {
+                  lines.push(
+                    '',
+                    '--- Estimated Memory ---',
+                    `GPU Textures: ${textureMemory.count}`,
+                    `Est. VRAM: ~${textureMemory.estimatedMB} MB`,
+                    `Est. DOM: ~${Math.round((domStats?.nodeCount ?? 0) * 0.5 / 1024)} MB`,
+                    `Est. Total: ~${(memoryUsage?.usedMB ?? 0) + textureMemory.estimatedMB + Math.round((domStats?.nodeCount ?? 0) * 0.5 / 1024)} MB`,
+                  );
                 }
 
                 const statsText = lines.join('\n');
