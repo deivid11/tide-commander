@@ -163,19 +163,41 @@ export function ClaudeOutputPanel() {
   const outputs = useAgentOutputs(selectedAgentId);
 
   // Detect when agent finishes processing and show completion indicator
+  const completionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     const currentStatus = selectedAgent?.status;
     const prevStatus = prevStatusRef.current;
 
     // If agent was working and is now idle, show completion
     if (prevStatus === 'working' && currentStatus === 'idle') {
+      // Clear any existing timer first
+      if (completionTimerRef.current) {
+        clearTimeout(completionTimerRef.current);
+      }
       setShowCompletion(true);
       // Hide after animation completes
-      const timer = setTimeout(() => setShowCompletion(false), 1000);
-      return () => clearTimeout(timer);
+      completionTimerRef.current = setTimeout(() => {
+        setShowCompletion(false);
+        completionTimerRef.current = null;
+      }, 1000);
+    } else if (currentStatus === 'working') {
+      // If agent starts working again, clear completion state immediately
+      if (completionTimerRef.current) {
+        clearTimeout(completionTimerRef.current);
+        completionTimerRef.current = null;
+      }
+      setShowCompletion(false);
     }
 
     prevStatusRef.current = currentStatus || null;
+
+    // Cleanup on unmount
+    return () => {
+      if (completionTimerRef.current) {
+        clearTimeout(completionTimerRef.current);
+      }
+    };
   }, [selectedAgent?.status]);
 
   // Use terminal input hook for per-agent input state

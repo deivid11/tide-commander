@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.1] - 2026-01-24
+
+### Fixed
+- **Completion Indicator Timer Leak** - Fixed memory leak in ClaudeOutputPanel
+  - Proper timer cleanup when agent status changes
+  - Clear existing timer before creating new one
+  - Cancel completion state immediately when agent starts working again
+  - Cleanup timer on component unmount
+
 ## [0.10.0] - 2026-01-24
 
 ### Added
