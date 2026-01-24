@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.11.0] - 2026-01-24
+
+### Added
+- **DOM Stats Tab** - New tab in Performance Monitor for DOM diagnostics
+  - Node count, canvas count, image count, video count tracking
+  - Color-coded thresholds (green/yellow/red) for node counts
+- **Texture Memory Estimation** - Approximate GPU/VRAM usage tracking
+  - Texture count from Three.js renderer
+  - Estimated VRAM in megabytes
+- **Memory Breakdown Panel** - Unified view of memory sources
+  - JS Heap, GPU/Textures, and DOM memory estimates
+  - Estimated total memory usage
+  - Displayed in both Memory and DOM tabs
+
+### Changed
+- Performance Monitor tabs renamed: "Three.js" → "3D" for brevity
+- Copy Stats now includes DOM and estimated memory data
+
+### Technical
+- Use refs for memoryHistory and threeJsStats to avoid interval recreation
+- Reduced useEffect dependency array to prevent unnecessary re-renders
+
 ## [0.10.2] - 2026-01-24
 
 ### Fixed
