@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.2] - 2026-01-24
+
+### Fixed
+- **Unmount State Update Prevention** - Prevent React state updates after component unmount
+  - Added mount state ref tracking in ClaudeOutputPanel
+  - Guard all async state updates in history loading with mount check
+- **Agent Output Memory Leak** - Clean up agentOutputs map when removing agents
+  - Prevents orphaned output data from accumulating in store
+
 ## [0.10.1] - 2026-01-24
 
 ### Fixed

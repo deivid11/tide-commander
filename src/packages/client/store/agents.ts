@@ -153,6 +153,8 @@ export function createAgentActions(
         newAgents.delete(agentId);
         state.agents = newAgents;
         state.selectedAgentIds.delete(agentId);
+        // Clean up agent outputs to prevent memory leak
+        state.agentOutputs.delete(agentId);
       });
       notify();
     },

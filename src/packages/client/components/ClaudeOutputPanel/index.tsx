@@ -91,6 +91,7 @@ export function ClaudeOutputPanel() {
   const [totalCount, setTotalCount] = useState(0);
   const isUserScrolledUpRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isMountedRef = useRef(true);
 
   // View mode state
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
@@ -199,6 +200,14 @@ export function ClaudeOutputPanel() {
       }
     };
   }, [selectedAgent?.status]);
+
+  // Track mount state to prevent state updates after unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // Use terminal input hook for per-agent input state
   const terminalInput = useTerminalInput({ selectedAgentId });
@@ -639,11 +648,13 @@ export function ClaudeOutputPanel() {
       const data = await res.json();
 
       if (data.messages && data.messages.length > 0) {
+        if (!isMountedRef.current) return;
         setHistory((prev) => [...data.messages, ...prev]);
         setHasMore(data.hasMore || false);
 
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
+            if (!isMountedRef.current) return;
             if (outputRef.current) {
               outputRef.current.scrollTop = outputRef.current.scrollHeight - distanceFromBottom;
             }
@@ -651,10 +662,12 @@ export function ClaudeOutputPanel() {
           });
         });
       } else {
+        if (!isMountedRef.current) return;
         setLoadingMore(false);
       }
     } catch (err) {
       console.error('Failed to load more history:', err);
+      if (!isMountedRef.current) return;
       setLoadingMore(false);
     }
   }, [selectedAgentId, selectedAgent?.sessionId, loadingMore, hasMore, history.length]);
