@@ -2171,3 +2171,47 @@ pre[class*="language-"] {
   color: $text-secondary;
   margin-top: 8px;
 }
+
+// ============================================================================
+// MARKDOWN FILE VIEWER
+// ============================================================================
+
+.file-viewer-markdown-wrapper {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+  padding: 16px 20px;
+}
+
+.file-viewer-render-toggle {
+  background: transparent;
+  border: 1px solid $border-color;
+  color: $text-muted;
+  padding: 4px 10px;
+  border-radius: $radius-sm;
+  font-family: $font-mono;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all $transition-fast;
+  min-width: 36px;
+
+  &:hover {
+    background: rgba($accent-blue, 0.15);
+    border-color: $accent-blue;
+    color: $accent-blue;
+  }
+
+  &.active {
+    background: rgba($dracula-purple, 0.15);
+    border-color: $dracula-purple;
+    color: $dracula-purple;
+
+    &:hover {
+      background: rgba($dracula-purple, 0.25);
+    }
+  }
+}

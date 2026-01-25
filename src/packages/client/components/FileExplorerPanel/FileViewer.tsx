@@ -3,12 +3,22 @@
  *
  * Displays file content with Prism.js syntax highlighting.
  * Supports text files, images, PDFs, and binary downloads.
+ * Markdown files can be rendered or viewed as source code.
  */
 
-import React, { useEffect, useRef, memo } from 'react';
+import React, { useEffect, useRef, memo, useState, useCallback } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import type { FileViewerProps, FileData } from './types';
 import { formatFileSize } from './fileUtils';
 import { highlightElement, getLanguageForExtension } from './syntaxHighlighting';
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+const MARKDOWN_EXTENSIONS = ['.md', '.mdx', '.markdown'];
+const MARKDOWN_RENDER_STORAGE_KEY = 'file-viewer-markdown-render';
 
 // ============================================================================
 // SUB-COMPONENTS
@@ -53,6 +63,42 @@ function FileViewerHeader({
 }
 
 /**
+ * Hook to manage markdown render preference (persisted to localStorage)
+ */
+function useMarkdownRenderPreference(): [boolean, () => void] {
+  const [renderMarkdown, setRenderMarkdown] = useState<boolean>(() => {
+    try {
+      const stored = localStorage.getItem(MARKDOWN_RENDER_STORAGE_KEY);
+      // Default to true (render markdown) if not set
+      return stored === null ? true : stored === 'true';
+    } catch {
+      return true;
+    }
+  });
+
+  const toggleRender = useCallback(() => {
+    setRenderMarkdown((prev) => {
+      const newValue = !prev;
+      try {
+        localStorage.setItem(MARKDOWN_RENDER_STORAGE_KEY, String(newValue));
+      } catch {
+        // Ignore localStorage errors
+      }
+      return newValue;
+    });
+  }, []);
+
+  return [renderMarkdown, toggleRender];
+}
+
+/**
+ * Check if file is a markdown file
+ */
+function isMarkdownFile(extension: string): boolean {
+  return MARKDOWN_EXTENSIONS.includes(extension.toLowerCase());
+}
+
+/**
  * Text file viewer with syntax highlighting
  */
 function TextFileViewer({ file, onRevealInTree }: { file: FileData; onRevealInTree?: (path: string) => void }) {
@@ -76,6 +122,61 @@ function TextFileViewer({ file, onRevealInTree }: { file: FileData; onRevealInTr
           </code>
         </pre>
       </div>
+    </>
+  );
+}
+
+/**
+ * Markdown file viewer with render toggle
+ */
+function MarkdownFileViewer({
+  file,
+  onRevealInTree,
+  renderMarkdown,
+  onToggleRender,
+}: {
+  file: FileData;
+  onRevealInTree?: (path: string) => void;
+  renderMarkdown: boolean;
+  onToggleRender: () => void;
+}) {
+  const codeRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    // Apply syntax highlighting when showing source code
+    if (!renderMarkdown && codeRef.current) {
+      highlightElement(codeRef.current);
+    }
+  }, [file, renderMarkdown]);
+
+  const toggleButton = (
+    <button
+      className={`file-viewer-render-toggle ${renderMarkdown ? 'active' : ''}`}
+      onClick={onToggleRender}
+      title={renderMarkdown ? 'Show source code' : 'Render markdown'}
+    >
+      {renderMarkdown ? '</>' : 'Aa'}
+    </button>
+  );
+
+  return (
+    <>
+      <FileViewerHeader file={file} onRevealInTree={onRevealInTree} rightContent={toggleButton} />
+      {renderMarkdown ? (
+        <div className="file-viewer-markdown-wrapper">
+          <div className="markdown-content">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{file.content}</ReactMarkdown>
+          </div>
+        </div>
+      ) : (
+        <div className="file-viewer-code-wrapper">
+          <pre className="file-viewer-pre">
+            <code ref={codeRef} className="language-markdown">
+              {file.content}
+            </code>
+          </pre>
+        </div>
+      )}
     </>
   );
 }
@@ -207,6 +308,9 @@ function BinaryFileViewer({ file, onRevealInTree }: { file: FileData; onRevealIn
 // ============================================================================
 
 function FileViewerComponent({ file, loading, error, onRevealInTree }: FileViewerProps) {
+  // Global markdown render preference (persisted to localStorage)
+  const [renderMarkdown, toggleRenderMarkdown] = useMarkdownRenderPreference();
+
   // Loading state
   if (loading) {
     return <div className="file-viewer-placeholder">Loading...</div>;
@@ -229,10 +333,19 @@ function FileViewerComponent({ file, loading, error, onRevealInTree }: FileViewe
 
   // Render based on file type
   const fileType = file.fileType || 'text';
+  const isMarkdown = fileType === 'text' && isMarkdownFile(file.extension);
 
   return (
     <div className="file-viewer-content">
-      {fileType === 'text' && <TextFileViewer file={file} onRevealInTree={onRevealInTree} />}
+      {fileType === 'text' && isMarkdown && (
+        <MarkdownFileViewer
+          file={file}
+          onRevealInTree={onRevealInTree}
+          renderMarkdown={renderMarkdown}
+          onToggleRender={toggleRenderMarkdown}
+        />
+      )}
+      {fileType === 'text' && !isMarkdown && <TextFileViewer file={file} onRevealInTree={onRevealInTree} />}
       {fileType === 'image' && <ImageFileViewer file={file} onRevealInTree={onRevealInTree} />}
       {fileType === 'pdf' && <PdfFileViewer file={file} onRevealInTree={onRevealInTree} />}
       {fileType === 'binary' && <BinaryFileViewer file={file} onRevealInTree={onRevealInTree} />}
