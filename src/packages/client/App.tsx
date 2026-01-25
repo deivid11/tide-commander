@@ -494,10 +494,21 @@ function AppContent() {
         sceneRef.current?.syncAreas();
         return;
       }
-      // Simple hash of area ids and dimensions
+      // Simple hash of area ids, dimensions, position, name, and color
       let hash = 0;
       for (const [id, area] of areas) {
-        hash ^= id.charCodeAt(0) + ((area.width ?? 0) + (area.height ?? 0) + (area.radius ?? 0)) | 0;
+        // Include all properties that affect rendering
+        let areaHash = id.charCodeAt(0);
+        areaHash += (area.width ?? 0) + (area.height ?? 0) + (area.radius ?? 0);
+        areaHash += Math.floor(area.center.x * 100) + Math.floor(area.center.z * 100);
+        // Include name and color in hash
+        for (let i = 0; i < area.name.length; i++) {
+          areaHash += area.name.charCodeAt(i);
+        }
+        for (let i = 0; i < area.color.length; i++) {
+          areaHash += area.color.charCodeAt(i);
+        }
+        hash ^= areaHash | 0;
       }
       if (hash !== lastAreasHash) {
         lastAreasHash = hash;
