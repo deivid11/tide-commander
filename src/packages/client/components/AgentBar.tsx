@@ -248,7 +248,7 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
                 return (
                   <div
                     key={agent.id}
-                    className={`agent-bar-item ${isSelected ? 'selected' : ''} ${agent.status}`}
+                    className={`agent-bar-item ${isSelected ? 'selected' : ''} ${agent.status} ${agent.isBoss ? 'is-boss' : ''}`}
                     onClick={(e) => handleAgentClick(agent, e)}
                     onDoubleClick={() => handleAgentDoubleClick(agent)}
                     onMouseEnter={() => setHoveredAgent(agent)}

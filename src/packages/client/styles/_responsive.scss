@@ -24,6 +24,20 @@ $breakpoint-small: 480px;
   display: none;
 }
 
+.mobile-fab-menu {
+  display: none;
+}
+
+// Elements that should only show on mobile - hide on desktop
+.show-on-mobile {
+  display: none !important;
+}
+
+.guake-close-btn,
+.guake-mode-btn {
+  display: none;
+}
+
 // =============================================================================
 // Tablet Styles (up to 1024px)
 // =============================================================================
@@ -57,54 +71,231 @@ $breakpoint-small: 480px;
 // =============================================================================
 
 @media (max-width: $breakpoint-mobile) {
-  // Main layout - stack vertically, fill viewport
+  // Root elements - use 100dvh and prevent body scrolling
+  // IMPORTANT: Don't use position:fixed on html/body - it breaks input focus on mobile
+  html, body, #app {
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    overflow: hidden !important;
+    // Prevent any scrolling on the body
+    overscroll-behavior: none;
+  }
+
+  // App container - fill available space
+  .app {
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
+  }
+
+  // Main layout - stack vertically, fill remaining space
   .main-content {
     flex-direction: column;
     position: relative;
     height: 100%;
     flex: 1;
+    overflow: hidden;
+    min-height: 0; // Allow flex shrinking
   }
 
-  // Mobile view toggle button
-  .mobile-view-toggle-btn {
+  // Mobile FAB toggle - hamburger button (standalone)
+  .mobile-fab-toggle {
     display: flex;
     align-items: center;
     justify-content: center;
     position: fixed;
     top: 12px;
     left: 12px;
-    width: 44px;
-    height: 44px;
+    z-index: 251;
+    width: 40px;
+    height: 40px;
     background: rgba($dracula-bg, 0.95);
-    border: 1px solid $dracula-cyan;
+    border: 1px solid $dracula-green;
     border-radius: $radius-lg;
     color: $dracula-fg;
-    font-size: 20px;
+    font-size: 16px;
     cursor: pointer;
-    z-index: 250;
     backdrop-filter: blur(8px);
     transition: all $transition-fast;
 
     &:hover,
     &:active {
-      background: rgba($dracula-cyan, 0.3);
-      border-color: $dracula-green;
+      background: rgba($dracula-green, 0.3);
+      border-color: $dracula-cyan;
     }
+
+    &.open {
+      background: rgba($dracula-purple, 0.3);
+      border-color: $dracula-pink;
+    }
+  }
+
+  // Mobile FAB menu - expandable options
+  .mobile-fab-menu {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    position: fixed;
+    top: 58px; // Below the toggle button (12px + 40px + 6px gap)
+    left: 12px;
+    z-index: 250;
+    gap: 6px;
+  }
+
+  .mobile-fab-option {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: rgba($dracula-bg, 0.95);
+    border: 1px solid $dracula-comment;
+    border-radius: $radius-md;
+    color: $dracula-fg;
+    font-size: 14px;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    transition: all $transition-fast;
+    opacity: 0;
+    transform: translateY(-10px);
+    pointer-events: none;
+
+    .mobile-fab-menu.open & {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+
+    &:hover,
+    &:active {
+      background: rgba($dracula-cyan, 0.3);
+      border-color: $dracula-cyan;
+    }
+  }
+
+  // Hide old standalone buttons on mobile - they're in the FAB menu now
+  .mobile-view-toggle-btn,
+  .floating-settings-btn,
+  .commander-toggle-btn,
+  .supervisor-toggle-btn,
+  .shortcuts-toggle-btn,
+  .skills-toggle-btn {
+    display: none !important;
   }
 
   // Mobile view mode: Terminal (default) - hide battlefield, show terminal
   .app.mobile-view-terminal {
+    // CSS custom property for keyboard height - controlled by JavaScript
+    --keyboard-height: 0px;
+
     .battlefield-container {
       display: none;
     }
 
-    .guake-terminal {
+    // Agent bar at bottom - stays fixed, keyboard naturally pushes viewport
+    .agent-bar {
+      z-index: 160;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+    }
+
+    .main-content {
       display: flex;
+      flex-direction: column;
+      // Full height minus agent bar only - keyboard doesn't affect layout
+      height: calc(100% - 32px) !important;
+      max-height: calc(100% - 32px) !important;
+      overflow: hidden;
+    }
+
+    .guake-terminal {
+      // Force display even when .collapsed class is present
+      display: flex !important;
       position: relative;
       z-index: 1;
       flex: 1;
+      min-height: 0;
+      height: 100%;
+      // Ensure proper flex column layout
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    // Ensure guake-content fills terminal and has proper flex layout
+    .guake-content {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      // Add padding at bottom for the fixed input
+      padding-bottom: 80px !important;
+    }
+
+    // Output area takes remaining space
+    .guake-output {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      // Add padding at bottom so last message is visible above fixed input
+      // When keyboard is open, add extra padding for keyboard height + input height
+      padding-bottom: calc(var(--keyboard-height, 0px) + 50px) !important;
+    }
+
+    // Input wrapper - FIXED at bottom, moves up with keyboard
+    .guake-input-wrapper {
+      position: fixed !important;
+      // When keyboard closed: 32px above bottom (for agent bar)
+      // When keyboard open: keyboard height (agent bar hidden behind keyboard)
+      bottom: max(32px, var(--keyboard-height, 0px)) !important;
+      left: 0 !important;
+      right: 0 !important;
+      z-index: 200 !important;
+      background: rgba(40, 42, 54, 0.98) !important;
+      min-height: 70px !important;
+      padding: 8px !important;
+      padding-bottom: calc(8px + env(safe-area-inset-bottom, 0)) !important;
+      border-top: 1px solid rgba(139, 233, 253, 0.2) !important;
+    }
+
+    // Ensure the input itself is fully visible
+    .guake-input {
+      display: flex !important;
+      padding: 0 !important;
+    }
+
+    .guake-input-container {
+      display: flex !important;
+      align-items: flex-end !important;
+      width: 100% !important;
+      min-height: 50px !important;
+      // Allow container to grow with textarea
+      height: auto !important;
+    }
+
+    .guake-input input {
+      height: 46px !important;
+      min-height: 46px !important;
+    }
+
+    .guake-input textarea {
+      // Allow textarea to grow dynamically
+      min-height: 46px !important;
+      max-height: 200px !important;
+      height: auto !important;
+      resize: none !important;
+      overflow-y: auto !important;
+      // Use content-based sizing for auto-grow
+      field-sizing: content !important;
     }
   }
+
+  // When keyboard is visible - no CSS changes needed
+  // The JavaScript handles scrolling the output to bottom
+  // The fixed input stays in place, keyboard pushes viewport
 
   // Mobile view mode: 3D - show battlefield, hide terminal
   .app.mobile-view-3d {
@@ -130,38 +321,11 @@ $breakpoint-small: 480px;
     .guake-terminal {
       display: none !important;
     }
-
-    // Green border on toggle button in 3D mode
-    .mobile-view-toggle-btn {
-      border-color: $dracula-green;
-    }
   }
 
-  // Mobile sidebar toggle button
+  // Mobile sidebar toggle button - hidden, using FAB menu instead
   .sidebar-toggle-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: fixed;
-    top: 12px;
-    right: 12px;
-    width: 44px;
-    height: 44px;
-    background: rgba($dracula-bg, 0.95);
-    border: 1px solid $dracula-purple;
-    border-radius: $radius-lg;
-    color: $dracula-fg;
-    font-size: 20px;
-    cursor: pointer;
-    z-index: 250;
-    backdrop-filter: blur(8px);
-    transition: all $transition-fast;
-
-    &:hover,
-    &:active {
-      background: rgba($dracula-purple, 0.3);
-      border-color: $dracula-pink;
-    }
+    display: none;
   }
 
   // Sidebar overlay (dark backdrop when sidebar is open)
@@ -215,13 +379,17 @@ $breakpoint-small: 480px;
 
   // Guake terminal takes full width, with space for agent bar at bottom
   .guake-terminal {
+    position: relative !important; // Override fixed positioning from base
+    top: auto !important;
     right: 0;
     left: 0;
     --terminal-height: 100%;
-    height: calc(100% - 70px); // Reserve space for agent bar
-    position: relative;
+    height: 100%; // Fill parent container (main-content handles dvh)
+    max-height: 100%;
     z-index: 1;
-    margin-bottom: 70px; // Space for agent bar
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; // Prevent overflow
 
     &.collapsed {
       display: none;
@@ -236,7 +404,50 @@ $breakpoint-small: 480px;
   .guake-content {
     flex: 1;
     border-bottom: none;
-    padding-bottom: 8px;
+    padding-bottom: 0 !important;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+
+  // Ensure output area scrolls properly - this is what should scroll, not guake-content
+  .guake-output {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0; // Allow shrinking so input stays visible
+    // Use momentum scrolling on iOS
+    -webkit-overflow-scrolling: touch;
+    // Prevent scroll interference with input focus
+    overscroll-behavior: contain;
+  }
+
+  // Input and related elements should never shrink
+  // Also position them at the bottom to stay stable during keyboard transitions
+  .guake-input-wrapper,
+  .guake-input,
+  .permission-bar,
+  .guake-attachments {
+    flex-shrink: 0;
+    // Ensure the input area stays in place during viewport changes
+    position: relative;
+    z-index: 5;
+  }
+
+  // Guake content layout for mobile - general rules
+  // More specific rules for terminal-only mode are in .app.mobile-view-terminal
+  .guake-content {
+    // Use min-height: 0 on the flex container to allow proper shrinking
+    min-height: 0;
+  }
+
+  // Prevent the input container from causing scroll jumps
+  .guake-input-container {
+    // Prevent any transform or transition that could cause visual glitches
+    transform: none !important;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
   }
 
   // Hide handle on mobile - always show terminal
@@ -253,105 +464,96 @@ $breakpoint-small: 480px;
   // This selector targets the FPSMeter component's inline styles
   // We use a wrapper approach instead - handled by adding bottom offset
 
-  // Agent bar at bottom, full width with horizontal scroll
+  // Agent bar at bottom - minimal on mobile
   .agent-bar {
     right: 0;
     left: 0;
     height: auto;
-    min-height: 64px;
-    padding: 8px 0;
+    min-height: 24px;
+    padding: 1px 0;
     position: fixed;
     bottom: 0;
     z-index: 150;
     overflow-x: auto;
     overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
+    // Start from left edge, not centered - allows proper horizontal scroll
+    justify-content: flex-start;
+    // Ensure scroll snaps to show items fully
+    scroll-padding: 0 8px;
+    // Hide version indicator on mobile - takes up precious space
+    .agent-bar-version {
+      display: none;
+    }
 
-    // Show scrollbar indicator
+    // Hide scrollbar but keep scrolling functional
     &::-webkit-scrollbar {
-      height: 4px;
+      height: 0;
+      display: none;
     }
-
-    &::-webkit-scrollbar-track {
-      background: rgba($dracula-bg-darker, 0.5);
-    }
-
-    &::-webkit-scrollbar-thumb {
-      background: rgba($dracula-purple, 0.5);
-      border-radius: 2px;
-
-      &:hover {
-        background: rgba($dracula-purple, 0.8);
-      }
-    }
+    scrollbar-width: none; // Firefox
+    -ms-overflow-style: none; // IE/Edge
   }
 
   // Agent bar list scrollable horizontally
   .agent-bar-list {
     display: flex;
     flex-wrap: nowrap;
-    gap: 8px;
-    padding: 0 12px 4px;
+    gap: 2px;
+    // More padding on sides so first/last items are fully visible
+    padding: 0 12px;
     min-width: max-content;
     align-items: center;
   }
 
-  // Smaller agent items on mobile
+  // Tiny agent items on mobile
   .agent-bar-item {
-    width: 40px;
-    height: 40px;
+    width: 20px;
+    height: 20px;
     flex-shrink: 0;
   }
 
   .agent-bar-icon {
-    font-size: 18px;
+    font-size: 10px;
   }
 
-  // Agent groups more compact
+  // Agent groups minimal
   .agent-bar-group {
-    padding: 6px 8px 4px;
-    margin-top: 2px;
+    padding: 1px 2px;
+    margin-top: 0;
     flex-shrink: 0;
+    border-radius: 3px;
   }
 
   .agent-bar-area-label {
-    top: -8px;
-    left: 8px;
-    padding: 1px 6px;
+    display: none;
   }
 
-  .agent-bar-area-name {
-    font-size: 8px;
-  }
-
-  // Hide tooltip on mobile - use tap interaction instead
   .agent-bar-tooltip {
     display: none;
   }
 
-  // Tool bubble smaller
   .agent-bar-tool-bubble {
-    padding: 3px 6px;
-    font-size: 10px;
+    display: none;
   }
 
-  // Spawn buttons - visible and properly sized on mobile
+  // Spawn buttons minimal
   .agent-bar-spawn-btn {
     display: flex !important;
-    flex-direction: row !important; // Override column layout
+    flex-direction: row !important;
     align-items: center;
     justify-content: center;
-    width: 40px;
-    min-width: 40px;
-    height: 40px;
+    width: 20px;
+    min-width: 20px;
+    height: 20px;
     flex-shrink: 0;
-    margin-right: 4px;
-    border-radius: 8px;
+    margin-right: 1px;
+    border-radius: 3px;
     padding: 0;
   }
 
   .agent-bar-spawn-icon {
-    font-size: 18px;
+    font-size: 10px;
     margin: 0;
   }
 
@@ -359,77 +561,659 @@ $breakpoint-small: 480px;
     display: none !important;
   }
 
-  // Guake header adjustments
+  // Guake header adjustments - compact mobile design
   .guake-header {
-    padding: 8px 12px;
-    flex-wrap: wrap;
-    gap: 8px;
+    display: flex !important;
+    padding: 2px 6px;
+    flex-wrap: nowrap;
+    gap: 4px;
+    height: 28px;
+    min-height: 28px;
+    max-height: 28px;
+    background: rgba($dracula-bg, 0.98);
+    position: relative;
+    z-index: 10;
+    flex-shrink: 0;
+    flex-grow: 0;
+    border-bottom: 1px solid rgba($dracula-purple, 0.2);
+    margin: 0;
   }
 
   .guake-header-left {
-    flex: 1 1 100%;
-    order: 1;
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    overflow: hidden;
+  }
+
+  .guake-title {
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+    letter-spacing: 0.5px;
+    background: linear-gradient(135deg, $dracula-pink 0%, $dracula-purple 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .guake-status-line {
+    font-size: 10px;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+    background: rgba($dracula-current, 0.3);
+    padding: 4px 8px;
+    border-radius: 12px;
+  }
+
+  .guake-supervisor-badge {
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 8px;
+    background: rgba($dracula-green, 0.2);
+  }
+
+  .guake-supervisor-summary,
+  .guake-last-input {
+    font-size: 10px;
+    max-width: 140px;
+  }
+
+  .guake-working-indicator {
+    gap: 3px;
+    padding: 2px 6px;
+    background: rgba($dracula-cyan, 0.15);
+    border-radius: 10px;
+  }
+
+  .guake-working-dot {
+    width: 5px;
+    height: 5px;
   }
 
   .guake-actions {
-    order: 2;
-    flex: 1;
-    justify-content: flex-end;
-    gap: 8px;
+    flex-shrink: 0;
+    gap: 6px;
+    display: flex;
+    align-items: center;
   }
 
   // Hide less important header elements on mobile
-  .guake-last-prompt {
-    display: none;
-  }
-
+  .guake-last-prompt,
   .guake-task {
-    display: none;
+    display: none !important;
   }
 
-  // Larger touch targets for buttons
-  .guake-view-toggle,
-  .guake-clear,
+  // Utility class to hide elements on mobile
+  .hide-on-mobile {
+    display: none !important;
+  }
+
+  // Utility class to show elements only on mobile
+  .show-on-mobile {
+    display: flex !important;
+  }
+
+  // Unified circular button style for mobile header
+  .guake-close-btn,
+  .guake-mode-btn,
+  .guake-clear {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 24px !important;
+    height: 24px !important;
+    min-width: 24px !important;
+    max-width: 24px !important;
+    padding: 0 !important;
+    border-radius: 50% !important;
+    border: 1px solid;
+    font-size: 12px !important;
+    line-height: 1 !important;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    box-sizing: border-box !important;
+
+    &:active {
+      transform: scale(0.9);
+    }
+  }
+
+  .guake-close-btn {
+    background: rgba($dracula-red, 0.15);
+    border-color: rgba($dracula-red, 0.4);
+    color: $dracula-red;
+    font-size: 11px;
+    font-weight: 600;
+
+    &:active {
+      background: rgba($dracula-red, 0.3);
+    }
+  }
+
+  .guake-mode-btn {
+    background: rgba($dracula-comment, 0.15);
+    border-color: rgba($dracula-comment, 0.4);
+    color: $dracula-comment;
+    font-size: 11px;
+
+    &.view-mode-simple {
+      color: $dracula-cyan;
+      border-color: rgba($dracula-cyan, 0.4);
+      background: rgba($dracula-cyan, 0.1);
+    }
+
+    &.view-mode-chat {
+      color: $dracula-green;
+      border-color: rgba($dracula-green, 0.4);
+      background: rgba($dracula-green, 0.1);
+    }
+
+    &.view-mode-advanced {
+      color: $dracula-purple;
+      border-color: rgba($dracula-purple, 0.4);
+      background: rgba($dracula-purple, 0.1);
+    }
+  }
+
+  .guake-clear {
+    background: rgba($dracula-orange, 0.1) !important;
+    border-color: rgba($dracula-orange, 0.4) !important;
+    color: $dracula-orange !important;
+    font-size: 11px !important;
+
+    &:active {
+      background: rgba($dracula-orange, 0.2) !important;
+    }
+  }
+
+  // Hide these on mobile - keep desktop styles
   .guake-context-btn,
   .guake-search-toggle {
-    padding: 8px 12px;
-    font-size: 12px;
-    min-height: 36px;
+    display: none !important;
   }
 
-  // Input container adjustments
+  // Input container adjustments for mobile
   .guake-input {
-    padding: 8px;
-    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0));
+    padding: 10px 8px;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0));
   }
 
   .guake-input-container {
     min-height: 44px;
+    border-radius: 6px;
   }
 
   .guake-attach-btn,
   .guake-send-btn,
   .guake-input button:not(.guake-attach-btn) {
-    width: 44px;
-    min-height: 44px;
-    font-size: 16px;
+    width: 36px;
+    min-height: 36px;
+    font-size: 14px;
   }
 
   .guake-input textarea,
   .guake-input input {
-    font-size: 16px; // Prevents iOS zoom on focus
-    padding: 12px;
+    font-size: 16px; // Use 16px to prevent iOS zoom on focus
+    padding: 8px 10px;
+    // Prevent browser from trying to scroll the input into view (we handle this manually)
+    scroll-margin: 0;
+    // Ensure the input doesn't cause layout shifts
+    box-sizing: border-box;
+    // Prevent any text selection issues
+    -webkit-user-select: text;
+    user-select: text;
+    // Ensure touch actions work properly
+    touch-action: manipulation;
   }
 
-  // Hide agent links on mobile - they're already in the bottom bar
+  // On mobile, use fixed height for textarea to prevent layout shifts during typing
+  .guake-input textarea {
+    // Remove field-sizing which can cause issues on mobile
+    field-sizing: unset;
+    // Use min-height but don't auto-resize beyond a reasonable amount
+    min-height: 36px;
+    max-height: 120px;
+  }
+
+  // Hide guake agent links on mobile - use the bottom agent bar instead
   .guake-agent-links {
     display: none;
   }
 
-  // Output area
+  // Output area - more compact text
   .guake-output {
-    padding: 12px;
+    padding: 10px;
+    font-size: 13px;
+    line-height: 1.4;
+
+    // Reduce spacing in output messages
+    .output-message {
+      margin-bottom: 8px;
+    }
+
+    // Compact tool displays - improved mobile layout
+    .output-tool-use {
+      padding: 8px 10px;
+      font-size: 11px;
+      line-height: 1.4;
+      flex-wrap: wrap;
+      gap: 4px 8px;
+      border-radius: 6px;
+
+      // Hide timestamp on mobile tool lines to save space
+      .output-timestamp {
+        display: none;
+      }
+
+      .output-tool-icon {
+        font-size: 14px;
+        flex-shrink: 0;
+      }
+
+      .output-tool-name {
+        font-size: 11px;
+        letter-spacing: 0.3px;
+        flex-shrink: 0;
+      }
+
+      // Force param to its own line
+      .output-tool-param {
+        flex-basis: 100%;
+        margin-left: 0;
+        padding-left: 22px;
+        font-size: 11px;
+        line-height: 1.5;
+        word-break: break-word;
+        color: rgba(139, 233, 253, 0.95); // brighter cyan
+
+        &::before {
+          margin-right: 6px;
+        }
+      }
+
+      // Bash indicator on same row as name
+      .bash-output-indicator {
+        margin-left: auto;
+      }
+
+      .output-tool-loading {
+        margin-left: 4px;
+      }
+    }
+
+    // Read tool - compact file badge
+    .read-tool-input {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 4px;
+    }
+
+    .read-tool-file {
+      font-size: 11px;
+      padding: 3px 8px;
+      max-width: 100%;
+
+      .file-icon {
+        font-size: 12px;
+      }
+    }
+
+    .read-tool-path {
+      font-size: 9px;
+      max-width: 100%;
+    }
+
+    // Edit tool - stack diff panels vertically
+    .edit-tool-header {
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 4px 0;
+    }
+
+    .edit-tool-file {
+      font-size: 11px;
+      padding: 3px 8px;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .edit-tool-path {
+      font-size: 9px;
+      flex-basis: 100%;
+      order: 3;
+    }
+
+    .edit-tool-badge {
+      font-size: 9px;
+      padding: 2px 6px;
+    }
+
+    .edit-tool-stats {
+      gap: 4px;
+    }
+
+    .edit-stat {
+      font-size: 10px;
+      padding: 2px 4px;
+    }
+
+    .edit-tool-panels {
+      flex-direction: column;
+      max-height: 200px;
+    }
+
+    .edit-panel {
+      border-right: none;
+      border-bottom: 1px solid rgba(98, 114, 164, 0.3);
+
+      &:last-child {
+        border-bottom: none;
+      }
+    }
+
+    .edit-panel-header {
+      padding: 3px 6px;
+    }
+
+    .edit-panel-label {
+      font-size: 8px;
+    }
+
+    .edit-line {
+      height: 16px;
+      line-height: 16px;
+      font-size: 10px;
+    }
+
+    .edit-line-num {
+      width: 24px;
+      padding: 0 4px;
+      font-size: 9px;
+    }
+
+    .edit-line-content {
+      padding: 0 6px;
+    }
+
+    // Todo tool - more compact list
+    .todo-tool-header {
+      padding: 4px 8px;
+    }
+
+    .todo-tool-title {
+      font-size: 11px;
+    }
+
+    .todo-tool-stats {
+      gap: 6px;
+    }
+
+    .todo-stat {
+      font-size: 10px;
+    }
+
+    .todo-tool-list {
+      max-height: 150px;
+      padding: 4px 0;
+    }
+
+    .todo-item {
+      padding: 3px 8px;
+      font-size: 10px;
+      gap: 6px;
+    }
+
+    .todo-status-icon {
+      width: 12px;
+      font-size: 11px;
+    }
+
+    // Bash output - compact terminal view
+    .output-bash-result {
+      padding: 4px 0;
+      margin: 4px 0;
+    }
+
+    .bash-output-header {
+      padding: 4px 8px;
+      gap: 6px;
+    }
+
+    .bash-output-icon {
+      font-size: 11px;
+    }
+
+    .bash-output-label {
+      font-size: 10px;
+    }
+
+    .bash-output-truncated {
+      font-size: 9px;
+      padding: 1px 4px;
+    }
+
+    .bash-output-content {
+      padding: 8px 10px;
+      font-size: 10px;
+      line-height: 1.4;
+      max-height: 150px;
+    }
+
+    // Tool result - compact
+    .output-tool-result {
+      padding: 4px 8px;
+      margin: 3px 0;
+      gap: 6px;
+    }
+
+    .output-result-icon {
+      font-size: 12px;
+    }
+
+    .output-result-content {
+      font-size: 10px;
+      max-height: 100px;
+    }
+
+    // Tool input - compact
+    .output-tool-input {
+      padding: 3px 8px 3px 16px;
+    }
+
+    .output-input-content {
+      font-size: 10px;
+      max-height: 100px;
+    }
+
+    // Markdown content
+    p {
+      margin-bottom: 6px;
+      line-height: 1.4;
+    }
+
+    pre, code {
+      font-size: 12px;
+      line-height: 1.3;
+    }
+
+    // Lists
+    ul, ol {
+      margin-bottom: 6px;
+      padding-left: 16px;
+    }
+
+    li {
+      margin-bottom: 2px;
+      line-height: 1.4;
+    }
+  }
+
+  // Boss context - prevent overflow on mobile
+  .boss-context {
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  .boss-context-header {
+    padding: 4px 8px;
+    gap: 6px;
+  }
+
+  .boss-context-icon {
+    font-size: 12px;
+  }
+
+  .boss-context-label {
+    font-size: 10px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .boss-context-toggle {
+    font-size: 9px;
+    flex-shrink: 0;
+  }
+
+  .boss-context-content {
+    padding: 8px 10px;
+    font-size: 10px;
+    max-height: 200px;
+    overflow-x: hidden;
+    word-break: break-word;
+
+    h2, h3, h4 {
+      font-size: 11px;
+    }
+
+    blockquote {
+      font-size: 9px;
+      padding: 3px 6px;
+    }
+
+    ul, ol {
+      padding-left: 12px;
+    }
+
+    li {
+      font-size: 10px;
+    }
+
+    p {
+      margin: 3px 0;
+    }
+  }
+
+  // Delegation block - prevent overflow on mobile
+  .delegation-block {
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  .delegation-header {
+    padding: 6px 10px;
+    gap: 6px;
+  }
+
+  .delegation-icon {
     font-size: 14px;
+  }
+
+  .delegation-title {
+    font-size: 11px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .delegation-details {
+    padding: 8px 10px;
+    gap: 4px;
+  }
+
+  .delegation-target,
+  .delegation-task-command,
+  .delegation-reasoning,
+  .delegation-alternatives {
+    flex-direction: column;
+    gap: 2px;
+    font-size: 10px;
+  }
+
+  .delegation-label {
+    min-width: auto;
+  }
+
+  .delegation-command-text,
+  .delegation-reason-text {
+    word-break: break-word;
+  }
+
+  // Delegated task header - prevent overflow on mobile
+  .delegated-task-header {
+    max-width: 100%;
+    overflow: hidden;
+
+    &.compact {
+      flex-wrap: wrap;
+    }
+  }
+
+  .delegated-task-preview {
+    max-width: 100%;
+    font-size: 10px;
+  }
+
+  .delegated-task-command {
+    font-size: 10px;
+    word-break: break-word;
+  }
+
+  // Context stats line - simplified on mobile, just show bar, tokens and %
+  .output-context-stats {
+    gap: 6px !important;
+    font-size: 10px !important;
+    padding: 2px 0 !important;
+
+    // Hide timestamp, label, and msgs on mobile
+    .context-timestamp,
+    .context-label,
+    .context-msgs {
+      display: none !important;
+    }
+
+    // Keep icon visible
+    .context-icon {
+      font-size: 11px !important;
+    }
+
+    // Make the progress bar flexible
+    .context-bar {
+      flex: 1 !important;
+      max-width: 80px !important;
+      min-width: 40px !important;
+    }
+
+    // Keep tokens and % visible but smaller
+    .context-tokens,
+    .context-free {
+      font-size: 10px !important;
+    }
+  }
+
+  // Header text smaller
+  .guake-title {
+    font-size: 12px;
+  }
+
+  .guake-status-line {
+    font-size: 10px;
   }
 
   // Permission bar adjustments
@@ -498,6 +1282,27 @@ $breakpoint-small: 480px;
     max-height: 95vh;
   }
 
+  // Agent response modal - reduce height to account for agent toolbar at bottom
+  .agent-response-modal {
+    max-height: 75vh;
+
+    .agent-response-raw {
+      max-height: calc(75vh - 140px);
+    }
+  }
+
+  // File viewer modal - reduce height for agent toolbar
+  .file-viewer-modal {
+    height: 75%;
+    max-height: 75vh;
+  }
+
+  // Generic modal height reduction for mobile
+  .spawn-modal,
+  .agent-edit-modal {
+    max-height: 75vh;
+  }
+
   .image-modal-header {
     padding: 10px 12px;
   }
@@ -550,56 +1355,149 @@ $breakpoint-small: 480px;
     height: 36px;
   }
 
-  // Guake header very compact
+  // Guake header compact on small screens
   .guake-header {
     padding: 6px 10px;
+    height: 40px;
+    min-height: 40px;
+    max-height: 40px;
+    gap: 8px;
+  }
+
+  .guake-header-left {
+    gap: 8px;
   }
 
   .guake-title {
     font-size: 12px;
   }
 
+  .guake-status-line {
+    font-size: 9px;
+    gap: 4px;
+    padding: 3px 6px;
+  }
+
+  .guake-supervisor-badge {
+    font-size: 8px;
+    padding: 2px 5px;
+  }
+
+  .guake-supervisor-summary,
+  .guake-last-input {
+    font-size: 9px;
+    max-width: 100px;
+  }
+
+  .guake-working-indicator {
+    padding: 2px 4px;
+  }
+
+  .guake-working-dot {
+    width: 4px;
+    height: 4px;
+  }
+
   .guake-actions {
-    gap: 6px;
+    gap: 4px;
   }
 
-  .guake-view-toggle,
+  // Keep circular button style on small screens
+  .guake-close-btn,
+  .guake-mode-btn,
   .guake-clear {
-    padding: 6px 10px;
-    font-size: 11px;
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    padding: 0;
+    font-size: 10px;
   }
 
-  // Hide some buttons on very small screens
-  .guake-context-btn {
+  // Hide more buttons on very small screens
+  .guake-context-btn,
+  .guake-search-toggle {
     display: none;
   }
 
   // Input more compact
+  .guake-input {
+    padding: 3px 4px;
+  }
+
   .guake-input-container {
-    min-height: 40px;
+    min-height: 32px;
+    border-radius: 5px;
   }
 
   .guake-attach-btn,
-  .guake-send-btn {
-    width: 40px;
-    min-height: 40px;
+  .guake-send-btn,
+  .guake-input button:not(.guake-attach-btn) {
+    width: 32px;
+    min-height: 32px;
+    font-size: 12px;
   }
 
-  // Output text
-  .guake-output {
-    padding: 10px;
+  .guake-input textarea,
+  .guake-input input {
     font-size: 13px;
-    line-height: 1.5;
+    padding: 6px 8px;
   }
 
-  // Tool use display more compact
-  .output-tool-use {
-    padding: 4px 8px;
-    gap: 6px;
+
+  // Output text - even more compact on small screens
+  .guake-output {
+    padding: 8px;
+    font-size: 12px;
+    line-height: 1.35;
+
+    .output-message {
+      margin-bottom: 6px;
+    }
+
+    .output-tool-use {
+      padding: 6px 8px;
+      font-size: 10px;
+      line-height: 1.3;
+      gap: 3px 6px;
+
+      .output-tool-icon {
+        font-size: 12px;
+      }
+
+      .output-tool-name {
+        font-size: 10px;
+      }
+
+      .output-tool-param {
+        font-size: 10px;
+        padding-left: 18px;
+        line-height: 1.4;
+      }
+    }
+
+    p {
+      margin-bottom: 4px;
+      line-height: 1.35;
+    }
+
+    pre, code {
+      font-size: 11px;
+      line-height: 1.25;
+    }
+
+    ul, ol {
+      margin-bottom: 4px;
+      padding-left: 14px;
+    }
+
+    li {
+      margin-bottom: 1px;
+      line-height: 1.35;
+    }
   }
 
   .output-tool-name {
-    font-size: 10px;
+    font-size: 9px;
   }
 
   .output-tool-param {
@@ -609,7 +1507,7 @@ $breakpoint-small: 480px;
   // Edit tool panels stack vertically on very small screens
   .edit-tool-panels {
     flex-direction: column;
-    max-height: 300px;
+    max-height: 180px;
   }
 
   .edit-panel {
@@ -619,6 +1517,50 @@ $breakpoint-small: 480px;
     &:last-child {
       border-bottom: none;
     }
+  }
+
+  .edit-line {
+    height: 14px;
+    line-height: 14px;
+    font-size: 9px;
+  }
+
+  .edit-line-num {
+    width: 20px;
+    padding: 0 3px;
+    font-size: 8px;
+  }
+
+  // Bash output even more compact
+  .bash-output-content {
+    padding: 6px 8px;
+    font-size: 9px;
+    max-height: 120px;
+  }
+
+  // Todo list more compact
+  .todo-tool-list {
+    max-height: 120px;
+  }
+
+  .todo-item {
+    padding: 2px 6px;
+    font-size: 9px;
+  }
+
+  .todo-status-icon {
+    width: 10px;
+    font-size: 10px;
+  }
+
+  // Tool results compact
+  .output-tool-result {
+    padding: 3px 6px;
+  }
+
+  .output-result-content {
+    font-size: 9px;
+    max-height: 80px;
   }
 
   // Sidebar even more compact
@@ -701,9 +1643,14 @@ $breakpoint-small: 480px;
     --terminal-height: 100%;
   }
 
-  // Agent bar spans bottom
+  // Agent bar spans bottom - smaller in landscape
   .agent-bar {
     height: 56px;
+  }
+
+  // Adjust guake content padding for smaller landscape agent bar
+  .guake-content {
+    padding-bottom: 56px;
   }
 
   // Sidebar narrower on landscape
@@ -722,13 +1669,10 @@ $breakpoint-small: 480px;
     padding-bottom: calc(8px + env(safe-area-inset-bottom));
   }
 
-  .guake-input {
-    padding-bottom: calc(8px + env(safe-area-inset-bottom));
-  }
-
   .sidebar {
     padding-bottom: env(safe-area-inset-bottom);
   }
+
 }
 
 // =============================================================================

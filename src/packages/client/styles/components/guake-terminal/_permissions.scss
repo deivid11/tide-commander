@@ -1,0 +1,237 @@
+// =============================================================================
+// Guake Terminal - Permission Request UI
+// =============================================================================
+
+@use 'sass:color';
+@use '../../variables' as *;
+
+.permission-requests-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: rgba($dracula-orange, 0.1);
+  border-bottom: 1px solid $dracula-orange;
+}
+
+.permission-request-card {
+  background: rgba($dracula-bg, 0.95);
+  border: 2px solid $dracula-orange;
+  border-radius: $radius-md;
+  padding: 12px;
+  transition: all $transition-fast;
+
+  &.approved {
+    border-color: $dracula-green;
+    background: rgba($dracula-green, 0.1);
+
+    .permission-request-badge {
+      background: $dracula-green;
+      color: $dracula-bg;
+    }
+  }
+
+  &.denied {
+    border-color: $dracula-red;
+    background: rgba($dracula-red, 0.1);
+
+    .permission-request-badge {
+      background: $dracula-red;
+      color: $dracula-fg;
+    }
+  }
+}
+
+.permission-request-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.permission-request-icon {
+  font-size: 18px;
+}
+
+.permission-request-tool {
+  font-weight: 600;
+  font-family: $font-mono;
+  color: $dracula-cyan;
+  font-size: 14px;
+}
+
+.permission-request-badge {
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: $radius-sm;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  background: $dracula-orange;
+  color: $dracula-bg;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.permission-request-details {
+  margin-bottom: 12px;
+
+  code {
+    display: block;
+    background: $dracula-bg-darker;
+    padding: 8px 12px;
+    border-radius: $radius-sm;
+    font-family: $font-mono;
+    font-size: 12px;
+    color: $dracula-fg;
+    word-break: break-all;
+    max-height: 100px;
+    overflow-y: auto;
+  }
+}
+
+.permission-request-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.permission-btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: $radius-sm;
+  font-weight: 600;
+  font-family: $font-mono;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    transform: translateY(-1px);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+}
+
+.permission-btn-approve {
+  background: $dracula-green;
+  color: $dracula-bg;
+
+  &:hover {
+    background: color.adjust($dracula-green, $lightness: 10%);
+    box-shadow: 0 2px 8px rgba($dracula-green, 0.4);
+  }
+}
+
+.permission-btn-deny {
+  background: $dracula-red;
+  color: $dracula-fg;
+
+  &:hover {
+    background: color.adjust($dracula-red, $lightness: 10%);
+    box-shadow: 0 2px 8px rgba($dracula-red, 0.4);
+  }
+}
+
+// =============================================================================
+// Compact Inline Permission Bar (bottom of terminal)
+// =============================================================================
+
+.permission-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 12px;
+  background: rgba($dracula-orange, 0.15);
+  border-top: 1px solid rgba($dracula-orange, 0.5);
+}
+
+.permission-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  background: rgba($dracula-bg, 0.8);
+  border-radius: $radius-sm;
+  border: 1px solid $dracula-orange;
+  font-family: $font-mono;
+  font-size: 12px;
+}
+
+.permission-inline-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.permission-inline-tool {
+  color: $dracula-cyan;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.permission-inline-target {
+  color: $dracula-fg;
+  opacity: 0.8;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.permission-inline-btn {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: $radius-sm;
+  font-size: 11px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all $transition-fast;
+  flex-shrink: 0;
+
+  &.approve-remember {
+    background: $dracula-cyan;
+    color: $dracula-bg;
+    width: 28px;
+    font-size: 10px;
+
+    &:hover {
+      background: color.adjust($dracula-cyan, $lightness: 10%);
+      transform: scale(1.1);
+    }
+  }
+
+  &.approve {
+    background: $dracula-green;
+    color: $dracula-bg;
+
+    &:hover {
+      background: color.adjust($dracula-green, $lightness: 10%);
+      transform: scale(1.1);
+    }
+  }
+
+  &.deny {
+    background: $dracula-red;
+    color: $dracula-fg;
+
+    &:hover {
+      background: color.adjust($dracula-red, $lightness: 10%);
+      transform: scale(1.1);
+    }
+  }
+}

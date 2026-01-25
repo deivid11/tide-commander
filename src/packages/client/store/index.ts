@@ -333,7 +333,16 @@ class Store
   }
 
   setMobileView(view: 'terminal' | '3d'): void {
+    console.log('[Store] setMobileView called:', view, 'previous:', this.state.mobileView);
     this.state.mobileView = view;
+    // When switching to terminal view on mobile, ensure an agent is selected
+    // Otherwise the terminal component returns null
+    if (view === 'terminal' && this.state.selectedAgentIds.size === 0 && this.state.agents.size > 0) {
+      const firstAgentId = Array.from(this.state.agents.keys())[0];
+      console.log('[Store] Auto-selecting first agent for terminal view:', firstAgentId);
+      this.state.selectedAgentIds = new Set([firstAgentId]);
+      this.state.terminalOpen = true;
+    }
     this.notify();
   }
 

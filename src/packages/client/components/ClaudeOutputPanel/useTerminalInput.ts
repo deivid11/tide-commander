@@ -86,8 +86,10 @@ export function useTerminalInput({ selectedAgentId }: UseTerminalInputOptions): 
   const attachedFiles = selectedAgentId ? agentAttachedFiles.get(selectedAgentId) || [] : [];
 
   // Use textarea if: forced, has newlines, or text is long
+  // On mobile, always use textarea so Enter can add newlines
   const hasNewlines = command.includes('\n');
-  const useTextarea = forceTextarea || hasNewlines || command.length > 50;
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+  const useTextarea = isMobile || forceTextarea || hasNewlines || command.length > 50;
 
   // Setters
   const setCommand = useCallback(

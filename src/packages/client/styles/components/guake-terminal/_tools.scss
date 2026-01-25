@@ -1,0 +1,880 @@
+// =============================================================================
+// Guake Terminal - Tool Display Styles
+// =============================================================================
+
+@use '../../variables' as *;
+
+// Tool usage in live streaming
+.output-tool-use {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px 12px;
+  margin: 4px 0;
+  background: rgba($dracula-orange, 0.1);
+  border-left: 3px solid $dracula-orange;
+  border-radius: $radius-sm;
+}
+
+.output-tool-icon {
+  font-size: 16px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.output-tool-name {
+  font-family: $font-mono;
+  font-weight: 600;
+  font-size: 12px;
+  color: $dracula-orange;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.output-tool-param {
+  font-family: $font-mono;
+  font-size: 11px;
+  color: $dracula-cyan;
+  opacity: 0.9;
+  margin-left: 4px;
+  // NO truncation - show full content
+  white-space: pre-wrap;
+  word-break: break-word;
+  min-width: 0; // Allow shrinking in flex context
+  flex: 1 1 auto;
+
+  // Add a subtle separator before the param
+  &::before {
+    content: '›';
+    margin-right: 6px;
+    color: $dracula-comment;
+    opacity: 0.6;
+  }
+
+  // Clickable file paths
+  &.clickable-path {
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-underline-offset: 2px;
+
+    &:hover {
+      color: $dracula-green;
+      opacity: 1;
+      text-decoration-style: solid;
+    }
+  }
+}
+
+.output-tool-loading {
+  color: $dracula-comment;
+  animation: pulse-dots 1.5s infinite;
+}
+
+// Simple view tool - more compact
+.output-tool-simple {
+  padding: 3px 8px;
+  margin: 2px 0;
+  background: rgba($dracula-orange, 0.05);
+  border-left-width: 2px;
+
+  .output-tool-icon {
+    font-size: 14px;
+  }
+
+  .output-tool-name {
+    font-size: 11px;
+  }
+
+  .output-tool-param {
+    font-size: 10px;
+    // NO max-width - show full content
+  }
+}
+
+@keyframes pulse-dots {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+
+// Tool input in live streaming
+.output-tool-input {
+  padding: 4px 12px 4px 24px;
+  margin: 0 0 4px 0;
+  background: rgba($dracula-orange, 0.05);
+  border-left: 3px solid rgba($dracula-orange, 0.5);
+  border-radius: 0 $radius-sm $radius-sm 0;
+}
+
+.output-input-content {
+  margin: 0;
+  font-family: $font-mono;
+  font-size: 11px;
+  color: $dracula-comment;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+// =============================================================================
+// Edit Tool Diff View
+// =============================================================================
+
+.edit-tool-diff {
+  width: 100%;
+}
+
+.edit-tool-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  margin-bottom: 8px;
+  border-bottom: 1px solid rgba($dracula-comment, 0.3);
+}
+
+.edit-tool-file {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: rgba($dracula-cyan, 0.15);
+  border: 1px solid rgba($dracula-cyan, 0.3);
+  border-radius: $radius-sm;
+  color: $dracula-cyan;
+  font-family: $font-mono;
+  font-size: 12px;
+  font-weight: 600;
+
+  &.clickable {
+    cursor: pointer;
+    transition: all $transition-fast;
+
+    &:hover {
+      background: rgba($dracula-cyan, 0.25);
+      border-color: $dracula-cyan;
+      transform: translateY(-1px);
+    }
+  }
+}
+
+.edit-tool-path {
+  color: $dracula-comment;
+  font-family: $font-mono;
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.edit-tool-badge {
+  padding: 2px 8px;
+  background: rgba($dracula-pink, 0.2);
+  border: 1px solid rgba($dracula-pink, 0.4);
+  border-radius: $radius-sm;
+  color: $dracula-pink;
+  font-family: $font-mono;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.edit-tool-changes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.edit-tool-old,
+.edit-tool-new {
+  border-radius: $radius-sm;
+  overflow: hidden;
+}
+
+.edit-tool-old {
+  background: rgba($dracula-red, 0.1);
+  border: 1px solid rgba($dracula-red, 0.3);
+
+  .edit-tool-label {
+    background: rgba($dracula-red, 0.2);
+    color: $dracula-red;
+  }
+
+  .edit-tool-code {
+    border-left: 3px solid $dracula-red;
+  }
+}
+
+.edit-tool-new {
+  background: rgba($dracula-green, 0.1);
+  border: 1px solid rgba($dracula-green, 0.3);
+
+  .edit-tool-label {
+    background: rgba($dracula-green, 0.2);
+    color: $dracula-green;
+  }
+
+  .edit-tool-code {
+    border-left: 3px solid $dracula-green;
+  }
+}
+
+.edit-tool-label {
+  padding: 4px 10px;
+  font-family: $font-mono;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.edit-tool-code {
+  margin: 0;
+  padding: 8px 12px;
+  font-family: $font-mono;
+  font-size: 11px;
+  color: $dracula-fg;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+// Edit tool stats (similar to diff-viewer)
+.edit-tool-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.edit-stat {
+  font-family: $font-mono;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: $radius-sm;
+
+  &.added {
+    color: $dracula-green;
+    background: rgba($dracula-green, 0.15);
+  }
+
+  &.removed {
+    color: $dracula-red;
+    background: rgba($dracula-red, 0.15);
+  }
+}
+
+// Edit tool side-by-side diff view (like FileExplorer DiffViewer)
+.edit-tool-panels {
+  display: flex;
+  border: 1px solid rgba($dracula-comment, 0.3);
+  border-radius: $radius-sm;
+  overflow: hidden;
+  max-height: 250px;
+}
+
+.edit-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-right: 1px solid $dracula-current;
+
+  &:last-child {
+    border-right: none;
+  }
+}
+
+.edit-panel-header {
+  padding: 4px 8px;
+  background: rgba($dracula-bg, 0.8);
+  border-bottom: 1px solid $dracula-current;
+}
+
+.edit-panel-label {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: $dracula-comment;
+  letter-spacing: 0.5px;
+
+  .edit-panel-original & {
+    color: $dracula-red;
+  }
+
+  .edit-panel-modified & {
+    color: $dracula-green;
+  }
+}
+
+.edit-panel-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: auto;
+  background: rgba($dracula-bg-darker, 0.8);
+
+  &::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: $dracula-bg-darker;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: $dracula-current;
+    border-radius: 3px;
+
+    &:hover {
+      background: $dracula-comment;
+    }
+  }
+}
+
+// Edit diff lines (side-by-side view)
+.edit-line {
+  display: flex;
+  height: 18px;
+  line-height: 18px;
+  font-size: 11px;
+  font-family: $font-mono;
+  white-space: pre;
+
+  &.edit-line-unchanged {
+    background: transparent;
+    color: $dracula-fg;
+  }
+
+  &.edit-line-added {
+    background: rgba($dracula-green, 0.15);
+
+    .edit-line-num {
+      background: rgba($dracula-green, 0.2);
+      color: $dracula-green;
+    }
+
+    .edit-line-content {
+      color: $dracula-fg;
+    }
+  }
+
+  &.edit-line-removed {
+    background: rgba($dracula-red, 0.15);
+
+    .edit-line-num {
+      background: rgba($dracula-red, 0.2);
+      color: $dracula-red;
+    }
+
+    .edit-line-content {
+      color: $dracula-fg;
+    }
+  }
+
+  &.edit-line-empty {
+    background: rgba($dracula-comment, 0.05);
+
+    .edit-empty-text {
+      color: $dracula-comment;
+      font-style: italic;
+    }
+  }
+}
+
+.edit-line-num {
+  flex-shrink: 0;
+  width: 32px;
+  padding: 0 6px;
+  text-align: right;
+  color: $dracula-comment;
+  background: rgba($dracula-bg, 0.5);
+  border-right: 1px solid $dracula-current;
+  user-select: none;
+  font-size: 10px;
+}
+
+.edit-line-content {
+  flex: 1;
+  padding: 0 8px;
+  min-width: 0;
+  // Never truncate diff content - show full lines
+  overflow-x: auto;
+  white-space: pre;
+}
+
+// =============================================================================
+// Read Tool Input
+// =============================================================================
+
+.read-tool-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.read-tool-file {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: rgba($dracula-cyan, 0.15);
+  border: 1px solid rgba($dracula-cyan, 0.3);
+  border-radius: $radius-sm;
+  color: $dracula-cyan;
+  font-family: $font-mono;
+  font-size: 12px;
+  font-weight: 600;
+
+  &.clickable {
+    cursor: pointer;
+    transition: all $transition-fast;
+
+    &:hover {
+      background: rgba($dracula-cyan, 0.25);
+      border-color: $dracula-cyan;
+      transform: translateY(-1px);
+    }
+  }
+}
+
+.read-tool-path {
+  color: $dracula-comment;
+  font-family: $font-mono;
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.read-tool-range {
+  padding: 2px 8px;
+  background: rgba($dracula-comment, 0.2);
+  border-radius: $radius-sm;
+  color: $dracula-comment;
+  font-family: $font-mono;
+  font-size: 10px;
+}
+
+// =============================================================================
+// TodoWrite Tool Input - Checklist View
+// =============================================================================
+
+.todo-tool-input {
+  width: 100%;
+}
+
+.todo-tool-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: rgba($dracula-green, 0.1);
+  border-bottom: 1px solid rgba($dracula-green, 0.2);
+  border-radius: $radius-sm $radius-sm 0 0;
+}
+
+.todo-tool-title {
+  font-family: $font-mono;
+  font-size: 12px;
+  font-weight: 600;
+  color: $dracula-green;
+}
+
+.todo-tool-stats {
+  display: flex;
+  gap: 10px;
+}
+
+.todo-stat {
+  font-family: $font-mono;
+  font-size: 11px;
+  font-weight: 500;
+
+  &.completed {
+    color: $dracula-green;
+  }
+
+  &.in-progress {
+    color: $dracula-cyan;
+  }
+
+  &.pending {
+    color: $dracula-comment;
+  }
+}
+
+.todo-tool-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 0;
+  background: rgba($dracula-bg, 0.3);
+  border-radius: 0 0 $radius-sm $radius-sm;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.todo-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 10px;
+  font-family: $font-mono;
+  font-size: 11px;
+  transition: background $transition-fast;
+
+  &:hover {
+    background: rgba($dracula-fg, 0.05);
+  }
+
+  &.todo-completed {
+    .todo-status-icon {
+      color: $dracula-green;
+    }
+    .todo-content {
+      color: $dracula-comment;
+      text-decoration: line-through;
+      opacity: 0.7;
+    }
+  }
+
+  &.todo-in_progress {
+    background: rgba($dracula-cyan, 0.08);
+
+    .todo-status-icon {
+      color: $dracula-cyan;
+      animation: pulse-icon 1.5s ease-in-out infinite;
+    }
+    .todo-content {
+      color: $dracula-cyan;
+      font-weight: 500;
+    }
+  }
+
+  &.todo-pending {
+    .todo-status-icon {
+      color: $dracula-comment;
+    }
+    .todo-content {
+      color: $dracula-fg;
+    }
+  }
+}
+
+.todo-status-icon {
+  flex-shrink: 0;
+  width: 14px;
+  text-align: center;
+  font-size: 12px;
+}
+
+.todo-content {
+  flex: 1;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+@keyframes pulse-icon {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+// =============================================================================
+// Tool Result in Live Streaming
+// =============================================================================
+
+.output-tool-result {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 12px;
+  margin: 4px 0;
+  background: rgba($dracula-purple, 0.08);
+  border-left: 3px solid $dracula-purple;
+  border-radius: $radius-sm;
+
+  &.is-error {
+    background: rgba($dracula-red, 0.1);
+    border-left-color: $dracula-red;
+
+    .output-result-icon {
+      color: $dracula-red;
+    }
+  }
+}
+
+.output-result-icon {
+  font-size: 14px;
+  color: $dracula-green;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.output-result-content {
+  margin: 0;
+  font-family: $font-mono;
+  font-size: 11px;
+  color: $dracula-comment;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 150px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+// =============================================================================
+// Bash Command Output - Terminal-like Styling
+// =============================================================================
+
+.output-bash-result {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+  margin: 6px 0;
+
+  &.is-error {
+    .bash-output-container {
+      border-color: rgba($dracula-red, 0.4);
+    }
+    .bash-output-header {
+      background: rgba($dracula-red, 0.15);
+    }
+    .bash-output-icon {
+      color: $dracula-red;
+    }
+  }
+}
+
+.bash-output-container {
+  display: flex;
+  flex-direction: column;
+  background: rgba($dracula-bg-darker, 0.8);
+  border: 1px solid rgba($dracula-comment, 0.25);
+  border-radius: $radius-sm;
+  overflow: hidden;
+  flex: 1;
+}
+
+.bash-output-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: rgba($dracula-current, 0.3);
+  border-bottom: 1px solid rgba($dracula-comment, 0.15);
+}
+
+.bash-output-icon {
+  font-family: $font-mono;
+  font-size: 12px;
+  font-weight: 700;
+  color: $dracula-green;
+}
+
+.bash-output-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: $dracula-comment;
+}
+
+.bash-output-truncated {
+  margin-left: auto;
+  font-size: 10px;
+  color: $dracula-orange;
+  background: rgba($dracula-orange, 0.15);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.bash-output-content {
+  margin: 0;
+  padding: 10px 12px;
+  font-family: $font-mono;
+  font-size: 11px;
+  line-height: 1.5;
+  color: $dracula-fg;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 300px;
+  overflow-y: auto;
+
+  // Scrollbar styling
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: rgba($dracula-comment, 0.3);
+    border-radius: 3px;
+    &:hover {
+      background: rgba($dracula-comment, 0.5);
+    }
+  }
+}
+
+// Clickable Bash tool line
+.output-tool-use.bash-clickable {
+  cursor: pointer;
+  transition: background 0.15s ease;
+
+  &:hover {
+    background: rgba($dracula-purple, 0.15);
+  }
+}
+
+.bash-output-indicator {
+  margin-left: auto;
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+// =============================================================================
+// Bash Output Modal
+// =============================================================================
+
+.bash-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  backdrop-filter: blur(2px);
+}
+
+.bash-modal {
+  background: $dracula-bg-darker;
+  border: 1px solid rgba($dracula-comment, 0.3);
+  border-radius: $radius-md;
+  width: 90%;
+  max-width: 800px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+
+.bash-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: rgba($dracula-current, 0.4);
+  border-bottom: 1px solid rgba($dracula-comment, 0.2);
+}
+
+.bash-modal-icon {
+  font-family: $font-mono;
+  font-size: 16px;
+  font-weight: 700;
+  color: $dracula-green;
+}
+
+.bash-modal-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: $dracula-fg;
+}
+
+.bash-modal-close {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: $dracula-comment;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: $radius-sm;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: rgba($dracula-red, 0.2);
+    color: $dracula-red;
+  }
+}
+
+.bash-modal-command {
+  padding: 10px 16px;
+  background: rgba($dracula-current, 0.2);
+  border-bottom: 1px solid rgba($dracula-comment, 0.15);
+
+  pre {
+    margin: 0;
+    font-family: $font-mono;
+    font-size: 12px;
+    color: $dracula-cyan;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+}
+
+.bash-modal-content {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+  min-height: 150px;
+  max-height: 60vh;
+
+  pre {
+    margin: 0;
+    font-family: $font-mono;
+    font-size: 12px;
+    line-height: 1.6;
+    color: $dracula-fg;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  // Loading state styling
+  &.is-loading pre {
+    color: $dracula-comment;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    &::after {
+      content: '';
+      width: 12px;
+      height: 12px;
+      border: 2px solid $dracula-comment;
+      border-top-color: $dracula-cyan;
+      border-radius: 50%;
+      animation: bash-loading-spin 0.8s linear infinite;
+    }
+  }
+
+  // Scrollbar styling
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: rgba($dracula-comment, 0.3);
+    border-radius: 4px;
+    &:hover {
+      background: rgba($dracula-comment, 0.5);
+    }
+  }
+}
+
+@keyframes bash-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

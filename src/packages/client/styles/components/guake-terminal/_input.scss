@@ -1,0 +1,455 @@
+// =============================================================================
+// Guake Terminal - Input & Search
+// =============================================================================
+
+@use 'sass:color';
+@use '../../variables' as *;
+
+.guake-search-toggle {
+  background: transparent;
+  border: 1px solid $dracula-comment;
+  color: $dracula-comment;
+  padding: 4px 8px;
+  border-radius: $radius-sm;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    border-color: $dracula-cyan;
+    color: $dracula-cyan;
+  }
+
+  &.active {
+    border-color: $dracula-cyan;
+    color: $dracula-cyan;
+  }
+}
+
+.guake-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba($dracula-bg, 0.98);
+  border-bottom: 1px solid $dracula-current;
+
+  input {
+    flex: 1;
+    background: $dracula-bg-darker;
+    border: 1px solid $dracula-current;
+    border-radius: $radius-sm;
+    padding: 6px 10px;
+    color: $dracula-fg;
+    font-family: $font-mono;
+    font-size: 12px;
+
+    &:focus {
+      outline: none;
+      border-color: $dracula-cyan;
+    }
+
+    &::placeholder {
+      color: $dracula-comment;
+    }
+  }
+
+  button {
+    background: $dracula-cyan;
+    border: none;
+    color: $dracula-bg;
+    padding: 6px 12px;
+    border-radius: $radius-sm;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: $font-mono;
+    cursor: pointer;
+    transition: all $transition-fast;
+
+    &:hover:not(:disabled) {
+      background: color.adjust($dracula-cyan, $lightness: 10%);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+}
+
+.guake-search-count {
+  color: $dracula-comment;
+  font-size: 11px;
+  font-family: $font-mono;
+  white-space: nowrap;
+}
+
+.guake-search-header {
+  padding: 8px 12px;
+  color: $dracula-cyan;
+  font-size: 11px;
+  font-family: $font-mono;
+  font-weight: 600;
+  border-bottom: 1px dashed rgba($dracula-cyan, 0.3);
+  margin-bottom: 8px;
+}
+
+.search-highlight {
+  background: rgba($dracula-yellow, 0.4);
+  color: $dracula-fg;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+// =============================================================================
+// Guake Input - Modern Chat-style Input Bar
+// =============================================================================
+
+// Wrapper for input area with floating stop button
+.guake-input-wrapper {
+  position: relative;
+}
+
+.guake-input {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  padding: 8px 12px;
+  background: rgba($dracula-bg-darker, 0.95);
+  border-top: 1px solid rgba($dracula-purple, 0.25);
+}
+
+// Container that groups attach + input + send together
+.guake-input-container {
+  display: flex;
+  align-items: stretch;
+  flex: 1;
+  background: rgba($dracula-bg, 0.5);
+  border: 2px solid rgba($dracula-comment, 0.25);
+  border-radius: 8px;
+  transition: all $transition-fast;
+  min-height: 42px;
+  position: relative;
+
+  &:focus-within {
+    border-color: rgba($dracula-purple, 0.5);
+    background: rgba($dracula-bg, 0.7);
+    box-shadow: 0 0 0 2px rgba($dracula-purple, 0.12);
+  }
+
+  // Working state - animated bars walking around all 4 edges using offset-path
+  .is-working & {
+    --border-color: rgba($dracula-comment, 0.25);
+    border: 2px solid var(--border-color) !important;
+    background: rgba($dracula-bg, 0.95) !important;
+    position: relative;
+    overflow: visible;
+
+    // First bar - bottom border, left to right
+    &::before {
+      content: '';
+      position: absolute;
+      width: 60px;
+      height: 1px;
+      bottom: -2px;
+      left: 0;
+      background: linear-gradient(90deg,
+        transparent 0%,
+        $dracula-cyan 30%,
+        $dracula-purple 70%,
+        transparent 100%
+      );
+      border-radius: 1px;
+      animation: slide-bottom 1.5s ease-in-out infinite alternate;
+      box-shadow: 0 0 8px rgba($dracula-cyan, 0.6);
+    }
+
+    // Second bar - bottom border, right to left (opposite direction)
+    &::after {
+      content: '';
+      position: absolute;
+      width: 60px;
+      height: 1px;
+      bottom: -2px;
+      right: 0;
+      background: linear-gradient(90deg,
+        transparent 0%,
+        $dracula-pink 30%,
+        $dracula-purple 70%,
+        transparent 100%
+      );
+      border-radius: 1px;
+      animation: slide-bottom-reverse 1.5s ease-in-out infinite alternate;
+      box-shadow: 0 0 8px rgba($dracula-pink, 0.6);
+    }
+  }
+
+  // Completed state - green tickle effect (must override focus-within)
+  .is-completed & {
+    border: 2px solid rgba($dracula-green, 0.8) !important;
+    background: rgba($dracula-bg, 0.7) !important;
+    animation: completion-tickle 0.2s ease-in-out 3, completion-border-fade 0.8s ease-out forwards;
+    box-shadow: 0 0 8px rgba($dracula-green, 0.4) !important;
+  }
+}
+
+// Bottom border slide - left to right
+@keyframes slide-bottom {
+  0% {
+    left: -35px;
+  }
+  100% {
+    left: calc(100% - 35px);
+  }
+}
+
+// Bottom border slide - right to left
+@keyframes slide-bottom-reverse {
+  0% {
+    right: -35px;
+  }
+  100% {
+    right: calc(100% - 35px);
+  }
+}
+
+@keyframes completion-tickle {
+  0%, 100% {
+    border-color: rgba($dracula-green, 0.4);
+    box-shadow: 0 0 4px rgba($dracula-green, 0.3);
+  }
+  50% {
+    border-color: $dracula-green;
+    box-shadow: 0 0 12px rgba($dracula-green, 0.6);
+  }
+}
+
+@keyframes completion-border-fade {
+  0%, 60% {
+    border-color: $dracula-green;
+    box-shadow: 0 0 8px rgba($dracula-green, 0.5);
+  }
+  100% {
+    border-color: rgba($dracula-comment, 0.25);
+    box-shadow: none;
+  }
+}
+
+@keyframes completion-fade {
+  0%, 60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes completion-fade {
+  0%, 60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.guake-input input,
+.guake-input textarea {
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: 10px 12px;
+  color: $dracula-fg;
+  font-family: $font-mono;
+  font-size: 13px;
+  line-height: 1.5;
+  min-width: 0; // Allow shrinking
+
+  &:focus {
+    outline: none;
+  }
+
+  &::placeholder {
+    color: rgba($dracula-comment, 0.6);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.guake-input textarea {
+  resize: none;
+  min-height: 20px; // Single line
+  max-height: 180px;
+  overflow-y: auto;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  // Use 'auto' height - will be controlled via JS
+  height: auto;
+  // Reset to content-based height - important for shrinking
+  field-sizing: content;
+
+  // Scrollbar styling
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: rgba($dracula-comment, 0.3);
+    border-radius: 2px;
+
+    &:hover {
+      background: rgba($dracula-comment, 0.5);
+    }
+  }
+}
+
+// Expanded mode (multiline)
+.guake-input-expanded {
+  .guake-input-container {
+    align-items: flex-end;
+  }
+
+  .guake-attach-btn,
+  .guake-send-btn {
+    align-self: flex-end;
+    margin-bottom: 2px;
+  }
+}
+
+// Attach button - left side of input
+.guake-attach-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  min-height: 40px;
+  background: transparent;
+  border: none;
+  color: rgba($dracula-comment, 0.7);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all $transition-fast;
+  flex-shrink: 0;
+  border-radius: 7px 0 0 7px;
+
+  &:hover {
+    color: $dracula-cyan;
+    background: rgba($dracula-cyan, 0.08);
+  }
+
+  &:active {
+    background: rgba($dracula-cyan, 0.15);
+  }
+}
+
+// Send button - right side of input
+.guake-send-btn,
+.guake-input button:not(.guake-attach-btn) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  min-height: 40px;
+  background: transparent;
+  border: none;
+  color: $dracula-cyan;
+  font-size: 15px;
+  cursor: pointer;
+  transition: all $transition-fast;
+  flex-shrink: 0;
+  padding: 0;
+  border-radius: 0 7px 7px 0;
+
+  &:hover:not(:disabled) {
+    color: color.adjust($dracula-cyan, $lightness: 12%);
+    background: rgba($dracula-cyan, 0.08);
+  }
+
+  &:active:not(:disabled) {
+    background: rgba($dracula-cyan, 0.15);
+  }
+
+  &:disabled {
+    opacity: 0.25;
+    cursor: not-allowed;
+    color: $dracula-comment;
+  }
+}
+
+// Floating stop button container - positioned at top center
+.guake-stop-bar {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+}
+
+.guake-stop-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 10px;
+  background: $dracula-bg-darker;
+  border: 1px solid rgba($dracula-red, 0.5);
+  border-radius: 4px;
+  color: $dracula-red;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+
+  .stop-icon {
+    font-size: 8px;
+  }
+
+  .stop-label {
+    font-size: 11px;
+    font-weight: 600;
+    font-family: $font-mono;
+  }
+
+  &:hover {
+    background: color.mix($dracula-bg-darker, $dracula-red, 85%);
+    border-color: rgba($dracula-red, 0.7);
+    transform: scale(1.05);
+  }
+
+  &:active {
+    transform: scale(0.95);
+    background: color.mix($dracula-bg-darker, $dracula-red, 75%);
+  }
+}
+
+// Legacy stop button (keep for compatibility)
+.stop-button {
+  margin-left: auto;
+  padding: 4px 12px;
+  background: rgba($dracula-red, 0.15);
+  border: 1px solid rgba($dracula-red, 0.4);
+  border-radius: $radius-sm;
+  color: $dracula-red;
+  font-size: 11px;
+  font-family: $font-mono;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    background: $dracula-red;
+    border-color: $dracula-red;
+    color: $dracula-bg;
+    box-shadow: 0 0 12px rgba($dracula-red, 0.4);
+  }
+}

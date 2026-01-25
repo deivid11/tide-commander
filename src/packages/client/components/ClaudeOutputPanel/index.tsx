@@ -24,13 +24,16 @@ import {
   useSupervisor,
   useSettings,
   useAgentOutputs,
+  useMobileView,
   store,
   ClaudeOutput,
   useContextModalAgentId,
   useFileViewerPath,
   useFileViewerEditData,
   useReconnectCount,
+  useAreas,
 } from '../../store';
+import { useSwipeGesture } from '../../hooks';
 import type { AgentAnalysis } from '../../../shared/types';
 import { filterCostText } from '../../utils/formatting';
 import {
@@ -79,6 +82,7 @@ export function ClaudeOutputPanel() {
   const supervisor = useSupervisor();
   const settings = useSettings();
   const reconnectCount = useReconnectCount(); // Watch for reconnections to refresh history
+  const mobileView = useMobileView(); // Mobile view state
 
   const outputRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -256,10 +260,79 @@ export function ClaudeOutputPanel() {
     setResponseModalContent(content);
   }, []);
 
-  // Memoized sorted agents list for the agent links bar
+  // Get areas for grouping agents the same way as AgentBar
+  const areas = useAreas();
+
+  // Memoized sorted agents list matching AgentBar's visual order
+  // Groups by area (alphabetically), then unassigned, with createdAt order within groups
   const sortedAgents = useMemo(() => {
-    return Array.from(agents.values()).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-  }, [agents]);
+    const agentList = Array.from(agents.values()).sort(
+      (a, b) => (a.createdAt || 0) - (b.createdAt || 0)
+    );
+
+    // Group agents by their area (same logic as AgentBar)
+    const groups = new Map<string | null, { area: { name: string } | null; agents: typeof agentList }>();
+
+    for (const agent of agentList) {
+      const area = store.getAreaForAgent(agent.id);
+      const areaKey = area?.id || null;
+
+      if (!groups.has(areaKey)) {
+        groups.set(areaKey, { area: area ? { name: area.name } : null, agents: [] });
+      }
+      groups.get(areaKey)!.agents.push(agent);
+    }
+
+    // Sort groups: areas first (alphabetically), then unassigned
+    const groupArray = Array.from(groups.values());
+    groupArray.sort((a, b) => {
+      if (!a.area && b.area) return 1;
+      if (a.area && !b.area) return -1;
+      if (!a.area && !b.area) return 0;
+      return (a.area?.name || '').localeCompare(b.area?.name || '');
+    });
+
+    // Flatten back to a single array in the correct visual order
+    return groupArray.flatMap((group) => group.agents);
+  }, [agents, areas]);
+
+  // Swipe gesture handlers for mobile agent navigation
+  const handleSwipeLeft = useCallback(() => {
+    // Swipe left (right-to-left) → go to next agent
+    if (!selectedAgentId || sortedAgents.length <= 1) return;
+    const currentIndex = sortedAgents.findIndex((a) => a.id === selectedAgentId);
+    if (currentIndex === -1) return;
+    const nextIndex = (currentIndex + 1) % sortedAgents.length;
+    store.selectAgent(sortedAgents[nextIndex].id);
+  }, [selectedAgentId, sortedAgents]);
+
+  const handleSwipeRight = useCallback(() => {
+    // Swipe right (left-to-right) → go to previous agent
+    if (!selectedAgentId || sortedAgents.length <= 1) return;
+    const currentIndex = sortedAgents.findIndex((a) => a.id === selectedAgentId);
+    if (currentIndex === -1) return;
+    const prevIndex = (currentIndex - 1 + sortedAgents.length) % sortedAgents.length;
+    store.selectAgent(sortedAgents[prevIndex].id);
+  }, [selectedAgentId, sortedAgents]);
+
+  // Attach swipe gesture to the guake header for agent navigation on mobile
+  const headerRef = useRef<HTMLDivElement>(null);
+  useSwipeGesture(headerRef, {
+    enabled: isOpen && sortedAgents.length > 1,
+    onSwipeLeft: handleSwipeLeft,
+    onSwipeRight: handleSwipeRight,
+    threshold: 60, // Slightly lower threshold for easier swiping on header
+    maxVerticalMovement: 40,
+  });
+
+  // Also attach swipe gesture to the output/messages area for agent navigation
+  useSwipeGesture(outputRef, {
+    enabled: isOpen && sortedAgents.length > 1,
+    onSwipeLeft: handleSwipeLeft,
+    onSwipeRight: handleSwipeRight,
+    threshold: 80, // Higher threshold to avoid interference with vertical scrolling
+    maxVerticalMovement: 30, // Stricter vertical limit since this area scrolls
+  });
 
   // Memoized filtered and enriched history messages based on view mode
   const filteredHistory = useMemo((): EnrichedHistoryMessage[] => {
@@ -378,9 +451,21 @@ export function ClaudeOutputPanel() {
     // Load is handled by useTerminalInput hook
   }, [selectedAgentId]);
 
+  // Track previous isOpen state to detect when terminal actually opens
+  const prevIsOpenRef = useRef(false);
+
   // Focus input when terminal opens or switches to textarea
+  // On mobile, don't auto-focus at all (to avoid keyboard popup)
   useEffect(() => {
+    prevIsOpenRef.current = isOpen;
+
     if (isOpen) {
+      // On mobile, never auto-focus (user can tap to focus if needed)
+      const isMobile = window.innerWidth <= 768;
+      if (isMobile) {
+        return;
+      }
+
       if (useTextarea && textareaRef.current) {
         textareaRef.current.focus();
         const len = textareaRef.current.value.length;
@@ -389,7 +474,11 @@ export function ClaudeOutputPanel() {
         inputRef.current.focus();
       }
     }
-  }, [isOpen, useTextarea]);
+  }, [isOpen, useTextarea, selectedAgentId]);
+
+  // Track whether an input is focused to avoid viewport scroll interference during typing
+  const isInputFocusedRef = useRef(false);
+
 
   const handleSendCommand = () => {
     if ((!command.trim() && attachedFiles.length === 0) || !selectedAgentId) return;
@@ -420,17 +509,230 @@ export function ClaudeOutputPanel() {
     setPastedTexts(new Map());
     setAttachedFiles([]);
     resetPastedCount();
+
+    // On mobile, blur the input to hide the keyboard after sending
+    const isMobile = window.innerWidth <= 768;
+    if (isMobile) {
+      inputRef.current?.blur();
+      textareaRef.current?.blur();
+    }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && e.shiftKey) {
-      if (!useTextarea) {
-        e.preventDefault();
-        setForceTextarea(true);
-      }
-      return;
+  // Refs for keyboard handling cleanup
+  const keyboardHandlerRef = useRef<(() => void) | null>(null);
+  const lastKeyboardHeightRef = useRef<number>(0);
+  const keyboardScrollLockRef = useRef<boolean>(false); // Prevents auto-scroll from interfering
+  const keyboardRafRef = useRef<number>(0);
+  // Store the initial viewport height before keyboard ever opens (captured once on first focus)
+  const initialViewportHeightRef = useRef<number>(0);
+
+  // Set the CSS custom property for keyboard height on the app element
+  const setKeyboardHeight = useCallback((height: number) => {
+    const app = document.querySelector('.app.mobile-view-terminal') as HTMLElement;
+    if (app) {
+      app.style.setProperty('--keyboard-height', `${height}px`);
+      app.style.setProperty('--keyboard-visible', height > 0 ? '1' : '0');
     }
+    lastKeyboardHeightRef.current = height;
+  }, []);
+
+  // Reset keyboard styles by clearing the CSS custom property
+  const resetKeyboardStyles = useCallback(() => {
+    setKeyboardHeight(0);
+    keyboardScrollLockRef.current = false;
+    console.log('[Keyboard] Reset styles - keyboard height set to 0');
+  }, [setKeyboardHeight]);
+
+  // Cleanup keyboard listeners
+  const cleanupKeyboardHandling = useCallback(() => {
+    // Cancel any pending RAF
+    if (keyboardRafRef.current) {
+      cancelAnimationFrame(keyboardRafRef.current);
+      keyboardRafRef.current = 0;
+    }
+
+    // Remove viewport listeners
+    if (window.visualViewport && keyboardHandlerRef.current) {
+      window.visualViewport.removeEventListener('resize', keyboardHandlerRef.current);
+      window.visualViewport.removeEventListener('scroll', keyboardHandlerRef.current);
+      keyboardHandlerRef.current = null;
+    }
+  }, []);
+
+  // On mobile, adjust layout when keyboard opens so input stays visible
+  // Strategy: Store initial viewport height before keyboard opens, then compare
+  const handleInputFocus = useCallback(() => {
+    isInputFocusedRef.current = true;
+
+    const isMobile = window.innerWidth <= 768;
+    console.log('[Keyboard] handleInputFocus called, isMobile:', isMobile, 'width:', window.innerWidth);
+    if (!isMobile) return;
+
+    // Cleanup any existing handlers first
+    cleanupKeyboardHandling();
+
+    // Lock scrolling during keyboard animation to prevent auto-scroll from interfering
+    keyboardScrollLockRef.current = true;
+
+    // Use Visual Viewport API - the most reliable way to detect keyboard on modern mobile browsers
+    if (window.visualViewport) {
+      // Capture initial viewport height BEFORE keyboard opens (only once per session)
+      // This is the full height when no keyboard is visible
+      if (initialViewportHeightRef.current === 0) {
+        initialViewportHeightRef.current = window.visualViewport.height;
+        console.log('[Keyboard] Captured initial viewport height:', initialViewportHeightRef.current);
+      }
+      console.log('[Keyboard] visualViewport available, initial height:', initialViewportHeightRef.current);
+
+      const adjustForKeyboard = () => {
+        const viewport = window.visualViewport;
+        if (!viewport) return;
+
+        // Cancel previous RAF to debounce rapid calls
+        if (keyboardRafRef.current) {
+          cancelAnimationFrame(keyboardRafRef.current);
+        }
+
+        keyboardRafRef.current = requestAnimationFrame(() => {
+          // Only adjust if input is still focused
+          if (!isInputFocusedRef.current) {
+            console.log('[Keyboard] Input not focused, resetting styles');
+            resetKeyboardStyles();
+            return;
+          }
+
+          // Simple approach: Compare current visualViewport.height to initial height
+          // When keyboard opens, visualViewport.height shrinks by the keyboard height
+          const currentViewportHeight = viewport.height;
+          const initialHeight = initialViewportHeightRef.current;
+
+          // Keyboard height is simply the difference
+          let keyboardHeight = Math.max(0, initialHeight - currentViewportHeight);
+
+          // Apply a minimum threshold to avoid false positives from address bar changes
+          if (keyboardHeight < 150) {
+            keyboardHeight = 0;
+          }
+
+          console.log('[Keyboard] adjustForKeyboard:', {
+            initialHeight,
+            currentViewportHeight,
+            calculatedKeyboardHeight: keyboardHeight,
+          });
+
+          // Update the CSS custom property
+          if (keyboardHeight !== lastKeyboardHeightRef.current) {
+            setKeyboardHeight(keyboardHeight);
+
+            // Scroll output to bottom when keyboard opens or changes size
+            if (keyboardHeight > 0 && outputRef.current) {
+              outputRef.current.scrollTop = outputRef.current.scrollHeight;
+            }
+          }
+
+          // Release scroll lock after keyboard has stabilized (after first adjustment)
+          if (keyboardHeight > 0) {
+            // Give a small delay before releasing scroll lock
+            setTimeout(() => {
+              keyboardScrollLockRef.current = false;
+            }, 300);
+          }
+        });
+      };
+
+      // Store handler reference for cleanup
+      keyboardHandlerRef.current = adjustForKeyboard;
+
+      // Listen for viewport changes (both resize and scroll for iOS)
+      window.visualViewport.addEventListener('resize', adjustForKeyboard);
+      window.visualViewport.addEventListener('scroll', adjustForKeyboard);
+
+      // Initial adjustment - the keyboard may already be animating
+      adjustForKeyboard();
+    }
+  }, [cleanupKeyboardHandling, resetKeyboardStyles, setKeyboardHeight]);
+
+  const handleInputBlur = useCallback(() => {
+    isInputFocusedRef.current = false;
+
+    const isMobile = window.innerWidth <= 768;
+    if (!isMobile) return;
+
+    // Small delay to handle blur->refocus scenarios (like switching between inputs)
+    // This prevents flickering when user taps from input to textarea or vice versa
+    setTimeout(() => {
+      // Only reset if still not focused
+      if (!isInputFocusedRef.current) {
+        resetKeyboardStyles();
+        cleanupKeyboardHandling();
+      }
+    }, 100);
+  }, [resetKeyboardStyles, cleanupKeyboardHandling]);
+
+  // Cleanup on unmount and handle visibility changes (app switching)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      // When page becomes hidden (app switch), reset keyboard styles
+      // The keyboard will dismiss but blur may not fire
+      if (document.hidden) {
+        const isMobile = window.innerWidth <= 768;
+        if (isMobile && lastKeyboardHeightRef.current > 0) {
+          isInputFocusedRef.current = false;
+          resetKeyboardStyles();
+          cleanupKeyboardHandling();
+        }
+      }
+    };
+
+    // Also listen for orientation changes which can affect keyboard
+    const handleOrientationChange = () => {
+      const isMobile = window.innerWidth <= 768;
+      if (isMobile && lastKeyboardHeightRef.current > 0) {
+        // Re-trigger adjustment after orientation change
+        if (keyboardHandlerRef.current) {
+          keyboardHandlerRef.current();
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('orientationchange', handleOrientationChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('orientationchange', handleOrientationChange);
+      cleanupKeyboardHandling();
+    };
+  }, [cleanupKeyboardHandling, resetKeyboardStyles]);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    const isMobile = window.innerWidth <= 768;
+
     if (e.key === 'Enter') {
+      // On mobile: Enter adds newline, grows field
+      // On desktop: Shift+Enter adds newline, Enter sends
+      if (isMobile) {
+        // Switch to textarea if not already
+        if (!useTextarea) {
+          e.preventDefault();
+          setForceTextarea(true);
+          // Set command with newline after switching
+          setTimeout(() => {
+            setCommand(command + '\n');
+          }, 0);
+        }
+        // Let the newline be added naturally in textarea
+        return;
+      }
+
+      // Desktop behavior
+      if (e.shiftKey) {
+        if (!useTextarea) {
+          e.preventDefault();
+          setForceTextarea(true);
+        }
+        return;
+      }
       e.preventDefault();
       handleSendCommand();
     }
@@ -673,8 +975,12 @@ export function ClaudeOutputPanel() {
   }, [selectedAgentId, selectedAgent?.sessionId, loadingMore, hasMore, history.length]);
 
   // Handle scroll to detect when to load more and track if user scrolled up
+  // Don't track scroll position changes during keyboard adjustment
   const handleScroll = useCallback(() => {
     if (!outputRef.current) return;
+
+    // Skip tracking during keyboard adjustment - the keyboard handler is controlling scroll
+    if (keyboardScrollLockRef.current) return;
 
     const { scrollTop, scrollHeight, clientHeight } = outputRef.current;
     // Use a larger threshold (150px) to better detect if user has scrolled up
@@ -748,15 +1054,34 @@ export function ClaudeOutputPanel() {
     const textarea = textareaRef.current;
     if (!textarea || !useTextarea) return;
 
-    // Reset height to auto to get the correct scrollHeight
-    textarea.style.height = 'auto';
-    // Set to scrollHeight (capped by max-height in CSS)
-    const newHeight = Math.min(textarea.scrollHeight, 180);
-    textarea.style.height = `${newHeight}px`;
+    const isMobile = window.innerWidth <= 768;
+    const maxHeight = isMobile ? 200 : 180;
+
+    // Use RAF to avoid layout thrashing during typing
+    requestAnimationFrame(() => {
+      // Temporarily remove height constraint to measure true scrollHeight
+      const prevHeight = textarea.style.height;
+      textarea.style.height = '0px';
+      textarea.style.overflow = 'hidden';
+
+      // Get the natural content height
+      const scrollHeight = textarea.scrollHeight;
+      const newHeight = Math.max(46, Math.min(scrollHeight, maxHeight));
+
+      // Apply the calculated height
+      textarea.style.height = `${newHeight}px`;
+      textarea.style.overflow = newHeight >= maxHeight ? 'auto' : 'hidden';
+    });
   }, [command, useTextarea]);
 
   // Auto-scroll to bottom on new output (only if user is at bottom)
+  // Skip if keyboard scroll lock is active to prevent fighting with keyboard positioning
+  // Also track the last output's text length for streaming updates
+  const lastOutputLength = outputs.length > 0 ? outputs[outputs.length - 1]?.text?.length || 0 : 0;
   useEffect(() => {
+    // Don't auto-scroll if keyboard is adjusting - let the keyboard handler control scroll
+    if (keyboardScrollLockRef.current) return;
+
     let rafId: number;
     rafId = requestAnimationFrame(() => {
       if (outputRef.current) {
@@ -771,23 +1096,76 @@ export function ClaudeOutputPanel() {
     });
 
     return () => cancelAnimationFrame(rafId);
-  }, [outputs.length]);
+  }, [outputs.length, lastOutputLength]);
 
-  // Scroll to bottom when switching agents or when reconnect triggers history refresh
+  // Track agent switches to trigger scroll
+  const prevSelectedAgentIdRef = useRef<string | null>(null);
+  const justSwitchedAgentRef = useRef(false);
+
+  // Detect agent switch
   useEffect(() => {
-    if (loadingHistory) return;
+    if (selectedAgentId !== prevSelectedAgentIdRef.current) {
+      justSwitchedAgentRef.current = true;
+      prevSelectedAgentIdRef.current = selectedAgentId;
+    }
+  }, [selectedAgentId]);
 
+  // Track previous terminal open state for scroll on open
+  const prevIsOpenForScrollRef = useRef(false);
+  // Track if we need to scroll after content loads
+  const pendingScrollRef = useRef(false);
+  // Track if history content should fade in (on fresh load)
+  const [historyFadeIn, setHistoryFadeIn] = useState(false);
+
+  // Helper to scroll output to bottom
+  const scrollToBottom = useCallback(() => {
+    if (keyboardScrollLockRef.current) return;
     isUserScrolledUpRef.current = false;
 
-    let rafId: number;
-    rafId = requestAnimationFrame(() => {
-      if (outputRef.current) {
-        outputRef.current.scrollTop = outputRef.current.scrollHeight;
-      }
+    // Use double RAF to ensure DOM has updated
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (outputRef.current) {
+          outputRef.current.scrollTop = outputRef.current.scrollHeight;
+        }
+      });
     });
+  }, []);
 
-    return () => cancelAnimationFrame(rafId);
-  }, [selectedAgentId, loadingHistory, reconnectCount]);
+  // When terminal opens, mark that we need to scroll
+  useEffect(() => {
+    const wasOpen = prevIsOpenForScrollRef.current;
+    prevIsOpenForScrollRef.current = isOpen;
+
+    if (!wasOpen && isOpen) {
+      // Mark pending scroll - will be executed after content renders
+      pendingScrollRef.current = true;
+      // Reset fade-in state when opening - will be triggered when history loads
+      setHistoryFadeIn(false);
+      // Immediate scroll attempt
+      scrollToBottom();
+    }
+  }, [isOpen, scrollToBottom]);
+
+  // Scroll to bottom when history finishes loading or agent switches
+  // This is the main scroll effect that waits for content
+  useEffect(() => {
+    if (!isOpen) return;
+    if (loadingHistory) return;
+
+    // Trigger fade-in animation for history content
+    setHistoryFadeIn(true);
+
+    // After history loads, scroll to bottom
+    // Use delay to ensure markdown/code blocks are fully rendered
+    const timeoutId = setTimeout(() => {
+      scrollToBottom();
+      pendingScrollRef.current = false;
+      justSwitchedAgentRef.current = false;
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [selectedAgentId, loadingHistory, reconnectCount, isOpen, scrollToBottom]);
 
   // Keyboard shortcut to toggle (backtick key like Guake)
   useEffect(() => {
@@ -804,9 +1182,14 @@ export function ClaudeOutputPanel() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [selectedAgent]);
 
-  // Close terminal when clicking outside
+  // Close terminal when clicking outside (desktop only)
+  // On mobile, this behavior can interfere with input focus and keyboard events
   useEffect(() => {
     if (!isOpen) return;
+
+    // Disable on mobile to prevent focus interference
+    const isMobile = window.innerWidth <= 768;
+    if (isMobile) return;
 
     // Small delay to avoid closing immediately after opening via touch
     let ignoreClicks = true;
@@ -855,7 +1238,7 @@ export function ClaudeOutputPanel() {
       )}
 
       <div className="guake-content">
-        <div className="guake-header">
+        <div className={`guake-header ${sortedAgents.length > 1 ? 'has-multiple-agents' : ''}`} ref={headerRef}>
           <div className="guake-header-left">
             {selectedAgent.status === 'working' && (
               <span className="guake-working-indicator">
@@ -910,7 +1293,7 @@ export function ClaudeOutputPanel() {
           </div>
           <div className="guake-actions">
             <button
-              className={`guake-debug-toggle ${debugPanelOpen ? 'active' : ''}`}
+              className={`guake-debug-toggle hide-on-mobile ${debugPanelOpen ? 'active' : ''}`}
               onClick={() => {
                 const newOpen = !debugPanelOpen;
                 setDebugPanelOpen(newOpen);
@@ -925,7 +1308,7 @@ export function ClaudeOutputPanel() {
               🐛
             </button>
             <button
-              className={`guake-search-toggle ${searchMode ? 'active' : ''}`}
+              className={`guake-search-toggle hide-on-mobile ${searchMode ? 'active' : ''}`}
               onClick={() => {
                 setSearchMode(!searchMode);
                 if (searchMode) {
@@ -938,7 +1321,7 @@ export function ClaudeOutputPanel() {
               🔍
             </button>
             <button
-              className={`guake-view-toggle ${viewMode !== 'simple' ? 'active' : ''} view-mode-${viewMode}`}
+              className={`guake-view-toggle hide-on-mobile ${viewMode !== 'simple' ? 'active' : ''} view-mode-${viewMode}`}
               onClick={() => {
                 const currentIndex = VIEW_MODES.indexOf(viewMode);
                 const nextMode = VIEW_MODES[(currentIndex + 1) % VIEW_MODES.length];
@@ -955,17 +1338,30 @@ export function ClaudeOutputPanel() {
             >
               {viewMode === 'simple' ? '○ Simple' : viewMode === 'chat' ? '◐ Chat' : '◉ Advanced'}
             </button>
+            {/* Mobile view mode toggle - compact icon button */}
+            <button
+              className={`guake-mode-btn show-on-mobile view-mode-${viewMode}`}
+              onClick={() => {
+                const currentIndex = VIEW_MODES.indexOf(viewMode);
+                const nextMode = VIEW_MODES[(currentIndex + 1) % VIEW_MODES.length];
+                setViewMode(nextMode);
+                setStorageString(STORAGE_KEYS.VIEW_MODE, nextMode);
+              }}
+              title={`View: ${viewMode}`}
+            >
+              {viewMode === 'simple' ? '○' : viewMode === 'chat' ? '◐' : '◉'}
+            </button>
             {outputs.length > 0 && (
               <button
                 className="guake-clear"
                 onClick={() => selectedAgentId && store.clearOutputs(selectedAgentId)}
                 title="Clear output"
               >
-                Clear
+                C
               </button>
             )}
             <button
-              className="guake-context-btn"
+              className="guake-context-btn hide-on-mobile"
               onClick={() => setContextConfirm('collapse')}
               title="Collapse context - summarize conversation to save tokens"
               disabled={selectedAgent.status !== 'idle'}
@@ -973,13 +1369,21 @@ export function ClaudeOutputPanel() {
               📦 Collapse
             </button>
             <button
-              className="guake-context-btn danger"
+              className="guake-context-btn danger hide-on-mobile"
               onClick={() => setContextConfirm('clear')}
               title="Clear context - start fresh session"
             >
               🗑️ Clear Context
             </button>
-            <span className="guake-hint">Press ` to toggle</span>
+            <span className="guake-hint hide-on-mobile">Press ` to toggle</span>
+            {/* Mobile close button - switch to 3D view */}
+            <button
+              className="guake-close-btn show-on-mobile"
+              onClick={() => store.setMobileView('3d')}
+              title="Close terminal"
+            >
+              ✕
+            </button>
           </div>
         </div>
 
@@ -1026,7 +1430,14 @@ export function ClaudeOutputPanel() {
               ))}
             </>
           ) : loadingHistory ? (
-            <div className="guake-empty">Loading history...</div>
+            <div className="guake-empty loading">
+              Loading conversation
+              <span className="loading-dots">
+                <span></span>
+                <span></span>
+                <span></span>
+              </span>
+            </div>
           ) : history.length === 0 && outputs.length === 0 && selectedAgent?.status !== 'working' ? (
             <div className="guake-empty">No output yet. Send a command to this agent.</div>
           ) : (
@@ -1040,18 +1451,20 @@ export function ClaudeOutputPanel() {
                   )}
                 </div>
               )}
-              {filteredHistory.map((msg, index) => (
-                <HistoryLine
-                  key={`h-${index}`}
-                  message={msg}
-                  agentId={selectedAgentId}
-                  simpleView={viewMode !== 'advanced'}
-                  onImageClick={handleImageClick}
-                  onFileClick={handleFileClick}
-                  onBashClick={handleBashClick}
-                  onViewMarkdown={handleViewMarkdown}
-                />
-              ))}
+              <div className={`guake-history-content ${historyFadeIn ? 'fade-in' : ''}`}>
+                {filteredHistory.map((msg, index) => (
+                  <HistoryLine
+                    key={`h-${index}`}
+                    message={msg}
+                    agentId={selectedAgentId}
+                    simpleView={viewMode !== 'advanced'}
+                    onImageClick={handleImageClick}
+                    onFileClick={handleFileClick}
+                    onBashClick={handleBashClick}
+                    onViewMarkdown={handleViewMarkdown}
+                  />
+                ))}
+              </div>
               {filteredOutputs.map((output, index) => (
                 <OutputLine
                   key={`o-${index}`}
@@ -1154,6 +1567,8 @@ export function ClaudeOutputPanel() {
                 onChange={(e) => setCommand(e.target.value)}
                 onKeyDown={handleKeyDown}
                 onPaste={handlePaste}
+                onFocus={handleInputFocus}
+                onBlur={handleInputBlur}
               />
             ) : (
               <input
@@ -1164,6 +1579,8 @@ export function ClaudeOutputPanel() {
                 onChange={(e) => setCommand(e.target.value)}
                 onKeyDown={handleKeyDown}
                 onPaste={handlePaste}
+                onFocus={handleInputFocus}
+                onBlur={handleInputBlur}
               />
             )}
             <button onClick={handleSendCommand} disabled={!command.trim() && attachedFiles.length === 0} title="Send">

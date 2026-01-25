@@ -282,10 +282,11 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
         onClick={handleContextClick}
         title={agentId ? 'Click to view detailed context stats' : undefined}
       >
-        <span className="output-timestamp" title={`${timestamp} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#666', fontFamily: 'monospace'}}>[{debugHash}]</span></span>
-        <span style={{ color: '#bd93f9', fontSize: '12px' }}>📊</span>
-        <span style={{ fontSize: '11px', color: '#6272a4' }}>Context:</span>
+        <span className="output-timestamp context-timestamp" title={`${timestamp} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#666', fontFamily: 'monospace'}}>[{debugHash}]</span></span>
+        <span className="context-icon" style={{ color: '#bd93f9', fontSize: '12px' }}>📊</span>
+        <span className="context-label" style={{ fontSize: '11px', color: '#6272a4' }}>Context:</span>
         <div
+          className="context-bar"
           style={{
             width: '80px',
             height: '6px',
@@ -304,12 +305,12 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
             }}
           />
         </div>
-        <span style={{ fontSize: '11px', color: percentColor, fontWeight: 600 }}>
+        <span className="context-tokens" style={{ fontSize: '11px', color: percentColor, fontWeight: 600 }}>
           {tokensMatch ? `${tokensMatch[1]}k/${tokensMatch[2]}k` : '?'}
         </span>
-        <span style={{ fontSize: '11px', color: '#6272a4' }}>({freePercent.toFixed(0)}% free)</span>
+        <span className="context-free" style={{ fontSize: '11px', color: '#6272a4' }}>({freePercent.toFixed(0)}% free)</span>
         {messages && (
-          <span style={{ fontSize: '10px', color: '#4aff9e', opacity: 0.7 }}>msgs: {messages.tokens}</span>
+          <span className="context-msgs" style={{ fontSize: '10px', color: '#4aff9e', opacity: 0.7 }}>msgs: {messages.tokens}</span>
         )}
       </div>
     );

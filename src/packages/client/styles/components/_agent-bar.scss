@@ -289,6 +289,29 @@
     animation: agent-waiting-pulse 2s ease-in-out infinite;
     box-shadow: 0 0 8px rgba($dracula-orange, 0.3);
   }
+
+  // Boss agent special styling - golden theme
+  &.is-boss {
+    background: linear-gradient(135deg, rgba(#ffd700, 0.15) 0%, rgba(#ff8c00, 0.1) 100%);
+    border: 2px solid rgba(#ffd700, 0.6);
+    box-shadow: 0 0 12px rgba(#ffd700, 0.3), inset 0 0 8px rgba(#ffd700, 0.1);
+
+    &:hover {
+      background: linear-gradient(135deg, rgba(#ffd700, 0.25) 0%, rgba(#ff8c00, 0.2) 100%);
+      border-color: rgba(#ffd700, 0.9);
+      box-shadow: 0 0 20px rgba(#ffd700, 0.5), inset 0 0 12px rgba(#ffd700, 0.15);
+    }
+
+    &.selected {
+      border-color: #ffd700;
+      background: linear-gradient(135deg, rgba(#ffd700, 0.3) 0%, rgba($dracula-purple, 0.2) 100%);
+      box-shadow: 0 0 16px rgba(#ffd700, 0.6), 0 0 24px rgba($dracula-purple, 0.3);
+    }
+
+    &.working {
+      animation: boss-working-pulse 1.5s ease-in-out infinite;
+    }
+  }
 }
 
 @keyframes agent-working-pulse {
@@ -328,6 +351,17 @@
   50% {
     box-shadow: 0 0 14px rgba($dracula-orange, 0.5);
     border-color: rgba($dracula-orange, 0.9);
+  }
+}
+
+@keyframes boss-working-pulse {
+  0%, 100% {
+    box-shadow: 0 0 12px rgba(#ffd700, 0.4), inset 0 0 8px rgba(#ffd700, 0.1);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 24px rgba(#ffd700, 0.7), 0 0 36px rgba(#ffd700, 0.3), inset 0 0 12px rgba(#ffd700, 0.2);
+    transform: scale(1.05);
   }
 }
 

@@ -140,6 +140,7 @@ export function FileExplorerPanel({
   const [isAddingFolder, setIsAddingFolder] = useState(false);
   const [newFolderPath, setNewFolderPath] = useState('');
   const [hasRestoredState, setHasRestoredState] = useState(false);
+  const [treePanelCollapsed, setTreePanelCollapsed] = useState(false);
 
   // File tabs state
   const [openTabs, setOpenTabs] = useState<FileTab[]>([]);
@@ -687,9 +688,16 @@ export function FileExplorerPanel({
       {/* Main Content */}
       <div className="file-explorer-main">
         {/* Tree Panel (Left) */}
-        <div className="file-explorer-tree-panel">
+        <div className={`file-explorer-tree-panel ${treePanelCollapsed ? 'collapsed' : ''}`}>
           {/* Tab Bar */}
           <div className="file-explorer-tabs">
+            <button
+              className="file-explorer-tree-toggle"
+              onClick={() => setTreePanelCollapsed(!treePanelCollapsed)}
+              title={treePanelCollapsed ? 'Expand tree' : 'Collapse tree'}
+            >
+              {treePanelCollapsed ? '▼' : '▲'}
+            </button>
             <button
               className={`file-explorer-tab ${viewMode === 'files' ? 'active' : ''}`}
               onClick={() => setViewMode('files')}

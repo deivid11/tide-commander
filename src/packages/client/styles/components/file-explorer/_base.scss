@@ -1,0 +1,32 @@
+// =============================================================================
+// File Explorer - Base Styles
+// =============================================================================
+// Core overlay and modal structure
+// =============================================================================
+
+@use '../../variables' as *;
+
+.file-explorer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn $transition-normal ease-out;
+}
+
+.file-explorer-modal {
+  width: 600px;
+  max-width: 90vw;
+  height: 70%;
+  max-height: 600px;
+  background: $dracula-bg;
+  border: 1px solid $dracula-current;
+  border-radius: $radius-xl;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}

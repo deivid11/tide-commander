@@ -2,6 +2,41 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.14.0] - 2026-01-25
+
+### Added
+- **PWA Support** - Install Tide Commander as a standalone app
+  - Web app manifest with icons (192x192, 512x512)
+  - Service worker for offline caching
+  - PWA install banner with dismiss/install options
+  - Standalone display mode support
+- **Modal Stack System** - Proper modal layering and keyboard handling
+  - `useModalStack` hook for z-index management
+  - Escape key closes topmost modal only
+  - Prevents body scroll when modals open
+- **Swipe Gesture Hook** - Touch gesture detection for mobile
+  - `useSwipeGesture` hook with configurable thresholds
+  - Support for swipe direction detection
+
+### Changed
+- **Responsive Styles Reorganization** - Major refactor of mobile styles
+  - Expanded responsive breakpoints and utilities
+  - Better mobile panel layouts
+  - Improved touch targets for mobile
+- **File Explorer Styles** - Split into modular directory structure
+  - `file-explorer/_index.scss` with partials
+- **Guake Terminal Styles** - Split into modular directory structure
+  - `guake-terminal/_index.scss` with partials
+- **Agent Bar Mobile** - Enhanced mobile responsiveness
+- **Git Changes Panel** - Improved mobile layout and interactions
+- **Double Click Detection** - Better touch device handling
+
+### Technical
+- New `PWAInstallBanner` component
+- `useModalStack`, `useSwipeGesture` hooks exported from hooks/index
+- Touch event handling improvements in InputHandler
+- Scene manager touch gesture support
+
 ## [0.13.0] - 2026-01-25
 
 ### Added

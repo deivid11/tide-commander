@@ -1,0 +1,132 @@
+@use '../variables' as *;
+
+.pwa-install-banner {
+  position: fixed;
+  bottom: 80px; // Above the AgentBar
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10000;
+
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  min-width: 300px;
+  max-width: calc(100vw - 32px);
+
+  background: linear-gradient(135deg, $bg-secondary 0%, $bg-primary 100%);
+  border: 1px solid $accent-cyan;
+  border-radius: $radius-xl;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.5),
+    0 0 20px rgba($accent-cyan, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+
+  animation: pwa-slide-up 0.3s ease-out;
+
+  @keyframes pwa-slide-up {
+    from {
+      opacity: 0;
+      transform: translateX(-50%) translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+  }
+}
+
+.pwa-install-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pwa-install-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: $radius-md;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.pwa-install-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  strong {
+    font-size: 15px;
+    font-weight: 600;
+    color: $text-primary;
+  }
+
+  span {
+    font-size: 13px;
+    color: $text-secondary;
+  }
+}
+
+.pwa-install-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.pwa-install-dismiss {
+  padding: 8px 16px;
+  background: transparent;
+  border: 1px solid $border-color;
+  border-radius: $radius-md;
+  color: $text-secondary;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: $text-primary;
+  }
+}
+
+.pwa-install-button {
+  padding: 8px 20px;
+  background: linear-gradient(135deg, $accent-cyan 0%, darken($accent-cyan, 15%) 100%);
+  border: none;
+  border-radius: $radius-md;
+  color: $bg-primary;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    filter: brightness(1.1);
+    transform: translateY(-1px);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+}
+
+// Mobile adjustments
+@media (max-width: 768px) {
+  .pwa-install-banner {
+    bottom: 100px; // More space on mobile for the larger AgentBar
+    left: 16px;
+    right: 16px;
+    transform: none;
+    min-width: auto;
+
+    @keyframes pwa-slide-up {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+  }
+}

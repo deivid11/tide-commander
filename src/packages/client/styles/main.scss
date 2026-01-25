@@ -15,11 +15,11 @@
 @use 'components/modal';
 @use 'components/toast';
 @use 'components/toolbox';
-@use 'components/guake-terminal';
+@use 'components/guake-terminal/index' as guake-terminal;
 @use 'components/markdown';
 @use 'components/commander-view';
 @use 'components/file-viewer';
-@use 'components/file-explorer';
+@use 'components/file-explorer/index' as file-explorer;
 @use 'components/diff-viewer';
 @use 'components/agent-bar';
 @use 'components/bottom-toolbar';
@@ -31,6 +31,7 @@
 @use 'components/boss';
 @use 'components/skills-panel';
 @use 'components/agent-notification';
+@use 'components/pwa-install';
 
 // Responsive styles (must be last to override component styles)
 @use 'responsive';

@@ -1,0 +1,164 @@
+// =============================================================================
+// File Explorer - Tree Styles
+// =============================================================================
+// File tree navigation, tree panel, and tree node styles
+// =============================================================================
+
+@use '../../variables' as *;
+
+// IDE Style - Tree Panel (Left)
+.file-explorer-tree-panel {
+  width: 280px;
+  min-width: 220px;
+  max-width: 400px;
+  flex-shrink: 0;
+  border-right: 1px solid $border-color;
+  background: $dracula-bg-darker;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  .file-explorer-tabs {
+    flex-shrink: 0;
+    border-bottom: 1px solid $border-color;
+  }
+
+  .file-explorer-search {
+    flex-shrink: 0;
+  }
+}
+
+// Tree panel toggle - hidden on desktop
+.file-explorer-tree-toggle {
+  display: none;
+}
+
+// Tree content area (scrollable)
+.file-explorer-tree-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+}
+
+.file-tree {
+  padding: 2px 0;
+}
+
+.tree-loading,
+.tree-empty {
+  padding: 20px;
+  text-align: center;
+  color: $text-muted;
+  font-size: 12px;
+}
+
+// Tree Node
+.tree-node-wrapper {
+  user-select: none;
+}
+
+.tree-node {
+  // Indentation is now set inline via React (paddingLeft style)
+  // This allows for reliable cross-browser support including mobile
+
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-top: 1px;
+  padding-right: 4px;
+  padding-bottom: 1px;
+  // padding-left is set inline by the component
+  cursor: pointer;
+  transition: background $transition-fast;
+  white-space: nowrap;
+  border-radius: 2px;
+  margin: 0 2px;
+  position: relative;
+  line-height: 1.2;
+
+  &:hover {
+    background: rgba($accent-blue, 0.12);
+
+    .tree-arrow {
+      color: $dracula-cyan;
+    }
+  }
+
+  &.selected {
+    background: rgba($accent-blue, 0.2);
+
+    &::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 1px;
+      bottom: 1px;
+      width: 2px;
+      background: $accent-blue;
+      border-radius: 0 1px 1px 0;
+    }
+
+    .tree-name {
+      color: $text-primary;
+    }
+  }
+
+  &.directory {
+    .tree-name {
+      color: $dracula-cyan;
+    }
+
+    .tree-folder-icon {
+      color: $dracula-yellow;
+    }
+
+    &.expanded .tree-folder-icon {
+      color: $dracula-orange;
+    }
+  }
+
+  &.file .tree-name {
+    color: $dracula-fg;
+  }
+}
+
+.tree-arrow {
+  font-size: 7px;
+  color: rgba($text-muted, 0.5);
+  width: 8px;
+  text-align: center;
+  transition: transform 0.15s ease, color 0.1s;
+  flex-shrink: 0;
+
+  &.expanded {
+    transform: rotate(90deg);
+    color: $dracula-cyan;
+  }
+}
+
+.tree-folder-icon {
+  font-size: 11px;
+  width: 12px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.tree-icon {
+  font-size: 10px;
+  width: 12px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.tree-name {
+  font-family: $font-mono;
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.tree-children {
+  // No visual guide lines - keeps it cleaner and saves space
+}

@@ -1,0 +1,997 @@
+// =============================================================================
+// File Explorer - Mobile Styles
+// =============================================================================
+// Responsive styles for mobile devices
+// =============================================================================
+
+@use '../../variables' as *;
+
+// Breakpoints (matching _responsive.scss)
+$breakpoint-tablet: 1024px;
+$breakpoint-mobile: 768px;
+$breakpoint-small: 480px;
+
+// =============================================================================
+// TABLET STYLES (up to 1024px)
+// =============================================================================
+
+@media (max-width: $breakpoint-tablet) {
+  .file-explorer-panel {
+    width: 100%;
+
+    &.ide-style {
+      width: 100%;
+    }
+  }
+
+  .file-explorer-tree-panel {
+    width: 240px;
+    min-width: 200px;
+  }
+}
+
+// =============================================================================
+// MOBILE STYLES (up to 768px)
+// =============================================================================
+
+@media (max-width: $breakpoint-mobile) {
+  // Full screen panel
+  .file-explorer-panel {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100% !important;
+    height: 100dvh;
+    z-index: 300; // Above everything
+    border: none;
+    border-radius: 0;
+
+    &.ide-style {
+      width: 100% !important;
+    }
+  }
+
+  // Header - compact
+  .file-explorer-panel-header {
+    padding: 6px 10px;
+    min-height: 36px;
+    gap: 6px;
+  }
+
+  .file-explorer-panel-title {
+    font-size: 12px;
+    gap: 3px;
+    flex-wrap: nowrap;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .file-explorer-panel-dot {
+    width: 6px;
+    height: 6px;
+  }
+
+  .file-explorer-area-selector,
+  .file-explorer-folder-selector {
+    padding: 3px 5px;
+    margin: -1px -3px;
+  }
+
+  .file-explorer-area-dropdown-icon,
+  .file-explorer-folder-dropdown-icon {
+    font-size: 6px;
+  }
+
+  .file-explorer-path-separator {
+    margin: 0;
+    font-size: 9px;
+  }
+
+  .file-explorer-folder-name {
+    font-size: 10px;
+    max-width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .file-explorer-current-file {
+    display: none;
+  }
+
+  .file-explorer-panel-close {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+
+  // Dropdowns - full width on mobile
+  .file-explorer-area-dropdown,
+  .file-explorer-folder-dropdown {
+    position: fixed;
+    top: 52px;
+    left: 8px;
+    right: 8px;
+    width: auto;
+    min-width: auto;
+    max-width: none;
+    max-height: 50vh;
+    z-index: 1100;
+  }
+
+  .file-explorer-area-option,
+  .file-explorer-folder-option {
+    padding: 12px 14px;
+    min-height: 44px;
+  }
+
+  .file-explorer-area-option-name,
+  .file-explorer-folder-option-name {
+    font-size: 14px;
+  }
+
+  // Main content - stack vertically on mobile
+  .file-explorer-main {
+    flex-direction: column;
+    height: calc(100dvh - 36px);
+  }
+
+  // Tree panel - compact
+  .file-explorer-tree-panel {
+    width: 100%;
+    min-width: 100%;
+    max-width: 100%;
+    height: auto;
+    max-height: 50%;
+    min-height: 100px;
+    border-right: none;
+    border-bottom: 1px solid $border-color;
+    flex-shrink: 0;
+    transition: max-height 0.2s ease, min-height 0.2s ease;
+
+    // Resize handle
+    &::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 30px;
+      height: 2px;
+      background: rgba($dracula-comment, 0.3);
+      border-radius: 1px;
+      margin-bottom: 1px;
+    }
+
+    // Collapsed state - only show tab bar
+    &.collapsed {
+      max-height: 32px;
+      min-height: 32px;
+      overflow: hidden;
+
+      .file-explorer-folders,
+      .file-explorer-toolbar,
+      .file-explorer-tree-content {
+        display: none;
+      }
+
+      &::after {
+        display: none;
+      }
+    }
+  }
+
+  // Tree panel toggle button
+  .file-explorer-tree-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    background: transparent;
+    border: none;
+    color: $text-muted;
+    font-size: 8px;
+    cursor: pointer;
+    padding: 0;
+    margin-right: 4px;
+    flex-shrink: 0;
+
+    &:active {
+      color: $text-primary;
+    }
+  }
+
+  // Tabs - compact
+  .file-explorer-tabs {
+    padding: 4px 6px;
+    gap: 2px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  .file-explorer-tab {
+    padding: 4px 8px;
+    font-size: 10px;
+    min-height: 26px;
+    white-space: nowrap;
+    flex-shrink: 0;
+
+    .tab-icon {
+      font-size: 9px;
+      margin-right: 2px;
+    }
+
+    .tab-badge {
+      font-size: 8px;
+      padding: 1px 3px;
+      margin-left: 3px;
+    }
+  }
+
+  // Folders section - hidden on mobile to save space
+  .file-explorer-folders {
+    display: none;
+  }
+
+  .file-explorer-folders-header {
+    padding: 4px 8px 1px;
+  }
+
+  .file-explorer-folders-title {
+    font-size: 8px;
+  }
+
+  .file-explorer-add-folder-btn {
+    width: 22px;
+    height: 22px;
+    font-size: 16px;
+  }
+
+  .file-explorer-folders-list {
+    padding: 2px 8px 6px;
+    gap: 2px;
+  }
+
+  .file-explorer-folder-item {
+    padding: 4px 6px;
+    font-size: 10px;
+    min-height: 28px;
+  }
+
+  .file-explorer-folder-icon {
+    font-size: 9px;
+  }
+
+  .file-explorer-folder-path {
+    font-size: 10px;
+  }
+
+  .file-explorer-folder-remove {
+    font-size: 16px;
+    padding: 0 4px;
+  }
+
+  // Hide tooltip on mobile - touch doesn't hover
+  .file-explorer-folder-tooltip {
+    display: none;
+  }
+
+  .file-explorer-no-folders {
+    padding: 6px;
+    font-size: 10px;
+  }
+
+  // Toolbar - compact
+  .file-explorer-toolbar {
+    padding: 4px 6px;
+    gap: 4px;
+  }
+
+  .file-explorer-search {
+    padding: 0;
+  }
+
+  .file-explorer-search-input {
+    padding: 6px 8px;
+    padding-right: 24px;
+    font-size: 13px;
+    min-height: 28px;
+
+    &::placeholder {
+      font-size: 10px;
+    }
+  }
+
+  .file-explorer-search-icon {
+    font-size: 10px;
+  }
+
+  .file-explorer-search-clear {
+    right: 12px;
+    font-size: 14px;
+    padding: 4px;
+  }
+
+  .file-explorer-toolbar-buttons {
+    gap: 2px;
+  }
+
+  .file-explorer-toolbar-btn {
+    width: 26px;
+    height: 26px;
+    font-size: 12px;
+  }
+
+  // Tree content
+  .file-explorer-tree-content {
+    flex: 1;
+    min-height: 40px;
+  }
+
+  .file-tree {
+    padding: 2px 0;
+  }
+
+  .tree-loading,
+  .tree-empty {
+    padding: 16px;
+    font-size: 12px;
+  }
+
+  // Tree nodes - compact for mobile
+  .tree-node {
+    padding: 1px 4px 1px 0 !important;
+    min-height: 20px !important;
+    gap: 2px;
+    margin: 0 !important;
+    border-radius: 2px;
+    line-height: 1 !important;
+
+    &:active {
+      background: rgba($accent-blue, 0.25);
+    }
+  }
+
+  .tree-node-wrapper {
+    margin: 0 !important;
+    padding: 0 !important;
+    line-height: 1 !important;
+  }
+
+  .tree-children {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .tree-arrow {
+    font-size: 7px;
+    width: 9px;
+    line-height: 1;
+  }
+
+  .tree-folder-icon {
+    font-size: 11px;
+    width: 12px;
+    line-height: 1;
+  }
+
+  .tree-icon {
+    font-size: 10px;
+    width: 12px;
+    line-height: 1;
+  }
+
+  .tree-name {
+    font-size: 11px;
+    line-height: 1 !important;
+  }
+
+  // Search results
+  .search-results {
+    padding: 2px 0;
+  }
+
+  .search-no-results {
+    padding: 16px;
+    font-size: 12px;
+  }
+
+  .search-result-item {
+    padding: 10px 12px;
+    min-height: 44px;
+    gap: 10px;
+
+    &:active {
+      background: rgba($accent-blue, 0.2);
+    }
+  }
+
+  .search-result-icon {
+    font-size: 16px;
+  }
+
+  .search-result-name {
+    font-size: 13px;
+  }
+
+  .search-result-path {
+    font-size: 10px;
+  }
+
+  // Unified search sections
+  .unified-search-section-header {
+    padding: 8px 10px;
+    font-size: 10px;
+    position: sticky;
+    top: 0;
+  }
+
+  .unified-search-section-icon {
+    font-size: 11px;
+  }
+
+  // Content search
+  .content-search-summary {
+    padding: 6px 10px;
+    font-size: 10px;
+  }
+
+  .content-search-header {
+    padding: 10px 12px;
+    min-height: 40px;
+
+    &:active {
+      background: rgba($accent-blue, 0.15);
+    }
+  }
+
+  .content-search-name {
+    font-size: 12px;
+  }
+
+  .content-search-count {
+    font-size: 10px;
+  }
+
+  .content-search-match {
+    padding: 8px 12px;
+    min-height: 36px;
+
+    &:active {
+      background: rgba($accent-blue, 0.15);
+    }
+  }
+
+  .content-search-line-num {
+    font-size: 10px;
+    min-width: 30px;
+  }
+
+  .content-search-line-content {
+    font-size: 11px;
+  }
+
+  // File tabs bar
+  .file-tabs-bar {
+    min-height: 32px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .file-tabs-container {
+    min-height: 32px;
+    padding: 0 4px;
+  }
+
+  .file-tab {
+    padding: 6px 10px;
+    padding-right: 6px;
+    min-width: 80px;
+    max-width: 140px;
+    min-height: 32px;
+    gap: 4px;
+
+    &:active {
+      background: rgba($accent-blue, 0.2);
+    }
+  }
+
+  .file-tab-icon {
+    font-size: 12px;
+  }
+
+  .file-tab-name {
+    font-size: 11px;
+  }
+
+  .file-tab-close {
+    width: 20px;
+    height: 20px;
+    font-size: 14px;
+    opacity: 0.7; // Always visible on mobile
+  }
+
+  // Viewer panel
+  .file-explorer-viewer-panel {
+    flex: 1;
+    min-height: 200px;
+  }
+
+  .file-viewer-placeholder {
+    padding: 20px;
+
+    .placeholder-icon {
+      font-size: 36px;
+    }
+
+    .placeholder-text {
+      font-size: 13px;
+    }
+  }
+
+  .file-viewer-header {
+    padding: 8px 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .file-viewer-header-left {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .file-viewer-header-right {
+    margin-left: 0;
+    flex-shrink: 0;
+  }
+
+  .file-viewer-filename {
+    font-size: 12px;
+    word-break: break-all;
+  }
+
+  .file-viewer-meta {
+    font-size: 10px;
+  }
+
+  .file-viewer-locate-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
+  }
+
+  .file-viewer-download-btn {
+    padding: 8px 12px;
+    font-size: 12px;
+    min-height: 32px;
+
+    &.large {
+      padding: 12px 20px;
+      font-size: 13px;
+    }
+  }
+
+  .file-viewer-code-wrapper {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .file-viewer-pre {
+    padding: 12px;
+    font-size: 11px;
+    line-height: 1.4;
+    tab-size: 2;
+
+    code {
+      font-size: inherit;
+    }
+  }
+
+  // Image viewer
+  .file-viewer-image-wrapper {
+    padding: 12px;
+  }
+
+  .file-viewer-image {
+    max-width: 100%;
+    max-height: calc(55dvh - 80px);
+  }
+
+  // Binary viewer
+  .file-viewer-binary {
+    padding: 24px 16px;
+    gap: 12px;
+  }
+
+  .file-viewer-binary-icon {
+    font-size: 48px;
+  }
+
+  .file-viewer-binary-name {
+    font-size: 14px;
+  }
+
+  .file-viewer-binary-size {
+    font-size: 11px;
+  }
+
+  .file-viewer-binary-message {
+    font-size: 12px;
+  }
+
+  // Git changes - compact
+  .git-changes {
+    height: 100%;
+  }
+
+  .git-changes-loading {
+    padding: 12px;
+    font-size: 11px;
+  }
+
+  .git-changes-empty {
+    padding: 16px 12px;
+  }
+
+  .git-empty-icon {
+    font-size: 28px;
+    margin-bottom: 8px;
+  }
+
+  .git-empty-text {
+    font-size: 12px;
+  }
+
+  .git-empty-branch {
+    font-size: 9px;
+  }
+
+  .git-changes-header {
+    padding: 4px 8px;
+    min-height: 24px;
+    gap: 6px;
+  }
+
+  .git-branch {
+    font-size: 9px;
+    gap: 3px;
+  }
+
+  .git-branch-icon {
+    font-size: 10px;
+  }
+
+  .git-changes-summary {
+    gap: 3px;
+  }
+
+  .git-count {
+    font-size: 8px;
+    padding: 1px 4px;
+  }
+
+  .git-refresh-btn {
+    width: 22px;
+    height: 22px;
+    font-size: 10px;
+  }
+
+  .git-changes-list {
+    padding: 2px 0;
+  }
+
+  .git-status-group {
+    margin-bottom: 4px;
+  }
+
+  .git-status-group-header {
+    padding: 3px 8px;
+    font-size: 9px;
+  }
+
+  .git-status-badge {
+    width: 12px;
+    height: 12px;
+    font-size: 8px;
+  }
+
+  .git-file-item {
+    padding: 2px 8px 2px 12px;
+    min-height: 24px;
+    gap: 4px;
+
+    &:active {
+      background: rgba($accent-blue, 0.2);
+    }
+  }
+
+  .git-file-status {
+    font-size: 9px;
+    width: 10px;
+  }
+
+  .git-file-name {
+    font-size: 11px;
+  }
+
+  .git-file-renamed {
+    font-size: 8px;
+  }
+
+  // Syntax highlighting - smaller on mobile
+  code[class*="language-"],
+  pre[class*="language-"] {
+    font-size: 11px;
+    line-height: 1.4;
+  }
+}
+
+// =============================================================================
+// SMALL MOBILE STYLES (up to 480px)
+// =============================================================================
+
+@media (max-width: $breakpoint-small) {
+  .file-explorer-panel-header {
+    padding: 6px 8px;
+    min-height: 40px;
+  }
+
+  .file-explorer-panel-title {
+    font-size: 12px;
+  }
+
+  .file-explorer-panel-close {
+    width: 32px;
+    height: 32px;
+    font-size: 20px;
+  }
+
+  .file-explorer-tree-panel {
+    max-height: 40%;
+    min-height: 100px;
+  }
+
+  .file-explorer-tabs {
+    padding: 4px 6px;
+  }
+
+  .file-explorer-tab {
+    padding: 5px 8px;
+    font-size: 11px;
+    min-width: 70px;
+    max-width: 120px;
+    min-height: 28px;
+  }
+
+  .file-explorer-folders {
+    max-height: 60px;
+  }
+
+  .file-explorer-toolbar {
+    padding: 4px 6px;
+    gap: 4px;
+  }
+
+  .file-explorer-search-input {
+    padding: 6px 8px;
+    font-size: 13px;
+    min-height: 32px;
+
+    &::placeholder {
+      font-size: 11px;
+    }
+  }
+
+  .file-explorer-toolbar-btn {
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
+  }
+
+  .tree-node {
+    // Note: padding-left (indentation) is set inline by the component
+    padding: 2px 3px 2px 0;
+    min-height: 20px;
+  }
+
+  .tree-name {
+    font-size: 10px;
+  }
+
+  .tree-folder-icon {
+    font-size: 11px;
+    width: 12px;
+  }
+
+  .tree-icon {
+    font-size: 10px;
+    width: 12px;
+  }
+
+  .tree-arrow {
+    font-size: 7px;
+    width: 9px;
+  }
+
+  .search-result-item {
+    padding: 8px 10px;
+    min-height: 40px;
+  }
+
+  .search-result-name {
+    font-size: 12px;
+  }
+
+  .file-tab {
+    padding: 4px 6px;
+    min-width: 60px;
+    max-width: 100px;
+    min-height: 26px;
+  }
+
+  .file-tab-name {
+    font-size: 10px;
+  }
+
+  .file-tab-close {
+    width: 18px;
+    height: 18px;
+    font-size: 12px;
+  }
+
+  .file-viewer-header {
+    padding: 6px 8px;
+  }
+
+  .file-viewer-filename {
+    font-size: 11px;
+  }
+
+  .file-viewer-meta {
+    font-size: 9px;
+  }
+
+  .file-viewer-pre {
+    padding: 8px;
+    font-size: 10px;
+    line-height: 1.35;
+  }
+
+  .git-file-item {
+    padding: 2px 8px 2px 10px;
+    min-height: 22px;
+  }
+
+  .git-file-name {
+    font-size: 10px;
+  }
+
+  code[class*="language-"],
+  pre[class*="language-"] {
+    font-size: 10px;
+    line-height: 1.35;
+  }
+}
+
+// =============================================================================
+// TOUCH DEVICE OPTIMIZATIONS
+// =============================================================================
+
+@media (pointer: coarse) {
+  // Larger touch targets (except tree and git items which need to stay compact)
+  .search-result-item,
+  .content-search-header,
+  .content-search-match,
+  .file-tab {
+    min-height: 44px;
+  }
+
+  // Tree nodes stay compact - 24px is minimum for reliable touch
+  .tree-node {
+    min-height: 24px !important;
+  }
+
+  // Git file items stay compact
+  .git-file-item {
+    min-height: 28px !important;
+  }
+
+  .file-explorer-panel-close,
+  .file-explorer-toolbar-btn,
+  .file-explorer-add-folder-btn,
+  .git-refresh-btn,
+  .file-viewer-locate-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  // Disable hover effects
+  .tree-node:hover,
+  .search-result-item:hover,
+  .git-file-item:hover,
+  .file-tab:hover {
+    background: transparent;
+  }
+
+  // Use active states instead
+  .tree-node:active,
+  .search-result-item:active,
+  .git-file-item:active,
+  .file-tab:active {
+    background: rgba($accent-blue, 0.2);
+  }
+
+  // Always show close buttons on touch
+  .file-tab-close,
+  .file-explorer-folder-remove {
+    opacity: 0.7;
+  }
+}
+
+// =============================================================================
+// LANDSCAPE MOBILE
+// =============================================================================
+
+@media (max-width: $breakpoint-mobile) and (orientation: landscape) {
+  .file-explorer-main {
+    flex-direction: row;
+  }
+
+  .file-explorer-tree-panel {
+    width: 40%;
+    min-width: 200px;
+    max-width: 300px;
+    height: 100%;
+    max-height: 100%;
+    border-right: 1px solid $border-color;
+    border-bottom: none;
+
+    &::after {
+      display: none;
+    }
+  }
+
+  .file-explorer-viewer-panel {
+    flex: 1;
+    min-height: 100%;
+  }
+
+  .file-explorer-folders {
+    max-height: 60px;
+  }
+
+  .file-explorer-tree-content {
+    max-height: calc(100% - 140px);
+  }
+}
+
+// =============================================================================
+// SAFE AREA INSETS (notched devices)
+// =============================================================================
+
+@supports (padding: env(safe-area-inset-bottom)) {
+  @media (max-width: $breakpoint-mobile) {
+    .file-explorer-panel {
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
+    }
+
+    .file-explorer-panel-header {
+      padding-top: calc(8px + env(safe-area-inset-top));
+    }
+
+    .file-viewer-code-wrapper {
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+  }
+}

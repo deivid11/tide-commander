@@ -1,0 +1,266 @@
+// =============================================================================
+// File Explorer - Search Styles
+// =============================================================================
+// Search bar, search results, content search, and unified search
+// =============================================================================
+
+@use '../../variables' as *;
+
+// IDE Style - Search Bar
+.file-explorer-search {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  background: $bg-tertiary;
+  border-bottom: 1px solid $border-color;
+  position: relative;
+}
+
+.file-explorer-search-input {
+  flex: 1;
+  padding: 8px 12px;
+  padding-right: 32px;
+  background: $dracula-bg;
+  border: 1px solid $border-color;
+  border-radius: $radius-md;
+  color: $text-primary;
+  font-family: $font-mono;
+  font-size: 12px;
+
+  &:focus {
+    outline: none;
+    border-color: $accent-blue;
+  }
+
+  &::placeholder {
+    color: $text-muted;
+  }
+}
+
+.file-explorer-search-clear {
+  position: absolute;
+  right: 20px;
+  background: transparent;
+  border: none;
+  color: $text-muted;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+
+  &:hover {
+    color: $text-primary;
+  }
+}
+
+// Search Icon
+.file-explorer-search-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+// Search Results
+.search-results {
+  padding: 4px 0;
+}
+
+.search-no-results {
+  padding: 20px;
+  text-align: center;
+  color: $text-muted;
+  font-size: 12px;
+}
+
+.search-result-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background $transition-fast;
+
+  &:hover {
+    background: rgba($accent-blue, 0.1);
+  }
+
+  &.selected {
+    background: rgba($accent-blue, 0.2);
+  }
+}
+
+.search-result-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.search-result-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.search-result-name {
+  font-family: $font-mono;
+  font-size: 12px;
+  color: $dracula-fg;
+}
+
+.search-result-path {
+  font-family: $font-mono;
+  font-size: 10px;
+  color: $text-muted;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-highlight {
+  background: rgba($dracula-yellow, 0.3);
+  color: $dracula-yellow;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+// Unified Search Results
+.unified-search-results {
+  padding: 0;
+}
+
+.unified-search-section {
+  &:not(:last-child) {
+    border-bottom: 1px solid $border-color;
+  }
+}
+
+.unified-search-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.2);
+  font-size: 11px;
+  color: $text-muted;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.unified-search-section-icon {
+  font-size: 12px;
+}
+
+.unified-search-section-title {
+  font-weight: 600;
+}
+
+.unified-search-section-count {
+  margin-left: auto;
+  font-weight: normal;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.unified-search-section-content {
+  // Content styles inherited from existing search results
+}
+
+// Content Search Results
+.content-search-results {
+  padding: 4px 0;
+}
+
+.content-search-summary {
+  padding: 8px 12px;
+  font-size: 11px;
+  color: $text-muted;
+  border-bottom: 1px solid $border-color;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.content-search-item {
+  border-bottom: 1px solid rgba($border-color, 0.5);
+
+  &.selected {
+    background: rgba($accent-blue, 0.05);
+  }
+}
+
+.content-search-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background $transition-fast;
+
+  &:hover {
+    background: rgba($accent-blue, 0.1);
+  }
+}
+
+.content-search-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.content-search-name {
+  flex: 1;
+  font-family: $font-mono;
+  font-size: 12px;
+  color: $dracula-cyan;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.content-search-count {
+  font-size: 10px;
+  color: $text-muted;
+  flex-shrink: 0;
+}
+
+.content-search-matches {
+  padding-left: 12px;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.content-search-match {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background $transition-fast;
+
+  &:hover {
+    background: rgba($accent-blue, 0.1);
+  }
+}
+
+.content-search-line-num {
+  font-family: $font-mono;
+  font-size: 10px;
+  color: $dracula-comment;
+  min-width: 36px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.content-search-line-content {
+  flex: 1;
+  font-family: $font-mono;
+  font-size: 11px;
+  color: $text-secondary;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  .search-highlight {
+    background: rgba($dracula-yellow, 0.4);
+    color: $dracula-yellow;
+  }
+}
