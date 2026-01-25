@@ -56,6 +56,13 @@ export class SceneManager {
   private resizeObserver: ResizeObserver | null = null;
   private animationFrameId: number | null = null;
 
+  // Idle detection for power saving
+  private lastActivityTime = 0;
+  private isIdle = false;
+  private idleThreshold = 2000; // 2 seconds of no activity = idle
+  private idleFpsLimit = 10; // Limit to 10 FPS when idle
+  private lastIdleRenderTime = 0;
+
   // Callbacks
   private onAreaDoubleClickCallback: ((areaId: string) => void) | null = null;
   private onBuildingClickCallback: ((buildingId: string) => void) | null = null;
@@ -118,6 +125,7 @@ export class SceneManager {
         onBuildingDragMove: this.handleBuildingDragMove.bind(this),
         onBuildingDragEnd: this.handleBuildingDragEnd.bind(this),
         onContextMenu: this.handleContextMenu.bind(this),
+        onActivity: this.markActivity.bind(this),
       }
     );
 
@@ -612,16 +620,12 @@ export class SceneManager {
     }
   }
 
+  // Pool of reusable line objects for boss-subordinate connections
+  private linePool: THREE.Line[] = [];
+  private activeLineCount = 0;
+
   refreshSelectionVisuals(): void {
     const state = store.getState();
-
-    // Clear existing boss-subordinate connection lines
-    for (const line of this.bossSubordinateLines) {
-      this.scene.remove(line);
-      line.geometry.dispose();
-      (line.material as THREE.Material).dispose();
-    }
-    this.bossSubordinateLines = [];
 
     // Collect all bosses whose hierarchy should be shown
     // This includes: selected bosses, and bosses of selected subordinates
@@ -652,7 +656,16 @@ export class SceneManager {
       }
     }
 
-    // Draw connection lines from bosses to their subordinates
+    // Count how many lines we need
+    let neededLines = 0;
+    for (const [, boss] of bossesToShow) {
+      if (boss.subordinateIds) {
+        neededLines += boss.subordinateIds.length;
+      }
+    }
+
+    // Reuse existing lines from pool or create new ones as needed
+    let lineIndex = 0;
     for (const [, boss] of bossesToShow) {
       const bossMesh = this.agentMeshes.get(boss.id);
       if (!bossMesh || !boss.subordinateIds) continue;
@@ -661,31 +674,43 @@ export class SceneManager {
         const subMesh = this.agentMeshes.get(subId);
         if (!subMesh) continue;
 
-        // Create line from boss to subordinate
-        const points = [
-          new THREE.Vector3(
-            bossMesh.group.position.x,
-            0.05, // Slightly above ground
-            bossMesh.group.position.z
-          ),
-          new THREE.Vector3(
-            subMesh.group.position.x,
-            0.05,
-            subMesh.group.position.z
-          ),
-        ];
+        let line: THREE.Line;
+        if (lineIndex < this.linePool.length) {
+          // Reuse existing line from pool
+          line = this.linePool[lineIndex];
+          line.visible = true;
+        } else {
+          // Create new line and add to pool
+          const geometry = new THREE.BufferGeometry();
+          geometry.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0], 3));
+          const material = new THREE.LineBasicMaterial({
+            color: 0xffd700, // Gold color to match subordinate highlight
+            transparent: true,
+            opacity: 0.3,
+          });
+          line = new THREE.Line(geometry, material);
+          this.scene.add(line);
+          this.linePool.push(line);
+        }
 
-        const geometry = new THREE.BufferGeometry().setFromPoints(points);
-        const material = new THREE.LineBasicMaterial({
-          color: 0xffd700, // Gold color to match subordinate highlight
-          transparent: true,
-          opacity: 0.3,
-        });
-        const line = new THREE.Line(geometry, material);
-        this.scene.add(line);
-        this.bossSubordinateLines.push(line);
+        // Update line positions
+        const positions = line.geometry.attributes.position as THREE.BufferAttribute;
+        positions.setXYZ(0, bossMesh.group.position.x, 0.05, bossMesh.group.position.z);
+        positions.setXYZ(1, subMesh.group.position.x, 0.05, subMesh.group.position.z);
+        positions.needsUpdate = true;
+
+        lineIndex++;
       }
     }
+
+    // Hide unused lines (don't dispose, keep in pool for reuse)
+    for (let i = lineIndex; i < this.linePool.length; i++) {
+      this.linePool[i].visible = false;
+    }
+
+    // Update bossSubordinateLines to reference active lines (for updateBossSubordinateLines)
+    this.bossSubordinateLines = this.linePool.slice(0, lineIndex);
+    this.activeLineCount = lineIndex;
 
     // Also track boss IDs that should be highlighted
     const bossIdsToHighlight = new Set(bossesToShow.keys());
@@ -1049,6 +1074,9 @@ export class SceneManager {
   }
 
   private handleMoveCommand(position: THREE.Vector3, agentIds: string[]): void {
+    // Mark activity since agents will be moving
+    this.markActivity();
+
     this.effectsManager.createMoveOrderEffect(position.clone());
 
     const positions = this.inputHandler.calculateFormationPositions(position, agentIds.length);
@@ -1200,17 +1228,39 @@ export class SceneManager {
   }
 
   // ============================================
+  // Activity Tracking for Power Saving
+  // ============================================
+
+  /**
+   * Mark scene as active - call this when user interacts or content changes.
+   * This prevents idle throttling for a short period.
+   */
+  markActivity(): void {
+    this.lastActivityTime = Date.now();
+    this.isIdle = false;
+  }
+
+  // ============================================
   // Animation Loop
   // ============================================
 
   private animate = (): void => {
     this.animationFrameId = requestAnimationFrame(this.animate);
 
-    // FPS limiting: skip frame if not enough time has passed
     const now = Date.now();
-    if (this.frameInterval > 0) {
+
+    // Check if we're idle (no activity for idleThreshold ms)
+    if (!this.isIdle && now - this.lastActivityTime > this.idleThreshold) {
+      this.isIdle = true;
+    }
+
+    // FPS limiting: use idle FPS limit when idle, otherwise user-set limit
+    const effectiveFpsLimit = this.isIdle ? this.idleFpsLimit : this.fpsLimit;
+    const effectiveFrameInterval = effectiveFpsLimit > 0 ? 1000 / effectiveFpsLimit : this.frameInterval;
+
+    if (effectiveFrameInterval > 0) {
       const elapsed = now - this.lastRenderTime;
-      if (elapsed < this.frameInterval) {
+      if (elapsed < effectiveFrameInterval) {
         return; // Skip this frame
       }
       this.lastRenderTime = now;
@@ -1248,6 +1298,12 @@ export class SceneManager {
     const completedMovements = this.movementAnimator.update(this.agentMeshes);
     this.effectsManager.update();
     this.buildingManager.update(deltaTime);
+
+    // If there are active movements, stay out of idle mode
+    if (this.movementAnimator.hasActiveMovements()) {
+      this.lastActivityTime = now;
+      this.isIdle = false;
+    }
 
     // Update procedural animations for models without built-in animations
     this.updateProceduralAnimations(deltaTime);
@@ -1345,37 +1401,46 @@ export class SceneManager {
     }
   }
 
+  // Track camera position for indicator scale updates
+  private lastCameraDistanceForScale = 0;
+  private lastIndicatorScaleUpdate = 0;
+  private static readonly INDICATOR_SCALE_UPDATE_INTERVAL = 100; // Update scales every 100ms max
+
   private animateWorkingAgents(now: number): void {
-    const state = store.getState();
-    const time = now * 0.001;
+    // Only update indicator scales when camera moves significantly or periodically
+    // This avoids recalculating for all agents every frame
+    const cameraDistance = this.camera.position.length();
+    const cameraMoved = Math.abs(cameraDistance - this.lastCameraDistanceForScale) > 0.5;
+    const shouldUpdateScales = cameraMoved || (now - this.lastIndicatorScaleUpdate > SceneManager.INDICATOR_SCALE_UPDATE_INTERVAL);
 
-    for (const [id, agent] of state.agents) {
-      const meshData = this.agentMeshes.get(id);
-      if (!meshData) continue;
+    if (shouldUpdateScales) {
+      this.lastCameraDistanceForScale = cameraDistance;
+      this.lastIndicatorScaleUpdate = now;
 
-      const isMoving = this.movementAnimator.isMoving(id);
+      // Only update scales, skip the store access since we don't need agent data
+      for (const [id, meshData] of this.agentMeshes) {
+        // Calculate zoom-based scale for indicators
+        const indicatorScale = this.calculateIndicatorScale(meshData.group.position);
 
-      // Calculate zoom-based scale for indicators
-      const indicatorScale = this.calculateIndicatorScale(meshData.group.position);
+        // Scale name label - preserve aspect ratio to avoid text distortion
+        const nameLabel = meshData.group.getObjectByName('nameLabel') as THREE.Sprite;
+        if (nameLabel) {
+          const baseHeight = 0.3 * indicatorScale;
+          const aspectRatio = nameLabel.userData.aspectRatio || 2; // default 2:1 for backwards compat
+          nameLabel.scale.set(baseHeight * aspectRatio, baseHeight, 1);
+        }
 
-      // Scale name label - preserve aspect ratio to avoid text distortion
-      const nameLabel = meshData.group.getObjectByName('nameLabel') as THREE.Sprite;
-      if (nameLabel) {
-        const baseHeight = 0.3 * indicatorScale;
-        const aspectRatio = nameLabel.userData.aspectRatio || 2; // default 2:1 for backwards compat
-        nameLabel.scale.set(baseHeight * aspectRatio, baseHeight, 1);
-      }
+        // Scale mana bar
+        const manaBar = meshData.group.getObjectByName('manaBar') as THREE.Sprite;
+        if (manaBar) {
+          manaBar.scale.set(0.9 * indicatorScale, 0.14 * indicatorScale, 1);
+        }
 
-      // Scale mana bar
-      const manaBar = meshData.group.getObjectByName('manaBar') as THREE.Sprite;
-      if (manaBar) {
-        manaBar.scale.set(0.9 * indicatorScale, 0.14 * indicatorScale, 1);
-      }
-
-      // Scale idle timer (same as mana bar for alignment)
-      const idleTimer = meshData.group.getObjectByName('idleTimer') as THREE.Sprite;
-      if (idleTimer) {
-        idleTimer.scale.set(0.9 * indicatorScale, 0.14 * indicatorScale, 1);
+        // Scale idle timer (same as mana bar for alignment)
+        const idleTimer = meshData.group.getObjectByName('idleTimer') as THREE.Sprite;
+        if (idleTimer) {
+          idleTimer.scale.set(0.9 * indicatorScale, 0.14 * indicatorScale, 1);
+        }
       }
     }
 

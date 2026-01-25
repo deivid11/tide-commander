@@ -60,6 +60,13 @@ export class MovementAnimator {
   }
 
   /**
+   * Check if any agents are currently moving.
+   */
+  hasActiveMovements(): boolean {
+    return this.movements.size > 0;
+  }
+
+  /**
    * Resolve the actual animation name based on custom mapping.
    * Falls back to built-in animation names if no custom mapping exists.
    *

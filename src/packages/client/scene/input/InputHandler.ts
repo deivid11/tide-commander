@@ -88,6 +88,8 @@ export class InputHandler {
   private hoverTimer: ReturnType<typeof setTimeout> | null = null;
   private lastMousePos: { x: number; y: number } = { x: 0, y: 0 };
   private static readonly HOVER_DELAY = 400; // 400ms
+  private lastHoverCheckTime = 0;
+  private static readonly HOVER_CHECK_INTERVAL = 50; // Throttle to 20Hz instead of 60Hz
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -329,6 +331,9 @@ export class InputHandler {
       return;
     }
 
+    // Mark activity to prevent idle throttling
+    this.callbacks.onActivity?.();
+
     const isTouch = event.pointerType === 'touch';
 
     if (event.button === 0) {
@@ -494,8 +499,13 @@ export class InputHandler {
     }
 
     // Handle hover detection when no buttons pressed (for agent tooltip)
+    // Throttled to reduce raycasting frequency
     if (event.buttons === 0 && event.pointerType !== 'touch') {
-      this.handleHoverDetection(event);
+      const now = performance.now();
+      if (now - this.lastHoverCheckTime > InputHandler.HOVER_CHECK_INTERVAL) {
+        this.handleHoverDetection(event);
+        this.lastHoverCheckTime = now;
+      }
     }
   };
 
@@ -655,6 +665,9 @@ export class InputHandler {
   };
 
   private onWheel = (event: WheelEvent): void => {
+    // Mark activity to prevent idle throttling
+    this.callbacks.onActivity?.();
+
     // Try trackpad handler first (for pinch-to-zoom and two-finger scroll)
     if (this.trackpadHandler.handleWheel(event)) {
       return;

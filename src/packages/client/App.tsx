@@ -433,26 +433,44 @@ function AppContent() {
   // This prevents massive geometry churn from boss-subordinate line recreation
   useEffect(() => {
     let lastSelectedIds = '';
-    let lastAgentsJson = '';
+    let lastAgentVersion = new Map<string, number>();
+
+    // Efficient shallow comparison without JSON serialization
+    const getAgentVersion = (agents: Map<string, any>) => {
+      let changed = false;
+      const newVersion = new Map<string, number>();
+
+      for (const [id, agent] of agents) {
+        // Create a simple hash from relevant properties
+        const hash = `${agent.position.x.toFixed(2)},${agent.position.z.toFixed(2)},${agent.status},${agent.class},${agent.isBoss},${agent.subordinateIds?.length ?? 0}`;
+        const hashCode = hash.split('').reduce((a, b) => ((a << 5) - a) + b.charCodeAt(0), 0);
+        newVersion.set(id, hashCode);
+
+        if (lastAgentVersion.get(id) !== hashCode) {
+          changed = true;
+        }
+      }
+
+      // Check for removed agents
+      if (newVersion.size !== lastAgentVersion.size) {
+        changed = true;
+      }
+
+      return { newVersion, changed };
+    };
+
     return store.subscribe(() => {
       const state = store.getState();
       // Check if selection changed
       const selectedIds = Array.from(state.selectedAgentIds).sort().join(',');
-      // Also check if agent positions/statuses changed (for visual updates)
-      const agentsJson = JSON.stringify(
-        Array.from(state.agents.values()).map(a => ({
-          id: a.id,
-          x: a.position.x,
-          z: a.position.z,
-          status: a.status,
-          class: a.class,
-          isBoss: a.isBoss,
-          subordinateIds: a.subordinateIds,
-        }))
-      );
-      if (selectedIds !== lastSelectedIds || agentsJson !== lastAgentsJson) {
+      const selectionChanged = selectedIds !== lastSelectedIds;
+
+      // Efficient agent comparison without JSON.stringify
+      const { newVersion, changed: agentsChanged } = getAgentVersion(state.agents);
+
+      if (selectionChanged || agentsChanged) {
         lastSelectedIds = selectedIds;
-        lastAgentsJson = agentsJson;
+        lastAgentVersion = newVersion;
         sceneRef.current?.refreshSelectionVisuals();
       }
     });
@@ -463,13 +481,26 @@ function AppContent() {
     // Initial sync
     sceneRef.current?.syncAreas();
 
-    // Subscribe to store changes - sync areas on any change
-    let lastAreasJson = '';
+    // Subscribe to store changes - use size + shallow check instead of JSON
+    let lastAreasSize = 0;
+    let lastAreasHash = 0;
     return store.subscribe(() => {
       const state = store.getState();
-      const areasJson = JSON.stringify(Array.from(state.areas.values()));
-      if (areasJson !== lastAreasJson) {
-        lastAreasJson = areasJson;
+      const areas = state.areas;
+      // Quick size check first
+      if (areas.size !== lastAreasSize) {
+        lastAreasSize = areas.size;
+        lastAreasHash = Date.now(); // Force update
+        sceneRef.current?.syncAreas();
+        return;
+      }
+      // Simple hash of area ids and dimensions
+      let hash = 0;
+      for (const [id, area] of areas) {
+        hash ^= id.charCodeAt(0) + ((area.width ?? 0) + (area.height ?? 0) + (area.radius ?? 0)) | 0;
+      }
+      if (hash !== lastAreasHash) {
+        lastAreasHash = hash;
         sceneRef.current?.syncAreas();
       }
     });
@@ -480,13 +511,26 @@ function AppContent() {
     // Initial sync
     sceneRef.current?.syncBuildings();
 
-    // Subscribe to store changes - sync buildings on any change
-    let lastBuildingsJson = '';
+    // Subscribe to store changes - use size + shallow check instead of JSON
+    let lastBuildingsSize = 0;
+    let lastBuildingsHash = 0;
     return store.subscribe(() => {
       const state = store.getState();
-      const buildingsJson = JSON.stringify(Array.from(state.buildings.values()));
-      if (buildingsJson !== lastBuildingsJson) {
-        lastBuildingsJson = buildingsJson;
+      const buildings = state.buildings;
+      // Quick size check first
+      if (buildings.size !== lastBuildingsSize) {
+        lastBuildingsSize = buildings.size;
+        lastBuildingsHash = Date.now();
+        sceneRef.current?.syncBuildings();
+        return;
+      }
+      // Simple hash of building positions
+      let hash = 0;
+      for (const [id, building] of buildings) {
+        hash ^= (building.position.x * 1000 + building.position.z) | 0;
+      }
+      if (hash !== lastBuildingsHash) {
+        lastBuildingsHash = hash;
         sceneRef.current?.syncBuildings();
       }
     });

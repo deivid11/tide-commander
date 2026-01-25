@@ -35,6 +35,8 @@ export interface InputCallbacks {
     worldPos: { x: number; z: number },
     target: ContextMenuTarget
   ) => void;
+  // Activity callback - called on user interaction to prevent idle throttling
+  onActivity?: () => void;
 }
 
 /**

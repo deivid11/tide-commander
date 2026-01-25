@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.12.0] - 2026-01-25
+
+### Added
+- **Idle Detection & Power Saving** - Automatic FPS throttling when scene is inactive
+  - Throttle to 10 FPS after 2 seconds of inactivity
+  - Wake on user interaction (mouse, wheel, keyboard)
+  - Wake automatically when agents are moving
+- **Line Object Pooling** - Reuse boss-subordinate connection lines
+  - No more geometry allocation/disposal on selection change
+  - Update positions in-place via BufferAttribute
+
+### Changed
+- **Hash-based Change Detection** - Replace JSON.stringify with efficient hashing
+  - Agent change detection uses position/status hash codes
+  - Area and building sync uses size + hash comparison
+  - Dramatically reduces GC pressure from string allocations
+- **Throttled Hover Detection** - Reduce raycasting frequency to 20Hz
+- **Batched Indicator Scale Updates** - Only recalculate when camera moves or every 100ms
+  - Avoids per-agent per-frame store access
+
+### Technical
+- `MovementAnimator.hasActiveMovements()` method for idle detection
+- `InputHandler.onActivity` callback for user interaction tracking
+- `SceneManager.markActivity()` public method for external activity signals
+
 ## [0.11.0] - 2026-01-24
 
 ### Added
