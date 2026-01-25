@@ -541,6 +541,11 @@ function AppContent() {
     sceneRef.current?.highlightArea(state.selectedAreaId);
   }, [state.selectedAreaId]);
 
+  // Apply power saving setting to scene
+  useEffect(() => {
+    sceneRef.current?.setPowerSaving(state.settings.powerSaving);
+  }, [state.settings.powerSaving]);
+
   // Handle config changes
   const handleConfigChange = useCallback((config: SceneConfig) => {
     setSceneConfig(config);

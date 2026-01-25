@@ -45,7 +45,7 @@ export class SceneManager {
   private lastCameraSave = 0;
   private lastTimeUpdate = 0;
   private lastFrameTime = 0;
-  private lastRenderTime = 0; // For FPS limiting
+  private lastRenderTime = Date.now(); // For FPS limiting
   private lastIdleTimerUpdate = 0;
   private characterScale = 0.5;
   private indicatorScale = 1.0;
@@ -56,8 +56,9 @@ export class SceneManager {
   private resizeObserver: ResizeObserver | null = null;
   private animationFrameId: number | null = null;
 
-  // Idle detection for power saving
-  private lastActivityTime = 0;
+  // Idle detection for power saving (experimental feature)
+  private powerSavingEnabled = false; // Controlled by settings
+  private lastActivityTime = Date.now();
   private isIdle = false;
   private idleThreshold = 2000; // 2 seconds of no activity = idle
   private idleFpsLimit = 10; // Limit to 10 FPS when idle
@@ -172,9 +173,27 @@ export class SceneManager {
       this.resizeObserver.observe(this.canvas.parentElement);
     }
 
+    // Listen for WebGL context loss/restore
+    this.canvas.addEventListener('webglcontextlost', this.onContextLost);
+    this.canvas.addEventListener('webglcontextrestored', this.onContextRestored);
+
     // Start render loop
     this.animate();
   }
+
+  private onContextLost = (event: Event): void => {
+    event.preventDefault();
+    console.error('[SceneManager] WebGL context lost! Stopping animation.');
+    if (this.animationFrameId !== null) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
+  };
+
+  private onContextRestored = (): void => {
+    console.log('[SceneManager] WebGL context restored! Restarting animation.');
+    this.animate();
+  };
 
   // ============================================
   // Initialization
@@ -429,6 +448,7 @@ export class SceneManager {
       if (meshData.animations.size === 0) {
         const state = this.getProceduralStateForStatus(agent.status);
         this.proceduralAnimator.register(agent.id, body, state);
+        this.invalidateProceduralBodiesCache();
       }
     }
 
@@ -450,6 +470,7 @@ export class SceneManager {
 
     // Unregister from procedural animator
     this.proceduralAnimator.unregister(agentId);
+    this.invalidateProceduralBodiesCache();
 
     // Clean up all visual effects for this agent (zzz bubble, speech bubbles, etc.)
     this.effectsManager.removeAgentEffects(agentId);
@@ -664,6 +685,9 @@ export class SceneManager {
       }
     }
 
+    // Clear and rebuild cached line connections
+    this.cachedLineConnections = [];
+
     // Reuse existing lines from pool or create new ones as needed
     let lineIndex = 0;
     for (const [, boss] of bossesToShow) {
@@ -673,6 +697,9 @@ export class SceneManager {
       for (const subId of boss.subordinateIds) {
         const subMesh = this.agentMeshes.get(subId);
         if (!subMesh) continue;
+
+        // Cache the connection for efficient frame updates
+        this.cachedLineConnections.push({ bossId: boss.id, subId });
 
         let line: THREE.Line;
         if (lineIndex < this.linePool.length) {
@@ -737,6 +764,7 @@ export class SceneManager {
               const proceduralState = this.getProceduralStateForStatus(agent.status);
               this.proceduralAnimator.register(agentId, newBody, proceduralState);
             }
+            this.invalidateProceduralBodiesCache();
           }
 
           // Start animation based on agent's current status
@@ -979,6 +1007,18 @@ export class SceneManager {
     this.fpsLimit = limit;
     this.frameInterval = limit > 0 ? 1000 / limit : 0;
     console.log(`[Tide] FPS limit set to ${limit}, frameInterval: ${this.frameInterval}ms`);
+  }
+
+  /**
+   * Enable or disable power saving mode (experimental).
+   * When enabled, reduces FPS when the scene is idle.
+   */
+  setPowerSaving(enabled: boolean): void {
+    this.powerSavingEnabled = enabled;
+    if (!enabled) {
+      this.isIdle = false; // Exit idle mode immediately when disabled
+    }
+    console.log(`[Tide] Power saving ${enabled ? 'enabled' : 'disabled'}`);
   }
 
   /**
@@ -1240,6 +1280,25 @@ export class SceneManager {
     this.isIdle = false;
   }
 
+  /**
+   * Check if any agent is currently working.
+   * Used to prevent power saving mode while agents are active.
+   */
+  private hasWorkingAgents(): boolean {
+    try {
+      const agents = store.getState().agents;
+      for (const agent of agents.values()) {
+        if (agent.status === 'working') {
+          return true;
+        }
+      }
+      return false;
+    } catch {
+      // If store access fails, assume no working agents
+      return false;
+    }
+  }
+
   // ============================================
   // Animation Loop
   // ============================================
@@ -1247,20 +1306,35 @@ export class SceneManager {
   private animate = (): void => {
     this.animationFrameId = requestAnimationFrame(this.animate);
 
-    const now = Date.now();
-
-    // Check if we're idle (no activity for idleThreshold ms)
-    if (!this.isIdle && now - this.lastActivityTime > this.idleThreshold) {
-      this.isIdle = true;
+    // Safety check - don't render if disposed
+    if (!this.renderer || !this.scene || !this.camera) {
+      console.warn('[SceneManager] Skipping frame - renderer/scene/camera is null');
+      return;
     }
 
-    // FPS limiting: use idle FPS limit when idle, otherwise user-set limit
-    const effectiveFpsLimit = this.isIdle ? this.idleFpsLimit : this.fpsLimit;
+    const now = Date.now();
+
+    // Check if any agent is working - if so, don't allow idle mode
+    const hasWorkingAgents = this.hasWorkingAgents();
+
+    // Check if we're idle (no activity for idleThreshold ms) - only when power saving is enabled
+    // and no agents are actively working
+    if (this.powerSavingEnabled && !hasWorkingAgents && !this.isIdle && now - this.lastActivityTime > this.idleThreshold) {
+      this.isIdle = true;
+    } else if (hasWorkingAgents && this.isIdle) {
+      // Exit idle if agents start working
+      this.isIdle = false;
+    }
+
+    // FPS limiting: use idle FPS limit when idle (and power saving enabled), otherwise user-set limit
+    const effectiveFpsLimit = (this.powerSavingEnabled && this.isIdle) ? this.idleFpsLimit : this.fpsLimit;
     const effectiveFrameInterval = effectiveFpsLimit > 0 ? 1000 / effectiveFpsLimit : this.frameInterval;
 
     if (effectiveFrameInterval > 0) {
       const elapsed = now - this.lastRenderTime;
       if (elapsed < effectiveFrameInterval) {
+        // Still update controls for smooth damping even when skipping render
+        this.controls.update();
         return; // Skip this frame
       }
       this.lastRenderTime = now;
@@ -1272,8 +1346,9 @@ export class SceneManager {
 
     this.controls.update();
 
-    // Calculate delta time
-    const deltaTime = this.lastFrameTime ? (now - this.lastFrameTime) / 1000 : 0.016;
+    // Calculate delta time with a cap to prevent huge jumps after throttling
+    const rawDelta = this.lastFrameTime ? (now - this.lastFrameTime) / 1000 : 0.016;
+    const deltaTime = Math.min(rawDelta, 0.1); // Cap at 100ms to prevent animation jumps
     this.lastFrameTime = now;
 
     // Save camera periodically
@@ -1339,54 +1414,32 @@ export class SceneManager {
     perf.end('scene:frame');
   };
 
+  // Cached boss-subordinate line mappings (updated only when selection changes)
+  private cachedLineConnections: Array<{ bossId: string; subId: string }> = [];
+
   private updateBossSubordinateLines(): void {
     if (this.bossSubordinateLines.length === 0) return;
 
-    const state = store.getState();
-    let lineIndex = 0;
+    // Only update positions if there are active movements (agents are moving)
+    // Otherwise the lines don't need updating since agents are stationary
+    if (!this.movementAnimator.hasActiveMovements()) return;
 
-    // Collect all bosses whose hierarchy is being shown
-    // (same logic as refreshSelectionVisuals)
-    const bossesToShow = new Map<string, Agent>();
+    // Use cached connections - these are set up in refreshSelectionVisuals
+    for (let i = 0; i < this.cachedLineConnections.length && i < this.bossSubordinateLines.length; i++) {
+      const { bossId, subId } = this.cachedLineConnections[i];
+      const bossMesh = this.agentMeshes.get(bossId);
+      const subMesh = this.agentMeshes.get(subId);
 
-    for (const selectedId of state.selectedAgentIds) {
-      const selectedAgent = state.agents.get(selectedId);
-      if (!selectedAgent) continue;
+      if (!bossMesh || !subMesh) continue;
 
-      // If selected agent is a boss
-      if ((selectedAgent.isBoss || selectedAgent.class === 'boss') && selectedAgent.subordinateIds) {
-        bossesToShow.set(selectedAgent.id, selectedAgent);
-      }
+      const line = this.bossSubordinateLines[i];
+      const positions = line.geometry.attributes.position as THREE.BufferAttribute;
 
-      // If selected agent has a boss
-      if (selectedAgent.bossId) {
-        const boss = state.agents.get(selectedAgent.bossId);
-        if (boss && (boss.isBoss || boss.class === 'boss') && boss.subordinateIds) {
-          bossesToShow.set(boss.id, boss);
-        }
-      }
-    }
-
-    // Update line positions for each boss's subordinates
-    for (const [, boss] of bossesToShow) {
-      const bossMesh = this.agentMeshes.get(boss.id);
-      if (!bossMesh || !boss.subordinateIds) continue;
-
-      for (const subId of boss.subordinateIds) {
-        const subMesh = this.agentMeshes.get(subId);
-        if (!subMesh || lineIndex >= this.bossSubordinateLines.length) continue;
-
-        const line = this.bossSubordinateLines[lineIndex];
-        const positions = line.geometry.attributes.position as THREE.BufferAttribute;
-
-        // Update start point (boss position)
-        positions.setXYZ(0, bossMesh.group.position.x, 0.05, bossMesh.group.position.z);
-        // Update end point (subordinate position)
-        positions.setXYZ(1, subMesh.group.position.x, 0.05, subMesh.group.position.z);
-        positions.needsUpdate = true;
-
-        lineIndex++;
-      }
+      // Update start point (boss position)
+      positions.setXYZ(0, bossMesh.group.position.x, 0.05, bossMesh.group.position.z);
+      // Update end point (subordinate position)
+      positions.setXYZ(1, subMesh.group.position.x, 0.05, subMesh.group.position.z);
+      positions.needsUpdate = true;
     }
   }
 
@@ -1491,20 +1544,40 @@ export class SceneManager {
     }
   }
 
+  // Cache for procedural animation bodies (updated when agents added/removed)
+  private proceduralBodiesCache = new Map<string, THREE.Object3D>();
+  private proceduralBodiesDirty = true;
+
+  /**
+   * Mark procedural bodies cache as dirty (call when agents added/removed).
+   */
+  private invalidateProceduralBodiesCache(): void {
+    this.proceduralBodiesDirty = true;
+  }
+
   /**
    * Update procedural animations for all registered models.
    */
   private updateProceduralAnimations(deltaTime: number): void {
-    // Build a map of agent ID to character body for the procedural animator
-    const bodies = new Map<string, THREE.Object3D>();
-    for (const [agentId, meshData] of this.agentMeshes) {
-      const body = meshData.group.getObjectByName('characterBody');
-      // Only include agents that have no animations (procedurally animated)
-      if (body && this.proceduralAnimator.has(agentId) && meshData.animations.size === 0) {
-        bodies.set(agentId, body);
+    // Only rebuild cache when dirty (agents added/removed/changed)
+    if (this.proceduralBodiesDirty) {
+      this.proceduralBodiesCache.clear();
+      for (const [agentId, meshData] of this.agentMeshes) {
+        // Only include agents that have no animations (procedurally animated)
+        if (this.proceduralAnimator.has(agentId) && meshData.animations.size === 0) {
+          const body = meshData.group.getObjectByName('characterBody');
+          if (body) {
+            this.proceduralBodiesCache.set(agentId, body);
+          }
+        }
       }
+      this.proceduralBodiesDirty = false;
     }
-    this.proceduralAnimator.update(deltaTime, bodies);
+
+    // Skip update if no procedural animations
+    if (this.proceduralBodiesCache.size === 0) return;
+
+    this.proceduralAnimator.update(deltaTime, this.proceduralBodiesCache);
   }
 
   // ============================================
@@ -1536,8 +1609,16 @@ export class SceneManager {
     // Disconnect old observer
     this.resizeObserver?.disconnect();
 
-    // Remove old event listeners
+    // Remove old WebGL context listeners from old canvas
+    this.canvas.removeEventListener('webglcontextlost', this.onContextLost);
+    this.canvas.removeEventListener('webglcontextrestored', this.onContextRestored);
+
+    // Update canvas reference
     this.canvas = canvas;
+
+    // Add WebGL context listeners to new canvas
+    this.canvas.addEventListener('webglcontextlost', this.onContextLost);
+    this.canvas.addEventListener('webglcontextrestored', this.onContextRestored);
 
     // Update renderer
     this.renderer.dispose();
@@ -1630,6 +1711,8 @@ export class SceneManager {
     }
 
     window.removeEventListener('resize', this.onWindowResize);
+    this.canvas.removeEventListener('webglcontextlost', this.onContextLost);
+    this.canvas.removeEventListener('webglcontextrestored', this.onContextRestored);
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
     this.inputHandler.dispose();

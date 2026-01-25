@@ -452,6 +452,57 @@
   color: $text-secondary;
 }
 
+// Compact toggle switch for config rows
+.config-toggle {
+  position: relative;
+  width: 32px;
+  height: 18px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.config-toggle-input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+
+.config-toggle-track {
+  position: absolute;
+  inset: 0;
+  background: rgba($bg-primary, 0.5);
+  border: 1px solid $border-color;
+  border-radius: 9px;
+  transition: all $transition-fast;
+}
+
+.config-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  background: $text-secondary;
+  border-radius: 50%;
+  transition: all $transition-fast;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.config-toggle-input:checked + .config-toggle-track {
+  background: rgba($dracula-green, 0.25);
+  border-color: $dracula-green;
+
+  .config-toggle-thumb {
+    left: calc(100% - 14px);
+    background: $dracula-green;
+  }
+}
+
+.config-toggle:hover .config-toggle-track {
+  border-color: $text-secondary;
+}
+
 .config-input {
   width: 60px;
   padding: 3px 6px;

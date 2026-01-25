@@ -2,6 +2,38 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.13.0] - 2026-01-25
+
+### Added
+- **Power Saving Toggle** - New setting in Toolbox config to enable/disable idle throttling
+  - Disabled by default to preserve current behavior
+  - Prevents idle mode when any agent is actively working
+- **WebGL Context Loss Handling** - Graceful recovery from GPU context loss
+  - Stop animation loop on context loss
+  - Automatically restart on context restore
+- **Compact Toggle Switches** - Prettier toggle UI for boolean settings
+  - Replace checkbox inputs with styled toggle switches
+  - Smooth transitions and hover states
+
+### Changed
+- **Cached Boss-Subordinate Connections** - Only rebuild line mapping on selection change
+  - Skip line updates when no agents are moving
+- **Optimized Animation Mixer Updates** - Only update mixers for agents with active animations
+  - Track animating agents in a Set for O(1) lookups
+- **Delta Time Capping** - Cap frame delta at 100ms to prevent animation jumps after throttling
+- **Controls Update During Skip** - Update OrbitControls even when skipping render frames
+  - Maintains smooth damping during FPS limiting
+
+### Fixed
+- **Procedural Bodies Cache Invalidation** - Properly invalidate cache when agents added/removed
+
+### Technical
+- `setPowerSaving(enabled: boolean)` public method on SceneManager
+- `hasWorkingAgents()` private method to check agent status
+- `powerSaving` setting in store with default `false`
+- `stopAnimation(agentId)` method on MovementAnimator
+- Cached `proceduralBodiesCache` with dirty flag pattern
+
 ## [0.12.0] - 2026-01-25
 
 ### Added

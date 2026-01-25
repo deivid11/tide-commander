@@ -51,6 +51,7 @@ export class MovementAnimator {
   private movements = new Map<string, MovementState>();
   private clock = new THREE.Clock();
   private jumpingAgents = new Set<string>(); // Track agents playing jump animation
+  private animatingAgents = new Set<string>(); // Track agents with active mixer animations
 
   /**
    * Check if an agent is currently moving.
@@ -201,6 +202,9 @@ export class MovementAnimator {
 
     meshData.currentAction = newAction;
 
+    // Track agents with active animations for efficient mixer updates
+    this.animatingAgents.add(agentId);
+
     // Track jump animation for bounce effect
     if (animationName === ANIMATIONS.JUMP && loop) {
       this.jumpingAgents.add(agentId);
@@ -212,6 +216,14 @@ export class MovementAnimator {
         characterBody.position.y = 0;
       }
     }
+  }
+
+  /**
+   * Stop animation for an agent (removes from active tracking).
+   */
+  stopAnimation(agentId: string): void {
+    this.animatingAgents.delete(agentId);
+    this.jumpingAgents.delete(agentId);
   }
 
   /**
@@ -243,9 +255,10 @@ export class MovementAnimator {
     const now = performance.now();
     const completed: string[] = [];
 
-    // Update all animation mixers
-    for (const meshData of agentMeshes.values()) {
-      meshData.mixer?.update(deltaTime);
+    // Only update mixers for agents with active animations (much more efficient)
+    for (const agentId of this.animatingAgents) {
+      const meshData = agentMeshes.get(agentId);
+      meshData?.mixer?.update(deltaTime);
     }
 
     // Apply jump bounce effect to jumping agents

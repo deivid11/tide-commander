@@ -638,6 +638,23 @@ const TERRAIN_OPTIONS: { key: keyof TerrainConfig; icon: string; label: string }
   { key: 'showGrass', icon: '🟩', label: 'Grass' },
 ];
 
+// Compact toggle switch for config rows
+function Toggle({ checked, onChange }: { checked: boolean; onChange: (checked: boolean) => void }) {
+  return (
+    <label className="config-toggle">
+      <input
+        type="checkbox"
+        className="config-toggle-input"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <span className="config-toggle-track">
+        <span className="config-toggle-thumb" />
+      </span>
+    </label>
+  );
+}
+
 // Compact chip selector for options
 function ChipSelector<T extends string>({
   options,
@@ -786,26 +803,23 @@ function ConfigSection({ config, onChange }: ConfigSectionProps) {
         </div>
         <div className="config-row">
           <span className="config-label">Hide Costs</span>
-          <input
-            type="checkbox"
+          <Toggle
             checked={state.settings.hideCost}
-            onChange={(e) => store.updateSettings({ hideCost: e.target.checked })}
+            onChange={(checked) => store.updateSettings({ hideCost: checked })}
           />
         </div>
         <div className="config-row">
           <span className="config-label">Grid</span>
-          <input
-            type="checkbox"
+          <Toggle
             checked={config.gridVisible}
-            onChange={(e) => onChange({ ...config, gridVisible: e.target.checked })}
+            onChange={(checked) => onChange({ ...config, gridVisible: checked })}
           />
         </div>
         <div className="config-row">
           <span className="config-label">Show FPS</span>
-          <input
-            type="checkbox"
+          <Toggle
             checked={state.settings.showFPS}
-            onChange={(e) => store.updateSettings({ showFPS: e.target.checked })}
+            onChange={(checked) => store.updateSettings({ showFPS: checked })}
           />
         </div>
         <div className="config-row">
@@ -820,6 +834,13 @@ function ConfigSection({ config, onChange }: ConfigSectionProps) {
             onChange={(e) => onChange({ ...config, fpsLimit: parseInt(e.target.value) })}
           />
           <span className="config-value">{config.fpsLimit === 0 ? '∞' : config.fpsLimit}</span>
+        </div>
+        <div className="config-row">
+          <span className="config-label" title="Experimental: Reduce FPS when idle to save power">Power Saving ⚡</span>
+          <Toggle
+            checked={state.settings.powerSaving}
+            onChange={(checked) => store.updateSettings({ powerSaving: checked })}
+          />
         </div>
       </CollapsibleSection>
 

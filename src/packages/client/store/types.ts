@@ -68,12 +68,14 @@ export interface Settings {
   historyLimit: number;
   hideCost: boolean;
   showFPS: boolean;
+  powerSaving: boolean; // Experimental: Reduce FPS when idle to save power
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   historyLimit: 500,
   hideCost: true,
   showFPS: false,
+  powerSaving: false,
 };
 
 // Supervisor state
