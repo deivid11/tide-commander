@@ -694,11 +694,14 @@ export class InputHandler {
   // --- Touch Callbacks ---
 
   private handleTouchTap = (clientX: number, clientY: number): void => {
+    console.log('[InputHandler] handleTouchTap called at:', clientX, clientY);
     // Check for agent tap
     const agentId = this.raycaster.findAgentAtPoint(clientX, clientY);
+    console.log('[InputHandler] Agent at tap position:', agentId);
 
     if (agentId) {
       const clickType = this.agentTapDetector.handleClick(agentId);
+      console.log('[InputHandler] clickType from detector:', clickType);
       if (clickType === 'double') {
         console.log('[Touch] >>> DOUBLE-TAP detected on agent:', agentId);
         this.callbacks.onAgentDoubleClick(agentId);

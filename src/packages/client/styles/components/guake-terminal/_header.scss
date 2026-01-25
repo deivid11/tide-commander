@@ -1,0 +1,473 @@
+// =============================================================================
+// Guake Terminal - Header & Navigation
+// =============================================================================
+
+@use 'sass:color';
+@use '../../variables' as *;
+
+.guake-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  background: rgba($dracula-bg, 0.95);
+  border-bottom: 1px solid $dracula-current;
+}
+
+.guake-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0; // Allow text truncation
+}
+
+.guake-title {
+  color: $dracula-pink;
+  font-weight: 600;
+  font-size: 14px;
+  font-family: $font-mono;
+  flex-shrink: 0;
+}
+
+.guake-task {
+  color: $dracula-comment;
+  font-weight: 400;
+  font-size: 12px;
+  font-family: $font-mono;
+}
+
+// Combined status line: supervisor badge + last input
+.guake-status-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: $font-mono;
+  font-size: 11px;
+  overflow: hidden;
+  cursor: help;
+}
+
+.guake-supervisor-badge {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.guake-supervisor-summary {
+  color: $dracula-fg;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.9;
+}
+
+.guake-last-input {
+  color: $dracula-comment;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.guake-last-prompt {
+  color: $dracula-cyan;
+  font-size: 12px;
+  font-family: $font-mono;
+  font-style: italic;
+  opacity: 0.8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 400px;
+  padding: 2px 10px;
+  background: rgba($dracula-cyan, 0.1);
+  border-radius: $radius-sm;
+  border-left: 2px solid $dracula-cyan;
+}
+
+// Working indicator animation (three bouncing dots)
+.guake-working-indicator {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding-right: 4px;
+}
+
+.guake-working-dot {
+  width: 6px;
+  height: 6px;
+  background: $dracula-green;
+  border-radius: 50%;
+  animation: guake-bounce 1.4s ease-in-out infinite;
+  box-shadow: 0 0 6px rgba($dracula-green, 0.6);
+
+  &:nth-child(1) {
+    animation-delay: 0s;
+  }
+
+  &:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+
+  &:nth-child(3) {
+    animation-delay: 0.4s;
+  }
+}
+
+@keyframes guake-bounce {
+  0%, 80%, 100% {
+    transform: scale(0.6);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+// Agent Links Indicators (small agent status icons at bottom)
+.guake-agent-links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 18px;
+  background: rgba($dracula-bg-darker, 0.95);
+  border-top: 1px solid $dracula-current;
+}
+
+.guake-agent-link {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  border-radius: $radius-md;
+  background: rgba($dracula-current, 0.4);
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  transition: all $transition-fast;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  &:hover {
+    background: rgba($dracula-current, 0.7);
+    border-color: $dracula-comment;
+    transform: translateY(-1px);
+  }
+
+  &.selected {
+    border-color: $dracula-purple;
+    background: rgba($dracula-purple, 0.2);
+    box-shadow: 0 0 8px rgba($dracula-purple, 0.4);
+  }
+
+  // Status-based animations
+  &.working {
+    border-color: rgba($dracula-cyan, 0.7);
+    animation: guake-link-working 1.5s ease-in-out infinite;
+  }
+
+  &.error {
+    border-color: rgba($dracula-red, 0.7);
+    animation: guake-link-error 0.8s ease-in-out infinite;
+  }
+
+  &.waiting {
+    border-color: rgba($dracula-orange, 0.6);
+    animation: guake-link-waiting 2s ease-in-out infinite;
+  }
+}
+
+@keyframes guake-link-working {
+  0%, 100% {
+    box-shadow: 0 0 4px rgba($dracula-cyan, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 10px rgba($dracula-cyan, 0.6);
+  }
+}
+
+@keyframes guake-link-error {
+  0%, 100% {
+    box-shadow: 0 0 4px rgba($dracula-red, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 10px rgba($dracula-red, 0.7);
+  }
+}
+
+@keyframes guake-link-waiting {
+  0%, 100% {
+    box-shadow: 0 0 3px rgba($dracula-orange, 0.2);
+    border-color: rgba($dracula-orange, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 8px rgba($dracula-orange, 0.4);
+    border-color: rgba($dracula-orange, 0.8);
+  }
+}
+
+.guake-agent-link-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.guake-agent-link-status {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid $dracula-bg;
+  box-shadow: 0 0 3px currentColor;
+}
+
+.guake-agent-link-idle {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9px;
+  font-family: $font-mono;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  text-shadow: 0 0 4px currentColor, 0 0 8px rgba(0, 0, 0, 0.8);
+  background: rgba($dracula-bg, 0.7);
+  padding: 1px 3px;
+  border-radius: 2px;
+}
+
+.guake-agent-link-tool {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  font-size: 10px;
+  line-height: 1;
+  background: $dracula-bg;
+  border: 1px solid $dracula-pink;
+  border-radius: $radius-sm;
+  padding: 1px 3px;
+  animation: guake-tool-pop 0.3s ease-out;
+}
+
+@keyframes guake-tool-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.guake-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.guake-view-toggle {
+  background: transparent;
+  border: 1px solid $dracula-comment;
+  color: $dracula-comment;
+  padding: 4px 12px;
+  border-radius: $radius-sm;
+  font-size: 11px;
+  font-family: $font-mono;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    border-color: $dracula-cyan;
+    color: $dracula-cyan;
+  }
+
+  // Chat mode - cyan color
+  &.view-mode-chat {
+    border-color: $dracula-cyan;
+    color: $dracula-cyan;
+  }
+
+  // Advanced mode - purple color
+  &.view-mode-advanced {
+    border-color: $dracula-purple;
+    color: $dracula-purple;
+  }
+}
+
+.guake-clear {
+  background: transparent;
+  border: 1px solid $dracula-comment;
+  color: $dracula-comment;
+  padding: 4px 12px;
+  border-radius: $radius-sm;
+  font-size: 11px;
+  font-family: $font-mono;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    border-color: $dracula-red;
+    color: $dracula-red;
+  }
+}
+
+.guake-context-btn {
+  background: transparent;
+  border: 1px solid $dracula-comment;
+  color: $dracula-comment;
+  padding: 4px 10px;
+  border-radius: $radius-sm;
+  font-size: 11px;
+  font-family: $font-mono;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover:not(:disabled) {
+    border-color: $dracula-cyan;
+    color: $dracula-cyan;
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  &.danger {
+    &:hover:not(:disabled) {
+      border-color: $dracula-red;
+      color: $dracula-red;
+    }
+  }
+}
+
+// Supervisor info section - compact single line
+.guake-supervisor-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  background: rgba($dracula-purple, 0.1);
+  border-bottom: 1px solid rgba($dracula-purple, 0.2);
+  font-family: $font-mono;
+  font-size: 10px;
+  cursor: help;
+
+  .guake-supervisor-icon {
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+
+  .guake-supervisor-progress {
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
+  }
+
+  .guake-supervisor-status {
+    color: $dracula-comment;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+  }
+
+  .guake-supervisor-warning {
+    color: $dracula-orange;
+    flex-shrink: 0;
+    font-size: 10px;
+  }
+}
+
+.guake-debug-toggle,
+.guake-debug-panel-toggle {
+  padding: 4px 10px;
+  background: rgba($dracula-orange, 0.1);
+  border: 1px solid $dracula-orange;
+  border-radius: $radius-sm;
+  color: $dracula-orange;
+  font-family: $font-mono;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background: rgba($dracula-orange, 0.2);
+    border-color: color.adjust($dracula-orange, $lightness: 10%);
+  }
+
+  &.active {
+    background: rgba($dracula-orange, 0.3);
+    border-color: $dracula-orange;
+  }
+}
+
+.guake-debug-panel-toggle {
+  padding: 4px 8px;
+  font-size: 14px;
+}
+
+// Mobile swipe indicators for agent navigation
+.guake-swipe-hint {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .guake-swipe-hint {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    color: rgba($dracula-comment, 0.6);
+    padding: 0 4px;
+    flex-shrink: 0;
+
+    &-arrow {
+      font-size: 12px;
+      opacity: 0.6;
+    }
+  }
+
+  // Add swipe cursor hint on header when multiple agents exist
+  .guake-header.has-multiple-agents {
+    cursor: ew-resize;
+
+    // Subtle left/right edge indicators
+    &::before,
+    &::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 3px;
+      height: 60%;
+      border-radius: 2px;
+      background: rgba($dracula-purple, 0);
+      transition: background 0.2s ease;
+      pointer-events: none;
+    }
+
+    &::before {
+      left: 2px;
+    }
+
+    &::after {
+      right: 2px;
+    }
+
+    &:active::before,
+    &:active::after {
+      background: rgba($dracula-purple, 0.4);
+    }
+  }
+}

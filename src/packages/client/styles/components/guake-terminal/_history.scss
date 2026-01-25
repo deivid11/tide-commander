@@ -1,0 +1,497 @@
+// =============================================================================
+// Guake Terminal - History & Conversation Display
+// =============================================================================
+
+@use '../../variables' as *;
+
+// History lines
+.history-line {
+  padding: 8px 12px;
+  margin: 4px 0;
+  border-radius: $radius-sm;
+  word-wrap: break-word;
+  white-space: normal;
+}
+
+.history-user {
+  background: rgba($dracula-cyan, 0.12);
+  border-left: 3px solid $dracula-cyan;
+}
+
+.history-assistant {
+  background: rgba($dracula-green, 0.12);
+  border-left: 3px solid $dracula-green;
+}
+
+.history-role {
+  font-weight: bold;
+  color: $dracula-cyan;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-right: 6px;
+  display: inline;  // Inline with timestamp
+
+  .history-assistant & {
+    color: $dracula-green;
+  }
+}
+
+.history-content {
+  color: $dracula-fg;
+}
+
+// View markdown button for assistant responses
+.history-view-md-btn {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  background: transparent;
+  border: 1px solid rgba($dracula-comment, 0.4);
+  color: $dracula-comment;
+  padding: 3px 6px;
+  border-radius: $radius-sm;
+  font-size: 12px;
+  cursor: pointer;
+  opacity: 0;
+  transition: all $transition-fast;
+
+  &:hover {
+    border-color: $dracula-green;
+    color: $dracula-green;
+    background: rgba($dracula-green, 0.1);
+  }
+}
+
+// Show button on hover of parent
+.history-line {
+  position: relative;
+
+  &:hover .history-view-md-btn {
+    opacity: 1;
+  }
+}
+
+// Also apply to output lines
+.output-line.output-claude {
+  position: relative;
+
+  &:hover .history-view-md-btn {
+    opacity: 1;
+  }
+}
+
+.history-tool-use {
+  background: rgba($dracula-orange, 0.08);
+  padding: 4px 0;
+  margin: 2px 0;
+
+  .history-role {
+    color: $dracula-orange;
+  }
+}
+
+.history-tool-name {
+  color: $dracula-pink;
+  font-weight: 600;
+  margin-left: 4px;
+}
+
+.history-tool-input {
+  color: $dracula-comment;
+  font-size: 11px;
+  padding: 6px 10px;
+  margin: 4px 0 0 20px;
+  background: rgba($dracula-bg, 0.6);
+  border-radius: $radius-sm;
+  border-left: 2px solid $dracula-orange;
+  max-height: 100px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  font-family: $font-mono;
+}
+
+.history-tool-result {
+  background: rgba($dracula-purple, 0.08);
+  padding: 4px 0;
+  margin: 2px 0;
+
+  .history-role {
+    color: $dracula-purple;
+  }
+}
+
+.history-tool-output {
+  color: $dracula-comment;
+  font-size: 11px;
+  padding: 6px 10px;
+  margin: 4px 0 0 20px;
+  background: rgba($dracula-bg, 0.6);
+  border-radius: $radius-sm;
+  border-left: 2px solid $dracula-purple;
+  font-family: $font-mono;
+  max-height: 100px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
+
+// =============================================================================
+// Boss Context (Collapsible)
+// =============================================================================
+
+.boss-context {
+  margin-bottom: 8px;
+  border-radius: $radius-sm;
+  overflow: hidden;
+  border: 1px solid rgba($dracula-yellow, 0.3);
+  background: rgba($dracula-bg-darker, 0.6);
+
+  &.collapsed {
+    .boss-context-header {
+      border-radius: $radius-sm;
+    }
+  }
+
+  &.expanded {
+    .boss-context-header {
+      border-radius: $radius-sm $radius-sm 0 0;
+      border-bottom: 1px solid rgba($dracula-yellow, 0.2);
+    }
+  }
+}
+
+.boss-context-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: rgba($dracula-yellow, 0.15);
+  cursor: pointer;
+  user-select: none;
+  transition: all $transition-fast;
+
+  &:hover {
+    background: rgba($dracula-yellow, 0.25);
+  }
+}
+
+.boss-context-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.boss-context-label {
+  flex: 1;
+  font-family: $font-mono;
+  font-size: 11px;
+  font-weight: 600;
+  color: $dracula-yellow;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.boss-context-toggle {
+  font-size: 10px;
+  color: $dracula-comment;
+  transition: transform $transition-fast;
+}
+
+.boss-context-content {
+  padding: 10px 12px;
+  font-family: $font-mono;
+  font-size: 11px;
+  color: $dracula-fg;
+  max-height: 300px;
+  overflow-y: auto;
+  background: rgba($dracula-bg-darker, 0.4);
+
+  // Style the markdown content
+  h2 {
+    color: $dracula-cyan;
+    font-size: 12px;
+    font-weight: 600;
+    margin: 12px 0 6px 0;
+    padding-bottom: 4px;
+    border-bottom: 1px solid rgba($dracula-cyan, 0.2);
+
+    &:first-child {
+      margin-top: 0;
+    }
+  }
+
+  h3 {
+    color: $dracula-pink;
+    font-size: 11px;
+    font-weight: 600;
+    margin: 8px 0 4px 0;
+  }
+
+  h4 {
+    color: $dracula-orange;
+    font-size: 10px;
+    font-weight: 600;
+    margin: 10px 0 4px 0;
+    padding: 4px 8px;
+    background: rgba($dracula-orange, 0.1);
+    border-radius: $radius-sm;
+    border-left: 2px solid $dracula-orange;
+  }
+
+  blockquote {
+    margin: 4px 0;
+    padding: 4px 8px;
+    background: rgba($dracula-bg, 0.5);
+    border-left: 2px solid $dracula-comment;
+    color: $dracula-comment;
+    font-size: 10px;
+
+    strong {
+      color: $dracula-fg;
+    }
+  }
+
+  ul, ol {
+    margin: 4px 0;
+    padding-left: 16px;
+  }
+
+  li {
+    margin: 2px 0;
+    color: $dracula-comment;
+
+    strong {
+      color: $dracula-fg;
+    }
+  }
+
+  p {
+    margin: 4px 0;
+    line-height: 1.4;
+  }
+
+  // Status colors
+  strong {
+    color: $dracula-fg;
+  }
+
+  // Scrollbar styling
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: $dracula-bg-darker;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: $dracula-current;
+    border-radius: 3px;
+
+    &:hover {
+      background: $dracula-comment;
+    }
+  }
+}
+
+// ============================================================================
+// Delegation Block Styles
+// ============================================================================
+
+.delegation-block {
+  margin-top: 12px;
+  border-radius: $radius-md;
+  overflow: hidden;
+  border: 1px solid rgba($dracula-cyan, 0.4);
+  background: linear-gradient(135deg, rgba($dracula-bg-darker, 0.8) 0%, rgba($dracula-bg, 0.6) 100%);
+}
+
+.delegation-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba($dracula-cyan, 0.15);
+  border-bottom: 1px solid rgba($dracula-cyan, 0.2);
+}
+
+.delegation-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.delegation-title {
+  flex: 1;
+  font-family: $font-mono;
+  font-size: 12px;
+  font-weight: 600;
+  color: $dracula-cyan;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.delegation-confidence {
+  font-family: $font-mono;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 6px;
+  border-radius: $radius-sm;
+  background: rgba($dracula-bg-darker, 0.5);
+}
+
+.delegation-details {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.delegation-target,
+.delegation-task-command,
+.delegation-reasoning,
+.delegation-alternatives {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-family: $font-mono;
+  font-size: 11px;
+}
+
+.delegation-label {
+  color: $dracula-comment;
+  font-weight: 600;
+  min-width: 80px;
+  flex-shrink: 0;
+}
+
+.delegation-agent-name {
+  color: $dracula-green;
+  font-weight: 600;
+}
+
+.delegation-command-text {
+  color: $dracula-cyan;
+  font-style: italic;
+  line-height: 1.4;
+}
+
+.delegation-reason-text {
+  color: $dracula-fg;
+  line-height: 1.4;
+}
+
+.delegation-alt-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.delegation-alt-agent {
+  color: $dracula-comment;
+  font-size: 10px;
+  padding: 2px 6px;
+  background: rgba($dracula-bg-darker, 0.5);
+  border-radius: $radius-sm;
+  border: 1px solid rgba($dracula-comment, 0.3);
+}
+
+.delegation-footer {
+  padding: 6px 12px;
+  background: rgba($dracula-green, 0.1);
+  border-top: 1px solid rgba($dracula-green, 0.2);
+}
+
+.delegation-auto-forward {
+  font-family: $font-mono;
+  font-size: 10px;
+  color: $dracula-green;
+  font-style: italic;
+}
+
+// ============================================================================
+// Delegated Task Header (shown when agent receives task from boss)
+// ============================================================================
+
+.delegated-task-header {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: $radius-sm;
+  background: rgba($dracula-purple, 0.12);
+  border: 1px solid rgba($dracula-purple, 0.25);
+  transition: all 0.15s ease;
+
+  &.compact {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+  }
+
+  &.expanded {
+    padding: 8px 10px;
+    background: linear-gradient(135deg, rgba($dracula-purple, 0.15) 0%, rgba($dracula-pink, 0.08) 100%);
+    border-color: rgba($dracula-purple, 0.35);
+  }
+}
+
+.delegated-task-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+
+  &:hover {
+    .delegated-task-toggle {
+      color: $dracula-purple;
+    }
+  }
+}
+
+.delegated-task-icon {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.delegated-task-label {
+  font-family: $font-mono;
+  font-size: 10px;
+  color: rgba($dracula-purple, 0.8);
+  letter-spacing: 0.3px;
+
+  strong {
+    color: $dracula-pink;
+    font-weight: 600;
+  }
+}
+
+.delegated-task-toggle {
+  font-size: 8px;
+  color: rgba($dracula-purple, 0.5);
+  margin-left: 2px;
+  transition: color 0.15s ease;
+}
+
+.delegated-task-preview {
+  font-family: $font-mono;
+  font-size: 11px;
+  color: rgba($dracula-fg, 0.7);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 400px;
+}
+
+.delegated-task-command {
+  font-family: $font-mono;
+  font-size: 11px;
+  color: $dracula-fg;
+  line-height: 1.4;
+  padding: 6px 8px;
+  background: rgba($dracula-bg-darker, 0.5);
+  border-radius: $radius-sm;
+  border-left: 2px solid $dracula-purple;
+  margin-top: 4px;
+}

@@ -441,6 +441,26 @@
   font-style: italic;
 }
 
+// Navigation confirmation modal - highest z-index to appear above everything
+.navigation-confirm-overlay {
+  z-index: 10000;
+}
+
+.navigation-confirm-modal {
+  animation: modal-pop-in 0.15s ease-out;
+}
+
+@keyframes modal-pop-in {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
 // Sessions list
 .form-label-hint {
   font-weight: 400;

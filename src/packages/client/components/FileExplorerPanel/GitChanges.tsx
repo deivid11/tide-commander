@@ -135,12 +135,28 @@ function GitChangesComponent({
 
   return (
     <div className="git-changes">
-      {/* Header with branch and refresh */}
+      {/* Compact header: branch + counts + refresh */}
       <div className="git-changes-header">
         <span className="git-branch">
           <span className="git-branch-icon">⎇</span>
           {gitStatus.branch}
         </span>
+        {gitStatus.counts && (
+          <div className="git-changes-summary">
+            {gitStatus.counts.modified > 0 && (
+              <span className="git-count modified">{gitStatus.counts.modified}M</span>
+            )}
+            {gitStatus.counts.added > 0 && (
+              <span className="git-count added">{gitStatus.counts.added}A</span>
+            )}
+            {gitStatus.counts.deleted > 0 && (
+              <span className="git-count deleted">{gitStatus.counts.deleted}D</span>
+            )}
+            {gitStatus.counts.untracked > 0 && (
+              <span className="git-count untracked">{gitStatus.counts.untracked}?</span>
+            )}
+          </div>
+        )}
         <button
           className="git-refresh-btn"
           onClick={onRefresh}
@@ -148,34 +164,6 @@ function GitChangesComponent({
         >
           ↻
         </button>
-      </div>
-
-      {/* Summary counts */}
-      <div className="git-changes-summary">
-        {gitStatus.counts && (
-          <>
-            {gitStatus.counts.modified > 0 && (
-              <span className="git-count modified">
-                {gitStatus.counts.modified} modified
-              </span>
-            )}
-            {gitStatus.counts.added > 0 && (
-              <span className="git-count added">
-                {gitStatus.counts.added} added
-              </span>
-            )}
-            {gitStatus.counts.deleted > 0 && (
-              <span className="git-count deleted">
-                {gitStatus.counts.deleted} deleted
-              </span>
-            )}
-            {gitStatus.counts.untracked > 0 && (
-              <span className="git-count untracked">
-                {gitStatus.counts.untracked} untracked
-              </span>
-            )}
-          </>
-        )}
       </div>
 
       {/* File list grouped by status */}

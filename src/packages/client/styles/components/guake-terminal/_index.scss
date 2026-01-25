@@ -1,0 +1,33 @@
+// =============================================================================
+// Guake Terminal - Main Entry Point
+// =============================================================================
+// This file imports all guake terminal sub-styles for better maintainability.
+// Each partial handles a specific aspect of the terminal UI.
+// =============================================================================
+
+// Core layout and structure
+@forward 'base';
+
+// Header, navigation, and agent links
+@forward 'header';
+
+// Search and input controls
+@forward 'input';
+
+// Output area and message display
+@forward 'output';
+
+// Tool display styles (Edit, Read, Bash, Todo, etc.)
+@forward 'tools';
+
+// Permission request UI
+@forward 'permissions';
+
+// History and conversation display
+@forward 'history';
+
+// File attachments and image modal
+@forward 'attachments';
+
+// Agent debug panel
+@forward 'debug-panel';

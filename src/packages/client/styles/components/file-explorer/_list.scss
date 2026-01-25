@@ -1,0 +1,89 @@
+// =============================================================================
+// File Explorer - List Styles
+// =============================================================================
+// Content area, file/directory list items, and state indicators
+// =============================================================================
+
+@use '../../variables' as *;
+
+.file-explorer-content {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+}
+
+.file-explorer-loading,
+.file-explorer-error,
+.file-explorer-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-family: $font-mono;
+  font-size: 13px;
+}
+
+.file-explorer-loading {
+  color: $dracula-comment;
+}
+
+.file-explorer-error {
+  color: $dracula-red;
+}
+
+.file-explorer-empty {
+  color: $dracula-comment;
+}
+
+.file-explorer-list {
+  padding: 8px 0;
+}
+
+.file-explorer-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: background $transition-fast;
+
+  &:hover {
+    background: rgba($accent-blue, 0.15);
+  }
+
+  &.directory {
+    .file-explorer-item-name {
+      color: $dracula-cyan;
+      font-weight: 500;
+    }
+  }
+
+  &.file {
+    .file-explorer-item-name {
+      color: $dracula-fg;
+    }
+  }
+}
+
+.file-explorer-item-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+  width: 20px;
+  text-align: center;
+}
+
+.file-explorer-item-name {
+  flex: 1;
+  font-family: $font-mono;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-explorer-item-size {
+  font-family: $font-mono;
+  font-size: 10px;
+  color: $dracula-comment;
+  flex-shrink: 0;
+}

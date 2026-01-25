@@ -1,0 +1,292 @@
+// =============================================================================
+// File Explorer - Area Panel Styles
+// =============================================================================
+// Area panel for directory management and compact directory lists
+// =============================================================================
+
+@use '../../variables' as *;
+
+// Area panel styles for directory management
+.area-panel {
+  padding: 16px;
+}
+
+.area-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.area-panel-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.area-panel-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: $text-primary;
+}
+
+.area-panel-type {
+  font-size: 11px;
+  color: $text-muted;
+  text-transform: capitalize;
+}
+
+.area-directories {
+  margin-bottom: 16px;
+}
+
+.area-directories-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.area-directories-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: $text-secondary;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.area-add-dir-btn {
+  background: transparent;
+  border: 1px dashed $border-color;
+  color: $text-secondary;
+  padding: 4px 8px;
+  border-radius: $radius-sm;
+  font-size: 10px;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    border-color: $accent-blue;
+    color: $accent-blue;
+  }
+}
+
+.area-directories-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.area-directory-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: $bg-tertiary;
+  border-radius: $radius-md;
+  cursor: pointer;
+  transition: background $transition-fast;
+
+  &:hover {
+    background: rgba($accent-blue, 0.15);
+
+    .area-directory-remove {
+      opacity: 1;
+    }
+  }
+}
+
+.area-directory-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.area-directory-path {
+  flex: 1;
+  font-family: $font-mono;
+  font-size: 11px;
+  color: $dracula-cyan;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.area-directory-remove {
+  background: transparent;
+  border: none;
+  color: $dracula-red;
+  font-size: 14px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity $transition-fast;
+  padding: 0 4px;
+
+  &:hover {
+    color: #ff7777;
+  }
+}
+
+.area-no-directories {
+  padding: 16px;
+  text-align: center;
+  color: $text-muted;
+  font-size: 12px;
+  background: $bg-tertiary;
+  border-radius: $radius-md;
+  border: 1px dashed $border-color;
+}
+
+.area-actions {
+  display: flex;
+  gap: 8px;
+}
+
+// Add directory modal
+.add-directory-input {
+  width: 100%;
+  padding: 10px 12px;
+  background: $bg-tertiary;
+  border: 1px solid $border-color;
+  border-radius: $radius-md;
+  color: $text-primary;
+  font-family: $font-mono;
+  font-size: 12px;
+
+  &:focus {
+    outline: none;
+    border-color: $accent-blue;
+  }
+
+  &::placeholder {
+    color: $text-muted;
+  }
+}
+
+// Compact directory list in left panel
+.area-directories-compact {
+  padding: 4px 8px 8px;
+  border-bottom: 1px solid $border-color;
+}
+
+.area-dir-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  transition: background $transition-fast;
+  font-size: 11px;
+
+  &:hover {
+    background: rgba($accent-blue, 0.15);
+
+    .area-dir-remove {
+      opacity: 1;
+    }
+  }
+}
+
+.area-dir-icon {
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.area-dir-path {
+  flex: 1;
+  font-family: $font-mono;
+  color: $dracula-cyan;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.area-dir-remove {
+  background: transparent;
+  border: none;
+  color: $dracula-red;
+  font-size: 14px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity $transition-fast;
+  padding: 0 2px;
+  line-height: 1;
+
+  &:hover {
+    color: #ff7777;
+  }
+}
+
+.area-add-dir-inline {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.area-add-dir-input {
+  flex: 1;
+  padding: 4px 6px;
+  background: $bg-tertiary;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  color: $text-primary;
+  font-family: $font-mono;
+  font-size: 10px;
+
+  &:focus {
+    outline: none;
+    border-color: $accent-blue;
+  }
+
+  &::placeholder {
+    color: $text-muted;
+  }
+}
+
+.area-add-dir-confirm {
+  background: $accent-blue;
+  border: none;
+  color: white;
+  padding: 4px 8px;
+  border-radius: $radius-sm;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background $transition-fast;
+
+  &:hover {
+    background: #5aafff;
+  }
+}
+
+.area-add-dir-btn-compact {
+  width: 100%;
+  padding: 4px 6px;
+  margin-top: 4px;
+  background: transparent;
+  border: 1px dashed $border-color;
+  border-radius: $radius-sm;
+  color: $text-muted;
+  font-size: 10px;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    border-color: $accent-blue;
+    color: $accent-blue;
+  }
+}
+
+.area-browse-btn {
+  background: transparent;
+  border: none;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 4px;
+  opacity: 0.7;
+  transition: opacity $transition-fast;
+
+  &:hover {
+    opacity: 1;
+  }
+}

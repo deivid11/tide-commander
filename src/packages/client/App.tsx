@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo, Profiler } from 'react';
-import { store, useStore, useMobileView, useExplorerFolderPath } from './store';
+import { store, useStore, useMobileView, useExplorerFolderPath, useFileViewerPath, useContextModalAgentId, useTerminalOpen } from './store';
 import { connect, setCallbacks, clearCallbacks, disconnect, getSocket } from './websocket';
 import { SceneManager } from './scene/SceneManager';
 import { ToastProvider, useToast } from './components/Toast';
@@ -25,8 +25,9 @@ import { matchesShortcut } from './store/shortcuts';
 import { FPSMeter } from './components/FPSMeter';
 import { profileRender } from './utils/profiling';
 import { STORAGE_KEYS, getStorage, setStorage, getStorageString } from './utils/storage';
-import { useModalState, useModalStateWithId, useContextMenu } from './hooks';
+import { useModalState, useModalStateWithId, useContextMenu, useModalStackRegistration, closeTopModal, hasOpenModals } from './hooks';
 import { ContextMenu, type ContextMenuAction } from './components/ContextMenu';
+import { PWAInstallBanner } from './components/PWAInstallBanner';
 
 // Persist scene manager across HMR and StrictMode remounts
 let persistedScene: SceneManager | null = null;
@@ -35,6 +36,14 @@ let wsConnected = false;
 
 // Track if page is actually unloading (not HMR)
 let isPageUnloading = false;
+
+// Back navigation - store setter on window so it survives HMR/remounts
+declare global {
+  interface Window {
+    __tideSetBackNavModal?: (show: boolean) => void;
+    __tideBackNavSetup?: boolean;
+  }
+}
 
 // Cleanup function to dispose scene - called from multiple unload events
 function cleanupScene(source: string): void {
@@ -240,9 +249,40 @@ function AppContent() {
 
   const [sceneConfig, setSceneConfig] = useState(loadConfig);
   const [sidebarOpen, setSidebarOpen] = useState(false); // Mobile sidebar state
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false); // Mobile FAB menu state
   const mobileView = useMobileView(); // Mobile view toggle - from store
+  const fileViewerPath = useFileViewerPath(); // File viewer modal (store-based)
+  const contextModalAgentId = useContextModalAgentId(); // Context usage modal (store-based)
+  const terminalOpen = useTerminalOpen(); // Terminal panel (store-based)
   const { showToast } = useToast();
   const { showAgentNotification } = useAgentNotification();
+
+  // Register modals on the stack for mobile back gesture handling
+  // When back gesture is triggered, the topmost modal is closed instead of navigating away
+  useModalStackRegistration('spawn-modal', spawnModal.isOpen, spawnModal.close);
+  useModalStackRegistration('boss-spawn-modal', bossSpawnModal.isOpen, bossSpawnModal.close);
+  useModalStackRegistration('subordinate-modal', subordinateModal.isOpen, subordinateModal.close);
+  useModalStackRegistration('toolbox-modal', toolboxModal.isOpen, toolboxModal.close);
+  useModalStackRegistration('commander-modal', commanderModal.isOpen, commanderModal.close);
+  useModalStackRegistration('delete-confirm-modal', deleteConfirmModal.isOpen, deleteConfirmModal.close);
+  useModalStackRegistration('supervisor-modal', supervisorModal.isOpen, supervisorModal.close);
+  useModalStackRegistration('spotlight-modal', spotlightModal.isOpen, spotlightModal.close);
+  useModalStackRegistration('controls-modal', controlsModal.isOpen, controlsModal.close);
+  useModalStackRegistration('skills-modal', skillsModal.isOpen, skillsModal.close);
+  useModalStackRegistration('building-modal', buildingModal.isOpen, buildingModal.close);
+  // File explorer can be opened via explorerModal (area-based) or explorerFolderPath (folder building)
+  useModalStackRegistration('explorer-modal', explorerModal.isOpen || explorerFolderPath !== null, () => {
+    explorerModal.close();
+    store.closeFileExplorer();
+  });
+  useModalStackRegistration('context-menu', contextMenu.isOpen, contextMenu.close);
+  // Mobile sidebar and FAB menu also register as "modals" for back gesture
+  useModalStackRegistration('mobile-sidebar', sidebarOpen, () => setSidebarOpen(false));
+  useModalStackRegistration('mobile-fab-menu', mobileMenuOpen, () => setMobileMenuOpen(false));
+  // Store-based modals (file viewer, context modal, terminal)
+  useModalStackRegistration('file-viewer', fileViewerPath !== null, () => store.clearFileViewerPath());
+  useModalStackRegistration('context-modal', contextModalAgentId !== null, () => store.closeContextModal());
+  useModalStackRegistration('terminal', terminalOpen, () => store.setTerminalOpen(false));
 
   // Trigger resize when switching to 3D view on mobile (canvas needs to recalculate size)
   useEffect(() => {
@@ -256,6 +296,42 @@ function AppContent() {
       return () => timeouts.forEach(clearTimeout);
     }
   }, [mobileView]);
+
+  // Browser back navigation confirmation
+  const [showBackNavModal, setShowBackNavModal] = useState(false);
+
+  // Always keep the current setState on window - this survives even if handler is stale
+  window.__tideSetBackNavModal = setShowBackNavModal;
+
+  useEffect(() => {
+    // Only setup the listener once globally (survives HMR)
+    if (window.__tideBackNavSetup) {
+      // Just ensure we have a history entry
+      if (!window.history.state?.tideCommander) {
+        window.history.pushState({ tideCommander: true }, '');
+      }
+      return;
+    }
+
+    window.__tideBackNavSetup = true;
+
+    // Push initial history entry
+    window.history.pushState({ tideCommander: true }, '');
+
+    const handlePopState = () => {
+      // Push state again to prevent actual navigation
+      window.history.pushState({ tideCommander: true }, '');
+      // If there are open modals, close the topmost one
+      // Otherwise show the leave confirmation
+      if (!closeTopModal()) {
+        window.__tideSetBackNavModal?.(true);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    // Never remove - persists for page lifetime
+  }, []);
+
   const state = useStore();
 
   // Initialize scene and websocket
@@ -972,23 +1048,88 @@ function AppContent() {
           <div ref={selectionBoxRef} id="selection-box"></div>
         </div>
 
-        {/* Mobile view toggle button (3D / Terminal) */}
+        {/* Mobile FAB toggle - hamburger button */}
         <button
-          className="mobile-view-toggle-btn"
-          onClick={() => store.setMobileView(mobileView === 'terminal' ? '3d' : 'terminal')}
-          title={mobileView === 'terminal' ? 'Show 3D View' : 'Show Terminal'}
+          className={`mobile-fab-toggle ${mobileMenuOpen ? 'open' : ''}`}
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          title={mobileMenuOpen ? 'Close menu' : 'Open menu'}
         >
-          {mobileView === 'terminal' ? '🎮' : '💬'}
+          {mobileMenuOpen ? '✕' : '⋯'}
         </button>
 
-        {/* Mobile sidebar toggle button */}
-        <button
-          className="sidebar-toggle-btn"
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          title={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
-        >
-          {sidebarOpen ? '✕' : '☰'}
-        </button>
+        {/* Mobile FAB menu - expandable options */}
+        <div className={`mobile-fab-menu ${mobileMenuOpen ? 'open' : ''}`}>
+          <button
+            className="mobile-fab-option"
+            onClick={() => {
+              store.setMobileView(mobileView === 'terminal' ? '3d' : 'terminal');
+              setMobileMenuOpen(false);
+            }}
+            title={mobileView === 'terminal' ? 'Show 3D View' : 'Show Terminal'}
+          >
+            {mobileView === 'terminal' ? '🎮' : '💬'}
+          </button>
+          <button
+            className="mobile-fab-option"
+            onClick={() => {
+              setSidebarOpen(!sidebarOpen);
+              setMobileMenuOpen(false);
+            }}
+            title={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+          >
+            {sidebarOpen ? '✕' : '☰'}
+          </button>
+          <button
+            className="mobile-fab-option"
+            onClick={() => {
+              toolboxModal.open();
+              setMobileMenuOpen(false);
+            }}
+            title="Settings & Tools"
+          >
+            ⚙️
+          </button>
+          <button
+            className="mobile-fab-option"
+            onClick={() => {
+              commanderModal.open();
+              setMobileMenuOpen(false);
+            }}
+            title="Commander View"
+          >
+            📊
+          </button>
+          <button
+            className="mobile-fab-option"
+            onClick={() => {
+              supervisorModal.open();
+              setMobileMenuOpen(false);
+            }}
+            title="Supervisor Overview"
+          >
+            🎖️
+          </button>
+          <button
+            className="mobile-fab-option"
+            onClick={() => {
+              controlsModal.open();
+              setMobileMenuOpen(false);
+            }}
+            title="Controls"
+          >
+            ⌨️
+          </button>
+          <button
+            className="mobile-fab-option"
+            onClick={() => {
+              skillsModal.open();
+              setMobileMenuOpen(false);
+            }}
+            title="Manage Skills"
+          >
+            ⭐
+          </button>
+        </div>
 
         {/* Sidebar overlay for mobile */}
         {sidebarOpen && (
@@ -1133,6 +1274,40 @@ function AppContent() {
         </div>
       )}
 
+      {/* Back Navigation Confirmation Modal - highest z-index */}
+      {showBackNavModal && (
+        <div
+          className="modal-overlay navigation-confirm-overlay visible"
+          onClick={() => setShowBackNavModal(false)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setShowBackNavModal(false);
+          }}
+        >
+          <div className="modal confirm-modal navigation-confirm-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">Leave Tide Commander?</div>
+            <div className="modal-body confirm-modal-body">
+              <p>Are you sure you want to leave this page?</p>
+              <p className="confirm-modal-note">Active Claude Code sessions will continue running in the background.</p>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setShowBackNavModal(false)} autoFocus>
+                Stay
+              </button>
+              <button
+                className="btn btn-danger"
+                onClick={() => {
+                  setShowBackNavModal(false);
+                  // Go back twice: once for our pushed state, once for actual navigation
+                  window.history.go(-2);
+                }}
+              >
+                Leave
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Commander View button */}
       <button
         className="commander-toggle-btn"
@@ -1251,6 +1426,9 @@ function AppContent() {
         actions={contextMenuActions}
         onClose={contextMenu.close}
       />
+
+      {/* PWA Install Banner */}
+      <PWAInstallBanner />
     </div>
   );
 }

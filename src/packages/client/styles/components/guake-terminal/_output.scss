@@ -1,0 +1,265 @@
+// =============================================================================
+// Guake Terminal - Output Area & Message Display
+// =============================================================================
+
+@use '../../variables' as *;
+
+.guake-output {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 18px;
+  font-family: $font-mono;
+  font-size: 13px;
+  line-height: 1.6;
+  color: $dracula-fg;
+
+  a {
+    color: $dracula-cyan;
+    text-decoration: underline;
+    text-decoration-color: rgba($dracula-cyan, 0.4);
+    text-underline-offset: 2px;
+    transition: all $transition-fast;
+
+    &:hover {
+      color: $dracula-pink;
+      text-decoration-color: $dracula-pink;
+    }
+
+    &:visited {
+      color: $dracula-purple;
+      text-decoration-color: rgba($dracula-purple, 0.4);
+    }
+  }
+
+  // Ensure markdown content renders properly inside guake terminal
+  .markdown-content {
+    display: block;
+
+    h1, h2, h3, h4, h5, h6 {
+      margin: 0.6em 0 0.3em 0;
+      font-weight: 600;
+      line-height: 1.3;
+    }
+
+    h1 { font-size: 1.4em; color: $dracula-pink; }
+    h2 { font-size: 1.25em; color: $dracula-purple; }
+    h3 { font-size: 1.15em; color: $dracula-cyan; }
+    h4 { font-size: 1.1em; color: $dracula-green; }
+    h5 { font-size: 1.05em; color: $dracula-yellow; }
+    h6 { font-size: 1em; color: $dracula-orange; }
+
+    p {
+      margin: 0.4em 0;
+
+      &:first-child { margin-top: 0; }
+      &:last-child { margin-bottom: 0; }
+    }
+
+    code {
+      background: rgba($dracula-current, 0.6);
+      color: $dracula-green;
+      padding: 0.15em 0.4em;
+      border-radius: 3px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: rgba($dracula-bg, 0.9);
+      border: 1px solid rgba($dracula-comment, 0.4);
+      border-radius: $radius-md;
+      padding: 12px;
+      margin: 0.6em 0;
+      overflow-x: auto;
+
+      code {
+        background: none;
+        padding: 0;
+        color: $dracula-fg;
+        font-size: 12px;
+        line-height: 1.5;
+      }
+    }
+
+    ul, ol {
+      margin: 0.5em 0;
+      padding-left: 1.5em;
+      line-height: 1.5;
+    }
+
+    li {
+      margin: 0.2em 0;
+      padding-left: 0.3em;
+
+      &::marker {
+        color: $dracula-purple;
+      }
+    }
+
+    blockquote {
+      border-left: 3px solid $dracula-purple;
+      margin: 0.5em 0;
+      padding: 0.5em 1em;
+      background: rgba($dracula-purple, 0.1);
+      border-radius: 0 $radius-sm $radius-sm 0;
+
+      p { margin: 0; }
+    }
+
+    strong { color: $dracula-orange; font-weight: 600; }
+    em { color: $dracula-yellow; font-style: italic; }
+    del { color: $dracula-red; text-decoration: line-through; }
+
+    hr {
+      border: none;
+      border-top: 1px solid rgba($dracula-comment, 0.5);
+      margin: 1em 0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0.6em 0;
+      font-size: 12px;
+    }
+
+    th, td {
+      border: 1px solid rgba($dracula-comment, 0.4);
+      padding: 6px 10px;
+      text-align: left;
+    }
+
+    th {
+      background: rgba($dracula-current, 0.8);
+      font-weight: 600;
+      color: $dracula-pink;
+    }
+
+    td { background: rgba($dracula-bg, 0.5); }
+    tr:nth-child(even) td { background: rgba($dracula-current, 0.4); }
+
+    // Checklist style
+    input[type="checkbox"] {
+      margin-right: 0.5em;
+      accent-color: $dracula-green;
+    }
+  }
+}
+
+// History content wrapper with fade-in animation
+.guake-history-content {
+  opacity: 0;
+
+  &.fade-in {
+    animation: history-fade-in 0.2s ease-out forwards;
+  }
+}
+
+@keyframes history-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+// Output line types
+.output-line {
+  padding: 1px 0;
+  word-wrap: break-word;
+
+  &.output-text {
+    white-space: normal;
+  }
+}
+
+// Claude message styling for live output
+.output-claude {
+  background: rgba($dracula-green, 0.12);
+  border-left: 3px solid $dracula-green;
+  padding: 8px 12px;
+  margin: 4px 0;
+  border-radius: $radius-sm;
+}
+
+// User prompt styling for live output
+.output-user {
+  background: rgba($dracula-cyan, 0.12);
+  border-left: 3px solid $dracula-cyan;
+  padding: 8px 12px;
+  margin: 4px 0;
+  border-radius: $radius-sm;
+
+  .output-role {
+    color: $dracula-cyan;
+  }
+}
+
+.output-role {
+  font-weight: bold;
+  color: $dracula-green;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-right: 6px;
+  display: inline;  // Inline with timestamp
+}
+
+.output-session {
+  color: $dracula-purple;
+  font-style: italic;
+}
+
+// Timestamp display - inline with role, with background for legibility
+.output-timestamp {
+  font-family: $font-mono;
+  font-size: 9px;
+  color: $dracula-comment;
+  background: rgba($dracula-bg, 0.7);
+  padding: 1px 4px;
+  border-radius: 3px;
+  margin-right: 6px;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.output-stats {
+  color: $dracula-comment;
+  font-size: 11px;
+}
+
+.output-thinking {
+  color: $dracula-cyan;
+  opacity: 0.7;
+  font-style: italic;
+}
+
+.output-raw {
+  color: $dracula-comment;
+  opacity: 0.6;
+}
+
+.output-text {
+  color: $dracula-fg;
+}
+
+.output-streaming {
+  border-right: 2px solid $dracula-purple;
+  animation: cursor-blink 1s infinite;
+}
+
+@keyframes cursor-blink {
+  0%, 50% { border-color: $dracula-purple; }
+  51%, 100% { border-color: transparent; }
+}
+
+.output-separator {
+  text-align: center;
+  padding: 8px;
+  color: $dracula-comment;
+  font-size: 10px;
+  letter-spacing: 1px;
+  border-top: 1px dashed rgba($dracula-comment, 0.4);
+  border-bottom: 1px dashed rgba($dracula-comment, 0.4);
+  margin: 8px 0;
+}

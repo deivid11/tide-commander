@@ -1,0 +1,666 @@
+// =============================================================================
+// File Explorer - Panel Styles
+// =============================================================================
+// Right-side IDE-style panel, area/folder selectors, toolbar
+// =============================================================================
+
+@use '../../variables' as *;
+
+// Right-side File Explorer Panel (IDE Style)
+.file-explorer-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 350px;
+  height: 100vh;
+  background: $bg-secondary;
+  border-left: 1px solid $border-color;
+  display: flex;
+  flex-direction: column;
+  z-index: 250; // Higher than guake terminal (200) so it appears on top
+
+  &.ide-style {
+    left: 0;
+    width: 100%;
+  }
+}
+
+.file-explorer-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: $bg-tertiary;
+  border-bottom: 1px solid $border-color;
+}
+
+.file-explorer-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: $text-primary;
+  position: relative;
+}
+
+.file-explorer-panel-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+// Area selector
+.file-explorer-area-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  margin: -4px -8px;
+  border-radius: $radius-sm;
+  transition: background $transition-fast;
+
+  &:hover {
+    background: rgba($accent-blue, 0.1);
+  }
+}
+
+.file-explorer-area-dropdown-icon {
+  font-size: 8px;
+  color: $text-muted;
+  margin-left: 4px;
+}
+
+.file-explorer-area-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  background: $bg-tertiary;
+  border: 1px solid $border-color;
+  border-radius: $radius-md;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  min-width: 200px;
+  max-width: 300px;
+  z-index: 1000;
+  overflow: hidden;
+}
+
+.file-explorer-area-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: background $transition-fast;
+
+  &:hover {
+    background: rgba($accent-blue, 0.15);
+  }
+
+  &.active {
+    background: rgba($accent-blue, 0.2);
+  }
+}
+
+.file-explorer-area-option-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.file-explorer-area-option-name {
+  flex: 1;
+  font-size: 13px;
+  color: $text-primary;
+}
+
+.file-explorer-area-option-count {
+  font-size: 11px;
+  color: $text-muted;
+  font-family: $font-mono;
+}
+
+// Path separator in header
+.file-explorer-path-separator {
+  color: $text-muted;
+  margin: 0 2px;
+}
+
+// Folder selector
+.file-explorer-folder-selector {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  margin: -4px 0;
+  border-radius: $radius-sm;
+  transition: background $transition-fast;
+
+  &:hover {
+    background: rgba($accent-blue, 0.1);
+  }
+}
+
+.file-explorer-folder-name {
+  font-family: $font-mono;
+  font-size: 13px;
+  color: $dracula-cyan;
+}
+
+.file-explorer-folder-dropdown-icon {
+  font-size: 8px;
+  color: $text-muted;
+}
+
+.file-explorer-folder-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  background: $bg-tertiary;
+  border: 1px solid $border-color;
+  border-radius: $radius-md;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  min-width: 250px;
+  max-width: 400px;
+  max-height: 300px;
+  overflow-y: auto;
+  z-index: 1001;
+}
+
+.file-explorer-folder-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: background $transition-fast;
+
+  &:hover {
+    background: rgba($accent-blue, 0.15);
+  }
+
+  &.active {
+    background: rgba($accent-blue, 0.2);
+  }
+}
+
+.file-explorer-folder-option-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.file-explorer-folder-option-name {
+  flex: 1;
+  font-size: 13px;
+  font-family: $font-mono;
+  color: $text-primary;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-explorer-folder-option-area {
+  font-size: 11px;
+  color: $text-muted;
+  flex-shrink: 0;
+}
+
+.file-explorer-panel-close {
+  background: transparent;
+  border: 1px solid $border-color;
+  color: $text-secondary;
+  width: 28px;
+  height: 28px;
+  border-radius: $radius-sm;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all $transition-fast;
+
+  &:hover {
+    background: $dracula-red;
+    border-color: $dracula-red;
+    color: $dracula-fg;
+  }
+}
+
+.file-explorer-back-btn {
+  background: transparent;
+  border: 1px solid $border-color;
+  color: $text-secondary;
+  width: 28px;
+  height: 28px;
+  border-radius: $radius-sm;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all $transition-fast;
+  margin-right: 4px;
+
+  &:hover {
+    background: $accent-blue;
+    border-color: $accent-blue;
+    color: white;
+  }
+}
+
+.file-explorer-current-file {
+  font-family: $font-mono;
+  font-size: 12px;
+  color: $dracula-cyan;
+  margin-left: 4px;
+}
+
+.file-explorer-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid $border-color;
+  overflow-x: auto;
+}
+
+.file-explorer-tab {
+  padding: 4px 10px;
+  background: $bg-tertiary;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  color: $text-secondary;
+  font-size: 11px;
+  font-family: $font-mono;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all $transition-fast;
+
+  &:hover {
+    border-color: $accent-blue;
+    color: $text-primary;
+  }
+
+  &.active {
+    background: rgba($accent-blue, 0.2);
+    border-color: $accent-blue;
+    color: $accent-blue;
+  }
+}
+
+.file-explorer-panel-path {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.15);
+  border-bottom: 1px solid $border-color;
+}
+
+.file-explorer-panel-up {
+  background: transparent;
+  border: 1px solid $border-color;
+  color: $text-secondary;
+  width: 24px;
+  height: 24px;
+  border-radius: $radius-sm;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all $transition-fast;
+
+  &:hover {
+    background: $accent-blue;
+    border-color: $accent-blue;
+  }
+}
+
+.file-explorer-panel-current {
+  font-family: $font-mono;
+  font-size: 10px;
+  color: $dracula-cyan;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-explorer-panel-content {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+}
+
+.file-explorer-panel-loading,
+.file-explorer-panel-error,
+.file-explorer-panel-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-family: $font-mono;
+  font-size: 12px;
+  color: $text-muted;
+  padding: 20px;
+  text-align: center;
+}
+
+.file-explorer-panel-error {
+  color: $dracula-red;
+}
+
+.file-explorer-panel-list {
+  padding: 4px 0;
+}
+
+.file-explorer-panel-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background $transition-fast;
+
+  &:hover {
+    background: rgba($accent-blue, 0.15);
+  }
+
+  &.directory {
+    .file-explorer-panel-item-name {
+      color: $dracula-cyan;
+      font-weight: 500;
+    }
+  }
+
+  &.file {
+    .file-explorer-panel-item-name {
+      color: $dracula-fg;
+    }
+  }
+}
+
+.file-explorer-panel-item-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+  width: 18px;
+  text-align: center;
+}
+
+.file-explorer-panel-item-name {
+  flex: 1;
+  font-family: $font-mono;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-explorer-panel-item-size {
+  font-family: $font-mono;
+  font-size: 9px;
+  color: $dracula-comment;
+  flex-shrink: 0;
+}
+
+// IDE Style - Toolbar (search + buttons)
+.file-explorer-toolbar {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  gap: 8px;
+  background: $bg-tertiary;
+  border-bottom: 1px solid $border-color;
+
+  .file-explorer-search {
+    flex: 1;
+    padding: 0;
+    background: transparent;
+    border-bottom: none;
+  }
+}
+
+.file-explorer-toolbar-buttons {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.file-explorer-toolbar-btn {
+  background: transparent;
+  border: 1px solid $border-color;
+  color: $text-muted;
+  width: 28px;
+  height: 28px;
+  border-radius: $radius-sm;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all $transition-fast;
+
+  &:hover {
+    background: $accent-blue;
+    border-color: $accent-blue;
+    color: $text-primary;
+  }
+}
+
+// IDE Style - Main Split Layout
+.file-explorer-main {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+
+// Folders management section
+.file-explorer-folders {
+  flex-shrink: 0;
+  border-bottom: 1px solid $border-color;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.file-explorer-folders-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px 4px;
+}
+
+.file-explorer-folders-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: $text-muted;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.file-explorer-add-folder-btn {
+  background: transparent;
+  border: 1px solid $border-color;
+  color: $text-secondary;
+  width: 20px;
+  height: 20px;
+  border-radius: $radius-sm;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all $transition-fast;
+
+  &:hover {
+    background: $accent-blue;
+    border-color: $accent-blue;
+    color: white;
+  }
+}
+
+.file-explorer-folders-list {
+  padding: 4px 8px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.file-explorer-folder-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: $radius-sm;
+  font-size: 11px;
+  cursor: default;
+  transition: background $transition-fast;
+  position: relative;
+
+  &:hover {
+    background: rgba($accent-blue, 0.1);
+
+    .file-explorer-folder-remove {
+      opacity: 1;
+    }
+
+    .file-explorer-folder-tooltip {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+    }
+  }
+}
+
+.file-explorer-folder-icon {
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.file-explorer-folder-path {
+  flex: 1;
+  font-family: $font-mono;
+  color: $dracula-cyan;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-explorer-folder-remove {
+  background: transparent;
+  border: none;
+  color: $dracula-red;
+  font-size: 14px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity $transition-fast;
+  padding: 0 2px;
+  line-height: 1;
+
+  &:hover {
+    color: #ff7777;
+  }
+}
+
+// Folder tooltip
+.file-explorer-folder-tooltip {
+  position: absolute;
+  top: 100%;
+  left: 8px;
+  margin-top: 4px;
+  background: rgba($dracula-bg, 0.98);
+  border: 1px solid $dracula-cyan;
+  border-radius: $radius-md;
+  padding: 8px 12px;
+  min-width: 200px;
+  max-width: 350px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  z-index: 1100;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  transition: all 0.15s ease-out;
+  pointer-events: none;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    left: 12px;
+    border: 6px solid transparent;
+    border-bottom-color: $dracula-cyan;
+    border-top: none;
+  }
+}
+
+.file-explorer-folder-tooltip-label {
+  font-size: 9px;
+  font-weight: 600;
+  color: $dracula-comment;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.file-explorer-folder-tooltip-path {
+  font-family: $font-mono;
+  font-size: 11px;
+  color: $dracula-cyan;
+  word-break: break-all;
+  line-height: 1.4;
+}
+
+.file-explorer-add-folder-input-wrapper {
+  display: flex;
+  gap: 4px;
+  padding: 2px 0;
+}
+
+.file-explorer-add-folder-input {
+  flex: 1;
+  padding: 4px 8px;
+  background: $dracula-bg;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  color: $text-primary;
+  font-family: $font-mono;
+  font-size: 11px;
+
+  &:focus {
+    outline: none;
+    border-color: $accent-blue;
+  }
+
+  &::placeholder {
+    color: $text-muted;
+  }
+}
+
+.file-explorer-add-folder-confirm {
+  background: $accent-blue;
+  border: none;
+  color: white;
+  padding: 4px 8px;
+  border-radius: $radius-sm;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background $transition-fast;
+
+  &:hover {
+    background: #5aafff;
+  }
+}
+
+.file-explorer-no-folders {
+  padding: 8px;
+  text-align: center;
+  color: $text-muted;
+  font-size: 11px;
+  font-style: italic;
+}

@@ -1,0 +1,97 @@
+// =============================================================================
+// File Explorer - Syntax Highlighting Styles
+// =============================================================================
+// Prism.js theme (Dracula-inspired) for code display
+// =============================================================================
+
+@use '../../variables' as *;
+
+code[class*="language-"],
+pre[class*="language-"] {
+  color: $dracula-fg;
+  background: none;
+  font-family: $font-mono;
+  text-align: left;
+  white-space: pre;
+  word-spacing: normal;
+  word-break: normal;
+  word-wrap: normal;
+  line-height: 1.5;
+  tab-size: 2;
+  hyphens: none;
+}
+
+.token.comment,
+.token.prolog,
+.token.doctype,
+.token.cdata {
+  color: $dracula-comment;
+}
+
+.token.punctuation {
+  color: $dracula-fg;
+}
+
+.token.namespace {
+  opacity: 0.7;
+}
+
+.token.property,
+.token.tag,
+.token.constant,
+.token.symbol,
+.token.deleted {
+  color: $dracula-pink;
+}
+
+.token.boolean,
+.token.number {
+  color: $dracula-purple;
+}
+
+.token.selector,
+.token.attr-name,
+.token.string,
+.token.char,
+.token.builtin,
+.token.inserted {
+  color: $dracula-green;
+}
+
+.token.operator,
+.token.entity,
+.token.url,
+.language-css .token.string,
+.style .token.string,
+.token.variable {
+  color: $dracula-fg;
+}
+
+.token.atrule,
+.token.attr-value,
+.token.function,
+.token.class-name {
+  color: $dracula-yellow;
+}
+
+.token.keyword {
+  color: $dracula-pink;
+}
+
+.token.regex,
+.token.important {
+  color: $dracula-orange;
+}
+
+.token.important,
+.token.bold {
+  font-weight: bold;
+}
+
+.token.italic {
+  font-style: italic;
+}
+
+.token.entity {
+  cursor: help;
+}

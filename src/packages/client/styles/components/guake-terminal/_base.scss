@@ -1,0 +1,282 @@
+// =============================================================================
+// Guake Terminal - Base Layout & Core Structure
+// =============================================================================
+
+@use '../../variables' as *;
+
+.guake-terminal {
+  // CSS custom property for dynamic height (default 55%)
+  --terminal-height: 55%;
+
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: $sidebar-width;
+  height: var(--terminal-height);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+
+  &.open {
+    .guake-content {
+      transform: translateY(0);
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    // Handle position is now controlled via inline style
+  }
+
+  &.collapsed {
+    pointer-events: none;
+
+    .guake-content {
+      transform: translateY(-100%);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .guake-handle {
+      top: 0;
+      border-radius: 0 0 $radius-lg $radius-lg;
+      border-top: 1px solid $dracula-comment;
+    }
+  }
+}
+
+.guake-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, rgba($dracula-bg, 0.92) 0%, rgba($dracula-bg-darker, 0.95) 100%);
+  border-bottom: 2px solid $dracula-purple;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(12px);
+  overflow: hidden;
+  // No transition - show instantly
+}
+
+.guake-empty {
+  padding: 30px;
+  text-align: center;
+  color: $dracula-comment;
+  font-size: 13px;
+  font-family: $font-mono;
+
+  // Loading state with animated dots
+  &.loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+
+    .loading-dots {
+      display: inline-flex;
+      gap: 4px;
+
+      span {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: $dracula-purple;
+        animation: loading-pulse 1.2s ease-in-out infinite;
+
+        &:nth-child(2) {
+          animation-delay: 0.2s;
+        }
+
+        &:nth-child(3) {
+          animation-delay: 0.4s;
+        }
+      }
+    }
+  }
+}
+
+@keyframes loading-pulse {
+  0%, 80%, 100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.guake-load-more {
+  display: flex;
+  justify-content: center;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  border-bottom: 1px dashed rgba($dracula-comment, 0.3);
+
+  span {
+    color: $dracula-comment;
+    font-size: 11px;
+    font-family: $font-mono;
+  }
+
+  button {
+    background: transparent;
+    border: 1px solid $dracula-current;
+    color: $dracula-cyan;
+    padding: 4px 12px;
+    border-radius: $radius-sm;
+    font-size: 11px;
+    font-family: $font-mono;
+    cursor: pointer;
+    transition: all $transition-fast;
+
+    &:hover {
+      background: rgba($dracula-cyan, 0.1);
+      border-color: $dracula-cyan;
+    }
+  }
+}
+
+// Resize handle at bottom of terminal
+.guake-resize-handle {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 6px;
+  background: transparent;
+  cursor: ns-resize;
+  z-index: 202;
+  transition: background $transition-fast;
+
+  // Visual indicator line
+  &::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 2px;
+    width: 60px;
+    height: 3px;
+    background: rgba($dracula-comment, 0.4);
+    border-radius: 2px;
+    transition: all $transition-fast;
+  }
+
+  &:hover {
+    background: rgba($dracula-purple, 0.1);
+
+    &::after {
+      background: $dracula-purple;
+      width: 80px;
+      box-shadow: 0 0 8px rgba($dracula-purple, 0.5);
+    }
+  }
+
+  &:active {
+    background: rgba($dracula-purple, 0.2);
+
+    &::after {
+      background: $dracula-cyan;
+      box-shadow: 0 0 12px rgba($dracula-cyan, 0.6);
+    }
+  }
+}
+
+.guake-handle {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 20px;
+  background: linear-gradient(180deg, $dracula-current 0%, $dracula-bg 100%);
+  border: 1px solid $dracula-comment;
+  border-top: none;
+  border-radius: 0 0 10px 10px;
+  cursor: pointer;
+  transition: background $transition-fast, border-color $transition-fast; // No top transition - show instantly
+  pointer-events: auto;
+  font-family: $font-mono;
+  z-index: 201;
+
+  &:hover {
+    background: $dracula-current;
+    border-color: $dracula-purple;
+  }
+}
+
+.guake-handle-icon {
+  color: $dracula-purple;
+  font-size: 12px;
+}
+
+.guake-handle-text {
+  color: $dracula-fg;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.guake-hint {
+  color: $dracula-comment;
+  font-size: 10px;
+  font-family: $font-mono;
+}
+
+// Queue badge
+.queue-badge {
+  background: rgba($dracula-orange, 0.2);
+  color: $dracula-orange;
+  padding: 4px 10px;
+  border-radius: $radius-sm;
+  font-size: 11px;
+  font-family: $font-mono;
+  font-weight: 600;
+  border: 1px solid rgba($dracula-orange, 0.4);
+  white-space: nowrap;
+}
+
+// Queue display in guake terminal
+.guake-queue {
+  background: rgba($dracula-bg, 0.95);
+  border-top: 1px solid $dracula-current;
+  padding: 8px 18px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.guake-queue-header {
+  color: $dracula-orange;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: $font-mono;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.guake-queue-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 0;
+  font-family: $font-mono;
+  font-size: 12px;
+  color: $dracula-fg;
+  border-bottom: 1px solid rgba($dracula-current, 0.5);
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.guake-queue-index {
+  color: $dracula-orange;
+  font-weight: 600;
+  min-width: 20px;
+}
+
+.guake-queue-command {
+  color: $dracula-comment;
+  flex: 1;
+  word-break: break-all;
+}

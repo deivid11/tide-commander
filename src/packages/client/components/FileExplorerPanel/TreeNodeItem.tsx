@@ -65,7 +65,7 @@ function TreeNodeItemComponent({
         className={`tree-node ${isSelected ? 'selected' : ''} ${
           node.isDirectory ? 'directory' : 'file'
         } ${isExpanded ? 'expanded' : ''}`}
-        style={{ paddingLeft: `${8 + depth * 12}px` }}
+        style={{ paddingLeft: `${4 + depth * 8}px` }}
         onClick={handleClick}
         data-path={node.path}
       >

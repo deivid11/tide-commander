@@ -295,8 +295,11 @@ export class TouchGestureHandler {
     const touchDuration = performance.now() - this.touchStartTime;
     const wasTap = !this.isTouchDragging && !this.longPressTriggered && touchDuration < 400;
 
+    console.log('[TouchGesture] handleAllTouchesEnd - duration:', touchDuration, 'wasTap:', wasTap, 'isDragging:', this.isTouchDragging, 'longPress:', this.longPressTriggered);
+
     if (wasTap && event.changedTouches.length > 0) {
       const touch = event.changedTouches[0];
+      console.log('[TouchGesture] Triggering onTap at:', touch.clientX, touch.clientY);
       this.callbacks.onTap(touch.clientX, touch.clientY);
     }
 

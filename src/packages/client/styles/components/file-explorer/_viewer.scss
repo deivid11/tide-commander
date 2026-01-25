@@ -1,0 +1,228 @@
+// =============================================================================
+// File Explorer - Viewer Styles
+// =============================================================================
+// File viewer panel for code, images, PDF, and binary files
+// =============================================================================
+
+@use '../../variables' as *;
+
+// IDE Style - File Viewer Panel (Right)
+.file-explorer-viewer-panel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: $dracula-bg;
+  overflow: hidden;
+}
+
+.file-viewer-placeholder {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: $text-muted;
+  gap: 12px;
+
+  &.error {
+    color: $dracula-red;
+  }
+}
+
+.placeholder-icon {
+  font-size: 48px;
+  opacity: 0.5;
+}
+
+.placeholder-text {
+  font-size: 14px;
+}
+
+.file-viewer-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.file-viewer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  background: $dracula-bg-darker;
+  border-bottom: 1px solid $dracula-current;
+}
+
+.file-viewer-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.file-viewer-header-right {
+  flex-shrink: 0;
+  margin-left: 16px;
+  display: flex;
+  align-items: center;
+}
+
+.file-viewer-filename {
+  font-family: $font-mono;
+  font-size: 13px;
+  font-weight: 600;
+  color: $dracula-fg;
+}
+
+.file-viewer-meta {
+  font-family: $font-mono;
+  font-size: 11px;
+  color: $dracula-comment;
+}
+
+.file-viewer-download-btn {
+  background: transparent;
+  border: 1px solid $border-color;
+  color: $text-secondary;
+  padding: 6px 12px;
+  border-radius: $radius-sm;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all $transition-fast;
+  white-space: nowrap;
+
+  &:hover {
+    background: $accent-blue;
+    border-color: $accent-blue;
+    color: white;
+  }
+
+  &.large {
+    padding: 12px 24px;
+    font-size: 14px;
+    font-weight: 500;
+  }
+}
+
+.file-viewer-locate-btn {
+  background: transparent;
+  border: 1px solid $border-color;
+  color: $text-muted;
+  width: 28px;
+  height: 28px;
+  border-radius: $radius-sm;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all $transition-fast;
+  margin-right: 8px;
+
+  &:hover {
+    background: $accent-blue;
+    border-color: $accent-blue;
+    color: white;
+  }
+}
+
+.file-viewer-code-wrapper {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+}
+
+.file-viewer-pre {
+  margin: 0;
+  padding: 16px;
+  background: transparent !important;
+  font-family: $font-mono;
+  font-size: 13px;
+  line-height: 1.5;
+  tab-size: 2;
+
+  code {
+    background: transparent !important;
+    padding: 0;
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+  }
+}
+
+// Image viewer
+.file-viewer-image-wrapper {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow: auto;
+  background: repeating-conic-gradient(
+    rgba(255, 255, 255, 0.03) 0% 25%,
+    transparent 0% 50%
+  ) 50% / 20px 20px;
+}
+
+.file-viewer-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: $radius-sm;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+// PDF viewer
+.file-viewer-pdf-wrapper {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.file-viewer-pdf {
+  flex: 1;
+  border: none;
+  background: white;
+}
+
+// Binary file viewer (download only)
+.file-viewer-binary {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  text-align: center;
+  gap: 16px;
+}
+
+.file-viewer-binary-icon {
+  font-size: 64px;
+  opacity: 0.8;
+}
+
+.file-viewer-binary-name {
+  font-family: $font-mono;
+  font-size: 16px;
+  font-weight: 600;
+  color: $dracula-fg;
+  word-break: break-all;
+}
+
+.file-viewer-binary-size {
+  font-family: $font-mono;
+  font-size: 12px;
+  color: $text-muted;
+}
+
+.file-viewer-binary-message {
+  font-size: 13px;
+  color: $text-secondary;
+  margin-top: 8px;
+}

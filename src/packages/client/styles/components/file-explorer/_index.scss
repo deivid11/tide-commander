@@ -1,0 +1,42 @@
+// =============================================================================
+// File Explorer - Main Entry Point
+// =============================================================================
+// This file imports all file explorer sub-styles for better maintainability.
+// Each partial handles a specific aspect of the file explorer UI.
+// =============================================================================
+
+// Core overlay and modal styles
+@forward 'base';
+
+// Header, path bar, and close button
+@forward 'header';
+
+// File list and item styles
+@forward 'list';
+
+// Area panel for directory management
+@forward 'area-panel';
+
+// Right-side IDE-style panel
+@forward 'panel';
+
+// File tree navigation
+@forward 'tree';
+
+// Search functionality and results
+@forward 'search';
+
+// File tabs bar
+@forward 'tabs';
+
+// File viewer (code, images, PDF, binary)
+@forward 'viewer';
+
+// Git changes view
+@forward 'git';
+
+// Prism.js syntax highlighting theme
+@forward 'syntax';
+
+// Mobile responsive styles (must be last)
+@forward 'mobile';
