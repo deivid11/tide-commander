@@ -55,6 +55,7 @@ export class SceneManager {
   private frameInterval = 0; // Calculated from fpsLimit
   private resizeObserver: ResizeObserver | null = null;
   private animationFrameId: number | null = null;
+  private isReattaching = false; // Flag to prevent rendering during HMR reattachment
 
   // Idle detection for power saving (experimental feature)
   private powerSavingEnabled = false; // Controlled by settings
@@ -225,18 +226,23 @@ export class SceneManager {
       throw new Error('[SceneManager] Canvas is not attached to DOM');
     }
 
-    // Check if canvas has dimensions (can happen if CSS hasn't applied yet)
-    let width = this.canvas.clientWidth || this.canvas.width;
-    let height = this.canvas.clientHeight || this.canvas.height;
+    // Priority for dimensions: parent container > canvas CSS > canvas attributes > window
+    // Parent container is most reliable during HMR as the canvas might not have laid out yet
+    const container = this.canvas.parentElement;
+    let width = container.clientWidth || this.canvas.clientWidth || this.canvas.width;
+    let height = container.clientHeight || this.canvas.clientHeight || this.canvas.height;
 
-    // If dimensions are still 0, use fallback and set explicit canvas size
+    // If dimensions are still 0, use window as final fallback
     if (!width || !height) {
       width = window.innerWidth;
       height = window.innerHeight;
-      // Set explicit canvas dimensions - required for WebGL context creation
+      console.log('[SceneManager] Using window fallback dimensions:', width, height);
+    }
+
+    // Ensure canvas has explicit dimensions (required for WebGL context)
+    if (this.canvas.width !== width || this.canvas.height !== height) {
       this.canvas.width = width;
       this.canvas.height = height;
-      console.log('[SceneManager] Set explicit canvas dimensions:', width, height);
     }
 
     console.log('[SceneManager] Creating WebGLRenderer with canvas:', {
@@ -1321,9 +1327,22 @@ export class SceneManager {
   private animate = (): void => {
     this.animationFrameId = requestAnimationFrame(this.animate);
 
-    // Safety check - don't render if disposed
+    // Safety check - don't render during HMR reattachment
+    // This prevents black screen when canvas/renderer are being swapped
+    if (this.isReattaching) {
+      return;
+    }
+
+    // Safety check - don't render if disposed or canvas disconnected from DOM
+    // This prevents black screen during HMR when canvas element is being replaced
     if (!this.renderer || !this.scene || !this.camera) {
       console.warn('[SceneManager] Skipping frame - renderer/scene/camera is null');
+      return;
+    }
+
+    // Additional safety: ensure canvas is still in DOM (HMR can detach it)
+    if (!this.canvas.isConnected) {
+      console.warn('[SceneManager] Skipping frame - canvas disconnected from DOM');
       return;
     }
 
@@ -1621,6 +1640,18 @@ export class SceneManager {
   // ============================================
 
   reattach(canvas: HTMLCanvasElement, selectionBox: HTMLDivElement): void {
+    console.log('[SceneManager] Reattaching to new canvas (HMR)');
+
+    // Set reattaching flag to prevent any render calls during transition
+    this.isReattaching = true;
+
+    // CRITICAL: Stop the animation loop FIRST to prevent rendering during transition
+    // This fixes black screen during HMR reloads
+    if (this.animationFrameId !== null) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
+
     // Disconnect old observer
     this.resizeObserver?.disconnect();
 
@@ -1652,8 +1683,21 @@ export class SceneManager {
       this.resizeObserver?.observe(this.canvas.parentElement);
     }
 
-    // Trigger resize
+    // Trigger resize to ensure canvas has correct dimensions
     this.onWindowResize();
+
+    // CRITICAL: Restart the animation loop AFTER everything is set up
+    // Use requestAnimationFrame to defer to next frame, allowing DOM to settle
+    requestAnimationFrame(() => {
+      // Clear reattaching flag now that we're ready
+      this.isReattaching = false;
+
+      // Double-check canvas is still valid before restarting
+      if (this.canvas && this.canvas.parentElement && this.renderer) {
+        console.log('[SceneManager] Restarting animation loop after HMR reattach');
+        this.animate();
+      }
+    });
   }
 
   // ============================================

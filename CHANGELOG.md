@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.16.1] - 2026-01-26
+
+### Fixed
+- **HMR (Hot Module Replacement) Issues** - Fix black screen and crashes during development reloads
+  - Add app initialization flag to detect HMR vs full page load
+  - Skip stale context cleanup during HMR
+  - Implement proper canvas reattachment with animation frame management
+  - Prevent rendering during scene transition
+  - Use container dimensions as priority for canvas sizing
+- **FPS Meter Position** - Move FPS meter to bottom-right to avoid UI conflicts
+- **Canvas Dimension Handling** - Improved dimension priority during HMR
+  - Use parent container as primary source (most reliable)
+  - Fallback to canvas CSS, then canvas attributes, then window
+- **InputHandler Touch Events** - Enhanced touch event handling
+
+### Technical
+- Add `isReattaching` flag to prevent renders during HMR transition
+- Check `canvas.isConnected` to ensure DOM attachment before rendering
+- Proper animation frame cleanup and restart in reattach method
+- Window flag `__tideAppInitialized` for HMR detection
+
 ## [0.16.0] - 2026-01-26
 
 ### Added
