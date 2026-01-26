@@ -580,14 +580,52 @@ export function ClaudeOutputPanel() {
           onImageClick={handleImageClick}
         />
 
-        {/* Agent CWD */}
-        {selectedAgent?.cwd && (
-          <div className="guake-agent-cwd-bar">
-            <span className="guake-agent-link-cwd">
+        {/* Agent Status Bar (CWD + Context) */}
+        <div className="guake-agent-status-bar">
+          {selectedAgent?.cwd && (
+            <span className="guake-agent-cwd">
               📁 {selectedAgent.cwd.split('/').filter(Boolean).slice(-2).join('/') || selectedAgent.cwd}
             </span>
-          </div>
-        )}
+          )}
+          {selectedAgent && (() => {
+            // Use contextStats if available (from /context command), otherwise fallback to basic
+            const stats = selectedAgent.contextStats;
+            const hasData = !!stats;
+            const totalTokens = stats ? stats.totalTokens : (selectedAgent.contextUsed || 0);
+            const contextWindow = stats ? stats.contextWindow : (selectedAgent.contextLimit || 200000);
+            const usedPercent = stats ? stats.usedPercent : Math.round((totalTokens / contextWindow) * 100);
+            const freePercent = Math.round(100 - usedPercent);
+            const percentColor = usedPercent >= 80 ? '#ff4a4a' : usedPercent >= 60 ? '#ff9e4a' : usedPercent >= 40 ? '#ffd700' : '#4aff9e';
+            const usedK = (totalTokens / 1000).toFixed(1);
+            const limitK = (contextWindow / 1000).toFixed(1);
+            return (
+              <span
+                className="guake-agent-context"
+                onClick={() => store.setContextModalAgentId(selectedAgentId)}
+                title={hasData ? "Click to view detailed context stats" : "Click to fetch context stats"}
+              >
+                <span className="context-icon">📊</span>
+                <span className="context-label">Context:</span>
+                <span className="context-bar-mini">
+                  <span
+                    className="context-bar-mini-fill"
+                    style={{
+                      width: `${Math.min(100, usedPercent)}%`,
+                      backgroundColor: percentColor,
+                    }}
+                  />
+                </span>
+                <span className="context-tokens" style={{ color: percentColor }}>
+                  {usedK}k/{limitK}k
+                </span>
+                <span className="context-free">({freePercent}% free)</span>
+                {!hasData && (
+                  <span className="context-warning" title="Click to fetch accurate stats">⚠️</span>
+                )}
+              </span>
+            );
+          })()}
+        </div>
       </div>
 
       {/* Resize handle */}

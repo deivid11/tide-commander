@@ -128,13 +128,87 @@
   }
 }
 
-// Agent CWD bar (bottom bar showing working directory)
-.guake-agent-cwd-bar {
+// Agent Status Bar (CWD + Context indicator)
+.guake-agent-status-bar {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   padding: 6px 18px;
   background: rgba($dracula-bg-darker, 0.95);
   border-top: 1px solid $dracula-current;
+  gap: 12px;
+}
+
+.guake-agent-cwd {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-family: $font-mono;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  color: $dracula-green;
+  text-shadow: 0 0 8px rgba($dracula-green, 0.5);
+  background: rgba($dracula-green, 0.15);
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba($dracula-green, 0.5);
+  max-width: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.guake-agent-context {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-family: $font-mono;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+
+  &:hover {
+    opacity: 0.8;
+  }
+
+  .context-icon {
+    color: $dracula-purple;
+    font-size: 12px;
+  }
+
+  .context-label {
+    color: $dracula-comment;
+  }
+
+  .context-bar-mini {
+    width: 80px;
+    height: 6px;
+    background: rgba($dracula-comment, 0.3);
+    border-radius: 3px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .context-bar-mini-fill {
+    display: block;
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.3s ease, background-color 0.3s ease;
+  }
+
+  .context-tokens {
+    font-weight: 600;
+  }
+
+  .context-free {
+    color: $dracula-comment;
+  }
+
+  .context-warning {
+    font-size: 10px;
+    color: $dracula-orange;
+    opacity: 0.8;
+  }
 }
 
 .guake-agent-link {
@@ -240,25 +314,6 @@
   border-radius: 2px;
 }
 
-.guake-agent-link-cwd {
-  display: inline-flex;
-  align-items: center;
-  font-size: 11px;
-  font-family: $font-mono;
-  font-weight: 600;
-  line-height: 1;
-  white-space: nowrap;
-  color: $dracula-green;
-  text-shadow: 0 0 8px rgba($dracula-green, 0.5);
-  background: rgba($dracula-green, 0.15);
-  padding: 4px 10px;
-  border-radius: 4px;
-  border: 1px solid rgba($dracula-green, 0.5);
-  margin-right: 4px;
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 
 .guake-agent-link-tool {
   position: absolute;

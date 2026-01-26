@@ -233,87 +233,13 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
     );
   }
 
-  // Handle /context command output with special rendering
+  // Hide /context command output - context is now shown in the status bar
   const isContextOutput =
     text.includes('## Context Usage') ||
     (text.includes('Context Usage') && text.includes('Tokens:') && text.includes('Free space'));
 
   if (isContextOutput) {
-    const tagMatch = text.match(/<local-command-stdout>([\s\S]*?)<\/local-command-stdout>/);
-    const contextOutput = tagMatch ? tagMatch[1] : text;
-
-    const tokensMatch = contextOutput.match(/\*?\*?Tokens:\*?\*?\s*([\d.]+)k?\s*\/\s*([\d.]+)k?\s*\((\d+)%\)/);
-
-    const parseCategory = (name: string): { tokens: string; percent: string } | null => {
-      const tableRegex = new RegExp(`\\|\\s*${name}\\s*\\|\\s*([\\d.]+)k?\\s*\\|\\s*([\\d.]+)%`, 'i');
-      const tableMatch = contextOutput.match(tableRegex);
-      if (tableMatch) {
-        return { tokens: tableMatch[1] + 'k', percent: tableMatch[2] + '%' };
-      }
-      const plainRegex = new RegExp(`${name}\\s+([\\d.]+)k?\\s+([\\d.]+)%`, 'i');
-      const plainMatch = contextOutput.match(plainRegex);
-      if (plainMatch) {
-        return { tokens: plainMatch[1] + 'k', percent: plainMatch[2] + '%' };
-      }
-      return null;
-    };
-
-    const messages = parseCategory('Messages');
-    const usedPercent = tokensMatch ? parseInt(tokensMatch[3]) : 0;
-    const freePercent = 100 - usedPercent;
-    const percentColor = usedPercent >= 80 ? '#ff4a4a' : usedPercent >= 60 ? '#ff9e4a' : usedPercent >= 40 ? '#ffd700' : '#4aff9e';
-
-    const handleContextClick = () => {
-      if (agentId) {
-        store.setContextModalAgentId(agentId);
-      }
-    };
-
-    return (
-      <div
-        className="output-line output-context-stats"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          padding: '4px 0',
-          cursor: agentId ? 'pointer' : 'default',
-        }}
-        onClick={handleContextClick}
-        title={agentId ? 'Click to view detailed context stats' : undefined}
-      >
-        <span className="output-timestamp context-timestamp" title={`${timestamp} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#666', fontFamily: 'monospace'}}>[{debugHash}]</span></span>
-        <span className="context-icon" style={{ color: '#bd93f9', fontSize: '12px' }}>📊</span>
-        <span className="context-label" style={{ fontSize: '11px', color: '#6272a4' }}>Context:</span>
-        <div
-          className="context-bar"
-          style={{
-            width: '80px',
-            height: '6px',
-            background: 'rgba(98, 114, 164, 0.3)',
-            borderRadius: '3px',
-            overflow: 'hidden',
-            flexShrink: 0,
-          }}
-        >
-          <div
-            style={{
-              height: '100%',
-              width: `${usedPercent}%`,
-              background: percentColor,
-              borderRadius: '3px',
-            }}
-          />
-        </div>
-        <span className="context-tokens" style={{ fontSize: '11px', color: percentColor, fontWeight: 600 }}>
-          {tokensMatch ? `${tokensMatch[1]}k/${tokensMatch[2]}k` : '?'}
-        </span>
-        <span className="context-free" style={{ fontSize: '11px', color: '#6272a4' }}>({freePercent.toFixed(0)}% free)</span>
-        {messages && (
-          <span className="context-msgs" style={{ fontSize: '10px', color: '#4aff9e', opacity: 0.7 }}>msgs: {messages.tokens}</span>
-        )}
-      </div>
-    );
+    return null;
   }
 
   // Hide local-command tags for utility commands
