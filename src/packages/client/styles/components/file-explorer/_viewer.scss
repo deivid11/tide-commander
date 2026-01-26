@@ -69,6 +69,70 @@
   align-items: center;
 }
 
+.file-viewer-header-buttons {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+// Markdown render toggle button
+.file-viewer-render-toggle {
+  background: transparent;
+  border: 1px solid $border-color;
+  color: $text-muted;
+  padding: 5px 10px;
+  border-radius: $radius-sm;
+  font-family: $font-mono;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    background: rgba($accent-purple, 0.15);
+    border-color: $accent-purple;
+    color: $accent-purple;
+  }
+
+  &.active {
+    background: rgba($accent-purple, 0.1);
+    border-color: rgba($accent-purple, 0.4);
+    color: $accent-purple;
+  }
+}
+
+// Copy as HTML button
+.file-viewer-copy-html-btn {
+  background: transparent;
+  border: 1px solid $border-color;
+  color: $text-secondary;
+  padding: 5px 10px;
+  border-radius: $radius-sm;
+  font-family: $font-mono;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all $transition-fast;
+  white-space: nowrap;
+
+  &:hover {
+    background: rgba($accent-cyan, 0.15);
+    border-color: $accent-cyan;
+    color: $accent-cyan;
+  }
+
+  &.copied {
+    background: rgba($dracula-green, 0.2);
+    border-color: $dracula-green;
+    color: $dracula-green;
+  }
+
+  &.error {
+    background: rgba($dracula-red, 0.2);
+    border-color: $dracula-red;
+    color: $dracula-red;
+  }
+}
+
 .file-viewer-filename {
   font-family: $font-mono;
   font-size: 13px;
