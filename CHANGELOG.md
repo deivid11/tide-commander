@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.16.0] - 2026-01-26
+
+### Added
+- **Working Directory Support** - Agents can now have a configurable working directory
+  - Add working directory field to agent edit modal
+  - Directory changes trigger new session notification
+  - Updates propagated via WebSocket handler
+- **Emoji Picker Component** - New reusable emoji picker for UI
+  - Standalone component for emoji selection
+- **Boss Spawn Class Search** - Search and filter classes when spawning bosses
+  - Filter custom classes by name, description, or ID
+  - Filter built-in classes with same criteria
+  - Improved class selection UX
+- **Boss Name Prefix Customization** - Automatic name prefixing based on class
+  - Boss class uses "Boss " prefix
+  - Custom classes use their name as prefix
+  - Dynamic prefix updates when changing class
+
+### Changed
+- **Skills Panel** - Enhanced styling and layout
+- **Spawn Modals** - Improved UI for agent and boss spawning
+- **Movement Animation** - Updated animation handling
+- **Agent Store** - Added workdir field support
+
+### Technical
+- Modal component style enhancements
+- Skills panel responsive improvements
+- Server handler updates for workdir persistence
+
 ## [0.15.0] - 2026-01-26
 
 ### Added

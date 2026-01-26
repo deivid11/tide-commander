@@ -112,6 +112,24 @@
   gap: 8px;
 }
 
+.class-search-input {
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  font-size: 12px;
+
+  &::placeholder {
+    color: $text-muted;
+  }
+}
+
+.class-search-empty {
+  width: 100%;
+  padding: 12px;
+  text-align: center;
+  color: $text-muted;
+  font-size: 11px;
+}
+
 .class-chip {
   display: inline-flex;
   align-items: center;
@@ -837,6 +855,12 @@
   border-radius: $radius-sm;
   font-size: 11px;
   color: $accent-cyan;
+
+  &.warning {
+    background: rgba($accent-orange, 0.1);
+    border-color: rgba($accent-orange, 0.25);
+    color: $accent-orange;
+  }
 }
 
 // Compact skills chips for edit modal

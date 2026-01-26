@@ -616,14 +616,8 @@ const BossAgentSection = memo(function BossAgentSection({ agent }: BossAgentSect
   // This ensures re-render when subordinateIds change via WebSocket
   const subordinates = useMemo(() => {
     const boss = state.agents.get(agent.id);
-    console.log('[BossAgentSection] Computing subordinates:', {
-      agentId: agent.id,
-      bossFound: !!boss,
-      bossClass: boss?.class,
-      subordinateIds: boss?.subordinateIds,
-      agentsMapSize: state.agents.size,
-    });
-    if (!boss || boss.class !== 'boss' || !boss.subordinateIds) return [];
+    // Check for isBoss flag OR class === 'boss' to support both boss types
+    if (!boss || (!boss.isBoss && boss.class !== 'boss') || !boss.subordinateIds) return [];
     return boss.subordinateIds
       .map((id) => state.agents.get(id))
       .filter((a): a is Agent => a !== undefined);

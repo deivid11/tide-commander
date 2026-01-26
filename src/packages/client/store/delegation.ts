@@ -187,7 +187,9 @@ export function createDelegationActions(
     getSubordinates(bossId: string): Agent[] {
       const state = getState();
       const boss = state.agents.get(bossId);
-      if (!boss || boss.class !== 'boss' || !boss.subordinateIds) return [];
+      // Check both isBoss property and class === 'boss' for backward compatibility
+      const isBoss = boss?.isBoss === true || boss?.class === 'boss';
+      if (!boss || !isBoss || !boss.subordinateIds) return [];
 
       return boss.subordinateIds
         .map((id) => state.agents.get(id))

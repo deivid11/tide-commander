@@ -53,6 +53,7 @@ export interface AgentActions {
       model?: ClaudeModel;
       useChrome?: boolean;
       skillIds?: string[];
+      cwd?: string;
     }
   ): void;
 
@@ -363,6 +364,7 @@ export function createAgentActions(
         model?: ClaudeModel;
         useChrome?: boolean;
         skillIds?: string[];
+        cwd?: string;
       }
     ): void {
       const state = getState();
@@ -381,6 +383,9 @@ export function createAgentActions(
           }
           if (updates.useChrome !== undefined) {
             updatedAgent.useChrome = updates.useChrome;
+          }
+          if (updates.cwd !== undefined) {
+            updatedAgent.cwd = updates.cwd;
           }
           const newAgents = new Map(s.agents);
           newAgents.set(agentId, updatedAgent);

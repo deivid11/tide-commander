@@ -214,3 +214,134 @@
     color: $accent-red;
   }
 }
+
+// Emoji picker styles
+.emoji-picker-container {
+  position: relative;
+}
+
+.emoji-picker-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.emoji-picker-input {
+  width: 100%;
+  cursor: pointer;
+}
+
+.emoji-picker-toggle {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: $text-muted;
+  font-size: 8px;
+  cursor: pointer;
+  padding: 4px;
+  opacity: 0.6;
+  transition: opacity $transition-fast;
+
+  &:hover {
+    opacity: 1;
+  }
+}
+
+.emoji-picker-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  width: 280px;
+  background: $bg-secondary;
+  border: 1px solid $border-color;
+  border-radius: $radius-md;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+  animation: emoji-dropdown-in 0.15s ease-out;
+}
+
+@keyframes emoji-dropdown-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.emoji-picker-search {
+  padding: 8px;
+  border-bottom: 1px solid $border-color;
+
+  .form-input {
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+}
+
+.emoji-picker-grid-container {
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.emoji-picker-category {
+  margin-bottom: 12px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.emoji-picker-category-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: $text-muted;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+  padding: 0 2px;
+}
+
+.emoji-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 2px;
+}
+
+.emoji-picker-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: $radius-sm;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    background: rgba($accent-blue, 0.15);
+    border-color: rgba($accent-blue, 0.3);
+  }
+
+  &.selected {
+    background: rgba($dracula-green, 0.2);
+    border-color: $dracula-green;
+  }
+}
+
+.emoji-picker-empty {
+  padding: 16px;
+  text-align: center;
+  color: $text-muted;
+  font-size: 12px;
+}

@@ -2,6 +2,7 @@ import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { store, useSkillsArray, useAgents, useCustomAgentClassesArray } from '../store';
 import { SkillEditorModal } from './SkillEditorModal';
 import { ModelPreview } from './ModelPreview';
+import { EmojiPicker } from './EmojiPicker';
 import type { Skill, CustomAgentClass, AnimationMapping } from '../../shared/types';
 import { ALL_CHARACTER_MODELS } from '../scene/config';
 import { parseGlbAnimations, isValidGlbFile, formatFileSize } from '../utils/glbParser';
@@ -35,6 +36,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
   const [showClassEditor, setShowClassEditor] = useState(false);
   const [editingClassId, setEditingClassId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [classSearchQuery, setClassSearchQuery] = useState('');
 
   // Class editor state
   const [className, setClassName] = useState('');
@@ -94,6 +96,17 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
     return a.name.localeCompare(b.name);
   });
 
+  // Filter classes by search
+  const filteredClasses = customClasses.filter(customClass => {
+    if (!classSearchQuery) return true;
+    const query = classSearchQuery.toLowerCase();
+    return (
+      customClass.name.toLowerCase().includes(query) ||
+      customClass.description.toLowerCase().includes(query) ||
+      customClass.id.toLowerCase().includes(query)
+    );
+  });
+
   const handleCreate = () => {
     setEditingSkillId(null);
     setShowEditor(true);
@@ -147,12 +160,23 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
     return countedAgents.size;
   };
 
+  // Generate a random vibrant color for new classes
+  const generateRandomColor = () => {
+    const colors = [
+      '#4a9eff', '#50fa7b', '#ff79c6', '#bd93f9', '#ffb86c',
+      '#8be9fd', '#f1fa8c', '#ff5555', '#6272a4', '#44475a',
+      '#00d4aa', '#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4',
+      '#ffeaa7', '#dfe6e9', '#a29bfe', '#fd79a8', '#00b894',
+    ];
+    return colors[Math.floor(Math.random() * colors.length)];
+  };
+
   // Custom class handlers
   const handleCreateClass = () => {
     setEditingClassId(null);
     setClassName('');
     setClassIcon('');
-    setClassColor('#4a9eff');
+    setClassColor(generateRandomColor());
     setClassDescription('');
     setClassModel('character-male-a.glb');
     setClassDefaultSkillIds([]);
@@ -434,6 +458,19 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
           </div>
         )}
 
+        {activeTab === 'classes' && (
+          <div className="panel-search" style={{ padding: '12px 16px 12px' }}>
+            <input
+              type="text"
+              className="form-input"
+              placeholder="Search classes..."
+              value={classSearchQuery}
+              onChange={(e) => setClassSearchQuery(e.target.value)}
+              style={{ width: '100%' }}
+            />
+          </div>
+        )}
+
         <div className="panel-content" style={{ flex: 1, overflowY: 'auto', padding: '0 16px' }}>
           {activeTab === 'skills' ? (
             // Skills List
@@ -549,9 +586,13 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
                   Create custom classes with default skills attached
                 </p>
               </div>
+            ) : filteredClasses.length === 0 ? (
+              <div className="empty-state" style={{ textAlign: 'center', padding: '40px 20px', opacity: 0.6 }}>
+                <p>No classes match "{classSearchQuery}"</p>
+              </div>
             ) : (
               <div className="classes-list" style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '12px' }}>
-                {customClasses.map((customClass) => (
+                {filteredClasses.map((customClass) => (
                   <div
                     key={customClass.id}
                     className="class-card"
@@ -820,20 +861,31 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
                         </button>
                       </div>
 
-                      {/* Model Scale slider */}
+                      {/* Model Scale slider (exponential for better range control) */}
                       <div style={{ marginBottom: '12px' }}>
                         <label style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
-                          Model Scale: {modelScale.toFixed(1)}x
+                          Model Scale: {modelScale.toFixed(3)}x
                         </label>
                         <input
                           type="range"
-                          min="0.1"
-                          max="5"
-                          step="0.1"
-                          value={modelScale}
-                          onChange={(e) => setModelScale(parseFloat(e.target.value))}
+                          min="0"
+                          max="100"
+                          step="1"
+                          value={Math.log(modelScale / 0.01) / Math.log(10000) * 100}
+                          onChange={(e) => {
+                            // Exponential mapping: slider 0-100 maps to scale 0.01-100.0
+                            // Using formula: scale = 0.01 * 10000^(slider/100)
+                            const sliderValue = parseFloat(e.target.value);
+                            const scale = 0.01 * Math.pow(10000, sliderValue / 100);
+                            setModelScale(Math.round(scale * 1000) / 1000);
+                          }}
                           style={{ width: '100%' }}
                         />
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                          <span>0.01x</span>
+                          <span>1x</span>
+                          <span>100x</span>
+                        </div>
                       </div>
 
                       {/* Model Position Offset sliders */}
@@ -1007,14 +1059,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
               <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
                 <div className="form-section" style={{ flex: '0 0 80px' }}>
                   <label className="form-label">Icon</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    value={classIcon}
-                    onChange={(e) => setClassIcon(e.target.value)}
-                    placeholder="🚀"
-                    style={{ textAlign: 'center', fontSize: '18px' }}
-                  />
+                  <EmojiPicker value={classIcon} onChange={setClassIcon} />
                 </div>
                 <div className="form-section" style={{ flex: 1 }}>
                   <label className="form-label">Color</label>

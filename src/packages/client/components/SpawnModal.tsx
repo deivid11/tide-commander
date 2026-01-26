@@ -52,6 +52,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [sessionSearch, setSessionSearch] = useState('');
+  const [classSearch, setClassSearch] = useState('');
   const [useChrome, setUseChrome] = useState(true); // Enabled by default
   const [permissionMode, setPermissionMode] = useState<PermissionMode>('bypass'); // Default to permissionless
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set());
@@ -96,6 +97,31 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
       (s.firstMessage && s.firstMessage.toLowerCase().includes(query))
     );
   }, [sessions, sessionSearch]);
+
+  // Filter classes by search query
+  const filteredCustomClasses = useMemo(() => {
+    if (!classSearch.trim()) return customClasses;
+    const query = classSearch.toLowerCase();
+    return customClasses.filter(c =>
+      c.name.toLowerCase().includes(query) ||
+      c.description.toLowerCase().includes(query) ||
+      c.id.toLowerCase().includes(query)
+    );
+  }, [customClasses, classSearch]);
+
+  // Filter built-in classes by search query
+  const filteredBuiltInClasses = useMemo(() => {
+    if (!classSearch.trim()) return CHARACTER_MODELS;
+    const query = classSearch.toLowerCase();
+    return CHARACTER_MODELS.filter(char => {
+      const config = AGENT_CLASS_CONFIG[char.id];
+      return (
+        char.name.toLowerCase().includes(query) ||
+        char.id.toLowerCase().includes(query) ||
+        config.description.toLowerCase().includes(query)
+      );
+    });
+  }, [classSearch]);
 
   // Get custom class config if selected class is custom
   const selectedCustomClass = useMemo(() => {
@@ -173,13 +199,44 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
   useEffect(() => {
     if (isOpen) {
       const usedNames = new Set(Array.from(agents.values()).map((a) => a.name));
-      setName(getRandomLotrName(usedNames));
+      const baseName = getRandomLotrName(usedNames);
+      // If a custom class is selected, prefix the class name
+      const customClass = customClasses.find(c => c.id === selectedClass);
+      const finalName = customClass ? `${customClass.name} ${baseName}` : baseName;
+      setName(finalName);
       if (nameInputRef.current) {
         nameInputRef.current.focus();
         nameInputRef.current.select();
       }
     }
   }, [isOpen, agents]);
+
+  // Update name prefix when custom class changes
+  useEffect(() => {
+    if (!isOpen) return;
+    const usedNames = new Set(Array.from(agents.values()).map((a) => a.name));
+    const customClass = customClasses.find(c => c.id === selectedClass);
+
+    if (customClass) {
+      // Check if current name already has a class prefix (any custom class prefix)
+      const existingPrefix = customClasses.find(c => name.startsWith(c.name + ' '));
+      if (existingPrefix) {
+        // Replace the existing prefix with the new one
+        const baseName = name.substring(existingPrefix.name.length + 1);
+        setName(`${customClass.name} ${baseName}`);
+      } else {
+        // Add the prefix to the current name
+        setName(`${customClass.name} ${name}`);
+      }
+    } else {
+      // Switching to a built-in class - remove any custom class prefix
+      const existingPrefix = customClasses.find(c => name.startsWith(c.name + ' '));
+      if (existingPrefix) {
+        const baseName = name.substring(existingPrefix.name.length + 1);
+        setName(baseName);
+      }
+    }
+  }, [selectedClass]);
 
   const handleSpawn = () => {
     console.log('[SpawnModal] handleSpawn called');
@@ -346,8 +403,17 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
             </div>
             <div className="spawn-class-section">
               <div className="spawn-class-label">Agent Class</div>
+              {(customClasses.length + CHARACTER_MODELS.length) > 6 && (
+                <input
+                  type="text"
+                  className="spawn-input class-search-input"
+                  placeholder="Filter classes..."
+                  value={classSearch}
+                  onChange={(e) => setClassSearch(e.target.value)}
+                />
+              )}
               <div className="class-selector-inline">
-                {customClasses.map((customClass) => (
+                {filteredCustomClasses.map((customClass) => (
                   <button
                     key={customClass.id}
                     className={`class-chip ${selectedClass === customClass.id ? 'selected' : ''}`}
@@ -358,7 +424,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                     <span className="class-chip-name">{customClass.name}</span>
                   </button>
                 ))}
-                {CHARACTER_MODELS.map((char) => {
+                {filteredBuiltInClasses.map((char) => {
                   const config = AGENT_CLASS_CONFIG[char.id];
                   return (
                     <button
@@ -372,6 +438,9 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                     </button>
                   );
                 })}
+                {classSearch && filteredCustomClasses.length === 0 && filteredBuiltInClasses.length === 0 && (
+                  <div className="class-search-empty">No classes match "{classSearch}"</div>
+                )}
               </div>
             </div>
           </div>
