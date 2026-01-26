@@ -317,6 +317,33 @@
   font-size: 11px;
 }
 
+.spawn-skill-builtin {
+  font-size: 8px;
+  font-weight: 700;
+  background: linear-gradient(135deg, $accent-cyan, $accent-purple);
+  color: #fff;
+  padding: 1px 4px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+// Custom instructions section
+.spawn-custom-instructions-section {
+  border-top: 1px solid rgba($border-color, 0.5);
+  padding-top: 14px;
+}
+
+.spawn-textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 60px;
+  max-height: 150px;
+  font-family: $font-mono;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 // Sessions section
 .spawn-sessions-section {
   border-top: 1px solid rgba($border-color, 0.5);
@@ -922,6 +949,13 @@
   background: rgba($text-secondary, 0.2);
   border-radius: 3px;
   color: $text-muted;
+
+  &.builtin {
+    background: linear-gradient(135deg, $accent-cyan, $accent-purple);
+    color: #fff;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+  }
 }
 
 // Context view modal

@@ -31,6 +31,7 @@
 @use 'components/boss';
 @use 'components/skills-panel';
 @use 'components/agent-notification';
+@use 'components/agentProgress';
 @use 'components/pwa-install';
 
 // Responsive styles (must be last to override component styles)

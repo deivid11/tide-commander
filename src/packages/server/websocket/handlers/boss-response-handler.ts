@@ -14,6 +14,24 @@ const log = logger.ws;
 const processedDelegations = new Map<string, number>();
 const DELEGATION_DEDUP_WINDOW_MS = 60000; // 1 minute window
 
+// Track active delegations: subordinateId -> { bossId, taskDescription }
+// Used to route subordinate outputs/completion to the boss terminal
+export const activeDelegations = new Map<string, { bossId: string; taskDescription: string }>();
+
+/**
+ * Get the boss ID for an active delegation (if any)
+ */
+export function getBossForSubordinate(subordinateId: string): { bossId: string; taskDescription: string } | undefined {
+  return activeDelegations.get(subordinateId);
+}
+
+/**
+ * Clear delegation for a subordinate (call when task completes)
+ */
+export function clearDelegation(subordinateId: string): void {
+  activeDelegations.delete(subordinateId);
+}
+
 export type BroadcastFn = (message: ServerMessage) => void;
 export type SendActivityFn = (agentId: string, message: string) => void;
 
@@ -93,6 +111,25 @@ export function parseBossDelegation(
 
       if (decision.selectedAgentId && decision.userCommand) {
         log.log(`🟢🟢🟢 SENDING COMMAND to ${decision.selectedAgentName} (${decision.selectedAgentId}): "${decision.userCommand.slice(0, 50)}..."`);
+
+        // Track this as an active delegation for progress reporting
+        activeDelegations.set(decision.selectedAgentId, {
+          bossId: agentId,
+          taskDescription: decision.userCommand,
+        });
+        log.log(`[DELEGATION] Tracked active delegation: subordinate=${decision.selectedAgentId} -> boss=${agentId}, total active=${activeDelegations.size}`);
+
+        // Broadcast agent_task_started to boss terminal
+        broadcast({
+          type: 'agent_task_started',
+          payload: {
+            bossId: agentId,
+            subordinateId: decision.selectedAgentId,
+            subordinateName: decision.selectedAgentName,
+            taskDescription: decision.userCommand,
+          },
+        } as any);
+
         // Build customAgentConfig for the target agent to ensure it gets its class instructions
         const targetAgent = agentService.getAgent(decision.selectedAgentId);
         const customAgentConfig = targetAgent ? buildCustomAgentConfig(decision.selectedAgentId, targetAgent.class) : undefined;

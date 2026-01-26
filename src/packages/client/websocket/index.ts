@@ -662,6 +662,39 @@ function handleServerMessage(message: ServerMessage): void {
       break;
     }
 
+    case 'agent_task_started': {
+      const { bossId, subordinateId, subordinateName, taskDescription } = message.payload as {
+        bossId: string;
+        subordinateId: string;
+        subordinateName: string;
+        taskDescription: string;
+      };
+      console.log(`[WebSocket] Agent ${subordinateName} started task for boss ${bossId}: ${taskDescription.slice(0, 50)}...`);
+      store.handleAgentTaskStarted(bossId, subordinateId, subordinateName, taskDescription);
+      break;
+    }
+
+    case 'agent_task_output': {
+      const { bossId, subordinateId, output } = message.payload as {
+        bossId: string;
+        subordinateId: string;
+        output: string;
+      };
+      store.handleAgentTaskOutput(bossId, subordinateId, output);
+      break;
+    }
+
+    case 'agent_task_completed': {
+      const { bossId, subordinateId, success } = message.payload as {
+        bossId: string;
+        subordinateId: string;
+        success: boolean;
+      };
+      console.log(`[WebSocket] Agent task completed for boss ${bossId}, subordinate ${subordinateId}, success: ${success}`);
+      store.handleAgentTaskCompleted(bossId, subordinateId, success);
+      break;
+    }
+
     // ========================================================================
     // Skill Messages
     // ========================================================================

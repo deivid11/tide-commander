@@ -507,6 +507,23 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
                       <div style={{ flex: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <span style={{ fontWeight: 600, fontSize: '14px' }}>{skill.name}</span>
+                          {skill.builtin && (
+                            <span
+                              style={{
+                                fontSize: '10px',
+                                background: 'linear-gradient(135deg, var(--accent-cyan), var(--accent-purple))',
+                                color: '#fff',
+                                padding: '3px 8px',
+                                borderRadius: '10px',
+                                fontWeight: 700,
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.5px',
+                                boxShadow: '0 2px 4px rgba(139, 233, 253, 0.3)',
+                              }}
+                            >
+                              Built-in
+                            </span>
+                          )}
                           {!skill.enabled && (
                             <span
                               style={{
@@ -559,6 +576,11 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
                     </p>
 
                     <div style={{ display: 'flex', gap: '12px', fontSize: '11px', color: 'var(--text-secondary)' }}>
+                      {skill.builtin && (
+                        <span style={{ color: 'var(--accent-cyan)' }} title="Built-in Tide Commander skill">
+                          Tide Commander
+                        </span>
+                      )}
                       <span title="Assigned to">
                         {getAssignmentSummary(skill)}
                       </span>

@@ -67,6 +67,7 @@ export function SkillEditorModal({
   const skill = useSkill(skillId ?? null);
   const agents = useAgentsArray();
   const isEditMode = !!skill;
+  const isBuiltinSkill = skill?.builtin === true;
 
   // Form state
   const [name, setName] = useState('');
@@ -128,6 +129,17 @@ export function SkillEditorModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // For built-in skills, only allow assignment changes
+    if (isBuiltinSkill && skillId) {
+      store.updateSkill(skillId, {
+        assignedAgentIds,
+        assignedAgentClasses,
+        enabled,
+      });
+      onClose();
+      return;
+    }
 
     if (!name.trim() || !description.trim()) {
       return;
@@ -222,8 +234,25 @@ export function SkillEditorModal({
         style={{ maxWidth: '700px', maxHeight: '90vh' }}
       >
         <div className="modal-header">
-          <span>{isEditMode ? 'Edit Skill' : 'Create Skill'}</span>
-          {isEditMode && (
+          <span>
+            {isEditMode ? (isBuiltinSkill ? 'View Built-in Skill' : 'Edit Skill') : 'Create Skill'}
+            {isBuiltinSkill && (
+              <span
+                style={{
+                  fontSize: '10px',
+                  background: 'var(--accent-cyan)',
+                  color: 'var(--bg-primary)',
+                  padding: '2px 6px',
+                  borderRadius: '3px',
+                  fontWeight: 600,
+                  marginLeft: '8px',
+                }}
+              >
+                Built-in
+              </span>
+            )}
+          </span>
+          {isEditMode && !isBuiltinSkill && (
             <button
               type="button"
               className="btn btn-danger btn-sm"
@@ -237,6 +266,23 @@ export function SkillEditorModal({
 
         <form onSubmit={handleSubmit}>
           <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+            {/* Built-in skill notice */}
+            {isBuiltinSkill && (
+              <div
+                style={{
+                  background: 'rgba(139, 233, 253, 0.1)',
+                  border: '1px solid var(--accent-cyan)',
+                  borderRadius: '6px',
+                  padding: '10px 12px',
+                  marginBottom: '16px',
+                  fontSize: '12px',
+                  color: 'var(--accent-cyan)',
+                }}
+              >
+                This is a built-in Tide Commander skill. Content cannot be modified, but you can change which agents and classes it's assigned to.
+              </div>
+            )}
+
             {/* Basic Info */}
             <div className="form-section">
               <label className="form-label">Name *</label>
@@ -248,6 +294,8 @@ export function SkillEditorModal({
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g., Git Push, Deploy to Production"
                 required
+                disabled={isBuiltinSkill}
+                style={isBuiltinSkill ? { opacity: 0.7, cursor: 'not-allowed' } : undefined}
               />
             </div>
 
@@ -259,7 +307,8 @@ export function SkillEditorModal({
                 value={slug}
                 onChange={(e) => setSlug(e.target.value)}
                 placeholder="auto-generated from name"
-                style={{ fontFamily: 'monospace', fontSize: '12px' }}
+                style={{ fontFamily: 'monospace', fontSize: '12px', ...(isBuiltinSkill ? { opacity: 0.7, cursor: 'not-allowed' } : {}) }}
+                disabled={isBuiltinSkill}
               />
               <small className="form-hint">URL-safe identifier (auto-generated)</small>
             </div>
@@ -273,7 +322,8 @@ export function SkillEditorModal({
                 placeholder="Describe when this skill should be used. Include trigger phrases like 'push code', 'deploy', etc."
                 rows={3}
                 required
-                style={{ resize: 'vertical' }}
+                style={{ resize: 'vertical', ...(isBuiltinSkill ? { opacity: 0.7, cursor: 'not-allowed' } : {}) }}
+                disabled={isBuiltinSkill}
               />
               <small className="form-hint">
                 Claude uses this to decide when to activate the skill
@@ -294,68 +344,95 @@ export function SkillEditorModal({
                   fontSize: '12px',
                   resize: 'vertical',
                   minHeight: '200px',
+                  ...(isBuiltinSkill ? { opacity: 0.7, cursor: 'not-allowed' } : {}),
                 }}
+                disabled={isBuiltinSkill}
               />
             </div>
 
             {/* Tool Permissions */}
             <div className="form-section">
               <label className="form-label">Allowed Tools</label>
-              <div className="tool-presets" style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
-                {TOOL_PRESETS.map((preset) => (
-                  <button
-                    key={preset.value}
-                    type="button"
-                    className={`btn btn-sm ${allowedTools.includes(preset.value) ? 'btn-primary' : 'btn-secondary'}`}
-                    onClick={() => toggleTool(preset.value)}
-                    style={{ fontSize: '11px', padding: '4px 8px' }}
-                  >
-                    {preset.label}
-                  </button>
-                ))}
-              </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <input
-                  type="text"
-                  className="form-input"
-                  value={customTool}
-                  onChange={(e) => setCustomTool(e.target.value)}
-                  placeholder="Custom tool (e.g., Bash(make:*))"
-                  style={{ flex: 1, fontSize: '12px' }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      addCustomTool();
-                    }
-                  }}
-                />
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={addCustomTool}
-                >
-                  Add
-                </button>
-              </div>
-              {allowedTools.length > 0 && (
-                <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                  {allowedTools.map((tool) => (
-                    <span
-                      key={tool}
-                      className="tag"
-                      style={{
-                        background: 'var(--bg-tertiary)',
-                        padding: '2px 8px',
-                        borderRadius: '4px',
-                        fontSize: '11px',
-                        cursor: 'pointer',
+              {!isBuiltinSkill ? (
+                <>
+                  <div className="tool-presets" style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
+                    {TOOL_PRESETS.map((preset) => (
+                      <button
+                        key={preset.value}
+                        type="button"
+                        className={`btn btn-sm ${allowedTools.includes(preset.value) ? 'btn-primary' : 'btn-secondary'}`}
+                        onClick={() => toggleTool(preset.value)}
+                        style={{ fontSize: '11px', padding: '4px 8px' }}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={customTool}
+                      onChange={(e) => setCustomTool(e.target.value)}
+                      placeholder="Custom tool (e.g., Bash(make:*))"
+                      style={{ flex: 1, fontSize: '12px' }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          addCustomTool();
+                        }
                       }}
-                      onClick={() => toggleTool(tool)}
-                      title="Click to remove"
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={addCustomTool}
                     >
-                      {tool} ×
-                    </span>
-                  ))}
+                      Add
+                    </button>
+                  </div>
+                  {allowedTools.length > 0 && (
+                    <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                      {allowedTools.map((tool) => (
+                        <span
+                          key={tool}
+                          className="tag"
+                          style={{
+                            background: 'var(--bg-tertiary)',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            fontSize: '11px',
+                            cursor: 'pointer',
+                          }}
+                          onClick={() => toggleTool(tool)}
+                          title="Click to remove"
+                        >
+                          {tool} ×
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                /* Read-only tool display for built-in skills */
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', opacity: 0.7 }}>
+                  {allowedTools.length > 0 ? (
+                    allowedTools.map((tool) => (
+                      <span
+                        key={tool}
+                        style={{
+                          background: 'var(--bg-tertiary)',
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          fontSize: '11px',
+                        }}
+                      >
+                        {tool}
+                      </span>
+                    ))
+                  ) : (
+                    <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>No specific tools</span>
+                  )}
                 </div>
               )}
             </div>
@@ -434,11 +511,18 @@ export function SkillEditorModal({
 
           <div className="modal-footer">
             <button type="button" className="btn btn-secondary" onClick={onClose}>
-              Cancel
+              {isBuiltinSkill ? 'Close' : 'Cancel'}
             </button>
-            <button type="submit" className="btn btn-primary">
-              {isEditMode ? 'Save Changes' : 'Create Skill'}
-            </button>
+            {!isBuiltinSkill && (
+              <button type="submit" className="btn btn-primary">
+                {isEditMode ? 'Save Changes' : 'Create Skill'}
+              </button>
+            )}
+            {isBuiltinSkill && (
+              <button type="submit" className="btn btn-primary">
+                Save Assignments
+              </button>
+            )}
           </div>
         </form>
       </div>

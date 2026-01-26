@@ -24,6 +24,7 @@ export async function handleSpawnBossAgent(
     permissionMode?: string;
     subordinateIds?: string[];
     model?: string;
+    customInstructions?: string;
   }
 ): Promise<void> {
   try {
@@ -37,7 +38,8 @@ export async function handleSpawnBossAgent(
       payload.permissionMode as any,
       undefined, // initialSkillIds
       true, // isBoss flag
-      payload.model as any
+      payload.model as any,
+      payload.customInstructions
     );
 
     // Assign initial subordinates if provided

@@ -155,6 +155,9 @@ export interface Agent {
   isBoss?: boolean;                    // True if this agent can manage subordinates
   subordinateIds?: string[];           // IDs of agents under this boss
   bossId?: string;                     // ID of the boss this agent reports to (if any)
+
+  // Custom instructions appended to the agent's class system prompt
+  customInstructions?: string;
 }
 
 // Drawing tool types
@@ -432,6 +435,7 @@ export interface Skill {
 
   // Metadata
   enabled: boolean;                // Can be disabled without deleting
+  builtin?: boolean;               // True = built-in skill, cannot be modified or deleted
   createdAt: number;
   updatedAt: number;
 }
@@ -557,6 +561,7 @@ export interface SpawnAgentMessage extends WSMessage {
     permissionMode?: PermissionMode; // defaults to 'bypass' for backwards compatibility
     initialSkillIds?: string[]; // Skills to assign on creation
     model?: ClaudeModel; // Claude model to use (defaults to sonnet)
+    customInstructions?: string;  // Custom instructions to append to system prompt
   };
 }
 
@@ -1001,6 +1006,7 @@ export interface SpawnBossAgentMessage extends WSMessage {
     useChrome?: boolean;
     permissionMode?: PermissionMode;
     model?: ClaudeModel; // Claude model to use (defaults to sonnet)
+    customInstructions?: string;  // Custom instructions to append to system prompt
   };
 }
 
@@ -1071,6 +1077,40 @@ export interface BossSpawnedAgentMessage extends WSMessage {
     agent: Agent;
     bossId: string;
     bossPosition: { x: number; y: number; z: number };
+  };
+}
+
+// Agent task started notification (Server -> Client)
+// Sent when a subordinate starts working on a delegated task
+export interface AgentTaskStartedMessage extends WSMessage {
+  type: 'agent_task_started';
+  payload: {
+    bossId: string;
+    subordinateId: string;
+    subordinateName: string;
+    taskDescription: string;
+  };
+}
+
+// Agent task output notification (Server -> Client)
+// Streaming output from a subordinate working on a delegated task
+export interface AgentTaskOutputMessage extends WSMessage {
+  type: 'agent_task_output';
+  payload: {
+    bossId: string;
+    subordinateId: string;
+    output: string;
+  };
+}
+
+// Agent task completed notification (Server -> Client)
+// Sent when a subordinate completes a delegated task
+export interface AgentTaskCompletedMessage extends WSMessage {
+  type: 'agent_task_completed';
+  payload: {
+    bossId: string;
+    subordinateId: string;
+    success: boolean;
   };
 }
 
@@ -1310,6 +1350,9 @@ export type ServerMessage =
   | BossSubordinatesUpdatedMessage
   | DelegationHistoryMessage
   | BossSpawnedAgentMessage
+  | AgentTaskStartedMessage
+  | AgentTaskOutputMessage
+  | AgentTaskCompletedMessage
   | SkillsUpdateMessage
   | SkillCreatedMessage
   | SkillUpdatedMessage

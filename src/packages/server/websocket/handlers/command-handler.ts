@@ -50,7 +50,7 @@ curl -s -X POST http://localhost:5174/api/notify -H "Content-Type: application/j
 }
 
 /**
- * Build customAgentConfig for an agent based on its class instructions and skills
+ * Build customAgentConfig for an agent based on its class instructions, skills, and custom instructions
  * Returns undefined if no instructions or skills are configured
  */
 export function buildCustomAgentConfig(agentId: string, agentClass: string): { name: string; definition: { description: string; prompt: string } } | undefined {
@@ -59,8 +59,10 @@ export function buildCustomAgentConfig(agentId: string, agentClass: string): { n
     return undefined;
   }
 
+  const agent = agentService.getAgent(agentId);
   const classInstructions = customClassService.getClassInstructions(agentClass);
   const skillsContent = skillService.buildSkillPromptContent(agentId, agentClass);
+  const customInstructions = agent?.customInstructions;
 
   // Always include agent identity header so agents know their ID
   let combinedPrompt = buildAgentIdentityHeader(agentId);
@@ -71,6 +73,12 @@ export function buildCustomAgentConfig(agentId: string, agentClass: string): { n
   if (skillsContent) {
     if (classInstructions) combinedPrompt += '\n\n';
     combinedPrompt += skillsContent;
+  }
+
+  // Append agent-specific custom instructions at the end
+  if (customInstructions) {
+    combinedPrompt += '\n\n# Custom Instructions\n\n';
+    combinedPrompt += customInstructions;
   }
 
   // Even if no class instructions or skills, we still return the config with identity header
@@ -112,6 +120,7 @@ export async function handleSendCommand(
       sessionId: undefined,
       tokensUsed: 0,
       contextUsed: 0,
+      contextStats: undefined, // Clear context stats since session is reset
     });
     ctx.sendActivity(agentId, 'Session cleared - new session on next command');
     return;

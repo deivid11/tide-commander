@@ -63,6 +63,17 @@ export interface LastPrompt {
   timestamp: number;
 }
 
+// Agent task progress entry (for subordinate progress in boss terminal)
+export interface AgentTaskProgress {
+  agentId: string;
+  agentName: string;
+  taskDescription: string;
+  status: 'working' | 'completed' | 'failed';
+  output: string[];           // Streaming output lines
+  startedAt: number;
+  completedAt?: number;
+}
+
 // Settings
 export interface Settings {
   historyLimit: number;
@@ -152,6 +163,8 @@ export interface StoreState {
   pendingDelegation: { bossId: string; command: string } | null;
   // Track last delegation received per subordinate agent (agentId -> delegation info)
   lastDelegationReceived: Map<string, { bossName: string; taskCommand: string; timestamp: number }>;
+  // Track agent task progress for boss terminal (bossId -> Map of subordinateId -> progress)
+  agentTaskProgress: Map<string, Map<string, AgentTaskProgress>>;
   // Skills
   skills: Map<string, Skill>;
   // Custom Agent Classes

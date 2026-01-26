@@ -41,6 +41,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
   const [selectedModel, setSelectedModel] = useState<ClaudeModel>('haiku');
   const [selectedSubordinates, setSelectedSubordinates] = useState<Set<string>>(new Set());
   const [classSearch, setClassSearch] = useState('');
+  const [customInstructions, setCustomInstructions] = useState('');
   const nameInputRef = useRef<HTMLInputElement>(null);
   const hasInitializedRef = useRef(false);
 
@@ -197,6 +198,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
     setStorageString(STORAGE_KEYS.LAST_CWD, cwd);
     onSpawnStart();
 
+    const trimmedInstructions = customInstructions.trim() || undefined;
     store.spawnBossAgent(
       name.trim(),
       selectedClass,
@@ -205,7 +207,8 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
       Array.from(selectedSubordinates),
       useChrome,
       permissionMode,
-      selectedModel
+      selectedModel,
+      trimmedInstructions
     );
 
     // Close modal immediately after initiating spawn
@@ -421,6 +424,20 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                 />
                 <span>🌐 Chrome Browser</span>
               </label>
+            </div>
+
+            {/* Custom Instructions */}
+            <div className="spawn-custom-instructions-section">
+              <label className="spawn-label">
+                Custom Instructions <span className="spawn-label-hint">(optional)</span>
+              </label>
+              <textarea
+                className="spawn-input spawn-textarea"
+                placeholder="Add custom instructions that will be appended to this boss's system prompt..."
+                value={customInstructions}
+                onChange={(e) => setCustomInstructions(e.target.value)}
+                rows={3}
+              />
             </div>
 
             {/* Subordinates section */}

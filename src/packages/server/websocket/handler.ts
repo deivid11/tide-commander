@@ -48,7 +48,7 @@ import {
 } from './handlers/custom-class-handler.js';
 import { handleBuildingCommand } from './handlers/building-handler.js';
 import { handleSendCommand } from './handlers/command-handler.js';
-import { parseBossDelegation, parseBossSpawn } from './handlers/boss-response-handler.js';
+import { parseBossDelegation, parseBossSpawn, getBossForSubordinate, clearDelegation } from './handlers/boss-response-handler.js';
 
 const log = logger.ws;
 const supervisorLog = createLogger('Supervisor');
@@ -496,10 +496,43 @@ function setupServiceListeners(): void {
         timestamp: Date.now(),
       },
     });
+
+    // If this subordinate is working on a delegated task, forward output to boss
+    const delegation = getBossForSubordinate(agentId);
+    if (delegation) {
+      // Only forward non-streaming (final) output chunks to avoid flooding
+      // Or forward streaming updates at intervals for real-time progress
+      broadcast({
+        type: 'agent_task_output',
+        payload: {
+          bossId: delegation.bossId,
+          subordinateId: agentId,
+          output: text.slice(0, 500), // Truncate to avoid large payloads
+        },
+      } as any);
+    }
   });
 
   claudeService.on('complete', (agentId, success) => {
     sendActivity(agentId, success ? 'Task completed' : 'Task failed');
+
+    // If this subordinate was working on a delegated task, notify boss
+    const delegation = getBossForSubordinate(agentId);
+    log.log(`[COMPLETE] Agent ${agentId} completed (success=${success}), delegation=${delegation ? `bossId=${delegation.bossId}` : 'none'}`);
+    if (delegation) {
+      log.log(`[COMPLETE] Broadcasting agent_task_completed for subordinate ${agentId} to boss ${delegation.bossId}`);
+      broadcast({
+        type: 'agent_task_completed',
+        payload: {
+          bossId: delegation.bossId,
+          subordinateId: agentId,
+          success,
+        },
+      } as any);
+
+      // Clear the delegation tracking
+      clearDelegation(agentId);
+    }
   });
 
   claudeService.on('error', (agentId, error) => {

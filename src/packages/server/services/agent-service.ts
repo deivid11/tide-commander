@@ -170,7 +170,8 @@ export async function createAgent(
   permissionMode: PermissionMode = 'bypass',
   initialSkillIds?: string[],
   isBoss?: boolean,
-  model?: ClaudeModel
+  model?: ClaudeModel,
+  customInstructions?: string
 ): Promise<Agent> {
   log.log('🎆 [CREATE_AGENT] Starting agent creation:', {
     name,
@@ -181,6 +182,7 @@ export async function createAgent(
     permissionMode,
     isBoss,
     model,
+    customInstructions: customInstructions ? `${customInstructions.length} chars` : undefined,
   });
 
   const id = generateId();
@@ -218,6 +220,7 @@ export async function createAgent(
     lastActivity: Date.now(),
     sessionId: sessionId,
     isBoss: isBoss || agentClass === 'boss', // Boss if explicitly set or class is 'boss'
+    customInstructions,
   };
 
   log.log('  Agent object created:', {

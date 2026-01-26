@@ -356,6 +356,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                       >
                         {isActive && <span className="skill-check">✓</span>}
                         <span className="skill-chip-name">{skill.name}</span>
+                        {skill.builtin && <span className="skill-chip-badge builtin">TC</span>}
                         {isClassBased && <span className="skill-chip-badge">class</span>}
                       </button>
                     );

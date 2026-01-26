@@ -9,6 +9,7 @@
 import type { Skill, AgentClass, Agent } from '../../shared/types.js';
 import { loadSkills, saveSkills } from '../data/index.js';
 import { createLogger, generateId, generateSlug } from '../utils/index.js';
+import { BUILTIN_SKILLS, createBuiltinSkill, isBuiltinSkillId } from '../data/builtin-skills.js';
 
 const log = createLogger('SkillService');
 
@@ -28,11 +29,27 @@ const pendingSkillUpdates = new Set<string>();
 
 export function initSkills(): void {
   try {
+    // First, load user-created skills from disk
     const storedSkills = loadSkills();
     for (const skill of storedSkills) {
+      // Skip any old builtin skills from storage (we'll recreate them fresh)
+      if (skill.builtin) continue;
       skills.set(skill.id, skill);
     }
-    log.log(` Loaded ${skills.size} skills`);
+    log.log(` Loaded ${skills.size} user skills`);
+
+    // Then, ensure all built-in skills exist
+    let builtinCount = 0;
+    for (const definition of BUILTIN_SKILLS) {
+      const builtinSkill = createBuiltinSkill(definition);
+      // Always set builtin skills (overwrite any existing to ensure latest content)
+      skills.set(builtinSkill.id, builtinSkill);
+      builtinCount++;
+    }
+    log.log(` Loaded ${builtinCount} built-in skills`);
+
+    // Persist to ensure builtin skills are saved (in case this is first run)
+    persistSkills();
   } catch (err) {
     log.error(' Failed to load skills:', err);
   }
@@ -141,6 +158,19 @@ export function updateSkill(id: string, updates: Partial<Skill>): Skill | undefi
     return undefined;
   }
 
+  // Protect built-in skills from content/name/description changes
+  if (skill.builtin) {
+    // Only allow assignment changes for builtin skills
+    const allowedKeys = ['assignedAgentIds', 'assignedAgentClasses', 'enabled'];
+    const attemptedKeys = Object.keys(updates);
+    const disallowedKeys = attemptedKeys.filter(k => !allowedKeys.includes(k));
+
+    if (disallowedKeys.length > 0) {
+      log.error(` Cannot modify built-in skill "${skill.name}": ${disallowedKeys.join(', ')}`);
+      return undefined;
+    }
+  }
+
   // If name is being updated, regenerate slug if not explicitly provided
   if (updates.name && !updates.slug) {
     const baseSlug = generateSlug(updates.name);
@@ -170,6 +200,12 @@ export function deleteSkill(id: string): boolean {
   const skill = skills.get(id);
   if (!skill) {
     log.error(` Skill not found: ${id}`);
+    return false;
+  }
+
+  // Protect built-in skills from deletion
+  if (skill.builtin) {
+    log.error(` Cannot delete built-in skill "${skill.name}"`);
     return false;
   }
 
@@ -490,6 +526,17 @@ async function handleSkillContentUpdate(skill: Skill): Promise<void> {
   }
 }
 
+/**
+ * Check if a skill is a built-in skill (by ID or by checking the skill object)
+ */
+export function isBuiltinSkill(skillOrId: string | Skill): boolean {
+  if (typeof skillOrId === 'string') {
+    const skill = skills.get(skillOrId);
+    return skill?.builtin === true || isBuiltinSkillId(skillOrId);
+  }
+  return skillOrId.builtin === true;
+}
+
 // Export skill service as a singleton-like object for consistency
 export const skillService = {
   init: initSkills,
@@ -510,4 +557,5 @@ export const skillService = {
   hasPendingSkillUpdates,
   clearPendingSkillUpdates,
   buildSkillUpdateNotification,
+  isBuiltinSkill,
 };

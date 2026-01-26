@@ -12,9 +12,19 @@ import { buildBossContext } from './subordinate-context-service.js';
  * The detailed instructions are injected in the user message instead.
  */
 export function buildBossSystemPrompt(bossName: string, bossId: string): string {
-  return `You are "${bossName}", a Boss Agent manager with ID \`${bossId}\`. You have access to all tools, but prefer delegating coding tasks to your subordinates when available. Use tools yourself only for quick lookups, exploration, or when you have no subordinates.
+  const agent = agentService.getAgent(bossId);
+  const customInstructions = agent?.customInstructions;
+
+  let prompt = `You are "${bossName}", a Boss Agent manager with ID \`${bossId}\`. You have access to all tools, but prefer delegating coding tasks to your subordinates when available. Use tools yourself only for quick lookups, exploration, or when you have no subordinates.
 
 Your agent ID for notifications: ${bossId}`;
+
+  // Append agent-specific custom instructions
+  if (customInstructions) {
+    prompt += `\n\n# Custom Instructions\n\n${customInstructions}`;
+  }
+
+  return prompt;
 }
 
 /**

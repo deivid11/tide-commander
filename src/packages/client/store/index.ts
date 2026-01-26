@@ -49,6 +49,7 @@ export type {
   Settings,
   SupervisorState,
   Listener,
+  AgentTaskProgress,
 } from './types';
 
 export { DEFAULT_SETTINGS } from './types';
@@ -121,6 +122,7 @@ export {
   useMouseControls,
   useCameraSensitivity,
   useTrackpadConfig,
+  useAgentTaskProgress,
 } from './selectors';
 
 // ============================================================================
@@ -197,6 +199,7 @@ class Store
       delegationHistories: new Map(),
       pendingDelegation: null,
       lastDelegationReceived: new Map(),
+      agentTaskProgress: new Map(),
       skills: new Map(),
       customAgentClasses: new Map(),
       reconnectCount: 0,
@@ -701,6 +704,11 @@ class Store
   isBossAgent(...args: Parameters<DelegationActions['isBossAgent']>) { return this.delegationActions.isBossAgent(...args); }
   getBossForAgent(...args: Parameters<DelegationActions['getBossForAgent']>) { return this.delegationActions.getBossForAgent(...args); }
   getAvailableSubordinates() { return this.delegationActions.getAvailableSubordinates(); }
+  handleAgentTaskStarted(...args: Parameters<DelegationActions['handleAgentTaskStarted']>) { return this.delegationActions.handleAgentTaskStarted(...args); }
+  handleAgentTaskOutput(...args: Parameters<DelegationActions['handleAgentTaskOutput']>) { return this.delegationActions.handleAgentTaskOutput(...args); }
+  handleAgentTaskCompleted(...args: Parameters<DelegationActions['handleAgentTaskCompleted']>) { return this.delegationActions.handleAgentTaskCompleted(...args); }
+  getAgentTaskProgress(...args: Parameters<DelegationActions['getAgentTaskProgress']>) { return this.delegationActions.getAgentTaskProgress(...args); }
+  clearAgentTaskProgress(...args: Parameters<DelegationActions['clearAgentTaskProgress']>) { return this.delegationActions.clearAgentTaskProgress(...args); }
 
   // ============================================================================
   // Skill Actions (delegated)

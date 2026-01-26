@@ -192,6 +192,7 @@ function handleEvent(agentId: string, event: StandardEvent): void {
       // This fixes a race condition where the status change could arrive before the final output
       // Using 200ms to ensure all output messages have time to be broadcast
       setTimeout(() => {
+        log.log(`[step_complete] Setting status to idle for agent ${agentId} (lastTask: ${agent.lastAssignedTask})`);
         agentService.updateAgent(agentId, {
           status: 'idle',
           currentTask: undefined,
@@ -210,7 +211,9 @@ function handleEvent(agentId: string, event: StandardEvent): void {
       // Clear the pending flag since step_complete means the command finished
       pendingSilentContextRefresh.delete(agentId);
 
-      if (agent.sessionId && !isContextCommand && !hasPendingSilentRefresh) {
+      // Re-fetch agent to get latest sessionId (may have been set by handleSessionId after initial fetch)
+      const currentAgent = agentService.getAgent(agentId);
+      if (currentAgent?.sessionId && !isContextCommand && !hasPendingSilentRefresh) {
         // Small delay to let the process settle
         setTimeout(() => {
           // Send /context to the running process or spawn new one
@@ -488,14 +491,31 @@ export async function sendSilentCommand(agentId: string, command: string): Promi
   // If agent has a running process, send the command to it via stdin
   // This is the expected case for /context refresh after step_complete
   if (runner.isRunning(agentId)) {
+    // Update status to show we're working on a background task
+    // This prevents the UI from showing IDLE while silent commands are running
+    log.log(`[sendSilentCommand] Setting status to working for agent ${agentId} (command: ${command})`);
+    agentService.updateAgent(agentId, {
+      status: 'working',
+      currentTask: isContextCommand ? 'Refreshing context...' : 'Background task...',
+    });
+
     const sent = runner.sendMessage(agentId, command);
     if (sent) {
+      log.log(`[sendSilentCommand] Command sent via stdin for agent ${agentId}`);
       return;
     }
     // If sendMessage failed, fall through to spawn new process
   }
 
-  // Execute silently - no status updates, no notifications
+  // Even for silent commands, update status to show work is happening
+  // This prevents the UI from showing IDLE while silent commands are running
+  log.log(`[sendSilentCommand] Spawning new process for silent command, setting status to working for agent ${agentId}`);
+  agentService.updateAgent(agentId, {
+    status: 'working',
+    currentTask: isContextCommand ? 'Refreshing context...' : 'Background task...',
+  });
+
+  // Execute silently - no command notifications, but status is already updated above
   await executeCommand(agentId, command, undefined, undefined, undefined, true);
 }
 

@@ -60,6 +60,7 @@ export async function handleSpawnAgent(
     position?: { x: number; y: number; z: number };
     initialSkillIds?: string[];
     model?: string;
+    customInstructions?: string;
   }
 ): Promise<void> {
   log.log('Request received:', {
@@ -72,6 +73,7 @@ export async function handleSpawnAgent(
     position: payload.position,
     initialSkillIds: payload.initialSkillIds,
     model: payload.model,
+    customInstructions: payload.customInstructions ? `${payload.customInstructions.length} chars` : undefined,
   });
 
   try {
@@ -85,7 +87,8 @@ export async function handleSpawnAgent(
       payload.permissionMode as any,
       undefined, // initialSkillIds handled separately below
       undefined, // isBoss
-      payload.model as any
+      payload.model as any,
+      payload.customInstructions
     );
 
     log.log('Agent created successfully:', {

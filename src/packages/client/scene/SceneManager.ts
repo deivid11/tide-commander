@@ -587,6 +587,9 @@ export class SceneManager {
       ? !isAlreadyPlaying
       : !isAlreadyPlaying || !meshData.currentAction;
 
+    // Debug logging for animation state transitions
+    console.log(`[SceneManager] updateStatusAnimation: agent=${agent.name} status=${agent.status} targetAnim=${animation} currentAnim=${currentClipName || 'none'} shouldPlay=${shouldPlay} isAlreadyPlaying=${isAlreadyPlaying}`);
+
     if (shouldPlay) {
       const options = agent.status === 'working'
         ? { timeScale: 1.5 }
@@ -594,6 +597,8 @@ export class SceneManager {
           ? { loop: false }
           : {};
       this.movementAnimator.playAnimation(meshData, animation, options);
+    } else {
+      console.log(`[SceneManager] Animation NOT played - shouldPlay=false`);
     }
 
     // Update effects manager reference and status-based effects
@@ -1325,11 +1330,10 @@ export class SceneManager {
   // ============================================
 
   private animate = (): void => {
-    this.animationFrameId = requestAnimationFrame(this.animate);
-
     // Safety check - don't render during HMR reattachment
     // This prevents black screen when canvas/renderer are being swapped
     if (this.isReattaching) {
+      this.animationFrameId = requestAnimationFrame(this.animate);
       return;
     }
 
@@ -1337,14 +1341,22 @@ export class SceneManager {
     // This prevents black screen during HMR when canvas element is being replaced
     if (!this.renderer || !this.scene || !this.camera) {
       console.warn('[SceneManager] Skipping frame - renderer/scene/camera is null');
+      // Don't schedule next frame - scene is being disposed
+      this.animationFrameId = null;
       return;
     }
 
     // Additional safety: ensure canvas is still in DOM (HMR can detach it)
     if (!this.canvas.isConnected) {
-      console.warn('[SceneManager] Skipping frame - canvas disconnected from DOM');
+      console.warn('[SceneManager] Canvas disconnected from DOM - stopping animation loop (will restart on reattach)');
+      // CRITICAL: Don't schedule next frame when canvas is disconnected
+      // The animation loop will be restarted in reattach()
+      this.animationFrameId = null;
       return;
     }
+
+    // Schedule next frame AFTER safety checks pass
+    this.animationFrameId = requestAnimationFrame(this.animate);
 
     const now = Date.now();
 
@@ -1692,10 +1704,12 @@ export class SceneManager {
       // Clear reattaching flag now that we're ready
       this.isReattaching = false;
 
-      // Double-check canvas is still valid before restarting
-      if (this.canvas && this.canvas.parentElement && this.renderer) {
+      // Double-check canvas is still valid and connected to DOM before restarting
+      if (this.canvas && this.canvas.isConnected && this.renderer) {
         console.log('[SceneManager] Restarting animation loop after HMR reattach');
         this.animate();
+      } else {
+        console.warn('[SceneManager] Cannot restart animation loop - canvas not connected');
       }
     });
   }

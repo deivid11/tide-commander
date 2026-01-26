@@ -32,6 +32,7 @@ import {
   useFileViewerEditData,
   useReconnectCount,
   useAreas,
+  useAgentTaskProgress,
 } from '../../store';
 import { useSwipeGesture } from '../../hooks';
 import type { AgentAnalysis } from '../../../shared/types';
@@ -71,6 +72,7 @@ import { getImageWebUrl } from './contentRendering';
 import { AgentDebugPanel } from './AgentDebugPanel';
 import { agentDebugger } from '../../services/agentDebugger';
 import { AgentResponseModal } from './AgentResponseModal';
+import { AgentProgressIndicator } from './AgentProgressIndicator';
 import { apiUrl } from '../../utils/storage';
 
 export function ClaudeOutputPanel() {
@@ -166,6 +168,10 @@ export function ClaudeOutputPanel() {
 
   // Use the reactive hook for outputs
   const outputs = useAgentOutputs(selectedAgentId);
+
+  // Check if selected agent is a boss and get subordinate task progress
+  const isBoss = selectedAgent?.class === 'boss' || selectedAgent?.isBoss;
+  const agentTaskProgress = useAgentTaskProgress(isBoss ? selectedAgentId : null);
 
   // Detect when agent finishes processing and show completion indicator
   const completionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1546,6 +1552,24 @@ export function ClaudeOutputPanel() {
                   onViewMarkdown={handleViewMarkdown}
                 />
               ))}
+              {/* Agent Progress Indicators - shown for boss agents */}
+              {isBoss && agentTaskProgress.size > 0 && (
+                <div className="agent-progress-container">
+                  <div className="agent-progress-container-header">
+                    <span className="progress-crown">👑</span>
+                    <span>Subordinate Progress</span>
+                    <span className="progress-count">({agentTaskProgress.size} active)</span>
+                  </div>
+                  {Array.from(agentTaskProgress.values()).map((progress) => (
+                    <AgentProgressIndicator
+                      key={progress.agentId}
+                      progress={progress}
+                      defaultExpanded={progress.status === 'working'}
+                      onAgentClick={(agentId) => store.selectAgent(agentId)}
+                    />
+                  ))}
+                </div>
+              )}
             </>
           )}
         </div>

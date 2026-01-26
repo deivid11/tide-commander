@@ -57,6 +57,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
   const [permissionMode, setPermissionMode] = useState<PermissionMode>('bypass'); // Default to permissionless
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set());
   const [selectedModel, setSelectedModel] = useState<ClaudeModel>('opus'); // Default to opus
+  const [customInstructions, setCustomInstructions] = useState('');
   const nameInputRef = useRef<HTMLInputElement>(null);
 
   // Get available skills (enabled ones)
@@ -273,6 +274,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
     onSpawnStart();
 
     const initialSkillIds = Array.from(selectedSkillIds);
+    const trimmedInstructions = customInstructions.trim() || undefined;
     console.log('[SpawnModal] Calling store.spawnAgent with:', {
       name: name.trim(),
       class: selectedClass,
@@ -281,10 +283,11 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
       useChrome,
       permissionMode,
       initialSkillIds,
-      model: selectedModel
+      model: selectedModel,
+      customInstructions: trimmedInstructions ? `${trimmedInstructions.length} chars` : undefined,
     });
 
-    store.spawnAgent(name.trim(), selectedClass, effectiveCwd.trim(), spawnPosition || undefined, selectedSessionId || undefined, useChrome, permissionMode, initialSkillIds, selectedModel);
+    store.spawnAgent(name.trim(), selectedClass, effectiveCwd.trim(), spawnPosition || undefined, selectedSessionId || undefined, useChrome, permissionMode, initialSkillIds, selectedModel, trimmedInstructions);
   };
 
   const handleSuccess = () => {
@@ -541,12 +544,27 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                       >
                         {isSelected && <span className="spawn-skill-check">✓</span>}
                         <span>{skill.name}</span>
+                        {skill.builtin && <span className="spawn-skill-builtin">TC</span>}
                       </button>
                     );
                   })}
                 </div>
               </div>
             )}
+
+            {/* Custom Instructions */}
+            <div className="spawn-custom-instructions-section">
+              <label className="spawn-label">
+                Custom Instructions <span className="spawn-label-hint">(optional)</span>
+              </label>
+              <textarea
+                className="spawn-input spawn-textarea"
+                placeholder="Add custom instructions that will be appended to this agent's system prompt..."
+                value={customInstructions}
+                onChange={(e) => setCustomInstructions(e.target.value)}
+                rows={3}
+              />
+            </div>
 
             {/* Sessions */}
             <div className="spawn-sessions-section">

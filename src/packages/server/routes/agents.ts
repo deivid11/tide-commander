@@ -7,10 +7,11 @@ import { Router, Request, Response } from 'express';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { agentService, claudeService } from '../services/index.js';
+import { agentService, claudeService, bossMessageService } from '../services/index.js';
 import { getClaudeProjectDir } from '../data/index.js';
 // Session listing is done inline for performance
 import { createLogger } from '../utils/logger.js';
+import { buildCustomAgentConfig } from '../websocket/handlers/command-handler.js';
 
 const log = createLogger('Routes');
 
@@ -207,6 +208,12 @@ router.get('/', (_req: Request, res: Response) => {
   res.json(agents);
 });
 
+// GET /api/agents/simple - List all agents (ids and names only)
+router.get('/simple', (_req: Request, res: Response) => {
+  const agents = agentService.getAllAgents();
+  res.json(agents.map(agent => ({ id: agent.id, name: agent.name })));
+});
+
 // POST /api/agents - Create new agent
 router.post('/', async (req: Request, res: Response) => {
   try {
@@ -329,6 +336,47 @@ router.get('/:id/search', async (req: Request<{ id: string }>, res: Response) =>
     res.json(result);
   } catch (err: any) {
     log.error(' Failed to search history:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/agents/:id/message - Send a message/command to an agent
+router.post('/:id/message', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const { message } = req.body;
+    const agentId = req.params.id;
+
+    if (!message) {
+      res.status(400).json({ error: 'Missing required field: message' });
+      return;
+    }
+
+    const agent = agentService.getAgent(agentId);
+    if (!agent) {
+      res.status(404).json({ error: `Agent not found: ${agentId}` });
+      return;
+    }
+
+    log.log(`API message to agent ${agent.name}: "${message.slice(0, 50)}${message.length > 50 ? '...' : ''}"`);
+
+    // Handle boss agents with their special context building
+    if (agent.isBoss || agent.class === 'boss') {
+      const { message: bossMessage, systemPrompt } = await bossMessageService.buildBossMessage(agentId, message);
+      await claudeService.sendCommand(agentId, bossMessage, systemPrompt);
+    } else {
+      // Regular agents get custom agent config (identity header, class instructions, skills)
+      const customAgentConfig = buildCustomAgentConfig(agentId, agent.class);
+      await claudeService.sendCommand(agentId, message, undefined, undefined, customAgentConfig);
+    }
+
+    res.status(200).json({
+      success: true,
+      agentId: agent.id,
+      agentName: agent.name,
+      message: 'Command sent successfully'
+    });
+  } catch (err: any) {
+    log.error(' Failed to send message to agent:', err);
     res.status(500).json({ error: err.message });
   }
 });

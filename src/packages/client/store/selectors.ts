@@ -26,6 +26,7 @@ import type {
   SupervisorState,
   ToolExecution,
   FileChange,
+  AgentTaskProgress,
 } from './types';
 import type { ShortcutConfig } from './shortcuts';
 import type { MouseControlsState, CameraSensitivityConfig } from './mouseControls';
@@ -709,4 +710,26 @@ export function useGlobalUsage(): GlobalUsageStats | null {
  */
 export function useRefreshingUsage(): boolean {
   return useSelector(useCallback((state: StoreState) => state.supervisor.refreshingUsage, []));
+}
+
+// ============================================================================
+// AGENT TASK PROGRESS SELECTORS
+// ============================================================================
+
+/**
+ * Get agent task progress for a specific boss. Only re-renders when that boss's progress changes.
+ */
+export function useAgentTaskProgress(bossId: string | null): Map<string, AgentTaskProgress> {
+  const emptyMap = useRef<Map<string, AgentTaskProgress>>(new Map());
+
+  return useSelector(
+    useCallback(
+      (state: StoreState) => {
+        if (!bossId) return emptyMap.current;
+        return state.agentTaskProgress.get(bossId) || emptyMap.current;
+      },
+      [bossId]
+    ),
+    shallowMapEqual
+  );
 }

@@ -5,7 +5,7 @@
  */
 
 import type { ClientMessage, Agent, AgentClass, PermissionMode, ClaudeModel, DelegationDecision } from '../../shared/types';
-import type { StoreState } from './types';
+import type { StoreState, AgentTaskProgress } from './types';
 
 export interface DelegationActions {
   // Boss agent spawning
@@ -17,7 +17,8 @@ export interface DelegationActions {
     subordinateIds?: string[],
     useChrome?: boolean,
     permissionMode?: PermissionMode,
-    model?: ClaudeModel
+    model?: ClaudeModel,
+    customInstructions?: string
   ): void;
 
   // Subordinate management
@@ -41,6 +42,13 @@ export interface DelegationActions {
   // Boss helpers
   isBossAgent(agentId: string): boolean;
   getBossForAgent(agentId: string): Agent | null;
+
+  // Agent task progress tracking (for subordinates in boss terminal)
+  handleAgentTaskStarted(bossId: string, subordinateId: string, subordinateName: string, taskDescription: string): void;
+  handleAgentTaskOutput(bossId: string, subordinateId: string, output: string): void;
+  handleAgentTaskCompleted(bossId: string, subordinateId: string, success: boolean): void;
+  getAgentTaskProgress(bossId: string): Map<string, AgentTaskProgress>;
+  clearAgentTaskProgress(bossId: string, subordinateId?: string): void;
 }
 
 export function createDelegationActions(
@@ -58,12 +66,13 @@ export function createDelegationActions(
       subordinateIds?: string[],
       useChrome?: boolean,
       permissionMode?: PermissionMode,
-      model?: ClaudeModel
+      model?: ClaudeModel,
+      customInstructions?: string
     ): void {
       const pos3d = position ? { x: position.x, y: 0, z: position.z } : undefined;
       getSendMessage()?.({
         type: 'spawn_boss_agent',
-        payload: { name, class: agentClass, cwd, position: pos3d, subordinateIds, useChrome, permissionMode, model },
+        payload: { name, class: agentClass, cwd, position: pos3d, subordinateIds, useChrome, permissionMode, model, customInstructions },
       });
     },
 
@@ -210,6 +219,98 @@ export function createDelegationActions(
 
     getAvailableSubordinates(): Agent[] {
       return Array.from(getState().agents.values()).filter((agent) => agent.class !== 'boss');
+    },
+
+    handleAgentTaskStarted(
+      bossId: string,
+      subordinateId: string,
+      subordinateName: string,
+      taskDescription: string
+    ): void {
+      setState((state) => {
+        const newProgress = new Map(state.agentTaskProgress);
+        let bossProgress = newProgress.get(bossId);
+        if (!bossProgress) {
+          bossProgress = new Map();
+          newProgress.set(bossId, bossProgress);
+        }
+        bossProgress.set(subordinateId, {
+          agentId: subordinateId,
+          agentName: subordinateName,
+          taskDescription,
+          status: 'working',
+          output: [],
+          startedAt: Date.now(),
+        });
+        state.agentTaskProgress = newProgress;
+      });
+      notify();
+    },
+
+    handleAgentTaskOutput(bossId: string, subordinateId: string, output: string): void {
+      setState((state) => {
+        const bossProgress = state.agentTaskProgress.get(bossId);
+        if (!bossProgress) return;
+
+        const taskProgress = bossProgress.get(subordinateId);
+        if (!taskProgress) return;
+
+        // Create new map structure for immutability
+        const newProgress = new Map(state.agentTaskProgress);
+        const newBossProgress = new Map(bossProgress);
+        newBossProgress.set(subordinateId, {
+          ...taskProgress,
+          output: [...taskProgress.output, output],
+        });
+        newProgress.set(bossId, newBossProgress);
+        state.agentTaskProgress = newProgress;
+      });
+      notify();
+    },
+
+    handleAgentTaskCompleted(bossId: string, subordinateId: string, success: boolean): void {
+      setState((state) => {
+        const bossProgress = state.agentTaskProgress.get(bossId);
+        if (!bossProgress) return;
+
+        const taskProgress = bossProgress.get(subordinateId);
+        if (!taskProgress) return;
+
+        const newProgress = new Map(state.agentTaskProgress);
+        const newBossProgress = new Map(bossProgress);
+        newBossProgress.set(subordinateId, {
+          ...taskProgress,
+          status: success ? 'completed' : 'failed',
+          completedAt: Date.now(),
+        });
+        newProgress.set(bossId, newBossProgress);
+        state.agentTaskProgress = newProgress;
+      });
+      notify();
+    },
+
+    getAgentTaskProgress(bossId: string): Map<string, AgentTaskProgress> {
+      return getState().agentTaskProgress.get(bossId) || new Map();
+    },
+
+    clearAgentTaskProgress(bossId: string, subordinateId?: string): void {
+      setState((state) => {
+        if (subordinateId) {
+          const bossProgress = state.agentTaskProgress.get(bossId);
+          if (bossProgress) {
+            const newProgress = new Map(state.agentTaskProgress);
+            const newBossProgress = new Map(bossProgress);
+            newBossProgress.delete(subordinateId);
+            newProgress.set(bossId, newBossProgress);
+            state.agentTaskProgress = newProgress;
+          }
+        } else {
+          const newProgress = new Map(state.agentTaskProgress);
+          newProgress.delete(bossId);
+          state.agentTaskProgress = newProgress;
+        }
+      });
+      notify();
     },
   };
 }

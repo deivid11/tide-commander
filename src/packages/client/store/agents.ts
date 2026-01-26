@@ -33,7 +33,8 @@ export interface AgentActions {
     useChrome?: boolean,
     permissionMode?: PermissionMode,
     initialSkillIds?: string[],
-    model?: ClaudeModel
+    model?: ClaudeModel,
+    customInstructions?: string
   ): void;
   createDirectoryAndSpawn(path: string, name: string, agentClass: AgentClass): void;
   sendCommand(agentId: string, command: string): void;
@@ -207,7 +208,8 @@ export function createAgentActions(
       useChrome?: boolean,
       permissionMode?: PermissionMode,
       initialSkillIds?: string[],
-      model?: ClaudeModel
+      model?: ClaudeModel,
+      customInstructions?: string
     ): void {
       console.log('[Store] spawnAgent called with:', {
         name,
@@ -219,6 +221,7 @@ export function createAgentActions(
         permissionMode,
         initialSkillIds,
         model,
+        customInstructions: customInstructions ? `${customInstructions.length} chars` : undefined,
       });
 
       const pos3d = position ? { x: position.x, y: 0, z: position.z } : undefined;
@@ -234,6 +237,7 @@ export function createAgentActions(
           permissionMode,
           initialSkillIds,
           model,
+          customInstructions,
         },
       };
 
