@@ -157,6 +157,34 @@ git push origin $(git branch --show-current)
 git push origin v<VERSION>
 \`\`\`
 
+### Step 10: Create GitHub Release
+
+After pushing the tag, create a GitHub release to make it visible in the "Releases" tab:
+
+\`\`\`bash
+# Create GitHub release with notes
+gh release create v<VERSION> --notes "<RELEASE_NOTES>"
+\`\`\`
+
+**Release notes format:**
+\`\`\`markdown
+## Highlights
+
+### ✨ Feature Name
+Brief description of what was added.
+
+### 🐛 Bug Fixes
+Description of bugs fixed.
+
+## Changes
+- Bullet point of changes
+- Another change
+
+## Technical Details
+- Technical implementation note
+- Architecture changes
+\`\`\`
+
 ---
 
 ## Workflow: Download Changes (Pull/Sync)
