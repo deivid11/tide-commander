@@ -334,6 +334,26 @@ export function ClaudeOutputPanel() {
     maxVerticalMovement: 30, // Stricter vertical limit since this area scrolls
   });
 
+  // Keyboard shortcuts for agent navigation (Alt+J / Alt+K)
+  useEffect(() => {
+    const handleAgentNavKeyDown = (e: KeyboardEvent) => {
+      if (!isOpen || sortedAgents.length <= 1) return;
+
+      // Alt+K → go to previous agent (like swipe right)
+      if (e.altKey && e.key === 'k') {
+        e.preventDefault();
+        handleSwipeRight();
+      }
+      // Alt+J → go to next agent (like swipe left)
+      if (e.altKey && e.key === 'j') {
+        e.preventDefault();
+        handleSwipeLeft();
+      }
+    };
+    document.addEventListener('keydown', handleAgentNavKeyDown);
+    return () => document.removeEventListener('keydown', handleAgentNavKeyDown);
+  }, [isOpen, sortedAgents.length, handleSwipeLeft, handleSwipeRight]);
+
   // Memoized filtered and enriched history messages based on view mode
   const filteredHistory = useMemo((): EnrichedHistoryMessage[] => {
     // First, build a map of toolUseId -> tool_result content for linking
