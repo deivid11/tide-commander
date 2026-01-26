@@ -121,6 +121,11 @@ export function useDocumentPiP(): DocumentPiPState {
 
   const close = useCallback(() => {
     if (pipWindowRef.current) {
+      // Clean up event listeners
+      const cleanupFns = (pipWindowRef.current as any).__cleanupFns;
+      if (cleanupFns) {
+        cleanupFns.forEach((fn: () => void) => fn());
+      }
       pipWindowRef.current.close();
       pipWindowRef.current = null;
     }
@@ -149,6 +154,8 @@ export function useDocumentPiP(): DocumentPiPState {
       const newPipWindow: Window = await documentPiP.requestWindow({
         width: opts.width,
         height: opts.height,
+        // Keep PiP window visible when clicking other windows
+        disallowReturnToOpener: true,
       });
 
       pipWindowRef.current = newPipWindow;
@@ -177,6 +184,35 @@ export function useDocumentPiP(): DocumentPiPState {
         setPipContainer(null);
         setIsOpen(false);
       });
+
+      // Try to keep PiP window on top when main window gains focus
+      // This is a workaround since Document PiP doesn't have true always-on-top
+      const handleMainWindowFocus = () => {
+        if (pipWindowRef.current && !pipWindowRef.current.closed) {
+          // Small delay to let the focus event complete
+          setTimeout(() => {
+            pipWindowRef.current?.focus();
+          }, 50);
+        }
+      };
+
+      // Also handle visibility change to bring PiP back to front
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === 'visible' && pipWindowRef.current && !pipWindowRef.current.closed) {
+          setTimeout(() => {
+            pipWindowRef.current?.focus();
+          }, 100);
+        }
+      };
+
+      window.addEventListener('focus', handleMainWindowFocus);
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+
+      // Store cleanup functions
+      (newPipWindow as any).__cleanupFns = [
+        () => window.removeEventListener('focus', handleMainWindowFocus),
+        () => document.removeEventListener('visibilitychange', handleVisibilityChange),
+      ];
 
       setPipWindow(newPipWindow);
       setPipContainer(container);

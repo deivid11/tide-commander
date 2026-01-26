@@ -37,6 +37,9 @@ export const STORAGE_KEYS = {
   TOOLS_COLLAPSED: 'tide-tool-history-collapsed',
   FILES_COLLAPSED: 'tide-file-history-collapsed',
   MOBILE_VIEW: 'tide-mobile-view',
+
+  // Agent Bar
+  AGENT_ORDER: 'tide-agent-order',
 } as const;
 
 /**

@@ -34,3 +34,4 @@ export {
 } from './useSceneSync';
 export { useKeyboardShortcuts } from './useKeyboardShortcuts';
 export { useBackNavigation } from './useBackNavigation';
+export { useAgentOrder } from './useAgentOrder';

@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useStore, store, useCustomAgentClassesArray } from '../store';
 import type { Agent, DrawingArea, AgentSupervisorHistoryEntry } from '../../shared/types';
 import { formatIdleTime } from '../utils/formatting';
 import { getClassConfig } from '../utils/classConfig';
 import { getIdleTimerColor, getAgentStatusColor } from '../utils/colors';
 import { TOOL_ICONS } from '../utils/outputRendering';
+import { useAgentOrder } from '../hooks';
 
 interface AgentBarProps {
   onFocusAgent?: (agentId: string) => void;
@@ -14,11 +15,6 @@ interface AgentBarProps {
   onNewAreaClick?: () => void;
 }
 
-interface AgentGroup {
-  area: DrawingArea | null;
-  agents: Agent[];
-}
-
 export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBuildingClick, onNewAreaClick }: AgentBarProps) {
   const state = useStore();
   const customClasses = useCustomAgentClassesArray();
@@ -26,34 +22,30 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
   // Track tool bubbles with animation state
   const [toolBubbles, setToolBubbles] = useState<Map<string, { tool: string; key: number }>>(new Map());
 
-  const agents = Array.from(state.agents.values()).sort(
-    (a, b) => (a.createdAt || 0) - (b.createdAt || 0)
+  // Drag and drop state
+  const [draggedAgent, setDraggedAgent] = useState<Agent | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const dragCounter = useRef(0);
+
+  // Get agents sorted by creation time as base, then apply custom order
+  const baseAgents = useMemo(() =>
+    Array.from(state.agents.values()).sort(
+      (a, b) => (a.createdAt || 0) - (b.createdAt || 0)
+    ),
+    [state.agents]
   );
 
-  // Group agents by their area
-  const agentGroups = useMemo(() => {
-    const groups = new Map<string | null, AgentGroup>();
+  // Use the reorder hook for persistent ordering
+  const { orderedAgents, moveAgent } = useAgentOrder(baseAgents);
+  const agents = orderedAgents;
 
+  // Get area info for each agent (for display purposes)
+  const agentAreas = useMemo(() => {
+    const areaMap = new Map<string, DrawingArea | null>();
     for (const agent of agents) {
-      const area = store.getAreaForAgent(agent.id);
-      const areaKey = area?.id || null;
-
-      if (!groups.has(areaKey)) {
-        groups.set(areaKey, { area, agents: [] });
-      }
-      groups.get(areaKey)!.agents.push(agent);
+      areaMap.set(agent.id, store.getAreaForAgent(agent.id));
     }
-
-    // Convert to array and sort: areas first (alphabetically), then unassigned
-    const groupArray = Array.from(groups.values());
-    groupArray.sort((a, b) => {
-      if (!a.area && b.area) return 1;
-      if (a.area && !b.area) return -1;
-      if (!a.area && !b.area) return 0;
-      return (a.area?.name || '').localeCompare(b.area?.name || '');
-    });
-
-    return groupArray;
+    return areaMap;
   }, [agents, state.areas]);
 
   // Watch for tool changes on agents
@@ -115,6 +107,56 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
     store.setTerminalOpen(true);
   };
 
+  // Drag and drop handlers
+  const handleDragStart = useCallback((e: React.DragEvent, agent: Agent) => {
+    setDraggedAgent(agent);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', agent.id);
+    // Add a slight delay to allow the drag image to be captured
+    requestAnimationFrame(() => {
+      (e.target as HTMLElement).classList.add('dragging');
+    });
+  }, []);
+
+  const handleDragEnd = useCallback((e: React.DragEvent) => {
+    setDraggedAgent(null);
+    setDragOverIndex(null);
+    dragCounter.current = 0;
+    (e.target as HTMLElement).classList.remove('dragging');
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  }, []);
+
+  const handleDragEnter = useCallback((e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    dragCounter.current++;
+    setDragOverIndex(index);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    dragCounter.current--;
+    if (dragCounter.current === 0) {
+      setDragOverIndex(null);
+    }
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent, toIndex: number) => {
+    e.preventDefault();
+    if (!draggedAgent) return;
+
+    const fromIndex = agents.findIndex(a => a.id === draggedAgent.id);
+    if (fromIndex !== -1 && fromIndex !== toIndex) {
+      moveAgent(fromIndex, toIndex);
+    }
+
+    setDraggedAgent(null);
+    setDragOverIndex(null);
+    dragCounter.current = 0;
+  }, [draggedAgent, agents, moveAgent]);
+
   // Use getAgentStatusColor from utils/colors.ts
 
   const getStatusLabel = (status: Agent['status']) => {
@@ -127,9 +169,6 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
       default: return 'Unknown';
     }
   };
-
-  // Calculate global index for hotkeys
-  let globalIndex = 0;
 
   // Get app version
   const version = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0';
@@ -181,118 +220,89 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
           <span className="agent-bar-spawn-icon">▢</span>
           <span className="agent-bar-spawn-label">New Area</span>
         </button>
-        {agentGroups.map((group) => {
-          const groupAgents = group.agents;
-          const isUnassigned = !group.area;
+        {/* Flat list of draggable agents */}
+        {agents.map((agent, index) => {
+          const isSelected = state.selectedAgentIds.has(agent.id);
+          const config = getClassConfig(agent.class, customClasses);
+          const lastPrompt = state.lastPrompts.get(agent.id);
+          const area = agentAreas.get(agent.id);
+
+          const toolBubble = toolBubbles.get(agent.id);
+          const toolIcon = toolBubble
+            ? TOOL_ICONS[toolBubble.tool] || TOOL_ICONS.default
+            : null;
+
+          // Truncate last query for display
+          const lastQueryShort = lastPrompt?.text
+            ? lastPrompt.text.length > 30
+              ? lastPrompt.text.substring(0, 30) + '...'
+              : lastPrompt.text
+            : null;
+
+          const isDragging = draggedAgent?.id === agent.id;
+          const isDragOver = dragOverIndex === index;
 
           return (
             <div
-              key={group.area?.id || 'unassigned'}
-              className={`agent-bar-group ${isUnassigned ? 'unassigned' : ''}`}
+              key={agent.id}
+              className={`agent-bar-item ${isSelected ? 'selected' : ''} ${agent.status} ${agent.isBoss ? 'is-boss' : ''} ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
+              draggable
+              onDragStart={(e) => handleDragStart(e, agent)}
+              onDragEnd={handleDragEnd}
+              onDragOver={handleDragOver}
+              onDragEnter={(e) => handleDragEnter(e, index)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, index)}
+              onClick={(e) => handleAgentClick(agent, e)}
+              onDoubleClick={() => handleAgentDoubleClick(agent)}
+              onMouseEnter={() => setHoveredAgent(agent)}
+              onMouseLeave={() => setHoveredAgent(null)}
+              title={`${agent.name} (${index + 1}) - Drag to reorder`}
               style={{
-                borderColor: group.area?.color || undefined,
-                background: group.area
-                  ? `${group.area.color}15`
-                  : undefined,
+                borderColor: area?.color || undefined,
               }}
             >
-              {/* Area label at top of group border */}
-              <div className="agent-bar-area-label">
+              {/* Area indicator dot */}
+              {area && (
+                <div
+                  className="agent-bar-area-dot"
+                  style={{ backgroundColor: area.color }}
+                  title={area.name}
+                />
+              )}
+              <div className="agent-bar-avatar">
+                <span className="agent-bar-icon">{config.icon}</span>
                 <span
-                  className="agent-bar-area-name"
-                  style={{ color: group.area?.color || '#888' }}
-                >
-                  {group.area?.name || 'Unassigned'}
-                </span>
+                  className="agent-bar-status"
+                  style={{ backgroundColor: getAgentStatusColor(agent.status) }}
+                />
+                {agent.status === 'idle' && agent.lastActivity > 0 && (
+                  <span
+                    className="agent-bar-idle-clock"
+                    style={{ color: getIdleTimerColor(agent.lastActivity) }}
+                    title={formatIdleTime(agent.lastActivity)}
+                  >
+                    ⏱
+                  </span>
+                )}
               </div>
-
-              {/* Area folders */}
-              {group.area?.directories && group.area.directories.length > 0 && (
-                <div className="agent-bar-folders">
-                  {group.area.directories.map((dir, idx) => (
-                    <div
-                      key={idx}
-                      className="agent-bar-folder-item"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        store.openFileExplorer(dir);
-                      }}
-                    >
-                      <span className="agent-bar-folder-icon">📁</span>
-                      <div className="agent-bar-folder-tooltip">
-                        <div className="agent-bar-folder-tooltip-path">{dir}</div>
-                        <div className="agent-bar-folder-tooltip-hint">Click to open</div>
-                      </div>
-                    </div>
-                  ))}
+              <span className="agent-bar-hotkey" title={`Ctrl+${index + 1}`}>^{index + 1}</span>
+              {toolBubble && (
+                <div
+                  key={toolBubble.key}
+                  className="agent-bar-tool-bubble"
+                  title={toolBubble.tool}
+                >
+                  <span className="agent-bar-tool-icon">{toolIcon}</span>
+                  <span className="agent-bar-tool-name">{toolBubble.tool}</span>
                 </div>
               )}
-
-              {/* Agents in this group */}
-              {groupAgents.map((agent) => {
-                const currentIndex = globalIndex++;
-                const isSelected = state.selectedAgentIds.has(agent.id);
-                const config = getClassConfig(agent.class, customClasses);
-                const lastPrompt = state.lastPrompts.get(agent.id);
-
-                const toolBubble = toolBubbles.get(agent.id);
-                const toolIcon = toolBubble
-                  ? TOOL_ICONS[toolBubble.tool] || TOOL_ICONS.default
-                  : null;
-
-                // Truncate last query for display
-                const lastQueryShort = lastPrompt?.text
-                  ? lastPrompt.text.length > 30
-                    ? lastPrompt.text.substring(0, 30) + '...'
-                    : lastPrompt.text
-                  : null;
-
-                return (
-                  <div
-                    key={agent.id}
-                    className={`agent-bar-item ${isSelected ? 'selected' : ''} ${agent.status} ${agent.isBoss ? 'is-boss' : ''}`}
-                    onClick={(e) => handleAgentClick(agent, e)}
-                    onDoubleClick={() => handleAgentDoubleClick(agent)}
-                    onMouseEnter={() => setHoveredAgent(agent)}
-                    onMouseLeave={() => setHoveredAgent(null)}
-                    title={`${agent.name} (${currentIndex + 1})`}
-                  >
-                    <div className="agent-bar-avatar">
-                      <span className="agent-bar-icon">{config.icon}</span>
-                      <span
-                        className="agent-bar-status"
-                        style={{ backgroundColor: getAgentStatusColor(agent.status) }}
-                      />
-                      {agent.status === 'idle' && agent.lastActivity > 0 && (
-                        <span
-                          className="agent-bar-idle-clock"
-                          style={{ color: getIdleTimerColor(agent.lastActivity) }}
-                          title={formatIdleTime(agent.lastActivity)}
-                        >
-                          ⏱
-                        </span>
-                      )}
-                    </div>
-                    <span className="agent-bar-hotkey" title={`Ctrl+${currentIndex + 1}`}>^{currentIndex + 1}</span>
-                    {toolBubble && (
-                      <div
-                        key={toolBubble.key}
-                        className="agent-bar-tool-bubble"
-                        title={toolBubble.tool}
-                      >
-                        <span className="agent-bar-tool-icon">{toolIcon}</span>
-                        <span className="agent-bar-tool-name">{toolBubble.tool}</span>
-                      </div>
-                    )}
-                    {/* Last query preview */}
-                    {lastQueryShort && !toolBubble && (
-                      <div className="agent-bar-last-query" title={lastPrompt?.text}>
-                        {lastQueryShort}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+              {/* Last query preview */}
+              {lastQueryShort && !toolBubble && (
+                <div className="agent-bar-last-query" title={lastPrompt?.text}>
+                  {lastQueryShort}
+                </div>
+              )}
             </div>
           );
         })}

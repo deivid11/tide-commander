@@ -1,21 +1,30 @@
 /**
  * AgentsPiPView Component
  * Displays working agents in a compact view for the PiP window
- * Supports navigation to agent conversation on double-click
+ * Reuses Guake terminal components for consistent conversation rendering
  */
 
-import React, { useState, useRef, useCallback } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import { useAgentsArray, useAgent, useAgentOutputs } from '../../store/selectors';
-import { sendMessage } from '../../websocket';
-import { BUILT_IN_AGENT_CLASSES, BOSS_CONTEXT_START, BOSS_CONTEXT_END, type Agent, type AgentStatus } from '../../../shared/types';
-import type { ClaudeOutput } from '../../store/types';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { useAgentsArray, useAgent, useAgentOutputs, useReconnectCount, useLastPrompts } from '../../store/selectors';
+import { store } from '../../store';
+import { BUILT_IN_AGENT_CLASSES, type Agent, type AgentStatus } from '../../../shared/types';
+
+// Reuse Guake terminal components
+import { useHistoryLoader } from '../ClaudeOutputPanel/useHistoryLoader';
+import { useFilteredOutputsWithLogging } from '../shared/useFilteredOutputs';
+import { HistoryLine } from '../ClaudeOutputPanel/HistoryLine';
+import { OutputLine } from '../ClaudeOutputPanel/OutputLine';
+import type { EnrichedHistoryMessage, ViewMode } from '../ClaudeOutputPanel/types';
+
+// Reuse UnitPanel components
+import { ContextBar } from '../UnitPanel/AgentStatsRow';
+import { calculateContextInfo } from '../UnitPanel/agentUtils';
+
 import './pip-styles.scss';
 
 interface AgentCardProps {
   agent: Agent;
-  onDoubleClick: (agentId: string) => void;
+  onClick: (agentId: string) => void;
 }
 
 function getStatusIcon(status: AgentStatus): string {
@@ -63,7 +72,7 @@ function getAgentIcon(agent: Agent): string {
   return builtInClass?.icon || '🤖';
 }
 
-function AgentCard({ agent, onDoubleClick }: AgentCardProps) {
+function AgentCard({ agent, onClick }: AgentCardProps) {
   const statusColor = getStatusColor(agent.status);
   const statusIcon = getStatusIcon(agent.status);
   const agentIcon = getAgentIcon(agent);
@@ -71,8 +80,8 @@ function AgentCard({ agent, onDoubleClick }: AgentCardProps) {
   return (
     <div
       className={`pip-agent-card pip-status-${agent.status}`}
-      onDoubleClick={() => onDoubleClick(agent.id)}
-      title="Double-click to view conversation"
+      onClick={() => onClick(agent.id)}
+      title="Click to view conversation"
     >
       <div className="pip-agent-header">
         <span className="pip-agent-icon">{agentIcon}</span>
@@ -297,7 +306,7 @@ function ContextStatsView({ agent, onBack }: ContextStatsViewProps) {
 }
 
 /**
- * Simplified conversation view for PiP window
+ * Conversation view using Guake terminal components
  */
 interface ConversationViewProps {
   agentId: string;
@@ -307,20 +316,64 @@ interface ConversationViewProps {
 function ConversationView({ agentId, onBack }: ConversationViewProps) {
   const agent = useAgent(agentId);
   const outputs = useAgentOutputs(agentId);
-  const outputsRef = useRef<HTMLDivElement>(null);
+  const reconnectCount = useReconnectCount();
+  const lastPrompts = useLastPrompts();
+  const outputScrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [inputValue, setInputValue] = useState('');
   const [showContextStats, setShowContextStats] = useState(false);
+  const [viewMode] = useState<ViewMode>('simple'); // PiP always uses simple view
 
-  // Drag-to-scroll state
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0, scrollTop: 0 });
+  const hasSessionId = !!agent?.sessionId;
+
+  // Use the same history loader as Guake terminal
+  const historyLoader = useHistoryLoader({
+    selectedAgentId: agentId,
+    hasSessionId,
+    reconnectCount,
+    lastPrompts,
+    outputScrollRef,
+  });
+
+  // Use the same filtered outputs as Guake terminal
+  const filteredOutputs = useFilteredOutputsWithLogging({ outputs, viewMode });
+
+  // Memoized filtered history (same logic as Guake terminal)
+  const filteredHistory = useMemo((): EnrichedHistoryMessage[] => {
+    const { history } = historyLoader;
+    const toolResultMap = new Map<string, string>();
+    for (const msg of history) {
+      if (msg.type === 'tool_result' && msg.toolUseId) {
+        toolResultMap.set(msg.toolUseId, msg.content);
+      }
+    }
+
+    const enrichHistory = (messages: typeof history): EnrichedHistoryMessage[] => {
+      return messages.map((msg) => {
+        if (msg.type === 'tool_use' && msg.toolName === 'Bash' && msg.toolUseId) {
+          const bashOutput = toolResultMap.get(msg.toolUseId);
+          let bashCommand: string | undefined;
+          try {
+            const input = msg.toolInput || (msg.content ? JSON.parse(msg.content) : {});
+            bashCommand = input.command;
+          } catch { /* ignore */ }
+          return { ...msg, _bashOutput: bashOutput, _bashCommand: bashCommand };
+        }
+        return msg as EnrichedHistoryMessage;
+      });
+    };
+
+    // Simple view filtering (same as Guake)
+    return enrichHistory(history.filter((msg) => msg.type === 'user' || msg.type === 'assistant' || msg.type === 'tool_use'));
+  }, [historyLoader.history]);
+
+  // Scroll button visibility state
   const [showScrollButtons, setShowScrollButtons] = useState({ top: false, bottom: true });
 
   // Update scroll button visibility based on scroll position
   const updateScrollButtons = useCallback(() => {
-    if (!outputsRef.current) return;
-    const { scrollTop, scrollHeight, clientHeight } = outputsRef.current;
+    if (!outputScrollRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = outputScrollRef.current;
     setShowScrollButtons({
       top: scrollTop > 20,
       bottom: scrollTop < scrollHeight - clientHeight - 20,
@@ -328,94 +381,59 @@ function ConversationView({ agentId, onBack }: ConversationViewProps) {
   }, []);
 
   // Auto-scroll to bottom when new outputs arrive
-  React.useEffect(() => {
-    if (outputsRef.current) {
-      outputsRef.current.scrollTop = outputsRef.current.scrollHeight;
+  useEffect(() => {
+    if (outputScrollRef.current) {
+      outputScrollRef.current.scrollTop = outputScrollRef.current.scrollHeight;
       updateScrollButtons();
     }
-  }, [outputs.length, updateScrollButtons]);
+  }, [outputs.length, filteredHistory.length, updateScrollButtons]);
 
   // Scroll handlers for buttons
   const scrollUp = useCallback(() => {
-    if (!outputsRef.current) return;
-    outputsRef.current.scrollBy({ top: -200, behavior: 'smooth' });
+    if (!outputScrollRef.current) return;
+    outputScrollRef.current.scrollBy({ top: -200, behavior: 'smooth' });
   }, []);
 
   const scrollDown = useCallback(() => {
-    if (!outputsRef.current) return;
-    outputsRef.current.scrollBy({ top: 200, behavior: 'smooth' });
+    if (!outputScrollRef.current) return;
+    outputScrollRef.current.scrollBy({ top: 200, behavior: 'smooth' });
   }, []);
 
-  // Drag-to-scroll handlers - only activate with middle mouse button or when shift is held
-  const handleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!outputsRef.current) return;
-
-    // Check if click is on the scrollbar (approximate detection)
-    const target = e.currentTarget;
-    const isScrollbarClick =
-      e.clientX > target.clientWidth - 10 || // Scrollbar area (rough estimate)
-      e.clientY > target.clientHeight - 10;
-
-    // Don't interfere with scrollbar clicks
-    if (isScrollbarClick) return;
-
-    // Only start drag with middle mouse button (button 1) or shift + left click
-    if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
-      e.preventDefault();
-      setIsDragging(true);
-      setDragStart({
-        x: e.clientX,
-        y: e.clientY,
-        scrollTop: outputsRef.current.scrollTop,
-      });
-    }
-  }, []);
-
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!isDragging || !outputsRef.current) return;
-    e.preventDefault();
-    const deltaY = e.clientY - dragStart.y;
-    outputsRef.current.scrollTop = dragStart.scrollTop - deltaY;
-  }, [isDragging, dragStart]);
-
-  const handleMouseUp = useCallback(() => {
-    setIsDragging(false);
-  }, []);
-
-  const handleMouseLeave = useCallback(() => {
-    setIsDragging(false);
-  }, []);
-
-  // Send message handler
+  // Send message handler - using store.sendCommand like Guake
+  // Always allow sending, even when agent is working (will queue/interrupt)
   const handleSend = useCallback(() => {
     const trimmed = inputValue.trim();
     if (!trimmed || !agent) return;
 
-    // Don't send if agent is working (could interrupt)
-    if (agent.status === 'working') return;
-
-    sendMessage({
-      type: 'send_command',
-      payload: {
-        agentId,
-        command: trimmed,
-      },
-    });
-
+    store.sendCommand(agentId, trimmed);
     setInputValue('');
-    inputRef.current?.focus();
+    // Re-focus input after sending (with delay for PiP window)
+    setTimeout(() => inputRef.current?.focus(), 50);
   }, [inputValue, agentId, agent]);
 
+  // Handle input change
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setInputValue(e.target.value);
+  }, []);
+
   // Handle Enter key
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        handleSend();
-      }
-    },
-    [handleSend]
-  );
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  }, [handleSend]);
+
+  // Focus input on mount and when switching agents
+  useEffect(() => {
+    const timer = setTimeout(() => inputRef.current?.focus(), 100);
+    return () => clearTimeout(timer);
+  }, [agentId]);
+
+  // File click handler (open file viewer)
+  const handleFileClick = useCallback((path: string, editData?: { oldString: string; newString: string }) => {
+    store.setFileViewerPath(path, editData);
+  }, []);
 
   if (!agent) {
     return (
@@ -432,7 +450,6 @@ function ConversationView({ agentId, onBack }: ConversationViewProps) {
 
   const agentIcon = getAgentIcon(agent);
   const statusColor = getStatusColor(agent.status);
-  const isWorking = agent.status === 'working';
 
   // If showing context stats, render that view instead
   if (showContextStats) {
@@ -457,552 +474,110 @@ function ConversationView({ agentId, onBack }: ConversationViewProps) {
         </span>
       </div>
 
-      {/* Context stats button below header */}
-      <div className="pip-context-stats-btn" onClick={() => setShowContextStats(true)}>
-        <span className="pip-context-bar-mini">
-          <span
-            className="pip-context-fill-mini"
-            style={{
-              width: `${Math.min(Math.round((agent.contextUsed / agent.contextLimit) * 100), 100)}%`,
-              backgroundColor:
-                (agent.contextUsed / agent.contextLimit) * 100 > 80
-                  ? '#ff4a4a'
-                  : (agent.contextUsed / agent.contextLimit) * 100 > 50
-                    ? '#ff9e4a'
-                    : '#4aff9e',
-            }}
-          />
-        </span>
-        <span className="pip-context-text">
-          {Math.round((agent.contextUsed / agent.contextLimit) * 100)}% context used
-        </span>
-        <span className="pip-context-arrow">›</span>
+      {/* Context bar - reusing UnitPanel component */}
+      <div className="pip-context-section">
+        <ContextBar
+          contextInfo={calculateContextInfo(agent)}
+          onClick={() => setShowContextStats(true)}
+        />
       </div>
 
       <div className="pip-conversation-wrapper">
         <div
-          className="pip-conversation"
-          ref={outputsRef}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseLeave}
+          className="pip-conversation guake-output"
+          ref={outputScrollRef}
           onScroll={updateScrollButtons}
-          style={{
-            cursor: isDragging ? 'grabbing' : 'default',
-            userSelect: isDragging ? 'none' : 'auto',
-          }}
         >
-          {outputs.length === 0 ? (
+          {/* Load more button - only when we have history */}
+          {!historyLoader.loadingHistory && historyLoader.hasMore && (
+            <div className="guake-load-more pip-load-more">
+              {historyLoader.loadingMore ? (
+                <span>Loading older messages...</span>
+              ) : (
+                <button onClick={historyLoader.loadMoreHistory}>
+                  Load more ({historyLoader.totalCount - historyLoader.history.length} older)
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Loading indicator */}
+          {historyLoader.loadingHistory && (
+            <div className="pip-loading-indicator">
+              <span className="loading-dots"><span>.</span><span>.</span><span>.</span></span>
+            </div>
+          )}
+
+          {/* History messages using Guake's HistoryLine component */}
+          {filteredHistory.map((msg, index) => (
+            <HistoryLine
+              key={`h-${index}`}
+              message={msg}
+              agentId={agentId}
+              simpleView={true}
+              onFileClick={handleFileClick}
+            />
+          ))}
+
+          {/* Live outputs using Guake's OutputLine component */}
+          {filteredOutputs.map((output, index) => (
+            <OutputLine
+              key={`o-${index}`}
+              output={output}
+              agentId={agentId}
+              onFileClick={handleFileClick}
+            />
+          ))}
+
+          {/* Empty state - only when not loading and no messages */}
+          {!historyLoader.loadingHistory && filteredHistory.length === 0 && filteredOutputs.length === 0 && agent.status !== 'working' && (
             <div className="pip-empty">
               <p>No conversation yet</p>
             </div>
-          ) : (
-            outputs.map((output, index) => (
-              <PiPOutputLine key={`${output.timestamp}-${index}`} output={output} />
-            ))
           )}
         </div>
 
         {/* Scroll control buttons */}
         <div className="pip-scroll-controls">
           {showScrollButtons.top && (
-            <button
-              className="pip-scroll-btn pip-scroll-up"
-              onClick={scrollUp}
-              title="Scroll up"
-            >
-              ↑
-            </button>
+            <button className="pip-scroll-btn pip-scroll-up" onClick={scrollUp} title="Scroll up">↑</button>
           )}
           {showScrollButtons.bottom && (
-            <button
-              className="pip-scroll-btn pip-scroll-down"
-              onClick={scrollDown}
-              title="Scroll down"
-            >
-              ↓
-            </button>
+            <button className="pip-scroll-btn pip-scroll-down" onClick={scrollDown} title="Scroll down">↓</button>
           )}
         </div>
       </div>
 
+      {/* Current tool indicator */}
       {agent.currentTool && (
         <div className="pip-current-tool">
           <span className="pip-tool-indicator">Using: {agent.currentTool}</span>
         </div>
       )}
 
-      {/* Input area - using inline styles since PiP window may not have all CSS */}
-      <div
-        className="pip-input-area"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-          padding: '8px',
-          background: 'rgba(68, 71, 90, 0.6)',
-          borderTop: '1px solid rgba(98, 114, 164, 0.3)',
-        }}
-      >
+      {/* Input area - always visible and always enabled */}
+      <div className="pip-input-area">
         <input
           ref={inputRef}
           type="text"
           className="pip-input"
-          placeholder={isWorking ? 'Agent is working...' : 'Send a message...'}
+          placeholder={`Message ${agent.name}...`}
           value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
+          onChange={handleInputChange}
           onKeyDown={handleKeyDown}
-          disabled={isWorking}
-          style={{
-            flex: 1,
-            background: isWorking ? 'rgba(68, 71, 90, 0.4)' : 'rgba(40, 42, 54, 0.8)',
-            border: '1px solid rgba(98, 114, 164, 0.4)',
-            borderRadius: '4px',
-            padding: '6px 10px',
-            fontSize: '11px',
-            color: '#f8f8f2',
-            outline: 'none',
-            opacity: isWorking ? 0.5 : 1,
-            cursor: isWorking ? 'not-allowed' : 'text',
-          }}
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
         />
         <button
           className="pip-send-btn"
           onClick={handleSend}
-          disabled={isWorking || !inputValue.trim()}
+          disabled={!inputValue.trim()}
           title="Send message"
-          style={{
-            width: '28px',
-            height: '28px',
-            borderRadius: '4px',
-            background: isWorking || !inputValue.trim() ? '#6272a4' : '#8be9fd',
-            border: 'none',
-            color: '#282a36',
-            fontSize: '14px',
-            fontWeight: 'bold',
-            cursor: isWorking || !inputValue.trim() ? 'not-allowed' : 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            opacity: isWorking || !inputValue.trim() ? 0.4 : 1,
-          }}
         >
-          ↑
+          ➤
         </button>
-      </div>
-    </div>
-  );
-}
-
-/**
- * Collapsible Tool Input component - styled like the main panel's tool history
- */
-interface ToolInputDisplayProps {
-  toolName: string;
-  input: string;
-  timeStr: string;
-}
-
-const TOOL_ICONS: Record<string, string> = {
-  Read: '📖',
-  Edit: '✏️',
-  Write: '📝',
-  Bash: '💻',
-  Grep: '🔍',
-  Glob: '📁',
-  Task: '🤖',
-  WebFetch: '🌐',
-  WebSearch: '🔎',
-  TodoWrite: '📋',
-  AskUserQuestion: '❓',
-};
-
-function getToolIcon(tool: string): string {
-  return TOOL_ICONS[tool] || '🔧';
-}
-
-/**
- * Format tool input for inline display (single line summary)
- */
-function formatToolInputInline(toolName: string, data: Record<string, unknown>): string {
-  switch (toolName) {
-    case 'Read': {
-      const filePath = String(data.file_path || data.path || '');
-      if (filePath.length > 40) {
-        const parts = filePath.split(/[/\\]/);
-        return '.../' + parts.slice(-2).join('/');
-      }
-      return filePath || toolName;
-    }
-    case 'Write': {
-      const filePath = String(data.file_path || data.path || '');
-      if (filePath.length > 40) {
-        const parts = filePath.split(/[/\\]/);
-        return '.../' + parts.slice(-2).join('/');
-      }
-      return filePath || toolName;
-    }
-    case 'Edit': {
-      const filePath = String(data.file_path || data.path || '');
-      const oldStr = String(data.old_string || '');
-      const newStr = String(data.new_string || '');
-
-      // Show file path with change indicator
-      let displayPath = filePath;
-      if (filePath.length > 30) {
-        const parts = filePath.split(/[/\\]/);
-        displayPath = '.../' + parts.slice(-2).join('/');
-      }
-
-      // Add change size info
-      const changeInfo = oldStr && newStr
-        ? ` (${oldStr.length}→${newStr.length} chars)`
-        : '';
-
-      return `${displayPath}${changeInfo}`;
-    }
-    case 'Bash': {
-      const cmd = String(data.command || '');
-      return cmd.length > 50 ? cmd.slice(0, 47) + '...' : cmd || toolName;
-    }
-    case 'Grep':
-      return data.pattern ? `"${data.pattern}"` : toolName;
-    case 'Glob':
-      return String(data.pattern || '') || toolName;
-    case 'Task': {
-      const desc = String(data.description || '');
-      return desc ? (desc.length > 40 ? desc.slice(0, 37) + '...' : desc) : toolName;
-    }
-    case 'WebFetch': {
-      const url = String(data.url || '');
-      return url.length > 50 ? url.slice(0, 47) + '...' : url || toolName;
-    }
-    case 'WebSearch':
-      return String(data.query || '') || toolName;
-    case 'TodoWrite': {
-      const todos = data.todos as unknown[];
-      return todos?.length ? `${todos.length} item${todos.length > 1 ? 's' : ''}` : toolName;
-    }
-    default:
-      return toolName;
-  }
-}
-
-/**
- * Format expanded tool details (shown when expanded)
- */
-function formatExpandedToolInput(toolName: string, data: Record<string, unknown>): string {
-  switch (toolName) {
-    case 'Write': {
-      const content = String(data.content || '');
-      const filePath = String(data.file_path || data.path || '');
-      const truncated = content.length > 1000 ? content.slice(0, 1000) + '\n\n... (truncated)' : content;
-      return `file: ${filePath}\n\n${truncated}`;
-    }
-    case 'Edit': {
-      const lines: string[] = [];
-      if (data.file_path) lines.push(`file: ${data.file_path}`);
-      if (data.old_string) {
-        const old = String(data.old_string);
-        lines.push(`\n- old:\n${old.slice(0, 400)}${old.length > 400 ? '...' : ''}`);
-      }
-      if (data.new_string) {
-        const newStr = String(data.new_string);
-        lines.push(`\n+ new:\n${newStr.slice(0, 400)}${newStr.length > 400 ? '...' : ''}`);
-      }
-      return lines.join('\n');
-    }
-    case 'Bash':
-      return String(data.command || '');
-    case 'TodoWrite': {
-      const todos = data.todos as Array<{ content: string; status: string }> | undefined;
-      if (!todos) return JSON.stringify(data, null, 2);
-      return todos.map((t) => {
-        const icon = t.status === 'completed' ? '✓' : t.status === 'in_progress' ? '→' : '○';
-        return `${icon} ${t.content}`;
-      }).join('\n');
-    }
-    default:
-      return JSON.stringify(data, null, 2);
-  }
-}
-
-function ToolInputDisplay({ toolName, input, timeStr }: ToolInputDisplayProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
-
-  // Parse input
-  let parsedData: Record<string, unknown> | null = null;
-  try {
-    parsedData = JSON.parse(input);
-  } catch {
-    // Not JSON, use raw input
-  }
-
-  const inlineDisplay = parsedData ? formatToolInputInline(toolName, parsedData) : input.slice(0, 50);
-  const hasDetails = parsedData && Object.keys(parsedData).length > 0;
-
-  return (
-    <div className={`pip-tool-item ${isExpanded ? 'expanded' : ''} ${hasDetails ? 'clickable' : ''}`}>
-      <div
-        className="pip-tool-row"
-        onClick={hasDetails ? () => setIsExpanded(!isExpanded) : undefined}
-      >
-        <span className="pip-tool-expand">{hasDetails ? (isExpanded ? '▼' : '▶') : ' '}</span>
-        <span className="pip-tool-icon">{getToolIcon(toolName)}</span>
-        <span className="pip-tool-input-inline" title={inlineDisplay}>{inlineDisplay}</span>
-        <span className="pip-tool-time">{timeStr}</span>
-      </div>
-      {isExpanded && parsedData && (
-        <div className="pip-tool-expanded">
-          <div className="pip-tool-expanded-header">
-            <span className="pip-tool-expanded-name">{toolName}</span>
-          </div>
-          <pre className="pip-tool-expanded-content">
-            {formatExpandedToolInput(toolName, parsedData)}
-          </pre>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/**
- * Parse boss context from user prompt
- */
-function parseBossContext(content: string): { hasContext: boolean; context: string | null; userMessage: string } {
-  const trimmedContent = content.trimStart();
-
-  if (!trimmedContent.startsWith(BOSS_CONTEXT_START)) {
-    return { hasContext: false, context: null, userMessage: content };
-  }
-
-  const endIdx = trimmedContent.lastIndexOf(BOSS_CONTEXT_END);
-
-  if (endIdx === -1) {
-    return { hasContext: false, context: null, userMessage: content };
-  }
-
-  const context = trimmedContent.slice(BOSS_CONTEXT_START.length, endIdx).trim();
-  const userMessage = trimmedContent.slice(endIdx + BOSS_CONTEXT_END.length).trim();
-
-  return { hasContext: true, context, userMessage };
-}
-
-/**
- * Boss Context Component for PiP
- */
-interface PipBossContextProps {
-  context: string;
-}
-
-function PipBossContext({ context }: PipBossContextProps) {
-  const [collapsed, setCollapsed] = useState(true);
-
-  // Extract agent count from the "# YOUR TEAM (N agents)" header
-  const teamMatch = context.match(/# YOUR TEAM \((\d+) agents?\)/);
-  const agentCount = teamMatch ? parseInt(teamMatch[1], 10) : 0;
-
-  return (
-    <div className={`pip-boss-context ${collapsed ? 'collapsed' : 'expanded'}`}>
-      <div className="pip-boss-context-header" onClick={() => setCollapsed(!collapsed)}>
-        <span className="pip-boss-context-icon">👑</span>
-        <span className="pip-boss-context-label">
-          Team Context ({agentCount} agent{agentCount !== 1 ? 's' : ''})
-        </span>
-        <span className="pip-boss-context-toggle">{collapsed ? '▶' : '▼'}</span>
-      </div>
-      {!collapsed && (
-        <div className="pip-boss-context-content">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{context}</ReactMarkdown>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/**
- * Simplified output line for PiP conversation view
- */
-interface PiPOutputLineProps {
-  output: ClaudeOutput;
-}
-
-// Patterns to filter out system/noise messages
-const FILTER_PATTERNS = [
-  /^Context usage:/i,
-  /^Context Usage$/i,
-  /^## Context Usage$/i,
-  /^Tokens:/i,
-  /^\d+k?\s*\/\s*\d+k?\s*tokens/i,
-  /^Cost:/i,
-  /^\$[\d.]+\s*(USD)?/i,
-  /^Session started/i,
-  /^Session resumed/i,
-  /^Autocompact/i,
-  /^╭─+╮/,
-  /^│.*│$/,
-  /^╰─+╯/,
-  /^Model:/i,
-  /^Total cost/i,
-  /^Duration:/i,
-  /^\*\*Model:\*\*/i,
-  /^\*\*Tokens:\*\*/i,
-  /^### Estimated usage by category$/i,
-  /^\| Category \| Tokens \| Percentage \|$/i,
-  /^\|[-\s|]+\|$/i,  // Table separator lines
-  /^\| .+ \| .+k? \| .+% \|$/i,  // Table content lines
-  /^System prompt\s+\d/i,
-  /^System tools\s+\d/i,
-  /^Messages\s+\d/i,
-  /^Free space\s+\d/i,
-  /^Autocompact buffer\s+\d/i,
-];
-
-function shouldFilterMessage(text: string): boolean {
-  const trimmed = text.trim();
-  if (!trimmed) return true;
-
-  // Check if the ENTIRE message contains context usage blocks
-  // This catches multi-line context output that comes as a single message
-  const lowerText = trimmed.toLowerCase();
-
-  // Strong indicators that this is a context usage message
-  if (lowerText.includes('context usage') && lowerText.includes('estimated usage by category')) {
-    return true;
-  }
-
-  if (lowerText.includes('| category | tokens | percentage |')) {
-    return true;
-  }
-
-  // Check if message is primarily a context stats table
-  const lines = trimmed.split('\n');
-  const tableLines = lines.filter(line => /^\|.+\|.+\|.+\|$/.test(line.trim()));
-  if (tableLines.length > 3) {
-    // If more than 3 lines are table format, it's likely a context table
-    return true;
-  }
-
-  // Filter individual lines against patterns
-  for (const line of lines) {
-    const lineTrimmed = line.trim();
-
-    // Skip empty lines
-    if (!lineTrimmed) continue;
-
-    // Check against filter patterns
-    for (const pattern of FILTER_PATTERNS) {
-      if (pattern.test(lineTrimmed)) {
-        // If this line matches a filter pattern, check if it's a significant portion
-        // of the message (not just one line out of many)
-        if (lines.length <= 3) {
-          // Short message, filter it
-          return true;
-        }
-      }
-    }
-  }
-
-  // Filter short technical lines
-  if (trimmed.length < 5 && /^[─│╭╮╰╯\s]+$/.test(trimmed)) return true;
-
-  return false;
-}
-
-// Track the last used tool name to associate with tool inputs
-let lastToolName = 'Tool';
-
-function PiPOutputLine({ output }: PiPOutputLineProps) {
-  const { text, isUserPrompt, isStreaming, isDelegation, timestamp } = output;
-
-  // Format timestamp
-  const date = new Date(timestamp || Date.now());
-  const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-  // Filter out system messages
-  if (shouldFilterMessage(text)) {
-    return null;
-  }
-
-  // Handle "Using tool:" lines - capture tool name for next input
-  if (text.startsWith('Using tool:')) {
-    const toolName = text.replace('Using tool:', '').trim();
-    lastToolName = toolName; // Store for next Tool input line
-    return (
-      <div className="pip-output-line pip-output-tool">
-        <span className="pip-output-time">{timeStr}</span>
-        <span className="pip-output-tool-name">🔧 {toolName}</span>
-      </div>
-    );
-  }
-
-  // Handle "Tool input:" lines - show inline with collapsible details
-  if (text.startsWith('Tool input:')) {
-    const inputContent = text.replace('Tool input:', '').trim();
-
-    // Use the last captured tool name
-    const toolName = lastToolName;
-
-    return (
-      <ToolInputDisplay
-        toolName={toolName}
-        input={inputContent}
-        timeStr={timeStr}
-      />
-    );
-  }
-
-  // Handle delegation messages
-  if (isDelegation) {
-    const displayText = text.length > 1000 ? text.slice(0, 1000) + '...' : text;
-    return (
-      <div className="pip-output-line pip-output-delegation">
-        <span className="pip-output-time">{timeStr}</span>
-        <span className="pip-output-delegation-icon">📤</span>
-        <div className="pip-output-text pip-markdown">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayText}</ReactMarkdown>
-        </div>
-      </div>
-    );
-  }
-
-  // User prompts
-  if (isUserPrompt) {
-    // Hide utility commands
-    const trimmed = text.trim();
-    if (trimmed === '/context' || trimmed === '/cost' || trimmed === '/compact') {
-      return null;
-    }
-
-    // Parse boss context if present
-    const parsed = parseBossContext(text);
-
-    return (
-      <div className="pip-output-line pip-output-user">
-        <span className="pip-output-time">{timeStr}</span>
-        <span className="pip-output-role">You:</span>
-        <div className="pip-output-text pip-markdown">
-          {parsed.hasContext && parsed.context && (
-            <PipBossContext context={parsed.context} />
-          )}
-          {parsed.userMessage && (
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {parsed.userMessage.length > 1000 ? parsed.userMessage.slice(0, 1000) + '...' : parsed.userMessage}
-            </ReactMarkdown>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // Claude responses
-  const displayText = text.length > 1000 ? text.slice(0, 1000) + '...' : text;
-  return (
-    <div className={`pip-output-line pip-output-claude ${isStreaming ? 'pip-streaming' : ''}`}>
-      <span className="pip-output-time">{timeStr}</span>
-      <div className="pip-output-text pip-markdown">
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayText}</ReactMarkdown>
       </div>
     </div>
   );
@@ -1047,7 +622,7 @@ function AgentsList({ onSelectAgent }: AgentsListProps) {
           <div className="pip-section">
             <div className="pip-section-title">Working ({workingAgents.length})</div>
             {workingAgents.map((agent) => (
-              <AgentCard key={agent.id} agent={agent} onDoubleClick={onSelectAgent} />
+              <AgentCard key={agent.id} agent={agent} onClick={onSelectAgent} />
             ))}
           </div>
         )}
@@ -1056,7 +631,7 @@ function AgentsList({ onSelectAgent }: AgentsListProps) {
           <div className="pip-section">
             <div className="pip-section-title">Waiting ({waitingAgents.length})</div>
             {waitingAgents.map((agent) => (
-              <AgentCard key={agent.id} agent={agent} onDoubleClick={onSelectAgent} />
+              <AgentCard key={agent.id} agent={agent} onClick={onSelectAgent} />
             ))}
           </div>
         )}
@@ -1065,7 +640,7 @@ function AgentsList({ onSelectAgent }: AgentsListProps) {
           <div className="pip-section">
             <div className="pip-section-title">Idle ({otherAgents.length})</div>
             {otherAgents.map((agent) => (
-              <AgentCard key={agent.id} agent={agent} onDoubleClick={onSelectAgent} />
+              <AgentCard key={agent.id} agent={agent} onClick={onSelectAgent} />
             ))}
           </div>
         )}

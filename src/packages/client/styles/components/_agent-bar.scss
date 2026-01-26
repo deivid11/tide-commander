@@ -249,11 +249,15 @@
   border-radius: $radius-lg;
   background: rgba($dracula-current, 0.5);
   border: 2px solid transparent;
-  cursor: pointer;
+  cursor: grab;
   transition: all $transition-fast;
   display: flex;
   align-items: center;
   justify-content: center;
+
+  &:active {
+    cursor: grabbing;
+  }
 
   &:hover {
     background: rgba($dracula-current, 0.8);
@@ -265,6 +269,32 @@
     border-color: $dracula-purple;
     background: rgba($dracula-purple, 0.2);
     box-shadow: 0 0 12px rgba($dracula-purple, 0.4);
+  }
+
+  // Drag and drop states
+  &.dragging {
+    opacity: 0.5;
+    transform: scale(0.95);
+    cursor: grabbing;
+  }
+
+  &.drag-over {
+    transform: translateY(-4px) scale(1.05);
+    box-shadow: 0 8px 24px rgba($dracula-purple, 0.5);
+    border-color: $dracula-purple;
+
+    &::before {
+      content: '';
+      position: absolute;
+      left: -8px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 4px;
+      height: 80%;
+      background: $dracula-purple;
+      border-radius: 2px;
+      animation: drop-indicator-pulse 0.6s ease-in-out infinite;
+    }
   }
 
   // Status-based border colors and animations
@@ -362,6 +392,34 @@
   50% {
     box-shadow: 0 0 24px rgba(#ffd700, 0.7), 0 0 36px rgba(#ffd700, 0.3), inset 0 0 12px rgba(#ffd700, 0.2);
     transform: scale(1.05);
+  }
+}
+
+@keyframes drop-indicator-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: translateY(-50%) scaleY(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: translateY(-50%) scaleY(0.8);
+  }
+}
+
+// Area indicator dot (top-left corner)
+.agent-bar-area-dot {
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid $dracula-bg;
+  z-index: 2;
+  transition: transform $transition-fast;
+
+  .agent-bar-item:hover & {
+    transform: scale(1.2);
   }
 }
 

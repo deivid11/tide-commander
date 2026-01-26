@@ -709,57 +709,31 @@
 // Context Stats Button & View
 // ============================================================================
 
-.pip-context-stats-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+// Context section wrapper - reuses unit-context styles
+.pip-context-section {
   padding: 6px 10px;
   background: rgba($dracula-current, 0.3);
   border-bottom: 1px solid rgba($dracula-purple, 0.2);
-  cursor: pointer;
-  transition: background 0.15s ease;
-  user-select: none;
 
-  &:hover {
-    background: rgba($dracula-current, 0.5);
+  // Override unit-context styles for PiP compact view
+  .unit-context {
+    padding: 0;
+    margin: 0;
+    background: none;
+    border: none;
   }
 
-  &:active {
-    background: rgba($dracula-current, 0.6);
+  .unit-stat-label {
+    font-size: 10px !important;
+    margin-bottom: 2px;
   }
-}
 
-.pip-context-bar-mini {
-  width: 40px;
-  height: 4px;
-  background: rgba($dracula-comment, 0.3);
-  border-radius: 2px;
-  overflow: hidden;
-  flex-shrink: 0;
-}
+  .unit-context-bar {
+    height: 6px;
+  }
 
-.pip-context-fill-mini {
-  height: 100%;
-  border-radius: 2px;
-  transition: width 0.3s ease;
-}
-
-.pip-context-text {
-  flex: 1;
-  font-size: 10px;
-  color: $dracula-comment;
-  font-weight: 500;
-}
-
-.pip-context-arrow {
-  font-size: 14px;
-  color: $dracula-comment;
-  opacity: 0.5;
-  transition: opacity 0.15s ease, transform 0.15s ease;
-
-  .pip-context-stats-btn:hover & {
-    opacity: 1;
-    transform: translateX(2px);
+  .unit-context-value {
+    font-size: 11px;
   }
 }
 
@@ -1185,4 +1159,64 @@
     cursor: not-allowed;
     background: $dracula-comment;
   }
+}
+
+// ============================================================================
+// Load More Button for PiP
+// ============================================================================
+
+.pip-load-more {
+  padding: 8px;
+  text-align: center;
+  font-size: 10px;
+
+  button {
+    background: rgba($dracula-comment, 0.3);
+    border: 1px solid rgba($dracula-comment, 0.4);
+    color: $dracula-fg;
+    padding: 4px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 10px;
+    transition: all 0.15s ease;
+
+    &:hover {
+      background: rgba($dracula-comment, 0.5);
+    }
+  }
+}
+
+// ============================================================================
+// Loading Animation for PiP
+// ============================================================================
+
+.loading-dots {
+  span {
+    display: inline-block;
+    animation: pip-loading 1.4s infinite both;
+
+    &:nth-child(1) { animation-delay: 0s; }
+    &:nth-child(2) { animation-delay: 0.2s; }
+    &:nth-child(3) { animation-delay: 0.4s; }
+  }
+}
+
+@keyframes pip-loading {
+  0%, 80%, 100% {
+    opacity: 0;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
+// Small loading indicator at top of conversation
+.pip-loading-indicator {
+  padding: 4px 8px;
+  text-align: center;
+  font-size: 11px;
+  color: $dracula-comment;
+  background: rgba($dracula-current, 0.3);
+  border-radius: 4px;
+  margin-bottom: 4px;
 }

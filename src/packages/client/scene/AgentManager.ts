@@ -349,7 +349,23 @@ export class AgentManager {
       orphaned: this.workingAnimation,
     };
 
-    return statusAnimations[status] || ANIMATIONS.IDLE;
+    const defaultAnimation = statusAnimations[status] || ANIMATIONS.IDLE;
+
+    // For custom models, verify the animation exists - if not, try common fallbacks
+    if (customMapping && !meshData.animations.has(defaultAnimation) && !meshData.animations.has(defaultAnimation.toLowerCase())) {
+      // Try to find any available animation as fallback
+      // Priority: idle mapping, first available animation, or return default anyway
+      if (customMapping.idle && (meshData.animations.has(customMapping.idle) || meshData.animations.has(customMapping.idle.toLowerCase()))) {
+        return customMapping.idle;
+      }
+      // Return the first available animation if no idle mapping
+      const firstAnimation = meshData.animations.keys().next().value;
+      if (firstAnimation) {
+        return firstAnimation;
+      }
+    }
+
+    return defaultAnimation;
   }
 
   updateStatusAnimation(agent: Agent, meshData: AgentMeshData): void {
