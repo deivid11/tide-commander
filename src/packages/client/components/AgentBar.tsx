@@ -102,8 +102,9 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
     }
 
     // On mobile, open terminal immediately when agent is clicked
+    // On desktop, keep terminal open if it was already open (switch to clicked agent's terminal)
     const isMobile = window.innerWidth <= 768;
-    if (isMobile) {
+    if (isMobile || state.terminalOpen) {
       store.setTerminalOpen(true);
     }
   };

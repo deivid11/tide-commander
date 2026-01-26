@@ -15,6 +15,8 @@ export interface UseHistoryLoaderProps {
   hasSessionId: boolean;
   reconnectCount: number;
   lastPrompts: Map<string, { text: string }>;
+  /** External ref for the scroll container (from swipe hook) */
+  outputScrollRef: React.RefObject<HTMLDivElement | null>;
 }
 
 export interface UseHistoryLoaderReturn {
@@ -36,8 +38,6 @@ export interface UseHistoryLoaderReturn {
   handleScroll: (keyboardScrollLockRef: React.MutableRefObject<boolean>) => void;
   /** Clear history (for context clear) */
   clearHistory: () => void;
-  /** Ref for the output scroll container */
-  outputScrollRef: React.RefObject<HTMLDivElement | null>;
 }
 
 export function useHistoryLoader({
@@ -45,6 +45,7 @@ export function useHistoryLoader({
   hasSessionId,
   reconnectCount,
   lastPrompts,
+  outputScrollRef,
 }: UseHistoryLoaderProps): UseHistoryLoaderReturn {
   const [history, setHistory] = useState<HistoryMessage[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -52,11 +53,19 @@ export function useHistoryLoader({
   const [hasMore, setHasMore] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const isMountedRef = useRef(true);
-  const outputScrollRef = useRef<HTMLDivElement>(null);
+
+  // Track history length in a ref to avoid dependency issues in loadMoreHistory
+  const historyLengthRef = useRef(0);
+
+  // Track loading/hasMore state in refs for scroll handler (avoid stale closures)
+  const loadingMoreRef = useRef(false);
+  const hasMoreRef = useRef(false);
 
   // Track previous agent ID and sessionId to detect switches vs session establishment
   const prevAgentIdRef = useRef<string | null>(null);
   const prevHasSessionIdRef = useRef<boolean>(false);
+  // Track if we've already loaded history for the current agent/session combo
+  const loadedForRef = useRef<string | null>(null);
 
   // Track mount state
   useEffect(() => {
@@ -70,10 +79,21 @@ export function useHistoryLoader({
   useEffect(() => {
     if (!selectedAgentId || !hasSessionId) {
       setHistory([]);
+      historyLengthRef.current = 0;
       setHasMore(false);
+      hasMoreRef.current = false;
       setTotalCount(0);
       setLoadingHistory(false);
       prevHasSessionIdRef.current = false;
+      loadedForRef.current = null;
+      return;
+    }
+
+    // Create a unique key for this agent+reconnect combo
+    const loadKey = `${selectedAgentId}:${reconnectCount}`;
+
+    // Skip if we've already loaded for this exact combo
+    if (loadedForRef.current === loadKey) {
       return;
     }
 
@@ -88,6 +108,7 @@ export function useHistoryLoader({
     // Update refs AFTER checking
     prevAgentIdRef.current = selectedAgentId;
     prevHasSessionIdRef.current = hasSessionId;
+    loadedForRef.current = loadKey;
 
     // Preserve outputs on reconnect
     let preservedOutputsSnapshot: ClaudeOutput[] | undefined;
@@ -113,7 +134,10 @@ export function useHistoryLoader({
       .then((data) => {
         const messages = data.messages || [];
         setHistory(messages);
-        setHasMore(data.hasMore || false);
+        historyLengthRef.current = messages.length;
+        const hasMoreValue = data.hasMore || false;
+        setHasMore(hasMoreValue);
+        hasMoreRef.current = hasMoreValue;
         setTotalCount(data.totalCount || 0);
 
         // Handle output deduplication
@@ -157,7 +181,9 @@ export function useHistoryLoader({
       .catch((err) => {
         console.error('Failed to load history:', err);
         setHistory([]);
+        historyLengthRef.current = 0;
         setHasMore(false);
+        hasMoreRef.current = false;
         setTotalCount(0);
         // Restore preserved outputs on error
         if (shouldClearOutputs && preservedOutputsSnapshot && preservedOutputsSnapshot.length > 0) {
@@ -170,19 +196,27 @@ export function useHistoryLoader({
       .finally(() => {
         setLoadingHistory(false);
       });
-  }, [selectedAgentId, hasSessionId, reconnectCount, lastPrompts]);
+  // Note: lastPrompts intentionally excluded from deps - we only use it to set initial prompt, not to trigger reloads
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedAgentId, hasSessionId, reconnectCount]);
 
   // Load more history when scrolling to top
   const loadMoreHistory = useCallback(async () => {
-    if (!selectedAgentId || loadingMore || !hasMore) return;
+    // Use refs to avoid stale closure issues
+    if (!selectedAgentId || loadingMoreRef.current || !hasMoreRef.current) return;
 
     const scrollContainer = outputScrollRef.current;
-    if (!scrollContainer) return;
+    if (!scrollContainer) {
+      console.warn('loadMoreHistory: outputScrollRef not connected');
+      return;
+    }
 
     const distanceFromBottom = scrollContainer.scrollHeight - scrollContainer.scrollTop;
 
+    loadingMoreRef.current = true;
     setLoadingMore(true);
-    const currentOffset = history.length;
+    // Use ref instead of state to avoid stale closure
+    const currentOffset = historyLengthRef.current;
 
     try {
       const res = await fetch(apiUrl(`/api/agents/${selectedAgentId}/history?limit=${MESSAGES_PER_PAGE}&offset=${currentOffset}`));
@@ -190,8 +224,14 @@ export function useHistoryLoader({
 
       if (data.messages && data.messages.length > 0) {
         if (!isMountedRef.current) return;
-        setHistory((prev) => [...data.messages, ...prev]);
-        setHasMore(data.hasMore || false);
+        setHistory((prev) => {
+          const newHistory = [...data.messages, ...prev];
+          historyLengthRef.current = newHistory.length;
+          return newHistory;
+        });
+        const hasMoreValue = data.hasMore || false;
+        hasMoreRef.current = hasMoreValue;
+        setHasMore(hasMoreValue);
 
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
@@ -199,19 +239,22 @@ export function useHistoryLoader({
             if (outputScrollRef.current) {
               outputScrollRef.current.scrollTop = outputScrollRef.current.scrollHeight - distanceFromBottom;
             }
+            loadingMoreRef.current = false;
             setLoadingMore(false);
           });
         });
       } else {
         if (!isMountedRef.current) return;
+        loadingMoreRef.current = false;
         setLoadingMore(false);
       }
     } catch (err) {
       console.error('Failed to load more history:', err);
       if (!isMountedRef.current) return;
+      loadingMoreRef.current = false;
       setLoadingMore(false);
     }
-  }, [selectedAgentId, loadingMore, hasMore, history.length]);
+  }, [selectedAgentId, outputScrollRef]);
 
   // Handle scroll to detect load more trigger
   const handleScroll = useCallback((keyboardScrollLockRef: React.MutableRefObject<boolean>) => {
@@ -220,13 +263,15 @@ export function useHistoryLoader({
 
     const { scrollTop } = outputScrollRef.current;
 
-    if (!loadingMore && hasMore && scrollTop < SCROLL_THRESHOLD) {
+    // Use refs to avoid stale closure issues
+    if (!loadingMoreRef.current && hasMoreRef.current && scrollTop < SCROLL_THRESHOLD) {
       loadMoreHistory();
     }
-  }, [loadMoreHistory, loadingMore, hasMore]);
+  }, [loadMoreHistory, outputScrollRef]);
 
   const clearHistory = useCallback(() => {
     setHistory([]);
+    historyLengthRef.current = 0;
   }, []);
 
   return {
@@ -239,6 +284,5 @@ export function useHistoryLoader({
     loadMoreHistory,
     handleScroll,
     clearHistory,
-    outputScrollRef,
   };
 }

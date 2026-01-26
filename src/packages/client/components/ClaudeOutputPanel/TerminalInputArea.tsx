@@ -14,6 +14,8 @@ import type { AttachedFile } from './types';
 export interface TerminalInputAreaProps {
   selectedAgent: Agent;
   selectedAgentId: string;
+  // Terminal open state for autofocus
+  isOpen: boolean;
   // Input state from useTerminalInput hook
   command: string;
   setCommand: (cmd: string) => void;
@@ -42,6 +44,7 @@ export interface TerminalInputAreaProps {
 export function TerminalInputArea({
   selectedAgent,
   selectedAgentId,
+  isOpen,
   command,
   setCommand,
   forceTextarea,
@@ -110,6 +113,20 @@ export function TerminalInputArea({
       });
     }
   }, [useTextarea]);
+
+  // Autofocus input when terminal opens
+  useEffect(() => {
+    if (isOpen) {
+      // Small delay to ensure terminal animation has started
+      requestAnimationFrame(() => {
+        if (useTextarea && textareaRef.current) {
+          textareaRef.current.focus();
+        } else if (inputRef.current) {
+          inputRef.current.focus();
+        }
+      });
+    }
+  }, [isOpen, useTextarea]);
 
   const handleSendCommand = () => {
     if ((!command.trim() && attachedFiles.length === 0) || !selectedAgentId) return;

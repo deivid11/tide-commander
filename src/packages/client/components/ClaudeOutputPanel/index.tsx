@@ -85,6 +85,9 @@ export function ClaudeOutputPanel() {
   const keyboard = useKeyboardHeight();
   const outputs = useAgentOutputs(selectedAgentId);
 
+  // Shared ref for output scroll container (used by history loader and swipe)
+  const outputScrollRef = useRef<HTMLDivElement>(null);
+
   // View mode state
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     const saved = getStorageString(STORAGE_KEYS.VIEW_MODE);
@@ -123,6 +126,7 @@ export function ClaudeOutputPanel() {
     hasSessionId,
     reconnectCount,
     lastPrompts,
+    outputScrollRef,
   });
 
   // Search hook
@@ -138,6 +142,7 @@ export function ClaudeOutputPanel() {
     isOpen,
     loadingHistory: historyLoader.loadingHistory,
     hasModalOpen: !!(imageModal || bashModal || responseModalContent),
+    outputRef: outputScrollRef,
   });
 
   // Terminal input hook
@@ -261,40 +266,40 @@ export function ClaudeOutputPanel() {
     if (keyboard.keyboardScrollLockRef.current) return;
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        if (swipe.outputRef.current) {
-          swipe.outputRef.current.scrollTop = swipe.outputRef.current.scrollHeight;
+        if (outputScrollRef.current) {
+          outputScrollRef.current.scrollTop = outputScrollRef.current.scrollHeight;
         }
       });
     });
-  }, [keyboard.keyboardScrollLockRef, swipe.outputRef]);
+  }, [keyboard.keyboardScrollLockRef, outputScrollRef]);
 
   // Scroll handling
   const isUserScrolledUpRef = useRef(false);
   const handleScroll = useCallback(() => {
-    if (!swipe.outputRef.current) return;
+    if (!outputScrollRef.current) return;
     if (keyboard.keyboardScrollLockRef.current) return;
 
-    const { scrollTop, scrollHeight, clientHeight } = swipe.outputRef.current;
+    const { scrollTop, scrollHeight, clientHeight } = outputScrollRef.current;
     const isAtBottom = scrollHeight - scrollTop - clientHeight < 150;
     isUserScrolledUpRef.current = !isAtBottom;
 
     historyLoader.handleScroll(keyboard.keyboardScrollLockRef);
-  }, [swipe.outputRef, keyboard.keyboardScrollLockRef, historyLoader]);
+  }, [outputScrollRef, keyboard.keyboardScrollLockRef, historyLoader]);
 
   // Auto-scroll on new output
   const lastOutputLength = outputs.length > 0 ? outputs[outputs.length - 1]?.text?.length || 0 : 0;
   useEffect(() => {
     if (keyboard.keyboardScrollLockRef.current) return;
     requestAnimationFrame(() => {
-      if (swipe.outputRef.current) {
-        const { scrollTop, scrollHeight, clientHeight } = swipe.outputRef.current;
+      if (outputScrollRef.current) {
+        const { scrollTop, scrollHeight, clientHeight } = outputScrollRef.current;
         const isAtBottom = scrollHeight - scrollTop - clientHeight < 150;
         if (isAtBottom) {
-          swipe.outputRef.current.scrollTop = scrollHeight;
+          outputScrollRef.current.scrollTop = scrollHeight;
         }
       }
     });
-  }, [outputs.length, lastOutputLength, keyboard.keyboardScrollLockRef, swipe.outputRef]);
+  }, [outputs.length, lastOutputLength, keyboard.keyboardScrollLockRef, outputScrollRef]);
 
   // Scroll after history loads
   useEffect(() => {
@@ -346,6 +351,8 @@ export function ClaudeOutputPanel() {
       if (ignoreClicks) return;
       const target = e.target as HTMLElement;
       if (target.tagName === 'CANVAS') return;
+      // Don't close terminal when clicking on agent bar (allows switching agents while terminal is open)
+      if (target.closest('.agent-bar')) return;
       if (terminalRef.current && !terminalRef.current.contains(target)) {
         store.setTerminalOpen(false);
       }
@@ -475,7 +482,7 @@ export function ClaudeOutputPanel() {
             </div>
           )}
 
-          <div className="guake-output" ref={swipe.outputRef} onScroll={handleScroll}>
+          <div className="guake-output" ref={outputScrollRef} onScroll={handleScroll}>
             {search.searchMode && search.searchResults.length > 0 ? (
               <>
                 <div className="guake-search-header">Search Results:</div>
@@ -560,6 +567,7 @@ export function ClaudeOutputPanel() {
         <TerminalInputArea
           selectedAgent={selectedAgent}
           selectedAgentId={selectedAgentId}
+          isOpen={isOpen}
           command={terminalInput.command}
           setCommand={terminalInput.setCommand}
           forceTextarea={terminalInput.forceTextarea}

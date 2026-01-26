@@ -17,6 +17,8 @@ export interface UseSwipeNavigationProps {
   loadingHistory: boolean;
   /** Optional callback when modals are open to prevent navigation */
   hasModalOpen?: boolean;
+  /** External ref for the swipeable output element */
+  outputRef: React.RefObject<HTMLDivElement | null>;
 }
 
 export interface UseSwipeNavigationReturn {
@@ -48,6 +50,7 @@ export function useSwipeNavigation({
   isOpen,
   loadingHistory,
   hasModalOpen = false,
+  outputRef,
 }: UseSwipeNavigationProps): UseSwipeNavigationReturn {
   // Get areas for grouping agents
   const areas = useAreas();
@@ -102,7 +105,6 @@ export function useSwipeNavigation({
 
   // Refs for swipe targets
   const headerRef = useRef<HTMLDivElement>(null);
-  const outputRef = useRef<HTMLDivElement>(null);
 
   // Swipe handlers
   const handleSwipeLeft = useCallback(() => {

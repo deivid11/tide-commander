@@ -16,7 +16,7 @@ export const MIN_TERMINAL_HEIGHT = 20; // percentage
 export const MAX_TERMINAL_HEIGHT = 85; // percentage
 
 // Scroll threshold (use local value for ClaudeOutputPanel, different from shared default)
-export const SCROLL_THRESHOLD = 100; // px from top to trigger load more
+export const SCROLL_THRESHOLD = 200; // px from top to trigger load more
 
 // Bash command truncation length in simple view
 export const BASH_TRUNCATE_LENGTH = 300;
