@@ -114,19 +114,28 @@ export function TerminalInputArea({
     }
   }, [useTextarea]);
 
-  // Autofocus input when terminal opens
+  // Track previous isOpen state for transition detection
+  const prevIsOpenRef = useRef(false);
+
+  // Autofocus input when terminal opens or agent changes while open
   useEffect(() => {
-    if (isOpen) {
+    const wasOpen = prevIsOpenRef.current;
+    prevIsOpenRef.current = isOpen;
+
+    // Focus when terminal opens (transition from closed to open)
+    // or when agent changes while terminal is already open
+    if (isOpen && (!wasOpen || selectedAgentId)) {
       // Small delay to ensure terminal animation has started
-      requestAnimationFrame(() => {
+      const timeoutId = setTimeout(() => {
         if (useTextarea && textareaRef.current) {
           textareaRef.current.focus();
         } else if (inputRef.current) {
           inputRef.current.focus();
         }
-      });
+      }, 50);
+      return () => clearTimeout(timeoutId);
     }
-  }, [isOpen, useTextarea]);
+  }, [isOpen, selectedAgentId, useTextarea]);
 
   const handleSendCommand = () => {
     if ((!command.trim() && attachedFiles.length === 0) || !selectedAgentId) return;

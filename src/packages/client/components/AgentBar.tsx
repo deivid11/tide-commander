@@ -110,8 +110,9 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
   };
 
   const handleAgentDoubleClick = (agent: Agent) => {
-    // Double-click to focus camera on agent
+    // Double-click to focus camera on agent and open terminal
     onFocusAgent?.(agent.id);
+    store.setTerminalOpen(true);
   };
 
   // Use getAgentStatusColor from utils/colors.ts
