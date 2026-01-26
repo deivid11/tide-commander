@@ -2,6 +2,42 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.17.0] - 2026-01-26
+
+### Added
+- **Agent Delegation System** - Agents can now delegate tasks to other agents via a delegation request dialog
+  - Click the delegation icon to send a task to another agent
+  - Automatic skill injection and context management for delegated tasks
+- **Boss Message Handling** - Bosses can now send formatted messages to subordinate agents
+  - Message response modal with proper formatting and history
+  - WebSocket communication for real-time agent-to-boss messaging
+- **Agent Progress Indicator** - Visual progress tracking UI for delegated and autonomous tasks
+  - Shows agent status and current operation
+  - Integrated into Claude output panel
+- **Built-in Skills Registry** - Server-side skill definitions for common operations
+  - Git Captain skill for version control operations
+  - Full Notifications skill for comprehensive notification system
+  - Server Logs skill for debugging
+  - Send Message to Agent skill for inter-agent communication
+- **Skill Editor Enhancements** - Improved modal for managing agent skills
+  - Better organization and styling
+  - Enhanced skill selection interface
+
+### Changed
+- **WebSocket Handler** - Extended with agent delegation message support
+- **Agent Service** - Added delegation request handling
+- **Boss Message Service** - New service for formatting and routing boss messages
+- **Store Structure** - Added delegation state and selectors
+- **Modal Styling** - Enhanced modal system with improved layouts
+
+### Technical
+- New `delegation.ts` store module for delegation state management
+- New `boss-response-handler.ts` for processing boss messages
+- New `AgentProgressIndicator` component for progress tracking
+- New `builtin-skills.ts` data module with skill definitions
+- Extended WebSocket handlers for agent communication protocols
+- Added delegation-related types to shared types module
+
 ## [0.16.1] - 2026-01-26
 
 ### Fixed
