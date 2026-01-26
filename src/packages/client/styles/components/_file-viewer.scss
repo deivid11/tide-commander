@@ -82,6 +82,45 @@
   }
 }
 
+// Modal header buttons container
+.file-viewer-modal .file-viewer-header-buttons {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+// Copy button in modal
+.file-viewer-modal .file-viewer-copy-html-btn {
+  background: transparent;
+  border: 1px solid $dracula-current;
+  color: $dracula-comment;
+  padding: 6px 12px;
+  border-radius: $radius-sm;
+  font-family: $font-mono;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all $transition-fast;
+  white-space: nowrap;
+
+  &:hover {
+    background: rgba($dracula-cyan, 0.15);
+    border-color: $dracula-cyan;
+    color: $dracula-cyan;
+  }
+
+  &.copied {
+    background: rgba($dracula-green, 0.2);
+    border-color: $dracula-green;
+    color: $dracula-green;
+  }
+
+  &.error {
+    background: rgba($dracula-red, 0.2);
+    border-color: $dracula-red;
+    color: $dracula-red;
+  }
+}
+
 .file-viewer-path {
   padding: 8px 16px;
   font-family: $font-mono;

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import Prism from 'prismjs';
@@ -88,7 +88,10 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
   const [fileData, setFileData] = useState<FileData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [copyRichTextStatus, setCopyRichTextStatus] = useState<'idle' | 'copied' | 'error'>('idle');
+  const [copyHtmlStatus, setCopyHtmlStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const codeRef = useRef<HTMLElement>(null);
+  const markdownContentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isOpen && filePath) {
@@ -169,6 +172,53 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
     }
   };
 
+  const handleCopyAsRichText = useCallback(async () => {
+    if (!markdownContentRef.current) {
+      setCopyRichTextStatus('error');
+      setTimeout(() => setCopyRichTextStatus('idle'), 2000);
+      return;
+    }
+
+    try {
+      const html = markdownContentRef.current.innerHTML;
+      const plainText = markdownContentRef.current.innerText;
+
+      const htmlBlob = new Blob([html], { type: 'text/html' });
+      const textBlob = new Blob([plainText], { type: 'text/plain' });
+
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          'text/html': htmlBlob,
+          'text/plain': textBlob,
+        }),
+      ]);
+
+      setCopyRichTextStatus('copied');
+      setTimeout(() => setCopyRichTextStatus('idle'), 2000);
+    } catch {
+      setCopyRichTextStatus('error');
+      setTimeout(() => setCopyRichTextStatus('idle'), 2000);
+    }
+  }, []);
+
+  const handleCopyAsHtml = useCallback(async () => {
+    if (!markdownContentRef.current) {
+      setCopyHtmlStatus('error');
+      setTimeout(() => setCopyHtmlStatus('idle'), 2000);
+      return;
+    }
+
+    try {
+      const html = markdownContentRef.current.innerHTML;
+      await navigator.clipboard.writeText(html);
+      setCopyHtmlStatus('copied');
+      setTimeout(() => setCopyHtmlStatus('idle'), 2000);
+    } catch {
+      setCopyHtmlStatus('error');
+      setTimeout(() => setCopyHtmlStatus('idle'), 2000);
+    }
+  }, []);
+
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -195,7 +245,27 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
             </span>
             <span className="file-viewer-filename">{fileData?.filename || filePath.split('/').pop()}</span>
           </div>
-          <button className="file-viewer-close" onClick={onClose}>×</button>
+          <div className="file-viewer-header-buttons">
+            {isMarkdown && fileData && !showDiffView && (
+              <>
+                <button
+                  className={`file-viewer-copy-html-btn ${copyRichTextStatus}`}
+                  onClick={handleCopyAsRichText}
+                  title="Copy as rich text (paste into Word, Docs, etc.)"
+                >
+                  {copyRichTextStatus === 'copied' ? '✓ Copied' : copyRichTextStatus === 'error' ? '✗ Error' : 'Copy Rich Text'}
+                </button>
+                <button
+                  className={`file-viewer-copy-html-btn ${copyHtmlStatus}`}
+                  onClick={handleCopyAsHtml}
+                  title="Copy as HTML tags (for Google Docs, HTML editors)"
+                >
+                  {copyHtmlStatus === 'copied' ? '✓ Copied' : copyHtmlStatus === 'error' ? '✗ Error' : 'Copy HTML'}
+                </button>
+              </>
+            )}
+            <button className="file-viewer-close" onClick={onClose}>×</button>
+          </div>
         </div>
 
         <div className="file-viewer-path">
@@ -229,7 +299,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
                 language={language}
               />
             ) : isMarkdown ? (
-              <div className="file-viewer-markdown markdown-content">
+              <div className="file-viewer-markdown markdown-content" ref={markdownContentRef}>
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{fileData.content}</ReactMarkdown>
               </div>
             ) : (

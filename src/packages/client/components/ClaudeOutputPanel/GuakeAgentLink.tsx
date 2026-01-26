@@ -51,11 +51,18 @@ export function GuakeAgentLink({ agent, isSelected, onClick }: GuakeAgentLinkPro
 
   const showIdleTimer = agent.status === 'idle' && agent.lastActivity > 0;
 
+  // Format cwd for display - show last 2 path segments
+  const formatCwd = (cwd: string): string => {
+    const parts = cwd.split('/').filter(Boolean);
+    if (parts.length <= 2) return cwd;
+    return '…/' + parts.slice(-2).join('/');
+  };
+
   return (
     <div
       className={`guake-agent-link ${isSelected ? 'selected' : ''} ${agent.status}`}
       onClick={onClick}
-      title={`${agent.name} - ${agent.status}${agent.currentTool ? ` (${agent.currentTool})` : ''}${agent.lastActivity ? ` • Idle: ${formatIdleTime(agent.lastActivity)}` : ''}${agent.lastAssignedTask ? `\n📋 ${agent.lastAssignedTask}` : ''}`}
+      title={`${agent.name} - ${agent.status}${agent.currentTool ? ` (${agent.currentTool})` : ''}${agent.lastActivity ? ` • Idle: ${formatIdleTime(agent.lastActivity)}` : ''}\n📁 ${agent.cwd}${agent.lastAssignedTask ? `\n📋 ${agent.lastAssignedTask}` : ''}`}
     >
       <span className="guake-agent-link-icon">{config.icon}</span>
       <span className="guake-agent-link-status" style={{ backgroundColor: getAgentStatusColor(agent.status) }} />

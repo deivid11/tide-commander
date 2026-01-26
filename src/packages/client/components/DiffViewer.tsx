@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useMemo, useCallback, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import Prism from 'prismjs';
 import 'prismjs/components/prism-typescript';
 import 'prismjs/components/prism-javascript';
@@ -224,11 +226,67 @@ function calculateTargetScroll(
   return targetLine * lineHeight;
 }
 
+const MARKDOWN_EXTENSIONS = ['.md', '.mdx', '.markdown'];
+
 export function DiffViewer({ originalContent, modifiedContent, filename, language }: DiffViewerProps) {
   const leftRef = useRef<HTMLDivElement>(null);
   const rightRef = useRef<HTMLDivElement>(null);
+  const markdownContentRef = useRef<HTMLDivElement>(null);
   const isScrollingRef = useRef<'left' | 'right' | null>(null);
   const scrollTimeoutRef = useRef<number | null>(null);
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle');
+  const [copyHtmlStatus, setCopyHtmlStatus] = useState<'idle' | 'copied' | 'error'>('idle');
+  const [viewOnlyModified, setViewOnlyModified] = useState(false);
+
+  // Check if file is markdown
+  const isMarkdown = useMemo(() => {
+    const ext = filename.substring(filename.lastIndexOf('.')).toLowerCase();
+    return MARKDOWN_EXTENSIONS.includes(ext);
+  }, [filename]);
+
+  const handleCopyModified = useCallback(async () => {
+    try {
+      // For markdown in rendered view, copy as rich text
+      if (isMarkdown && viewOnlyModified && markdownContentRef.current) {
+        const html = markdownContentRef.current.innerHTML;
+        const plainText = markdownContentRef.current.innerText;
+        const htmlBlob = new Blob([html], { type: 'text/html' });
+        const textBlob = new Blob([plainText], { type: 'text/plain' });
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            'text/html': htmlBlob,
+            'text/plain': textBlob,
+          }),
+        ]);
+      } else {
+        // For code or diff view, copy as plain text
+        await navigator.clipboard.writeText(modifiedContent);
+      }
+      setCopyStatus('copied');
+      setTimeout(() => setCopyStatus('idle'), 2000);
+    } catch {
+      setCopyStatus('error');
+      setTimeout(() => setCopyStatus('idle'), 2000);
+    }
+  }, [modifiedContent, isMarkdown, viewOnlyModified]);
+
+  // Copy HTML tags as plain text (for pasting into Google Docs source, HTML editors, etc.)
+  const handleCopyAsHtml = useCallback(async () => {
+    if (!markdownContentRef.current) {
+      setCopyHtmlStatus('error');
+      setTimeout(() => setCopyHtmlStatus('idle'), 2000);
+      return;
+    }
+    try {
+      const html = markdownContentRef.current.innerHTML;
+      await navigator.clipboard.writeText(html);
+      setCopyHtmlStatus('copied');
+      setTimeout(() => setCopyHtmlStatus('idle'), 2000);
+    } catch {
+      setCopyHtmlStatus('error');
+      setTimeout(() => setCopyHtmlStatus('idle'), 2000);
+    }
+  }, []);
 
   const { leftLines, rightLines, alignments } = useMemo(
     () => computeDiff(originalContent, modifiedContent, language),
@@ -410,43 +468,79 @@ export function DiffViewer({ originalContent, modifiedContent, filename, languag
           {stats.added > 0 && <span className="diff-stat added">+{stats.added}</span>}
           {stats.removed > 0 && <span className="diff-stat removed">-{stats.removed}</span>}
         </div>
+        <div className="diff-viewer-actions">
+          <button
+            className={`diff-toggle-btn ${viewOnlyModified ? 'active' : ''}`}
+            onClick={() => setViewOnlyModified(!viewOnlyModified)}
+            title={viewOnlyModified ? 'Show diff view' : 'View only modified'}
+          >
+            {viewOnlyModified ? 'Show Diff' : 'Modified Only'}
+          </button>
+          <button
+            className={`diff-copy-btn ${copyStatus}`}
+            onClick={handleCopyModified}
+            title={isMarkdown && viewOnlyModified ? 'Copy as rich text' : 'Copy modified content'}
+          >
+            {copyStatus === 'copied' ? '✓ Copied' : copyStatus === 'error' ? '✗ Error' : (isMarkdown && viewOnlyModified ? 'Copy Rich Text' : 'Copy')}
+          </button>
+          {isMarkdown && viewOnlyModified && (
+            <button
+              className={`diff-copy-btn ${copyHtmlStatus}`}
+              onClick={handleCopyAsHtml}
+              title="Copy as HTML tags (for Google Docs, HTML editors)"
+            >
+              {copyHtmlStatus === 'copied' ? '✓ Copied' : copyHtmlStatus === 'error' ? '✗ Error' : 'Copy HTML'}
+            </button>
+          )}
+        </div>
       </div>
 
-      <div className="diff-viewer-panels">
-        {/* Original (Left) */}
-        <div className="diff-panel diff-panel-original">
-          <div className="diff-panel-header">
-            <span className="diff-panel-label">Original (HEAD)</span>
+      <div className={`diff-viewer-panels ${viewOnlyModified ? 'modified-only' : ''}`}>
+        {/* Original (Left) - hidden when viewOnlyModified */}
+        {!viewOnlyModified && (
+          <div className="diff-panel diff-panel-original">
+            <div className="diff-panel-header">
+              <span className="diff-panel-label">Original (HEAD)</span>
+            </div>
+            <div className="diff-panel-content" ref={leftRef}>
+              {leftLines.map((line, idx) => (
+                <div key={idx} className={`diff-line diff-line-${line.type}`}>
+                  <span className="diff-line-num">{line.num}</span>
+                  <span
+                    className="diff-line-content"
+                    dangerouslySetInnerHTML={{ __html: line.highlighted || '&nbsp;' }}
+                  />
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="diff-panel-content" ref={leftRef}>
-            {leftLines.map((line, idx) => (
-              <div key={idx} className={`diff-line diff-line-${line.type}`}>
-                <span className="diff-line-num">{line.num}</span>
-                <span
-                  className="diff-line-content"
-                  dangerouslySetInnerHTML={{ __html: line.highlighted || '&nbsp;' }}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
+        )}
 
         {/* Modified (Right) */}
         <div className="diff-panel diff-panel-modified">
           <div className="diff-panel-header">
-            <span className="diff-panel-label">Modified (Working)</span>
+            <span className="diff-panel-label">{viewOnlyModified ? 'Modified Content' : 'Modified (Working)'}</span>
           </div>
-          <div className="diff-panel-content" ref={rightRef}>
-            {rightLines.map((line, idx) => (
-              <div key={idx} className={`diff-line diff-line-${line.type}`}>
-                <span className="diff-line-num">{line.num}</span>
-                <span
-                  className="diff-line-content"
-                  dangerouslySetInnerHTML={{ __html: line.highlighted || '&nbsp;' }}
-                />
+          {viewOnlyModified && isMarkdown ? (
+            // Render markdown when in modified-only view
+            <div className="diff-panel-content diff-markdown-content" ref={markdownContentRef}>
+              <div className="markdown-content">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{modifiedContent}</ReactMarkdown>
               </div>
-            ))}
-          </div>
+            </div>
+          ) : (
+            <div className="diff-panel-content" ref={rightRef}>
+              {rightLines.map((line, idx) => (
+                <div key={idx} className={`diff-line diff-line-${line.type}`}>
+                  <span className="diff-line-num">{line.num}</span>
+                  <span
+                    className="diff-line-content"
+                    dangerouslySetInnerHTML={{ __html: line.highlighted || '&nbsp;' }}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

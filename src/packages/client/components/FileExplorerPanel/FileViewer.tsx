@@ -141,6 +141,9 @@ function MarkdownFileViewer({
   onToggleRender: () => void;
 }) {
   const codeRef = useRef<HTMLElement>(null);
+  const markdownContentRef = useRef<HTMLDivElement>(null);
+  const [copyRichTextStatus, setCopyRichTextStatus] = useState<'idle' | 'copied' | 'error'>('idle');
+  const [copyHtmlStatus, setCopyHtmlStatus] = useState<'idle' | 'copied' | 'error'>('idle');
 
   useEffect(() => {
     // Apply syntax highlighting when showing source code
@@ -149,22 +152,91 @@ function MarkdownFileViewer({
     }
   }, [file, renderMarkdown]);
 
-  const toggleButton = (
-    <button
-      className={`file-viewer-render-toggle ${renderMarkdown ? 'active' : ''}`}
-      onClick={onToggleRender}
-      title={renderMarkdown ? 'Show source code' : 'Render markdown'}
-    >
-      {renderMarkdown ? '</>' : 'Aa'}
-    </button>
+  // Copy as rich text (for pasting into Word, Docs with formatting)
+  const handleCopyRichText = useCallback(async () => {
+    if (!markdownContentRef.current) {
+      setCopyRichTextStatus('error');
+      setTimeout(() => setCopyRichTextStatus('idle'), 2000);
+      return;
+    }
+
+    try {
+      const html = markdownContentRef.current.innerHTML;
+      const plainText = markdownContentRef.current.innerText;
+
+      const htmlBlob = new Blob([html], { type: 'text/html' });
+      const textBlob = new Blob([plainText], { type: 'text/plain' });
+
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          'text/html': htmlBlob,
+          'text/plain': textBlob,
+        }),
+      ]);
+
+      setCopyRichTextStatus('copied');
+      setTimeout(() => setCopyRichTextStatus('idle'), 2000);
+    } catch {
+      setCopyRichTextStatus('error');
+      setTimeout(() => setCopyRichTextStatus('idle'), 2000);
+    }
+  }, []);
+
+  // Copy as HTML tags (for pasting into Google Docs source, HTML editors)
+  const handleCopyHtml = useCallback(async () => {
+    if (!markdownContentRef.current) {
+      setCopyHtmlStatus('error');
+      setTimeout(() => setCopyHtmlStatus('idle'), 2000);
+      return;
+    }
+
+    try {
+      const html = markdownContentRef.current.innerHTML;
+      await navigator.clipboard.writeText(html);
+      setCopyHtmlStatus('copied');
+      setTimeout(() => setCopyHtmlStatus('idle'), 2000);
+    } catch {
+      setCopyHtmlStatus('error');
+      setTimeout(() => setCopyHtmlStatus('idle'), 2000);
+    }
+  }, []);
+
+  const headerButtons = (
+    <div className="file-viewer-header-buttons">
+      {renderMarkdown && (
+        <>
+          <button
+            className={`file-viewer-copy-html-btn ${copyRichTextStatus}`}
+            onClick={handleCopyRichText}
+            title="Copy as rich text (paste into Word, Docs, etc.)"
+          >
+            {copyRichTextStatus === 'copied' ? '✓ Copied' : copyRichTextStatus === 'error' ? '✗ Error' : 'Copy Rich Text'}
+          </button>
+          <button
+            className={`file-viewer-copy-html-btn ${copyHtmlStatus}`}
+            onClick={handleCopyHtml}
+            title="Copy as HTML tags (for Google Docs, HTML editors)"
+          >
+            {copyHtmlStatus === 'copied' ? '✓ Copied' : copyHtmlStatus === 'error' ? '✗ Error' : 'Copy HTML'}
+          </button>
+        </>
+      )}
+      <button
+        className={`file-viewer-render-toggle ${renderMarkdown ? 'active' : ''}`}
+        onClick={onToggleRender}
+        title={renderMarkdown ? 'Show source code' : 'Render markdown'}
+      >
+        {renderMarkdown ? '</>' : 'Aa'}
+      </button>
+    </div>
   );
 
   return (
     <>
-      <FileViewerHeader file={file} onRevealInTree={onRevealInTree} rightContent={toggleButton} />
+      <FileViewerHeader file={file} onRevealInTree={onRevealInTree} rightContent={headerButtons} />
       {renderMarkdown ? (
         <div className="file-viewer-markdown-wrapper">
-          <div className="markdown-content">
+          <div className="markdown-content" ref={markdownContentRef}>
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{file.content}</ReactMarkdown>
           </div>
         </div>

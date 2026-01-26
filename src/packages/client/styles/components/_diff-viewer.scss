@@ -67,6 +67,69 @@
   gap: 12px;
 }
 
+.diff-viewer-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-left: 12px;
+}
+
+.diff-toggle-btn {
+  background: transparent;
+  border: 1px solid $dracula-current;
+  color: $dracula-comment;
+  padding: 5px 10px;
+  border-radius: $radius-sm;
+  font-family: $font-mono;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all $transition-fast;
+  white-space: nowrap;
+
+  &:hover {
+    background: rgba($dracula-purple, 0.15);
+    border-color: $dracula-purple;
+    color: $dracula-purple;
+  }
+
+  &.active {
+    background: rgba($dracula-purple, 0.2);
+    border-color: $dracula-purple;
+    color: $dracula-purple;
+  }
+}
+
+.diff-copy-btn {
+  background: transparent;
+  border: 1px solid $dracula-current;
+  color: $dracula-comment;
+  padding: 5px 10px;
+  border-radius: $radius-sm;
+  font-family: $font-mono;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all $transition-fast;
+  white-space: nowrap;
+
+  &:hover {
+    background: rgba($dracula-cyan, 0.15);
+    border-color: $dracula-cyan;
+    color: $dracula-cyan;
+  }
+
+  &.copied {
+    background: rgba($dracula-green, 0.2);
+    border-color: $dracula-green;
+    color: $dracula-green;
+  }
+
+  &.error {
+    background: rgba($dracula-red, 0.2);
+    border-color: $dracula-red;
+    color: $dracula-red;
+  }
+}
+
 .diff-stat {
   font-size: 11px;
   font-weight: 600;
@@ -94,6 +157,33 @@
   flex: 1;
   min-height: 0;
   overflow: hidden;
+
+  // When showing only modified content
+  &.modified-only {
+    .diff-panel-modified {
+      flex: 1;
+    }
+
+    // Remove diff highlighting in modified-only view
+    .diff-line-added {
+      background: transparent;
+
+      .diff-line-num {
+        background: rgba($dracula-bg, 0.5);
+        color: $dracula-comment;
+      }
+    }
+  }
+}
+
+// Markdown content in diff viewer
+.diff-markdown-content {
+  padding: 16px 20px;
+
+  .markdown-content {
+    color: $dracula-fg;
+    line-height: 1.6;
+  }
 }
 
 .diff-panel {
