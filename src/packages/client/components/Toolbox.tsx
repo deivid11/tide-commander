@@ -873,6 +873,16 @@ function ConfigSection({ config, onChange }: ConfigSectionProps) {
           </div>
           <span className="config-hint">Leave empty for auto-detect</span>
         </div>
+        <div className="config-row">
+          <span className="config-label">Manual</span>
+          <button
+            className="config-btn"
+            onClick={() => reconnect()}
+            title="Force reconnect to server"
+          >
+            Reconnect
+          </button>
+        </div>
       </CollapsibleSection>
 
       {/* Scene Settings */}

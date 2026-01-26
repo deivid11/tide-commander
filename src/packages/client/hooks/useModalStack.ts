@@ -64,6 +64,24 @@ export function hasOpenModals(): boolean {
 }
 
 /**
+ * Close all modals on the stack except the terminal.
+ * Used when opening the terminal on mobile to ensure a clean view.
+ */
+export function closeAllModalsExcept(...excludeIds: string[]): void {
+  // Close modals from top to bottom, skipping excluded ones
+  const excludeSet = new Set(excludeIds);
+  while (modalStack.length > 0) {
+    const topModal = modalStack[modalStack.length - 1];
+    if (excludeSet.has(topModal.id)) {
+      break; // Stop if we hit an excluded modal
+    }
+    modalStack.pop();
+    topModal.close();
+  }
+  notifyListeners();
+}
+
+/**
  * Get the current stack size (for debugging)
  */
 export function getStackSize(): number {

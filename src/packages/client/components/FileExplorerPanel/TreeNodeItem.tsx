@@ -5,9 +5,22 @@
  * Following ClaudeOutputPanel's component decomposition pattern.
  */
 
-import React, { memo } from 'react';
-import type { TreeNodeProps } from './types';
+import React, { memo, useMemo } from 'react';
+import type { TreeNode, TreeNodeProps } from './types';
 import { getFileIcon, findMatchIndices } from './fileUtils';
+
+/**
+ * Sort nodes: folders first, then files, both alphabetically (case-insensitive)
+ */
+function sortChildren(children: TreeNode[]): TreeNode[] {
+  return [...children].sort((a, b) => {
+    // Folders first
+    if (a.isDirectory && !b.isDirectory) return -1;
+    if (!a.isDirectory && b.isDirectory) return 1;
+    // Alphabetical (case-insensitive)
+    return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+  });
+}
 
 // ============================================================================
 // HIGHLIGHT MATCH COMPONENT
@@ -50,6 +63,12 @@ function TreeNodeItemComponent({
   const isExpanded = expandedPaths.has(node.path);
   const isSelected = selectedPath === node.path;
 
+  // Memoize sorted children to avoid re-sorting on every render
+  const sortedChildren = useMemo(
+    () => (node.children ? sortChildren(node.children) : []),
+    [node.children]
+  );
+
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (node.isDirectory) {
@@ -65,7 +84,7 @@ function TreeNodeItemComponent({
         className={`tree-node ${isSelected ? 'selected' : ''} ${
           node.isDirectory ? 'directory' : 'file'
         } ${isExpanded ? 'expanded' : ''}`}
-        style={{ paddingLeft: `${4 + depth * 8}px` }}
+        style={{ paddingLeft: '4px' }}
         onClick={handleClick}
         data-path={node.path}
       >
@@ -79,16 +98,19 @@ function TreeNodeItemComponent({
             </span>
           </>
         ) : (
-          <span className="tree-icon">{getFileIcon(node)}</span>
+          <>
+            <span className="tree-arrow-spacer" />
+            <span className="tree-icon">{getFileIcon(node)}</span>
+          </>
         )}
         <span className="tree-name">
           <HighlightMatch text={node.name} query={searchQuery} />
         </span>
       </div>
 
-      {node.isDirectory && isExpanded && node.children && (
+      {node.isDirectory && isExpanded && sortedChildren.length > 0 && (
         <div className="tree-children">
-          {node.children.map((child) => (
+          {sortedChildren.map((child) => (
             <TreeNodeItem
               key={child.path}
               node={child}

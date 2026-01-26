@@ -35,10 +35,13 @@ const PDF_EXTENSIONS = new Set(['.pdf']);
 const BINARY_EXTENSIONS = new Set([
   '.xlsx', '.xls', '.docx', '.doc', '.pptx', '.ppt',
   '.zip', '.tar', '.gz', '.rar', '.7z',
-  '.exe', '.dmg', '.app', '.deb', '.rpm',
-  '.mp3', '.mp4', '.wav', '.avi', '.mov', '.mkv',
-  '.ttf', '.otf', '.woff', '.woff2',
-  '.sqlite', '.db'
+  '.exe', '.dmg', '.app', '.deb', '.rpm', '.apk', '.aab', '.ipa', '.msi',
+  '.mp3', '.mp4', '.wav', '.avi', '.mov', '.mkv', '.flac', '.ogg', '.webm',
+  '.ttf', '.otf', '.woff', '.woff2', '.eot',
+  '.sqlite', '.db',
+  '.so', '.dll', '.dylib', '.a', '.o', '.obj',
+  '.bin', '.dat', '.iso', '.img',
+  '.jar', '.war', '.ear', '.class'
 ]);
 
 /**
@@ -157,6 +160,26 @@ export function useFileContent(): UseFileContentReturn {
       const data = await res.json();
 
       if (!res.ok) {
+        // If file is too large or unreadable, offer download instead of showing error
+        if (data.error?.includes('too large') || data.error?.includes('binary')) {
+          // Fall back to binary mode - get file info and offer download
+          const infoRes = await fetch(apiUrl(`/api/files/info?path=${encodeURIComponent(filePath)}`));
+          const info = await infoRes.json();
+
+          if (infoRes.ok) {
+            setFile({
+              path: filePath,
+              filename,
+              extension,
+              content: '',
+              size: info.size,
+              modified: info.modified,
+              fileType: 'binary',
+              dataUrl: apiUrl(`/api/files/binary?path=${encodeURIComponent(filePath)}&download=true`)
+            });
+            return;
+          }
+        }
         setError(data.error || 'Failed to load file');
         setFile(null);
         return;

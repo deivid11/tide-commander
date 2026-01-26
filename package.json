@@ -1,10 +1,10 @@
 {
   "name": "tide-commander",
-  "version": "0.14.1",
+  "version": "0.15.0",
   "description": "RTS/MOBA-style Claude Code agents commander",
   "type": "module",
   "scripts": {
-    "dev": "concurrently \"bun run dev:client\" \"bun run dev:server\"",
+    "dev": "LISTEN_ALL_INTERFACES=1 concurrently \"bun run dev:client\" \"bun run dev:server\"",
     "dev:client": "vite",
     "dev:server": "tsx watch src/packages/server/index.ts",
     "dev:landing": "vite --open /src/packages/landing/index.html",
@@ -14,10 +14,19 @@
     "lint": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "cap:sync": "npx cap sync android",
+    "cap:open": "npx cap open android",
+    "cap:build": "npm run build && npx cap sync android",
+    "android": "npm run build && npx cap sync android && npx cap open android"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
+    "@capacitor/android": "^8.0.1",
+    "@capacitor/cli": "^7.4.5",
+    "@capacitor/core": "^8.0.1",
+    "@capacitor/local-notifications": "^8.0.0",
+    "@capawesome/capacitor-background-task": "^8.0.0",
     "chokidar": "^4.0.0",
     "cors": "^2.8.5",
     "express": "^5.2.1",

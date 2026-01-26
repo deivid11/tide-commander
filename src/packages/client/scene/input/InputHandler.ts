@@ -740,18 +740,65 @@ export class InputHandler {
 
   private handleLongPress = (clientX: number, clientY: number): void => {
     const state = store.getState();
-    if (state.selectedAgentIds.size === 0) return;
-
     const groundPos = this.raycaster.raycastGroundFromPoint(clientX, clientY);
     if (!groundPos) return;
 
-    // Don't move if long-pressing on an agent
+    // Check if long-pressing on an agent - show context menu
     const agentId = this.raycaster.findAgentAtPoint(clientX, clientY);
-    if (agentId) return;
+    if (agentId) {
+      // Show context menu for the agent
+      if (this.callbacks.onContextMenu) {
+        this.callbacks.onContextMenu(
+          { x: clientX, y: clientY },
+          groundPos,
+          { type: 'agent', id: agentId }
+        );
+      }
+      return;
+    }
 
-    const agentIds = Array.from(state.selectedAgentIds);
-    const position = new THREE.Vector3(groundPos.x, 0, groundPos.z);
-    this.callbacks.onMoveCommand(position, agentIds);
+    // Check if long-pressing on a building - show context menu
+    const buildingAtPos = this.buildingAtPositionGetter?.(groundPos);
+    if (buildingAtPos) {
+      if (this.callbacks.onContextMenu) {
+        this.callbacks.onContextMenu(
+          { x: clientX, y: clientY },
+          groundPos,
+          { type: 'building', id: buildingAtPos.id }
+        );
+      }
+      return;
+    }
+
+    // Check if long-pressing on an area - show context menu
+    const areaAtPos = this.areaAtPositionGetter?.(groundPos);
+    if (areaAtPos) {
+      if (this.callbacks.onContextMenu) {
+        this.callbacks.onContextMenu(
+          { x: clientX, y: clientY },
+          groundPos,
+          { type: 'area', id: areaAtPos.id }
+        );
+      }
+      return;
+    }
+
+    // Long-press on ground with agents selected - move command
+    if (state.selectedAgentIds.size > 0) {
+      const agentIds = Array.from(state.selectedAgentIds);
+      const position = new THREE.Vector3(groundPos.x, 0, groundPos.z);
+      this.callbacks.onMoveCommand(position, agentIds);
+      return;
+    }
+
+    // Long-press on empty ground with no selection - show ground context menu
+    if (this.callbacks.onContextMenu) {
+      this.callbacks.onContextMenu(
+        { x: clientX, y: clientY },
+        groundPos,
+        { type: 'ground' }
+      );
+    }
   };
 
   // --- Click Handlers ---

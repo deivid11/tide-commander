@@ -22,36 +22,49 @@ export interface ContextMenuProps {
 
 export function ContextMenu({ isOpen, position, actions, onClose }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
+  const cleanupRef = useRef<(() => void) | null>(null);
 
-  // Close on click outside
+  // Close on click/touch outside
   useEffect(() => {
     if (!isOpen) return;
 
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+    // Small delay to prevent immediate close from the touch event that opened the menu
+    const timeoutId = setTimeout(() => {
+      const handleClickOutside = (e: MouseEvent | TouchEvent) => {
+        if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+          onClose();
+        }
+      };
+
+      const handleEscape = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          onClose();
+        }
+      };
+
+      // Close on scroll
+      const handleScroll = () => {
         onClose();
-      }
-    };
+      };
 
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    };
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside, { passive: true });
+      document.addEventListener('keydown', handleEscape);
+      window.addEventListener('scroll', handleScroll, true);
 
-    // Close on scroll
-    const handleScroll = () => {
-      onClose();
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleEscape);
-    window.addEventListener('scroll', handleScroll, true);
+      // Store cleanup function
+      cleanupRef.current = () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+        document.removeEventListener('touchstart', handleClickOutside);
+        document.removeEventListener('keydown', handleEscape);
+        window.removeEventListener('scroll', handleScroll, true);
+      };
+    }, 100); // 100ms delay to let the menu render first
 
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleEscape);
-      window.removeEventListener('scroll', handleScroll, true);
+      clearTimeout(timeoutId);
+      cleanupRef.current?.();
+      cleanupRef.current = null;
     };
   }, [isOpen, onClose]);
 
@@ -107,6 +120,11 @@ export function ContextMenu({ isOpen, position, actions, onClose }: ContextMenuP
             key={action.id}
             className={`context-menu-item ${action.disabled ? 'disabled' : ''} ${action.danger ? 'danger' : ''}`}
             onClick={() => handleActionClick(action)}
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleActionClick(action);
+            }}
             disabled={action.disabled}
           >
             {action.icon && <span className="context-menu-icon">{action.icon}</span>}

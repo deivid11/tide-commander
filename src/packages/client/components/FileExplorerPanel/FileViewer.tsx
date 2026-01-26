@@ -279,9 +279,13 @@ function BinaryFileViewer({ file, onRevealInTree }: { file: FileData; onRevealIn
     if (['.docx', '.doc'].includes(ext)) return '📝';
     if (['.pptx', '.ppt'].includes(ext)) return '📽️';
     if (['.zip', '.tar', '.gz', '.rar', '.7z'].includes(ext)) return '🗜️';
-    if (['.mp3', '.wav'].includes(ext)) return '🎵';
-    if (['.mp4', '.avi', '.mov', '.mkv'].includes(ext)) return '🎬';
-    if (['.exe', '.dmg', '.app'].includes(ext)) return '⚙️';
+    if (['.mp3', '.wav', '.flac', '.ogg'].includes(ext)) return '🎵';
+    if (['.mp4', '.avi', '.mov', '.mkv', '.webm'].includes(ext)) return '🎬';
+    if (['.exe', '.dmg', '.app', '.msi'].includes(ext)) return '⚙️';
+    if (['.apk', '.aab', '.ipa'].includes(ext)) return '📱';
+    if (['.jar', '.war', '.ear'].includes(ext)) return '☕';
+    if (['.iso', '.img'].includes(ext)) return '💿';
+    if (['.so', '.dll', '.dylib'].includes(ext)) return '🔧';
     return '📁';
   };
 

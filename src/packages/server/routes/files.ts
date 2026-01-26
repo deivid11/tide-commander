@@ -320,8 +320,8 @@ function buildTree(dirPath: string, depth: number, maxDepth: number): TreeNode[]
     for (const entry of entries) {
       // Skip hidden files
       if (entry.name.startsWith('.')) continue;
-      // Skip common non-essential directories
-      if (['node_modules', 'dist', 'build', '.git', '__pycache__', 'venv', '.venv'].includes(entry.name)) continue;
+      // Skip common non-essential directories (but keep 'build' for APK access)
+      if (['node_modules', 'dist', '.git', '__pycache__', 'venv', '.venv'].includes(entry.name)) continue;
 
       const fullPath = path.join(dirPath, entry.name);
 
@@ -411,7 +411,7 @@ function searchFiles(dirPath: string, query: string, results: TreeNode[], maxRes
 
       // Skip hidden and common non-essential
       if (entry.name.startsWith('.')) continue;
-      if (['node_modules', 'dist', 'build', '.git', '__pycache__', 'venv', '.venv'].includes(entry.name)) continue;
+      if (['node_modules', 'dist', '.git', '__pycache__', 'venv', '.venv'].includes(entry.name)) continue;
 
       const fullPath = path.join(dirPath, entry.name);
 

@@ -1155,15 +1155,17 @@ export class SceneManager {
 
   private handleAgentDoubleClick(agentId: string): void {
     console.log('[SceneManager] handleAgentDoubleClick called for agent:', agentId, 'window.innerWidth:', window.innerWidth);
-    // Select the agent and force-open terminal
+    // On mobile, use the dedicated method that closes modals first
+    if (window.innerWidth <= 768) {
+      console.log('[SceneManager] Mobile detected, opening terminal via openTerminalOnMobile');
+      store.openTerminalOnMobile(agentId);
+      this.refreshSelectionVisuals();
+      return;
+    }
+    // Desktop: Select the agent and force-open terminal
     store.selectAgent(agentId);
     this.refreshSelectionVisuals();
     store.setTerminalOpen(true);
-    // On mobile, also switch to terminal view (otherwise terminal is hidden)
-    if (window.innerWidth <= 768) {
-      console.log('[SceneManager] Mobile detected, switching to terminal view');
-      store.setMobileView('terminal');
-    }
   }
 
   // Drawing handlers

@@ -108,3 +108,39 @@
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
+
+/* Mobile styles */
+@media (max-width: 768px) {
+  .context-menu {
+    min-width: 200px;
+    max-width: 90vw;
+  }
+
+  .context-menu-item {
+    padding: 12px 16px;
+    min-height: 44px;
+    font-size: 14px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .context-menu-icon {
+    font-size: 18px;
+    width: 24px;
+  }
+
+  .context-menu-divider {
+    margin: 8px 12px;
+  }
+}
+
+/* Touch device optimizations */
+@media (pointer: coarse) {
+  .context-menu-item {
+    min-height: 48px;
+  }
+
+  .context-menu-item:active:not(.disabled) {
+    background: rgba(100, 150, 200, 0.4);
+  }
+}

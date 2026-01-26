@@ -58,9 +58,6 @@ export function useFileTree(currentFolder: string | null): UseFileTreeReturn {
         // Sort the tree (folders first, then alphabetically)
         const sortedTree = sortTree(data.tree);
 
-        // Debug: log first few items to verify sorting
-        console.log('[FileTree] Sorted tree (first 10):', sortedTree.slice(0, 10).map(n => `${n.isDirectory ? 'DIR' : 'FILE'}: ${n.name}`));
-
         // Wrap in a root node for the directory
         const rootNode: TreeNode = {
           name: data.name,

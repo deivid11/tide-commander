@@ -7,7 +7,8 @@
  */
 
 import type { Agent, ClientMessage } from '../../shared/types';
-import { STORAGE_KEYS, getStorage, setStorage } from '../utils/storage';
+import { STORAGE_KEYS, getStorage, setStorage, getStorageString, setStorageString } from '../utils/storage';
+import { closeAllModalsExcept } from '../hooks';
 
 // Import types
 import type { StoreState, Listener, Settings, ClaudeOutput, LastPrompt } from './types';
@@ -170,7 +171,7 @@ class Store
       fileChanges: [],
       terminalOpen: false,
       terminalResizing: false,
-      mobileView: 'terminal',
+      mobileView: this.loadMobileView(),
       settings: this.loadSettings(),
       shortcuts: this.loadShortcuts(),
       mouseControls: this.loadMouseControls(),
@@ -269,6 +270,16 @@ class Store
     };
   }
 
+  private loadMobileView(): 'terminal' | '3d' {
+    const stored = getStorageString(STORAGE_KEYS.MOBILE_VIEW, '');
+    if (stored === 'terminal' || stored === '3d') {
+      return stored;
+    }
+    // Default to '3d' (battlefield/game mode) on mobile devices
+    const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768 && 'ontouchstart' in window;
+    return isMobile ? '3d' : 'terminal';
+  }
+
   // ============================================================================
   // Core Store Methods
   // ============================================================================
@@ -335,6 +346,8 @@ class Store
   setMobileView(view: 'terminal' | '3d'): void {
     console.log('[Store] setMobileView called:', view, 'previous:', this.state.mobileView);
     this.state.mobileView = view;
+    // Persist mobile view preference to localStorage
+    setStorageString(STORAGE_KEYS.MOBILE_VIEW, view);
     // When switching to terminal view on mobile, ensure an agent is selected
     // Otherwise the terminal component returns null
     if (view === 'terminal' && this.state.selectedAgentIds.size === 0 && this.state.agents.size > 0) {
@@ -343,6 +356,24 @@ class Store
       this.state.selectedAgentIds = new Set([firstAgentId]);
       this.state.terminalOpen = true;
     }
+    this.notify();
+  }
+
+  /**
+   * Open terminal on mobile, closing all other modals first.
+   * This ensures the terminal is visible and not obscured by other panels.
+   */
+  openTerminalOnMobile(agentId: string): void {
+    console.log('[Store] openTerminalOnMobile called for agent:', agentId);
+    // Close all modals except terminal itself
+    closeAllModalsExcept('terminal');
+    // Select the agent
+    this.state.selectedAgentIds.clear();
+    this.state.selectedAgentIds.add(agentId);
+    // Open terminal
+    this.state.terminalOpen = true;
+    // Switch to terminal view
+    this.state.mobileView = 'terminal';
     this.notify();
   }
 

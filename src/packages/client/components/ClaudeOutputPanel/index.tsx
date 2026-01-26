@@ -339,6 +339,9 @@ export function ClaudeOutputPanel() {
     const handleAgentNavKeyDown = (e: KeyboardEvent) => {
       if (!isOpen || sortedAgents.length <= 1) return;
 
+      // Don't switch agents when a modal is open
+      if (imageModal || bashModal || responseModalContent) return;
+
       // Alt+K → go to previous agent (like swipe right)
       if (e.altKey && e.key === 'k') {
         e.preventDefault();
@@ -352,7 +355,7 @@ export function ClaudeOutputPanel() {
     };
     document.addEventListener('keydown', handleAgentNavKeyDown);
     return () => document.removeEventListener('keydown', handleAgentNavKeyDown);
-  }, [isOpen, sortedAgents.length, handleSwipeLeft, handleSwipeRight]);
+  }, [isOpen, sortedAgents.length, handleSwipeLeft, handleSwipeRight, imageModal, bashModal, responseModalContent]);
 
   // Memoized filtered and enriched history messages based on view mode
   const filteredHistory = useMemo((): EnrichedHistoryMessage[] => {
@@ -1238,8 +1241,55 @@ export function ClaudeOutputPanel() {
     };
   }, [isOpen]);
 
-  // Don't render if no agent selected
+  // On mobile terminal view, show placeholder ONLY if no agent is selected at all
+  // On desktop, don't render anything if no agent selected
+  // Check both mobileView AND actual screen width to ensure we're on mobile
+  const isMobileWidth = typeof window !== 'undefined' && window.innerWidth <= 768;
+
   if (!selectedAgent) {
+    // Only show mobile placeholder if actually on mobile device AND in terminal view AND no agent selected
+    if (isMobileWidth && mobileView === 'terminal' && selectedAgentIds.size === 0) {
+      return (
+        <div
+          ref={terminalRef}
+          className="guake-terminal open"
+          style={{ '--terminal-height': `${terminalHeight}%` } as React.CSSProperties}
+        >
+          <div className="guake-content">
+            <div className="guake-output" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6272a4' }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '48px', marginBottom: '16px' }}>👆</div>
+                <div style={{ fontSize: '16px' }}>Tap an agent on the battlefield to view their terminal</div>
+                <div style={{ fontSize: '14px', marginTop: '8px', opacity: 0.7 }}>Switch to 3D view using the menu button (☰)</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    // If agent is selected (ID exists) but not found in map yet, show loading state (mobile only)
+    if (isMobileWidth && mobileView === 'terminal' && selectedAgentIds.size > 0) {
+      return (
+        <div
+          ref={terminalRef}
+          className="guake-terminal open"
+          style={{ '--terminal-height': `${terminalHeight}%` } as React.CSSProperties}
+        >
+          <div className="guake-content">
+            <div className="guake-output" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6272a4' }}>
+              <div className="guake-empty loading">
+                Loading terminal
+                <span className="loading-dots">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
     return null;
   }
 

@@ -2,6 +2,41 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.15.0] - 2026-01-26
+
+### Added
+- **Android/Capacitor Support** - Native Android app build
+  - Capacitor configuration and Android project
+  - Makefile with build commands (`make android-build`, `make android-run`)
+  - Debug APK generation
+- **Native Notifications** - Push notifications via Capacitor
+  - `notifications.ts` utility for cross-platform notifications
+  - Agent notification toast enhancements
+- **Context Menu Improvements** - Enhanced right-click menu
+  - Better styling and positioning
+  - Mobile touch support
+- **Modal Stack Enhancements** - Improved modal management
+  - Better escape key handling
+  - Stack depth tracking
+
+### Changed
+- **File Explorer Mobile** - Improved touch interactions
+  - Better tree node touch targets
+  - Enhanced file viewer mobile layout
+- **Skills Panel** - Mobile responsive styles
+- **WebSocket Reconnection** - Improved connection handling
+- **Input Handler** - Better touch/mouse event handling
+- **Storage Utils** - Additional storage helpers
+
+### Fixed
+- **File Content Loading** - Better error handling and caching
+- **Server File Routes** - Improved file serving
+
+### Technical
+- Capacitor 7 with Android platform
+- New Makefile for build automation
+- `useModalStack` depth tracking additions
+
 ## [0.14.1] - 2026-01-25
 
 ### Added

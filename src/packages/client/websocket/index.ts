@@ -3,6 +3,7 @@ import { store } from '../store';
 import { perf } from '../utils/profiling';
 import { agentDebugger, debugLog } from '../services/agentDebugger';
 import { STORAGE_KEYS, getStorageString } from '../utils/storage';
+import { showNotification, isNativeApp } from '../utils/notifications';
 
 // Persist WebSocket state across HMR reloads using window object
 // This prevents orphaned connections and ensures we maintain the same socket
@@ -350,6 +351,15 @@ function handleServerMessage(message: ServerMessage): void {
 
       if (statusChanged) {
         console.log(`[Tide] 🔔 Status change for ${updatedAgent.name}: ${previousAgent?.status} → ${updatedAgent.status}`);
+
+        // Send native notification when agent finishes working (working -> idle)
+        if (previousAgent?.status === 'working' && updatedAgent.status === 'idle') {
+          showNotification({
+            title: `${updatedAgent.name} finished`,
+            body: 'Agent is now idle',
+            data: { type: 'agent_idle', agentId: updatedAgent.id },
+          });
+        }
       }
 
       const positionChanged = previousAgent

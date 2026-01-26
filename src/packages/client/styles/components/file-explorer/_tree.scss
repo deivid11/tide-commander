@@ -137,6 +137,12 @@
   }
 }
 
+// Spacer for files to align with folder arrows
+.tree-arrow-spacer {
+  width: 8px;
+  flex-shrink: 0;
+}
+
 .tree-folder-icon {
   font-size: 11px;
   width: 12px;
@@ -160,5 +166,17 @@
 }
 
 .tree-children {
-  // No visual guide lines - keeps it cleaner and saves space
+  position: relative;
+  margin-left: 24px;
+
+  // Vertical guide line to show hierarchy
+  &::before {
+    content: '';
+    position: absolute;
+    left: 2px;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: rgba($text-muted, 0.15);
+  }
 }

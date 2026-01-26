@@ -8,6 +8,7 @@ export {
   useModalStackRegistration,
   useModalStackSize,
   closeTopModal,
+  closeAllModalsExcept,
   hasOpenModals,
   registerModal,
 } from './useModalStack';

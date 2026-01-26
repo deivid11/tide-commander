@@ -21,6 +21,7 @@ import { BuildingConfigModal } from './components/BuildingConfigModal';
 import { SkillsPanel } from './components/SkillsPanel';
 import { DrawingModeIndicator } from './components/DrawingModeIndicator';
 import { AgentHoverPopup } from './components/AgentHoverPopup';
+import { AgentEditModal } from './components/AgentEditModal';
 import { matchesShortcut } from './store/shortcuts';
 import { FPSMeter } from './components/FPSMeter';
 import { profileRender } from './utils/profiling';
@@ -28,6 +29,7 @@ import { STORAGE_KEYS, getStorage, setStorage, getStorageString } from './utils/
 import { useModalState, useModalStateWithId, useContextMenu, useModalStackRegistration, closeTopModal, hasOpenModals } from './hooks';
 import { ContextMenu, type ContextMenuAction } from './components/ContextMenu';
 import { PWAInstallBanner } from './components/PWAInstallBanner';
+import { requestNotificationPermission, initNotificationListeners } from './utils/notifications';
 
 // Persist scene manager across HMR and StrictMode remounts
 let persistedScene: SceneManager | null = null;
@@ -161,8 +163,15 @@ if (typeof window !== 'undefined') {
 
   // Cleanup handlers for page unload
   window.onunload = () => cleanupScene('onunload');
-  window.onbeforeunload = () => {
+  window.onbeforeunload = (e: BeforeUnloadEvent) => {
     cleanupScene('onbeforeunload');
+    // Only show browser's native "Leave site?" dialog on mobile
+    // On desktop, allow normal navigation without prompts
+    if (window.innerWidth <= 768) {
+      e.preventDefault();
+      // For older browsers
+      return '';
+    }
     return undefined;
   };
   window.addEventListener('pagehide', (event) => {
@@ -239,6 +248,7 @@ function AppContent() {
   const controlsModal = useModalState();
   const skillsModal = useModalState();
   const buildingModal = useModalState<string | null>(); // data = editingBuildingId (null for new)
+  const agentEditModal = useModalState<string>(); // data = agentId to edit
   const explorerModal = useModalStateWithId(); // has .id for areaId
   const explorerFolderPath = useExplorerFolderPath(); // Direct folder path for file explorer (from store)
   const contextMenu = useContextMenu(); // Right-click context menu
@@ -271,6 +281,7 @@ function AppContent() {
   useModalStackRegistration('controls-modal', controlsModal.isOpen, controlsModal.close);
   useModalStackRegistration('skills-modal', skillsModal.isOpen, skillsModal.close);
   useModalStackRegistration('building-modal', buildingModal.isOpen, buildingModal.close);
+  useModalStackRegistration('agent-edit-modal', agentEditModal.isOpen, agentEditModal.close);
   // File explorer can be opened via explorerModal (area-based) or explorerFolderPath (folder building)
   useModalStackRegistration('explorer-modal', explorerModal.isOpen || explorerFolderPath !== null, () => {
     explorerModal.close();
@@ -305,41 +316,84 @@ function AppContent() {
   window.__tideSetBackNavModal = setShowBackNavModal;
 
   useEffect(() => {
+    // Only enable exit prevention on mobile devices (width <= 768px)
+    // On desktop, allow normal browser navigation
+    const isMobile = window.innerWidth <= 768;
+    if (!isMobile) {
+      return;
+    }
+
     // Only setup the listener once globally (survives HMR)
     if (window.__tideBackNavSetup) {
-      // Just ensure we have history entries
-      if (!window.history.state?.tideCommander) {
-        window.history.pushState({ tideCommander: true }, '');
-        window.__tideHistoryDepth = (window.__tideHistoryDepth ?? 0) + 1;
+      // Ensure we have a hash anchor
+      if (!window.location.hash.includes('app')) {
+        window.location.hash = '#app';
       }
       return;
     }
 
     window.__tideBackNavSetup = true;
-    window.__tideHistoryDepth = 0;
 
-    // Push TWO history entries - this is crucial for mobile browsers.
-    // Mobile back gestures (especially iOS Safari edge swipe) can complete the
-    // navigation before popstate handlers can prevent it. By having two entries,
-    // the first back navigation stays within our app, giving popstate a chance
-    // to push another entry and show the confirmation modal.
-    window.history.pushState({ tideCommander: true }, '');
-    window.history.pushState({ tideCommander: true }, '');
-    window.__tideHistoryDepth = 2;
+    // Use hash-based navigation for reliable mobile back button handling.
+    // This works better than pushState on mobile browsers because:
+    // 1. Hash changes create real history entries that mobile browsers respect
+    // 2. The hashchange event fires reliably before navigation completes
+    // 3. It works even when the app is the first page in the session
+
+    // Set initial hash if not present
+    if (!window.location.hash.includes('app')) {
+      window.location.hash = '#app';
+    }
+
+    const handleHashChange = () => {
+      // Only handle on mobile
+      if (window.innerWidth > 768) return;
+
+      // If hash was removed or changed away from #app, restore it
+      if (!window.location.hash.includes('app')) {
+        // Restore the hash to prevent actual navigation
+        window.location.hash = '#app';
+
+        // Handle modal closing or show exit confirmation
+        if (!closeTopModal()) {
+          window.__tideSetBackNavModal?.(true);
+        }
+      }
+    };
 
     const handlePopState = () => {
-      // Track that we consumed one entry
-      window.__tideHistoryDepth = Math.max(0, (window.__tideHistoryDepth ?? 1) - 1);
-      // Push state again to maintain the buffer
-      window.history.pushState({ tideCommander: true }, '');
-      window.__tideHistoryDepth = (window.__tideHistoryDepth ?? 0) + 1;
-      // If there are open modals, close the topmost one
-      // Otherwise show the leave confirmation
+      // Only handle on mobile
+      if (window.innerWidth > 768) return;
+
+      // Also handle popstate for cases where hash doesn't change
+      // but browser is trying to navigate back
+      if (!window.location.hash.includes('app')) {
+        window.location.hash = '#app';
+      }
+
+      // Push an additional hash entry to maintain the buffer
+      if (window.location.hash === '#app') {
+        // Small delay to avoid rapid hash changes
+        setTimeout(() => {
+          if (window.location.hash === '#app' && !window.location.hash.includes('app2')) {
+            window.history.pushState(null, '', '#app2');
+            window.history.pushState(null, '', '#app');
+          }
+        }, 50);
+      }
+
+      // Handle modal closing or show exit confirmation
       if (!closeTopModal()) {
         window.__tideSetBackNavModal?.(true);
       }
     };
 
+    // Push multiple hash entries to create a buffer
+    window.history.pushState(null, '', '#app1');
+    window.history.pushState(null, '', '#app2');
+    window.history.pushState(null, '', '#app');
+
+    window.addEventListener('hashchange', handleHashChange);
     window.addEventListener('popstate', handlePopState);
     // Never remove - persists for page lifetime
   }, []);
@@ -501,6 +555,25 @@ function AppContent() {
     // where the websocket module may have been reset)
     connect();
     wsConnected = true;
+
+    // Request notification permissions (non-blocking, for native app)
+    requestNotificationPermission();
+    initNotificationListeners((data) => {
+      // Handle notification tap - e.g., select the agent
+      if (data.agentId && typeof data.agentId === 'string') {
+        store.selectAgent(data.agentId);
+      }
+    });
+
+    // Handle app resume from background (Android) - reconnect WebSocket
+    const handleAppResume = () => {
+      console.log('[Tide] App resumed from background, reconnecting...');
+      // Small delay to ensure WebView is fully active
+      setTimeout(() => {
+        connect();
+      }, 100);
+    };
+    window.addEventListener('tideAppResume', handleAppResume);
 
     // Don't dispose on HMR or StrictMode unmount - only on full page unload
     return () => {
@@ -755,6 +828,14 @@ function AppContent() {
             store.setTerminalOpen(true);
           },
         });
+        actions.push({
+          id: 'edit-agent',
+          label: 'Edit Agent',
+          icon: '✏️',
+          onClick: () => {
+            agentEditModal.open(target.id!);
+          },
+        });
         actions.push({ id: 'divider-agent', label: '', divider: true, onClick: () => {} });
         actions.push({
           id: 'delete-agent',
@@ -914,7 +995,7 @@ function AppContent() {
     });
 
     return actions;
-  }, [contextMenu.worldPosition, contextMenu.target, state.agents, state.areas, state.buildings, spawnModal, bossSpawnModal, buildingModal, toolboxModal, commanderModal, explorerModal, showToast]);
+  }, [contextMenu.worldPosition, contextMenu.target, state.agents, state.areas, state.buildings, spawnModal, bossSpawnModal, buildingModal, toolboxModal, commanderModal, explorerModal, agentEditModal, showToast]);
 
   // Clear spawn position when spawn modals close
   useEffect(() => {
@@ -1064,9 +1145,13 @@ function AppContent() {
         <button
           className={`mobile-fab-toggle ${mobileMenuOpen ? 'open' : ''}`}
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          onTouchStart={(e) => {
+            // Ensure touch events work properly on mobile
+            e.stopPropagation();
+          }}
           title={mobileMenuOpen ? 'Close menu' : 'Open menu'}
         >
-          {mobileMenuOpen ? '✕' : '⋯'}
+          {mobileMenuOpen ? '✕' : '☰'}
         </button>
 
         {/* Mobile FAB menu - expandable options */}
@@ -1077,6 +1162,11 @@ function AppContent() {
               store.setMobileView(mobileView === 'terminal' ? '3d' : 'terminal');
               setMobileMenuOpen(false);
             }}
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              store.setMobileView(mobileView === 'terminal' ? '3d' : 'terminal');
+              setMobileMenuOpen(false);
+            }}
             title={mobileView === 'terminal' ? 'Show 3D View' : 'Show Terminal'}
           >
             {mobileView === 'terminal' ? '🎮' : '💬'}
@@ -1084,16 +1174,26 @@ function AppContent() {
           <button
             className="mobile-fab-option"
             onClick={() => {
-              setSidebarOpen(!sidebarOpen);
+              setSidebarOpen(true);
               setMobileMenuOpen(false);
             }}
-            title={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              setSidebarOpen(true);
+              setMobileMenuOpen(false);
+            }}
+            title="Open sidebar"
           >
-            {sidebarOpen ? '✕' : '☰'}
+            📋
           </button>
           <button
             className="mobile-fab-option"
             onClick={() => {
+              toolboxModal.open();
+              setMobileMenuOpen(false);
+            }}
+            onTouchEnd={(e) => {
+              e.preventDefault();
               toolboxModal.open();
               setMobileMenuOpen(false);
             }}
@@ -1107,6 +1207,11 @@ function AppContent() {
               commanderModal.open();
               setMobileMenuOpen(false);
             }}
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              commanderModal.open();
+              setMobileMenuOpen(false);
+            }}
             title="Commander View"
           >
             📊
@@ -1114,6 +1219,11 @@ function AppContent() {
           <button
             className="mobile-fab-option"
             onClick={() => {
+              supervisorModal.open();
+              setMobileMenuOpen(false);
+            }}
+            onTouchEnd={(e) => {
+              e.preventDefault();
               supervisorModal.open();
               setMobileMenuOpen(false);
             }}
@@ -1127,6 +1237,11 @@ function AppContent() {
               controlsModal.open();
               setMobileMenuOpen(false);
             }}
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              controlsModal.open();
+              setMobileMenuOpen(false);
+            }}
             title="Controls"
           >
             ⌨️
@@ -1134,6 +1249,11 @@ function AppContent() {
           <button
             className="mobile-fab-option"
             onClick={() => {
+              skillsModal.open();
+              setMobileMenuOpen(false);
+            }}
+            onTouchEnd={(e) => {
+              e.preventDefault();
               skillsModal.open();
               setMobileMenuOpen(false);
             }}
@@ -1149,6 +1269,14 @@ function AppContent() {
         )}
 
         <aside className={`sidebar ${sidebarOpen ? 'sidebar-open' : ''}`}>
+          {/* Mobile close button */}
+          <button
+            className="sidebar-close-btn show-on-mobile"
+            onClick={() => setSidebarOpen(false)}
+            title="Close sidebar"
+          >
+            ✕
+          </button>
           {state.selectedAgentIds.size > 0 ? (
             <>
               <div className="sidebar-section unit-section">
@@ -1257,6 +1385,19 @@ function AppContent() {
         bossId={subordinateModal.data || ''}
         onClose={subordinateModal.close}
       />
+
+      {/* Agent Edit Modal */}
+      {agentEditModal.isOpen && agentEditModal.data && (() => {
+        const agent = state.agents.get(agentEditModal.data);
+        if (!agent) return null;
+        return (
+          <AgentEditModal
+            agent={agent}
+            isOpen={agentEditModal.isOpen}
+            onClose={agentEditModal.close}
+          />
+        );
+      })()}
 
       {/* Delete Confirmation Modal */}
       {deleteConfirmModal.isOpen && (

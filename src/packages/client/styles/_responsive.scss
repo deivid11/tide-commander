@@ -24,6 +24,10 @@ $breakpoint-small: 480px;
   display: none;
 }
 
+.mobile-fab-toggle {
+  display: none;
+}
+
 .mobile-fab-menu {
   display: none;
 }
@@ -106,17 +110,22 @@ $breakpoint-small: 480px;
     position: fixed;
     top: 12px;
     left: 12px;
-    z-index: 251;
-    width: 40px;
-    height: 40px;
+    z-index: 1000; // Above everything including file explorer (300), modals, etc.
+    width: 44px;
+    height: 44px;
     background: rgba($dracula-bg, 0.95);
     border: 1px solid $dracula-green;
     border-radius: $radius-lg;
     color: $dracula-fg;
-    font-size: 16px;
+    font-size: 18px;
     cursor: pointer;
     backdrop-filter: blur(8px);
     transition: all $transition-fast;
+    // Touch handling properties
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    pointer-events: auto !important;
 
     &:hover,
     &:active {
@@ -136,9 +145,9 @@ $breakpoint-small: 480px;
     flex-direction: column;
     align-items: flex-start;
     position: fixed;
-    top: 58px; // Below the toggle button (12px + 40px + 6px gap)
+    top: 62px; // Below the toggle button (12px + 44px + 6px gap)
     left: 12px;
-    z-index: 250;
+    z-index: 999; // Just below the toggle button
     gap: 6px;
   }
 
@@ -146,19 +155,23 @@ $breakpoint-small: 480px;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 36px;
+    width: 40px;
+    height: 40px;
     background: rgba($dracula-bg, 0.95);
     border: 1px solid $dracula-comment;
     border-radius: $radius-md;
     color: $dracula-fg;
-    font-size: 14px;
+    font-size: 16px;
     cursor: pointer;
     backdrop-filter: blur(8px);
     transition: all $transition-fast;
     opacity: 0;
     transform: translateY(-10px);
     pointer-events: none;
+    // Touch handling properties
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
 
     .mobile-fab-menu.open & {
       opacity: 1;
@@ -224,6 +237,7 @@ $breakpoint-small: 480px;
     }
 
     // Ensure guake-content fills terminal and has proper flex layout
+    // Override .collapsed class transforms that hide content
     .guake-content {
       flex: 1;
       min-height: 0;
@@ -232,6 +246,10 @@ $breakpoint-small: 480px;
       overflow: hidden;
       // Add padding at bottom for the fixed input
       padding-bottom: 80px !important;
+      // Override collapsed state - content should always be visible in terminal view
+      transform: none !important;
+      opacity: 1 !important;
+      pointer-events: auto !important;
     }
 
     // Output area takes remaining space
@@ -341,20 +359,16 @@ $breakpoint-small: 480px;
     backdrop-filter: blur(2px);
   }
 
-  // Hide sidebar elements when terminal is open
+  // Hide sidebar toggle button when terminal is open (we use FAB menu instead)
   .app.terminal-open {
     .sidebar-toggle-btn {
       display: none;
     }
-
-    .sidebar-overlay {
-      display: none;
-    }
-
-    .sidebar {
-      display: none;
-    }
   }
+
+  // Sidebar is hidden by default on mobile (slides in from right)
+  // The transform: translateX(100%) handles this, not display: none
+  // This allows the sidebar-open class to slide it in
 
   // Sidebar becomes slide-out panel from right
   .sidebar {
@@ -374,6 +388,33 @@ $breakpoint-small: 480px;
 
     &.sidebar-open {
       transform: translateX(0);
+    }
+  }
+
+  // Mobile sidebar close button
+  .sidebar-close-btn {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 10;
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba($dracula-red, 0.15);
+    border: 1px solid rgba($dracula-red, 0.4);
+    border-radius: 50%;
+    color: $dracula-red;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+
+    &:active {
+      background: rgba($dracula-red, 0.3);
+      transform: scale(0.9);
     }
   }
 
@@ -401,6 +442,7 @@ $breakpoint-small: 480px;
   }
 
   // Guake content fills available space
+  // Override .collapsed class transforms that hide content
   .guake-content {
     flex: 1;
     border-bottom: none;
@@ -411,6 +453,7 @@ $breakpoint-small: 480px;
     min-height: 0;
     transform: none !important;
     opacity: 1 !important;
+    pointer-events: auto !important;
   }
 
   // Ensure output area scrolls properly - this is what should scroll, not guake-content

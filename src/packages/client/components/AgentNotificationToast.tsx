@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect, use
 import { store } from '../store';
 import type { AgentNotification, AgentClass } from '../../shared/types';
 import { BUILT_IN_AGENT_CLASSES } from '../../shared/types';
+import { showNotification } from '../utils/notifications';
 
 interface AgentNotificationContextType {
   showAgentNotification: (notification: AgentNotification) => void;
@@ -54,6 +55,7 @@ export function AgentNotificationProvider({ children }: { children: React.ReactN
   }, []);
 
   const showAgentNotification = useCallback((notification: AgentNotification) => {
+    // Show in-app toast notification
     setNotifications((prev) => {
       // Limit to max visible, remove oldest if needed
       const newList = [...prev, notification];
@@ -75,6 +77,18 @@ export function AgentNotificationProvider({ children }: { children: React.ReactN
       removeNotification(notification.id);
     }, 8000);
     timeoutRefs.current.set(notification.id, timeout);
+
+    // Also send native notification (Android/browser)
+    // This works in background and shows in notification shade
+    showNotification({
+      title: `${notification.agentName}: ${notification.title}`,
+      body: notification.message,
+      data: {
+        type: 'agent_notification',
+        agentId: notification.agentId,
+        notificationId: notification.id,
+      },
+    });
   }, [removeNotification]);
 
   const handleNotificationClick = useCallback((notification: AgentNotification) => {
