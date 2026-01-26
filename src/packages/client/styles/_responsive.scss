@@ -1382,6 +1382,194 @@ $breakpoint-small: 480px;
 }
 
 // =============================================================================
+// Mobile Swipe Animation for Terminal Agent Switching
+// =============================================================================
+
+// Swipe container wraps the content that animates during swipe
+.guake-swipe-container {
+  display: contents; // Don't affect layout, just pass through styles to children
+}
+
+@media (max-width: $breakpoint-mobile) {
+  // Swipe animation container for guake content
+  .guake-swipe-container {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    // Default state - no transform
+    transform: translateX(0);
+    transition: none;
+    will-change: transform, opacity;
+
+    // When swiping (controlled via inline style)
+    &.is-swiping {
+      // During active swipe - no transition, follows finger
+      transition: none;
+    }
+
+    // When swipe is cancelled or completed - animate back/out (very fast)
+    &.is-animating {
+      transition: transform 0.1s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                  opacity 0.1s ease-out;
+    }
+
+    // Swipe out animation when switching agents
+    &.swipe-out-left {
+      transform: translateX(-100%);
+      opacity: 0;
+    }
+
+    &.swipe-out-right {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+
+    // Swipe in animation for new agent content (very fast)
+    &.swipe-in-left {
+      animation: swipeInFromRight 0.12s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+    }
+
+    &.swipe-in-right {
+      animation: swipeInFromLeft 0.12s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+    }
+  }
+
+  // Keyframes for swipe-in animations (shorter distance for snappier feel)
+  @keyframes swipeInFromRight {
+    from {
+      transform: translateX(20%);
+      opacity: 0.7;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes swipeInFromLeft {
+    from {
+      transform: translateX(-20%);
+      opacity: 0.7;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  // Agent navigation indicator during swipe
+  .swipe-indicator {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    padding: 8px 12px;
+    background: rgba($dracula-bg, 0.95);
+    border: 1px solid $dracula-purple;
+    border-radius: $radius-md;
+    color: $dracula-fg;
+    font-size: 12px;
+    font-family: $font-mono;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    z-index: 300;
+    white-space: nowrap;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+
+    &.left {
+      left: 12px;
+    }
+
+    &.right {
+      right: 12px;
+    }
+
+    &.visible {
+      opacity: 1;
+    }
+
+    .indicator-icon {
+      margin-right: 6px;
+    }
+
+    .indicator-name {
+      color: $dracula-cyan;
+      font-weight: 600;
+    }
+  }
+
+  // Swipe hint dots (shows position in agent list)
+  .swipe-dots {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 0;
+    position: absolute;
+    bottom: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 50;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+
+    &.visible {
+      opacity: 1;
+    }
+
+    .swipe-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: rgba($dracula-comment, 0.4);
+      transition: all 0.2s ease;
+
+      &.active {
+        background: $dracula-cyan;
+        transform: scale(1.3);
+        box-shadow: 0 0 8px rgba($dracula-cyan, 0.5);
+      }
+    }
+  }
+
+  // Header with multiple agents shows swipe affordance
+  .guake-header.has-multiple-agents {
+    // Subtle gradient hints at edges to indicate swipeable
+    &::before,
+    &::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 20px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    &::before {
+      left: 0;
+      background: linear-gradient(90deg, rgba($dracula-cyan, 0.15) 0%, transparent 100%);
+    }
+
+    &::after {
+      right: 0;
+      background: linear-gradient(-90deg, rgba($dracula-cyan, 0.15) 0%, transparent 100%);
+    }
+
+    // Show hints when swiping
+    &.swiping-left::after,
+    &.swiping-right::before {
+      opacity: 1;
+    }
+  }
+}
+
+// =============================================================================
 // Small Mobile Styles (up to 480px)
 // =============================================================================
 

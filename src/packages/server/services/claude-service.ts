@@ -558,9 +558,13 @@ function checkForOrphanedProcess(agentId: string): boolean {
  * 1. If we're tracking the process -> trust the current status
  * 2. If agent shows 'working' but no tracked process AND session is not active -> set to idle
  * 3. If agent shows 'idle' but session is RECENTLY active (< 30s) with pending work -> set to working
- *    (This handles server restart while Claude was processing)
+ *    (This handles server restart while Claude was processing - ONLY during startup sync)
+ *
+ * @param agentId - The agent ID to sync
+ * @param isStartupSync - If true, apply full recovery logic including reviving idle agents.
+ *                        If false (periodic sync), only set stale working agents to idle.
  */
-export async function syncAgentStatus(agentId: string): Promise<void> {
+export async function syncAgentStatus(agentId: string, isStartupSync: boolean = false): Promise<void> {
   const agent = agentService.getAgent(agentId);
   if (!agent) return;
 
@@ -583,6 +587,7 @@ export async function syncAgentStatus(agentId: string): Promise<void> {
   }
 
   // Case 1: Agent shows 'working' but no tracked process and not recently active -> set to idle
+  // This applies during both startup and periodic syncs
   if (agent.status === 'working' && !isRecentlyActive) {
     agentService.updateAgent(agentId, {
       status: 'idle',
@@ -591,7 +596,9 @@ export async function syncAgentStatus(agentId: string): Promise<void> {
     });
   }
   // Case 2: Agent shows 'idle' but session is recently active with pending work -> set to working
-  else if (agent.status === 'idle' && isRecentlyActive) {
+  // ONLY applies during startup sync to recover agents that were working before server restart
+  // During periodic sync, we trust the idle status set by handleComplete
+  else if (isStartupSync && agent.status === 'idle' && isRecentlyActive) {
     agentService.updateAgent(agentId, {
       status: 'working',
       currentTask: 'Processing...',
@@ -601,10 +608,12 @@ export async function syncAgentStatus(agentId: string): Promise<void> {
 
 /**
  * Sync all agents' status with actual process state and session activity
+ * @param isStartupSync - If true, apply full recovery logic including reviving idle agents.
+ *                        If false (default, periodic sync), only set stale working agents to idle.
  */
-export async function syncAllAgentStatus(): Promise<void> {
+export async function syncAllAgentStatus(isStartupSync: boolean = false): Promise<void> {
   const agents = agentService.getAllAgents();
-  await Promise.all(agents.map(agent => syncAgentStatus(agent.id)));
+  await Promise.all(agents.map(agent => syncAgentStatus(agent.id, isStartupSync)));
 }
 
 /**

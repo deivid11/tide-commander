@@ -25,6 +25,7 @@
     "@capacitor/android": "^8.0.1",
     "@capacitor/cli": "^7.4.5",
     "@capacitor/core": "^8.0.1",
+    "@capacitor/haptics": "^8.0.0",
     "@capacitor/local-notifications": "^8.0.0",
     "@capawesome/capacitor-background-task": "^8.0.0",
     "chokidar": "^4.0.0",

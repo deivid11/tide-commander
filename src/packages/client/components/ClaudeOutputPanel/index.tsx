@@ -18,6 +18,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
   useAgents,
+  useAgent,
   useSelectedAgentIds,
   useTerminalOpen,
   useLastPrompts,
@@ -164,7 +165,8 @@ export function ClaudeOutputPanel() {
   const selectedAgentIdsArray = Array.from(selectedAgentIds);
   const isSingleSelection = selectedAgentIdsArray.length === 1;
   const selectedAgentId = isSingleSelection ? selectedAgentIdsArray[0] : null;
-  const selectedAgent = selectedAgentId ? agents.get(selectedAgentId) : null;
+  // Use useAgent hook to ensure re-render on agent status changes (fixes animation sync issue)
+  const selectedAgent = useAgent(selectedAgentId) || null;
 
   // Use the reactive hook for outputs
   const outputs = useAgentOutputs(selectedAgentId);
@@ -302,6 +304,23 @@ export function ClaudeOutputPanel() {
     return groupArray.flatMap((group) => group.agents);
   }, [agents, areas]);
 
+  // Swipe animation state
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const [swipeAnimationClass, setSwipeAnimationClass] = useState('');
+  const swipeAnimationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Get current agent index for swipe indicators
+  const currentAgentIndex = selectedAgentId
+    ? sortedAgents.findIndex((a) => a.id === selectedAgentId)
+    : -1;
+
+  // Get next/previous agent names for indicators
+  const prevAgent = currentAgentIndex > 0 ? sortedAgents[currentAgentIndex - 1] : sortedAgents[sortedAgents.length - 1];
+  const nextAgent = currentAgentIndex < sortedAgents.length - 1 ? sortedAgents[currentAgentIndex + 1] : sortedAgents[0];
+
+  // Track pending swipe direction for animation after agent switch
+  const [pendingSwipeDirection, setPendingSwipeDirection] = useState<'left' | 'right' | null>(null);
+
   // Swipe gesture handlers for mobile agent navigation
   const handleSwipeLeft = useCallback(() => {
     // Swipe left (right-to-left) → go to next agent
@@ -309,6 +328,12 @@ export function ClaudeOutputPanel() {
     const currentIndex = sortedAgents.findIndex((a) => a.id === selectedAgentId);
     if (currentIndex === -1) return;
     const nextIndex = (currentIndex + 1) % sortedAgents.length;
+
+    // Set pending direction and switch agent immediately
+    // The swipe-in animation will play after content loads
+    setPendingSwipeDirection('left');
+    setSwipeOffset(0);
+    setSwipeAnimationClass('');
     store.selectAgent(sortedAgents[nextIndex].id);
   }, [selectedAgentId, sortedAgents]);
 
@@ -318,8 +343,58 @@ export function ClaudeOutputPanel() {
     const currentIndex = sortedAgents.findIndex((a) => a.id === selectedAgentId);
     if (currentIndex === -1) return;
     const prevIndex = (currentIndex - 1 + sortedAgents.length) % sortedAgents.length;
+
+    // Set pending direction and switch agent immediately
+    // The swipe-in animation will play after content loads
+    setPendingSwipeDirection('right');
+    setSwipeOffset(0);
+    setSwipeAnimationClass('');
     store.selectAgent(sortedAgents[prevIndex].id);
   }, [selectedAgentId, sortedAgents]);
+
+  // Handle swipe movement for visual feedback
+  const handleSwipeMove = useCallback((offset: number) => {
+    setSwipeOffset(offset);
+    setSwipeAnimationClass('is-swiping');
+  }, []);
+
+  // Handle swipe cancel - animate back to center (very fast)
+  const handleSwipeCancel = useCallback(() => {
+    setSwipeAnimationClass('is-animating');
+    setSwipeOffset(0);
+    if (swipeAnimationTimeoutRef.current) {
+      clearTimeout(swipeAnimationTimeoutRef.current);
+    }
+    swipeAnimationTimeoutRef.current = setTimeout(() => {
+      setSwipeAnimationClass('');
+    }, 100);
+  }, []);
+
+  // Trigger swipe-in animation after history finishes loading (when agent switches via swipe)
+  useEffect(() => {
+    if (!pendingSwipeDirection || loadingHistory) return;
+
+    // History loaded, now play the swipe-in animation
+    const direction = pendingSwipeDirection;
+    setPendingSwipeDirection(null);
+
+    // Use RAF to ensure DOM is ready
+    requestAnimationFrame(() => {
+      setSwipeAnimationClass(direction === 'left' ? 'swipe-in-left' : 'swipe-in-right');
+      swipeAnimationTimeoutRef.current = setTimeout(() => {
+        setSwipeAnimationClass('');
+      }, 120);
+    });
+  }, [pendingSwipeDirection, loadingHistory]);
+
+  // Cleanup animation timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (swipeAnimationTimeoutRef.current) {
+        clearTimeout(swipeAnimationTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Attach swipe gesture to the guake header for agent navigation on mobile
   const headerRef = useRef<HTMLDivElement>(null);
@@ -327,8 +402,10 @@ export function ClaudeOutputPanel() {
     enabled: isOpen && sortedAgents.length > 1,
     onSwipeLeft: handleSwipeLeft,
     onSwipeRight: handleSwipeRight,
-    threshold: 60, // Slightly lower threshold for easier swiping on header
-    maxVerticalMovement: 40,
+    onSwipeMove: handleSwipeMove,
+    onSwipeCancel: handleSwipeCancel,
+    threshold: 40, // Low threshold for quick swipes on header
+    maxVerticalMovement: 50,
   });
 
   // Also attach swipe gesture to the output/messages area for agent navigation
@@ -336,8 +413,10 @@ export function ClaudeOutputPanel() {
     enabled: isOpen && sortedAgents.length > 1,
     onSwipeLeft: handleSwipeLeft,
     onSwipeRight: handleSwipeRight,
-    threshold: 80, // Higher threshold to avoid interference with vertical scrolling
-    maxVerticalMovement: 30, // Stricter vertical limit since this area scrolls
+    onSwipeMove: handleSwipeMove,
+    onSwipeCancel: handleSwipeCancel,
+    threshold: 50, // Moderate threshold for output area
+    maxVerticalMovement: 35,
   });
 
   // Keyboard shortcuts for agent navigation (Alt+J / Alt+K)
@@ -1314,7 +1393,7 @@ export function ClaudeOutputPanel() {
       )}
 
       <div className="guake-content">
-        <div className={`guake-header ${sortedAgents.length > 1 ? 'has-multiple-agents' : ''}`} ref={headerRef}>
+        <div className={`guake-header ${sortedAgents.length > 1 ? 'has-multiple-agents' : ''} ${swipeOffset > 0.1 ? 'swiping-right' : ''} ${swipeOffset < -0.1 ? 'swiping-left' : ''}`} ref={headerRef}>
           <div className="guake-header-left">
             {selectedAgent.status === 'working' && (
               <span className="guake-working-indicator">
@@ -1488,6 +1567,37 @@ export function ClaudeOutputPanel() {
           </div>
         )}
 
+        {/* Swipe container for mobile animation */}
+        <div
+          className={`guake-swipe-container ${swipeAnimationClass}`}
+          style={swipeOffset !== 0 ? { transform: `translateX(${swipeOffset * 40}%)` } : undefined}
+        >
+          {/* Swipe indicators showing next/prev agent */}
+          {sortedAgents.length > 1 && swipeOffset !== 0 && (
+            <>
+              <div className={`swipe-indicator left ${swipeOffset > 0.3 ? 'visible' : ''}`}>
+                <span className="indicator-icon">←</span>
+                <span className="indicator-name">{prevAgent?.name}</span>
+              </div>
+              <div className={`swipe-indicator right ${swipeOffset < -0.3 ? 'visible' : ''}`}>
+                <span className="indicator-name">{nextAgent?.name}</span>
+                <span className="indicator-icon">→</span>
+              </div>
+            </>
+          )}
+
+          {/* Swipe dots showing position in agent list */}
+          {sortedAgents.length > 1 && sortedAgents.length <= 8 && swipeOffset !== 0 && (
+            <div className={`swipe-dots ${Math.abs(swipeOffset) > 0.1 ? 'visible' : ''}`}>
+              {sortedAgents.map((agent, index) => (
+                <div
+                  key={agent.id}
+                  className={`swipe-dot ${index === currentAgentIndex ? 'active' : ''}`}
+                />
+              ))}
+            </div>
+          )}
+
         <div className="guake-output" ref={outputRef} onScroll={handleScroll}>
           {searchMode && searchResults.length > 0 ? (
             <>
@@ -1573,6 +1683,7 @@ export function ClaudeOutputPanel() {
             </>
           )}
         </div>
+        </div>{/* End swipe container */}
 
         {/* Permission requests bar */}
         {pendingPermissions.length > 0 && (
