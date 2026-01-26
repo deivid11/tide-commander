@@ -50,7 +50,7 @@ const JUMP_BOUNCE = {
 export class MovementAnimator {
   private movements = new Map<string, MovementState>();
   private clock = new THREE.Clock();
-  private jumpingAgents = new Set<string>(); // Track agents playing jump animation
+  private jumpingAgents = new Map<string, number>(); // Track agents playing jump animation -> base Y position
   private animatingAgents = new Set<string>(); // Track agents with active mixer animations
 
   /**
@@ -175,8 +175,15 @@ export class MovementAnimator {
     const clip = meshData.animations.get(animationName);
     if (!clip) {
       console.warn(`[MovementAnimator] Animation not found: ${animationName}, available:`, Array.from(meshData.animations.keys()));
-      // Stop jump bounce if switching to non-existent animation
+      // Stop jump bounce if switching to non-existent animation and reset Y position
+      const baseY = this.jumpingAgents.get(agentId);
       this.jumpingAgents.delete(agentId);
+      if (baseY !== undefined) {
+        const characterBody = meshData.group.getObjectByName('characterBody');
+        if (characterBody) {
+          characterBody.position.y = baseY;
+        }
+      }
       return;
     }
     console.log(`[MovementAnimator] Playing: ${animationName}`);
@@ -207,19 +214,28 @@ export class MovementAnimator {
 
     // Track jump animation for bounce effect
     if (animationName === ANIMATIONS.JUMP && loop) {
-      this.jumpingAgents.add(agentId);
+      // Only set baseY if not already bouncing (to avoid capturing mid-bounce Y position)
+      if (!this.jumpingAgents.has(agentId)) {
+        const characterBody = meshData.group.getObjectByName('characterBody');
+        const baseY = characterBody?.position.y ?? 0;
+        this.jumpingAgents.set(agentId, baseY);
+      }
     } else {
-      this.jumpingAgents.delete(agentId);
       // Reset character body Y position when stopping jump
-      const characterBody = meshData.group.getObjectByName('characterBody');
-      if (characterBody) {
-        characterBody.position.y = 0;
+      const baseY = this.jumpingAgents.get(agentId);
+      this.jumpingAgents.delete(agentId);
+      if (baseY !== undefined) {
+        const characterBody = meshData.group.getObjectByName('characterBody');
+        if (characterBody) {
+          characterBody.position.y = baseY;
+        }
       }
     }
   }
 
   /**
    * Stop animation for an agent (removes from active tracking).
+   * Note: Does not reset characterBody Y position - caller should handle that if needed.
    */
   stopAnimation(agentId: string): void {
     this.animatingAgents.delete(agentId);
@@ -262,15 +278,16 @@ export class MovementAnimator {
     }
 
     // Apply jump bounce effect to jumping agents
-    for (const agentId of this.jumpingAgents) {
+    for (const [agentId, baseY] of this.jumpingAgents) {
       const meshData = agentMeshes.get(agentId);
       if (!meshData) continue;
 
       const characterBody = meshData.group.getObjectByName('characterBody');
       if (characterBody) {
         // Use absolute sine wave for bounce (always positive, 0 to height)
-        const bounceY = Math.abs(Math.sin(now * 0.001 * JUMP_BOUNCE.speed * Math.PI * 2)) * JUMP_BOUNCE.height;
-        characterBody.position.y = bounceY;
+        // Add bounce on top of the base Y position to preserve any model offset
+        const bounceOffset = Math.abs(Math.sin(now * 0.001 * JUMP_BOUNCE.speed * Math.PI * 2)) * JUMP_BOUNCE.height;
+        characterBody.position.y = baseY + bounceOffset;
       }
     }
 
@@ -356,5 +373,6 @@ export class MovementAnimator {
   clear(): void {
     this.movements.clear();
     this.jumpingAgents.clear();
+    this.animatingAgents.clear();
   }
 }

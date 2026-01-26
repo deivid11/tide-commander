@@ -571,10 +571,15 @@ export class SceneManager {
     const isOneShot = oneShotAnimations.includes(animation) ||
       (animation === ANIMATIONS.JUMP && !isConfiguredAnimation);
 
-    // Don't replay one-shot animations if already playing/finished
+    // Don't replay animations that are already playing (case-insensitive comparison)
+    const animationLower = animation.toLowerCase();
+    const isAlreadyPlaying = currentClipName === animation || currentClipName === animationLower;
+
+    // For one-shot animations, only play if not already playing
+    // For looping animations (idle/working), play if different or no current action
     const shouldPlay = isOneShot
-      ? currentClipName !== animation && currentClipName !== animation.toLowerCase()
-      : agent.status === 'idle' || (currentClipName !== animation && currentClipName !== animation.toLowerCase());
+      ? !isAlreadyPlaying
+      : !isAlreadyPlaying || !meshData.currentAction;
 
     if (shouldPlay) {
       const options = agent.status === 'working'
@@ -828,7 +833,9 @@ export class SceneManager {
   callSubordinates(bossId: string): void {
     const state = store.getState();
     const boss = state.agents.get(bossId);
-    if (!boss || boss.class !== 'boss' || !boss.subordinateIds?.length) return;
+    // Check both isBoss property and class === 'boss' for backward compatibility
+    const isBoss = boss?.isBoss === true || boss?.class === 'boss';
+    if (!boss || !isBoss || !boss.subordinateIds?.length) return;
 
     const bossPosition = new THREE.Vector3(boss.position.x, boss.position.y, boss.position.z);
 

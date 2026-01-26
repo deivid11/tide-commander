@@ -26,6 +26,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
   const [permissionMode, setPermissionMode] = useState<PermissionMode>(agent.permissionMode);
   const [selectedModel, setSelectedModel] = useState<ClaudeModel>(agent.model || 'sonnet');
   const [useChrome, setUseChrome] = useState<boolean>(agent.useChrome || false);
+  const [workdir, setWorkdir] = useState<string>(agent.cwd);
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set());
 
   // Get skills currently assigned to this agent
@@ -53,6 +54,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
       setPermissionMode(agent.permissionMode);
       setSelectedModel(agent.model || 'sonnet');
       setUseChrome(agent.useChrome || false);
+      setWorkdir(agent.cwd);
       const directlyAssigned = allSkills
         .filter(s => s.assignedAgentIds.includes(agent.id))
         .map(s => s.id);
@@ -124,6 +126,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
     if (permissionMode !== agent.permissionMode) return true;
     if (selectedModel !== (agent.model || 'sonnet')) return true;
     if (useChrome !== (agent.useChrome || false)) return true;
+    if (workdir !== agent.cwd) return true;
 
     // Check skill changes
     const currentDirectSkills = allSkills
@@ -135,7 +138,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
     if (currentDirectSkills !== newSkills) return true;
 
     return false;
-  }, [selectedClass, permissionMode, selectedModel, useChrome, selectedSkillIds, agent, allSkills]);
+  }, [selectedClass, permissionMode, selectedModel, useChrome, workdir, selectedSkillIds, agent, allSkills]);
 
   // Handle save
   const handleSave = () => {
@@ -145,6 +148,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
       model?: ClaudeModel;
       useChrome?: boolean;
       skillIds?: string[];
+      cwd?: string;
     } = {};
 
     if (selectedClass !== agent.class) {
@@ -161,6 +165,10 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
 
     if (useChrome !== (agent.useChrome || false)) {
       updates.useChrome = useChrome;
+    }
+
+    if (workdir !== agent.cwd) {
+      updates.cwd = workdir;
     }
 
     // Always send skill IDs if changed
@@ -303,6 +311,27 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                 <span>🌐 Chrome Browser</span>
               </label>
             </div>
+
+            {/* Row 3: Working Directory */}
+            <div className="spawn-form-row">
+              <div className="spawn-field">
+                <label className="spawn-label">Working Directory</label>
+                <input
+                  type="text"
+                  className="spawn-input"
+                  value={workdir}
+                  onChange={(e) => setWorkdir(e.target.value)}
+                  placeholder="/path/to/directory"
+                />
+              </div>
+            </div>
+
+            {/* Workdir change notice */}
+            {workdir !== agent.cwd && (
+              <div className="model-change-notice warning">
+                New session will start - context cannot be preserved across directory changes
+              </div>
+            )}
 
             {/* Skills section */}
             <div className="spawn-skills-section">

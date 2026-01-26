@@ -286,6 +286,7 @@ export async function handleUpdateAgentProperties(
       model?: string;
       useChrome?: boolean;
       skillIds?: string[];
+      cwd?: string;
     };
   }
 ): Promise<void> {
@@ -303,6 +304,9 @@ export async function handleUpdateAgentProperties(
 
   // Track if Chrome flag changed (requires hot restart to add/remove --chrome flag)
   const useChromeChanged = updates.useChrome !== undefined && updates.useChrome !== agent.useChrome;
+
+  // Track if cwd changed (requires hot restart to change working directory)
+  const cwdChanged = updates.cwd !== undefined && updates.cwd !== agent.cwd;
 
   // Track if skills changed (requires hot restart to apply new skills in system prompt)
   let skillsChanged = false;
@@ -333,6 +337,15 @@ export async function handleUpdateAgentProperties(
 
   if (updates.useChrome !== undefined) {
     agentUpdates.useChrome = updates.useChrome;
+  }
+
+  if (updates.cwd !== undefined) {
+    // Validate directory exists
+    if (!fs.existsSync(updates.cwd)) {
+      ctx.sendError(`Directory does not exist: ${updates.cwd}`);
+      return;
+    }
+    agentUpdates.cwd = updates.cwd;
   }
 
   // Apply agent property updates if any
@@ -395,6 +408,34 @@ export async function handleUpdateAgentProperties(
     log.log(`Agent ${agent.name}: Chrome ${chromeStatus}, will apply on next session start`);
   }
 
+  // If cwd changed, stop the process and clear the session
+  // Unlike model/chrome changes, cwd changes cannot preserve context because
+  // Claude sessions are tied to the directory they were created in
+  if (cwdChanged && sessionId) {
+    log.log(`Agent ${agent.name}: Working directory changed to ${updates.cwd}, clearing session (cwd change requires new session)`);
+    try {
+      // Stop the current Claude process
+      await claudeService.stopAgent(agentId);
+
+      // Mark as idle and CLEAR sessionId - cwd changes require a fresh session
+      agentService.updateAgent(agentId, {
+        status: 'idle',
+        currentTask: undefined,
+        currentTool: undefined,
+        sessionId: undefined, // Clear session - can't resume in different directory
+        tokensUsed: 0,
+        contextUsed: 0,
+      }, false);
+
+      ctx.sendActivity(agentId, `Working directory changed - new session will start on next command`);
+    } catch (err) {
+      log.error(`Failed to stop agent ${agent.name} after cwd change:`, err);
+    }
+  } else if (cwdChanged && !sessionId) {
+    // No existing session, cwd will apply on next start
+    log.log(`Agent ${agent.name}: Working directory changed to ${updates.cwd}, will apply on next session start`);
+  }
+
   // Handle skill reassignment
   if (updates.skillIds !== undefined) {
     // First, unassign all current skills from this agent
@@ -411,9 +452,9 @@ export async function handleUpdateAgentProperties(
       skillService.assignSkillToAgent(skillId, agentId);
     }
 
-    // If skills changed and we didn't already hot restart for model/chrome change, do it now
+    // If skills changed and we didn't already hot restart for model/chrome/cwd change, do it now
     // Skills are injected into the system prompt, so we need to restart to apply them
-    if (skillsChanged && !modelChanged && !useChromeChanged && sessionId) {
+    if (skillsChanged && !modelChanged && !useChromeChanged && !cwdChanged && sessionId) {
       log.log(`Agent ${agent.name}: Skills changed, hot restarting with --resume to apply new system prompt`);
       try {
         // Stop the current Claude process

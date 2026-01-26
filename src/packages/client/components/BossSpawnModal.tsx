@@ -40,6 +40,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
   const [permissionMode, setPermissionMode] = useState<PermissionMode>('bypass');
   const [selectedModel, setSelectedModel] = useState<ClaudeModel>('haiku');
   const [selectedSubordinates, setSelectedSubordinates] = useState<Set<string>>(new Set());
+  const [classSearch, setClassSearch] = useState('');
   const nameInputRef = useRef<HTMLInputElement>(null);
   const hasInitializedRef = useRef(false);
 
@@ -82,12 +83,61 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
     (agent) => !agent.isBoss && agent.class !== 'boss' && !agent.bossId
   );
 
+  // Filter classes by search query
+  const filteredCustomClasses = useMemo(() => {
+    if (!classSearch.trim()) return customClasses;
+    const query = classSearch.toLowerCase();
+    return customClasses.filter(c =>
+      c.name.toLowerCase().includes(query) ||
+      c.description.toLowerCase().includes(query) ||
+      c.id.toLowerCase().includes(query)
+    );
+  }, [customClasses, classSearch]);
+
+  // Filter built-in classes by search query
+  const filteredBuiltInClasses = useMemo(() => {
+    if (!classSearch.trim()) return CHARACTER_MODELS;
+    const query = classSearch.toLowerCase();
+    return CHARACTER_MODELS.filter(char => {
+      const config = AGENT_CLASS_CONFIG[char.id];
+      if (!config) return false;
+      return (
+        char.name.toLowerCase().includes(query) ||
+        char.id.toLowerCase().includes(query) ||
+        config.description.toLowerCase().includes(query)
+      );
+    });
+  }, [classSearch]);
+
+  // Check if "boss" class matches the search
+  const showBossClass = useMemo(() => {
+    if (!classSearch.trim()) return true;
+    const query = classSearch.toLowerCase();
+    const bossConfig = AGENT_CLASSES.boss;
+    return (
+      'boss'.includes(query) ||
+      bossConfig.description.toLowerCase().includes(query)
+    );
+  }, [classSearch]);
+
   // Generate a new name when modal opens (only once per open)
   useEffect(() => {
     if (isOpen && !hasInitializedRef.current) {
       hasInitializedRef.current = true;
       const usedNames = new Set(Array.from(agents.values()).map((a) => a.name));
-      setName(getRandomBossName(usedNames));
+      // If a custom class is selected, prefix with class name instead of "Boss"
+      const customClass = customClasses.find(c => c.id === selectedClass);
+      if (customClass) {
+        const availableNames = DEFAULT_NAMES.filter((n) => !usedNames.has(`${customClass.name} ${n}`));
+        if (availableNames.length === 0) {
+          const baseName = DEFAULT_NAMES[Math.floor(Math.random() * DEFAULT_NAMES.length)];
+          setName(`${customClass.name} ${baseName}-${Date.now() % 1000}`);
+        } else {
+          setName(`${customClass.name} ${availableNames[Math.floor(Math.random() * availableNames.length)]}`);
+        }
+      } else {
+        setName(getRandomBossName(usedNames));
+      }
       setSelectedSubordinates(new Set());
       if (nameInputRef.current) {
         nameInputRef.current.focus();
@@ -98,6 +148,37 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
       hasInitializedRef.current = false;
     }
   }, [isOpen, agents]);
+
+  // Update name prefix when custom class changes
+  useEffect(() => {
+    if (!isOpen) return;
+    const customClass = customClasses.find(c => c.id === selectedClass);
+
+    if (customClass) {
+      // Check if current name has "Boss " prefix or another custom class prefix
+      if (name.startsWith('Boss ')) {
+        const baseName = name.substring(5); // Remove "Boss "
+        setName(`${customClass.name} ${baseName}`);
+      } else {
+        const existingPrefix = customClasses.find(c => name.startsWith(c.name + ' '));
+        if (existingPrefix) {
+          const baseName = name.substring(existingPrefix.name.length + 1);
+          setName(`${customClass.name} ${baseName}`);
+        } else {
+          setName(`${customClass.name} ${name}`);
+        }
+      }
+    } else {
+      // Switching to a built-in class (boss) - use "Boss " prefix
+      const existingPrefix = customClasses.find(c => name.startsWith(c.name + ' '));
+      if (existingPrefix) {
+        const baseName = name.substring(existingPrefix.name.length + 1);
+        setName(`Boss ${baseName}`);
+      } else if (!name.startsWith('Boss ')) {
+        setName(`Boss ${name}`);
+      }
+    }
+  }, [selectedClass]);
 
   const handleSpawn = () => {
     setHasError(false);
@@ -211,8 +292,17 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
             </div>
             <div className="spawn-class-section">
               <div className="spawn-class-label">Boss Class</div>
+              {(customClasses.length + CHARACTER_MODELS.length + 1) > 6 && (
+                <input
+                  type="text"
+                  className="spawn-input class-search-input"
+                  placeholder="Filter classes..."
+                  value={classSearch}
+                  onChange={(e) => setClassSearch(e.target.value)}
+                />
+              )}
               <div className="class-selector-inline">
-                {customClasses.map((customClass) => (
+                {filteredCustomClasses.map((customClass) => (
                   <button
                     key={customClass.id}
                     className={`class-chip ${selectedClass === customClass.id ? 'selected' : ''}`}
@@ -223,15 +313,17 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                     <span className="class-chip-name">{customClass.name}</span>
                   </button>
                 ))}
-                <button
-                  className={`class-chip ${selectedClass === 'boss' ? 'selected' : ''}`}
-                  onClick={() => setSelectedClass('boss')}
-                  title={bossConfig.description}
-                >
-                  <span className="class-chip-icon">{bossConfig.icon}</span>
-                  <span className="class-chip-name">Boss</span>
-                </button>
-                {CHARACTER_MODELS.map((char) => {
+                {showBossClass && (
+                  <button
+                    className={`class-chip ${selectedClass === 'boss' ? 'selected' : ''}`}
+                    onClick={() => setSelectedClass('boss')}
+                    title={bossConfig.description}
+                  >
+                    <span className="class-chip-icon">{bossConfig.icon}</span>
+                    <span className="class-chip-name">Boss</span>
+                  </button>
+                )}
+                {filteredBuiltInClasses.map((char) => {
                   const config = AGENT_CLASS_CONFIG[char.id];
                   if (!config) return null;
                   return (
@@ -246,6 +338,9 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                     </button>
                   );
                 })}
+                {classSearch && filteredCustomClasses.length === 0 && !showBossClass && filteredBuiltInClasses.length === 0 && (
+                  <div className="class-search-empty">No classes match "{classSearch}"</div>
+                )}
               </div>
             </div>
           </div>
