@@ -513,6 +513,13 @@ export class InputHandler {
     if (event.button === 0) {
       this.controls.mouseButtons.LEFT = null as unknown as THREE.MOUSE;
 
+      // Skip click handling for touch events - they're handled by handleTouchTap
+      // This prevents the synthetic pointer events from touch from double-processing
+      if (event.pointerType === 'touch') {
+        this.pointerDownOnCanvas = false;
+        return;
+      }
+
       if (this.isResizing) {
         this.callbacks.onResizeEnd?.();
         this.isResizing = false;

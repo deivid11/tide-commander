@@ -39,12 +39,13 @@ let wsConnected = false;
 // Track if page is actually unloading (not HMR)
 let isPageUnloading = false;
 
-// Back navigation - store setter on window so it survives HMR/remounts
+// Window extensions for HMR and back navigation
 declare global {
   interface Window {
     __tideSetBackNavModal?: (show: boolean) => void;
     __tideBackNavSetup?: boolean;
     __tideHistoryDepth?: number;
+    __tideAppInitialized?: boolean; // Track if app has been initialized (survives HMR)
   }
 }
 
@@ -95,7 +96,19 @@ const WEBGL_SESSION_KEY = 'tide_webgl_active';
 if (typeof window !== 'undefined') {
   // ON PAGE LOAD: Clean up any stale scene references from previous sessions
   // This handles the case where bfcache or reload preserved old memory
+  // IMPORTANT: Skip this cleanup during Vite HMR - the scene is still valid!
   (function cleanupStaleContexts() {
+    // Detect if this is an HMR reload vs a full page load
+    // Use a window flag that persists across HMR but resets on full page load
+    // If the flag exists, this is HMR and we should skip cleanup
+    if (window.__tideAppInitialized) {
+      console.log('[App] HMR detected - skipping cleanup to preserve existing scene');
+      return; // Don't clean up during HMR!
+    }
+
+    // Mark that the app has been initialized (will persist through HMR)
+    window.__tideAppInitialized = true;
+
     // Check if previous session didn't clean up properly (refresh without beforeunload)
     const hadActiveContext = sessionStorage.getItem(WEBGL_SESSION_KEY) === 'true';
     if (hadActiveContext) {
@@ -1133,7 +1146,7 @@ function AppContent() {
   return (
     <div className={`app ${state.terminalOpen ? 'terminal-open' : ''} ${isDrawingMode ? 'drawing-mode' : ''} mobile-view-${mobileView}`}>
       {/* FPS Meter */}
-      <FPSMeter visible={state.settings.showFPS} position="top-left" />
+      <FPSMeter visible={state.settings.showFPS} position="bottom-right" />
 
       <main className="main-content">
         <div className="battlefield-container">
