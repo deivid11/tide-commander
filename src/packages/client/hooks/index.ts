@@ -21,6 +21,7 @@ export {
   registerModal,
 } from './useModalStack';
 export { useSwipeGesture, type SwipeGestureOptions } from './useSwipeGesture';
+export { useDocumentPiP, isDocumentPiPSupported, type DocumentPiPState, type DocumentPiPOptions } from './useDocumentPiP';
 
 // Scene management hooks
 export { useSceneSetup } from './useSceneSetup';

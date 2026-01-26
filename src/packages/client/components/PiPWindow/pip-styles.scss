@@ -1,0 +1,1188 @@
+/**
+ * PiP Window Styles
+ * Styles for Document Picture-in-Picture window content
+ */
+
+// Import variables for consistent theming
+@use '../../styles/variables' as *;
+
+.pip-container {
+  width: 100%;
+  height: 100%;
+  background: $dracula-bg;
+  color: $dracula-fg;
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Roboto', 'Oxygen', 'Ubuntu', sans-serif;
+  font-size: 12px;
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  // Custom scrollbar for PiP
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: rgba($dracula-current, 0.3);
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: rgba($dracula-comment, 0.5);
+    border-radius: 3px;
+
+    &:hover {
+      background: rgba($dracula-comment, 0.7);
+    }
+  }
+}
+
+.pip-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgba($dracula-current, 0.6);
+  border-bottom: 1px solid rgba($dracula-comment, 0.3);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  backdrop-filter: blur(4px);
+}
+
+.pip-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: $dracula-cyan;
+}
+
+.pip-stats {
+  font-size: 11px;
+  color: $dracula-comment;
+}
+
+.pip-agents-list {
+  padding: 8px;
+}
+
+.pip-section {
+  margin-bottom: 12px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.pip-section-title {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: $dracula-comment;
+  margin-bottom: 6px;
+  padding-left: 4px;
+}
+
+.pip-agent-card {
+  background: rgba($dracula-current, 0.4);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  border-left: 3px solid transparent;
+  transition: background-color 0.15s ease;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+
+  &:hover {
+    background: rgba($dracula-current, 0.6);
+  }
+
+  // Status-based left border
+  &.pip-status-working {
+    border-left-color: $dracula-green;
+  }
+
+  &.pip-status-waiting,
+  &.pip-status-waiting_permission {
+    border-left-color: $dracula-orange;
+  }
+
+  &.pip-status-error {
+    border-left-color: $dracula-red;
+  }
+
+  &.pip-status-idle {
+    border-left-color: $dracula-comment;
+  }
+
+  &.pip-status-offline {
+    border-left-color: #555;
+  }
+
+  &.pip-status-orphaned {
+    border-left-color: $dracula-purple;
+  }
+}
+
+.pip-agent-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pip-agent-icon {
+  font-size: 14px;
+}
+
+.pip-agent-name {
+  flex: 1;
+  font-weight: 500;
+  font-size: 12px;
+  color: $dracula-fg;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pip-agent-status {
+  font-size: 12px;
+}
+
+.pip-agent-task {
+  margin-top: 4px;
+  font-size: 11px;
+  color: $dracula-comment;
+  line-height: 1.4;
+  padding-left: 20px;
+}
+
+.pip-agent-tool {
+  margin-top: 3px;
+  font-size: 10px;
+  color: $dracula-purple;
+  padding-left: 20px;
+
+  .pip-tool-label {
+    color: $dracula-comment;
+  }
+}
+
+.pip-agent-context {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding-left: 20px;
+}
+
+.pip-context-bar {
+  flex: 1;
+  height: 4px;
+  background: rgba($dracula-comment, 0.3);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.pip-context-fill {
+  height: 100%;
+  transition: width 0.3s ease;
+  border-radius: 2px;
+}
+
+.pip-context-percent {
+  font-size: 10px;
+  color: $dracula-comment;
+  min-width: 28px;
+  text-align: right;
+}
+
+.pip-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: $dracula-comment;
+  font-style: italic;
+  font-size: 12px;
+}
+
+// Animation for working status
+@keyframes pip-pulse {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.6;
+  }
+}
+
+.pip-status-working .pip-agent-status {
+  animation: pip-pulse 1.5s ease-in-out infinite;
+}
+
+// ============================================================================
+// Conversation View Styles
+// ============================================================================
+
+.pip-conversation-container {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.pip-header-conversation {
+  gap: 8px;
+  justify-content: flex-start;
+}
+
+.pip-back-btn {
+  background: none;
+  border: none;
+  color: $dracula-comment;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: rgba($dracula-comment, 0.2);
+    color: $dracula-fg;
+  }
+}
+
+.pip-agent-status-small {
+  font-size: 12px;
+  margin-left: auto;
+}
+
+.pip-conversation-wrapper {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.pip-conversation {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px;
+
+  // Custom scrollbar
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: rgba($dracula-current, 0.3);
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: rgba($dracula-comment, 0.5);
+    border-radius: 3px;
+
+    &:hover {
+      background: rgba($dracula-comment, 0.7);
+    }
+  }
+}
+
+// Scroll control buttons
+.pip-scroll-controls {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.pip-scroll-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba($dracula-bg, 0.9);
+  border: 1px solid rgba($dracula-cyan, 0.5);
+  color: $dracula-cyan;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  pointer-events: auto;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+
+  &:hover {
+    background: rgba($dracula-cyan, 0.2);
+    border-color: $dracula-cyan;
+    transform: scale(1.1);
+  }
+
+  &:active {
+    transform: scale(0.95);
+  }
+}
+
+.pip-output-line {
+  padding: 6px 8px;
+  margin-bottom: 4px;
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 1.5;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  cursor: text;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.pip-output-time {
+  font-size: 9px;
+  color: $dracula-comment;
+  margin-right: 6px;
+  opacity: 0.7;
+}
+
+.pip-output-role {
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+.pip-output-text {
+  white-space: pre-wrap;
+  flex: 1;
+  min-width: 0;
+}
+
+// Markdown styles for PiP window
+.pip-markdown {
+  p {
+    margin: 0 0 0.5em 0;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  code {
+    background: rgba($dracula-current, 0.6);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 10px;
+  }
+
+  pre {
+    background: rgba($dracula-bg, 0.8);
+    padding: 6px 8px;
+    border-radius: 4px;
+    overflow-x: auto;
+    margin: 4px 0;
+    font-size: 10px;
+
+    code {
+      background: none;
+      padding: 0;
+    }
+  }
+
+  ul,
+  ol {
+    margin: 4px 0;
+    padding-left: 16px;
+  }
+
+  li {
+    margin: 2px 0;
+  }
+
+  strong {
+    color: $dracula-orange;
+  }
+
+  em {
+    color: $dracula-pink;
+  }
+
+  a {
+    color: $dracula-cyan;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  blockquote {
+    border-left: 2px solid $dracula-comment;
+    margin: 4px 0;
+    padding-left: 8px;
+    color: $dracula-comment;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    margin: 8px 0 4px 0;
+    font-weight: 600;
+  }
+
+  h1 {
+    font-size: 14px;
+  }
+
+  h2 {
+    font-size: 13px;
+  }
+
+  h3 {
+    font-size: 12px;
+  }
+
+  h4,
+  h5,
+  h6 {
+    font-size: 11px;
+  }
+
+  table {
+    border-collapse: collapse;
+    margin: 4px 0;
+    font-size: 10px;
+    width: 100%;
+  }
+
+  th,
+  td {
+    border: 1px solid $dracula-comment;
+    padding: 4px 6px;
+    text-align: left;
+  }
+
+  th {
+    background: rgba($dracula-current, 0.5);
+    font-weight: 600;
+  }
+
+  hr {
+    border: none;
+    border-top: 1px solid $dracula-comment;
+    margin: 8px 0;
+  }
+}
+
+// User message style
+.pip-output-user {
+  background: rgba($dracula-purple, 0.15);
+  border-left: 2px solid $dracula-purple;
+
+  .pip-output-role {
+    color: $dracula-purple;
+  }
+
+  .pip-output-text {
+    color: $dracula-fg;
+  }
+}
+
+// Claude response style
+.pip-output-claude {
+  background: rgba($dracula-current, 0.4);
+  border-left: 2px solid $dracula-cyan;
+
+  .pip-output-text {
+    color: $dracula-fg;
+  }
+
+  &.pip-streaming {
+    border-left-color: $dracula-green;
+
+    &::after {
+      content: '...';
+      animation: pip-typing 1s infinite;
+    }
+  }
+}
+
+@keyframes pip-typing {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.3;
+  }
+}
+
+// Tool usage style (for "Using tool:" lines)
+.pip-output-tool {
+  background: rgba($dracula-orange, 0.1);
+  border-left: 2px solid $dracula-orange;
+  padding: 4px 8px;
+  font-size: 10px;
+
+  .pip-output-tool-name {
+    color: $dracula-orange;
+    font-weight: 500;
+  }
+}
+
+// ============================================================================
+// Tool Item Styles - Matches main panel tool-history styling
+// ============================================================================
+
+.pip-tool-item {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 2px;
+  border-radius: 4px;
+  transition: background 0.15s ease;
+  cursor: text;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  &.clickable {
+    cursor: pointer;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.08);
+    }
+  }
+
+  &.expanded {
+    background: rgba(255, 255, 255, 0.03);
+    margin: 2px 0;
+  }
+}
+
+.pip-tool-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  width: 100%;
+}
+
+.pip-tool-expand {
+  font-size: 7px;
+  width: 10px;
+  color: $dracula-comment;
+  flex-shrink: 0;
+  transition: color 0.15s ease;
+
+  .pip-tool-item:hover & {
+    color: $dracula-cyan;
+  }
+}
+
+.pip-tool-icon {
+  font-size: 10px;
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.pip-tool-input-inline {
+  flex: 1;
+  min-width: 0;
+  font-size: 9px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  color: $dracula-cyan;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pip-tool-time {
+  font-size: 9px;
+  color: $dracula-comment;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.pip-tool-expanded {
+  padding: 6px 6px 6px 20px;
+  margin-top: 2px;
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 0 0 4px 4px;
+}
+
+.pip-tool-expanded-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.pip-tool-expanded-name {
+  font-size: 10px;
+  font-weight: 600;
+  color: $dracula-fg;
+}
+
+.pip-tool-expanded-content {
+  font-size: 9px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  color: $dracula-comment;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 8px;
+  border-radius: 4px;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+  line-height: 1.4;
+
+  // Custom scrollbar
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: rgba($dracula-current, 0.3);
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: rgba($dracula-comment, 0.5);
+    border-radius: 2px;
+  }
+}
+
+// Delegation style
+.pip-output-delegation {
+  background: rgba($dracula-yellow, 0.1);
+  border-left: 2px solid $dracula-yellow;
+
+  .pip-output-delegation-icon {
+    margin-right: 4px;
+  }
+
+  .pip-output-text {
+    color: $dracula-yellow;
+  }
+}
+
+// Current tool indicator at bottom
+.pip-current-tool {
+  padding: 6px 12px;
+  background: rgba($dracula-orange, 0.15);
+  border-top: 1px solid rgba($dracula-orange, 0.3);
+  font-size: 10px;
+
+  .pip-tool-indicator {
+    color: $dracula-orange;
+    font-weight: 500;
+    animation: pip-pulse 1.5s ease-in-out infinite;
+  }
+}
+
+// Agent card cursor for double-click hint
+.pip-agent-card {
+  cursor: pointer;
+
+  &:active {
+    transform: scale(0.98);
+  }
+}
+
+// ============================================================================
+// Context Stats Button & View
+// ============================================================================
+
+.pip-context-stats-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: rgba($dracula-current, 0.3);
+  border-bottom: 1px solid rgba($dracula-purple, 0.2);
+  cursor: pointer;
+  transition: background 0.15s ease;
+  user-select: none;
+
+  &:hover {
+    background: rgba($dracula-current, 0.5);
+  }
+
+  &:active {
+    background: rgba($dracula-current, 0.6);
+  }
+}
+
+.pip-context-bar-mini {
+  width: 40px;
+  height: 4px;
+  background: rgba($dracula-comment, 0.3);
+  border-radius: 2px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.pip-context-fill-mini {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.pip-context-text {
+  flex: 1;
+  font-size: 10px;
+  color: $dracula-comment;
+  font-weight: 500;
+}
+
+.pip-context-arrow {
+  font-size: 14px;
+  color: $dracula-comment;
+  opacity: 0.5;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+
+  .pip-context-stats-btn:hover & {
+    opacity: 1;
+    transform: translateX(2px);
+  }
+}
+
+// Stats Container
+.pip-stats-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.pip-stats-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.pip-stats-section {
+  margin-bottom: 16px;
+}
+
+.pip-stats-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: $dracula-purple;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0 0 10px 0;
+}
+
+.pip-stats-bar-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.pip-stats-bar {
+  flex: 1;
+  height: 8px;
+  background: rgba($dracula-comment, 0.2);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.pip-stats-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.pip-stats-percent {
+  font-size: 13px;
+  font-weight: 600;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  flex-shrink: 0;
+}
+
+.pip-stats-details {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pip-stats-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 10px;
+}
+
+.pip-stats-label {
+  color: $dracula-comment;
+  font-weight: 500;
+  flex-shrink: 0;
+  min-width: 80px;
+}
+
+.pip-stats-value {
+  color: $dracula-fg;
+  flex: 1;
+  word-break: break-word;
+
+  &.pip-stats-task {
+    font-size: 9px;
+    line-height: 1.3;
+  }
+}
+
+.pip-stats-info {
+  background: rgba($dracula-current, 0.3);
+  border: 1px solid rgba($dracula-purple, 0.2);
+  border-radius: 4px;
+  padding: 10px;
+  margin-top: 12px;
+}
+
+.pip-stats-info-text {
+  margin: 0;
+  font-size: 9px;
+  line-height: 1.4;
+  color: $dracula-comment;
+}
+
+// Model info section
+.pip-model-info {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  background: rgba($dracula-current, 0.3);
+  border-radius: 4px;
+}
+
+.pip-model-info-item {
+  flex: 1;
+}
+
+.pip-model-info-label {
+  font-size: 9px;
+  color: $dracula-comment;
+  margin-bottom: 2px;
+}
+
+.pip-model-info-value {
+  font-size: 11px;
+  font-weight: 500;
+  color: $dracula-fg;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+// Usage header
+.pip-usage-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  font-size: 10px;
+}
+
+.pip-usage-label {
+  color: $dracula-fg;
+  font-weight: 500;
+}
+
+.pip-usage-value {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+// Stacked bar
+.pip-stacked-bar {
+  height: 20px;
+  background: rgba($dracula-current, 0.3);
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex;
+  margin-bottom: 12px;
+}
+
+.pip-stacked-bar-segment {
+  height: 100%;
+  transition: width 0.3s ease;
+  min-width: 2px;
+}
+
+// Category list
+.pip-category-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pip-category-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: rgba($dracula-current, 0.3);
+  border-radius: 4px;
+  border-left: 3px solid transparent;
+
+  &.free-space {
+    background: transparent;
+    border-left-style: dashed;
+    border-left-color: rgba(255, 255, 255, 0.2);
+    opacity: 0.7;
+  }
+}
+
+.pip-category-color {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+
+  .pip-category-item.free-space & {
+    border: 1px dashed rgba(255, 255, 255, 0.3);
+  }
+}
+
+.pip-category-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.pip-category-name {
+  font-size: 10px;
+  font-weight: 500;
+  color: $dracula-fg;
+}
+
+.pip-category-tokens {
+  font-size: 9px;
+  color: $dracula-comment;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+// Stats updated timestamp
+.pip-stats-updated {
+  font-size: 9px;
+  color: $dracula-comment;
+  text-align: center;
+  margin-top: 8px;
+  opacity: 0.7;
+}
+
+// ============================================================================
+// Boss Context Styles (collapsible context in user prompts)
+// ============================================================================
+
+.pip-boss-context {
+  margin: 6px 0;
+  border: 1px solid rgba($dracula-orange, 0.4);
+  border-radius: 4px;
+  background: linear-gradient(135deg, rgba($dracula-orange, 0.08), rgba($dracula-yellow, 0.08));
+  overflow: hidden;
+
+  &.collapsed {
+    .pip-boss-context-header {
+      border-bottom: none;
+    }
+  }
+
+  &.expanded {
+    .pip-boss-context-header {
+      border-bottom: 1px solid rgba($dracula-orange, 0.3);
+    }
+  }
+}
+
+.pip-boss-context-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s ease;
+
+  &:hover {
+    background: rgba($dracula-orange, 0.15);
+  }
+}
+
+.pip-boss-context-icon {
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.pip-boss-context-label {
+  flex: 1;
+  font-size: 10px;
+  font-weight: 500;
+  color: $dracula-orange;
+}
+
+.pip-boss-context-toggle {
+  font-size: 8px;
+  color: $dracula-comment;
+  transition: color 0.15s ease;
+
+  .pip-boss-context-header:hover & {
+    color: $dracula-orange;
+  }
+}
+
+.pip-boss-context-content {
+  padding: 8px;
+  font-size: 9px;
+  line-height: 1.4;
+  color: $dracula-fg;
+  background: rgba($dracula-bg, 0.4);
+  max-height: 300px;
+  overflow-y: auto;
+  cursor: text;
+
+  // Markdown styles
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    margin: 8px 0 4px 0;
+    font-size: 10px;
+    font-weight: 600;
+    color: $dracula-orange;
+  }
+
+  p {
+    margin: 4px 0;
+  }
+
+  ul,
+  ol {
+    margin: 4px 0;
+    padding-left: 16px;
+  }
+
+  li {
+    margin: 2px 0;
+  }
+
+  code {
+    background: rgba($dracula-current, 0.5);
+    padding: 1px 3px;
+    border-radius: 2px;
+    font-size: 8px;
+  }
+
+  pre {
+    background: rgba($dracula-current, 0.5);
+    padding: 6px;
+    border-radius: 3px;
+    overflow-x: auto;
+    font-size: 8px;
+  }
+
+  // Custom scrollbar
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: rgba($dracula-current, 0.3);
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: rgba($dracula-comment, 0.5);
+    border-radius: 2px;
+  }
+}
+
+// ============================================================================
+// Input Area Styles
+// ============================================================================
+
+.pip-input-area {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  background: rgba($dracula-current, 0.6);
+  border-top: 1px solid rgba($dracula-comment, 0.3);
+}
+
+.pip-input {
+  flex: 1;
+  background: rgba($dracula-bg, 0.8);
+  border: 1px solid rgba($dracula-comment, 0.4);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: $dracula-fg;
+  outline: none;
+  transition: border-color 0.15s ease;
+
+  &::placeholder {
+    color: $dracula-comment;
+    opacity: 0.7;
+  }
+
+  &:focus {
+    border-color: $dracula-cyan;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: rgba($dracula-current, 0.4);
+  }
+}
+
+.pip-send-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  background: $dracula-cyan;
+  border: none;
+  color: $dracula-bg;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+
+  &:hover:not(:disabled) {
+    background: $dracula-cyan;
+    transform: scale(1.05);
+  }
+
+  &:active:not(:disabled) {
+    transform: scale(0.95);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    background: $dracula-comment;
+  }
+}

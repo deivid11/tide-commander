@@ -33,6 +33,7 @@
 @use 'components/agent-notification';
 @use 'components/agentProgress';
 @use 'components/pwa-install';
+@use 'components/pip';
 
 // Responsive styles (must be last to override component styles)
 @use 'responsive';

@@ -14,6 +14,7 @@ import { PWAInstallBanner } from './components/PWAInstallBanner';
 import { MobileFabMenu } from './components/MobileFabMenu';
 import { FloatingActionButtons } from './components/FloatingActionButtons';
 import { AppModals } from './components/AppModals';
+import { PiPWindow, AgentsPiPView } from './components/PiPWindow';
 import { profileRender } from './utils/profiling';
 import {
   useModalState,
@@ -28,6 +29,7 @@ import {
   usePowerSaving,
   useKeyboardShortcuts,
   useBackNavigation,
+  useDocumentPiP,
 } from './hooks';
 import { loadConfig, saveConfig } from './app/sceneConfig';
 import { buildContextMenuActions } from './app/contextMenuActions';
@@ -55,6 +57,7 @@ function AppContent() {
   const explorerModal = useModalStateWithId();
   const explorerFolderPath = useExplorerFolderPath();
   const contextMenu = useContextMenu();
+  const pip = useDocumentPiP(); // Document Picture-in-Picture for agents view
 
   const [spawnPosition, setSpawnPosition] = useState<{ x: number; z: number } | null>(null);
   const [hoveredAgentPopup, setHoveredAgentPopup] = useState<{
@@ -364,6 +367,25 @@ function AppContent() {
           />
         );
       })()}
+
+      {/* Picture-in-Picture button */}
+      {pip.isSupported && (
+        <button
+          className={`pip-toggle-btn ${pip.isOpen ? 'active' : ''}`}
+          onClick={() => pip.toggle({ width: 320, height: 400 })}
+          title={pip.isOpen ? 'Close Agents in PiP Mode' : 'Open Agents in PiP Mode'}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <rect x="2" y="3" width="20" height="14" rx="2" />
+            <rect x="12" y="9" width="8" height="6" rx="1" />
+          </svg>
+        </button>
+      )}
+
+      {/* PiP Window with Agents View */}
+      <PiPWindow pip={pip} title="Tide Commander - Agents">
+        <AgentsPiPView />
+      </PiPWindow>
 
       {/* Bottom Agent Bar */}
       <AgentBar
