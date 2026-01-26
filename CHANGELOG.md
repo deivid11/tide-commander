@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.14.1] - 2026-01-25
+
+### Added
+- **Agent Navigation Shortcuts** - Keyboard shortcuts for switching agents
+  - Alt+J to go to next agent (like swipe left)
+  - Alt+K to go to previous agent (like swipe right)
+
+### Fixed
+- **Mobile Back Navigation** - Fix iOS Safari edge swipe breaking navigation
+  - Push two history entries instead of one for buffer
+  - Mobile back gestures can complete before popstate fires
+  - Track history depth to properly calculate go-back amount
+
 ## [0.14.0] - 2026-01-25
 
 ### Added

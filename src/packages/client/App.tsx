@@ -42,6 +42,7 @@ declare global {
   interface Window {
     __tideSetBackNavModal?: (show: boolean) => void;
     __tideBackNavSetup?: boolean;
+    __tideHistoryDepth?: number;
   }
 }
 
@@ -306,21 +307,32 @@ function AppContent() {
   useEffect(() => {
     // Only setup the listener once globally (survives HMR)
     if (window.__tideBackNavSetup) {
-      // Just ensure we have a history entry
+      // Just ensure we have history entries
       if (!window.history.state?.tideCommander) {
         window.history.pushState({ tideCommander: true }, '');
+        window.__tideHistoryDepth = (window.__tideHistoryDepth ?? 0) + 1;
       }
       return;
     }
 
     window.__tideBackNavSetup = true;
+    window.__tideHistoryDepth = 0;
 
-    // Push initial history entry
+    // Push TWO history entries - this is crucial for mobile browsers.
+    // Mobile back gestures (especially iOS Safari edge swipe) can complete the
+    // navigation before popstate handlers can prevent it. By having two entries,
+    // the first back navigation stays within our app, giving popstate a chance
+    // to push another entry and show the confirmation modal.
     window.history.pushState({ tideCommander: true }, '');
+    window.history.pushState({ tideCommander: true }, '');
+    window.__tideHistoryDepth = 2;
 
     const handlePopState = () => {
-      // Push state again to prevent actual navigation
+      // Track that we consumed one entry
+      window.__tideHistoryDepth = Math.max(0, (window.__tideHistoryDepth ?? 1) - 1);
+      // Push state again to maintain the buffer
       window.history.pushState({ tideCommander: true }, '');
+      window.__tideHistoryDepth = (window.__tideHistoryDepth ?? 0) + 1;
       // If there are open modals, close the topmost one
       // Otherwise show the leave confirmation
       if (!closeTopModal()) {
@@ -1297,8 +1309,9 @@ function AppContent() {
                 className="btn btn-danger"
                 onClick={() => {
                   setShowBackNavModal(false);
-                  // Go back twice: once for our pushed state, once for actual navigation
-                  window.history.go(-2);
+                  // Go back past all our pushed states plus one more to actually navigate away
+                  const depth = window.__tideHistoryDepth ?? 2;
+                  window.history.go(-(depth + 1));
                 }}
               >
                 Leave
