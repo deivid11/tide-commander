@@ -1170,21 +1170,21 @@ function AppContent() {
         )}
 
         {/* Mobile FAB menu - expandable options (hidden when in terminal view on mobile) */}
-        {mobileView !== 'terminal' && <div className={`mobile-fab-menu ${mobileMenuOpen ? 'open' : ''}`}>
+        {mobileView === '3d' && <div className={`mobile-fab-menu ${mobileMenuOpen ? 'open' : ''}`}>
           <button
             className="mobile-fab-option"
             onClick={() => {
-              store.setMobileView(mobileView === 'terminal' ? '3d' : 'terminal');
+              store.setMobileView('terminal');
               setMobileMenuOpen(false);
             }}
             onTouchEnd={(e) => {
               e.preventDefault();
-              store.setMobileView(mobileView === 'terminal' ? '3d' : 'terminal');
+              store.setMobileView('terminal');
               setMobileMenuOpen(false);
             }}
-            title={mobileView === 'terminal' ? 'Show 3D View' : 'Show Terminal'}
+            title="Show Terminal"
           >
-            {mobileView === 'terminal' ? '🎮' : '💬'}
+            💬
           </button>
           <button
             className="mobile-fab-option"
