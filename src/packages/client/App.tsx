@@ -1154,21 +1154,23 @@ function AppContent() {
           <div ref={selectionBoxRef} id="selection-box"></div>
         </div>
 
-        {/* Mobile FAB toggle - hamburger button */}
-        <button
-          className={`mobile-fab-toggle ${mobileMenuOpen ? 'open' : ''}`}
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          onTouchStart={(e) => {
-            // Ensure touch events work properly on mobile
-            e.stopPropagation();
-          }}
-          title={mobileMenuOpen ? 'Close menu' : 'Open menu'}
-        >
-          {mobileMenuOpen ? '✕' : '☰'}
-        </button>
+        {/* Mobile FAB toggle - hamburger button (hidden when in terminal view on mobile) */}
+        {mobileView !== 'terminal' && (
+          <button
+            className={`mobile-fab-toggle ${mobileMenuOpen ? 'open' : ''}`}
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            onTouchStart={(e) => {
+              // Ensure touch events work properly on mobile
+              e.stopPropagation();
+            }}
+            title={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+          >
+            {mobileMenuOpen ? '✕' : '☰'}
+          </button>
+        )}
 
-        {/* Mobile FAB menu - expandable options */}
-        <div className={`mobile-fab-menu ${mobileMenuOpen ? 'open' : ''}`}>
+        {/* Mobile FAB menu - expandable options (hidden when in terminal view on mobile) */}
+        {mobileView !== 'terminal' && <div className={`mobile-fab-menu ${mobileMenuOpen ? 'open' : ''}`}>
           <button
             className="mobile-fab-option"
             onClick={() => {
@@ -1274,7 +1276,7 @@ function AppContent() {
           >
             ⭐
           </button>
-        </div>
+        </div>}
 
         {/* Sidebar overlay for mobile */}
         {sidebarOpen && (

@@ -767,6 +767,13 @@ $breakpoint-small: 480px;
     border-color: rgba($dracula-orange, 0.4) !important;
     color: $dracula-orange !important;
     font-size: 11px !important;
+    // Ensure circular shape - override base padding
+    width: 24px !important;
+    height: 24px !important;
+    min-width: 24px !important;
+    max-width: 24px !important;
+    padding: 0 !important;
+    border-radius: 50% !important;
 
     &:active {
       background: rgba($dracula-orange, 0.2) !important;
@@ -1635,8 +1642,9 @@ $breakpoint-small: 480px;
 
 @media (pointer: coarse) {
   // Larger touch targets
+  // Note: .guake-clear, .guake-close-btn, .guake-mode-btn are excluded here
+  // as they have specific circular styling in mobile breakpoint
   .guake-view-toggle,
-  .guake-clear,
   .guake-context-btn,
   .guake-search-toggle,
   .unit-action-icon,

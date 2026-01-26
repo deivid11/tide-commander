@@ -1433,7 +1433,7 @@ export function ClaudeOutputPanel() {
                 onClick={() => selectedAgentId && store.clearOutputs(selectedAgentId)}
                 title="Clear output"
               >
-                C
+                🗑
               </button>
             )}
             <button
