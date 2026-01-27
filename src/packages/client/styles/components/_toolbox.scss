@@ -9,9 +9,9 @@
   width: 36px;
   height: 36px;
   border-radius: $radius-lg;
-  background: linear-gradient(180deg, $dracula-current 0%, $dracula-bg 100%);
-  border: 1px solid $dracula-comment;
-  color: $dracula-orange;
+  background: $bg-tertiary;
+  border: 1px solid $border-color;
+  color: $text-secondary;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -21,9 +21,9 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 
   &:hover {
-    border-color: $dracula-orange;
-    color: $dracula-orange;
-    background: linear-gradient(180deg, color.adjust($dracula-current, $lightness: 5%) 0%, $dracula-current 100%);
+    border-color: $accent-blue;
+    color: $accent-blue;
+    background: rgba($accent-blue, 0.1);
   }
 }
 
@@ -698,6 +698,32 @@
     opacity: 1;
     background: rgba($accent-blue, 0.15);
     border-color: rgba($accent-blue, 0.3);
+  }
+}
+
+// Sky color selector
+.sky-color-selector {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.sky-color-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: $radius-sm;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    transform: scale(1.1);
+    border-color: rgba(255, 255, 255, 0.3);
+  }
+
+  &.active {
+    border-color: $accent-blue;
+    box-shadow: 0 0 6px rgba($accent-blue, 0.5);
   }
 }
 
@@ -1457,10 +1483,10 @@
   align-items: center;
   gap: 12px;
   padding: 10px 16px;
-  background: linear-gradient(180deg, rgba($dracula-current, 0.95) 0%, rgba($dracula-bg, 0.95) 100%);
+  background: rgba($bg-secondary, 0.95);
   border: 1px solid $accent-blue;
   border-radius: $radius-lg;
-  box-shadow: 0 4px 20px rgba($accent-blue, 0.3), 0 2px 8px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   animation: drawing-indicator-in 0.2s ease-out;
   backdrop-filter: blur(8px);
 }
@@ -1532,5 +1558,82 @@
 .app.drawing-mode {
   #battlefield {
     cursor: crosshair;
+  }
+}
+
+// ============================================
+// Theme Selector
+// ============================================
+
+.theme-selector {
+  padding: 4px 0;
+}
+
+.theme-selector-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.theme-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 4px;
+  background: transparent;
+  border: 2px solid transparent;
+  border-radius: $radius-md;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: $border-color;
+  }
+
+  &.active {
+    background: rgba($accent-blue, 0.1);
+    border-color: $accent-blue;
+  }
+}
+
+.theme-preview {
+  width: 100%;
+  aspect-ratio: 16/10;
+  border-radius: $radius-sm;
+  overflow: hidden;
+}
+
+.theme-preview-bg {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 3px;
+  padding: 6px;
+}
+
+.theme-preview-accent {
+  height: 4px;
+  border-radius: 2px;
+  width: 60%;
+}
+
+.theme-preview-claude {
+  height: 4px;
+  border-radius: 2px;
+  width: 45%;
+}
+
+.theme-name {
+  font-size: 10px;
+  font-weight: 500;
+  color: $text-secondary;
+  text-align: center;
+
+  .theme-option.active & {
+    color: $accent-blue;
   }
 }

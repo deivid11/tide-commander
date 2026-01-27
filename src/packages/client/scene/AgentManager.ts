@@ -22,6 +22,7 @@ export class AgentManager {
   private pendingAgents: Agent[] = [];
   private modelsReady = false;
   private characterScale = 0.5;
+  private brightness = 1;
   private idleAnimation: string = ANIMATIONS.SIT;
   private workingAnimation: string = ANIMATIONS.WALK;
 
@@ -84,6 +85,96 @@ export class AgentManager {
         body.scale.setScalar(customModelScale * scale * bossMultiplier);
       }
     }
+  }
+
+  /**
+   * Set brightness multiplier for agent materials.
+   * Affects MeshBasicMaterial (custom models) by adjusting color intensity.
+   */
+  setBrightness(brightness: number): void {
+    this.brightness = brightness;
+    for (const meshData of this.agentMeshes.values()) {
+      this.applyBrightnessToMesh(meshData.group);
+    }
+  }
+
+  /**
+   * Apply brightness to a mesh group.
+   * For MeshBasicMaterial: adjusts color intensity directly.
+   * For MeshStandardMaterial/MeshPhysicalMaterial: adjusts color, emissive, and envMapIntensity.
+   * For SpriteMaterial (name labels, mana bars): adjusts opacity.
+   * Custom GLB models (mewtoo, etc.) get a stronger 1.8x brightness multiplier.
+   */
+  private applyBrightnessToMesh(group: THREE.Group): void {
+    // Check if this is a custom model (GLB uploaded by user)
+    const characterBody = group.getObjectByName('characterBody');
+    const isCustomModel = characterBody?.userData?.isCustomModel === true;
+
+    // Custom models get a stronger brightness effect (2.2x vs 1.4x for built-in models)
+    const multiplier = isCustomModel ? 2.2 : 1.4;
+    const effectiveBrightness = 1 + (this.brightness - 1) * multiplier;
+
+    group.traverse((child) => {
+      if (child instanceof THREE.Mesh && child.material) {
+        const materials = Array.isArray(child.material) ? child.material : [child.material];
+        for (const mat of materials) {
+          // Handle any material with a color property
+          if ('color' in mat && mat.color instanceof THREE.Color) {
+            // Store original color if not stored yet
+            if (!mat.userData.originalColor) {
+              mat.userData.originalColor = mat.color.clone();
+            }
+            // Apply brightness by adjusting the color
+            const original = mat.userData.originalColor as THREE.Color;
+            // For custom models, apply more aggressive color darkening
+            const colorMultiplier = isCustomModel
+              ? Math.min(effectiveBrightness, 1) * 0.55 // Extra 45% darker for custom models
+              : Math.min(effectiveBrightness, 1);
+            mat.color.copy(original).multiplyScalar(colorMultiplier);
+          }
+
+          // For standard/physical materials (common in GLB models like mewtoo.glb)
+          if (mat instanceof THREE.MeshStandardMaterial) {
+            // Store original values
+            if (mat.userData.baseEmissiveIntensity === undefined) {
+              mat.userData.baseEmissiveIntensity = mat.emissiveIntensity || 0;
+            }
+            if (mat.userData.baseEnvMapIntensity === undefined) {
+              mat.userData.baseEnvMapIntensity = mat.envMapIntensity ?? 1;
+            }
+            if (mat.userData.baseMetalness === undefined) {
+              mat.userData.baseMetalness = mat.metalness ?? 0;
+            }
+
+            // Apply brightness: adjust emissive for glow effect
+            mat.emissiveIntensity = mat.userData.baseEmissiveIntensity * effectiveBrightness;
+
+            // For darkening (brightness < 1), reduce envMapIntensity
+            // For brightening (brightness > 1), boost envMapIntensity
+            mat.envMapIntensity = mat.userData.baseEnvMapIntensity * effectiveBrightness;
+
+            // When darkening significantly, also reduce metalness to make it look darker
+            // Custom models get more aggressive metalness reduction
+            const metalnessThreshold = isCustomModel ? 0.9 : 0.7;
+            if (effectiveBrightness < metalnessThreshold) {
+              mat.metalness = mat.userData.baseMetalness * effectiveBrightness;
+            } else {
+              mat.metalness = mat.userData.baseMetalness;
+            }
+          }
+        }
+      }
+      // Handle sprites (name labels, mana bars, idle timer, crown)
+      if (child instanceof THREE.Sprite) {
+        const mat = child.material as THREE.SpriteMaterial;
+        // Store original opacity if not stored yet
+        if (mat.userData.originalOpacity === undefined) {
+          mat.userData.originalOpacity = mat.opacity ?? 1;
+        }
+        // Apply brightness to opacity (clamped to 0-1)
+        mat.opacity = Math.min(1, mat.userData.originalOpacity * effectiveBrightness);
+      }
+    });
   }
 
   setIdleAnimation(animation: string): void {
@@ -177,6 +268,9 @@ export class AgentManager {
         this.scene.add(newMeshData.group);
         this.agentMeshes.set(agentId, newMeshData);
 
+        // Apply current brightness to upgraded agent's materials
+        this.applyBrightnessToMesh(newMeshData.group);
+
         this.updateStatusAnimation(agent, newMeshData);
       }
     }
@@ -237,6 +331,9 @@ export class AgentManager {
     const meshData = this.characterFactory.createAgentMesh(agent);
     this.scene.add(meshData.group);
     this.agentMeshes.set(agent.id, meshData);
+
+    // Apply current brightness to new agent's materials
+    this.applyBrightnessToMesh(meshData.group);
 
     const body = meshData.group.getObjectByName('characterBody');
     if (body) {

@@ -34,6 +34,9 @@ export class BuildingManager {
   // Animation state
   private animationTime = 0;
 
+  // Brightness multiplier for building materials (affects emissive/glow intensity)
+  private brightness = 1;
+
   // Callbacks
   private onBuildingClick: ((buildingId: string) => void) | null = null;
   private onBuildingDoubleClick: ((buildingId: string) => void) | null = null;
@@ -54,6 +57,38 @@ export class BuildingManager {
    */
   setOnBuildingDoubleClick(callback: (buildingId: string) => void): void {
     this.onBuildingDoubleClick = callback;
+  }
+
+  /**
+   * Set brightness multiplier for building materials.
+   * Affects emissive intensity and glow opacity.
+   */
+  setBrightness(brightness: number): void {
+    this.brightness = brightness;
+    // Update existing building materials
+    for (const meshData of this.buildingMeshes.values()) {
+      // Update status glow opacity
+      const statusGlow = meshData.group.getObjectByName('statusGlow') as THREE.Mesh;
+      if (statusGlow && statusGlow.material instanceof THREE.MeshBasicMaterial) {
+        // Base glow opacity is 0.3, apply brightness
+        statusGlow.material.opacity = 0.3 * brightness;
+      }
+
+      // Update emissive intensity on standard materials
+      meshData.group.traverse((child) => {
+        if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial) {
+          // Boost or reduce emissive intensity based on brightness
+          const mat = child.material;
+          if (mat.emissiveIntensity !== undefined) {
+            // Store base emissive intensity if not already stored
+            if (mat.userData.baseEmissiveIntensity === undefined) {
+              mat.userData.baseEmissiveIntensity = mat.emissiveIntensity || 1;
+            }
+            mat.emissiveIntensity = mat.userData.baseEmissiveIntensity * brightness;
+          }
+        }
+      });
+    }
   }
 
   /**

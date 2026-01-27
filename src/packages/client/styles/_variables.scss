@@ -1,40 +1,55 @@
 // Color palette
-$bg-primary: #0a0a12;
-$bg-secondary: #12121a;
-$bg-tertiary: #1a1a24;
+$bg-primary: #0d0d14;
+$bg-secondary: #14141e;
+$bg-tertiary: #1c1c28;
 $border-color: #2a2a3a;
-$text-primary: #e0e0e0;
-$text-secondary: #888;
-$text-muted: #666;
 
-$accent-blue: #4a9eff;
-$accent-green: #4aff9e;
-$accent-orange: #ff9e4a;
-$accent-red: #ff4a4a;
-$accent-purple: #9e4aff;
-$accent-cyan: #4ae0ff;
+// Soft text colors (avoid pure white on dark)
+$text-primary: #d0d0d8;
+$text-secondary: #8a8a98;
+$text-muted: #606070;
 
-// Dracula theme colors (for terminal)
-$dracula-bg: #282a36;
-$dracula-bg-darker: #21222c;
-$dracula-current: #44475a;
-$dracula-fg: #f8f8f2;
-$dracula-comment: #6272a4;
-$dracula-cyan: #8be9fd;
-$dracula-green: #50fa7b;
-$dracula-orange: #ffb86c;
-$dracula-pink: #ff79c6;
-$dracula-purple: #bd93f9;
-$dracula-red: #ff5555;
-$dracula-yellow: #f1fa8c;
+// Primary accent - muted blue (main accent color)
+$accent-blue: #5a8fd4;
+
+// Status colors - desaturated versions (use sparingly)
+$accent-green: #5cb88a;
+$accent-orange: #d4a05a;
+$accent-red: #d45a5a;
+$accent-purple: #8a6fbf;
+$accent-cyan: #5ab8c8;
+
+// Claude AI accent - warm brown/terracotta
+$accent-claude: #a06848;
+$accent-claude-light: #c8896a;
+
+// Markdown-specific accent colors (muted defaults)
+$accent-pink: $accent-blue;      // Use blue for muted (no pink)
+$accent-yellow: $text-primary;   // Use text-primary for muted
+
+// Dracula theme colors (for terminal) - muted versions
+$dracula-bg: #1e1e26;
+$dracula-bg-darker: #181820;
+$dracula-current: #32323e;
+$dracula-fg: #d0d0d8;
+$dracula-comment: #5a6a8a;
+$dracula-cyan: #6ab8c8;
+$dracula-green: #5cb88a;
+$dracula-orange: #c89a5a;
+$dracula-pink: #c87a9a;
+$dracula-purple: #9a80c0;
+$dracula-red: #c85a5a;
+$dracula-yellow: #c8c87a;
 
 // Layout
 $sidebar-width: 320px;
 $header-height: 48px;
 
-// Typography
-$font-family: 'Segoe UI', system-ui, sans-serif;
-$font-mono: 'JetBrains Mono', 'Fira Code', 'Source Code Pro', 'Consolas', monospace;
+// Typography - JetBrains Mono as primary, increased base size
+$font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Consolas', monospace;
+$font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Consolas', monospace;
+$font-size-base: 14px;
+$line-height-base: 1.5;
 
 // Transitions
 $transition-fast: 0.15s;
@@ -61,4 +76,11 @@ $radius-xl: 12px;
   --accent-orange: #{$accent-orange};
   --accent-red: #{$accent-red};
   --accent-purple: #{$accent-purple};
+  --accent-cyan: #{$accent-cyan};
+  --accent-claude: #{$accent-claude};
+  --accent-claude-light: #{$accent-claude-light};
+  --accent-pink: #{$accent-pink};
+  --accent-yellow: #{$accent-yellow};
+  --font-size-base: #{$font-size-base};
+  --line-height-base: #{$line-height-base};
 }

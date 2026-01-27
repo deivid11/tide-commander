@@ -325,9 +325,9 @@
   width: 36px;
   height: 36px;
   border-radius: $radius-lg;
-  background: linear-gradient(180deg, $dracula-current 0%, $dracula-bg 100%);
-  border: 1px solid $dracula-comment;
-  color: $dracula-orange;
+  background: $bg-tertiary;
+  border: 1px solid $border-color;
+  color: $text-secondary;
   font-size: 16px;
   cursor: pointer;
   display: flex;
@@ -338,9 +338,9 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 
   &:hover {
-    background: $dracula-current;
-    border-color: $dracula-orange;
-    color: $dracula-pink;
+    background: rgba($accent-blue, 0.1);
+    border-color: $accent-blue;
+    color: $accent-blue;
   }
 
   // Pulsing state when generating report
@@ -368,7 +368,7 @@
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   }
   50% {
-    box-shadow: 0 2px 12px rgba($accent-blue, 0.5);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
   }
 }
 

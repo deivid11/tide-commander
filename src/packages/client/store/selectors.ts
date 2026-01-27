@@ -16,6 +16,7 @@ import type {
   CustomAgentClass,
   AgentSupervisorHistoryEntry,
   GlobalUsageStats,
+  ExecTask,
 } from '../../shared/types';
 import type {
   StoreState,
@@ -731,5 +732,38 @@ export function useAgentTaskProgress(bossId: string | null): Map<string, AgentTa
       [bossId]
     ),
     shallowMapEqual
+  );
+}
+
+// ============================================================================
+// EXEC TASK SELECTORS
+// ============================================================================
+
+/**
+ * Get exec tasks for a specific agent. Only re-renders when that agent's tasks change.
+ */
+export function useExecTasks(agentId: string | null): ExecTask[] {
+  return useSelector(
+    useCallback(
+      (state: StoreState) => {
+        if (!agentId || !state.execTasks) return [];
+        return Array.from(state.execTasks.values()).filter((t) => t.agentId === agentId);
+      },
+      [agentId]
+    ),
+    shallowArrayEqual
+  );
+}
+
+/**
+ * Get all exec tasks. Only re-renders when tasks change.
+ */
+export function useAllExecTasks(): ExecTask[] {
+  return useSelector(
+    useCallback((state: StoreState) => {
+      if (!state.execTasks) return [];
+      return Array.from(state.execTasks.values());
+    }, []),
+    shallowArrayEqual
   );
 }

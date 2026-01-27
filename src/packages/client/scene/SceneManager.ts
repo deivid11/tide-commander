@@ -386,8 +386,14 @@ export class SceneManager {
   setDebugTime(hour: number | null): void { this.battlefield.setDebugTime(hour); }
   setTimeMode(mode: string): void { this.battlefield.setTimeMode(mode); }
 
-  setTerrainConfig(config: { showTrees: boolean; showBushes: boolean; showHouse: boolean; showLamps: boolean; showGrass: boolean; fogDensity: number }): void {
+  setTerrainConfig(config: { showTrees: boolean; showBushes: boolean; showHouse: boolean; showLamps: boolean; showGrass: boolean; fogDensity: number; brightness?: number; skyColor?: string | null }): void {
     this.battlefield.setTerrainConfig(config);
+    // Propagate brightness to all managers for materials that don't respond to lighting
+    if (config.brightness !== undefined) {
+      this.drawingManager.setBrightness(config.brightness);
+      this.buildingManager.setBrightness(config.brightness);
+      this.agentManager.setBrightness(config.brightness);
+    }
   }
 
   setFloorStyle(style: string, force = false): void { this.battlefield.setFloorStyle(style as import('./environment/Battlefield').FloorStyle, force); }

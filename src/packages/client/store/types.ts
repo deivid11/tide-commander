@@ -18,6 +18,7 @@ import type {
   Skill,
   CustomAgentClass,
   GlobalUsageStats,
+  ExecTask,
 } from '../../shared/types';
 import type { ShortcutConfig } from './shortcuts';
 import type { MouseControlsState } from './mouseControls';
@@ -172,6 +173,8 @@ export interface StoreState {
   // Reconnection counter - increments on each WebSocket reconnect
   // Components can watch this to refresh their data
   reconnectCount: number;
+  // Exec tasks (streaming command execution via /api/exec)
+  execTasks?: Map<string, ExecTask>;
 }
 
 // Store listener type

@@ -13,19 +13,23 @@
   white-space: normal;
 }
 
+// User messages - using theme-specific message colors
 .history-user {
-  background: rgba($dracula-cyan, 0.12);
-  border-left: 3px solid $dracula-cyan;
+  background: var(--msg-user-bg);
+  border: 1px solid var(--msg-user-border);
+  border-left: 3px solid var(--msg-user-border);
 }
 
+// Assistant messages - using theme-specific message colors
 .history-assistant {
-  background: rgba($dracula-green, 0.12);
-  border-left: 3px solid $dracula-green;
+  background: var(--msg-assistant-bg);
+  border: 1px solid var(--msg-assistant-border);
+  border-left: 3px solid var(--msg-assistant-border);
 }
 
 .history-role {
   font-weight: bold;
-  color: $dracula-cyan;
+  color: var(--msg-user-text);
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -33,12 +37,16 @@
   display: inline;  // Inline with timestamp
 
   .history-assistant & {
-    color: $dracula-green;
+    color: var(--msg-assistant-text);
   }
 }
 
 .history-content {
-  color: $dracula-fg;
+  color: var(--msg-user-text);
+
+  .history-assistant & {
+    color: var(--msg-assistant-text);
+  }
 }
 
 // View markdown button for assistant responses
@@ -47,8 +55,8 @@
   right: 8px;
   top: 8px;
   background: transparent;
-  border: 1px solid rgba($dracula-comment, 0.4);
-  color: $dracula-comment;
+  border: 1px solid color-mix(in srgb, var(--text-muted) 40%, transparent);
+  color: var(--text-muted);
   padding: 3px 6px;
   border-radius: $radius-sm;
   font-size: 12px;
@@ -57,9 +65,9 @@
   transition: all $transition-fast;
 
   &:hover {
-    border-color: $dracula-green;
-    color: $dracula-green;
-    background: rgba($dracula-green, 0.1);
+    border-color: var(--accent-green);
+    color: var(--accent-green);
+    background: color-mix(in srgb, var(--accent-green) 10%, transparent);
   }
 }
 
@@ -81,30 +89,31 @@
   }
 }
 
+// Tool use/result colors using theme-specific tool colors
 .history-tool-use {
-  background: rgba($dracula-orange, 0.08);
+  background: var(--tool-use-bg);
   padding: 4px 0;
   margin: 2px 0;
 
   .history-role {
-    color: $dracula-orange;
+    color: var(--tool-use-text);
   }
 }
 
 .history-tool-name {
-  color: $dracula-pink;
+  color: var(--accent-pink);
   font-weight: 600;
   margin-left: 4px;
 }
 
 .history-tool-input {
-  color: $dracula-comment;
+  color: var(--text-muted);
   font-size: 11px;
   padding: 6px 10px;
   margin: 4px 0 0 20px;
-  background: rgba($dracula-bg, 0.6);
+  background: color-mix(in srgb, var(--bg-primary) 70%, transparent);
   border-radius: $radius-sm;
-  border-left: 2px solid $dracula-orange;
+  border-left: 2px solid var(--tool-use-border);
   max-height: 100px;
   overflow-y: auto;
   white-space: pre-wrap;
@@ -112,23 +121,23 @@
 }
 
 .history-tool-result {
-  background: rgba($dracula-purple, 0.08);
+  background: var(--tool-result-bg);
   padding: 4px 0;
   margin: 2px 0;
 
   .history-role {
-    color: $dracula-purple;
+    color: var(--tool-result-text);
   }
 }
 
 .history-tool-output {
-  color: $dracula-comment;
+  color: var(--text-muted);
   font-size: 11px;
   padding: 6px 10px;
   margin: 4px 0 0 20px;
-  background: rgba($dracula-bg, 0.6);
+  background: color-mix(in srgb, var(--bg-primary) 70%, transparent);
   border-radius: $radius-sm;
-  border-left: 2px solid $dracula-purple;
+  border-left: 2px solid var(--tool-result-border);
   font-family: $font-mono;
   max-height: 100px;
   overflow-y: auto;
@@ -136,15 +145,15 @@
 }
 
 // =============================================================================
-// Boss Context (Collapsible)
+// Boss Context (Collapsible) - Using CSS variables for theme support
 // =============================================================================
 
 .boss-context {
   margin-bottom: 8px;
   border-radius: $radius-sm;
   overflow: hidden;
-  border: 1px solid rgba($dracula-yellow, 0.3);
-  background: rgba($dracula-bg-darker, 0.6);
+  border: 1px solid color-mix(in srgb, var(--accent-orange) 30%, transparent);
+  background: color-mix(in srgb, var(--bg-primary) 60%, transparent);
 
   &.collapsed {
     .boss-context-header {
@@ -155,7 +164,7 @@
   &.expanded {
     .boss-context-header {
       border-radius: $radius-sm $radius-sm 0 0;
-      border-bottom: 1px solid rgba($dracula-yellow, 0.2);
+      border-bottom: 1px solid color-mix(in srgb, var(--accent-orange) 20%, transparent);
     }
   }
 }
@@ -165,13 +174,13 @@
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
-  background: rgba($dracula-yellow, 0.15);
+  background: color-mix(in srgb, var(--accent-orange) 15%, transparent);
   cursor: pointer;
   user-select: none;
   transition: all $transition-fast;
 
   &:hover {
-    background: rgba($dracula-yellow, 0.25);
+    background: color-mix(in srgb, var(--accent-orange) 25%, transparent);
   }
 }
 
@@ -185,14 +194,14 @@
   font-family: $font-mono;
   font-size: 11px;
   font-weight: 600;
-  color: $dracula-yellow;
+  color: var(--accent-orange);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .boss-context-toggle {
   font-size: 10px;
-  color: $dracula-comment;
+  color: var(--text-muted);
   transition: transform $transition-fast;
 }
 
@@ -200,19 +209,19 @@
   padding: 10px 12px;
   font-family: $font-mono;
   font-size: 11px;
-  color: $dracula-fg;
+  color: var(--text-primary);
   max-height: 300px;
   overflow-y: auto;
-  background: rgba($dracula-bg-darker, 0.4);
+  background: color-mix(in srgb, var(--bg-primary) 40%, transparent);
 
   // Style the markdown content
   h2 {
-    color: $dracula-cyan;
+    color: var(--accent-blue);
     font-size: 12px;
     font-weight: 600;
     margin: 12px 0 6px 0;
     padding-bottom: 4px;
-    border-bottom: 1px solid rgba($dracula-cyan, 0.2);
+    border-bottom: 1px solid color-mix(in srgb, var(--accent-blue) 20%, transparent);
 
     &:first-child {
       margin-top: 0;
@@ -220,33 +229,33 @@
   }
 
   h3 {
-    color: $dracula-pink;
+    color: var(--text-primary);
     font-size: 11px;
     font-weight: 600;
     margin: 8px 0 4px 0;
   }
 
   h4 {
-    color: $dracula-orange;
+    color: var(--accent-orange);
     font-size: 10px;
     font-weight: 600;
     margin: 10px 0 4px 0;
     padding: 4px 8px;
-    background: rgba($dracula-orange, 0.1);
+    background: color-mix(in srgb, var(--accent-orange) 10%, transparent);
     border-radius: $radius-sm;
-    border-left: 2px solid $dracula-orange;
+    border-left: 2px solid var(--accent-orange);
   }
 
   blockquote {
     margin: 4px 0;
     padding: 4px 8px;
-    background: rgba($dracula-bg, 0.5);
-    border-left: 2px solid $dracula-comment;
-    color: $dracula-comment;
+    background: color-mix(in srgb, var(--bg-tertiary) 50%, transparent);
+    border-left: 2px solid var(--text-muted);
+    color: var(--text-secondary);
     font-size: 10px;
 
     strong {
-      color: $dracula-fg;
+      color: var(--text-primary);
     }
   }
 
@@ -257,10 +266,10 @@
 
   li {
     margin: 2px 0;
-    color: $dracula-comment;
+    color: var(--text-secondary);
 
     strong {
-      color: $dracula-fg;
+      color: var(--text-primary);
     }
   }
 
@@ -271,7 +280,7 @@
 
   // Status colors
   strong {
-    color: $dracula-fg;
+    color: var(--text-primary);
   }
 
   // Scrollbar styling
@@ -280,29 +289,29 @@
   }
 
   &::-webkit-scrollbar-track {
-    background: $dracula-bg-darker;
+    background: var(--bg-primary);
   }
 
   &::-webkit-scrollbar-thumb {
-    background: $dracula-current;
+    background: var(--border-color);
     border-radius: 3px;
 
     &:hover {
-      background: $dracula-comment;
+      background: var(--text-muted);
     }
   }
 }
 
 // ============================================================================
-// Delegation Block Styles
+// Delegation Block Styles - Using CSS variables for theme support
 // ============================================================================
 
 .delegation-block {
   margin-top: 12px;
   border-radius: $radius-md;
   overflow: hidden;
-  border: 1px solid rgba($dracula-cyan, 0.4);
-  background: linear-gradient(135deg, rgba($dracula-bg-darker, 0.8) 0%, rgba($dracula-bg, 0.6) 100%);
+  border: 1px solid color-mix(in srgb, var(--accent-blue) 40%, transparent);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--bg-primary) 80%, transparent) 0%, color-mix(in srgb, var(--bg-secondary) 60%, transparent) 100%);
 }
 
 .delegation-header {
@@ -310,8 +319,8 @@
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: rgba($dracula-cyan, 0.15);
-  border-bottom: 1px solid rgba($dracula-cyan, 0.2);
+  background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--accent-blue) 20%, transparent);
 }
 
 .delegation-icon {
@@ -324,7 +333,7 @@
   font-family: $font-mono;
   font-size: 12px;
   font-weight: 600;
-  color: $dracula-cyan;
+  color: var(--accent-blue);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -337,7 +346,7 @@
   letter-spacing: 0.5px;
   padding: 2px 6px;
   border-radius: $radius-sm;
-  background: rgba($dracula-bg-darker, 0.5);
+  background: color-mix(in srgb, var(--bg-primary) 50%, transparent);
 }
 
 .delegation-details {
@@ -359,25 +368,25 @@
 }
 
 .delegation-label {
-  color: $dracula-comment;
+  color: var(--text-muted);
   font-weight: 600;
   min-width: 80px;
   flex-shrink: 0;
 }
 
 .delegation-agent-name {
-  color: $dracula-green;
+  color: var(--accent-green);
   font-weight: 600;
 }
 
 .delegation-command-text {
-  color: $dracula-cyan;
+  color: var(--accent-blue);
   font-style: italic;
   line-height: 1.4;
 }
 
 .delegation-reason-text {
-  color: $dracula-fg;
+  color: var(--text-primary);
   line-height: 1.4;
 }
 
@@ -388,29 +397,30 @@
 }
 
 .delegation-alt-agent {
-  color: $dracula-comment;
+  color: var(--text-muted);
   font-size: 10px;
   padding: 2px 6px;
-  background: rgba($dracula-bg-darker, 0.5);
+  background: color-mix(in srgb, var(--bg-primary) 50%, transparent);
   border-radius: $radius-sm;
-  border: 1px solid rgba($dracula-comment, 0.3);
+  border: 1px solid color-mix(in srgb, var(--text-muted) 30%, transparent);
 }
 
 .delegation-footer {
   padding: 6px 12px;
-  background: rgba($dracula-green, 0.1);
-  border-top: 1px solid rgba($dracula-green, 0.2);
+  background: color-mix(in srgb, var(--accent-green) 10%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--accent-green) 20%, transparent);
 }
 
 .delegation-auto-forward {
   font-family: $font-mono;
   font-size: 10px;
-  color: $dracula-green;
+  color: var(--accent-green);
   font-style: italic;
 }
 
 // ============================================================================
 // Delegated Task Header (shown when agent receives task from boss)
+// Using CSS variables for theme support
 // ============================================================================
 
 .delegated-task-header {
@@ -419,8 +429,8 @@
   gap: 4px;
   padding: 4px 8px;
   border-radius: $radius-sm;
-  background: rgba($dracula-purple, 0.12);
-  border: 1px solid rgba($dracula-purple, 0.25);
+  background: color-mix(in srgb, var(--accent-purple) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-purple) 25%, transparent);
   transition: all 0.15s ease;
 
   &.compact {
@@ -431,8 +441,8 @@
 
   &.expanded {
     padding: 8px 10px;
-    background: linear-gradient(135deg, rgba($dracula-purple, 0.15) 0%, rgba($dracula-pink, 0.08) 100%);
-    border-color: rgba($dracula-purple, 0.35);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--accent-purple) 15%, transparent) 0%, color-mix(in srgb, var(--accent-purple) 8%, transparent) 100%);
+    border-color: color-mix(in srgb, var(--accent-purple) 35%, transparent);
   }
 }
 
@@ -445,7 +455,7 @@
 
   &:hover {
     .delegated-task-toggle {
-      color: $dracula-purple;
+      color: var(--accent-purple);
     }
   }
 }
@@ -458,18 +468,18 @@
 .delegated-task-label {
   font-family: $font-mono;
   font-size: 10px;
-  color: rgba($dracula-purple, 0.8);
+  color: color-mix(in srgb, var(--accent-purple) 80%, transparent);
   letter-spacing: 0.3px;
 
   strong {
-    color: $dracula-pink;
+    color: var(--accent-purple);
     font-weight: 600;
   }
 }
 
 .delegated-task-toggle {
   font-size: 8px;
-  color: rgba($dracula-purple, 0.5);
+  color: color-mix(in srgb, var(--accent-purple) 50%, transparent);
   margin-left: 2px;
   transition: color 0.15s ease;
 }
@@ -477,7 +487,7 @@
 .delegated-task-preview {
   font-family: $font-mono;
   font-size: 11px;
-  color: rgba($dracula-fg, 0.7);
+  color: color-mix(in srgb, var(--text-primary) 70%, transparent);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -487,11 +497,11 @@
 .delegated-task-command {
   font-family: $font-mono;
   font-size: 11px;
-  color: $dracula-fg;
+  color: var(--text-primary);
   line-height: 1.4;
   padding: 6px 8px;
-  background: rgba($dracula-bg-darker, 0.5);
+  background: color-mix(in srgb, var(--bg-primary) 50%, transparent);
   border-radius: $radius-sm;
-  border-left: 2px solid $dracula-purple;
+  border-left: 2px solid var(--accent-purple);
   margin-top: 4px;
 }

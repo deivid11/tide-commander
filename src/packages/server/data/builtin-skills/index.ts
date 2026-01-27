@@ -13,6 +13,7 @@ import { fullNotifications } from './full-notifications.js';
 import { sendMessageToAgent } from './send-message-to-agent.js';
 import { gitCaptain } from './git-captain.js';
 import { serverLogs } from './server-logs.js';
+import { streamingExec } from './streaming-exec.js';
 
 // Re-export types
 export type { BuiltinSkillDefinition } from './types.js';
@@ -25,6 +26,7 @@ export const BUILTIN_SKILLS: BuiltinSkillDefinition[] = [
   sendMessageToAgent,
   gitCaptain,
   serverLogs,
+  streamingExec,
 ];
 
 /**

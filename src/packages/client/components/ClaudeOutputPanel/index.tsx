@@ -25,6 +25,7 @@ import {
   store,
   useReconnectCount,
   useAgentTaskProgress,
+  useExecTasks,
 } from '../../store';
 import {
   STORAGE_KEYS,
@@ -63,6 +64,7 @@ import { GuakeAgentLink } from './GuakeAgentLink';
 import { AgentDebugPanel } from './AgentDebugPanel';
 import { agentDebugger } from '../../services/agentDebugger';
 import { AgentProgressIndicator } from './AgentProgressIndicator';
+import { ExecTasksContainer } from './ExecTaskIndicator';
 
 export function ClaudeOutputPanel() {
   // Store selectors
@@ -154,6 +156,9 @@ export function ClaudeOutputPanel() {
   // Check if selected agent is a boss
   const isBoss = selectedAgent?.class === 'boss' || selectedAgent?.isBoss;
   const agentTaskProgress = useAgentTaskProgress(isBoss ? selectedAgentId : null);
+
+  // Get exec tasks for the selected agent
+  const execTasks = useExecTasks(selectedAgentId);
 
   // Auto-enable debugger when panel opens
   useEffect(() => {
@@ -558,6 +563,20 @@ export function ClaudeOutputPanel() {
                       />
                     ))}
                   </div>
+                )}
+                {/* Exec tasks (streaming command output) */}
+                {execTasks.length > 0 && selectedAgentId && (
+                  <ExecTasksContainer
+                    tasks={execTasks}
+                    onClearCompleted={() => store.clearCompletedExecTasks(selectedAgentId)}
+                    onDismiss={(taskId) => {
+                      // Remove completed task from the map
+                      const task = store.getExecTask(taskId);
+                      if (task && task.status !== 'running') {
+                        store.clearCompletedExecTasks(selectedAgentId);
+                      }
+                    }}
+                  />
                 )}
               </>
             )}

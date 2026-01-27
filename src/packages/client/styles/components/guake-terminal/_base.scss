@@ -48,9 +48,9 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(180deg, rgba($dracula-bg, 0.92) 0%, rgba($dracula-bg-darker, 0.95) 100%);
-  border-bottom: 2px solid $dracula-purple;
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+  background: rgba($bg-secondary, 0.97);
+  border-bottom: 1px solid $border-color;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(12px);
   overflow: hidden;
   // No transition - show instantly
@@ -162,21 +162,19 @@
   }
 
   &:hover {
-    background: rgba($dracula-purple, 0.1);
+    background: rgba($accent-blue, 0.08);
 
     &::after {
-      background: $dracula-purple;
+      background: $accent-blue;
       width: 80px;
-      box-shadow: 0 0 8px rgba($dracula-purple, 0.5);
     }
   }
 
   &:active {
-    background: rgba($dracula-purple, 0.2);
+    background: rgba($accent-blue, 0.15);
 
     &::after {
-      background: $dracula-cyan;
-      box-shadow: 0 0 12px rgba($dracula-cyan, 0.6);
+      background: $accent-blue;
     }
   }
 }
@@ -189,8 +187,8 @@
   align-items: center;
   gap: 8px;
   padding: 8px 20px;
-  background: linear-gradient(180deg, $dracula-current 0%, $dracula-bg 100%);
-  border: 1px solid $dracula-comment;
+  background: $bg-tertiary;
+  border: 1px solid $border-color;
   border-top: none;
   border-radius: 0 0 10px 10px;
   cursor: pointer;
@@ -200,13 +198,13 @@
   z-index: 201;
 
   &:hover {
-    background: $dracula-current;
-    border-color: $dracula-purple;
+    background: rgba($accent-blue, 0.1);
+    border-color: $accent-blue;
   }
 }
 
 .guake-handle-icon {
-  color: $dracula-purple;
+  color: $accent-blue;
   font-size: 12px;
 }
 

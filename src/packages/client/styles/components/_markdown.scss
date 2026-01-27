@@ -3,7 +3,7 @@
 .markdown-content {
   line-height: 1.5;
   display: block;
-  color: $dracula-fg;
+  color: var(--text-primary);
 
   p {
     margin: 0.4em 0;
@@ -20,20 +20,21 @@
   h1, h2, h3, h4, h5, h6 {
     margin: 0.6em 0 0.3em 0;
     font-weight: 600;
-    color: $dracula-fg;
+    color: var(--text-primary);
     line-height: 1.3;
   }
 
-  h1 { font-size: 1.4em; color: $dracula-pink; }
-  h2 { font-size: 1.25em; color: $dracula-purple; }
-  h3 { font-size: 1.15em; color: $dracula-cyan; }
-  h4 { font-size: 1.1em; color: $dracula-green; }
-  h5 { font-size: 1.05em; color: $dracula-yellow; }
-  h6 { font-size: 1em; color: $dracula-orange; }
+  // Header colors - using CSS variables for theme support
+  h1 { font-size: 1.4em; color: var(--accent-pink); }
+  h2 { font-size: 1.25em; color: var(--accent-purple); }
+  h3 { font-size: 1.15em; color: var(--accent-cyan); }
+  h4 { font-size: 1.1em; color: var(--accent-green); }
+  h5 { font-size: 1.05em; color: var(--accent-yellow); }
+  h6 { font-size: 1em; color: var(--accent-orange); }
 
   code {
-    background: rgba($dracula-current, 0.6);
-    color: $dracula-green;
+    background: color-mix(in srgb, var(--bg-tertiary) 80%, transparent);
+    color: var(--accent-green);
     padding: 0.15em 0.4em;
     border-radius: 3px;
     font-family: $font-mono;
@@ -41,8 +42,8 @@
   }
 
   pre {
-    background: rgba($dracula-bg, 0.9);
-    border: 1px solid rgba($dracula-comment, 0.4);
+    background: color-mix(in srgb, var(--bg-primary) 90%, transparent);
+    border: 1px solid var(--border-color);
     border-radius: $radius-md;
     padding: 12px;
     margin: 0.6em 0;
@@ -51,7 +52,7 @@
     code {
       background: none;
       padding: 0;
-      color: $dracula-fg;
+      color: var(--text-primary);
       font-size: 12px;
       line-height: 1.5;
     }
@@ -68,7 +69,7 @@
     padding-left: 0.3em;
 
     &::marker {
-      color: $dracula-purple;
+      color: var(--text-secondary);
     }
   }
 
@@ -80,15 +81,15 @@
   // Checklist style
   input[type="checkbox"] {
     margin-right: 0.5em;
-    accent-color: $dracula-green;
+    accent-color: var(--accent-green);
   }
 
   blockquote {
-    border-left: 3px solid $dracula-purple;
+    border-left: 3px solid var(--accent-purple);
     margin: 0.5em 0;
     padding: 0.5em 1em;
-    background: rgba($dracula-purple, 0.1);
-    color: $dracula-fg;
+    background: color-mix(in srgb, var(--accent-purple) 10%, transparent);
+    color: var(--text-primary);
     border-radius: 0 $radius-sm $radius-sm 0;
 
     p {
@@ -98,47 +99,48 @@
     // Nested blockquotes
     blockquote {
       margin-top: 0.5em;
-      border-left-color: $dracula-pink;
-      background: rgba($dracula-pink, 0.1);
+      border-left-color: var(--accent-pink);
+      background: color-mix(in srgb, var(--accent-pink) 10%, transparent);
     }
   }
 
   a {
-    color: $dracula-cyan;
+    color: var(--accent-cyan);
     text-decoration: underline;
-    text-decoration-color: rgba($dracula-cyan, 0.4);
+    text-decoration-color: color-mix(in srgb, var(--accent-cyan) 40%, transparent);
     text-underline-offset: 2px;
     transition: all $transition-fast;
 
     &:hover {
-      color: $dracula-pink;
-      text-decoration-color: $dracula-pink;
+      color: var(--accent-pink);
+      text-decoration-color: var(--accent-pink);
     }
 
     &:visited {
-      color: $dracula-purple;
-      text-decoration-color: rgba($dracula-purple, 0.4);
+      color: var(--accent-purple);
+      text-decoration-color: color-mix(in srgb, var(--accent-purple) 40%, transparent);
     }
   }
 
+  // Strong and em use accent colors for emphasis
   strong {
-    color: $dracula-orange;
+    color: var(--accent-orange);
     font-weight: 600;
   }
 
   em {
-    color: $dracula-yellow;
+    color: var(--accent-yellow);
     font-style: italic;
   }
 
   del {
-    color: $dracula-red;
+    color: var(--accent-red);
     text-decoration: line-through;
   }
 
   hr {
     border: none;
-    border-top: 1px solid rgba($dracula-comment, 0.5);
+    border-top: 1px solid var(--border-color);
     margin: 1em 0;
   }
 
@@ -150,23 +152,23 @@
   }
 
   th, td {
-    border: 1px solid rgba($dracula-comment, 0.4);
+    border: 1px solid var(--border-color);
     padding: 6px 10px;
     text-align: left;
   }
 
   th {
-    background: rgba($dracula-current, 0.8);
+    background: color-mix(in srgb, var(--bg-tertiary) 80%, transparent);
     font-weight: 600;
-    color: $dracula-pink;
+    color: var(--accent-pink);
   }
 
   td {
-    background: rgba($dracula-bg, 0.5);
+    background: color-mix(in srgb, var(--bg-secondary) 50%, transparent);
   }
 
   tr:nth-child(even) td {
-    background: rgba($dracula-current, 0.4);
+    background: color-mix(in srgb, var(--bg-tertiary) 40%, transparent);
   }
 
   // Center-aligned table cells

@@ -793,6 +793,46 @@ function handleServerMessage(message: ServerMessage): void {
       onAgentNotification?.(notification);
       break;
     }
+
+    // ========================================================================
+    // Exec Task Messages (Streaming Command Execution)
+    // ========================================================================
+
+    case 'exec_task_started': {
+      const { taskId, agentId, agentName, command, cwd } = message.payload as {
+        taskId: string;
+        agentId: string;
+        agentName: string;
+        command: string;
+        cwd: string;
+      };
+      console.log(`[WebSocket] Exec task started: ${taskId} for agent ${agentName}: ${command.slice(0, 50)}...`);
+      store.handleExecTaskStarted(taskId, agentId, agentName, command, cwd);
+      break;
+    }
+
+    case 'exec_task_output': {
+      const { taskId, agentId, output, isError } = message.payload as {
+        taskId: string;
+        agentId: string;
+        output: string;
+        isError?: boolean;
+      };
+      store.handleExecTaskOutput(taskId, agentId, output, isError);
+      break;
+    }
+
+    case 'exec_task_completed': {
+      const { taskId, agentId, exitCode, success } = message.payload as {
+        taskId: string;
+        agentId: string;
+        exitCode: number | null;
+        success: boolean;
+      };
+      console.log(`[WebSocket] Exec task completed: ${taskId} for agent ${agentId}, success: ${success}`);
+      store.handleExecTaskCompleted(taskId, agentId, exitCode, success);
+      break;
+    }
   }
 
   perf.end(`ws:${message.type}`);
