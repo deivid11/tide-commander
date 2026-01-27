@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.26.2] - 2026-01-27
+
+### Fixed
+- **Class editor modal overflow** - The "Create Agent Class" modal was taller than the screen with no scroll, making it impossible to use. Added max-height constraint and scrollable body.
+
+---
+
 ## [0.26.1] - 2026-01-27
 
 ### Fixed
