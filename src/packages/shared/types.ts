@@ -527,6 +527,14 @@ export interface ActivityMessage extends WSMessage {
   };
 }
 
+// Skill update data for UI notification
+export interface SkillUpdateData {
+  skills: Array<{
+    name: string;
+    description: string;
+  }>;
+}
+
 // Streaming output from Claude
 export interface OutputMessage extends WSMessage {
   type: 'output';
@@ -536,6 +544,7 @@ export interface OutputMessage extends WSMessage {
     isStreaming: boolean;
     timestamp: number;
     isDelegation?: boolean; // True if this is a delegation message from a boss agent
+    skillUpdate?: SkillUpdateData; // Skill update notification (UI only, not injected into conversation)
   };
 }
 

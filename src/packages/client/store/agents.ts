@@ -166,6 +166,7 @@ export function createAgentActions(
         state.selectedAgentIds.clear();
         if (agentId) {
           state.selectedAgentIds.add(agentId);
+          state.lastSelectedAgentId = agentId;
         }
       });
       notify();

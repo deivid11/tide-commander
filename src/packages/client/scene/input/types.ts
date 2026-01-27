@@ -36,6 +36,8 @@ export interface InputCallbacks {
   ) => void;
   // Activity callback - called on user interaction to prevent idle throttling
   onActivity?: () => void;
+  // Terminal toggle callback - called when Space key is pressed with agent selected
+  onToggleTerminal?: () => void;
 }
 
 /**

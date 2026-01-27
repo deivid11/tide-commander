@@ -319,6 +319,39 @@
   }
 }
 
+// Skill update notification styling
+.output-skill-update {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+
+  .skill-update-icon {
+    color: var(--accent-blue);
+    font-size: 12px;
+  }
+
+  .skill-update-label {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .skill-update-list {
+    font-size: 11px;
+    color: var(--accent-cyan);
+    font-weight: 500;
+  }
+
+  .skill-update-item {
+    cursor: help;
+
+    &:hover {
+      text-decoration: underline;
+      text-decoration-style: dotted;
+    }
+  }
+}
+
 .output-separator {
   text-align: center;
   padding: 8px;
@@ -328,4 +361,41 @@
   border-top: 1px dashed color-mix(in srgb, var(--border-color) 60%, transparent);
   border-bottom: 1px dashed color-mix(in srgb, var(--border-color) 60%, transparent);
   margin: 8px 0;
+}
+
+// =============================================================================
+// Message Navigation Selection Indicator
+// =============================================================================
+
+.message-nav-wrapper {
+  position: relative;
+  transition: background-color 0.15s ease;
+
+  &.message-selected {
+    background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+    border-left: 3px solid var(--accent-cyan);
+    margin-left: -3px;
+
+    // Add a subtle glow effect
+    box-shadow: inset 0 0 12px color-mix(in srgb, var(--accent-cyan) 10%, transparent);
+
+    // Selection indicator arrow on the left
+    &::before {
+      content: '▶';
+      position: absolute;
+      left: 4px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--accent-cyan);
+      font-size: 10px;
+      opacity: 0.8;
+      z-index: 1;
+    }
+
+    // Ensure the content inside has proper padding to accommodate the arrow
+    > .output-line,
+    > .history-line {
+      padding-left: 18px;
+    }
+  }
 }

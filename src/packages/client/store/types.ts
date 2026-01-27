@@ -31,6 +31,14 @@ export interface Activity {
   timestamp: number;
 }
 
+// Skill update notification data
+export interface SkillUpdateData {
+  skills: Array<{
+    name: string;
+    description: string;
+  }>;
+}
+
 // Claude output entry
 export interface ClaudeOutput {
   text: string;
@@ -38,6 +46,7 @@ export interface ClaudeOutput {
   timestamp: number;
   isUserPrompt?: boolean; // True if this is a user-sent command
   isDelegation?: boolean; // True if this is a delegation message from a boss agent
+  skillUpdate?: SkillUpdateData; // True if this is a skill update notification
 }
 
 // Tool execution entry
@@ -116,6 +125,7 @@ export interface SupervisorState {
 export interface StoreState {
   agents: Map<string, Agent>;
   selectedAgentIds: Set<string>;
+  lastSelectedAgentId: string | null; // Track last selected agent for Escape key behavior
   activities: Activity[];
   isConnected: boolean;
   // Drawing areas

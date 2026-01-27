@@ -132,6 +132,15 @@ function AppContent() {
   useModalStackRegistration('context-modal', contextModalAgentId !== null, () => store.closeContextModal());
   useModalStackRegistration('terminal', terminalOpen, () => store.setTerminalOpen(false));
 
+  // Close tools modals when guake terminal closes
+  useEffect(() => {
+    if (!terminalOpen) {
+      // Close skills and controls modals when terminal is closed
+      if (skillsModal.isOpen) skillsModal.close();
+      if (controlsModal.isOpen) controlsModal.close();
+    }
+  }, [terminalOpen, skillsModal, controlsModal]);
+
   // Trigger resize when switching to 3D view on mobile
   useEffect(() => {
     if (mobileView === '3d') {

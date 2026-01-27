@@ -43,6 +43,10 @@ export function useKeyboardShortcuts({
           spawnModal.close();
         } else if (currentState.terminalOpen) {
           store.setTerminalOpen(false);
+          // Blur any focused input to prevent it from blocking keyboard shortcuts
+          if (document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur();
+          }
         } else {
           store.deselectAll();
           sceneRef.current?.refreshSelectionVisuals();

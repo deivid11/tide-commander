@@ -406,8 +406,38 @@ export function clearPendingSkillUpdates(agentId: string): void {
 }
 
 /**
+ * Structured skill update data for UI rendering
+ */
+export interface SkillUpdateData {
+  skills: Array<{
+    name: string;
+    description: string;
+  }>;
+}
+
+/**
+ * Get structured skill update data for UI notification
+ * Returns null if no skills to update
+ */
+export function getSkillUpdateData(agentId: string, agentClass: AgentClass): SkillUpdateData | null {
+  const agentSkills = getSkillsForAgent(agentId, agentClass);
+
+  if (agentSkills.length === 0) {
+    return null;
+  }
+
+  return {
+    skills: agentSkills.map(skill => ({
+      name: skill.name,
+      description: skill.description,
+    })),
+  };
+}
+
+/**
  * Build a skill update notification to inject into a message
  * This is used to notify running agents about new skills without restarting
+ * @deprecated Use getSkillUpdateData() for structured data instead
  */
 export function buildSkillUpdateNotification(agentId: string, agentClass: AgentClass): string {
   const agentSkills = getSkillsForAgent(agentId, agentClass);
@@ -577,5 +607,6 @@ export const skillService = {
   hasPendingSkillUpdates,
   clearPendingSkillUpdates,
   buildSkillUpdateNotification,
+  getSkillUpdateData,
   isBuiltinSkill,
 };

@@ -231,6 +231,7 @@ export class SceneManager {
       onBuildingDragEnd: (id: string, pos: { x: number; z: number }) => store.updateBuildingPosition(id, pos),
       onContextMenu: (screenPos: { x: number; y: number }, worldPos: { x: number; z: number }, target: { type: 'ground' | 'agent' | 'area' | 'building'; id?: string }) => this.callbackManager.triggerContextMenu(screenPos, worldPos, target),
       onActivity: () => this.renderLoop.markActivity(),
+      onToggleTerminal: () => store.toggleTerminal(),
     };
   }
 

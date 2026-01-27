@@ -3,6 +3,8 @@ import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js
 import { store } from '../../store';
 import { DRAG_THRESHOLD, FORMATION_SPACING } from '../config';
 import type { AgentMeshData } from '../characters/CharacterFactory';
+import { getStorage, STORAGE_KEYS } from '../../utils/storage';
+import type { Agent } from '../../../shared/types';
 
 // Import extracted modules
 import { DoubleClickDetector } from './DoubleClickDetector';
@@ -90,6 +92,7 @@ export class InputHandler {
   private static readonly HOVER_DELAY = 400; // 400ms
   private lastHoverCheckTime = 0;
   private static readonly HOVER_CHECK_INTERVAL = 50; // Throttle to 20Hz instead of 60Hz
+
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -236,6 +239,7 @@ export class InputHandler {
     this.clearHoverTimer();
     window.removeEventListener('blur', this.onWindowBlur);
     document.removeEventListener('visibilitychange', this.onVisibilityChange);
+    document.removeEventListener('keydown', this.onKeyDown);
   }
 
   /**
@@ -320,6 +324,8 @@ export class InputHandler {
     window.addEventListener('blur', this.onWindowBlur);
     // Also listen for visibility changes
     document.addEventListener('visibilitychange', this.onVisibilityChange);
+    // Keyboard events for Space key to toggle terminal
+    document.addEventListener('keydown', this.onKeyDown);
   }
 
   // --- Pointer Event Handlers ---
@@ -593,6 +599,87 @@ export class InputHandler {
   private onVisibilityChange = (): void => {
     if (document.hidden) {
       this.cancelAllDragStates();
+    }
+  };
+
+  private onKeyDown = (event: KeyboardEvent): void => {
+    const target = event.target as HTMLElement;
+    const state = store.getState();
+
+    // Check if we're in an input field
+    const isInInputField = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+    const guakeTerminal = target.closest('.guake-terminal');
+    const isCollapsedTerminal = guakeTerminal?.classList.contains('collapsed');
+
+    // Don't handle if typing in an input field (with exceptions)
+    if (isInInputField) {
+      // Exception: Alt+H/L in collapsed terminal input - blur and continue for navigation
+      const isAltNavKey = event.altKey && (event.key === 'h' || event.key === 'l');
+
+      if (isAltNavKey && isCollapsedTerminal) {
+        (target as HTMLInputElement | HTMLTextAreaElement).blur();
+      } else {
+        // Space and other keys should not trigger when input is focused
+        return;
+      }
+    }
+
+    // Alt+H / Alt+L for agent navigation (works when terminal is closed)
+    if (event.altKey && (event.key === 'h' || event.key === 'l') && !state.terminalOpen) {
+      const orderedAgents = this.getOrderedAgents(state.agents);
+      if (orderedAgents.length <= 1) return;
+
+      const selectedId = state.selectedAgentIds.size === 1
+        ? Array.from(state.selectedAgentIds)[0]
+        : null;
+      const currentIndex = selectedId ? orderedAgents.findIndex(a => a.id === selectedId) : -1;
+
+      let nextIndex: number;
+      if (event.key === 'l') {
+        // Alt+L → next agent
+        nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % orderedAgents.length;
+      } else {
+        // Alt+H → previous agent
+        nextIndex = currentIndex === -1 ? orderedAgents.length - 1 : (currentIndex - 1 + orderedAgents.length) % orderedAgents.length;
+      }
+
+      event.preventDefault();
+      store.selectAgent(orderedAgents[nextIndex].id);
+      this.callbacks.onActivity?.();
+      return;
+    }
+
+    // Space key to open terminal
+    if (event.key === ' ') {
+      // Don't trigger if inside an open terminal
+      if (guakeTerminal && !isCollapsedTerminal) {
+        return;
+      }
+
+      // Don't trigger if any interactive element has focus (buttons, links, etc.)
+      if (target.tagName === 'BUTTON' || target.tagName === 'A') {
+        return;
+      }
+
+      // Only OPEN the terminal with Space (use backtick or Escape to close)
+      if (state.terminalOpen) return;
+
+      // If no agent selected, select the last active agent
+      if (state.selectedAgentIds.size === 0) {
+        const lastAgentId = state.lastSelectedAgentId;
+        if (lastAgentId && state.agents.has(lastAgentId)) {
+          event.preventDefault();
+          store.selectAgent(lastAgentId);
+          store.setTerminalOpen(true);
+        }
+        return;
+      }
+
+      // Prevent page scroll
+      event.preventDefault();
+
+      // Open terminal
+      store.setTerminalOpen(true);
     }
   };
 
@@ -949,5 +1036,35 @@ export class InputHandler {
       clearTimeout(this.hoverTimer);
       this.hoverTimer = null;
     }
+  }
+
+  /**
+   * Get agents ordered according to the saved toolbar order.
+   * Matches the order used in AgentBar and useSwipeNavigation.
+   */
+  private getOrderedAgents(agentsMap: Map<string, Agent>): Agent[] {
+    const agents = Array.from(agentsMap.values());
+    const currentAgentIds = new Set(agents.map(a => a.id));
+
+    // Get saved order from localStorage
+    const savedOrder = getStorage<string[]>(STORAGE_KEYS.AGENT_ORDER, []);
+
+    // Filter saved order to only include existing agents
+    const validSavedOrder = savedOrder.filter(id => currentAgentIds.has(id));
+
+    // Find agents that exist but aren't in saved order (new agents) - sort by creation time
+    const newAgents = agents
+      .filter(a => !validSavedOrder.includes(a.id))
+      .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+    const newAgentIds = newAgents.map(a => a.id);
+
+    // Combine: saved order (valid only) + new agents at the end
+    const finalOrder = [...validSavedOrder, ...newAgentIds];
+
+    // Map IDs to actual agent objects
+    const agentMap = new Map(agents.map(a => [a.id, a]));
+    return finalOrder
+      .map(id => agentMap.get(id))
+      .filter((a): a is Agent => a !== undefined);
   }
 }

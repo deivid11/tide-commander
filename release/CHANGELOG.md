@@ -2,48 +2,6 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.25.0] - 2026-01-27
-
-### Added
-- **Message Navigation in Terminal** - Navigate through terminal messages with keyboard shortcuts
-  - Alt+K / Alt+J for message-by-message navigation (up/down)
-  - Alt+U / Alt+D for page-up/page-down (10 messages at a time)
-  - Smooth animated scrolling to selected messages
-  - Space bar to activate selected message (click links, buttons, bash output)
-  - Escape to clear selection and exit navigation mode
-  - Selected messages highlighted and auto-scroll into view
-- **Enhanced Terminal Input State** - New hooks and store updates for better input handling
-  - `useMessageNavigation` hook for managing message selection and scrolling
-  - Integration with OutputLine component for message indexing
-- **Agent Navigation Improvements** - Keyboard shortcuts for scene agent selection
-  - Alt+H / Alt+L to navigate agents when terminal is closed
-  - Consistent agent ordering with SwipeNavigation and AgentBar
-  - Selection updates propagated through store
-- **Terminal Activation with Space Bar** - Press Space to open terminal
-  - Only opens terminal (Backtick or Escape to close)
-  - Auto-selects last active agent if none selected
-  - Respects input field context (doesn't trigger in text inputs)
-
-### Changed
-- **Terminal Output Display** - Enhanced output line styling and interactions
-  - Added data-message-index attributes for navigation
-  - Better visual feedback for interactive elements
-  - Improved Bash output highlighting with additional color scheme
-  - Enhanced guake-terminal styling with better output formatting
-- **InputHandler Refactoring** - Extended keyboard event handling
-  - Unified keyboard event processing for Space and Alt+H/L
-  - Added agent ordering logic matching UI components
-  - Better event delegation and input field detection
-- **Character Loader** - Minor optimizations for character asset loading
-- **WebSocket Handler** - Improved message handling robustness
-
-### Technical
-- New `useMessageNavigation` hook in ClaudeOutputPanel
-- Extended OutputLine component with message indexing
-- Store enhancements: lastSelectedAgentId tracking, terminal state management
-- Keyboard event listener in InputHandler for Space and Alt+H/L
-- Agent ordering utility in InputHandler matching AgentBar logic
-
 ## [0.24.1] - 2026-01-27
 
 ### Fixed

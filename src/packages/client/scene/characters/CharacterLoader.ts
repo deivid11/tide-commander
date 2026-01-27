@@ -111,14 +111,14 @@ export class CharacterLoader {
           if (mat.map) {
             mat.map.colorSpace = THREE.SRGBColorSpace;
           }
-          // Enhance material properties for better light reflection
+          // Preserve original material colors with subtle environment lighting
           if (mat.isMeshStandardMaterial) {
-            // Significantly reduce roughness for shinier, more reflective surfaces
-            mat.roughness = Math.max(0.2, (mat.roughness ?? 0.5) * 0.5);
-            // Add metalness for specular highlights
-            mat.metalness = Math.min(0.5, (mat.metalness ?? 0) + 0.25);
-            // Strong environment map intensity for visible reflections
-            mat.envMapIntensity = 2.5;
+            // Keep original roughness (or default to slightly rough for natural look)
+            mat.roughness = mat.roughness ?? 0.6;
+            // Preserve original metalness (most character models should be non-metallic)
+            mat.metalness = mat.metalness ?? 0.0;
+            // Subtle environment map intensity to preserve base color
+            mat.envMapIntensity = 0.8;
             // Ensure material updates
             mat.needsUpdate = true;
           }

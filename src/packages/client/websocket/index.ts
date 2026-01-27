@@ -252,15 +252,8 @@ export function connect(): void {
     messageSeq++;
     const seq = messageSeq;
 
-    // Log raw data length first (always, even before parsing)
-    const dataLen = event.data?.length || 0;
-    console.log(`[WS RAW] #${seq} received ${dataLen} bytes`);
-
     try {
       const message = JSON.parse(event.data) as ServerMessage;
-
-      // Log ALL incoming messages for debugging
-      console.log(`[WS] #${seq} RECV type=${message.type}`, message.payload ? `payload.type=${(message.payload as any)?.type}` : '');
 
       // Capture for agent-specific debugger if message has agentId
       const isDebuggerEnabled = agentDebugger.isEnabled();
@@ -274,7 +267,7 @@ export function connect(): void {
 
       handleServerMessage(message);
     } catch (err) {
-      console.error(`[WS] #${seq} Failed to parse message:`, err, event.data.slice(0, 200));
+      console.error(`[WS] Failed to parse message:`, err);
     }
   };
 
@@ -422,17 +415,20 @@ function handleServerMessage(message: ServerMessage): void {
         isStreaming: boolean;
         timestamp: number;
         isDelegation?: boolean;
+        skillUpdate?: import('../../shared/types').SkillUpdateData;
       };
       debugLog.debug(`Output: "${output.text.slice(0, 80)}..."`, {
         agentId: output.agentId,
         isStreaming: output.isStreaming,
         length: output.text.length,
+        hasSkillUpdate: !!output.skillUpdate,
       }, 'ws:output');
       store.addOutput(output.agentId, {
         text: output.text,
         isStreaming: output.isStreaming,
         timestamp: output.timestamp,
         isDelegation: output.isDelegation,
+        skillUpdate: output.skillUpdate,
       });
       break;
     }
@@ -592,7 +588,6 @@ function handleServerMessage(message: ServerMessage): void {
 
     case 'delegation_decision': {
       const decision = message.payload as DelegationDecision;
-      console.log(`[WS] Received delegation_decision:`, decision);
       store.handleDelegationDecision(decision);
       // Show toast for the delegation
       if (decision.status === 'sent') {

@@ -44,6 +44,7 @@ import { useSwipeNavigation } from './useSwipeNavigation';
 import { useHistoryLoader } from './useHistoryLoader';
 import { useSearchHistory } from './useSearchHistory';
 import { useTerminalInput } from './useTerminalInput';
+import { useMessageNavigation } from './useMessageNavigation';
 import { useFilteredOutputsWithLogging } from '../shared/useFilteredOutputs';
 
 // Import extracted components
@@ -238,6 +239,18 @@ export function ClaudeOutputPanel() {
   // Filtered outputs
   const filteredOutputs = useFilteredOutputsWithLogging({ outputs, viewMode });
 
+  // Total navigable messages count (history + live outputs)
+  const totalNavigableMessages = filteredHistory.length + filteredOutputs.length;
+
+  // Message navigation hook (Alt+J/K)
+  const messageNav = useMessageNavigation({
+    totalMessages: totalNavigableMessages,
+    isOpen,
+    hasModalOpen: !!(imageModal || bashModal || responseModalContent),
+    scrollContainerRef: outputScrollRef,
+    selectedAgentId,
+  });
+
   // Auto-update bash modal when output arrives
   useEffect(() => {
     if (!bashModal?.isLive || !bashModal.command) return;
@@ -330,18 +343,29 @@ export function ClaudeOutputPanel() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [selectedAgent]);
 
-  // Escape key handler for modals and search
+  // Escape key handler for modals and search (higher priority than message navigation)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (responseModalContent) setResponseModalContent(null);
-        else if (bashModal) setBashModal(null);
-        else if (imageModal) setImageModal(null);
-        else if (search.searchMode) search.closeSearch();
+        // Handle modals first - stop propagation to prevent message nav from also handling
+        if (responseModalContent) {
+          e.stopPropagation();
+          setResponseModalContent(null);
+        } else if (bashModal) {
+          e.stopPropagation();
+          setBashModal(null);
+        } else if (imageModal) {
+          e.stopPropagation();
+          setImageModal(null);
+        } else if (search.searchMode) {
+          e.stopPropagation();
+          search.closeSearch();
+        }
       }
     };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    // Use capture phase to handle before message navigation
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
   }, [imageModal, bashModal, responseModalContent, search]);
 
   // Close terminal when clicking outside (desktop only)
@@ -524,29 +548,42 @@ export function ClaudeOutputPanel() {
                 )}
                 <div className={`guake-history-content ${historyFadeIn ? 'fade-in' : ''}`}>
                   {filteredHistory.map((msg, index) => (
-                    <HistoryLine
+                    <div
                       key={`h-${index}`}
-                      message={msg}
-                      agentId={selectedAgentId}
-                      simpleView={viewMode !== 'advanced'}
-                      onImageClick={handleImageClick}
-                      onFileClick={handleFileClick}
-                      onBashClick={handleBashClick}
-                      onViewMarkdown={handleViewMarkdown}
-                    />
+                      data-message-index={index}
+                      className={`message-nav-wrapper ${messageNav.isSelected(index) ? 'message-selected' : ''}`}
+                    >
+                      <HistoryLine
+                        message={msg}
+                        agentId={selectedAgentId}
+                        simpleView={viewMode !== 'advanced'}
+                        onImageClick={handleImageClick}
+                        onFileClick={handleFileClick}
+                        onBashClick={handleBashClick}
+                        onViewMarkdown={handleViewMarkdown}
+                      />
+                    </div>
                   ))}
                 </div>
-                {filteredOutputs.map((output, index) => (
-                  <OutputLine
-                    key={`o-${index}`}
-                    output={output}
-                    agentId={selectedAgentId}
-                    onImageClick={handleImageClick}
-                    onFileClick={handleFileClick}
-                    onBashClick={handleBashClick}
-                    onViewMarkdown={handleViewMarkdown}
-                  />
-                ))}
+                {filteredOutputs.map((output, index) => {
+                  const globalIndex = filteredHistory.length + index;
+                  return (
+                    <div
+                      key={`o-${index}`}
+                      data-message-index={globalIndex}
+                      className={`message-nav-wrapper ${messageNav.isSelected(globalIndex) ? 'message-selected' : ''}`}
+                    >
+                      <OutputLine
+                        output={output}
+                        agentId={selectedAgentId}
+                        onImageClick={handleImageClick}
+                        onFileClick={handleFileClick}
+                        onBashClick={handleBashClick}
+                        onViewMarkdown={handleViewMarkdown}
+                      />
+                    </div>
+                  );
+                })}
                 {/* Boss agent progress indicators */}
                 {isBoss && agentTaskProgress.size > 0 && (
                   <div className="agent-progress-container">

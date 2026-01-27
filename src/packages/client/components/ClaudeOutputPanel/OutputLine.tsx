@@ -38,7 +38,7 @@ function getDebugHash(output: ClaudeOutput): string {
 
 export const OutputLine = memo(function OutputLine({ output, agentId, onImageClick, onFileClick, onBashClick, onViewMarkdown }: OutputLineProps) {
   const hideCost = useHideCost();
-  const { text: rawText, isStreaming, isUserPrompt, timestamp, _toolKeyParam, _editData, _todoInput, _bashOutput, _bashCommand, _isRunning } = output;
+  const { text: rawText, isStreaming, isUserPrompt, timestamp, skillUpdate, _toolKeyParam, _editData, _todoInput, _bashOutput, _bashCommand, _isRunning } = output;
   const text = filterCostText(rawText, hideCost);
 
   // Format timestamp for display
@@ -46,6 +46,24 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
 
   // Debug hash for identifying duplicates
   const debugHash = getDebugHash(output);
+
+  // Handle skill update notifications with special rendering
+  if (skillUpdate) {
+    return (
+      <div className="output-line output-skill-update">
+        <span className="output-timestamp" title={`${timestamp} | ${debugHash}`}>{timeStr}</span>
+        <span className="skill-update-icon">🔄</span>
+        <span className="skill-update-label">Skills updated:</span>
+        <span className="skill-update-list">
+          {skillUpdate.skills.map((skill, i) => (
+            <span key={skill.name} className="skill-update-item" title={skill.description}>
+              {skill.name}{i < skillUpdate.skills.length - 1 ? ', ' : ''}
+            </span>
+          ))}
+        </span>
+      </div>
+    );
+  }
 
   // Check if this agent has a pending delegated task
   const delegation = agentId ? store.getLastDelegationReceived(agentId) : null;

@@ -164,6 +164,7 @@ class Store
     this.state = {
       agents: new Map(),
       selectedAgentIds: new Set(),
+      lastSelectedAgentId: null,
       activities: [],
       isConnected: false,
       areas: new Map(),

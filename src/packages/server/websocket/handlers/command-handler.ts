@@ -201,12 +201,22 @@ async function handleRegularAgentCommand(
     agentService.clearPendingPropertyUpdates(agentId);
   }
 
-  // Skill updates
+  // Skill updates - send as UI notification instead of injecting into conversation
   if (skillService.hasPendingSkillUpdates(agentId)) {
-    const skillNotification = skillService.buildSkillUpdateNotification(agentId, agent.class as import('../../../shared/types.js').AgentClass);
-    if (skillNotification) {
-      finalCommand = skillNotification + finalCommand;
-      log.log(` Agent ${agent.name}: Injecting skill update notification (${skillNotification.length} chars)`);
+    const skillUpdateData = skillService.getSkillUpdateData(agentId, agent.class as import('../../../shared/types.js').AgentClass);
+    if (skillUpdateData) {
+      // Send skill update as a special output message for UI rendering
+      ctx.broadcast({
+        type: 'output',
+        payload: {
+          agentId,
+          text: '', // Empty text - the UI will render the skillUpdate data
+          isStreaming: false,
+          timestamp: Date.now(),
+          skillUpdate: skillUpdateData,
+        },
+      });
+      log.log(` Agent ${agent.name}: Sent skill update notification (${skillUpdateData.skills.length} skills)`);
     }
     skillService.clearPendingSkillUpdates(agentId);
   }

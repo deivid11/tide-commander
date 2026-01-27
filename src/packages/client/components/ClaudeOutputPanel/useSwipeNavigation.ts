@@ -199,19 +199,19 @@ export function useSwipeNavigation({
     maxVerticalMovement: 35,
   });
 
-  // Keyboard shortcuts for agent navigation (Alt+J / Alt+K)
+  // Keyboard shortcuts for agent navigation (Alt+H / Alt+L)
   useEffect(() => {
     const handleAgentNavKeyDown = (e: KeyboardEvent) => {
       if (!isOpen || sortedAgents.length <= 1) return;
       if (hasModalOpen) return;
 
-      // Alt+K → previous agent
-      if (e.altKey && e.key === 'k') {
+      // Alt+H → previous agent
+      if (e.altKey && e.key === 'h') {
         e.preventDefault();
         handleSwipeRight();
       }
-      // Alt+J → next agent
-      if (e.altKey && e.key === 'j') {
+      // Alt+L → next agent
+      if (e.altKey && e.key === 'l') {
         e.preventDefault();
         handleSwipeLeft();
       }

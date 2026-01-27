@@ -251,10 +251,8 @@ function handleClientMessage(ws: WebSocket, message: ClientMessage): void {
 
     case 'request_global_usage':
       {
-        console.log('[WS] Received request_global_usage');
         // First, send current cached usage if available
         const cachedUsage = supervisorService.getGlobalUsage();
-        console.log('[WS] Cached usage:', cachedUsage);
         if (cachedUsage) {
           ws.send(
             JSON.stringify({
@@ -265,11 +263,8 @@ function handleClientMessage(ws: WebSocket, message: ClientMessage): void {
         }
 
         // Then request a refresh from an idle agent
-        console.log('[WS] Requesting usage refresh from idle agent...');
         supervisorService.requestUsageRefresh().then((agentId) => {
-          console.log('[WS] Usage refresh result - agentId:', agentId);
           if (!agentId && !cachedUsage) {
-            console.log('[WS] No agent available and no cached usage, sending null');
             ws.send(
               JSON.stringify({
                 type: 'global_usage',
@@ -593,7 +588,6 @@ function setupServiceListeners(): void {
         } as ServerMessage);
         break;
       case 'global_usage':
-        console.log('[WS] Broadcasting global_usage event:', data);
         broadcast({
           type: 'global_usage',
           payload: data,
