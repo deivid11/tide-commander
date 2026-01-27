@@ -6,8 +6,8 @@
  */
 
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { store, useAreas } from '../../store';
-import { useSwipeGesture } from '../../hooks';
+import { store } from '../../store';
+import { useSwipeGesture, useAgentOrder } from '../../hooks';
 import type { Agent } from '../../../shared/types';
 
 export interface UseSwipeNavigationProps {
@@ -52,19 +52,23 @@ export function useSwipeNavigation({
   hasModalOpen = false,
   outputRef,
 }: UseSwipeNavigationProps): UseSwipeNavigationReturn {
-  // Get areas for grouping agents
-  const areas = useAreas();
+  // Get agents sorted by creation time as base
+  const baseAgents = useMemo(
+    () =>
+      Array.from(agents.values()).sort(
+        (a, b) => (a.createdAt || 0) - (b.createdAt || 0)
+      ),
+    [agents]
+  );
 
-  // Memoized sorted agents list matching AgentBar's visual order
+  // Use the same ordering hook as AgentBar for consistent navigation order
+  const { orderedAgents } = useAgentOrder(baseAgents);
+
+  // Group agents by their area while preserving custom order within each group
   const sortedAgents = useMemo(() => {
-    const agentList = Array.from(agents.values()).sort(
-      (a, b) => (a.createdAt || 0) - (b.createdAt || 0)
-    );
+    const groups = new Map<string | null, { area: { name: string } | null; agents: Agent[] }>();
 
-    // Group agents by their area
-    const groups = new Map<string | null, { area: { name: string } | null; agents: typeof agentList }>();
-
-    for (const agent of agentList) {
+    for (const agent of orderedAgents) {
       const area = store.getAreaForAgent(agent.id);
       const areaKey = area?.id || null;
 
@@ -84,7 +88,7 @@ export function useSwipeNavigation({
     });
 
     return groupArray.flatMap((group) => group.agents);
-  }, [agents, areas]);
+  }, [orderedAgents]);
 
   // Swipe animation state
   const [swipeOffset, setSwipeOffset] = useState(0);

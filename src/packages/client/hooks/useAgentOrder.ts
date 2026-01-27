@@ -2,9 +2,13 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { STORAGE_KEYS, getStorage, setStorage } from '../utils/storage';
 import type { Agent } from '../../shared/types';
 
+// Custom event for syncing agent order across components
+const AGENT_ORDER_CHANGE_EVENT = 'agent-order-change';
+
 /**
  * Hook to manage agent order in the toolbar with localStorage persistence.
  * Resilient to agents being removed - filters out non-existent agent IDs.
+ * Syncs across all component instances via custom events.
  */
 export function useAgentOrder(agents: Agent[]) {
   // Get current agent IDs for validation
@@ -14,6 +18,18 @@ export function useAgentOrder(agents: Agent[]) {
   const [savedOrder, setSavedOrder] = useState<string[]>(() => {
     return getStorage<string[]>(STORAGE_KEYS.AGENT_ORDER, []);
   });
+
+  // Listen for order changes from other components
+  useEffect(() => {
+    const handleOrderChange = (e: CustomEvent<string[]>) => {
+      setSavedOrder(e.detail);
+    };
+
+    window.addEventListener(AGENT_ORDER_CHANGE_EVENT, handleOrderChange as EventListener);
+    return () => {
+      window.removeEventListener(AGENT_ORDER_CHANGE_EVENT, handleOrderChange as EventListener);
+    };
+  }, []);
 
   // Compute the effective ordered agents list
   const orderedAgents = useMemo(() => {
@@ -35,10 +51,12 @@ export function useAgentOrder(agents: Agent[]) {
       .filter((a): a is Agent => a !== undefined);
   }, [agents, savedOrder, currentAgentIds]);
 
-  // Save order to localStorage whenever it changes
+  // Save order to localStorage and broadcast to other components
   const saveOrder = useCallback((order: string[]) => {
     setSavedOrder(order);
     setStorage(STORAGE_KEYS.AGENT_ORDER, order);
+    // Broadcast change to other components using this hook
+    window.dispatchEvent(new CustomEvent(AGENT_ORDER_CHANGE_EVENT, { detail: order }));
   }, []);
 
   // Move an agent from one index to another

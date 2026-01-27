@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.24.1] - 2026-01-27
+
+### Fixed
+- **Agent Order Synchronization** - Fix inconsistent agent ordering between SwipeNavigation and AgentBar
+  - Use unified `useAgentOrder` hook in both components for consistent navigation order
+  - Add custom event broadcasting for order changes across component instances
+  - Improve agent grouping by preserving custom order within area groups
+- **SwipeNavigation Hook Refactor** - Simplified and improved agent ordering logic
+  - Remove dependency on `useAreas` hook
+  - Use base agent list sorted by creation time as foundation
+  - Apply custom ordering from `useAgentOrder` for navigation consistency
+
 ## [0.24.0] - 2026-01-27
 
 ### Added
