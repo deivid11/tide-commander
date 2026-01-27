@@ -57,14 +57,25 @@ export function useSceneSetup({
     if (persistedScene && isSameCanvas) {
       sceneRef.current = persistedScene;
       console.log('[Tide] Reusing existing scene (StrictMode remount)');
+      // Re-sync agents from store after HMR (models are already loaded)
+      const state = store.getState();
+      if (state.agents.size > 0) {
+        console.log('[Tide] Re-syncing agents from store after remount:', state.agents.size);
+        persistedScene.syncAgents(Array.from(state.agents.values()));
+      }
     } else if (persistedScene && !isSameCanvas) {
       persistedScene.reattach(canvasRef.current, selectionBoxRef.current);
       sceneRef.current = persistedScene;
       setPersistedCanvas(canvasRef.current);
       console.log('[Tide] Reattached existing scene (HMR)');
-      const customClasses = store.getState().customAgentClasses;
-      if (customClasses.size > 0) {
-        persistedScene.setCustomAgentClasses(customClasses);
+      const state = store.getState();
+      if (state.customAgentClasses.size > 0) {
+        persistedScene.setCustomAgentClasses(state.customAgentClasses);
+      }
+      // Re-sync agents from store after HMR reattach
+      if (state.agents.size > 0) {
+        console.log('[Tide] Re-syncing agents from store after HMR:', state.agents.size);
+        persistedScene.syncAgents(Array.from(state.agents.values()));
       }
     } else {
       markWebGLActive();

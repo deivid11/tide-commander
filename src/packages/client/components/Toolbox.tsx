@@ -999,6 +999,7 @@ function AboutSection() {
   const {
     updateAvailable,
     updateInfo,
+    recentReleases,
     isChecking,
     isDownloading,
     downloadProgress,
@@ -1014,6 +1015,15 @@ function AboutSection() {
     if (!bytes) return '';
     const mb = bytes / (1024 * 1024);
     return `${mb.toFixed(1)} MB`;
+  };
+
+  const formatDate = (dateStr: string): string => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
   };
 
   return (
@@ -1079,6 +1089,27 @@ function AboutSection() {
             >
               {isChecking ? '...' : 'Check'}
             </button>
+          </div>
+        )}
+
+        {/* Recent Releases */}
+        {recentReleases.length > 0 && (
+          <div className="about-releases">
+            <div className="about-releases-title">Recent Releases</div>
+            <div className="about-releases-list">
+              {recentReleases.map((release) => (
+                <a
+                  key={release.version}
+                  href={release.releaseUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`about-release-item ${release.version === `v${currentVersion}` || release.version === currentVersion ? 'current' : ''}`}
+                >
+                  <span className="about-release-version">{release.version}</span>
+                  <span className="about-release-date">{formatDate(release.publishedAt)}</span>
+                </a>
+              ))}
+            </div>
           </div>
         )}
       </div>

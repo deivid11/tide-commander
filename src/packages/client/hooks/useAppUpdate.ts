@@ -8,6 +8,7 @@ import { Capacitor } from '@capacitor/core';
 
 const GITHUB_REPO = 'deivid11/tide-commander';
 const GITHUB_RELEASES_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
+const GITHUB_RELEASES_LIST_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=3`;
 const CHECK_INTERVAL = 60 * 60 * 1000; // Check every hour
 const STORAGE_KEY = 'app_update_dismissed_version';
 
@@ -38,10 +39,18 @@ interface UpdateInfo {
   publishedAt: string;
 }
 
+interface ReleaseHistoryItem {
+  version: string;
+  name: string;
+  publishedAt: string;
+  releaseUrl: string;
+}
+
 interface AppUpdateState {
   isChecking: boolean;
   updateAvailable: boolean;
   updateInfo: UpdateInfo | null;
+  recentReleases: ReleaseHistoryItem[];
   isDownloading: boolean;
   downloadProgress: number;
   error: string | null;
@@ -53,6 +62,7 @@ export function useAppUpdate() {
     isChecking: false,
     updateAvailable: false,
     updateInfo: null,
+    recentReleases: [],
     isDownloading: false,
     downloadProgress: 0,
     error: null,
@@ -94,23 +104,39 @@ export function useAppUpdate() {
     setState(s => ({ ...s, isChecking: true, error: null }));
 
     try {
-      const response = await fetch(GITHUB_RELEASES_URL, {
-        headers: {
-          'Accept': 'application/vnd.github.v3+json',
-        },
-      });
+      // Fetch both latest release and recent releases list in parallel
+      const [latestResponse, listResponse] = await Promise.all([
+        fetch(GITHUB_RELEASES_URL, {
+          headers: { 'Accept': 'application/vnd.github.v3+json' },
+        }),
+        fetch(GITHUB_RELEASES_LIST_URL, {
+          headers: { 'Accept': 'application/vnd.github.v3+json' },
+        }),
+      ]);
 
-      if (!response.ok) {
-        throw new Error(`GitHub API error: ${response.status}`);
+      if (!latestResponse.ok) {
+        throw new Error(`GitHub API error: ${latestResponse.status}`);
       }
 
-      const release: GitHubRelease = await response.json();
+      const release: GitHubRelease = await latestResponse.json();
       const latestVersion = release.tag_name;
+
+      // Parse recent releases for history
+      let recentReleases: ReleaseHistoryItem[] = [];
+      if (listResponse.ok) {
+        const releases: GitHubRelease[] = await listResponse.json();
+        recentReleases = releases.map(r => ({
+          version: r.tag_name,
+          name: r.name,
+          publishedAt: r.published_at,
+          releaseUrl: r.html_url,
+        }));
+      }
 
       // Check if this version was dismissed
       const dismissedVersion = localStorage.getItem(STORAGE_KEY);
       if (!force && dismissedVersion === latestVersion) {
-        setState(s => ({ ...s, isChecking: false, updateAvailable: false }));
+        setState(s => ({ ...s, isChecking: false, updateAvailable: false, recentReleases }));
         return null;
       }
 
@@ -118,7 +144,7 @@ export function useAppUpdate() {
       const hasUpdate = compareVersions(latestVersion, CURRENT_VERSION) > 0;
 
       if (!hasUpdate) {
-        setState(s => ({ ...s, isChecking: false, updateAvailable: false }));
+        setState(s => ({ ...s, isChecking: false, updateAvailable: false, recentReleases }));
         return null;
       }
 
@@ -142,6 +168,7 @@ export function useAppUpdate() {
         isChecking: false,
         updateAvailable: true,
         updateInfo,
+        recentReleases,
       }));
 
       return updateInfo;

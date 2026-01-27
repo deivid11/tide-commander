@@ -1386,6 +1386,63 @@
   }
 }
 
+// Recent releases list
+.about-releases {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba($border-color, 0.5);
+}
+
+.about-releases-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: $text-secondary;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.about-releases-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.about-release-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: $radius-sm;
+  text-decoration: none;
+  transition: all $transition-fast;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  &.current {
+    background: rgba($accent-blue, 0.1);
+    border-left: 2px solid $accent-blue;
+  }
+}
+
+.about-release-version {
+  font-size: 12px;
+  font-weight: 500;
+  color: $text-primary;
+  font-family: $font-mono;
+
+  .about-release-item.current & {
+    color: $accent-blue;
+  }
+}
+
+.about-release-date {
+  font-size: 10px;
+  color: $text-secondary;
+}
+
 // ============================================
 // Drawing Mode Indicator
 // ============================================
