@@ -10,7 +10,7 @@ import { AgentBar } from './components/AgentBar';
 import { DrawingModeIndicator } from './components/DrawingModeIndicator';
 import { AgentHoverPopup } from './components/AgentHoverPopup';
 import { FPSMeter } from './components/FPSMeter';
-import { PWAInstallBanner } from './components/PWAInstallBanner';
+// import { PWAInstallBanner } from './components/PWAInstallBanner';
 import { MobileFabMenu } from './components/MobileFabMenu';
 import { FloatingActionButtons } from './components/FloatingActionButtons';
 import { AppModals } from './components/AppModals';
@@ -425,8 +425,8 @@ function AppContent() {
         onLeave={handleLeave}
       />
 
-      {/* PWA Install Banner */}
-      <PWAInstallBanner />
+      {/* PWA Install Banner - disabled */}
+      {/* <PWAInstallBanner /> */}
     </div>
   );
 }

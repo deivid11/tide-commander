@@ -137,6 +137,11 @@
   background: rgba($dracula-bg-darker, 0.95);
   border-top: 1px solid $dracula-current;
   gap: 12px;
+
+  // Hide on mobile devices
+  @media (max-width: 768px) {
+    display: none;
+  }
 }
 
 .guake-agent-cwd {

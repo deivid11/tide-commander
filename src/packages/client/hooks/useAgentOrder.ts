@@ -56,7 +56,14 @@ export function useAgentOrder(agents: Agent[]) {
   }, []);
 
   // Clean up saved order when agents change (remove stale IDs)
+  // IMPORTANT: Only run cleanup when agents have actually loaded (size > 0)
+  // Otherwise, on initial render before agents load, we'd clear the saved order
   useEffect(() => {
+    // Don't clean up if agents haven't loaded yet
+    if (currentAgentIds.size === 0) {
+      return;
+    }
+
     const validOrder = savedOrder.filter(id => currentAgentIds.has(id));
     if (validOrder.length !== savedOrder.length) {
       // Some agents were removed, update storage
