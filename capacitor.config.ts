@@ -22,6 +22,13 @@ const config: CapacitorConfig = {
       backgroundColor: '#0a0a0f',
       showSpinner: false,
     },
+    // Local notifications configuration for high-priority delivery
+    LocalNotifications: {
+      // Use high-priority channel for agent alerts
+      smallIcon: 'ic_stat_icon_config_sample',
+      iconColor: '#00D4AA',
+      sound: 'default',
+    },
   },
 };
 
