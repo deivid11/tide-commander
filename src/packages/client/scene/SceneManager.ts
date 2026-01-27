@@ -96,6 +96,9 @@ export class SceneManager {
     // Initialize callback manager
     this.callbackManager = new CallbackManager();
 
+    // Initialize post-processing (must be done after camera is created)
+    this.sceneCore.initPostProcessing(this.cameraManager.getCamera());
+
     // Initialize render loop
     this.renderLoop = new RenderLoop(
       {
@@ -106,6 +109,7 @@ export class SceneManager {
         getCanvas: () => this.sceneCore.getCanvas(),
         isReattaching: () => this.isReattaching,
         getAgentMeshes: () => this.agentManager.getAgentMeshes(),
+        render: (camera) => this.sceneCore.render(camera),
       },
       {
         onUpdateBattlefield: (deltaTime, now) => this.updateBattlefield(deltaTime, now),
@@ -459,6 +463,33 @@ export class SceneManager {
   setWorkingAnimation(animation: string): void { this.agentManager.setWorkingAnimation(animation); }
 
   // ============================================
+  // Public API - Agent Model Style
+  // ============================================
+
+  /**
+   * Set agent model style settings (saturation, roughness, metalness, etc.)
+   * Saturation is applied via shader injection on agent materials only.
+   */
+  setAgentModelStyle(style: { saturation?: number; roughness?: number; metalness?: number; emissiveBoost?: number; envMapIntensity?: number; wireframe?: boolean; colorMode?: string }): void {
+    this.agentManager.setModelStyle(style);
+  }
+
+  /**
+   * Get current agent model style settings.
+   */
+  getAgentModelStyle(): { saturation: number; roughness: number; metalness: number; emissiveBoost: number; envMapIntensity: number; wireframe: boolean; colorMode: string } {
+    return this.agentManager.getModelStyle();
+  }
+
+  // ============================================
+  // Public API - Post-Processing (Global Effects)
+  // ============================================
+
+  setGlobalSaturation(value: number): void { this.sceneCore.setSaturation(value); }
+  getGlobalSaturation(): number { return this.sceneCore.getSaturation(); }
+  setPostProcessingEnabled(enabled: boolean): void { this.sceneCore.setPostProcessingEnabled(enabled); }
+
+  // ============================================
   // HMR Support
   // ============================================
 
@@ -474,6 +505,8 @@ export class SceneManager {
 
     this.sceneCore.reattach(canvas);
     this.cameraManager.recreateControls(this.sceneCore.getRenderer());
+    // Update camera reference for post-processing
+    this.sceneCore.updateCamera(this.cameraManager.getCamera());
 
     canvas.addEventListener('webglcontextlost', this.onContextLost);
     canvas.addEventListener('webglcontextrestored', this.onContextRestored);

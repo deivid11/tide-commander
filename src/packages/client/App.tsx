@@ -163,6 +163,7 @@ function AppContent() {
     sceneRef.current?.setTimeMode(config.timeMode);
     sceneRef.current?.setTerrainConfig(config.terrain);
     sceneRef.current?.setFloorStyle(config.terrain.floorStyle);
+    sceneRef.current?.setAgentModelStyle(config.modelStyle);
     sceneRef.current?.setIdleAnimation(config.animations.idleAnimation);
     sceneRef.current?.setWorkingAnimation(config.animations.workingAnimation);
     sceneRef.current?.setFpsLimit(config.fpsLimit);

@@ -130,6 +130,24 @@
   font-size: 11px;
 }
 
+.skill-search-input {
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  font-size: 12px;
+
+  &::placeholder {
+    color: $text-muted;
+  }
+}
+
+.skill-search-empty {
+  width: 100%;
+  padding: 12px;
+  text-align: center;
+  color: $text-muted;
+  font-size: 11px;
+}
+
 .class-chip {
   display: inline-flex;
   align-items: center;

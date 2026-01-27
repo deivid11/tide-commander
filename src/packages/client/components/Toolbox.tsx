@@ -28,6 +28,20 @@ export interface TerrainConfig {
   skyColor: string | null; // null = auto (based on time), or hex color like '#4a90d9'
 }
 
+// Color mode type for agent models
+export type ColorMode = 'normal' | 'bw' | 'sepia' | 'cool' | 'warm' | 'neon';
+
+// Agent model style config
+export interface ModelStyleConfig {
+  saturation: number;      // 0 = grayscale, 1 = normal, 2 = vivid
+  roughness: number;       // -1 = use original, 0-1 = override
+  metalness: number;       // -1 = use original, 0-1 = override
+  emissiveBoost: number;   // 0 = normal, positive = add glow
+  envMapIntensity: number; // -1 = use original, 0-2 = override
+  wireframe: boolean;      // true = wireframe rendering mode
+  colorMode: ColorMode;    // color grading preset
+}
+
 // Animation type for status
 export type AnimationType = 'static' | 'idle' | 'walk' | 'sprint' | 'jump' | 'fall' | 'crouch' | 'sit' | 'die' | 'emote-yes' | 'emote-no';
 
@@ -43,6 +57,7 @@ export interface SceneConfig {
   gridVisible: boolean;
   timeMode: TimeMode;
   terrain: TerrainConfig;
+  modelStyle: ModelStyleConfig;
   animations: AnimationConfig;
   fpsLimit: number; // 0 = unlimited, otherwise max FPS (e.g., 30, 60)
 }
@@ -634,6 +649,16 @@ const ANIMATION_OPTIONS: { value: AnimationType; label: string; icon: string }[]
   { value: 'emote-no', label: 'No', icon: '👎' },
 ];
 
+// Color mode options for agent models
+const COLOR_MODE_OPTIONS: { value: ColorMode; label: string; icon: string }[] = [
+  { value: 'normal', label: 'Normal', icon: '🎨' },
+  { value: 'bw', label: 'B&W', icon: '⬛' },
+  { value: 'sepia', label: 'Sepia', icon: '🟤' },
+  { value: 'cool', label: 'Cool', icon: '❄️' },
+  { value: 'warm', label: 'Warm', icon: '🔥' },
+  { value: 'neon', label: 'Neon', icon: '💜' },
+];
+
 // Terrain toggle options for icon-only display
 const TERRAIN_OPTIONS: { key: keyof TerrainConfig; icon: string; label: string }[] = [
   { key: 'showTrees', icon: '🌳', label: 'Trees' },
@@ -828,6 +853,10 @@ function ConfigSection({ config, onChange }: ConfigSectionProps) {
 
   const updateTerrain = (updates: Partial<TerrainConfig>) => {
     onChange({ ...config, terrain: { ...config.terrain, ...updates } });
+  };
+
+  const updateModelStyle = (updates: Partial<ModelStyleConfig>) => {
+    onChange({ ...config, modelStyle: { ...config.modelStyle, ...updates } });
   };
 
   const updateAnimations = (updates: Partial<AnimationConfig>) => {
@@ -1056,6 +1085,101 @@ function ConfigSection({ config, onChange }: ConfigSectionProps) {
               />
             ))}
           </div>
+        </div>
+      </CollapsibleSection>
+
+      {/* Agent Model Style Settings */}
+      <CollapsibleSection title="Agent Model Style" storageKey="modelStyle" defaultOpen={false}>
+        <div className="config-row">
+          <span className="config-label">Saturation</span>
+          <input
+            type="range"
+            className="config-slider"
+            min="0"
+            max="2"
+            step="0.1"
+            value={config.modelStyle.saturation}
+            onChange={(e) => updateModelStyle({ saturation: parseFloat(e.target.value) })}
+          />
+          <span className="config-value">
+            {config.modelStyle.saturation <= 0.3 ? 'Gray' : config.modelStyle.saturation <= 1.2 ? 'Normal' : 'Vivid'}
+          </span>
+        </div>
+        <div className="config-row">
+          <span className="config-label">Roughness</span>
+          <input
+            type="range"
+            className="config-slider"
+            min="-1"
+            max="1"
+            step="0.1"
+            value={config.modelStyle.roughness}
+            onChange={(e) => updateModelStyle({ roughness: parseFloat(e.target.value) })}
+          />
+          <span className="config-value">
+            {config.modelStyle.roughness < 0 ? 'Auto' : config.modelStyle.roughness <= 0.3 ? 'Glossy' : config.modelStyle.roughness <= 0.7 ? 'Normal' : 'Matte'}
+          </span>
+        </div>
+        <div className="config-row">
+          <span className="config-label">Metalness</span>
+          <input
+            type="range"
+            className="config-slider"
+            min="-1"
+            max="1"
+            step="0.1"
+            value={config.modelStyle.metalness}
+            onChange={(e) => updateModelStyle({ metalness: parseFloat(e.target.value) })}
+          />
+          <span className="config-value">
+            {config.modelStyle.metalness < 0 ? 'Auto' : config.modelStyle.metalness <= 0.3 ? 'Plastic' : config.modelStyle.metalness <= 0.7 ? 'Mixed' : 'Metal'}
+          </span>
+        </div>
+        <div className="config-row">
+          <span className="config-label">Glow</span>
+          <input
+            type="range"
+            className="config-slider"
+            min="0"
+            max="1"
+            step="0.05"
+            value={config.modelStyle.emissiveBoost}
+            onChange={(e) => updateModelStyle({ emissiveBoost: parseFloat(e.target.value) })}
+          />
+          <span className="config-value">
+            {config.modelStyle.emissiveBoost <= 0.1 ? 'Off' : config.modelStyle.emissiveBoost <= 0.4 ? 'Low' : config.modelStyle.emissiveBoost <= 0.7 ? 'Med' : 'High'}
+          </span>
+        </div>
+        <div className="config-row">
+          <span className="config-label">Reflections</span>
+          <input
+            type="range"
+            className="config-slider"
+            min="-1"
+            max="2"
+            step="0.1"
+            value={config.modelStyle.envMapIntensity}
+            onChange={(e) => updateModelStyle({ envMapIntensity: parseFloat(e.target.value) })}
+          />
+          <span className="config-value">
+            {config.modelStyle.envMapIntensity < 0 ? 'Auto' : config.modelStyle.envMapIntensity <= 0.3 ? 'Low' : config.modelStyle.envMapIntensity <= 1 ? 'Normal' : 'High'}
+          </span>
+        </div>
+        <div className="config-row">
+          <span className="config-label">Wireframe</span>
+          <Toggle
+            checked={config.modelStyle.wireframe}
+            onChange={(checked) => updateModelStyle({ wireframe: checked })}
+          />
+        </div>
+        <div className="config-group">
+          <span className="config-label">Color Mode</span>
+          <ChipSelector
+            options={COLOR_MODE_OPTIONS}
+            value={config.modelStyle.colorMode}
+            onChange={(mode) => updateModelStyle({ colorMode: mode })}
+            iconOnly
+          />
         </div>
       </CollapsibleSection>
 

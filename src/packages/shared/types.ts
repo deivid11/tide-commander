@@ -1016,6 +1016,7 @@ export interface SpawnBossAgentMessage extends WSMessage {
     permissionMode?: PermissionMode;
     model?: ClaudeModel; // Claude model to use (defaults to sonnet)
     customInstructions?: string;  // Custom instructions to append to system prompt
+    initialSkillIds?: string[];  // Initial skills to assign to the boss
   };
 }
 

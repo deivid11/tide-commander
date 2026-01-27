@@ -30,7 +30,7 @@
 .toolbox-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.2);
+  background: transparent;
   z-index: 200;
 }
 
@@ -87,8 +87,8 @@
 }
 
 .toolbox-section {
-  padding: 12px;
-  border-bottom: 1px solid $border-color;
+  padding: 0;
+  margin-bottom: 2px;
 }
 
 .toolbox-section-header {
@@ -96,7 +96,11 @@
   font-weight: 600;
   color: $text-secondary;
   text-transform: uppercase;
+  letter-spacing: 0.5px;
   margin-bottom: 10px;
+  padding: 10px 12px;
+  background: linear-gradient(135deg, rgba($bg-tertiary, 0.8) 0%, rgba($bg-tertiary, 0.4) 100%);
+  border-left: 3px solid $accent-blue;
 }
 
 .tool-buttons {
@@ -398,8 +402,17 @@
 
 // Config section
 .config-section {
-  padding: 4px 8px;
-  border-top: 1px solid $border-color;
+  padding: 0;
+  border-top: 2px solid rgba($accent-blue, 0.2);
+  margin-top: 4px;
+
+  // Add a subtle gradient separator at the top
+  &::before {
+    content: '';
+    display: block;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, rgba($accent-blue, 0.3) 50%, transparent 100%);
+  }
 }
 
 .config-row {
@@ -569,10 +582,10 @@
 
 // Collapsible sections
 .collapsible-section {
-  border-bottom: 1px solid rgba($border-color, 0.5);
+  margin-bottom: 2px;
 
   &:last-child {
-    border-bottom: none;
+    margin-bottom: 0;
   }
 }
 
@@ -581,42 +594,85 @@
   justify-content: space-between;
   align-items: center;
   width: 100%;
-  padding: 6px 4px;
-  background: none;
+  padding: 10px 12px;
+  background: linear-gradient(135deg, rgba($bg-tertiary, 0.8) 0%, rgba($bg-tertiary, 0.4) 100%);
   border: none;
+  border-left: 3px solid transparent;
+  border-radius: 0;
   color: $text-secondary;
   cursor: pointer;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  transition: color $transition-fast;
+  letter-spacing: 0.5px;
+  transition: all $transition-fast;
 
   &:hover {
     color: $text-primary;
+    background: linear-gradient(135deg, rgba($bg-tertiary, 1) 0%, rgba($bg-tertiary, 0.6) 100%);
+    border-left-color: rgba($accent-blue, 0.5);
+  }
+
+  .collapsible-section.open & {
+    color: $text-primary;
+    border-left-color: $accent-blue;
+    background: linear-gradient(135deg, rgba($accent-blue, 0.15) 0%, rgba($bg-tertiary, 0.6) 100%);
+  }
+}
+
+.collapsible-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  &::before {
+    content: '';
+    display: inline-block;
+    width: 4px;
+    height: 4px;
+    background: currentColor;
+    border-radius: 1px;
+    opacity: 0.5;
+  }
+
+  .collapsible-section.open & {
+    &::before {
+      background: $accent-blue;
+      opacity: 1;
+    }
   }
 }
 
 .collapsible-header-right {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 .collapsible-arrow {
-  font-size: 8px;
+  font-size: 10px;
   opacity: 0.6;
+  transition: transform $transition-fast, opacity $transition-fast;
+
+  .collapsible-section.open & {
+    opacity: 1;
+  }
 }
 
 // Collapsible section inside toolbox-section
 .toolbox-section-collapsible {
-  padding: 0 8px;
+  padding: 0;
+  margin-bottom: 2px;
 
   .collapsible-header {
-    padding: 8px 4px;
+    padding: 10px 12px;
   }
 
   .collapsible-content {
-    padding: 0 0 8px;
+    padding: 8px 12px 12px;
+    background: rgba($bg-primary, 0.3);
+    border-left: 1px solid rgba($border-color, 0.3);
+    margin-left: 3px;
   }
 
   .areas-list,
@@ -626,7 +682,10 @@
 }
 
 .collapsible-content {
-  padding: 4px 0 8px;
+  padding: 8px 12px 12px;
+  background: rgba($bg-primary, 0.3);
+  border-left: 1px solid rgba($border-color, 0.3);
+  margin-left: 3px;
 }
 
 // Compact chip selector

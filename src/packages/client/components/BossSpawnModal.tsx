@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { store, useStore, useCustomAgentClassesArray } from '../store';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { store, useStore, useCustomAgentClassesArray, useSkillsArray } from '../store';
 import { AGENT_CLASS_CONFIG, DEFAULT_NAMES, CHARACTER_MODELS } from '../scene/config';
-import type { Agent, AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel } from '../../shared/types';
+import type { Agent, AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, Skill } from '../../shared/types';
 import { PERMISSION_MODES, AGENT_CLASSES, CLAUDE_MODELS } from '../../shared/types';
 import { intToHex } from '../utils/formatting';
 import { STORAGE_KEYS, getStorageString, setStorageString, apiUrl } from '../utils/storage';
@@ -31,6 +31,7 @@ function getRandomBossName(usedNames: Set<string>): string {
 export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPosition }: BossSpawnModalProps) {
   const { agents } = useStore();
   const customClasses = useCustomAgentClassesArray();
+  const skills = useSkillsArray();
   const [name, setName] = useState('');
   const [cwd, setCwd] = useState(() => getStorageString(STORAGE_KEYS.LAST_CWD));
   const [selectedClass, setSelectedClass] = useState<AgentClass>('boss');
@@ -40,10 +41,46 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
   const [permissionMode, setPermissionMode] = useState<PermissionMode>('bypass');
   const [selectedModel, setSelectedModel] = useState<ClaudeModel>('haiku');
   const [selectedSubordinates, setSelectedSubordinates] = useState<Set<string>>(new Set());
+  const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set());
   const [classSearch, setClassSearch] = useState('');
+  const [skillSearch, setSkillSearch] = useState('');
   const [customInstructions, setCustomInstructions] = useState('');
   const nameInputRef = useRef<HTMLInputElement>(null);
   const hasInitializedRef = useRef(false);
+
+  // Get available skills (enabled ones)
+  const availableSkills = useMemo(() => skills.filter(s => s.enabled), [skills]);
+
+  // Filter skills by search query
+  const filteredSkills = useMemo(() => {
+    if (!skillSearch.trim()) return availableSkills;
+    const query = skillSearch.toLowerCase();
+    return availableSkills.filter(s =>
+      s.name.toLowerCase().includes(query) ||
+      s.description.toLowerCase().includes(query) ||
+      s.slug.toLowerCase().includes(query)
+    );
+  }, [availableSkills, skillSearch]);
+
+  // Get default skills for selected custom class
+  const classDefaultSkills = useMemo(() => {
+    const customClass = customClasses.find(c => c.id === selectedClass);
+    if (!customClass?.defaultSkillIds?.length) return [];
+    return skills.filter(s => customClass.defaultSkillIds.includes(s.id));
+  }, [customClasses, selectedClass, skills]);
+
+  // Toggle skill selection
+  const toggleSkill = useCallback((skillId: string) => {
+    setSelectedSkillIds(prev => {
+      const next = new Set(prev);
+      if (next.has(skillId)) {
+        next.delete(skillId);
+      } else {
+        next.add(skillId);
+      }
+      return next;
+    });
+  }, []);
 
   // Get custom class config if selected class is custom
   const selectedCustomClass = useMemo(() => {
@@ -199,6 +236,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
     onSpawnStart();
 
     const trimmedInstructions = customInstructions.trim() || undefined;
+    const initialSkillIds = Array.from(selectedSkillIds);
     store.spawnBossAgent(
       name.trim(),
       selectedClass,
@@ -208,12 +246,14 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
       useChrome,
       permissionMode,
       selectedModel,
-      trimmedInstructions
+      trimmedInstructions,
+      initialSkillIds
     );
 
     // Close modal immediately after initiating spawn
     setName('');
     setSelectedSubordinates(new Set());
+    setSelectedSkillIds(new Set());
     onSpawnEnd();
     onClose();
   };
@@ -425,6 +465,44 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                 <span>🌐 Chrome Browser</span>
               </label>
             </div>
+
+            {/* Skills section */}
+            {availableSkills.length > 0 && (
+              <div className="spawn-skills-section">
+                <label className="spawn-label">Skills <span className="spawn-label-hint">(optional)</span></label>
+                {availableSkills.length > 6 && (
+                  <input
+                    type="text"
+                    className="spawn-input skill-search-input"
+                    placeholder="Filter skills..."
+                    value={skillSearch}
+                    onChange={(e) => setSkillSearch(e.target.value)}
+                  />
+                )}
+                <div className="spawn-skills-inline">
+                  {filteredSkills.map((skill) => {
+                    const isSelected = selectedSkillIds.has(skill.id);
+                    const isClassDefault = classDefaultSkills.some(s => s.id === skill.id);
+                    if (isClassDefault) return null;
+                    return (
+                      <button
+                        key={skill.id}
+                        className={`spawn-skill-chip ${isSelected ? 'selected' : ''}`}
+                        onClick={() => toggleSkill(skill.id)}
+                        title={skill.description}
+                      >
+                        {isSelected && <span className="spawn-skill-check">✓</span>}
+                        <span>{skill.name}</span>
+                        {skill.builtin && <span className="spawn-skill-builtin">TC</span>}
+                      </button>
+                    );
+                  })}
+                  {skillSearch && filteredSkills.length === 0 && (
+                    <div className="skill-search-empty">No skills match "{skillSearch}"</div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Custom Instructions */}
             <div className="spawn-custom-instructions-section">

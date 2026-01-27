@@ -25,6 +25,7 @@ export async function handleSpawnBossAgent(
     subordinateIds?: string[];
     model?: string;
     customInstructions?: string;
+    initialSkillIds?: string[];
   }
 ): Promise<void> {
   try {
@@ -36,7 +37,7 @@ export async function handleSpawnBossAgent(
       undefined, // sessionId - bosses start fresh
       payload.useChrome,
       payload.permissionMode as any,
-      undefined, // initialSkillIds
+      payload.initialSkillIds,
       true, // isBoss flag
       payload.model as any,
       payload.customInstructions

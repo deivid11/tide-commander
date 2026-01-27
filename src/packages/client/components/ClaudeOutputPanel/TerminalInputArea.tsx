@@ -39,6 +39,9 @@ export interface TerminalInputAreaProps {
   showCompletion: boolean;
   // Image modal handler
   onImageClick: (url: string, name: string) => void;
+  // External refs for input elements (for keyboard navigation focus)
+  inputRef?: React.RefObject<HTMLInputElement | null>;
+  textareaRef?: React.RefObject<HTMLTextAreaElement | null>;
 }
 
 export function TerminalInputArea({
@@ -63,9 +66,14 @@ export function TerminalInputArea({
   pendingPermissions,
   showCompletion,
   onImageClick,
+  inputRef: externalInputRef,
+  textareaRef: externalTextareaRef,
 }: TerminalInputAreaProps) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // Use external refs if provided, otherwise create internal ones
+  const internalInputRef = useRef<HTMLInputElement>(null);
+  const internalTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const inputRef = externalInputRef || internalInputRef;
+  const textareaRef = externalTextareaRef || internalTextareaRef;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const prevUseTextareaRef = useRef(useTextarea);
   const cursorPositionRef = useRef<number>(0);

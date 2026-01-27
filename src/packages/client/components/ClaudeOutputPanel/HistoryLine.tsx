@@ -2,12 +2,15 @@
  * HistoryLine component for rendering conversation history messages
  */
 
-import React, { memo } from 'react';
+import React, { memo, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useHideCost } from '../../store';
 import { store } from '../../store';
 import { BOSS_CONTEXT_START, BOSS_CONTEXT_END } from '../../../shared/types';
 import { filterCostText } from '../../utils/formatting';
 import { TOOL_ICONS, extractToolKeyParam, formatTimestamp } from '../../utils/outputRendering';
+import { markdownComponents } from './MarkdownComponents';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock } from './BossContext';
 import { EditToolDiff, ReadToolInput, TodoWriteInput } from './ToolRenderers';
 import { highlightText, renderContentWithImages } from './contentRendering';
@@ -64,6 +67,31 @@ export const HistoryLine = memo(function HistoryLine({
     if (trimmedContent === '/context' || trimmedContent === '/cost' || trimmedContent === '/compact') {
       return null;
     }
+  }
+
+  // Handle session continuation message with special rendering
+  const isSessionContinuation = content.includes('This session is being continued from a previous conversation that ran out of context');
+  const [sessionExpanded, setSessionExpanded] = useState(false);
+  if (isSessionContinuation) {
+    return (
+      <div
+        className={`output-line output-session-continuation ${sessionExpanded ? 'expanded' : ''}`}
+        onClick={() => setSessionExpanded(!sessionExpanded)}
+        title="Click to expand/collapse"
+      >
+        {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr}</span>}
+        <span className="session-continuation-icon">🔗</span>
+        <span className="session-continuation-label">Session continued from previous context</span>
+        <span className="session-continuation-toggle">{sessionExpanded ? '▼' : '▶'}</span>
+        {sessionExpanded && (
+          <div className="session-continuation-content">
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+              {content}
+            </ReactMarkdown>
+          </div>
+        )}
+      </div>
+    );
   }
 
   // Check for boss context FIRST (before context output check)

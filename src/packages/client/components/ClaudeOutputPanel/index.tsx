@@ -26,6 +26,8 @@ import {
   useReconnectCount,
   useAgentTaskProgress,
   useExecTasks,
+  useFileViewerPath,
+  useContextModalAgentId,
 } from '../../store';
 import {
   STORAGE_KEYS,
@@ -76,6 +78,8 @@ export function ClaudeOutputPanel() {
   const lastPrompts = useLastPrompts();
   const reconnectCount = useReconnectCount();
   const mobileView = useMobileView();
+  const fileViewerPath = useFileViewerPath();
+  const contextModalAgentId = useContextModalAgentId();
 
   // Get selected agent
   const selectedAgentIdsArray = Array.from(selectedAgentIds);
@@ -91,6 +95,10 @@ export function ClaudeOutputPanel() {
 
   // Shared ref for output scroll container (used by history loader and swipe)
   const outputScrollRef = useRef<HTMLDivElement>(null);
+
+  // Refs for terminal input elements (shared with message navigation for focus-on-type)
+  const terminalInputRef = useRef<HTMLInputElement>(null);
+  const terminalTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   // View mode state
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
@@ -145,7 +153,7 @@ export function ClaudeOutputPanel() {
     selectedAgentId,
     isOpen,
     loadingHistory: historyLoader.loadingHistory,
-    hasModalOpen: !!(imageModal || bashModal || responseModalContent),
+    hasModalOpen: !!(imageModal || bashModal || responseModalContent || fileViewerPath || contextModalAgentId),
     outputRef: outputScrollRef,
   });
 
@@ -249,6 +257,9 @@ export function ClaudeOutputPanel() {
     hasModalOpen: !!(imageModal || bashModal || responseModalContent),
     scrollContainerRef: outputScrollRef,
     selectedAgentId,
+    inputRef: terminalInputRef,
+    textareaRef: terminalTextareaRef,
+    useTextarea: terminalInput.useTextarea,
   });
 
   // Auto-update bash modal when output arrives
@@ -348,7 +359,14 @@ export function ClaudeOutputPanel() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         // Handle modals first - stop propagation to prevent message nav from also handling
-        if (responseModalContent) {
+        // Priority: store-controlled modals first (FileViewer, ContextModal), then local state modals
+        if (fileViewerPath) {
+          e.stopPropagation();
+          store.clearFileViewerPath();
+        } else if (contextModalAgentId) {
+          e.stopPropagation();
+          store.closeContextModal();
+        } else if (responseModalContent) {
           e.stopPropagation();
           setResponseModalContent(null);
         } else if (bashModal) {
@@ -366,7 +384,7 @@ export function ClaudeOutputPanel() {
     // Use capture phase to handle before message navigation
     document.addEventListener('keydown', handleKeyDown, true);
     return () => document.removeEventListener('keydown', handleKeyDown, true);
-  }, [imageModal, bashModal, responseModalContent, search]);
+  }, [imageModal, bashModal, responseModalContent, search, fileViewerPath, contextModalAgentId]);
 
   // Close terminal when clicking outside (desktop only)
   useEffect(() => {
@@ -643,6 +661,8 @@ export function ClaudeOutputPanel() {
           pendingPermissions={pendingPermissions}
           showCompletion={showCompletion}
           onImageClick={handleImageClick}
+          inputRef={terminalInputRef}
+          textareaRef={terminalTextareaRef}
         />
 
         {/* Agent Status Bar (CWD + Context) */}

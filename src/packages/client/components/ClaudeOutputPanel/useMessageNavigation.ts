@@ -18,6 +18,12 @@ export interface UseMessageNavigationProps {
   scrollContainerRef: React.RefObject<HTMLDivElement | null>;
   /** Selected agent ID (to reset selection when agent changes) */
   selectedAgentId: string | null;
+  /** Ref to the input element to focus when typing during navigation */
+  inputRef?: React.RefObject<HTMLInputElement | null>;
+  /** Ref to the textarea element to focus when typing during navigation */
+  textareaRef?: React.RefObject<HTMLTextAreaElement | null>;
+  /** Whether the textarea is currently being used */
+  useTextarea?: boolean;
 }
 
 export interface UseMessageNavigationReturn {
@@ -48,6 +54,9 @@ export function useMessageNavigation({
   hasModalOpen = false,
   scrollContainerRef,
   selectedAgentId,
+  inputRef,
+  textareaRef,
+  useTextarea = false,
 }: UseMessageNavigationProps): UseMessageNavigationReturn {
   // Selected message index (-1 means no selection, starts from bottom)
   const [selectedIndex, setSelectedIndex] = useState<number>(-1);
@@ -315,12 +324,36 @@ export function useMessageNavigation({
         if (toolUseLine?.classList.contains('bash-clickable')) {
           toolUseLine.click();
         }
+        return;
+      }
+
+      // When in navigation mode and user types a character (not navigation keys),
+      // focus the input and let the character be typed
+      if (selectedIndex !== -1 && !isInInputField) {
+        // Skip navigation keys, modifier-only keys, and special keys
+        const isNavigationKey = e.altKey && ['j', 'k', 'u', 'd'].includes(e.key.toLowerCase());
+        const isSpecialKey = ['Escape', 'Tab', 'Shift', 'Control', 'Alt', 'Meta', 'CapsLock'].includes(e.key);
+        const isArrowKey = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key);
+        const isFunctionKey = e.key.startsWith('F') && e.key.length <= 3; // F1-F12
+
+        // If it's a printable character or common editing key (not a navigation/special key)
+        if (!isNavigationKey && !isSpecialKey && !isArrowKey && !isFunctionKey && !e.ctrlKey && !e.metaKey) {
+          // Focus the appropriate input element
+          const inputElement = useTextarea ? textareaRef?.current : inputRef?.current;
+          if (inputElement) {
+            inputElement.focus();
+            // Clear selection since user is now typing
+            setSelectedIndex(-1);
+            // Let the default event happen so the character gets typed
+            return;
+          }
+        }
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, hasModalOpen, navigatePrev, navigateNext, navigatePageUp, navigatePageDown, clearSelection, selectedIndex]);
+  }, [isOpen, hasModalOpen, navigatePrev, navigateNext, navigatePageUp, navigatePageDown, clearSelection, selectedIndex, inputRef, textareaRef, useTextarea]);
 
   // Adjust selection if messages are removed
   useEffect(() => {

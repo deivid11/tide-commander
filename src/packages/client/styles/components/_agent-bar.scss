@@ -266,9 +266,26 @@
   }
 
   &.selected {
-    border-color: $dracula-purple;
-    background: rgba($dracula-purple, 0.2);
-    box-shadow: 0 0 12px rgba($dracula-purple, 0.4);
+    border-color: $dracula-green;
+    border-width: 3px;
+    background: linear-gradient(135deg, rgba($dracula-green, 0.35) 0%, rgba($dracula-green, 0.15) 100%);
+    box-shadow:
+      0 0 20px rgba($dracula-green, 0.6),
+      0 0 40px rgba($dracula-green, 0.3),
+      inset 0 0 12px rgba($dracula-green, 0.2);
+    transform: translateY(-4px) scale(1.08);
+    z-index: 10;
+
+    // Glowing ring effect
+    &::after {
+      content: '';
+      position: absolute;
+      inset: -6px;
+      border-radius: calc($radius-lg + 4px);
+      border: 2px solid rgba($dracula-green, 0.5);
+      animation: selected-ring-pulse 1.5s ease-in-out infinite;
+      pointer-events: none;
+    }
   }
 
   // Drag and drop states
@@ -334,13 +351,55 @@
 
     &.selected {
       border-color: #ffd700;
-      background: linear-gradient(135deg, rgba(#ffd700, 0.3) 0%, rgba($dracula-purple, 0.2) 100%);
-      box-shadow: 0 0 16px rgba(#ffd700, 0.6), 0 0 24px rgba($dracula-purple, 0.3);
+      border-width: 3px;
+      background: linear-gradient(135deg, rgba(#ffd700, 0.4) 0%, rgba(#ff8c00, 0.25) 100%);
+      box-shadow:
+        0 0 24px rgba(#ffd700, 0.7),
+        0 0 48px rgba(#ffd700, 0.4),
+        inset 0 0 12px rgba(#ffd700, 0.2);
+      transform: translateY(-4px) scale(1.08);
+      z-index: 10;
+
+      &::after {
+        content: '';
+        position: absolute;
+        inset: -6px;
+        border-radius: calc($radius-lg + 4px);
+        border: 2px solid rgba(#ffd700, 0.6);
+        animation: selected-ring-pulse-gold 1.5s ease-in-out infinite;
+        pointer-events: none;
+      }
     }
 
     &.working {
       animation: boss-working-pulse 1.5s ease-in-out infinite;
     }
+  }
+}
+
+@keyframes selected-ring-pulse {
+  0%, 100% {
+    opacity: 0.6;
+    transform: scale(1);
+    border-color: rgba($dracula-green, 0.5);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+    border-color: rgba($dracula-green, 0.8);
+  }
+}
+
+@keyframes selected-ring-pulse-gold {
+  0%, 100% {
+    opacity: 0.6;
+    transform: scale(1);
+    border-color: rgba(#ffd700, 0.5);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+    border-color: rgba(#ffd700, 0.8);
   }
 }
 

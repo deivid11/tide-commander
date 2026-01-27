@@ -26,6 +26,17 @@ export class AgentManager {
   private idleAnimation: string = ANIMATIONS.SIT;
   private workingAnimation: string = ANIMATIONS.WALK;
 
+  // Agent model style settings
+  private modelStyle = {
+    saturation: 1.0,      // 0 = grayscale, 1 = normal, 2 = vivid
+    roughness: -1,        // -1 = use original, 0-1 = override
+    metalness: -1,        // -1 = use original, 0-1 = override
+    emissiveBoost: 0,     // 0 = normal, positive = add glow
+    envMapIntensity: -1,  // -1 = use original, 0-2 = override
+    wireframe: false,     // true = wireframe rendering mode
+    colorMode: 'normal' as string, // normal, bw, sepia, cool, warm, neon
+  };
+
   // Callbacks for external updates
   private onAgentMeshesChanged: (() => void) | null = null;
   private onProceduralCacheInvalidated: (() => void) | null = null;
@@ -94,18 +105,126 @@ export class AgentManager {
   setBrightness(brightness: number): void {
     this.brightness = brightness;
     for (const meshData of this.agentMeshes.values()) {
-      this.applyBrightnessToMesh(meshData.group);
+      this.applyStyleToMesh(meshData.group);
     }
   }
 
   /**
-   * Apply brightness to a mesh group.
-   * For MeshBasicMaterial: adjusts color intensity directly.
-   * For MeshStandardMaterial/MeshPhysicalMaterial: adjusts color, emissive, and envMapIntensity.
-   * For SpriteMaterial (name labels, mana bars): adjusts opacity.
-   * Custom GLB models (mewtoo, etc.) get a stronger 1.8x brightness multiplier.
+   * Set agent model style settings.
+   * @param style Partial style config to merge with current settings
    */
-  private applyBrightnessToMesh(group: THREE.Group): void {
+  setModelStyle(style: Partial<typeof this.modelStyle>): void {
+    Object.assign(this.modelStyle, style);
+    for (const meshData of this.agentMeshes.values()) {
+      this.applyStyleToMesh(meshData.group);
+    }
+  }
+
+  /**
+   * Get current model style settings.
+   */
+  getModelStyle(): typeof this.modelStyle {
+    return { ...this.modelStyle };
+  }
+
+  // Color mode index mapping
+  private static readonly COLOR_MODE_INDEX: Record<string, number> = {
+    normal: 0,
+    bw: 1,
+    sepia: 2,
+    cool: 3,
+    warm: 4,
+    neon: 5,
+  };
+
+  /**
+   * Inject color effects into a material's shader.
+   * This modifies the fragment shader to apply saturation and color modes after texture sampling.
+   * Only affects the specific material, not the whole scene.
+   */
+  private injectColorShader(mat: THREE.Material): void {
+    const saturation = this.modelStyle.saturation;
+    const colorModeIndex = AgentManager.COLOR_MODE_INDEX[this.modelStyle.colorMode] ?? 0;
+
+    // Mark that this material has color shader injection
+    if (!mat.userData.hasColorShader) {
+      mat.userData.hasColorShader = true;
+
+      // Store reference to this AgentManager for the closure
+      const self = this;
+
+      mat.onBeforeCompile = (shader) => {
+        // Add uniforms - read from current modelStyle, not captured value
+        shader.uniforms.uSaturation = { value: self.modelStyle.saturation };
+        shader.uniforms.uColorMode = { value: AgentManager.COLOR_MODE_INDEX[self.modelStyle.colorMode] ?? 0 };
+
+        // Inject color functions into fragment shader
+        shader.fragmentShader = shader.fragmentShader.replace(
+          '#include <common>',
+          `#include <common>
+          uniform float uSaturation;
+          uniform int uColorMode;
+
+          vec3 applySaturation(vec3 color, float sat) {
+            float luma = dot(color, vec3(0.299, 0.587, 0.114));
+            return clamp(mix(vec3(luma), color, sat), 0.0, 1.0);
+          }
+
+          vec3 applyColorMode(vec3 color, int mode) {
+            if (mode == 1) {
+              // B&W - grayscale
+              float gray = dot(color, vec3(0.299, 0.587, 0.114));
+              return vec3(gray);
+            } else if (mode == 2) {
+              // Sepia
+              float gray = dot(color, vec3(0.299, 0.587, 0.114));
+              return vec3(gray * 1.2, gray * 1.0, gray * 0.8);
+            } else if (mode == 3) {
+              // Cool - blue tint
+              return vec3(color.r * 0.9, color.g * 0.95, color.b * 1.1);
+            } else if (mode == 4) {
+              // Warm - orange/yellow tint
+              return vec3(color.r * 1.1, color.g * 1.0, color.b * 0.85);
+            } else if (mode == 5) {
+              // Neon - high contrast, vibrant
+              vec3 boosted = pow(color, vec3(0.8));
+              return clamp(boosted * 1.3, 0.0, 1.0);
+            }
+            // Normal - no change
+            return color;
+          }`
+        );
+
+        // Apply color effects to final color (before tonemapping)
+        shader.fragmentShader = shader.fragmentShader.replace(
+          '#include <tonemapping_fragment>',
+          `gl_FragColor.rgb = applySaturation(gl_FragColor.rgb, uSaturation);
+          gl_FragColor.rgb = applyColorMode(gl_FragColor.rgb, uColorMode);
+          #include <tonemapping_fragment>`
+        );
+
+        // Store shader reference for uniform updates
+        mat.userData.shader = shader;
+      };
+
+      // Force shader recompilation
+      mat.needsUpdate = true;
+    } else if (mat.userData.shader) {
+      // Update existing uniforms
+      mat.userData.shader.uniforms.uSaturation.value = saturation;
+      mat.userData.shader.uniforms.uColorMode.value = colorModeIndex;
+    }
+  }
+
+  /**
+   * Apply style settings to a mesh group.
+   * Handles brightness, saturation, roughness, metalness, emissive boost, and envMapIntensity.
+   * For MeshBasicMaterial: adjusts color intensity and saturation.
+   * For MeshStandardMaterial/MeshPhysicalMaterial: adjusts all material properties.
+   * For SpriteMaterial (name labels, mana bars): adjusts opacity.
+   * Custom GLB models get a stronger brightness multiplier.
+   */
+  private applyStyleToMesh(group: THREE.Group): void {
     // Check if this is a custom model (GLB uploaded by user)
     const characterBody = group.getObjectByName('characterBody');
     const isCustomModel = characterBody?.userData?.isCustomModel === true;
@@ -124,13 +243,20 @@ export class AgentManager {
             if (!mat.userData.originalColor) {
               mat.userData.originalColor = mat.color.clone();
             }
-            // Apply brightness by adjusting the color
+
+            // Start with original color
             const original = mat.userData.originalColor as THREE.Color;
+            const adjusted = original.clone();
+
+            // Apply color effects via shader injection (works for both textured and non-textured)
+            this.injectColorShader(mat);
+
+            // Apply brightness by adjusting the color
             // For custom models, apply more aggressive color darkening
             const colorMultiplier = isCustomModel
               ? Math.min(effectiveBrightness, 1) * 0.55 // Extra 45% darker for custom models
               : Math.min(effectiveBrightness, 1);
-            mat.color.copy(original).multiplyScalar(colorMultiplier);
+            mat.color.copy(adjusted).multiplyScalar(colorMultiplier);
           }
 
           // For standard/physical materials (common in GLB models like mewtoo.glb)
@@ -139,28 +265,82 @@ export class AgentManager {
             if (mat.userData.baseEmissiveIntensity === undefined) {
               mat.userData.baseEmissiveIntensity = mat.emissiveIntensity || 0;
             }
+            if (mat.userData.baseEmissive === undefined) {
+              mat.userData.baseEmissive = mat.emissive.clone();
+            }
             if (mat.userData.baseEnvMapIntensity === undefined) {
               mat.userData.baseEnvMapIntensity = mat.envMapIntensity ?? 1;
             }
             if (mat.userData.baseMetalness === undefined) {
               mat.userData.baseMetalness = mat.metalness ?? 0;
             }
-
-            // Apply brightness: adjust emissive for glow effect
-            mat.emissiveIntensity = mat.userData.baseEmissiveIntensity * effectiveBrightness;
-
-            // For darkening (brightness < 1), reduce envMapIntensity
-            // For brightening (brightness > 1), boost envMapIntensity
-            mat.envMapIntensity = mat.userData.baseEnvMapIntensity * effectiveBrightness;
-
-            // When darkening significantly, also reduce metalness to make it look darker
-            // Custom models get more aggressive metalness reduction
-            const metalnessThreshold = isCustomModel ? 0.9 : 0.7;
-            if (effectiveBrightness < metalnessThreshold) {
-              mat.metalness = mat.userData.baseMetalness * effectiveBrightness;
-            } else {
-              mat.metalness = mat.userData.baseMetalness;
+            if (mat.userData.baseRoughness === undefined) {
+              mat.userData.baseRoughness = mat.roughness ?? 0.5;
             }
+
+            // Apply emissive boost - if boost > 0, use the base color as emissive color
+            if (this.modelStyle.emissiveBoost > 0) {
+              // Use the original diffuse color as emissive base for glow effect
+              const originalColor = mat.userData.originalColor as THREE.Color | undefined;
+              if (originalColor) {
+                mat.emissive.copy(originalColor);
+              } else {
+                mat.emissive.setHex(0xffffff); // Fallback to white glow
+              }
+              mat.emissiveIntensity = this.modelStyle.emissiveBoost * effectiveBrightness;
+            } else {
+              // Restore original emissive
+              mat.emissive.copy(mat.userData.baseEmissive as THREE.Color);
+              mat.emissiveIntensity = (mat.userData.baseEmissiveIntensity as number) * effectiveBrightness;
+            }
+
+            // Apply roughness FIRST (override or original)
+            if (this.modelStyle.roughness >= 0) {
+              mat.roughness = this.modelStyle.roughness;
+            } else {
+              mat.roughness = mat.userData.baseRoughness as number;
+            }
+
+            // Apply metalness (override or brightness-adjusted)
+            if (this.modelStyle.metalness >= 0) {
+              mat.metalness = this.modelStyle.metalness;
+            } else {
+              // When darkening significantly, also reduce metalness to make it look darker
+              const metalnessThreshold = isCustomModel ? 0.9 : 0.7;
+              if (effectiveBrightness < metalnessThreshold) {
+                mat.metalness = (mat.userData.baseMetalness as number) * effectiveBrightness;
+              } else {
+                mat.metalness = mat.userData.baseMetalness as number;
+              }
+            }
+
+            // Apply envMapIntensity LAST so it can override roughness/metalness for reflections boost
+            // Note: envMapIntensity is most visible with low roughness and some metalness
+            if (this.modelStyle.envMapIntensity >= 0) {
+              mat.envMapIntensity = this.modelStyle.envMapIntensity;
+              // Boost effect: if envMapIntensity > 1, force lower roughness and add metalness for visible reflections
+              if (this.modelStyle.envMapIntensity > 1) {
+                const boostFactor = this.modelStyle.envMapIntensity - 1; // 0 to 1 for values 1 to 2
+                // Only override roughness if not explicitly set
+                if (this.modelStyle.roughness < 0) {
+                  // Aggressively reduce roughness for reflections to show
+                  mat.roughness = Math.max(0.05, mat.roughness - boostFactor * 0.5);
+                }
+                // Only override metalness if not explicitly set
+                if (this.modelStyle.metalness < 0) {
+                  // Add metalness to make reflections more visible
+                  mat.metalness = Math.min(1, mat.metalness + boostFactor * 0.5);
+                }
+              }
+            } else {
+              mat.envMapIntensity = (mat.userData.baseEnvMapIntensity as number) * effectiveBrightness;
+            }
+
+            // Apply wireframe mode
+            mat.wireframe = this.modelStyle.wireframe;
+
+            // Mark material as needing update
+            mat.needsUpdate = true;
           }
         }
       }
@@ -172,7 +352,7 @@ export class AgentManager {
           mat.userData.originalOpacity = mat.opacity ?? 1;
         }
         // Apply brightness to opacity (clamped to 0-1)
-        mat.opacity = Math.min(1, mat.userData.originalOpacity * effectiveBrightness);
+        mat.opacity = Math.min(1, (mat.userData.originalOpacity as number) * effectiveBrightness);
       }
     });
   }
@@ -269,7 +449,7 @@ export class AgentManager {
         this.agentMeshes.set(agentId, newMeshData);
 
         // Apply current brightness to upgraded agent's materials
-        this.applyBrightnessToMesh(newMeshData.group);
+        this.applyStyleToMesh(newMeshData.group);
 
         this.updateStatusAnimation(agent, newMeshData);
       }
@@ -333,7 +513,7 @@ export class AgentManager {
     this.agentMeshes.set(agent.id, meshData);
 
     // Apply current brightness to new agent's materials
-    this.applyBrightnessToMesh(meshData.group);
+    this.applyStyleToMesh(meshData.group);
 
     const body = meshData.group.getObjectByName('characterBody');
     if (body) {
