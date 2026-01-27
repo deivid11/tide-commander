@@ -92,6 +92,8 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
   const [copyHtmlStatus, setCopyHtmlStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const codeRef = useRef<HTMLElement>(null);
   const markdownContentRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isOpen && filePath) {
@@ -101,6 +103,62 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
       setError(null);
     }
   }, [isOpen, filePath]);
+
+  // Focus overlay when modal opens to capture keyboard events
+  useEffect(() => {
+    if (isOpen && overlayRef.current) {
+      overlayRef.current.focus();
+    }
+  }, [isOpen]);
+
+  // Global keyboard listener for j/k scrolling and Escape
+  // Uses capture phase to intercept before other handlers (like message navigation)
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // Don't intercept if user is typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose();
+        return;
+      }
+      // Vim-style scrolling: j to scroll down, k to scroll up
+      if (e.key === 'j' || e.key === 'k') {
+        e.preventDefault();
+        e.stopPropagation();
+        const scrollAmount = e.key === 'j' ? 100 : -100;
+
+        // Find the scrollable element - could be contentRef or diff panels
+        if (contentRef.current) {
+          // Check if we're in diff view - scroll both diff panels
+          const diffPanels = contentRef.current.querySelectorAll('.diff-panel-content');
+          if (diffPanels.length > 0) {
+            diffPanels.forEach(panel => {
+              panel.scrollBy({ top: scrollAmount, behavior: 'smooth' });
+            });
+          } else {
+            // Regular content view
+            contentRef.current.scrollBy({ top: scrollAmount, behavior: 'smooth' });
+          }
+        }
+        return;
+      }
+
+      // Stop propagation for any other key to prevent focus-on-type behavior
+      // from the message navigation hook
+      e.stopPropagation();
+    };
+
+    // Use capture phase to intercept before other handlers
+    window.addEventListener('keydown', handleGlobalKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown, { capture: true });
+  }, [isOpen, onClose]);
 
   // Apply syntax highlighting when file data changes (only when not showing diff)
   useEffect(() => {
@@ -144,12 +202,6 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
 
   const handleOverlayClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
-      onClose();
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
       onClose();
     }
   };
@@ -232,10 +284,10 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
 
   return (
     <div
+      ref={overlayRef}
       className="file-viewer-overlay"
       onClick={handleOverlayClick}
-      onKeyDown={handleKeyDown}
-      tabIndex={0}
+      tabIndex={-1}
     >
       <div className="file-viewer-modal">
         <div className="file-viewer-header">
@@ -280,7 +332,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
           </div>
         )}
 
-        <div className="file-viewer-content">
+        <div className="file-viewer-content" ref={contentRef}>
           {loading && (
             <div className="file-viewer-loading">Loading file...</div>
           )}

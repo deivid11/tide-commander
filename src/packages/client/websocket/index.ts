@@ -828,6 +828,38 @@ function handleServerMessage(message: ServerMessage): void {
       store.handleExecTaskCompleted(taskId, agentId, exitCode, success);
       break;
     }
+
+    // ========================================================================
+    // Secrets Messages
+    // ========================================================================
+
+    case 'secrets_update': {
+      const secretsArray = message.payload as import('../../shared/types').Secret[];
+      store.setSecretsFromServer(secretsArray);
+      console.log(`[WebSocket] Received ${secretsArray.length} secrets`);
+      break;
+    }
+
+    case 'secret_created': {
+      const secret = message.payload as import('../../shared/types').Secret;
+      store.addSecretFromServer(secret);
+      console.log(`[WebSocket] Secret created: ${secret.name}`);
+      break;
+    }
+
+    case 'secret_updated': {
+      const secret = message.payload as import('../../shared/types').Secret;
+      store.updateSecretFromServer(secret);
+      console.log(`[WebSocket] Secret updated: ${secret.name}`);
+      break;
+    }
+
+    case 'secret_deleted': {
+      const { id } = message.payload as { id: string };
+      store.removeSecretFromServer(id);
+      console.log(`[WebSocket] Secret deleted: ${id}`);
+      break;
+    }
   }
 
   perf.end(`ws:${message.type}`);

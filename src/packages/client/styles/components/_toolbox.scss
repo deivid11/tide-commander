@@ -1696,3 +1696,246 @@
     color: $accent-blue;
   }
 }
+
+// ============================================
+// Secrets Section
+// ============================================
+
+.secrets-section {
+  padding: 4px 0;
+}
+
+.secrets-description {
+  font-size: 11px;
+  color: $text-secondary;
+  margin-bottom: 12px;
+  line-height: 1.4;
+
+  code {
+    background: $bg-tertiary;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 10px;
+    color: $accent-blue;
+  }
+}
+
+.secrets-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.secrets-empty {
+  font-size: 11px;
+  color: $text-muted;
+  text-align: center;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: $radius-sm;
+}
+
+.secret-item {
+  background: $bg-tertiary;
+  border: 1px solid transparent;
+  border-radius: $radius-sm;
+  padding: 8px;
+  transition: all $transition-fast;
+
+  &:hover {
+    border-color: $border-color;
+  }
+
+  &.editing {
+    border-color: $accent-blue;
+    background: rgba($accent-blue, 0.05);
+  }
+}
+
+.secret-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.secret-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.secret-item-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: $text-primary;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.secret-item-key {
+  font-size: 10px;
+  color: $accent-blue;
+  background: rgba($accent-blue, 0.1);
+  padding: 2px 5px;
+  border-radius: 3px;
+  cursor: pointer;
+  display: inline-block;
+  margin-top: 3px;
+  transition: all $transition-fast;
+
+  &:hover {
+    background: rgba($accent-blue, 0.2);
+  }
+}
+
+.secret-item-description {
+  font-size: 10px;
+  color: $text-secondary;
+  margin-top: 4px;
+  line-height: 1.3;
+}
+
+.secret-item-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.secret-item-btn {
+  background: none;
+  border: none;
+  color: $text-secondary;
+  cursor: pointer;
+  padding: 4px;
+  font-size: 14px;
+  line-height: 1;
+  border-radius: 3px;
+  transition: all $transition-fast;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  &.edit:hover {
+    color: $accent-blue;
+  }
+
+  &.delete:hover {
+    color: $accent-red;
+  }
+}
+
+.secret-form {
+  background: $bg-secondary;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+.secret-form-row {
+  margin-bottom: 8px;
+
+  &:last-of-type {
+    margin-bottom: 0;
+  }
+}
+
+.secret-form-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 500;
+  color: $text-secondary;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+
+.secret-form-input {
+  width: 100%;
+  padding: 6px 8px;
+  background: $bg-primary;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  color: $text-primary;
+  font-size: 12px;
+  outline: none;
+  transition: border-color $transition-fast;
+
+  &:focus {
+    border-color: $accent-blue;
+  }
+
+  &::placeholder {
+    color: $text-muted;
+  }
+}
+
+.secret-form-hint {
+  display: block;
+  font-size: 9px;
+  color: $text-muted;
+  margin-top: 3px;
+}
+
+.secret-form-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.secret-form-btn {
+  padding: 5px 12px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &.cancel {
+    background: transparent;
+    border: 1px solid $border-color;
+    color: $text-secondary;
+
+    &:hover {
+      border-color: $text-secondary;
+      color: $text-primary;
+    }
+  }
+
+  &.save {
+    background: $accent-blue;
+    border: none;
+    color: $bg-primary;
+
+    &:hover:not(:disabled) {
+      filter: brightness(1.1);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+}
+
+.secrets-add-btn {
+  width: 100%;
+  padding: 8px;
+  background: transparent;
+  border: 1px dashed $border-color;
+  border-radius: $radius-sm;
+  color: $text-secondary;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    border-color: $accent-blue;
+    color: $accent-blue;
+    background: rgba($accent-blue, 0.05);
+  }
+}
