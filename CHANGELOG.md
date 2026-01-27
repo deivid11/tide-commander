@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.24.0] - 2026-01-27
+
+### Added
+- **Theme Selector Keyboard Navigation** - Full keyboard support for theme switching
+  - Arrow keys (Up/Down/Left/Right) cycle through themes
+  - Enter/Space to open dropdown or select highlighted theme
+  - Highlighted state for dropdown items with mouse hover support
+- **Theme Selector Focus Management** - Improved accessibility
+  - Focus styles on trigger button with cyan accent
+  - Focus restoration after selection
+  - Tooltip hints for keyboard shortcuts
+
+### Changed
+- **Theme Selector Styling** - Enhanced visual feedback
+  - Active and highlighted states with distinct colors
+  - Smooth transitions for all state changes
+  - Cyan accent for focus states
+
+### Fixed
+- **Builtin Skill Assignment Restoration** - Preserve skill assignments on app restart
+  - Restore agent assignments to builtin skills instead of discarding them
+  - Preserve enabled state for previously configured skills
+  - Merge persisted assignments with fresh builtin definitions
+
 ## [0.17.0] - 2026-01-26
 
 ### Added
