@@ -28,6 +28,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
   const [useChrome, setUseChrome] = useState<boolean>(agent.useChrome || false);
   const [workdir, setWorkdir] = useState<string>(agent.cwd);
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set());
+  const [skillSearch, setSkillSearch] = useState('');
 
   // Get skills currently assigned to this agent
   const currentAgentSkills = useMemo(() => {
@@ -64,6 +65,17 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
 
   // Get available skills (enabled ones)
   const availableSkills = useMemo(() => allSkills.filter(s => s.enabled), [allSkills]);
+
+  // Filter skills by search query
+  const filteredSkills = useMemo(() => {
+    if (!skillSearch.trim()) return availableSkills;
+    const query = skillSearch.toLowerCase();
+    return availableSkills.filter(s =>
+      s.name.toLowerCase().includes(query) ||
+      s.description.toLowerCase().includes(query) ||
+      s.slug.toLowerCase().includes(query)
+    );
+  }, [availableSkills, skillSearch]);
 
   // Get skills that come from class assignment
   const classBasedSkills = useMemo(() => {
@@ -338,11 +350,22 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
               <label className="spawn-label">
                 Skills <span className="spawn-label-hint">(click to toggle)</span>
               </label>
+              {availableSkills.length > 6 && (
+                <input
+                  type="text"
+                  className="spawn-input skill-search-input"
+                  placeholder="Filter skills..."
+                  value={skillSearch}
+                  onChange={(e) => setSkillSearch(e.target.value)}
+                />
+              )}
               <div className="skills-chips-compact">
                 {availableSkills.length === 0 ? (
                   <div className="skills-empty">No enabled skills available</div>
+                ) : filteredSkills.length === 0 ? (
+                  <div className="skills-empty">No skills match "{skillSearch}"</div>
                 ) : (
-                  availableSkills.map(skill => {
+                  filteredSkills.map(skill => {
                     const isClassBased = classBasedSkills.includes(skill);
                     const isDirectlyAssigned = selectedSkillIds.has(skill.id);
                     const isActive = isDirectlyAssigned || isClassBased;

@@ -18,7 +18,8 @@ export interface DelegationActions {
     useChrome?: boolean,
     permissionMode?: PermissionMode,
     model?: ClaudeModel,
-    customInstructions?: string
+    customInstructions?: string,
+    initialSkillIds?: string[]
   ): void;
 
   // Subordinate management
@@ -67,12 +68,13 @@ export function createDelegationActions(
       useChrome?: boolean,
       permissionMode?: PermissionMode,
       model?: ClaudeModel,
-      customInstructions?: string
+      customInstructions?: string,
+      initialSkillIds?: string[]
     ): void {
       const pos3d = position ? { x: position.x, y: 0, z: position.z } : undefined;
       getSendMessage()?.({
         type: 'spawn_boss_agent',
-        payload: { name, class: agentClass, cwd, position: pos3d, subordinateIds, useChrome, permissionMode, model, customInstructions },
+        payload: { name, class: agentClass, cwd, position: pos3d, subordinateIds, useChrome, permissionMode, model, customInstructions, initialSkillIds },
       });
     },
 

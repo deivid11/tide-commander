@@ -108,6 +108,7 @@ export function useSceneSetup({
       scene.setTimeMode(savedConfig.timeMode);
       scene.setTerrainConfig(savedConfig.terrain);
       scene.setFloorStyle(savedConfig.terrain.floorStyle, true);
+      scene.setAgentModelStyle(savedConfig.modelStyle);
       scene.setIdleAnimation(savedConfig.animations.idleAnimation);
       scene.setWorkingAnimation(savedConfig.animations.workingAnimation);
       scene.setFpsLimit(savedConfig.fpsLimit);

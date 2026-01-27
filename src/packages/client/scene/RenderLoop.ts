@@ -14,6 +14,7 @@ export interface RenderLoopDependencies {
   getCanvas: () => HTMLCanvasElement;
   isReattaching: () => boolean;
   getAgentMeshes: () => Map<string, AgentMeshData>;
+  render: (camera: THREE.Camera) => void;
 }
 
 export interface RenderLoopCallbacks {
@@ -256,9 +257,9 @@ export class RenderLoop {
       this.callbacks.onUpdateIndicatorScales(camera, this.deps.getAgentMeshes(), this.indicatorScale);
     }
 
-    // Render
+    // Render (uses post-processing if enabled)
     perf.start('scene:render');
-    renderer.render(scene, camera);
+    this.deps.render(camera);
     perf.end('scene:render');
 
     perf.end('scene:frame');

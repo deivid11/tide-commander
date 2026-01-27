@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { PostProcessing } from './PostProcessing';
 
 /**
  * Manages Three.js scene and renderer initialization.
@@ -8,6 +9,8 @@ export class SceneCore {
   private scene: THREE.Scene;
   private renderer: THREE.WebGLRenderer;
   private canvas: HTMLCanvasElement;
+  private postProcessing: PostProcessing | null = null;
+  private camera: THREE.Camera | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -29,6 +32,63 @@ export class SceneCore {
 
   getCanvas(): HTMLCanvasElement {
     return this.canvas;
+  }
+
+  getPostProcessing(): PostProcessing | null {
+    return this.postProcessing;
+  }
+
+  // ============================================
+  // Post-Processing
+  // ============================================
+
+  /**
+   * Initialize post-processing with the given camera.
+   * Must be called after camera is created.
+   */
+  initPostProcessing(camera: THREE.Camera): void {
+    this.camera = camera;
+    this.postProcessing = new PostProcessing(this.renderer, this.scene, camera);
+  }
+
+  /**
+   * Set saturation level for post-processing.
+   * @param value 0 = grayscale, 1 = normal, 2 = highly saturated
+   */
+  setSaturation(value: number): void {
+    this.postProcessing?.setSaturation(value);
+  }
+
+  /**
+   * Get current saturation value.
+   */
+  getSaturation(): number {
+    return this.postProcessing?.getSaturation() ?? 1.0;
+  }
+
+  /**
+   * Enable or disable post-processing.
+   */
+  setPostProcessingEnabled(enabled: boolean): void {
+    this.postProcessing?.setEnabled(enabled);
+  }
+
+  /**
+   * Check if post-processing is enabled.
+   */
+  isPostProcessingEnabled(): boolean {
+    return this.postProcessing?.isEnabled() ?? false;
+  }
+
+  /**
+   * Render the scene (with post-processing if enabled).
+   */
+  render(camera: THREE.Camera): void {
+    if (this.postProcessing?.isEnabled()) {
+      this.postProcessing.render();
+    } else {
+      this.renderer.render(this.scene, camera);
+    }
   }
 
   // ============================================
@@ -89,6 +149,7 @@ export class SceneCore {
 
   resize(width: number, height: number): void {
     this.renderer.setSize(width, height);
+    this.postProcessing?.resize(width, height);
   }
 
   // ============================================
@@ -101,8 +162,21 @@ export class SceneCore {
       parentElement: !!canvas.parentElement,
     });
     this.canvas = canvas;
+    this.postProcessing?.dispose();
     this.renderer.dispose();
     this.renderer = this.createRenderer();
+    // Re-initialize post-processing with new renderer
+    if (this.camera) {
+      this.postProcessing = new PostProcessing(this.renderer, this.scene, this.camera);
+    }
+  }
+
+  /**
+   * Update camera reference for post-processing.
+   */
+  updateCamera(camera: THREE.Camera): void {
+    this.camera = camera;
+    this.postProcessing?.updateCamera(camera);
   }
 
   // ============================================
@@ -110,6 +184,10 @@ export class SceneCore {
   // ============================================
 
   dispose(): void {
+    // Dispose post-processing first
+    this.postProcessing?.dispose();
+    this.postProcessing = null;
+
     // Force WebGL context loss BEFORE renderer dispose
     try {
       const gl = this.renderer.getContext();

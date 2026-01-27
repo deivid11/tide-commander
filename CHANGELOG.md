@@ -2,6 +2,56 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.26.0] - 2026-01-27
+
+### Added
+- **Post-Processing Effects** - New PostProcessing system for scene effects
+  - Color correction shader with saturation, contrast, and brightness controls
+  - Composable effect rendering pipeline with Three.js
+  - Foundation for advanced visual effects
+- **Agent Model Styling System** - Advanced visual customization for agent models
+  - Color mode options: Normal, B&W, Sepia, Cool, Warm, Neon
+  - Saturation control (0-2 range: grayscale to vivid)
+  - Material properties override: roughness, metalness, emissive boost
+  - Wireframe rendering mode for debugging
+  - Environment map intensity control
+  - Per-material shader injection for color effects
+  - Real-time shader uniforms for dynamic updates
+- **Toolbox Model Style Panel** - New UI section for agent model styling
+  - Color mode selector with emoji icons
+  - Sliders for saturation, roughness, metalness, emissive boost, env map intensity
+  - Wireframe toggle
+  - CollapsibleSection integration for organized settings
+- **Enhanced Terrain Configuration** - Additional visual controls
+  - Sky color customization
+  - Better integration with post-processing system
+
+### Changed
+- **AgentManager Refactoring** - Major expansion with styling system
+  - New `setModelStyle()` and `getModelStyle()` methods
+  - Unified `applyStyleToMesh()` method replacing individual style applications
+  - Color shader injection into materials with dynamic uniforms
+  - Support for 6 distinct color modes with shader code injection
+  - Material property override system
+- **Toolbox Component** - Reorganized and expanded
+  - New ModelStyleConfig interface
+  - COLOR_MODE_OPTIONS constant
+  - updateModelStyle function for state management
+  - Better section organization with collapsible UI
+- **SceneCore** - Enhanced with post-processing support
+  - Better scene effect composition
+- **BossSpawnModal & AgentEditModal** - Minor UI improvements
+- **Boss Handler** - Improved message routing
+
+### Technical
+- New PostProcessing.ts module with shader composition
+- ColorCorrectionShader with GLSL color correction
+- Material userData.hasColorShader tracking for injected shaders
+- Shader uniform updates via material.onBeforeCompile
+- New sceneConfig.modelStyle property
+- Extended Toolbox configuration interface
+- ColorMode type definition in Toolbox
+
 ## [0.25.0] - 2026-01-27
 
 ### Added

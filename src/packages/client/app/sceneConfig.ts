@@ -15,6 +15,17 @@ export const DEFAULT_TERRAIN = {
   skyColor: null as string | null, // null = auto (based on time mode)
 };
 
+// Default agent model style config
+export const DEFAULT_MODEL_STYLE = {
+  saturation: 2,      // 0 = grayscale, 1 = normal, 2 = vivid
+  roughness: 0.5,     // -1 = use original, 0-1 = override (0 = glossy, 1 = matte)
+  metalness: -1,      // -1 = use original, 0-1 = override
+  emissiveBoost: 0,   // 0 = normal, positive = add glow
+  envMapIntensity: 1, // -1 = use original, 0-2 = override (environment reflections)
+  wireframe: false,   // true = wireframe rendering mode
+  colorMode: 'normal' as const, // normal, bw, sepia, cool, warm, neon
+};
+
 // Default animation config
 export const DEFAULT_ANIMATIONS = {
   idleAnimation: 'sit' as const,
@@ -34,6 +45,7 @@ export function loadConfig(): SceneConfig {
     gridVisible: true,
     timeMode: 'day',
     terrain: DEFAULT_TERRAIN,
+    modelStyle: DEFAULT_MODEL_STYLE,
     animations: DEFAULT_ANIMATIONS,
     fpsLimit: DEFAULT_FPS_LIMIT,
   };
@@ -46,6 +58,7 @@ export function loadConfig(): SceneConfig {
       gridVisible: stored.gridVisible ?? defaultConfig.gridVisible,
       timeMode: stored.timeMode ?? defaultConfig.timeMode,
       terrain: { ...DEFAULT_TERRAIN, ...stored.terrain },
+      modelStyle: { ...DEFAULT_MODEL_STYLE, ...stored.modelStyle },
       animations: { ...DEFAULT_ANIMATIONS, ...stored.animations },
       fpsLimit: stored.fpsLimit ?? defaultConfig.fpsLimit,
     };

@@ -58,10 +58,22 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set());
   const [selectedModel, setSelectedModel] = useState<ClaudeModel>('opus'); // Default to opus
   const [customInstructions, setCustomInstructions] = useState('');
+  const [skillSearch, setSkillSearch] = useState('');
   const nameInputRef = useRef<HTMLInputElement>(null);
 
   // Get available skills (enabled ones)
   const availableSkills = useMemo(() => skills.filter(s => s.enabled), [skills]);
+
+  // Filter skills by search query
+  const filteredSkills = useMemo(() => {
+    if (!skillSearch.trim()) return availableSkills;
+    const query = skillSearch.toLowerCase();
+    return availableSkills.filter(s =>
+      s.name.toLowerCase().includes(query) ||
+      s.description.toLowerCase().includes(query) ||
+      s.slug.toLowerCase().includes(query)
+    );
+  }, [availableSkills, skillSearch]);
 
   // Toggle skill selection
   const toggleSkill = useCallback((skillId: string) => {
@@ -530,8 +542,17 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
             {availableSkills.length > 0 && (
               <div className="spawn-skills-section">
                 <label className="spawn-label">Skills <span className="spawn-label-hint">(optional)</span></label>
+                {availableSkills.length > 6 && (
+                  <input
+                    type="text"
+                    className="spawn-input skill-search-input"
+                    placeholder="Filter skills..."
+                    value={skillSearch}
+                    onChange={(e) => setSkillSearch(e.target.value)}
+                  />
+                )}
                 <div className="spawn-skills-inline">
-                  {availableSkills.map((skill) => {
+                  {filteredSkills.map((skill) => {
                     const isSelected = selectedSkillIds.has(skill.id);
                     const isClassDefault = classDefaultSkills.some(s => s.id === skill.id);
                     if (isClassDefault) return null;
@@ -548,6 +569,9 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                       </button>
                     );
                   })}
+                  {skillSearch && filteredSkills.length === 0 && (
+                    <div className="skill-search-empty">No skills match "{skillSearch}"</div>
+                  )}
                 </div>
               </div>
             )}
