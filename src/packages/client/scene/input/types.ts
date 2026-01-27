@@ -21,7 +21,6 @@ export interface InputCallbacks {
   onResizeMove?: (pos: { x: number; z: number }) => void;
   onResizeEnd?: () => void;
   // Area callbacks
-  onAreaDoubleClick?: (areaId: string) => void;
   onGroundClickOutsideArea?: () => void;
   // Building callbacks
   onBuildingClick?: (buildingId: string) => void;

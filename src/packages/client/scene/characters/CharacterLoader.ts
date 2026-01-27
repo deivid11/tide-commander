@@ -111,6 +111,17 @@ export class CharacterLoader {
           if (mat.map) {
             mat.map.colorSpace = THREE.SRGBColorSpace;
           }
+          // Enhance material properties for better light reflection
+          if (mat.isMeshStandardMaterial) {
+            // Significantly reduce roughness for shinier, more reflective surfaces
+            mat.roughness = Math.max(0.2, (mat.roughness ?? 0.5) * 0.5);
+            // Add metalness for specular highlights
+            mat.metalness = Math.min(0.5, (mat.metalness ?? 0) + 0.25);
+            // Strong environment map intensity for visible reflections
+            mat.envMapIntensity = 2.5;
+            // Ensure material updates
+            mat.needsUpdate = true;
+          }
         }
       }
     });

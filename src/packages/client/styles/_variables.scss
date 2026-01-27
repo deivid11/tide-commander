@@ -62,8 +62,9 @@ $radius-md: 6px;
 $radius-lg: 8px;
 $radius-xl: 12px;
 
-// CSS custom properties export
+// CSS custom properties export (default theme - muted/neutral)
 :root {
+  // Base colors
   --bg-primary: #{$bg-primary};
   --bg-secondary: #{$bg-secondary};
   --bg-tertiary: #{$bg-tertiary};
@@ -71,6 +72,8 @@ $radius-xl: 12px;
   --text-primary: #{$text-primary};
   --text-secondary: #{$text-secondary};
   --text-muted: #{$text-muted};
+
+  // Accent colors
   --accent-blue: #{$accent-blue};
   --accent-green: #{$accent-green};
   --accent-orange: #{$accent-orange};
@@ -81,6 +84,32 @@ $radius-xl: 12px;
   --accent-claude-light: #{$accent-claude-light};
   --accent-pink: #{$accent-pink};
   --accent-yellow: #{$accent-yellow};
+
+  // Typography
   --font-size-base: #{$font-size-base};
   --line-height-base: #{$line-height-base};
+
+  // Message colors (user/assistant)
+  --msg-user-bg: color-mix(in srgb, #{$accent-cyan} 8%, transparent);
+  --msg-user-border: #{$accent-cyan};
+  --msg-user-text: #{$text-primary};
+  --msg-assistant-bg: color-mix(in srgb, #{$accent-green} 8%, transparent);
+  --msg-assistant-border: #{$accent-green};
+  --msg-assistant-text: #{$text-primary};
+
+  // Tool colors
+  --tool-use-bg: color-mix(in srgb, #{$accent-orange} 8%, transparent);
+  --tool-use-border: #{$accent-orange};
+  --tool-use-text: #{$accent-orange};
+  --tool-use-name: #{$accent-orange};
+  --tool-result-bg: color-mix(in srgb, #{$accent-purple} 6%, transparent);
+  --tool-result-border: #{$accent-purple};
+  --tool-result-text: #{$accent-green};
+
+  // Context bar
+  --context-bar-bg: #{$bg-tertiary};
+  --context-bar-fill: #{$accent-purple};
+
+  // Output line
+  --output-line-bg: transparent;
 }

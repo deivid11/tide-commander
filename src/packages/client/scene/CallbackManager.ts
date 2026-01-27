@@ -3,7 +3,6 @@
  * Extracted from SceneManager for separation of concerns.
  */
 export class CallbackManager {
-  private onAreaDoubleClickCallback: ((areaId: string) => void) | null = null;
   private onBuildingClickCallback: ((buildingId: string) => void) | null = null;
   private onBuildingDoubleClickCallback: ((buildingId: string) => void) | null = null;
   private onContextMenuCallback: ((
@@ -19,10 +18,6 @@ export class CallbackManager {
   // ============================================
   // Callback Setters
   // ============================================
-
-  setOnAreaDoubleClick(callback: (areaId: string) => void): void {
-    this.onAreaDoubleClickCallback = callback;
-  }
 
   setOnBuildingClick(callback: (buildingId: string) => void): void {
     this.onBuildingClickCallback = callback;
@@ -54,10 +49,6 @@ export class CallbackManager {
   // ============================================
   // Callback Triggers
   // ============================================
-
-  triggerAreaDoubleClick(areaId: string): void {
-    this.onAreaDoubleClickCallback?.(areaId);
-  }
 
   triggerBuildingClick(buildingId: string): void {
     this.onBuildingClickCallback?.(buildingId);

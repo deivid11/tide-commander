@@ -536,17 +536,17 @@ export class Battlefield {
   }
 
   private createLighting(): void {
-    // Ambient light
-    this.ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    // Ambient light - increased base intensity
+    this.ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
     this.scene.add(this.ambientLight);
 
-    // Hemisphere light
-    this.hemiLight = new THREE.HemisphereLight(0xffffcc, 0x444466, 0.6);
+    // Hemisphere light - brighter for better model illumination
+    this.hemiLight = new THREE.HemisphereLight(0xffffee, 0x556677, 0.7);
     this.hemiLight.position.set(0, 20, 0);
     this.scene.add(this.hemiLight);
 
     // Main directional light (sun/moon)
-    this.mainLight = new THREE.DirectionalLight(0xffffff, 1.0);
+    this.mainLight = new THREE.DirectionalLight(0xffffff, 1.2);
     this.mainLight.position.set(30, 50, -30);
     this.mainLight.castShadow = true;
     this.mainLight.shadow.mapSize.width = 2048;
@@ -559,10 +559,15 @@ export class Battlefield {
     this.mainLight.shadow.camera.bottom = -35;
     this.scene.add(this.mainLight);
 
-    // Fill light
-    this.fillLight = new THREE.DirectionalLight(0xffffff, 0.4);
+    // Fill light - increased intensity for better shadow fill
+    this.fillLight = new THREE.DirectionalLight(0xffffff, 0.6);
     this.fillLight.position.set(-10, 15, 10);
     this.scene.add(this.fillLight);
+
+    // Back/rim light for model definition and highlights
+    const backLight = new THREE.DirectionalLight(0xaaccff, 0.5);
+    backLight.position.set(0, 20, 30);
+    this.scene.add(backLight);
   }
 
   /**

@@ -69,9 +69,9 @@ export function calculateContextInfo(agent: Agent): ContextInfo {
  * Get context bar color based on remaining percent
  */
 export function getContextBarColor(remainingPercent: number): string {
-  if (remainingPercent < 20) return '#ff4a4a';
-  if (remainingPercent < 50) return '#ff9e4a';
-  return '#4aff9e';
+  if (remainingPercent < 20) return '#c85858';  // Muted red
+  if (remainingPercent < 50) return '#c89858';  // Muted orange
+  return '#6a9a78';  // Muted sage green
 }
 
 /**

@@ -130,12 +130,6 @@ export function useSceneSetup({
       });
     }
 
-    // Set up area double-click callback
-    sceneRef.current?.setOnAreaDoubleClick((areaId) => {
-      store.selectArea(areaId);
-      toolboxModal.open();
-    });
-
     // Set up building click callback
     sceneRef.current?.setOnBuildingClick((buildingId) => {
       store.selectBuilding(buildingId);

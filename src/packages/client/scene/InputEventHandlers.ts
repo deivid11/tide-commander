@@ -110,11 +110,6 @@ export class InputEventHandlers {
     }
   }
 
-  handleAreaDoubleClick(areaId: string): void {
-    store.selectArea(areaId);
-    this.deps.callbackManager.triggerAreaDoubleClick(areaId);
-  }
-
   handleGroundClickOutsideArea(): void {
     store.selectArea(null);
     this.deps.drawingManager.highlightArea(null);

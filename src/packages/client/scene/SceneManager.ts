@@ -146,7 +146,66 @@ export class SceneManager {
 
     // Create environment and start render loop
     this.battlefield.create();
+    this.createEnvironmentMap();
     this.renderLoop.start();
+  }
+
+  /**
+   * Create environment map for better model reflections.
+   */
+  private createEnvironmentMap(): void {
+    const renderer = this.sceneCore.getRenderer();
+    const scene = this.sceneCore.getScene();
+
+    const pmremGenerator = new THREE.PMREMGenerator(renderer);
+    pmremGenerator.compileEquirectangularShader();
+
+    // Create a simple sky-colored environment for reflections
+    const envScene = new THREE.Scene();
+
+    // Create gradient sky sphere
+    const skyGeo = new THREE.SphereGeometry(100, 32, 32);
+    const skyMat = new THREE.ShaderMaterial({
+      uniforms: {
+        topColor: { value: new THREE.Color(0x88bbff) },    // Light blue sky
+        bottomColor: { value: new THREE.Color(0x446688) }, // Darker horizon
+        offset: { value: 10 },
+        exponent: { value: 0.6 },
+      },
+      vertexShader: `
+        varying vec3 vWorldPosition;
+        void main() {
+          vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+          vWorldPosition = worldPosition.xyz;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 topColor;
+        uniform vec3 bottomColor;
+        uniform float offset;
+        uniform float exponent;
+        varying vec3 vWorldPosition;
+        void main() {
+          float h = normalize(vWorldPosition + offset).y;
+          gl_FragColor = vec4(mix(bottomColor, topColor, max(pow(max(h, 0.0), exponent), 0.0)), 1.0);
+        }
+      `,
+      side: THREE.BackSide,
+    });
+    envScene.add(new THREE.Mesh(skyGeo, skyMat));
+
+    // Add bright ambient light to the env scene
+    envScene.add(new THREE.AmbientLight(0xffffff, 1.0));
+
+    // Generate environment map
+    const envMap = pmremGenerator.fromScene(envScene, 0.04).texture;
+    scene.environment = envMap;
+
+    // Clean up
+    pmremGenerator.dispose();
+    skyGeo.dispose();
+    skyMat.dispose();
   }
 
   private createInputCallbacks() {
@@ -164,7 +223,6 @@ export class SceneManager {
       onResizeStart: (handle: THREE.Mesh, pos: { x: number; z: number }) => this.drawingManager.startResize(handle, pos),
       onResizeMove: (pos: { x: number; z: number }) => this.drawingManager.updateResize(pos),
       onResizeEnd: () => this.drawingManager.finishResize(),
-      onAreaDoubleClick: (id: string) => this.inputEventHandlers.handleAreaDoubleClick(id),
       onGroundClickOutsideArea: () => this.inputEventHandlers.handleGroundClickOutsideArea(),
       onBuildingClick: (id: string) => this.inputEventHandlers.handleBuildingClick(id),
       onBuildingDoubleClick: (id: string) => this.inputEventHandlers.handleBuildingDoubleClick(id),
@@ -352,7 +410,6 @@ export class SceneManager {
   syncAreas(): void { this.drawingManager.syncFromStore(); }
   highlightArea(areaId: string | null): void { this.drawingManager.highlightArea(areaId); }
   clearAreaSelection(): void { this.drawingManager.highlightArea(null); }
-  setOnAreaDoubleClick(callback: (areaId: string) => void): void { this.callbackManager.setOnAreaDoubleClick(callback); }
 
   // ============================================
   // Public API - Buildings

@@ -19,20 +19,20 @@ export function getDawnConfig(): TimeConfig {
     phase: 'dawn',
     sunPosition: new THREE.Vector3(50, 10, -60), // Sun low on horizon
     moonPosition: new THREE.Vector3(-40, 15, -50), // Moon setting
-    ambientColor: 0x7799cc, // Cool blue-ish ambient
-    ambientIntensity: 0.5,
-    hemiSkyColor: 0x5588bb, // Blue-purple sky from above
-    hemiGroundColor: 0x334455, // Cool ground reflection
-    hemiIntensity: 0.6,
-    mainLightColor: 0xaaccff, // Cool blue sunlight
-    mainLightIntensity: 0.9,
+    ambientColor: 0x99bbdd, // Brighter ambient
+    ambientIntensity: 0.6, // Increased from 0.5
+    hemiSkyColor: 0x6699cc, // Brighter sky
+    hemiGroundColor: 0x445566,
+    hemiIntensity: 0.75, // Increased from 0.6
+    mainLightColor: 0xbbddff, // Brighter sunlight
+    mainLightIntensity: 1.1, // Increased from 0.9
     fogColor: 0x4477aa, // Blue fog
     fogDensity: 0.008,
     skyColor: 0x3366aa, // Blue dawn sky
     starsOpacity: 0.2, // Few stars still visible
     moonOpacity: 0.3, // Moon fading
     sunOpacity: 0.9, // Sun rising
-    lampIntensity: 0.3, // Lamps dimming
+    lampIntensity: 0.5, // Slightly brighter lamps
     windowEmissive: 0.3,
   };
 }
@@ -45,20 +45,20 @@ export function getDuskConfig(): TimeConfig {
     phase: 'dusk',
     sunPosition: new THREE.Vector3(-50, 8, -60), // Sun setting on opposite side
     moonPosition: new THREE.Vector3(40, 12, -50), // Moon rising
-    ambientColor: 0x5566aa, // Cool blue-purple ambient
-    ambientIntensity: 0.45,
-    hemiSkyColor: 0x3355aa, // Deep blue-purple sky
-    hemiGroundColor: 0x223344, // Dark cool ground
-    hemiIntensity: 0.5,
-    mainLightColor: 0x7799dd, // Cool blue light
-    mainLightIntensity: 0.7,
+    ambientColor: 0x7788bb, // Brighter ambient
+    ambientIntensity: 0.55, // Increased from 0.45
+    hemiSkyColor: 0x4466bb, // Brighter sky
+    hemiGroundColor: 0x334455,
+    hemiIntensity: 0.65, // Increased from 0.5
+    mainLightColor: 0x99bbee, // Brighter light
+    mainLightIntensity: 0.9, // Increased from 0.7
     fogColor: 0x2244aa, // Blue-purple fog
     fogDensity: 0.01,
     skyColor: 0x2244aa, // Deep blue dusk sky
     starsOpacity: 0.3, // Stars appearing
     moonOpacity: 0.4, // Moon appearing
     sunOpacity: 0.8, // Sun setting
-    lampIntensity: 1.0, // Lamps turning on
+    lampIntensity: 1.5, // Increased lamp brightness
     windowEmissive: 0.5,
   };
 }
@@ -71,20 +71,20 @@ export function getNightConfig(): TimeConfig {
     phase: 'night',
     sunPosition: new THREE.Vector3(30, -20, -50),
     moonPosition: new THREE.Vector3(-30, 35, -50),
-    ambientColor: 0x334466,
-    ambientIntensity: 0.3,
-    hemiSkyColor: 0x223355,
-    hemiGroundColor: 0x111133,
-    hemiIntensity: 0.4,
-    mainLightColor: 0xaabbff,
-    mainLightIntensity: 0.6,
+    ambientColor: 0x5566aa, // Brighter ambient for better model visibility
+    ambientIntensity: 0.5, // Increased from 0.3
+    hemiSkyColor: 0x334477, // Brighter sky color
+    hemiGroundColor: 0x222244,
+    hemiIntensity: 0.6, // Increased from 0.4
+    mainLightColor: 0xccddff, // Brighter moonlight
+    mainLightIntensity: 0.9, // Increased from 0.6
     fogColor: 0x0a1a2a,
     fogDensity: 0.012,
     skyColor: 0x0a1a2a, // Dark blue
     starsOpacity: 0.9,
     moonOpacity: 1.0,
     sunOpacity: 0,
-    lampIntensity: 2.0,
+    lampIntensity: 2.5, // Increased lamp brightness
     windowEmissive: 0.8,
   };
 }
@@ -98,12 +98,12 @@ export function getDayConfig(): TimeConfig {
     sunPosition: new THREE.Vector3(30, 50, -30),
     moonPosition: new THREE.Vector3(-30, -20, -50),
     ambientColor: 0xffffff,
-    ambientIntensity: 0.7,
-    hemiSkyColor: 0x4a90d9,
-    hemiGroundColor: 0x445566,
-    hemiIntensity: 0.8,
+    ambientIntensity: 0.85, // Increased from 0.7
+    hemiSkyColor: 0x5aa0e9, // Slightly brighter
+    hemiGroundColor: 0x556677,
+    hemiIntensity: 1.0, // Increased from 0.8
     mainLightColor: 0xffffee,
-    mainLightIntensity: 1.2,
+    mainLightIntensity: 1.5, // Increased from 1.2
     fogColor: 0x6aa8e0,
     fogDensity: 0.005,
     skyColor: 0x4a90d9, // Blue sky
