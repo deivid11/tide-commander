@@ -11,7 +11,7 @@ import type { FloorStyle, TimeConfig, GalacticState } from './types';
 import { generateFloorTexture } from './floorTextures';
 import { createGalacticElements, removeGalacticElements, updateGalacticAnimation } from './galacticFloor';
 import { getTimeConfig } from './timeConfig';
-import { createSun, createMoon, createStars } from './celestial';
+import { createSun, createMoon, createStars, createClouds, updateClouds, setCloudOpacity, disposeClouds, type CloudState } from './celestial';
 import { createTerrainElements, createGrass } from './terrain';
 
 // Re-export types for backwards compatibility
@@ -48,6 +48,10 @@ export class Battlefield {
   // Galactic floor state
   private galacticState: GalacticState | null = null;
 
+  // Cloud state
+  private cloudState: CloudState | null = null;
+  private cloudsVisible = true;
+
   // Debug: override time for testing (set to null to use real time)
   private debugHourOverride: number | null = null;
 
@@ -83,6 +87,10 @@ export class Battlefield {
     this.scene.add(this.moon);
     this.stars = createStars();
     this.scene.add(this.stars);
+
+    // Create clouds
+    this.cloudState = createClouds();
+    this.scene.add(this.cloudState.group);
 
     // Create terrain elements
     const terrain = createTerrainElements(this.scene);
@@ -157,6 +165,7 @@ export class Battlefield {
     showHouse: boolean;
     showLamps: boolean;
     showGrass: boolean;
+    showClouds?: boolean;
     fogDensity: number;
   }): void {
     // Toggle trees
@@ -177,6 +186,14 @@ export class Battlefield {
     // Toggle grass
     if (this.grass) {
       this.grass.visible = config.showGrass;
+    }
+
+    // Toggle clouds
+    if (config.showClouds !== undefined) {
+      this.cloudsVisible = config.showClouds;
+      if (this.cloudState) {
+        this.cloudState.group.visible = config.showClouds;
+      }
     }
 
     // Update fog density (0 = off, 1 = normal, 2 = heavy)
@@ -315,6 +332,14 @@ export class Battlefield {
   }
 
   /**
+   * Update cloud animation (call from render loop).
+   */
+  updateCloudAnimation(deltaTime: number): void {
+    if (!this.cloudState || !this.cloudsVisible) return;
+    updateClouds(this.cloudState, deltaTime);
+  }
+
+  /**
    * Helper to dispose a material and its textures.
    */
   private disposeMaterial(material: THREE.Material): void {
@@ -394,6 +419,27 @@ export class Battlefield {
     this.windowMaterials.forEach(mat => {
       mat.emissiveIntensity = config.windowEmissive;
     });
+
+    // Update cloud opacity based on time of day
+    // Clouds are most visible during day, less at dawn/dusk, barely at night
+    if (this.cloudState && this.cloudsVisible) {
+      let cloudOpacity: number;
+      switch (config.phase) {
+        case 'day':
+          cloudOpacity = 1.0;
+          break;
+        case 'dawn':
+        case 'dusk':
+          cloudOpacity = 0.7;
+          break;
+        case 'night':
+          cloudOpacity = 0.2;
+          break;
+        default:
+          cloudOpacity = 1.0;
+      }
+      setCloudOpacity(this.cloudState, cloudOpacity);
+    }
   }
 
   /**

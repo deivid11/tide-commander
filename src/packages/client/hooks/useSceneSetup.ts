@@ -3,9 +3,9 @@ import { store } from '../store';
 import { connect, setCallbacks } from '../websocket';
 import { SceneManager } from '../scene/SceneManager';
 import {
-  persistedScene,
-  persistedCanvas,
-  isPageUnloading,
+  getPersistedScene,
+  getPersistedCanvas,
+  getIsPageUnloading,
   setPersistedScene,
   setPersistedCanvas,
   setWsConnected,
@@ -50,32 +50,41 @@ export function useSceneSetup({
   useEffect(() => {
     if (!canvasRef.current || !selectionBoxRef.current) return;
 
+    // Get current persisted state from window (survives HMR)
+    const currentPersistedScene = getPersistedScene();
+    const currentPersistedCanvas = getPersistedCanvas();
+
     // Check if this is the same canvas as before (StrictMode remount or HMR)
-    const isSameCanvas = persistedCanvas === canvasRef.current;
+    const isSameCanvas = currentPersistedCanvas === canvasRef.current;
 
     // Reuse or create scene manager (persists across HMR and StrictMode remounts)
-    if (persistedScene && isSameCanvas) {
-      sceneRef.current = persistedScene;
+    if (currentPersistedScene && isSameCanvas) {
+      sceneRef.current = currentPersistedScene;
       console.log('[Tide] Reusing existing scene (StrictMode remount)');
       // Re-sync agents from store after HMR (models are already loaded)
       const state = store.getState();
       if (state.agents.size > 0) {
         console.log('[Tide] Re-syncing agents from store after remount:', state.agents.size);
-        persistedScene.syncAgents(Array.from(state.agents.values()));
+        currentPersistedScene.syncAgents(Array.from(state.agents.values()));
       }
-    } else if (persistedScene && !isSameCanvas) {
-      persistedScene.reattach(canvasRef.current, selectionBoxRef.current);
-      sceneRef.current = persistedScene;
+    } else if (currentPersistedScene && !isSameCanvas) {
+      console.log('[Tide] HMR detected - canvas changed, reattaching scene', {
+        canvasConnected: canvasRef.current.isConnected,
+        canvasParent: !!canvasRef.current.parentElement,
+        timestamp: Date.now(), // HMR test v6 - clouds added
+      });
+      currentPersistedScene.reattach(canvasRef.current, selectionBoxRef.current);
+      sceneRef.current = currentPersistedScene;
       setPersistedCanvas(canvasRef.current);
       console.log('[Tide] Reattached existing scene (HMR)');
       const state = store.getState();
       if (state.customAgentClasses.size > 0) {
-        persistedScene.setCustomAgentClasses(state.customAgentClasses);
+        currentPersistedScene.setCustomAgentClasses(state.customAgentClasses);
       }
       // Re-sync agents from store after HMR reattach
       if (state.agents.size > 0) {
         console.log('[Tide] Re-syncing agents from store after HMR:', state.agents.size);
-        persistedScene.syncAgents(Array.from(state.agents.values()));
+        currentPersistedScene.syncAgents(Array.from(state.agents.values()));
       }
     } else {
       markWebGLActive();
@@ -215,7 +224,7 @@ export function useSceneSetup({
 
     // Don't dispose on HMR or StrictMode unmount
     return () => {
-      if (isPageUnloading) {
+      if (getIsPageUnloading()) {
         sceneRef.current?.dispose();
         setPersistedScene(null);
         setPersistedCanvas(null);

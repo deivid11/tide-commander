@@ -132,6 +132,151 @@ export function createMoon(): THREE.Sprite {
 }
 
 /**
+ * Cloud system state for animation
+ */
+export interface CloudState {
+  group: THREE.Group;
+  clouds: THREE.Mesh[];
+  time: number;
+}
+
+/**
+ * Create a fluffy cloud mesh using multiple spheres
+ */
+function createCloudMesh(scale: number = 1): THREE.Group {
+  const cloud = new THREE.Group();
+
+  // Cloud material - soft, translucent white
+  const cloudMaterial = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.85,
+    roughness: 1,
+    metalness: 0,
+    depthWrite: false,
+  });
+
+  // Create multiple spheres to form a fluffy cloud shape
+  const sphereGeometry = new THREE.SphereGeometry(1, 16, 12);
+
+  // Main body spheres
+  const positions = [
+    { x: 0, y: 0, z: 0, scale: 1.2 },
+    { x: -1.0, y: 0.1, z: 0.2, scale: 1.0 },
+    { x: 1.0, y: 0.15, z: -0.1, scale: 1.1 },
+    { x: -0.5, y: 0.3, z: 0.4, scale: 0.8 },
+    { x: 0.6, y: 0.35, z: 0.3, scale: 0.9 },
+    { x: -1.5, y: -0.1, z: 0, scale: 0.7 },
+    { x: 1.5, y: -0.05, z: 0.1, scale: 0.75 },
+    { x: 0, y: 0.4, z: 0, scale: 0.7 },
+  ];
+
+  positions.forEach(pos => {
+    const sphere = new THREE.Mesh(sphereGeometry, cloudMaterial);
+    sphere.position.set(pos.x * scale, pos.y * scale, pos.z * scale);
+    sphere.scale.setScalar(pos.scale * scale);
+    cloud.add(sphere);
+  });
+
+  cloud.userData.material = cloudMaterial;
+  return cloud;
+}
+
+/**
+ * Create the cloud system with multiple clouds at different heights and positions.
+ */
+export function createClouds(): CloudState {
+  const group = new THREE.Group();
+  group.name = 'clouds';
+  const clouds: THREE.Mesh[] = [];
+
+  // Cloud configurations: position, scale, speed multiplier
+  const cloudConfigs = [
+    { x: -25, y: 35, z: -20, scale: 3.5, speed: 0.8 },
+    { x: 15, y: 40, z: -35, scale: 4.0, speed: 1.0 },
+    { x: -40, y: 38, z: 10, scale: 3.0, speed: 0.9 },
+    { x: 30, y: 42, z: 15, scale: 3.8, speed: 1.1 },
+    { x: 0, y: 36, z: -45, scale: 3.2, speed: 0.85 },
+    { x: -15, y: 44, z: 30, scale: 2.8, speed: 1.05 },
+    { x: 45, y: 37, z: -10, scale: 3.6, speed: 0.95 },
+    { x: -35, y: 41, z: -30, scale: 2.5, speed: 1.15 },
+  ];
+
+  cloudConfigs.forEach((config, index) => {
+    const cloud = createCloudMesh(config.scale);
+    cloud.position.set(config.x, config.y, config.z);
+    cloud.userData.baseX = config.x;
+    cloud.userData.speed = config.speed;
+    cloud.userData.index = index;
+    group.add(cloud);
+    clouds.push(cloud as unknown as THREE.Mesh);
+  });
+
+  return {
+    group,
+    clouds,
+    time: 0,
+  };
+}
+
+/**
+ * Update cloud animation - gentle drifting motion
+ */
+export function updateClouds(state: CloudState, deltaTime: number): void {
+  state.time += deltaTime;
+
+  state.clouds.forEach((cloud) => {
+    const baseX = cloud.userData.baseX as number;
+    const speed = cloud.userData.speed as number;
+    const index = cloud.userData.index as number;
+
+    // Gentle horizontal drift
+    const driftRange = 60; // How far clouds drift
+    const driftSpeed = 0.015 * speed;
+
+    // Each cloud has a different phase offset
+    const phase = index * 0.7;
+    const drift = Math.sin(state.time * driftSpeed + phase) * driftRange * 0.5;
+
+    cloud.position.x = baseX + drift;
+
+    // Subtle vertical bobbing
+    const bobSpeed = 0.3 * speed;
+    const bobAmount = 0.5;
+    cloud.position.y += Math.sin(state.time * bobSpeed + phase) * bobAmount * deltaTime;
+  });
+}
+
+/**
+ * Set cloud opacity based on time of day
+ */
+export function setCloudOpacity(state: CloudState, opacity: number): void {
+  state.clouds.forEach((cloud) => {
+    const material = cloud.userData.material as THREE.MeshStandardMaterial;
+    if (material) {
+      material.opacity = opacity * 0.85; // Max 85% opacity
+    }
+  });
+}
+
+/**
+ * Dispose cloud resources
+ */
+export function disposeClouds(state: CloudState): void {
+  state.clouds.forEach((cloud) => {
+    const material = cloud.userData.material as THREE.MeshStandardMaterial;
+    if (material) {
+      material.dispose();
+    }
+  });
+  state.group.traverse((obj) => {
+    if (obj instanceof THREE.Mesh) {
+      obj.geometry?.dispose();
+    }
+  });
+}
+
+/**
  * Create the star field.
  */
 export function createStars(): THREE.Points {

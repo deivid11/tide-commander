@@ -44,6 +44,7 @@ curl -s -X POST http://localhost:5174/api/notify -H "Content-Type: application/j
 ## Rules
 - Replace \`YOUR_AGENT_ID\` with your actual agent ID from the system prompt
 - Keep messages under 50 characters
+- **IMPORTANT: Do NOT use exclamation marks (!) in messages** - they cause bash history expansion errors
 - Send notification as your FINAL action after completing work
 - Do NOT skip this step - the user relies on notifications
 - The \`&\` runs both commands in parallel (curl for mobile/browser, gdbus for Linux desktop)`,

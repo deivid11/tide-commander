@@ -96,6 +96,10 @@ export class SceneCore {
   // ============================================
 
   reattach(canvas: HTMLCanvasElement): void {
+    console.log('[SceneCore] Reattaching to new canvas:', {
+      isConnected: canvas.isConnected,
+      parentElement: !!canvas.parentElement,
+    });
     this.canvas = canvas;
     this.renderer.dispose();
     this.renderer = this.createRenderer();

@@ -351,15 +351,6 @@ function handleServerMessage(message: ServerMessage): void {
 
       if (statusChanged) {
         console.log(`[Tide] 🔔 Status change for ${updatedAgent.name}: ${previousAgent?.status} → ${updatedAgent.status}`);
-
-        // Send native notification when agent finishes working (working -> idle)
-        if (previousAgent?.status === 'working' && updatedAgent.status === 'idle') {
-          showNotification({
-            title: `${updatedAgent.name} finished`,
-            body: 'Agent is now idle',
-            data: { type: 'agent_idle', agentId: updatedAgent.id },
-          });
-        }
       }
 
       const positionChanged = previousAgent

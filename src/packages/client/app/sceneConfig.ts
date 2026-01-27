@@ -8,6 +8,7 @@ export const DEFAULT_TERRAIN = {
   showHouse: true,
   showLamps: true,
   showGrass: true,
+  showClouds: true,
   fogDensity: 1,
   floorStyle: 'concrete' as const,
 };

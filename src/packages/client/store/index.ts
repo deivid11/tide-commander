@@ -740,5 +740,30 @@ class Store
   deleteCustomAgentClass(...args: Parameters<SkillActions['deleteCustomAgentClass']>) { return this.skillActions.deleteCustomAgentClass(...args); }
 }
 
-// Singleton store instance
-export const store = new Store();
+// Extend Window interface for HMR persistence
+declare global {
+  interface Window {
+    __tideStore?: Store;
+    __tideStoreVersion?: number;
+  }
+}
+
+// Increment this when Store class has breaking changes that require fresh instance
+const STORE_VERSION = 1;
+
+// Singleton store instance - persisted on window for HMR
+function getOrCreateStore(): Store {
+  if (typeof window !== 'undefined') {
+    // Check if store exists and is the correct version
+    if (window.__tideStore && window.__tideStoreVersion === STORE_VERSION) {
+      return window.__tideStore;
+    }
+    // Create new store (first load or version mismatch)
+    window.__tideStore = new Store();
+    window.__tideStoreVersion = STORE_VERSION;
+    return window.__tideStore;
+  }
+  return new Store();
+}
+
+export const store = getOrCreateStore();

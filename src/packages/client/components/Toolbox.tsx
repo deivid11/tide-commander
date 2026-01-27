@@ -20,6 +20,7 @@ export interface TerrainConfig {
   showHouse: boolean;
   showLamps: boolean;
   showGrass: boolean;
+  showClouds: boolean;
   fogDensity: number; // 0 = none, 1 = normal, 2 = heavy
   floorStyle: FloorStyle;
 }
@@ -637,6 +638,7 @@ const TERRAIN_OPTIONS: { key: keyof TerrainConfig; icon: string; label: string }
   { key: 'showHouse', icon: '🏠', label: 'House' },
   { key: 'showLamps', icon: '💡', label: 'Lamps' },
   { key: 'showGrass', icon: '🟩', label: 'Grass' },
+  { key: 'showClouds', icon: '☁️', label: 'Clouds' },
 ];
 
 // Compact toggle switch for config rows

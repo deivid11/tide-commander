@@ -1,14 +1,6 @@
 import { SceneManager } from '../scene/SceneManager';
 import { disconnect, clearCallbacks } from '../websocket';
 
-// Persist scene manager across HMR and StrictMode remounts
-export let persistedScene: SceneManager | null = null;
-export let persistedCanvas: HTMLCanvasElement | null = null;
-export let wsConnected = false;
-
-// Track if page is actually unloading (not HMR)
-export let isPageUnloading = false;
-
 // Session storage key to track if we had an active WebGL context
 const WEBGL_SESSION_KEY = 'tide_webgl_active';
 
@@ -19,23 +11,61 @@ declare global {
     __tideBackNavSetup?: boolean;
     __tideHistoryDepth?: number;
     __tideAppInitialized?: boolean;
+    // HMR-persistent state - survives module re-evaluation
+    __tidePersistedScene?: SceneManager | null;
+    __tidePersistedCanvas?: HTMLCanvasElement | null;
+    __tideWsConnected?: boolean;
+    __tideIsPageUnloading?: boolean;
   }
 }
 
+// Initialize HMR-persistent state on window if not present
+if (typeof window !== 'undefined') {
+  if (window.__tidePersistedScene === undefined) window.__tidePersistedScene = null;
+  if (window.__tidePersistedCanvas === undefined) window.__tidePersistedCanvas = null;
+  if (window.__tideWsConnected === undefined) window.__tideWsConnected = false;
+  if (window.__tideIsPageUnloading === undefined) window.__tideIsPageUnloading = false;
+}
+
+// Getters/setters that read from window for HMR persistence
+export function getPersistedScene(): SceneManager | null {
+  return typeof window !== 'undefined' ? window.__tidePersistedScene ?? null : null;
+}
+
+export function getPersistedCanvas(): HTMLCanvasElement | null {
+  return typeof window !== 'undefined' ? window.__tidePersistedCanvas ?? null : null;
+}
+
+export function getWsConnected(): boolean {
+  return typeof window !== 'undefined' ? window.__tideWsConnected ?? false : false;
+}
+
+export function getIsPageUnloading(): boolean {
+  return typeof window !== 'undefined' ? window.__tideIsPageUnloading ?? false : false;
+}
+
 export function setPersistedScene(scene: SceneManager | null): void {
-  persistedScene = scene;
+  if (typeof window !== 'undefined') {
+    window.__tidePersistedScene = scene;
+  }
 }
 
 export function setPersistedCanvas(canvas: HTMLCanvasElement | null): void {
-  persistedCanvas = canvas;
+  if (typeof window !== 'undefined') {
+    window.__tidePersistedCanvas = canvas;
+  }
 }
 
 export function setWsConnected(connected: boolean): void {
-  wsConnected = connected;
+  if (typeof window !== 'undefined') {
+    window.__tideWsConnected = connected;
+  }
 }
 
 export function setIsPageUnloading(unloading: boolean): void {
-  isPageUnloading = unloading;
+  if (typeof window !== 'undefined') {
+    window.__tideIsPageUnloading = unloading;
+  }
 }
 
 export function markWebGLActive(): void {
@@ -47,7 +77,7 @@ export function markWebGLActive(): void {
  */
 export function cleanupScene(source: string): void {
   console.log(`%c[App] ${source} - disposing scene`, 'color: #ff00ff; font-weight: bold');
-  isPageUnloading = true;
+  setIsPageUnloading(true);
 
   // Clear the session flag to indicate clean shutdown
   sessionStorage.removeItem(WEBGL_SESSION_KEY);
@@ -61,16 +91,17 @@ export function cleanupScene(source: string): void {
     (window as any).__tideScene = null;
   }
 
-  if (persistedScene) {
+  const scene = getPersistedScene();
+  if (scene) {
     console.log('[App] Calling persistedScene.dispose()');
-    persistedScene.dispose();
-    persistedScene = null;
+    scene.dispose();
+    setPersistedScene(null);
   } else {
     console.log('[App] No persistedScene to dispose');
   }
 
-  persistedCanvas = null;
-  wsConnected = false;
+  setPersistedCanvas(null);
+  setWsConnected(false);
 
   // Remove canvas from DOM to help browser release WebGL context
   const canvas = document.getElementById('battlefield');
@@ -118,7 +149,7 @@ function cleanupStaleContexts(): void {
   }
 
   // Clear persistedScene if it exists from a previous load
-  const staleScene = persistedScene as unknown as SceneManager | null;
+  const staleScene = getPersistedScene();
   if (staleScene) {
     console.log('[App] Cleaning up stale persistedScene');
     try {
@@ -126,7 +157,7 @@ function cleanupStaleContexts(): void {
     } catch {
       // May already be disposed
     }
-    persistedScene = null;
+    setPersistedScene(null);
   }
 
   // ALWAYS try to kill any existing WebGL context on the battlefield canvas

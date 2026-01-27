@@ -227,6 +227,7 @@ export class SceneManager {
       this.lastTimeUpdate = now;
     }
     this.battlefield.updateGalacticAnimation(deltaTime);
+    this.battlefield.updateCloudAnimation(deltaTime);
   }
 
   private updateAnimations(): string[] {
@@ -419,13 +420,22 @@ export class SceneManager {
     if (canvas.parentElement) this.resizeObserver?.observe(canvas.parentElement);
     this.onWindowResize();
 
-    requestAnimationFrame(() => {
+    // Use a retry mechanism to ensure canvas is connected before restarting
+    const tryRestartLoop = (attempts = 0): void => {
       this.isReattaching = false;
       if (canvas.isConnected && this.sceneCore.getRenderer()) {
         console.log('[SceneManager] Restarting animation loop after HMR reattach');
         this.renderLoop.start();
+      } else if (attempts < 10) {
+        // Canvas not connected yet, retry after a frame
+        console.log(`[SceneManager] Canvas not connected, retrying... (attempt ${attempts + 1})`);
+        this.isReattaching = true;
+        requestAnimationFrame(() => tryRestartLoop(attempts + 1));
+      } else {
+        console.warn('[SceneManager] Failed to restart animation loop - canvas never connected');
       }
-    });
+    };
+    requestAnimationFrame(() => tryRestartLoop());
   }
 
   // ============================================
