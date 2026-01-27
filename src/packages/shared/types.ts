@@ -1384,6 +1384,76 @@ export interface ExecTaskCompletedMessage extends WSMessage {
   };
 }
 
+// ============================================================================
+// Secrets Types
+// ============================================================================
+
+/**
+ * Secret - A key-value pair for storing sensitive data
+ *
+ * Secrets are stored securely on disk and can be referenced in agent prompts
+ * using placeholders like {{SECRET_NAME}}. The server replaces placeholders
+ * with actual values before sending to Claude.
+ */
+export interface Secret {
+  id: string;
+  name: string;           // Human-readable name (e.g., "GitHub Token")
+  key: string;            // Placeholder key (e.g., "GITHUB_TOKEN") - used as {{GITHUB_TOKEN}}
+  value: string;          // The actual secret value
+  description?: string;   // Optional description of what this secret is for
+  createdAt: number;
+  updatedAt: number;
+}
+
+// Stored secret (on disk) - same as Secret but explicitly typed
+export interface StoredSecret extends Secret {}
+
+// ============================================================================
+// Secrets WebSocket Messages
+// ============================================================================
+
+// Secrets sync message (Server -> Client) - sent on connect and when secrets change
+export interface SecretsUpdateMessage extends WSMessage {
+  type: 'secrets_update';
+  payload: Secret[];
+}
+
+// Secret created message (Server -> Client)
+export interface SecretCreatedMessage extends WSMessage {
+  type: 'secret_created';
+  payload: Secret;
+}
+
+// Secret updated message (Server -> Client)
+export interface SecretUpdatedMessage extends WSMessage {
+  type: 'secret_updated';
+  payload: Secret;
+}
+
+// Secret deleted message (Server -> Client)
+export interface SecretDeletedMessage extends WSMessage {
+  type: 'secret_deleted';
+  payload: { id: string };
+}
+
+// Create secret message (Client -> Server)
+export interface CreateSecretMessage extends WSMessage {
+  type: 'create_secret';
+  payload: Omit<Secret, 'id' | 'createdAt' | 'updatedAt'>;
+}
+
+// Update secret message (Client -> Server)
+export interface UpdateSecretMessage extends WSMessage {
+  type: 'update_secret';
+  payload: { id: string; updates: Partial<Omit<Secret, 'id' | 'createdAt' | 'updatedAt'>> };
+}
+
+// Delete secret message (Client -> Server)
+export interface DeleteSecretMessage extends WSMessage {
+  type: 'delete_secret';
+  payload: { id: string };
+}
+
 export type ServerMessage =
   | AgentsUpdateMessage
   | AgentCreatedMessage
@@ -1435,7 +1505,11 @@ export type ServerMessage =
   | AgentNotificationMessage
   | ExecTaskStartedMessage
   | ExecTaskOutputMessage
-  | ExecTaskCompletedMessage;
+  | ExecTaskCompletedMessage
+  | SecretsUpdateMessage
+  | SecretCreatedMessage
+  | SecretUpdatedMessage
+  | SecretDeletedMessage;
 
 export type ClientMessage =
   | SpawnAgentMessage
@@ -1480,4 +1554,7 @@ export type ClientMessage =
   | CancelWorkPlanMessage
   | RequestWorkPlansMessage
   | RequestGlobalUsageMessage
-  | SendNotificationMessage;
+  | SendNotificationMessage
+  | CreateSecretMessage
+  | UpdateSecretMessage
+  | DeleteSecretMessage;

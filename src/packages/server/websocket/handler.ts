@@ -49,6 +49,12 @@ import {
 import { handleBuildingCommand } from './handlers/building-handler.js';
 import { handleSendCommand } from './handlers/command-handler.js';
 import { parseBossDelegation, parseBossSpawn, getBossForSubordinate, clearDelegation } from './handlers/boss-response-handler.js';
+import {
+  handleCreateSecret,
+  handleUpdateSecret,
+  handleDeleteSecret,
+} from './handlers/secrets-handler.js';
+import { secretsService } from '../services/secrets-service.js';
 
 const log = logger.ws;
 const supervisorLog = createLogger('Supervisor');
@@ -407,6 +413,22 @@ function handleClientMessage(ws: WebSocket, message: ClientMessage): void {
         }
       }
       break;
+
+    // ========================================================================
+    // Secrets Messages
+    // ========================================================================
+
+    case 'create_secret':
+      handleCreateSecret(ctx, message.payload);
+      break;
+
+    case 'update_secret':
+      handleUpdateSecret(ctx, message.payload);
+      break;
+
+    case 'delete_secret':
+      handleDeleteSecret(ctx, message.payload);
+      break;
   }
 }
 
@@ -711,6 +733,10 @@ export function init(server: HttpServer): WebSocketServer {
     // Send current skills
     const skills = skillService.getAllSkills();
     ws.send(JSON.stringify({ type: 'skills_update', payload: skills }));
+
+    // Send current secrets
+    const secrets = secretsService.getAllSecrets();
+    ws.send(JSON.stringify({ type: 'secrets_update', payload: secrets }));
 
     // Send pending permission requests
     const pendingPermissions = permissionService.getPendingRequests();

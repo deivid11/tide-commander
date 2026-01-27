@@ -24,6 +24,7 @@ import { createPermissionActions, type PermissionActions } from './permissions';
 import { createDelegationActions, type DelegationActions } from './delegation';
 import { createSkillActions, type SkillActions } from './skills';
 import { createExecTaskActions, type ExecTaskActions } from './execTasks';
+import { createSecretActions, type SecretActions } from './secrets';
 
 // Import shortcuts
 import { ShortcutConfig, DEFAULT_SHORTCUTS } from './shortcuts';
@@ -126,6 +127,9 @@ export {
   useAgentTaskProgress,
   useExecTasks,
   useAllExecTasks,
+  useSecrets,
+  useSecretsArray,
+  useSecret,
 } from './selectors';
 
 // ============================================================================
@@ -142,7 +146,8 @@ class Store
     PermissionActions,
     DelegationActions,
     SkillActions,
-    ExecTaskActions
+    ExecTaskActions,
+    SecretActions
 {
   private state: StoreState;
   private listeners = new Set<Listener>();
@@ -158,6 +163,7 @@ class Store
   private delegationActions: DelegationActions;
   private skillActions: SkillActions;
   private execTaskActions: ExecTaskActions;
+  private secretActions: SecretActions;
 
   constructor() {
     // Initialize state
@@ -210,6 +216,7 @@ class Store
       customAgentClasses: new Map(),
       reconnectCount: 0,
       execTasks: new Map(),
+      secrets: new Map(),
     };
 
     // Helper functions for domain modules
@@ -231,6 +238,7 @@ class Store
     this.delegationActions = createDelegationActions(getState, setState, notify, getSendMessage);
     this.skillActions = createSkillActions(getState, setState, notify, getSendMessage);
     this.execTaskActions = createExecTaskActions(getState, setState, notify);
+    this.secretActions = createSecretActions(getState, setState, notify, getSendMessage);
   }
 
   private loadSettings(): Settings {
@@ -759,6 +767,21 @@ class Store
   getExecTask(...args: Parameters<ExecTaskActions['getExecTask']>) { return this.execTaskActions.getExecTask(...args); }
   clearCompletedExecTasks(...args: Parameters<ExecTaskActions['clearCompletedExecTasks']>) { return this.execTaskActions.clearCompletedExecTasks(...args); }
   clearAllExecTasks(...args: Parameters<ExecTaskActions['clearAllExecTasks']>) { return this.execTaskActions.clearAllExecTasks(...args); }
+
+  // ============================================================================
+  // Secret Actions (delegated)
+  // ============================================================================
+
+  setSecretsFromServer(...args: Parameters<SecretActions['setSecretsFromServer']>) { return this.secretActions.setSecretsFromServer(...args); }
+  addSecretFromServer(...args: Parameters<SecretActions['addSecretFromServer']>) { return this.secretActions.addSecretFromServer(...args); }
+  updateSecretFromServer(...args: Parameters<SecretActions['updateSecretFromServer']>) { return this.secretActions.updateSecretFromServer(...args); }
+  removeSecretFromServer(...args: Parameters<SecretActions['removeSecretFromServer']>) { return this.secretActions.removeSecretFromServer(...args); }
+  getSecret(...args: Parameters<SecretActions['getSecret']>) { return this.secretActions.getSecret(...args); }
+  getSecretByKey(...args: Parameters<SecretActions['getSecretByKey']>) { return this.secretActions.getSecretByKey(...args); }
+  getAllSecrets() { return this.secretActions.getAllSecrets(); }
+  createSecret(...args: Parameters<SecretActions['createSecret']>) { return this.secretActions.createSecret(...args); }
+  updateSecret(...args: Parameters<SecretActions['updateSecret']>) { return this.secretActions.updateSecret(...args); }
+  deleteSecret(...args: Parameters<SecretActions['deleteSecret']>) { return this.secretActions.deleteSecret(...args); }
 }
 
 // Extend Window interface for HMR persistence

@@ -13,8 +13,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import * as crypto from 'crypto';
 import { execSync } from 'child_process';
-import type { Agent, DrawingArea, AgentSupervisorHistory, AgentSupervisorHistoryEntry, Building, DelegationDecision, Skill, StoredSkill, CustomAgentClass, ContextStats } from '../../shared/types.js';
+import type { Agent, DrawingArea, AgentSupervisorHistory, AgentSupervisorHistoryEntry, Building, DelegationDecision, Skill, StoredSkill, CustomAgentClass, ContextStats, Secret, StoredSecret } from '../../shared/types.js';
 import { createLogger } from '../utils/logger.js';
 
 const log = createLogger('Data');
@@ -33,6 +34,7 @@ const DELEGATION_HISTORY_FILE = path.join(DATA_DIR, 'delegation-history.json');
 const SKILLS_FILE = path.join(DATA_DIR, 'skills.json');
 const CUSTOM_CLASSES_FILE = path.join(DATA_DIR, 'custom-agent-classes.json');
 const RUNNING_PROCESSES_FILE = path.join(DATA_DIR, 'running-processes.json');
+const SECRETS_FILE = path.join(DATA_DIR, 'secrets.json');
 
 // Maximum history entries per agent
 const MAX_HISTORY_PER_AGENT = 50;
@@ -829,4 +831,219 @@ export function matchOrphanedProcessesToAgents(
   }
 
   return matches;
+}
+
+// ============================================================================
+// Secrets Persistence (with encryption)
+// ============================================================================
+
+// Encryption constants
+const ENCRYPTION_ALGORITHM = 'aes-256-gcm';
+const KEY_LENGTH = 32; // 256 bits
+const IV_LENGTH = 16;  // 128 bits for GCM
+const AUTH_TAG_LENGTH = 16;
+const SALT = 'tide-commander-secrets-v1'; // Static salt for key derivation
+
+// Cached encryption key (derived once per session)
+let encryptionKey: Buffer | null = null;
+
+/**
+ * Get machine-specific identifier for key derivation
+ * Uses machine-id on Linux, or falls back to hostname + username
+ */
+function getMachineId(): string {
+  // Try to read machine-id (Linux)
+  try {
+    const machineIdPath = '/etc/machine-id';
+    if (fs.existsSync(machineIdPath)) {
+      return fs.readFileSync(machineIdPath, 'utf8').trim();
+    }
+  } catch {
+    // Ignore and try fallback
+  }
+
+  // Try macOS hardware UUID
+  try {
+    if (process.platform === 'darwin') {
+      const hwUuid = execSync('ioreg -rd1 -c IOPlatformExpertDevice | awk \'/IOPlatformUUID/ { split($0, a, "\\""); print a[4] }\'', {
+        encoding: 'utf8',
+        timeout: 2000,
+      }).trim();
+      if (hwUuid) return hwUuid;
+    }
+  } catch {
+    // Ignore and try fallback
+  }
+
+  // Fallback: combine hostname + username + home directory
+  // This is less ideal but provides some uniqueness per user/machine
+  return `${os.hostname()}-${os.userInfo().username}-${os.homedir()}`;
+}
+
+/**
+ * Derive encryption key from machine-specific identifier
+ * Uses PBKDF2 for secure key derivation
+ */
+function getEncryptionKey(): Buffer {
+  if (encryptionKey) {
+    return encryptionKey;
+  }
+
+  const machineId = getMachineId();
+  encryptionKey = crypto.pbkdf2Sync(
+    machineId,
+    SALT,
+    100000, // iterations
+    KEY_LENGTH,
+    'sha256'
+  );
+
+  return encryptionKey;
+}
+
+/**
+ * Encrypt a string value
+ * Returns format: iv:authTag:encryptedData (all base64)
+ */
+function encryptValue(plaintext: string): string {
+  const key = getEncryptionKey();
+  const iv = crypto.randomBytes(IV_LENGTH);
+
+  const cipher = crypto.createCipheriv(ENCRYPTION_ALGORITHM, key, iv, {
+    authTagLength: AUTH_TAG_LENGTH,
+  });
+
+  let encrypted = cipher.update(plaintext, 'utf8', 'base64');
+  encrypted += cipher.final('base64');
+
+  const authTag = cipher.getAuthTag();
+
+  // Combine iv:authTag:encrypted
+  return `${iv.toString('base64')}:${authTag.toString('base64')}:${encrypted}`;
+}
+
+/**
+ * Decrypt an encrypted value
+ * Expects format: iv:authTag:encryptedData (all base64)
+ */
+function decryptValue(encrypted: string): string {
+  const key = getEncryptionKey();
+  const parts = encrypted.split(':');
+
+  if (parts.length !== 3) {
+    throw new Error('Invalid encrypted value format');
+  }
+
+  const iv = Buffer.from(parts[0], 'base64');
+  const authTag = Buffer.from(parts[1], 'base64');
+  const encryptedData = parts[2];
+
+  const decipher = crypto.createDecipheriv(ENCRYPTION_ALGORITHM, key, iv, {
+    authTagLength: AUTH_TAG_LENGTH,
+  });
+
+  decipher.setAuthTag(authTag);
+
+  let decrypted = decipher.update(encryptedData, 'base64', 'utf8');
+  decrypted += decipher.final('utf8');
+
+  return decrypted;
+}
+
+/**
+ * Check if a value appears to be encrypted (has our format)
+ */
+function isEncrypted(value: string): boolean {
+  const parts = value.split(':');
+  if (parts.length !== 3) return false;
+
+  // Check if parts look like base64
+  try {
+    Buffer.from(parts[0], 'base64');
+    Buffer.from(parts[1], 'base64');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Stored secret on disk has encrypted value
+interface EncryptedStoredSecret extends Omit<StoredSecret, 'value'> {
+  value: string; // encrypted value
+  encrypted?: boolean; // marker for encrypted values
+}
+
+interface SecretsData {
+  secrets: EncryptedStoredSecret[];
+  savedAt: number;
+  version: string;
+}
+
+/**
+ * Load secrets from disk and decrypt values
+ */
+export function loadSecrets(): Secret[] {
+  ensureDataDir();
+
+  try {
+    if (fs.existsSync(SECRETS_FILE)) {
+      const data: SecretsData = JSON.parse(fs.readFileSync(SECRETS_FILE, 'utf-8'));
+      log.log(` Loaded ${data.secrets.length} secrets from ${SECRETS_FILE}`);
+
+      // Decrypt values
+      const decryptedSecrets: Secret[] = data.secrets.map(secret => {
+        try {
+          // Check if value is encrypted (for migration from unencrypted)
+          if (secret.encrypted !== false && isEncrypted(secret.value)) {
+            return {
+              ...secret,
+              value: decryptValue(secret.value),
+            };
+          }
+          // Unencrypted value (legacy or migration)
+          return secret as Secret;
+        } catch (err) {
+          log.error(` Failed to decrypt secret "${secret.name}":`, err);
+          // Return with empty value if decryption fails
+          return {
+            ...secret,
+            value: '',
+          };
+        }
+      });
+
+      return decryptedSecrets;
+    }
+  } catch (err) {
+    log.error(' Failed to load secrets:', err);
+  }
+
+  return [];
+}
+
+/**
+ * Save secrets to disk with encrypted values
+ */
+export function saveSecrets(secrets: Secret[]): void {
+  ensureDataDir();
+
+  try {
+    // Encrypt values before saving
+    const encryptedSecrets: EncryptedStoredSecret[] = secrets.map(secret => ({
+      ...secret,
+      value: encryptValue(secret.value),
+      encrypted: true,
+    }));
+
+    const data: SecretsData = {
+      secrets: encryptedSecrets,
+      savedAt: Date.now(),
+      version: '1.0.0',
+    };
+
+    fs.writeFileSync(SECRETS_FILE, JSON.stringify(data, null, 2));
+    log.log(` Saved ${secrets.length} secrets to ${SECRETS_FILE} (encrypted)`);
+  } catch (err) {
+    log.error(' Failed to save secrets:', err);
+  }
 }

@@ -8,7 +8,7 @@
 
 import { Router, Request, Response } from 'express';
 import { spawn, ChildProcess } from 'child_process';
-import { agentService } from '../services/index.js';
+import { agentService, secretsService } from '../services/index.js';
 import { createLogger, generateId } from '../utils/index.js';
 import type { ServerMessage } from '../../shared/types.js';
 
@@ -95,9 +95,13 @@ router.post('/', async (req: Request, res: Response) => {
     // Use provided cwd or agent's cwd
     const workingDir = cwd || agent.cwd;
 
+    // Replace secret placeholders in command (e.g., {{API_KEY}} -> actual value)
+    const processedCommand = secretsService.replaceSecrets(command);
+
     // Generate task ID
     const taskId = generateId();
 
+    // Log original command (not processed, to avoid leaking secrets in logs)
     log.log(`[${agent.name}] Executing: ${command} (task: ${taskId})`);
 
     // Broadcast task started
@@ -114,8 +118,8 @@ router.post('/', async (req: Request, res: Response) => {
       } as ServerMessage);
     }
 
-    // Spawn the process
-    const childProcess = spawn('bash', ['-c', command], {
+    // Spawn the process with secrets replaced
+    const childProcess = spawn('bash', ['-c', processedCommand], {
       cwd: workingDir,
       env: { ...process.env },
       shell: false,

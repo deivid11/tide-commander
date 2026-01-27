@@ -2,6 +2,62 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.27.0] - 2026-01-27
+
+### Added
+- **Secrets Management System** - Store and inject sensitive data securely
+  - `SecretsSection` component in Toolbox for managing secrets
+  - Add, edit, delete secrets with name, key, value, description
+  - Reference secrets in prompts using `{{KEY}}` placeholder syntax
+  - Click to copy placeholder code for easy integration
+  - Server-side secrets storage with WebSocket sync
+- **Secrets Store & Service** - Backend infrastructure for secret management
+  - Client-side secrets store with selectors and array hooks
+  - `SecretsService` for server-side secret persistence
+  - `SecretsHandler` for WebSocket communication
+  - Type definitions for Secret interface
+  - Real-time synchronization between client and server
+- **File Viewer Modal Enhancements** - Improved keyboard navigation
+  - Vim-style scrolling: j/k for up/down (100px per scroll)
+  - Focus management for overlay keyboard capture
+  - Escape key to close modal
+  - Smooth scrolling animation support
+  - Diff panel support with dual-panel scrolling
+  - Event propagation control to avoid interference with message navigation
+
+### Changed
+- **Toolbox Component** - Added Secrets section
+  - New collapsible "Secrets" section with storage persistence
+  - `useSecretsArray()` hook for secrets list management
+  - Form-based UI for adding/editing secrets
+  - Improved section organization
+- **FileViewerModal** - Keyboard event handling refactored
+  - Global keyboard listener with capture phase
+  - Better input field detection for text inputs
+  - Event stopPropagation to prevent conflicts with other handlers
+  - Focus management improvements
+  - Ref-based scrolling container tracking
+- **Message Navigation Hook** - Keyboard integration improvements
+  - `inputRef` and `textareaRef` props for input focus management
+  - `useTextarea` option for choosing input type
+  - Auto-focus on input when typing during navigation
+  - Smart input type detection for textarea vs input
+  - Prevents character loss when switching to typing mode
+- **App Component** - Secrets provider integration
+  - Secrets state propagation through component tree
+  - WebSocket handler updates for secrets sync
+
+### Technical
+- New `src/packages/client/store/secrets.ts` - Client secrets store
+- New `src/packages/server/services/secrets-service.ts` - Server service
+- New `src/packages/server/websocket/handlers/secrets-handler.ts` - Handler
+- Extended WebSocket handler with secrets route
+- Server data module updates for secret persistence
+- Type definitions: `Secret`, `SecretsState` added to shared types
+- Store selectors: `useSecrets()`, `useSecretsArray()`
+- Improved keyboard event handling in FileViewerModal
+- Message navigation hook enhancements for input handling
+
 ## [0.26.0] - 2026-01-27
 
 ### Added
