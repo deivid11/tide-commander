@@ -35,3 +35,4 @@ export {
 export { useKeyboardShortcuts } from './useKeyboardShortcuts';
 export { useBackNavigation } from './useBackNavigation';
 export { useAgentOrder } from './useAgentOrder';
+export { useAppUpdate } from './useAppUpdate';

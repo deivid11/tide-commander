@@ -5,6 +5,7 @@ import { BUILDING_TYPES, BUILDING_STYLES, type BuildingStyle } from '../../share
 import { AREA_COLORS, BUILDING_STATUS_COLORS } from '../utils/colors';
 import { STORAGE_KEYS, getStorageString, setStorageString } from '../utils/storage';
 import { reconnect } from '../websocket';
+import { useAppUpdate } from '../hooks/useAppUpdate';
 
 // Time mode options
 export type TimeMode = 'auto' | 'day' | 'night' | 'dawn' | 'dusk';
@@ -995,11 +996,91 @@ function ConfigSection({ config, onChange }: ConfigSectionProps) {
 }
 
 function AboutSection() {
+  const {
+    updateAvailable,
+    updateInfo,
+    isChecking,
+    isDownloading,
+    downloadProgress,
+    error,
+    currentVersion,
+    isAndroid,
+    checkForUpdate,
+    downloadAndInstall,
+    openReleasePage,
+  } = useAppUpdate();
+
+  const formatSize = (bytes: number | null): string => {
+    if (!bytes) return '';
+    const mb = bytes / (1024 * 1024);
+    return `${mb.toFixed(1)} MB`;
+  };
+
   return (
     <div className="about-section">
       <div className="about-logo">
         <span className="about-logo-icon">🌊</span>
         <span className="about-logo-text">Tide Commander</span>
+      </div>
+
+      <div className="about-version">
+        <span className="about-version-label">Version</span>
+        <span className="about-version-value">{currentVersion}</span>
+      </div>
+
+      {/* Update Section */}
+      <div className="about-update">
+        {updateAvailable && updateInfo ? (
+          <div className="about-update-available">
+            <div className="about-update-header">
+              <span className="about-update-badge">Update Available</span>
+              <span className="about-update-version">{updateInfo.version}</span>
+            </div>
+            {updateInfo.apkSize && (
+              <div className="about-update-size">Size: {formatSize(updateInfo.apkSize)}</div>
+            )}
+            {error && <div className="about-update-error">{error}</div>}
+            {isDownloading ? (
+              <div className="about-update-progress">
+                <div className="about-update-progress-bar">
+                  <div
+                    className="about-update-progress-fill"
+                    style={{ width: `${downloadProgress}%` }}
+                  />
+                </div>
+                <span className="about-update-progress-text">{downloadProgress}%</span>
+              </div>
+            ) : (
+              <div className="about-update-actions">
+                <button className="about-update-btn changelog" onClick={openReleasePage}>
+                  Changelog
+                </button>
+                {isAndroid && updateInfo.apkUrl ? (
+                  <button className="about-update-btn download" onClick={downloadAndInstall}>
+                    Download APK
+                  </button>
+                ) : (
+                  <button className="about-update-btn download" onClick={openReleasePage}>
+                    View Release
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="about-update-check">
+            <span className="about-update-status">
+              {isChecking ? 'Checking for updates...' : 'You are up to date'}
+            </span>
+            <button
+              className="about-update-btn check"
+              onClick={() => checkForUpdate(true)}
+              disabled={isChecking}
+            >
+              {isChecking ? '...' : 'Check'}
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="about-description">
