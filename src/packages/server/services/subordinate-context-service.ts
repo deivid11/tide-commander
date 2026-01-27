@@ -28,24 +28,44 @@ export function formatTimeSince(timestamp: number): string {
 
 /**
  * Build session conversation section for a subordinate
+ * Shows last user query and last Claude response for a quick overview
  */
 async function buildConversationSection(sub: Agent): Promise<string> {
   if (!sub.sessionId) return '';
 
   try {
-    const session = await loadSession(sub.cwd, sub.sessionId, 10);
+    const session = await loadSession(sub.cwd, sub.sessionId, 20);
     if (!session || session.messages.length === 0) return '';
 
-    const recentMessages = session.messages.slice(-6);
-    const conversationLines = recentMessages.map(msg => {
-      const role = msg.type === 'user' ? '👤 User' :
-                  msg.type === 'assistant' ? '🤖 Claude' :
-                  msg.type === 'tool_use' ? `🔧 Tool: ${msg.toolName}` :
-                  '📤 Result';
-      const content = truncate(msg.content, 120) || '(empty)';
-      return `  - **${role}**: ${content}`;
-    });
-    return `\n### Recent Conversation:\n${conversationLines.join('\n')}`;
+    // Find last user message and last assistant message
+    let lastUserMsg: typeof session.messages[0] | undefined;
+    let lastAssistantMsg: typeof session.messages[0] | undefined;
+
+    // Iterate from most recent to find the last of each type
+    for (let i = session.messages.length - 1; i >= 0; i--) {
+      const msg = session.messages[i];
+      if (!lastUserMsg && msg.type === 'user') {
+        lastUserMsg = msg;
+      }
+      if (!lastAssistantMsg && msg.type === 'assistant') {
+        lastAssistantMsg = msg;
+      }
+      if (lastUserMsg && lastAssistantMsg) break;
+    }
+
+    if (!lastUserMsg && !lastAssistantMsg) return '';
+
+    const lines: string[] = [];
+    if (lastUserMsg) {
+      const content = truncate(lastUserMsg.content, 200) || '(empty)';
+      lines.push(`  - **👤 Last Query**: ${content}`);
+    }
+    if (lastAssistantMsg) {
+      const content = truncate(lastAssistantMsg.content, 200) || '(empty)';
+      lines.push(`  - **🤖 Last Response**: ${content}`);
+    }
+
+    return `\n### Recent Conversation:\n${lines.join('\n')}`;
   } catch {
     return '';
   }

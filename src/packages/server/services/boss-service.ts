@@ -210,9 +210,19 @@ export async function gatherSubordinateContext(bossId: string): Promise<Subordin
     const history = supervisorService.getAgentSupervisorHistory(sub.id);
     const latestEntry = history.entries[0];
 
-    const contextPercent = sub.contextLimit > 0
-      ? Math.round((sub.contextUsed / sub.contextLimit) * 100)
-      : 0;
+    // Use contextStats (from /context command) when available, otherwise fallback to basic calculation
+    // This matches how the UI calculates context in agentUtils.ts
+    let contextPercent: number;
+    let tokensUsed: number;
+    if (sub.contextStats) {
+      contextPercent = Math.round(sub.contextStats.usedPercent);
+      tokensUsed = sub.contextStats.totalTokens;
+    } else {
+      contextPercent = sub.contextLimit > 0
+        ? Math.round((sub.contextUsed / sub.contextLimit) * 100)
+        : 0;
+      tokensUsed = sub.tokensUsed || 0;
+    }
 
     return {
       id: sub.id,
@@ -223,7 +233,7 @@ export async function gatherSubordinateContext(bossId: string): Promise<Subordin
       lastAssignedTask: sub.lastAssignedTask,
       recentSupervisorSummary: latestEntry?.analysis?.recentWorkSummary,
       contextPercent,
-      tokensUsed: sub.tokensUsed,
+      tokensUsed,
     };
   }));
 }
