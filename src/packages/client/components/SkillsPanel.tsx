@@ -852,6 +852,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
                           customModelUrl={!customModelFile && editingClassId ? apiUrl(`/api/custom-models/${editingClassId}`) : undefined}
                           modelScale={modelScale}
                           modelOffset={{ x: modelOffsetX, y: modelOffsetY, z: modelOffsetZ }}
+                          idleAnimation={animationMapping.idle !== undefined ? animationMapping.idle : ''}
                           width={120}
                           height={150}
                         />
@@ -947,8 +948,8 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
                         </label>
                         <input
                           type="range"
-                          min="-1"
-                          max="1"
+                          min="-3"
+                          max="3"
                           step="0.01"
                           value={modelOffsetZ}
                           onChange={(e) => setModelOffsetZ(parseFloat(e.target.value))}

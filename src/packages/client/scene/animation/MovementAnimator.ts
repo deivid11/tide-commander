@@ -145,8 +145,9 @@ export class MovementAnimator {
       duration: Math.max(duration, 200),
     });
 
-    // Play walk animation
-    this.playAnimation(meshData, ANIMATIONS.WALK);
+    // Play walk animation (use custom mapping if available)
+    const walkAnim = this.resolveAnimationName(meshData, 'walk');
+    this.playAnimation(meshData, walkAnim);
 
     // Rotate character to face direction
     this.faceDirection(meshData, startPos, endPos);
@@ -157,7 +158,8 @@ export class MovementAnimator {
    */
   cancelMovement(agentId: string, meshData: AgentMeshData): void {
     this.movements.delete(agentId);
-    this.playAnimation(meshData, ANIMATIONS.IDLE);
+    const idleAnim = this.resolveAnimationName(meshData, 'idle');
+    this.playAnimation(meshData, idleAnim);
   }
 
   /**

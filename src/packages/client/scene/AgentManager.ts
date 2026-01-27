@@ -363,7 +363,7 @@ export class AgentManager {
     for (const [agentId, meshData] of this.agentMeshes) {
       const agent = state.agents.get(agentId);
       if (agent && agent.status === 'idle' && !this.movementAnimator.isMoving(agentId)) {
-        this.movementAnimator.playAnimation(meshData, animation);
+        this.updateStatusAnimation(agent, meshData);
       }
     }
   }
@@ -374,7 +374,7 @@ export class AgentManager {
     for (const [agentId, meshData] of this.agentMeshes) {
       const agent = state.agents.get(agentId);
       if (agent && agent.status === 'working' && !this.movementAnimator.isMoving(agentId)) {
-        this.movementAnimator.playAnimation(meshData, animation, { timeScale: 1.5 });
+        this.updateStatusAnimation(agent, meshData);
       }
     }
   }
@@ -599,7 +599,7 @@ export class AgentManager {
   // Animation Helpers
   // ============================================
 
-  private getAnimationForStatus(agent: Agent, meshData: AgentMeshData, status: string): string {
+  private getAnimationForStatus(agent: Agent, meshData: AgentMeshData, status: string): string | null {
     const characterBody = meshData.group.getObjectByName('characterBody');
     const customMapping = characterBody?.userData?.animationMapping as AnimationMapping | undefined;
 
@@ -613,6 +613,13 @@ export class AgentManager {
         if (meshData.animations.has(customMapping.working) || meshData.animations.has(customMapping.working.toLowerCase())) {
           return customMapping.working;
         }
+      }
+      // If custom mapping exists but no mapping is set for this status, return null (no animation)
+      if ((status === 'idle') && !customMapping.idle) {
+        return null;
+      }
+      if ((status === 'working' || status === 'orphaned') && !customMapping.working) {
+        return null;
       }
     }
 
@@ -631,15 +638,13 @@ export class AgentManager {
     // For custom models, verify the animation exists - if not, try common fallbacks
     if (customMapping && !meshData.animations.has(defaultAnimation) && !meshData.animations.has(defaultAnimation.toLowerCase())) {
       // Try to find any available animation as fallback
-      // Priority: idle mapping, first available animation, or return default anyway
+      // Priority: idle mapping, or return null to stop animation
       if (customMapping.idle && (meshData.animations.has(customMapping.idle) || meshData.animations.has(customMapping.idle.toLowerCase()))) {
         return customMapping.idle;
       }
-      // Return the first available animation if no idle mapping
-      const firstAnimation = meshData.animations.keys().next().value;
-      if (firstAnimation) {
-        return firstAnimation;
-      }
+      // No valid animation found - return null to stop animation rather than
+      // falling back to the first animation in the model file
+      return null;
     }
 
     return defaultAnimation;
@@ -657,6 +662,21 @@ export class AgentManager {
     }
 
     const animation = this.getAnimationForStatus(agent, meshData, agent.status);
+
+    // If no animation should play (e.g. idle animation set to none for custom models),
+    // stop the current animation and freeze the agent
+    if (animation === null) {
+      console.log(`[AgentManager] updateStatusAnimation: agent=${agent.name} status=${agent.status} - no animation (none)`);
+      if (meshData.currentAction) {
+        meshData.currentAction.stop();
+        meshData.currentAction = null;
+      }
+      this.movementAnimator.stopAnimation(agent.id);
+      this.effectsManager.setAgentMeshes(this.agentMeshes);
+      this.effectsManager.updateWaitingPermissionEffect(agent.id, agent.status === 'waiting_permission');
+      return;
+    }
+
     const currentClipName = meshData.currentAction?.getClip()?.name?.toLowerCase();
 
     const oneShotAnimations: string[] = [ANIMATIONS.DIE, ANIMATIONS.EMOTE_NO, ANIMATIONS.EMOTE_YES];

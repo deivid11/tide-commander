@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.27.1] - 2026-01-27
+
+### Fixed
+- **Custom model idle animation** - Agents with custom models no longer animate when idle animation is set to "None"; they freeze in their static pose instead of playing the first animation from the model file
+- **Custom model walk animation** - Walking animation now correctly uses the custom animation mapping instead of hardcoded animation names that don't exist in custom models
+- **Model preview in class editor** - Preview now respects the selected idle animation mapping; shows static pose when idle is set to "None"
+
+### Changed
+- **Z offset range** - Increased model position Z (height) offset range from ±1 to ±3 to accommodate models that sit below ground when static
+- **setIdleAnimation/setWorkingAnimation** - Now route through `updateStatusAnimation` for consistent animation resolution across custom and built-in models
+
 ## [0.27.0] - 2026-01-27
 
 ### Added

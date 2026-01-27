@@ -33,12 +33,13 @@ interface ModelPreviewProps {
   customModelUrl?: string;  // URL to custom model (e.g., /api/custom-models/:classId)
   modelScale?: number;  // Scale multiplier for the model
   modelOffset?: { x: number; y: number; z: number };  // Position offset for centering the model
+  idleAnimation?: string;  // Override idle animation name (from animation mapping). Undefined = use default, empty string = no animation (static)
   status?: AgentStatus;
   width?: number;
   height?: number;
 }
 
-export function ModelPreview({ agentClass, modelFile, customModelFile, customModelUrl, modelScale = 1.0, modelOffset, status = 'idle', width = 150, height = 200 }: ModelPreviewProps) {
+export function ModelPreview({ agentClass, modelFile, customModelFile, customModelUrl, modelScale = 1.0, modelOffset, idleAnimation, status = 'idle', width = 150, height = 200 }: ModelPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -346,12 +347,17 @@ export function ModelPreview({ agentClass, modelFile, customModelFile, customMod
             animationsRef.current.set(clip.name.toLowerCase(), clip);
           }
 
-          // Play idle animation by default (or first available)
-          const idleClip = animationsRef.current.get('idle') || gltf.animations[0];
-          if (idleClip) {
-            const action = mixer.clipAction(idleClip);
-            action.reset().play();
-            currentActionRef.current = action;
+          // Play idle animation based on idleAnimation prop
+          // If idleAnimation is '' (none/empty), don't play any animation (static)
+          if (idleAnimation !== '') {
+            const targetClip = idleAnimation
+              ? (animationsRef.current.get(idleAnimation.toLowerCase()) || gltf.animations[0])
+              : (animationsRef.current.get('idle') || gltf.animations[0]);
+            if (targetClip) {
+              const action = mixer.clipAction(targetClip);
+              action.reset().play();
+              currentActionRef.current = action;
+            }
           }
         } else {
           // No animations - will use procedural animation
@@ -473,6 +479,43 @@ export function ModelPreview({ agentClass, modelFile, customModelFile, customMod
     // Update animation
     playStatusAnimation(status);
   }, [status, isReady]);
+
+  // Update animation when idleAnimation prop changes
+  useEffect(() => {
+    if (!isReady || !mixerRef.current) return;
+    if (status !== 'idle') return;
+
+    // idleAnimation === '' means "none" — stop all animations
+    if (idleAnimation === '') {
+      if (currentActionRef.current) {
+        currentActionRef.current.stop();
+        currentActionRef.current = null;
+      }
+      return;
+    }
+
+    // Play the specified idle animation, or fall back to default
+    const targetName = idleAnimation
+      ? idleAnimation.toLowerCase()
+      : 'idle';
+    const clip = animationsRef.current.get(targetName);
+    if (clip) {
+      const newAction = mixerRef.current.clipAction(clip);
+      if (currentActionRef.current && currentActionRef.current !== newAction) {
+        currentActionRef.current.fadeOut(0.3);
+        newAction.reset().fadeIn(0.3).play();
+      } else {
+        newAction.reset().play();
+      }
+      currentActionRef.current = newAction;
+    } else {
+      // Animation not found — stop
+      if (currentActionRef.current) {
+        currentActionRef.current.stop();
+        currentActionRef.current = null;
+      }
+    }
+  }, [idleAnimation, isReady, status]);
 
   return (
     <div
