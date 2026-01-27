@@ -65,6 +65,7 @@ import { AgentDebugPanel } from './AgentDebugPanel';
 import { agentDebugger } from '../../services/agentDebugger';
 import { AgentProgressIndicator } from './AgentProgressIndicator';
 import { ExecTasksContainer } from './ExecTaskIndicator';
+import { ThemeSelector } from './ThemeSelector';
 
 export function ClaudeOutputPanel() {
   // Store selectors
@@ -652,6 +653,7 @@ export function ClaudeOutputPanel() {
               </span>
             );
           })()}
+          <ThemeSelector />
         </div>
       </div>
 

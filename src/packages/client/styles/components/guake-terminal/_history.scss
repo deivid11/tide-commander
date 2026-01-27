@@ -11,6 +11,8 @@
   border-radius: $radius-sm;
   word-wrap: break-word;
   white-space: normal;
+  font-family: $font-mono;
+  font-size: 12px;
 }
 
 // User messages - using theme-specific message colors
@@ -101,7 +103,7 @@
 }
 
 .history-tool-name {
-  color: var(--accent-pink);
+  color: var(--tool-use-name, var(--accent-pink));
   font-weight: 600;
   margin-left: 4px;
 }

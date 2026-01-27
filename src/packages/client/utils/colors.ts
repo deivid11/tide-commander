@@ -73,6 +73,7 @@ export const PROGRESS_COLORS: Record<string, string> = {
  * Color palette for drawing areas
  */
 export const AREA_COLORS: string[] = [
+  // Bright colors
   '#4a9eff', // blue
   '#4aff9e', // green
   '#ff9e4a', // orange
@@ -81,6 +82,15 @@ export const AREA_COLORS: string[] = [
   '#ff4a4a', // red
   '#4affff', // cyan
   '#ffff4a', // yellow
+  // Dark colors
+  '#1a3a6e', // dark blue
+  '#1a5e3a', // dark green
+  '#6e3a1a', // dark orange/brown
+  '#6e1a4a', // dark pink/magenta
+  '#4a1a6e', // dark purple
+  '#6e1a1a', // dark red
+  '#1a5e5e', // dark cyan/teal
+  '#5e5e1a', // dark yellow/olive
 ];
 
 /**

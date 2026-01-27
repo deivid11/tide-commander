@@ -478,27 +478,27 @@ export class CharacterFactory {
     ctx.roundRect(barX, barY, barWidth, barHeight, borderRadius);
     ctx.fill();
 
-    // Bright border
-    ctx.strokeStyle = '#00ffff';
+    // Muted border
+    ctx.strokeStyle = '#5a8a8a';
     ctx.lineWidth = 2 * scale;
     ctx.stroke();
 
-    // Mana fill - bright saturated colors
+    // Mana fill - muted colors
     const fillWidth = Math.max(0, (barWidth - 4 * scale) * percentage);
     if (fillWidth > 0) {
-      // Solid bright colors based on percentage
+      // Muted colors based on percentage
       let fillColor: string;
       let glowColor: string;
 
       if (percentage > 0.5) {
-        fillColor = '#00ffff'; // Bright cyan
-        glowColor = '#00ffff';
+        fillColor = '#6a9a78'; // Muted sage green
+        glowColor = '#6a9a78';
       } else if (percentage > 0.2) {
-        fillColor = '#ffff00'; // Bright yellow
-        glowColor = '#ffff00';
+        fillColor = '#c89858'; // Muted orange
+        glowColor = '#c89858';
       } else {
-        fillColor = '#ff0000'; // Bright red
-        glowColor = '#ff0000';
+        fillColor = '#c85858'; // Muted red
+        glowColor = '#c85858';
       }
 
       ctx.fillStyle = fillColor;
