@@ -576,6 +576,13 @@
     background: color-mix(in srgb, var(--accent-purple) 10%, transparent);
   }
 
+  &:focus {
+    outline: none;
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-cyan) 25%, transparent);
+  }
+
   .theme-selector-icon {
     font-size: 12px;
   }
@@ -655,7 +662,8 @@
   transition: all $transition-fast;
   text-align: left;
 
-  &:hover {
+  &:hover,
+  &.highlighted {
     background: color-mix(in srgb, var(--accent-purple) 10%, transparent);
     border-color: color-mix(in srgb, var(--accent-purple) 30%, transparent);
   }
@@ -667,6 +675,11 @@
     .theme-option-name {
       color: var(--accent-green);
     }
+  }
+
+  &.active.highlighted {
+    background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+    border-color: color-mix(in srgb, var(--accent-cyan) 50%, transparent);
   }
 }
 
