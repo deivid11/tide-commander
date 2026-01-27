@@ -133,13 +133,18 @@ function AppContent() {
   useModalStackRegistration('terminal', terminalOpen, () => store.setTerminalOpen(false));
 
   // Close tools modals when guake terminal closes
+  // Track previous terminal state to detect close transition
+  const prevTerminalOpenRef = useRef(terminalOpen);
   useEffect(() => {
-    if (!terminalOpen) {
-      // Close skills and controls modals when terminal is closed
-      if (skillsModal.isOpen) skillsModal.close();
-      if (controlsModal.isOpen) controlsModal.close();
+    const wasOpen = prevTerminalOpenRef.current;
+    prevTerminalOpenRef.current = terminalOpen;
+
+    // Only close modals when terminal transitions from open to closed
+    if (wasOpen && !terminalOpen) {
+      skillsModal.close();
+      controlsModal.close();
     }
-  }, [terminalOpen, skillsModal, controlsModal]);
+  }, [terminalOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Trigger resize when switching to 3D view on mobile
   useEffect(() => {

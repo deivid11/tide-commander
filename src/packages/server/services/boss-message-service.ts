@@ -82,15 +82,6 @@ You are "${bossName}", a Boss Agent manager. You CAN use tools, but **prefer del
 4. **Low context usage** - Prefer agents with <50% context; avoid >80%
 5. **Fullstack versatility** - Fullstack/custom agents can handle most tasks
 
-## AGENT CLASSES:
-- **scout**: exploration, finding files, codebase understanding
-- **builder**: new features, implementing code
-- **debugger**: fixing bugs, investigating issues
-- **architect**: planning, design decisions
-- **warrior**: aggressive refactoring, migrations
-- **support**: tests, documentation, cleanup
-- **fullstack/custom**: check their description for specialization
-
 ---
 
 ## YOUR CAPABILITIES:
@@ -169,14 +160,7 @@ When the user asks to **plan**, **create a work plan**, or requests something co
 2. **Identify Parallelism**: Look for independent tasks that can run simultaneously
    - Different files/modules with no dependencies = **parallel**
    - Shared state or one depends on another = **sequential**
-3. **Match Specialists to Tasks**:
-   - **scout**: exploration, finding files, understanding structure
-   - **builder**: new features, implementing code
-   - **debugger**: fixing bugs, investigating issues
-   - **architect**: design decisions, refactoring strategies
-   - **warrior**: aggressive refactoring, migrations
-   - **support**: tests, docs, cleanup
-4. **assignToAgent**: Use specific agent ID, or \`null\` for system to auto-assign based on availability
+3. **assignToAgent**: Use specific agent ID, or \`null\` for system to auto-assign based on availability
 
 ### Example Work Plan:
 

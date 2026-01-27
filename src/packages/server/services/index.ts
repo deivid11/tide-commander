@@ -15,4 +15,5 @@ export * as bossMessageService from './boss-message-service.js';
 export * as agentLifecycleService from './agent-lifecycle-service.js';
 export * as subordinateContextService from './subordinate-context-service.js';
 export * as workPlanService from './work-plan-service.js';
+export * as secretsService from './secrets-service.js';
 export { buildBossSystemPrompt } from './boss-service.js';

@@ -17,6 +17,7 @@ import type {
   AgentSupervisorHistoryEntry,
   GlobalUsageStats,
   ExecTask,
+  Secret,
 } from '../../shared/types';
 import type {
   StoreState,
@@ -765,5 +766,45 @@ export function useAllExecTasks(): ExecTask[] {
       return Array.from(state.execTasks.values());
     }, []),
     shallowArrayEqual
+  );
+}
+
+// ============================================================================
+// SECRET SELECTORS
+// ============================================================================
+
+/**
+ * Get all secrets. Only re-renders when secrets change.
+ */
+export function useSecrets(): Map<string, Secret> {
+  return useSelector(
+    useCallback((state: StoreState) => state.secrets, []),
+    shallowMapEqual
+  );
+}
+
+/**
+ * Get all secrets as an array. Only re-renders when secrets change.
+ */
+export function useSecretsArray(): Secret[] {
+  const secrets = useSecrets();
+  const arrayRef = useRef<Secret[]>([]);
+
+  const newArray = Array.from(secrets.values());
+  if (!shallowArrayEqual(arrayRef.current, newArray)) {
+    arrayRef.current = newArray;
+  }
+  return arrayRef.current;
+}
+
+/**
+ * Get a single secret by ID. Only re-renders when that specific secret changes.
+ */
+export function useSecret(secretId: string | null): Secret | undefined {
+  return useSelector(
+    useCallback(
+      (state: StoreState) => (secretId ? state.secrets.get(secretId) : undefined),
+      [secretId]
+    )
   );
 }

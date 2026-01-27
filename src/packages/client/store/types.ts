@@ -19,6 +19,7 @@ import type {
   CustomAgentClass,
   GlobalUsageStats,
   ExecTask,
+  Secret,
 } from '../../shared/types';
 import type { ShortcutConfig } from './shortcuts';
 import type { MouseControlsState } from './mouseControls';
@@ -185,6 +186,8 @@ export interface StoreState {
   reconnectCount: number;
   // Exec tasks (streaming command execution via /api/exec)
   execTasks?: Map<string, ExecTask>;
+  // Secrets (key-value pairs for placeholder replacement)
+  secrets: Map<string, Secret>;
 }
 
 // Store listener type
