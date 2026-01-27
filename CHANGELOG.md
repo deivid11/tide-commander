@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.26.1] - 2026-01-27
+
+### Fixed
+- **Skills and Controls floating buttons** - Fixed buttons that would blink but never open their panels. The useEffect that closes these modals when the terminal closes was re-triggering on modal state changes due to dependency array including modal objects, immediately closing them.
+
+---
+
 ## [0.26.0] - 2026-01-27
 
 ### Added
