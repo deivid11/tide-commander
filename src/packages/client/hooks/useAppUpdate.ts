@@ -51,8 +51,6 @@ interface AppUpdateState {
   updateAvailable: boolean;
   updateInfo: UpdateInfo | null;
   recentReleases: ReleaseHistoryItem[];
-  isDownloading: boolean;
-  downloadProgress: number;
   error: string | null;
   currentVersion: string;
 }
@@ -63,8 +61,6 @@ export function useAppUpdate() {
     updateAvailable: false,
     updateInfo: null,
     recentReleases: [],
-    isDownloading: false,
-    downloadProgress: 0,
     error: null,
     currentVersion: CURRENT_VERSION,
   });
@@ -181,9 +177,21 @@ export function useAppUpdate() {
 
   /**
    * Download and install APK update (Android only)
+   *
+   * On mobile, we can't use fetch() to download the APK due to CORS restrictions
+   * on GitHub's CDN. Instead, we open the URL directly which triggers the native
+   * download manager and bypasses CORS entirely.
    */
   const downloadAndInstall = useCallback(async () => {
-    if (!state.updateInfo?.apkUrl || !isAndroid) {
+    if (!state.updateInfo?.apkUrl) {
+      // No APK URL available, open release page
+      if (state.updateInfo?.releaseUrl) {
+        window.open(state.updateInfo.releaseUrl, '_blank');
+      }
+      return;
+    }
+
+    if (!isAndroid) {
       // On non-Android, open release page
       if (state.updateInfo?.releaseUrl) {
         window.open(state.updateInfo.releaseUrl, '_blank');
@@ -191,62 +199,23 @@ export function useAppUpdate() {
       return;
     }
 
-    setState(s => ({ ...s, isDownloading: true, downloadProgress: 0, error: null }));
-
+    // On Android, open the APK URL directly in the browser
+    // This triggers the native download manager which:
+    // 1. Bypasses CORS restrictions (not a JavaScript fetch)
+    // 2. Shows download progress in system UI
+    // 3. Prompts user to install when complete
+    // 4. Handles large files better than in-memory blob
     try {
-      // Download the APK using fetch with progress tracking
-      const response = await fetch(state.updateInfo.apkUrl);
+      // Use window.open to open the APK URL
+      // The browser will handle the download natively
+      window.open(state.updateInfo.apkUrl, '_system');
 
-      if (!response.ok) {
-        throw new Error(`Download failed: ${response.status}`);
-      }
-
-      const contentLength = response.headers.get('content-length');
-      const total = contentLength ? parseInt(contentLength, 10) : state.updateInfo.apkSize || 0;
-
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('Failed to start download');
-      }
-
-      const chunks: ArrayBuffer[] = [];
-      let received = 0;
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        // Convert Uint8Array to ArrayBuffer for Blob compatibility
-        chunks.push(value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength));
-        received += value.length;
-
-        if (total > 0) {
-          const progress = Math.round((received / total) * 100);
-          setState(s => ({ ...s, downloadProgress: progress }));
-        }
-      }
-
-      // Combine chunks into a single blob
-      const blob = new Blob(chunks, { type: 'application/vnd.android.package-archive' });
-
-      // Create download URL and trigger install
-      const url = URL.createObjectURL(blob);
-      const filename = `tide-commander-${state.updateInfo.version}.apk`;
-
-      // On Android with Capacitor, we need to use the native file system
-      // For now, trigger a download which will prompt the user
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      setState(s => ({ ...s, isDownloading: false, downloadProgress: 100 }));
+      // Update state to indicate download was initiated
+      // We can't track progress since it's handled by the system
+      setState(s => ({ ...s, error: null }));
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Download failed';
-      setState(s => ({ ...s, isDownloading: false, error: message }));
+      const message = error instanceof Error ? error.message : 'Failed to open download';
+      setState(s => ({ ...s, error: message }));
     }
   }, [state.updateInfo, isAndroid]);
 

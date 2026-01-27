@@ -1001,8 +1001,6 @@ function AboutSection() {
     updateInfo,
     recentReleases,
     isChecking,
-    isDownloading,
-    downloadProgress,
     error,
     currentVersion,
     isAndroid,
@@ -1050,32 +1048,20 @@ function AboutSection() {
               <div className="about-update-size">Size: {formatSize(updateInfo.apkSize)}</div>
             )}
             {error && <div className="about-update-error">{error}</div>}
-            {isDownloading ? (
-              <div className="about-update-progress">
-                <div className="about-update-progress-bar">
-                  <div
-                    className="about-update-progress-fill"
-                    style={{ width: `${downloadProgress}%` }}
-                  />
-                </div>
-                <span className="about-update-progress-text">{downloadProgress}%</span>
-              </div>
-            ) : (
-              <div className="about-update-actions">
-                <button className="about-update-btn changelog" onClick={openReleasePage}>
-                  Changelog
+            <div className="about-update-actions">
+              <button className="about-update-btn changelog" onClick={openReleasePage}>
+                Changelog
+              </button>
+              {isAndroid && updateInfo.apkUrl ? (
+                <button className="about-update-btn download" onClick={downloadAndInstall}>
+                  Download APK
                 </button>
-                {isAndroid && updateInfo.apkUrl ? (
-                  <button className="about-update-btn download" onClick={downloadAndInstall}>
-                    Download APK
-                  </button>
-                ) : (
-                  <button className="about-update-btn download" onClick={openReleasePage}>
-                    View Release
-                  </button>
-                )}
-              </div>
-            )}
+              ) : (
+                <button className="about-update-btn download" onClick={openReleasePage}>
+                  View Release
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <div className="about-update-check">
