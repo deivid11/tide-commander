@@ -11,6 +11,8 @@ export const DEFAULT_TERRAIN = {
   showClouds: true,
   fogDensity: 1,
   floorStyle: 'concrete' as const,
+  brightness: 1, // 0.2 = dark, 1 = normal, 2 = bright
+  skyColor: null as string | null, // null = auto (based on time mode)
 };
 
 // Default animation config

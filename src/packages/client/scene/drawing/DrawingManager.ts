@@ -34,6 +34,9 @@ export class DrawingManager {
   // Callback for when area is created
   private onAreaCreated: ((area: DrawingArea) => void) | null = null;
 
+  // Brightness multiplier for area materials (affects opacity/intensity)
+  private brightness = 1;
+
   constructor(scene: THREE.Scene) {
     this.scene = scene;
   }
@@ -43,6 +46,26 @@ export class DrawingManager {
    */
   setOnAreaCreated(callback: (area: DrawingArea) => void): void {
     this.onAreaCreated = callback;
+  }
+
+  /**
+   * Set brightness multiplier for area materials.
+   * Affects opacity/intensity of area fills.
+   */
+  setBrightness(brightness: number): void {
+    this.brightness = brightness;
+    // Update existing area materials
+    for (const [id, group] of this.areaMeshes) {
+      const isSelected = id === this.selectedAreaId;
+      group.traverse((child) => {
+        if (child instanceof THREE.Mesh && child.name !== 'resizeHandle') {
+          const mat = child.material as THREE.MeshBasicMaterial;
+          // Base opacity: 0.15 idle, 0.3 selected. Apply brightness multiplier.
+          const baseOpacity = isSelected ? 0.3 : 0.15;
+          mat.opacity = baseOpacity * this.brightness;
+        }
+      });
+    }
   }
 
   /**
@@ -160,12 +183,12 @@ export class DrawingManager {
     const color = new THREE.Color(area.color);
 
     if (area.type === 'rectangle' && area.width && area.height) {
-      // Fill
+      // Fill (apply brightness multiplier to opacity)
       const fillGeom = new THREE.PlaneGeometry(area.width, area.height);
       const fillMat = new THREE.MeshBasicMaterial({
         color,
         transparent: true,
-        opacity: 0.15,
+        opacity: 0.15 * this.brightness,
         side: THREE.DoubleSide,
       });
       const fill = new THREE.Mesh(fillGeom, fillMat);
@@ -188,12 +211,12 @@ export class DrawingManager {
       group.add(border);
 
     } else if (area.type === 'circle' && area.radius) {
-      // Fill
+      // Fill (apply brightness multiplier to opacity)
       const fillGeom = new THREE.CircleGeometry(area.radius, 32);
       const fillMat = new THREE.MeshBasicMaterial({
         color,
         transparent: true,
-        opacity: 0.15,
+        opacity: 0.15 * this.brightness,
         side: THREE.DoubleSide,
       });
       const fill = new THREE.Mesh(fillGeom, fillMat);
@@ -318,7 +341,9 @@ export class DrawingManager {
       group.traverse((child) => {
         if (child instanceof THREE.Mesh && child.name !== 'resizeHandle') {
           const mat = child.material as THREE.MeshBasicMaterial;
-          mat.opacity = isSelected ? 0.3 : 0.15;
+          // Apply brightness multiplier to opacity
+          const baseOpacity = isSelected ? 0.3 : 0.15;
+          mat.opacity = baseOpacity * this.brightness;
         }
         if (child instanceof THREE.Line) {
           const mat = child.material as THREE.LineBasicMaterial;

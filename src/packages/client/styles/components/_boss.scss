@@ -176,16 +176,16 @@
   text-transform: capitalize;
 
   &.status-idle {
-    color: #4aff9e;
+    color: $accent-green;
   }
   &.status-working {
-    color: #4a9eff;
+    color: $accent-blue;
   }
   &.status-waiting {
-    color: #ff9e4a;
+    color: $accent-orange;
   }
   &.status-error {
-    color: #ff4a4a;
+    color: $accent-red;
   }
 }
 
@@ -258,21 +258,20 @@
 // ============================================================================
 
 .agent-bar-boss-btn {
-  background: rgba(#ffd700, 0.15);
-  border-color: #ffd700;
+  background: rgba(#c8a85a, 0.15);
+  border-color: #c8a85a;
 
   .agent-bar-spawn-icon {
     font-size: 14px;
   }
 
   &:hover {
-    background: rgba(#ffd700, 0.3);
-    box-shadow: 0 4px 16px rgba(#ffd700, 0.3);
+    background: rgba(#c8a85a, 0.25);
   }
 
   .agent-bar-spawn-icon,
   .agent-bar-spawn-label {
-    color: #ffd700;
+    color: #c8a85a;
   }
 }
 
@@ -374,16 +373,16 @@
   text-transform: capitalize;
 
   &.status-idle {
-    color: #4aff9e;
+    color: $accent-green;
   }
   &.status-working {
-    color: #4a9eff;
+    color: $accent-blue;
   }
   &.status-waiting {
-    color: #ff9e4a;
+    color: $accent-orange;
   }
   &.status-error {
-    color: #ff4a4a;
+    color: $accent-red;
   }
 }
 
@@ -401,7 +400,7 @@
 
   &:hover {
     background: rgba(255, 74, 74, 0.2);
-    color: #ff4a4a;
+    color: $accent-red;
   }
 }
 
@@ -585,8 +584,8 @@
 
   &:hover {
     background: rgba(255, 74, 74, 0.2);
-    border-color: #ff4a4a;
-    color: #ff4a4a;
+    border-color: $accent-red;
+    color: $accent-red;
   }
 }
 
@@ -700,14 +699,13 @@
 // ============================================================================
 
 .btn-boss {
-  background: linear-gradient(135deg, #ffd700 0%, #b8860b 100%);
-  color: #000;
+  background: linear-gradient(135deg, #c8a85a 0%, #9a8045 100%);
+  color: $bg-primary;
   border: none;
   font-weight: 600;
 
   &:hover:not(:disabled) {
-    background: linear-gradient(135deg, #ffd700 0%, #daa520 100%);
-    box-shadow: 0 0 12px rgba(255, 215, 0, 0.4);
+    background: linear-gradient(135deg, #d4b05a 0%, #b89850 100%);
   }
 
   &:disabled {

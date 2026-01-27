@@ -444,8 +444,7 @@
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  border: 2px solid $dracula-bg;
-  box-shadow: 0 0 4px currentColor;
+  border: 2px solid $bg-primary;
 }
 
 .agent-bar-idle-clock {
@@ -454,7 +453,6 @@
   left: -4px;
   font-size: 10px;
   line-height: 1;
-  text-shadow: 0 0 4px currentColor;
 }
 
 .agent-bar-hotkey {

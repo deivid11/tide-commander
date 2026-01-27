@@ -10,7 +10,7 @@ import { agentService, claudeService, supervisorService, permissionService, boss
 import { loadAreas, saveAreas, loadBuildings, saveBuildings } from '../data/index.js';
 import { parseContextOutput } from '../claude/backend.js';
 import { logger, createLogger, formatToolActivity } from '../utils/index.js';
-import { setNotificationBroadcast } from '../routes/index.js';
+import { setNotificationBroadcast, setExecBroadcast } from '../routes/index.js';
 import type { HandlerContext } from './handlers/types.js';
 import {
   handleSpawnAgent,
@@ -753,6 +753,9 @@ export function init(server: HttpServer): WebSocketServer {
 
   // Wire up broadcast function for HTTP notification endpoint
   setNotificationBroadcast(broadcast);
+
+  // Wire up broadcast function for HTTP exec endpoint
+  setExecBroadcast(broadcast);
 
   log.log(' Handler initialized');
   return wss;

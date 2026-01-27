@@ -10,8 +10,8 @@
   justify-content: space-between;
   align-items: center;
   padding: 10px 16px;
-  background: rgba($dracula-bg, 0.95);
-  border-bottom: 1px solid $dracula-current;
+  background: color-mix(in srgb, var(--bg-secondary) 95%, transparent);
+  border-bottom: 1px solid var(--bg-tertiary);
 }
 
 .guake-header-left {
@@ -23,7 +23,7 @@
 }
 
 .guake-title {
-  color: $dracula-pink;
+  color: var(--accent-pink);
   font-weight: 600;
   font-size: 14px;
   font-family: $font-mono;
@@ -31,7 +31,7 @@
 }
 
 .guake-task {
-  color: $dracula-comment;
+  color: var(--text-muted);
   font-weight: 400;
   font-size: 12px;
   font-family: $font-mono;
@@ -102,7 +102,6 @@
   background: $dracula-green;
   border-radius: 50%;
   animation: guake-bounce 1.4s ease-in-out infinite;
-  box-shadow: 0 0 6px rgba($dracula-green, 0.6);
 
   &:nth-child(1) {
     animation-delay: 0s;
@@ -147,17 +146,16 @@
 .guake-agent-cwd {
   display: inline-flex;
   align-items: center;
-  font-size: 11px;
+  font-size: 12px;
   font-family: $font-mono;
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1;
   white-space: nowrap;
-  color: $dracula-green;
-  text-shadow: 0 0 8px rgba($dracula-green, 0.5);
-  background: rgba($dracula-green, 0.15);
+  color: $text-primary;
+  background: rgba($bg-tertiary, 0.8);
   padding: 4px 10px;
   border-radius: 4px;
-  border: 1px solid rgba($dracula-green, 0.5);
+  border: 1px solid $border-color;
   max-width: 250px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -313,8 +311,7 @@
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;
-  text-shadow: 0 0 4px currentColor, 0 0 8px rgba(0, 0, 0, 0.8);
-  background: rgba($dracula-bg, 0.7);
+  background: rgba($bg-primary, 0.9);
   padding: 1px 3px;
   border-radius: 2px;
 }

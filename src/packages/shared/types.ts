@@ -1322,6 +1322,58 @@ export interface DeleteCustomAgentClassMessage extends WSMessage {
   payload: { id: string };
 }
 
+// ============================================================================
+// Exec Task Types (Streaming Command Execution)
+// ============================================================================
+
+// Running exec task state
+export interface ExecTask {
+  taskId: string;
+  agentId: string;
+  agentName: string;
+  command: string;
+  cwd: string;
+  status: 'running' | 'completed' | 'failed';
+  output: string[];
+  startedAt: number;
+  completedAt?: number;
+  exitCode?: number | null;
+}
+
+// Exec task started message (Server -> Client)
+export interface ExecTaskStartedMessage extends WSMessage {
+  type: 'exec_task_started';
+  payload: {
+    taskId: string;
+    agentId: string;
+    agentName: string;
+    command: string;
+    cwd: string;
+  };
+}
+
+// Exec task output message (Server -> Client) - streaming output
+export interface ExecTaskOutputMessage extends WSMessage {
+  type: 'exec_task_output';
+  payload: {
+    taskId: string;
+    agentId: string;
+    output: string;
+    isError?: boolean;
+  };
+}
+
+// Exec task completed message (Server -> Client)
+export interface ExecTaskCompletedMessage extends WSMessage {
+  type: 'exec_task_completed';
+  payload: {
+    taskId: string;
+    agentId: string;
+    exitCode: number | null;
+    success: boolean;
+  };
+}
+
 export type ServerMessage =
   | AgentsUpdateMessage
   | AgentCreatedMessage
@@ -1370,7 +1422,10 @@ export type ServerMessage =
   | AnalysisRequestCreatedMessage
   | AnalysisRequestCompletedMessage
   | GlobalUsageMessage
-  | AgentNotificationMessage;
+  | AgentNotificationMessage
+  | ExecTaskStartedMessage
+  | ExecTaskOutputMessage
+  | ExecTaskCompletedMessage;
 
 export type ClientMessage =
   | SpawnAgentMessage

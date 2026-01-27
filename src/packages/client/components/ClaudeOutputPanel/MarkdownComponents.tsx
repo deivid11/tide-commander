@@ -1,51 +1,54 @@
 /**
  * Custom markdown components with inline styles for guaranteed rendering
+ * Using CSS variables directly for theme support
  */
 
 import React from 'react';
 import { Components } from 'react-markdown';
 
+// Create markdown components that use CSS variables directly
+// This allows themes to change without recreating components
 export const markdownComponents: Components = {
   h1: ({ children }) => (
-    <h1 style={{ fontSize: '1.4em', color: '#ff79c6', fontWeight: 600, margin: '0.6em 0 0.3em' }}>
+    <h1 style={{ fontSize: '1.4em', color: 'var(--accent-pink)', fontWeight: 600, margin: '0.6em 0 0.3em' }}>
       {children}
     </h1>
   ),
   h2: ({ children }) => (
-    <h2 style={{ fontSize: '1.25em', color: '#bd93f9', fontWeight: 600, margin: '0.6em 0 0.3em' }}>
+    <h2 style={{ fontSize: '1.25em', color: 'var(--accent-purple)', fontWeight: 600, margin: '0.6em 0 0.3em' }}>
       {children}
     </h2>
   ),
   h3: ({ children }) => (
-    <h3 style={{ fontSize: '1.15em', color: '#8be9fd', fontWeight: 600, margin: '0.6em 0 0.3em' }}>
+    <h3 style={{ fontSize: '1.15em', color: 'var(--accent-cyan)', fontWeight: 600, margin: '0.6em 0 0.3em' }}>
       {children}
     </h3>
   ),
   h4: ({ children }) => (
-    <h4 style={{ fontSize: '1.1em', color: '#50fa7b', fontWeight: 600, margin: '0.6em 0 0.3em' }}>
+    <h4 style={{ fontSize: '1.1em', color: 'var(--accent-green)', fontWeight: 600, margin: '0.6em 0 0.3em' }}>
       {children}
     </h4>
   ),
   h5: ({ children }) => (
-    <h5 style={{ fontSize: '1.05em', color: '#f1fa8c', fontWeight: 600, margin: '0.6em 0 0.3em' }}>
+    <h5 style={{ fontSize: '1.05em', color: 'var(--accent-yellow)', fontWeight: 600, margin: '0.6em 0 0.3em' }}>
       {children}
     </h5>
   ),
   h6: ({ children }) => (
-    <h6 style={{ fontSize: '1em', color: '#ffb86c', fontWeight: 600, margin: '0.6em 0 0.3em' }}>
+    <h6 style={{ fontSize: '1em', color: 'var(--accent-orange)', fontWeight: 600, margin: '0.6em 0 0.3em' }}>
       {children}
     </h6>
   ),
   p: ({ children }) => <p style={{ margin: '0.4em 0' }}>{children}</p>,
-  strong: ({ children }) => <strong style={{ color: '#ffb86c', fontWeight: 600 }}>{children}</strong>,
-  em: ({ children }) => <em style={{ color: '#f1fa8c', fontStyle: 'italic' }}>{children}</em>,
-  del: ({ children }) => <del style={{ color: '#ff5555', textDecoration: 'line-through' }}>{children}</del>,
+  strong: ({ children }) => <strong style={{ color: 'var(--accent-orange)', fontWeight: 600 }}>{children}</strong>,
+  em: ({ children }) => <em style={{ color: 'var(--accent-yellow)', fontStyle: 'italic' }}>{children}</em>,
+  del: ({ children }) => <del style={{ color: 'var(--accent-red)', textDecoration: 'line-through' }}>{children}</del>,
   code: ({ children, className }) => {
     // Check if it's a code block (has language class) or inline code
     const isBlock = className?.includes('language-');
     if (isBlock) {
       return (
-        <code style={{ background: 'none', padding: 0, color: '#f8f8f2', fontSize: '12px', lineHeight: 1.5 }}>
+        <code style={{ background: 'none', padding: 0, color: 'var(--text-primary)', fontSize: '12px', lineHeight: 1.5 }}>
           {children}
         </code>
       );
@@ -53,8 +56,8 @@ export const markdownComponents: Components = {
     return (
       <code
         style={{
-          background: 'rgba(68, 71, 90, 0.6)',
-          color: '#50fa7b',
+          background: 'color-mix(in srgb, var(--bg-tertiary) 80%, transparent)',
+          color: 'var(--accent-green)',
           padding: '0.15em 0.4em',
           borderRadius: '3px',
           fontSize: '0.9em',
@@ -67,8 +70,8 @@ export const markdownComponents: Components = {
   pre: ({ children }) => (
     <pre
       style={{
-        background: 'rgba(40, 42, 54, 0.9)',
-        border: '1px solid rgba(98, 114, 164, 0.4)',
+        background: 'color-mix(in srgb, var(--bg-primary) 90%, transparent)',
+        border: '1px solid var(--border-color)',
         borderRadius: '6px',
         padding: '12px',
         margin: '0.6em 0',
@@ -84,10 +87,10 @@ export const markdownComponents: Components = {
   blockquote: ({ children }) => (
     <blockquote
       style={{
-        borderLeft: '3px solid #bd93f9',
+        borderLeft: '3px solid var(--accent-purple)',
         margin: '0.5em 0',
         padding: '0.5em 1em',
-        background: 'rgba(189, 147, 249, 0.1)',
+        background: 'color-mix(in srgb, var(--accent-purple) 10%, transparent)',
         borderRadius: '0 4px 4px 0',
       }}
     >
@@ -95,11 +98,11 @@ export const markdownComponents: Components = {
     </blockquote>
   ),
   a: ({ children, href }) => (
-    <a href={href} style={{ color: '#8be9fd', textDecoration: 'underline' }}>
+    <a href={href} style={{ color: 'var(--accent-cyan)', textDecoration: 'underline' }}>
       {children}
     </a>
   ),
-  hr: () => <hr style={{ border: 'none', borderTop: '1px solid rgba(98, 114, 164, 0.5)', margin: '1em 0' }} />,
+  hr: () => <hr style={{ border: 'none', borderTop: '1px solid var(--border-color)', margin: '1em 0' }} />,
   table: ({ children }) => (
     <table style={{ width: '100%', borderCollapse: 'collapse', margin: '0.6em 0', fontSize: '12px' }}>
       {children}
@@ -108,12 +111,12 @@ export const markdownComponents: Components = {
   th: ({ children }) => (
     <th
       style={{
-        border: '1px solid rgba(98, 114, 164, 0.4)',
+        border: '1px solid var(--border-color)',
         padding: '6px 10px',
         textAlign: 'left',
-        background: 'rgba(68, 71, 90, 0.8)',
+        background: 'color-mix(in srgb, var(--bg-tertiary) 80%, transparent)',
         fontWeight: 600,
-        color: '#ff79c6',
+        color: 'var(--accent-pink)',
       }}
     >
       {children}
@@ -122,10 +125,10 @@ export const markdownComponents: Components = {
   td: ({ children }) => (
     <td
       style={{
-        border: '1px solid rgba(98, 114, 164, 0.4)',
+        border: '1px solid var(--border-color)',
         padding: '6px 10px',
         textAlign: 'left',
-        background: 'rgba(40, 42, 54, 0.5)',
+        background: 'color-mix(in srgb, var(--bg-secondary) 50%, transparent)',
       }}
     >
       {children}
@@ -133,6 +136,9 @@ export const markdownComponents: Components = {
   ),
   input: ({ checked, type }) =>
     type === 'checkbox' ? (
-      <input type="checkbox" checked={checked} readOnly style={{ marginRight: '0.5em', accentColor: '#50fa7b' }} />
+      <input type="checkbox" checked={checked} readOnly style={{ marginRight: '0.5em', accentColor: 'var(--accent-green)' }} />
     ) : null,
 };
+
+// Legacy export for backward compatibility (same as markdownComponents)
+export const createMarkdownComponents = () => markdownComponents;

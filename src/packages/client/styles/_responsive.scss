@@ -636,7 +636,7 @@ $breakpoint-small: 480px;
     font-weight: 700;
     white-space: nowrap;
     letter-spacing: 0.5px;
-    background: linear-gradient(135deg, $dracula-pink 0%, $dracula-purple 100%);
+    background: linear-gradient(135deg, var(--accent-pink) 0%, var(--accent-purple) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;

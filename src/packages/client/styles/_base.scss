@@ -8,31 +8,36 @@
 
 body {
   font-family: $font-family;
-  background: $bg-primary;
-  color: $text-primary;
+  font-size: $font-size-base;
+  line-height: $line-height-base;
+  font-weight: 450;
+  background: var(--bg-primary);
+  color: var(--text-primary);
   overflow: hidden;
   height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 #app {
   height: 100vh;
 }
 
-// Scrollbar
+// Scrollbar - using CSS variables for theme support
 ::-webkit-scrollbar {
   width: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: $bg-tertiary;
+  background: var(--bg-tertiary);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: $border-color;
+  background: var(--border-color);
   border-radius: $radius-sm;
 
   &:hover {
-    background: $text-secondary;
+    background: var(--text-secondary);
   }
 }
 

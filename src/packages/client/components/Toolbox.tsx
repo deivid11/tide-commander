@@ -6,6 +6,7 @@ import { AREA_COLORS, BUILDING_STATUS_COLORS } from '../utils/colors';
 import { STORAGE_KEYS, getStorageString, setStorageString } from '../utils/storage';
 import { reconnect } from '../websocket';
 import { useAppUpdate } from '../hooks/useAppUpdate';
+import { themes, getTheme, applyTheme, getSavedTheme, type ThemeId } from '../utils/themes';
 
 // Time mode options
 export type TimeMode = 'auto' | 'day' | 'night' | 'dawn' | 'dusk';
@@ -23,6 +24,8 @@ export interface TerrainConfig {
   showClouds: boolean;
   fogDensity: number; // 0 = none, 1 = normal, 2 = heavy
   floorStyle: FloorStyle;
+  brightness: number; // 0.2 = dark, 1 = normal, 2 = bright
+  skyColor: string | null; // null = auto (based on time), or hex color like '#4a90d9'
 }
 
 // Animation type for status
@@ -641,6 +644,18 @@ const TERRAIN_OPTIONS: { key: keyof TerrainConfig; icon: string; label: string }
   { key: 'showClouds', icon: '☁️', label: 'Clouds' },
 ];
 
+// Sky color presets
+const SKY_COLOR_OPTIONS: { value: string | null; label: string; color: string }[] = [
+  { value: null, label: 'Auto', color: 'linear-gradient(135deg, #4a90d9 0%, #0a1a2a 100%)' },
+  { value: '#4a90d9', label: 'Day Blue', color: '#4a90d9' },
+  { value: '#0a1a2a', label: 'Night', color: '#0a1a2a' },
+  { value: '#ff6b35', label: 'Sunset', color: '#ff6b35' },
+  { value: '#1a0a2e', label: 'Purple', color: '#1a0a2e' },
+  { value: '#2d5a27', label: 'Matrix', color: '#2d5a27' },
+  { value: '#8b0000', label: 'Blood', color: '#8b0000' },
+  { value: '#000000', label: 'Void', color: '#000000' },
+];
+
 // Compact toggle switch for config rows
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (checked: boolean) => void }) {
   return (
@@ -751,6 +766,49 @@ function CollapsibleSection({
   );
 }
 
+// Theme selector component
+function ThemeSelector() {
+  const [currentTheme, setCurrentTheme] = useState<ThemeId>(() => getSavedTheme());
+
+  const handleThemeChange = (themeId: ThemeId) => {
+    setCurrentTheme(themeId);
+    const theme = getTheme(themeId);
+    applyTheme(theme);
+  };
+
+  return (
+    <div className="theme-selector">
+      <div className="theme-selector-grid">
+        {themes.map((theme) => (
+          <button
+            key={theme.id}
+            className={`theme-option ${currentTheme === theme.id ? 'active' : ''}`}
+            onClick={() => handleThemeChange(theme.id)}
+            title={theme.description}
+          >
+            <div className="theme-preview">
+              <div
+                className="theme-preview-bg"
+                style={{ backgroundColor: theme.colors.bgPrimary }}
+              >
+                <div
+                  className="theme-preview-accent"
+                  style={{ backgroundColor: theme.colors.accentBlue }}
+                />
+                <div
+                  className="theme-preview-claude"
+                  style={{ backgroundColor: theme.colors.accentClaude }}
+                />
+              </div>
+            </div>
+            <span className="theme-name">{theme.name}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ConfigSection({ config, onChange }: ConfigSectionProps) {
   const state = useStore();
   const [historyLimit, setHistoryLimit] = useState(state.settings.historyLimit);
@@ -845,6 +903,11 @@ function ConfigSection({ config, onChange }: ConfigSectionProps) {
             onChange={(checked) => store.updateSettings({ powerSaving: checked })}
           />
         </div>
+      </CollapsibleSection>
+
+      {/* Appearance Settings */}
+      <CollapsibleSection title="Appearance" storageKey="appearance" defaultOpen={false}>
+        <ThemeSelector />
       </CollapsibleSection>
 
       {/* Connection Settings */}
@@ -956,6 +1019,21 @@ function ConfigSection({ config, onChange }: ConfigSectionProps) {
             {config.terrain.fogDensity === 0 ? 'Off' : config.terrain.fogDensity <= 1 ? 'Low' : 'Hi'}
           </span>
         </div>
+        <div className="config-row">
+          <span className="config-label">Brightness</span>
+          <input
+            type="range"
+            className="config-slider"
+            min="0.2"
+            max="2"
+            step="0.1"
+            value={config.terrain.brightness}
+            onChange={(e) => updateTerrain({ brightness: parseFloat(e.target.value) })}
+          />
+          <span className="config-value">
+            {config.terrain.brightness <= 0.5 ? 'Dark' : config.terrain.brightness <= 1.2 ? 'Normal' : 'Bright'}
+          </span>
+        </div>
         <div className="config-group">
           <span className="config-label">Floor</span>
           <ChipSelector
@@ -964,6 +1042,20 @@ function ConfigSection({ config, onChange }: ConfigSectionProps) {
             onChange={(style) => updateTerrain({ floorStyle: style })}
             iconOnly
           />
+        </div>
+        <div className="config-group">
+          <span className="config-label">Sky</span>
+          <div className="sky-color-selector">
+            {SKY_COLOR_OPTIONS.map((opt) => (
+              <button
+                key={opt.value ?? 'auto'}
+                className={`sky-color-btn ${config.terrain.skyColor === opt.value ? 'active' : ''}`}
+                onClick={() => updateTerrain({ skyColor: opt.value })}
+                title={opt.label}
+                style={{ background: opt.color }}
+              />
+            ))}
+          </div>
         </div>
       </CollapsibleSection>
 

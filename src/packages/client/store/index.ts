@@ -23,6 +23,7 @@ import { createBuildingActions, type BuildingActions } from './buildings';
 import { createPermissionActions, type PermissionActions } from './permissions';
 import { createDelegationActions, type DelegationActions } from './delegation';
 import { createSkillActions, type SkillActions } from './skills';
+import { createExecTaskActions, type ExecTaskActions } from './execTasks';
 
 // Import shortcuts
 import { ShortcutConfig, DEFAULT_SHORTCUTS } from './shortcuts';
@@ -123,6 +124,8 @@ export {
   useCameraSensitivity,
   useTrackpadConfig,
   useAgentTaskProgress,
+  useExecTasks,
+  useAllExecTasks,
 } from './selectors';
 
 // ============================================================================
@@ -138,7 +141,8 @@ class Store
     BuildingActions,
     PermissionActions,
     DelegationActions,
-    SkillActions
+    SkillActions,
+    ExecTaskActions
 {
   private state: StoreState;
   private listeners = new Set<Listener>();
@@ -153,6 +157,7 @@ class Store
   private permissionActions: PermissionActions;
   private delegationActions: DelegationActions;
   private skillActions: SkillActions;
+  private execTaskActions: ExecTaskActions;
 
   constructor() {
     // Initialize state
@@ -203,6 +208,7 @@ class Store
       skills: new Map(),
       customAgentClasses: new Map(),
       reconnectCount: 0,
+      execTasks: new Map(),
     };
 
     // Helper functions for domain modules
@@ -223,6 +229,7 @@ class Store
     this.permissionActions = createPermissionActions(getState, setState, notify, getSendMessage);
     this.delegationActions = createDelegationActions(getState, setState, notify, getSendMessage);
     this.skillActions = createSkillActions(getState, setState, notify, getSendMessage);
+    this.execTaskActions = createExecTaskActions(getState, setState, notify);
   }
 
   private loadSettings(): Settings {
@@ -738,6 +745,19 @@ class Store
   createCustomAgentClass(...args: Parameters<SkillActions['createCustomAgentClass']>) { return this.skillActions.createCustomAgentClass(...args); }
   updateCustomAgentClass(...args: Parameters<SkillActions['updateCustomAgentClass']>) { return this.skillActions.updateCustomAgentClass(...args); }
   deleteCustomAgentClass(...args: Parameters<SkillActions['deleteCustomAgentClass']>) { return this.skillActions.deleteCustomAgentClass(...args); }
+
+  // ============================================================================
+  // Exec Task Actions (delegated)
+  // ============================================================================
+
+  handleExecTaskStarted(...args: Parameters<ExecTaskActions['handleExecTaskStarted']>) { return this.execTaskActions.handleExecTaskStarted(...args); }
+  handleExecTaskOutput(...args: Parameters<ExecTaskActions['handleExecTaskOutput']>) { return this.execTaskActions.handleExecTaskOutput(...args); }
+  handleExecTaskCompleted(...args: Parameters<ExecTaskActions['handleExecTaskCompleted']>) { return this.execTaskActions.handleExecTaskCompleted(...args); }
+  getExecTasks(...args: Parameters<ExecTaskActions['getExecTasks']>) { return this.execTaskActions.getExecTasks(...args); }
+  getAllExecTasks() { return this.execTaskActions.getAllExecTasks(); }
+  getExecTask(...args: Parameters<ExecTaskActions['getExecTask']>) { return this.execTaskActions.getExecTask(...args); }
+  clearCompletedExecTasks(...args: Parameters<ExecTaskActions['clearCompletedExecTasks']>) { return this.execTaskActions.clearCompletedExecTasks(...args); }
+  clearAllExecTasks(...args: Parameters<ExecTaskActions['clearAllExecTasks']>) { return this.execTaskActions.clearAllExecTasks(...args); }
 }
 
 // Extend Window interface for HMR persistence

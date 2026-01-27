@@ -43,6 +43,8 @@ export class Battlefield {
   private lamps: THREE.Group[] = [];
   private grass: THREE.Mesh | null = null;
   private baseFogDensity = 0.01;
+  private brightness = 1; // Brightness multiplier (0.2 = dark, 1 = normal, 2 = bright)
+  private skyColorOverride: string | null = null; // null = use time-based sky color
   private currentFloorStyle: FloorStyle = 'concrete';
 
   // Galactic floor state
@@ -157,7 +159,7 @@ export class Battlefield {
   }
 
   /**
-   * Set terrain configuration (show/hide elements, fog density).
+   * Set terrain configuration (show/hide elements, fog density, brightness, sky color).
    */
   setTerrainConfig(config: {
     showTrees: boolean;
@@ -167,6 +169,8 @@ export class Battlefield {
     showGrass: boolean;
     showClouds?: boolean;
     fogDensity: number;
+    brightness?: number;
+    skyColor?: string | null;
   }): void {
     // Toggle trees
     this.trees.forEach(tree => { tree.visible = config.showTrees; });
@@ -198,7 +202,18 @@ export class Battlefield {
 
     // Update fog density (0 = off, 1 = normal, 2 = heavy)
     this.baseFogDensity = config.fogDensity * 0.008;
-    this.updateTimeOfDay(); // Re-apply time config which uses fog density
+
+    // Update brightness (0.2 = dark, 1 = normal, 2 = bright)
+    if (config.brightness !== undefined) {
+      this.brightness = config.brightness;
+    }
+
+    // Update sky color override (null = use time-based color)
+    if (config.skyColor !== undefined) {
+      this.skyColorOverride = config.skyColor;
+    }
+
+    this.updateTimeOfDay(); // Re-apply time config which uses fog density, brightness, and sky color
   }
 
   /**
@@ -352,14 +367,24 @@ export class Battlefield {
   }
 
   private applyTimeConfig(config: TimeConfig): void {
-    // Update sky/fog - reuse tempColor to avoid allocations
+    // Update sky color - use override if set, otherwise use time-based color
+    const skyColor = this.skyColorOverride
+      ? parseInt(this.skyColorOverride.replace('#', ''), 16)
+      : config.skyColor;
+
     if (this.scene.background instanceof THREE.Color) {
-      this.scene.background.setHex(config.skyColor);
+      this.scene.background.setHex(skyColor);
     } else {
-      this.scene.background = this.tempColor.setHex(config.skyColor).clone();
+      this.scene.background = this.tempColor.setHex(skyColor).clone();
     }
+
+    // Update fog
     if (this.scene.fog instanceof THREE.FogExp2) {
-      this.scene.fog.color.setHex(config.fogColor);
+      // If custom sky color is set, adjust fog color to match
+      const fogColor = this.skyColorOverride
+        ? parseInt(this.skyColorOverride.replace('#', ''), 16)
+        : config.fogColor;
+      this.scene.fog.color.setHex(fogColor);
       // Apply fog density with user's fog multiplier
       const fogMultiplier = this.baseFogDensity > 0 ? this.baseFogDensity / 0.008 : 0;
       this.scene.fog.density = config.fogDensity * fogMultiplier;
@@ -385,23 +410,23 @@ export class Battlefield {
       this.stars.visible = config.starsOpacity > 0.01;
     }
 
-    // Update ambient light
+    // Update ambient light (apply brightness multiplier)
     if (this.ambientLight) {
       this.ambientLight.color.setHex(config.ambientColor);
-      this.ambientLight.intensity = config.ambientIntensity;
+      this.ambientLight.intensity = config.ambientIntensity * this.brightness;
     }
 
-    // Update hemisphere light
+    // Update hemisphere light (apply brightness multiplier)
     if (this.hemiLight) {
       this.hemiLight.color.setHex(config.hemiSkyColor);
       this.hemiLight.groundColor.setHex(config.hemiGroundColor);
-      this.hemiLight.intensity = config.hemiIntensity;
+      this.hemiLight.intensity = config.hemiIntensity * this.brightness;
     }
 
-    // Update main light (sun/moon light)
+    // Update main light (sun/moon light) (apply brightness multiplier)
     if (this.mainLight) {
       this.mainLight.color.setHex(config.mainLightColor);
-      this.mainLight.intensity = config.mainLightIntensity;
+      this.mainLight.intensity = config.mainLightIntensity * this.brightness;
       // Position main light based on which celestial body is visible
       if (config.sunOpacity > config.moonOpacity) {
         this.mainLight.position.copy(config.sunPosition);

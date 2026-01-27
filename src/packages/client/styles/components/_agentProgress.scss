@@ -16,18 +16,18 @@
   transition: all $transition-fast;
 
   &.status-working {
-    border-color: rgba(#4a9eff, 0.4);
-    background: rgba(#4a9eff, 0.05);
+    border-color: rgba($accent-blue, 0.4);
+    background: rgba($accent-blue, 0.05);
   }
 
   &.status-completed {
-    border-color: rgba(#22c55e, 0.4);
-    background: rgba(#22c55e, 0.05);
+    border-color: rgba($accent-green, 0.4);
+    background: rgba($accent-green, 0.05);
   }
 
   &.status-failed {
-    border-color: rgba(#ef4444, 0.4);
-    background: rgba(#ef4444, 0.05);
+    border-color: rgba($accent-red, 0.4);
+    background: rgba($accent-red, 0.05);
   }
 }
 
@@ -71,7 +71,7 @@
   cursor: pointer;
 
   &:hover {
-    color: #4a9eff;
+    color: $accent-blue;
     text-decoration: underline;
   }
 }
@@ -242,7 +242,235 @@
   letter-spacing: 0.5px;
 
   .progress-count {
-    color: #ffd700;
+    color: $accent-orange;
     font-weight: 600;
+  }
+}
+
+// ============================================================================
+// Exec Task Indicator - Streaming command execution output
+// ============================================================================
+
+.exec-tasks-container {
+  margin: 12px 0;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed rgba($border-color, 0.5);
+}
+
+.exec-tasks-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding: 6px 0;
+  font-size: 11px;
+  color: $text-muted;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+
+  .exec-tasks-icon {
+    font-size: 14px;
+  }
+
+  .exec-tasks-title {
+    font-weight: 600;
+  }
+
+  .exec-tasks-count {
+    font-weight: 600;
+
+    &.running {
+      color: $accent-blue;
+    }
+  }
+
+  .exec-tasks-clear {
+    margin-left: auto;
+    padding: 2px 8px;
+    background: rgba($accent-orange, 0.2);
+    border: 1px solid rgba($accent-orange, 0.3);
+    border-radius: 4px;
+    color: $accent-orange;
+    font-size: 10px;
+    cursor: pointer;
+    transition: all $transition-fast;
+
+    &:hover {
+      background: rgba($accent-orange, 0.3);
+      border-color: rgba($accent-orange, 0.5);
+    }
+  }
+}
+
+.exec-tasks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.exec-task-indicator {
+  border: 1px solid $border-color;
+  border-radius: 6px;
+  background: $bg-secondary;
+  overflow: hidden;
+  transition: all $transition-fast;
+
+  &.status-running {
+    border-color: rgba($accent-blue, 0.4);
+    background: rgba($accent-blue, 0.05);
+  }
+
+  &.status-completed {
+    border-color: rgba($accent-green, 0.4);
+    background: rgba($accent-green, 0.05);
+  }
+
+  &.status-failed {
+    border-color: rgba($accent-red, 0.4);
+    background: rgba($accent-red, 0.05);
+  }
+}
+
+.exec-task-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  user-select: none;
+  transition: background $transition-fast;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.05);
+  }
+}
+
+.exec-task-status-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+
+  // Pulse animation for running status
+  .status-running & {
+    animation: exec-task-pulse 1.5s ease-in-out infinite;
+  }
+}
+
+@keyframes exec-task-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.exec-task-command {
+  font-family: $font-mono;
+  font-size: 12px;
+  color: $text-primary;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.exec-task-elapsed {
+  font-size: 11px;
+  color: $text-muted;
+  font-family: $font-mono;
+  flex-shrink: 0;
+}
+
+.exec-task-toggle {
+  font-size: 10px;
+  color: $text-secondary;
+  transition: transform $transition-fast;
+  flex-shrink: 0;
+}
+
+.exec-task-close {
+  padding: 0 4px;
+  background: none;
+  border: none;
+  color: $text-muted;
+  font-size: 16px;
+  cursor: pointer;
+  line-height: 1;
+  opacity: 0.6;
+  transition: all $transition-fast;
+
+  &:hover {
+    opacity: 1;
+    color: $accent-red;
+  }
+}
+
+.exec-task-expanded {
+  padding: 0 12px 12px 12px;
+  border-top: 1px solid rgba($border-color, 0.5);
+}
+
+.exec-task-output {
+  max-height: 300px;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba($border-color, 0.5);
+  border-radius: 4px;
+  padding: 8px;
+  margin-top: 8px;
+  font-family: $font-mono;
+  font-size: 11px;
+
+  // Custom scrollbar
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+  }
+}
+
+.exec-task-output-empty {
+  color: $text-muted;
+  font-style: italic;
+}
+
+.exec-task-output-line {
+  color: $text-primary;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-all;
+
+  &.stderr {
+    color: $accent-red;
+  }
+}
+
+.exec-task-exit-code {
+  margin-top: 8px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-family: $font-mono;
+  font-size: 11px;
+  text-align: center;
+
+  &.success {
+    background: rgba($accent-green, 0.2);
+    color: $accent-green;
+  }
+
+  &.error {
+    background: rgba($accent-red, 0.2);
+    color: $accent-red;
   }
 }

@@ -102,7 +102,6 @@ export const HistoryLine = memo(function HistoryLine({
     const messages = parseCategory('Messages');
     const usedPercent = tokensMatch ? parseInt(tokensMatch[3]) : 0;
     const freePercent = 100 - usedPercent;
-    const percentColor = usedPercent >= 80 ? '#ff4a4a' : usedPercent >= 60 ? '#ff9e4a' : usedPercent >= 40 ? '#ffd700' : '#4aff9e';
 
     const handleContextClick = () => {
       if (agentId) {
@@ -114,44 +113,28 @@ export const HistoryLine = memo(function HistoryLine({
       <div
         className="output-line output-context-stats"
         style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          padding: '4px 0',
           cursor: agentId ? 'pointer' : 'default',
         }}
         onClick={handleContextClick}
         title={agentId ? 'Click to view detailed context stats' : undefined}
       >
-        {timeStr && <span className="output-timestamp context-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
-        <span className="context-icon" style={{ color: '#bd93f9', fontSize: '12px' }}>📊</span>
-        <span className="context-label" style={{ fontSize: '11px', color: '#6272a4' }}>Context:</span>
-        <div
-          className="context-bar"
-          style={{
-            width: '80px',
-            height: '6px',
-            background: 'rgba(98, 114, 164, 0.3)',
-            borderRadius: '3px',
-            overflow: 'hidden',
-            flexShrink: 0,
-          }}
-        >
+        {timeStr && <span className="output-timestamp context-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span className="context-debug-hash">[{debugHash}]</span></span>}
+        <span className="context-icon">📊</span>
+        <span className="context-label">Context:</span>
+        <div className="context-bar">
           <div
+            className="context-bar-fill"
             style={{
-              height: '100%',
               width: `${usedPercent}%`,
-              background: percentColor,
-              borderRadius: '3px',
             }}
           />
         </div>
-        <span className="context-tokens" style={{ fontSize: '11px', color: percentColor, fontWeight: 600 }}>
+        <span className="context-tokens">
           {tokensMatch ? `${tokensMatch[1]}k/${tokensMatch[2]}k` : '?'}
         </span>
-        <span className="context-free" style={{ fontSize: '11px', color: '#6272a4' }}>({freePercent.toFixed(0)}% free)</span>
+        <span className="context-free">({freePercent.toFixed(0)}% free)</span>
         {messages && (
-          <span className="context-msgs" style={{ fontSize: '10px', color: '#4aff9e', opacity: 0.7 }}>msgs: {messages.tokens}</span>
+          <span className="context-msgs">msgs: {messages.tokens}</span>
         )}
       </div>
     );

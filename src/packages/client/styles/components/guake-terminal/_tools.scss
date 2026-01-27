@@ -5,6 +5,7 @@
 @use '../../variables' as *;
 
 // Tool usage in live streaming
+// Using theme-specific tool colors
 .output-tool-use {
   display: flex;
   align-items: center;
@@ -12,8 +13,8 @@
   gap: 8px;
   padding: 6px 12px;
   margin: 4px 0;
-  background: rgba($dracula-orange, 0.1);
-  border-left: 3px solid $dracula-orange;
+  background: var(--tool-use-bg);
+  border-left: 3px solid var(--tool-use-border);
   border-radius: $radius-sm;
 }
 
@@ -21,13 +22,14 @@
   font-size: 16px;
   line-height: 1;
   flex-shrink: 0;
+  color: var(--tool-use-text);
 }
 
 .output-tool-name {
   font-family: $font-mono;
   font-weight: 600;
   font-size: 12px;
-  color: $dracula-orange;
+  color: var(--tool-use-text);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   flex-shrink: 0;
@@ -37,7 +39,7 @@
 .output-tool-param {
   font-family: $font-mono;
   font-size: 11px;
-  color: $dracula-cyan;
+  color: var(--tool-use-text);
   opacity: 0.9;
   margin-left: 4px;
   // NO truncation - show full content
@@ -50,7 +52,7 @@
   &::before {
     content: '›';
     margin-right: 6px;
-    color: $dracula-comment;
+    color: var(--text-muted);
     opacity: 0.6;
   }
 
@@ -62,7 +64,7 @@
     text-underline-offset: 2px;
 
     &:hover {
-      color: $dracula-green;
+      color: var(--accent-blue);
       opacity: 1;
       text-decoration-style: solid;
     }
@@ -70,7 +72,7 @@
 }
 
 .output-tool-loading {
-  color: $dracula-comment;
+  color: $text-muted;
   animation: pulse-dots 1.5s infinite;
 }
 
@@ -78,7 +80,7 @@
 .output-tool-simple {
   padding: 3px 8px;
   margin: 2px 0;
-  background: rgba($dracula-orange, 0.05);
+  background: color-mix(in srgb, var(--tool-use-bg) 80%, var(--bg-primary));
   border-left-width: 2px;
 
   .output-tool-icon {
@@ -104,8 +106,8 @@
 .output-tool-input {
   padding: 4px 12px 4px 24px;
   margin: 0 0 4px 0;
-  background: rgba($dracula-orange, 0.05);
-  border-left: 3px solid rgba($dracula-orange, 0.5);
+  background: color-mix(in srgb, var(--tool-use-bg) 60%, var(--bg-primary));
+  border-left: 3px solid var(--tool-use-border);
   border-radius: 0 $radius-sm $radius-sm 0;
 }
 
@@ -113,7 +115,7 @@
   margin: 0;
   font-family: $font-mono;
   font-size: 11px;
-  color: $dracula-comment;
+  color: var(--text-secondary);
   white-space: pre-wrap;
   word-break: break-word;
   max-height: 200px;
@@ -134,7 +136,7 @@
   gap: 8px;
   padding: 6px 0;
   margin-bottom: 8px;
-  border-bottom: 1px solid rgba($dracula-comment, 0.3);
+  border-bottom: 1px solid $border-color;
 }
 
 .edit-tool-file {
@@ -142,10 +144,10 @@
   align-items: center;
   gap: 4px;
   padding: 4px 10px;
-  background: rgba($dracula-cyan, 0.15);
-  border: 1px solid rgba($dracula-cyan, 0.3);
+  background: rgba($accent-blue, 0.1);
+  border: 1px solid rgba($accent-blue, 0.3);
   border-radius: $radius-sm;
-  color: $dracula-cyan;
+  color: $accent-blue;
   font-family: $font-mono;
   font-size: 12px;
   font-weight: 600;
@@ -155,15 +157,15 @@
     transition: all $transition-fast;
 
     &:hover {
-      background: rgba($dracula-cyan, 0.25);
-      border-color: $dracula-cyan;
+      background: rgba($accent-blue, 0.2);
+      border-color: $accent-blue;
       transform: translateY(-1px);
     }
   }
 }
 
 .edit-tool-path {
-  color: $dracula-comment;
+  color: $text-muted;
   font-family: $font-mono;
   font-size: 10px;
   overflow: hidden;
@@ -174,10 +176,10 @@
 
 .edit-tool-badge {
   padding: 2px 8px;
-  background: rgba($dracula-pink, 0.2);
-  border: 1px solid rgba($dracula-pink, 0.4);
+  background: rgba($text-secondary, 0.2);
+  border: 1px solid rgba($text-secondary, 0.4);
   border-radius: $radius-sm;
-  color: $dracula-pink;
+  color: $text-secondary;
   font-family: $font-mono;
   font-size: 10px;
   font-weight: 600;
@@ -197,30 +199,30 @@
 }
 
 .edit-tool-old {
-  background: rgba($dracula-red, 0.1);
-  border: 1px solid rgba($dracula-red, 0.3);
+  background: rgba($accent-red, 0.08);
+  border: 1px solid rgba($accent-red, 0.2);
 
   .edit-tool-label {
-    background: rgba($dracula-red, 0.2);
-    color: $dracula-red;
+    background: rgba($accent-red, 0.15);
+    color: $accent-red;
   }
 
   .edit-tool-code {
-    border-left: 3px solid $dracula-red;
+    border-left: 3px solid $accent-red;
   }
 }
 
 .edit-tool-new {
-  background: rgba($dracula-green, 0.1);
-  border: 1px solid rgba($dracula-green, 0.3);
+  background: rgba($accent-green, 0.08);
+  border: 1px solid rgba($accent-green, 0.2);
 
   .edit-tool-label {
-    background: rgba($dracula-green, 0.2);
-    color: $dracula-green;
+    background: rgba($accent-green, 0.15);
+    color: $accent-green;
   }
 
   .edit-tool-code {
-    border-left: 3px solid $dracula-green;
+    border-left: 3px solid $accent-green;
   }
 }
 
@@ -238,7 +240,7 @@
   padding: 8px 12px;
   font-family: $font-mono;
   font-size: 11px;
-  color: $dracula-fg;
+  color: $text-primary;
   white-space: pre-wrap;
   word-break: break-word;
   max-height: 200px;
@@ -261,20 +263,20 @@
   border-radius: $radius-sm;
 
   &.added {
-    color: $dracula-green;
-    background: rgba($dracula-green, 0.15);
+    color: $accent-green;
+    background: rgba($accent-green, 0.15);
   }
 
   &.removed {
-    color: $dracula-red;
-    background: rgba($dracula-red, 0.15);
+    color: $accent-red;
+    background: rgba($accent-red, 0.15);
   }
 }
 
 // Edit tool side-by-side diff view (like FileExplorer DiffViewer)
 .edit-tool-panels {
   display: flex;
-  border: 1px solid rgba($dracula-comment, 0.3);
+  border: 1px solid $border-color;
   border-radius: $radius-sm;
   overflow: hidden;
   max-height: 250px;
@@ -285,7 +287,7 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  border-right: 1px solid $dracula-current;
+  border-right: 1px solid $border-color;
 
   &:last-child {
     border-right: none;
@@ -294,23 +296,23 @@
 
 .edit-panel-header {
   padding: 4px 8px;
-  background: rgba($dracula-bg, 0.8);
-  border-bottom: 1px solid $dracula-current;
+  background: rgba($bg-tertiary, 0.8);
+  border-bottom: 1px solid $border-color;
 }
 
 .edit-panel-label {
   font-size: 9px;
   font-weight: 600;
   text-transform: uppercase;
-  color: $dracula-comment;
+  color: $text-muted;
   letter-spacing: 0.5px;
 
   .edit-panel-original & {
-    color: $dracula-red;
+    color: $accent-red;
   }
 
   .edit-panel-modified & {
-    color: $dracula-green;
+    color: $accent-green;
   }
 }
 
@@ -318,7 +320,7 @@
   flex: 1;
   overflow-y: auto;
   overflow-x: auto;
-  background: rgba($dracula-bg-darker, 0.8);
+  background: rgba($bg-primary, 0.8);
 
   &::-webkit-scrollbar {
     width: 6px;
@@ -326,15 +328,15 @@
   }
 
   &::-webkit-scrollbar-track {
-    background: $dracula-bg-darker;
+    background: $bg-primary;
   }
 
   &::-webkit-scrollbar-thumb {
-    background: $dracula-current;
+    background: $border-color;
     border-radius: 3px;
 
     &:hover {
-      background: $dracula-comment;
+      background: $text-muted;
     }
   }
 }
@@ -350,40 +352,40 @@
 
   &.edit-line-unchanged {
     background: transparent;
-    color: $dracula-fg;
+    color: $text-primary;
   }
 
   &.edit-line-added {
-    background: rgba($dracula-green, 0.15);
+    background: rgba($accent-green, 0.1);
 
     .edit-line-num {
-      background: rgba($dracula-green, 0.2);
-      color: $dracula-green;
+      background: rgba($accent-green, 0.15);
+      color: $accent-green;
     }
 
     .edit-line-content {
-      color: $dracula-fg;
+      color: $text-primary;
     }
   }
 
   &.edit-line-removed {
-    background: rgba($dracula-red, 0.15);
+    background: rgba($accent-red, 0.1);
 
     .edit-line-num {
-      background: rgba($dracula-red, 0.2);
-      color: $dracula-red;
+      background: rgba($accent-red, 0.15);
+      color: $accent-red;
     }
 
     .edit-line-content {
-      color: $dracula-fg;
+      color: $text-primary;
     }
   }
 
   &.edit-line-empty {
-    background: rgba($dracula-comment, 0.05);
+    background: rgba($text-muted, 0.05);
 
     .edit-empty-text {
-      color: $dracula-comment;
+      color: $text-muted;
       font-style: italic;
     }
   }
@@ -394,9 +396,9 @@
   width: 32px;
   padding: 0 6px;
   text-align: right;
-  color: $dracula-comment;
-  background: rgba($dracula-bg, 0.5);
-  border-right: 1px solid $dracula-current;
+  color: $text-muted;
+  background: rgba($bg-tertiary, 0.5);
+  border-right: 1px solid $border-color;
   user-select: none;
   font-size: 10px;
 }
@@ -426,10 +428,10 @@
   align-items: center;
   gap: 4px;
   padding: 4px 10px;
-  background: rgba($dracula-cyan, 0.15);
-  border: 1px solid rgba($dracula-cyan, 0.3);
+  background: rgba($accent-blue, 0.1);
+  border: 1px solid rgba($accent-blue, 0.3);
   border-radius: $radius-sm;
-  color: $dracula-cyan;
+  color: $accent-blue;
   font-family: $font-mono;
   font-size: 12px;
   font-weight: 600;
@@ -439,15 +441,15 @@
     transition: all $transition-fast;
 
     &:hover {
-      background: rgba($dracula-cyan, 0.25);
-      border-color: $dracula-cyan;
+      background: rgba($accent-blue, 0.2);
+      border-color: $accent-blue;
       transform: translateY(-1px);
     }
   }
 }
 
 .read-tool-path {
-  color: $dracula-comment;
+  color: $text-muted;
   font-family: $font-mono;
   font-size: 10px;
   overflow: hidden;
@@ -457,9 +459,9 @@
 
 .read-tool-range {
   padding: 2px 8px;
-  background: rgba($dracula-comment, 0.2);
+  background: rgba($text-muted, 0.2);
   border-radius: $radius-sm;
-  color: $dracula-comment;
+  color: $text-muted;
   font-family: $font-mono;
   font-size: 10px;
 }
@@ -477,8 +479,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 6px 10px;
-  background: rgba($dracula-green, 0.1);
-  border-bottom: 1px solid rgba($dracula-green, 0.2);
+  background: rgba($bg-tertiary, 0.6);
+  border-bottom: 1px solid $border-color;
   border-radius: $radius-sm $radius-sm 0 0;
 }
 
@@ -486,7 +488,7 @@
   font-family: $font-mono;
   font-size: 12px;
   font-weight: 600;
-  color: $dracula-green;
+  color: $text-primary;
 }
 
 .todo-tool-stats {
@@ -500,15 +502,15 @@
   font-weight: 500;
 
   &.completed {
-    color: $dracula-green;
+    color: $accent-green;
   }
 
   &.in-progress {
-    color: $dracula-cyan;
+    color: $accent-blue;
   }
 
   &.pending {
-    color: $dracula-comment;
+    color: $text-muted;
   }
 }
 
@@ -517,7 +519,7 @@
   flex-direction: column;
   gap: 2px;
   padding: 6px 0;
-  background: rgba($dracula-bg, 0.3);
+  background: rgba($bg-primary, 0.3);
   border-radius: 0 0 $radius-sm $radius-sm;
   max-height: 200px;
   overflow-y: auto;
@@ -533,39 +535,39 @@
   transition: background $transition-fast;
 
   &:hover {
-    background: rgba($dracula-fg, 0.05);
+    background: rgba($text-primary, 0.03);
   }
 
   &.todo-completed {
     .todo-status-icon {
-      color: $dracula-green;
+      color: $accent-green;
     }
     .todo-content {
-      color: $dracula-comment;
+      color: $text-muted;
       text-decoration: line-through;
       opacity: 0.7;
     }
   }
 
   &.todo-in_progress {
-    background: rgba($dracula-cyan, 0.08);
+    background: rgba($accent-blue, 0.06);
 
     .todo-status-icon {
-      color: $dracula-cyan;
+      color: $accent-blue;
       animation: pulse-icon 1.5s ease-in-out infinite;
     }
     .todo-content {
-      color: $dracula-cyan;
+      color: $accent-blue;
       font-weight: 500;
     }
   }
 
   &.todo-pending {
     .todo-status-icon {
-      color: $dracula-comment;
+      color: $text-muted;
     }
     .todo-content {
-      color: $dracula-fg;
+      color: $text-primary;
     }
   }
 }
@@ -598,23 +600,23 @@
   gap: 8px;
   padding: 6px 12px;
   margin: 4px 0;
-  background: rgba($dracula-purple, 0.08);
-  border-left: 3px solid $dracula-purple;
+  background: var(--tool-result-bg);
+  border-left: 3px solid var(--tool-result-border);
   border-radius: $radius-sm;
 
   &.is-error {
-    background: rgba($dracula-red, 0.1);
-    border-left-color: $dracula-red;
+    background: color-mix(in srgb, var(--accent-red) 15%, var(--bg-primary));
+    border-left-color: var(--accent-red);
 
     .output-result-icon {
-      color: $dracula-red;
+      color: var(--accent-red);
     }
   }
 }
 
 .output-result-icon {
   font-size: 14px;
-  color: $dracula-green;
+  color: var(--tool-result-text);
   flex-shrink: 0;
   margin-top: 2px;
 }
@@ -623,7 +625,7 @@
   margin: 0;
   font-family: $font-mono;
   font-size: 11px;
-  color: $dracula-comment;
+  color: var(--text-secondary);
   white-space: pre-wrap;
   word-break: break-word;
   max-height: 150px;
@@ -644,13 +646,13 @@
 
   &.is-error {
     .bash-output-container {
-      border-color: rgba($dracula-red, 0.4);
+      border-color: rgba($accent-red, 0.3);
     }
     .bash-output-header {
-      background: rgba($dracula-red, 0.15);
+      background: rgba($accent-red, 0.1);
     }
     .bash-output-icon {
-      color: $dracula-red;
+      color: $accent-red;
     }
   }
 }
@@ -658,8 +660,8 @@
 .bash-output-container {
   display: flex;
   flex-direction: column;
-  background: rgba($dracula-bg-darker, 0.8);
-  border: 1px solid rgba($dracula-comment, 0.25);
+  background: rgba($bg-primary, 0.8);
+  border: 1px solid $border-color;
   border-radius: $radius-sm;
   overflow: hidden;
   flex: 1;
@@ -670,28 +672,28 @@
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
-  background: rgba($dracula-current, 0.3);
-  border-bottom: 1px solid rgba($dracula-comment, 0.15);
+  background: rgba($bg-tertiary, 0.5);
+  border-bottom: 1px solid $border-color;
 }
 
 .bash-output-icon {
   font-family: $font-mono;
   font-size: 12px;
   font-weight: 700;
-  color: $dracula-green;
+  color: $text-secondary;
 }
 
 .bash-output-label {
   font-size: 11px;
   font-weight: 500;
-  color: $dracula-comment;
+  color: $text-muted;
 }
 
 .bash-output-truncated {
   margin-left: auto;
   font-size: 10px;
-  color: $dracula-orange;
-  background: rgba($dracula-orange, 0.15);
+  color: $accent-orange;
+  background: rgba($accent-orange, 0.1);
   padding: 2px 6px;
   border-radius: 3px;
 }
@@ -702,7 +704,7 @@
   font-family: $font-mono;
   font-size: 11px;
   line-height: 1.5;
-  color: $dracula-fg;
+  color: $text-primary;
   white-space: pre-wrap;
   word-break: break-word;
   max-height: 300px;
@@ -716,10 +718,10 @@
     background: transparent;
   }
   &::-webkit-scrollbar-thumb {
-    background: rgba($dracula-comment, 0.3);
+    background: rgba($text-muted, 0.3);
     border-radius: 3px;
     &:hover {
-      background: rgba($dracula-comment, 0.5);
+      background: rgba($text-muted, 0.5);
     }
   }
 }
@@ -730,7 +732,7 @@
   transition: background 0.15s ease;
 
   &:hover {
-    background: rgba($dracula-purple, 0.15);
+    background: rgba($bg-tertiary, 0.8);
   }
 }
 
@@ -756,8 +758,8 @@
 }
 
 .bash-modal {
-  background: $dracula-bg-darker;
-  border: 1px solid rgba($dracula-comment, 0.3);
+  background: $bg-primary;
+  border: 1px solid $border-color;
   border-radius: $radius-md;
   width: 90%;
   max-width: 800px;
@@ -773,28 +775,28 @@
   align-items: center;
   gap: 10px;
   padding: 12px 16px;
-  background: rgba($dracula-current, 0.4);
-  border-bottom: 1px solid rgba($dracula-comment, 0.2);
+  background: rgba($bg-tertiary, 0.6);
+  border-bottom: 1px solid $border-color;
 }
 
 .bash-modal-icon {
   font-family: $font-mono;
   font-size: 16px;
   font-weight: 700;
-  color: $dracula-green;
+  color: $text-secondary;
 }
 
 .bash-modal-title {
   font-size: 14px;
   font-weight: 600;
-  color: $dracula-fg;
+  color: $text-primary;
 }
 
 .bash-modal-close {
   margin-left: auto;
   background: transparent;
   border: none;
-  color: $dracula-comment;
+  color: $text-muted;
   font-size: 20px;
   cursor: pointer;
   padding: 4px 8px;
@@ -802,21 +804,21 @@
   transition: all 0.15s ease;
 
   &:hover {
-    background: rgba($dracula-red, 0.2);
-    color: $dracula-red;
+    background: rgba($accent-red, 0.15);
+    color: $accent-red;
   }
 }
 
 .bash-modal-command {
   padding: 10px 16px;
-  background: rgba($dracula-current, 0.2);
-  border-bottom: 1px solid rgba($dracula-comment, 0.15);
+  background: rgba($bg-tertiary, 0.4);
+  border-bottom: 1px solid $border-color;
 
   pre {
     margin: 0;
     font-family: $font-mono;
     font-size: 12px;
-    color: $dracula-cyan;
+    color: $text-primary;
     white-space: pre-wrap;
     word-break: break-all;
   }
@@ -834,14 +836,14 @@
     font-family: $font-mono;
     font-size: 12px;
     line-height: 1.6;
-    color: $dracula-fg;
+    color: $text-primary;
     white-space: pre-wrap;
     word-break: break-word;
   }
 
   // Loading state styling
   &.is-loading pre {
-    color: $dracula-comment;
+    color: $text-muted;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -850,8 +852,8 @@
       content: '';
       width: 12px;
       height: 12px;
-      border: 2px solid $dracula-comment;
-      border-top-color: $dracula-cyan;
+      border: 2px solid $text-muted;
+      border-top-color: $accent-blue;
       border-radius: 50%;
       animation: bash-loading-spin 0.8s linear infinite;
     }
@@ -865,10 +867,10 @@
     background: transparent;
   }
   &::-webkit-scrollbar-thumb {
-    background: rgba($dracula-comment, 0.3);
+    background: rgba($text-muted, 0.3);
     border-radius: 4px;
     &:hover {
-      background: rgba($dracula-comment, 0.5);
+      background: rgba($text-muted, 0.5);
     }
   }
 }

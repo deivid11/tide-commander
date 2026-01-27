@@ -225,6 +225,9 @@ export class CharacterFactory {
       const customModelScale = modelInfo.scale ?? 1.0;
       cloneResult.mesh.userData.customModelScale = customModelScale;
 
+      // Mark if this is a custom model (GLB uploaded by user) for brightness adjustments
+      cloneResult.mesh.userData.isCustomModel = modelInfo.isCustomModel;
+
       // Apply custom position offset if specified (x: horizontal, y: depth, z: vertical height)
       // Only apply if there are non-zero values to avoid overwriting default position
       if (modelInfo.offset && (modelInfo.offset.x !== 0 || modelInfo.offset.y !== 0 || modelInfo.offset.z !== 0)) {
@@ -900,6 +903,9 @@ export class CharacterFactory {
     // Don't apply scale here - let SceneManager handle all scaling uniformly
     const customModelScale = modelInfo.scale ?? 1.0;
     cloneResult.mesh.userData.customModelScale = customModelScale;
+
+    // Mark if this is a custom model (GLB uploaded by user) for brightness adjustments
+    cloneResult.mesh.userData.isCustomModel = modelInfo.isCustomModel;
 
     // Apply custom position offset if specified (x: horizontal, y: depth, z: vertical height)
     // Only apply if there are non-zero values to avoid overwriting default position
