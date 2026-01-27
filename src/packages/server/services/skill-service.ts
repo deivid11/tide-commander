@@ -29,26 +29,46 @@ const pendingSkillUpdates = new Set<string>();
 
 export function initSkills(): void {
   try {
-    // First, load user-created skills from disk
+    // First, load all skills from disk (both user-created and previously persisted builtin assignments)
     const storedSkills = loadSkills();
+    const storedSkillMap = new Map<string, Skill>();
     for (const skill of storedSkills) {
-      // Skip any old builtin skills from storage (we'll recreate them fresh)
-      if (skill.builtin) continue;
-      skills.set(skill.id, skill);
+      // Keep all stored skills (including old builtin entries with assignments)
+      storedSkillMap.set(skill.id, skill);
+      // If it's a user-created skill, add it immediately
+      if (!skill.builtin) {
+        skills.set(skill.id, skill);
+      }
     }
     log.log(` Loaded ${skills.size} user skills`);
 
-    // Then, ensure all built-in skills exist
+    // Then, ensure all built-in skills exist with restored assignments
     let builtinCount = 0;
     for (const definition of BUILTIN_SKILLS) {
       const builtinSkill = createBuiltinSkill(definition);
-      // Always set builtin skills (overwrite any existing to ensure latest content)
-      skills.set(builtinSkill.id, builtinSkill);
+      const builtinId = builtinSkill.id;
+
+      // If this builtin skill was previously persisted, restore its assignments
+      const storedVersion = storedSkillMap.get(builtinId);
+      if (storedVersion && (storedVersion.assignedAgentIds.length > 0 || storedVersion.assignedAgentClasses.length > 0)) {
+        // Merge persisted assignments with fresh builtin definition
+        const restoredSkill: Skill = {
+          ...builtinSkill,
+          assignedAgentIds: storedVersion.assignedAgentIds,
+          assignedAgentClasses: storedVersion.assignedAgentClasses,
+          enabled: storedVersion.enabled, // Also restore enabled state
+        };
+        skills.set(builtinId, restoredSkill);
+        log.log(` Restored builtin skill "${builtinSkill.name}" with ${restoredSkill.assignedAgentIds.length} agent assignments and ${restoredSkill.assignedAgentClasses.length} class assignments`);
+      } else {
+        // First time seeing this builtin, or it had no assignments
+        skills.set(builtinId, builtinSkill);
+      }
       builtinCount++;
     }
     log.log(` Loaded ${builtinCount} built-in skills`);
 
-    // Persist to ensure builtin skills are saved (in case this is first run)
+    // Persist to ensure any restored assignments are saved
     persistSkills();
   } catch (err) {
     log.error(' Failed to load skills:', err);
