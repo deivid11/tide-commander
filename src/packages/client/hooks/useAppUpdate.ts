@@ -1,10 +1,12 @@
 /**
  * Hook for checking and downloading app updates from GitHub releases
  * Works on Android (via Capacitor) by downloading APK and triggering install intent
+ *
+ * Uses CapacitorHttp for native HTTP requests on mobile to avoid CORS issues
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, CapacitorHttp } from '@capacitor/core';
 
 const GITHUB_REPO = 'deivid11/tide-commander';
 const GITHUB_RELEASES_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
@@ -94,6 +96,30 @@ export function useAppUpdate() {
   };
 
   /**
+   * Helper to fetch JSON using native HTTP on mobile (bypasses CORS)
+   * Falls back to regular fetch on web
+   */
+  const fetchJson = async <T>(url: string): Promise<{ data: T; status: number }> => {
+    if (Capacitor.isNativePlatform()) {
+      // Use native HTTP to bypass CORS restrictions on mobile
+      const response = await CapacitorHttp.get({
+        url,
+        headers: { 'Accept': 'application/vnd.github.v3+json' },
+      });
+      return { data: response.data as T, status: response.status };
+    } else {
+      // Use regular fetch on web
+      const response = await fetch(url, {
+        headers: { 'Accept': 'application/vnd.github.v3+json' },
+      });
+      if (!response.ok) {
+        return { data: null as T, status: response.status };
+      }
+      return { data: await response.json() as T, status: response.status };
+    }
+  };
+
+  /**
    * Check for updates from GitHub releases
    */
   const checkForUpdate = useCallback(async (force = false): Promise<UpdateInfo | null> => {
@@ -101,27 +127,22 @@ export function useAppUpdate() {
 
     try {
       // Fetch both latest release and recent releases list in parallel
-      const [latestResponse, listResponse] = await Promise.all([
-        fetch(GITHUB_RELEASES_URL, {
-          headers: { 'Accept': 'application/vnd.github.v3+json' },
-        }),
-        fetch(GITHUB_RELEASES_LIST_URL, {
-          headers: { 'Accept': 'application/vnd.github.v3+json' },
-        }),
+      const [latestResult, listResult] = await Promise.all([
+        fetchJson<GitHubRelease>(GITHUB_RELEASES_URL),
+        fetchJson<GitHubRelease[]>(GITHUB_RELEASES_LIST_URL),
       ]);
 
-      if (!latestResponse.ok) {
-        throw new Error(`GitHub API error: ${latestResponse.status}`);
+      if (latestResult.status !== 200) {
+        throw new Error(`GitHub API error: ${latestResult.status}`);
       }
 
-      const release: GitHubRelease = await latestResponse.json();
+      const release = latestResult.data;
       const latestVersion = release.tag_name;
 
       // Parse recent releases for history
       let recentReleases: ReleaseHistoryItem[] = [];
-      if (listResponse.ok) {
-        const releases: GitHubRelease[] = await listResponse.json();
-        recentReleases = releases.map(r => ({
+      if (listResult.status === 200 && listResult.data) {
+        recentReleases = listResult.data.map(r => ({
           version: r.tag_name,
           name: r.name,
           publishedAt: r.published_at,
