@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { store, useAgents, useSkillsArray, useCustomAgentClassesArray } from '../store';
 import { AGENT_CLASS_CONFIG, DEFAULT_NAMES, CHARACTER_MODELS } from '../scene/config';
-import type { AgentClass, PermissionMode, Skill, CustomAgentClass, BuiltInAgentClass, ClaudeModel } from '../../shared/types';
-import { PERMISSION_MODES, BUILT_IN_AGENT_CLASSES, CLAUDE_MODELS } from '../../shared/types';
-import { intToHex } from '../utils/formatting';
+import type { AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel } from '../../shared/types';
+import { PERMISSION_MODES, CLAUDE_MODELS } from '../../shared/types';
 import { STORAGE_KEYS, getStorageString, setStorageString, apiUrl } from '../utils/storage';
 import { ModelPreview } from './ModelPreview';
 
@@ -89,7 +88,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
   }, []);
 
   // Get skills that match the selected class (for auto-selection hint)
-  const classMatchingSkills = useMemo(() => {
+  const _classMatchingSkills = useMemo(() => {
     return availableSkills.filter(s => s.assignedAgentClasses.includes(selectedClass));
   }, [availableSkills, selectedClass]);
 
@@ -227,7 +226,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
   // Update name prefix when custom class changes
   useEffect(() => {
     if (!isOpen) return;
-    const usedNames = new Set(Array.from(agents.values()).map((a) => a.name));
+    const _usedNames = new Set(Array.from(agents.values()).map((a) => a.name));
     const customClass = customClasses.find(c => c.id === selectedClass);
 
     if (customClass) {

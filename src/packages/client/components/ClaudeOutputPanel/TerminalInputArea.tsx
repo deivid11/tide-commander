@@ -50,7 +50,7 @@ export function TerminalInputArea({
   isOpen,
   command,
   setCommand,
-  forceTextarea,
+  forceTextarea: _forceTextarea,
   setForceTextarea,
   useTextarea,
   attachedFiles,

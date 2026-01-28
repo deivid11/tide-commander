@@ -463,8 +463,8 @@ export function profileRender(
   phase: 'mount' | 'update' | 'nested-update',
   actualDuration: number,
   baseDuration: number,
-  startTime: number,
-  commitTime: number
+  _startTime: number,
+  _commitTime: number
 ): void {
   if (!isDev) return;
 
@@ -522,7 +522,7 @@ export function measure(name: string, startMark: string, endMark?: string): void
       `tide:${startMark}`,
       endMark ? `tide:${endMark}` : undefined
     );
-  } catch (e) {
+  } catch {
     // Marks may not exist
   }
 }

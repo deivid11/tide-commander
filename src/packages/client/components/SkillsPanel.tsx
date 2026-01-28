@@ -142,7 +142,6 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
   const getActiveAgentCount = (skill: Skill): number => {
     if (!skill.enabled) return 0;
 
-    let count = 0;
     const countedAgents = new Set<string>();
 
     // Count agents from class assignments
@@ -347,9 +346,9 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
       if (workIdx >= 0) autoMapping.working = animations[workIdx];
 
       setAnimationMapping(autoMapping);
-    } catch (err: any) {
-      setModelUploadError(err.message || 'Failed to parse model');
-      console.error('Model parse error:', err);
+    } catch (_err: any) {
+      setModelUploadError(_err.message || 'Failed to parse model');
+      console.error('Model parse error:', _err);
     }
 
     // Clear the input so the same file can be selected again

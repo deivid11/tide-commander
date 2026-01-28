@@ -6,8 +6,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { store, useSkillsArray, useCustomAgentClassesArray } from '../store';
 import { ModelPreview } from './ModelPreview';
-import { ALL_CHARACTER_MODELS, CHARACTER_MODELS } from '../scene/config';
-import type { Agent, AgentClass, PermissionMode, Skill, BuiltInAgentClass, ClaudeModel } from '../../shared/types';
+import type { Agent, AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel } from '../../shared/types';
 import { BUILT_IN_AGENT_CLASSES, PERMISSION_MODES, CLAUDE_MODELS } from '../../shared/types';
 import { apiUrl } from '../utils/storage';
 
@@ -31,7 +30,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
   const [skillSearch, setSkillSearch] = useState('');
 
   // Get skills currently assigned to this agent
-  const currentAgentSkills = useMemo(() => {
+  const _currentAgentSkills = useMemo(() => {
     return allSkills.filter(s =>
       s.enabled && (
         s.assignedAgentIds.includes(agent.id) ||

@@ -595,7 +595,7 @@ function hasPM2ConfigChanged(oldBuilding: Building, newBuilding: Building): bool
  */
 export async function handleBuildingSync(
   newBuildings: Building[],
-  broadcast: BroadcastFn
+  _broadcast: BroadcastFn
 ): Promise<void> {
   const oldBuildings = loadBuildings();
   const oldBuildingsMap = new Map(oldBuildings.map(b => [b.id, b]));

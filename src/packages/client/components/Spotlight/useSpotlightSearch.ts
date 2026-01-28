@@ -8,7 +8,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Fuse from 'fuse.js';
-import { useStore, store, type FileChange } from '../../store';
+import { useStore, store } from '../../store';
 import { formatShortcut } from '../../store/shortcuts';
 import type { Agent, DrawingArea } from '../../../shared/types';
 import type { SearchResult, UseSpotlightSearchOptions, SpotlightSearchState } from './types';

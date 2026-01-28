@@ -212,7 +212,6 @@ export function useHistoryLoader({
         setLoadingHistory(false);
       });
   // Note: lastPrompts intentionally excluded from deps - we only use it to set initial prompt, not to trigger reloads
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedAgentId, hasSessionId, reconnectCount]);
 
   // Load more history when scrolling to top

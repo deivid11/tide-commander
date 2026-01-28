@@ -12,7 +12,6 @@ import type {
   Agent,
   DelegationDecision,
   SubordinateContext,
-  AgentSupervisorHistoryEntry,
 } from '../../shared/types.js';
 import { ClaudeBackend } from '../claude/index.js';
 import {

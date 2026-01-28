@@ -196,7 +196,7 @@ export class SceneCore {
         console.log('[SceneCore] Forcing WebGL context loss to release GPU memory');
         loseContext.loseContext();
       }
-    } catch (e) {
+    } catch {
       console.log('[SceneCore] WebGL context already lost or unavailable');
     }
 

@@ -94,7 +94,7 @@ export class CharacterLoader {
           });
           resolve();
         },
-        (progress) => {
+        (_progress) => {
           // Progress callback
         },
         (error) => {

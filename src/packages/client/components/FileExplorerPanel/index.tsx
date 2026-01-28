@@ -473,7 +473,7 @@ export function FileExplorerPanel({
     setOpenTabs(prev => {
       const newTabs = prev.filter(t => t.path !== path);
       const wasActive = prev.findIndex(t => t.path === path);
-      const isClosingActiveTab = wasActive !== -1 && prev[wasActive]?.path === path &&
+      const _isClosingActiveTab = wasActive !== -1 && prev[wasActive]?.path === path &&
                                   (activeTabPath === path || prev.find(t => t.path === activeTabPath) === undefined);
 
       // If we're closing the active tab, switch to another

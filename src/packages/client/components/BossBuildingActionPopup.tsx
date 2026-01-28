@@ -172,7 +172,7 @@ export function BossBuildingActionPopup({ building, screenPos, onClose, onOpenSe
               <span className="sub-name">{sub.name}</span>
               {sub.pm2Status?.ports && sub.pm2Status.ports.length > 0 && (
                 <span className="sub-port">
-                  {sub.pm2Status.ports.map((port, i) => (
+                  {sub.pm2Status.ports.map((port) => (
                     <a
                       key={port}
                       href={`http://localhost:${port}`}

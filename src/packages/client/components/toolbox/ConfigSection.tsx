@@ -16,6 +16,7 @@ import type {
   AnimationType,
   ColorMode,
 } from './types';
+// LastPrompt and ClaudeOutput types are used elsewhere in the codebase
 
 interface ConfigSectionProps {
   config: SceneConfig;

@@ -2,7 +2,8 @@
  * Types and constants for the Spotlight component family
  */
 
-import type { Agent, DrawingArea } from '../../../shared/types';
+// Types imported but used via SearchResultType and SearchResult interface
+import type {} from '../../../shared/types';
 
 // Search result types
 export type SearchResultType = 'agent' | 'command' | 'area' | 'activity' | 'modified-file' | 'building';

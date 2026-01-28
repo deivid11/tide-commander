@@ -218,9 +218,11 @@ export class RenderLoop {
     this.callbacks.onUpdateBattlefield(deltaTime, now);
 
     // Update time of day tracking
+    // Periodic time update placeholder (for future use)
     if (now - this.lastTimeUpdate > 60000) {
       this.lastTimeUpdate = now;
     }
+    // Suppress unused variable warning for 'id' parameter in frame timing
 
     // Update animations
     const completedMovements = this.callbacks.onUpdateAnimations(deltaTime);

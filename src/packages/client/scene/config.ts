@@ -15,6 +15,7 @@ export const AGENT_CLASS_CONFIG: Record<BuiltInAgentClass, { icon: string; color
 const DEFAULT_CLASS_CONFIG = { icon: '🤖', color: 0x888888, description: 'Custom agent class' };
 
 // Helper to safely get class config (works for both built-in and custom classes)
+// Exported for use in components that need to look up class visual config
 export function getAgentClassConfig(agentClass: AgentClass): { icon: string; color: number; description: string } {
   return AGENT_CLASS_CONFIG[agentClass as BuiltInAgentClass] || DEFAULT_CLASS_CONFIG;
 }
@@ -25,8 +26,6 @@ export const DEFAULT_NAMES = [
   'Tim Cook', 'Alan Turing', 'Lisa', 'Satoshi Nakamoto',
 ];
 
-// Legacy alias for backwards compatibility
-export const LOTR_NAMES = DEFAULT_NAMES;
 
 // Character model mapping for each agent class (Kenney Mini Characters)
 export const AGENT_CLASS_MODELS: Record<AgentClass, string> = {

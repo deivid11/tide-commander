@@ -6,7 +6,6 @@
 
 import type {
   Agent,
-  AgentAnalysis,
   DrawingArea,
   DrawingTool,
   ActivityNarrative,

@@ -11,7 +11,7 @@ interface BuildingEditorProps {
 }
 
 export function BuildingEditor({ building, onClose, onOpenModal }: BuildingEditorProps) {
-  const { buildingLogs } = useStore();
+  const { buildingLogs: _buildingLogs } = useStore();
   const logs = store.getBuildingLogs(building.id);
   const typeInfo = BUILDING_TYPES[building.type];
   const styleInfo = BUILDING_STYLES[building.style || 'server-rack'];

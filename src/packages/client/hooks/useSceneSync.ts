@@ -113,7 +113,7 @@ export function useBuildingSync(sceneRef: React.RefObject<SceneManager | null>):
 
       // Compute hash including position, scale, style, name, and status
       let hash = 0;
-      for (const [id, building] of buildings) {
+      for (const [_id, building] of buildings) {
         // Position
         hash ^= (building.position.x * 1000 + building.position.z) | 0;
         // Scale

@@ -17,7 +17,7 @@ interface AgentProgressIndicatorProps {
 
 export function AgentProgressIndicator({
   progress,
-  defaultExpanded = false,
+  defaultExpanded: _defaultExpanded = false,
   onAgentClick,
 }: AgentProgressIndicatorProps) {
   // Track user-initiated collapse state separately from status-based default

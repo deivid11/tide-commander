@@ -810,7 +810,7 @@ export class EffectsManager {
         return (input.description as string || '').slice(0, 50);
       default:
         // Try to find any string parameter
-        for (const [key, value] of Object.entries(input)) {
+        for (const [_key, value] of Object.entries(input)) {
           if (typeof value === 'string' && value.length > 0 && value.length < 100) {
             return value.slice(0, 50);
           }

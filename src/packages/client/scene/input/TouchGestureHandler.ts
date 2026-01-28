@@ -1,4 +1,3 @@
-import * as THREE from 'three';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { DRAG_THRESHOLD } from '../config';
 import type { ScreenPosition } from './types';

@@ -32,12 +32,10 @@ import {
 import {
   STORAGE_KEYS,
   getStorageString,
-  setStorageString,
 } from '../../utils/storage';
 
 // Import types
 import type { ViewMode, EnrichedHistoryMessage } from './types';
-import { VIEW_MODES } from './types';
 
 // Import extracted hooks
 import { useKeyboardHeight } from './useKeyboardHeight';
@@ -63,7 +61,7 @@ import {
 } from './TerminalModals';
 import { HistoryLine } from './HistoryLine';
 import { OutputLine } from './OutputLine';
-import { GuakeAgentLink } from './GuakeAgentLink';
+import { GuakeAgentLink as _GuakeAgentLink } from './GuakeAgentLink';
 import { AgentDebugPanel } from './AgentDebugPanel';
 import { agentDebugger } from '../../services/agentDebugger';
 import { AgentProgressIndicator } from './AgentProgressIndicator';
@@ -300,7 +298,7 @@ export function ClaudeOutputPanel() {
   }, [keyboard.keyboardScrollLockRef, outputScrollRef]);
 
   // Async version with RAF for use after renders
-  const scrollToBottom = useCallback(() => {
+  const _scrollToBottom = useCallback(() => {
     if (keyboard.keyboardScrollLockRef.current) return;
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {

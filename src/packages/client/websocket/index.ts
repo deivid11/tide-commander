@@ -3,7 +3,6 @@ import { store } from '../store';
 import { perf } from '../utils/profiling';
 import { agentDebugger, debugLog } from '../services/agentDebugger';
 import { STORAGE_KEYS, getStorageString } from '../utils/storage';
-import { showNotification, isNativeApp } from '../utils/notifications';
 
 // Persist WebSocket state across HMR reloads using window object
 // This prevents orphaned connections and ensures we maintain the same socket
@@ -40,7 +39,6 @@ const setReconnectAttempts = (v: number) => { window.__tideWsState!.reconnectAtt
 const getReconnectTimeout = () => window.__tideWsState!.reconnectTimeout;
 const setReconnectTimeout = (v: NodeJS.Timeout | null) => { window.__tideWsState!.reconnectTimeout = v; };
 
-let connectionPromise: Promise<void> | null = null;
 const maxReconnectAttempts = 10;
 
 // Track if we've added the beforeunload listener
@@ -67,8 +65,6 @@ function handleBeforeUnload(): void {
   }
   // Clear session storage flag to prevent stale reconnection state on refresh
   sessionStorage.removeItem(SESSION_STORAGE_KEY);
-  // Clear module-level connection promise
-  connectionPromise = null;
 }
 
 // Add beforeunload listener once (idempotent)
@@ -250,13 +246,7 @@ export function connect(): void {
     }
   };
 
-  // Track message sequence for debugging dropped messages
-  let messageSeq = 0;
-
   newSocket.onmessage = (event) => {
-    messageSeq++;
-    const seq = messageSeq;
-
     try {
       const message = JSON.parse(event.data) as ServerMessage;
 

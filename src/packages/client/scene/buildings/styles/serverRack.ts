@@ -151,7 +151,7 @@ export function updateServerRackIdle(meshData: BuildingMeshData, animationTime: 
 /**
  * Update running animations for server rack.
  */
-export function updateServerRackRunning(meshData: BuildingMeshData, animationTime: number): void {
+export function updateServerRackRunning(meshData: BuildingMeshData, _animationTime: number): void {
   for (let i = 0; i < 5; i++) {
     const activityLed = meshData.group.getObjectByName(`activityLed_${i}`) as THREE.Mesh;
     if (activityLed && activityLed.material instanceof THREE.MeshBasicMaterial) {

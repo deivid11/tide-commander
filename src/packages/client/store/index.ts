@@ -6,12 +6,12 @@
  * module provides actions that operate on shared state.
  */
 
-import type { Agent, ClientMessage } from '../../shared/types';
+import type { ClientMessage } from '../../shared/types';
 import { STORAGE_KEYS, getStorage, setStorage, getStorageString, setStorageString } from '../utils/storage';
 import { closeAllModalsExcept } from '../hooks';
 
 // Import types
-import type { StoreState, Listener, Settings, ClaudeOutput, LastPrompt } from './types';
+import type { StoreState, Listener, Settings } from './types';
 import { DEFAULT_SETTINGS } from './types';
 
 // Import domain actions

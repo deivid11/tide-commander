@@ -4,7 +4,7 @@ import { store } from '../../store';
 import { DRAG_THRESHOLD, FORMATION_SPACING } from '../config';
 import type { AgentMeshData } from '../characters/CharacterFactory';
 import { getStorage, STORAGE_KEYS } from '../../utils/storage';
-import type { Agent, Building } from '../../../shared/types';
+import type { Agent } from '../../../shared/types';
 
 // Import extracted modules
 import { DoubleClickDetector } from './DoubleClickDetector';
@@ -967,7 +967,7 @@ export class InputHandler {
     start: { x: number; y: number },
     end: { x: number; y: number }
   ): void {
-    const rect = this.canvas.getBoundingClientRect();
+    const _rect = this.canvas.getBoundingClientRect();
     const boxLeft = Math.min(start.x, end.x);
     const boxRight = Math.max(start.x, end.x);
     const boxTop = Math.min(start.y, end.y);

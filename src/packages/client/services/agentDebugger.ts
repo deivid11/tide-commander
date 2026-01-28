@@ -93,13 +93,13 @@ class AgentDebuggerService {
         size: raw.length,
         raw,
       });
-    } catch (error) {
+    } catch (_e) {
       this.addMessage(agentId, {
         id: generateUUID(),
         agentId,
         direction: 'sent',
         type: 'parse_error',
-        payload: { error: String(error) },
+        payload: { error: String(_e) },
         timestamp: Date.now(),
         size: raw.length,
         raw,
@@ -126,13 +126,13 @@ class AgentDebuggerService {
         size: raw.length,
         raw,
       });
-    } catch (error) {
+    } catch (_e) {
       this.addMessage(agentId, {
         id: generateUUID(),
         agentId,
         direction: 'received',
         type: 'parse_error',
-        payload: { error: String(error) },
+        payload: { error: String(_e) },
         timestamp: Date.now(),
         size: raw.length,
         raw,

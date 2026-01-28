@@ -7,7 +7,7 @@
  */
 
 import type { ExecTask } from '../../shared/types';
-import type { StoreState, Listener } from './types';
+import type { StoreState } from './types';
 
 export interface ExecTaskActions {
   // Task lifecycle

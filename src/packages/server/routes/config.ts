@@ -4,13 +4,12 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { createReadStream, createWriteStream, existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'fs';
+import { createReadStream, existsSync, mkdirSync, readdirSync, statSync } from 'fs';
 import { readFile, writeFile, mkdir, rm } from 'fs/promises';
-import { join, basename, dirname } from 'path';
+import { join, dirname } from 'path';
 import os from 'os';
 import archiver from 'archiver';
 import { Extract } from 'unzip-stream';
-import { pipeline } from 'stream/promises';
 import { createLogger } from '../utils/index.js';
 
 const log = createLogger('ConfigRoutes');

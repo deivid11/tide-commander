@@ -67,7 +67,7 @@ function copyStyles(sourceDoc: Document, targetDoc: Document): void {
         }
         targetDoc.head.appendChild(newStyleEl);
       }
-    } catch (e) {
+    } catch {
       // Handle cross-origin stylesheets by linking them
       if (styleSheet.href) {
         const newLinkEl = targetDoc.createElement('link');
@@ -158,7 +158,6 @@ export function useDocumentPiP(): DocumentPiPState {
 
     try {
       // Request PiP window from the browser
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const documentPiP = (window as any).documentPictureInPicture;
       const newPipWindow: Window = await documentPiP.requestWindow({
         width: opts.width,

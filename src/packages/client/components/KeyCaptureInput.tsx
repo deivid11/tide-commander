@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { ShortcutConfig, ShortcutModifiers, formatShortcut, findConflictingShortcuts } from '../store/shortcuts';
-import { store, useShortcuts } from '../store';
+import { useShortcuts } from '../store';
 
 interface KeyCaptureInputProps {
   shortcut: ShortcutConfig;

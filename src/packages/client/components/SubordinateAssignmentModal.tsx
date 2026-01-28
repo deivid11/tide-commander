@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { store, useAgents, useAgent } from '../store';
-import type { Agent } from '../../shared/types';
 import { AGENT_CLASSES } from '../../shared/types';
 
 interface SubordinateAssignmentModalProps {
