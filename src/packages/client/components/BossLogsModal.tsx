@@ -128,8 +128,11 @@ export function BossLogsModal({ building, isOpen, onClose }: BossLogsModalProps)
     if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Escape to close
+      // Escape to close - stop propagation to prevent closing other modals (like Guake terminal)
       if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
         if (showSearch) {
           setShowSearch(false);
         } else {
@@ -156,8 +159,9 @@ export function BossLogsModal({ building, isOpen, onClose }: BossLogsModalProps)
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    // Use capture phase to intercept before other handlers
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
   }, [isOpen, showSearch, onClose]);
 
   // Focus search input when shown

@@ -19,6 +19,7 @@ import { MobileFabMenu } from './components/MobileFabMenu';
 import { FloatingActionButtons } from './components/FloatingActionButtons';
 import { AppModals } from './components/AppModals';
 import { PiPWindow, AgentsPiPView } from './components/PiPWindow';
+import { IframeModal } from './components/IframeModal';
 import { profileRender } from './utils/profiling';
 import {
   useModalState,
@@ -62,6 +63,7 @@ function AppContent() {
   const explorerFolderPath = useExplorerFolderPath();
   const contextMenu = useContextMenu();
   const pip = useDocumentPiP(); // Document Picture-in-Picture for agents view
+  const [iframeModalUrl, setIframeModalUrl] = useState<string | null>(null);
 
   const [spawnPosition, setSpawnPosition] = useState<{ x: number; z: number } | null>(null);
   // 'selected' means delete all selected buildings, otherwise a specific building ID
@@ -87,6 +89,10 @@ function AppContent() {
 
   const [sceneConfig, setSceneConfig] = useState(loadConfig);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    const saved = localStorage.getItem('tide-commander-sidebar-collapsed');
+    return saved === 'true';
+  });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const mobileView = useMobileView();
   const fileViewerPath = useFileViewerPath();
@@ -240,6 +246,16 @@ function AppContent() {
     showToast('info', 'Rectangle Tool', 'Click and drag on the battlefield to draw an area', 3000);
   }, [sceneRef, showToast]);
 
+  // Handle opening URL in iframe modal
+  const handleOpenUrlInModal = useCallback((url: string) => {
+    setIframeModalUrl(url);
+  }, []);
+
+  // Handle closing iframe modal
+  const handleCloseIframeModal = useCallback(() => {
+    setIframeModalUrl(null);
+  }, []);
+
   // Handle delete selected agents
   const handleDeleteSelectedAgents = useCallback(() => {
     const selectedIds = Array.from(state.selectedAgentIds);
@@ -353,7 +369,28 @@ function AppContent() {
           <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />
         )}
 
-        <aside className={`sidebar ${sidebarOpen ? 'sidebar-open' : ''}`}>
+        {/* Sidebar toggle button for desktop */}
+        <button
+          className={`sidebar-toggle-btn hide-on-mobile ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}
+          onClick={() => {
+            const newValue = !sidebarCollapsed;
+            setSidebarCollapsed(newValue);
+            localStorage.setItem('tide-commander-sidebar-collapsed', String(newValue));
+            // Trigger resize for Three.js canvas
+            setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
+          }}
+          title={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            {sidebarCollapsed ? (
+              <><rect x="3" y="3" width="18" height="18" rx="2" /><line x1="15" y1="3" x2="15" y2="21" /><polyline points="10 8 6 12 10 16" /></>
+            ) : (
+              <><rect x="3" y="3" width="18" height="18" rx="2" /><line x1="15" y1="3" x2="15" y2="21" /><polyline points="10 16 14 12 10 8" /></>
+            )}
+          </svg>
+        </button>
+
+        <aside className={`sidebar ${sidebarOpen ? 'sidebar-open' : ''} ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
           <button
             className="sidebar-close-btn show-on-mobile"
             onClick={() => setSidebarOpen(false)}
@@ -448,6 +485,7 @@ function AppContent() {
                 setBuildingPopup(null);
                 setBossLogsModalBuildingId(buildingPopup.buildingId);
               }}
+              onOpenUrlInModal={handleOpenUrlInModal}
             />
           );
         }
@@ -464,6 +502,7 @@ function AppContent() {
             onOpenLogsModal={() => {
               setPm2LogsModalBuildingId(buildingPopup.buildingId);
             }}
+            onOpenUrlInModal={handleOpenUrlInModal}
           />
         );
       })()}
@@ -513,6 +552,14 @@ function AppContent() {
         <AgentsPiPView />
       </PiPWindow>
 
+      {/* Iframe Modal for port URLs */}
+      <IframeModal
+        url={iframeModalUrl || ''}
+        title={iframeModalUrl ? `Preview - ${iframeModalUrl}` : ''}
+        isOpen={!!iframeModalUrl}
+        onClose={handleCloseIframeModal}
+      />
+
       {/* Bottom Agent Bar */}
       <AgentBar
         onFocusAgent={handleFocusAgent}
@@ -552,6 +599,8 @@ function AppContent() {
         showBackNavModal={showBackNavModal}
         onCloseBackNavModal={() => setShowBackNavModal(false)}
         onLeave={handleLeave}
+        onOpenPM2LogsModal={(buildingId) => setPm2LogsModalBuildingId(buildingId)}
+        onOpenBossLogsModal={(buildingId) => setBossLogsModalBuildingId(buildingId)}
       />
 
       {/* PWA Install Banner - disabled */}

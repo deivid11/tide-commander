@@ -9,6 +9,7 @@ interface BuildingActionPopupProps {
   onClose: () => void;
   onOpenSettings: () => void;
   onOpenLogsModal?: () => void;
+  onOpenUrlInModal?: (url: string) => void;
 }
 
 // Format bytes to human readable
@@ -96,7 +97,7 @@ function ansiToHtml(text: string): React.ReactNode[] {
   return parts.length > 0 ? parts : [text];
 }
 
-export function BuildingActionPopup({ building, screenPos, onClose, onOpenSettings, onOpenLogsModal }: BuildingActionPopupProps) {
+export function BuildingActionPopup({ building, screenPos, onClose, onOpenSettings, onOpenLogsModal, onOpenUrlInModal }: BuildingActionPopupProps) {
   const [showLogs, setShowLogs] = useState(false);
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -155,9 +156,14 @@ export function BuildingActionPopup({ building, screenPos, onClose, onOpenSettin
     }
   };
 
-  const handleOpenUrl = (port?: number) => {
+  const handleOpenUrl = (port?: number, openInPiP?: boolean) => {
     if (port) {
-      window.open(`http://localhost:${port}`, '_blank');
+      const url = `http://localhost:${port}`;
+      if (openInPiP && onOpenUrlInModal) {
+        onOpenUrlInModal(url);
+      } else {
+        window.open(url, '_blank');
+      }
     }
   };
 
@@ -218,10 +224,10 @@ export function BuildingActionPopup({ building, screenPos, onClose, onOpenSettin
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  handleOpenUrl(port);
+                  handleOpenUrl(port, e.altKey);
                 }}
                 onMouseDown={(e) => e.stopPropagation()}
-                title={`Open http://localhost:${port}`}
+                title={`Open http://localhost:${port} (Alt+Click for modal)`}
               >
                 :{port}
               </a>
@@ -317,8 +323,8 @@ export function BuildingActionPopup({ building, screenPos, onClose, onOpenSettin
         {allPorts.length === 1 && (
           <button
             className="action-btn open-url"
-            onClick={() => handleOpenUrl(allPorts[0])}
-            title={`Open http://localhost:${allPorts[0]}`}
+            onClick={(e) => handleOpenUrl(allPorts[0], e.altKey)}
+            title={`Open http://localhost:${allPorts[0]} (Alt+Click for modal)`}
           >
             <span className="icon">&#128279;</span>
             Open
@@ -331,8 +337,8 @@ export function BuildingActionPopup({ building, screenPos, onClose, onOpenSettin
               <button
                 key={port}
                 className="action-btn open-url port-btn"
-                onClick={() => handleOpenUrl(port)}
-                title={`Open http://localhost:${port}`}
+                onClick={(e) => handleOpenUrl(port, e.altKey)}
+                title={`Open http://localhost:${port} (Alt+Click for modal)`}
               >
                 :{port}
               </button>

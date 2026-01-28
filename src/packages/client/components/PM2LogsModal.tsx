@@ -117,8 +117,11 @@ export function PM2LogsModal({ building, isOpen, onClose }: PM2LogsModalProps) {
     if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Escape to close
+      // Escape to close - stop propagation to prevent closing other modals (like Guake terminal)
       if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
         if (showSearch) {
           setShowSearch(false);
         } else if (showGoToLine) {
@@ -192,8 +195,9 @@ export function PM2LogsModal({ building, isOpen, onClose }: PM2LogsModalProps) {
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    // Use capture phase to intercept before other handlers
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
   }, [isOpen, showSearch, showGoToLine, searchMatches, currentMatchIndex, onClose]);
 
   // Scroll to a specific line

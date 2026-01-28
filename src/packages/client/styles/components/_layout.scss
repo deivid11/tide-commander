@@ -34,8 +34,48 @@
   border-left: 1px solid $border-color;
   display: flex;
   flex-direction: column;
+  transition: width 0.2s ease, min-width 0.2s ease, opacity 0.2s ease;
+
+  &.sidebar-collapsed {
+    width: 0;
+    min-width: 0;
+    border-left: none;
+    overflow: hidden;
+    opacity: 0;
+    pointer-events: none;
+  }
 }
 
 .sidebar-section {
   border-bottom: 1px solid $border-color;
+}
+
+// Sidebar toggle button
+.sidebar-toggle-btn {
+  position: fixed;
+  right: $sidebar-width + 8px;
+  top: 8px;
+  z-index: 1000; // Above everything including modals
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba($bg-secondary, 0.95);
+  border: 1px solid $border-color;
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: $bg-secondary;
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+
+  // When sidebar is collapsed, move toggle button to the right edge
+  &.sidebar-collapsed {
+    right: 8px;
+  }
 }

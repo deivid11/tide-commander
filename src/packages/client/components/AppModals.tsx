@@ -56,6 +56,10 @@ interface AppModalsProps {
   showBackNavModal: boolean;
   onCloseBackNavModal: () => void;
   onLeave: () => void;
+
+  // Building logs modals (for Spotlight)
+  onOpenPM2LogsModal: (buildingId: string) => void;
+  onOpenBossLogsModal: (buildingId: string) => void;
 }
 
 export function AppModals({
@@ -87,6 +91,8 @@ export function AppModals({
   showBackNavModal,
   onCloseBackNavModal,
   onLeave,
+  onOpenPM2LogsModal,
+  onOpenBossLogsModal,
 }: AppModalsProps) {
   const state = useStore();
   const isSelectedBuildingsDelete = pendingBuildingDelete === 'selected';
@@ -270,6 +276,8 @@ export function AppModals({
         onOpenToolbox={() => toolboxModal.open()}
         onOpenSupervisor={() => supervisorModal.open()}
         onOpenFileExplorer={(areaId) => explorerModal.open(areaId)}
+        onOpenPM2LogsModal={onOpenPM2LogsModal}
+        onOpenBossLogsModal={onOpenBossLogsModal}
       />
 
       {/* Controls Modal (Keyboard & Mouse) */}

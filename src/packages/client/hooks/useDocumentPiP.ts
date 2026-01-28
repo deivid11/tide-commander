@@ -12,6 +12,14 @@ export interface DocumentPiPOptions {
   height?: number;
   /** Whether to copy stylesheets to the PiP window */
   copyStyleSheets?: boolean;
+  /**
+   * How to handle keeping PiP visible when main window gains focus:
+   * - 'focus': Focus PiP window (steals focus from main window)
+   * - 'raise': Bring PiP to front then return focus to main window
+   * - 'none': Don't manage visibility (PiP may go behind main window)
+   * Default: 'focus'
+   */
+  keepOnTop?: 'focus' | 'raise' | 'none';
 }
 
 export interface DocumentPiPState {
@@ -35,6 +43,7 @@ const DEFAULT_OPTIONS: DocumentPiPOptions = {
   width: 400,
   height: 300,
   copyStyleSheets: true,
+  keepOnTop: 'focus',
 };
 
 /**
@@ -185,34 +194,52 @@ export function useDocumentPiP(): DocumentPiPState {
         setIsOpen(false);
       });
 
-      // Try to keep PiP window on top when main window gains focus
-      // This is a workaround since Document PiP doesn't have true always-on-top
-      const handleMainWindowFocus = () => {
-        if (pipWindowRef.current && !pipWindowRef.current.closed) {
-          // Small delay to let the focus event complete
-          setTimeout(() => {
-            pipWindowRef.current?.focus();
-          }, 50);
-        }
-      };
-
-      // Also handle visibility change to bring PiP back to front
-      const handleVisibilityChange = () => {
-        if (document.visibilityState === 'visible' && pipWindowRef.current && !pipWindowRef.current.closed) {
-          setTimeout(() => {
-            pipWindowRef.current?.focus();
-          }, 100);
-        }
-      };
-
-      window.addEventListener('focus', handleMainWindowFocus);
-      document.addEventListener('visibilitychange', handleVisibilityChange);
-
       // Store cleanup functions
-      (newPipWindow as any).__cleanupFns = [
-        () => window.removeEventListener('focus', handleMainWindowFocus),
-        () => document.removeEventListener('visibilitychange', handleVisibilityChange),
-      ];
+      const cleanupFns: Array<() => void> = [];
+
+      // Optionally keep PiP window on top when main window gains focus
+      if (opts.keepOnTop && opts.keepOnTop !== 'none') {
+        const shouldReturnFocus = opts.keepOnTop === 'raise';
+
+        const handleMainWindowFocus = () => {
+          if (pipWindowRef.current && !pipWindowRef.current.closed) {
+            // Small delay to let the focus event complete
+            setTimeout(() => {
+              if (pipWindowRef.current && !pipWindowRef.current.closed) {
+                pipWindowRef.current.focus();
+                // If 'raise' mode, return focus to main window
+                if (shouldReturnFocus) {
+                  setTimeout(() => window.focus(), 10);
+                }
+              }
+            }, 50);
+          }
+        };
+
+        // Also handle visibility change to bring PiP back to front
+        const handleVisibilityChange = () => {
+          if (document.visibilityState === 'visible' && pipWindowRef.current && !pipWindowRef.current.closed) {
+            setTimeout(() => {
+              if (pipWindowRef.current && !pipWindowRef.current.closed) {
+                pipWindowRef.current.focus();
+                if (shouldReturnFocus) {
+                  setTimeout(() => window.focus(), 10);
+                }
+              }
+            }, 100);
+          }
+        };
+
+        window.addEventListener('focus', handleMainWindowFocus);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        cleanupFns.push(
+          () => window.removeEventListener('focus', handleMainWindowFocus),
+          () => document.removeEventListener('visibilitychange', handleVisibilityChange),
+        );
+      }
+
+      (newPipWindow as any).__cleanupFns = cleanupFns;
 
       setPipWindow(newPipWindow);
       setPipContainer(container);

@@ -60,6 +60,8 @@ export function getTypeLabel(type: string): string {
       return 'Activity';
     case 'modified-file':
       return 'Changed';
+    case 'building':
+      return 'Server';
     default:
       return type;
   }

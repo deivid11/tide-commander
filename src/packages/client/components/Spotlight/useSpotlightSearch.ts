@@ -22,6 +22,8 @@ export function useSpotlightSearch({
   onOpenToolbox,
   onOpenSupervisor,
   onOpenFileExplorer,
+  onOpenPM2LogsModal,
+  onOpenBossLogsModal,
 }: UseSpotlightSearchOptions): SpotlightSearchState {
   const state = useStore();
   const [query, setQuery] = useState('');
@@ -211,6 +213,34 @@ export function useSpotlightSearch({
     }));
   }, [state.areas, onClose]);
 
+  // Build building results (server and boss buildings with logs)
+  const buildingResults: SearchResult[] = useMemo(() => {
+    return Array.from(state.buildings.values())
+      .filter((building) => building.type === 'server' || building.type === 'boss')
+      .map((building) => {
+        const statusIcon = building.status === 'running' ? '🟢' : building.status === 'stopped' ? '🔴' : '🟡';
+        const typeIcon = building.type === 'boss' ? '👑' : '🖥️';
+        const subtitle = `${building.type === 'boss' ? 'Boss' : 'Server'} • ${building.status}${building.cwd ? ` • ${building.cwd}` : ''}`;
+
+        return {
+          id: `building-${building.id}`,
+          type: 'building' as const,
+          title: building.name,
+          subtitle,
+          icon: `${statusIcon} ${typeIcon}`,
+          _searchText: `${building.name} ${building.type} ${building.status} ${building.cwd || ''} ${building.pm2?.name || ''}`,
+          action: () => {
+            onClose();
+            if (building.type === 'boss') {
+              onOpenBossLogsModal(building.id);
+            } else if (building.pm2?.enabled) {
+              onOpenPM2LogsModal(building.id);
+            }
+          },
+        };
+      });
+  }, [state.buildings, onClose, onOpenPM2LogsModal, onOpenBossLogsModal]);
+
   // Build modified files results from file changes
   const modifiedFileResults: SearchResult[] = useMemo(() => {
     const fileChanges = state.fileChanges || [];
@@ -360,13 +390,28 @@ export function useSpotlightSearch({
     [activityResults]
   );
 
+  const buildingFuse = useMemo(
+    () =>
+      new Fuse(buildingResults, {
+        keys: ['title', 'subtitle', '_searchText'],
+        threshold: 0.4,
+        ignoreLocation: true,
+        includeScore: true,
+        includeMatches: true,
+      }),
+    [buildingResults]
+  );
+
   // Compute search results
   const results = useMemo(() => {
     if (!query.trim()) {
-      // Show recent/suggested items when no query - prioritize agents
+      // Show recent/suggested items when no query - prioritize buildings, then agents
       const suggested: SearchResult[] = [];
 
-      // Show all agents first, sorted by time away (shortest idle first = finished more recently)
+      // Show buildings first (servers/bosses) - most likely what user wants to access quickly
+      suggested.push(...buildingResults);
+
+      // Show all agents, sorted by time away (shortest idle first = finished more recently)
       const sortedAgents = [...agentResults].sort((a, b) => {
         // Sort by timeAway ascending (agents idle shorter appear first)
         const timeA = a.timeAway ?? 0;
@@ -390,12 +435,18 @@ export function useSpotlightSearch({
     const matchedAreas = areaFuse.search(query).slice(0, 2);
     const matchedModifiedFiles = modifiedFileFuse.search(query).slice(0, 3);
     const matchedActivities = activityFuse.search(query).slice(0, 3);
+    const matchedBuildings = buildingFuse.search(query).slice(0, 4);
 
-    // Combine results - AGENTS FIRST (priority)
+    // Combine results - BUILDINGS FIRST (priority), then agents
     const finalResults: SearchResult[] = [];
     const lowerQuery = query.toLowerCase();
 
-    // Agents first - check for matching files and user queries
+    // Buildings (servers and bosses) first
+    for (const r of matchedBuildings) {
+      finalResults.push(r.item);
+    }
+
+    // Agents - check for matching files and user queries
     for (const r of matchedAgents) {
       const item = { ...r.item };
       // Find files that match the query
