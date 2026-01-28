@@ -237,6 +237,9 @@ export function connect(): void {
     // Start status polling as fallback for missed WebSocket updates
     store.startStatusPolling();
 
+    // Clear stale permissions - server will send fresh list of pending permissions
+    store.clearAllPermissions();
+
     if (isReconnection) {
       onToast?.('success', 'Reconnected', 'Connection restored - refreshing data...');
       // Trigger reconnection callback to refresh history and re-establish listeners

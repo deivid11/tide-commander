@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import type { Agent } from '../../../shared/types.js';
-import { agentService, claudeService, skillService, customClassService, bossService } from '../../services/index.js';
+import { agentService, claudeService, skillService, customClassService, bossService, permissionService } from '../../services/index.js';
 import { createLogger } from '../../utils/index.js';
 import type { HandlerContext } from './types.js';
 
@@ -147,6 +147,15 @@ export async function handleKillAgent(
   const agent = agentService.getAgent(payload.agentId);
   log.log(`Agent ${agent?.name || payload.agentId}: User requested agent deletion`);
 
+  // Cancel any pending permissions and notify clients
+  const cancelledPermissions = permissionService.cancelRequestsForAgent(payload.agentId);
+  for (const requestId of cancelledPermissions) {
+    ctx.broadcast({
+      type: 'permission_resolved',
+      payload: { requestId, approved: false },
+    });
+  }
+
   await claudeService.stopAgent(payload.agentId);
   unlinkAgentFromBossHierarchy(payload.agentId);
   agentService.deleteAgent(payload.agentId);
@@ -163,6 +172,15 @@ export async function handleStopAgent(
 ): Promise<void> {
   const agent = agentService.getAgent(payload.agentId);
   log.log(`Agent ${agent?.name || payload.agentId}: Stop requested`);
+
+  // Cancel any pending permissions and notify clients
+  const cancelledPermissions = permissionService.cancelRequestsForAgent(payload.agentId);
+  for (const requestId of cancelledPermissions) {
+    ctx.broadcast({
+      type: 'permission_resolved',
+      payload: { requestId, approved: false },
+    });
+  }
 
   await claudeService.stopAgent(payload.agentId);
   agentService.updateAgent(payload.agentId, {

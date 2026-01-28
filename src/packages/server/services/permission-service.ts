@@ -159,8 +159,10 @@ export function getPendingRequestsForAgent(agentId: string): PermissionRequest[]
 
 /**
  * Cancel all pending requests for an agent (e.g., when agent is stopped)
+ * Returns the IDs of cancelled requests so callers can broadcast to clients
  */
-export function cancelRequestsForAgent(agentId: string): void {
+export function cancelRequestsForAgent(agentId: string): string[] {
+  const cancelledIds: string[] = [];
   for (const [id, pending] of pendingRequests) {
     if (pending.request.agentId === agentId) {
       log.log(`Cancelling permission request ${id} for stopped agent ${agentId}`);
@@ -169,8 +171,10 @@ export function cancelRequestsForAgent(agentId: string): void {
       agentService.updateAgent(agentId, { status: pending.previousStatus }, false);
       pending.resolve({ decision: 'block', reason: 'Agent was stopped' });
       pendingRequests.delete(id);
+      cancelledIds.push(id);
     }
   }
+  return cancelledIds;
 }
 
 /**

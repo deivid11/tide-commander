@@ -12,6 +12,7 @@ export interface PermissionActions {
   resolvePermissionRequest(requestId: string, approved: boolean): void;
   respondToPermissionRequest(requestId: string, approved: boolean, reason?: string, remember?: boolean): void;
   getPendingPermissionsForAgent(agentId: string): PermissionRequest[];
+  clearAllPermissions(): void;
 }
 
 export function createPermissionActions(
@@ -72,6 +73,13 @@ export function createPermissionActions(
       return Array.from(getState().permissionRequests.values()).filter(
         (r) => r.agentId === agentId && r.status === 'pending'
       );
+    },
+
+    clearAllPermissions(): void {
+      setState((state) => {
+        state.permissionRequests = new Map();
+      });
+      notify();
     },
   };
 }
