@@ -719,6 +719,7 @@ class Store
   resolvePermissionRequest(...args: Parameters<PermissionActions['resolvePermissionRequest']>) { return this.permissionActions.resolvePermissionRequest(...args); }
   respondToPermissionRequest(...args: Parameters<PermissionActions['respondToPermissionRequest']>) { return this.permissionActions.respondToPermissionRequest(...args); }
   getPendingPermissionsForAgent(...args: Parameters<PermissionActions['getPendingPermissionsForAgent']>) { return this.permissionActions.getPendingPermissionsForAgent(...args); }
+  clearAllPermissions(...args: Parameters<PermissionActions['clearAllPermissions']>) { return this.permissionActions.clearAllPermissions(...args); }
 
   // ============================================================================
   // Delegation Actions (delegated)
