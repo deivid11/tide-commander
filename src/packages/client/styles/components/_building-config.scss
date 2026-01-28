@@ -1,6 +1,472 @@
 // Building Config Modal Styles
 @use '../variables' as *;
 
+// ============================================================================
+// Building Action Popup (on battlefield click)
+// ============================================================================
+.building-action-popup {
+  background: $bg-secondary;
+  border: 1px solid $border-color;
+  border-radius: $radius-lg;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  min-width: 240px;
+  max-width: 300px;
+  font-size: 0.85rem;
+  overflow: hidden;
+
+  .building-popup-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 0.75rem;
+    background: $bg-tertiary;
+    border-bottom: 1px solid $border-color;
+    cursor: grab;
+    user-select: none;
+
+    &.dragging {
+      cursor: grabbing;
+    }
+
+    .building-popup-name {
+      font-weight: 600;
+      color: $text-primary;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .building-popup-port {
+      font-family: $font-mono;
+      font-size: 0.8rem;
+      color: $accent-blue;
+      font-weight: 600;
+      flex: 1;
+    }
+
+    .building-popup-ports {
+      display: flex;
+      gap: 0.25rem;
+      flex: 1;
+    }
+
+    .building-popup-port-link {
+      font-family: $font-mono;
+      font-size: 0.75rem;
+      color: $accent-blue;
+      font-weight: 600;
+      text-decoration: none;
+      padding: 0.1rem 0.3rem;
+      border-radius: 3px;
+      background: rgba($accent-blue, 0.1);
+      transition: all 0.15s;
+      cursor: pointer;
+
+      &:hover {
+        background: rgba($accent-blue, 0.25);
+        color: lighten($accent-blue, 10%);
+        text-decoration: underline;
+      }
+    }
+
+    .building-popup-status {
+      font-size: 0.65rem;
+      padding: 0.15rem 0.4rem;
+      border-radius: 3px;
+      color: #000;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .building-popup-close {
+      background: transparent;
+      border: none;
+      color: $text-muted;
+      cursor: pointer;
+      padding: 0.25rem;
+      line-height: 1;
+      font-size: 0.9rem;
+
+      &:hover {
+        color: $text-primary;
+      }
+    }
+  }
+
+  .building-popup-metrics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: $bg-primary;
+    border-bottom: 1px solid $border-color;
+
+    .metric {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 40px;
+
+      .label {
+        font-size: 0.6rem;
+        color: $text-muted;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .value {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: $text-primary;
+        font-family: $font-mono;
+      }
+    }
+  }
+
+  .building-popup-error {
+    padding: 0.4rem 0.75rem;
+    background: rgba($accent-red, 0.1);
+    color: $accent-red;
+    font-size: 0.75rem;
+    border-bottom: 1px solid $border-color;
+
+    .error-hint {
+      display: block;
+      font-size: 0.7rem;
+      color: $text-muted;
+      margin-top: 0.2rem;
+    }
+  }
+
+  .building-popup-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.4rem;
+    padding: 0.5rem 0.75rem;
+
+    .action-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.35rem;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid $border-color;
+      border-radius: $radius-md;
+      background: $bg-tertiary;
+      color: $text-primary;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.15s;
+
+      .icon {
+        font-size: 0.9rem;
+      }
+
+      &:hover:not(:disabled) {
+        border-color: $accent-blue;
+        background: $bg-secondary;
+      }
+
+      &:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+
+      &.start {
+        border-color: rgba($accent-green, 0.4);
+        &:hover:not(:disabled) {
+          background: rgba($accent-green, 0.15);
+          border-color: $accent-green;
+        }
+      }
+
+      &.stop {
+        border-color: rgba($accent-red, 0.4);
+        &:hover:not(:disabled) {
+          background: rgba($accent-red, 0.15);
+          border-color: $accent-red;
+        }
+      }
+
+      &.restart {
+        border-color: rgba($accent-orange, 0.4);
+        &:hover:not(:disabled) {
+          background: rgba($accent-orange, 0.15);
+          border-color: $accent-orange;
+        }
+      }
+
+      &.logs {
+        border-color: rgba($accent-blue, 0.4);
+        &:hover:not(:disabled) {
+          background: rgba($accent-blue, 0.15);
+          border-color: $accent-blue;
+        }
+      }
+
+      &.open-url {
+        border-color: rgba($accent-purple, 0.4);
+        &:hover:not(:disabled) {
+          background: rgba($accent-purple, 0.15);
+          border-color: $accent-purple;
+        }
+      }
+
+      &.port-btn {
+        padding: 0.4rem 0.5rem;
+        font-family: $font-mono;
+        font-size: 0.75rem;
+        min-width: 50px;
+      }
+    }
+
+    .action-btn-group {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.3rem 0.5rem;
+      background: rgba($accent-purple, 0.05);
+      border: 1px solid rgba($accent-purple, 0.2);
+      border-radius: $radius-md;
+
+      .action-btn-label {
+        font-size: 0.75rem;
+        color: $text-muted;
+        margin-right: 0.25rem;
+      }
+    }
+  }
+
+  .building-popup-logs {
+    border-top: 1px solid $border-color;
+
+    .logs-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.4rem 0.75rem;
+      background: $bg-tertiary;
+      font-size: 0.75rem;
+      color: $text-secondary;
+
+      button {
+        background: transparent;
+        border: none;
+        color: $accent-blue;
+        cursor: pointer;
+        font-size: 0.7rem;
+
+        &:hover {
+          text-decoration: underline;
+        }
+      }
+    }
+
+    .logs-content {
+      max-height: 150px;
+      overflow-y: auto;
+      padding: 0.5rem;
+      background: $bg-primary;
+      font-family: $font-mono;
+      font-size: 0.7rem;
+
+      pre {
+        margin: 0;
+        padding: 0.15rem 0;
+        white-space: pre-wrap;
+        word-break: break-all;
+        color: $text-secondary;
+        border-bottom: 1px solid $border-color;
+
+        &:last-child {
+          border-bottom: none;
+        }
+      }
+    }
+  }
+
+  .building-popup-settings {
+    display: block;
+    width: 100%;
+    padding: 0.5rem;
+    background: $bg-tertiary;
+    border: none;
+    border-top: 1px solid $border-color;
+    color: $text-secondary;
+    font-size: 0.75rem;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.15s;
+
+    &:hover {
+      background: $bg-secondary;
+      color: $text-primary;
+    }
+  }
+
+  // ============================================================================
+  // Boss Building Popup Styles
+  // ============================================================================
+  &.boss-building-popup {
+    min-width: 300px;
+    max-width: 380px;
+    border-color: rgba(#ffd700, 0.4);
+
+    .boss-header {
+      background: linear-gradient(135deg, $bg-tertiary 0%, rgba(#ffd700, 0.1) 100%);
+
+      .boss-icon {
+        font-size: 1rem;
+      }
+
+      .subordinate-count {
+        font-size: 0.7rem;
+        color: $text-muted;
+        margin-left: auto;
+        padding-right: 0.5rem;
+      }
+    }
+
+    .boss-status-overview {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      padding: 0.5rem 0.75rem;
+      background: $bg-primary;
+      border-bottom: 1px solid $border-color;
+
+      .status-badge {
+        font-size: 0.65rem;
+        padding: 0.15rem 0.4rem;
+        border-radius: 3px;
+        color: #000;
+        font-weight: 600;
+      }
+
+      .no-subordinates {
+        font-size: 0.75rem;
+        color: $text-muted;
+        font-style: italic;
+      }
+    }
+
+    .subordinate-list {
+      max-height: 150px;
+      overflow-y: auto;
+      padding: 0.25rem 0;
+      background: $bg-primary;
+      border-bottom: 1px solid $border-color;
+
+      .subordinate-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.35rem 0.75rem;
+        font-size: 0.75rem;
+        border-bottom: 1px solid rgba($border-color, 0.5);
+
+        &:last-child {
+          border-bottom: none;
+        }
+
+        &:hover {
+          background: $bg-tertiary;
+        }
+
+        .sub-status-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          flex-shrink: 0;
+        }
+
+        .sub-name {
+          font-weight: 500;
+          color: $text-primary;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          max-width: 100px;
+        }
+
+        .sub-port {
+          font-family: $font-mono;
+          font-size: 0.7rem;
+          color: $accent-blue;
+        }
+
+        .sub-metrics {
+          font-family: $font-mono;
+          font-size: 0.65rem;
+          color: $text-muted;
+          margin-left: auto;
+        }
+
+        .sub-uptime {
+          font-family: $font-mono;
+          font-size: 0.65rem;
+          color: $text-muted;
+        }
+      }
+    }
+
+    .boss-actions {
+      grid-template-columns: 1fr 1fr 1fr;
+    }
+
+    .boss-logs {
+      .logs-content {
+        max-height: 200px;
+
+        .logs-empty {
+          text-align: center;
+          color: $text-muted;
+          font-style: italic;
+          padding: 1rem;
+        }
+
+        .log-entry {
+          display: flex;
+          gap: 0.5rem;
+          padding: 0.2rem 0;
+          border-bottom: 1px solid rgba($border-color, 0.3);
+
+          &:last-child {
+            border-bottom: none;
+          }
+
+          &.error {
+            background: rgba($accent-red, 0.05);
+          }
+
+          .log-source {
+            font-weight: 600;
+            font-size: 0.65rem;
+            flex-shrink: 0;
+          }
+
+          pre {
+            margin: 0;
+            padding: 0;
+            border: none;
+            flex: 1;
+          }
+        }
+      }
+    }
+
+    .action-btn.logs.active {
+      background: rgba($accent-blue, 0.2);
+      border-color: $accent-blue;
+    }
+  }
+}
+
+// ============================================================================
+// Building Config Modal
+// ============================================================================
+
 .building-config-modal {
   width: 550px;
   max-width: 90vw;
@@ -27,6 +493,86 @@
     flex-direction: column;
     gap: 1rem;
     padding: 1rem;
+  }
+
+  // Size control (inline in form)
+  .building-size-control {
+    .size-slider-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+
+      .size-slider {
+        flex: 1;
+        height: 6px;
+        -webkit-appearance: none;
+        background: $bg-tertiary;
+        border-radius: 3px;
+        outline: none;
+
+        &::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          width: 16px;
+          height: 16px;
+          background: $accent-blue;
+          border-radius: 50%;
+          cursor: pointer;
+          transition: transform 0.15s;
+
+          &:hover {
+            transform: scale(1.2);
+          }
+        }
+
+        &::-moz-range-thumb {
+          width: 16px;
+          height: 16px;
+          background: $accent-blue;
+          border-radius: 50%;
+          cursor: pointer;
+          border: none;
+        }
+      }
+
+      .size-value {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: $text-primary;
+        font-family: $font-mono;
+        min-width: 50px;
+        text-align: right;
+      }
+    }
+
+    .size-presets {
+      display: flex;
+      gap: 0.35rem;
+      margin-top: 0.5rem;
+
+      .size-preset-btn {
+        flex: 1;
+        padding: 0.35rem 0.25rem;
+        font-size: 0.7rem;
+        background: $bg-tertiary;
+        border: 1px solid $border-color;
+        border-radius: 4px;
+        color: $text-secondary;
+        cursor: pointer;
+        transition: all 0.15s;
+        font-family: $font-mono;
+
+        &:hover {
+          border-color: $accent-blue;
+          color: $text-primary;
+        }
+
+        &.active {
+          background: rgba($accent-blue, 0.15);
+          border-color: $accent-blue;
+          color: $accent-blue;
+        }
+      }
+    }
   }
 
   .form-section {
@@ -67,6 +613,28 @@
     font-size: 0.75rem;
     color: $text-muted;
     margin-top: 0.25rem;
+  }
+
+  .form-hint-inline {
+    font-size: 0.75rem;
+    color: $text-muted;
+    margin-left: 0.5rem;
+  }
+
+  .form-textarea {
+    resize: vertical;
+    min-height: 60px;
+    font-family: $font-mono;
+    font-size: 0.8rem;
+    line-height: 1.4;
+  }
+
+  .env-row {
+    align-items: flex-start;
+
+    .command-label {
+      padding-top: 0.5rem;
+    }
   }
 
   // Building Type Selector
@@ -409,6 +977,39 @@
           animation: factory-smoke 1.5s ease-out infinite;
         }
       }
+
+      // Command Center style preview (for boss buildings)
+      &[data-style="command-center"] {
+        background: linear-gradient(180deg, #2a2a3a 0%, #1a1a2a 100%);
+        &::before {
+          content: '';
+          position: absolute;
+          left: 50%;
+          bottom: 6px;
+          width: 24px;
+          height: 20px;
+          background: #3a3a4a;
+          transform: translateX(-50%);
+          border-radius: 50% 50% 0 0;
+        }
+        &::after {
+          content: '';
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          width: 22px;
+          height: 22px;
+          border: 2px solid #ffd700;
+          border-radius: 50%;
+          transform: translate(-50%, -50%);
+          animation: command-center-ring 2s linear infinite;
+        }
+      }
+    }
+
+    @keyframes command-center-ring {
+      from { transform: translate(-50%, -50%) rotate(0deg); }
+      to { transform: translate(-50%, -50%) rotate(360deg); }
     }
 
     .building-style-name {
@@ -519,6 +1120,353 @@
     &:hover {
       border-color: $accent-blue;
     }
+  }
+
+  // Boss Building Section
+  .boss-building-section {
+    .subordinate-buildings-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      max-height: 200px;
+      overflow-y: auto;
+      padding: 0.5rem;
+      background: $bg-primary;
+      border: 1px solid $border-color;
+      border-radius: 4px;
+    }
+
+    .subordinate-building-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.4rem 0.5rem;
+      background: $bg-tertiary;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.15s;
+
+      &:hover {
+        background: $bg-secondary;
+      }
+
+      input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        accent-color: $accent-blue;
+      }
+
+      .subordinate-building-icon {
+        font-size: 1rem;
+      }
+
+      .subordinate-building-name {
+        flex: 1;
+        font-size: 0.85rem;
+        color: $text-primary;
+      }
+
+      .subordinate-building-status {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+      }
+    }
+
+    .no-buildings-hint {
+      text-align: center;
+      padding: 1rem;
+      color: $text-muted;
+    }
+
+    .boss-building-actions {
+      margin-top: 1rem;
+      padding: 0.75rem;
+      background: rgba($accent-yellow, 0.05);
+      border: 1px solid rgba($accent-yellow, 0.2);
+      border-radius: 6px;
+
+      .boss-actions-header {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: $text-secondary;
+        margin-bottom: 0.5rem;
+      }
+
+      .boss-actions-row {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+      }
+    }
+
+    .boss-subordinates-status {
+      margin-top: 0.75rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid rgba($accent-yellow, 0.2);
+
+      .boss-status-header {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: $text-muted;
+        margin-bottom: 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .boss-status-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        gap: 0.35rem;
+      }
+
+      .boss-status-item {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.25rem 0.5rem;
+        background: $bg-primary;
+        border-radius: 4px;
+        font-size: 0.75rem;
+
+        .boss-status-indicator {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+        }
+
+        .boss-status-name {
+          flex: 1;
+          color: $text-primary;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .boss-status-label {
+          color: $text-muted;
+          text-transform: capitalize;
+          font-size: 0.65rem;
+        }
+      }
+    }
+
+    .boss-logs-section {
+      margin-top: 1rem;
+
+      .boss-logs-container {
+        max-height: 300px;
+        overflow-y: auto;
+        background: #0d0d0d;
+        border: 1px solid $border-color;
+        border-radius: 4px;
+        font-family: $font-mono;
+        font-size: 0.75rem;
+      }
+
+      .boss-log-entry {
+        display: flex;
+        padding: 0.15rem 0.5rem;
+        border-bottom: 1px solid $border-color;
+
+        &:last-child {
+          border-bottom: none;
+        }
+
+        .boss-log-source {
+          color: $accent-blue;
+          font-weight: 600;
+          margin-right: 0.5rem;
+          white-space: nowrap;
+        }
+
+        .boss-log-content {
+          color: $text-secondary;
+          word-break: break-all;
+        }
+      }
+
+      .boss-logs-empty {
+        padding: 1rem;
+        text-align: center;
+        color: $text-muted;
+      }
+    }
+  }
+
+  // PM2 Toggle Section
+  .pm2-toggle-section {
+    .toggle-switch {
+      padding: 0.75rem 1rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .toggle-label {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .pm2-badge {
+      display: inline-block;
+      background: linear-gradient(135deg, #2d6a4f 0%, #40916c 100%);
+      color: #fff;
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 0.2rem 0.4rem;
+      border-radius: 3px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    // Override toggle checked color for PM2 green
+    .toggle-input:checked + .toggle-track {
+      background: rgba(#40916c, 0.2);
+      border-color: #40916c;
+
+      .toggle-thumb {
+        background: #40916c;
+      }
+    }
+  }
+
+  // PM2 Configuration Section
+  .pm2-config-section {
+    background: rgba($accent-green, 0.05);
+    border: 1px solid rgba($accent-green, 0.2);
+    border-radius: 6px;
+    padding: 0.75rem;
+
+    .command-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+
+      .command-label {
+        font-size: 0.8rem;
+        color: $text-muted;
+        min-width: 80px;
+        text-align: right;
+      }
+
+      .form-input {
+        flex: 1;
+        font-family: $font-mono;
+        font-size: 0.85rem;
+      }
+
+      .form-select {
+        font-family: $font-family;
+      }
+    }
+  }
+
+  // PM2 Status Display
+  .pm2-status-display {
+    margin-top: 0.75rem;
+    padding: 0.5rem;
+    background: $bg-primary;
+    border: 1px solid $border-color;
+    border-radius: 4px;
+
+    .pm2-status-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    .pm2-metric {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 50px;
+
+      .pm2-metric-label {
+        font-size: 0.65rem;
+        color: $text-muted;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .pm2-metric-value {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: $text-primary;
+        font-family: $font-mono;
+      }
+    }
+  }
+
+  // PM2 Examples Section
+  .pm2-examples {
+    margin-top: 0.5rem;
+
+    details {
+      background: $bg-primary;
+      border-radius: 4px;
+      border: 1px solid $border-color;
+
+      summary {
+        padding: 0.5rem 0.75rem;
+        cursor: pointer;
+        font-size: 0.8rem;
+        color: $text-secondary;
+
+        &:hover {
+          color: $text-primary;
+          background: $bg-tertiary;
+        }
+
+        &::marker {
+          color: $accent-blue;
+        }
+      }
+    }
+
+    .pm2-examples-content {
+      padding: 0.75rem;
+      border-top: 1px solid $border-color;
+    }
+
+    .pm2-example {
+      font-size: 0.75rem;
+      color: $text-secondary;
+      padding: 0.35rem 0;
+      border-bottom: 1px solid $border-color;
+
+      &:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+      }
+
+      strong {
+        color: $text-primary;
+        min-width: 70px;
+        display: inline-block;
+      }
+
+      code {
+        background: $bg-tertiary;
+        padding: 0.15rem 0.35rem;
+        border-radius: 3px;
+        font-family: $font-mono;
+        font-size: 0.7rem;
+        color: $accent-blue;
+      }
+    }
+  }
+
+  // PM2 Action Buttons
+  .pm2-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    flex-wrap: wrap;
   }
 
   // Commands Section
@@ -701,6 +1649,448 @@
     &:disabled {
       opacity: 0.5;
       cursor: not-allowed;
+    }
+  }
+}
+
+// ============================================================================
+// PM2 Logs Modal (Real-time streaming logs viewer)
+// ============================================================================
+
+.pm2-logs-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  backdrop-filter: blur(2px);
+}
+
+.pm2-logs-modal {
+  width: 95vw;
+  max-width: 1600px;
+  height: 90vh;
+  background: $bg-primary;
+  border: 1px solid $border-color;
+  border-radius: $radius-lg;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  .pm2-logs-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    background: $bg-secondary;
+    border-bottom: 1px solid $border-color;
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+
+      .modal-icon {
+        font-size: 1.1rem;
+      }
+
+      .modal-title {
+        font-weight: 600;
+        color: $text-primary;
+        font-size: 0.95rem;
+      }
+
+      .streaming-indicator {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-size: 0.7rem;
+        font-weight: 700;
+        color: $accent-green;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+
+        .pulse {
+          width: 8px;
+          height: 8px;
+          background: $accent-green;
+          border-radius: 50%;
+          animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+          0%, 100% {
+            opacity: 1;
+            transform: scale(1);
+          }
+          50% {
+            opacity: 0.5;
+            transform: scale(0.8);
+          }
+        }
+      }
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+
+      .line-count {
+        font-size: 0.75rem;
+        color: $text-muted;
+        font-family: $font-mono;
+      }
+
+      .modal-close {
+        background: transparent;
+        border: none;
+        color: $text-muted;
+        font-size: 1.5rem;
+        cursor: pointer;
+        padding: 0;
+        line-height: 1;
+        width: 28px;
+        height: 28px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: $radius-sm;
+
+        &:hover {
+          color: $text-primary;
+          background: $bg-tertiary;
+        }
+      }
+    }
+  }
+
+  .pm2-logs-modal-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    background: $bg-tertiary;
+    border-bottom: 1px solid $border-color;
+    gap: 0.5rem;
+
+    .toolbar-left,
+    .toolbar-right {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .toolbar-btn {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.35rem 0.65rem;
+      background: $bg-secondary;
+      border: 1px solid $border-color;
+      border-radius: $radius-sm;
+      color: $text-secondary;
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all 0.15s;
+
+      &:hover {
+        background: $bg-primary;
+        color: $text-primary;
+        border-color: $accent-blue;
+      }
+
+      &.active {
+        background: rgba($accent-blue, 0.2);
+        color: $accent-blue;
+        border-color: $accent-blue;
+      }
+
+      &.danger {
+        &:hover {
+          background: rgba($accent-red, 0.15);
+          color: $accent-red;
+          border-color: $accent-red;
+        }
+      }
+    }
+  }
+
+  .pm2-logs-search-bar {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    background: $bg-secondary;
+    border-bottom: 1px solid $border-color;
+    gap: 0.5rem;
+
+    input {
+      flex: 1;
+      background: $bg-primary;
+      border: 1px solid $border-color;
+      border-radius: $radius-sm;
+      padding: 0.4rem 0.6rem;
+      color: $text-primary;
+      font-size: 0.85rem;
+      font-family: $font-mono;
+
+      &::placeholder {
+        color: $text-muted;
+      }
+
+      &:focus {
+        outline: none;
+        border-color: $accent-blue;
+      }
+    }
+
+    .match-count {
+      font-size: 0.75rem;
+      color: $text-muted;
+      font-family: $font-mono;
+      min-width: 60px;
+      text-align: center;
+    }
+
+    .search-close {
+      background: transparent;
+      border: none;
+      color: $text-muted;
+      font-size: 1.2rem;
+      cursor: pointer;
+      padding: 0.25rem;
+
+      &:hover {
+        color: $text-primary;
+      }
+    }
+  }
+
+  .pm2-logs-goto-line {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    background: $bg-secondary;
+    border-bottom: 1px solid $border-color;
+    gap: 0.5rem;
+
+    label {
+      font-size: 0.85rem;
+      color: $text-secondary;
+    }
+
+    input {
+      width: 100px;
+      background: $bg-primary;
+      border: 1px solid $border-color;
+      border-radius: $radius-sm;
+      padding: 0.35rem 0.5rem;
+      color: $text-primary;
+      font-size: 0.85rem;
+      font-family: $font-mono;
+
+      &:focus {
+        outline: none;
+        border-color: $accent-blue;
+      }
+    }
+
+    button {
+      padding: 0.35rem 0.6rem;
+      background: $bg-tertiary;
+      border: 1px solid $border-color;
+      border-radius: $radius-sm;
+      color: $text-primary;
+      font-size: 0.8rem;
+      cursor: pointer;
+
+      &:hover {
+        background: $bg-primary;
+        border-color: $accent-blue;
+      }
+
+      &:first-of-type {
+        background: $accent-blue;
+        color: #000;
+        border-color: $accent-blue;
+
+        &:hover {
+          filter: brightness(1.1);
+        }
+      }
+    }
+  }
+
+  .pm2-logs-content {
+    flex: 1;
+    overflow: auto;
+    background: #0d0d0d;
+    font-family: $font-mono;
+    font-size: 0.8rem;
+    line-height: 1.4;
+
+    &.nowrap {
+      .log-line {
+        white-space: pre;
+      }
+    }
+
+    &.wrap {
+      .log-line {
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+    }
+
+    .logs-empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: $text-muted;
+      font-size: 0.9rem;
+    }
+
+    .logs-lines {
+      padding: 0.5rem 0;
+    }
+
+    .log-line {
+      display: flex;
+      min-height: 18px;
+      padding: 0 0.5rem;
+      transition: background 0.15s;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.03);
+      }
+
+      &.highlighted {
+        background: rgba($accent-yellow, 0.15);
+        animation: highlight-fade 2s ease-out;
+      }
+
+      &.current-match {
+        background: rgba($accent-blue, 0.2);
+      }
+
+      @keyframes highlight-fade {
+        0% {
+          background: rgba($accent-yellow, 0.3);
+        }
+        100% {
+          background: rgba($accent-yellow, 0.15);
+        }
+      }
+
+      .line-number {
+        min-width: 50px;
+        padding-right: 0.75rem;
+        color: $text-muted;
+        text-align: right;
+        user-select: none;
+        border-right: 1px solid $border-color;
+        margin-right: 0.75rem;
+      }
+
+      .line-content {
+        flex: 1;
+        color: $text-secondary;
+
+        .search-highlight,
+        mark.search-highlight {
+          background: rgba($accent-yellow, 0.4);
+          color: $text-primary;
+          padding: 0 2px;
+          border-radius: 2px;
+        }
+      }
+    }
+  }
+
+  .pm2-logs-modal-footer {
+    display: flex;
+    gap: 1.5rem;
+    padding: 0.5rem 1rem;
+    background: $bg-tertiary;
+    border-top: 1px solid $border-color;
+
+    .shortcut {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.7rem;
+      color: $text-muted;
+
+      kbd {
+        background: $bg-secondary;
+        border: 1px solid $border-color;
+        border-radius: 3px;
+        padding: 0.15rem 0.35rem;
+        font-family: $font-mono;
+        font-size: 0.65rem;
+        color: $text-secondary;
+      }
+    }
+  }
+
+  // Boss logs modal specific styles
+  &.boss-logs-modal {
+    .source-filter {
+      min-width: 120px;
+      padding: 0.35rem 0.5rem;
+      background: $bg-secondary;
+      border: 1px solid $border-color;
+      border-radius: $radius-sm;
+      color: $text-primary;
+      font-size: 0.75rem;
+      cursor: pointer;
+
+      &:hover {
+        border-color: $accent-blue;
+      }
+
+      &:focus {
+        outline: none;
+        border-color: $accent-blue;
+      }
+    }
+
+    .boss-log-line {
+      display: flex;
+      gap: 0.5rem;
+      align-items: flex-start;
+
+      .boss-log-source {
+        font-weight: 600;
+        font-size: 0.75rem;
+        flex-shrink: 0;
+        min-width: 80px;
+        max-width: 120px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      &.error-line {
+        background: rgba($accent-red, 0.1);
+      }
+    }
+
+    .empty-state {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: $text-muted;
+      font-style: italic;
+      padding: 2rem;
+      text-align: center;
     }
   }
 }

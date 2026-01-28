@@ -30,6 +30,11 @@ interface UseSceneSetupOptions {
     ) => void;
   };
   setHoveredAgentPopup: (popup: { agentId: string; screenPos: { x: number; y: number } } | null) => void;
+  setBuildingPopup: (popup: { buildingId: string; screenPos: { x: number; y: number }; fromClick?: boolean } | null) => void;
+  getBuildingPopup: () => { buildingId: string; screenPos: { x: number; y: number }; fromClick?: boolean } | null;
+  openBuildingModal: (buildingId: string) => void;
+  openPM2LogsModal?: (buildingId: string) => void;
+  openBossLogsModal?: (buildingId: string) => void;
 }
 
 /**
@@ -44,8 +49,15 @@ export function useSceneSetup({
   toolboxModal,
   contextMenu,
   setHoveredAgentPopup,
+  setBuildingPopup,
+  getBuildingPopup,
+  openBuildingModal,
+  openPM2LogsModal,
+  openBossLogsModal,
 }: UseSceneSetupOptions): React.RefObject<SceneManager | null> {
   const sceneRef = useRef<SceneManager | null>(null);
+  // Track pending popup timeout to cancel on double-click
+  const pendingPopupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!canvasRef.current || !selectionBoxRef.current) return;
@@ -132,13 +144,24 @@ export function useSceneSetup({
     }
 
     // Set up building click callback
-    sceneRef.current?.setOnBuildingClick((buildingId) => {
+    sceneRef.current?.setOnBuildingClick((buildingId, screenPos) => {
       store.selectBuilding(buildingId);
       const building = store.getState().buildings.get(buildingId);
       if (building?.type === 'folder' && building.folderPath) {
         store.openFileExplorer(building.folderPath);
+      } else if (building?.type === 'server' || building?.type === 'boss') {
+        // Clear any pending popup timeout
+        if (pendingPopupTimeoutRef.current) {
+          clearTimeout(pendingPopupTimeoutRef.current);
+        }
+        // Delay popup to allow double-click detection (250ms is typical double-click threshold)
+        pendingPopupTimeoutRef.current = setTimeout(() => {
+          setBuildingPopup({ buildingId, screenPos, fromClick: true });
+          pendingPopupTimeoutRef.current = null;
+        }, 250);
       } else {
-        toolboxModal.open();
+        // Open modal for other types
+        openBuildingModal(buildingId);
       }
     });
 
@@ -153,6 +176,54 @@ export function useSceneSetup({
         setHoveredAgentPopup({ agentId, screenPos });
       } else {
         setHoveredAgentPopup(null);
+      }
+    });
+
+    // Set up building hover callback (5 second delay for server buildings)
+    sceneRef.current?.setOnBuildingHover((buildingId, screenPos) => {
+      const currentPopup = getBuildingPopup();
+      if (buildingId && screenPos) {
+        const building = store.getState().buildings.get(buildingId);
+        // Only show hover popup for server and boss buildings (and only if not already opened by click)
+        if ((building?.type === 'server' || building?.type === 'boss') && !currentPopup?.fromClick) {
+          setBuildingPopup({ buildingId, screenPos, fromClick: false });
+        }
+      } else {
+        // Only close popup if it wasn't opened by a click
+        if (!currentPopup?.fromClick) {
+          setBuildingPopup(null);
+        }
+      }
+    });
+
+    // Set up ground click callback (close building popup when clicking on ground)
+    sceneRef.current?.setOnGroundClick(() => {
+      setBuildingPopup(null);
+    });
+
+    // Set up building double-click callback (open logs for server/boss buildings)
+    sceneRef.current?.setOnBuildingDoubleClick((buildingId) => {
+      // Cancel any pending popup from single click
+      if (pendingPopupTimeoutRef.current) {
+        clearTimeout(pendingPopupTimeoutRef.current);
+        pendingPopupTimeoutRef.current = null;
+      }
+      // Close any existing popup
+      setBuildingPopup(null);
+
+      const building = store.getState().buildings.get(buildingId);
+      if (building?.type === 'server' && building.pm2?.enabled) {
+        // Open PM2 logs modal for server buildings with PM2 enabled
+        openPM2LogsModal?.(buildingId);
+      } else if (building?.type === 'boss') {
+        // Open unified logs modal for boss buildings
+        openBossLogsModal?.(buildingId);
+      } else if (building?.type === 'folder' && building.folderPath) {
+        // Open file explorer for folder buildings
+        store.openFileExplorer(building.folderPath);
+      } else {
+        // Open building config modal for other types
+        openBuildingModal(buildingId);
       }
     });
 
@@ -196,6 +267,9 @@ export function useSceneSetup({
       },
       onAgentNotification: (notification) => {
         showAgentNotification(notification);
+      },
+      onBuildingUpdated: (building) => {
+        sceneRef.current?.updateBuilding(building);
       },
     });
 

@@ -228,8 +228,9 @@ export class SceneManager {
       onResizeMove: (pos: { x: number; z: number }) => this.drawingManager.updateResize(pos),
       onResizeEnd: () => this.drawingManager.finishResize(),
       onGroundClickOutsideArea: () => this.inputEventHandlers.handleGroundClickOutsideArea(),
-      onBuildingClick: (id: string) => this.inputEventHandlers.handleBuildingClick(id),
+      onBuildingClick: (id: string, screenPos: { x: number; y: number }) => this.inputEventHandlers.handleBuildingClick(id, screenPos),
       onBuildingDoubleClick: (id: string) => this.inputEventHandlers.handleBuildingDoubleClick(id),
+      onBuildingHover: (id: string | null, pos: { x: number; y: number } | null) => this.inputEventHandlers.handleBuildingHover(id, pos),
       onBuildingDragStart: () => {},
       onBuildingDragMove: (id: string, pos: { x: number; z: number }) => this.buildingManager.setBuildingPosition(id, pos),
       onBuildingDragEnd: (id: string, pos: { x: number; z: number }) => store.updateBuildingPosition(id, pos),
@@ -425,7 +426,7 @@ export class SceneManager {
   updateBuilding(building: import('../../shared/types').Building): void { this.buildingManager.updateBuilding(building); }
   syncBuildings(): void { this.buildingManager.syncFromStore(); }
   highlightBuilding(buildingId: string | null): void { this.buildingManager.highlightBuilding(buildingId); }
-  setOnBuildingClick(callback: (buildingId: string) => void): void { this.callbackManager.setOnBuildingClick(callback); }
+  setOnBuildingClick(callback: (buildingId: string, screenPos: { x: number; y: number }) => void): void { this.callbackManager.setOnBuildingClick(callback); }
   setOnBuildingDoubleClick(callback: (buildingId: string) => void): void { this.callbackManager.setOnBuildingDoubleClick(callback); }
 
   setOnContextMenu(callback: (screenPos: { x: number; y: number }, worldPos: { x: number; z: number }, target: { type: 'ground' | 'agent' | 'area' | 'building'; id?: string }) => void): void {
@@ -434,6 +435,14 @@ export class SceneManager {
 
   setOnAgentHover(callback: (agentId: string | null, screenPos: { x: number; y: number } | null) => void): void {
     this.callbackManager.setOnAgentHover(callback);
+  }
+
+  setOnBuildingHover(callback: (buildingId: string | null, screenPos: { x: number; y: number } | null) => void): void {
+    this.callbackManager.setOnBuildingHover(callback);
+  }
+
+  setOnGroundClick(callback: () => void): void {
+    this.callbackManager.setOnGroundClick(callback);
   }
 
   // ============================================

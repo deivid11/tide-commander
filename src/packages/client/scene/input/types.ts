@@ -23,8 +23,9 @@ export interface InputCallbacks {
   // Area callbacks
   onGroundClickOutsideArea?: () => void;
   // Building callbacks
-  onBuildingClick?: (buildingId: string) => void;
+  onBuildingClick?: (buildingId: string, screenPos: ScreenPosition) => void;
   onBuildingDoubleClick?: (buildingId: string) => void;
+  onBuildingHover?: (buildingId: string | null, screenPos: ScreenPosition | null) => void;
   onBuildingDragStart?: (buildingId: string, pos: { x: number; z: number }) => void;
   onBuildingDragMove?: (buildingId: string, pos: { x: number; z: number }) => void;
   onBuildingDragEnd?: (buildingId: string, pos: { x: number; z: number }) => void;

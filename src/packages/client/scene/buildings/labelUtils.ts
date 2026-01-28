@@ -5,7 +5,18 @@
  */
 
 import * as THREE from 'three';
+import type { Building } from '../../../shared/types';
 import type { BuildingMeshData } from './types';
+
+/**
+ * Get the display text for a building label (name + port if configured).
+ */
+export function getBuildingLabelText(building: Building): string {
+  if (building.pm2?.port) {
+    return `${building.name} :${building.pm2.port}`;
+  }
+  return building.name;
+}
 
 /**
  * Create a text label sprite.
@@ -80,3 +91,4 @@ export function updateLabel(meshData: BuildingMeshData, text: string): void {
   meshData.group.add(newLabel);
   meshData.label = newLabel;
 }
+

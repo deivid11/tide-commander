@@ -6,7 +6,7 @@
 import 'dotenv/config';
 import { createServer } from 'http';
 import { createApp } from './app.js';
-import { agentService, claudeService, supervisorService, bossService, skillService, customClassService, secretsService } from './services/index.js';
+import { agentService, claudeService, supervisorService, bossService, skillService, customClassService, secretsService, buildingService } from './services/index.js';
 import * as websocket from './websocket/handler.js';
 import { getDataDir } from './data/index.js';
 import { logger, closeFileLogging, getLogFilePath } from './utils/logger.js';
@@ -68,6 +68,9 @@ async function main(): Promise<void> {
   // Set up skill hot-reload (must be after websocket init to have broadcast available)
   skillService.setupSkillHotReload(agentService, claudeService, websocket.broadcast);
 
+  // Start PM2 status polling for buildings
+  buildingService.startPM2StatusPolling(websocket.broadcast);
+
   // Start server
   server.listen(Number(PORT), HOST, () => {
     logger.server.log(`Server running on http://${HOST}:${PORT}`);
@@ -80,6 +83,7 @@ async function main(): Promise<void> {
     logger.server.warn('Shutting down...');
     supervisorService.shutdown();
     bossService.shutdown();
+    buildingService.stopPM2StatusPolling();
     await claudeService.shutdown();
     agentService.persistAgents();
     server.close();

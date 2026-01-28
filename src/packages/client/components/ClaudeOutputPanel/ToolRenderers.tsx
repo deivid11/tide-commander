@@ -226,7 +226,7 @@ export function EditToolDiff({ content, onFileClick }: EditToolDiffProps) {
 
 interface ReadToolInputProps {
   content: string;
-  onFileClick?: (path: string, editData?: EditData) => void;
+  onFileClick?: (path: string, editData?: EditData | { highlightRange: { offset: number; limit: number } }) => void;
 }
 
 export function ReadToolInput({ content, onFileClick }: ReadToolInputProps) {
@@ -239,10 +239,20 @@ export function ReadToolInput({ content, onFileClick }: ReadToolInputProps) {
     }
 
     const fileName = file_path.split('/').pop() || file_path;
+    const hasRange = offset !== undefined && limit !== undefined;
+
+    const handleClick = () => {
+      if (hasRange) {
+        // Pass highlight range for Read tool with offset/limit
+        onFileClick?.(file_path, { highlightRange: { offset, limit } });
+      } else {
+        onFileClick?.(file_path);
+      }
+    };
 
     return (
       <div className="read-tool-input">
-        <span className="read-tool-file clickable" onClick={() => onFileClick?.(file_path)} title={`Open ${file_path}`}>
+        <span className="read-tool-file clickable" onClick={handleClick} title={`Open ${file_path}${hasRange ? ' (with highlighted lines)' : ''}`}>
           📄 {fileName}
         </span>
         <span className="read-tool-path">{file_path}</span>

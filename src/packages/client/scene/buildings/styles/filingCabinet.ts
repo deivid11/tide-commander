@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import type { Building } from '../../../../shared/types';
 import type { BuildingMeshData } from '../types';
 import { STATUS_COLORS, STYLE_PALETTES } from '../types';
-import { createLabel } from '../labelUtils';
+import { createLabel, getBuildingLabelText } from '../labelUtils';
 
 /**
  * Create a Filing Cabinet building.
@@ -121,7 +121,7 @@ export function createFilingCabinetBuildingMesh(building: Building): BuildingMes
   group.add(base);
 
   // Label
-  const label = createLabel(building.name);
+  const label = createLabel(getBuildingLabelText(building));
   label.position.set(0, 3.0, 0);
   label.name = 'buildingLabel';
   group.add(label);

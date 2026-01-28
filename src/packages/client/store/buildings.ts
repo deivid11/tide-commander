@@ -20,13 +20,29 @@ export interface BuildingActions {
   moveBuilding(buildingId: string, position: { x: number; z: number }): void;
   updateBuildingPosition(buildingId: string, position: { x: number; z: number }): void;
   createBuilding(data: Omit<Building, 'id' | 'createdAt' | 'status'>): void;
-  sendBuildingCommand(buildingId: string, command: 'start' | 'stop' | 'restart' | 'healthCheck' | 'logs'): void;
+  sendBuildingCommand(buildingId: string, command: 'start' | 'stop' | 'restart' | 'healthCheck' | 'logs' | 'delete'): void;
   addBuildingLogs(buildingId: string, logs: string): void;
   getBuildingLogs(buildingId: string): string[];
   clearBuildingLogs(buildingId: string): void;
   setBuildingsFromServer(buildingsArray: Building[]): void;
   updateBuildingFromServer(building: Building): void;
   removeBuildingFromServer(buildingId: string): void;
+  // Streaming log actions
+  startLogStreaming(buildingId: string, lines?: number): void;
+  stopLogStreaming(buildingId: string): void;
+  appendStreamingLogChunk(buildingId: string, chunk: string): void;
+  setStreamingStatus(buildingId: string, streaming: boolean): void;
+  getStreamingLogs(buildingId: string): string;
+  clearStreamingLogs(buildingId: string): void;
+  isLogStreaming(buildingId: string): boolean;
+  // Boss building actions
+  sendBossBuildingCommand(buildingId: string, command: 'start_all' | 'stop_all' | 'restart_all'): void;
+  assignBuildingsToBoSS(bossBuildingId: string, subordinateBuildingIds: string[]): void;
+  startBossLogStreaming(buildingId: string, lines?: number): void;
+  stopBossLogStreaming(buildingId: string): void;
+  appendBossStreamingLogChunk(bossBuildingId: string, subordinateBuildingId: string, subordinateBuildingName: string, chunk: string, isError?: boolean): void;
+  getBossStreamingLogs(buildingId: string): Array<{ subordinateId: string; subordinateName: string; chunk: string; timestamp: number; isError?: boolean }>;
+  clearBossStreamingLogs(buildingId: string): void;
 }
 
 export function createBuildingActions(
@@ -84,11 +100,24 @@ export function createBuildingActions(
     },
 
     deleteSelectedBuildings(): void {
-      setState((state) => {
-        for (const buildingId of state.selectedBuildingIds) {
-          state.buildings.delete(buildingId);
+      const state = getState();
+      // Delete PM2 processes for buildings that have PM2 enabled
+      for (const buildingId of state.selectedBuildingIds) {
+        const building = state.buildings.get(buildingId);
+        if (building?.pm2?.enabled) {
+          getSendMessage()?.({
+            type: 'building_command',
+            payload: { buildingId, command: 'delete' },
+          });
         }
-        state.selectedBuildingIds.clear();
+      }
+      setState((s) => {
+        const newBuildings = new Map(s.buildings);
+        for (const buildingId of s.selectedBuildingIds) {
+          newBuildings.delete(buildingId);
+        }
+        s.buildings = newBuildings;
+        s.selectedBuildingIds.clear();
       });
       syncBuildingsToServer();
       notify();
@@ -119,11 +148,20 @@ export function createBuildingActions(
     },
 
     deleteBuilding(buildingId: string): void {
-      setState((state) => {
-        const newBuildings = new Map(state.buildings);
+      const state = getState();
+      const building = state.buildings.get(buildingId);
+      // Delete PM2 process if building has PM2 enabled
+      if (building?.pm2?.enabled) {
+        getSendMessage()?.({
+          type: 'building_command',
+          payload: { buildingId, command: 'delete' },
+        });
+      }
+      setState((s) => {
+        const newBuildings = new Map(s.buildings);
         newBuildings.delete(buildingId);
-        state.buildings = newBuildings;
-        state.selectedBuildingIds.delete(buildingId);
+        s.buildings = newBuildings;
+        s.selectedBuildingIds.delete(buildingId);
       });
       syncBuildingsToServer();
       notify();
@@ -159,7 +197,7 @@ export function createBuildingActions(
 
     sendBuildingCommand(
       buildingId: string,
-      command: 'start' | 'stop' | 'restart' | 'healthCheck' | 'logs'
+      command: 'start' | 'stop' | 'restart' | 'healthCheck' | 'logs' | 'delete'
     ): void {
       getSendMessage()?.({
         type: 'building_command',
@@ -220,6 +258,187 @@ export function createBuildingActions(
         newBuildings.delete(buildingId);
         state.buildings = newBuildings;
         state.selectedBuildingIds.delete(buildingId);
+      });
+      notify();
+    },
+
+    // ========================================================================
+    // Streaming Log Actions
+    // ========================================================================
+
+    startLogStreaming(buildingId: string, lines: number = 100): void {
+      // Clear previous streaming logs and request new stream
+      setState((state) => {
+        const newStreamingLogs = new Map(state.streamingBuildingLogs);
+        newStreamingLogs.set(buildingId, '');
+        state.streamingBuildingLogs = newStreamingLogs;
+      });
+      getSendMessage()?.({
+        type: 'pm2_logs_start',
+        payload: { buildingId, lines },
+      });
+    },
+
+    stopLogStreaming(buildingId: string): void {
+      getSendMessage()?.({
+        type: 'pm2_logs_stop',
+        payload: { buildingId },
+      });
+    },
+
+    appendStreamingLogChunk(buildingId: string, chunk: string): void {
+      setState((state) => {
+        const existingLogs = state.streamingBuildingLogs.get(buildingId) || '';
+        // Limit buffer size to prevent memory issues (keep last 500KB)
+        const maxSize = 500 * 1024;
+        let newLogs = existingLogs + chunk;
+        if (newLogs.length > maxSize) {
+          // Find a newline near the start to cut cleanly
+          const cutPoint = newLogs.indexOf('\n', newLogs.length - maxSize);
+          if (cutPoint > 0) {
+            newLogs = newLogs.slice(cutPoint + 1);
+          } else {
+            newLogs = newLogs.slice(-maxSize);
+          }
+        }
+        const newStreamingLogs = new Map(state.streamingBuildingLogs);
+        newStreamingLogs.set(buildingId, newLogs);
+        state.streamingBuildingLogs = newStreamingLogs;
+      });
+      notify();
+    },
+
+    setStreamingStatus(buildingId: string, streaming: boolean): void {
+      setState((state) => {
+        const newStreamingIds = new Set(state.streamingBuildingIds);
+        if (streaming) {
+          newStreamingIds.add(buildingId);
+        } else {
+          newStreamingIds.delete(buildingId);
+        }
+        state.streamingBuildingIds = newStreamingIds;
+      });
+      notify();
+    },
+
+    getStreamingLogs(buildingId: string): string {
+      return getState().streamingBuildingLogs.get(buildingId) || '';
+    },
+
+    clearStreamingLogs(buildingId: string): void {
+      setState((state) => {
+        const newStreamingLogs = new Map(state.streamingBuildingLogs);
+        newStreamingLogs.delete(buildingId);
+        state.streamingBuildingLogs = newStreamingLogs;
+      });
+      notify();
+    },
+
+    isLogStreaming(buildingId: string): boolean {
+      return getState().streamingBuildingIds.has(buildingId);
+    },
+
+    // ========================================================================
+    // Boss Building Actions
+    // ========================================================================
+
+    sendBossBuildingCommand(
+      buildingId: string,
+      command: 'start_all' | 'stop_all' | 'restart_all'
+    ): void {
+      getSendMessage()?.({
+        type: 'boss_building_command',
+        payload: { buildingId, command },
+      });
+    },
+
+    assignBuildingsToBoSS(bossBuildingId: string, subordinateBuildingIds: string[]): void {
+      // Update local state
+      const state = getState();
+      const bossBuilding = state.buildings.get(bossBuildingId);
+      if (bossBuilding) {
+        setState((s) => {
+          const newBuildings = new Map(s.buildings);
+          newBuildings.set(bossBuildingId, {
+            ...bossBuilding,
+            subordinateBuildingIds,
+          });
+          s.buildings = newBuildings;
+        });
+        syncBuildingsToServer();
+        notify();
+      }
+
+      // Also notify the server
+      getSendMessage()?.({
+        type: 'assign_buildings',
+        payload: { bossBuildingId, subordinateBuildingIds },
+      });
+    },
+
+    startBossLogStreaming(buildingId: string, lines: number = 50): void {
+      // Clear previous boss streaming logs
+      setState((state) => {
+        const newBossStreamingLogs = new Map(state.bossStreamingLogs);
+        newBossStreamingLogs.set(buildingId, []);
+        state.bossStreamingLogs = newBossStreamingLogs;
+      });
+      getSendMessage()?.({
+        type: 'boss_building_logs_start',
+        payload: { buildingId, lines },
+      });
+    },
+
+    stopBossLogStreaming(buildingId: string): void {
+      getSendMessage()?.({
+        type: 'boss_building_logs_stop',
+        payload: { buildingId },
+      });
+    },
+
+    appendBossStreamingLogChunk(
+      bossBuildingId: string,
+      subordinateBuildingId: string,
+      subordinateBuildingName: string,
+      chunk: string,
+      isError?: boolean
+    ): void {
+      setState((state) => {
+        const existingLogs = state.bossStreamingLogs.get(bossBuildingId) || [];
+        const newEntry = {
+          subordinateId: subordinateBuildingId,
+          subordinateName: subordinateBuildingName,
+          chunk,
+          timestamp: Date.now(),
+          isError,
+        };
+        // Limit to last 1000 entries
+        const newLogs = [...existingLogs, newEntry];
+        if (newLogs.length > 1000) {
+          newLogs.splice(0, newLogs.length - 1000);
+        }
+        const newBossStreamingLogs = new Map(state.bossStreamingLogs);
+        newBossStreamingLogs.set(bossBuildingId, newLogs);
+        state.bossStreamingLogs = newBossStreamingLogs;
+      });
+      notify();
+    },
+
+    getBossStreamingLogs(buildingId: string): Array<{
+      subordinateId: string;
+      subordinateName: string;
+      chunk: string;
+      timestamp: number;
+      isError?: boolean;
+    }> {
+      return getState().bossStreamingLogs.get(buildingId) || [];
+    },
+
+    clearBossStreamingLogs(buildingId: string): void {
+      setState((state) => {
+        const newBossStreamingLogs = new Map(state.bossStreamingLogs);
+        newBossStreamingLogs.delete(buildingId);
+        state.bossStreamingLogs = newBossStreamingLogs;
       });
       notify();
     },

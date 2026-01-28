@@ -22,7 +22,7 @@ interface HistoryLineProps {
   highlight?: string;
   simpleView?: boolean;
   onImageClick?: (url: string, name: string) => void;
-  onFileClick?: (path: string, editData?: EditData) => void;
+  onFileClick?: (path: string, editData?: EditData | { highlightRange: { offset: number; limit: number } }) => void;
   onBashClick?: (command: string, output: string) => void;
   onViewMarkdown?: (content: string) => void;
 }
@@ -208,6 +208,18 @@ export const HistoryLine = memo(function HistoryLine({
               const parsed = JSON.parse(content);
               if (parsed.old_string !== undefined || parsed.new_string !== undefined) {
                 onFileClick(keyParam, { oldString: parsed.old_string || '', newString: parsed.new_string || '' });
+                return;
+              }
+            } catch {
+              /* ignore */
+            }
+          }
+          // Handle Read tool with offset/limit
+          if (toolName === 'Read' && content) {
+            try {
+              const parsed = JSON.parse(content);
+              if (parsed.offset !== undefined && parsed.limit !== undefined) {
+                onFileClick(keyParam, { highlightRange: { offset: parsed.offset, limit: parsed.limit } });
                 return;
               }
             } catch {

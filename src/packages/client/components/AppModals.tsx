@@ -47,6 +47,11 @@ interface AppModalsProps {
   onOpenAreaExplorer: (areaId: string) => void;
   onDeleteSelectedAgents: () => void;
 
+  // Building delete confirmation
+  pendingBuildingDelete: string | 'selected' | null;
+  onCancelBuildingDelete: () => void;
+  onConfirmBuildingDelete: () => void;
+
   // Navigation modal
   showBackNavModal: boolean;
   onCloseBackNavModal: () => void;
@@ -76,11 +81,19 @@ export function AppModals({
   onToolChange,
   onOpenAreaExplorer,
   onDeleteSelectedAgents,
+  pendingBuildingDelete,
+  onCancelBuildingDelete,
+  onConfirmBuildingDelete,
   showBackNavModal,
   onCloseBackNavModal,
   onLeave,
 }: AppModalsProps) {
   const state = useStore();
+  const isSelectedBuildingsDelete = pendingBuildingDelete === 'selected';
+  const pendingBuilding = pendingBuildingDelete && pendingBuildingDelete !== 'selected'
+    ? state.buildings.get(pendingBuildingDelete)
+    : null;
+  const selectedBuildingCount = state.selectedBuildingIds.size;
 
   return (
     <>
@@ -137,7 +150,7 @@ export function AppModals({
         );
       })()}
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete Agent Confirmation Modal */}
       {deleteConfirmModal.isOpen && (
         <div
           className="modal-overlay visible"
@@ -159,6 +172,38 @@ export function AppModals({
               </button>
               <button className="btn btn-danger" onClick={onDeleteSelectedAgents} autoFocus>
                 Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Building Confirmation Modal */}
+      {(pendingBuilding || isSelectedBuildingsDelete) && (
+        <div
+          className="modal-overlay visible"
+          onClick={onCancelBuildingDelete}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') onCancelBuildingDelete();
+            if (e.key === 'Enter') onConfirmBuildingDelete();
+          }}
+        >
+          <div className="modal confirm-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">Delete Building{isSelectedBuildingsDelete && selectedBuildingCount > 1 ? 's' : ''}</div>
+            <div className="modal-body confirm-modal-body">
+              {isSelectedBuildingsDelete ? (
+                <p>Delete {selectedBuildingCount} selected building{selectedBuildingCount > 1 ? 's' : ''}?</p>
+              ) : (
+                <p>Delete <strong>{pendingBuilding?.name}</strong>?</p>
+              )}
+              <p className="confirm-modal-note">This will permanently remove the building{isSelectedBuildingsDelete && selectedBuildingCount > 1 ? 's' : ''} and {isSelectedBuildingsDelete && selectedBuildingCount > 1 ? 'their' : 'its'} configuration.</p>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={onCancelBuildingDelete}>
+                Cancel
+              </button>
+              <button className="btn btn-danger" onClick={onConfirmBuildingDelete} autoFocus>
+                Delete
               </button>
             </div>
           </div>

@@ -9,6 +9,7 @@ import { store, useContextModalAgentId, useFileViewerPath, useFileViewerEditData
 import { ContextViewModal } from '../ContextViewModal';
 import { FileViewerModal } from '../FileViewerModal';
 import { AgentResponseModal } from './AgentResponseModal';
+import { ansiToHtml } from '../../utils/ansiToHtml';
 import type { Agent } from '../../../shared/types';
 
 // Image modal props
@@ -63,7 +64,7 @@ export function BashModal({ state, onClose }: BashModalProps) {
           <pre>{state.command}</pre>
         </div>
         <div className={`bash-modal-content ${state.isLive ? 'is-loading' : ''}`}>
-          <pre>{state.output}</pre>
+          <pre dangerouslySetInnerHTML={{ __html: ansiToHtml(state.output) }} />
         </div>
       </div>
     </div>

@@ -29,10 +29,12 @@ interface FileViewerModalProps {
   onClose: () => void;
   filePath: string;
   action: 'created' | 'modified' | 'deleted' | 'read';
-  // Optional: edit data for showing diff view
+  // Optional: edit data for showing diff view OR line highlight
   editData?: {
-    oldString: string;
-    newString: string;
+    oldString?: string;
+    newString?: string;
+    // For Read tool - highlight these lines
+    highlightRange?: { offset: number; limit: number };
   };
 }
 
@@ -160,24 +162,28 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
     return () => window.removeEventListener('keydown', handleGlobalKeyDown, { capture: true });
   }, [isOpen, onClose]);
 
-  // Apply syntax highlighting when file data changes (only when not showing diff)
-  useEffect(() => {
-    if (fileData && codeRef.current && !MARKDOWN_EXTENSIONS.includes(fileData.extension) && !editData) {
-      Prism.highlightElement(codeRef.current);
-    }
-  }, [fileData, editData]);
-
   // Compute original content by reversing the edit (replace newString back with oldString)
   const originalContent = useMemo(() => {
     if (!fileData || !editData) return null;
+    // Skip if this is a highlight range (not an edit)
+    if (editData.highlightRange) return null;
     const { oldString, newString } = editData;
+    if (!oldString || !newString) return null;
     // The current file has newString, so we replace it with oldString to get the original
     const index = fileData.content.indexOf(newString);
     if (index === -1) return null; // Can't find the edit, skip diff view
     return fileData.content.slice(0, index) + oldString + fileData.content.slice(index + newString.length);
   }, [fileData, editData]);
 
-  const showDiffView = editData && originalContent !== null;
+  const showDiffView = editData && editData.oldString && editData.newString && originalContent !== null;
+  const showHighlightView = editData?.highlightRange !== undefined;
+
+  // Apply syntax highlighting when file data changes (only when showing plain code view)
+  useEffect(() => {
+    if (fileData && codeRef.current && !MARKDOWN_EXTENSIONS.includes(fileData.extension) && !showDiffView && !showHighlightView) {
+      Prism.highlightElement(codeRef.current);
+    }
+  }, [fileData, showDiffView, showHighlightView]);
 
   const loadFile = async () => {
     setLoading(true);
@@ -350,6 +356,21 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
                 filename={fileData.filename}
                 language={language}
               />
+            ) : showHighlightView ? (
+              // Show file with highlighted lines (for Read tool with offset/limit)
+              <pre className="file-viewer-code file-viewer-code-highlighted">
+                {fileData.content.split('\n').map((line, idx) => {
+                  const lineNum = idx + 1;
+                  const range = editData?.highlightRange;
+                  const isHighlighted = range && lineNum >= range.offset && lineNum < range.offset + range.limit;
+                  return (
+                    <div key={idx} className={`file-line ${isHighlighted ? 'file-line-highlighted' : ''}`}>
+                      <span className="file-line-num">{lineNum}</span>
+                      <code className={`language-${language}`}>{line || ' '}</code>
+                    </div>
+                  );
+                })}
+              </pre>
             ) : isMarkdown ? (
               <div className="file-viewer-markdown markdown-content" ref={markdownContentRef}>
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{fileData.content}</ReactMarkdown>

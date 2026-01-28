@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import type { Building } from '../../../../shared/types';
 import type { BuildingMeshData } from '../types';
 import { STATUS_COLORS, STYLE_PALETTES } from '../types';
-import { createLabel } from '../labelUtils';
+import { createLabel, getBuildingLabelText } from '../labelUtils';
 
 /**
  * Create a Desktop PC building.
@@ -166,7 +166,7 @@ export function createDesktopBuildingMesh(building: Building): BuildingMeshData 
   group.add(base);
 
   // Label
-  const label = createLabel(building.name);
+  const label = createLabel(getBuildingLabelText(building));
   label.position.set(0, 2.3, 0);
   label.name = 'buildingLabel';
   group.add(label);

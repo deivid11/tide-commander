@@ -43,7 +43,10 @@ export class InputEventHandlers {
 
   handleGroundClick(): void {
     store.selectAgent(null);
+    store.selectBuilding(null);
+    this.deps.buildingManager.highlightBuilding(null);
     this.deps.refreshSelectionVisuals();
+    this.deps.callbackManager.triggerGroundClick();
   }
 
   handleMoveCommand(position: THREE.Vector3, agentIds: string[]): void {
@@ -115,10 +118,10 @@ export class InputEventHandlers {
     this.deps.drawingManager.highlightArea(null);
   }
 
-  handleBuildingClick(buildingId: string): void {
+  handleBuildingClick(buildingId: string, screenPos: { x: number; y: number } = { x: 0, y: 0 }): void {
     store.selectBuilding(buildingId);
     this.deps.buildingManager.highlightBuilding(buildingId);
-    this.deps.callbackManager.triggerBuildingClick(buildingId);
+    this.deps.callbackManager.triggerBuildingClick(buildingId, screenPos);
   }
 
   handleBuildingDoubleClick(buildingId: string): void {
@@ -132,5 +135,12 @@ export class InputEventHandlers {
     screenPos: { x: number; y: number } | null
   ): void {
     this.deps.callbackManager.triggerAgentHover(agentId, screenPos);
+  }
+
+  handleBuildingHover(
+    buildingId: string | null,
+    screenPos: { x: number; y: number } | null
+  ): void {
+    this.deps.callbackManager.triggerBuildingHover(buildingId, screenPos);
   }
 }

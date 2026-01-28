@@ -46,7 +46,16 @@ import {
   handleUpdateCustomAgentClass,
   handleDeleteCustomAgentClass,
 } from './handlers/custom-class-handler.js';
-import { handleBuildingCommand } from './handlers/building-handler.js';
+import {
+  handleBuildingCommand,
+  handlePM2LogsStart,
+  handlePM2LogsStop,
+  handleBossBuildingCommand,
+  handleAssignBuildings,
+  handleBossBuildingLogsStart,
+  handleBossBuildingLogsStop,
+} from './handlers/building-handler.js';
+import { buildingService } from '../services/index.js';
 import { handleSendCommand } from './handlers/command-handler.js';
 import { parseBossDelegation, parseBossSpawn, getBossForSubordinate, clearDelegation } from './handlers/boss-response-handler.js';
 import {
@@ -288,11 +297,42 @@ function handleClientMessage(ws: WebSocket, message: ClientMessage): void {
       break;
 
     case 'sync_buildings':
-      handleSyncMessage(ws, message.payload, 'buildings', saveBuildings, 'buildings_update');
+      // Handle PM2 process renames before saving
+      buildingService.handleBuildingSync(message.payload, broadcast).then(() => {
+        handleSyncMessage(ws, message.payload, 'buildings', saveBuildings, 'buildings_update');
+      });
       break;
 
     case 'building_command':
       handleBuildingCommand(ctx, message.payload);
+      break;
+
+    case 'pm2_logs_start':
+      handlePM2LogsStart(ctx, message.payload);
+      break;
+
+    case 'pm2_logs_stop':
+      handlePM2LogsStop(ctx, message.payload);
+      break;
+
+    // ========================================================================
+    // Boss Building Messages
+    // ========================================================================
+
+    case 'boss_building_command':
+      handleBossBuildingCommand(ctx, message.payload);
+      break;
+
+    case 'assign_buildings':
+      handleAssignBuildings(ctx, message.payload);
+      break;
+
+    case 'boss_building_logs_start':
+      handleBossBuildingLogsStart(ctx, message.payload);
+      break;
+
+    case 'boss_building_logs_stop':
+      handleBossBuildingLogsStop(ctx, message.payload);
       break;
 
     case 'permission_response':

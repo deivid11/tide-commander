@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import type { AgentClass, AgentStatus } from '../../shared/types';
 import { AGENT_CLASS_MODELS } from '../scene/config';
 
@@ -289,6 +291,10 @@ export function ModelPreview({ agentClass, modelFile, customModelFile, customMod
     if (!isReady || !sceneRef.current) return;
 
     const loader = new GLTFLoader();
+    const dracoLoader = new DRACOLoader();
+    dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
+    loader.setDRACOLoader(dracoLoader);
+    loader.setMeshoptDecoder(MeshoptDecoder);
     let blobUrl: string | null = null;
 
     // Helper to process loaded model
@@ -412,11 +418,12 @@ export function ModelPreview({ agentClass, modelFile, customModelFile, customMod
       );
     }
 
-    // Cleanup blob URL on unmount or when dependencies change
+    // Cleanup blob URL and DRACOLoader on unmount or when dependencies change
     return () => {
       if (blobUrl) {
         URL.revokeObjectURL(blobUrl);
       }
+      dracoLoader.dispose();
     };
   }, [agentClass, modelFile, customModelFile, customModelUrl, modelScale, modelOffset, isReady]);
 

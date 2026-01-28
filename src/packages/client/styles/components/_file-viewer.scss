@@ -179,7 +179,10 @@
   line-height: 1.6;
   color: var(--text-primary);
   white-space: pre;
-  overflow-x: auto;
+  width: fit-content;
+  min-width: 100%;
+  // Parent .file-viewer-content handles scrolling (both x and y)
+  // This ensures j/k keyboard scrolling works on the content container
 
   code {
     background: none;
@@ -220,6 +223,55 @@
   margin-left: -4px;
   border-radius: 2px;
   display: inline;
+}
+
+// File viewer with highlighted lines (Read tool with offset/limit)
+.file-viewer-code-highlighted {
+  padding: 0;
+
+  .file-line {
+    display: flex;
+    padding: 0 16px;
+    line-height: 1.5;
+
+    &:first-child {
+      padding-top: 8px;
+    }
+
+    &:last-child {
+      padding-bottom: 8px;
+    }
+
+    &.file-line-highlighted {
+      background: color-mix(in srgb, var(--accent-yellow) 15%, transparent);
+      border-left: 3px solid var(--accent-yellow);
+      padding-left: 13px;
+    }
+  }
+
+  .file-line-num {
+    flex-shrink: 0;
+    width: 45px;
+    padding-right: 12px;
+    text-align: right;
+    color: var(--text-muted);
+    font-size: 11px;
+    user-select: none;
+    opacity: 0.6;
+
+    .file-line-highlighted & {
+      opacity: 1;
+      color: var(--accent-yellow);
+    }
+  }
+
+  code {
+    flex: 1;
+    background: none;
+    padding: 0;
+    font-size: inherit;
+    white-space: pre;
+  }
 }
 
 // Prism.js syntax highlighting - using CSS variables for theme support

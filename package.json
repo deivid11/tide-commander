@@ -28,6 +28,7 @@
     "@capacitor/haptics": "^8.0.0",
     "@capacitor/local-notifications": "^8.0.0",
     "@capawesome/capacitor-background-task": "^8.0.0",
+    "archiver": "^7.0.1",
     "chokidar": "^4.0.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
@@ -39,9 +40,11 @@
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
     "three": "^0.170.0",
+    "unzip-stream": "^0.3.4",
     "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@types/archiver": "^7.0.0",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^25.0.9",
@@ -49,6 +52,7 @@
     "@types/react": "^19.2.8",
     "@types/react-dom": "^19.2.3",
     "@types/three": "^0.170.0",
+    "@types/unzip-stream": "^0.3.4",
     "@types/ws": "^8.5.13",
     "@vitejs/plugin-react": "^4.7.0",
     "concurrently": "^9.1.0",

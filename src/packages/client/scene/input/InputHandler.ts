@@ -4,7 +4,7 @@ import { store } from '../../store';
 import { DRAG_THRESHOLD, FORMATION_SPACING } from '../config';
 import type { AgentMeshData } from '../characters/CharacterFactory';
 import { getStorage, STORAGE_KEYS } from '../../utils/storage';
-import type { Agent } from '../../../shared/types';
+import type { Agent, Building } from '../../../shared/types';
 
 // Import extracted modules
 import { DoubleClickDetector } from './DoubleClickDetector';
@@ -85,6 +85,7 @@ export class InputHandler {
   private draggingBuildingId: string | null = null;
   private buildingDragStartPos: GroundPosition | null = null;
 
+
   // Hover state for agent tooltip
   private hoveredAgentId: string | null = null;
   private hoverTimer: ReturnType<typeof setTimeout> | null = null;
@@ -92,6 +93,11 @@ export class InputHandler {
   private static readonly HOVER_DELAY = 400; // 400ms
   private lastHoverCheckTime = 0;
   private static readonly HOVER_CHECK_INTERVAL = 50; // Throttle to 20Hz instead of 60Hz
+
+  // Hover state for building tooltip
+  private hoveredBuildingId: string | null = null;
+  private buildingHoverTimer: ReturnType<typeof setTimeout> | null = null;
+  private static readonly BUILDING_HOVER_DELAY = 5000; // 5 seconds
 
 
   constructor(
@@ -208,6 +214,7 @@ export class InputHandler {
     this.buildingPositionsGetter = getter;
   }
 
+
   /**
    * Raycast to ground and return world position.
    */
@@ -237,6 +244,7 @@ export class InputHandler {
     this.touchHandler.dispose();
     this.trackpadHandler.dispose();
     this.clearHoverTimer();
+    this.clearBuildingHoverTimer();
     window.removeEventListener('blur', this.onWindowBlur);
     document.removeEventListener('visibilitychange', this.onVisibilityChange);
     document.removeEventListener('keydown', this.onKeyDown);
@@ -544,11 +552,12 @@ export class InputHandler {
       if (this.draggingBuildingId) {
         const buildingId = this.draggingBuildingId;
         const groundPos = this.raycaster.raycastGroundFromEvent(event);
+        const screenPos = { x: event.clientX, y: event.clientY };
 
         if (this.isDraggingBuilding && groundPos) {
           this.callbacks.onBuildingDragEnd?.(buildingId, groundPos);
         } else {
-          this.handleBuildingClick(buildingId);
+          this.handleBuildingClick(buildingId, screenPos);
         }
 
         this.draggingBuildingId = null;
@@ -588,8 +597,9 @@ export class InputHandler {
   };
 
   private onPointerLeave = (_event: PointerEvent): void => {
-    // Clear hover state when mouse leaves the canvas
+    // Clear hover states when mouse leaves the canvas
     this.clearHoverState();
+    this.clearBuildingHoverState();
   };
 
   private onWindowBlur = (): void => {
@@ -684,8 +694,9 @@ export class InputHandler {
   };
 
   private cancelAllDragStates(): void {
-    // Clear hover state
+    // Clear hover states
     this.clearHoverState();
+    this.clearBuildingHoverState();
     // Cancel any active drag selection
     if (this.isDragging) {
       this.isDragging = false;
@@ -811,7 +822,8 @@ export class InputHandler {
     if (groundPos) {
       const building = this.buildingAtPositionGetter(groundPos);
       if (building) {
-        this.handleBuildingClick(building.id);
+        const screenPos = { x: clientX, y: clientY };
+        this.handleBuildingClick(building.id, screenPos);
         return;
       }
 
@@ -926,12 +938,14 @@ export class InputHandler {
     }
   }
 
-  private handleBuildingClick(buildingId: string): void {
+  private handleBuildingClick(buildingId: string, screenPos?: { x: number; y: number }): void {
     const clickType = this.buildingClickDetector.handleClick(buildingId);
     if (clickType === 'double') {
       this.callbacks.onBuildingDoubleClick?.(buildingId);
     } else {
-      this.callbacks.onBuildingClick?.(buildingId);
+      // Use provided screen position or default to center if not available
+      const pos = screenPos || { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+      this.callbacks.onBuildingClick?.(buildingId, pos);
     }
   }
 
@@ -1018,6 +1032,30 @@ export class InputHandler {
         }, InputHandler.HOVER_DELAY);
       }
     }
+
+    // Handle building hover detection (5 second delay)
+    const groundPos = this.raycaster.raycastGroundFromEvent(event);
+    const building = groundPos ? this.buildingAtPositionGetter(groundPos) : null;
+    const buildingId = building?.id ?? null;
+
+    if (buildingId !== this.hoveredBuildingId) {
+      // Building changed - clear any pending timer and notify immediately with null
+      this.clearBuildingHoverTimer();
+
+      if (this.hoveredBuildingId !== null) {
+        // Was hovering a building, now not - clear the popup
+        this.callbacks.onBuildingHover?.(null, null);
+      }
+
+      this.hoveredBuildingId = buildingId;
+
+      if (buildingId) {
+        // Started hovering a new building - start timer for showing popup (5 seconds)
+        this.buildingHoverTimer = setTimeout(() => {
+          this.triggerBuildingHoverCallback();
+        }, InputHandler.BUILDING_HOVER_DELAY);
+      }
+    }
   }
 
   private triggerHoverCallback(): void {
@@ -1035,6 +1073,33 @@ export class InputHandler {
     if (this.hoverTimer) {
       clearTimeout(this.hoverTimer);
       this.hoverTimer = null;
+    }
+  }
+
+  private triggerBuildingHoverCallback(): void {
+    if (this.hoveredBuildingId && this.callbacks.onBuildingHover) {
+      // Get screen position of the building for popup placement
+      const buildingPositions = this.buildingPositionsGetter();
+      const position = buildingPositions.get(this.hoveredBuildingId);
+      if (position) {
+        const screenPos = this.raycaster.projectToScreen(position);
+        this.callbacks.onBuildingHover(this.hoveredBuildingId, screenPos);
+      }
+    }
+  }
+
+  private clearBuildingHoverTimer(): void {
+    if (this.buildingHoverTimer) {
+      clearTimeout(this.buildingHoverTimer);
+      this.buildingHoverTimer = null;
+    }
+  }
+
+  private clearBuildingHoverState(): void {
+    this.clearBuildingHoverTimer();
+    if (this.hoveredBuildingId !== null) {
+      this.hoveredBuildingId = null;
+      this.callbacks.onBuildingHover?.(null, null);
     }
   }
 

@@ -13,7 +13,7 @@
  * - Agent switcher bar
  */
 
-import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo } from 'react';
 import {
   useAgents,
   useAgent,
@@ -254,7 +254,7 @@ export function ClaudeOutputPanel() {
   const messageNav = useMessageNavigation({
     totalMessages: totalNavigableMessages,
     isOpen,
-    hasModalOpen: !!(imageModal || bashModal || responseModalContent),
+    hasModalOpen: !!(imageModal || bashModal || responseModalContent || fileViewerPath),
     scrollContainerRef: outputScrollRef,
     selectedAgentId,
     inputRef: terminalInputRef,
@@ -278,7 +278,7 @@ export function ClaudeOutputPanel() {
     setImageModal({ url, name });
   }, []);
 
-  const handleFileClick = useCallback((path: string, editData?: { oldString: string; newString: string }) => {
+  const handleFileClick = useCallback((path: string, editData?: { oldString?: string; newString?: string; highlightRange?: { offset: number; limit: number } }) => {
     store.setFileViewerPath(path, editData);
   }, []);
 
@@ -291,17 +291,23 @@ export function ClaudeOutputPanel() {
     setResponseModalContent(content);
   }, []);
 
-  // Scroll helpers
+  // Scroll helpers - synchronous version for use in effects that need immediate scroll
+  const scrollToBottomSync = useCallback(() => {
+    if (keyboard.keyboardScrollLockRef.current) return;
+    if (outputScrollRef.current) {
+      outputScrollRef.current.scrollTop = outputScrollRef.current.scrollHeight;
+    }
+  }, [keyboard.keyboardScrollLockRef, outputScrollRef]);
+
+  // Async version with RAF for use after renders
   const scrollToBottom = useCallback(() => {
     if (keyboard.keyboardScrollLockRef.current) return;
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        if (outputScrollRef.current) {
-          outputScrollRef.current.scrollTop = outputScrollRef.current.scrollHeight;
-        }
+        scrollToBottomSync();
       });
     });
-  }, [keyboard.keyboardScrollLockRef, outputScrollRef]);
+  }, [keyboard.keyboardScrollLockRef, scrollToBottomSync]);
 
   // Scroll handling
   const isUserScrolledUpRef = useRef(false);
@@ -331,13 +337,51 @@ export function ClaudeOutputPanel() {
     });
   }, [outputs.length, lastOutputLength, keyboard.keyboardScrollLockRef, outputScrollRef]);
 
-  // Scroll after history loads
+  // Hide content immediately when agent changes (useLayoutEffect to avoid flicker)
+  useLayoutEffect(() => {
+    setHistoryFadeIn(false);
+  }, [selectedAgentId]);
+
+  // Track when we need to scroll and fade in (to avoid stale closure issues)
+  const pendingFadeInRef = useRef(false);
+
+  // Mark pending fade-in when agent changes
   useEffect(() => {
-    if (!isOpen || historyLoader.loadingHistory) return;
-    setHistoryFadeIn(true);
-    const timeoutId = setTimeout(scrollToBottom, 500);
+    pendingFadeInRef.current = true;
+  }, [selectedAgentId, reconnectCount]);
+
+  // After content loads: scroll first, then fade in
+  useEffect(() => {
+    // Wait until open and not loading
+    if (!isOpen || historyLoader.loadingHistory) {
+      return;
+    }
+
+    // Check if we have a pending fade-in
+    if (!pendingFadeInRef.current) {
+      return;
+    }
+
+    // Use timeout + RAF to ensure content is fully rendered before scroll and fade-in
+    const timeoutId = setTimeout(() => {
+      requestAnimationFrame(() => {
+        // Scroll to bottom
+        if (outputScrollRef.current) {
+          outputScrollRef.current.scrollTop = outputScrollRef.current.scrollHeight;
+        }
+        // Mark as no longer pending and trigger fade-in
+        pendingFadeInRef.current = false;
+        setHistoryFadeIn(true);
+        // Scroll again after a short delay to catch any late-rendered content
+        setTimeout(() => {
+          if (outputScrollRef.current) {
+            outputScrollRef.current.scrollTop = outputScrollRef.current.scrollHeight;
+          }
+        }, 150);
+      });
+    }, 50);
     return () => clearTimeout(timeoutId);
-  }, [selectedAgentId, historyLoader.loadingHistory, reconnectCount, isOpen, scrollToBottom]);
+  }, [selectedAgentId, historyLoader.loadingHistory, historyLoader.history.length, reconnectCount, isOpen, outputScrollRef]);
 
   // Keyboard shortcut to toggle terminal
   useEffect(() => {
@@ -541,7 +585,7 @@ export function ClaudeOutputPanel() {
                     agentId={selectedAgentId}
                     highlight={search.searchQuery}
                     onImageClick={handleImageClick}
-                    onFileClick={(path) => store.setFileViewerPath(path)}
+                    onFileClick={handleFileClick}
                     onBashClick={handleBashClick}
                     onViewMarkdown={handleViewMarkdown}
                   />
@@ -552,7 +596,7 @@ export function ClaudeOutputPanel() {
             ) : historyLoader.history.length === 0 && outputs.length === 0 && selectedAgent.status !== 'working' ? (
               <div className="guake-empty">No output yet. Send a command to this agent.</div>
             ) : (
-              <>
+              <div className={`guake-history-content ${historyFadeIn ? 'fade-in' : ''}`}>
                 {historyLoader.hasMore && !search.searchMode && (
                   <div className="guake-load-more">
                     {historyLoader.loadingMore ? (
@@ -564,25 +608,23 @@ export function ClaudeOutputPanel() {
                     )}
                   </div>
                 )}
-                <div className={`guake-history-content ${historyFadeIn ? 'fade-in' : ''}`}>
-                  {filteredHistory.map((msg, index) => (
-                    <div
-                      key={`h-${index}`}
-                      data-message-index={index}
-                      className={`message-nav-wrapper ${messageNav.isSelected(index) ? 'message-selected' : ''}`}
-                    >
-                      <HistoryLine
-                        message={msg}
-                        agentId={selectedAgentId}
-                        simpleView={viewMode !== 'advanced'}
-                        onImageClick={handleImageClick}
-                        onFileClick={handleFileClick}
-                        onBashClick={handleBashClick}
-                        onViewMarkdown={handleViewMarkdown}
-                      />
-                    </div>
-                  ))}
-                </div>
+                {filteredHistory.map((msg, index) => (
+                  <div
+                    key={`h-${index}`}
+                    data-message-index={index}
+                    className={`message-nav-wrapper ${messageNav.isSelected(index) ? 'message-selected' : ''}`}
+                  >
+                    <HistoryLine
+                      message={msg}
+                      agentId={selectedAgentId}
+                      simpleView={viewMode !== 'advanced'}
+                      onImageClick={handleImageClick}
+                      onFileClick={handleFileClick}
+                      onBashClick={handleBashClick}
+                      onViewMarkdown={handleViewMarkdown}
+                    />
+                  </div>
+                ))}
                 {filteredOutputs.map((output, index) => {
                   const globalIndex = filteredHistory.length + index;
                   return (
@@ -634,7 +676,7 @@ export function ClaudeOutputPanel() {
                     }}
                   />
                 )}
-              </>
+              </div>
             )}
           </div>
         </div>

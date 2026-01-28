@@ -179,6 +179,9 @@ class Store
       buildings: new Map(),
       selectedBuildingIds: new Set(),
       buildingLogs: new Map(),
+      streamingBuildingLogs: new Map(),
+      streamingBuildingIds: new Set(),
+      bossStreamingLogs: new Map(),
       agentOutputs: new Map(),
       lastPrompts: new Map(),
       toolExecutions: [],
@@ -407,7 +410,7 @@ class Store
 
   setFileViewerPath(
     path: string | null,
-    editData?: { oldString: string; newString: string }
+    editData?: { oldString?: string; newString?: string; highlightRange?: { offset: number; limit: number } }
   ): void {
     this.state.fileViewerPath = path;
     this.state.fileViewerEditData = editData || null;
@@ -691,6 +694,22 @@ class Store
   setBuildingsFromServer(...args: Parameters<BuildingActions['setBuildingsFromServer']>) { return this.buildingActions.setBuildingsFromServer(...args); }
   updateBuildingFromServer(...args: Parameters<BuildingActions['updateBuildingFromServer']>) { return this.buildingActions.updateBuildingFromServer(...args); }
   removeBuildingFromServer(...args: Parameters<BuildingActions['removeBuildingFromServer']>) { return this.buildingActions.removeBuildingFromServer(...args); }
+  // Streaming log methods
+  startLogStreaming(...args: Parameters<BuildingActions['startLogStreaming']>) { return this.buildingActions.startLogStreaming(...args); }
+  stopLogStreaming(...args: Parameters<BuildingActions['stopLogStreaming']>) { return this.buildingActions.stopLogStreaming(...args); }
+  appendStreamingLogChunk(...args: Parameters<BuildingActions['appendStreamingLogChunk']>) { return this.buildingActions.appendStreamingLogChunk(...args); }
+  setStreamingStatus(...args: Parameters<BuildingActions['setStreamingStatus']>) { return this.buildingActions.setStreamingStatus(...args); }
+  getStreamingLogs(...args: Parameters<BuildingActions['getStreamingLogs']>) { return this.buildingActions.getStreamingLogs(...args); }
+  clearStreamingLogs(...args: Parameters<BuildingActions['clearStreamingLogs']>) { return this.buildingActions.clearStreamingLogs(...args); }
+  isLogStreaming(...args: Parameters<BuildingActions['isLogStreaming']>) { return this.buildingActions.isLogStreaming(...args); }
+  // Boss building methods
+  sendBossBuildingCommand(...args: Parameters<BuildingActions['sendBossBuildingCommand']>) { return this.buildingActions.sendBossBuildingCommand(...args); }
+  assignBuildingsToBoSS(...args: Parameters<BuildingActions['assignBuildingsToBoSS']>) { return this.buildingActions.assignBuildingsToBoSS(...args); }
+  startBossLogStreaming(...args: Parameters<BuildingActions['startBossLogStreaming']>) { return this.buildingActions.startBossLogStreaming(...args); }
+  stopBossLogStreaming(...args: Parameters<BuildingActions['stopBossLogStreaming']>) { return this.buildingActions.stopBossLogStreaming(...args); }
+  appendBossStreamingLogChunk(...args: Parameters<BuildingActions['appendBossStreamingLogChunk']>) { return this.buildingActions.appendBossStreamingLogChunk(...args); }
+  getBossStreamingLogs(...args: Parameters<BuildingActions['getBossStreamingLogs']>) { return this.buildingActions.getBossStreamingLogs(...args); }
+  clearBossStreamingLogs(...args: Parameters<BuildingActions['clearBossStreamingLogs']>) { return this.buildingActions.clearBossStreamingLogs(...args); }
 
   // ============================================================================
   // Permission Actions (delegated)

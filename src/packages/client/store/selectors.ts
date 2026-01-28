@@ -538,9 +538,13 @@ export function useFileViewerPath(): string | null {
 }
 
 /**
- * Get file viewer edit data (for diff view). Only re-renders when it changes.
+ * Get file viewer edit data (for diff view or line highlight). Only re-renders when it changes.
  */
-export function useFileViewerEditData(): { oldString: string; newString: string } | null {
+export function useFileViewerEditData(): {
+  oldString?: string;
+  newString?: string;
+  highlightRange?: { offset: number; limit: number };
+} | null {
   return useSelector(useCallback((state: StoreState) => state.fileViewerEditData, []));
 }
 

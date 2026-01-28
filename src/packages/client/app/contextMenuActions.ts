@@ -18,6 +18,7 @@ export interface ContextMenuCallbacks {
   openExplorerModal: (areaId: string) => void;
   openBuildingModal: (buildingId: string | null) => void;
   openAgentEditModal: (agentId: string) => void;
+  requestBuildingDelete: (buildingId: string) => void;
   setSpawnPosition: (pos: { x: number; z: number }) => void;
   sceneRef: React.RefObject<SceneManager | null>;
 }
@@ -149,6 +150,32 @@ export function buildContextMenuActions(
           callbacks.openBuildingModal(target.id!);
         },
       });
+      actions.push({
+        id: 'clone-building',
+        label: 'Clone Building',
+        icon: '📋',
+        onClick: () => {
+          // Clone the building with offset position
+          const cloneData = {
+            name: `${building.name} (Copy)`,
+            type: building.type,
+            style: building.style,
+            color: building.color,
+            scale: building.scale,
+            position: {
+              x: building.position.x + 2,
+              z: building.position.z + 2,
+            },
+            cwd: building.cwd,
+            folderPath: building.folderPath,
+            commands: building.commands,
+            pm2: building.pm2,
+            urls: building.urls,
+          };
+          store.createBuilding(cloneData);
+          callbacks.showToast('success', 'Building Cloned', `Created "${cloneData.name}"`);
+        },
+      });
       if (building.type === 'folder' && building.folderPath) {
         actions.push({
           id: 'open-folder',
@@ -166,9 +193,7 @@ export function buildContextMenuActions(
         icon: '🗑️',
         danger: true,
         onClick: () => {
-          store.deleteBuilding(target.id!);
-          callbacks.sceneRef.current?.syncBuildings();
-          callbacks.showToast('info', 'Building Deleted', `"${building.name}" has been deleted`);
+          callbacks.requestBuildingDelete(target.id!);
         },
       });
       return actions;

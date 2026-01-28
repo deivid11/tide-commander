@@ -66,6 +66,8 @@ export function useHistoryLoader({
   const prevHasSessionIdRef = useRef<boolean>(false);
   // Track if we've already loaded history for the current agent/session combo
   const loadedForRef = useRef<string | null>(null);
+  // Deferred loading state timer - only show loading after a delay to avoid flash
+  const loadingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Track mount state
   useEffect(() => {
@@ -119,9 +121,17 @@ export function useHistoryLoader({
       }
     }
 
-    // Only show loading on agent switch or reconnect
+    // Clear any pending loading timer
+    if (loadingTimerRef.current) {
+      clearTimeout(loadingTimerRef.current);
+      loadingTimerRef.current = null;
+    }
+
+    // Only show loading after a delay to avoid flash for quick loads
     if (!isSessionEstablishment) {
-      setLoadingHistory(true);
+      loadingTimerRef.current = setTimeout(() => {
+        setLoadingHistory(true);
+      }, 150); // Only show loading if fetch takes longer than 150ms
     }
 
     fetch(apiUrl(`/api/agents/${selectedAgentId}/history?limit=${MESSAGES_PER_PAGE}&offset=0`))
@@ -194,6 +204,11 @@ export function useHistoryLoader({
         }
       })
       .finally(() => {
+        // Clear loading timer if it hasn't fired yet
+        if (loadingTimerRef.current) {
+          clearTimeout(loadingTimerRef.current);
+          loadingTimerRef.current = null;
+        }
         setLoadingHistory(false);
       });
   // Note: lastPrompts intentionally excluded from deps - we only use it to set initial prompt, not to trigger reloads

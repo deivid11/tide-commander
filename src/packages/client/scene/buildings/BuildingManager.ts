@@ -37,6 +37,11 @@ export class BuildingManager {
   // Brightness multiplier for building materials (affects emissive/glow intensity)
   private brightness = 1;
 
+  // Boss-subordinate connection lines
+  private bossLinePool: THREE.Line[] = [];
+  private activeBossLines: THREE.Line[] = [];
+  private cachedBossConnections: Array<{ bossId: string; subId: string }> = [];
+
   // Callbacks
   private onBuildingClick: ((buildingId: string) => void) | null = null;
   private onBuildingDoubleClick: ((buildingId: string) => void) | null = null;
@@ -101,6 +106,10 @@ export class BuildingManager {
     // Create mesh based on building style
     const meshData = createBuildingMesh(building);
 
+    // Apply scale from building config
+    const scale = building.scale || 1.0;
+    meshData.group.scale.setScalar(scale);
+
     this.scene.add(meshData.group);
     this.buildingMeshes.set(building.id, meshData);
   }
@@ -125,6 +134,8 @@ export class BuildingManager {
     const meshData = this.buildingMeshes.get(buildingId);
     if (meshData) {
       meshData.group.position.set(pos.x, 0, pos.z);
+      // Update boss-subordinate connection lines during drag
+      this.updateBossLinePositions();
     }
   }
 
@@ -141,6 +152,10 @@ export class BuildingManager {
     // Update position
     meshData.group.position.set(building.position.x, 0, building.position.z);
 
+    // Update scale
+    const scale = building.scale || 1.0;
+    meshData.group.scale.setScalar(scale);
+
     // Update status light color
     const statusColor = STATUS_COLORS[building.status];
     const statusLight = meshData.group.getObjectByName('statusLight') as THREE.Mesh;
@@ -153,12 +168,15 @@ export class BuildingManager {
       statusGlow.material.color.setHex(statusColor);
     }
 
-    // Update label if name changed
+    // Update label if name or port changed
     const currentLabel = meshData.label;
     const canvas = (currentLabel.material as THREE.SpriteMaterial).map?.image as HTMLCanvasElement;
     if (canvas) {
-      // Simple check - just update if needed
-      updateLabel(meshData, building.name);
+      // Include port in label if configured
+      const labelText = building.pm2?.port
+        ? `${building.name} :${building.pm2.port}`
+        : building.name;
+      updateLabel(meshData, labelText);
     }
   }
 
@@ -190,6 +208,9 @@ export class BuildingManager {
         }
       }
     }
+
+    // Update boss-subordinate connection lines
+    this.updateBossConnectionLines();
   }
 
   /**
@@ -220,6 +241,9 @@ export class BuildingManager {
         }
       }
     }
+
+    // Update boss-subordinate connection lines
+    this.updateBossConnectionLines();
   }
 
   /**
@@ -231,28 +255,32 @@ export class BuildingManager {
 
   /**
    * Get hitbox dimensions for a building style.
+   * These are generous hitboxes to make clicking easier.
    */
   private getHitboxForStyle(style: BuildingStyle): { halfWidth: number; halfDepth: number } {
+    // Increased all hitboxes for easier clicking
     switch (style) {
       case 'desktop':
-        return { halfWidth: 1.4, halfDepth: 1.4 }; // 2.8 x 2.8 base
+        return { halfWidth: 2.0, halfDepth: 2.0 }; // Large desktop
       case 'filing-cabinet':
-        return { halfWidth: 1.3, halfDepth: 0.7 }; // 2.6 x 1.4 base
+        return { halfWidth: 1.8, halfDepth: 1.2 }; // Filing cabinet
       case 'factory':
-        return { halfWidth: 1.0, halfDepth: 0.7 }; // 2.0 x 1.4 roof
+        return { halfWidth: 1.5, halfDepth: 1.2 }; // Factory building
       case 'satellite':
-        return { halfWidth: 0.65, halfDepth: 0.55 }; // 1.3 x 1.1 base
+        return { halfWidth: 1.2, halfDepth: 1.2 }; // Satellite dish
       case 'crystal':
-        return { halfWidth: 0.8, halfDepth: 0.8 }; // Crystal floats, generous hitbox
+        return { halfWidth: 1.5, halfDepth: 1.5 }; // Crystal (tall, needs wide hitbox)
       case 'tower':
-        return { halfWidth: 0.6, halfDepth: 0.4 }; // 1.2 x 0.8 tower
+        return { halfWidth: 1.2, halfDepth: 1.0 }; // Tower
       case 'dome':
-        return { halfWidth: 0.8, halfDepth: 0.8 }; // Dome shape
+        return { halfWidth: 1.5, halfDepth: 1.5 }; // Dome shape
       case 'pyramid':
-        return { halfWidth: 0.75, halfDepth: 0.75 }; // Pyramid shape
+        return { halfWidth: 1.5, halfDepth: 1.5 }; // Pyramid shape
+      case 'command-center':
+        return { halfWidth: 2.2, halfDepth: 2.2 }; // Command center (large)
       case 'server-rack':
       default:
-        return { halfWidth: 0.75, halfDepth: 0.55 }; // 1.5 x 1.1 base
+        return { halfWidth: 1.2, halfDepth: 1.0 }; // Server rack
     }
   }
 
@@ -263,7 +291,15 @@ export class BuildingManager {
     const state = store.getState();
 
     for (const building of state.buildings.values()) {
-      const hitbox = this.getHitboxForStyle(building.style);
+      const baseHitbox = this.getHitboxForStyle(building.style);
+      const scale = building.scale || 1.0;
+
+      // Scale the hitbox with the building
+      const hitbox = {
+        halfWidth: baseHitbox.halfWidth * scale,
+        halfDepth: baseHitbox.halfDepth * scale,
+      };
+
       const dx = Math.abs(pos.x - building.position.x);
       const dz = Math.abs(pos.z - building.position.z);
 
@@ -331,6 +367,141 @@ export class BuildingManager {
     }
   }
 
+  // ============================================
+  // Boss-Subordinate Connection Lines
+  // ============================================
+
+  /**
+   * Update boss-subordinate connection lines.
+   * Shows lines from selected boss buildings to their subordinates.
+   */
+  updateBossConnectionLines(): void {
+    const state = store.getState();
+
+    // Find all selected boss buildings
+    const bossBuildings: Building[] = [];
+    const subordinateIdsOfSelectedBosses = new Set<string>();
+
+    for (const buildingId of this.selectedBuildingIds) {
+      const building = state.buildings.get(buildingId);
+      if (building && building.type === 'boss' && building.subordinateBuildingIds) {
+        bossBuildings.push(building);
+        for (const subId of building.subordinateBuildingIds) {
+          subordinateIdsOfSelectedBosses.add(subId);
+        }
+      }
+
+      // Also check if selected building has a boss - show boss's hierarchy
+      if (building) {
+        for (const [, potentialBoss] of state.buildings) {
+          if (
+            potentialBoss.type === 'boss' &&
+            potentialBoss.subordinateBuildingIds?.includes(building.id) &&
+            !bossBuildings.find(b => b.id === potentialBoss.id)
+          ) {
+            bossBuildings.push(potentialBoss);
+            for (const subId of potentialBoss.subordinateBuildingIds || []) {
+              subordinateIdsOfSelectedBosses.add(subId);
+            }
+          }
+        }
+      }
+    }
+
+    // Clear cached connections
+    this.cachedBossConnections = [];
+
+    // Create/reuse lines for each boss-subordinate connection
+    let lineIndex = 0;
+    for (const boss of bossBuildings) {
+      const bossMesh = this.buildingMeshes.get(boss.id);
+      if (!bossMesh || !boss.subordinateBuildingIds) continue;
+
+      for (const subId of boss.subordinateBuildingIds) {
+        const subMesh = this.buildingMeshes.get(subId);
+        if (!subMesh) continue;
+
+        // Cache the connection for efficient updates
+        this.cachedBossConnections.push({ bossId: boss.id, subId });
+
+        let line: THREE.Line;
+        if (lineIndex < this.bossLinePool.length) {
+          // Reuse existing line
+          line = this.bossLinePool[lineIndex];
+          line.visible = true;
+        } else {
+          // Create new line
+          const geometry = new THREE.BufferGeometry();
+          geometry.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0], 3));
+          const material = new THREE.LineBasicMaterial({
+            color: 0xffd700, // Gold color for boss connections
+            transparent: true,
+            opacity: 0.4,
+          });
+          line = new THREE.Line(geometry, material);
+          this.scene.add(line);
+          this.bossLinePool.push(line);
+        }
+
+        // Update line positions
+        const positions = line.geometry.attributes.position as THREE.BufferAttribute;
+        positions.setXYZ(0, bossMesh.group.position.x, 0.1, bossMesh.group.position.z);
+        positions.setXYZ(1, subMesh.group.position.x, 0.1, subMesh.group.position.z);
+        positions.needsUpdate = true;
+
+        lineIndex++;
+      }
+    }
+
+    // Hide unused lines
+    for (let i = lineIndex; i < this.bossLinePool.length; i++) {
+      this.bossLinePool[i].visible = false;
+    }
+
+    // Update active lines reference
+    this.activeBossLines = this.bossLinePool.slice(0, lineIndex);
+
+    // Highlight subordinate buildings
+    for (const [buildingId, meshData] of this.buildingMeshes) {
+      const building = state.buildings.get(buildingId);
+      if (!building) continue;
+
+      const isSubordinate = subordinateIdsOfSelectedBosses.has(buildingId);
+      const body = meshData.group.getObjectByName('buildingBody') as THREE.Mesh;
+      if (body && body.material instanceof THREE.MeshStandardMaterial) {
+        if (isSubordinate && !this.selectedBuildingIds.has(buildingId)) {
+          // Highlight subordinate with gold tint
+          body.material.emissive.setHex(0x332200);
+        } else if (!this.selectedBuildingIds.has(buildingId)) {
+          // Remove highlight if not selected
+          body.material.emissive.setHex(0x000000);
+        }
+      }
+    }
+  }
+
+  /**
+   * Update line positions during building movement.
+   */
+  updateBossLinePositions(): void {
+    if (this.activeBossLines.length === 0) return;
+
+    for (let i = 0; i < this.cachedBossConnections.length && i < this.activeBossLines.length; i++) {
+      const { bossId, subId } = this.cachedBossConnections[i];
+      const bossMesh = this.buildingMeshes.get(bossId);
+      const subMesh = this.buildingMeshes.get(subId);
+
+      if (!bossMesh || !subMesh) continue;
+
+      const line = this.activeBossLines[i];
+      const positions = line.geometry.attributes.position as THREE.BufferAttribute;
+
+      positions.setXYZ(0, bossMesh.group.position.x, 0.1, bossMesh.group.position.z);
+      positions.setXYZ(1, subMesh.group.position.x, 0.1, subMesh.group.position.z);
+      positions.needsUpdate = true;
+    }
+  }
+
   /**
    * Dispose of a group and its children.
    */
@@ -359,5 +530,14 @@ export class BuildingManager {
     for (const buildingId of this.buildingMeshes.keys()) {
       this.removeBuilding(buildingId);
     }
+    // Clean up boss lines
+    for (const line of this.bossLinePool) {
+      this.scene.remove(line);
+      line.geometry.dispose();
+      (line.material as THREE.Material).dispose();
+    }
+    this.bossLinePool = [];
+    this.activeBossLines = [];
+    this.cachedBossConnections = [];
   }
 }

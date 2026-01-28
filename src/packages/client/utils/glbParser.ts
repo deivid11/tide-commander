@@ -6,6 +6,8 @@
  */
 
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 
 /**
  * Parse a GLB file and extract animation names
@@ -63,6 +65,14 @@ export async function parseGlbAnimationsFromBuffer(buffer: ArrayBuffer): Promise
     }
 
     const loader = new GLTFLoader();
+
+    // Configure DRACOLoader for Draco-compressed models
+    const dracoLoader = new DRACOLoader();
+    dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
+    loader.setDRACOLoader(dracoLoader);
+
+    // Configure MeshoptDecoder for meshopt-compressed models
+    loader.setMeshoptDecoder(MeshoptDecoder);
 
     // Create a blob URL to load from
     const blob = new Blob([buffer], { type: 'model/gltf-binary' });

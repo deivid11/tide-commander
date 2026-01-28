@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import type { ExecTask } from '../../../shared/types';
+import { ansiToHtml } from '../../utils/ansiToHtml';
 
 interface ExecTaskIndicatorProps {
   task: ExecTask;
@@ -98,14 +99,17 @@ export function ExecTaskIndicator({
             {task.output.length === 0 ? (
               <div className="exec-task-output-empty">Running...</div>
             ) : (
-              task.output.map((line, index) => (
-                <div
-                  key={index}
-                  className={`exec-task-output-line ${line.startsWith('[stderr]') ? 'stderr' : ''}`}
-                >
-                  {line.replace(/^\[stderr\] /, '')}
-                </div>
-              ))
+              task.output.map((line, index) => {
+                const isStderr = line.startsWith('[stderr]');
+                const cleanLine = line.replace(/^\[stderr\] /, '');
+                return (
+                  <div
+                    key={index}
+                    className={`exec-task-output-line ${isStderr ? 'stderr' : ''}`}
+                    dangerouslySetInnerHTML={{ __html: ansiToHtml(cleanLine) }}
+                  />
+                );
+              })
             )}
           </div>
           {task.status !== 'running' && task.exitCode !== null && (

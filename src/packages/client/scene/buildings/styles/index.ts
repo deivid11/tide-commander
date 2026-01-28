@@ -22,6 +22,11 @@ export {
 export { createSatelliteBuildingMesh, updateSatelliteIdle, updateSatelliteRunning } from './satellite';
 export { createCrystalBuildingMesh, updateCrystalIdle, updateCrystalRunning } from './crystal';
 export { createFactoryBuildingMesh, updateFactoryIdle, updateFactoryRunning } from './factory';
+export {
+  createCommandCenterBuildingMesh,
+  updateCommandCenterIdle,
+  updateCommandCenterRunning,
+} from './commandCenter';
 
 // Import for internal use
 import { createServerBuildingMesh, updateServerRackIdle, updateServerRackRunning } from './serverRack';
@@ -37,6 +42,11 @@ import {
 import { createSatelliteBuildingMesh, updateSatelliteIdle, updateSatelliteRunning } from './satellite';
 import { createCrystalBuildingMesh, updateCrystalIdle, updateCrystalRunning } from './crystal';
 import { createFactoryBuildingMesh, updateFactoryIdle, updateFactoryRunning } from './factory';
+import {
+  createCommandCenterBuildingMesh,
+  updateCommandCenterIdle,
+  updateCommandCenterRunning,
+} from './commandCenter';
 
 /**
  * Create the appropriate mesh based on building style.
@@ -61,6 +71,8 @@ export function createBuildingMesh(building: Building): BuildingMeshData {
       return createCrystalBuildingMesh(building);
     case 'factory':
       return createFactoryBuildingMesh(building);
+    case 'command-center':
+      return createCommandCenterBuildingMesh(building);
     case 'server-rack':
     default:
       return createServerBuildingMesh(building);
@@ -105,6 +117,9 @@ export function updateIdleAnimations(
       break;
     case 'pyramid':
       updatePyramidIdle(meshData, animationTime);
+      break;
+    case 'command-center':
+      updateCommandCenterIdle(meshData, animationTime, deltaTime);
       break;
   }
 }
@@ -154,6 +169,9 @@ export function updateRunningAnimations(
       break;
     case 'factory':
       updateFactoryRunning(meshData, animationTime, deltaTime);
+      break;
+    case 'command-center':
+      updateCommandCenterRunning(meshData, animationTime, deltaTime);
       break;
   }
 }

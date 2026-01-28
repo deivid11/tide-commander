@@ -11,6 +11,7 @@ interface UseKeyboardShortcutsOptions {
   explorerModal: UseModalStateWithId;
   spotlightModal: UseModalState;
   deleteConfirmModal: UseModalState;
+  onRequestBuildingDelete: () => void;
 }
 
 /**
@@ -23,6 +24,7 @@ export function useKeyboardShortcuts({
   explorerModal,
   spotlightModal,
   deleteConfirmModal,
+  onRequestBuildingDelete,
 }: UseKeyboardShortcutsOptions): void {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -129,8 +131,7 @@ export function useKeyboardShortcuts({
         }
         if (currentState.selectedBuildingIds.size > 0) {
           e.preventDefault();
-          store.deleteSelectedBuildings();
-          sceneRef.current?.syncBuildings();
+          onRequestBuildingDelete();
           return;
         }
         return;
@@ -139,5 +140,5 @@ export function useKeyboardShortcuts({
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [sceneRef, spawnModal, commanderModal, explorerModal, spotlightModal, deleteConfirmModal]);
+  }, [sceneRef, spawnModal, commanderModal, explorerModal, spotlightModal, deleteConfirmModal, onRequestBuildingDelete]);
 }

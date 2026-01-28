@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { AgentClass } from '../../../shared/types';
@@ -23,8 +25,19 @@ export class CharacterLoader {
   private customModels = new Map<string, CachedModel>(); // Custom models keyed by classId
   private loaded = false;
   private loadingPromise: Promise<void> | null = null;
-  private loader = new GLTFLoader();
+  private loader: GLTFLoader;
+  private dracoLoader: DRACOLoader;
   private loadingCustomModels = new Map<string, Promise<void>>(); // Track in-flight custom model loads
+
+  constructor() {
+    this.loader = new GLTFLoader();
+    // Configure DRACOLoader for Draco-compressed models
+    this.dracoLoader = new DRACOLoader();
+    this.dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
+    this.loader.setDRACOLoader(this.dracoLoader);
+    // Configure MeshoptDecoder for meshopt-compressed models
+    this.loader.setMeshoptDecoder(MeshoptDecoder);
+  }
 
   get isLoaded(): boolean {
     return this.loaded;
@@ -357,6 +370,9 @@ export class CharacterLoader {
       console.log(`[CharacterLoader] Disposed custom model: ${classId}`);
     }
     this.customModels.clear();
+
+    // Dispose DRACOLoader
+    this.dracoLoader.dispose();
 
     // Reset state
     this.loaded = false;

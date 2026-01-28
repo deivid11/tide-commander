@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import type { Building } from '../../../../shared/types';
 import type { BuildingMeshData } from '../types';
 import { STATUS_COLORS } from '../types';
-import { createLabel } from '../labelUtils';
+import { createLabel, getBuildingLabelText } from '../labelUtils';
 
 /**
  * Create a server building mesh using basic geometry.
@@ -115,8 +115,8 @@ export function createServerBuildingMesh(building: Building): BuildingMeshData {
   base.receiveShadow = true;
   group.add(base);
 
-  // Name label
-  const label = createLabel(building.name);
+  // Name label (includes port if configured)
+  const label = createLabel(getBuildingLabelText(building));
   label.position.set(0, 3.2, 0);
   label.name = 'buildingLabel';
   group.add(label);

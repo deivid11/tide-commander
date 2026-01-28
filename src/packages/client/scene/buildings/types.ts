@@ -91,4 +91,10 @@ export const STYLE_PALETTES: Record<BuildingStyle, {
     accent: 0xf6ad55,     // Light orange
     glow: 0xffaa00,       // Yellow-orange
   },
+  'command-center': {
+    primary: 0x2a2a3a,    // Dark blue-gray
+    secondary: 0x3a3a4a,  // Medium gray
+    accent: 0xffd700,     // Gold
+    glow: 0xffd700,       // Gold
+  },
 };

@@ -12,13 +12,14 @@ import { markdownComponents } from './MarkdownComponents';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, DelegatedTaskHeader } from './BossContext';
 import { EditToolDiff, ReadToolInput, TodoWriteInput } from './ToolRenderers';
 import { renderContentWithImages } from './contentRendering';
+import { ansiToHtml } from '../../utils/ansiToHtml';
 import type { EditData } from './types';
 
 interface OutputLineProps {
   output: ClaudeOutput & { _toolKeyParam?: string; _editData?: EditData; _todoInput?: string; _bashOutput?: string; _bashCommand?: string; _isRunning?: boolean };
   agentId: string | null;
   onImageClick?: (url: string, name: string) => void;
-  onFileClick?: (path: string, editData?: EditData) => void;
+  onFileClick?: (path: string, editData?: EditData | { highlightRange: { offset: number; limit: number } }) => void;
   onBashClick?: (command: string, output: string) => void;
   onViewMarkdown?: (content: string) => void;
 }
@@ -270,7 +271,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
             <span className="bash-output-label">Terminal Output</span>
             {isTruncated && <span className="bash-output-truncated">truncated</span>}
           </div>
-          <pre className="bash-output-content">{bashOutput}</pre>
+          <pre className="bash-output-content" dangerouslySetInnerHTML={{ __html: ansiToHtml(bashOutput) }} />
         </div>
       </div>
     );

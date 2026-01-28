@@ -137,6 +137,10 @@ export interface StoreState {
   buildings: Map<string, Building>;
   selectedBuildingIds: Set<string>;
   buildingLogs: Map<string, string[]>; // Building ID -> logs
+  streamingBuildingLogs: Map<string, string>; // Building ID -> streaming log buffer (for real-time modal)
+  streamingBuildingIds: Set<string>; // Building IDs currently streaming logs
+  // Boss building unified logs
+  bossStreamingLogs: Map<string, Array<{ subordinateId: string; subordinateName: string; chunk: string; timestamp: number; isError?: boolean }>>;
   // Claude outputs per agent
   agentOutputs: Map<string, ClaudeOutput[]>;
   // Last prompt per agent
@@ -160,7 +164,13 @@ export interface StoreState {
   // File viewer path (to open files from other components)
   fileViewerPath: string | null;
   // File viewer edit data for diff view (old_string, new_string from Edit tool)
-  fileViewerEditData: { oldString: string; newString: string } | null;
+  // OR line range for Read tool with offset/limit
+  fileViewerEditData: {
+    oldString?: string;
+    newString?: string;
+    // For Read tool - highlight these lines
+    highlightRange?: { offset: number; limit: number };
+  } | null;
   // File explorer folder path (to open file explorer from other components)
   explorerFolderPath: string | null;
   // Context modal agent ID (to open context modal from other components)

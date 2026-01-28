@@ -301,7 +301,7 @@ export interface AnalysisRequestDraft {
 // ============================================================================
 
 // Building types - different kinds of buildings
-export type BuildingType = 'server' | 'link' | 'database' | 'docker' | 'monitor' | 'folder';
+export type BuildingType = 'server' | 'link' | 'database' | 'docker' | 'monitor' | 'folder' | 'boss';
 
 export const BUILDING_TYPES: Record<BuildingType, { icon: string; color: string; description: string }> = {
   server: { icon: '🖥️', color: '#4aff9e', description: 'Service with start/stop commands and logs' },
@@ -310,13 +310,14 @@ export const BUILDING_TYPES: Record<BuildingType, { icon: string; color: string;
   docker: { icon: '🐳', color: '#4ac1ff', description: 'Docker container management' },
   monitor: { icon: '📊', color: '#ff4a9e', description: 'System metrics and monitoring' },
   folder: { icon: '📁', color: '#ffd700', description: 'Folder shortcut - opens file explorer on click' },
+  boss: { icon: '👑', color: '#ffd700', description: 'Boss building - manages multiple buildings with unified controls' },
 };
 
 // Building status
 export type BuildingStatus = 'running' | 'stopped' | 'error' | 'unknown' | 'starting' | 'stopping';
 
 // Building visual styles
-export type BuildingStyle = 'server-rack' | 'tower' | 'dome' | 'pyramid' | 'desktop' | 'filing-cabinet' | 'satellite' | 'crystal' | 'factory';
+export type BuildingStyle = 'server-rack' | 'tower' | 'dome' | 'pyramid' | 'desktop' | 'filing-cabinet' | 'satellite' | 'crystal' | 'factory' | 'command-center';
 
 export const BUILDING_STYLES: Record<BuildingStyle, { label: string; description: string }> = {
   'server-rack': { label: 'Server Rack', description: 'Classic server rack with blinking LEDs' },
@@ -328,7 +329,50 @@ export const BUILDING_STYLES: Record<BuildingStyle, { label: string; description
   'satellite': { label: 'Satellite Dish', description: 'Communication dish with rotating receiver' },
   'crystal': { label: 'Data Crystal', description: 'Floating crystal with energy particles' },
   'factory': { label: 'Mini Factory', description: 'Industrial building with smoking chimney' },
+  'command-center': { label: 'Command Center', description: 'Grand central hub for boss buildings with holographic rings' },
 };
+
+// PM2 Configuration for buildings
+export interface PM2Config {
+  enabled: boolean;           // Use PM2 vs custom commands
+  name?: string;              // PM2 app name (defaults to sanitized building name + id)
+  script: string;             // Script/command to run (e.g., "npm", "java", "./app.js")
+  args?: string;              // Arguments (e.g., "run dev", "-jar app.jar")
+  interpreter?: PM2Interpreter; // Interpreter to use
+  interpreterArgs?: string;   // e.g., "-jar" for java
+  env?: Record<string, string>; // Environment variables
+  instances?: number;         // Cluster mode (default: 1)
+  autorestart?: boolean;      // Auto-restart on crash (default: true)
+  maxRestarts?: number;       // Max restart attempts (default: 10)
+  port?: number;              // Port the service runs on (for display)
+}
+
+// PM2 interpreter options
+export type PM2Interpreter = 'node' | 'bun' | 'python3' | 'python' | 'java' | 'php' | 'bash' | 'none' | '';
+
+export const PM2_INTERPRETERS: Record<PM2Interpreter, { label: string; description: string }> = {
+  '': { label: 'Auto-detect', description: 'Let PM2 detect the interpreter' },
+  'node': { label: 'Node.js', description: 'JavaScript/TypeScript runtime' },
+  'bun': { label: 'Bun', description: 'Bun JavaScript runtime' },
+  'python3': { label: 'Python 3', description: 'Python 3 interpreter' },
+  'python': { label: 'Python 2', description: 'Python 2 interpreter (legacy)' },
+  'java': { label: 'Java', description: 'Java runtime (use with -jar args)' },
+  'php': { label: 'PHP', description: 'PHP interpreter' },
+  'bash': { label: 'Bash', description: 'Bash shell script' },
+  'none': { label: 'None (Binary)', description: 'Direct execution (compiled binaries)' },
+};
+
+// PM2 runtime status (not persisted, updated via polling)
+export interface PM2Status {
+  pm2Id?: number;             // PM2 internal ID
+  pid?: number;               // System PID
+  cpu?: number;               // CPU usage %
+  memory?: number;            // Memory in bytes
+  uptime?: number;            // Process start timestamp
+  restarts?: number;          // Restart count
+  status?: string;            // PM2 status: 'online' | 'stopping' | 'stopped' | 'errored'
+  ports?: number[];           // Auto-detected listening ports
+}
 
 // Building configuration
 export interface Building {
@@ -345,7 +389,7 @@ export interface Building {
   lastHealthCheck?: number;
   lastError?: string;
 
-  // Commands (for server type)
+  // Commands (for server type) - used when PM2 is disabled
   commands?: {
     start?: string;
     stop?: string;
@@ -357,6 +401,12 @@ export interface Building {
   // Working directory for commands
   cwd?: string;
 
+  // PM2 configuration (optional - when enabled, replaces custom commands)
+  pm2?: PM2Config;
+
+  // PM2 runtime status (not persisted, populated at runtime)
+  pm2Status?: PM2Status;
+
   // Folder path (for folder type - opens file explorer when clicked)
   folderPath?: string;
 
@@ -365,6 +415,10 @@ export interface Building {
 
   // Visual customization
   color?: string;
+  scale?: number;  // Size multiplier (default: 1.0)
+
+  // Boss building fields - for managing subordinate buildings
+  subordinateBuildingIds?: string[];  // IDs of buildings managed by this boss building
 
   // Timestamps
   createdAt: number;
@@ -913,12 +967,111 @@ export interface DeleteBuildingMessage extends WSMessage {
   payload: { id: string };
 }
 
-// Building command message (Client -> Server) - start/stop/restart/logs
+// Building command message (Client -> Server) - start/stop/restart/logs/delete
 export interface BuildingCommandMessage extends WSMessage {
   type: 'building_command';
   payload: {
     buildingId: string;
-    command: 'start' | 'stop' | 'restart' | 'healthCheck' | 'logs';
+    command: 'start' | 'stop' | 'restart' | 'healthCheck' | 'logs' | 'delete';
+  };
+}
+
+// PM2 Log Streaming Messages
+// Start streaming logs (Client -> Server)
+export interface PM2LogsStartMessage extends WSMessage {
+  type: 'pm2_logs_start';
+  payload: {
+    buildingId: string;
+    lines?: number; // Initial lines to fetch (default 100)
+  };
+}
+
+// Stop streaming logs (Client -> Server)
+export interface PM2LogsStopMessage extends WSMessage {
+  type: 'pm2_logs_stop';
+  payload: {
+    buildingId: string;
+  };
+}
+
+// Log chunk from streaming (Server -> Client)
+export interface PM2LogsChunkMessage extends WSMessage {
+  type: 'pm2_logs_chunk';
+  payload: {
+    buildingId: string;
+    chunk: string;
+    timestamp: number;
+    isError?: boolean; // stderr vs stdout
+  };
+}
+
+// Streaming started confirmation (Server -> Client)
+export interface PM2LogsStreamingMessage extends WSMessage {
+  type: 'pm2_logs_streaming';
+  payload: {
+    buildingId: string;
+    streaming: boolean;
+  };
+}
+
+// ============================================================================
+// Boss Building WebSocket Messages
+// ============================================================================
+
+// Boss building bulk command message (Client -> Server) - start all/stop all/restart all
+export interface BossBuildingCommandMessage extends WSMessage {
+  type: 'boss_building_command';
+  payload: {
+    buildingId: string;  // The boss building ID
+    command: 'start_all' | 'stop_all' | 'restart_all';
+  };
+}
+
+// Assign buildings to boss (Client -> Server)
+export interface AssignBuildingsMessage extends WSMessage {
+  type: 'assign_buildings';
+  payload: {
+    bossBuildingId: string;
+    subordinateBuildingIds: string[];
+  };
+}
+
+// Request unified logs from boss building (Client -> Server)
+export interface BossBuildingLogsStartMessage extends WSMessage {
+  type: 'boss_building_logs_start';
+  payload: {
+    buildingId: string;  // The boss building ID
+    lines?: number;      // Initial lines to fetch per subordinate (default 50)
+  };
+}
+
+// Stop streaming unified logs (Client -> Server)
+export interface BossBuildingLogsStopMessage extends WSMessage {
+  type: 'boss_building_logs_stop';
+  payload: {
+    buildingId: string;
+  };
+}
+
+// Unified log chunk from boss building (Server -> Client)
+export interface BossBuildingLogsChunkMessage extends WSMessage {
+  type: 'boss_building_logs_chunk';
+  payload: {
+    bossBuildingId: string;
+    subordinateBuildingId: string;
+    subordinateBuildingName: string;
+    chunk: string;
+    timestamp: number;
+    isError?: boolean;
+  };
+}
+
+// Boss building subordinates updated (Server -> Client)
+export interface BossBuildingSubordinatesUpdatedMessage extends WSMessage {
+  type: 'boss_building_subordinates_updated';
+  payload: {
+    bossBuildingId: string;
+    subordinateBuildingIds: string[];
   };
 }
 
@@ -1509,7 +1662,11 @@ export type ServerMessage =
   | SecretsUpdateMessage
   | SecretCreatedMessage
   | SecretUpdatedMessage
-  | SecretDeletedMessage;
+  | SecretDeletedMessage
+  | PM2LogsChunkMessage
+  | PM2LogsStreamingMessage
+  | BossBuildingLogsChunkMessage
+  | BossBuildingSubordinatesUpdatedMessage;
 
 export type ClientMessage =
   | SpawnAgentMessage
@@ -1532,6 +1689,8 @@ export type ClientMessage =
   | UpdateBuildingMessage
   | DeleteBuildingMessage
   | BuildingCommandMessage
+  | PM2LogsStartMessage
+  | PM2LogsStopMessage
   | PermissionResponseMessage
   | SpawnBossAgentMessage
   | AssignSubordinatesMessage
@@ -1557,4 +1716,8 @@ export type ClientMessage =
   | SendNotificationMessage
   | CreateSecretMessage
   | UpdateSecretMessage
-  | DeleteSecretMessage;
+  | DeleteSecretMessage
+  | BossBuildingCommandMessage
+  | AssignBuildingsMessage
+  | BossBuildingLogsStartMessage
+  | BossBuildingLogsStopMessage;

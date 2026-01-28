@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import type { Building } from '../../../../shared/types';
 import type { BuildingMeshData } from '../types';
 import { STATUS_COLORS } from '../types';
-import { createLabel } from '../labelUtils';
+import { createLabel, getBuildingLabelText } from '../labelUtils';
 
 /**
  * Create a Data Dome building.
@@ -121,7 +121,7 @@ export function createDomeBuildingMesh(building: Building): BuildingMeshData {
   group.add(base);
 
   // Name label
-  const label = createLabel(building.name);
+  const label = createLabel(getBuildingLabelText(building));
   label.position.set(0, 1.9, 0);
   label.name = 'buildingLabel';
   group.add(label);

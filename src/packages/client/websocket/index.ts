@@ -116,6 +116,7 @@ let onDelegation: ((bossId: string, subordinateId: string) => void) | null = nul
 let onCustomClassesSync: ((classes: Map<string, CustomAgentClass>) => void) | null = null;
 let onReconnect: (() => void) | null = null;
 let onAgentNotification: ((notification: AgentNotification) => void) | null = null;
+let onBuildingUpdated: ((building: import('../../shared/types').Building) => void) | null = null;
 
 export function setCallbacks(callbacks: {
   onToast?: typeof onToast;
@@ -131,6 +132,7 @@ export function setCallbacks(callbacks: {
   onCustomClassesSync?: typeof onCustomClassesSync;
   onReconnect?: typeof onReconnect;
   onAgentNotification?: typeof onAgentNotification;
+  onBuildingUpdated?: typeof onBuildingUpdated;
 }): void {
   if (callbacks.onToast) onToast = callbacks.onToast;
   if (callbacks.onAgentCreated) onAgentCreated = callbacks.onAgentCreated;
@@ -145,6 +147,7 @@ export function setCallbacks(callbacks: {
   if (callbacks.onCustomClassesSync) onCustomClassesSync = callbacks.onCustomClassesSync;
   if (callbacks.onReconnect) onReconnect = callbacks.onReconnect;
   if (callbacks.onAgentNotification) onAgentNotification = callbacks.onAgentNotification;
+  if (callbacks.onBuildingUpdated) onBuildingUpdated = callbacks.onBuildingUpdated;
 }
 
 /**
@@ -550,6 +553,7 @@ function handleServerMessage(message: ServerMessage): void {
     case 'building_updated': {
       const building = message.payload as import('../../shared/types').Building;
       store.updateBuildingFromServer(building);
+      onBuildingUpdated?.(building);
       break;
     }
 
@@ -566,6 +570,53 @@ function handleServerMessage(message: ServerMessage): void {
         timestamp: number;
       };
       store.addBuildingLogs(buildingId, logs);
+      break;
+    }
+
+    case 'pm2_logs_chunk': {
+      const { buildingId, chunk } = message.payload as {
+        buildingId: string;
+        chunk: string;
+        timestamp: number;
+        isError?: boolean;
+      };
+      store.appendStreamingLogChunk(buildingId, chunk);
+      break;
+    }
+
+    case 'pm2_logs_streaming': {
+      const { buildingId, streaming } = message.payload as {
+        buildingId: string;
+        streaming: boolean;
+      };
+      store.setStreamingStatus(buildingId, streaming);
+      break;
+    }
+
+    // ========================================================================
+    // Boss Building Messages
+    // ========================================================================
+
+    case 'boss_building_logs_chunk': {
+      const { bossBuildingId, subordinateBuildingId, subordinateBuildingName, chunk, isError } = message.payload as {
+        bossBuildingId: string;
+        subordinateBuildingId: string;
+        subordinateBuildingName: string;
+        chunk: string;
+        timestamp: number;
+        isError?: boolean;
+      };
+      store.appendBossStreamingLogChunk(bossBuildingId, subordinateBuildingId, subordinateBuildingName, chunk, isError);
+      break;
+    }
+
+    case 'boss_building_subordinates_updated': {
+      const { bossBuildingId, subordinateBuildingIds } = message.payload as {
+        bossBuildingId: string;
+        subordinateBuildingIds: string[];
+      };
+      // Update the building's subordinateBuildingIds
+      store.updateBuilding(bossBuildingId, { subordinateBuildingIds });
       break;
     }
 

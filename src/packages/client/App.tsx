@@ -9,6 +9,10 @@ import { ClaudeOutputPanel } from './components/ClaudeOutputPanel';
 import { AgentBar } from './components/AgentBar';
 import { DrawingModeIndicator } from './components/DrawingModeIndicator';
 import { AgentHoverPopup } from './components/AgentHoverPopup';
+import { BuildingActionPopup } from './components/BuildingActionPopup';
+import { BossBuildingActionPopup } from './components/BossBuildingActionPopup';
+import { PM2LogsModal } from './components/PM2LogsModal';
+import { BossLogsModal } from './components/BossLogsModal';
 import { FPSMeter } from './components/FPSMeter';
 // import { PWAInstallBanner } from './components/PWAInstallBanner';
 import { MobileFabMenu } from './components/MobileFabMenu';
@@ -60,10 +64,26 @@ function AppContent() {
   const pip = useDocumentPiP(); // Document Picture-in-Picture for agents view
 
   const [spawnPosition, setSpawnPosition] = useState<{ x: number; z: number } | null>(null);
+  // 'selected' means delete all selected buildings, otherwise a specific building ID
+  const [pendingBuildingDelete, setPendingBuildingDelete] = useState<string | 'selected' | null>(null);
   const [hoveredAgentPopup, setHoveredAgentPopup] = useState<{
     agentId: string;
     screenPos: { x: number; y: number };
   } | null>(null);
+  const [buildingPopup, setBuildingPopupState] = useState<{
+    buildingId: string;
+    screenPos: { x: number; y: number };
+    fromClick?: boolean; // true if opened by click (should stay open), false/undefined if from hover
+  } | null>(null);
+  const [pm2LogsModalBuildingId, setPm2LogsModalBuildingId] = useState<string | null>(null);
+  const [bossLogsModalBuildingId, setBossLogsModalBuildingId] = useState<string | null>(null);
+  // Ref to access current popup state in callbacks
+  const buildingPopupRef = useRef(buildingPopup);
+  buildingPopupRef.current = buildingPopup;
+  const setBuildingPopup = useCallback((popup: typeof buildingPopup) => {
+    setBuildingPopupState(popup);
+  }, []);
+  const getBuildingPopup = useCallback(() => buildingPopupRef.current, []);
 
   const [sceneConfig, setSceneConfig] = useState(loadConfig);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -87,6 +107,11 @@ function AppContent() {
     toolboxModal,
     contextMenu,
     setHoveredAgentPopup,
+    setBuildingPopup,
+    getBuildingPopup,
+    openBuildingModal: (buildingId) => buildingModal.open(buildingId),
+    openPM2LogsModal: (buildingId) => setPm2LogsModalBuildingId(buildingId),
+    openBossLogsModal: (buildingId) => setBossLogsModalBuildingId(buildingId),
   });
 
   const state = useStore();
@@ -106,6 +131,7 @@ function AppContent() {
     explorerModal,
     spotlightModal,
     deleteConfirmModal,
+    onRequestBuildingDelete: () => setPendingBuildingDelete('selected'),
   });
 
   // Register modals on the stack for mobile back gesture handling
@@ -225,6 +251,24 @@ function AppContent() {
     showToast('info', 'Agents Removed', `${selectedIds.length} agent(s) removed from view`);
   }, [state.selectedAgentIds, showToast, deleteConfirmModal, sceneRef]);
 
+  // Building delete confirmation handler
+  const handleConfirmBuildingDelete = useCallback(() => {
+    if (pendingBuildingDelete === 'selected') {
+      // Delete all selected buildings
+      const count = state.selectedBuildingIds.size;
+      store.deleteSelectedBuildings();
+      sceneRef.current?.syncBuildings();
+      showToast('info', 'Buildings Deleted', `${count} building(s) deleted`);
+    } else if (pendingBuildingDelete) {
+      // Delete single building
+      const building = state.buildings.get(pendingBuildingDelete);
+      store.deleteBuilding(pendingBuildingDelete);
+      sceneRef.current?.syncBuildings();
+      showToast('info', 'Building Deleted', `"${building?.name || 'Building'}" has been deleted`);
+    }
+    setPendingBuildingDelete(null);
+  }, [pendingBuildingDelete, state.buildings, state.selectedBuildingIds.size, showToast, sceneRef]);
+
   // Context menu actions
   const contextMenuActions = useMemo(() => {
     return buildContextMenuActions(
@@ -242,6 +286,7 @@ function AppContent() {
         openExplorerModal: (areaId) => explorerModal.open(areaId),
         openBuildingModal: (buildingId) => buildingModal.open(buildingId),
         openAgentEditModal: (agentId) => agentEditModal.open(agentId),
+        requestBuildingDelete: (buildingId) => setPendingBuildingDelete(buildingId),
         setSpawnPosition,
         sceneRef,
       }
@@ -383,6 +428,72 @@ function AppContent() {
         );
       })()}
 
+      {/* Building Action Popup (battlefield click) */}
+      {buildingPopup && (() => {
+        const building = state.buildings.get(buildingPopup.buildingId);
+        if (!building) return null;
+
+        // Use BossBuildingActionPopup for boss buildings
+        if (building.type === 'boss') {
+          return (
+            <BossBuildingActionPopup
+              building={building}
+              screenPos={buildingPopup.screenPos}
+              onClose={() => setBuildingPopup(null)}
+              onOpenSettings={() => {
+                setBuildingPopup(null);
+                buildingModal.open(buildingPopup.buildingId);
+              }}
+              onOpenLogsModal={() => {
+                setBuildingPopup(null);
+                setBossLogsModalBuildingId(buildingPopup.buildingId);
+              }}
+            />
+          );
+        }
+
+        return (
+          <BuildingActionPopup
+            building={building}
+            screenPos={buildingPopup.screenPos}
+            onClose={() => setBuildingPopup(null)}
+            onOpenSettings={() => {
+              setBuildingPopup(null);
+              buildingModal.open(buildingPopup.buildingId);
+            }}
+            onOpenLogsModal={() => {
+              setPm2LogsModalBuildingId(buildingPopup.buildingId);
+            }}
+          />
+        );
+      })()}
+
+      {/* PM2 Logs Modal */}
+      {pm2LogsModalBuildingId && (() => {
+        const building = state.buildings.get(pm2LogsModalBuildingId);
+        if (!building) return null;
+        return (
+          <PM2LogsModal
+            building={building}
+            isOpen={true}
+            onClose={() => setPm2LogsModalBuildingId(null)}
+          />
+        );
+      })()}
+
+      {/* Boss Logs Modal */}
+      {bossLogsModalBuildingId && (() => {
+        const building = state.buildings.get(bossLogsModalBuildingId);
+        if (!building) return null;
+        return (
+          <BossLogsModal
+            building={building}
+            isOpen={true}
+            onClose={() => setBossLogsModalBuildingId(null)}
+          />
+        );
+      })()}
+
       {/* Picture-in-Picture button */}
       {pip.isSupported && (
         <button
@@ -435,6 +546,9 @@ function AppContent() {
         onToolChange={handleToolChange}
         onOpenAreaExplorer={handleOpenAreaExplorer}
         onDeleteSelectedAgents={handleDeleteSelectedAgents}
+        pendingBuildingDelete={pendingBuildingDelete}
+        onCancelBuildingDelete={() => setPendingBuildingDelete(null)}
+        onConfirmBuildingDelete={handleConfirmBuildingDelete}
         showBackNavModal={showBackNavModal}
         onCloseBackNavModal={() => setShowBackNavModal(false)}
         onLeave={handleLeave}

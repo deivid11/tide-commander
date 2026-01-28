@@ -151,7 +151,7 @@
   opacity: 0;
 
   &.fade-in {
-    animation: history-fade-in 0.2s ease-out forwards;
+    animation: history-fade-in 0.25s ease-out 0.05s forwards;
   }
 }
 
