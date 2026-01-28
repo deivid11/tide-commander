@@ -2,6 +2,68 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.29.0] - 2026-01-27
+
+### Added
+- **Building Interactions System** - Interactive building management in scene
+  - BuildingActionPopup component for context-aware building actions
+  - BossBuildingActionPopup for boss-specific building interactions
+  - Building configuration modal with advanced settings
+  - Building state management in Redux store with selectors
+- **Building WebSocket Handler** - Real-time synchronization of building operations
+  - Building action execution via WebSocket
+  - Building state updates and synchronization
+  - Integration with client and server building services
+- **PM2 Process Monitoring** - Monitor and view application processes
+  - PM2LogsModal component for viewing process logs
+  - BossLogsModal for boss-specific logs
+  - PM2Service for process management
+  - ANSI to HTML conversion for log rendering
+- **Building Configuration Routes** - Server-side API for building management
+  - Configuration endpoint for building settings
+  - Building service enhancements
+- **Bitbucket PR Skill** - Integration with Bitbucket pull request workflow
+  - bitbucket-pr skill definition for agents
+- **Enhanced Scene Interactions**
+  - Building styles system with command center style
+  - Improved InputEventHandlers for building interactions
+  - CharacterLoader enhancements for character positioning
+
+### Changed
+- **Building Manager** - Extended with building action handling
+  - New action execution methods
+  - Building state tracking
+  - Label utilities for building labels
+- **Toolbox Component** - Enhanced with building config options
+  - New building configuration section
+  - Expanded styling options
+  - Better component organization
+- **Store Architecture** - Building state management
+  - New buildings reducer
+  - Building selectors and hooks
+  - Building-related type definitions
+- **WebSocket Handler** - Extended with building operations
+  - Building event handlers
+  - Building state synchronization
+  - Building action routing
+- **Scene Setup Hook** - Enhanced with building initialization
+  - Better building lifecycle management
+  - Improved scene synchronization
+
+### Technical
+- New `BuildingActionPopup` component for building interactions
+- New `BossBuildingActionPopup` component for boss buildings
+- New `PM2LogsModal` and `BossLogsModal` components
+- New `ansiToHtml.ts` utility for log formatting
+- New `bitbucket-pr.ts` skill definition
+- New `config.ts` routes for building configuration
+- New `pm2-service.ts` for process management
+- Extended BuildingManager with interaction methods
+- New building styles (commandCenter)
+- Building store module with selectors
+- Enhanced WebSocket building handler
+- Improved scene synchronization
+
 ## [0.28.0] - 2026-01-27
 
 ### Added
