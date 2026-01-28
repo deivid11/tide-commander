@@ -1,0 +1,30 @@
+@use '../variables' as *;
+@use 'variables' as resp;
+
+// =============================================================================
+// Tablet Styles (up to 1024px)
+// =============================================================================
+
+@media (max-width: resp.$breakpoint-tablet) {
+  // Reduce sidebar width on tablet
+  .sidebar {
+    width: 280px;
+    min-width: 280px;
+  }
+
+  // Adjust guake terminal
+  .guake-terminal {
+    right: 280px;
+  }
+
+  // Agent bar adjustments
+  .agent-bar {
+    right: 280px;
+  }
+
+  // Tooltip needs smaller width
+  .agent-bar-tooltip {
+    min-width: 320px;
+    max-width: 400px;
+  }
+}

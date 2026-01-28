@@ -3,7 +3,7 @@ import { store, useStore } from '../store';
 import { SpawnModal } from './SpawnModal';
 import { BossSpawnModal } from './BossSpawnModal';
 import { SubordinateAssignmentModal } from './SubordinateAssignmentModal';
-import { Toolbox, type SceneConfig } from './Toolbox';
+import { Toolbox, type SceneConfig } from './toolbox';
 import { BuildingConfigModal } from './BuildingConfigModal';
 import { CommanderView } from './CommanderView';
 import { SupervisorPanel } from './SupervisorPanel';

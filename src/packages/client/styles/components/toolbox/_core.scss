@@ -1,0 +1,535 @@
+@use 'sass:color';
+@use '../../variables' as *;
+
+// Floating settings button
+.floating-settings-btn {
+  position: fixed;
+  bottom: 70px;
+  left: 16px;
+  width: 36px;
+  height: 36px;
+  border-radius: $radius-lg;
+  background: $bg-tertiary;
+  border: 1px solid $border-color;
+  color: $text-secondary;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 150;
+  transition: all $transition-fast;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+
+  &:hover {
+    border-color: $accent-blue;
+    color: $accent-blue;
+    background: rgba($accent-blue, 0.1);
+  }
+}
+
+.toolbox-backdrop {
+  position: fixed;
+  inset: 0;
+  background: transparent;
+  z-index: 200;
+}
+
+.toolbox {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 280px;
+  height: 100vh;
+  background: $bg-secondary;
+  border-right: 1px solid $border-color;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 250;
+  box-shadow: 4px 0 20px rgba(0, 0, 0, 0.5);
+  animation: slide-in-left $transition-normal ease-out;
+}
+
+.toolbox-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+@keyframes slide-in-left {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+.toolbox-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid $border-color;
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.toolbox-close-btn {
+  background: none;
+  border: none;
+  color: $text-secondary;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: color $transition-fast;
+
+  &:hover {
+    color: $text-primary;
+  }
+}
+
+.toolbox-section {
+  padding: 0;
+  margin-bottom: 2px;
+}
+
+.toolbox-section-header {
+  font-size: 11px;
+  font-weight: 600;
+  color: $text-secondary;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  background: linear-gradient(135deg, rgba($bg-tertiary, 0.8) 0%, rgba($bg-tertiary, 0.4) 100%);
+  border-left: 3px solid $accent-blue;
+}
+
+.tool-buttons {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.tool-btn {
+  flex: 1;
+  padding: 6px;
+  background: $bg-tertiary;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  color: $text-primary;
+  cursor: pointer;
+  transition: all $transition-fast;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  &:hover {
+    border-color: $text-secondary;
+  }
+
+  &.active {
+    border-color: $accent-blue;
+    background: rgba($accent-blue, 0.1);
+  }
+}
+
+.tool-btn-label {
+  display: none;
+}
+
+// Config section
+.config-section {
+  padding: 0;
+  border-top: 2px solid rgba($accent-blue, 0.2);
+  margin-top: 4px;
+
+  // Add a subtle gradient separator at the top
+  &::before {
+    content: '';
+    display: block;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, rgba($accent-blue, 0.3) 50%, transparent 100%);
+  }
+}
+
+.config-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+  gap: 8px;
+}
+
+.config-group {
+  margin-bottom: 6px;
+
+  .config-label {
+    display: block;
+    margin-bottom: 4px;
+  }
+}
+
+.config-label {
+  font-size: 10px;
+  color: $text-secondary;
+  flex-shrink: 0;
+}
+
+.config-slider {
+  flex: 1;
+  max-width: 80px;
+  height: 3px;
+  -webkit-appearance: none;
+  background: $border-color;
+  border-radius: 2px;
+  outline: none;
+
+  &::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: $accent-blue;
+    cursor: pointer;
+  }
+}
+
+.config-value {
+  font-size: 10px;
+  font-weight: 500;
+  min-width: 24px;
+  text-align: right;
+  color: $text-secondary;
+}
+
+// Compact toggle switch for config rows
+.config-toggle {
+  position: relative;
+  width: 32px;
+  height: 18px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.config-toggle-input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+
+.config-toggle-track {
+  position: absolute;
+  inset: 0;
+  background: rgba($bg-primary, 0.5);
+  border: 1px solid $border-color;
+  border-radius: 9px;
+  transition: all $transition-fast;
+}
+
+.config-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  background: $text-secondary;
+  border-radius: 50%;
+  transition: all $transition-fast;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.config-toggle-input:checked + .config-toggle-track {
+  background: rgba($dracula-green, 0.25);
+  border-color: $dracula-green;
+
+  .config-toggle-thumb {
+    left: calc(100% - 14px);
+    background: $dracula-green;
+  }
+}
+
+.config-toggle:hover .config-toggle-track {
+  border-color: $text-secondary;
+}
+
+.config-input {
+  width: 60px;
+  padding: 3px 6px;
+  font-size: 11px;
+  font-family: $font-mono;
+  background: $bg-primary;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  color: $text-primary;
+
+  &:focus {
+    outline: none;
+    border-color: $dracula-purple;
+  }
+
+  &.config-input-sm {
+    width: 50px;
+  }
+
+  &.config-input-full {
+    width: 100%;
+    flex: 1;
+  }
+}
+
+.config-row-stacked {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.config-input-group {
+  display: flex;
+  width: 100%;
+  gap: 6px;
+}
+
+.config-btn {
+  padding: 4px 8px;
+  font-size: 10px;
+  font-weight: 500;
+  background: $dracula-purple;
+  border: none;
+  border-radius: $radius-sm;
+  color: $text-primary;
+  cursor: pointer;
+  transition: background $transition-fast;
+  white-space: nowrap;
+
+  &:hover {
+    background: color.adjust($dracula-purple, $lightness: 10%);
+  }
+
+  &.config-btn-sm {
+    padding: 3px 6px;
+  }
+}
+
+.config-hint {
+  font-size: 9px;
+  color: $text-muted;
+  font-style: italic;
+}
+
+// Collapsible sections
+.collapsible-section {
+  margin-bottom: 2px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.collapsible-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 10px 12px;
+  background: linear-gradient(135deg, rgba($bg-tertiary, 0.8) 0%, rgba($bg-tertiary, 0.4) 100%);
+  border: none;
+  border-left: 3px solid transparent;
+  border-radius: 0;
+  color: $text-secondary;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: all $transition-fast;
+
+  &:hover {
+    color: $text-primary;
+    background: linear-gradient(135deg, rgba($bg-tertiary, 1) 0%, rgba($bg-tertiary, 0.6) 100%);
+    border-left-color: rgba($accent-blue, 0.5);
+  }
+
+  .collapsible-section.open & {
+    color: $text-primary;
+    border-left-color: $accent-blue;
+    background: linear-gradient(135deg, rgba($accent-blue, 0.15) 0%, rgba($bg-tertiary, 0.6) 100%);
+  }
+}
+
+.collapsible-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  &::before {
+    content: '';
+    display: inline-block;
+    width: 4px;
+    height: 4px;
+    background: currentColor;
+    border-radius: 1px;
+    opacity: 0.5;
+  }
+
+  .collapsible-section.open & {
+    &::before {
+      background: $accent-blue;
+      opacity: 1;
+    }
+  }
+}
+
+.collapsible-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.collapsible-arrow {
+  font-size: 10px;
+  opacity: 0.6;
+  transition: transform $transition-fast, opacity $transition-fast;
+
+  .collapsible-section.open & {
+    opacity: 1;
+  }
+}
+
+// Collapsible section inside toolbox-section
+.toolbox-section-collapsible {
+  padding: 0;
+  margin-bottom: 2px;
+
+  .collapsible-header {
+    padding: 10px 12px;
+  }
+
+  .collapsible-content {
+    padding: 8px 12px 12px;
+    background: rgba($bg-primary, 0.3);
+    border-left: 1px solid rgba($border-color, 0.3);
+    margin-left: 3px;
+  }
+
+  .areas-list,
+  .buildings-list {
+    padding: 0;
+  }
+}
+
+.collapsible-content {
+  padding: 8px 12px 12px;
+  background: rgba($bg-primary, 0.3);
+  border-left: 1px solid rgba($border-color, 0.3);
+  margin-left: 3px;
+}
+
+// Compact chip selector
+.chip-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 6px;
+  background: $bg-tertiary;
+  border: 1px solid transparent;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  transition: all $transition-fast;
+  font-size: 11px;
+
+  &:hover {
+    border-color: $border-color;
+  }
+
+  &.active {
+    background: rgba($accent-blue, 0.2);
+    border-color: rgba($accent-blue, 0.4);
+  }
+}
+
+.chip-icon {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.chip-label {
+  font-size: 10px;
+  color: $text-primary;
+}
+
+// Terrain icon buttons
+.terrain-icons {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.terrain-icon-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: $bg-tertiary;
+  border: 1px solid transparent;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  font-size: 14px;
+  opacity: 0.4;
+  transition: all $transition-fast;
+
+  &:hover {
+    opacity: 0.7;
+    border-color: $border-color;
+  }
+
+  &.active {
+    opacity: 1;
+    background: rgba($accent-blue, 0.15);
+    border-color: rgba($accent-blue, 0.3);
+  }
+}
+
+// Sky color selector
+.sky-color-selector {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.sky-color-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: $radius-sm;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    transform: scale(1.1);
+    border-color: rgba(255, 255, 255, 0.3);
+  }
+
+  &.active {
+    border-color: $accent-blue;
+    box-shadow: 0 0 6px rgba($accent-blue, 0.5);
+  }
+}
+
+.areas-empty {
+  padding: 20px;
+  text-align: center;
+  color: $text-secondary;
+  font-size: 12px;
+}
+
+// Legacy terrain toggles (kept for compatibility, hidden by default)
+.terrain-toggles {
+  display: none;
+}

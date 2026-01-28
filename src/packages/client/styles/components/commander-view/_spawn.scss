@@ -1,0 +1,198 @@
+@use 'sass:color';
+@use '../../variables' as *;
+
+// Add agent button
+.commander-add-btn {
+  background: $dracula-green;
+  border: none;
+  color: $dracula-bg;
+  padding: 6px 14px;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: $font-mono;
+  font-weight: 600;
+  transition: all $transition-fast;
+
+  &:hover {
+    background: color.adjust($dracula-green, $lightness: 10%);
+  }
+}
+
+// Spawn form overlay
+.commander-spawn-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.commander-spawn-form {
+  background: $dracula-bg;
+  border: 1px solid $dracula-purple;
+  border-radius: $radius-lg;
+  width: 400px;
+  max-width: 90%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.commander-spawn-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 18px;
+  border-bottom: 1px solid $dracula-current;
+
+  h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: $dracula-pink;
+    font-family: $font-mono;
+  }
+}
+
+.commander-spawn-area {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: $dracula-fg;
+  font-family: $font-mono;
+}
+
+.commander-spawn-area-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.commander-spawn-body {
+  padding: 16px 18px;
+}
+
+.commander-spawn-field {
+  margin-bottom: 14px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+
+  label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    color: $dracula-comment;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    font-family: $font-mono;
+  }
+
+  input {
+    width: 100%;
+    background: $dracula-bg-darker;
+    border: 1px solid $dracula-current;
+    border-radius: $radius-sm;
+    padding: 10px 12px;
+    color: $dracula-fg;
+    font-size: 12px;
+    font-family: $font-mono;
+
+    &:focus {
+      outline: none;
+      border-color: $dracula-purple;
+    }
+
+    &::placeholder {
+      color: $dracula-comment;
+    }
+  }
+}
+
+.commander-spawn-classes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.commander-spawn-class {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 6px;
+  background: $dracula-bg-darker;
+  border: 1px solid $dracula-current;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  font-family: $font-mono;
+  font-size: 11px;
+  color: $dracula-comment;
+  transition: all $transition-fast;
+
+  &:hover {
+    border-color: $dracula-purple;
+    color: $dracula-fg;
+  }
+
+  &.selected {
+    border-color: $dracula-green;
+    background: rgba($dracula-green, 0.1);
+    color: $dracula-green;
+  }
+}
+
+.commander-spawn-class-icon {
+  font-size: 16px;
+}
+
+.commander-spawn-footer {
+  display: flex;
+  gap: 10px;
+  padding: 14px 18px;
+  border-top: 1px solid $dracula-current;
+}
+
+.commander-spawn-cancel {
+  flex: 1;
+  padding: 10px;
+  background: transparent;
+  border: 1px solid $dracula-current;
+  border-radius: $radius-sm;
+  color: $dracula-comment;
+  font-size: 11px;
+  font-family: $font-mono;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    border-color: $dracula-fg;
+    color: $dracula-fg;
+  }
+}
+
+.commander-spawn-submit {
+  flex: 1;
+  padding: 10px;
+  background: $dracula-green;
+  border: none;
+  border-radius: $radius-sm;
+  color: $dracula-bg;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: $font-mono;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover:not(:disabled) {
+    background: color.adjust($dracula-green, $lightness: 10%);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}

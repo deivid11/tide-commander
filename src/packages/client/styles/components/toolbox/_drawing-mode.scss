@@ -1,0 +1,94 @@
+@use 'sass:color';
+@use '../../variables' as *;
+
+// ============================================
+// Drawing Mode Indicator
+// ============================================
+
+.drawing-mode-indicator {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: rgba($bg-secondary, 0.95);
+  border: 1px solid $accent-blue;
+  border-radius: $radius-lg;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  animation: drawing-indicator-in 0.2s ease-out;
+  backdrop-filter: blur(8px);
+}
+
+@keyframes drawing-indicator-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.drawing-mode-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.drawing-mode-icon {
+  font-size: 20px;
+  color: $accent-blue;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba($accent-blue, 0.15);
+  border-radius: $radius-sm;
+}
+
+.drawing-mode-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.drawing-mode-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: $text-primary;
+}
+
+.drawing-mode-hint {
+  font-size: 11px;
+  color: $text-secondary;
+}
+
+.drawing-mode-exit {
+  background: none;
+  border: 1px solid $border-color;
+  color: $text-secondary;
+  cursor: pointer;
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: $radius-sm;
+  transition: all $transition-fast;
+
+  &:hover {
+    background: rgba($accent-red, 0.15);
+    border-color: $accent-red;
+    color: $accent-red;
+  }
+}
+
+// Canvas cursor when in drawing mode
+.app.drawing-mode {
+  #battlefield {
+    cursor: crosshair;
+  }
+}

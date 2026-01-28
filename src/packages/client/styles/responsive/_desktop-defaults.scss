@@ -1,0 +1,35 @@
+@use '../variables' as *;
+
+// =============================================================================
+// Mobile Sidebar Toggle Button (hidden on desktop)
+// =============================================================================
+
+.sidebar-toggle-btn {
+  display: none;
+}
+
+.sidebar-overlay {
+  display: none;
+}
+
+.mobile-view-toggle-btn {
+  display: none;
+}
+
+.mobile-fab-toggle {
+  display: none;
+}
+
+.mobile-fab-menu {
+  display: none;
+}
+
+// Elements that should only show on mobile - hide on desktop
+.show-on-mobile {
+  display: none !important;
+}
+
+.guake-close-btn,
+.guake-mode-btn {
+  display: none;
+}

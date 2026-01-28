@@ -1,0 +1,403 @@
+@use 'sass:color';
+@use '../../variables' as *;
+
+// Buildings section
+.buildings-section {
+  border-top: 1px solid $border-color;
+  padding-top: 8px;
+
+  .toolbox-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+}
+
+.add-building-btn {
+  background: transparent;
+  border: 1px solid $accent-blue;
+  color: $accent-blue;
+  width: 22px;
+  height: 22px;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  transition: all $transition-fast;
+
+  &:hover {
+    background: $accent-blue;
+    color: $bg-primary;
+  }
+}
+
+.buildings-list {
+  max-height: 150px;
+  overflow-y: auto;
+  margin-top: 8px;
+}
+
+.buildings-empty {
+  font-size: 11px;
+  color: $text-secondary;
+  text-align: center;
+  padding: 10px;
+}
+
+.building-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  transition: background $transition-fast;
+
+  &:hover {
+    background: $bg-tertiary;
+  }
+
+  &.selected {
+    background: rgba($accent-blue, 0.15);
+    border-left: 2px solid $accent-blue;
+  }
+}
+
+.building-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.building-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.building-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.building-name {
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.building-meta {
+  font-size: 10px;
+  color: $text-secondary;
+  text-transform: capitalize;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.building-ports {
+  display: inline-flex;
+  gap: 0.2rem;
+}
+
+.building-port-link {
+  font-family: $font-mono;
+  font-size: 9px;
+  color: $accent-blue;
+  text-decoration: none;
+  padding: 0.05rem 0.2rem;
+  border-radius: 2px;
+  background: rgba($accent-blue, 0.1);
+  transition: all 0.15s;
+  text-transform: none;
+
+  &:hover {
+    background: rgba($accent-blue, 0.25);
+    text-decoration: underline;
+  }
+}
+
+.building-edit-btn {
+  background: none;
+  border: none;
+  color: $text-secondary;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 4px;
+  opacity: 0;
+  transition: opacity $transition-fast, color $transition-fast;
+
+  .building-item:hover & {
+    opacity: 1;
+  }
+
+  &:hover {
+    color: $accent-blue;
+  }
+}
+
+// Building Editor (sidebar panel)
+.building-editor {
+  padding: 12px;
+  border-top: 1px solid $border-color;
+  background: $bg-tertiary;
+  animation: slide-up $transition-normal ease-out;
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.building-editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.building-editor-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.building-editor-icon {
+  font-size: 18px;
+}
+
+.building-editor-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: $text-primary;
+}
+
+.building-editor-status {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 3px;
+  color: $bg-primary;
+}
+
+.building-editor-close {
+  background: none;
+  border: none;
+  color: $text-secondary;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0;
+  transition: color $transition-fast;
+
+  &:hover {
+    color: $text-primary;
+  }
+}
+
+.building-editor-section {
+  margin-bottom: 12px;
+
+  &:last-of-type {
+    margin-bottom: 0;
+  }
+}
+
+.building-editor-section-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: $text-secondary;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.building-editor-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.building-editor-info-item {
+  background: $bg-secondary;
+  padding: 6px 8px;
+  border-radius: $radius-sm;
+}
+
+.building-editor-info-wide {
+  grid-column: 1 / -1;
+}
+
+.building-editor-info-label {
+  display: block;
+  font-size: 9px;
+  color: $text-secondary;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.building-editor-info-value {
+  font-size: 12px;
+  color: $text-primary;
+  text-transform: capitalize;
+}
+
+.building-editor-cwd {
+  font-family: $font-mono;
+  font-size: 11px;
+  text-transform: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+
+.building-editor-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.building-editor-action-btn {
+  padding: 6px 8px;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  background: $bg-secondary;
+  color: $text-primary;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all $transition-fast;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+
+  &:hover:not(:disabled) {
+    border-color: $text-secondary;
+    background: $bg-tertiary;
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  &.start:hover:not(:disabled) {
+    border-color: $accent-green;
+    color: $accent-green;
+  }
+
+  &.stop:hover:not(:disabled) {
+    border-color: $accent-red;
+    color: $accent-red;
+  }
+
+  &.restart:hover:not(:disabled) {
+    border-color: $accent-orange;
+    color: $accent-orange;
+  }
+
+  &.health:hover:not(:disabled) {
+    border-color: $dracula-pink;
+    color: $dracula-pink;
+  }
+}
+
+.building-editor-links {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.building-editor-link {
+  padding: 6px 10px;
+  background: $bg-secondary;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  color: $accent-blue;
+  font-size: 11px;
+  cursor: pointer;
+  text-align: left;
+  transition: all $transition-fast;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  &:hover {
+    border-color: $accent-blue;
+    background: rgba($accent-blue, 0.1);
+  }
+}
+
+.building-editor-clear-logs {
+  font-size: 10px;
+  background: none;
+  border: none;
+  color: $text-secondary;
+  cursor: pointer;
+  padding: 0;
+  transition: color $transition-fast;
+
+  &:hover {
+    color: $accent-red;
+  }
+}
+
+.building-editor-logs {
+  background: $bg-secondary;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  padding: 6px 8px;
+  max-height: 100px;
+  overflow-y: auto;
+  font-family: $font-mono;
+  font-size: 10px;
+}
+
+.building-editor-log-entry {
+  color: $text-secondary;
+  padding: 2px 0;
+  border-bottom: 1px solid rgba($border-color, 0.5);
+  word-break: break-all;
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.building-editor-footer {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid $border-color;
+}
+
+.building-editor-edit-btn {
+  width: 100%;
+  padding: 8px;
+  background: $bg-secondary;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  color: $text-primary;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    border-color: $accent-blue;
+    color: $accent-blue;
+    background: rgba($accent-blue, 0.1);
+  }
+}
