@@ -42,6 +42,9 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
   const { text: rawText, isStreaming, isUserPrompt, timestamp, skillUpdate, _toolKeyParam, _editData, _todoInput, _bashOutput, _bashCommand, _isRunning } = output;
   const text = filterCostText(rawText, hideCost);
 
+  // All hooks must be called before any conditional returns (Rules of Hooks)
+  const [sessionExpanded, setSessionExpanded] = useState(false);
+
   // Format timestamp for display
   const timeStr = formatTimestamp(timestamp || Date.now());
 
@@ -68,7 +71,6 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
 
   // Handle session continuation message with special rendering
   const isSessionContinuation = text.includes('This session is being continued from a previous conversation that ran out of context');
-  const [sessionExpanded, setSessionExpanded] = useState(false);
   if (isSessionContinuation) {
     return (
       <div
