@@ -7,6 +7,7 @@
 
 import React, { useCallback } from 'react';
 import type { Agent } from '../../../shared/types';
+import { useModalClose } from '../../hooks';
 
 interface AgentResponseModalProps {
   agent: Agent;
@@ -25,14 +26,13 @@ export function AgentResponseModal({
     navigator.clipboard.writeText(content);
   }, [content]);
 
+  const { handleMouseDown: handleBackdropMouseDown, handleClick: handleBackdropClick } = useModalClose(onClose);
+
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay visible" onClick={onClose}>
-      <div
-        className="modal agent-response-modal"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div className="modal-overlay visible" onMouseDown={handleBackdropMouseDown} onClick={handleBackdropClick}>
+      <div className="modal agent-response-modal">
         <div className="modal-header agent-response-modal-header">
           <div className="agent-response-modal-title">
             <span className="agent-response-modal-icon">📝</span>

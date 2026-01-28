@@ -7,6 +7,7 @@ import type { Skill, CustomAgentClass, AnimationMapping } from '../../shared/typ
 import { ALL_CHARACTER_MODELS } from '../scene/config';
 import { parseGlbAnimations, isValidGlbFile, formatFileSize } from '../utils/glbParser';
 import { apiUrl } from '../utils/storage';
+import { useModalClose } from '../hooks';
 
 type PanelTab = 'skills' | 'classes';
 
@@ -59,6 +60,10 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
   const [isUploadingModel, setIsUploadingModel] = useState(false);
   const [modelUploadError, setModelUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Modal close handler for class editor
+  const closeClassEditor = useCallback(() => setShowClassEditor(false), []);
+  const { handleMouseDown: handleClassEditorBackdropMouseDown, handleClick: handleClassEditorBackdropClick } = useModalClose(closeClassEditor);
 
   // Get current model index for navigation
   const currentModelIndex = useMemo(() => {
@@ -715,8 +720,8 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
 
       {/* Custom Class Editor Modal */}
       {showClassEditor && (
-        <div className="modal-overlay visible" onClick={() => setShowClassEditor(false)}>
-          <div className="modal skill-editor-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-overlay visible" onMouseDown={handleClassEditorBackdropMouseDown} onClick={handleClassEditorBackdropClick}>
+          <div className="modal skill-editor-modal">
             <div className="modal-header">
               {editingClassId ? 'Edit Agent Class' : 'Create Agent Class'}
             </div>

@@ -829,6 +829,101 @@
     }
   }
 
+  // Database Configuration Section
+  .database-config-section {
+    background: rgba($accent-orange, 0.05);
+    border: 1px solid rgba($accent-orange, 0.2);
+    border-radius: 6px;
+    padding: 0.75rem;
+
+    .db-connection-card {
+      background: $bg-primary;
+      border: 1px solid $border-color;
+      border-radius: 6px;
+      padding: 0.75rem;
+      margin-bottom: 0.75rem;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
+
+    .db-connection-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid $border-color;
+    }
+
+    .db-connection-active {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.85rem;
+      color: $text-secondary;
+      cursor: pointer;
+
+      input[type="radio"] {
+        accent-color: $accent-orange;
+      }
+    }
+
+    .db-connection-row {
+      display: flex;
+      gap: 0.75rem;
+      margin-bottom: 0.5rem;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
+
+    .db-field {
+      flex: 1;
+
+      label {
+        display: block;
+        font-size: 0.75rem;
+        color: $text-muted;
+        margin-bottom: 0.25rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .form-input {
+        width: 100%;
+        padding: 0.4rem 0.5rem;
+        font-size: 0.85rem;
+      }
+
+      &--small {
+        flex: 0 0 auto;
+        width: 100px;
+      }
+
+      &--grow {
+        flex: 2;
+      }
+    }
+
+    .toggle-switch--small {
+      padding: 0;
+      margin-top: 0.25rem;
+
+      .toggle-track {
+        width: 32px;
+        height: 18px;
+      }
+
+      .toggle-thumb {
+        width: 14px;
+        height: 14px;
+      }
+    }
+  }
+
   // PM2 Toggle Section
   .pm2-toggle-section {
     .toggle-switch {

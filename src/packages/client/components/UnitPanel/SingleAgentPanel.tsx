@@ -14,6 +14,7 @@ import { ContextViewModal } from '../ContextViewModal';
 import { useToast } from '../Toast';
 import { PERMISSION_MODES, AGENT_CLASSES } from '../../../shared/types';
 import { apiUrl } from '../../utils/storage';
+import { useModalClose } from '../../hooks';
 import type { Agent } from '../../../shared/types';
 import { calculateContextInfo } from './agentUtils';
 import { formatRelativeTime } from './agentUtils';
@@ -510,9 +511,10 @@ const ContextConfirmModal = memo(function ContextConfirmModal({
   onClose,
   onConfirm,
 }: ContextConfirmModalProps) {
+  const { handleMouseDown: handleBackdropMouseDown, handleClick: handleBackdropClick } = useModalClose(onClose);
   return (
-    <div className="modal-overlay visible" onClick={onClose}>
-      <div className="modal confirm-modal" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay visible" onMouseDown={handleBackdropMouseDown} onClick={handleBackdropClick}>
+      <div className="modal confirm-modal">
         <div className="modal-header">{action === 'collapse' ? 'Collapse Context' : 'Clear Context'}</div>
         <div className="modal-body confirm-modal-body">
           {action === 'collapse' ? (

@@ -5,7 +5,7 @@
 
 import { ClaudeRunner, StandardEvent } from '../claude/index.js';
 import { parseContextOutput, parseUsageOutput } from '../claude/backend.js';
-import { getSessionActivityStatus } from '../claude/session-loader.js';
+import { getSessionActivityStatus, isClaudeProcessRunningInCwd } from '../claude/session-loader.js';
 import type { CustomAgentDefinition } from '../claude/types.js';
 import * as agentService from './agent-service.js';
 import * as supervisorService from './supervisor-service.js';
@@ -55,6 +55,17 @@ function notifyCommandStarted(agentId: string, command: string): void {
 const STATUS_SYNC_INTERVAL = 30000;
 let statusSyncTimer: NodeJS.Timeout | null = null;
 
+// Interval for polling orphaned agents (10 seconds)
+const ORPHAN_POLL_INTERVAL = 10000;
+let orphanPollTimer: NodeJS.Timeout | null = null;
+
+// Callback for broadcasting session updates to clients
+let sessionUpdateCallback: ((agentId: string) => void) | null = null;
+
+export function setSessionUpdateCallback(callback: (agentId: string) => void): void {
+  sessionUpdateCallback = callback;
+}
+
 export function init(): void {
   runner = new ClaudeRunner({
     onEvent: handleEvent,
@@ -72,7 +83,15 @@ export function init(): void {
     syncAllAgentStatus();
   }, STATUS_SYNC_INTERVAL);
 
-  log.log(' Initialized with periodic status sync');
+  // Start polling for orphaned agents with active sessions
+  if (orphanPollTimer) {
+    clearInterval(orphanPollTimer);
+  }
+  orphanPollTimer = setInterval(() => {
+    pollOrphanedAgents();
+  }, ORPHAN_POLL_INTERVAL);
+
+  log.log(' Initialized with periodic status sync and orphan polling');
 }
 
 /**
@@ -86,8 +105,62 @@ export async function shutdown(): Promise<void> {
     clearInterval(statusSyncTimer);
     statusSyncTimer = null;
   }
+  if (orphanPollTimer) {
+    clearInterval(orphanPollTimer);
+    orphanPollTimer = null;
+  }
   if (runner) {
     await runner.stopAll();
+  }
+}
+
+/**
+ * Poll orphaned agents (those with 'working' status but no tracked process)
+ * to check if their session files have been updated, indicating the detached
+ * Claude process is still active.
+ */
+async function pollOrphanedAgents(): Promise<void> {
+  const agents = agentService.getAllAgents();
+
+  for (const agent of agents) {
+    // Only poll agents that are marked as working but we're not tracking their process
+    if (agent.status !== 'working') continue;
+
+    const isTracked = runner?.isRunning(agent.id) ?? false;
+    if (isTracked) continue;
+
+    // This is an orphaned working agent - check its session activity
+    if (!agent.sessionId || !agent.cwd) continue;
+
+    try {
+      const activity = await getSessionActivityStatus(agent.cwd, agent.sessionId, 60);
+
+      if (activity && activity.isActive) {
+        // Session file was updated recently - the orphaned process is still working
+        // Notify clients to refresh the history for this agent
+        if (sessionUpdateCallback) {
+          sessionUpdateCallback(agent.id);
+        }
+      } else if (activity && !activity.isActive) {
+        // Session file hasn't been updated in 60+ seconds - process likely finished
+        // Check if there's still an orphaned process running
+        const hasOrphanedProcess = await isClaudeProcessRunningInCwd(agent.cwd);
+
+        if (!hasOrphanedProcess) {
+          // No orphaned process and no recent activity - mark as idle
+          log.log(`Orphaned agent ${agent.id} has no activity - marking as idle`);
+          agentService.updateAgent(agent.id, {
+            status: 'idle',
+            currentTask: undefined,
+            currentTool: undefined,
+            isDetached: false,
+          });
+        }
+      }
+    } catch (err) {
+      // Failed to check session activity, skip this agent
+      log.error(`Failed to poll orphaned agent ${agent.id}:`, err);
+    }
   }
 }
 
@@ -286,6 +359,7 @@ function handleComplete(agentId: string, success: boolean): void {
     status: 'idle',
     currentTask: undefined,
     currentTool: undefined,
+    isDetached: false,
   });
   emit('complete', agentId, success);
 }
@@ -333,6 +407,7 @@ async function executeCommand(agentId: string, command: string, systemPrompt?: s
     const updateData: Partial<Parameters<typeof agentService.updateAgent>[1]> = {
       status: 'working' as const,
       currentTask: command.substring(0, 100),
+      isDetached: false, // Agent is now attached since we're executing a command
     };
     if (!isSystemMessage) {
       updateData.lastAssignedTask = command;
@@ -571,30 +646,55 @@ export async function syncAgentStatus(agentId: string, isStartupSync: boolean = 
 
   // Check 2: Session file activity - is there recent pending work?
   let isRecentlyActive = false;
+  let hasOrphanedProcess = false;
 
   if (agent.sessionId && agent.cwd) {
     try {
-      const activity = await getSessionActivityStatus(agent.cwd, agent.sessionId, 30);
+      // Use 60 second threshold for orphaned process detection
+      const activity = await getSessionActivityStatus(agent.cwd, agent.sessionId, 60);
       if (activity) {
         isRecentlyActive = activity.isActive;
       }
     } catch {
       // Session activity check failed, assume not active
     }
+
+    // Check 3: Is there an orphaned Claude process running in this cwd?
+    // This detects processes that survived a server restart
+    if (agent.status === 'idle') {
+      try {
+        hasOrphanedProcess = await isClaudeProcessRunningInCwd(agent.cwd);
+        if (hasOrphanedProcess) {
+          log.log(`[syncAgentStatus] Agent ${agentId}: Found orphaned process, isRecentlyActive=${isRecentlyActive}`);
+        }
+      } catch (err) {
+        // Process detection failed, assume no orphaned process
+        log.error(`[syncAgentStatus] Agent ${agentId}: Failed to check for orphaned process:`, err);
+      }
+    }
   }
 
   // Case 1: Agent shows 'working' but no tracked process and not recently active -> set to idle
   // This applies during both startup and periodic syncs
-  if (agent.status === 'working' && !isRecentlyActive) {
+  if (agent.status === 'working' && !isRecentlyActive && !hasOrphanedProcess) {
     agentService.updateAgent(agentId, {
       status: 'idle',
       currentTask: undefined,
       currentTool: undefined,
+      isDetached: false,
     });
   }
-  // Case 2: Agent shows 'idle' but session is recently active with pending work -> set to working
-  // ONLY applies during startup sync to recover agents that were working before server restart
-  // During periodic sync, we trust the idle status set by handleComplete
+  // Case 2: Agent shows 'idle' but there's an orphaned process with recent session activity
+  // Mark as working so the UI reflects the actual state
+  else if (agent.status === 'idle' && hasOrphanedProcess && isRecentlyActive) {
+    log.log(`Agent ${agentId} has orphaned Claude process with recent activity - marking as working (detached)`);
+    agentService.updateAgent(agentId, {
+      status: 'working',
+      currentTask: 'Processing (detached)...',
+      isDetached: true,
+    });
+  }
+  // Case 3: Legacy startup sync behavior for agents without orphaned process detection
   else if (isStartupSync && agent.status === 'idle' && isRecentlyActive) {
     agentService.updateAgent(agentId, {
       status: 'working',

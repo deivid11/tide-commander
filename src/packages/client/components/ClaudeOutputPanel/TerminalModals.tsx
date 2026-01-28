@@ -11,6 +11,7 @@ import { FileViewerModal } from '../FileViewerModal';
 import { AgentResponseModal } from './AgentResponseModal';
 import { ansiToHtml } from '../../utils/ansiToHtml';
 import type { Agent } from '../../../shared/types';
+import { useModalClose } from '../../hooks';
 
 // Image modal props
 export interface ImageModalProps {
@@ -20,9 +21,10 @@ export interface ImageModalProps {
 }
 
 export function ImageModal({ url, name, onClose }: ImageModalProps) {
+  const { handleMouseDown: handleBackdropMouseDown, handleClick: handleBackdropClick } = useModalClose(onClose);
   return (
-    <div className="image-modal-overlay" onClick={onClose}>
-      <div className="image-modal" onClick={(e) => e.stopPropagation()}>
+    <div className="image-modal-overlay" onMouseDown={handleBackdropMouseDown} onClick={handleBackdropClick}>
+      <div className="image-modal">
         <div className="image-modal-header">
           <span className="image-modal-title">{name}</span>
           <button className="image-modal-close" onClick={onClose}>
@@ -50,9 +52,10 @@ export interface BashModalProps {
 }
 
 export function BashModal({ state, onClose }: BashModalProps) {
+  const { handleMouseDown: handleBackdropMouseDown, handleClick: handleBackdropClick } = useModalClose(onClose);
   return (
-    <div className="bash-modal-overlay" onClick={onClose}>
-      <div className="bash-modal" onClick={(e) => e.stopPropagation()}>
+    <div className="bash-modal-overlay" onMouseDown={handleBackdropMouseDown} onClick={handleBackdropClick}>
+      <div className="bash-modal">
         <div className="bash-modal-header">
           <span className="bash-modal-icon">$</span>
           <span className="bash-modal-title">Terminal Output</span>
@@ -80,6 +83,7 @@ export interface ContextConfirmModalProps {
 }
 
 export function ContextConfirmModal({ action, selectedAgentId, onClose, onClearHistory }: ContextConfirmModalProps) {
+  const { handleMouseDown: handleBackdropMouseDown, handleClick: handleBackdropClick } = useModalClose(onClose);
   const handleConfirm = () => {
     if (selectedAgentId) {
       if (action === 'collapse') {
@@ -93,8 +97,8 @@ export function ContextConfirmModal({ action, selectedAgentId, onClose, onClearH
   };
 
   return (
-    <div className="modal-overlay visible" onClick={onClose}>
-      <div className="modal confirm-modal" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay visible" onMouseDown={handleBackdropMouseDown} onClick={handleBackdropClick}>
+      <div className="modal confirm-modal">
         <div className="modal-header">{action === 'collapse' ? 'Collapse Context' : 'Clear Context'}</div>
         <div className="modal-body confirm-modal-body">
           {action === 'collapse' ? (

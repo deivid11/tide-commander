@@ -10,6 +10,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { ansiToHtml } from '../utils/ansiToHtml';
+import { useModalClose } from '../hooks';
 
 export interface LogLine {
   text: string;
@@ -309,11 +310,13 @@ export function LogViewerModal({
     }
   }, [searchQuery, searchRegex, useRegex]);
 
+  const { handleMouseDown: handleBackdropMouseDown, handleClick: handleBackdropClick } = useModalClose(onClose);
+
   if (!isOpen) return null;
 
   return (
-    <div className="pm2-logs-modal-overlay" onClick={onClose}>
-      <div className={`pm2-logs-modal ${modalClassName || ''}`} onClick={(e) => e.stopPropagation()}>
+    <div className="pm2-logs-modal-overlay" onMouseDown={handleBackdropMouseDown} onClick={handleBackdropClick}>
+      <div className={`pm2-logs-modal ${modalClassName || ''}`}>
         {/* Header */}
         <div className="pm2-logs-modal-header">
           <div className="header-left">

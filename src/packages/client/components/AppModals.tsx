@@ -60,6 +60,7 @@ interface AppModalsProps {
   // Building logs modals (for Spotlight)
   onOpenPM2LogsModal: (buildingId: string) => void;
   onOpenBossLogsModal: (buildingId: string) => void;
+  onOpenDatabasePanel: (buildingId: string) => void;
 }
 
 export function AppModals({
@@ -93,6 +94,7 @@ export function AppModals({
   onLeave,
   onOpenPM2LogsModal,
   onOpenBossLogsModal,
+  onOpenDatabasePanel,
 }: AppModalsProps) {
   const state = useStore();
   const isSelectedBuildingsDelete = pendingBuildingDelete === 'selected';
@@ -278,6 +280,7 @@ export function AppModals({
         onOpenFileExplorer={(areaId) => explorerModal.open(areaId)}
         onOpenPM2LogsModal={onOpenPM2LogsModal}
         onOpenBossLogsModal={onOpenBossLogsModal}
+        onOpenDatabasePanel={onOpenDatabasePanel}
       />
 
       {/* Controls Modal (Keyboard & Mouse) */}

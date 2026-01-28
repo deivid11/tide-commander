@@ -34,6 +34,7 @@
 @use 'components/agentProgress';
 @use 'components/pwa-install';
 @use 'components/pip';
+@use 'components/tooltip';
 
 // Responsive styles (must be last to override component styles)
 @use 'responsive/index' as responsive;

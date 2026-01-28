@@ -1,0 +1,213 @@
+/**
+ * DatabasePanel Styles
+ */
+@use '../../styles/variables' as *;
+
+.database-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: $bg-primary;
+  color: $text-primary;
+  border-radius: 8px;
+  overflow: hidden;
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: $bg-secondary;
+    border-bottom: 1px solid $border-color;
+  }
+
+  &__title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+  }
+
+  &__icon {
+    font-size: 1.2em;
+  }
+
+  &__name {
+    font-size: 1.1em;
+  }
+
+  &__connection-info {
+    font-size: 0.85em;
+    color: $text-secondary;
+    margin-left: 8px;
+    padding-left: 8px;
+    border-left: 1px solid $border-color;
+  }
+
+  &__close {
+    background: none;
+    border: none;
+    color: $text-secondary;
+    font-size: 1.5em;
+    cursor: pointer;
+    padding: 0 8px;
+    line-height: 1;
+
+    &:hover {
+      color: $text-primary;
+    }
+  }
+
+  &__body {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  &__main {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  &__tabs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 16px;
+    background: $bg-secondary;
+    border-top: 1px solid $border-color;
+    border-bottom: 1px solid $border-color;
+  }
+
+  &__tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    color: $text-secondary;
+    cursor: pointer;
+    font-size: 0.9em;
+
+    &:hover {
+      background: rgba($text-primary, 0.05);
+      color: $text-primary;
+    }
+
+    &--active {
+      background: $accent-blue;
+      color: white;
+
+      &:hover {
+        background: lighten($accent-blue, 5%);
+      }
+    }
+  }
+
+  &__tab-badge {
+    background: rgba(0, 0, 0, 0.2);
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-size: 0.8em;
+    min-width: 20px;
+    text-align: center;
+  }
+
+  &__result-nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+    font-size: 0.85em;
+    color: $text-secondary;
+
+    button {
+      background: $bg-tertiary;
+      border: 1px solid $border-color;
+      border-radius: 4px;
+      color: $text-secondary;
+      padding: 4px 8px;
+      cursor: pointer;
+
+      &:hover:not(:disabled) {
+        background: rgba($text-primary, 0.05);
+        color: $text-primary;
+      }
+
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    }
+  }
+
+  &__tab-content {
+    flex: 1;
+    overflow: auto;
+    padding: 16px;
+  }
+
+  &__empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 200px;
+    color: $text-secondary;
+    text-align: center;
+
+    p {
+      margin: 4px 0;
+    }
+  }
+
+  &__no-connections {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: 40px;
+    text-align: center;
+    color: $text-secondary;
+
+    &-icon {
+      font-size: 4em;
+      margin-bottom: 20px;
+      opacity: 0.6;
+    }
+
+    h3 {
+      font-size: 1.4em;
+      color: $text-primary;
+      margin: 0 0 12px;
+    }
+
+    p {
+      margin: 8px 0;
+      max-width: 400px;
+      line-height: 1.5;
+    }
+
+    ol {
+      text-align: left;
+      margin: 16px 0;
+      padding-left: 24px;
+
+      li {
+        margin: 8px 0;
+        line-height: 1.5;
+
+        strong {
+          color: $accent-blue;
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,155 @@
+// =============================================================================
+// Tooltip - Custom tooltip styles
+// =============================================================================
+
+@use 'sass:color';
+@use '../variables' as *;
+
+// Base tooltip styles
+.tide-tooltip {
+  pointer-events: none;
+  animation: tooltip-fade-in 0.15s ease-out;
+
+  &__content {
+    background: color-mix(in srgb, var(--bg-primary) 97%, white);
+    border: 1px solid var(--border-color);
+    border-radius: $radius-md;
+    padding: 10px 14px;
+    font-family: $font-mono;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text-primary);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), 0 0 1px rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(8px);
+  }
+
+  &__title {
+    font-weight: 600;
+    font-size: 13px;
+    margin-bottom: 6px;
+    color: var(--accent-cyan);
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 6px;
+  }
+
+  &__text {
+    color: var(--text-secondary);
+  }
+
+  &__arrow {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background: color-mix(in srgb, var(--bg-primary) 97%, white);
+    border: 1px solid var(--border-color);
+    transform: rotate(45deg);
+  }
+
+  // Position variants
+  &--top {
+    .tide-tooltip__arrow {
+      bottom: -6px;
+      left: 50%;
+      margin-left: -5px;
+      border-top: none;
+      border-left: none;
+    }
+  }
+
+  &--bottom {
+    .tide-tooltip__arrow {
+      top: -6px;
+      left: 50%;
+      margin-left: -5px;
+      border-bottom: none;
+      border-right: none;
+    }
+  }
+
+  &--left {
+    .tide-tooltip__arrow {
+      right: -6px;
+      top: 50%;
+      margin-top: -5px;
+      border-bottom: none;
+      border-left: none;
+    }
+  }
+
+  &--right {
+    .tide-tooltip__arrow {
+      left: -6px;
+      top: 50%;
+      margin-top: -5px;
+      border-top: none;
+      border-right: none;
+    }
+  }
+}
+
+@keyframes tooltip-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+// Help icon styles
+.tide-help-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(var(--accent-purple-rgb, 139, 92, 246), 0.15);
+  border: 1px solid rgba(var(--accent-purple-rgb, 139, 92, 246), 0.4);
+  border-radius: 50%;
+  color: var(--accent-purple);
+  font-weight: 700;
+  cursor: help;
+  transition: all 0.2s ease;
+
+  &:hover,
+  &:focus {
+    background: rgba(var(--accent-purple-rgb, 139, 92, 246), 0.25);
+    border-color: var(--accent-purple);
+    outline: none;
+  }
+
+  &--sm {
+    width: 14px;
+    height: 14px;
+    font-size: 9px;
+  }
+
+  &--md {
+    width: 18px;
+    height: 18px;
+    font-size: 11px;
+  }
+
+  &--lg {
+    width: 22px;
+    height: 22px;
+    font-size: 13px;
+  }
+}
+
+// Detached mode tooltip specific styling
+.tide-tooltip--detached {
+  .tide-tooltip__content {
+    border-color: rgba($dracula-orange, 0.5);
+    background: color-mix(in srgb, var(--bg-primary) 95%, $dracula-orange 5%);
+  }
+
+  .tide-tooltip__title {
+    color: $dracula-orange;
+  }
+
+  .tide-tooltip__arrow {
+    border-color: rgba($dracula-orange, 0.5);
+    background: color-mix(in srgb, var(--bg-primary) 95%, $dracula-orange 5%);
+  }
+}

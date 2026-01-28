@@ -35,6 +35,7 @@ interface UseSceneSetupOptions {
   openBuildingModal: (buildingId: string) => void;
   openPM2LogsModal?: (buildingId: string) => void;
   openBossLogsModal?: (buildingId: string) => void;
+  openDatabasePanel?: (buildingId: string) => void;
 }
 
 /**
@@ -54,6 +55,7 @@ export function useSceneSetup({
   openBuildingModal,
   openPM2LogsModal,
   openBossLogsModal,
+  openDatabasePanel,
 }: UseSceneSetupOptions): React.RefObject<SceneManager | null> {
   const sceneRef = useRef<SceneManager | null>(null);
   // Track pending popup timeout to cancel on double-click
@@ -149,7 +151,7 @@ export function useSceneSetup({
       const building = store.getState().buildings.get(buildingId);
       if (building?.type === 'folder' && building.folderPath) {
         store.openFileExplorer(building.folderPath);
-      } else if (building?.type === 'server' || building?.type === 'boss') {
+      } else if (building?.type === 'server' || building?.type === 'boss' || building?.type === 'database') {
         // Clear any pending popup timeout
         if (pendingPopupTimeoutRef.current) {
           clearTimeout(pendingPopupTimeoutRef.current);
@@ -180,8 +182,8 @@ export function useSceneSetup({
       const currentPopup = getBuildingPopup();
       if (buildingId && screenPos) {
         const building = store.getState().buildings.get(buildingId);
-        // Only show hover popup for server and boss buildings (and only if not already opened by click)
-        if ((building?.type === 'server' || building?.type === 'boss') && !currentPopup?.fromClick) {
+        // Only show hover popup for server, boss, and database buildings (and only if not already opened by click)
+        if ((building?.type === 'server' || building?.type === 'boss' || building?.type === 'database') && !currentPopup?.fromClick) {
           setBuildingPopup({ buildingId, screenPos, fromClick: false });
         }
       } else {
@@ -214,6 +216,9 @@ export function useSceneSetup({
       } else if (building?.type === 'boss') {
         // Open unified logs modal for boss buildings
         openBossLogsModal?.(buildingId);
+      } else if (building?.type === 'database') {
+        // Open database panel for database buildings
+        openDatabasePanel?.(buildingId);
       } else if (building?.type === 'folder' && building.folderPath) {
         // Open file explorer for folder buildings
         store.openFileExplorer(building.folderPath);

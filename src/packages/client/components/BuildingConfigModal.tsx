@@ -4,13 +4,19 @@ import {
   BUILDING_TYPES,
   BUILDING_STYLES,
   PM2_INTERPRETERS,
+  DATABASE_ENGINES,
   type Building,
   type BuildingType,
   type BuildingStyle,
   type PM2Interpreter,
+  type DatabaseEngine,
+  type DatabaseConnection,
+  type DatabaseConfig,
 } from '../../shared/types';
 import { BUILDING_STATUS_COLORS } from '../utils/colors';
 import { STORAGE_KEYS, getStorageString } from '../utils/storage';
+import { HelpTooltip } from './shared/Tooltip';
+import { useModalClose } from '../hooks';
 
 interface BuildingConfigModalProps {
   isOpen: boolean;
@@ -169,6 +175,10 @@ export function BuildingConfigModal({
   const [subordinateBuildingIds, setSubordinateBuildingIds] = useState<string[]>([]);
   const [showBossLogs, setShowBossLogs] = useState(false);
 
+  // Database state
+  const [dbConnections, setDbConnections] = useState<DatabaseConnection[]>([]);
+  const [activeDbConnectionId, setActiveDbConnectionId] = useState<string | undefined>(undefined);
+
   const nameInputRef = useRef<HTMLInputElement>(null);
   const bossLogsContainerRef = useRef<HTMLDivElement>(null);
   const logsContainerRef = useRef<HTMLDivElement>(null);
@@ -203,6 +213,9 @@ export function BuildingConfigModal({
           : '');
         // Boss building fields
         setSubordinateBuildingIds(building.subordinateBuildingIds || []);
+        // Database fields
+        setDbConnections(building.database?.connections || []);
+        setActiveDbConnectionId(building.database?.activeConnectionId);
       } else {
         // Create mode - reset
         setName('New Server');
@@ -227,6 +240,9 @@ export function BuildingConfigModal({
         setPm2Env('');
         // Boss building fields
         setSubordinateBuildingIds([]);
+        // Database fields
+        setDbConnections([]);
+        setActiveDbConnectionId(undefined);
       }
 
       setTimeout(() => nameInputRef.current?.focus(), 100);
@@ -277,6 +293,10 @@ export function BuildingConfigModal({
       urls: urls.length > 0 ? urls : undefined,
       scale: scale !== 1.0 ? scale : undefined,
       subordinateBuildingIds: type === 'boss' && subordinateBuildingIds.length > 0 ? subordinateBuildingIds : undefined,
+      database: type === 'database' && dbConnections.length > 0 ? {
+        connections: dbConnections,
+        activeConnectionId: activeDbConnectionId,
+      } : undefined,
     };
 
     if (isEditMode && buildingId) {
@@ -323,13 +343,15 @@ export function BuildingConfigModal({
     setUrls(newUrls);
   };
 
+  const { handleMouseDown: handleBackdropMouseDown, handleClick: handleBackdropClick } = useModalClose(onClose);
+
   if (!isOpen) return null;
 
   const logs = buildingId ? store.getBuildingLogs(buildingId) : [];
 
   return (
-    <div className="modal-overlay visible" onClick={onClose}>
-      <div className="modal building-config-modal" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay visible" onMouseDown={handleBackdropMouseDown} onClick={handleBackdropClick}>
+      <div className="modal building-config-modal">
         <div className="modal-header">
           <span>{isEditMode ? 'Edit Building' : 'Create Building'}</span>
           {isEditMode && building && (
@@ -485,7 +507,15 @@ export function BuildingConfigModal({
             {/* Boss Building Section */}
             {type === 'boss' && (
               <div className="form-section boss-building-section">
-                <label className="form-label">Managed Buildings</label>
+                <label className="form-label">
+                  Managed Buildings
+                  <HelpTooltip
+                    text="Boss buildings can control multiple subordinate buildings. Use this to group related services and manage them together."
+                    title="Managed Buildings"
+                    position="top"
+                    size="sm"
+                  />
+                </label>
                 <div className="form-hint">
                   Select buildings this boss will control. You can start, stop, or restart all managed buildings at once.
                 </div>
@@ -523,7 +553,14 @@ export function BuildingConfigModal({
                 {/* Boss Building Actions (edit mode only) */}
                 {isEditMode && subordinateBuildingIds.length > 0 && (
                   <div className="boss-building-actions">
-                    <div className="boss-actions-header">Bulk Actions</div>
+                    <div className="boss-actions-header">
+                      Bulk Actions
+                      <HelpTooltip
+                        text="Execute commands on all managed buildings simultaneously. Useful for starting or restarting your entire stack."
+                        position="top"
+                        size="sm"
+                      />
+                    </div>
                     <div className="boss-actions-row">
                       <button
                         type="button"
@@ -591,6 +628,11 @@ export function BuildingConfigModal({
                   <div className="form-section boss-logs-section">
                     <label className="form-label">
                       Unified Logs
+                      <HelpTooltip
+                        text="Aggregated real-time logs from all managed buildings. Each line shows which building the log came from."
+                        position="top"
+                        size="sm"
+                      />
                       <button
                         type="button"
                         className="btn btn-sm"
@@ -610,6 +652,231 @@ export function BuildingConfigModal({
                         <div className="boss-logs-empty">Waiting for logs...</div>
                       )}
                     </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Database Configuration Section */}
+            {type === 'database' && (
+              <div className="form-section database-config-section">
+                <label className="form-label">
+                  Database Connections
+                  <HelpTooltip
+                    text="Configure connections to MySQL or PostgreSQL databases. You can add multiple connections and switch between them."
+                    title="Database Connections"
+                    position="top"
+                    size="sm"
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-add"
+                    onClick={() => {
+                      const newConn: DatabaseConnection = {
+                        id: `conn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                        name: `Connection ${dbConnections.length + 1}`,
+                        engine: 'mysql',
+                        host: 'localhost',
+                        port: 3306,
+                        username: 'root',
+                      };
+                      setDbConnections([...dbConnections, newConn]);
+                      if (!activeDbConnectionId) {
+                        setActiveDbConnectionId(newConn.id);
+                      }
+                    }}
+                  >
+                    + Add Connection
+                  </button>
+                </label>
+
+                {dbConnections.length === 0 && (
+                  <div className="form-hint">
+                    Add a database connection to get started. You can connect to MySQL or PostgreSQL databases.
+                  </div>
+                )}
+
+                {dbConnections.map((conn, index) => (
+                  <div key={conn.id} className="db-connection-card">
+                    <div className="db-connection-header">
+                      <label className="db-connection-active">
+                        <input
+                          type="radio"
+                          name="activeConnection"
+                          checked={activeDbConnectionId === conn.id}
+                          onChange={() => setActiveDbConnectionId(conn.id)}
+                        />
+                        Default
+                        <HelpTooltip
+                          text="The default connection is used when opening the database panel."
+                          position="top"
+                          size="sm"
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-danger"
+                        onClick={() => {
+                          const newConns = dbConnections.filter(c => c.id !== conn.id);
+                          setDbConnections(newConns);
+                          if (activeDbConnectionId === conn.id && newConns.length > 0) {
+                            setActiveDbConnectionId(newConns[0].id);
+                          } else if (newConns.length === 0) {
+                            setActiveDbConnectionId(undefined);
+                          }
+                        }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+
+                    <div className="db-connection-row">
+                      <div className="db-field">
+                        <label>Name</label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          value={conn.name}
+                          onChange={(e) => {
+                            const newConns = [...dbConnections];
+                            newConns[index] = { ...conn, name: e.target.value };
+                            setDbConnections(newConns);
+                          }}
+                          placeholder="My Database"
+                        />
+                      </div>
+                      <div className="db-field db-field--small">
+                        <label>Engine</label>
+                        <select
+                          className="form-input form-select"
+                          value={conn.engine}
+                          onChange={(e) => {
+                            const engine = e.target.value as DatabaseEngine;
+                            const newConns = [...dbConnections];
+                            newConns[index] = {
+                              ...conn,
+                              engine,
+                              port: DATABASE_ENGINES[engine].defaultPort,
+                            };
+                            setDbConnections(newConns);
+                          }}
+                        >
+                          {(Object.keys(DATABASE_ENGINES) as DatabaseEngine[]).map((eng) => (
+                            <option key={eng} value={eng}>
+                              {DATABASE_ENGINES[eng].icon} {DATABASE_ENGINES[eng].label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="db-connection-row">
+                      <div className="db-field db-field--grow">
+                        <label>Host</label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          value={conn.host}
+                          onChange={(e) => {
+                            const newConns = [...dbConnections];
+                            newConns[index] = { ...conn, host: e.target.value };
+                            setDbConnections(newConns);
+                          }}
+                          placeholder="localhost"
+                        />
+                      </div>
+                      <div className="db-field db-field--small">
+                        <label>Port</label>
+                        <input
+                          type="number"
+                          className="form-input"
+                          value={conn.port}
+                          onChange={(e) => {
+                            const newConns = [...dbConnections];
+                            newConns[index] = { ...conn, port: parseInt(e.target.value) || DATABASE_ENGINES[conn.engine].defaultPort };
+                            setDbConnections(newConns);
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="db-connection-row">
+                      <div className="db-field">
+                        <label>Username</label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          value={conn.username}
+                          onChange={(e) => {
+                            const newConns = [...dbConnections];
+                            newConns[index] = { ...conn, username: e.target.value };
+                            setDbConnections(newConns);
+                          }}
+                          placeholder="root"
+                        />
+                      </div>
+                      <div className="db-field">
+                        <label>Password</label>
+                        <input
+                          type="password"
+                          className="form-input"
+                          value={conn.password || ''}
+                          onChange={(e) => {
+                            const newConns = [...dbConnections];
+                            newConns[index] = { ...conn, password: e.target.value || undefined };
+                            setDbConnections(newConns);
+                          }}
+                          placeholder="Optional"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="db-connection-row">
+                      <div className="db-field db-field--grow">
+                        <label>Default Database</label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          value={conn.database || ''}
+                          onChange={(e) => {
+                            const newConns = [...dbConnections];
+                            newConns[index] = { ...conn, database: e.target.value || undefined };
+                            setDbConnections(newConns);
+                          }}
+                          placeholder="Optional - select after connecting"
+                        />
+                      </div>
+                      <div className="db-field db-field--small">
+                        <label>
+                          SSL
+                          <HelpTooltip
+                            text="Enable encrypted SSL/TLS connection. Required for most cloud-hosted databases and recommended for production."
+                            position="top"
+                            size="sm"
+                          />
+                        </label>
+                        <label className="toggle-switch toggle-switch--small">
+                          <input
+                            type="checkbox"
+                            checked={conn.ssl || false}
+                            onChange={(e) => {
+                              const newConns = [...dbConnections];
+                              newConns[index] = { ...conn, ssl: e.target.checked };
+                              setDbConnections(newConns);
+                            }}
+                          />
+                          <span className="toggle-track">
+                            <span className="toggle-thumb" />
+                          </span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                {dbConnections.length > 0 && (
+                  <div className="form-hint">
+                    After saving, open the database panel to run queries and explore your data.
                   </div>
                 )}
               </div>
@@ -645,7 +912,15 @@ export function BuildingConfigModal({
                 <label className="form-label">PM2 Configuration</label>
 
                 <div className="command-row">
-                  <span className="command-label">Script:</span>
+                  <span className="command-label">
+                    Script:
+                    <HelpTooltip
+                      text="The application or command PM2 should run. Can be an executable (npm, java, python), a script file (app.js), or a binary."
+                      title="Script"
+                      position="top"
+                      size="sm"
+                    />
+                  </span>
                   <input
                     type="text"
                     className="form-input"
@@ -657,7 +932,15 @@ export function BuildingConfigModal({
                 </div>
 
                 <div className="command-row">
-                  <span className="command-label">Arguments:</span>
+                  <span className="command-label">
+                    Arguments:
+                    <HelpTooltip
+                      text="Command-line arguments passed to the script. For npm use 'run dev', for Java JARs the args come after the JAR file."
+                      title="Arguments"
+                      position="top"
+                      size="sm"
+                    />
+                  </span>
                   <input
                     type="text"
                     className="form-input"
@@ -668,7 +951,15 @@ export function BuildingConfigModal({
                 </div>
 
                 <div className="command-row">
-                  <span className="command-label">Interpreter:</span>
+                  <span className="command-label">
+                    Interpreter:
+                    <HelpTooltip
+                      text="The runtime used to execute the script. Leave as 'Auto-detect' for most cases. Use 'None' when script is a direct executable."
+                      title="Interpreter"
+                      position="top"
+                      size="sm"
+                    />
+                  </span>
                   <select
                     className="form-input form-select"
                     value={pm2Interpreter}
@@ -683,7 +974,15 @@ export function BuildingConfigModal({
                 </div>
 
                 <div className="command-row">
-                  <span className="command-label">Interp. Args:</span>
+                  <span className="command-label">
+                    Interp. Args:
+                    <HelpTooltip
+                      text="Arguments passed to the interpreter itself, not the script. For Java use '-jar' to run JAR files. For Node use '--inspect' for debugging."
+                      title="Interpreter Arguments"
+                      position="top"
+                      size="sm"
+                    />
+                  </span>
                   <input
                     type="text"
                     className="form-input"
@@ -694,7 +993,15 @@ export function BuildingConfigModal({
                 </div>
 
                 <div className="command-row env-row">
-                  <span className="command-label">Environment:</span>
+                  <span className="command-label">
+                    Environment:
+                    <HelpTooltip
+                      text="Environment variables in KEY=value format, one per line. These are passed to the process on startup."
+                      title="Environment Variables"
+                      position="top"
+                      size="sm"
+                    />
+                  </span>
                   <textarea
                     className="form-input form-textarea"
                     value={pm2Env}
@@ -793,10 +1100,25 @@ export function BuildingConfigModal({
             {/* Commands Section (for server type, non-PM2) */}
             {type === 'server' && !usePM2 && (
               <div className="form-section commands-section">
-                <label className="form-label">Commands</label>
+                <label className="form-label">
+                  Commands
+                  <HelpTooltip
+                    text="Shell commands to control this server. Commands run in the working directory. Leave empty if not needed."
+                    title="Server Commands"
+                    position="top"
+                    size="sm"
+                  />
+                </label>
                 <div className="command-inputs">
                   <div className="command-row">
-                    <span className="command-label">Start:</span>
+                    <span className="command-label">
+                      Start:
+                      <HelpTooltip
+                        text="Command to start the server process. The process runs in the background."
+                        position="top"
+                        size="sm"
+                      />
+                    </span>
                     <input
                       type="text"
                       className="form-input"
@@ -816,7 +1138,14 @@ export function BuildingConfigModal({
                     )}
                   </div>
                   <div className="command-row">
-                    <span className="command-label">Stop:</span>
+                    <span className="command-label">
+                      Stop:
+                      <HelpTooltip
+                        text="Command to stop the server. Use pkill, kill, or a graceful shutdown command."
+                        position="top"
+                        size="sm"
+                      />
+                    </span>
                     <input
                       type="text"
                       className="form-input"
@@ -836,7 +1165,14 @@ export function BuildingConfigModal({
                     )}
                   </div>
                   <div className="command-row">
-                    <span className="command-label">Restart:</span>
+                    <span className="command-label">
+                      Restart:
+                      <HelpTooltip
+                        text="Command to restart the server. Can be a dedicated restart command or a stop-then-start sequence."
+                        position="top"
+                        size="sm"
+                      />
+                    </span>
                     <input
                       type="text"
                       className="form-input"
@@ -856,7 +1192,14 @@ export function BuildingConfigModal({
                     )}
                   </div>
                   <div className="command-row">
-                    <span className="command-label">Health Check:</span>
+                    <span className="command-label">
+                      Health Check:
+                      <HelpTooltip
+                        text="Command to verify the server is running. Returns exit code 0 if healthy. Used for status monitoring."
+                        position="top"
+                        size="sm"
+                      />
+                    </span>
                     <input
                       type="text"
                       className="form-input"
@@ -876,7 +1219,14 @@ export function BuildingConfigModal({
                     )}
                   </div>
                   <div className="command-row">
-                    <span className="command-label">Logs:</span>
+                    <span className="command-label">
+                      Logs:
+                      <HelpTooltip
+                        text="Command to fetch recent logs. Output appears in the logs section below."
+                        position="top"
+                        size="sm"
+                      />
+                    </span>
                     <input
                       type="text"
                       className="form-input"

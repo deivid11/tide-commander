@@ -1,0 +1,224 @@
+/**
+ * QueryHistoryPanel Styles
+ */
+@use '../../styles/variables' as *;
+
+.query-history {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+
+  &--empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: $text-secondary;
+    text-align: center;
+    gap: 4px;
+
+    p {
+      margin: 0;
+    }
+  }
+
+  &__toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid $border-color;
+    margin-bottom: 8px;
+  }
+
+  &__search {
+    flex: 1;
+    padding: 5px 10px;
+    background: $bg-tertiary;
+    border: 1px solid $border-color;
+    border-radius: 4px;
+    color: $text-primary;
+    font-size: 0.8em;
+
+    &:focus {
+      outline: none;
+      border-color: $accent-blue;
+    }
+
+    &::placeholder {
+      color: $text-muted;
+    }
+  }
+
+  &__filter {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.75em;
+    color: $text-secondary;
+    cursor: pointer;
+    white-space: nowrap;
+
+    input {
+      cursor: pointer;
+      width: 12px;
+      height: 12px;
+    }
+
+    &:hover {
+      color: $text-primary;
+    }
+  }
+
+  &__clear {
+    padding: 4px 8px;
+    background: transparent;
+    border: 1px solid rgba($accent-red, 0.4);
+    border-radius: 3px;
+    color: $accent-red;
+    font-size: 0.7em;
+    cursor: pointer;
+    white-space: nowrap;
+
+    &:hover {
+      background: rgba($accent-red, 0.1);
+    }
+  }
+
+  &__list {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  &__item {
+    padding: 8px 10px;
+    background: $bg-secondary;
+    border: 1px solid $border-color;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+
+    &:hover {
+      border-color: $accent-blue;
+      background: rgba($bg-secondary, 0.8);
+    }
+
+    &--error {
+      border-left: 2px solid $accent-red;
+    }
+  }
+
+  &__item-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+    flex-wrap: wrap;
+    font-size: 0.75em;
+  }
+
+  &__status {
+    font-weight: bold;
+
+    &--success {
+      color: $accent-green;
+    }
+
+    &--error {
+      color: $accent-red;
+    }
+  }
+
+  &__database {
+    background: $bg-tertiary;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-family: $font-mono;
+    color: $accent-cyan;
+  }
+
+  &__date {
+    color: $text-muted;
+  }
+
+  &__duration {
+    color: $text-secondary;
+  }
+
+  &__row-count {
+    color: $accent-green;
+  }
+
+  &__query {
+    font-family: $font-mono;
+    font-size: 0.75em;
+    color: $text-secondary;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 48px;
+    overflow: hidden;
+    line-height: 1.3;
+    padding: 6px 8px;
+    background: $bg-tertiary;
+    border-radius: 3px;
+  }
+
+  &__error {
+    margin-top: 4px;
+    padding: 4px 6px;
+    background: rgba($accent-red, 0.1);
+    border-radius: 3px;
+    font-size: 0.7em;
+    color: $accent-red;
+    max-height: 32px;
+    overflow: hidden;
+  }
+
+  &__actions {
+    display: flex;
+    gap: 2px;
+    margin-top: 4px;
+    justify-content: flex-end;
+  }
+
+  &__favorite,
+  &__delete {
+    background: transparent;
+    border: none;
+    padding: 2px 6px;
+    cursor: pointer;
+    font-size: 0.85em;
+    opacity: 0.4;
+    transition: opacity 0.15s;
+
+    &:hover {
+      opacity: 1;
+    }
+  }
+
+  &__favorite {
+    color: $accent-orange;
+
+    &--active {
+      opacity: 1;
+    }
+  }
+
+  &__delete {
+    color: $accent-red;
+  }
+
+  &__no-results {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100px;
+    color: $text-muted;
+    text-align: center;
+    font-size: 0.85em;
+  }
+}

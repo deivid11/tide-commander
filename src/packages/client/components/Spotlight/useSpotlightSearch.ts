@@ -24,6 +24,7 @@ export function useSpotlightSearch({
   onOpenFileExplorer,
   onOpenPM2LogsModal,
   onOpenBossLogsModal,
+  onOpenDatabasePanel,
 }: UseSpotlightSearchOptions): SpotlightSearchState {
   const state = useStore();
   const [query, setQuery] = useState('');
@@ -213,14 +214,31 @@ export function useSpotlightSearch({
     }));
   }, [state.areas, onClose]);
 
-  // Build building results (server and boss buildings with logs)
+  // Build building results (server, boss, and database buildings)
   const buildingResults: SearchResult[] = useMemo(() => {
     return Array.from(state.buildings.values())
-      .filter((building) => building.type === 'server' || building.type === 'boss')
+      .filter((building) => building.type === 'server' || building.type === 'boss' || building.type === 'database')
       .map((building) => {
         const statusIcon = building.status === 'running' ? '🟢' : building.status === 'stopped' ? '🔴' : '🟡';
-        const typeIcon = building.type === 'boss' ? '👑' : '🖥️';
-        const subtitle = `${building.type === 'boss' ? 'Boss' : 'Server'} • ${building.status}${building.cwd ? ` • ${building.cwd}` : ''}`;
+        const typeIcon = building.type === 'boss' ? '👑' : building.type === 'database' ? '🗄️' : '🖥️';
+        const typeLabel = building.type === 'boss' ? 'Boss' : building.type === 'database' ? 'Database' : 'Server';
+
+        // Build subtitle with connection info for database buildings
+        let subtitle = `${typeLabel} • ${building.status}`;
+        if (building.type === 'database' && building.database?.connections?.length) {
+          const conn = building.database.connections[0];
+          subtitle += ` • ${conn.engine} @ ${conn.host}`;
+        } else if (building.cwd) {
+          subtitle += ` • ${building.cwd}`;
+        }
+
+        // Build search text including database connection details
+        let searchText = `${building.name} ${building.type} ${building.status} ${building.cwd || ''} ${building.pm2?.name || ''}`;
+        if (building.type === 'database' && building.database?.connections) {
+          for (const conn of building.database.connections) {
+            searchText += ` ${conn.name} ${conn.engine} ${conn.host} ${conn.database || ''} mysql postgresql sql`;
+          }
+        }
 
         return {
           id: `building-${building.id}`,
@@ -228,18 +246,20 @@ export function useSpotlightSearch({
           title: building.name,
           subtitle,
           icon: `${statusIcon} ${typeIcon}`,
-          _searchText: `${building.name} ${building.type} ${building.status} ${building.cwd || ''} ${building.pm2?.name || ''}`,
+          _searchText: searchText,
           action: () => {
             onClose();
             if (building.type === 'boss') {
               onOpenBossLogsModal(building.id);
+            } else if (building.type === 'database') {
+              onOpenDatabasePanel(building.id);
             } else if (building.pm2?.enabled) {
               onOpenPM2LogsModal(building.id);
             }
           },
         };
       });
-  }, [state.buildings, onClose, onOpenPM2LogsModal, onOpenBossLogsModal]);
+  }, [state.buildings, onClose, onOpenPM2LogsModal, onOpenBossLogsModal, onOpenDatabasePanel]);
 
   // Build modified files results from file changes
   const modifiedFileResults: SearchResult[] = useMemo(() => {

@@ -9,6 +9,7 @@ import { store, useSupervisor, useSettings, useLastPrompts } from '../../store';
 import { filterCostText } from '../../utils/formatting';
 import { STORAGE_KEYS, setStorageString } from '../../utils/storage';
 import { agentDebugger } from '../../services/agentDebugger';
+import { Tooltip } from '../shared/Tooltip';
 import type { Agent, AgentAnalysis } from '../../../shared/types';
 import type { ViewMode } from './types';
 import { VIEW_MODES } from './types';
@@ -107,11 +108,29 @@ export function TerminalHeader({
     >
       <div className="guake-header-left">
         {selectedAgent.status === 'working' && (
-          <span className="guake-working-indicator">
+          <span className={`guake-working-indicator ${selectedAgent.isDetached ? 'detached' : ''}`}>
             <span className="guake-working-dot"></span>
             <span className="guake-working-dot"></span>
             <span className="guake-working-dot"></span>
           </span>
+        )}
+        {selectedAgent.isDetached && (
+          <Tooltip
+            content={
+              <>
+                <div className="tide-tooltip__title">Detached Mode</div>
+                <div className="tide-tooltip__text">
+                  This agent's Claude process is running independently. This happens when Tide Commander
+                  restarts while an agent is working. Output is being recovered from the session file.
+                  Send a new message to fully reattach.
+                </div>
+              </>
+            }
+            position="bottom"
+            className="tide-tooltip--detached"
+          >
+            <span className="guake-detached-badge">📡</span>
+          </Tooltip>
         )}
         <span className="guake-title">{selectedAgent.name}</span>
         {(lastInput || agentAnalysis) && (
