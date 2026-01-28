@@ -5,6 +5,8 @@ import type { AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel } from 
 import { PERMISSION_MODES, CLAUDE_MODELS } from '../../shared/types';
 import { STORAGE_KEYS, getStorageString, setStorageString, apiUrl } from '../utils/storage';
 import { ModelPreview } from './ModelPreview';
+import { HelpTooltip } from './shared/Tooltip';
+import { useModalClose } from '../hooks';
 
 interface ClaudeSession {
   sessionId: string;
@@ -348,11 +350,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
     };
   }, [name, selectedClass]);
 
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
-  };
+  const { handleMouseDown: handleBackdropMouseDown, handleClick: handleBackdropClick } = useModalClose(onClose);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
@@ -396,6 +394,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
   return (
     <div
       className={`modal-overlay ${isOpen ? 'visible' : ''}`}
+      onMouseDown={handleBackdropMouseDown}
       onClick={handleBackdropClick}
       onKeyDown={handleKeyDown}
     >
@@ -475,7 +474,15 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                 />
               </div>
               <div className="spawn-field spawn-field-wide">
-                <label className="spawn-label">Working Directory</label>
+                <label className="spawn-label">
+                  Working Directory
+                  <HelpTooltip
+                    text="The directory where the agent will operate. All file operations and commands run relative to this path."
+                    title="Working Directory"
+                    position="top"
+                    size="sm"
+                  />
+                </label>
                 <input
                   type="text"
                   className={`spawn-input ${hasError ? 'error' : ''}`}
@@ -492,7 +499,19 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
             {/* Row 2: Model + Permission */}
             <div className="spawn-form-row">
               <div className="spawn-field">
-                <label className="spawn-label">Model</label>
+                <label className="spawn-label">
+                  Model
+                  <HelpTooltip
+                    text={<>
+                      <strong>Opus:</strong> Most capable, best for complex tasks<br/>
+                      <strong>Sonnet:</strong> Balanced speed and capability<br/>
+                      <strong>Haiku:</strong> Fastest, good for simple tasks
+                    </>}
+                    title="Claude Model"
+                    position="top"
+                    size="sm"
+                  />
+                </label>
                 <div className="spawn-select-row">
                   {(Object.keys(CLAUDE_MODELS) as ClaudeModel[]).map((model) => (
                     <button
@@ -508,7 +527,18 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                 </div>
               </div>
               <div className="spawn-field">
-                <label className="spawn-label">Permissions</label>
+                <label className="spawn-label">
+                  Permissions
+                  <HelpTooltip
+                    text={<>
+                      <strong>Bypass:</strong> Agent runs without permission prompts. Faster but less controlled.<br/>
+                      <strong>Default:</strong> Agent asks for confirmation before risky actions like file writes.
+                    </>}
+                    title="Permission Mode"
+                    position="top"
+                    size="sm"
+                  />
+                </label>
                 <div className="spawn-select-row">
                   {(Object.keys(PERMISSION_MODES) as PermissionMode[]).map((mode) => (
                     <button
@@ -534,13 +564,27 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                   onChange={(e) => setUseChrome(e.target.checked)}
                 />
                 <span>🌐 Chrome Browser</span>
+                <HelpTooltip
+                  text="Enable Chrome browser automation. The agent can navigate web pages, fill forms, and interact with web applications. Requires Claude in Chrome extension."
+                  title="Chrome Browser"
+                  position="top"
+                  size="sm"
+                />
               </label>
             </div>
 
             {/* Skills section */}
             {availableSkills.length > 0 && (
               <div className="spawn-skills-section">
-                <label className="spawn-label">Skills <span className="spawn-label-hint">(optional)</span></label>
+                <label className="spawn-label">
+                  Skills <span className="spawn-label-hint">(optional)</span>
+                  <HelpTooltip
+                    text="Skills add specialized capabilities to your agent. Select skills this agent should have access to. Class-default skills are automatically included."
+                    title="Agent Skills"
+                    position="top"
+                    size="sm"
+                  />
+                </label>
                 {availableSkills.length > 6 && (
                   <input
                     type="text"
@@ -579,6 +623,12 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
             <div className="spawn-custom-instructions-section">
               <label className="spawn-label">
                 Custom Instructions <span className="spawn-label-hint">(optional)</span>
+                <HelpTooltip
+                  text="Additional instructions appended to this agent's system prompt. Use this to customize behavior, provide context, or set specific guidelines."
+                  title="Custom Instructions"
+                  position="top"
+                  size="sm"
+                />
               </label>
               <textarea
                 className="spawn-input spawn-textarea"
@@ -593,6 +643,12 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
             <div className="spawn-sessions-section">
               <label className="spawn-label">
                 Link Session <span className="spawn-label-hint">(optional)</span>
+                <HelpTooltip
+                  text="Link this agent to an existing Claude Code session. The agent will resume from that session's conversation history, preserving context and previous work."
+                  title="Session Linking"
+                  position="top"
+                  size="sm"
+                />
               </label>
               {sessions.length > 0 && (
                 <input

@@ -594,8 +594,9 @@ export async function isClaudeProcessRunningInCwd(cwd: string): Promise<boolean>
   try {
     const { execSync } = await import('child_process');
 
-    // Get all claude process PIDs
-    const psOutput = execSync('ps aux | grep -E "^[^ ]+ +[0-9]+ .* claude" | grep -v grep | awk \'{print $2}\'', {
+    // Get all claude process PIDs (matches both 'claude' command and full path like '/home/user/.local/bin/claude')
+    // Pattern matches: lines ending in 'claude' OR lines containing '/claude '
+    const psOutput = execSync('ps aux | grep -E "(claude$|/claude )" | grep -v grep | awk \'{print $2}\'', {
       encoding: 'utf-8',
       timeout: 5000,
     }).trim();

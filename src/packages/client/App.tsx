@@ -11,6 +11,8 @@ import { DrawingModeIndicator } from './components/DrawingModeIndicator';
 import { AgentHoverPopup } from './components/AgentHoverPopup';
 import { BuildingActionPopup } from './components/BuildingActionPopup';
 import { BossBuildingActionPopup } from './components/BossBuildingActionPopup';
+import { DatabaseBuildingActionPopup } from './components/DatabaseBuildingActionPopup';
+import { DatabasePanel } from './components/database';
 import { PM2LogsModal } from './components/PM2LogsModal';
 import { BossLogsModal } from './components/BossLogsModal';
 import { FPSMeter } from './components/FPSMeter';
@@ -34,6 +36,7 @@ import {
   useKeyboardShortcuts,
   useBackNavigation,
   useDocumentPiP,
+  useModalClose,
 } from './hooks';
 import { loadConfig, saveConfig } from './app/sceneConfig';
 import { buildContextMenuActions } from './app/contextMenuActions';
@@ -78,6 +81,9 @@ function AppContent() {
   } | null>(null);
   const [pm2LogsModalBuildingId, setPm2LogsModalBuildingId] = useState<string | null>(null);
   const [bossLogsModalBuildingId, setBossLogsModalBuildingId] = useState<string | null>(null);
+  const [databasePanelBuildingId, setDatabasePanelBuildingId] = useState<string | null>(null);
+  const closeDatabasePanel = useCallback(() => setDatabasePanelBuildingId(null), []);
+  const { handleMouseDown: handleDatabasePanelBackdropMouseDown, handleClick: handleDatabasePanelBackdropClick } = useModalClose(closeDatabasePanel);
   // Ref to access current popup state in callbacks
   const buildingPopupRef = useRef(buildingPopup);
   buildingPopupRef.current = buildingPopup;
@@ -117,6 +123,7 @@ function AppContent() {
     openBuildingModal: (buildingId) => buildingModal.open(buildingId),
     openPM2LogsModal: (buildingId) => setPm2LogsModalBuildingId(buildingId),
     openBossLogsModal: (buildingId) => setBossLogsModalBuildingId(buildingId),
+    openDatabasePanel: (buildingId) => setDatabasePanelBuildingId(buildingId),
   });
 
   const state = useStore();
@@ -489,6 +496,25 @@ function AppContent() {
           );
         }
 
+        // Use DatabaseBuildingActionPopup for database buildings
+        if (building.type === 'database') {
+          return (
+            <DatabaseBuildingActionPopup
+              building={building}
+              screenPos={buildingPopup.screenPos}
+              onClose={() => setBuildingPopup(null)}
+              onOpenSettings={() => {
+                setBuildingPopup(null);
+                buildingModal.open(buildingPopup.buildingId);
+              }}
+              onOpenDatabasePanel={() => {
+                setBuildingPopup(null);
+                setDatabasePanelBuildingId(buildingPopup.buildingId);
+              }}
+            />
+          );
+        }
+
         return (
           <BuildingActionPopup
             building={building}
@@ -529,6 +555,22 @@ function AppContent() {
             isOpen={true}
             onClose={() => setBossLogsModalBuildingId(null)}
           />
+        );
+      })()}
+
+      {/* Database Panel Modal */}
+      {databasePanelBuildingId && (() => {
+        const building = state.buildings.get(databasePanelBuildingId);
+        if (!building) return null;
+        return (
+          <div className="modal-overlay visible" onMouseDown={handleDatabasePanelBackdropMouseDown} onClick={handleDatabasePanelBackdropClick}>
+            <div className="database-panel-modal">
+              <DatabasePanel
+                building={building}
+                onClose={closeDatabasePanel}
+              />
+            </div>
+          </div>
         );
       })()}
 
@@ -600,6 +642,7 @@ function AppContent() {
         onLeave={handleLeave}
         onOpenPM2LogsModal={(buildingId) => setPm2LogsModalBuildingId(buildingId)}
         onOpenBossLogsModal={(buildingId) => setBossLogsModalBuildingId(buildingId)}
+        onOpenDatabasePanel={(buildingId) => setDatabasePanelBuildingId(buildingId)}
       />
     </div>
   );

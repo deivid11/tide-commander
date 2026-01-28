@@ -25,6 +25,7 @@ import { createDelegationActions, type DelegationActions } from './delegation';
 import { createSkillActions, type SkillActions } from './skills';
 import { createExecTaskActions, type ExecTaskActions } from './execTasks';
 import { createSecretActions, type SecretActions } from './secrets';
+import { createDatabaseActions, type DatabaseActions } from './database';
 
 // Import shortcuts
 import { ShortcutConfig, DEFAULT_SHORTCUTS } from './shortcuts';
@@ -130,6 +131,10 @@ export {
   useSecrets,
   useSecretsArray,
   useSecret,
+  useDatabaseState,
+  useQueryResults,
+  useQueryHistory,
+  useExecutingQuery,
 } from './selectors';
 
 // ============================================================================
@@ -164,6 +169,7 @@ class Store
   private skillActions: SkillActions;
   private execTaskActions: ExecTaskActions;
   private secretActions: SecretActions;
+  private databaseActions: DatabaseActions;
 
   constructor() {
     // Initialize state
@@ -220,6 +226,7 @@ class Store
       reconnectCount: 0,
       execTasks: new Map(),
       secrets: new Map(),
+      databaseState: new Map(),
     };
 
     // Helper functions for domain modules
@@ -242,6 +249,7 @@ class Store
     this.skillActions = createSkillActions(getState, setState, notify, getSendMessage);
     this.execTaskActions = createExecTaskActions(getState, setState, notify);
     this.secretActions = createSecretActions(getState, setState, notify, getSendMessage);
+    this.databaseActions = createDatabaseActions(getState, setState, notify, getSendMessage);
   }
 
   private loadSettings(): Settings {
@@ -802,6 +810,31 @@ class Store
   createSecret(...args: Parameters<SecretActions['createSecret']>) { return this.secretActions.createSecret(...args); }
   updateSecret(...args: Parameters<SecretActions['updateSecret']>) { return this.secretActions.updateSecret(...args); }
   deleteSecret(...args: Parameters<SecretActions['deleteSecret']>) { return this.secretActions.deleteSecret(...args); }
+
+  // ============================================================================
+  // Database Actions (delegated)
+  // ============================================================================
+
+  testDatabaseConnection(...args: Parameters<DatabaseActions['testDatabaseConnection']>) { return this.databaseActions.testDatabaseConnection(...args); }
+  setConnectionStatus(...args: Parameters<DatabaseActions['setConnectionStatus']>) { return this.databaseActions.setConnectionStatus(...args); }
+  listDatabases(...args: Parameters<DatabaseActions['listDatabases']>) { return this.databaseActions.listDatabases(...args); }
+  setDatabases(...args: Parameters<DatabaseActions['setDatabases']>) { return this.databaseActions.setDatabases(...args); }
+  listTables(...args: Parameters<DatabaseActions['listTables']>) { return this.databaseActions.listTables(...args); }
+  setTables(...args: Parameters<DatabaseActions['setTables']>) { return this.databaseActions.setTables(...args); }
+  getTableSchema(...args: Parameters<DatabaseActions['getTableSchema']>) { return this.databaseActions.getTableSchema(...args); }
+  setTableSchema(...args: Parameters<DatabaseActions['setTableSchema']>) { return this.databaseActions.setTableSchema(...args); }
+  executeQuery(...args: Parameters<DatabaseActions['executeQuery']>) { return this.databaseActions.executeQuery(...args); }
+  setQueryResult(...args: Parameters<DatabaseActions['setQueryResult']>) { return this.databaseActions.setQueryResult(...args); }
+  setExecutingQuery(...args: Parameters<DatabaseActions['setExecutingQuery']>) { return this.databaseActions.setExecutingQuery(...args); }
+  requestQueryHistory(...args: Parameters<DatabaseActions['requestQueryHistory']>) { return this.databaseActions.requestQueryHistory(...args); }
+  setQueryHistory(...args: Parameters<DatabaseActions['setQueryHistory']>) { return this.databaseActions.setQueryHistory(...args); }
+  toggleQueryFavorite(...args: Parameters<DatabaseActions['toggleQueryFavorite']>) { return this.databaseActions.toggleQueryFavorite(...args); }
+  deleteQueryFromHistory(...args: Parameters<DatabaseActions['deleteQueryFromHistory']>) { return this.databaseActions.deleteQueryFromHistory(...args); }
+  clearQueryHistory(...args: Parameters<DatabaseActions['clearQueryHistory']>) { return this.databaseActions.clearQueryHistory(...args); }
+  setActiveConnection(...args: Parameters<DatabaseActions['setActiveConnection']>) { return this.databaseActions.setActiveConnection(...args); }
+  setActiveDatabase(...args: Parameters<DatabaseActions['setActiveDatabase']>) { return this.databaseActions.setActiveDatabase(...args); }
+  getDatabaseState(...args: Parameters<DatabaseActions['getDatabaseState']>) { return this.databaseActions.getDatabaseState(...args); }
+  clearDatabaseState(...args: Parameters<DatabaseActions['clearDatabaseState']>) { return this.databaseActions.clearDatabaseState(...args); }
 }
 
 // Extend Window interface for HMR persistence

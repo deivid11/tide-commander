@@ -484,6 +484,19 @@ function handleServerMessage(message: ServerMessage): void {
       break;
     }
 
+    case 'session_updated': {
+      // An orphaned agent's session file was updated - refresh its history
+      const { agentId } = message.payload as { agentId: string };
+      // Reload the tool history to get the latest updates from the detached process
+      store.loadToolHistory();
+      // Also update the agent to trigger a UI refresh
+      const agent = store.getState().agents.get(agentId);
+      if (agent) {
+        store.updateAgent({ ...agent });
+      }
+      break;
+    }
+
     case 'supervisor_report': {
       const report = message.payload as import('../../shared/types').SupervisorReport;
       store.setSupervisorReport(report);
@@ -904,6 +917,81 @@ function handleServerMessage(message: ServerMessage): void {
       const { id } = message.payload as { id: string };
       store.removeSecretFromServer(id);
       console.log(`[WebSocket] Secret deleted: ${id}`);
+      break;
+    }
+
+    // ========================================================================
+    // Database Messages
+    // ========================================================================
+
+    case 'database_connection_result': {
+      const { buildingId, connectionId, success, error, serverVersion } = message.payload as {
+        buildingId: string;
+        connectionId: string;
+        success: boolean;
+        error?: string;
+        serverVersion?: string;
+      };
+      store.setConnectionStatus(buildingId, connectionId, { connected: success, error, serverVersion });
+      console.log(`[WebSocket] Database connection ${success ? 'succeeded' : 'failed'}: ${connectionId}`);
+      break;
+    }
+
+    case 'databases_list': {
+      const { buildingId, connectionId, databases } = message.payload as {
+        buildingId: string;
+        connectionId: string;
+        databases: string[];
+      };
+      store.setDatabases(buildingId, connectionId, databases);
+      console.log(`[WebSocket] Received ${databases.length} databases for ${connectionId}`);
+      break;
+    }
+
+    case 'tables_list': {
+      const { buildingId, connectionId, database, tables } = message.payload as {
+        buildingId: string;
+        connectionId: string;
+        database: string;
+        tables: import('../../shared/types').TableInfo[];
+      };
+      store.setTables(buildingId, connectionId, database, tables);
+      console.log(`[WebSocket] Received ${tables.length} tables for ${database}`);
+      break;
+    }
+
+    case 'table_schema': {
+      const { buildingId, connectionId, database, table, columns, indexes, foreignKeys } = message.payload as {
+        buildingId: string;
+        connectionId: string;
+        database: string;
+        table: string;
+        columns: import('../../shared/types').TableColumn[];
+        indexes?: import('../../shared/types').TableIndex[];
+        foreignKeys?: import('../../shared/types').ForeignKey[];
+      };
+      store.setTableSchema(buildingId, connectionId, database, table, { columns, indexes: indexes || [], foreignKeys: foreignKeys || [] });
+      console.log(`[WebSocket] Received schema for ${table}`);
+      break;
+    }
+
+    case 'query_result': {
+      const { buildingId, result } = message.payload as {
+        buildingId: string;
+        result: import('../../shared/types').QueryResult;
+      };
+      store.setQueryResult(buildingId, result);
+      console.log(`[WebSocket] Query ${result.status}: ${result.rowCount ?? result.affectedRows ?? 0} rows in ${result.duration}ms`);
+      break;
+    }
+
+    case 'query_history_update': {
+      const { buildingId, history } = message.payload as {
+        buildingId: string;
+        history: import('../../shared/types').QueryHistoryEntry[];
+      };
+      store.setQueryHistory(buildingId, history);
+      console.log(`[WebSocket] Received ${history.length} query history entries for ${buildingId}`);
       break;
     }
 

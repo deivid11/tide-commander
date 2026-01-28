@@ -140,6 +140,10 @@ export interface Agent {
   currentTask?: string;
   currentTool?: string;
 
+  // Detached mode - true when the Claude process is running but not attached to Tide Commander
+  // (e.g., after server restart while agent was working)
+  isDetached?: boolean;
+
   // Last assigned task - the original user prompt/task (persists even when idle)
   lastAssignedTask?: string;
   lastAssignedTaskTime?: number;
@@ -419,9 +423,134 @@ export interface Building {
   // Boss building fields - for managing subordinate buildings
   subordinateBuildingIds?: string[];  // IDs of buildings managed by this boss building
 
+  // Database configuration (for database type)
+  database?: DatabaseConfig;
+
   // Timestamps
   createdAt: number;
   lastActivity?: number;
+}
+
+// ============================================================================
+// Database Building Types
+// ============================================================================
+
+// Supported database engines
+export type DatabaseEngine = 'mysql' | 'postgresql';
+
+export const DATABASE_ENGINES: Record<DatabaseEngine, { label: string; icon: string; defaultPort: number }> = {
+  mysql: { label: 'MySQL', icon: '🐬', defaultPort: 3306 },
+  postgresql: { label: 'PostgreSQL', icon: '🐘', defaultPort: 5432 },
+};
+
+// Database connection configuration
+export interface DatabaseConnection {
+  id: string;
+  name: string;                    // Connection name (e.g., "Production MySQL")
+  engine: DatabaseEngine;
+  host: string;
+  port: number;
+  username: string;
+  password?: string;               // Optional - can use env vars
+  database?: string;               // Default database to connect to
+  ssl?: boolean;                   // Use SSL/TLS
+  sslConfig?: {
+    rejectUnauthorized?: boolean;
+    ca?: string;                   // CA certificate
+    cert?: string;                 // Client certificate
+    key?: string;                  // Client key
+  };
+}
+
+// Full database building configuration
+export interface DatabaseConfig {
+  connections: DatabaseConnection[];
+  activeConnectionId?: string;     // Currently selected connection
+  activeDatabase?: string;         // Currently selected database within the connection
+}
+
+// Query execution result
+export interface QueryResult {
+  id: string;
+  connectionId: string;
+  database: string;
+  query: string;
+  status: 'success' | 'error';
+  executedAt: number;
+  duration: number;                // Execution time in ms
+
+  // Success fields
+  rows?: Record<string, unknown>[];
+  fields?: QueryField[];
+  rowCount?: number;
+  affectedRows?: number;           // For INSERT/UPDATE/DELETE
+
+  // Error fields
+  error?: string;
+  errorCode?: string;
+}
+
+// Field metadata from query result
+export interface QueryField {
+  name: string;
+  type: string;                    // SQL data type
+  nullable?: boolean;
+  primaryKey?: boolean;
+  table?: string;
+}
+
+// Query history entry
+export interface QueryHistoryEntry {
+  id: string;
+  buildingId: string;
+  connectionId: string;
+  database: string;
+  query: string;
+  executedAt: number;
+  duration: number;
+  status: 'success' | 'error';
+  rowCount?: number;
+  error?: string;
+  favorite?: boolean;              // User can star queries
+}
+
+// Table column definition
+export interface TableColumn {
+  name: string;
+  type: string;
+  nullable: boolean;
+  defaultValue?: string;
+  primaryKey: boolean;
+  autoIncrement?: boolean;
+  comment?: string;
+}
+
+// Table index definition
+export interface TableIndex {
+  name: string;
+  columns: string[];
+  unique: boolean;
+  type?: string;                 // BTREE, HASH, etc.
+}
+
+// Foreign key definition
+export interface ForeignKey {
+  name: string;
+  columns: string[];
+  referencedTable: string;
+  referencedColumns: string[];
+  onDelete?: string;
+  onUpdate?: string;
+}
+
+// Table info for list
+export interface TableInfo {
+  name: string;
+  type: 'table' | 'view';
+  engine?: string;               // MySQL: InnoDB, MyISAM, etc.
+  rows?: number;                 // Approximate row count
+  size?: number;                 // Table size in bytes
+  comment?: string;
 }
 
 // Drawing area on the battlefield
@@ -733,6 +862,15 @@ export interface CommandStartedMessage extends WSMessage {
   payload: {
     agentId: string;
     command: string;
+  };
+}
+
+// Session updated message - sent when an orphaned agent's session file is updated
+// Clients should refresh the agent's history when receiving this
+export interface SessionUpdatedMessage extends WSMessage {
+  type: 'session_updated';
+  payload: {
+    agentId: string;
   };
 }
 
@@ -1606,6 +1744,161 @@ export interface DeleteSecretMessage extends WSMessage {
   payload: { id: string };
 }
 
+// ============================================================================
+// Database WebSocket Messages
+// ============================================================================
+
+// Test database connection (Client -> Server)
+export interface TestDatabaseConnectionMessage extends WSMessage {
+  type: 'test_database_connection';
+  payload: {
+    buildingId: string;
+    connectionId: string;
+  };
+}
+
+// Test connection result (Server -> Client)
+export interface DatabaseConnectionResultMessage extends WSMessage {
+  type: 'database_connection_result';
+  payload: {
+    buildingId: string;
+    connectionId: string;
+    success: boolean;
+    error?: string;
+    serverVersion?: string;
+  };
+}
+
+// List databases (Client -> Server)
+export interface ListDatabasesMessage extends WSMessage {
+  type: 'list_databases';
+  payload: {
+    buildingId: string;
+    connectionId: string;
+  };
+}
+
+// Databases list result (Server -> Client)
+export interface DatabasesListMessage extends WSMessage {
+  type: 'databases_list';
+  payload: {
+    buildingId: string;
+    connectionId: string;
+    databases: string[];
+  };
+}
+
+// Execute query (Client -> Server)
+export interface ExecuteQueryMessage extends WSMessage {
+  type: 'execute_query';
+  payload: {
+    buildingId: string;
+    connectionId: string;
+    database: string;
+    query: string;
+    limit?: number;              // Max rows to return (default: 1000)
+  };
+}
+
+// Query result (Server -> Client)
+export interface QueryResultMessage extends WSMessage {
+  type: 'query_result';
+  payload: {
+    buildingId: string;
+    result: QueryResult;
+  };
+}
+
+// Query history update (Server -> Client)
+export interface QueryHistoryUpdateMessage extends WSMessage {
+  type: 'query_history_update';
+  payload: {
+    buildingId: string;
+    history: QueryHistoryEntry[];
+  };
+}
+
+// Request query history (Client -> Server)
+export interface RequestQueryHistoryMessage extends WSMessage {
+  type: 'request_query_history';
+  payload: {
+    buildingId: string;
+    limit?: number;              // Max entries to return (default: 100)
+  };
+}
+
+// Toggle query favorite (Client -> Server)
+export interface ToggleQueryFavoriteMessage extends WSMessage {
+  type: 'toggle_query_favorite';
+  payload: {
+    buildingId: string;
+    queryId: string;
+  };
+}
+
+// Delete query from history (Client -> Server)
+export interface DeleteQueryHistoryMessage extends WSMessage {
+  type: 'delete_query_history';
+  payload: {
+    buildingId: string;
+    queryId: string;
+  };
+}
+
+// Clear all query history (Client -> Server)
+export interface ClearQueryHistoryMessage extends WSMessage {
+  type: 'clear_query_history';
+  payload: {
+    buildingId: string;
+  };
+}
+
+// Get table schema (Client -> Server)
+export interface GetTableSchemaMessage extends WSMessage {
+  type: 'get_table_schema';
+  payload: {
+    buildingId: string;
+    connectionId: string;
+    database: string;
+    table: string;
+  };
+}
+
+// Table schema result (Server -> Client)
+export interface TableSchemaMessage extends WSMessage {
+  type: 'table_schema';
+  payload: {
+    buildingId: string;
+    connectionId: string;
+    database: string;
+    table: string;
+    columns: TableColumn[];
+    indexes?: TableIndex[];
+    foreignKeys?: ForeignKey[];
+  };
+}
+
+// List tables in database (Client -> Server)
+export interface ListTablesMessage extends WSMessage {
+  type: 'list_tables';
+  payload: {
+    buildingId: string;
+    connectionId: string;
+    database: string;
+  };
+}
+
+// Tables list result (Server -> Client)
+export interface TablesListMessage extends WSMessage {
+  type: 'tables_list';
+  payload: {
+    buildingId: string;
+    connectionId: string;
+    database: string;
+    tables: TableInfo[];
+  };
+}
+
 export type ServerMessage =
   | AgentsUpdateMessage
   | AgentCreatedMessage
@@ -1617,6 +1910,7 @@ export type ServerMessage =
   | ErrorMessage
   | DirectoryNotFoundMessage
   | CommandStartedMessage
+  | SessionUpdatedMessage
   | SupervisorReportMessage
   | SupervisorStatusMessage
   | NarrativeUpdateMessage
@@ -1665,7 +1959,13 @@ export type ServerMessage =
   | PM2LogsChunkMessage
   | PM2LogsStreamingMessage
   | BossBuildingLogsChunkMessage
-  | BossBuildingSubordinatesUpdatedMessage;
+  | BossBuildingSubordinatesUpdatedMessage
+  | DatabaseConnectionResultMessage
+  | DatabasesListMessage
+  | QueryResultMessage
+  | QueryHistoryUpdateMessage
+  | TableSchemaMessage
+  | TablesListMessage;
 
 export type ClientMessage =
   | SpawnAgentMessage
@@ -1719,4 +2019,13 @@ export type ClientMessage =
   | BossBuildingCommandMessage
   | AssignBuildingsMessage
   | BossBuildingLogsStartMessage
-  | BossBuildingLogsStopMessage;
+  | BossBuildingLogsStopMessage
+  | TestDatabaseConnectionMessage
+  | ListDatabasesMessage
+  | ExecuteQueryMessage
+  | RequestQueryHistoryMessage
+  | ToggleQueryFavoriteMessage
+  | DeleteQueryHistoryMessage
+  | ClearQueryHistoryMessage
+  | GetTableSchemaMessage
+  | ListTablesMessage;

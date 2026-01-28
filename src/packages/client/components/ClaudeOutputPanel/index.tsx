@@ -67,6 +67,7 @@ import { agentDebugger } from '../../services/agentDebugger';
 import { AgentProgressIndicator } from './AgentProgressIndicator';
 import { ExecTasksContainer } from './ExecTaskIndicator';
 import { ThemeSelector } from './ThemeSelector';
+import { Tooltip } from '../shared/Tooltip';
 
 export function ClaudeOutputPanel() {
   // Store selectors
@@ -429,6 +430,7 @@ export function ClaudeOutputPanel() {
   }, [imageModal, bashModal, responseModalContent, search, fileViewerPath, contextModalAgentId]);
 
   // Close terminal when clicking outside (desktop only)
+  // Track mousedown/mouseup to prevent closing during text selection
   useEffect(() => {
     if (!isOpen) return;
     const isMobile = window.innerWidth <= 768;
@@ -436,22 +438,42 @@ export function ClaudeOutputPanel() {
 
     let ignoreClicks = true;
     const timer = setTimeout(() => { ignoreClicks = false; }, 100);
+    let mouseDownTarget: EventTarget | null = null;
 
-    const handleClickOutside = (e: MouseEvent) => {
+    const handleMouseDown = (e: MouseEvent) => {
       if (ignoreClicks) return;
-      const target = e.target as HTMLElement;
-      if (target.tagName === 'CANVAS') return;
-      // Don't close terminal when clicking on agent bar (allows switching agents while terminal is open)
-      if (target.closest('.agent-bar')) return;
-      if (terminalRef.current && !terminalRef.current.contains(target)) {
-        store.setTerminalOpen(false);
-      }
+      // Track where mousedown started
+      mouseDownTarget = e.target;
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
+    const handleClick = (e: MouseEvent) => {
+      if (ignoreClicks) return;
+      const target = e.target as HTMLElement;
+
+      // Only close if BOTH mousedown and click were outside terminal
+      // This prevents closing when selecting text that ends outside
+      const mouseDownWasInside = mouseDownTarget && terminalRef.current?.contains(mouseDownTarget as Node);
+      const clickIsInside = terminalRef.current?.contains(target);
+
+      if (mouseDownWasInside || clickIsInside) {
+        mouseDownTarget = null;
+        return;
+      }
+
+      // Don't close when clicking canvas or agent bar
+      if (target.tagName === 'CANVAS') return;
+      if (target.closest('.agent-bar')) return;
+
+      store.setTerminalOpen(false);
+      mouseDownTarget = null;
+    };
+
+    document.addEventListener('mousedown', handleMouseDown);
+    document.addEventListener('click', handleClick);
     return () => {
       clearTimeout(timer);
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('mousedown', handleMouseDown);
+      document.removeEventListener('click', handleClick);
     };
   }, [isOpen, terminalRef]);
 
@@ -707,6 +729,24 @@ export function ClaudeOutputPanel() {
 
         {/* Agent Status Bar (CWD + Context) */}
         <div className="guake-agent-status-bar">
+          {selectedAgent?.isDetached && (
+            <Tooltip
+              content={
+                <>
+                  <div className="tide-tooltip__title">Detached Mode</div>
+                  <div className="tide-tooltip__text">
+                    This agent's Claude process is running independently. This happens when Tide Commander
+                    restarts while an agent is working. Output is being recovered from the session file.
+                    Send a new message to fully reattach.
+                  </div>
+                </>
+              }
+              position="top"
+              className="tide-tooltip--detached"
+            >
+              <span className="guake-detached-badge">📡 Detached</span>
+            </Tooltip>
+          )}
           {selectedAgent?.cwd && (
             <span className="guake-agent-cwd">
               📁 {selectedAgent.cwd.split('/').filter(Boolean).slice(-2).join('/') || selectedAgent.cwd}

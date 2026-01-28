@@ -1103,3 +1103,17 @@
   justify-content: flex-end;
   background: $bg-secondary;
 }
+
+// Database Panel Modal
+.database-panel-modal {
+  width: 95vw;
+  max-width: 1400px;
+  height: 90vh;
+  max-height: 900px;
+  background: $bg-primary;
+  border: 1px solid $border-color;
+  border-radius: $radius-xl;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}

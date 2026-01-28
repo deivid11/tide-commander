@@ -18,6 +18,8 @@ import type {
   GlobalUsageStats,
   ExecTask,
   Secret,
+  QueryResult,
+  QueryHistoryEntry,
 } from '../../shared/types';
 import type {
   StoreState,
@@ -29,6 +31,7 @@ import type {
   ToolExecution,
   FileChange,
   AgentTaskProgress,
+  DatabaseBuildingState,
 } from './types';
 import type { ShortcutConfig } from './shortcuts';
 import type { MouseControlsState, CameraSensitivityConfig } from './mouseControls';
@@ -809,6 +812,84 @@ export function useSecret(secretId: string | null): Secret | undefined {
     useCallback(
       (state: StoreState) => (secretId ? state.secrets.get(secretId) : undefined),
       [secretId]
+    )
+  );
+}
+
+// ============================================================================
+// DATABASE SELECTORS
+// ============================================================================
+
+const emptyDatabaseState: DatabaseBuildingState = {
+  connectionStatus: new Map(),
+  databases: new Map(),
+  tables: new Map(),
+  tableSchemas: new Map(),
+  queryResults: [],
+  queryHistory: [],
+  executingQuery: false,
+  activeConnectionId: null,
+  activeDatabase: null,
+};
+
+/**
+ * Get database state for a building. Only re-renders when that building's database state changes.
+ */
+export function useDatabaseState(buildingId: string | null): DatabaseBuildingState {
+  return useSelector(
+    useCallback(
+      (state: StoreState) => (buildingId ? state.databaseState.get(buildingId) : undefined) ?? emptyDatabaseState,
+      [buildingId]
+    )
+  );
+}
+
+/**
+ * Get query results for a database building. Only re-renders when results change.
+ */
+export function useQueryResults(buildingId: string | null): QueryResult[] {
+  return useSelector(
+    useCallback(
+      (state: StoreState) => {
+        if (!buildingId) return [];
+        const dbState = state.databaseState.get(buildingId);
+        return dbState?.queryResults ?? [];
+      },
+      [buildingId]
+    ),
+    shallowArrayEqual
+  );
+}
+
+/**
+ * Get query history for a database building. Only re-renders when history changes.
+ */
+export function useQueryHistory(buildingId: string | null): QueryHistoryEntry[] {
+  return useSelector(
+    useCallback(
+      (state: StoreState) => {
+        if (!buildingId) return [];
+        const dbState = state.databaseState.get(buildingId);
+        return dbState?.queryHistory ?? [];
+      },
+      [buildingId]
+    ),
+    shallowArrayEqual
+  );
+}
+
+/**
+ * Check if a query is executing for a database building.
+ */
+export function useExecutingQuery(buildingId: string | null): boolean {
+  return useSelector(
+    useCallback(
+      (state: StoreState) => {
+        if (!buildingId) return false;
+        const dbState = state.databaseState.get(buildingId);
+        return dbState?.executingQuery ?? false;
+      },
+      [buildingId]
     )
   );
 }

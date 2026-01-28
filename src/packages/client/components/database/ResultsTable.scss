@@ -1,0 +1,282 @@
+/**
+ * ResultsTable Styles
+ */
+@use '../../styles/variables' as *;
+
+.results-table {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+
+  &--error,
+  &--success {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  &__error {
+    max-width: 600px;
+    padding: 20px;
+    background: rgba($accent-red, 0.1);
+    border: 1px solid rgba($accent-red, 0.3);
+    border-radius: 8px;
+    text-align: center;
+  }
+
+  &__error-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 1.1em;
+    font-weight: 600;
+    color: $accent-red;
+    margin-bottom: 12px;
+  }
+
+  &__error-icon {
+    font-size: 1.2em;
+  }
+
+  &__error-message {
+    color: $text-primary;
+    margin-bottom: 12px;
+    line-height: 1.5;
+  }
+
+  &__error-code {
+    font-size: 0.85em;
+    color: $text-secondary;
+    margin-bottom: 12px;
+  }
+
+  &__error-query {
+    padding: 12px;
+    background: $bg-tertiary;
+    border-radius: 4px;
+    text-align: left;
+
+    code {
+      font-family: $font-mono;
+      font-size: 0.85em;
+      color: $text-secondary;
+      word-break: break-all;
+    }
+  }
+
+  &__success {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 24px;
+    background: rgba($accent-green, 0.1);
+    border: 1px solid rgba($accent-green, 0.3);
+    border-radius: 8px;
+    color: $accent-green;
+    font-weight: 500;
+  }
+
+  &__success-icon {
+    font-size: 1.3em;
+  }
+
+  &__affected {
+    color: $text-primary;
+    font-weight: 400;
+  }
+
+  &__duration {
+    color: $text-secondary;
+    font-size: 0.9em;
+    font-weight: 400;
+  }
+
+  // Status bar
+  &__status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 10px;
+    background: $bg-secondary;
+    border-bottom: 1px solid $border-color;
+    flex-shrink: 0;
+  }
+
+  &__status-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 0.8em;
+  }
+
+  &__row-count {
+    font-weight: 500;
+    color: $text-primary;
+  }
+
+  // Pagination
+  &__pagination {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  &__page-size {
+    padding: 2px 6px;
+    background: $bg-tertiary;
+    border: 1px solid $border-color;
+    border-radius: 3px;
+    color: $text-primary;
+    font-size: 0.75em;
+    cursor: pointer;
+
+    &:focus {
+      outline: none;
+      border-color: $accent-blue;
+    }
+  }
+
+  &__page-btn {
+    padding: 2px 6px;
+    background: $bg-tertiary;
+    border: 1px solid $border-color;
+    border-radius: 3px;
+    color: $text-secondary;
+    cursor: pointer;
+    font-size: 0.8em;
+    min-width: 22px;
+
+    &:hover:not(:disabled) {
+      background: rgba($text-primary, 0.05);
+      color: $text-primary;
+    }
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+  }
+
+  &__page-info {
+    font-size: 0.75em;
+    color: $text-secondary;
+    padding: 0 4px;
+  }
+
+  // Table wrapper
+  &__wrapper {
+    flex: 1;
+    overflow: auto;
+    min-height: 0;
+  }
+
+  &__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8em;
+
+    th,
+    td {
+      padding: 3px 8px;
+      text-align: left;
+      border-bottom: 1px solid $border-color;
+      white-space: nowrap;
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      background: $bg-secondary;
+      font-weight: 600;
+      color: $text-secondary;
+      user-select: none;
+      z-index: 1;
+      font-size: 0.9em;
+    }
+
+    tbody tr:hover {
+      background: rgba($text-primary, 0.03);
+    }
+  }
+
+  &__row-num {
+    color: $text-muted;
+    font-size: 0.8em;
+    text-align: right;
+    padding-right: 8px;
+    width: 40px;
+    min-width: 40px;
+    background: rgba($bg-tertiary, 0.3);
+  }
+
+  &__header {
+    cursor: pointer;
+    transition: background 0.15s;
+
+    &:hover {
+      background: rgba($text-primary, 0.05);
+    }
+
+    &--sorted {
+      color: $accent-blue;
+    }
+  }
+
+  &__header-name {
+    margin-right: 6px;
+  }
+
+  &__sort-indicator {
+    font-size: 0.75em;
+    opacity: 0.8;
+  }
+
+  &__cell {
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  // Value formatting
+  &__null {
+    color: $text-muted;
+    font-style: italic;
+    font-size: 0.85em;
+  }
+
+  &__bool {
+    font-weight: 500;
+
+    &--true {
+      color: $accent-green;
+    }
+
+    &--false {
+      color: $accent-red;
+    }
+  }
+
+  &__number {
+    color: $accent-cyan;
+    font-family: $font-mono;
+  }
+
+  &__date {
+    color: $accent-purple;
+    font-family: $font-mono;
+    font-size: 0.9em;
+  }
+
+  &__json {
+    color: $accent-orange;
+    font-family: $font-mono;
+    font-size: 0.85em;
+    cursor: help;
+  }
+
+  &__long {
+    cursor: help;
+  }
+}

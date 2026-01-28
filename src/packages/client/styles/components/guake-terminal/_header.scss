@@ -127,6 +127,38 @@
   }
 }
 
+// Detached mode indicator (when agent is running but not attached)
+.guake-working-indicator.detached {
+  .guake-working-dot {
+    background: $dracula-orange;
+  }
+}
+
+.guake-detached-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  padding: 2px 6px;
+  background: rgba($dracula-orange, 0.15);
+  border: 1px solid rgba($dracula-orange, 0.4);
+  border-radius: $radius-sm;
+  color: $dracula-orange;
+  animation: guake-detached-pulse 2s ease-in-out infinite;
+  cursor: help;
+}
+
+@keyframes guake-detached-pulse {
+  0%, 100% {
+    opacity: 0.7;
+    border-color: rgba($dracula-orange, 0.3);
+  }
+  50% {
+    opacity: 1;
+    border-color: rgba($dracula-orange, 0.7);
+  }
+}
+
 // Agent Status Bar (CWD + Context indicator)
 .guake-agent-status-bar {
   display: flex;

@@ -19,6 +19,12 @@ import type {
   GlobalUsageStats,
   ExecTask,
   Secret,
+  QueryResult,
+  QueryHistoryEntry,
+  TableInfo,
+  TableColumn,
+  TableIndex,
+  ForeignKey,
 } from '../../shared/types';
 import type { ShortcutConfig } from './shortcuts';
 import type { MouseControlsState } from './mouseControls';
@@ -197,6 +203,29 @@ export interface StoreState {
   execTasks?: Map<string, ExecTask>;
   // Secrets (key-value pairs for placeholder replacement)
   secrets: Map<string, Secret>;
+  // Database state per building
+  databaseState: Map<string, DatabaseBuildingState>;
+}
+
+// Database building state
+export interface DatabaseBuildingState {
+  // Connection status per connection ID
+  connectionStatus: Map<string, { connected: boolean; error?: string; serverVersion?: string }>;
+  // Available databases per connection ID
+  databases: Map<string, string[]>;
+  // Tables per connection ID + database
+  tables: Map<string, TableInfo[]>;
+  // Table schema cache (key: connectionId:database:table)
+  tableSchemas: Map<string, { columns: TableColumn[]; indexes: TableIndex[]; foreignKeys: ForeignKey[] }>;
+  // Query results (most recent first)
+  queryResults: QueryResult[];
+  // Query history
+  queryHistory: QueryHistoryEntry[];
+  // Currently executing query
+  executingQuery: boolean;
+  // Active connection and database
+  activeConnectionId: string | null;
+  activeDatabase: string | null;
 }
 
 // Store listener type

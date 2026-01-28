@@ -63,6 +63,17 @@ import {
   handleDeleteSecret,
 } from './handlers/secrets-handler.js';
 import { secretsService } from '../services/secrets-service.js';
+import {
+  handleTestDatabaseConnection,
+  handleListDatabases,
+  handleListTables,
+  handleGetTableSchema,
+  handleExecuteQuery,
+  handleRequestQueryHistory,
+  handleToggleQueryFavorite,
+  handleDeleteQueryHistory,
+  handleClearQueryHistory,
+} from './handlers/database-handler.js';
 
 const log = logger.ws;
 const supervisorLog = createLogger('Supervisor');
@@ -468,6 +479,46 @@ function handleClientMessage(ws: WebSocket, message: ClientMessage): void {
     case 'delete_secret':
       handleDeleteSecret(ctx, message.payload);
       break;
+
+    // ========================================================================
+    // Database Messages
+    // ========================================================================
+
+    case 'test_database_connection':
+      handleTestDatabaseConnection(ctx, message.payload);
+      break;
+
+    case 'list_databases':
+      handleListDatabases(ctx, message.payload);
+      break;
+
+    case 'list_tables':
+      handleListTables(ctx, message.payload);
+      break;
+
+    case 'get_table_schema':
+      handleGetTableSchema(ctx, message.payload);
+      break;
+
+    case 'execute_query':
+      handleExecuteQuery(ctx, message.payload);
+      break;
+
+    case 'request_query_history':
+      handleRequestQueryHistory(ctx, message.payload);
+      break;
+
+    case 'toggle_query_favorite':
+      handleToggleQueryFavorite(ctx, message.payload);
+      break;
+
+    case 'delete_query_history':
+      handleDeleteQueryHistory(ctx, message.payload);
+      break;
+
+    case 'clear_query_history':
+      handleClearQueryHistory(ctx, message.payload);
+      break;
   }
 }
 
@@ -600,6 +651,15 @@ function setupServiceListeners(): void {
     broadcast({
       type: 'command_started',
       payload: { agentId, command },
+    });
+  });
+
+  // Set up session update callback for orphaned agents
+  // When an orphaned agent's session file is updated, notify clients to refresh history
+  claudeService.setSessionUpdateCallback((agentId) => {
+    broadcast({
+      type: 'session_updated',
+      payload: { agentId },
     });
   });
 

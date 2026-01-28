@@ -9,6 +9,7 @@ import { ModelPreview } from './ModelPreview';
 import type { Agent, AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel } from '../../shared/types';
 import { BUILT_IN_AGENT_CLASSES, PERMISSION_MODES, CLAUDE_MODELS } from '../../shared/types';
 import { apiUrl } from '../utils/storage';
+import { useModalClose } from '../hooks';
 
 interface AgentEditModalProps {
   agent: Agent;
@@ -200,11 +201,13 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
     onClose();
   };
 
+  const { handleMouseDown: handleBackdropMouseDown, handleClick: handleBackdropClick } = useModalClose(onClose);
+
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay visible" onClick={onClose}>
-      <div className="modal agent-edit-modal" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay visible" onMouseDown={handleBackdropMouseDown} onClick={handleBackdropClick}>
+      <div className="modal agent-edit-modal">
         <div className="modal-header">
           Edit Agent: {agent.name}
         </div>

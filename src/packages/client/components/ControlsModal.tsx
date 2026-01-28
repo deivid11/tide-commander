@@ -4,6 +4,7 @@ import { ShortcutConfig, formatShortcut } from '../store/shortcuts';
 import type { MouseControlConfig, CameraSensitivityConfig, TrackpadConfig } from '../store/mouseControls';
 import { formatMouseBinding, findConflictingMouseBindings } from '../store/mouseControls';
 import { KeyCaptureInput } from './KeyCaptureInput';
+import { useModalClose } from '../hooks';
 
 interface ControlsModalProps {
   isOpen: boolean;
@@ -130,9 +131,11 @@ export function ControlsModal({ isOpen, onClose }: ControlsModalProps) {
     { camera: [] as MouseControlConfig[], interaction: [] as MouseControlConfig[] }
   );
 
+  const { handleMouseDown: handleBackdropMouseDown, handleClick: handleBackdropClick } = useModalClose(onClose);
+
   return (
-    <div className="shortcuts-modal-overlay" onClick={onClose}>
-      <div className="shortcuts-modal controls-modal" onClick={(e) => e.stopPropagation()}>
+    <div className="shortcuts-modal-overlay" onMouseDown={handleBackdropMouseDown} onClick={handleBackdropClick}>
+      <div className="shortcuts-modal controls-modal">
         {/* Header */}
         <div className="shortcuts-modal-header">
           <div className="shortcuts-modal-title">

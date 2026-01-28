@@ -1,0 +1,214 @@
+/**
+ * DatabaseSidebar Styles
+ */
+@use '../../styles/variables' as *;
+
+.database-sidebar {
+  width: 280px;
+  min-width: 280px;
+  flex-shrink: 0;
+  background: $bg-secondary;
+  border-right: 1px solid $border-color;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  &--collapsed {
+    width: 32px;
+    min-width: 32px;
+  }
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px;
+    font-weight: 600;
+    font-size: 0.9em;
+    border-bottom: 1px solid $border-color;
+    color: $text-secondary;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  &__toggle {
+    background: none;
+    border: none;
+    color: $text-secondary;
+    cursor: pointer;
+    padding: 4px 8px;
+    font-size: 1em;
+
+    &:hover {
+      color: $text-primary;
+    }
+  }
+
+  &__section {
+    padding: 12px;
+    border-bottom: 1px solid $border-color;
+
+    &--tables {
+      flex: 1;
+      overflow: auto;
+      border-bottom: none;
+    }
+  }
+
+  &__section-title {
+    font-size: 0.8em;
+    font-weight: 600;
+    color: $text-secondary;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  &__select {
+    width: 100%;
+    padding: 8px 10px;
+    background: $bg-tertiary;
+    border: 1px solid $border-color;
+    border-radius: 4px;
+    color: $text-primary;
+    font-size: 0.9em;
+    cursor: pointer;
+
+    &:focus {
+      outline: none;
+      border-color: $accent-blue;
+    }
+
+    option {
+      background: $bg-tertiary;
+    }
+  }
+
+  &__status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    font-size: 0.8em;
+
+    &--connected {
+      background: rgba($accent-green, 0.1);
+      color: $accent-green;
+    }
+
+    &--error {
+      background: rgba($accent-red, 0.1);
+      color: $accent-red;
+    }
+  }
+
+  &__status-icon {
+    font-weight: bold;
+  }
+
+  &__version {
+    font-size: 0.9em;
+    opacity: 0.8;
+  }
+
+  &__tables {
+    display: flex;
+    flex-direction: column;
+  }
+
+  &__table {
+    overflow: hidden;
+  }
+
+  &__table-header {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 6px;
+    cursor: pointer;
+    line-height: 1.2;
+
+    &:hover {
+      background: rgba($text-primary, 0.05);
+    }
+  }
+
+  &__table-expand {
+    font-size: 0.6em;
+    color: $text-secondary;
+    width: 8px;
+    flex-shrink: 0;
+  }
+
+  &__table-icon {
+    font-size: 0.75em;
+    flex-shrink: 0;
+  }
+
+  &__table-name {
+    flex: 1;
+    font-size: 0.75em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.2;
+  }
+
+  &__table-insert {
+    background: none;
+    border: none;
+    color: $text-secondary;
+    cursor: pointer;
+    padding: 2px 6px;
+    font-size: 0.9em;
+    opacity: 0;
+    transition: opacity 0.15s;
+
+    &:hover {
+      color: $accent-blue;
+    }
+  }
+
+  &__table-header:hover &__table-insert {
+    opacity: 1;
+  }
+
+  &__table-columns {
+    padding-left: 24px;
+    padding-bottom: 4px;
+  }
+
+  &__column {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    font-size: 0.85em;
+    cursor: pointer;
+    border-radius: 3px;
+
+    &:hover {
+      background: rgba($text-primary, 0.05);
+    }
+  }
+
+  &__column-icon {
+    font-size: 0.8em;
+    width: 14px;
+  }
+
+  &__column-name {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__column-type {
+    font-size: 0.8em;
+    color: $text-secondary;
+    font-family: $font-mono;
+  }
+}

@@ -2,6 +2,45 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.31.0] - 2026-01-28
+
+### Added
+- **Database Building Action Popup** - New action popup for database building interactions
+- **Database Service** - Backend service for database operations
+- **Database WebSocket Handler** - Real-time database synchronization
+- **Database Store** - Client-side state management for database features
+- **Tooltip Component** - Reusable tooltip component for UI hints
+- **Modal Close Hook** - useModalClose hook for improved modal management
+
+### Changed
+- **Modal System** - Enhanced modal styling and interactions
+  - Refined modal layout and spacing
+  - Improved modal header and content organization
+  - Better modal backdrop and overlay handling
+- **Spotlight Search** - Additional refinements and improvements
+  - Better search result presentation
+  - Improved type definitions
+- **Terminal Header** - Enhanced terminal control UI
+  - Better button organization
+  - Improved responsive layout
+- **Scene Setup** - Improved initialization and synchronization
+  - Better state management
+  - Enhanced hook organization
+- **Skill Editor** - UI and interaction improvements
+- **Agent Edit Modal** - Enhanced styling and layout
+- **Building Config Modal** - Layout refinements
+
+### Technical
+- New `DatabaseBuildingActionPopup` component
+- New `database-service.ts` for server-side database operations
+- New `database-handler.ts` for WebSocket communication
+- New `Tooltip` component with styling
+- New `useModalClose` hook for modal management
+- New `database.ts` store module for state management
+- Enhanced store selectors and types
+- Improved modal styling with SCSS refinements
+- Updated websocket handler with database routes
+
 ## [0.30.0] - 2026-01-27
 
 ### Added

@@ -15,7 +15,7 @@ import * as path from 'path';
 import * as os from 'os';
 import * as crypto from 'crypto';
 import { execSync } from 'child_process';
-import type { Agent, DrawingArea, AgentSupervisorHistory, AgentSupervisorHistoryEntry, Building, DelegationDecision, Skill, StoredSkill, CustomAgentClass, ContextStats, Secret, StoredSecret } from '../../shared/types.js';
+import type { Agent, DrawingArea, AgentSupervisorHistory, AgentSupervisorHistoryEntry, Building, DelegationDecision, Skill, StoredSkill, CustomAgentClass, ContextStats, Secret, StoredSecret, QueryHistoryEntry } from '../../shared/types.js';
 import { createLogger } from '../utils/logger.js';
 
 const log = createLogger('Data');
@@ -1045,5 +1045,88 @@ export function saveSecrets(secrets: Secret[]): void {
     log.log(` Saved ${secrets.length} secrets to ${SECRETS_FILE} (encrypted)`);
   } catch (err) {
     log.error(' Failed to save secrets:', err);
+  }
+}
+
+// ============================================================================
+// Query History Persistence (Database Building)
+// ============================================================================
+
+const QUERY_HISTORY_DIR = path.join(DATA_DIR, 'query-history');
+
+interface QueryHistoryData {
+  history: QueryHistoryEntry[];
+  savedAt: number;
+  version: string;
+}
+
+/**
+ * Ensure query history directory exists
+ */
+function ensureQueryHistoryDir(): void {
+  if (!fs.existsSync(QUERY_HISTORY_DIR)) {
+    fs.mkdirSync(QUERY_HISTORY_DIR, { recursive: true });
+    log.log(` Created query history directory: ${QUERY_HISTORY_DIR}`);
+  }
+}
+
+/**
+ * Get query history file path for a building
+ */
+function getQueryHistoryFile(buildingId: string): string {
+  return path.join(QUERY_HISTORY_DIR, `${buildingId}.json`);
+}
+
+/**
+ * Load query history for a building
+ */
+export function loadQueryHistory(buildingId: string): QueryHistoryEntry[] {
+  ensureQueryHistoryDir();
+
+  try {
+    const filePath = getQueryHistoryFile(buildingId);
+    if (fs.existsSync(filePath)) {
+      const data: QueryHistoryData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+      return data.history || [];
+    }
+  } catch (err) {
+    log.error(` Failed to load query history for building ${buildingId}:`, err);
+  }
+
+  return [];
+}
+
+/**
+ * Save query history for a building
+ */
+export function saveQueryHistory(buildingId: string, history: QueryHistoryEntry[]): void {
+  ensureQueryHistoryDir();
+
+  try {
+    const data: QueryHistoryData = {
+      history,
+      savedAt: Date.now(),
+      version: '1.0.0',
+    };
+
+    const filePath = getQueryHistoryFile(buildingId);
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+  } catch (err) {
+    log.error(` Failed to save query history for building ${buildingId}:`, err);
+  }
+}
+
+/**
+ * Delete query history for a building (when building is deleted)
+ */
+export function deleteQueryHistory(buildingId: string): void {
+  try {
+    const filePath = getQueryHistoryFile(buildingId);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+      log.log(` Deleted query history for building ${buildingId}`);
+    }
+  } catch (err) {
+    log.error(` Failed to delete query history for building ${buildingId}:`, err);
   }
 }

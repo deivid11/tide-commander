@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { store, useSkill, useAgentsArray } from '../store';
 import type { Skill, AgentClass } from '../../shared/types';
+import { useModalClose } from '../hooks';
 
 interface SkillEditorModalProps {
   isOpen: boolean;
@@ -224,13 +225,14 @@ export function SkillEditorModal({
   // Non-boss agents for individual assignment
   const assignableAgents = agents.filter(a => a.class !== 'boss');
 
+  const { handleMouseDown: handleBackdropMouseDown, handleClick: handleBackdropClick } = useModalClose(onClose);
+
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay visible" onClick={onClose}>
+    <div className="modal-overlay visible" onMouseDown={handleBackdropMouseDown} onClick={handleBackdropClick}>
       <div
         className="modal skill-editor-modal"
-        onClick={(e) => e.stopPropagation()}
         style={{ maxWidth: '700px', maxHeight: '90vh' }}
       >
         <div className="modal-header">

@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm';
 import Prism from 'prismjs';
 import { DiffViewer } from './DiffViewer';
 import { apiUrl } from '../utils/storage';
+import { useModalClose } from '../hooks';
 import 'prismjs/components/prism-typescript';
 import 'prismjs/components/prism-javascript';
 import 'prismjs/components/prism-jsx';
@@ -206,11 +207,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
     }
   };
 
-  const handleOverlayClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
-  };
+  const { handleMouseDown: handleOverlayMouseDown, handleClick: handleOverlayClick } = useModalClose(onClose);
 
   const getActionLabel = () => {
     switch (action) {
@@ -292,6 +289,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
     <div
       ref={overlayRef}
       className="file-viewer-overlay"
+      onMouseDown={handleOverlayMouseDown}
       onClick={handleOverlayClick}
       tabIndex={-1}
     >
