@@ -3,6 +3,7 @@
  * Entry point for the backend server
  */
 
+import 'dotenv/config';
 import { createServer } from 'http';
 import { createApp } from './app.js';
 import { agentService, claudeService, supervisorService, bossService, skillService, customClassService, secretsService } from './services/index.js';

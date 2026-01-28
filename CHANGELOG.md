@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.28.0] - 2026-01-27
+
+### Added
+- **Environment-based port configuration** - Backend and frontend ports can now be configured via a `.env` file using `PORT` and `VITE_PORT` variables
+- **`.env.example`** - Documents all available environment variables (`PORT`, `VITE_PORT`, `LISTEN_ALL_INTERFACES`)
+- **`dotenv` support** - Both the server and Vite config load `.env` automatically via `dotenv/config`
+
+### Changed
+- **WebSocket default port** - Client now uses the `PORT` env variable (injected at build time as `__SERVER_PORT__`) instead of hardcoded `5174` for backend discovery
+- **Connection error message** - Toast notification now shows the actual configured port instead of hardcoded `5174`
+
 ## [0.27.1] - 2026-01-27
 
 ### Fixed

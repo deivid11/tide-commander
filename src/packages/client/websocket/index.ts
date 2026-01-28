@@ -200,7 +200,9 @@ export function connect(): void {
   // Get configured backend URL or use defaults
   const configuredUrl = getStorageString(STORAGE_KEYS.BACKEND_URL, '');
 
-  // Build WebSocket URL - use configured URL or default to localhost:5174
+  // Build WebSocket URL - use configured URL or default to localhost with server port
+  // __SERVER_PORT__ is injected by Vite from the PORT env variable (defaults to 5174)
+  const defaultPort = typeof __SERVER_PORT__ !== 'undefined' ? __SERVER_PORT__ : 5174;
   let wsUrl: string;
   if (configuredUrl) {
     // User has configured a custom backend URL
@@ -211,8 +213,8 @@ export function connect(): void {
     // Ensure it ends with /ws
     wsUrl = wsConfigured.endsWith('/ws') ? wsConfigured : `${wsConfigured.replace(/\/$/, '')}/ws`;
   } else {
-    // Default: connect directly to backend on port 5174
-    wsUrl = 'ws://127.0.0.1:5174/ws';
+    // Default: connect directly to backend on the configured server port
+    wsUrl = `ws://127.0.0.1:${defaultPort}/ws`;
   }
 
   let newSocket: WebSocket | null = null;
@@ -282,7 +284,7 @@ export function connect(): void {
       onToast?.('warning', 'Disconnected', `Connection lost. Reconnecting... (attempt ${attempts + 1}/${maxReconnectAttempts})`);
       handleReconnect();
     } else {
-      onToast?.('error', 'Connection Failed', 'Could not connect to server. Please check if the backend is running on port 5174.');
+      onToast?.('error', 'Connection Failed', `Could not connect to server. Please check if the backend is running on port ${defaultPort}.`);
     }
   };
 
@@ -860,6 +862,7 @@ function handleServerMessage(message: ServerMessage): void {
       console.log(`[WebSocket] Secret deleted: ${id}`);
       break;
     }
+
   }
 
   perf.end(`ws:${message.type}`);
