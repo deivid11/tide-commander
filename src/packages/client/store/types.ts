@@ -25,6 +25,8 @@ import type {
   TableColumn,
   TableIndex,
   ForeignKey,
+  ExistingDockerContainer,
+  ExistingComposeProject,
 } from '../../shared/types';
 import type { ShortcutConfig } from './shortcuts';
 import type { MouseControlsState } from './mouseControls';
@@ -205,6 +207,9 @@ export interface StoreState {
   secrets: Map<string, Secret>;
   // Database state per building
   databaseState: Map<string, DatabaseBuildingState>;
+  // Docker containers list (for "existing" mode selection)
+  dockerContainersList: ExistingDockerContainer[];
+  dockerComposeProjectsList: ExistingComposeProject[];
 }
 
 // Database building state

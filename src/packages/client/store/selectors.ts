@@ -893,3 +893,27 @@ export function useExecutingQuery(buildingId: string | null): boolean {
     )
   );
 }
+
+// ============================================================================
+// DOCKER CONTAINERS SELECTORS
+// ============================================================================
+
+/**
+ * Get list of existing Docker containers (for "existing" mode selection).
+ */
+export function useDockerContainersList(): import('../../shared/types').ExistingDockerContainer[] {
+  return useSelector(
+    (state: StoreState) => state.dockerContainersList,
+    shallowArrayEqual
+  );
+}
+
+/**
+ * Get list of existing Docker compose projects (for "existing" mode selection).
+ */
+export function useDockerComposeProjectsList(): import('../../shared/types').ExistingComposeProject[] {
+  return useSelector(
+    (state: StoreState) => state.dockerComposeProjectsList,
+    shallowArrayEqual
+  );
+}

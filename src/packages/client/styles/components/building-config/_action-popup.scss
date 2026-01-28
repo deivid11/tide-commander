@@ -121,6 +121,37 @@
     }
   }
 
+  // Docker Compose services display
+  .building-popup-services {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    padding: 0.4rem 0.75rem;
+    background: $bg-primary;
+    border-bottom: 1px solid $border-color;
+
+    .service-item {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      padding: 0.15rem 0.4rem;
+      background: $bg-tertiary;
+      border-radius: 3px;
+      font-size: 0.7rem;
+
+      .service-indicator {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+      }
+
+      .service-name {
+        color: $text-primary;
+        font-family: $font-mono;
+      }
+    }
+  }
+
   .building-popup-error {
     padding: 0.4rem 0.75rem;
     background: rgba($accent-red, 0.1);

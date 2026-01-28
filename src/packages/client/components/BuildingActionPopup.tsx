@@ -105,6 +105,7 @@ export function BuildingActionPopup({ building, screenPos, onClose, onOpenSettin
   const { buildingLogs: _buildingLogs } = useStore();
   const logs = store.getBuildingLogs(building.id);
   const isPM2 = building.pm2?.enabled;
+  const isDocker = building.docker?.enabled;
 
   // Handle drag start on header
   const handleDragStart = useCallback((e: React.MouseEvent) => {
@@ -142,12 +143,12 @@ export function BuildingActionPopup({ building, screenPos, onClose, onOpenSettin
 
   const handleCommand = (cmd: 'start' | 'stop' | 'restart' | 'healthCheck' | 'logs') => {
     if (cmd === 'logs') {
-      // For PM2 buildings, open the dedicated logs modal
-      if (isPM2 && onOpenLogsModal) {
+      // For PM2 and Docker buildings, open the dedicated logs modal
+      if ((isPM2 || isDocker) && onOpenLogsModal) {
         onOpenLogsModal();
         return;
       }
-      // For non-PM2 buildings, use the inline logs view
+      // For non-PM2/Docker buildings, use the inline logs view
       store.sendBuildingCommand(building.id, cmd);
       setShowLogs(true);
     } else {
@@ -166,13 +167,15 @@ export function BuildingActionPopup({ building, screenPos, onClose, onOpenSettin
     }
   };
 
-  // Get auto-detected ports from PM2 status polling
-  const allPorts = building.pm2Status?.ports || [];
+  // Get auto-detected ports from PM2 or Docker status polling
+  const pm2Ports = building.pm2Status?.ports || [];
+  const dockerPorts = building.dockerStatus?.ports?.map(p => p.host) || [];
+  const allPorts = isPM2 ? pm2Ports : isDocker ? dockerPorts : [];
 
   // Check if commands are available
-  const canStart = isPM2 ? !!building.pm2?.script : !!building.commands?.start;
-  const canStop = isPM2 ? !!building.pm2?.script : !!building.commands?.stop;
-  const canRestart = isPM2 ? !!building.pm2?.script : !!building.commands?.restart;
+  const canStart = isPM2 ? !!building.pm2?.script : isDocker ? !!building.docker?.image || building.docker?.mode === 'compose' || building.docker?.mode === 'existing' : !!building.commands?.start;
+  const canStop = isPM2 ? !!building.pm2?.script : isDocker ? true : !!building.commands?.stop;
+  const canRestart = isPM2 ? !!building.pm2?.script : isDocker ? true : !!building.commands?.restart;
 
   // Calculate base position
   let baseX = screenPos.x + 20;
@@ -272,12 +275,70 @@ export function BuildingActionPopup({ building, screenPos, onClose, onOpenSettin
         </div>
       )}
 
+      {/* Docker Status */}
+      {isDocker && building.dockerStatus && (
+        <div className="building-popup-metrics">
+          <span className="metric">
+            <span className="label">ID</span>
+            <span className="value">{building.dockerStatus.containerId || '-'}</span>
+          </span>
+          {building.dockerStatus.cpu !== undefined && (
+            <span className="metric">
+              <span className="label">CPU</span>
+              <span className="value">{building.dockerStatus.cpu.toFixed(1)}%</span>
+            </span>
+          )}
+          {building.dockerStatus.memory !== undefined && (
+            <span className="metric">
+              <span className="label">MEM</span>
+              <span className="value">{formatBytes(building.dockerStatus.memory)}</span>
+            </span>
+          )}
+          {building.dockerStatus.health && building.dockerStatus.health !== 'none' && (
+            <span className="metric">
+              <span className="label">HEALTH</span>
+              <span className="value" style={{
+                color: building.dockerStatus.health === 'healthy' ? '#4ade80' :
+                       building.dockerStatus.health === 'unhealthy' ? '#f87171' : '#fbbf24'
+              }}>
+                {building.dockerStatus.health === 'healthy' ? '✓' :
+                 building.dockerStatus.health === 'unhealthy' ? '✗' : '...'}
+              </span>
+            </span>
+          )}
+          {building.dockerStatus.startedAt && (
+            <span className="metric">
+              <span className="label">UP</span>
+              <span className="value">{formatUptime(building.dockerStatus.startedAt)}</span>
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Docker Compose Services */}
+      {isDocker && building.dockerStatus?.services && building.dockerStatus.services.length > 0 && (
+        <div className="building-popup-services">
+          {building.dockerStatus.services.map((svc, i) => (
+            <span key={i} className="service-item" title={`${svc.name}: ${svc.status}`}>
+              <span
+                className="service-indicator"
+                style={{ backgroundColor: svc.status === 'running' ? '#4ade80' : '#f87171' }}
+              />
+              <span className="service-name">{svc.name}</span>
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* Error display */}
-      {(building.lastError || (isPM2 && building.pm2Status?.status === 'errored')) && (
+      {(building.lastError || (isPM2 && building.pm2Status?.status === 'errored') || (isDocker && building.dockerStatus?.status === 'dead')) && (
         <div className="building-popup-error">
           {building.lastError || 'Process failed to start'}
           {isPM2 && building.pm2Status?.restarts && building.pm2Status.restarts > 5 && (
             <span className="error-hint"> - Check logs or configuration</span>
+          )}
+          {isDocker && building.dockerStatus?.health === 'unhealthy' && (
+            <span className="error-hint"> - Container health check failing</span>
           )}
         </div>
       )}

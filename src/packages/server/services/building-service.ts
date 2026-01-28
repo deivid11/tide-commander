@@ -1,7 +1,7 @@
 /**
  * Building Service
  * Handles building/infrastructure command operations
- * Supports both custom commands and PM2-managed processes
+ * Supports custom commands, PM2-managed processes, and Docker containers
  */
 
 import { exec } from 'child_process';
@@ -10,6 +10,7 @@ import type { Building, ServerMessage, BuildingStatus } from '../../shared/types
 import { loadBuildings, saveBuildings } from '../data/index.js';
 import { createLogger } from '../utils/index.js';
 import * as pm2Service from './pm2-service.js';
+import * as dockerService from './docker-service.js';
 
 const log = createLogger('BuildingService');
 const execAsync = promisify(exec);
@@ -220,6 +221,122 @@ async function executePM2Command(
 }
 
 /**
+ * Execute a Docker command for a building
+ */
+async function executeDockerCommand(
+  building: Building,
+  command: BuildingCommand,
+  broadcast: BroadcastFn
+): Promise<BuildingCommandResult> {
+  const buildingId = building.id;
+  const isCompose = building.docker?.mode === 'compose';
+  const isExisting = building.docker?.mode === 'existing';
+
+  switch (command) {
+    case 'start': {
+      updateBuildingStatus(buildingId, 'starting', broadcast);
+      const result = isCompose
+        ? await dockerService.composeUp(building)
+        : await dockerService.startContainer(building); // Works for both 'container' and 'existing' modes
+
+      if (result.success) {
+        // Fetch actual status after short delay to let Docker initialize
+        setTimeout(async () => {
+          const status = await dockerService.getStatus(building);
+          const newStatus: BuildingStatus = status?.status === 'running' ? 'running' : 'error';
+          updateBuildingStatus(buildingId, newStatus, broadcast, {
+            dockerStatus: status || undefined,
+            lastError: status?.status !== 'running' ? 'Container failed to start' : undefined,
+          });
+        }, 2000);
+        log.log(`Building ${building.name}: Docker ${isCompose ? 'compose up' : 'start'} initiated`);
+      } else {
+        updateBuildingStatus(buildingId, 'error', broadcast, { lastError: result.error });
+        log.error(`Building ${building.name}: Docker start failed: ${result.error}`);
+      }
+      return result;
+    }
+
+    case 'stop': {
+      updateBuildingStatus(buildingId, 'stopping', broadcast);
+      const result = isCompose
+        ? await dockerService.composeDown(building)
+        : await dockerService.stopContainer(building);
+
+      if (result.success) {
+        updateBuildingStatus(buildingId, 'stopped', broadcast, { dockerStatus: undefined });
+        log.log(`Building ${building.name}: Docker ${isCompose ? 'compose down' : 'stop'} completed`);
+      } else {
+        updateBuildingStatus(buildingId, 'error', broadcast, { lastError: result.error });
+        log.error(`Building ${building.name}: Docker stop failed: ${result.error}`);
+      }
+      return result;
+    }
+
+    case 'restart': {
+      updateBuildingStatus(buildingId, 'starting', broadcast);
+      const result = isCompose
+        ? await dockerService.composeRestart(building)
+        : await dockerService.restartContainer(building);
+
+      if (result.success) {
+        // Fetch actual status after short delay
+        setTimeout(async () => {
+          const status = await dockerService.getStatus(building);
+          const newStatus: BuildingStatus = status?.status === 'running' ? 'running' : 'error';
+          updateBuildingStatus(buildingId, newStatus, broadcast, {
+            dockerStatus: status || undefined,
+          });
+        }, 2000);
+        log.log(`Building ${building.name}: Docker restart initiated`);
+      } else {
+        updateBuildingStatus(buildingId, 'error', broadcast, { lastError: result.error });
+        log.error(`Building ${building.name}: Docker restart failed: ${result.error}`);
+      }
+      return result;
+    }
+
+    case 'logs': {
+      const logs = await dockerService.getLogs(building, 200);
+      broadcast({
+        type: 'building_logs',
+        payload: { buildingId, logs, timestamp: Date.now() },
+      });
+      log.log(`Building ${building.name}: Docker logs fetched`);
+      return { success: true, logs };
+    }
+
+    case 'healthCheck': {
+      const status = await dockerService.getStatus(building);
+      const isHealthy = status?.status === 'running' &&
+        (status.health === 'healthy' || status.health === 'none');
+      updateBuildingStatus(buildingId, isHealthy ? 'running' : 'error', broadcast, {
+        lastHealthCheck: Date.now(),
+        dockerStatus: status || undefined,
+        lastError: isHealthy ? undefined : `Docker status: ${status?.status || 'not found'}`,
+      });
+      log.log(`Building ${building.name}: Docker health check: ${isHealthy ? 'passed' : 'failed'}`);
+      return { success: isHealthy };
+    }
+
+    case 'delete': {
+      const result = isCompose
+        ? await dockerService.composeDown(building)
+        : await dockerService.removeContainer(building);
+      if (result.success) {
+        log.log(`Building ${building.name}: Docker container/compose removed`);
+      } else {
+        log.error(`Building ${building.name}: Docker remove failed: ${result.error}`);
+      }
+      return result;
+    }
+
+    default:
+      return { success: false, error: `Unknown command: ${command}` };
+  }
+}
+
+/**
  * Execute a custom command for a building (non-PM2)
  */
 async function executeCustomCommand(
@@ -343,6 +460,11 @@ export async function executeCommand(
     // Route to PM2 if enabled
     if (building.pm2?.enabled) {
       return executePM2Command(building, command, broadcast);
+    }
+
+    // Route to Docker if enabled
+    if (building.docker?.enabled) {
+      return executeDockerCommand(building, command, broadcast);
     }
 
     // Otherwise use custom commands
@@ -556,6 +678,157 @@ export async function syncPM2Status(buildingId: string, broadcast: BroadcastFn):
   }
 }
 
+// ============================================================================
+// Docker Status Polling
+// ============================================================================
+
+let dockerPollInterval: NodeJS.Timeout | null = null;
+
+/**
+ * Start polling Docker for status updates
+ * Syncs Docker container status with building status
+ */
+export function startDockerStatusPolling(broadcast: BroadcastFn, intervalMs: number = 10000): void {
+  if (dockerPollInterval) {
+    log.log('Docker status polling already running');
+    return;
+  }
+
+  log.log(`Starting Docker status polling (interval: ${intervalMs}ms)`);
+
+  // Initial poll
+  pollDockerStatus(broadcast);
+
+  // Set up interval
+  dockerPollInterval = setInterval(() => pollDockerStatus(broadcast), intervalMs);
+}
+
+/**
+ * Stop Docker status polling
+ */
+export function stopDockerStatusPolling(): void {
+  if (dockerPollInterval) {
+    clearInterval(dockerPollInterval);
+    dockerPollInterval = null;
+    log.log('Docker status polling stopped');
+  }
+}
+
+/**
+ * Poll Docker for status updates and sync with buildings
+ */
+async function pollDockerStatus(broadcast: BroadcastFn): Promise<void> {
+  const buildings = loadBuildings().filter(b => b.docker?.enabled);
+
+  if (buildings.length === 0) {
+    return; // No Docker-enabled buildings, skip polling
+  }
+
+  // For container mode buildings, we can batch the status check
+  const containerBuildings = buildings.filter(b => b.docker?.mode === 'container');
+  const composeBuildings = buildings.filter(b => b.docker?.mode === 'compose');
+
+  // Get all container statuses
+  const containerStatusMap = await dockerService.getAllContainerStatus();
+
+  // Process container mode buildings
+  for (const building of containerBuildings) {
+    const containerName = dockerService.getContainerName(building);
+    const status = containerStatusMap.get(containerName);
+
+    if (status) {
+      const newBuildingStatus: BuildingStatus =
+        status.status === 'running' ? 'running' :
+        status.status === 'exited' || status.status === 'created' ? 'stopped' :
+        status.status === 'dead' || status.health === 'unhealthy' ? 'error' :
+        'unknown';
+
+      // Only update if status changed or metrics updated
+      const statusChanged = building.status !== newBuildingStatus;
+      const metricsChanged = building.dockerStatus?.containerId !== status.containerId;
+      // Check if ports changed
+      const oldPorts = (building.dockerStatus?.ports || [])
+        .map(p => `${p.host}:${p.container}`)
+        .sort()
+        .join(',');
+      const newPorts = (status.ports || [])
+        .map(p => `${p.host}:${p.container}`)
+        .sort()
+        .join(',');
+      const portsChanged = oldPorts !== newPorts;
+
+      if (statusChanged || metricsChanged || portsChanged) {
+        if (portsChanged && status.ports && status.ports.length > 0) {
+          log.log(`Building ${building.name}: detected Docker ports ${status.ports.map(p => `${p.host}:${p.container}`).join(', ')}`);
+        }
+        updateBuildingStatus(building.id, newBuildingStatus, broadcast, {
+          dockerStatus: status,
+        });
+      }
+    } else {
+      // Container not found - might be stopped or not started
+      if (building.status === 'running' || building.status === 'starting') {
+        updateBuildingStatus(building.id, 'stopped', broadcast, {
+          dockerStatus: undefined,
+        });
+      }
+    }
+  }
+
+  // Process compose mode buildings (need individual status checks)
+  for (const building of composeBuildings) {
+    const status = await dockerService.getComposeStatus(building);
+
+    if (status) {
+      const newBuildingStatus: BuildingStatus =
+        status.status === 'running' ? 'running' :
+        status.status === 'exited' || status.status === 'created' ? 'stopped' :
+        status.status === 'dead' ? 'error' :
+        'unknown';
+
+      const statusChanged = building.status !== newBuildingStatus;
+
+      if (statusChanged) {
+        updateBuildingStatus(building.id, newBuildingStatus, broadcast, {
+          dockerStatus: status,
+        });
+      }
+    } else {
+      if (building.status === 'running' || building.status === 'starting') {
+        updateBuildingStatus(building.id, 'stopped', broadcast, {
+          dockerStatus: undefined,
+        });
+      }
+    }
+  }
+
+  // Recompute boss building statuses
+  recomputeAllBossStatuses(broadcast);
+}
+
+/**
+ * Sync Docker status for a single building (called on demand)
+ */
+export async function syncDockerStatus(buildingId: string, broadcast: BroadcastFn): Promise<void> {
+  const building = getBuilding(buildingId);
+  if (!building || !building.docker?.enabled) {
+    return;
+  }
+
+  const status = await dockerService.getStatus(building);
+  if (status) {
+    const newBuildingStatus: BuildingStatus =
+      status.status === 'running' ? 'running' :
+      status.status === 'exited' || status.status === 'created' ? 'stopped' :
+      status.status === 'dead' || status.health === 'unhealthy' ? 'error' :
+      'unknown';
+
+    updateBuildingStatus(buildingId, newBuildingStatus, broadcast, {
+      dockerStatus: status,
+    });
+  }
+}
+
 /**
  * Check if PM2 config has changed between old and new building
  */
@@ -590,7 +863,64 @@ function hasPM2ConfigChanged(oldBuilding: Building, newBuilding: Building): bool
 }
 
 /**
- * Handle building sync - detect PM2 name/config changes and update processes
+ * Check if Docker config has changed between old and new building
+ */
+function hasDockerConfigChanged(oldBuilding: Building, newBuilding: Building): boolean {
+  const oldDocker = oldBuilding.docker;
+  const newDocker = newBuilding.docker;
+
+  if (!oldDocker || !newDocker) return false;
+
+  // Check mode
+  if (oldDocker.mode !== newDocker.mode) return true;
+
+  // For container mode
+  if (newDocker.mode === 'container') {
+    if (oldDocker.image !== newDocker.image) return true;
+    if (oldDocker.command !== newDocker.command) return true;
+    if (oldDocker.network !== newDocker.network) return true;
+    if (oldDocker.restart !== newDocker.restart) return true;
+
+    // Check ports
+    const oldPorts = (oldDocker.ports || []).sort().join(',');
+    const newPorts = (newDocker.ports || []).sort().join(',');
+    if (oldPorts !== newPorts) return true;
+
+    // Check volumes
+    const oldVolumes = (oldDocker.volumes || []).sort().join(',');
+    const newVolumes = (newDocker.volumes || []).sort().join(',');
+    if (oldVolumes !== newVolumes) return true;
+  }
+
+  // For compose mode
+  if (newDocker.mode === 'compose') {
+    if (oldDocker.composePath !== newDocker.composePath) return true;
+    if (oldDocker.composeProject !== newDocker.composeProject) return true;
+    const oldServices = (oldDocker.services || []).sort().join(',');
+    const newServices = (newDocker.services || []).sort().join(',');
+    if (oldServices !== newServices) return true;
+  }
+
+  // Check cwd (building level)
+  if (oldBuilding.cwd !== newBuilding.cwd) return true;
+
+  // Check env variables
+  const oldEnv = oldDocker.env || {};
+  const newEnv = newDocker.env || {};
+  const oldEnvKeys = Object.keys(oldEnv);
+  const newEnvKeys = Object.keys(newEnv);
+
+  if (oldEnvKeys.length !== newEnvKeys.length) return true;
+
+  for (const key of oldEnvKeys) {
+    if (oldEnv[key] !== newEnv[key]) return true;
+  }
+
+  return false;
+}
+
+/**
+ * Handle building sync - detect PM2/Docker name/config changes and update processes
  * Called when buildings are synced from the client
  */
 export async function handleBuildingSync(
@@ -635,6 +965,44 @@ export async function handleBuildingSync(
             log.log(`Started PM2 process with new ${changeType}: ${newPM2Name}`);
           } else {
             log.error(`Failed to start PM2 process ${newPM2Name}: ${result.error}`);
+          }
+        }
+      }
+    }
+
+    // Check if this is a Docker-enabled building
+    if (oldBuilding && newBuilding.docker?.enabled && oldBuilding.docker?.enabled) {
+      const oldContainerName = dockerService.getContainerName(oldBuilding);
+      const newContainerName = dockerService.getContainerName(newBuilding);
+      const nameChanged = oldContainerName !== newContainerName;
+      const configChanged = hasDockerConfigChanged(oldBuilding, newBuilding);
+
+      if (nameChanged || configChanged) {
+        const changeType = nameChanged ? 'name' : 'config';
+        log.log(`Building ${newBuilding.id}: Docker ${changeType} changed`);
+
+        // Check if the old container is running
+        const oldStatus = await dockerService.getStatus(oldBuilding);
+        const wasRunning = oldStatus?.status === 'running';
+
+        // Remove the old container
+        if (oldBuilding.docker.mode === 'compose') {
+          await dockerService.composeDown(oldBuilding);
+        } else {
+          await dockerService.removeContainer(oldBuilding);
+        }
+        log.log(`Removed old Docker container: ${oldContainerName}`);
+
+        // If it was running, start the new one with updated config
+        if (wasRunning) {
+          const result = newBuilding.docker.mode === 'compose'
+            ? await dockerService.composeUp(newBuilding)
+            : await dockerService.startContainer(newBuilding);
+
+          if (result.success) {
+            log.log(`Started Docker container with new ${changeType}: ${newContainerName}`);
+          } else {
+            log.error(`Failed to start Docker container ${newContainerName}: ${result.error}`);
           }
         }
       }

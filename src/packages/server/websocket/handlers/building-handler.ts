@@ -5,6 +5,7 @@
 
 import { buildingService } from '../../services/index.js';
 import * as pm2Service from '../../services/pm2-service.js';
+import * as dockerService from '../../services/docker-service.js';
 import type { BuildingCommand, BossBuildingCommand } from '../../services/building-service.js';
 import { createLogger } from '../../utils/index.js';
 import type { HandlerContext } from './types.js';
@@ -124,6 +125,129 @@ export function handlePM2LogsStop(
       },
     });
   }
+}
+
+// ============================================================================
+// Docker Log Streaming Handlers
+// ============================================================================
+
+/**
+ * Handle docker_logs_start message - start streaming logs for a Docker building
+ */
+export async function handleDockerLogsStart(
+  ctx: HandlerContext,
+  payload: { buildingId: string; lines?: number; service?: string }
+): Promise<void> {
+  const { buildingId, lines = 100, service } = payload;
+  const building = buildingService.getBuilding(buildingId);
+
+  if (!building) {
+    ctx.sendError(`Building not found: ${buildingId}`);
+    return;
+  }
+
+  if (!building.docker?.enabled) {
+    ctx.sendError(`Building ${building.name} is not Docker-managed`);
+    return;
+  }
+
+  log.log(`Starting Docker log stream for building: ${building.name}`);
+
+  const { success, error } = await dockerService.startLogStream(building, {
+    onChunk: (chunk: string, isError: boolean, svc?: string) => {
+      ctx.broadcast({
+        type: 'docker_logs_chunk',
+        payload: {
+          buildingId,
+          chunk,
+          timestamp: Date.now(),
+          isError,
+          service: svc,
+        },
+      });
+    },
+    onEnd: () => {
+      log.log(`Docker log stream ended for building: ${building.name}`);
+      ctx.broadcast({
+        type: 'docker_logs_streaming',
+        payload: {
+          buildingId,
+          streaming: false,
+        },
+      });
+    },
+    onError: (errorMsg: string) => {
+      log.error(`Docker log stream error for building ${building.name}: ${errorMsg}`);
+      ctx.broadcast({
+        type: 'docker_logs_chunk',
+        payload: {
+          buildingId,
+          chunk: `\x1b[31mStream error: ${errorMsg}\x1b[0m\n`,
+          timestamp: Date.now(),
+          isError: true,
+        },
+      });
+    },
+  }, lines, service);
+
+  if (success) {
+    ctx.broadcast({
+      type: 'docker_logs_streaming',
+      payload: {
+        buildingId,
+        streaming: true,
+      },
+    });
+  } else {
+    ctx.sendError(`Failed to start Docker log stream: ${error}`);
+  }
+}
+
+/**
+ * Handle docker_logs_stop message - stop streaming logs for a Docker building
+ */
+export function handleDockerLogsStop(
+  ctx: HandlerContext,
+  payload: { buildingId: string }
+): void {
+  const { buildingId } = payload;
+
+  log.log(`Stopping Docker log stream for building: ${buildingId}`);
+  const stopped = dockerService.stopLogStream(buildingId);
+
+  if (stopped) {
+    ctx.broadcast({
+      type: 'docker_logs_streaming',
+      payload: {
+        buildingId,
+        streaming: false,
+      },
+    });
+  }
+}
+
+/**
+ * Handle docker_list_containers message - list all existing Docker containers
+ */
+export async function handleDockerListContainers(
+  ctx: HandlerContext
+): Promise<void> {
+  log.log('Listing Docker containers and compose projects');
+
+  const [containers, composeProjects] = await Promise.all([
+    dockerService.listAllContainers(),
+    dockerService.listComposeProjects(),
+  ]);
+
+  log.log(`Found ${containers.length} containers, ${composeProjects.length} compose projects`);
+
+  ctx.sendToClient({
+    type: 'docker_containers_list',
+    payload: {
+      containers,
+      composeProjects,
+    },
+  });
 }
 
 // ============================================================================

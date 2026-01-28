@@ -5,6 +5,7 @@
 
 import mysql from 'mysql2/promise';
 import pg from 'pg';
+import oracledb from 'oracledb';
 import type {
   DatabaseConnection,
   DatabaseEngine,
@@ -21,6 +22,9 @@ import { loadQueryHistory, saveQueryHistory } from '../data/index.js';
 // Connection pool storage
 const mysqlPools = new Map<string, mysql.Pool>();
 const pgPools = new Map<string, pg.Pool>();
+const oraclePools = new Map<string, oracledb.Pool>();
+
+// Note: oracledb 6.0+ uses thin mode by default, which doesn't require Oracle Instant Client
 
 // In-memory query history cache
 const queryHistoryCache = new Map<string, QueryHistoryEntry[]>();
@@ -97,6 +101,41 @@ async function getPgPool(connection: DatabaseConnection, database?: string): Pro
 }
 
 /**
+ * Get or create an Oracle connection pool
+ * Note: For Oracle, we always connect to the same service (from connection.database).
+ * The "database" parameter in other functions represents the schema/owner to query,
+ * not a different database to connect to.
+ */
+async function getOraclePool(connection: DatabaseConnection): Promise<oracledb.Pool> {
+  // For Oracle, we use only the connection ID as the key since we always connect
+  // to the same service - the schema is just used in queries, not connection
+  const key = connection.id;
+
+  if (oraclePools.has(key)) {
+    return oraclePools.get(key)!;
+  }
+
+  // Build connection string - Oracle uses service name or SID
+  // Format: host:port/serviceName
+  // The service name comes from connection.database (e.g., ORCLPDB1)
+  const serviceName = connection.database || 'ORCL';
+  const connectString = `${connection.host}:${connection.port}/${serviceName}`;
+
+  const pool = await oracledb.createPool({
+    user: connection.username,
+    password: connection.password,
+    connectString,
+    poolMin: 1,
+    poolMax: 5,
+    poolIncrement: 1,
+    poolTimeout: 60,
+  });
+
+  oraclePools.set(key, pool);
+  return pool;
+}
+
+/**
  * Test a database connection
  */
 export async function testConnection(
@@ -113,6 +152,20 @@ export async function testConnection(
       const result = await pool.query('SELECT version()');
       const version = result.rows[0]?.version?.split(' ').slice(0, 2).join(' ');
       return { success: true, serverVersion: version };
+    } else if (connection.engine === 'oracle') {
+      const pool = await getOraclePool(connection);
+      const conn = await pool.getConnection();
+      try {
+        const result = await conn.execute<{ BANNER: string }>(
+          "SELECT BANNER FROM V$VERSION WHERE ROWNUM = 1",
+          [],
+          { outFormat: oracledb.OUT_FORMAT_OBJECT }
+        );
+        const version = result.rows?.[0]?.BANNER || 'Oracle';
+        return { success: true, serverVersion: version };
+      } finally {
+        await conn.close();
+      }
     }
     return { success: false, error: 'Unsupported database engine' };
   } catch (error) {
@@ -136,6 +189,55 @@ export async function listDatabases(connection: DatabaseConnection): Promise<str
         "SELECT datname FROM pg_database WHERE datistemplate = false ORDER BY datname"
       );
       return result.rows.map(r => r.datname);
+    } else if (connection.engine === 'oracle') {
+      // Oracle: list accessible schemas as "databases"
+      // Try ALL_USERS first, fall back to just the current user's schema
+      const pool = await getOraclePool(connection);
+      const conn = await pool.getConnection();
+      try {
+        const execOptions = { outFormat: oracledb.OUT_FORMAT_OBJECT };
+
+        // First try to get all accessible schemas
+        try {
+          const result = await conn.execute<{ USERNAME: string }>(
+            `SELECT USERNAME FROM ALL_USERS
+             WHERE USERNAME NOT IN ('SYS', 'SYSTEM', 'DBSNMP', 'OUTLN', 'XDB', 'WMSYS', 'CTXSYS', 'ANONYMOUS', 'MDSYS', 'OLAPSYS', 'ORDDATA', 'ORDSYS', 'EXFSYS', 'DMSYS', 'APEX_PUBLIC_USER', 'APPQOSSYS', 'AUDSYS', 'DBSFWUSER', 'DIP', 'GGSYS', 'GSMADMIN_INTERNAL', 'GSMCATUSER', 'GSMUSER', 'LBACSYS', 'OJVMSYS', 'REMOTE_SCHEDULER_AGENT', 'SYS$UMF', 'SYSBACKUP', 'SYSDG', 'SYSKM', 'SYSRAC', 'XS$NULL')
+             AND ORACLE_MAINTAINED = 'N'
+             ORDER BY USERNAME`,
+            [],
+            execOptions
+          );
+          if (result.rows && result.rows.length > 0) {
+            return result.rows.map(r => r.USERNAME);
+          }
+        } catch {
+          // ORACLE_MAINTAINED column might not exist in older versions, try simpler query
+          try {
+            const result = await conn.execute<{ USERNAME: string }>(
+              `SELECT USERNAME FROM ALL_USERS
+               WHERE USERNAME NOT IN ('SYS', 'SYSTEM', 'DBSNMP', 'OUTLN', 'XDB', 'WMSYS', 'CTXSYS', 'ANONYMOUS', 'MDSYS', 'OLAPSYS', 'ORDDATA', 'ORDSYS', 'EXFSYS', 'DMSYS', 'APEX_PUBLIC_USER')
+               ORDER BY USERNAME`,
+              [],
+              execOptions
+            );
+            if (result.rows && result.rows.length > 0) {
+              return result.rows.map(r => r.USERNAME);
+            }
+          } catch {
+            // Fall through to current user only
+          }
+        }
+
+        // Fallback: just return the current user's schema
+        const userResult = await conn.execute<{ USERNAME: string }>(
+          `SELECT USER as USERNAME FROM DUAL`,
+          [],
+          execOptions
+        );
+        return (userResult.rows || []).map(r => r.USERNAME);
+      } finally {
+        await conn.close();
+      }
     }
     return [];
   } catch (error) {
@@ -209,6 +311,35 @@ export async function listTables(
         size: parseInt(r.size) || undefined,
         comment: r.comment || undefined,
       }));
+    } else if (connection.engine === 'oracle') {
+      // In Oracle, database parameter is treated as schema/owner
+      const pool = await getOraclePool(connection);
+      const conn = await pool.getConnection();
+      try {
+        // Simple query without joins - more compatible with restricted permissions
+        const result = await conn.execute<{
+          NAME: string;
+          TYPE: string;
+          NUM_ROWS: number;
+        }>(`
+          SELECT TABLE_NAME as NAME, 'table' as TYPE, NUM_ROWS
+          FROM ALL_TABLES
+          WHERE OWNER = :owner
+          UNION ALL
+          SELECT VIEW_NAME as NAME, 'view' as TYPE, NULL as NUM_ROWS
+          FROM ALL_VIEWS
+          WHERE OWNER = :owner
+          ORDER BY NAME
+        `, { owner: database.toUpperCase() }, { outFormat: oracledb.OUT_FORMAT_OBJECT });
+
+        return (result.rows || []).map(r => ({
+          name: r.NAME,
+          type: r.TYPE as 'table' | 'view',
+          rows: r.NUM_ROWS || undefined,
+        }));
+      } finally {
+        await conn.close();
+      }
     }
     return [];
   } catch (error) {
@@ -437,6 +568,118 @@ export async function getTableSchema(
           onUpdate: fk.onUpdate,
         });
       }
+    } else if (connection.engine === 'oracle') {
+      // In Oracle, database parameter is treated as schema/owner
+      const pool = await getOraclePool(connection);
+      const conn = await pool.getConnection();
+      const execOptions = { outFormat: oracledb.OUT_FORMAT_OBJECT };
+      try {
+        // Get columns (compatible with Oracle 11g and later)
+        const columnResult = await conn.execute<{
+          NAME: string;
+          TYPE: string;
+          NULLABLE: string;
+          DEFAULT_VALUE: string;
+          PRIMARY_KEY: number;
+          COMMENTS: string;
+        }>(`
+          SELECT
+            c.COLUMN_NAME as NAME,
+            c.DATA_TYPE || CASE
+              WHEN c.DATA_TYPE IN ('VARCHAR2', 'CHAR', 'NVARCHAR2', 'NCHAR') THEN '(' || c.DATA_LENGTH || ')'
+              WHEN c.DATA_TYPE = 'NUMBER' AND c.DATA_PRECISION IS NOT NULL THEN '(' || c.DATA_PRECISION || ',' || NVL(c.DATA_SCALE, 0) || ')'
+              ELSE ''
+            END as TYPE,
+            c.NULLABLE,
+            c.DATA_DEFAULT as DEFAULT_VALUE,
+            CASE WHEN pk.COLUMN_NAME IS NOT NULL THEN 1 ELSE 0 END as PRIMARY_KEY,
+            cc.COMMENTS
+          FROM ALL_TAB_COLUMNS c
+          LEFT JOIN (
+            SELECT cols.COLUMN_NAME, cols.TABLE_NAME, cols.OWNER
+            FROM ALL_CONSTRAINTS cons
+            JOIN ALL_CONS_COLUMNS cols ON cons.CONSTRAINT_NAME = cols.CONSTRAINT_NAME AND cons.OWNER = cols.OWNER
+            WHERE cons.CONSTRAINT_TYPE = 'P' AND cons.TABLE_NAME = :table AND cons.OWNER = :owner
+          ) pk ON c.COLUMN_NAME = pk.COLUMN_NAME AND c.TABLE_NAME = pk.TABLE_NAME AND c.OWNER = pk.OWNER
+          LEFT JOIN ALL_COL_COMMENTS cc ON c.COLUMN_NAME = cc.COLUMN_NAME AND c.TABLE_NAME = cc.TABLE_NAME AND c.OWNER = cc.OWNER
+          WHERE c.TABLE_NAME = :table AND c.OWNER = :owner
+          ORDER BY c.COLUMN_ID
+        `, { table: table.toUpperCase(), owner: database.toUpperCase() }, execOptions);
+
+        for (const col of columnResult.rows || []) {
+          columns.push({
+            name: col.NAME,
+            type: col.TYPE,
+            nullable: col.NULLABLE === 'Y',
+            defaultValue: col.DEFAULT_VALUE?.trim() || undefined,
+            primaryKey: col.PRIMARY_KEY === 1,
+            autoIncrement: false, // Oracle doesn't have auto_increment in the same way
+            comment: col.COMMENTS || undefined,
+          });
+        }
+
+        // Get indexes
+        const indexResult = await conn.execute<{
+          NAME: string;
+          COLUMNS: string;
+          IS_UNIQUE: string;
+          TYPE: string;
+        }>(`
+          SELECT
+            i.INDEX_NAME as NAME,
+            LISTAGG(ic.COLUMN_NAME, ',') WITHIN GROUP (ORDER BY ic.COLUMN_POSITION) as COLUMNS,
+            i.UNIQUENESS as IS_UNIQUE,
+            i.INDEX_TYPE as TYPE
+          FROM ALL_INDEXES i
+          JOIN ALL_IND_COLUMNS ic ON i.INDEX_NAME = ic.INDEX_NAME AND i.OWNER = ic.INDEX_OWNER
+          WHERE i.TABLE_NAME = :table AND i.OWNER = :owner
+          GROUP BY i.INDEX_NAME, i.UNIQUENESS, i.INDEX_TYPE
+        `, { table: table.toUpperCase(), owner: database.toUpperCase() }, execOptions);
+
+        for (const idx of indexResult.rows || []) {
+          indexes.push({
+            name: idx.NAME,
+            columns: idx.COLUMNS.split(','),
+            unique: idx.IS_UNIQUE === 'UNIQUE',
+            type: idx.TYPE,
+          });
+        }
+
+        // Get foreign keys
+        const fkResult = await conn.execute<{
+          NAME: string;
+          COLUMNS: string;
+          REFERENCED_TABLE: string;
+          REFERENCED_COLUMNS: string;
+          DELETE_RULE: string;
+        }>(`
+          SELECT
+            c.CONSTRAINT_NAME as NAME,
+            LISTAGG(cols.COLUMN_NAME, ',') WITHIN GROUP (ORDER BY cols.POSITION) as COLUMNS,
+            r_cons.TABLE_NAME as REFERENCED_TABLE,
+            LISTAGG(r_cols.COLUMN_NAME, ',') WITHIN GROUP (ORDER BY r_cols.POSITION) as REFERENCED_COLUMNS,
+            c.DELETE_RULE
+          FROM ALL_CONSTRAINTS c
+          JOIN ALL_CONS_COLUMNS cols ON c.CONSTRAINT_NAME = cols.CONSTRAINT_NAME AND c.OWNER = cols.OWNER
+          JOIN ALL_CONSTRAINTS r_cons ON c.R_CONSTRAINT_NAME = r_cons.CONSTRAINT_NAME AND c.R_OWNER = r_cons.OWNER
+          JOIN ALL_CONS_COLUMNS r_cols ON r_cons.CONSTRAINT_NAME = r_cols.CONSTRAINT_NAME AND r_cons.OWNER = r_cols.OWNER
+          WHERE c.CONSTRAINT_TYPE = 'R' AND c.TABLE_NAME = :table AND c.OWNER = :owner
+          GROUP BY c.CONSTRAINT_NAME, r_cons.TABLE_NAME, c.DELETE_RULE
+        `, { table: table.toUpperCase(), owner: database.toUpperCase() }, execOptions);
+
+        for (const fk of fkResult.rows || []) {
+          foreignKeys.push({
+            name: fk.NAME,
+            columns: fk.COLUMNS.split(','),
+            referencedTable: fk.REFERENCED_TABLE,
+            referencedColumns: fk.REFERENCED_COLUMNS.split(','),
+            onDelete: fk.DELETE_RULE || undefined,
+            onUpdate: undefined, // Oracle doesn't support ON UPDATE in the same way
+          });
+        }
+      } finally {
+        await conn.close();
+      }
     }
   } catch (error) {
     console.error('Error getting table schema:', error);
@@ -517,6 +760,38 @@ export async function executeQuery(
       } else {
         const result = await pool.query(query);
         affectedRows = result.rowCount ?? undefined;
+      }
+    } else if (connection.engine === 'oracle') {
+      const pool = await getOraclePool(connection);
+      const conn = await pool.getConnection();
+      try {
+        if (isSelect) {
+          // Add FETCH FIRST for Oracle 12c+ if no ROWNUM/FETCH present
+          let limitedQuery = query;
+          if (!trimmedQuery.includes('rownum') && !trimmedQuery.includes('fetch ')) {
+            limitedQuery = `${query.trim().replace(/;$/, '')} FETCH FIRST ${limit} ROWS ONLY`;
+          }
+
+          const result = await conn.execute(limitedQuery, [], {
+            outFormat: oracledb.OUT_FORMAT_OBJECT,
+            fetchArraySize: limit,
+          });
+
+          rows = (result.rows as Record<string, unknown>[]) || [];
+
+          if (result.metaData) {
+            fields = result.metaData.map(m => ({
+              name: m.name,
+              type: getFieldTypeName(m.dbType as number | undefined, 'oracle'),
+              table: undefined,
+            }));
+          }
+        } else {
+          const result = await conn.execute(query, [], { autoCommit: true });
+          affectedRows = result.rowsAffected;
+        }
+      } finally {
+        await conn.close();
       }
     }
 
@@ -638,7 +913,7 @@ export function clearHistory(buildingId: string): void {
 /**
  * Close all connection pools for a building/connection
  */
-export function closeConnection(connectionId: string): void {
+export async function closeConnection(connectionId: string): Promise<void> {
   // Close all pools that match this connection ID
   for (const [key, pool] of mysqlPools.entries()) {
     if (key.startsWith(connectionId + ':')) {
@@ -651,6 +926,13 @@ export function closeConnection(connectionId: string): void {
     if (key.startsWith(connectionId + ':')) {
       pool.end();
       pgPools.delete(key);
+    }
+  }
+
+  for (const [key, pool] of oraclePools.entries()) {
+    if (key.startsWith(connectionId + ':')) {
+      await pool.close(0);
+      oraclePools.delete(key);
     }
   }
 }
@@ -668,6 +950,11 @@ export async function closeAllConnections(): Promise<void> {
     await pool.end();
   }
   pgPools.clear();
+
+  for (const pool of oraclePools.values()) {
+    await pool.close(0);
+  }
+  oraclePools.clear();
 }
 
 /**
@@ -739,6 +1026,36 @@ function getFieldTypeName(typeId: number | undefined, engine: DatabaseEngine): s
       3802: 'jsonb',
     };
     return pgTypes[typeId] || `OID_${typeId}`;
+  } else if (engine === 'oracle') {
+    // Oracle DB_TYPE_* constants from oracledb
+    const oracleTypes: Record<number, string> = {
+      2001: 'VARCHAR2',
+      2002: 'NUMBER',
+      2003: 'LONG',
+      2004: 'DATE',
+      2005: 'RAW',
+      2006: 'LONG RAW',
+      2007: 'ROWID',
+      2010: 'BINARY_FLOAT',
+      2011: 'BINARY_DOUBLE',
+      2012: 'CHAR',
+      2013: 'NCHAR',
+      2014: 'NVARCHAR2',
+      2015: 'CLOB',
+      2016: 'NCLOB',
+      2017: 'BLOB',
+      2018: 'BFILE',
+      2019: 'TIMESTAMP',
+      2020: 'TIMESTAMP WITH TIME ZONE',
+      2021: 'INTERVAL YEAR TO MONTH',
+      2022: 'INTERVAL DAY TO SECOND',
+      2023: 'TIMESTAMP WITH LOCAL TIME ZONE',
+      2024: 'OBJECT',
+      2025: 'CURSOR',
+      2100: 'BOOLEAN',
+      2101: 'JSON',
+    };
+    return oracleTypes[typeId] || `DBTYPE_${typeId}`;
   }
 
   return 'unknown';

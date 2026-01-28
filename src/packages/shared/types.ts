@@ -377,6 +377,110 @@ export interface PM2Status {
   ports?: number[];           // Auto-detected listening ports
 }
 
+// Docker Configuration for buildings
+export interface DockerConfig {
+  enabled: boolean;
+  // Container management mode
+  // - 'container': Create and manage a new container
+  // - 'compose': Manage a docker-compose project
+  // - 'existing': Attach to an existing container (monitor only, no create/delete)
+  mode: 'container' | 'compose' | 'existing';
+
+  // For container mode
+  image?: string;                    // Docker image name
+  containerName?: string;            // Custom container name (auto-generated if not set)
+  ports?: string[];                  // Port mappings ["3000:3000", "8080:80"]
+  volumes?: string[];                // Volume mounts ["/host/path:/container/path"]
+  env?: Record<string, string>;      // Environment variables
+  network?: string;                  // Docker network to join
+  command?: string;                  // Override container command
+
+  // For compose mode
+  composePath?: string;              // Path to docker-compose.yml (relative to cwd)
+  services?: string[];               // Specific services to manage (empty = all)
+  composeProject?: string;           // Project name override
+
+  // Common options
+  restart?: 'no' | 'always' | 'unless-stopped' | 'on-failure';
+  pull?: 'always' | 'missing' | 'never'; // Image pull policy
+}
+
+// Docker restart policy options
+export type DockerRestartPolicy = 'no' | 'always' | 'unless-stopped' | 'on-failure';
+
+export const DOCKER_RESTART_POLICIES: Record<DockerRestartPolicy, { label: string; description: string }> = {
+  'no': { label: 'No', description: 'Do not automatically restart' },
+  'always': { label: 'Always', description: 'Always restart when stopped' },
+  'unless-stopped': { label: 'Unless Stopped', description: 'Restart unless manually stopped' },
+  'on-failure': { label: 'On Failure', description: 'Restart only on failure' },
+};
+
+// Docker pull policy options
+export type DockerPullPolicy = 'always' | 'missing' | 'never';
+
+export const DOCKER_PULL_POLICIES: Record<DockerPullPolicy, { label: string; description: string }> = {
+  'always': { label: 'Always', description: 'Always pull the image' },
+  'missing': { label: 'If Missing', description: 'Pull only if image not present' },
+  'never': { label: 'Never', description: 'Never pull, use local only' },
+};
+
+// Docker container status
+export type DockerContainerStatus = 'running' | 'created' | 'exited' | 'paused' | 'restarting' | 'removing' | 'dead';
+
+// Docker health status
+export type DockerHealthStatus = 'healthy' | 'unhealthy' | 'starting' | 'none';
+
+// Docker port mapping
+export interface DockerPortMapping {
+  host: number;
+  container: number;
+  protocol: 'tcp' | 'udp';
+}
+
+// Docker compose service status
+export interface DockerComposeServiceStatus {
+  name: string;
+  status: DockerContainerStatus;
+  health?: DockerHealthStatus;
+  containerId?: string;
+}
+
+// Existing container info (for adoption)
+export interface ExistingDockerContainer {
+  id: string;
+  name: string;
+  image: string;
+  status: DockerContainerStatus;
+  ports: DockerPortMapping[];
+  created: string;
+  state: string;
+}
+
+// Existing compose project info (for adoption)
+export interface ExistingComposeProject {
+  name: string;
+  status: string;
+  configFiles: string;
+}
+
+// Docker runtime status (not persisted, updated via polling)
+export interface DockerStatus {
+  containerId?: string;              // Container ID (short)
+  containerName?: string;            // Container name
+  image?: string;                    // Running image
+  status?: DockerContainerStatus;    // Container status
+  health?: DockerHealthStatus;       // Health check status
+  cpu?: number;                      // CPU usage %
+  memory?: number;                   // Memory in bytes
+  memoryLimit?: number;              // Memory limit in bytes
+  ports?: DockerPortMapping[];       // Port mappings
+  createdAt?: number;                // Container created timestamp
+  startedAt?: number;                // Container started timestamp
+
+  // Compose-specific
+  services?: DockerComposeServiceStatus[];
+}
+
 // Building configuration
 export interface Building {
   id: string;
@@ -410,6 +514,12 @@ export interface Building {
   // PM2 runtime status (not persisted, populated at runtime)
   pm2Status?: PM2Status;
 
+  // Docker configuration (for docker type buildings)
+  docker?: DockerConfig;
+
+  // Docker runtime status (not persisted, populated at runtime)
+  dockerStatus?: DockerStatus;
+
   // Folder path (for folder type - opens file explorer when clicked)
   folderPath?: string;
 
@@ -436,11 +546,12 @@ export interface Building {
 // ============================================================================
 
 // Supported database engines
-export type DatabaseEngine = 'mysql' | 'postgresql';
+export type DatabaseEngine = 'mysql' | 'postgresql' | 'oracle';
 
 export const DATABASE_ENGINES: Record<DatabaseEngine, { label: string; icon: string; defaultPort: number }> = {
   mysql: { label: 'MySQL', icon: '🐬', defaultPort: 3306 },
   postgresql: { label: 'PostgreSQL', icon: '🐘', defaultPort: 5432 },
+  oracle: { label: 'Oracle', icon: '🔶', defaultPort: 1521 },
 };
 
 // Database connection configuration
@@ -1148,6 +1259,61 @@ export interface PM2LogsStreamingMessage extends WSMessage {
   payload: {
     buildingId: string;
     streaming: boolean;
+  };
+}
+
+// Docker Log Streaming Messages
+// Start streaming Docker logs (Client -> Server)
+export interface DockerLogsStartMessage extends WSMessage {
+  type: 'docker_logs_start';
+  payload: {
+    buildingId: string;
+    lines?: number; // Initial lines to fetch (default 100)
+    service?: string; // For compose mode: specific service to stream
+  };
+}
+
+// Stop streaming Docker logs (Client -> Server)
+export interface DockerLogsStopMessage extends WSMessage {
+  type: 'docker_logs_stop';
+  payload: {
+    buildingId: string;
+  };
+}
+
+// Docker log chunk from streaming (Server -> Client)
+export interface DockerLogsChunkMessage extends WSMessage {
+  type: 'docker_logs_chunk';
+  payload: {
+    buildingId: string;
+    chunk: string;
+    timestamp: number;
+    isError?: boolean; // stderr vs stdout
+    service?: string; // For compose mode: which service this log is from
+  };
+}
+
+// Docker streaming started confirmation (Server -> Client)
+export interface DockerLogsStreamingMessage extends WSMessage {
+  type: 'docker_logs_streaming';
+  payload: {
+    buildingId: string;
+    streaming: boolean;
+  };
+}
+
+// Request list of existing Docker containers (Client -> Server)
+export interface DockerListContainersMessage extends WSMessage {
+  type: 'docker_list_containers';
+  payload: Record<string, never>; // Empty payload
+}
+
+// Response with list of existing containers (Server -> Client)
+export interface DockerContainersListMessage extends WSMessage {
+  type: 'docker_containers_list';
+  payload: {
+    containers: ExistingDockerContainer[];
+    composeProjects: ExistingComposeProject[];
   };
 }
 
@@ -1958,6 +2124,9 @@ export type ServerMessage =
   | SecretDeletedMessage
   | PM2LogsChunkMessage
   | PM2LogsStreamingMessage
+  | DockerLogsChunkMessage
+  | DockerLogsStreamingMessage
+  | DockerContainersListMessage
   | BossBuildingLogsChunkMessage
   | BossBuildingSubordinatesUpdatedMessage
   | DatabaseConnectionResultMessage
@@ -1990,6 +2159,9 @@ export type ClientMessage =
   | BuildingCommandMessage
   | PM2LogsStartMessage
   | PM2LogsStopMessage
+  | DockerLogsStartMessage
+  | DockerLogsStopMessage
+  | DockerListContainersMessage
   | PermissionResponseMessage
   | SpawnBossAgentMessage
   | AssignSubordinatesMessage

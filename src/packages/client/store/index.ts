@@ -135,6 +135,8 @@ export {
   useQueryResults,
   useQueryHistory,
   useExecutingQuery,
+  useDockerContainersList,
+  useDockerComposeProjectsList,
 } from './selectors';
 
 // ============================================================================
@@ -227,6 +229,8 @@ class Store
       execTasks: new Map(),
       secrets: new Map(),
       databaseState: new Map(),
+      dockerContainersList: [],
+      dockerComposeProjectsList: [],
     };
 
     // Helper functions for domain modules
@@ -718,6 +722,11 @@ class Store
   appendBossStreamingLogChunk(...args: Parameters<BuildingActions['appendBossStreamingLogChunk']>) { return this.buildingActions.appendBossStreamingLogChunk(...args); }
   getBossStreamingLogs(...args: Parameters<BuildingActions['getBossStreamingLogs']>) { return this.buildingActions.getBossStreamingLogs(...args); }
   clearBossStreamingLogs(...args: Parameters<BuildingActions['clearBossStreamingLogs']>) { return this.buildingActions.clearBossStreamingLogs(...args); }
+  // Docker container discovery methods
+  requestDockerContainersList() { return this.buildingActions.requestDockerContainersList(); }
+  setDockerContainersList(...args: Parameters<BuildingActions['setDockerContainersList']>) { return this.buildingActions.setDockerContainersList(...args); }
+  getDockerContainersList() { return this.buildingActions.getDockerContainersList(); }
+  getDockerComposeProjectsList() { return this.buildingActions.getDockerComposeProjectsList(); }
 
   // ============================================================================
   // Permission Actions (delegated)

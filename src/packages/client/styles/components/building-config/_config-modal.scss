@@ -1099,6 +1099,295 @@
     flex-wrap: wrap;
   }
 
+  // Docker Configuration Section
+  .docker-config-section {
+    background: rgba($accent-blue, 0.05);
+    border: 1px solid rgba($accent-blue, 0.2);
+    border-radius: 6px;
+    padding: 0.75rem;
+
+    .docker-mode-selector {
+      display: flex;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+
+    .docker-mode-option {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.25rem;
+      padding: 0.75rem;
+      background: $bg-primary;
+      border: 2px solid $border-color;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+
+      input[type="radio"] {
+        display: none;
+      }
+
+      &:hover {
+        border-color: $accent-blue;
+      }
+
+      &.active {
+        border-color: $accent-blue;
+        background: rgba($accent-blue, 0.1);
+      }
+
+      .docker-mode-icon {
+        font-size: 1.5rem;
+      }
+
+      .docker-mode-label {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: $text-primary;
+      }
+
+      .docker-mode-desc {
+        font-size: 0.7rem;
+        color: $text-muted;
+        text-align: center;
+      }
+    }
+
+    .command-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+
+      .command-label {
+        font-size: 0.8rem;
+        color: $text-muted;
+        min-width: 100px;
+        text-align: right;
+      }
+
+      .form-input {
+        flex: 1;
+        font-family: $font-mono;
+        font-size: 0.85rem;
+      }
+
+      .form-select {
+        font-family: $font-family;
+      }
+    }
+
+    // Ports and Volumes sections
+    .docker-ports-section,
+    .docker-volumes-section {
+      margin-top: 0.5rem;
+      margin-bottom: 0.5rem;
+
+      .form-label {
+        margin-bottom: 0.35rem;
+      }
+    }
+
+    .docker-mapping-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.35rem;
+
+      .form-input {
+        flex: 1;
+        font-family: $font-mono;
+        font-size: 0.85rem;
+      }
+
+      .btn {
+        flex-shrink: 0;
+      }
+    }
+  }
+
+  // Docker Status Display
+  .docker-status-display {
+    margin-top: 0.75rem;
+    padding: 0.5rem;
+    background: $bg-primary;
+    border: 1px solid $border-color;
+    border-radius: 4px;
+
+    .docker-status-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    .docker-metric {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 50px;
+
+      .docker-metric-label {
+        font-size: 0.65rem;
+        color: $text-muted;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .docker-metric-value {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: $text-primary;
+        font-family: $font-mono;
+      }
+    }
+
+    .docker-ports-row {
+      margin-top: 0.5rem;
+      padding-top: 0.5rem;
+      border-top: 1px solid $border-color;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+
+      .docker-port-link {
+        color: $accent-blue;
+        font-family: $font-mono;
+        font-size: 0.75rem;
+        text-decoration: none;
+        padding: 0.15rem 0.35rem;
+        background: rgba($accent-blue, 0.1);
+        border-radius: 3px;
+
+        &:hover {
+          background: rgba($accent-blue, 0.2);
+        }
+      }
+    }
+
+    .docker-services-status {
+      margin-top: 0.5rem;
+      padding-top: 0.5rem;
+      border-top: 1px solid $border-color;
+
+      .docker-services-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+        margin-top: 0.35rem;
+      }
+
+      .docker-service-item {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.2rem 0.5rem;
+        background: $bg-tertiary;
+        border-radius: 3px;
+        font-size: 0.75rem;
+
+        .docker-service-indicator {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+        }
+
+        .docker-service-name {
+          color: $text-primary;
+        }
+
+        .docker-service-status {
+          color: $text-muted;
+          font-size: 0.65rem;
+        }
+      }
+    }
+  }
+
+  // Docker Action Buttons
+  .docker-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  // Docker Existing Container Section
+  .docker-existing-section {
+    margin-top: 0.5rem;
+
+    .docker-existing-select-wrapper {
+      display: flex;
+      gap: 0.5rem;
+      flex: 1;
+
+      .form-select {
+        flex: 1;
+      }
+
+      .btn {
+        flex-shrink: 0;
+        padding: 0.35rem 0.5rem;
+      }
+    }
+
+    .docker-existing-hint {
+      margin-top: 0.5rem;
+      padding: 0.5rem;
+      background: rgba($accent-yellow, 0.1);
+      border: 1px solid rgba($accent-yellow, 0.3);
+      border-radius: 4px;
+      font-size: 0.75rem;
+      color: $accent-yellow;
+    }
+
+    .docker-existing-info {
+      margin-top: 0.75rem;
+      padding: 0.5rem;
+      background: $bg-primary;
+      border: 1px solid $border-color;
+      border-radius: 4px;
+
+      .docker-existing-info-row {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.2rem 0;
+
+        .docker-existing-info-label {
+          font-size: 0.7rem;
+          color: $text-muted;
+          text-transform: uppercase;
+          min-width: 60px;
+        }
+
+        .docker-existing-info-value {
+          font-size: 0.8rem;
+          color: $text-primary;
+          font-family: $font-mono;
+
+          &.docker-status-running {
+            color: $accent-green;
+          }
+
+          &.docker-status-exited {
+            color: $accent-red;
+          }
+
+          &.docker-status-paused {
+            color: $accent-yellow;
+          }
+        }
+      }
+    }
+  }
+
   // Commands Section
   .commands-section {
     .command-inputs {

@@ -14,6 +14,7 @@ import { BossBuildingActionPopup } from './components/BossBuildingActionPopup';
 import { DatabaseBuildingActionPopup } from './components/DatabaseBuildingActionPopup';
 import { DatabasePanel } from './components/database';
 import { PM2LogsModal } from './components/PM2LogsModal';
+import { DockerLogsModal } from './components/DockerLogsModal';
 import { BossLogsModal } from './components/BossLogsModal';
 import { FPSMeter } from './components/FPSMeter';
 import { MobileFabMenu } from './components/MobileFabMenu';
@@ -532,10 +533,20 @@ function AppContent() {
         );
       })()}
 
-      {/* PM2 Logs Modal */}
+      {/* PM2/Docker Logs Modal */}
       {pm2LogsModalBuildingId && (() => {
         const building = state.buildings.get(pm2LogsModalBuildingId);
         if (!building) return null;
+        // Use DockerLogsModal for Docker buildings, PM2LogsModal for PM2 buildings
+        if (building.docker?.enabled) {
+          return (
+            <DockerLogsModal
+              building={building}
+              isOpen={true}
+              onClose={() => setPm2LogsModalBuildingId(null)}
+            />
+          );
+        }
         return (
           <PM2LogsModal
             building={building}

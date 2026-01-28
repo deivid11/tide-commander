@@ -13,7 +13,7 @@ import { logger, closeFileLogging, getLogFilePath } from './utils/logger.js';
 
 // Configuration
 const PORT = process.env.PORT || 5174;
-const HOST = process.env.LISTEN_ALL_INTERFACES ? '0.0.0.0' : '127.0.0.1';
+const HOST = process.env.LISTEN_ALL_INTERFACES ? '::' : '127.0.0.1';
 
 // ============================================================================
 // Global Error Handlers
@@ -71,6 +71,9 @@ async function main(): Promise<void> {
   // Start PM2 status polling for buildings
   buildingService.startPM2StatusPolling(websocket.broadcast);
 
+  // Start Docker status polling for buildings
+  buildingService.startDockerStatusPolling(websocket.broadcast);
+
   // Start server
   server.listen(Number(PORT), HOST, () => {
     logger.server.log(`Server running on http://${HOST}:${PORT}`);
@@ -84,6 +87,7 @@ async function main(): Promise<void> {
     supervisorService.shutdown();
     bossService.shutdown();
     buildingService.stopPM2StatusPolling();
+    buildingService.stopDockerStatusPolling();
     await claudeService.shutdown();
     agentService.persistAgents();
     server.close();

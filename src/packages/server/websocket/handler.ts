@@ -49,6 +49,9 @@ import {
   handleBuildingCommand,
   handlePM2LogsStart,
   handlePM2LogsStop,
+  handleDockerLogsStart,
+  handleDockerLogsStop,
+  handleDockerListContainers,
   handleBossBuildingCommand,
   handleAssignBuildings,
   handleBossBuildingLogsStart,
@@ -323,6 +326,18 @@ function handleClientMessage(ws: WebSocket, message: ClientMessage): void {
 
     case 'pm2_logs_stop':
       handlePM2LogsStop(ctx, message.payload);
+      break;
+
+    case 'docker_logs_start':
+      handleDockerLogsStart(ctx, message.payload);
+      break;
+
+    case 'docker_logs_stop':
+      handleDockerLogsStop(ctx, message.payload);
+      break;
+
+    case 'docker_list_containers':
+      handleDockerListContainers(ctx);
       break;
 
     // ========================================================================

@@ -4,7 +4,7 @@
  * Handles building management: CRUD, selection, commands, logs.
  */
 
-import type { ClientMessage, Building } from '../../shared/types';
+import type { ClientMessage, Building, ExistingDockerContainer, ExistingComposeProject } from '../../shared/types';
 import type { StoreState } from './types';
 
 export interface BuildingActions {
@@ -43,6 +43,11 @@ export interface BuildingActions {
   appendBossStreamingLogChunk(bossBuildingId: string, subordinateBuildingId: string, subordinateBuildingName: string, chunk: string, isError?: boolean): void;
   getBossStreamingLogs(buildingId: string): Array<{ subordinateId: string; subordinateName: string; chunk: string; timestamp: number; isError?: boolean }>;
   clearBossStreamingLogs(buildingId: string): void;
+  // Docker container discovery actions
+  requestDockerContainersList(): void;
+  setDockerContainersList(containers: ExistingDockerContainer[], composeProjects: ExistingComposeProject[]): void;
+  getDockerContainersList(): ExistingDockerContainer[];
+  getDockerComposeProjectsList(): ExistingComposeProject[];
 }
 
 export function createBuildingActions(
@@ -101,10 +106,10 @@ export function createBuildingActions(
 
     deleteSelectedBuildings(): void {
       const state = getState();
-      // Delete PM2 processes for buildings that have PM2 enabled
+      // Delete PM2/Docker processes for buildings that have them enabled
       for (const buildingId of state.selectedBuildingIds) {
         const building = state.buildings.get(buildingId);
-        if (building?.pm2?.enabled) {
+        if (building?.pm2?.enabled || building?.docker?.enabled) {
           getSendMessage()?.({
             type: 'building_command',
             payload: { buildingId, command: 'delete' },
@@ -150,8 +155,8 @@ export function createBuildingActions(
     deleteBuilding(buildingId: string): void {
       const state = getState();
       const building = state.buildings.get(buildingId);
-      // Delete PM2 process if building has PM2 enabled
-      if (building?.pm2?.enabled) {
+      // Delete PM2/Docker process if building has them enabled
+      if (building?.pm2?.enabled || building?.docker?.enabled) {
         getSendMessage()?.({
           type: 'building_command',
           payload: { buildingId, command: 'delete' },
@@ -267,23 +272,43 @@ export function createBuildingActions(
     // ========================================================================
 
     startLogStreaming(buildingId: string, lines: number = 100): void {
+      const building = getState().buildings.get(buildingId);
       // Clear previous streaming logs and request new stream
       setState((state) => {
         const newStreamingLogs = new Map(state.streamingBuildingLogs);
         newStreamingLogs.set(buildingId, '');
         state.streamingBuildingLogs = newStreamingLogs;
       });
-      getSendMessage()?.({
-        type: 'pm2_logs_start',
-        payload: { buildingId, lines },
-      });
+
+      // Dispatch to PM2 or Docker based on building configuration
+      if (building?.docker?.enabled) {
+        getSendMessage()?.({
+          type: 'docker_logs_start',
+          payload: { buildingId, lines },
+        });
+      } else {
+        getSendMessage()?.({
+          type: 'pm2_logs_start',
+          payload: { buildingId, lines },
+        });
+      }
     },
 
     stopLogStreaming(buildingId: string): void {
-      getSendMessage()?.({
-        type: 'pm2_logs_stop',
-        payload: { buildingId },
-      });
+      const building = getState().buildings.get(buildingId);
+
+      // Dispatch to PM2 or Docker based on building configuration
+      if (building?.docker?.enabled) {
+        getSendMessage()?.({
+          type: 'docker_logs_stop',
+          payload: { buildingId },
+        });
+      } else {
+        getSendMessage()?.({
+          type: 'pm2_logs_stop',
+          payload: { buildingId },
+        });
+      }
     },
 
     appendStreamingLogChunk(buildingId: string, chunk: string): void {
@@ -441,6 +466,36 @@ export function createBuildingActions(
         state.bossStreamingLogs = newBossStreamingLogs;
       });
       notify();
+    },
+
+    // ========================================================================
+    // Docker Container Discovery Actions
+    // ========================================================================
+
+    requestDockerContainersList(): void {
+      getSendMessage()?.({
+        type: 'docker_list_containers',
+        payload: {},
+      });
+    },
+
+    setDockerContainersList(
+      containers: ExistingDockerContainer[],
+      composeProjects: ExistingComposeProject[]
+    ): void {
+      setState((state) => {
+        state.dockerContainersList = containers;
+        state.dockerComposeProjectsList = composeProjects;
+      });
+      notify();
+    },
+
+    getDockerContainersList(): ExistingDockerContainer[] {
+      return getState().dockerContainersList;
+    },
+
+    getDockerComposeProjectsList(): ExistingComposeProject[] {
+      return getState().dockerComposeProjectsList;
     },
   };
 

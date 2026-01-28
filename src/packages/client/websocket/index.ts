@@ -600,6 +600,41 @@ function handleServerMessage(message: ServerMessage): void {
     }
 
     // ========================================================================
+    // Docker Log Streaming Messages
+    // ========================================================================
+
+    case 'docker_logs_chunk': {
+      const { buildingId, chunk } = message.payload as {
+        buildingId: string;
+        chunk: string;
+        timestamp: number;
+        isError?: boolean;
+        service?: string;
+      };
+      store.appendStreamingLogChunk(buildingId, chunk);
+      break;
+    }
+
+    case 'docker_logs_streaming': {
+      const { buildingId, streaming } = message.payload as {
+        buildingId: string;
+        streaming: boolean;
+      };
+      store.setStreamingStatus(buildingId, streaming);
+      break;
+    }
+
+    case 'docker_containers_list': {
+      const { containers, composeProjects } = message.payload as {
+        containers: import('../../shared/types').ExistingDockerContainer[];
+        composeProjects: import('../../shared/types').ExistingComposeProject[];
+      };
+      console.log(`[WebSocket] Received ${containers.length} containers, ${composeProjects.length} compose projects`);
+      store.setDockerContainersList(containers, composeProjects);
+      break;
+    }
+
+    // ========================================================================
     // Boss Building Messages
     // ========================================================================
 
