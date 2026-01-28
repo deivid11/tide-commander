@@ -7,7 +7,7 @@
 
 import { useState, useCallback } from 'react';
 import type { FileData, FileType, UseFileContentReturn } from './types';
-import { apiUrl } from '../../utils/storage';
+import { apiUrl, authFetch } from '../../utils/storage';
 
 // File extensions that can be displayed as text
 const TEXT_EXTENSIONS = new Set([
@@ -81,7 +81,7 @@ export function useFileContent(): UseFileContentReturn {
 
       // For images, load as blob and create data URL
       if (fileType === 'image') {
-        const res = await fetch(apiUrl(`/api/files/binary?path=${encodeURIComponent(filePath)}`));
+        const res = await authFetch(apiUrl(`/api/files/binary?path=${encodeURIComponent(filePath)}`));
 
         if (!res.ok) {
           const errorData = await res.json().catch(() => ({ error: 'Failed to load image' }));
@@ -109,7 +109,7 @@ export function useFileContent(): UseFileContentReturn {
       // For PDFs, create a URL to the binary endpoint
       if (fileType === 'pdf') {
         // Get file info first
-        const infoRes = await fetch(apiUrl(`/api/files/info?path=${encodeURIComponent(filePath)}`));
+        const infoRes = await authFetch(apiUrl(`/api/files/info?path=${encodeURIComponent(filePath)}`));
         const info = await infoRes.json();
 
         if (!infoRes.ok) {
@@ -133,7 +133,7 @@ export function useFileContent(): UseFileContentReturn {
 
       // For binary files, just get file info for download
       if (fileType === 'binary') {
-        const infoRes = await fetch(apiUrl(`/api/files/info?path=${encodeURIComponent(filePath)}`));
+        const infoRes = await authFetch(apiUrl(`/api/files/info?path=${encodeURIComponent(filePath)}`));
         const info = await infoRes.json();
 
         if (!infoRes.ok) {
@@ -156,14 +156,14 @@ export function useFileContent(): UseFileContentReturn {
       }
 
       // For text files, use the existing endpoint
-      const res = await fetch(apiUrl(`/api/files/read?path=${encodeURIComponent(filePath)}`));
+      const res = await authFetch(apiUrl(`/api/files/read?path=${encodeURIComponent(filePath)}`));
       const data = await res.json();
 
       if (!res.ok) {
         // If file is too large or unreadable, offer download instead of showing error
         if (data.error?.includes('too large') || data.error?.includes('binary')) {
           // Fall back to binary mode - get file info and offer download
-          const infoRes = await fetch(apiUrl(`/api/files/info?path=${encodeURIComponent(filePath)}`));
+          const infoRes = await authFetch(apiUrl(`/api/files/info?path=${encodeURIComponent(filePath)}`));
           const info = await infoRes.json();
 
           if (infoRes.ok) {

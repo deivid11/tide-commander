@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useRef } from 'react';
 import type { FileTab, ViewMode } from './types';
-import { apiUrl } from '../../utils/storage';
+import { apiUrl, authFetch } from '../../utils/storage';
 
 // ============================================================================
 // TYPES
@@ -73,7 +73,7 @@ function getStorageKey(areaId: string | null, folderPath: string | null): string
 
 async function checkFileExists(filePath: string): Promise<boolean> {
   try {
-    const response = await fetch(apiUrl(`/api/files/exists?path=${encodeURIComponent(filePath)}`));
+    const response = await authFetch(apiUrl(`/api/files/exists?path=${encodeURIComponent(filePath)}`));
     if (!response.ok) return false;
     const data = await response.json();
     return data.exists === true;

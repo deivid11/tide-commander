@@ -3,7 +3,7 @@
  * Real-time communication with clients
  */
 
-import { Server as HttpServer } from 'http';
+import { Server as HttpServer, IncomingMessage } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import type { Agent, ClientMessage, ServerMessage, PermissionRequest, DelegationDecision, Skill, CustomAgentClass } from '../../shared/types.js';
 import { agentService, claudeService, supervisorService, permissionService, bossService, skillService, customClassService, bossMessageService, agentLifecycleService } from '../services/index.js';
@@ -11,6 +11,7 @@ import { loadAreas, saveAreas, loadBuildings, saveBuildings } from '../data/inde
 import { parseContextOutput } from '../claude/backend.js';
 import { logger, createLogger, formatToolActivity } from '../utils/index.js';
 import { setNotificationBroadcast, setExecBroadcast } from '../routes/index.js';
+import { validateWebSocketAuth, isAuthEnabled } from '../auth/index.js';
 import type { HandlerContext } from './handlers/types.js';
 import {
   handleSpawnAgent,
@@ -818,7 +819,25 @@ function setupServiceListeners(): void {
 // ============================================================================
 
 export function init(server: HttpServer): WebSocketServer {
-  const wss = new WebSocketServer({ server, path: '/ws' });
+  const wss = new WebSocketServer({
+    server,
+    path: '/ws',
+    // Custom verification for authentication
+    verifyClient: (info: { origin: string; secure: boolean; req: IncomingMessage }, callback) => {
+      if (!isAuthEnabled()) {
+        callback(true);
+        return;
+      }
+
+      const isValid = validateWebSocketAuth(info.req);
+      if (!isValid) {
+        log.log('[WS] Connection rejected: invalid or missing auth token');
+        callback(false, 401, 'Unauthorized');
+        return;
+      }
+      callback(true);
+    },
+  });
 
   wss.on('connection', async (ws) => {
     clients.add(ws);

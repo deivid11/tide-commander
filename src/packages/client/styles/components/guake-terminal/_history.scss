@@ -51,11 +51,19 @@
   }
 }
 
-// View markdown button for assistant responses
-.history-view-md-btn {
+// Container for action buttons (view markdown, speak)
+.message-action-btns {
   position: absolute;
   right: 8px;
   top: 8px;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity $transition-fast;
+}
+
+// View markdown button for assistant responses
+.history-view-md-btn {
   background: transparent;
   border: 1px solid color-mix(in srgb, var(--text-muted) 40%, transparent);
   color: var(--text-muted);
@@ -63,7 +71,6 @@
   border-radius: $radius-sm;
   font-size: 12px;
   cursor: pointer;
-  opacity: 0;
   transition: all $transition-fast;
 
   &:hover {
@@ -73,10 +80,29 @@
   }
 }
 
-// Show button on hover of parent
+// Speak button for TTS
+.history-speak-btn {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--text-muted) 40%, transparent);
+  color: var(--text-muted);
+  padding: 3px 6px;
+  border-radius: $radius-sm;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+    background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
+  }
+}
+
+// Show buttons on hover of parent
 .history-line {
   position: relative;
 
+  &:hover .message-action-btns,
   &:hover .history-view-md-btn {
     opacity: 1;
   }
@@ -86,6 +112,7 @@
 .output-line.output-claude {
   position: relative;
 
+  &:hover .message-action-btns,
   &:hover .history-view-md-btn {
     opacity: 1;
   }

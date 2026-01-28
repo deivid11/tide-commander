@@ -4,10 +4,11 @@
  * Handles text input, file attachments, paste handling, and send functionality.
  */
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { store } from '../../store';
 import { PermissionRequestInline } from './PermissionRequest';
 import { getImageWebUrl } from './contentRendering';
+import { useSTT } from '../../hooks/useSTT';
 import type { Agent, PermissionRequest } from '../../../shared/types';
 import type { AttachedFile } from './types';
 
@@ -77,6 +78,18 @@ export function TerminalInputArea({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const prevUseTextareaRef = useRef(useTextarea);
   const cursorPositionRef = useRef<number>(0);
+
+  // Speech-to-text hook - automatically send transcribed text to agent
+  const { recording, transcribing, toggleRecording } = useSTT({
+    language: 'Spanish',
+    model: 'medium',
+    onTranscription: (text) => {
+      // Send transcribed text directly to the agent
+      if (text.trim() && selectedAgentId) {
+        store.sendCommand(selectedAgentId, text.trim());
+      }
+    },
+  });
 
   // Track cursor position on every input change
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -360,6 +373,14 @@ export function TerminalInputArea({
               title="Attach file (or paste image)"
             >
               📎
+            </button>
+            <button
+              className={`guake-mic-btn ${recording ? 'recording' : ''} ${transcribing ? 'transcribing' : ''}`}
+              onClick={toggleRecording}
+              title={recording ? 'Stop recording' : transcribing ? 'Transcribing...' : 'Voice input (Whisper)'}
+              disabled={transcribing}
+            >
+              {transcribing ? '⏳' : recording ? '🔴' : '🎤'}
             </button>
             {useTextarea ? (
               <textarea

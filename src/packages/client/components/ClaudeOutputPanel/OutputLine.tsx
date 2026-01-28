@@ -5,7 +5,7 @@
 import React, { memo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { useHideCost, ClaudeOutput, store } from '../../store';
+import { useHideCost, useSettings, ClaudeOutput, store } from '../../store';
 import { filterCostText } from '../../utils/formatting';
 import { TOOL_ICONS, formatTimestamp } from '../../utils/outputRendering';
 import { markdownComponents } from './MarkdownComponents';
@@ -13,6 +13,7 @@ import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, D
 import { EditToolDiff, ReadToolInput, TodoWriteInput } from './ToolRenderers';
 import { renderContentWithImages } from './contentRendering';
 import { ansiToHtml } from '../../utils/ansiToHtml';
+import { useTTS } from '../../hooks/useTTS';
 import type { EditData } from './types';
 
 interface OutputLineProps {
@@ -39,11 +40,13 @@ function getDebugHash(output: ClaudeOutput): string {
 
 export const OutputLine = memo(function OutputLine({ output, agentId, onImageClick, onFileClick, onBashClick, onViewMarkdown }: OutputLineProps) {
   const hideCost = useHideCost();
+  const settings = useSettings();
   const { text: rawText, isStreaming, isUserPrompt, timestamp, skillUpdate, _toolKeyParam, _editData, _todoInput, _bashOutput, _bashCommand, _isRunning } = output;
   const text = filterCostText(rawText, hideCost);
 
   // All hooks must be called before any conditional returns (Rules of Hooks)
   const [sessionExpanded, setSessionExpanded] = useState(false);
+  const { toggle: toggleTTS, speaking } = useTTS();
 
   // Format timestamp for display
   const timeStr = formatTimestamp(timestamp || Date.now());
@@ -338,15 +341,26 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
           {parsed.delegations.map((delegation, i) => (
             <DelegationBlock key={`del-${i}`} delegation={delegation} />
           ))}
-          {onViewMarkdown && (
-            <button
-              className="history-view-md-btn"
-              onClick={() => onViewMarkdown(text)}
-              title="View as Markdown"
-            >
-              📄
-            </button>
-          )}
+          <div className="message-action-btns">
+            {settings.experimentalTTS && (
+              <button
+                className="history-speak-btn"
+                onClick={(e) => { e.stopPropagation(); toggleTTS(text); }}
+                title={speaking ? 'Stop speaking' : 'Speak (Spanish)'}
+              >
+                {speaking ? '🔊' : '🔈'}
+              </button>
+            )}
+            {onViewMarkdown && (
+              <button
+                className="history-view-md-btn"
+                onClick={(e) => { e.stopPropagation(); onViewMarkdown(text); }}
+                title="View as Markdown"
+              >
+                📄
+              </button>
+            )}
+          </div>
         </div>
       );
     }
@@ -365,14 +379,27 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
       ) : (
         text
       )}
-      {isClaudeMessage && !isStreaming && onViewMarkdown && (
-        <button
-          className="history-view-md-btn"
-          onClick={() => onViewMarkdown(text)}
-          title="View as Markdown"
-        >
-          📄
-        </button>
+      {isClaudeMessage && !isStreaming && (
+        <div className="message-action-btns">
+          {settings.experimentalTTS && (
+            <button
+              className="history-speak-btn"
+              onClick={(e) => { e.stopPropagation(); toggleTTS(text); }}
+              title={speaking ? 'Stop speaking' : 'Speak (Spanish)'}
+            >
+              {speaking ? '🔊' : '🔈'}
+            </button>
+          )}
+          {onViewMarkdown && (
+            <button
+              className="history-view-md-btn"
+              onClick={(e) => { e.stopPropagation(); onViewMarkdown(text); }}
+              title="View as Markdown"
+            >
+              📄
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

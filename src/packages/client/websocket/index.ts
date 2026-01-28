@@ -2,7 +2,7 @@ import type { Agent, ServerMessage, ClientMessage, PermissionRequest, Delegation
 import { store } from '../store';
 import { perf } from '../utils/profiling';
 import { agentDebugger, debugLog } from '../services/agentDebugger';
-import { STORAGE_KEYS, getStorageString } from '../utils/storage';
+import { STORAGE_KEYS, getStorageString, getAuthToken } from '../utils/storage';
 
 // Persist WebSocket state across HMR reloads using window object
 // This prevents orphaned connections and ensures we maintain the same socket
@@ -198,6 +198,7 @@ export function connect(): void {
 
   // Get configured backend URL or use defaults
   const configuredUrl = getStorageString(STORAGE_KEYS.BACKEND_URL, '');
+  const authToken = getAuthToken();
 
   // Build WebSocket URL - use configured URL or default to localhost with server port
   // __SERVER_PORT__ is injected by Vite from the PORT env variable (defaults to 5174)
@@ -214,6 +215,12 @@ export function connect(): void {
   } else {
     // Default: connect directly to backend on the configured server port
     wsUrl = `ws://127.0.0.1:${defaultPort}/ws`;
+  }
+
+  // Add auth token to URL if configured
+  if (authToken) {
+    const separator = wsUrl.includes('?') ? '&' : '?';
+    wsUrl = `${wsUrl}${separator}token=${encodeURIComponent(authToken)}`;
   }
 
   let newSocket: WebSocket | null = null;

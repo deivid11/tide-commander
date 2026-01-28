@@ -10,6 +10,7 @@ import os from 'os';
 import fs from 'fs';
 import routes from './routes/index.js';
 import { logger } from './utils/logger.js';
+import { authMiddleware, isAuthEnabled, getAuthTokenPreview } from './auth/index.js';
 
 // Temp directory for uploads (same as in files.ts)
 const UPLOADS_DIR = path.join(os.tmpdir(), 'tide-commander-uploads');
@@ -35,13 +36,23 @@ export function createApp(): Express {
 
   // Middleware
   app.use(cors());
-  app.use(express.json());
+  app.use(express.json({ limit: '50mb' })); // Increased for audio uploads (STT)
 
   // Request logging
   app.use((req: Request, _res: Response, next: NextFunction) => {
     logger.http.log(`${req.method} ${req.path}`);
     next();
   });
+
+  // Authentication middleware (must be before routes)
+  app.use('/api', authMiddleware);
+
+  // Log auth status on app creation
+  if (isAuthEnabled()) {
+    logger.server.log(`Authentication enabled (token: ${getAuthTokenPreview()})`);
+  } else {
+    logger.server.log('Authentication disabled (no AUTH_TOKEN set)');
+  }
 
   // Serve uploaded files statically
   app.use('/uploads', express.static(UPLOADS_DIR));

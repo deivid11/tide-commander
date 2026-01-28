@@ -5,7 +5,7 @@
  */
 
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { apiUrl } from '../../utils/storage';
+import { apiUrl, authFetch } from '../../utils/storage';
 import type { HistoryMessage } from './types';
 
 export interface UseSearchHistoryProps {
@@ -55,7 +55,7 @@ export function useSearchHistory({
 
     setSearchLoading(true);
     try {
-      const res = await fetch(apiUrl(`/api/agents/${selectedAgentId}/search?q=${encodeURIComponent(searchQuery)}&limit=100`));
+      const res = await authFetch(apiUrl(`/api/agents/${selectedAgentId}/search?q=${encodeURIComponent(searchQuery)}&limit=100`));
       const data = await res.json();
       setSearchResults(data.matches || []);
     } catch (err) {

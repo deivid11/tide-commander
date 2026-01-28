@@ -352,6 +352,73 @@
   }
 }
 
+// Microphone button for voice input
+.guake-mic-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  min-height: 40px;
+  background: transparent;
+  border: none;
+  color: rgba($dracula-comment, 0.7);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all $transition-fast;
+  flex-shrink: 0;
+
+  &:hover:not(:disabled) {
+    color: $dracula-purple;
+    background: rgba($dracula-purple, 0.08);
+  }
+
+  &:active:not(:disabled) {
+    background: rgba($dracula-purple, 0.15);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  // Recording state - pulsing red
+  &.recording {
+    color: $dracula-red;
+    animation: mic-pulse 1s ease-in-out infinite;
+
+    &:hover {
+      color: $dracula-red;
+      background: rgba($dracula-red, 0.15);
+    }
+  }
+
+  // Transcribing state - spinning animation
+  &.transcribing {
+    color: $dracula-yellow;
+    animation: mic-spin 1s linear infinite;
+  }
+}
+
+@keyframes mic-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.1);
+  }
+}
+
+@keyframes mic-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 // Send button - right side of input
 .guake-send-btn,
 .guake-input button:not(.guake-attach-btn) {

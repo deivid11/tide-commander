@@ -13,7 +13,7 @@ import { AgentEditModal } from '../AgentEditModal';
 import { ContextViewModal } from '../ContextViewModal';
 import { useToast } from '../Toast';
 import { PERMISSION_MODES, AGENT_CLASSES } from '../../../shared/types';
-import { apiUrl } from '../../utils/storage';
+import { apiUrl, authFetch } from '../../utils/storage';
 import { useModalClose } from '../../hooks';
 import type { Agent } from '../../../shared/types';
 import { calculateContextInfo } from './agentUtils';
@@ -116,7 +116,7 @@ export function SingleAgentPanel({
   // Fetch remembered patterns for interactive mode agents
   useEffect(() => {
     if (agent.permissionMode === 'interactive') {
-      fetch(apiUrl('/api/remembered-patterns'))
+      authFetch(apiUrl('/api/remembered-patterns'))
         .then((res) => res.json())
         .then(setRememberedPatterns)
         .catch((err) => console.error('Failed to fetch remembered patterns:', err));
@@ -142,7 +142,7 @@ export function SingleAgentPanel({
   // Handlers
   const handleRemovePattern = async (tool: string, pattern: string) => {
     try {
-      const res = await fetch(
+      const res = await authFetch(
         apiUrl(`/api/remembered-patterns/${tool}/${encodeURIComponent(pattern)}`),
         { method: 'DELETE' }
       );
@@ -157,7 +157,7 @@ export function SingleAgentPanel({
   const handleClearAllPatterns = async () => {
     if (!confirm('Clear all remembered permission patterns?')) return;
     try {
-      const res = await fetch(apiUrl('/api/remembered-patterns'), { method: 'DELETE' });
+      const res = await authFetch(apiUrl('/api/remembered-patterns'), { method: 'DELETE' });
       if (res.ok) {
         setRememberedPatterns([]);
       }

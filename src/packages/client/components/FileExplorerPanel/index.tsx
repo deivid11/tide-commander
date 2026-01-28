@@ -8,7 +8,7 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useStore, store } from '../../store';
 import { DiffViewer } from '../DiffViewer';
-import { apiUrl } from '../../utils/storage';
+import { apiUrl, authFetch } from '../../utils/storage';
 
 // Types
 import type {

@@ -7,7 +7,7 @@
 import type { Agent, AgentClass, PermissionMode, ClaudeModel, ClientMessage, ContextStats } from '../../shared/types';
 import type { StoreState, Activity } from './types';
 import { perf } from '../utils/profiling';
-import { apiUrl } from '../utils/storage';
+import { apiUrl, authFetch } from '../utils/storage';
 
 export interface AgentActions {
   // Agent CRUD
@@ -471,7 +471,7 @@ export function createAgentActions(
 
     async loadToolHistory(): Promise<void> {
       try {
-        const res = await fetch(apiUrl('/api/agents/tool-history?limit=100'));
+        const res = await authFetch(apiUrl('/api/agents/tool-history?limit=100'));
         const data = await res.json();
 
         setState((state) => {

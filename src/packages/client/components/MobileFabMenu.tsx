@@ -1,4 +1,6 @@
 import React from 'react';
+import { useSettings } from '../store';
+import { VoiceAssistant } from './VoiceAssistant';
 
 interface MobileFabMenuProps {
   isOpen: boolean;
@@ -25,6 +27,8 @@ export function MobileFabMenu({
   onOpenSkills,
   mobileView,
 }: MobileFabMenuProps) {
+  const settings = useSettings();
+
   const handleAction = (action: () => void) => {
     action();
     onToggle(); // Close menu after action
@@ -32,6 +36,11 @@ export function MobileFabMenu({
 
   return (
     <>
+      {/* Voice Assistant button - shown separately from FAB menu when enabled */}
+      {settings.experimentalVoiceAssistant && (
+        <VoiceAssistant className="mobile-voice-assistant" />
+      )}
+
       {/* Mobile FAB toggle - hamburger button (hidden when in terminal view on mobile) */}
       {mobileView !== 'terminal' && (
         <button

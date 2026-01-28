@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { apiUrl } from '../../utils/storage';
+import { apiUrl, authFetch } from '../../utils/storage';
 
 // Config category for export/import
 interface ConfigCategory {
@@ -21,7 +21,7 @@ export function DataSection() {
 
   // Fetch available categories on mount
   useEffect(() => {
-    fetch(apiUrl('/api/config/categories'))
+    authFetch(apiUrl('/api/config/categories'))
       .then(res => res.json())
       .then((cats: ConfigCategory[]) => {
         setCategories(cats);
@@ -66,7 +66,7 @@ export function DataSection() {
 
     try {
       const categoriesParam = Array.from(selectedExport).join(',');
-      const response = await fetch(apiUrl(`/api/config/export?categories=${categoriesParam}`));
+      const response = await authFetch(apiUrl(`/api/config/export?categories=${categoriesParam}`));
 
       if (!response.ok) {
         throw new Error('Export failed');
@@ -103,7 +103,7 @@ export function DataSection() {
     setSelectedImport(new Set());
 
     try {
-      const response = await fetch(apiUrl('/api/config/preview'), {
+      const response = await authFetch(apiUrl('/api/config/preview'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/zip' },
         body: await file.arrayBuffer(),
@@ -131,7 +131,7 @@ export function DataSection() {
 
     try {
       const categoriesParam = Array.from(selectedImport).join(',');
-      const response = await fetch(apiUrl(`/api/config/import?categories=${categoriesParam}`), {
+      const response = await authFetch(apiUrl(`/api/config/import?categories=${categoriesParam}`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/zip' },
         body: await importFile.arrayBuffer(),

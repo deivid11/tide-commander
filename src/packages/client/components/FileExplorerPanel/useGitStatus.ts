@@ -7,7 +7,7 @@
 
 import { useState, useCallback } from 'react';
 import type { GitStatus, UseGitStatusReturn } from './types';
-import { apiUrl } from '../../utils/storage';
+import { apiUrl, authFetch } from '../../utils/storage';
 
 /**
  * Hook for managing git status state and operations

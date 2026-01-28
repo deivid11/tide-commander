@@ -16,7 +16,7 @@ import { TerminalInput } from '../shared/TerminalInput';
 import { useFilteredOutputs } from '../shared/useFilteredOutputs';
 import type { AgentHistory, AttachedFile } from './types';
 import { STATUS_COLORS, SCROLL_THRESHOLD } from './types';
-import { apiUrl } from '../../utils/storage';
+import { apiUrl, authFetch } from '../../utils/storage';
 
 interface AgentPanelProps {
   agent: Agent;
@@ -191,7 +191,7 @@ export function AgentPanel({
 
   const uploadFile = useCallback(async (file: File | Blob, filename?: string): Promise<AttachedFile | null> => {
     try {
-      const response = await fetch(apiUrl('/api/files/upload'), {
+      const response = await authFetch(apiUrl('/api/files/upload'), {
         method: 'POST',
         headers: {
           'Content-Type': file.type || 'application/octet-stream',

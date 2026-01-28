@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import Prism from 'prismjs';
 import { DiffViewer } from './DiffViewer';
-import { apiUrl } from '../utils/storage';
+import { apiUrl, authFetch } from '../utils/storage';
 import { useModalClose } from '../hooks';
 import 'prismjs/components/prism-typescript';
 import 'prismjs/components/prism-javascript';
@@ -191,7 +191,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
     setError(null);
 
     try {
-      const res = await fetch(apiUrl(`/api/files/read?path=${encodeURIComponent(filePath)}`));
+      const res = await authFetch(apiUrl(`/api/files/read?path=${encodeURIComponent(filePath)}`));
       const data = await res.json();
 
       if (!res.ok) {

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useStore, store } from '../../store';
-import { STORAGE_KEYS, getStorageString, setStorageString } from '../../utils/storage';
+import { STORAGE_KEYS, getStorageString, setStorageString, getAuthToken } from '../../utils/storage';
 import { reconnect } from '../../websocket';
 import { CollapsibleSection } from './CollapsibleSection';
 import { SecretsSection } from './SecretsSection';
@@ -138,6 +138,9 @@ export function ConfigSection({ config, onChange }: ConfigSectionProps) {
   const [historyLimit, setHistoryLimit] = useState(state.settings.historyLimit);
   const [backendUrl, setBackendUrl] = useState(() => getStorageString(STORAGE_KEYS.BACKEND_URL, ''));
   const [backendUrlDirty, setBackendUrlDirty] = useState(false);
+  const [authToken, setAuthToken] = useState(() => getAuthToken());
+  const [authTokenDirty, setAuthTokenDirty] = useState(false);
+  const [showToken, setShowToken] = useState(false);
 
   const handleBackendUrlChange = (value: string) => {
     setBackendUrl(value);
@@ -147,6 +150,17 @@ export function ConfigSection({ config, onChange }: ConfigSectionProps) {
   const handleBackendUrlSave = () => {
     setStorageString(STORAGE_KEYS.BACKEND_URL, backendUrl);
     setBackendUrlDirty(false);
+    reconnect();
+  };
+
+  const handleAuthTokenChange = (value: string) => {
+    setAuthToken(value);
+    setAuthTokenDirty(true);
+  };
+
+  const handleAuthTokenSave = () => {
+    setStorageString(STORAGE_KEYS.AUTH_TOKEN, authToken);
+    setAuthTokenDirty(false);
     reconnect();
   };
 
@@ -266,6 +280,40 @@ export function ConfigSection({ config, onChange }: ConfigSectionProps) {
             )}
           </div>
           <span className="config-hint">Leave empty for auto-detect</span>
+        </div>
+        <div className="config-row config-row-stacked">
+          <span className="config-label">Auth Token</span>
+          <div className="config-input-group">
+            <input
+              type={showToken ? 'text' : 'password'}
+              className="config-input config-input-full"
+              value={authToken}
+              onChange={(e) => handleAuthTokenChange(e.target.value)}
+              placeholder="Enter token if required"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && authTokenDirty) {
+                  handleAuthTokenSave();
+                }
+              }}
+            />
+            <button
+              className="config-btn config-btn-sm"
+              onClick={() => setShowToken(!showToken)}
+              title={showToken ? 'Hide token' : 'Show token'}
+            >
+              {showToken ? '🙈' : '👁️'}
+            </button>
+            {authTokenDirty && (
+              <button
+                className="config-btn config-btn-sm"
+                onClick={handleAuthTokenSave}
+                title="Save and reconnect"
+              >
+                Apply
+              </button>
+            )}
+          </div>
+          <span className="config-hint">Required if server has AUTH_TOKEN set</span>
         </div>
         <div className="config-row">
           <span className="config-label">Manual</span>
@@ -512,6 +560,25 @@ export function ConfigSection({ config, onChange }: ConfigSectionProps) {
       {/* Data Export/Import Section */}
       <CollapsibleSection title="Data" storageKey="data" defaultOpen={false}>
         <DataSection />
+      </CollapsibleSection>
+
+      {/* Experimental Features Section */}
+      <CollapsibleSection title="Experimental" storageKey="experimental" defaultOpen={false}>
+        <div className="config-row">
+          <span className="config-label" title="Voice assistant for hands-free agent control">Voice Assistant 🎤</span>
+          <Toggle
+            checked={state.settings.experimentalVoiceAssistant}
+            onChange={(checked) => store.updateSettings({ experimentalVoiceAssistant: checked })}
+          />
+        </div>
+        <div className="config-row">
+          <span className="config-label" title="Text-to-speech for reading agent responses">Text to Speech 🔊</span>
+          <Toggle
+            checked={state.settings.experimentalTTS}
+            onChange={(checked) => store.updateSettings({ experimentalTTS: checked })}
+          />
+        </div>
+        <span className="config-hint">These features are experimental and may change</span>
       </CollapsibleSection>
 
       {/* About Section */}

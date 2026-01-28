@@ -1,4 +1,6 @@
 import React from 'react';
+import { useSettings } from '../store';
+import { VoiceAssistant } from './VoiceAssistant';
 
 interface FloatingActionButtonsProps {
   onOpenToolbox: () => void;
@@ -17,8 +19,13 @@ export function FloatingActionButtons({
   onOpenSkills,
   isGeneratingReport,
 }: FloatingActionButtonsProps) {
+  const settings = useSettings();
+
   return (
     <>
+      {/* Voice Assistant button (experimental) */}
+      {settings.experimentalVoiceAssistant && <VoiceAssistant />}
+
       {/* Floating settings button */}
       <button
         className="floating-settings-btn"

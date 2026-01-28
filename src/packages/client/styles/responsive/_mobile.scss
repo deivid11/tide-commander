@@ -123,8 +123,24 @@
   .commander-toggle-btn,
   .supervisor-toggle-btn,
   .shortcuts-toggle-btn,
-  .skills-toggle-btn {
+  .skills-toggle-btn,
+  .voice-assistant-btn:not(.mobile-voice-assistant) {
     display: none !important;
+  }
+
+  // Mobile voice assistant button - positioned at top right corner
+  .voice-assistant-btn.mobile-voice-assistant {
+    display: flex !important;
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    left: auto;
+    bottom: auto;
+    width: 44px;
+    height: 44px;
+    z-index: 1001;
+    background: rgba($dracula-bg, 0.95);
+    border: 1px solid $dracula-green;
   }
 
   // Mobile view mode: Terminal (default) - hide battlefield, show terminal

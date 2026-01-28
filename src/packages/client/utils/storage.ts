@@ -15,6 +15,7 @@ export const STORAGE_KEYS = {
   SHORTCUTS: 'tide-shortcuts',
   MOUSE_CONTROLS: 'tide-mouse-controls',
   BACKEND_URL: 'tide-backend-url',
+  AUTH_TOKEN: 'tide-auth-token',
 
   // Camera
   CAMERA_STATE: 'tide-camera-state',
@@ -183,11 +184,49 @@ export function getApiBaseUrl(): string {
 }
 
 /**
+ * Get the configured auth token
+ */
+export function getAuthToken(): string {
+  return getStorageString(STORAGE_KEYS.AUTH_TOKEN, '');
+}
+
+/**
  * Build a full API URL from a path
  * @param path - API path starting with /api (e.g., '/api/agents')
  */
 export function apiUrl(path: string): string {
   return `${getApiBaseUrl()}${path}`;
+}
+
+/**
+ * Get headers for authenticated API requests
+ */
+export function getAuthHeaders(): HeadersInit {
+  const token = getAuthToken();
+  if (token) {
+    return {
+      'X-Auth-Token': token,
+    };
+  }
+  return {};
+}
+
+/**
+ * Make an authenticated fetch request
+ * Automatically adds auth token header if configured
+ */
+export async function authFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const token = getAuthToken();
+  const headers = new Headers(init?.headers);
+
+  if (token) {
+    headers.set('X-Auth-Token', token);
+  }
+
+  return fetch(input, {
+    ...init,
+    headers,
+  });
 }
 
 /**

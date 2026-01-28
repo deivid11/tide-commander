@@ -7,7 +7,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { TreeNode, UseFileTreeReturn } from './types';
-import { apiUrl } from '../../utils/storage';
+import { apiUrl, authFetch } from '../../utils/storage';
 
 // Initial depth to load (shallow for fast initial load)
 const INITIAL_DEPTH = 3;

@@ -6,7 +6,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { store, ClaudeOutput } from '../../store';
-import { apiUrl } from '../../utils/storage';
+import { apiUrl, authFetch } from '../../utils/storage';
 import type { HistoryMessage } from './types';
 import { MESSAGES_PER_PAGE, SCROLL_THRESHOLD } from './types';
 
@@ -134,7 +134,7 @@ export function useHistoryLoader({
       }, 150); // Only show loading if fetch takes longer than 150ms
     }
 
-    fetch(apiUrl(`/api/agents/${selectedAgentId}/history?limit=${MESSAGES_PER_PAGE}&offset=0`))
+    authFetch(apiUrl(`/api/agents/${selectedAgentId}/history?limit=${MESSAGES_PER_PAGE}&offset=0`))
       .then((res) => {
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}: ${res.statusText}`);
@@ -233,7 +233,7 @@ export function useHistoryLoader({
     const currentOffset = historyLengthRef.current;
 
     try {
-      const res = await fetch(apiUrl(`/api/agents/${selectedAgentId}/history?limit=${MESSAGES_PER_PAGE}&offset=${currentOffset}`));
+      const res = await authFetch(apiUrl(`/api/agents/${selectedAgentId}/history?limit=${MESSAGES_PER_PAGE}&offset=${currentOffset}`));
       const data = await res.json();
 
       if (data.messages && data.messages.length > 0) {

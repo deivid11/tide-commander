@@ -5,7 +5,7 @@
 import React, { memo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { useHideCost } from '../../store';
+import { useHideCost, useSettings } from '../../store';
 import { store } from '../../store';
 import { BOSS_CONTEXT_START } from '../../../shared/types';
 import { filterCostText } from '../../utils/formatting';
@@ -14,6 +14,7 @@ import { markdownComponents } from './MarkdownComponents';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock } from './BossContext';
 import { EditToolDiff, ReadToolInput, TodoWriteInput } from './ToolRenderers';
 import { highlightText, renderContentWithImages } from './contentRendering';
+import { useTTS } from '../../hooks/useTTS';
 import type { EnrichedHistoryMessage, EditData } from './types';
 
 interface HistoryLineProps {
@@ -51,8 +52,10 @@ export const HistoryLine = memo(function HistoryLine({
   onViewMarkdown,
 }: HistoryLineProps) {
   const hideCost = useHideCost();
+  const settings = useSettings();
   const { type, content: rawContent, toolName, timestamp, _bashOutput, _bashCommand } = message;
   const content = filterCostText(rawContent, hideCost);
+  const { toggle: toggleTTS, speaking } = useTTS();
 
   // Format timestamp for display (HistoryMessage has ISO string timestamp)
   const timeStr = timestamp ? formatTimestamp(new Date(timestamp).getTime()) : '';
@@ -387,15 +390,26 @@ export const HistoryLine = memo(function HistoryLine({
             <DelegationBlock key={`del-${i}`} delegation={delegation} />
           ))}
         </span>
-        {onViewMarkdown && (
-          <button
-            className="history-view-md-btn"
-            onClick={() => onViewMarkdown(content)}
-            title="View as Markdown"
-          >
-            📄
-          </button>
-        )}
+        <div className="message-action-btns">
+          {settings.experimentalTTS && (
+            <button
+              className="history-speak-btn"
+              onClick={(e) => { e.stopPropagation(); toggleTTS(content); }}
+              title={speaking ? 'Stop speaking' : 'Speak (Spanish)'}
+            >
+              {speaking ? '🔊' : '🔈'}
+            </button>
+          )}
+          {onViewMarkdown && (
+            <button
+              className="history-view-md-btn"
+              onClick={(e) => { e.stopPropagation(); onViewMarkdown(content); }}
+              title="View as Markdown"
+            >
+              📄
+            </button>
+          )}
+        </div>
       </div>
     );
   }
@@ -407,14 +421,27 @@ export const HistoryLine = memo(function HistoryLine({
       <span className="history-content markdown-content">
         {highlight ? <div>{highlightText(content, highlight)}</div> : renderContentWithImages(content, onImageClick)}
       </span>
-      {!isUser && onViewMarkdown && (
-        <button
-          className="history-view-md-btn"
-          onClick={() => onViewMarkdown(content)}
-          title="View as Markdown"
-        >
-          📄
-        </button>
+      {!isUser && (
+        <div className="message-action-btns">
+          {settings.experimentalTTS && (
+            <button
+              className="history-speak-btn"
+              onClick={(e) => { e.stopPropagation(); toggleTTS(content); }}
+              title={speaking ? 'Stop speaking' : 'Speak (Spanish)'}
+            >
+              {speaking ? '🔊' : '🔈'}
+            </button>
+          )}
+          {onViewMarkdown && (
+            <button
+              className="history-view-md-btn"
+              onClick={(e) => { e.stopPropagation(); onViewMarkdown(content); }}
+              title="View as Markdown"
+            >
+              📄
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
