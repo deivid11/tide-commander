@@ -106,6 +106,10 @@ export class BuildingManager {
     // Create mesh based on building style
     const meshData = createBuildingMesh(building);
 
+    // Store style and color in userData for change detection
+    meshData.group.userData.style = building.style;
+    meshData.group.userData.color = building.color || '';
+
     // Apply scale from building config
     const scale = building.scale || 1.0;
     meshData.group.scale.setScalar(scale);
@@ -149,6 +153,16 @@ export class BuildingManager {
       return;
     }
 
+    // Check if we need to rebuild the entire mesh (style or color changed)
+    const currentStyle = meshData.group.userData.style;
+    const currentColor = meshData.group.userData.color;
+    if (currentStyle !== building.style || currentColor !== (building.color || '')) {
+      // Remove and recreate with new style/color
+      this.removeBuilding(building.id);
+      this.addBuilding(building);
+      return;
+    }
+
     // Update position
     meshData.group.position.set(building.position.x, 0, building.position.z);
 
@@ -168,15 +182,11 @@ export class BuildingManager {
       statusGlow.material.color.setHex(statusColor);
     }
 
-    // Update label if name or port changed
+    // Update label if name changed (ports are shown in popup only)
     const currentLabel = meshData.label;
     const canvas = (currentLabel.material as THREE.SpriteMaterial).map?.image as HTMLCanvasElement;
     if (canvas) {
-      // Include port in label if configured
-      const labelText = building.pm2?.port
-        ? `${building.name} :${building.pm2.port}`
-        : building.name;
-      updateLabel(meshData, labelText);
+      updateLabel(meshData, building.name);
     }
   }
 

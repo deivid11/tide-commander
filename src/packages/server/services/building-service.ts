@@ -445,8 +445,15 @@ async function pollPM2Status(broadcast: BroadcastFn): Promise<void> {
       const statusChanged = building.status !== newBuildingStatus;
       const metricsChanged = building.pm2Status?.pid !== status.pid ||
                              building.pm2Status?.restarts !== status.restarts;
+      // Check if ports changed (compare sorted arrays)
+      const oldPorts = (building.pm2Status?.ports || []).sort().join(',');
+      const newPorts = (status.ports || []).sort().join(',');
+      const portsChanged = oldPorts !== newPorts;
 
-      if (statusChanged || metricsChanged) {
+      if (statusChanged || metricsChanged || portsChanged) {
+        if (portsChanged && status.ports && status.ports.length > 0) {
+          log.log(`Building ${building.name}: detected ports ${status.ports.join(', ')}`);
+        }
         updateBuildingStatus(building.id, newBuildingStatus, broadcast, {
           pm2Status: status,
         });

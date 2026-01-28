@@ -344,7 +344,6 @@ export interface PM2Config {
   instances?: number;         // Cluster mode (default: 1)
   autorestart?: boolean;      // Auto-restart on crash (default: true)
   maxRestarts?: number;       // Max restart attempts (default: 10)
-  port?: number;              // Port the service runs on (for display)
 }
 
 // PM2 interpreter options

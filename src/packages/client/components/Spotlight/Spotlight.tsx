@@ -49,11 +49,20 @@ export function Spotlight({
     }
   }, [isOpen]);
 
-  // Capture Alt+N/P at window level to prevent global shortcuts (like spawn agent)
+  // Capture Escape and Alt+N/P at window level to prevent other handlers from intercepting
   useEffect(() => {
     if (!isOpen) return;
 
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // Handle Escape to close the spotlight - intercept before other capture handlers
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        onClose();
+        return;
+      }
+
       // Capture Alt+N/P to prevent global shortcuts from firing
       if (e.altKey && !e.ctrlKey && !e.metaKey && (e.key === 'n' || e.key === 'p' || e.key === 'N' || e.key === 'P')) {
         e.preventDefault();
@@ -68,7 +77,7 @@ export function Spotlight({
     return () => {
       window.removeEventListener('keydown', handleGlobalKeyDown, { capture: true });
     };
-  }, [isOpen]);
+  }, [isOpen, onClose]);
 
   // Handle backdrop click
   const handleBackdropClick = useCallback(

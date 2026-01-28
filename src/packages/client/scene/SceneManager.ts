@@ -318,6 +318,7 @@ export class SceneManager {
   }
 
   private updateIndicatorScales(camera: THREE.PerspectiveCamera, agentMeshes: Map<string, AgentMeshData>, indicatorScale: number): void {
+    // Scale agent indicators
     for (const [, meshData] of agentMeshes) {
       const distance = camera.position.distanceTo(meshData.group.position);
       const scale = Math.max(0.5, Math.min(2.5, distance / 15)) * indicatorScale;
@@ -334,6 +335,19 @@ export class SceneManager {
       const idleTimer = meshData.group.getObjectByName('idleTimer') as THREE.Sprite;
       if (idleTimer) idleTimer.scale.set(0.9 * scale, 0.14 * scale, 1);
     }
+
+    // Scale building labels (same behavior as agent labels)
+    for (const [, meshData] of this.buildingManager.getBuildingMeshData()) {
+      const distance = camera.position.distanceTo(meshData.group.position);
+      const scale = Math.max(0.5, Math.min(2.5, distance / 15)) * indicatorScale;
+
+      const buildingLabel = meshData.group.getObjectByName('buildingLabel') as THREE.Sprite;
+      if (buildingLabel) {
+        const baseHeight = 0.3 * scale;
+        buildingLabel.scale.set(baseHeight * (buildingLabel.userData.aspectRatio || 2), baseHeight, 1);
+      }
+    }
+
     this.effectsManager.updateWithCamera(camera);
   }
 

@@ -300,10 +300,8 @@ interface BuildingItemProps {
 function BuildingItem({ building, isSelected, onClick, onEdit }: BuildingItemProps) {
   const typeInfo = BUILDING_TYPES[building.type];
 
-  // Get detected ports or configured port
-  const detectedPorts = building.pm2Status?.ports || [];
-  const configuredPort = building.pm2?.port;
-  const displayPorts = detectedPorts.length > 0 ? detectedPorts : (configuredPort ? [configuredPort] : []);
+  // Get auto-detected ports from PM2 status polling
+  const displayPorts = building.pm2Status?.ports || [];
 
   const handlePortClick = (e: React.MouseEvent, port: number) => {
     e.stopPropagation();

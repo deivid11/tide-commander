@@ -156,16 +156,13 @@ export function BuildingActionPopup({ building, screenPos, onClose, onOpenSettin
   };
 
   const handleOpenUrl = (port?: number) => {
-    const targetPort = port || building.pm2?.port;
-    if (targetPort) {
-      window.open(`http://localhost:${targetPort}`, '_blank');
+    if (port) {
+      window.open(`http://localhost:${port}`, '_blank');
     }
   };
 
-  // Get detected ports (from auto-scan) or fall back to configured port
-  const detectedPorts = building.pm2Status?.ports || [];
-  const configuredPort = building.pm2?.port;
-  const allPorts = detectedPorts.length > 0 ? detectedPorts : (configuredPort ? [configuredPort] : []);
+  // Get auto-detected ports from PM2 status polling
+  const allPorts = building.pm2Status?.ports || [];
 
   // Check if commands are available
   const canStart = isPM2 ? !!building.pm2?.script : !!building.commands?.start;

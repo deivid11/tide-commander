@@ -5,7 +5,7 @@
 import type { Agent, DrawingArea } from '../../../shared/types';
 
 // Search result types
-export type SearchResultType = 'agent' | 'command' | 'area' | 'activity' | 'modified-file';
+export type SearchResultType = 'agent' | 'command' | 'area' | 'activity' | 'modified-file' | 'building';
 
 export interface SearchResult {
   id: string;
@@ -39,6 +39,8 @@ export interface SpotlightProps {
   onOpenToolbox: () => void;
   onOpenSupervisor: () => void;
   onOpenFileExplorer: (areaId: string) => void;
+  onOpenPM2LogsModal: (buildingId: string) => void;
+  onOpenBossLogsModal: (buildingId: string) => void;
 }
 
 // Options for the useSpotlightSearch hook
@@ -50,6 +52,8 @@ export interface UseSpotlightSearchOptions {
   onOpenToolbox: () => void;
   onOpenSupervisor: () => void;
   onOpenFileExplorer: (areaId: string) => void;
+  onOpenPM2LogsModal: (buildingId: string) => void;
+  onOpenBossLogsModal: (buildingId: string) => void;
 }
 
 // Return type for useSpotlightSearch hook

@@ -8,7 +8,7 @@ export class DoubleClickDetector<T = string> {
   private clickTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly threshold: number;
 
-  constructor(threshold = 300) {
+  constructor(threshold = 200) {
     this.threshold = threshold;
   }
 

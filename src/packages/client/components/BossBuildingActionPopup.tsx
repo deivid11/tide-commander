@@ -160,7 +160,9 @@ export function BossBuildingActionPopup({ building, screenPos, onClose, onOpenSe
                 style={{ backgroundColor: BUILDING_STATUS_COLORS[sub.status] }}
               />
               <span className="sub-name">{sub.name}</span>
-              {sub.pm2?.port && <span className="sub-port">:{sub.pm2.port}</span>}
+              {sub.pm2Status?.ports && sub.pm2Status.ports.length > 0 && (
+                <span className="sub-port">:{sub.pm2Status.ports.join(' :')}</span>
+              )}
               {sub.pm2Status && (
                 <span className="sub-metrics">
                   {sub.pm2Status.cpu?.toFixed(0)}% | {formatBytes(sub.pm2Status.memory || 0)}

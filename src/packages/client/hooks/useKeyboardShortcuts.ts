@@ -138,7 +138,9 @@ export function useKeyboardShortcuts({
       }
     };
 
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    // Use capture phase to ensure global shortcuts work regardless of which element has focus
+    // This is necessary because the canvas doesn't naturally receive keyboard events
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
   }, [sceneRef, spawnModal, commanderModal, explorerModal, spotlightModal, deleteConfirmModal, onRequestBuildingDelete]);
 }

@@ -330,7 +330,7 @@ function AppContent() {
 
       <main className="main-content">
         <div className="battlefield-container">
-          <canvas ref={canvasRef} id="battlefield"></canvas>
+          <canvas ref={canvasRef} id="battlefield" tabIndex={0}></canvas>
           <div ref={selectionBoxRef} id="selection-box"></div>
         </div>
 

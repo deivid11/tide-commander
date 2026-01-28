@@ -9,52 +9,63 @@ import type { Building } from '../../../shared/types';
 import type { BuildingMeshData } from './types';
 
 /**
- * Get the display text for a building label (name + port if configured).
+ * Get the display text for a building label (just the name).
+ * Ports are shown in the popup instead.
  */
 export function getBuildingLabelText(building: Building): string {
-  if (building.pm2?.port) {
-    return `${building.name} :${building.pm2.port}`;
-  }
   return building.name;
 }
 
 /**
- * Create a text label sprite.
+ * Create a text label sprite with high-quality rendering.
+ * Uses same techniques as agent name labels for crisp text.
  */
 export function createLabel(text: string): THREE.Sprite {
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d')!;
 
-  const fontSize = 24;
-  const padding = 20;
-  const canvasHeight = 64;
+  // Higher resolution canvas for crisp text (matching agent label quality)
+  const fontSize = 56;
+  const padding = 28;
+  const bgHeight = 72;
+  const canvasHeight = 144;
 
-  // Set initial canvas size for accurate text measurement
+  // Measure text to determine required canvas width
   canvas.width = 1024;
   canvas.height = canvasHeight;
   context.font = `bold ${fontSize}px Arial`;
   const measuredWidth = context.measureText(text).width;
 
-  // Resize canvas to fit text (with minimum width)
+  // Set canvas width to fit text (minimum 256 for short names)
   const minCanvasWidth = 256;
-  canvas.width = Math.max(minCanvasWidth, measuredWidth + padding * 2);
+  const requiredWidth = measuredWidth + padding * 2 + 16;
+  canvas.width = Math.max(minCanvasWidth, requiredWidth);
 
   // Clear canvas and reset context after resize
   context.clearRect(0, 0, canvas.width, canvas.height);
   context.font = `bold ${fontSize}px Arial`;
 
-  // Background
-  context.fillStyle = 'rgba(0, 0, 0, 0.7)';
-  context.roundRect(10, 10, canvas.width - 20, canvas.height - 20, 8);
+  // Calculate centered background dimensions
+  const bgWidth = measuredWidth + padding * 2;
+  const bgX = (canvas.width - bgWidth) / 2;
+  const bgY = (canvas.height - bgHeight) / 2;
+
+  // Draw background (semi-transparent dark with rounded corners)
+  context.fillStyle = 'rgba(0, 0, 0, 0.8)';
+  context.beginPath();
+  context.roundRect(bgX, bgY, bgWidth, bgHeight, 10);
   context.fill();
 
-  // Text
+  // Draw text
   context.textAlign = 'center';
   context.textBaseline = 'middle';
   context.fillStyle = '#ffffff';
   context.fillText(text, canvas.width / 2, canvas.height / 2);
 
+  // Create texture with high quality filtering (prevents pixelation)
   const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
   texture.needsUpdate = true;
 
   const material = new THREE.SpriteMaterial({
@@ -64,11 +75,13 @@ export function createLabel(text: string): THREE.Sprite {
   });
 
   // Scale must match canvas aspect ratio to avoid distortion
-  // Original: 256x64 canvas = 2x0.5 sprite (both 4:1 ratio)
+  // Base: 256x144 canvas = 1.0x0.5 sprite
   const sprite = new THREE.Sprite(material);
   const baseHeight = 0.5;
-  const widthScale = 2 * (canvas.width / 256);
-  sprite.scale.set(widthScale, baseHeight, 1);
+  const aspectRatio = canvas.width / canvas.height;
+  sprite.scale.set(baseHeight * aspectRatio, baseHeight, 1);
+  // Store aspect ratio for SceneManager to use when scaling (like agent labels)
+  sprite.userData.aspectRatio = aspectRatio;
 
   return sprite;
 }

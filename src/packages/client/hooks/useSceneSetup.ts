@@ -154,11 +154,11 @@ export function useSceneSetup({
         if (pendingPopupTimeoutRef.current) {
           clearTimeout(pendingPopupTimeoutRef.current);
         }
-        // Delay popup to allow double-click detection (250ms is typical double-click threshold)
+        // Delay popup to allow double-click detection (150ms for faster response)
         pendingPopupTimeoutRef.current = setTimeout(() => {
           setBuildingPopup({ buildingId, screenPos, fromClick: true });
           pendingPopupTimeoutRef.current = null;
-        }, 250);
+        }, 150);
       } else {
         // Open modal for other types
         openBuildingModal(buildingId);

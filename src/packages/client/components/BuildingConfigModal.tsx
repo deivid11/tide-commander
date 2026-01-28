@@ -163,7 +163,6 @@ export function BuildingConfigModal({
   const [pm2Args, setPm2Args] = useState('');
   const [pm2Interpreter, setPm2Interpreter] = useState<PM2Interpreter>('');
   const [pm2InterpreterArgs, setPm2InterpreterArgs] = useState('');
-  const [pm2Port, setPm2Port] = useState<number | ''>('');
   const [pm2Env, setPm2Env] = useState('');  // KEY=value format, one per line
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -199,7 +198,6 @@ export function BuildingConfigModal({
         setPm2Args(building.pm2?.args || '');
         setPm2Interpreter((building.pm2?.interpreter as PM2Interpreter) || '');
         setPm2InterpreterArgs(building.pm2?.interpreterArgs || '');
-        setPm2Port(building.pm2?.port || '');
         // Convert env object to KEY=value lines
         setPm2Env(building.pm2?.env
           ? Object.entries(building.pm2.env).map(([k, v]) => `${k}=${v}`).join('\n')
@@ -227,7 +225,6 @@ export function BuildingConfigModal({
         setPm2Args('');
         setPm2Interpreter('');
         setPm2InterpreterArgs('');
-        setPm2Port('');
         setPm2Env('');
         // Boss building fields
         setSubordinateBuildingIds([]);
@@ -268,7 +265,6 @@ export function BuildingConfigModal({
         args: pm2Args || undefined,
         interpreter: pm2Interpreter || undefined,
         interpreterArgs: pm2InterpreterArgs || undefined,
-        port: pm2Port || undefined,
         env: pm2Env.trim() ? Object.fromEntries(
           pm2Env.trim().split('\n')
             .map(line => line.trim())
@@ -696,21 +692,6 @@ export function BuildingConfigModal({
                     onChange={(e) => setPm2InterpreterArgs(e.target.value)}
                     placeholder="-jar (for Java)"
                   />
-                </div>
-
-                <div className="command-row">
-                  <span className="command-label">Port:</span>
-                  <input
-                    type="number"
-                    className="form-input"
-                    value={pm2Port}
-                    onChange={(e) => setPm2Port(e.target.value ? parseInt(e.target.value) : '')}
-                    placeholder="8000"
-                    min="1"
-                    max="65535"
-                    style={{ width: '100px' }}
-                  />
-                  <span className="form-hint-inline">For display on battlefield</span>
                 </div>
 
                 <div className="command-row env-row">
