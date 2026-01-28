@@ -4,7 +4,7 @@ import { ToastProvider, useToast } from './components/Toast';
 import { AgentNotificationProvider, useAgentNotification } from './components/AgentNotificationToast';
 import { UnitPanel } from './components/UnitPanel';
 import { ToolHistory } from './components/ToolHistory';
-import { type SceneConfig } from './components/Toolbox';
+import { type SceneConfig } from './components/toolbox';
 import { ClaudeOutputPanel } from './components/ClaudeOutputPanel';
 import { AgentBar } from './components/AgentBar';
 import { DrawingModeIndicator } from './components/DrawingModeIndicator';

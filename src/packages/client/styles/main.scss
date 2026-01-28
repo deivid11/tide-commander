@@ -14,10 +14,10 @@
 @use 'components/activity-feed';
 @use 'components/modal';
 @use 'components/toast';
-@use 'components/toolbox';
+@use 'components/toolbox/index' as toolbox;
 @use 'components/guake-terminal/index' as guake-terminal;
 @use 'components/markdown';
-@use 'components/commander-view';
+@use 'components/commander-view/index' as commander-view;
 @use 'components/file-viewer';
 @use 'components/file-explorer/index' as file-explorer;
 @use 'components/diff-viewer';
@@ -27,7 +27,7 @@
 @use 'components/spotlight';
 @use 'components/shortcuts-modal';
 @use 'components/mouse-controls-modal';
-@use 'components/building-config';
+@use 'components/building-config/index' as building-config;
 @use 'components/boss';
 @use 'components/skills-panel';
 @use 'components/agent-notification';
@@ -36,4 +36,4 @@
 @use 'components/pip';
 
 // Responsive styles (must be last to override component styles)
-@use 'responsive';
+@use 'responsive/index' as responsive;

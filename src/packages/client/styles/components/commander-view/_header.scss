@@ -1,0 +1,171 @@
+@use 'sass:color';
+@use '../../variables' as *;
+
+.commander-toggle-btn {
+  position: fixed;
+  bottom: 112px;  // Stacked above settings button (70 + 36 + 6)
+  left: 16px;     // Aligned with other buttons
+  width: 36px;
+  height: 36px;
+  border-radius: $radius-lg;
+  background: linear-gradient(180deg, $dracula-current 0%, $dracula-bg 100%);
+  border: 1px solid $dracula-comment;
+  color: $dracula-purple;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all $transition-fast;
+  z-index: 150;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+
+  &:hover {
+    background: $dracula-current;
+    border-color: $dracula-purple;
+    color: $dracula-pink;
+  }
+}
+
+.commander-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(4px);
+  z-index: 900; // Above Guake terminal (200) but below modals (1000)
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn $transition-normal ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.commander-view {
+  width: 95%;
+  height: 90%;
+  background: linear-gradient(180deg, rgba($dracula-bg, 0.95) 0%, rgba($dracula-bg-darker, 0.98) 100%);
+  border-radius: $radius-xl;
+  border: 2px solid $dracula-purple;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 40px rgba($dracula-purple, 0.15);
+  backdrop-filter: blur(12px);
+}
+
+.commander-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  background: rgba($dracula-bg, 0.95);
+  border-bottom: 1px solid $dracula-current;
+}
+
+.commander-title-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.commander-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: $dracula-pink;
+  font-family: $font-mono;
+}
+
+.commander-shortcuts {
+  font-size: 11px;
+  color: $dracula-comment;
+  font-family: $font-mono;
+}
+
+.commander-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.commander-view-toggle {
+  background: transparent;
+  border: 1px solid $dracula-current;
+  color: $dracula-comment;
+  padding: 6px 12px;
+  border-radius: $radius-sm;
+  font-size: 11px;
+  font-family: $font-mono;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    border-color: $dracula-cyan;
+    color: $dracula-cyan;
+  }
+
+  &.active {
+    border-color: $dracula-purple;
+    color: $dracula-purple;
+    background: rgba($dracula-purple, 0.1);
+  }
+}
+
+.commander-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: rgba($dracula-bg-darker, 0.6);
+  border-bottom: 1px solid $dracula-current;
+}
+
+.commander-page-btn {
+  background: transparent;
+  border: 1px solid $dracula-current;
+  color: $dracula-comment;
+  padding: 6px 12px;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: $font-mono;
+  transition: all $transition-fast;
+
+  &:hover:not(:disabled) {
+    border-color: $dracula-purple;
+    color: $dracula-purple;
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+.commander-page-info {
+  color: $dracula-comment;
+  font-size: 12px;
+  font-family: $font-mono;
+}
+
+.commander-close {
+  background: transparent;
+  border: 1px solid $dracula-current;
+  color: $dracula-comment;
+  padding: 6px 14px;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: $font-mono;
+  font-weight: 500;
+  transition: all $transition-fast;
+
+  &:hover {
+    border-color: $dracula-red;
+    color: $dracula-red;
+  }
+}

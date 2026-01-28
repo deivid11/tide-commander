@@ -31,6 +31,64 @@ type BroadcastFn = (message: ServerMessage) => void;
 /**
  * Update building status and persist
  */
+function computeBossStatus(subordinates: Building[]): BuildingStatus {
+  if (subordinates.length === 0) return 'unknown';
+  const allRunning = subordinates.every(s => s.status === 'running');
+  if (allRunning) return 'running';
+  const noneRunning = subordinates.every(s => s.status !== 'running' && s.status !== 'starting');
+  if (noneRunning) return 'error';
+  // Mixed state — some running, some not (warning)
+  return 'unknown';
+}
+
+function updateBossBuildings(
+  buildings: Building[],
+  subordinateId: string,
+  broadcast: BroadcastFn
+): void {
+  // Find any boss buildings that manage this subordinate
+  const bosses = buildings.filter(
+    b => b.type === 'boss' && b.subordinateBuildingIds?.includes(subordinateId)
+  );
+  for (const boss of bosses) {
+    const subs = buildings.filter(b => boss.subordinateBuildingIds?.includes(b.id));
+    const newStatus = computeBossStatus(subs);
+    if (boss.status !== newStatus) {
+      const bossIdx = buildings.findIndex(b => b.id === boss.id);
+      if (bossIdx !== -1) {
+        buildings[bossIdx] = {
+          ...buildings[bossIdx],
+          status: newStatus,
+          lastActivity: Date.now(),
+        };
+        broadcast({
+          type: 'building_updated',
+          payload: buildings[bossIdx],
+        });
+      }
+    }
+  }
+}
+
+function recomputeAllBossStatuses(broadcast: BroadcastFn): void {
+  const buildings = loadBuildings();
+  let changed = false;
+  for (const boss of buildings) {
+    if (boss.type !== 'boss' || !boss.subordinateBuildingIds?.length) continue;
+    const subs = buildings.filter(b => boss.subordinateBuildingIds!.includes(b.id));
+    const newStatus = computeBossStatus(subs);
+    if (boss.status !== newStatus) {
+      const idx = buildings.findIndex(b => b.id === boss.id);
+      buildings[idx] = { ...buildings[idx], status: newStatus, lastActivity: Date.now() };
+      changed = true;
+      broadcast({ type: 'building_updated', payload: buildings[idx] });
+    }
+  }
+  if (changed) {
+    saveBuildings(buildings);
+  }
+}
+
 function updateBuildingStatus(
   buildingId: string,
   status: Building['status'],
@@ -46,6 +104,8 @@ function updateBuildingStatus(
       lastActivity: Date.now(),
       ...additionalFields,
     };
+    // Update boss buildings that manage this subordinate
+    updateBossBuildings(buildings, buildingId, broadcast);
     saveBuildings(buildings);
     broadcast({
       type: 'building_updated',
@@ -468,6 +528,9 @@ async function pollPM2Status(broadcast: BroadcastFn): Promise<void> {
       }
     }
   }
+
+  // Recompute boss building statuses
+  recomputeAllBossStatuses(broadcast);
 }
 
 /**

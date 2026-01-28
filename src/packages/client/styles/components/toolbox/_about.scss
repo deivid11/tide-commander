@@ -1,0 +1,434 @@
+@use 'sass:color';
+@use '../../variables' as *;
+
+// About section
+.about-section {
+  padding: 4px 0;
+}
+
+.about-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.about-logo-icon {
+  font-size: 20px;
+}
+
+.about-logo-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: $text-primary;
+}
+
+.about-description {
+  font-size: 11px;
+  color: $text-secondary;
+  margin-bottom: 12px;
+  line-height: 1.4;
+}
+
+.about-principles {
+  margin-bottom: 12px;
+}
+
+.about-principles-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: $text-secondary;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.about-principles-list {
+  margin: 0;
+  padding: 0 0 0 16px;
+  font-size: 11px;
+  color: $text-primary;
+  line-height: 1.6;
+
+  li {
+    margin-bottom: 2px;
+
+    &::marker {
+      color: $accent-blue;
+    }
+  }
+}
+
+.about-links {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.about-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: $bg-secondary;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  color: $text-primary;
+  text-decoration: none;
+  font-size: 11px;
+  transition: all $transition-fast;
+
+  &:hover {
+    border-color: $accent-blue;
+    color: $accent-blue;
+    background: rgba($accent-blue, 0.05);
+  }
+}
+
+.about-link-icon {
+  font-size: 14px;
+  width: 18px;
+  text-align: center;
+}
+
+.about-credits {
+  padding-top: 10px;
+  border-top: 1px solid rgba($border-color, 0.5);
+}
+
+.about-credits-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: $text-secondary;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.about-credit-item {
+  margin-bottom: 6px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.about-credit-link {
+  color: $accent-blue;
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 500;
+  transition: color $transition-fast;
+
+  &:hover {
+    color: color.adjust($accent-blue, $lightness: 15%);
+    text-decoration: underline;
+  }
+}
+
+.about-credit-desc {
+  font-size: 11px;
+  color: $text-secondary;
+  margin-left: 4px;
+}
+
+// Version display
+.about-version {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  background: $bg-secondary;
+  border-radius: $radius-sm;
+  margin-bottom: 10px;
+}
+
+.about-version-label {
+  font-size: 11px;
+  color: $text-secondary;
+}
+
+.about-version-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: $text-primary;
+  font-family: $font-mono;
+}
+
+// Update section
+.about-update {
+  margin-bottom: 12px;
+  padding: 10px;
+  background: $bg-secondary;
+  border-radius: $radius-md;
+  border: 1px solid $border-color;
+}
+
+.about-update-check {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.about-update-status {
+  font-size: 11px;
+  color: $text-secondary;
+}
+
+.about-update-available {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.about-update-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.about-update-badge {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: $accent-green;
+  color: $bg-primary;
+}
+
+.about-update-version {
+  font-size: 13px;
+  font-weight: 600;
+  color: $text-primary;
+  font-family: $font-mono;
+}
+
+.about-update-size {
+  font-size: 10px;
+  color: $text-secondary;
+}
+
+.about-update-error {
+  font-size: 11px;
+  color: $accent-red;
+  padding: 6px 8px;
+  background: rgba($accent-red, 0.1);
+  border-radius: $radius-sm;
+}
+
+.about-update-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.about-update-progress-bar {
+  flex: 1;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.about-update-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, $accent-green 0%, color.adjust($accent-green, $lightness: 10%) 100%);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.about-update-progress-text {
+  font-size: 11px;
+  font-weight: 600;
+  color: $accent-green;
+  min-width: 32px;
+  text-align: right;
+}
+
+.about-update-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.about-update-btn {
+  flex: 1;
+  padding: 6px 10px;
+  border: none;
+  border-radius: $radius-sm;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &.check {
+    background: $bg-tertiary;
+    color: $text-secondary;
+    border: 1px solid $border-color;
+
+    &:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.1);
+      color: $text-primary;
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
+  &.changelog {
+    background: rgba(255, 255, 255, 0.05);
+    color: $text-secondary;
+    border: 1px solid $border-color;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: $text-primary;
+    }
+  }
+
+  &.download {
+    background: linear-gradient(135deg, $accent-green 0%, color.adjust($accent-green, $lightness: -15%) 100%);
+    color: $bg-primary;
+    font-weight: 600;
+
+    &:hover {
+      filter: brightness(1.1);
+    }
+  }
+}
+
+// Recent releases list
+.about-releases {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba($border-color, 0.5);
+}
+
+.about-releases-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: $text-secondary;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.about-releases-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.about-release-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: $radius-sm;
+  text-decoration: none;
+  transition: all $transition-fast;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  &.current {
+    background: rgba($accent-blue, 0.1);
+    border-left: 2px solid $accent-blue;
+  }
+}
+
+.about-release-version {
+  font-size: 12px;
+  font-weight: 500;
+  color: $text-primary;
+  font-family: $font-mono;
+
+  .about-release-item.current & {
+    color: $accent-blue;
+  }
+}
+
+.about-release-date {
+  font-size: 10px;
+  color: $text-secondary;
+}
+
+// ============================================
+// Theme Selector
+// ============================================
+
+.theme-selector {
+  padding: 4px 0;
+}
+
+.theme-selector-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.theme-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 4px;
+  background: transparent;
+  border: 2px solid transparent;
+  border-radius: $radius-md;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: $border-color;
+  }
+
+  &.active {
+    background: rgba($accent-blue, 0.1);
+    border-color: $accent-blue;
+  }
+}
+
+.theme-preview {
+  width: 100%;
+  aspect-ratio: 16/10;
+  border-radius: $radius-sm;
+  overflow: hidden;
+}
+
+.theme-preview-bg {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 3px;
+  padding: 6px;
+}
+
+.theme-preview-accent {
+  height: 4px;
+  border-radius: 2px;
+  width: 60%;
+}
+
+.theme-preview-claude {
+  height: 4px;
+  border-radius: 2px;
+  width: 45%;
+}
+
+.theme-name {
+  font-size: 10px;
+  font-weight: 500;
+  color: $text-secondary;
+  text-align: center;
+
+  .theme-option.active & {
+    color: $accent-blue;
+  }
+}

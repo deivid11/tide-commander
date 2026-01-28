@@ -1,0 +1,266 @@
+@use 'sass:color';
+@use '../../variables' as *;
+
+// Areas list
+.areas-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 12px;
+}
+
+.area-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  background: $bg-tertiary;
+  border: 2px solid transparent;
+  border-radius: $radius-md;
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    border-color: $border-color;
+  }
+
+  &.selected {
+    border-color: $accent-blue;
+  }
+
+  &:hover .area-delete-btn {
+    opacity: 1;
+  }
+}
+
+.area-color-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.area-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.area-name {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.area-meta {
+  font-size: 11px;
+  color: $text-secondary;
+}
+
+.area-delete-btn {
+  background: none;
+  border: none;
+  color: $text-secondary;
+  cursor: pointer;
+  padding: 4px;
+  font-size: 14px;
+  opacity: 0;
+  transition: opacity $transition-fast;
+
+  &:hover {
+    color: $accent-red;
+  }
+}
+
+// Area editor
+.area-editor {
+  padding: 12px;
+  border-top: 1px solid $border-color;
+  background: $bg-tertiary;
+}
+
+.area-editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.area-editor-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.area-editor-close {
+  background: none;
+  border: none;
+  color: $text-secondary;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.area-editor-row {
+  margin-bottom: 10px;
+}
+
+.area-editor-label {
+  font-size: 11px;
+  color: $text-secondary;
+  margin-bottom: 4px;
+}
+
+.area-editor-input {
+  width: 100%;
+  padding: 6px 8px;
+  background: $bg-secondary;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  color: $text-primary;
+  font-size: 13px;
+  outline: none;
+
+  &:focus {
+    border-color: $accent-blue;
+  }
+}
+
+.color-picker-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.color-swatch {
+  width: 24px;
+  height: 24px;
+  border-radius: $radius-sm;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    transform: scale(1.1);
+  }
+
+  &.selected {
+    border-color: white;
+  }
+}
+
+// Area folders list
+.area-folders-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.area-folder-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: $bg-secondary;
+  border-radius: $radius-sm;
+  font-size: 12px;
+
+  &:hover .area-folder-remove {
+    opacity: 1;
+  }
+}
+
+.area-folder-icon {
+  font-size: 12px;
+  flex-shrink: 0;
+
+  &.clickable {
+    cursor: pointer;
+    transition: transform $transition-fast, opacity $transition-fast;
+    opacity: 0.8;
+
+    &:hover {
+      transform: scale(1.2);
+      opacity: 1;
+    }
+  }
+}
+
+.area-folder-path {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: $text-primary;
+}
+
+.area-folder-remove {
+  background: none;
+  border: none;
+  color: $text-secondary;
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity $transition-fast;
+
+  &:hover {
+    color: $accent-red;
+  }
+}
+
+.area-add-folder-inline {
+  display: flex;
+  gap: 4px;
+}
+
+.area-add-folder-input {
+  flex: 1;
+  padding: 6px 8px;
+  background: $bg-secondary;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  color: $text-primary;
+  font-size: 12px;
+  outline: none;
+
+  &:focus {
+    border-color: $accent-blue;
+  }
+
+  &::placeholder {
+    color: $text-muted;
+  }
+}
+
+.area-add-folder-confirm {
+  padding: 4px 10px;
+  background: $accent-blue;
+  border: none;
+  border-radius: $radius-sm;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background $transition-fast;
+
+  &:hover {
+    background: color.adjust($accent-blue, $lightness: 10%);
+  }
+}
+
+.area-add-folder-btn {
+  padding: 6px 8px;
+  background: transparent;
+  border: 1px dashed $border-color;
+  border-radius: $radius-sm;
+  color: $text-secondary;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all $transition-fast;
+  text-align: center;
+
+  &:hover {
+    border-color: $accent-blue;
+    color: $accent-blue;
+  }
+}

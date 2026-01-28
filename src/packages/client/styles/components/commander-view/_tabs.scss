@@ -1,0 +1,93 @@
+@use 'sass:color';
+@use '../../variables' as *;
+
+// Area Tabs
+.commander-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 12px;
+  background: rgba($dracula-bg-darker, 0.8);
+  border-bottom: 1px solid $dracula-current;
+  overflow-x: auto;
+
+  &::-webkit-scrollbar {
+    height: 4px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: $dracula-current;
+    border-radius: 2px;
+  }
+}
+
+.commander-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: $dracula-comment;
+  font-size: 12px;
+  font-family: $font-mono;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all $transition-fast;
+  white-space: nowrap;
+
+  &:hover {
+    color: $dracula-fg;
+    background: rgba($dracula-current, 0.3);
+  }
+
+  &.active {
+    color: $dracula-fg;
+    border-bottom-color: $dracula-purple;
+  }
+}
+
+.commander-tab-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.commander-tab-count {
+  font-size: 10px;
+  padding: 2px 6px;
+  background: rgba($dracula-current, 0.5);
+  border-radius: 10px;
+  color: $dracula-comment;
+}
+
+.commander-tab-folder {
+  font-size: 12px;
+  margin-left: 4px;
+  opacity: 0.6;
+  transition: all $transition-fast;
+  cursor: pointer;
+
+  &:hover {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
+// File explorer panel within commander view
+.commander-view .file-explorer-panel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  min-width: 0;
+  border-left: none;
+  border-radius: $radius-xl;
+  z-index: 20;
+  animation: fadeIn $transition-normal ease-out;
+}

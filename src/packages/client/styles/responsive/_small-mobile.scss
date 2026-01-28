@@ -1,0 +1,372 @@
+@use '../variables' as *;
+@use 'variables' as resp;
+
+// =============================================================================
+// Small Mobile Styles (up to 480px)
+// =============================================================================
+
+@media (max-width: resp.$breakpoint-small) {
+  // Even more compact agent bar
+  .agent-bar {
+    padding: 6px 8px;
+  }
+
+  .agent-bar-item {
+    width: 36px;
+    height: 36px;
+  }
+
+  .agent-bar-icon {
+    font-size: 16px;
+  }
+
+  .agent-bar-spawn-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  // Guake header compact on small screens
+  .guake-header {
+    padding: 6px 10px;
+    height: 40px;
+    min-height: 40px;
+    max-height: 40px;
+    gap: 8px;
+  }
+
+  .guake-header-left {
+    gap: 8px;
+  }
+
+  .guake-title {
+    font-size: 12px;
+  }
+
+  .guake-status-line {
+    font-size: 9px;
+    gap: 4px;
+    padding: 3px 6px;
+  }
+
+  .guake-supervisor-badge {
+    font-size: 8px;
+    padding: 2px 5px;
+  }
+
+  .guake-supervisor-summary,
+  .guake-last-input {
+    font-size: 9px;
+    max-width: 100px;
+  }
+
+  .guake-working-indicator {
+    padding: 2px 4px;
+  }
+
+  .guake-working-dot {
+    width: 4px;
+    height: 4px;
+  }
+
+  .guake-actions {
+    gap: 4px;
+  }
+
+  // Keep circular button style on small screens
+  .guake-close-btn,
+  .guake-mode-btn,
+  .guake-clear {
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    padding: 0;
+    font-size: 10px;
+  }
+
+  // Hide more buttons on very small screens
+  .guake-context-btn,
+  .guake-search-toggle {
+    display: none;
+  }
+
+  // Input more compact
+  .guake-input {
+    padding: 3px 4px;
+  }
+
+  .guake-input-container {
+    min-height: 32px;
+    border-radius: 5px;
+  }
+
+  .guake-attach-btn,
+  .guake-send-btn,
+  .guake-input button:not(.guake-attach-btn) {
+    width: 32px;
+    min-height: 32px;
+    font-size: 12px;
+  }
+
+  .guake-input textarea,
+  .guake-input input {
+    font-size: 13px;
+    padding: 6px 8px;
+  }
+
+
+  // Output text - even more compact on small screens
+  .guake-output {
+    padding: 8px;
+    font-size: 12px;
+    line-height: 1.35;
+
+    .output-message {
+      margin-bottom: 6px;
+    }
+
+    .output-tool-use {
+      padding: 6px 8px;
+      font-size: 10px;
+      line-height: 1.3;
+      gap: 3px 6px;
+
+      .output-tool-icon {
+        font-size: 12px;
+      }
+
+      .output-tool-name {
+        font-size: 10px;
+      }
+
+      .output-tool-param {
+        font-size: 10px;
+        padding-left: 18px;
+        line-height: 1.4;
+      }
+    }
+
+    p {
+      margin-bottom: 4px;
+      line-height: 1.35;
+    }
+
+    pre, code {
+      font-size: 11px;
+      line-height: 1.25;
+    }
+
+    ul, ol {
+      margin-bottom: 4px;
+      padding-left: 14px;
+    }
+
+    li {
+      margin-bottom: 1px;
+      line-height: 1.35;
+    }
+  }
+
+  .output-tool-name {
+    font-size: 9px;
+  }
+
+  .output-tool-param {
+    font-size: 10px;
+  }
+
+  // Edit tool panels stack vertically on very small screens
+  .edit-tool-panels {
+    flex-direction: column;
+    max-height: 180px;
+  }
+
+  .edit-panel {
+    border-right: none;
+    border-bottom: 1px solid $dracula-current;
+
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+
+  .edit-line {
+    height: 14px;
+    line-height: 14px;
+    font-size: 9px;
+  }
+
+  .edit-line-num {
+    width: 20px;
+    padding: 0 3px;
+    font-size: 8px;
+  }
+
+  // Bash output even more compact
+  .bash-output-content {
+    padding: 6px 8px;
+    font-size: 9px;
+    max-height: 120px;
+  }
+
+  // Todo list more compact
+  .todo-tool-list {
+    max-height: 120px;
+  }
+
+  .todo-item {
+    padding: 2px 6px;
+    font-size: 9px;
+  }
+
+  .todo-status-icon {
+    width: 10px;
+    font-size: 10px;
+  }
+
+  // Tool results compact
+  .output-tool-result {
+    padding: 3px 6px;
+  }
+
+  .output-result-content {
+    font-size: 9px;
+    max-height: 80px;
+  }
+
+  // Sidebar even more compact
+  .unit-panel {
+    padding: 8px;
+  }
+
+  .unit-stat {
+    padding: 6px;
+  }
+
+  .unit-stat-label {
+    font-size: 9px;
+  }
+
+  .unit-stat-value {
+    font-size: 12px;
+  }
+
+  // Attachments
+  .guake-attachment-name {
+    max-width: 80px;
+  }
+}
+
+// =============================================================================
+// Touch Device Optimizations
+// =============================================================================
+
+@media (pointer: coarse) {
+  // Larger touch targets
+  // Note: .guake-clear, .guake-close-btn, .guake-mode-btn are excluded here
+  // as they have specific circular styling in mobile breakpoint
+  .guake-view-toggle,
+  .guake-context-btn,
+  .guake-search-toggle,
+  .unit-action-icon,
+  .unit-action-btn {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  // Disable hover effects that don't work well on touch
+  .agent-bar-item:hover {
+    transform: none;
+  }
+
+  .agent-bar-group:hover {
+    transform: none;
+  }
+
+  // Add active states instead
+  .agent-bar-item:active {
+    transform: scale(0.95);
+    opacity: 0.8;
+  }
+
+  .guake-view-toggle:active,
+  .guake-clear:active,
+  .guake-context-btn:active {
+    opacity: 0.7;
+  }
+
+  // Remove hover-only elements
+  .agent-bar-hotkey {
+    display: none;
+  }
+
+  .agent-bar-last-query {
+    display: none;
+  }
+}
+
+// =============================================================================
+// Landscape Mobile
+// =============================================================================
+
+@media (max-width: resp.$breakpoint-mobile) and (orientation: landscape) {
+  // On landscape mobile, show more horizontal content
+  .guake-terminal {
+    --terminal-height: 100%;
+  }
+
+  // Agent bar spans bottom - smaller in landscape
+  .agent-bar {
+    height: 56px;
+  }
+
+  // Adjust guake content padding for smaller landscape agent bar
+  .guake-content {
+    padding-bottom: 56px;
+  }
+
+  // Sidebar narrower on landscape
+  .sidebar {
+    width: 280px;
+    max-width: 280px;
+  }
+}
+
+// =============================================================================
+// Safe Area Insets (for devices with notches)
+// =============================================================================
+
+@supports (padding: env(safe-area-inset-bottom)) {
+  .agent-bar {
+    padding-bottom: calc(8px + env(safe-area-inset-bottom));
+  }
+
+  .sidebar {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+}
+
+// =============================================================================
+// Print Styles (hide UI chrome)
+// =============================================================================
+
+@media print {
+  .agent-bar,
+  .guake-handle,
+  .guake-header,
+  .guake-input,
+  .guake-agent-links,
+  .sidebar {
+    display: none !important;
+  }
+
+  .guake-terminal {
+    position: static;
+    height: auto;
+  }
+
+  .guake-output {
+    overflow: visible;
+    max-height: none;
+  }
+}
