@@ -28,7 +28,7 @@ process.on('uncaughtException', (err) => {
   // In production, you might want to notify monitoring systems here
 });
 
-process.on('unhandledRejection', (reason, promise) => {
+process.on('unhandledRejection', (reason, _promise) => {
   logger.server.error('Unhandled promise rejection (commander will continue):', reason);
   // Log but don't crash - async errors shouldn't kill all agents
 });

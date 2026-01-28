@@ -7,7 +7,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useHideCost } from '../../store';
 import { store } from '../../store';
-import { BOSS_CONTEXT_START, BOSS_CONTEXT_END } from '../../../shared/types';
+import { BOSS_CONTEXT_START } from '../../../shared/types';
 import { filterCostText } from '../../utils/formatting';
 import { TOOL_ICONS, extractToolKeyParam, formatTimestamp } from '../../utils/outputRendering';
 import { markdownComponents } from './MarkdownComponents';
@@ -236,9 +236,6 @@ export const HistoryLine = memo(function HistoryLine({
         }
       };
 
-      // Determine if this line is clickable
-      const isClickable = isFileClickable || isBashTool;
-      const clickHandler = isBashTool ? handleBashClick : (isFileClickable ? handleParamClick : undefined);
       const clickTitle = isBashTool
         ? 'Click to view output'
         : (isFileClickable ? 'Click to view file' : undefined);

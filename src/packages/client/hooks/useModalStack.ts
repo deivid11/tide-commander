@@ -6,7 +6,7 @@
  * instead of navigating away from the page.
  */
 
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 
 // Global modal stack - stores close functions in order
 const modalStack: Array<{ id: string; close: () => void }> = [];
@@ -75,8 +75,8 @@ export function closeAllModalsExcept(...excludeIds: string[]): void {
     if (excludeSet.has(topModal.id)) {
       break; // Stop if we hit an excluded modal
     }
-    modalStack.pop();
-    topModal.close();
+    const modal = modalStack.pop()!;
+    modal.close();
   }
   notifyListeners();
 }
@@ -84,7 +84,7 @@ export function closeAllModalsExcept(...excludeIds: string[]): void {
 /**
  * Get the current stack size (for debugging)
  */
-export function getStackSize(): number {
+function _getStackSize(): number {
   return modalStack.length;
 }
 

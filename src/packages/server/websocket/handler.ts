@@ -5,7 +5,7 @@
 
 import { Server as HttpServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
-import type { Agent, AgentClass, ClientMessage, ServerMessage, DrawingArea, Building, PermissionRequest, DelegationDecision, Skill, CustomAgentClass } from '../../shared/types.js';
+import type { Agent, ClientMessage, ServerMessage, PermissionRequest, DelegationDecision, Skill, CustomAgentClass } from '../../shared/types.js';
 import { agentService, claudeService, supervisorService, permissionService, bossService, skillService, customClassService, bossMessageService, agentLifecycleService } from '../services/index.js';
 import { loadAreas, saveAreas, loadBuildings, saveBuildings } from '../data/index.js';
 import { parseContextOutput } from '../claude/backend.js';
@@ -24,7 +24,6 @@ import {
   handleRenameAgent,
   handleUpdateAgentProperties,
   handleCreateDirectory,
-  unlinkAgentFromBossHierarchy,
 } from './handlers/agent-handler.js';
 import {
   handleCreateSkill,

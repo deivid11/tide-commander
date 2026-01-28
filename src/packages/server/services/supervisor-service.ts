@@ -25,7 +25,7 @@ import {
   getAgentSupervisorHistory as getAgentHistoryFromStorage,
   deleteSupervisorHistory,
 } from '../data/index.js';
-import { logger, sanitizeUnicode, generateId, truncateOrEmpty, formatToolNarrative, getFileName } from '../utils/index.js';
+import { logger, sanitizeUnicode, generateId, truncateOrEmpty, formatToolNarrative } from '../utils/index.js';
 import { SINGLE_AGENT_PROMPT, DEFAULT_SUPERVISOR_PROMPT } from './supervisor-prompts.js';
 
 const log = logger.supervisor;

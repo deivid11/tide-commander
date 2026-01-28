@@ -11,7 +11,7 @@ import type { FloorStyle, TimeConfig, GalacticState } from './types';
 import { generateFloorTexture } from './floorTextures';
 import { createGalacticElements, removeGalacticElements, updateGalacticAnimation } from './galacticFloor';
 import { getTimeConfig } from './timeConfig';
-import { createSun, createMoon, createStars, createClouds, updateClouds, setCloudOpacity, disposeClouds, type CloudState } from './celestial';
+import { createSun, createMoon, createStars, createClouds, updateClouds, setCloudOpacity, type CloudState } from './celestial';
 import { createTerrainElements, createGrass } from './terrain';
 
 // Re-export types for backwards compatibility

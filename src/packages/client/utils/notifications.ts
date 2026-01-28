@@ -95,38 +95,6 @@ export async function showNotification(options: {
   }
 }
 
-/**
- * Show notification for agent completion
- */
-export async function notifyAgentComplete(agentName: string, message?: string): Promise<void> {
-  await showNotification({
-    title: `${agentName} completed`,
-    body: message || 'Task finished successfully',
-    data: { type: 'agent_complete', agentName },
-  });
-}
-
-/**
- * Show notification for agent error
- */
-export async function notifyAgentError(agentName: string, error: string): Promise<void> {
-  await showNotification({
-    title: `${agentName} error`,
-    body: error,
-    data: { type: 'agent_error', agentName },
-  });
-}
-
-/**
- * Show notification for permission request
- */
-export async function notifyPermissionRequest(agentName: string, tool: string): Promise<void> {
-  await showNotification({
-    title: `${agentName} needs permission`,
-    body: `Requesting access to: ${tool}`,
-    data: { type: 'permission_request', agentName, tool },
-  });
-}
 
 /**
  * Initialize notification listeners (for handling taps)

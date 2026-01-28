@@ -82,7 +82,7 @@ export function matchesShortcut(event: KeyboardEvent, shortcut: ShortcutConfig |
   if (!shortcut || !shortcut.enabled) return false;
 
   // Check modifiers first
-  const { ctrl, alt, shift, meta } = shortcut.modifiers;
+  const { ctrl, alt, shift } = shortcut.modifiers;
 
   // For ctrl, also accept meta on Mac (Cmd key)
   const ctrlMatch = ctrl ? (event.ctrlKey || event.metaKey) : (!event.ctrlKey && !event.metaKey);

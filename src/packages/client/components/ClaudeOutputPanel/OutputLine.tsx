@@ -171,8 +171,6 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
       }
     };
 
-    const isClickable = isFileClickable || isBashTool;
-
     return (
       <div
         className={`output-line output-tool-use ${isStreaming ? 'output-streaming' : ''} ${isBashTool ? 'bash-clickable' : ''}`}

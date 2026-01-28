@@ -1,4 +1,4 @@
-import { type SceneConfig, type TimeMode } from '../components/toolbox';
+import { type SceneConfig } from '../components/toolbox';
 import { STORAGE_KEYS, getStorage, setStorage } from '../utils/storage';
 
 // Default terrain config

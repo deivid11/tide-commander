@@ -497,7 +497,7 @@ export interface Skill {
 export interface StoredSkill extends Skill {}
 
 // Skill summary for UI lists
-export interface SkillSummary {
+interface _SkillSummary {
   id: string;
   name: string;
   slug: string;

@@ -20,7 +20,7 @@ import { apiUrl } from '../../utils/storage';
  * Compare two Maps for equality by checking if all keys and values are the same.
  * For Agent values, we only compare the id to avoid re-renders on status changes.
  */
-function agentMapKeysEqual(a: Map<string, Agent>, b: Map<string, Agent>): boolean {
+function _agentMapKeysEqual(a: Map<string, Agent>, b: Map<string, Agent>): boolean {
   if (a === b) return true;
   if (a.size !== b.size) return false;
   for (const key of a.keys()) {
@@ -45,7 +45,7 @@ export function useAgentHistory({ isOpen, agents }: UseAgentHistoryOptions): Use
   const loadingRef = useRef<Set<string>>(new Set());
 
   // Track previous agents map to only reload when agents are added/removed, not updated
-  const prevAgentsRef = useRef<Map<string, Agent>>(agents);
+  const _prevAgentsRef = useRef<Map<string, Agent>>(agents);
 
   // Only trigger effect when agent IDs change (not when agent status/outputs change)
   const agentIds = useMemo(() => {

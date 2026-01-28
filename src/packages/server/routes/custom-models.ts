@@ -5,13 +5,11 @@
 
 import { Router, Request, Response } from 'express';
 import * as fs from 'fs';
-import * as path from 'path';
 import { logger } from '../utils/logger.js';
 import {
   saveCustomModel,
   hasCustomModel,
   getCustomModelPath,
-  getCustomModelsDirectory,
   getCustomClass,
   updateCustomClass,
 } from '../services/custom-class-service.js';

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://unpkg.com/knip@latest/schema.json",
+  "entry": [
+    "src/packages/client/main.tsx",
+    "src/packages/server/index.ts"
+  ],
+  "project": ["src/**/*.{ts,tsx}"],
+  "ignore": [
+    "android/**",
+    "public/**",
+    "dist/**",
+    "**/*.test.ts",
+    "**/*.spec.ts"
+  ],
+  "ignoreDependencies": [
+    "@capacitor/cli",
+    "@capacitor/android"
+  ]
+}

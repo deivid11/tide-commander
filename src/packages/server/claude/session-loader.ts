@@ -394,7 +394,7 @@ export async function searchSession(
 /**
  * Extract text content from Claude's message content blocks
  */
-function extractTextFromContent(content: unknown): string | null {
+function _extractTextFromContent(content: unknown): string | null {
   if (typeof content === 'string') {
     return content;
   }

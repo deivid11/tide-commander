@@ -14,7 +14,6 @@ import { BossBuildingActionPopup } from './components/BossBuildingActionPopup';
 import { PM2LogsModal } from './components/PM2LogsModal';
 import { BossLogsModal } from './components/BossLogsModal';
 import { FPSMeter } from './components/FPSMeter';
-// import { PWAInstallBanner } from './components/PWAInstallBanner';
 import { MobileFabMenu } from './components/MobileFabMenu';
 import { FloatingActionButtons } from './components/FloatingActionButtons';
 import { AppModals } from './components/AppModals';
@@ -602,9 +601,6 @@ function AppContent() {
         onOpenPM2LogsModal={(buildingId) => setPm2LogsModalBuildingId(buildingId)}
         onOpenBossLogsModal={(buildingId) => setBossLogsModalBuildingId(buildingId)}
       />
-
-      {/* PWA Install Banner - disabled */}
-      {/* <PWAInstallBanner /> */}
     </div>
   );
 }

@@ -197,7 +197,7 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
     }
   }, [draggedAgent, agents, agentAreas]);
 
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
+  const handleDragLeave = useCallback((_e: React.DragEvent) => {
     dragCounter.current--;
     if (dragCounter.current === 0) {
       setDragOverIndex(null);

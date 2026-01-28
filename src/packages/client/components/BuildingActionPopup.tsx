@@ -54,7 +54,6 @@ const ANSI_COLORS: Record<number, string> = {
 // Convert ANSI escape codes to HTML spans with colors
 function ansiToHtml(text: string): React.ReactNode[] {
   const parts: React.ReactNode[] = [];
-  // eslint-disable-next-line no-control-regex
   const regex = /\x1B\[([0-9;]*)m/g;
   let lastIndex = 0;
   let currentColor: string | null = null;
@@ -103,7 +102,7 @@ export function BuildingActionPopup({ building, screenPos, onClose, onOpenSettin
   const [isDragging, setIsDragging] = useState(false);
   const dragStartRef = useRef<{ mouseX: number; mouseY: number; popupX: number; popupY: number } | null>(null);
 
-  const { buildingLogs } = useStore();
+  const { buildingLogs: _buildingLogs } = useStore();
   const logs = store.getBuildingLogs(building.id);
   const isPM2 = building.pm2?.enabled;
 
@@ -216,7 +215,7 @@ export function BuildingActionPopup({ building, screenPos, onClose, onOpenSettin
         <span className="building-popup-name">{building.name}</span>
         {allPorts.length > 0 && (
           <span className="building-popup-ports">
-            {allPorts.map((port, i) => (
+            {allPorts.map((port) => (
               <a
                 key={port}
                 href={`http://localhost:${port}`}

@@ -234,7 +234,7 @@ function formatToolInput(toolName: string, input?: Record<string, unknown>): str
   }
 }
 
-function ToolExecutionItem({ execution, formatTime, formatPath, getToolIcon, showAgentName, isExpanded, onToggle, onViewFile }: ToolExecutionItemProps) {
+function ToolExecutionItem({ execution, formatTime, formatPath: _formatPath, getToolIcon, showAgentName, isExpanded, onToggle, onViewFile }: ToolExecutionItemProps) {
   const inputDisplay = formatToolInput(execution.toolName, execution.toolInput);
   const hasDetails = execution.toolInput && Object.keys(execution.toolInput).length > 0;
 
@@ -312,7 +312,7 @@ function formatExpandedInput(toolName: string, input: Record<string, unknown>): 
   // For TodoWrite, format nicely
   if (toolName === 'TodoWrite' && input.todos) {
     const todos = input.todos as Array<{ content: string; status: string }>;
-    return todos.map((t, i) => {
+    return todos.map((t, _i) => {
       const icon = t.status === 'completed' ? '✓' : t.status === 'in_progress' ? '→' : '○';
       return `${icon} ${t.content}`;
     }).join('\n');

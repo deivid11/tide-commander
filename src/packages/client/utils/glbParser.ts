@@ -102,23 +102,6 @@ export async function parseGlbAnimationsFromBuffer(buffer: ArrayBuffer): Promise
 }
 
 /**
- * Parse GLB data from a base64 string and extract animation names
- *
- * @param base64Data - Base64 encoded GLB file data
- * @returns Promise resolving to array of animation names
- */
-export async function parseGlbAnimationsFromBase64(base64Data: string): Promise<string[]> {
-  // Decode base64 to binary
-  const binaryString = atob(base64Data);
-  const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-
-  return parseGlbAnimationsFromBuffer(bytes.buffer);
-}
-
-/**
  * Validate that a file is a valid GLB file
  *
  * @param file - The File object to validate

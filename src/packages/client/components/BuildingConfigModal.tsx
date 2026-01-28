@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { store, useStore } from '../store';
 import {
   BUILDING_TYPES,
@@ -63,7 +63,6 @@ const ANSI_COLORS: Record<number, string> = {
 // Convert ANSI escape codes to HTML spans with colors
 function ansiToHtml(text: string): React.ReactNode[] {
   const parts: React.ReactNode[] = [];
-  // eslint-disable-next-line no-control-regex
   const regex = /\x1B\[([0-9;]*)m/g;
   let lastIndex = 0;
   let currentColor: string | null = null;

@@ -12,7 +12,6 @@ import { getIdleTimerColor } from '../../utils/colors';
 import { STORAGE_KEYS, getStorageBoolean, setStorageBoolean } from '../../utils/storage';
 import { formatIdleCompact, formatRelativeTime, groupAgentsByArea, sortAreaIds } from './agentUtils';
 import type { AgentsListProps, AgentListItemProps, GlobalSupervisorStatusProps, AgentStatusWithHistory } from './types';
-import type { Agent } from '../../../shared/types';
 
 // ============================================================================
 // AgentsList Component
@@ -132,7 +131,7 @@ export function AgentsList({ onOpenAreaExplorer }: AgentsListProps) {
 // AgentListItem Component
 // ============================================================================
 
-const AgentListItem = memo(function AgentListItem({ agent, area }: AgentListItemProps) {
+const AgentListItem = memo(function AgentListItem({ agent, area: _area }: AgentListItemProps) {
   const state = useStore();
   const customClasses = useCustomAgentClassesArray();
   const classConfig = getClassConfig(agent.class, customClasses);

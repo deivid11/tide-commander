@@ -5,16 +5,16 @@
 
 import React, { useState, useRef, useEffect, useMemo, memo } from 'react';
 import { useStore, store, useCustomAgentClassesArray } from '../../store';
-import { formatTokens, formatTimeAgo, formatIdleTime, filterCostText } from '../../utils/formatting';
+import { filterCostText } from '../../utils/formatting';
 import { getClassConfig } from '../../utils/classConfig';
-import { PROGRESS_COLORS, AGENT_STATUS_COLORS, getIdleTimerColor } from '../../utils/colors';
+import { PROGRESS_COLORS, AGENT_STATUS_COLORS } from '../../utils/colors';
 import { ModelPreview } from '../ModelPreview';
 import { AgentEditModal } from '../AgentEditModal';
 import { ContextViewModal } from '../ContextViewModal';
 import { useToast } from '../Toast';
 import { PERMISSION_MODES, AGENT_CLASSES } from '../../../shared/types';
 import { apiUrl } from '../../utils/storage';
-import type { Agent, DelegationDecision, AgentSupervisorHistoryEntry } from '../../../shared/types';
+import type { Agent } from '../../../shared/types';
 import { calculateContextInfo } from './agentUtils';
 import { formatRelativeTime } from './agentUtils';
 import {
@@ -36,7 +36,6 @@ import type {
   DelegationDecisionItemProps,
   SubordinateBadgeProps,
   LinkToBossSectionProps,
-  CONFIDENCE_COLORS,
 } from './types';
 
 // ============================================================================
@@ -48,7 +47,7 @@ export function SingleAgentPanel({
   onFocusAgent,
   onKillAgent,
   onCallSubordinates,
-  onOpenAreaExplorer,
+  onOpenAreaExplorer: _onOpenAreaExplorer,
 }: SingleAgentPanelProps) {
   const state = useStore();
   const customClasses = useCustomAgentClassesArray();
@@ -347,7 +346,7 @@ export function SingleAgentPanel({
               try {
                 await navigator.clipboard.writeText(`claude --resume ${agent.sessionId}`);
                 showToast('success', 'Copied!', 'Resume command copied to clipboard', 2000);
-              } catch (err) {
+              } catch {
                 showToast('error', 'Error', 'Failed to copy to clipboard', 3000);
               }
             }}

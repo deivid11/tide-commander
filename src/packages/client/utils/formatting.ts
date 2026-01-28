@@ -5,21 +5,6 @@ export function formatNumber(n: number): string {
   return n.toString();
 }
 
-// Convert number to hex color string
-export function intToHex(n: number): string {
-  return '#' + n.toString(16).padStart(6, '0');
-}
-
-// Format timestamp to time string
-export function formatTime(timestamp: number): string {
-  return new Date(timestamp).toLocaleTimeString('en-US', {
-    hour12: false,
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
-}
-
 // Format tokens with K suffix
 export function formatTokens(tokens: number): string {
   if (tokens >= 1000000) return (tokens / 1000000).toFixed(1) + 'M';

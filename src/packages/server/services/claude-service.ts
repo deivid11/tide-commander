@@ -9,11 +9,8 @@ import { getSessionActivityStatus } from '../claude/session-loader.js';
 import type { CustomAgentDefinition } from '../claude/types.js';
 import * as agentService from './agent-service.js';
 import * as supervisorService from './supervisor-service.js';
-import * as customClassService from './custom-class-service.js';
-import * as skillService from './skill-service.js';
 import { loadRunningProcesses, isProcessRunning } from '../data/index.js';
 import { logger } from '../utils/logger.js';
-import type { ContextStats } from '../../shared/types.js';
 
 const log = logger.claude;
 
@@ -535,7 +532,7 @@ export function isAgentRunning(agentId: string): boolean {
  * Uses ONLY PID tracking - not general process discovery
  * (Process discovery is too aggressive and matches unrelated Claude sessions)
  */
-function checkForOrphanedProcess(agentId: string): boolean {
+function _checkForOrphanedProcess(agentId: string): boolean {
   try {
     // Check our persisted PID records - this is agent-specific
     const savedProcesses = loadRunningProcesses();
@@ -545,7 +542,7 @@ function checkForOrphanedProcess(agentId: string): boolean {
     }
 
     return false;
-  } catch (err) {
+  } catch {
     return false;
   }
 }
@@ -581,7 +578,7 @@ export async function syncAgentStatus(agentId: string, isStartupSync: boolean = 
       if (activity) {
         isRecentlyActive = activity.isActive;
       }
-    } catch (err) {
+    } catch {
       // Session activity check failed, assume not active
     }
   }

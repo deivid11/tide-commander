@@ -314,7 +314,7 @@ export function deleteAgent(id: string): boolean {
     try {
       const skillService = await import('./skill-service.js');
       skillService.removeAgentFromAllSkills(id);
-    } catch (err) {
+    } catch {
       // Skill service might not be loaded yet, ignore
     }
   });

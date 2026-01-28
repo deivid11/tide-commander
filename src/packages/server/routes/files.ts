@@ -849,7 +849,7 @@ router.get('/git-diff', async (req: Request, res: Response) => {
         encoding: 'utf-8',
         maxBuffer: 10 * 1024 * 1024,
       });
-    } catch (err: any) {
+    } catch {
       diff = '';
     }
 

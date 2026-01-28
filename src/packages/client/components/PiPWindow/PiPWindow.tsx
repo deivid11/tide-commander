@@ -3,7 +3,7 @@
  * Renders React content inside a Document Picture-in-Picture window
  */
 
-import React, { useEffect, type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { DocumentPiPState } from '../../hooks/useDocumentPiP';
 

@@ -713,6 +713,3 @@ function TrackpadSettings({ config }: TrackpadSettingsProps) {
     </div>
   );
 }
-
-// Keep the old export for backwards compatibility
-export { ControlsModal as KeyboardShortcutsModal };

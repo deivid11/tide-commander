@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { store, useStore, useCustomAgentClassesArray, useSkillsArray } from '../store';
 import { AGENT_CLASS_CONFIG, DEFAULT_NAMES, CHARACTER_MODELS } from '../scene/config';
-import type { Agent, AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, Skill } from '../../shared/types';
+import type { AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel } from '../../shared/types';
 import { PERMISSION_MODES, AGENT_CLASSES, CLAUDE_MODELS } from '../../shared/types';
-import { intToHex } from '../utils/formatting';
 import { STORAGE_KEYS, getStorageString, setStorageString, apiUrl } from '../utils/storage';
 import { ModelPreview } from './ModelPreview';
 

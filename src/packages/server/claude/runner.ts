@@ -759,7 +759,7 @@ export class ClaudeRunner {
     if (pid) {
       try {
         process.kill(-pid, 'SIGINT');
-      } catch (e) {
+      } catch {
         // Process group SIGINT failed, try direct
       }
     }
@@ -767,7 +767,7 @@ export class ClaudeRunner {
     // Also send SIGINT to the main process
     try {
       activeProcess.process.kill('SIGINT');
-    } catch (e) {
+    } catch {
       // Ignore if already dead
     }
 
@@ -781,7 +781,7 @@ export class ClaudeRunner {
           process.kill(-pid, 'SIGTERM');
           activeProcess.process.kill('SIGTERM');
         }
-      } catch (e) {
+      } catch {
         // Process already dead, ignore
       }
     }, 500);
@@ -793,7 +793,7 @@ export class ClaudeRunner {
           process.kill(-pid, 'SIGKILL');
           activeProcess.process.kill('SIGKILL');
         }
-      } catch (e) {
+      } catch {
         // Process already dead, ignore
       }
     }, 1500);

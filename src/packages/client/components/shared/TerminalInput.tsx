@@ -46,7 +46,7 @@ export function TerminalInput({
   command,
   onCommandChange,
   useTextarea,
-  forceTextarea,
+  forceTextarea: _forceTextarea,
   onForceTextarea,
   onSend,
   canSend,

@@ -608,7 +608,7 @@ export class DrawingManager {
   // Private Methods
   // ============================================
 
-  private createPreview(pos: { x: number; z: number }): void {
+  private createPreview(_pos: { x: number; z: number }): void {
     this.previewMesh = new THREE.Group();
     this.scene.add(this.previewMesh);
   }
