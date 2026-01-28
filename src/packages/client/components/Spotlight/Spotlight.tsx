@@ -24,6 +24,8 @@ export function Spotlight({
   onOpenToolbox,
   onOpenSupervisor,
   onOpenFileExplorer,
+  onOpenPM2LogsModal,
+  onOpenBossLogsModal,
 }: SpotlightProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
@@ -37,6 +39,8 @@ export function Spotlight({
       onOpenToolbox,
       onOpenSupervisor,
       onOpenFileExplorer,
+      onOpenPM2LogsModal,
+      onOpenBossLogsModal,
     });
 
   // Focus input when opening

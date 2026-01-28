@@ -15,6 +15,7 @@ import { gitCaptain } from './git-captain.js';
 import { serverLogs } from './server-logs.js';
 import { streamingExec } from './streaming-exec.js';
 import { bitbucketPR } from './bitbucket-pr.js';
+import { pm2Logs } from './pm2-logs.js';
 
 // Re-export types
 export type { BuiltinSkillDefinition } from './types.js';
@@ -29,6 +30,7 @@ export const BUILTIN_SKILLS: BuiltinSkillDefinition[] = [
   serverLogs,
   streamingExec,
   bitbucketPR,
+  pm2Logs,
 ];
 
 /**

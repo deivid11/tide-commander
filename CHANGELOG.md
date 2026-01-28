@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.30.0] - 2026-01-27
+
+### Added
+- **IframeModal Component** - New modal component for embedding iframe content
+  - Flexible iframe container for displaying external content
+  - Modal styling and positioning
+- **PM2 Logs Skill** - Built-in skill for monitoring PM2 process logs
+  - Server-side skill definition for process log streaming
+  - Integration with PM2 service for process monitoring
+
+### Changed
+- **Spotlight Search** - Enhanced search functionality and utilities
+  - Improved search algorithm and matching
+  - Better result filtering and ranking
+- **UI Components** - Multiple component refinements
+  - BuildingActionPopup interactions
+  - BossBuildingActionPopup enhancements
+  - PM2LogsModal and BossLogsModal styling
+  - AppModals integration improvements
+- **Building Configuration** - Layout and styling updates
+  - Refined building config SCSS
+  - Improved layout components
+
+### Technical
+- New `IframeModal.tsx` component and styling
+- New `pm2-logs.ts` skill definition
+- Enhanced Spotlight search utilities
+- Updated builtin skills index with PM2 logs skill
+- Refined component interactions and styling
+
 ## [0.29.0] - 2026-01-27
 
 ### Added

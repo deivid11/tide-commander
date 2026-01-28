@@ -1,0 +1,240 @@
+/**
+ * Styles for IframeModal component
+ */
+
+.iframe-modal {
+  position: fixed;
+  z-index: 10000; // Above everything
+  display: flex;
+  flex-direction: column;
+  background: #1a1a2e;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  &.dragging,
+  &.resizing {
+    user-select: none;
+
+    .iframe-modal-content {
+      pointer-events: none;
+    }
+  }
+
+  &.dragging .iframe-modal-toolbar {
+    cursor: grabbing;
+  }
+}
+
+.iframe-modal-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 4px;
+  background: #0f0f1a;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  gap: 6px;
+  flex-shrink: 0;
+  cursor: grab;
+  user-select: none;
+}
+
+.iframe-modal-title {
+  flex: 1;
+  font-size: 10px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.7);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-left: 4px;
+}
+
+.iframe-modal-actions {
+  display: flex;
+  gap: 1px;
+  align-items: center;
+}
+
+.iframe-modal-separator {
+  width: 1px;
+  height: 12px;
+  background: rgba(255, 255, 255, 0.15);
+  margin: 0 2px;
+}
+
+.iframe-modal-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 2px;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+  }
+
+  &:active {
+    transform: scale(0.95);
+  }
+
+  &.iframe-modal-close:hover {
+    background: rgba(239, 68, 68, 0.3);
+    color: #ef4444;
+  }
+
+  &.iframe-modal-zoom-label {
+    font-size: 9px;
+    font-weight: 500;
+    min-width: 28px;
+    padding: 0 3px;
+  }
+}
+
+.iframe-modal-content {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: #fff;
+}
+
+.iframe-modal-frame {
+  border: none;
+  display: block;
+}
+
+.iframe-modal-loading,
+.iframe-modal-error {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: #1a1a2e;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  z-index: 1;
+}
+
+.iframe-modal-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: iframe-modal-spin 0.8s linear infinite;
+}
+
+@keyframes iframe-modal-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.iframe-modal-error {
+  button {
+    padding: 6px 16px;
+    background: #3b82f6;
+    border: none;
+    border-radius: 4px;
+    color: #fff;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+
+    &:hover {
+      background: #2563eb;
+    }
+  }
+}
+
+// Resize handles - larger hit areas
+.iframe-modal-resize-handle {
+  position: absolute;
+  z-index: 10;
+  // Uncomment for debugging:
+  // background: rgba(255, 0, 0, 0.2);
+}
+
+.iframe-modal-resize-n,
+.iframe-modal-resize-s {
+  left: 12px;
+  right: 12px;
+  height: 8px;
+  cursor: ns-resize;
+}
+
+.iframe-modal-resize-n {
+  top: -4px;
+}
+
+.iframe-modal-resize-s {
+  bottom: -4px;
+}
+
+.iframe-modal-resize-e,
+.iframe-modal-resize-w {
+  top: 12px;
+  bottom: 12px;
+  width: 8px;
+  cursor: ew-resize;
+}
+
+.iframe-modal-resize-e {
+  right: -4px;
+}
+
+.iframe-modal-resize-w {
+  left: -4px;
+}
+
+.iframe-modal-resize-ne,
+.iframe-modal-resize-nw,
+.iframe-modal-resize-se,
+.iframe-modal-resize-sw {
+  width: 16px;
+  height: 16px;
+}
+
+.iframe-modal-resize-ne {
+  top: -4px;
+  right: -4px;
+  cursor: nesw-resize;
+}
+
+.iframe-modal-resize-nw {
+  top: -4px;
+  left: -4px;
+  cursor: nwse-resize;
+}
+
+.iframe-modal-resize-se {
+  bottom: -4px;
+  right: -4px;
+  cursor: nwse-resize;
+}
+
+.iframe-modal-resize-sw {
+  bottom: -4px;
+  left: -4px;
+  cursor: nesw-resize;
+}

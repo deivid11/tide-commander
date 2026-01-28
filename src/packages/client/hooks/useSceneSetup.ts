@@ -170,13 +170,9 @@ export function useSceneSetup({
       contextMenu.open(screenPos, worldPos, target);
     });
 
-    // Set up agent hover callback
-    sceneRef.current?.setOnAgentHover((agentId, screenPos) => {
-      if (agentId && screenPos) {
-        setHoveredAgentPopup({ agentId, screenPos });
-      } else {
-        setHoveredAgentPopup(null);
-      }
+    // Agent hover popup disabled - no longer showing popup on agent hover
+    sceneRef.current?.setOnAgentHover(() => {
+      // Intentionally empty - popup removed
     });
 
     // Set up building hover callback (5 second delay for server buildings)

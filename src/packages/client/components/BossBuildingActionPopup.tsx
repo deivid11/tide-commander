@@ -9,6 +9,7 @@ interface BossBuildingActionPopupProps {
   onClose: () => void;
   onOpenSettings: () => void;
   onOpenLogsModal: () => void;
+  onOpenUrlInModal?: (url: string) => void;
 }
 
 // Format bytes to human readable
@@ -30,7 +31,7 @@ function formatUptime(startTime: number): string {
   return `${minutes}m`;
 }
 
-export function BossBuildingActionPopup({ building, screenPos, onClose, onOpenSettings, onOpenLogsModal }: BossBuildingActionPopupProps) {
+export function BossBuildingActionPopup({ building, screenPos, onClose, onOpenSettings, onOpenLogsModal, onOpenUrlInModal }: BossBuildingActionPopupProps) {
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const dragStartRef = useRef<{ mouseX: number; mouseY: number; popupX: number; popupY: number } | null>(null);
@@ -89,6 +90,15 @@ export function BossBuildingActionPopup({ building, screenPos, onClose, onOpenSe
 
   // Check if any subordinate has PM2 enabled
   const hasPM2Subordinates = subordinates.some(s => s.pm2?.enabled);
+
+  const handleOpenUrl = (port: number, openInPiP?: boolean) => {
+    const url = `http://localhost:${port}`;
+    if (openInPiP && onOpenUrlInModal) {
+      onOpenUrlInModal(url);
+    } else {
+      window.open(url, '_blank');
+    }
+  };
 
   // Calculate base position
   let baseX = screenPos.x + 20;
@@ -161,7 +171,23 @@ export function BossBuildingActionPopup({ building, screenPos, onClose, onOpenSe
               />
               <span className="sub-name">{sub.name}</span>
               {sub.pm2Status?.ports && sub.pm2Status.ports.length > 0 && (
-                <span className="sub-port">:{sub.pm2Status.ports.join(' :')}</span>
+                <span className="sub-port">
+                  {sub.pm2Status.ports.map((port, i) => (
+                    <a
+                      key={port}
+                      href={`http://localhost:${port}`}
+                      className="building-popup-port-link"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleOpenUrl(port, e.altKey);
+                      }}
+                      title={`Open http://localhost:${port} (Alt+Click for modal)`}
+                    >
+                      :{port}
+                    </a>
+                  ))}
+                </span>
               )}
               {sub.pm2Status && (
                 <span className="sub-metrics">
