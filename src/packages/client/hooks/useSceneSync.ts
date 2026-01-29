@@ -8,7 +8,8 @@ import { SceneManager } from '../scene/SceneManager';
  */
 export function useSelectionSync(sceneRef: React.RefObject<SceneManager | null>): void {
   useEffect(() => {
-    let lastSelectedIds = '';
+    let lastSelectedAgentIds = '';
+    let lastSelectedBuildingIds = '';
     let lastAgentVersion = new Map<string, number>();
 
     const getAgentVersion = (agents: Map<string, any>) => {
@@ -34,12 +35,15 @@ export function useSelectionSync(sceneRef: React.RefObject<SceneManager | null>)
 
     return store.subscribe(() => {
       const state = store.getState();
-      const selectedIds = Array.from(state.selectedAgentIds).sort().join(',');
-      const selectionChanged = selectedIds !== lastSelectedIds;
+      const selectedAgentIds = Array.from(state.selectedAgentIds).sort().join(',');
+      const selectedBuildingIds = Array.from(state.selectedBuildingIds).sort().join(',');
+      const agentSelectionChanged = selectedAgentIds !== lastSelectedAgentIds;
+      const buildingSelectionChanged = selectedBuildingIds !== lastSelectedBuildingIds;
       const { newVersion, changed: agentsChanged } = getAgentVersion(state.agents);
 
-      if (selectionChanged || agentsChanged) {
-        lastSelectedIds = selectedIds;
+      if (agentSelectionChanged || buildingSelectionChanged || agentsChanged) {
+        lastSelectedAgentIds = selectedAgentIds;
+        lastSelectedBuildingIds = selectedBuildingIds;
         lastAgentVersion = newVersion;
         sceneRef.current?.refreshSelectionVisuals();
       }

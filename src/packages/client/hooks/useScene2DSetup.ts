@@ -99,6 +99,7 @@ export function useScene2DSetup(
     scene.syncBuildings();
     scene.syncAreas();
     scene.setSelectedAgents(state.selectedAgentIds);
+    scene.setSelectedBuildings(state.selectedBuildingIds);
 
     // Start rendering
     scene.start();
@@ -159,6 +160,7 @@ export function useScene2DSetup(
       scene.syncBuildings();
       scene.syncAreas();
       scene.setSelectedAgents(newState.selectedAgentIds);
+      scene.setSelectedBuildings(newState.selectedBuildingIds);
     });
 
     return () => {

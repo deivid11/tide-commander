@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { store, useAgents, useSkillsArray, useCustomAgentClassesArray } from '../store';
-import { AGENT_CLASS_CONFIG, DEFAULT_NAMES, CHARACTER_MODELS } from '../scene/config';
+import { store, useAgents, useSkillsArray, useCustomAgentClassesArray, useCustomAgentNames } from '../store';
+import { AGENT_CLASS_CONFIG, BUILTIN_AGENT_NAMES, CHARACTER_MODELS } from '../scene/config';
 import type { AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel } from '../../shared/types';
 import { PERMISSION_MODES, CLAUDE_MODELS } from '../../shared/types';
 import { STORAGE_KEYS, getStorageString, setStorageString, apiUrl } from '../utils/storage';
@@ -26,13 +26,13 @@ interface SpawnModalProps {
 }
 
 /**
- * Get a random unused LOTR name.
+ * Get a random unused agent name from the provided names list.
  */
-function getRandomLotrName(usedNames: Set<string>): string {
-  const availableNames = DEFAULT_NAMES.filter((n) => !usedNames.has(n));
+function getRandomAgentName(usedNames: Set<string>, namesList: string[]): string {
+  const availableNames = namesList.filter((n) => !usedNames.has(n));
   if (availableNames.length === 0) {
     // All names used, add a number suffix
-    const baseName = DEFAULT_NAMES[Math.floor(Math.random() * DEFAULT_NAMES.length)];
+    const baseName = namesList[Math.floor(Math.random() * namesList.length)];
     return `${baseName}-${Date.now() % 1000}`;
   }
   return availableNames[Math.floor(Math.random() * availableNames.length)];
@@ -42,6 +42,10 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
   const agents = useAgents();
   const skills = useSkillsArray();
   const customClasses = useCustomAgentClassesArray();
+  const customAgentNames = useCustomAgentNames();
+
+  // Use custom names if configured, otherwise fall back to built-in names
+  const effectiveNamesList = customAgentNames.length > 0 ? customAgentNames : BUILTIN_AGENT_NAMES;
   const [name, setName] = useState('');
   const [cwd, setCwd] = useState(() => getStorageString(STORAGE_KEYS.LAST_CWD));
   const [selectedClass, setSelectedClass] = useState<AgentClass>('scout');
@@ -64,6 +68,27 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
 
   // Get available skills (enabled ones)
   const availableSkills = useMemo(() => skills.filter(s => s.enabled), [skills]);
+
+  // Default skill slugs that should be pre-selected for new agents
+  const DEFAULT_SKILL_SLUGS = ['full-notifications', 'streaming-exec'];
+
+  // Initialize default skills when modal opens
+  useEffect(() => {
+    if (isOpen && availableSkills.length > 0) {
+      const defaultSkillIds = availableSkills
+        .filter(s => DEFAULT_SKILL_SLUGS.includes(s.slug))
+        .map(s => s.id);
+      if (defaultSkillIds.length > 0) {
+        setSelectedSkillIds(prev => {
+          // Only set defaults if no skills are selected yet
+          if (prev.size === 0) {
+            return new Set(defaultSkillIds);
+          }
+          return prev;
+        });
+      }
+    }
+  }, [isOpen, availableSkills]);
 
   // Filter skills by search query
   const filteredSkills = useMemo(() => {
@@ -213,7 +238,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
   useEffect(() => {
     if (isOpen) {
       const usedNames = new Set(Array.from(agents.values()).map((a) => a.name));
-      const baseName = getRandomLotrName(usedNames);
+      const baseName = getRandomAgentName(usedNames, effectiveNamesList);
       // If a custom class is selected, prefix the class name
       const customClass = customClasses.find(c => c.id === selectedClass);
       const finalName = customClass ? `${customClass.name} ${baseName}` : baseName;
@@ -223,7 +248,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
         nameInputRef.current.select();
       }
     }
-  }, [isOpen, agents]);
+  }, [isOpen, agents, effectiveNamesList]);
 
   // Update name prefix when custom class changes
   useEffect(() => {
@@ -278,7 +303,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
       // Name should be prefilled, but regenerate if somehow empty
       console.log('[SpawnModal] Empty name, regenerating');
       const usedNames = new Set(Array.from(agents.values()).map((a) => a.name));
-      setName(getRandomLotrName(usedNames));
+      setName(getRandomAgentName(usedNames, effectiveNamesList));
       return;
     }
 
@@ -307,6 +332,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
     console.log('[SpawnModal] Agent creation successful');
     setIsSpawning(false);
     setName('');
+    setSelectedSkillIds(new Set()); // Reset so defaults re-apply on next open
     onSpawnEnd();
     onClose();
   };

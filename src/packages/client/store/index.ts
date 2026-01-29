@@ -103,6 +103,7 @@ export {
   useLastDelegationReceived,
   useSettings,
   useHideCost,
+  useCustomAgentNames,
   useShortcuts,
   useTerminalOpen,
   useMobileView,

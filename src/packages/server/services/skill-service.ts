@@ -10,6 +10,7 @@ import type { Skill, AgentClass, Agent } from '../../shared/types.js';
 import { loadSkills, saveSkills } from '../data/index.js';
 import { createLogger, generateId, generateSlug } from '../utils/index.js';
 import { BUILTIN_SKILLS, createBuiltinSkill, isBuiltinSkillId } from '../data/builtin-skills.js';
+import { getAuthToken } from '../auth/index.js';
 
 const log = createLogger('SkillService');
 
@@ -319,6 +320,30 @@ export function getSkillsForAgent(agentId: string, agentClass: AgentClass): Skil
 }
 
 /**
+ * Inject auth token into curl commands in skill content
+ * Adds -H "X-Auth-Token: <token>" header to curl commands targeting localhost API
+ */
+function injectAuthIntoSkillContent(content: string): string {
+  const authToken = getAuthToken();
+  if (!authToken) {
+    return content;
+  }
+
+  // Match curl commands to localhost API that don't already have auth header
+  // This regex finds: curl ... http://localhost:5174/api/... and adds auth header
+  return content.replace(
+    /curl\s+(-s\s+)?(-X\s+\w+\s+)?http:\/\/localhost:5174\/api\//g,
+    (match) => {
+      // Insert auth header before the URL
+      return match.replace(
+        /http:\/\/localhost:5174\/api\//,
+        `-H "X-Auth-Token: ${authToken}" http://localhost:5174/api/`
+      );
+    }
+  );
+}
+
+/**
  * Build the skill instruction content for an agent's system prompt
  * Returns markdown text that should be appended to the system prompt
  */
@@ -337,7 +362,9 @@ export function buildSkillPromptContent(agentId: string, agentClass: AgentClass)
       section += `**Allowed Tools:** ${skill.allowedTools.join(', ')}\n\n`;
     }
 
-    section += skill.content;
+    // Inject auth token into curl commands
+    const contentWithAuth = injectAuthIntoSkillContent(skill.content);
+    section += contentWithAuth;
     return section;
   });
 
@@ -454,7 +481,9 @@ export function buildSkillUpdateNotification(agentId: string, agentClass: AgentC
       section += `**Allowed Tools:** ${skill.allowedTools.join(', ')}\n\n`;
     }
 
-    section += skill.content;
+    // Inject auth token into curl commands
+    const contentWithAuth = injectAuthIntoSkillContent(skill.content);
+    section += contentWithAuth;
     return section;
   });
 

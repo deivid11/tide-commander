@@ -83,7 +83,27 @@ export function AboutSection() {
 
       <div className="about-version">
         <span className="about-version-label">Version</span>
-        <span className="about-version-value">{currentVersion}</span>
+        <div className="about-version-info">
+          <span className="about-version-value">{currentVersion}</span>
+          {updateAvailable && updateInfo ? (
+            <span
+              className="about-version-update-badge"
+              onClick={openReleasePage}
+              title={`Update available: ${updateInfo.version}`}
+            >
+              {updateInfo.version}
+            </span>
+          ) : (
+            <a
+              href="https://github.com/deivid11/tide-commander/releases"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="about-version-status"
+            >
+              (updated)
+            </a>
+          )}
+        </div>
       </div>
 
       {/* Update Section */}

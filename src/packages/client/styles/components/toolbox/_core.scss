@@ -641,3 +641,81 @@
 .terrain-toggles {
   display: none;
 }
+
+// Agent names section
+.agent-names-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.agent-names-input-row {
+  display: flex;
+  gap: 6px;
+}
+
+.agent-names-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-height: 150px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.agent-name-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: $bg-tertiary;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  font-size: 10px;
+  color: $text-secondary;
+
+  &:hover {
+    border-color: $text-secondary;
+
+    .agent-name-remove {
+      opacity: 1;
+    }
+  }
+}
+
+.agent-name-text {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-name-remove {
+  background: none;
+  border: none;
+  color: $text-muted;
+  cursor: pointer;
+  font-size: 10px;
+  padding: 0;
+  line-height: 1;
+  opacity: 0.6;
+  transition: all $transition-fast;
+
+  &:hover {
+    color: $dracula-red;
+  }
+}
+
+.config-btn-link {
+  background: none;
+  border: none;
+  color: $text-muted;
+  padding: 4px 0;
+  font-size: 10px;
+  cursor: pointer;
+  text-decoration: underline;
+
+  &:hover {
+    color: $text-secondary;
+  }
+}

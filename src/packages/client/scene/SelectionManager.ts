@@ -170,10 +170,23 @@ export class SelectionManager {
 
           // Apply character scale
           const newBody = updatedMeshData.group.getObjectByName('characterBody');
+          const isBoss = agent.isBoss || agent.class === 'boss';
           if (newBody) {
             const customModelScale = newBody.userData.customModelScale ?? 1.0;
-            const bossMultiplier = (agent.isBoss || agent.class === 'boss') ? 1.5 : 1.0;
+            const bossMultiplier = isBoss ? 1.5 : 1.0;
             newBody.scale.setScalar(customModelScale * this.characterScale * bossMultiplier);
+
+            // Update status bar position based on actual scaled model height
+            const statusBar = updatedMeshData.group.getObjectByName('statusBar') as THREE.Sprite;
+            if (statusBar) {
+              // Box3.setFromObject already accounts for the object's current scale
+              const box = new THREE.Box3().setFromObject(newBody);
+              const modelTop = box.max.y;
+              const padding = isBoss ? 0.2 : 0.3;
+              // Cap the height to prevent mana bar going too high
+              const maxHeight = isBoss ? 3.0 : 2.2;
+              statusBar.position.y = Math.min(Math.max(modelTop, 1.0) + padding, maxHeight);
+            }
 
             // Update procedural animator registration based on new model
             this.proceduralAnimator.unregister(agentId);
@@ -247,4 +260,12 @@ export class SelectionManager {
     }
     this.cachedLineConnections = [];
   }
+}
+
+// HMR: Accept updates without full reload - mark as pending for manual refresh
+if (import.meta.hot) {
+  import.meta.hot.accept(() => {
+    console.log('[Tide HMR] SelectionManager updated - pending refresh available');
+    window.__tideHmrPendingSceneChanges = true;
+  });
 }

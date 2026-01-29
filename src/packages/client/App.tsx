@@ -40,6 +40,7 @@ import {
   useBackNavigation,
   useDocumentPiP,
   useModalClose,
+  subscribeToSceneRefresh,
 } from './hooks';
 import { loadConfig, saveConfig } from './app/sceneConfig';
 import { buildContextMenuActions } from './app/contextMenuActions';
@@ -98,6 +99,7 @@ function AppContent() {
   const pendingPopupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [sceneConfig, setSceneConfig] = useState(loadConfig);
+  const [sceneKey, setSceneKey] = useState(0); // Key to force canvas remount on HMR refresh
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     const saved = localStorage.getItem('tide-commander-sidebar-collapsed');
@@ -197,6 +199,15 @@ function AppContent() {
     }
     prevTerminalOpen.current = terminalOpen;
   }, [terminalOpen]);
+
+  // Subscribe to HMR scene refresh (dev mode only)
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    return subscribeToSceneRefresh(() => {
+      console.log('[App] Scene refresh triggered - incrementing sceneKey');
+      setSceneKey((k) => k + 1);
+    });
+  }, []);
 
   // Trigger resize when switching to 3D view on mobile
   useEffect(() => {
@@ -509,10 +520,10 @@ function AppContent() {
               showGrid={sceneConfig.gridVisible}
             />
           ) : (
-            <>
+            <React.Fragment key={sceneKey}>
               <canvas ref={canvasRef} id="battlefield" tabIndex={0}></canvas>
               <div ref={selectionBoxRef} id="selection-box"></div>
-            </>
+            </React.Fragment>
           )}
         </div>
 

@@ -161,6 +161,24 @@ export class SceneCore {
       isConnected: canvas.isConnected,
       parentElement: !!canvas.parentElement,
     });
+
+    // Force context loss on old renderer before disposal
+    try {
+      const gl = this.renderer.getContext();
+      const loseContext = gl.getExtension('WEBGL_lose_context');
+      if (loseContext) {
+        console.log('[SceneCore] Forcing WebGL context loss before reattach');
+        loseContext.loseContext();
+      }
+    } catch {
+      // Context may already be lost
+    }
+
+    // Clear old canvas context reference
+    if (this.canvas) {
+      (this.canvas as any).__webglContext = null;
+    }
+
     this.canvas = canvas;
     this.postProcessing?.dispose();
     this.renderer.dispose();
@@ -188,20 +206,27 @@ export class SceneCore {
     this.postProcessing?.dispose();
     this.postProcessing = null;
 
-    // Force WebGL context loss BEFORE renderer dispose
-    try {
-      const gl = this.renderer.getContext();
-      const loseContext = gl.getExtension('WEBGL_lose_context');
-      if (loseContext) {
-        console.log('[SceneCore] Forcing WebGL context loss to release GPU memory');
-        loseContext.loseContext();
+    // Force WebGL context loss ONLY in production
+    // In development, StrictMode double-mounts and we need the context to stay usable
+    if (!import.meta.env.DEV) {
+      try {
+        const gl = this.renderer.getContext();
+        const loseContext = gl.getExtension('WEBGL_lose_context');
+        if (loseContext) {
+          loseContext.loseContext();
+        }
+      } catch {
+        // Context may already be lost
       }
-    } catch {
-      console.log('[SceneCore] WebGL context already lost or unavailable');
     }
 
     this.scene.clear();
     this.renderer.dispose();
+
+    // Clear the canvas context reference
+    if (this.canvas) {
+      (this.canvas as any).__webglContext = null;
+    }
 
     // Null references for GC
     // @ts-expect-error - nulling for GC
@@ -209,4 +234,12 @@ export class SceneCore {
     // @ts-expect-error - nulling for GC
     this.renderer = null;
   }
+}
+
+// HMR: Accept updates without full reload - mark as pending for manual refresh
+if (import.meta.hot) {
+  import.meta.hot.accept(() => {
+    console.log('[Tide HMR] SceneCore updated - pending refresh available');
+    window.__tideHmrPendingSceneChanges = true;
+  });
 }

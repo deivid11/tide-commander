@@ -93,7 +93,7 @@ export function SkillEditorModal({
         setName(skill.name);
         setSlug(skill.slug);
         setDescription(skill.description);
-        setContent(skill.content);
+        setContent(skill.content || '');
         setAllowedTools(skill.allowedTools || []);
         setAssignedAgentIds(skill.assignedAgentIds || []);
         setAssignedAgentClasses(skill.assignedAgentClasses || []);

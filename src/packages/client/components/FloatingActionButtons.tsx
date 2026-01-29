@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { useSettings } from '../store';
 import { VoiceAssistant } from './VoiceAssistant';
 
@@ -11,7 +11,7 @@ interface FloatingActionButtonsProps {
   isGeneratingReport: boolean;
 }
 
-export function FloatingActionButtons({
+export const FloatingActionButtons = memo(function FloatingActionButtons({
   onOpenToolbox,
   onOpenCommander,
   onOpenSupervisor,
@@ -93,4 +93,4 @@ export function FloatingActionButtons({
       </button>
     </>
   );
-}
+});

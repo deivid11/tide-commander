@@ -38,10 +38,74 @@
   color: rgba(255, 255, 255, 0.6);
   user-select: none;
   transition: color $transition-fast;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 
   &:hover {
     color: rgba(255, 255, 255, 0.85);
   }
+}
+
+.agent-bar-version-badge {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: $accent-green;
+  color: $bg-primary;
+  cursor: pointer;
+  transition: all $transition-fast;
+  font-family: $font-mono;
+
+  &::before {
+    content: '→ ';
+  }
+
+  &:hover {
+    filter: brightness(1.1);
+    transform: scale(1.05);
+  }
+}
+
+.agent-bar-version-status {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.4);
+  font-style: italic;
+  text-decoration: none;
+  transition: color $transition-fast;
+
+  &:hover {
+    color: $accent-blue;
+  }
+}
+
+// HMR refresh button - shows when 3D scene changes are pending
+.agent-bar-hmr-refresh {
+  font-size: 12px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba($accent-orange, 0.2);
+  border: 1px solid $accent-orange;
+  color: $accent-orange;
+  cursor: pointer;
+  transition: all $transition-fast;
+  font-family: $font-mono;
+  animation: hmr-pulse 2s ease-in-out infinite;
+
+  &:hover {
+    background: rgba($accent-orange, 0.4);
+    transform: scale(1.1);
+  }
+
+  &:active {
+    transform: scale(0.95);
+  }
+}
+
+@keyframes hmr-pulse {
+  0%, 100% { box-shadow: none; }
+  50% { box-shadow: 0 0 8px rgba($accent-orange, 0.6); }
 }
 
 // New Agent spawn button

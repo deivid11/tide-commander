@@ -322,16 +322,34 @@ export class SceneManager {
     for (const [, meshData] of agentMeshes) {
       const distance = camera.position.distanceTo(meshData.group.position);
       const scale = Math.max(0.5, Math.min(2.5, distance / 15)) * indicatorScale;
+      const isBoss = meshData.group.userData.isBoss === true;
 
-      // Combined UI sprite (new optimization - single sprite for all UI elements)
+      // New separate sprites (statusBar + nameLabelSprite)
+      const statusBar = meshData.group.getObjectByName('statusBar') as THREE.Sprite;
+      const nameLabelSprite = meshData.group.getObjectByName('nameLabelSprite') as THREE.Sprite;
+
+      if (statusBar) {
+        const baseScale = isBoss ? 2.8 : 2.2;
+        const aspectRatio = 2560 / 4096; // canvas height / width (0.625)
+        statusBar.scale.set(baseScale * scale, baseScale * aspectRatio * scale, 1);
+      }
+
+      if (nameLabelSprite) {
+        const baseScale = isBoss ? 3.5 : 2.8;
+        const aspectRatio = 1024 / 8192; // canvas height / width (0.125)
+        nameLabelSprite.scale.set(baseScale * scale, baseScale * aspectRatio * scale, 1);
+      }
+
+      // Combined UI sprite (legacy - single sprite for all UI elements)
       const combinedUI = meshData.group.getObjectByName('combinedUI') as THREE.Sprite;
       if (combinedUI) {
-        const isBoss = meshData.group.userData.isBoss === true;
         const baseScale = isBoss ? 2.0 : 1.6;
-        const aspectRatio = 384 / 768; // canvas height / width
+        const aspectRatio = 1024 / 2048; // canvas height / width (0.5)
         combinedUI.scale.set(baseScale * scale, baseScale * aspectRatio * scale, 1);
-      } else {
-        // Legacy sprites (fallback for older agents)
+      }
+
+      // Very old legacy sprites (fallback for oldest agents)
+      if (!statusBar && !combinedUI) {
         const nameLabel = meshData.group.getObjectByName('nameLabel') as THREE.Sprite;
         if (nameLabel) {
           const baseHeight = 0.3 * scale;
@@ -634,4 +652,13 @@ export class SceneManager {
 
     console.log('%c[SceneManager] dispose() complete - all resources freed', 'color: #00ff00; font-weight: bold');
   }
+}
+
+// HMR: Accept updates to this module and its dependencies without full reload
+// Changes are marked as pending for manual refresh via the UI button
+if (import.meta.hot) {
+  import.meta.hot.accept(() => {
+    console.log('[Tide HMR] SceneManager updated - pending refresh available');
+    window.__tideHmrPendingSceneChanges = true;
+  });
 }

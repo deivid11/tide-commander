@@ -6,6 +6,7 @@ import { CollapsibleSection } from './CollapsibleSection';
 import { SecretsSection } from './SecretsSection';
 import { DataSection } from './DataSection';
 import { AboutSection, ThemeSelector } from './AboutSection';
+import { BUILTIN_AGENT_NAMES } from '../../scene/config';
 import type {
   SceneConfig,
   TerrainConfig,
@@ -141,6 +142,27 @@ export function ConfigSection({ config, onChange }: ConfigSectionProps) {
   const [authToken, setAuthToken] = useState(() => getAuthToken());
   const [authTokenDirty, setAuthTokenDirty] = useState(false);
   const [showToken, setShowToken] = useState(false);
+  const [newAgentName, setNewAgentName] = useState('');
+
+  // Custom agent names (use custom if set, otherwise use built-in defaults)
+  const customAgentNames = state.settings.customAgentNames || [];
+  const effectiveNames = customAgentNames.length > 0 ? customAgentNames : BUILTIN_AGENT_NAMES;
+
+  const handleAddAgentName = () => {
+    const trimmedName = newAgentName.trim();
+    if (trimmedName && !customAgentNames.includes(trimmedName)) {
+      store.updateSettings({ customAgentNames: [...customAgentNames, trimmedName] });
+      setNewAgentName('');
+    }
+  };
+
+  const handleRemoveAgentName = (name: string) => {
+    store.updateSettings({ customAgentNames: customAgentNames.filter(n => n !== name) });
+  };
+
+  const handleResetToDefaults = () => {
+    store.updateSettings({ customAgentNames: [] });
+  };
 
   const handleBackendUrlChange = (value: string) => {
     setBackendUrl(value);
@@ -244,6 +266,63 @@ export function ConfigSection({ config, onChange }: ConfigSectionProps) {
             checked={state.settings.powerSaving}
             onChange={(checked) => store.updateSettings({ powerSaving: checked })}
           />
+        </div>
+      </CollapsibleSection>
+
+      {/* Agent Names Settings */}
+      <CollapsibleSection title="Agent Names" storageKey="agentNames" defaultOpen={false}>
+        <div className="agent-names-section">
+          <span className="config-hint">
+            {customAgentNames.length > 0
+              ? `${customAgentNames.length} custom names configured`
+              : 'Using default names. Add your own to customize.'}
+          </span>
+          <div className="agent-names-input-row">
+            <input
+              type="text"
+              className="config-input config-input-full"
+              placeholder="Add a name..."
+              value={newAgentName}
+              onChange={(e) => setNewAgentName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleAddAgentName();
+                }
+              }}
+            />
+            <button
+              className="config-btn config-btn-sm"
+              onClick={handleAddAgentName}
+              disabled={!newAgentName.trim()}
+              title="Add name"
+            >
+              +
+            </button>
+          </div>
+          <div className="agent-names-list">
+            {effectiveNames.map((name, index) => (
+              <div key={`${name}-${index}`} className="agent-name-chip">
+                <span className="agent-name-text">{name}</span>
+                {customAgentNames.length > 0 && (
+                  <button
+                    className="agent-name-remove"
+                    onClick={() => handleRemoveAgentName(name)}
+                    title="Remove"
+                  >
+                    x
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+          {customAgentNames.length > 0 && (
+            <button
+              className="config-btn config-btn-link"
+              onClick={handleResetToDefaults}
+            >
+              Reset to defaults
+            </button>
+          )}
         </div>
       </CollapsibleSection>
 

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useMemo, memo, useEffect } from 'react';
 import { store, useDatabaseState } from '../store';
 import type { Building, DatabaseConnection } from '../../shared/types';
 import { BUILDING_STATUS_COLORS } from '../utils/colors';
@@ -11,7 +11,7 @@ interface DatabaseBuildingActionPopupProps {
   onOpenDatabasePanel: () => void;
 }
 
-export function DatabaseBuildingActionPopup({
+export const DatabaseBuildingActionPopup = memo(function DatabaseBuildingActionPopup({
   building,
   screenPos,
   onClose,
@@ -21,15 +21,22 @@ export function DatabaseBuildingActionPopup({
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const dragStartRef = useRef<{ mouseX: number; mouseY: number; popupX: number; popupY: number } | null>(null);
+  // Use ref to track current dragOffset to avoid recreating listeners
+  const dragOffsetRef = useRef(dragOffset);
+  dragOffsetRef.current = dragOffset;
 
   const dbState = useDatabaseState(building.id);
   const connections = building.database?.connections ?? [];
 
-  // Handle drag start on header
+  // Stable mouse move handler using ref
+  const handleMouseMoveRef = useRef<((e: MouseEvent) => void) | null>(null);
+  const handleMouseUpRef = useRef<(() => void) | null>(null);
+
+  // Handle drag start on header - stable callback
   const handleDragStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
-    const currentX = dragOffset ? dragOffset.x : 0;
-    const currentY = dragOffset ? dragOffset.y : 0;
+    const currentX = dragOffsetRef.current ? dragOffsetRef.current.x : 0;
+    const currentY = dragOffsetRef.current ? dragOffsetRef.current.y : 0;
     dragStartRef.current = {
       mouseX: e.clientX,
       mouseY: e.clientY,
@@ -38,7 +45,7 @@ export function DatabaseBuildingActionPopup({
     };
     setIsDragging(true);
 
-    const handleMouseMove = (moveEvent: MouseEvent) => {
+    handleMouseMoveRef.current = (moveEvent: MouseEvent) => {
       if (!dragStartRef.current) return;
       const deltaX = moveEvent.clientX - dragStartRef.current.mouseX;
       const deltaY = moveEvent.clientY - dragStartRef.current.mouseY;
@@ -48,16 +55,32 @@ export function DatabaseBuildingActionPopup({
       });
     };
 
-    const handleMouseUp = () => {
+    handleMouseUpRef.current = () => {
       setIsDragging(false);
       dragStartRef.current = null;
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+      if (handleMouseMoveRef.current) {
+        document.removeEventListener('mousemove', handleMouseMoveRef.current);
+      }
+      if (handleMouseUpRef.current) {
+        document.removeEventListener('mouseup', handleMouseUpRef.current);
+      }
     };
 
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  }, [dragOffset]);
+    document.addEventListener('mousemove', handleMouseMoveRef.current);
+    document.addEventListener('mouseup', handleMouseUpRef.current);
+  }, []); // No dependencies - uses refs for current values
+
+  // Cleanup event listeners on unmount
+  useEffect(() => {
+    return () => {
+      if (handleMouseMoveRef.current) {
+        document.removeEventListener('mousemove', handleMouseMoveRef.current);
+      }
+      if (handleMouseUpRef.current) {
+        document.removeEventListener('mouseup', handleMouseUpRef.current);
+      }
+    };
+  }, []);
 
   // Test a specific connection
   const handleTestConnection = (connectionId: string) => {
@@ -69,32 +92,33 @@ export function DatabaseBuildingActionPopup({
     return dbState.connectionStatus.get(connectionId);
   };
 
-  // Calculate base position
-  let baseX = screenPos.x + 20;
-  let baseY = screenPos.y - 80;
+  // Memoize popup style calculation
+  const popupStyle = useMemo((): React.CSSProperties => {
+    const maxWidth = 320;
+    const maxHeight = 300;
+    let baseX = screenPos.x + 20;
+    let baseY = screenPos.y - 80;
 
-  // Ensure popup stays within viewport (only for initial position)
-  const maxWidth = 320;
-  const maxHeight = 300;
-  if (typeof window !== 'undefined' && !dragOffset) {
-    if (screenPos.x + 20 + maxWidth > window.innerWidth) {
-      baseX = screenPos.x - maxWidth - 20;
+    // Ensure popup stays within viewport (only for initial position)
+    if (typeof window !== 'undefined' && !dragOffset) {
+      if (screenPos.x + 20 + maxWidth > window.innerWidth) {
+        baseX = screenPos.x - maxWidth - 20;
+      }
+      if (screenPos.y - 80 < 0) {
+        baseY = 10;
+      } else if (screenPos.y - 80 + maxHeight > window.innerHeight) {
+        baseY = window.innerHeight - maxHeight - 10;
+      }
     }
-    if (screenPos.y - 80 < 0) {
-      baseY = 10;
-    } else if (screenPos.y - 80 + maxHeight > window.innerHeight) {
-      baseY = window.innerHeight - maxHeight - 10;
-    }
-  }
 
-  // Apply drag offset
-  const popupStyle: React.CSSProperties = {
-    position: 'fixed',
-    left: baseX + (dragOffset?.x || 0),
-    top: baseY + (dragOffset?.y || 0),
-    zIndex: 1000,
-    cursor: isDragging ? 'grabbing' : undefined,
-  };
+    return {
+      position: 'fixed',
+      left: baseX + (dragOffset?.x || 0),
+      top: baseY + (dragOffset?.y || 0),
+      zIndex: 1000,
+      cursor: isDragging ? 'grabbing' : undefined,
+    };
+  }, [screenPos.x, screenPos.y, dragOffset, isDragging]);
 
   return (
     <div
@@ -176,4 +200,4 @@ export function DatabaseBuildingActionPopup({
       </button>
     </div>
   );
-}
+});

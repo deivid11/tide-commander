@@ -76,7 +76,6 @@ export function markWebGLActive(): void {
  * Cleanup function to dispose scene - called from multiple unload events
  */
 export function cleanupScene(source: string): void {
-  console.log(`%c[App] ${source} - disposing scene`, 'color: #ff00ff; font-weight: bold');
   setIsPageUnloading(true);
 
   // Clear the session flag to indicate clean shutdown
@@ -124,7 +123,6 @@ export function cleanupScene(source: string): void {
 function cleanupStaleContexts(): void {
   // Detect if this is an HMR reload vs a full page load
   if (window.__tideAppInitialized) {
-    console.log('[App] HMR detected - skipping cleanup to preserve existing scene');
     return;
   }
 
@@ -160,21 +158,11 @@ function cleanupStaleContexts(): void {
     setPersistedScene(null);
   }
 
-  // ALWAYS try to kill any existing WebGL context on the battlefield canvas
+  // Remove any existing battlefield canvas from DOM (from bfcache or previous session)
+  // IMPORTANT: Only remove if it's truly stale (not the currently active React canvas)
   const existingCanvas = document.getElementById('battlefield') as HTMLCanvasElement | null;
-  if (existingCanvas) {
-    console.log('[App] Found existing canvas, forcing WebGL context loss and removal');
-    try {
-      const gl = existingCanvas.getContext('webgl2') || existingCanvas.getContext('webgl');
-      if (gl) {
-        const loseContext = gl.getExtension('WEBGL_lose_context');
-        if (loseContext) {
-          loseContext.loseContext();
-        }
-      }
-    } catch {
-      // Context may already be lost
-    }
+  const persistedCanvas = getPersistedCanvas();
+  if (existingCanvas && existingCanvas !== persistedCanvas) {
     existingCanvas.remove();
   }
 

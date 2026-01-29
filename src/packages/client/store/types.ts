@@ -98,6 +98,8 @@ export interface Settings {
   hideCost: boolean;
   showFPS: boolean;
   powerSaving: boolean; // Experimental: Reduce FPS when idle to save power
+  // Custom agent names for random selection
+  customAgentNames: string[];
   // Experimental features (disabled by default)
   experimental2DView: boolean;
   experimentalVoiceAssistant: boolean;
@@ -109,6 +111,7 @@ export const DEFAULT_SETTINGS: Settings = {
   hideCost: true,
   showFPS: false,
   powerSaving: false,
+  customAgentNames: [],
   experimental2DView: false,
   experimentalVoiceAssistant: false,
   experimentalTTS: false,

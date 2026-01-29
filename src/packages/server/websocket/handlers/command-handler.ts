@@ -5,6 +5,7 @@
 
 import { agentService, claudeService, skillService, customClassService } from '../../services/index.js';
 import { createLogger } from '../../utils/index.js';
+import { getAuthToken, isAuthEnabled } from '../../auth/index.js';
 import type { HandlerContext } from './types.js';
 
 const log = createLogger('CommandHandler');
@@ -35,13 +36,16 @@ export function setLastBossCommand(bossId: string, command: string): void {
 function buildAgentIdentityHeader(agentId: string): string {
   const agent = agentService.getAgent(agentId);
   const agentName = agent?.name || 'Unknown';
+  const authToken = getAuthToken();
+  const authHeader = authToken ? ` -H "X-Auth-Token: ${authToken}"` : '';
+
   return `# Agent Identity
 
 You are agent **${agentName}** with ID \`${agentId}\`.
 
 Use this ID when sending notifications via the Tide Commander API:
 \`\`\`bash
-curl -s -X POST http://localhost:5174/api/notify -H "Content-Type: application/json" -d '{"agentId":"${agentId}","title":"Title","message":"Message"}'
+curl -s -X POST http://localhost:5174/api/notify -H "Content-Type: application/json"${authHeader} -d '{"agentId":"${agentId}","title":"Title","message":"Message"}'
 \`\`\`
 
 ---

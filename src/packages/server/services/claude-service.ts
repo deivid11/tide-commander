@@ -34,6 +34,11 @@ let runner: ClaudeRunner | null = null;
 // When step_complete fires, we check this set to avoid triggering another /context
 const pendingSilentContextRefresh = new Set<string>();
 
+// Track agents that received step_complete for their current turn
+// This is used to avoid duplicate /context refresh in handleComplete
+// Set in step_complete handler, cleared in handleComplete
+const stepCompleteReceived = new Set<string>();
+
 // Command started callback (set by websocket handler)
 let commandStartedCallback: ((agentId: string, command: string) => void) | null = null;
 
@@ -230,6 +235,10 @@ function handleEvent(agentId: string, event: StandardEvent): void {
       break;
 
     case 'step_complete': {
+      // Mark that step_complete was received for this agent's turn
+      // This prevents duplicate /context refresh in handleComplete
+      stepCompleteReceived.add(agentId);
+
       // step_complete (result event) signals Claude finished processing this turn
       // Calculate actual context window usage from cache tokens
       let contextUsed = agent.contextUsed || 0;
@@ -358,6 +367,9 @@ function handleSessionId(agentId: string, sessionId: string): void {
 }
 
 function handleComplete(agentId: string, success: boolean): void {
+  const receivedStepComplete = stepCompleteReceived.has(agentId);
+  stepCompleteReceived.delete(agentId);
+
   agentService.updateAgent(agentId, {
     status: 'idle',
     currentTask: undefined,
@@ -365,6 +377,30 @@ function handleComplete(agentId: string, success: boolean): void {
     isDetached: false,
   });
   emit('complete', agentId, success);
+
+  // Fallback: trigger /context refresh if step_complete wasn't received
+  // This handles edge cases where the process exits without emitting a result event
+  // (e.g., when the last response is a tool use that doesn't complete normally)
+  if (!receivedStepComplete && success) {
+    const agent = agentService.getAgent(agentId);
+    const lastTask = agent?.lastAssignedTask?.trim() || '';
+    const isContextCommand = lastTask === '/context' || lastTask === '/cost' || lastTask === '/compact';
+    const hasSession = !!agent?.sessionId;
+    const hasPendingSilentRefresh = pendingSilentContextRefresh.has(agentId);
+
+    log.log(`[handleComplete] Fallback /context check: agentId=${agentId}, receivedStepComplete=${receivedStepComplete}, lastTask="${lastTask}", isContextCmd=${isContextCommand}, hasSession=${hasSession}, hasPending=${hasPendingSilentRefresh}`);
+
+    if (hasSession && !isContextCommand && !hasPendingSilentRefresh) {
+      log.log(`[handleComplete] Triggering fallback /context refresh for agent ${agentId}`);
+      setTimeout(() => {
+        import('./claude-service.js').then(({ sendSilentCommand }) => {
+          sendSilentCommand(agentId, '/context').catch((err) => {
+            log.log(`[handleComplete] Fallback /context failed for ${agentId}: ${err}`);
+          });
+        });
+      }, 300);
+    }
+  }
 }
 
 function handleError(agentId: string, error: string): void {

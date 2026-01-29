@@ -26,28 +26,99 @@ import type { UseModalState } from './index';
 //   - Switching between modes is instant (smoother UX)
 //   - Uses more memory when in 2D mode
 // =============================================================================
-const DISPOSE_3D_ON_MODE_SWITCH = true;
+const DISPOSE_3D_ON_MODE_SWITCH = false;
 
-// Track if we're in the middle of an HMR update for scene-related modules
-// This prevents disposing the scene during development hot reloads
-let isHMRUpdate = false;
+// HMR tracking for 3D scene changes - track pending changes for manual refresh
+declare global {
+  interface Window {
+    __tideHmrPendingSceneChanges?: boolean;
+    __tideHmrSceneRefresh?: () => void;
+    __tideHmrRefreshListeners?: Set<() => void>;
+  }
+}
+
+// Initialize refresh listeners set
+if (typeof window !== 'undefined' && !window.__tideHmrRefreshListeners) {
+  window.__tideHmrRefreshListeners = new Set();
+}
+
 if (import.meta.hot) {
-  // Only track HMR for modules that would cause the scene to remount
-  const sceneRelatedModules = ['/hooks/useSceneSetup', '/App.tsx', '/scene/'];
+  // Accept HMR updates for this module to prevent full page reload
+  // We'll track the change as pending and let user manually refresh
+  import.meta.hot.accept(() => {
+    console.log('[Tide HMR] useSceneSetup updated - pending refresh available');
+    window.__tideHmrPendingSceneChanges = true;
+  });
+
+  // Listen for updates to scene-related modules
   import.meta.hot.on('vite:beforeUpdate', (payload) => {
+    const sceneRelatedModules = ['/scene/', '/hooks/useSceneSetup'];
     const isSceneRelated = payload.updates?.some((u: { path: string }) =>
       sceneRelatedModules.some((m) => u.path.includes(m))
     );
     if (isSceneRelated) {
-      isHMRUpdate = true;
+      console.log('[Tide HMR] Scene-related change detected - pending refresh available');
+      window.__tideHmrPendingSceneChanges = true;
     }
   });
-  import.meta.hot.on('vite:afterUpdate', () => {
-    // Reset after a short delay to allow React to re-render
-    setTimeout(() => {
-      isHMRUpdate = false;
-    }, 100);
+}
+
+/**
+ * Check if there are pending HMR scene changes
+ */
+export function hasPendingSceneChanges(): boolean {
+  return window.__tideHmrPendingSceneChanges === true;
+}
+
+/**
+ * Refresh the 3D scene - disposes current scene and recreates it (no page reload)
+ */
+export function refreshScene(): void {
+  console.log('[Tide HMR] Manual scene refresh triggered');
+
+  // Dispose the scene to free WebGL resources
+  const scene = getPersistedScene();
+  if (scene) {
+    try {
+      scene.dispose();
+    } catch (e) {
+      console.warn('[Tide HMR] Error disposing scene:', e);
+    }
+    setPersistedScene(null);
+  }
+  setPersistedCanvas(null);
+
+  // Clear debug reference
+  if ((window as any).__tideScene) {
+    (window as any).__tideScene = null;
+  }
+
+  // Clear pending flag
+  window.__tideHmrPendingSceneChanges = false;
+
+  // Notify all listeners to trigger scene recreation
+  window.__tideHmrRefreshListeners?.forEach((listener) => {
+    try {
+      listener();
+    } catch (e) {
+      console.warn('[Tide HMR] Error in refresh listener:', e);
+    }
   });
+}
+
+/**
+ * Subscribe to scene refresh events
+ */
+export function subscribeToSceneRefresh(callback: () => void): () => void {
+  window.__tideHmrRefreshListeners?.add(callback);
+  return () => {
+    window.__tideHmrRefreshListeners?.delete(callback);
+  };
+}
+
+// Expose refresh function globally for easy access
+if (typeof window !== 'undefined') {
+  window.__tideHmrSceneRefresh = refreshScene;
 }
 
 interface UseSceneSetupOptions {
@@ -99,46 +170,24 @@ export function useSceneSetup({
   useEffect(() => {
     if (!canvasRef.current || !selectionBoxRef.current) return;
 
-    // Get current persisted state from window (survives HMR)
+    // Get current persisted state from window (survives StrictMode remounts)
     const currentPersistedScene = getPersistedScene();
     const currentPersistedCanvas = getPersistedCanvas();
 
-    // Check if this is the same canvas as before (StrictMode remount or HMR)
+    // Check if this is the same canvas as before (StrictMode remount)
     const isSameCanvas = currentPersistedCanvas === canvasRef.current;
 
-    // Reuse or create scene manager (persists across HMR and StrictMode remounts)
+    // Reuse existing scene for StrictMode remounts, otherwise create new
     if (currentPersistedScene && isSameCanvas) {
       sceneRef.current = currentPersistedScene;
       console.log('[Tide] Reusing existing scene (StrictMode remount)');
-      // Re-sync agents from store after HMR (models are already loaded)
+      // Re-sync agents from store after remount (models are already loaded)
       const state = store.getState();
       if (state.agents.size > 0) {
         console.log('[Tide] Re-syncing agents from store after remount:', state.agents.size);
         currentPersistedScene.syncAgents(Array.from(state.agents.values()));
       }
       // Sync areas and buildings
-      currentPersistedScene.syncAreas();
-      currentPersistedScene.syncBuildings();
-    } else if (currentPersistedScene && !isSameCanvas) {
-      console.log('[Tide] HMR detected - canvas changed, reattaching scene', {
-        canvasConnected: canvasRef.current.isConnected,
-        canvasParent: !!canvasRef.current.parentElement,
-        timestamp: Date.now(), // HMR test v6 - clouds added
-      });
-      currentPersistedScene.reattach(canvasRef.current, selectionBoxRef.current);
-      sceneRef.current = currentPersistedScene;
-      setPersistedCanvas(canvasRef.current);
-      console.log('[Tide] Reattached existing scene (HMR)');
-      const state = store.getState();
-      if (state.customAgentClasses.size > 0) {
-        currentPersistedScene.setCustomAgentClasses(state.customAgentClasses);
-      }
-      // Re-sync agents from store after HMR reattach
-      if (state.agents.size > 0) {
-        console.log('[Tide] Re-syncing agents from store after HMR:', state.agents.size);
-        currentPersistedScene.syncAgents(Array.from(state.agents.values()));
-      }
-      // Sync areas and buildings after HMR reattach
       currentPersistedScene.syncAreas();
       currentPersistedScene.syncBuildings();
     } else {
@@ -314,11 +363,11 @@ export function useSceneSetup({
     });
 
     // Cleanup when canvas unmounts (mode switch to 2D or page unload)
-    // Skip cleanup during HMR to preserve scene across code changes
     return () => {
-      // Always preserve scene during HMR (dev hot reloads)
-      if (isHMRUpdate) {
-        console.log('[Tide] HMR detected - preserving scene');
+      // In development, React StrictMode double-mounts components.
+      // The cleanup runs between mounts, but the canvas stays connected.
+      // Only dispose if the canvas is actually disconnected from DOM (real unmount).
+      if (import.meta.env.DEV && canvasRef.current?.isConnected) {
         return;
       }
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef, useCallback, memo } from 'react';
 import './ContextMenu.css';
 
 export interface ContextMenuAction {
@@ -20,7 +20,7 @@ export interface ContextMenuProps {
   onClose: () => void;
 }
 
-export function ContextMenu({ isOpen, position, actions, onClose }: ContextMenuProps) {
+export const ContextMenu = memo(function ContextMenu({ isOpen, position, actions, onClose }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
 
@@ -135,4 +135,4 @@ export function ContextMenu({ isOpen, position, actions, onClose }: ContextMenuP
       })}
     </div>
   );
-}
+});

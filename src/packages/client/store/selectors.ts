@@ -482,6 +482,16 @@ export function useHideCost(): boolean {
 }
 
 /**
+ * Get custom agent names. Only re-renders when custom names change.
+ */
+export function useCustomAgentNames(): string[] {
+  return useSelector(
+    useCallback((state: StoreState) => state.settings.customAgentNames, []),
+    shallowArrayEqual
+  );
+}
+
+/**
  * Get shortcuts. Only re-renders when shortcuts change.
  */
 export function useShortcuts(): ShortcutConfig[] {

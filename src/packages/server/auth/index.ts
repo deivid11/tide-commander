@@ -29,6 +29,14 @@ export function getAuthTokenPreview(): string {
 }
 
 /**
+ * Get the configured auth token (for use in agent curl commands)
+ * Returns empty string if auth is not enabled
+ */
+export function getAuthToken(): string {
+  return AUTH_TOKEN;
+}
+
+/**
  * Validate a token against the configured AUTH_TOKEN
  */
 export function validateToken(token: string | null | undefined): boolean {

@@ -82,6 +82,8 @@ export async function parseGlbAnimationsFromBuffer(buffer: ArrayBuffer): Promise
       url,
       (gltf: GLTF) => {
         URL.revokeObjectURL(url);
+        // Dispose DRACOLoader workers to prevent memory leak
+        dracoLoader.dispose();
 
         // Extract animation names
         const animationNames = gltf.animations.map((clip) => clip.name);
@@ -94,6 +96,8 @@ export async function parseGlbAnimationsFromBuffer(buffer: ArrayBuffer): Promise
       undefined,
       (error: unknown) => {
         URL.revokeObjectURL(url);
+        // Dispose DRACOLoader workers to prevent memory leak
+        dracoLoader.dispose();
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         reject(new Error(`Failed to parse GLB: ${errorMessage}`));
       }

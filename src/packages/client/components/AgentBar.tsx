@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useStore, store, useCustomAgentClassesArray } from '../store';
+import { useStore, store, useCustomAgentClassesArray, useSettings } from '../store';
 import type { Agent, DrawingArea, AgentSupervisorHistoryEntry } from '../../shared/types';
 import { formatIdleTime } from '../utils/formatting';
 import { getClassConfig } from '../utils/classConfig';
 import { getIdleTimerColor, getAgentStatusColor } from '../utils/colors';
 import { TOOL_ICONS } from '../utils/outputRendering';
 import { useAgentOrder } from '../hooks';
+import { useAppUpdate } from '../hooks/useAppUpdate';
+import { hasPendingSceneChanges, refreshScene } from '../hooks/useSceneSetup';
 
 interface AgentBarProps {
   onFocusAgent?: (agentId: string) => void;
@@ -22,7 +24,25 @@ interface AgentGroup {
 
 export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBuildingClick, onNewAreaClick }: AgentBarProps) {
   const state = useStore();
+  const settings = useSettings();
   const customClasses = useCustomAgentClassesArray();
+  const [hasPendingHmrChanges, setHasPendingHmrChanges] = useState(false);
+
+  // Poll for pending HMR changes (only in dev mode and 3D view)
+  useEffect(() => {
+    if (!import.meta.env.DEV || settings.experimental2DView) {
+      setHasPendingHmrChanges(false);
+      return;
+    }
+
+    const checkPending = () => {
+      setHasPendingHmrChanges(hasPendingSceneChanges());
+    };
+
+    checkPending();
+    const interval = setInterval(checkPending, 500);
+    return () => clearInterval(interval);
+  }, [settings.experimental2DView]);
   const [hoveredAgent, setHoveredAgent] = useState<Agent | null>(null);
   // Track tool bubbles with animation state
   const [toolBubbles, setToolBubbles] = useState<Map<string, { tool: string; key: number }>>(new Map());
@@ -243,8 +263,9 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
     }
   };
 
-  // Get app version
-  const version = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0';
+  // Get app version and update info
+  const { updateAvailable, updateInfo, openReleasePage, currentVersion } = useAppUpdate();
+  const version = currentVersion;
 
   // Calculate global index for hotkeys (needs to be tracked across groups)
   let globalIndex = 0;
@@ -253,7 +274,35 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
     <div className="agent-bar">
       {/* Version indicator */}
       <div className="agent-bar-version" title={`Tide Commander v${version}`}>
-        v{version}
+        <span>v{version}</span>
+        {updateAvailable && updateInfo ? (
+          <span
+            className="agent-bar-version-badge"
+            onClick={openReleasePage}
+            title={`Update available: ${updateInfo.version}`}
+          >
+            {updateInfo.version}
+          </span>
+        ) : (
+          <a
+            href="https://github.com/deivid11/tide-commander/releases"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="agent-bar-version-status"
+          >
+            (updated)
+          </a>
+        )}
+        {/* HMR Refresh button - only shows when there are pending 3D scene changes */}
+        {hasPendingHmrChanges && (
+          <button
+            className="agent-bar-hmr-refresh"
+            onClick={refreshScene}
+            title="Refresh 3D Scene (HMR changes pending)"
+          >
+            ↻
+          </button>
+        )}
       </div>
 
       <div className="agent-bar-list">

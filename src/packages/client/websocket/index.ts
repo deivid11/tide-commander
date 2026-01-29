@@ -804,7 +804,6 @@ function handleServerMessage(message: ServerMessage): void {
     case 'skills_update': {
       const skillsArray = message.payload as import('../../shared/types').Skill[];
       store.setSkillsFromServer(skillsArray);
-      console.log(`[WebSocket] Received ${skillsArray.length} skills`);
       break;
     }
 

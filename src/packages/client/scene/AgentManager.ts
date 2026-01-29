@@ -94,6 +94,18 @@ export class AgentManager {
         const isBoss = meshData.group.userData.isBoss === true;
         const bossMultiplier = isBoss ? 1.5 : 1.0;
         body.scale.setScalar(customModelScale * scale * bossMultiplier);
+
+        // Update status bar position based on new model height
+        const statusBar = meshData.group.getObjectByName('statusBar') as THREE.Sprite;
+        if (statusBar) {
+          // Box3.setFromObject already accounts for the object's current scale
+          const box = new THREE.Box3().setFromObject(body);
+          const modelTop = box.max.y;
+          const padding = isBoss ? 0.2 : 0.3;
+          // Cap the height to prevent mana bar going too high
+          const maxHeight = isBoss ? 3.0 : 2.2;
+          statusBar.position.y = Math.min(Math.max(modelTop, 1.0) + padding, maxHeight);
+        }
       }
     }
   }
@@ -516,10 +528,25 @@ export class AgentManager {
     this.applyStyleToMesh(meshData.group);
 
     const body = meshData.group.getObjectByName('characterBody');
+    const isBoss = agent.isBoss || agent.class === 'boss';
     if (body) {
       const customModelScale = body.userData.customModelScale ?? 1.0;
-      const bossMultiplier = (agent.isBoss || agent.class === 'boss') ? 1.5 : 1.0;
+      const bossMultiplier = isBoss ? 1.5 : 1.0;
       body.scale.setScalar(customModelScale * this.characterScale * bossMultiplier);
+
+      // Update status bar position based on actual scaled model height
+      const statusBar = meshData.group.getObjectByName('statusBar') as THREE.Sprite;
+      if (statusBar) {
+        // Box3.setFromObject already accounts for the object's current scale
+        const box = new THREE.Box3().setFromObject(body);
+        // Use max.y as the top of the model, with smaller padding for bosses
+        // since they're already taller
+        const modelTop = box.max.y;
+        const padding = isBoss ? 0.2 : 0.3;
+        // Cap the height to prevent mana bar going too high
+        const maxHeight = isBoss ? 3.0 : 2.2;
+        statusBar.position.y = Math.min(Math.max(modelTop, 1.0) + padding, maxHeight);
+      }
 
       if (meshData.animations.size === 0) {
         const state = this.getProceduralStateForStatus(agent.status);
@@ -568,6 +595,8 @@ export class AgentManager {
 
     if (!this.movementAnimator.isMoving(agent.id)) {
       this.updateStatusAnimation(agent, meshData);
+    } else {
+      console.log(`[AgentManager] updateAgent: skipping updateStatusAnimation for ${agent.name} (status=${agent.status}) - movement in progress`);
     }
 
     this.characterFactory.updateVisuals(meshData.group, agent, isSelected);
@@ -687,11 +716,18 @@ export class AgentManager {
     const animationLower = animation.toLowerCase();
     const isAlreadyPlaying = currentClipName === animation || currentClipName === animationLower;
 
+    // Check if current animation has different options (e.g., timeScale)
+    // If status is 'working', we need timeScale 1.5. Movement uses timeScale 1.0.
+    // Force replay if same animation but different expected timeScale.
+    const expectedTimeScale = agent.status === 'working' ? 1.5 : 1.0;
+    const currentTimeScale = meshData.currentAction?.timeScale ?? 1.0;
+    const needsOptionsUpdate = isAlreadyPlaying && Math.abs(currentTimeScale - expectedTimeScale) > 0.01;
+
     const shouldPlay = isOneShot
       ? !isAlreadyPlaying
-      : !isAlreadyPlaying || !meshData.currentAction;
+      : !isAlreadyPlaying || !meshData.currentAction || needsOptionsUpdate;
 
-    console.log(`[AgentManager] updateStatusAnimation: agent=${agent.name} status=${agent.status} targetAnim=${animation} currentAnim=${currentClipName || 'none'} shouldPlay=${shouldPlay} isAlreadyPlaying=${isAlreadyPlaying}`);
+    console.log(`[AgentManager] updateStatusAnimation: agent=${agent.name} status=${agent.status} targetAnim=${animation} currentAnim=${currentClipName || 'none'} shouldPlay=${shouldPlay} isAlreadyPlaying=${isAlreadyPlaying} needsOptionsUpdate=${needsOptionsUpdate}`);
 
     if (shouldPlay) {
       const options = agent.status === 'working'
@@ -738,6 +774,7 @@ export class AgentManager {
       const agent = state.agents.get(agentId);
       const meshData = this.agentMeshes.get(agentId);
       if (agent && meshData) {
+        console.log(`[AgentManager] handleMovementCompletions: applying status animation for ${agent.name} (status=${agent.status})`);
         this.updateStatusAnimation(agent, meshData);
       }
     }
@@ -771,4 +808,12 @@ export class AgentManager {
     this.pendingAgents = [];
     console.log(`[AgentManager] Disposed ${agentCount} agent meshes`);
   }
+}
+
+// HMR: Accept updates without full reload - mark as pending for manual refresh
+if (import.meta.hot) {
+  import.meta.hot.accept(() => {
+    console.log('[Tide HMR] AgentManager updated - pending refresh available');
+    window.__tideHmrPendingSceneChanges = true;
+  });
 }

@@ -152,21 +152,27 @@ export class CharacterFactory {
     const { body, mixer, animations } = this.createCharacterBody(agent, classConfig.color);
     group.add(body);
 
+    // Calculate model height for proper UI positioning
+    const modelHeight = this.calculateModelHeight(body, isBoss);
+
     // Selection ring (shows when agent is selected) - larger for boss
     const selectionRing = this.createSelectionRing(classConfig.color, isBoss);
     group.add(selectionRing);
 
-    // Combined UI sprite (name + mana bar + idle timer + crown) - single draw call
+    // Status bar sprite (mana bar + idle timer + crown) - positioned above model
     const remainingPercent = getContextRemainingPercent(agent);
-    const combinedUI = this.createCombinedUISprite(
-      agent.name,
-      classConfig.color,
+    const statusBar = this.createStatusBarSprite(
       remainingPercent,
       agent.status,
       agent.lastActivity,
-      isBoss
+      isBoss,
+      modelHeight
     );
-    group.add(combinedUI);
+    group.add(statusBar);
+
+    // Name label sprite - positioned below
+    const nameLabel = this.createNameLabelSprite(agent.name, classConfig.color, isBoss);
+    group.add(nameLabel);
 
     // Store agent metadata for updates
     group.userData.agentName = agent.name;
@@ -175,6 +181,20 @@ export class CharacterFactory {
 
     // Set initial position
     group.position.set(agent.position.x, agent.position.y, agent.position.z);
+
+    // Add invisible hitbox for easier clicking (extends above the model)
+    const hitboxHeight = isBoss ? 3.5 : 2.5;
+    const hitboxWidth = isBoss ? 1.2 : 0.9;
+    const hitboxGeometry = new THREE.CylinderGeometry(hitboxWidth, hitboxWidth, hitboxHeight, 8);
+    const hitboxMaterial = new THREE.MeshBasicMaterial({
+      visible: false,
+      transparent: true,
+      opacity: 0,
+    });
+    const hitbox = new THREE.Mesh(hitboxGeometry, hitboxMaterial);
+    hitbox.position.y = hitboxHeight / 2; // Center the hitbox vertically
+    hitbox.name = 'clickHitbox';
+    group.add(hitbox);
 
     return {
       group,
@@ -275,6 +295,17 @@ export class CharacterFactory {
   }
 
   /**
+   * Calculate the height of the model for UI positioning.
+   * Returns a base height that will be updated after actual scaling is applied.
+   * The real position update happens in AgentManager.addAgentInternal()
+   */
+  private calculateModelHeight(_body: THREE.Object3D, isBoss: boolean): number {
+    // Return a reasonable default - the actual position will be calculated
+    // in AgentManager after the model is properly scaled
+    return isBoss ? 2.0 : 1.5;
+  }
+
+  /**
    * Create the selection ring indicator.
    */
   private createSelectionRing(color: number, isBoss: boolean = false): THREE.Mesh {
@@ -296,8 +327,321 @@ export class CharacterFactory {
   }
 
   /**
-   * Create a combined UI sprite containing name, mana bar, idle timer, and crown.
-   * This reduces 4-5 draw calls per agent to just 1.
+   * Create a status bar sprite containing mana bar, idle timer, and crown.
+   * Positioned above the character based on model height.
+   */
+  private createStatusBarSprite(
+    remainingPercent: number,
+    status: string,
+    lastActivity: number,
+    isBoss: boolean,
+    modelHeight: number = 2.0
+  ): THREE.Sprite {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d')!;
+
+    // 4K resolution canvas for crisp text rendering (taller to fit idle timer)
+    canvas.width = 4096;
+    canvas.height = 2560;
+
+    this.drawStatusBar(ctx, canvas.width, canvas.height, remainingPercent, status, lastActivity, isBoss);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearMipmapLinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    texture.generateMipmaps = true;
+    texture.anisotropy = 16;
+    texture.needsUpdate = true;
+
+    const material = new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      depthTest: false,
+    });
+
+    const sprite = new THREE.Sprite(material);
+    // Position above the character based on model height with padding
+    const padding = isBoss ? 0.8 : 0.5;
+    sprite.position.y = modelHeight + padding;
+    const baseScale = isBoss ? 2.8 : 2.2;
+    sprite.scale.set(baseScale, baseScale * (canvas.height / canvas.width), 1);
+    sprite.name = 'statusBar';
+
+    // Store model height for potential runtime updates
+    sprite.userData.modelHeight = modelHeight;
+
+    return sprite;
+  }
+
+  /**
+   * Create a name label sprite.
+   * Positioned below the character.
+   */
+  private createNameLabelSprite(name: string, color: number, isBoss: boolean): THREE.Sprite {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d')!;
+
+    // Wide canvas to fit long names
+    canvas.width = 8192;
+    canvas.height = 1024;
+
+    this.drawNameLabel(ctx, canvas.width, canvas.height, name, color);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearMipmapLinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    texture.generateMipmaps = true;
+    texture.anisotropy = 16;
+    texture.needsUpdate = true;
+
+    const material = new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      depthTest: false,
+    });
+
+    const sprite = new THREE.Sprite(material);
+    // Position below the character (lower)
+    sprite.position.y = isBoss ? -0.8 : -0.6;
+    const baseScale = isBoss ? 3.5 : 2.8;
+    sprite.scale.set(baseScale, baseScale * (canvas.height / canvas.width), 1);
+    sprite.name = 'nameLabelSprite';
+
+    return sprite;
+  }
+
+  /**
+   * Draw the name label on a canvas.
+   */
+  private drawNameLabel(
+    ctx: CanvasRenderingContext2D,
+    width: number,
+    height: number,
+    name: string,
+    color: number
+  ): void {
+    ctx.clearRect(0, 0, width, height);
+
+    const colorHex = `#${color.toString(16).padStart(6, '0')}`;
+
+    // Dynamic font size - start large and shrink if needed to fit
+    let fontSize = 800;
+    const minFontSize = 300;
+    const maxWidth = width - 400; // Leave some padding
+
+    ctx.font = `bold ${fontSize}px Arial`;
+    let textWidth = ctx.measureText(name).width;
+
+    // Reduce font size until text fits
+    while (textWidth > maxWidth && fontSize > minFontSize) {
+      fontSize -= 40;
+      ctx.font = `bold ${fontSize}px Arial`;
+      textWidth = ctx.measureText(name).width;
+    }
+
+    // Name text with thick outline and shadow for readability
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // Add drop shadow for depth
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+    ctx.shadowBlur = fontSize * 0.12;
+    ctx.shadowOffsetX = fontSize * 0.04;
+    ctx.shadowOffsetY = fontSize * 0.04;
+
+    // Draw thick black outline (proportional to font size)
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = fontSize * 0.14;
+    ctx.lineJoin = 'round';
+    ctx.strokeText(name, width / 2, height / 2);
+
+    // Reset shadow for fill
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+
+    // Draw colored fill
+    ctx.fillStyle = colorHex;
+    ctx.fillText(name, width / 2, height / 2);
+  }
+
+  /**
+   * Draw the status bar (mana bar, idle timer, crown) on a canvas.
+   */
+  private drawStatusBar(
+    ctx: CanvasRenderingContext2D,
+    width: number,
+    height: number,
+    remainingPercent: number,
+    status: string,
+    lastActivity: number,
+    isBoss: boolean
+  ): void {
+    ctx.clearRect(0, 0, width, height);
+
+    // Scale factor for 4K resolution (4096x2048)
+    const scale = width / 2048;
+    let yOffset = 80 * scale;
+
+    // === Crown (for boss agents) ===
+    if (isBoss) {
+      ctx.font = `${400 * scale}px serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText('👑', width / 2, yOffset);
+      yOffset += 440 * scale;
+    }
+
+    // === Mana bar with status dot ===
+    const manaBarHeight = 280 * scale;
+    const manaBarWidth = 2800 * scale;
+    const manaBarX = (width - manaBarWidth) / 2;
+    const manaBarY = yOffset;
+
+    // Status dot
+    const dotSize = 200 * scale;
+    const dotX = manaBarX + dotSize / 2 + 30 * scale;
+    const dotY = manaBarY + manaBarHeight / 2;
+
+    let dotColor: string;
+    switch (status) {
+      case 'working': dotColor = '#4a9eff'; break;      // Soft blue
+      case 'orphaned': dotColor = '#c060e0'; break;     // Muted purple
+      case 'error': dotColor = '#e05050'; break;        // Soft red
+      case 'waiting':
+      case 'waiting_permission': dotColor = '#e0a030'; break; // Soft amber
+      default: dotColor = '#40c090';                    // Soft teal
+    }
+
+    // Draw status dot - clean and simple
+    ctx.beginPath();
+    ctx.arc(dotX, dotY, dotSize / 2, 0, Math.PI * 2);
+    ctx.fillStyle = dotColor;
+    ctx.shadowColor = dotColor;
+    ctx.shadowBlur = 20 * scale;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // Subtle border for definition
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
+    ctx.lineWidth = 4 * scale;
+    ctx.stroke();
+
+    // Mana bar background
+    const barStartX = manaBarX + dotSize + 60 * scale;
+    const barWidth = manaBarWidth - dotSize - 90 * scale;
+    const barHeight = manaBarHeight - 80 * scale;
+    const barY = manaBarY + 40 * scale;
+    const borderRadius = 30 * scale;
+
+    // Clean dark background - solid color, no gradient
+    ctx.fillStyle = '#0d0d14';
+    ctx.beginPath();
+    ctx.roundRect(barStartX, barY, barWidth, barHeight, borderRadius);
+    ctx.fill();
+
+    // Subtle border
+    ctx.strokeStyle = 'rgba(80, 90, 110, 0.5)';
+    ctx.lineWidth = 4 * scale;
+    ctx.stroke();
+
+    // Mana fill - clean solid colors
+    const percentage = Math.max(0, Math.min(100, remainingPercent)) / 100;
+    const fillPadding = 8 * scale;
+    const fillWidth = Math.max(0, (barWidth - fillPadding * 2) * percentage);
+    if (fillWidth > 0) {
+      let fillColor: string;
+      if (percentage > 0.5) {
+        // Clean teal for healthy
+        fillColor = '#00c896';
+      } else if (percentage > 0.2) {
+        // Warm amber for warning
+        fillColor = '#e8a020';
+      } else {
+        // Soft red for critical
+        fillColor = '#e84040';
+      }
+
+      // Solid fill - no gradients
+      ctx.fillStyle = fillColor;
+      ctx.beginPath();
+      ctx.roundRect(barStartX + fillPadding, barY + fillPadding, fillWidth, barHeight - fillPadding * 2, borderRadius - fillPadding);
+      ctx.fill();
+
+      // Subtle glow only
+      ctx.shadowColor = fillColor;
+      ctx.shadowBlur = 12 * scale;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+
+    // Percentage text with improved styling
+    const percentText = `${Math.round(percentage * 100)}%`;
+    ctx.font = `bold ${180 * scale}px "Segoe UI", Arial, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const barCenterX = barStartX + barWidth / 2;
+    const barCenterY = barY + barHeight / 2;
+
+    // Text shadow for depth
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+    ctx.shadowBlur = 8 * scale;
+    ctx.shadowOffsetX = 2 * scale;
+    ctx.shadowOffsetY = 2 * scale;
+
+    // Dark outline
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.9)';
+    ctx.lineWidth = 24 * scale;
+    ctx.lineJoin = 'round';
+    ctx.strokeText(percentText, barCenterX, barCenterY);
+
+    // Reset shadow for fill
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+
+    // White fill with subtle gradient
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+    ctx.fillText(percentText, barCenterX, barCenterY);
+
+    yOffset += manaBarHeight + 60 * scale;
+
+    // === Idle timer (only for idle agents) ===
+    if (status === 'idle' && lastActivity > 0) {
+      const idleSeconds = Math.floor((Date.now() - lastActivity) / 1000);
+      const idleText = this.formatIdleTimeShort(idleSeconds);
+      const colors = this.getIdleTimerColor(idleSeconds);
+
+      ctx.font = `bold ${140 * scale}px Arial`;
+      const idleTextWidth = ctx.measureText(`⏱ ${idleText}`).width;
+      const idleBgWidth = idleTextWidth + 140 * scale;
+      const idleBgHeight = 180 * scale;
+      const idleBgX = (width - idleBgWidth) / 2;
+      const idleBgY = yOffset;
+
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+      ctx.beginPath();
+      ctx.roundRect(idleBgX, idleBgY, idleBgWidth, idleBgHeight, 28 * scale);
+      ctx.fill();
+
+      ctx.strokeStyle = colors.border;
+      ctx.lineWidth = 12 * scale;
+      ctx.stroke();
+
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 14 * scale;
+      ctx.strokeText(`⏱ ${idleText}`, width / 2, idleBgY + idleBgHeight / 2);
+      ctx.fillStyle = colors.text;
+      ctx.fillText(`⏱ ${idleText}`, width / 2, idleBgY + idleBgHeight / 2);
+    }
+  }
+
+  /**
+   * @deprecated Use createStatusBarSprite and createNameLabelSprite instead
    */
   private createCombinedUISprite(
     name: string,
@@ -310,15 +654,19 @@ export class CharacterFactory {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d')!;
 
-    // Higher resolution canvas for crisp rendering
-    canvas.width = 1024;
-    canvas.height = 512;
+    // High resolution canvas for crisp text rendering (4K resolution)
+    canvas.width = 4096;
+    canvas.height = 2048;
 
     this.drawCombinedUI(ctx, canvas.width, canvas.height, name, color, remainingPercent, status, lastActivity, isBoss);
 
     const texture = new THREE.CanvasTexture(canvas);
-    texture.minFilter = THREE.LinearFilter;
+    // Use LinearMipmapLinearFilter for better quality at varying distances
+    texture.minFilter = THREE.LinearMipmapLinearFilter;
     texture.magFilter = THREE.LinearFilter;
+    texture.generateMipmaps = true;
+    // Increase anisotropy for sharper text at angles
+    texture.anisotropy = 16;
     texture.needsUpdate = true;
 
     const material = new THREE.SpriteMaterial({
@@ -330,8 +678,8 @@ export class CharacterFactory {
     const sprite = new THREE.Sprite(material);
     // Position above the character
     sprite.position.y = isBoss ? 3.2 : 2.2;
-    // Scale to match the canvas aspect ratio
-    const baseScale = isBoss ? 2.4 : 1.9;
+    // Scale to match the canvas aspect ratio - larger scale for crisp rendering
+    const baseScale = isBoss ? 3.0 : 2.4;
     sprite.scale.set(baseScale, baseScale * (canvas.height / canvas.width), 1);
     sprite.name = 'combinedUI';
 
@@ -355,20 +703,22 @@ export class CharacterFactory {
     ctx.clearRect(0, 0, width, height);
 
     const colorHex = `#${color.toString(16).padStart(6, '0')}`;
-    let yOffset = 20; // Start with some padding from top
+    // Scale factor: 4096/2048 = 2x the original values
+    const scale = width / 2048;
+    let yOffset = 80 * scale; // Start with some padding from top
 
     // === Crown (for boss agents) ===
     if (isBoss) {
-      ctx.font = '72px serif';
+      ctx.font = `${288 * scale}px serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
       ctx.fillText('👑', width / 2, yOffset);
-      yOffset += 80;
+      yOffset += 320 * scale;
     }
 
     // === Name label (no background, just text with outline) ===
-    const fontSize = 56;
-    const maxNameWidth = width - 60;
+    const fontSize = 224 * scale;
+    const maxNameWidth = width - 240 * scale;
     ctx.font = `bold ${fontSize}px Arial`;
 
     // Truncate name if too long
@@ -388,7 +738,7 @@ export class CharacterFactory {
 
     // Draw thick black outline
     ctx.strokeStyle = '#000';
-    ctx.lineWidth = 6;
+    ctx.lineWidth = 24 * scale;
     ctx.lineJoin = 'round';
     ctx.strokeText(displayName, width / 2, nameY);
 
@@ -396,27 +746,27 @@ export class CharacterFactory {
     ctx.fillStyle = colorHex;
     ctx.fillText(displayName, width / 2, nameY);
 
-    yOffset += fontSize + 16;
+    yOffset += fontSize + 64 * scale;
 
     // === Mana bar with status dot ===
-    const manaBarHeight = 64;
-    const manaBarWidth = 440;
+    const manaBarHeight = 256 * scale;
+    const manaBarWidth = 1760 * scale;
     const manaBarX = (width - manaBarWidth) / 2;
     const manaBarY = yOffset;
 
     // Status dot
-    const dotSize = 44;
-    const dotX = manaBarX + dotSize / 2 + 6;
+    const dotSize = 176 * scale;
+    const dotX = manaBarX + dotSize / 2 + 24 * scale;
     const dotY = manaBarY + manaBarHeight / 2;
 
     let dotColor: string;
     switch (status) {
-      case 'working': dotColor = '#4a9eff'; break;
-      case 'orphaned': dotColor = '#ff00ff'; break;
-      case 'error': dotColor = '#ff4a4a'; break;
+      case 'working': dotColor = '#00a8ff'; break;      // Bright sky blue
+      case 'orphaned': dotColor = '#e040ff'; break;     // Vivid magenta
+      case 'error': dotColor = '#ff3030'; break;        // Bright red
       case 'waiting':
-      case 'waiting_permission': dotColor = '#ffcc00'; break;
-      default: dotColor = '#4aff9e';
+      case 'waiting_permission': dotColor = '#ffc000'; break; // Golden yellow
+      default: dotColor = '#00e090';                    // Bright teal-green
     }
 
     ctx.beginPath();
@@ -424,61 +774,69 @@ export class CharacterFactory {
     ctx.fillStyle = dotColor;
     ctx.fill();
     ctx.shadowColor = dotColor;
-    ctx.shadowBlur = 8;
+    ctx.shadowBlur = 32 * scale;
     ctx.fill();
     ctx.shadowBlur = 0;
     ctx.strokeStyle = '#000';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 12 * scale;
     ctx.stroke();
 
     // Mana bar background
-    const barStartX = manaBarX + dotSize + 16;
-    const barWidth = manaBarWidth - dotSize - 22;
-    const barHeight = manaBarHeight - 12;
-    const barY = manaBarY + 6;
+    const barStartX = manaBarX + dotSize + 64 * scale;
+    const barWidth = manaBarWidth - dotSize - 88 * scale;
+    const barHeight = manaBarHeight - 48 * scale;
+    const barY = manaBarY + 24 * scale;
 
     ctx.fillStyle = '#000';
     ctx.beginPath();
-    ctx.roundRect(barStartX, barY, barWidth, barHeight, 6);
+    ctx.roundRect(barStartX, barY, barWidth, barHeight, 24 * scale);
     ctx.fill();
     ctx.strokeStyle = '#5a8a8a';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 8 * scale;
     ctx.stroke();
 
-    // Mana fill
+    // Mana fill - vibrant colors
     const percentage = Math.max(0, Math.min(100, remainingPercent)) / 100;
-    const fillPadding = 4;
+    const fillPadding = 16 * scale;
     const fillWidth = Math.max(0, (barWidth - fillPadding * 2) * percentage);
     if (fillWidth > 0) {
       let fillColor: string;
-      if (percentage > 0.5) fillColor = '#6a9a78';
-      else if (percentage > 0.2) fillColor = '#c89858';
-      else fillColor = '#c85858';
+      if (percentage > 0.5) fillColor = '#00ff88';      // Vibrant green
+      else if (percentage > 0.2) fillColor = '#ffaa00'; // Vibrant orange
+      else fillColor = '#ff3366';                       // Vibrant red/pink
 
       ctx.fillStyle = fillColor;
       ctx.beginPath();
-      ctx.roundRect(barStartX + fillPadding, barY + fillPadding, fillWidth, barHeight - fillPadding * 2, 4);
+      ctx.roundRect(barStartX + fillPadding, barY + fillPadding, fillWidth, barHeight - fillPadding * 2, 16 * scale);
       ctx.fill();
       ctx.shadowColor = fillColor;
-      ctx.shadowBlur = 8;
+      ctx.shadowBlur = 32 * scale;
       ctx.fill();
       ctx.shadowBlur = 0;
     }
 
-    // Percentage text - centered in the bar
+    // Percentage text - centered in the bar with strong contrast
     const percentText = `${Math.round(percentage * 100)}%`;
-    ctx.font = 'bold 28px Arial';
+    ctx.font = `bold ${128 * scale}px Arial`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     const barCenterX = barStartX + barWidth / 2;
     const barCenterY = barY + barHeight / 2;
-    ctx.strokeStyle = '#000';
-    ctx.lineWidth = 4;
-    ctx.strokeText(percentText, barCenterX, barCenterY);
-    ctx.fillStyle = '#fff';
-    ctx.fillText(percentText, barCenterX, barCenterY);
 
-    yOffset += manaBarHeight + 12;
+    // Draw thick black outline for strong contrast
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 28 * scale;
+    ctx.lineJoin = 'round';
+    ctx.strokeText(percentText, barCenterX, barCenterY);
+
+    // Draw white fill with slight glow
+    ctx.fillStyle = '#fff';
+    ctx.shadowColor = '#000';
+    ctx.shadowBlur = 8 * scale;
+    ctx.fillText(percentText, barCenterX, barCenterY);
+    ctx.shadowBlur = 0;
+
+    yOffset += manaBarHeight + 48 * scale;
 
     // === Idle timer (only for idle agents) ===
     if (status === 'idle' && lastActivity > 0) {
@@ -486,29 +844,29 @@ export class CharacterFactory {
       const idleText = this.formatIdleTimeShort(idleSeconds);
       const colors = this.getIdleTimerColor(idleSeconds);
 
-      ctx.font = 'bold 40px Arial';
+      ctx.font = `bold ${160 * scale}px Arial`;
       const idleTextWidth = ctx.measureText(`⏱ ${idleText}`).width;
-      const idleBgWidth = idleTextWidth + 40;
-      const idleBgHeight = 54;
+      const idleBgWidth = idleTextWidth + 160 * scale;
+      const idleBgHeight = 216 * scale;
       const idleBgX = (width - idleBgWidth) / 2;
       const idleBgY = yOffset;
 
       // Background
       ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
       ctx.beginPath();
-      ctx.roundRect(idleBgX, idleBgY, idleBgWidth, idleBgHeight, 8);
+      ctx.roundRect(idleBgX, idleBgY, idleBgWidth, idleBgHeight, 32 * scale);
       ctx.fill();
 
       // Border
       ctx.strokeStyle = colors.border;
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 12 * scale;
       ctx.stroke();
 
       // Text
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.strokeStyle = '#000';
-      ctx.lineWidth = 4;
+      ctx.lineWidth = 16 * scale;
       ctx.strokeText(`⏱ ${idleText}`, width / 2, idleBgY + idleBgHeight / 2);
       ctx.fillStyle = colors.text;
       ctx.fillText(`⏱ ${idleText}`, width / 2, idleBgY + idleBgHeight / 2);
@@ -697,22 +1055,22 @@ export class CharacterFactory {
     ctx.lineWidth = 2 * scale;
     ctx.stroke();
 
-    // Mana fill - muted colors
+    // Mana fill - vibrant colors
     const fillWidth = Math.max(0, (barWidth - 4 * scale) * percentage);
     if (fillWidth > 0) {
-      // Muted colors based on percentage
+      // Vibrant colors based on percentage
       let fillColor: string;
       let glowColor: string;
 
       if (percentage > 0.5) {
-        fillColor = '#6a9a78'; // Muted sage green
-        glowColor = '#6a9a78';
+        fillColor = '#00ff88'; // Vibrant green
+        glowColor = '#00ff88';
       } else if (percentage > 0.2) {
-        fillColor = '#c89858'; // Muted orange
-        glowColor = '#c89858';
+        fillColor = '#ffaa00'; // Vibrant orange
+        glowColor = '#ffaa00';
       } else {
-        fillColor = '#c85858'; // Muted red
-        glowColor = '#c85858';
+        fillColor = '#ff3366'; // Vibrant red/pink
+        glowColor = '#ff3366';
       }
 
       ctx.fillStyle = fillColor;
@@ -1168,8 +1526,42 @@ export class CharacterFactory {
   updateVisuals(group: THREE.Group, agent: Agent, isSelected: boolean, isSubordinateOfSelectedBoss: boolean = false): void {
     const isBoss = agent.isBoss === true || agent.class === 'boss';
     const classConfig = this.getClassConfig(agent.class);
+    const remainingPercent = getContextRemainingPercent(agent);
 
-    // Update combined UI sprite
+    // Update status bar sprite (new style)
+    const statusBar = group.getObjectByName('statusBar') as THREE.Sprite;
+    if (statusBar) {
+      const material = statusBar.material as THREE.SpriteMaterial;
+      if (material.map) {
+        const canvas = material.map.image as HTMLCanvasElement;
+        if (canvas instanceof HTMLCanvasElement) {
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            this.drawStatusBar(ctx, canvas.width, canvas.height, remainingPercent, agent.status, agent.lastActivity, isBoss);
+            material.map.needsUpdate = true;
+          }
+        }
+      }
+    }
+
+    // Update name label sprite if name changed (new style)
+    const nameLabelSprite = group.getObjectByName('nameLabelSprite') as THREE.Sprite;
+    if (nameLabelSprite && group.userData.agentName !== agent.name) {
+      const material = nameLabelSprite.material as THREE.SpriteMaterial;
+      if (material.map) {
+        const canvas = material.map.image as HTMLCanvasElement;
+        if (canvas instanceof HTMLCanvasElement) {
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            this.drawNameLabel(ctx, canvas.width, canvas.height, agent.name, classConfig.color);
+            material.map.needsUpdate = true;
+            group.userData.agentName = agent.name;
+          }
+        }
+      }
+    }
+
+    // Fallback: Update combined UI sprite (legacy style)
     const combinedUI = group.getObjectByName('combinedUI') as THREE.Sprite;
     if (combinedUI) {
       const material = combinedUI.material as THREE.SpriteMaterial;
@@ -1178,7 +1570,6 @@ export class CharacterFactory {
         if (canvas instanceof HTMLCanvasElement) {
           const ctx = canvas.getContext('2d');
           if (ctx) {
-            const remainingPercent = getContextRemainingPercent(agent);
             this.drawCombinedUI(
               ctx,
               canvas.width,
@@ -1194,13 +1585,14 @@ export class CharacterFactory {
           }
         }
       }
-    } else {
-      // Fallback for legacy agents with separate sprites
+    }
+
+    // Fallback for very old agents with completely separate sprites
+    if (!statusBar && !combinedUI) {
       if (group.userData.agentName !== agent.name) {
         this.updateNameLabel(group, agent.name, agent.class);
         group.userData.agentName = agent.name;
       }
-      const remainingPercent = getContextRemainingPercent(agent);
       this.updateManaBar(group, remainingPercent, agent.status);
       this.updateIdleTimer(group, agent.status, agent.lastActivity);
     }
@@ -1304,4 +1696,12 @@ export class CharacterFactory {
     const newLabel = this.createNameLabel(name, color);
     group.add(newLabel);
   }
+}
+
+// HMR: Accept updates without full reload - mark as pending for manual refresh
+if (import.meta.hot) {
+  import.meta.hot.accept(() => {
+    console.log('[Tide HMR] CharacterFactory updated - pending refresh available');
+    window.__tideHmrPendingSceneChanges = true;
+  });
 }

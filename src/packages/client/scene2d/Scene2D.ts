@@ -48,6 +48,7 @@ export interface Building2DData {
   status: string;
   color?: string;
   scale: number;
+  subordinateBuildingIds?: string[];  // For boss buildings
 }
 
 /**
@@ -310,7 +311,7 @@ export class Scene2D {
   }
 
   private renderBossLines(): void {
-    // Draw lines for selected bosses to their subordinates
+    // Draw lines for selected boss agents to their subordinates
     for (const agentId of this.selectedAgentIds) {
       const agent = this.agents.get(agentId);
       if (!agent) continue;
@@ -335,6 +336,39 @@ export class Scene2D {
               this.effects.renderBossLine(this.ctx, this.camera, boss.position, sub.position);
             }
           }
+        }
+      }
+    }
+
+    // Draw lines for selected boss buildings to their subordinate buildings
+    for (const buildingId of this.selectedBuildingIds) {
+      const building = this.buildings.get(buildingId);
+      if (!building) continue;
+
+      // If selected building is a boss (has subordinates), show lines to them
+      if (building.subordinateBuildingIds && building.subordinateBuildingIds.length > 0) {
+        for (const subId of building.subordinateBuildingIds) {
+          const sub = this.buildings.get(subId);
+          if (sub) {
+            this.effects.renderBossLine(this.ctx, this.camera, building.position, sub.position);
+          }
+        }
+      }
+    }
+
+    // Also show lines when a subordinate building is selected (show connection to its boss)
+    for (const buildingId of this.selectedBuildingIds) {
+      // Find any boss building that has this building as a subordinate
+      for (const building of this.buildings.values()) {
+        if (building.subordinateBuildingIds?.includes(buildingId)) {
+          // This building is a boss of the selected building, show all its connections
+          for (const subId of building.subordinateBuildingIds) {
+            const sub = this.buildings.get(subId);
+            if (sub) {
+              this.effects.renderBossLine(this.ctx, this.camera, building.position, sub.position);
+            }
+          }
+          break; // A building can only have one boss
         }
       }
     }
@@ -469,6 +503,7 @@ export class Scene2D {
       status: building.status,
       color: building.color,
       scale: building.scale || 1,
+      subordinateBuildingIds: building.subordinateBuildingIds,
     });
   }
 
@@ -491,6 +526,7 @@ export class Scene2D {
     existing.status = building.status;
     existing.color = building.color;
     existing.scale = building.scale || 1;
+    existing.subordinateBuildingIds = building.subordinateBuildingIds;
   }
 
   syncBuildings(): void {
@@ -718,6 +754,7 @@ export class Scene2D {
   refreshSelectionVisuals(): void {
     const state = store.getState();
     this.selectedAgentIds = new Set(state.selectedAgentIds);
+    this.selectedBuildingIds = new Set(state.selectedBuildingIds);
   }
 
   // ============================================

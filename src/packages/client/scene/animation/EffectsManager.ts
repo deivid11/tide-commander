@@ -688,22 +688,22 @@ export class EffectsManager {
     // Create single-line canvas (4:1 aspect ratio for better text rendering)
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d')!;
-    canvas.width = 400;
-    canvas.height = 100;
+    canvas.width = 600;
+    canvas.height = 150;
 
     // Build single-line text: "icon toolName param"
     const fullText = paramText ? `${icon} ${toolName}: ${paramText}` : `${icon} ${toolName}`;
 
-    // Measure text to size bubble appropriately (30% larger)
-    ctx.font = 'bold 36px Arial';
-    const textWidth = Math.min(ctx.measureText(fullText).width, canvas.width - 40);
+    // Measure text to size bubble appropriately
+    ctx.font = 'bold 48px Arial';
+    const textWidth = Math.min(ctx.measureText(fullText).width, canvas.width - 60);
 
     // Draw speech bubble background - pill shape
-    const padding = 16;
+    const padding = 24;
     const bubbleWidth = textWidth + padding * 2;
-    const bubbleHeight = 50;
+    const bubbleHeight = 72;
     const bubbleX = (canvas.width - bubbleWidth) / 2;
-    const bubbleY = 10;
+    const bubbleY = 15;
     const r = bubbleHeight / 2;
 
     ctx.fillStyle = 'rgba(15, 15, 25, 0.95)';
@@ -723,21 +723,21 @@ export class EffectsManager {
 
     // Small pointer triangle
     ctx.beginPath();
-    ctx.moveTo(canvas.width / 2 - 8, bubbleY + bubbleHeight);
-    ctx.lineTo(canvas.width / 2, bubbleY + bubbleHeight + 14);
-    ctx.lineTo(canvas.width / 2 + 8, bubbleY + bubbleHeight);
+    ctx.moveTo(canvas.width / 2 - 12, bubbleY + bubbleHeight);
+    ctx.lineTo(canvas.width / 2, bubbleY + bubbleHeight + 20);
+    ctx.lineTo(canvas.width / 2 + 12, bubbleY + bubbleHeight);
     ctx.closePath();
     ctx.fill();
 
-    // Draw single-line text (30% larger)
+    // Draw single-line text
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 34px Arial';
+    ctx.font = 'bold 46px Arial';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
     // Truncate if needed
     let displayText = fullText;
-    const maxWidth = canvas.width - 40;
+    const maxWidth = canvas.width - 60;
     while (ctx.measureText(displayText).width > maxWidth && displayText.length > 3) {
       displayText = displayText.slice(0, -4) + '...';
     }
@@ -757,12 +757,11 @@ export class EffectsManager {
     });
 
     const sprite = new THREE.Sprite(material);
-    // Match sprite scale to canvas aspect ratio (400:100 = 4:1) - single line
-    sprite.scale.set(1.6, 0.4, 1);
+    // Match sprite scale to canvas aspect ratio (600:150 = 4:1) - 3x larger bubble
+    sprite.scale.set(7.2, 1.8, 1);
 
-    // Position just above the name label (name is at local y=-0.3 in group)
-    // Agent group position.y is typically 0, so we add the local offset
-    const baseY = agentGroup.position.y + 0.0;  // At feet level, just above name
+    // Position above the character's head
+    const baseY = agentGroup.position.y + 3.5;
     sprite.position.copy(agentGroup.position);
     sprite.position.y = baseY;
 
@@ -1116,8 +1115,8 @@ export class EffectsManager {
         // Calculate zoom-based scale
         const zoomScale = this.calculateZoomScale(agentGroup.position);
 
-        // Apply zoom-based scaling (4:1 aspect ratio to match canvas) - 50% smaller
-        bubble.sprite.scale.set(0.8 * zoomScale, 0.2 * zoomScale, 1);
+        // Apply zoom-based scaling (4:1 aspect ratio to match canvas) - 3x larger bubble
+        bubble.sprite.scale.set(4.2 * zoomScale, 1.05 * zoomScale, 1);
       }
 
       // Fade in/out and bob animation
@@ -1125,10 +1124,10 @@ export class EffectsManager {
       const fadeOut = t > 0.7 ? 1 - ((t - 0.7) / 0.3) : 1;
       bubble.sprite.material.opacity = fadeIn * fadeOut;
 
-      // Gentle bobbing - position relative to agent's y
-      const bob = Math.sin(elapsed * 0.003) * 0.05;
+      // Gentle bobbing - position above the character's head
+      const bob = Math.sin(elapsed * 0.003) * 0.08;
       const agentY = agentGroup ? agentGroup.position.y : 0;
-      bubble.sprite.position.y = agentY + 0.0 + bob;  // At feet level
+      bubble.sprite.position.y = agentY + 3.5 + bob;
 
       if (t >= 1) {
         toRemove.push(i);
@@ -1262,4 +1261,12 @@ export class EffectsManager {
     // Clear agent meshes reference
     this.agentMeshes.clear();
   }
+}
+
+// HMR: Accept updates without full reload - mark as pending for manual refresh
+if (import.meta.hot) {
+  import.meta.hot.accept(() => {
+    console.log('[Tide HMR] EffectsManager updated - pending refresh available');
+    window.__tideHmrPendingSceneChanges = true;
+  });
 }

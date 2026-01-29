@@ -147,11 +147,50 @@
   color: $text-secondary;
 }
 
+.about-version-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .about-version-value {
   font-size: 12px;
   font-weight: 600;
   color: $text-primary;
   font-family: $font-mono;
+}
+
+.about-version-status {
+  font-size: 10px;
+  color: $text-secondary;
+  font-style: italic;
+  text-decoration: none;
+  transition: color $transition-fast;
+
+  &:hover {
+    color: $accent-blue;
+  }
+}
+
+.about-version-update-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: $accent-green;
+  color: $bg-primary;
+  cursor: pointer;
+  transition: all $transition-fast;
+  font-family: $font-mono;
+
+  &::before {
+    content: '→ ';
+  }
+
+  &:hover {
+    filter: brightness(1.1);
+    transform: scale(1.05);
+  }
 }
 
 // Update section

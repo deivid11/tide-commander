@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, memo } from 'react';
 import { store, useCustomAgentClassesArray } from '../store';
 import type { Agent, AgentSupervisorHistoryEntry } from '../../shared/types';
 import { getClassConfig } from '../utils/classConfig';
@@ -39,7 +39,7 @@ const getProgressColor = (progress: string) => {
   }
 };
 
-export function AgentHoverPopup({ agent, screenPos, onClose }: AgentHoverPopupProps) {
+export const AgentHoverPopup = memo(function AgentHoverPopup({ agent, screenPos, onClose }: AgentHoverPopupProps) {
   const customClasses = useCustomAgentClassesArray();
   const area = store.getAreaForAgent(agent.id);
   const lastPrompt = store.getState().lastPrompts.get(agent.id);
@@ -63,28 +63,31 @@ export function AgentHoverPopup({ agent, screenPos, onClose }: AgentHoverPopupPr
     ? Math.round((agent.contextUsed / agent.contextLimit) * 100)
     : 0;
 
-  // Position the popup near the agent sprite
-  // Offset to avoid covering the sprite
-  const popupStyle: React.CSSProperties = {
-    position: 'fixed',
-    left: screenPos.x + 20,
-    top: screenPos.y - 100,
-    zIndex: 1000,
-  };
+  // Memoize popup style to avoid recalculating on every render
+  const popupStyle = useMemo((): React.CSSProperties => {
+    const maxWidth = 380;
+    const maxHeight = 400;
+    let left = screenPos.x + 20;
+    let top = screenPos.y - 100;
 
-  // Ensure popup stays within viewport
-  const maxWidth = 380;
-  const maxHeight = 400;
-  if (typeof window !== 'undefined') {
-    if (screenPos.x + 20 + maxWidth > window.innerWidth) {
-      popupStyle.left = screenPos.x - maxWidth - 20;
+    if (typeof window !== 'undefined') {
+      if (screenPos.x + 20 + maxWidth > window.innerWidth) {
+        left = screenPos.x - maxWidth - 20;
+      }
+      if (screenPos.y - 100 < 0) {
+        top = 10;
+      } else if (screenPos.y - 100 + maxHeight > window.innerHeight) {
+        top = window.innerHeight - maxHeight - 10;
+      }
     }
-    if (screenPos.y - 100 < 0) {
-      popupStyle.top = 10;
-    } else if (screenPos.y - 100 + maxHeight > window.innerHeight) {
-      popupStyle.top = window.innerHeight - maxHeight - 10;
-    }
-  }
+
+    return {
+      position: 'fixed',
+      left,
+      top,
+      zIndex: 1000,
+    };
+  }, [screenPos.x, screenPos.y]);
 
   return (
     <div
@@ -222,4 +225,4 @@ export function AgentHoverPopup({ agent, screenPos, onClose }: AgentHoverPopupPr
       </div>
     </div>
   );
-}
+});

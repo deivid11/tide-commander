@@ -20,11 +20,15 @@ export function getAgentClassConfig(agentClass: AgentClass): { icon: string; col
   return AGENT_CLASS_CONFIG[agentClass as BuiltInAgentClass] || DEFAULT_CLASS_CONFIG;
 }
 
-// Default names for agents
-export const DEFAULT_NAMES = [
-  'Elon Musk','Marie Curie', 'Claudia Sheinbaum', 'Frida Kahlo', 'Steve Jobs', 'Linus Torvalds', 'Jensen', 'Jeff Bezos',
-  'Tim Cook', 'Alan Turing', 'Lisa', 'Satoshi Nakamoto',
+// Default built-in names for agents (used when no custom names are set)
+export const BUILTIN_AGENT_NAMES = [
+  'Alex', 'Sam', 'Jordan', 'Taylor', 'Casey', 'Morgan', 'Riley', 'Quinn',
+  'Avery', 'Blake', 'Cameron', 'Drew', 'Emery', 'Finley', 'Harper', 'Jamie',
+  'Kai', 'Logan', 'Max', 'Nico', 'Parker', 'Reese', 'Sage', 'Sky',
 ];
+
+// For backwards compatibility - components should use getAgentNames() from store instead
+export const DEFAULT_NAMES = BUILTIN_AGENT_NAMES;
 
 
 // Character model mapping for each agent class (Kenney Mini Characters)
@@ -71,3 +75,11 @@ export const CAMERA_SAVE_INTERVAL = 1000; // Save camera every 1 second
 
 // Formation settings
 export const FORMATION_SPACING = 1.2;
+
+// HMR: Accept updates without full reload - mark as pending for manual refresh
+if (import.meta.hot) {
+  import.meta.hot.accept(() => {
+    console.log('[Tide HMR] Scene config updated - pending refresh available');
+    window.__tideHmrPendingSceneChanges = true;
+  });
+}
