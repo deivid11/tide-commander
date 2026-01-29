@@ -21,6 +21,7 @@ import {
 import { BUILDING_STATUS_COLORS } from '../utils/colors';
 import { STORAGE_KEYS, getStorageString } from '../utils/storage';
 import { HelpTooltip } from './shared/Tooltip';
+import { FolderInput } from './shared/FolderInput';
 import { useModalClose } from '../hooks';
 
 interface BuildingConfigModalProps {
@@ -568,12 +569,12 @@ export function BuildingConfigModal({
 
             <div className="form-section">
               <label className="form-label">Working Directory</label>
-              <input
-                type="text"
-                className="form-input"
+              <FolderInput
                 value={cwd}
-                onChange={(e) => setCwd(e.target.value)}
+                onChange={setCwd}
                 placeholder="/path/to/project"
+                className="form-input"
+                directoriesOnly={true}
               />
             </div>
 
@@ -581,13 +582,12 @@ export function BuildingConfigModal({
             {type === 'folder' && (
               <div className="form-section">
                 <label className="form-label">Folder Path</label>
-                <input
-                  type="text"
-                  className="form-input"
+                <FolderInput
                   value={folderPath}
-                  onChange={(e) => setFolderPath(e.target.value)}
+                  onChange={setFolderPath}
                   placeholder="/path/to/folder"
-                  required
+                  className="form-input"
+                  directoriesOnly={true}
                 />
                 <div className="form-hint">
                   Click this building to open the file explorer at this path
@@ -1433,12 +1433,12 @@ export function BuildingConfigModal({
                           size="sm"
                         />
                       </span>
-                      <input
-                        type="text"
-                        className="form-input"
+                      <FolderInput
                         value={dockerComposePath}
-                        onChange={(e) => setDockerComposePath(e.target.value)}
+                        onChange={setDockerComposePath}
                         placeholder="docker-compose.yml"
+                        className="form-input"
+                        directoriesOnly={false}
                       />
                     </div>
 

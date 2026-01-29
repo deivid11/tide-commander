@@ -27,6 +27,7 @@
 }
 
 .sidebar {
+  position: relative;
   width: $sidebar-width;
   min-width: $sidebar-width;
   flex-shrink: 0;
@@ -34,15 +35,25 @@
   border-left: 1px solid $border-color;
   display: flex;
   flex-direction: column;
-  transition: width 0.2s ease, min-width 0.2s ease, opacity 0.2s ease;
+  overflow-x: visible;
+  overflow-y: auto;
+  transition:
+    width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    min-width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.2s ease-out;
+
+  // Inner content wrapper to prevent content from resizing during animation
+  > *:not(.sidebar-collapse-edge-btn):not(.sidebar-close-btn) {
+    min-width: $sidebar-width;
+  }
 
   &.sidebar-collapsed {
     width: 0;
     min-width: 0;
     border-left: none;
-    overflow: hidden;
     opacity: 0;
     pointer-events: none;
+    overflow: hidden;
   }
 }
 
@@ -50,32 +61,103 @@
   border-bottom: 1px solid $border-color;
 }
 
-// Sidebar toggle button
-.sidebar-toggle-btn {
-  position: fixed;
-  right: $sidebar-width + 8px;
-  top: 8px;
-  z-index: 1000; // Above everything including modals
-  width: 28px;
-  height: 28px;
+// Sidebar collapse button on left edge of sidebar
+.sidebar-collapse-edge-btn {
+  position: absolute;
+  left: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  width: 20px;
+  height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: rgba($bg-secondary, 0.95);
   border: 1px solid $border-color;
-  border-radius: 4px;
-  color: rgba(255, 255, 255, 0.7);
+  border-radius: 4px 0 0 4px;
+  color: rgba(255, 255, 255, 0.5);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition:
+    opacity 0.2s ease,
+    left 0.15s ease,
+    width 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+  opacity: 0;
+
+  .sidebar:hover & {
+    opacity: 1;
+  }
 
   &:hover {
     background: $bg-secondary;
     color: #fff;
-    border-color: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.3);
+    width: 24px;
+    left: -14px;
   }
 
-  // When sidebar is collapsed, move toggle button to the right edge
-  &.sidebar-collapsed {
-    right: 8px;
+  &:active {
+    left: -8px;
+  }
+
+  // Pin mode - when sidebar is revealed by hover
+  &.can-pin {
+    color: rgba(100, 200, 255, 0.8);
+
+    &:hover {
+      color: rgb(100, 200, 255);
+      border-color: rgba(100, 200, 255, 0.4);
+    }
+  }
+}
+
+// Sidebar hover zone - invisible area on right edge to reveal collapsed sidebar
+.sidebar-hover-zone {
+  position: fixed;
+  right: 0;
+  top: 0;
+  width: 16px;
+  height: 100%;
+  z-index: 999;
+  cursor: pointer;
+
+  // Visual indicator - always slightly visible
+  &::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 80px;
+    background: linear-gradient(
+      180deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.08) 20%,
+      rgba(255, 255, 255, 0.12) 50%,
+      rgba(255, 255, 255, 0.08) 80%,
+      transparent 100%
+    );
+    border-radius: 2px 0 0 2px;
+    transition:
+      width 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+      height 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+      background 0.25s ease;
+  }
+
+  &:hover::after {
+    width: 5px;
+    height: 120px;
+    background: linear-gradient(
+      180deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.2) 20%,
+      rgba(255, 255, 255, 0.35) 50%,
+      rgba(255, 255, 255, 0.2) 80%,
+      transparent 100%
+    );
   }
 }

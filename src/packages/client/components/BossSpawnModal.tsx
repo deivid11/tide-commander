@@ -5,6 +5,7 @@ import type { AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel } from 
 import { PERMISSION_MODES, AGENT_CLASSES, CLAUDE_MODELS } from '../../shared/types';
 import { STORAGE_KEYS, getStorageString, setStorageString, apiUrl } from '../utils/storage';
 import { ModelPreview } from './ModelPreview';
+import { FolderInput } from './shared/FolderInput';
 
 interface BossSpawnModalProps {
   isOpen: boolean;
@@ -404,15 +405,16 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
               </div>
               <div className="spawn-field spawn-field-wide">
                 <label className="spawn-label">Working Directory</label>
-                <input
-                  type="text"
-                  className={`spawn-input ${hasError ? 'error' : ''}`}
-                  placeholder="/path/to/project"
+                <FolderInput
                   value={cwd}
-                  onChange={(e) => {
-                    setCwd(e.target.value);
+                  onChange={(value) => {
+                    setCwd(value);
                     setHasError(false);
                   }}
+                  placeholder="/path/to/project"
+                  className="spawn-input"
+                  hasError={hasError}
+                  directoriesOnly={true}
                 />
               </div>
             </div>

@@ -15,6 +15,10 @@ interface UseScene2DSetupOptions {
   onAgentHover?: (agentId: string | null, screenPos: { x: number; y: number } | null) => void;
   onBuildingClick?: (buildingId: string, screenPos: { x: number; y: number }) => void;
   onBuildingDoubleClick?: (buildingId: string) => void;
+  onBuildingDragStart?: (buildingId: string, startPos: { x: number; z: number }) => void;
+  onBuildingDragMove?: (buildingId: string, currentPos: { x: number; z: number }) => void;
+  onBuildingDragEnd?: (buildingId: string, endPos: { x: number; z: number }) => void;
+  onBuildingDragCancel?: (buildingId: string) => void;
   onContextMenu?: (screenPos: { x: number; y: number }, worldPos: { x: number; z: number }, target: { type: string; id?: string } | null) => void;
   onGroundClick?: (worldPos: { x: number; z: number }) => void;
   onMoveCommand?: (agentIds: string[], targetPos: { x: number; z: number }) => void;
@@ -51,6 +55,10 @@ export function useScene2DSetup(
       onAgentHover: (agentId, screenPos) => callbacksRef.current.onAgentHover?.(agentId, screenPos),
       onBuildingClick: (buildingId, screenPos) => callbacksRef.current.onBuildingClick?.(buildingId, screenPos),
       onBuildingDoubleClick: (buildingId) => callbacksRef.current.onBuildingDoubleClick?.(buildingId),
+      onBuildingDragStart: (buildingId, startPos) => callbacksRef.current.onBuildingDragStart?.(buildingId, startPos),
+      onBuildingDragMove: (buildingId, currentPos) => callbacksRef.current.onBuildingDragMove?.(buildingId, currentPos),
+      onBuildingDragEnd: (buildingId, endPos) => callbacksRef.current.onBuildingDragEnd?.(buildingId, endPos),
+      onBuildingDragCancel: (buildingId) => callbacksRef.current.onBuildingDragCancel?.(buildingId),
       onContextMenu: (screenPos, worldPos, target) => callbacksRef.current.onContextMenu?.(screenPos, worldPos, target),
       onGroundClick: (worldPos) => callbacksRef.current.onGroundClick?.(worldPos),
       onMoveCommand: (agentIds, targetPos) => callbacksRef.current.onMoveCommand?.(agentIds, targetPos),

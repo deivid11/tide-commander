@@ -7,13 +7,14 @@
  * Coordinates are shared with 3D view (X = left/right, Z = up/down in 2D)
  */
 
-import type { Agent, Building, DrawingArea, BuiltInAgentClass } from '../../shared/types';
+import type { Agent, Building, DrawingArea, BuiltInAgentClass, ContextStats } from '../../shared/types';
 import { store } from '../store';
 import { Scene2DRenderer } from './Scene2DRenderer';
 import { Scene2DInput } from './Scene2DInput';
 import { Scene2DCamera } from './Scene2DCamera';
 import { Scene2DEffects } from './Scene2DEffects';
-import { AGENT_CLASS_CONFIG } from '../scene/config';
+import { AGENT_CLASS_CONFIG, FORMATION_SPACING } from '../scene/config';
+import { fpsTracker } from '../utils/profiling';
 
 /**
  * Agent data for 2D rendering
@@ -33,6 +34,7 @@ export interface Agent2DData {
   currentTool?: string;
   contextUsed?: number;
   contextLimit?: number;
+  contextStats?: ContextStats;
 }
 
 /**
@@ -69,6 +71,10 @@ export interface Scene2DCallbacks {
   onAgentHover?: (agentId: string | null, screenPos: { x: number; y: number } | null) => void;
   onBuildingClick?: (buildingId: string, screenPos: { x: number; y: number }) => void;
   onBuildingDoubleClick?: (buildingId: string) => void;
+  onBuildingDragStart?: (buildingId: string, startPos: { x: number; z: number }) => void;
+  onBuildingDragMove?: (buildingId: string, currentPos: { x: number; z: number }) => void;
+  onBuildingDragEnd?: (buildingId: string, endPos: { x: number; z: number }) => void;
+  onBuildingDragCancel?: (buildingId: string) => void;
   onContextMenu?: (screenPos: { x: number; y: number }, worldPos: { x: number; z: number }, target: { type: string; id?: string } | null) => void;
   onGroundClick?: (worldPos: { x: number; z: number }) => void;
   onSelectionBox?: (start: { x: number; z: number }, end: { x: number; z: number }) => void;
@@ -120,6 +126,13 @@ export class Scene2D {
   private isDrawing = false;
   private drawStartPos: { x: number; z: number } | null = null;
   private drawCurrentPos: { x: number; z: number } | null = null;
+
+  // Area selection and resize state
+  private selectedAreaId: string | null = null;
+  private isResizingArea = false;
+  private resizeHandleType: 'move' | 'nw' | 'ne' | 'sw' | 'se' | 'radius' | null = null;
+  private resizeStartPos: { x: number; z: number } | null = null;
+  private resizeOriginalArea: Area2DData | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -192,6 +205,9 @@ export class Scene2D {
   private animate = (): void => {
     if (!this.isRunning) return;
 
+    // Track FPS for the FPSMeter component
+    fpsTracker.tick();
+
     const now = performance.now();
     const deltaTime = (now - this.lastFrameTime) / 1000;
     this.lastFrameTime = now;
@@ -257,7 +273,8 @@ export class Scene2D {
 
     // Draw areas
     for (const area of this.areas.values()) {
-      this.renderer.drawArea(area);
+      const isSelected = area.id === this.selectedAreaId;
+      this.renderer.drawArea(area, isSelected);
     }
 
     // Draw boss-subordinate lines
@@ -346,6 +363,7 @@ export class Scene2D {
       currentTool: agent.currentTool,
       contextUsed: agent.contextUsed,
       contextLimit: agent.contextLimit,
+      contextStats: agent.contextStats,
     });
   }
 
@@ -420,6 +438,7 @@ export class Scene2D {
     existing.currentTool = agent.currentTool;
     existing.contextUsed = agent.contextUsed;
     existing.contextLimit = agent.contextLimit;
+    existing.contextStats = agent.contextStats;
   }
 
   syncAgents(agents: Agent[]): void {
@@ -523,6 +542,168 @@ export class Scene2D {
   }
 
   // ============================================
+  // Area Selection & Resize
+  // ============================================
+
+  getSelectedAreaId(): string | null {
+    return this.selectedAreaId;
+  }
+
+  selectArea(areaId: string | null): void {
+    this.selectedAreaId = areaId;
+    store.selectArea(areaId);
+  }
+
+  isAreaSelected(): boolean {
+    return this.selectedAreaId !== null;
+  }
+
+  /**
+   * Get the resize handle at a world position, if any.
+   * Returns the handle type if within the handle hit area.
+   */
+  getAreaHandleAtWorldPos(worldX: number, worldZ: number): { areaId: string; handleType: 'move' | 'nw' | 'ne' | 'sw' | 'se' | 'radius' } | null {
+    if (!this.selectedAreaId) return null;
+
+    const area = this.areas.get(this.selectedAreaId);
+    if (!area) return null;
+
+    const handleRadius = 0.4; // World units for handle hit area
+    const zoom = this.camera.getZoom();
+    const adaptiveRadius = handleRadius * (30 / Math.max(zoom, 10)); // Adapt to zoom level
+
+    // Check move handle (center)
+    const dxCenter = worldX - area.position.x;
+    const dzCenter = worldZ - area.position.z;
+    if (Math.sqrt(dxCenter * dxCenter + dzCenter * dzCenter) <= adaptiveRadius) {
+      return { areaId: area.id, handleType: 'move' };
+    }
+
+    if (area.type === 'rectangle' && 'width' in area.size) {
+      const { width, height } = area.size;
+      const corners: { type: 'nw' | 'ne' | 'sw' | 'se'; x: number; z: number }[] = [
+        { type: 'nw', x: area.position.x - width / 2, z: area.position.z - height / 2 },
+        { type: 'ne', x: area.position.x + width / 2, z: area.position.z - height / 2 },
+        { type: 'sw', x: area.position.x - width / 2, z: area.position.z + height / 2 },
+        { type: 'se', x: area.position.x + width / 2, z: area.position.z + height / 2 },
+      ];
+
+      for (const corner of corners) {
+        const dx = worldX - corner.x;
+        const dz = worldZ - corner.z;
+        if (Math.sqrt(dx * dx + dz * dz) <= adaptiveRadius) {
+          return { areaId: area.id, handleType: corner.type };
+        }
+      }
+    } else if (area.type === 'circle' && 'radius' in area.size) {
+      // Radius handle is on the right edge of the circle
+      const handleX = area.position.x + area.size.radius;
+      const handleZ = area.position.z;
+      const dx = worldX - handleX;
+      const dz = worldZ - handleZ;
+      if (Math.sqrt(dx * dx + dz * dz) <= adaptiveRadius) {
+        return { areaId: area.id, handleType: 'radius' };
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Start resizing/moving an area.
+   */
+  startAreaResize(handleType: 'move' | 'nw' | 'ne' | 'sw' | 'se' | 'radius', pos: { x: number; z: number }): void {
+    if (!this.selectedAreaId) return;
+
+    const area = this.areas.get(this.selectedAreaId);
+    if (!area) return;
+
+    this.isResizingArea = true;
+    this.resizeHandleType = handleType;
+    this.resizeStartPos = { ...pos };
+    this.resizeOriginalArea = { ...area, size: { ...area.size } };
+  }
+
+  /**
+   * Update resize/move during drag.
+   */
+  updateAreaResize(pos: { x: number; z: number }): void {
+    if (!this.isResizingArea || !this.resizeOriginalArea || !this.resizeHandleType || !this.resizeStartPos) return;
+
+    const area = this.resizeOriginalArea;
+    let updates: { center?: { x: number; z: number }; width?: number; height?: number; radius?: number } = {};
+
+    if (this.resizeHandleType === 'move') {
+      const deltaX = pos.x - this.resizeStartPos.x;
+      const deltaZ = pos.z - this.resizeStartPos.z;
+      updates = {
+        center: {
+          x: area.position.x + deltaX,
+          z: area.position.z + deltaZ,
+        },
+      };
+    } else if (area.type === 'rectangle' && 'width' in area.size) {
+      const dx = pos.x - area.position.x;
+      const dz = pos.z - area.position.z;
+
+      switch (this.resizeHandleType) {
+        case 'se': {
+          const newWidth = Math.max(0.5, dx * 2);
+          const newHeight = Math.max(0.5, dz * 2);
+          updates = { width: newWidth, height: newHeight };
+          break;
+        }
+        case 'sw': {
+          const newWidth = Math.max(0.5, -dx * 2);
+          const newHeight = Math.max(0.5, dz * 2);
+          updates = { width: newWidth, height: newHeight };
+          break;
+        }
+        case 'ne': {
+          const newWidth = Math.max(0.5, dx * 2);
+          const newHeight = Math.max(0.5, -dz * 2);
+          updates = { width: newWidth, height: newHeight };
+          break;
+        }
+        case 'nw': {
+          const newWidth = Math.max(0.5, -dx * 2);
+          const newHeight = Math.max(0.5, -dz * 2);
+          updates = { width: newWidth, height: newHeight };
+          break;
+        }
+      }
+    } else if (area.type === 'circle' && this.resizeHandleType === 'radius') {
+      const dx = pos.x - area.position.x;
+      const dz = pos.z - area.position.z;
+      const newRadius = Math.max(0.5, Math.sqrt(dx * dx + dz * dz));
+      updates = { radius: newRadius };
+    }
+
+    if (Object.keys(updates).length > 0) {
+      store.updateArea(this.selectedAreaId!, updates);
+      // Immediately sync to reflect changes
+      this.syncAreas();
+    }
+  }
+
+  /**
+   * Finish resize/move operation.
+   */
+  finishAreaResize(): void {
+    this.isResizingArea = false;
+    this.resizeHandleType = null;
+    this.resizeStartPos = null;
+    this.resizeOriginalArea = null;
+  }
+
+  /**
+   * Check if currently resizing an area.
+   */
+  isCurrentlyResizingArea(): boolean {
+    return this.isResizingArea;
+  }
+
+  // ============================================
   // Selection
   // ============================================
 
@@ -545,6 +726,84 @@ export class Scene2D {
 
   createMoveOrderEffect(worldPos: { x: number; z: number }): void {
     this.effects.addMoveOrderEffect(worldPos);
+  }
+
+  /**
+   * Call subordinates to form around a boss agent
+   */
+  callSubordinates(bossId: string): void {
+    const state = store.getState();
+    const boss = state.agents.get(bossId);
+    if (!boss || !(boss.isBoss || boss.class === 'boss') || !boss.subordinateIds?.length) return;
+
+    const bossPosition = { x: boss.position.x, z: boss.position.z };
+    const positions = this.calculateFormationPositions(bossPosition, boss.subordinateIds.length);
+    this.effects.addMoveOrderEffect(bossPosition);
+
+    boss.subordinateIds.forEach((subId, index) => {
+      const targetPos = positions[index];
+      store.moveAgent(subId, { x: targetPos.x, y: 0, z: targetPos.z });
+
+      // Animate the movement in 2D
+      const agent = this.agents.get(subId);
+      if (agent) {
+        const distance = Math.sqrt(
+          Math.pow(targetPos.x - agent.position.x, 2) +
+          Math.pow(targetPos.z - agent.position.z, 2)
+        );
+        const duration = (distance / 2) * 1000; // Walking speed ~2 units/sec
+
+        this.movements.set(subId, {
+          startPos: { x: agent.position.x, z: agent.position.z },
+          endPos: { x: targetPos.x, z: targetPos.z },
+          startTime: performance.now(),
+          duration: Math.max(500, Math.min(duration, 3000)),
+        });
+      }
+    });
+  }
+
+  /**
+   * Calculate formation positions for multiple agents around a center point
+   */
+  private calculateFormationPositions(
+    center: { x: number; z: number },
+    count: number
+  ): { x: number; z: number }[] {
+    const positions: { x: number; z: number }[] = [];
+
+    if (count === 1) {
+      return [{ x: center.x, z: center.z }];
+    }
+
+    if (count <= 6) {
+      // Circle formation
+      const radius = FORMATION_SPACING * Math.max(1, count / 3);
+      for (let i = 0; i < count; i++) {
+        const angle = (i / count) * Math.PI * 2 - Math.PI / 2;
+        positions.push({
+          x: center.x + Math.cos(angle) * radius,
+          z: center.z + Math.sin(angle) * radius,
+        });
+      }
+    } else {
+      // Grid formation
+      const cols = Math.ceil(Math.sqrt(count));
+      const rows = Math.ceil(count / cols);
+      const offsetX = ((cols - 1) * FORMATION_SPACING) / 2;
+      const offsetZ = ((rows - 1) * FORMATION_SPACING) / 2;
+
+      for (let i = 0; i < count; i++) {
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        positions.push({
+          x: center.x + col * FORMATION_SPACING - offsetX,
+          z: center.z + row * FORMATION_SPACING - offsetZ,
+        });
+      }
+    }
+
+    return positions;
   }
 
   showToolBubble(agentId: string, toolName: string): void {
@@ -653,6 +912,22 @@ export class Scene2D {
   handleBuildingHover(buildingId: string | null): void {
     // Optional callback - building hover state is mainly used for visual feedback
     // Store in a member variable if we want to render hover effects
+  }
+
+  handleBuildingDragStart(buildingId: string, startPos: { x: number; z: number }): void {
+    this.callbacks.onBuildingDragStart?.(buildingId, startPos);
+  }
+
+  handleBuildingDragMove(buildingId: string, currentPos: { x: number; z: number }): void {
+    this.callbacks.onBuildingDragMove?.(buildingId, currentPos);
+  }
+
+  handleBuildingDragEnd(buildingId: string, endPos: { x: number; z: number }): void {
+    this.callbacks.onBuildingDragEnd?.(buildingId, endPos);
+  }
+
+  handleBuildingDragCancel?(buildingId: string): void {
+    this.callbacks.onBuildingDragCancel?.(buildingId);
   }
 
   handleContextMenu(screenPos: { x: number; y: number }, worldPos: { x: number; z: number }, target: { type: string; id?: string } | null): void {

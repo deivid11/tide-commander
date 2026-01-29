@@ -211,7 +211,6 @@ export function TerminalHeader({
         >
           🗑️ Clear Context
         </button>
-        <span className="guake-hint hide-on-mobile">Press ` to toggle</span>
         {/* Mobile close button - switch to 3D view */}
         <button
           className="guake-close-btn show-on-mobile"

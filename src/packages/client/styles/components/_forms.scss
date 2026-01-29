@@ -182,3 +182,119 @@
     font-size: 18px;
   }
 }
+
+// FolderInput - Path autocomplete input
+.folder-input-container {
+  position: relative;
+  width: 100%;
+}
+
+.folder-input {
+  width: 100%;
+  padding: 10px 12px;
+  background: $bg-tertiary;
+  border: 1px solid $border-color;
+  border-radius: $radius-md;
+  color: $text-primary;
+  font-size: 14px;
+  font-family: $font-mono;
+  outline: none;
+  box-sizing: border-box;
+
+  &:focus {
+    border-color: $accent-blue;
+  }
+
+  &.error {
+    border-color: $accent-red;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  &::placeholder {
+    color: $text-secondary;
+  }
+}
+
+.folder-input-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  margin-top: 4px;
+  background: $bg-secondary;
+  border: 1px solid $border-color;
+  border-radius: $radius-md;
+  max-height: 240px;
+  overflow-y: auto;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+
+  // Custom scrollbar
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: $border-color;
+    border-radius: 3px;
+
+    &:hover {
+      background: $text-muted;
+    }
+  }
+}
+
+.folder-input-suggestion {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background $transition-fast;
+
+  &:hover,
+  &.selected {
+    background: rgba($accent-blue, 0.15);
+  }
+
+  &.selected {
+    background: rgba($accent-blue, 0.25);
+  }
+}
+
+.folder-input-suggestion-icon {
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+.folder-input-suggestion-name {
+  flex: 1;
+  font-family: $font-mono;
+  font-size: 13px;
+  color: $text-primary;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-input-suggestion-hint {
+  flex-shrink: 0;
+  font-family: $font-mono;
+  font-size: 12px;
+  color: $text-muted;
+}
+
+.folder-input-loading {
+  padding: 12px;
+  text-align: center;
+  font-size: 12px;
+  color: $text-secondary;
+}

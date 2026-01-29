@@ -226,13 +226,13 @@ export function FileExplorerPanel({
         const query = searchQuery.trim();
 
         // Always search by filename
-        const filenamePromise = fetch(
+        const filenamePromise = authFetch(
           apiUrl(`/api/files/search?path=${encodeURIComponent(currentFolder)}&q=${encodeURIComponent(query)}&limit=20`)
         ).then(res => res.json()).catch(() => ({ results: [] }));
 
         // Only search content if query is at least 2 chars
         const contentPromise = query.length >= 2
-          ? fetch(
+          ? authFetch(
               apiUrl(`/api/files/search-content?path=${encodeURIComponent(currentFolder)}&q=${encodeURIComponent(query)}&limit=20`)
             ).then(res => res.json()).catch(() => ({ results: [] }))
           : Promise.resolve({ results: [] });

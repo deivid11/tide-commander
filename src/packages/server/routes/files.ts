@@ -942,6 +942,102 @@ router.get('/temp-dir', (_req: Request, res: Response) => {
   res.json({ path: TEMP_DIR });
 });
 
+// GET /api/files/autocomplete - Autocomplete paths for folder/file input
+router.get('/autocomplete', async (req: Request, res: Response) => {
+  try {
+    const inputPath = req.query.path as string;
+    const directoriesOnly = req.query.dirs === 'true';
+    const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
+
+    if (!inputPath) {
+      // Return common starting points
+      const homedir = os.homedir();
+      const suggestions = [
+        { name: '~', path: homedir, isDirectory: true },
+        { name: '/', path: '/', isDirectory: true },
+      ];
+      res.json({ suggestions, basePath: '', partial: '' });
+      return;
+    }
+
+    // Expand ~ to home directory
+    let expandedPath = inputPath;
+    if (inputPath.startsWith('~')) {
+      expandedPath = path.join(os.homedir(), inputPath.slice(1));
+    }
+
+    // Determine base directory and partial name being typed
+    let basePath: string;
+    let partial: string;
+
+    if (expandedPath.endsWith('/') || expandedPath === '/') {
+      // User ended with / - list contents of that directory
+      basePath = expandedPath === '/' ? '/' : expandedPath.slice(0, -1);
+      partial = '';
+    } else {
+      // User is typing a partial name - get parent directory
+      basePath = path.dirname(expandedPath);
+      partial = path.basename(expandedPath).toLowerCase();
+    }
+
+    // Check if base path exists
+    if (!fs.existsSync(basePath)) {
+      // Try to find the closest existing parent
+      let checkPath = basePath;
+      while (checkPath !== '/' && !fs.existsSync(checkPath)) {
+        checkPath = path.dirname(checkPath);
+      }
+      res.json({ suggestions: [], basePath: checkPath, partial, error: 'Path not found' });
+      return;
+    }
+
+    // Check if it's a directory
+    const stats = fs.statSync(basePath);
+    if (!stats.isDirectory()) {
+      res.json({ suggestions: [], basePath, partial, error: 'Not a directory' });
+      return;
+    }
+
+    // Read directory entries
+    const entries = fs.readdirSync(basePath, { withFileTypes: true });
+    const suggestions: Array<{ name: string; path: string; isDirectory: boolean }> = [];
+
+    for (const entry of entries) {
+      // Skip hidden files unless user is explicitly typing a dot
+      if (entry.name.startsWith('.') && !partial.startsWith('.')) continue;
+
+      // Filter by partial match
+      if (partial && !entry.name.toLowerCase().startsWith(partial)) continue;
+
+      // Filter by directories only if requested
+      if (directoriesOnly && !entry.isDirectory()) continue;
+
+      const fullPath = path.join(basePath, entry.name);
+
+      suggestions.push({
+        name: entry.name,
+        path: fullPath,
+        isDirectory: entry.isDirectory(),
+      });
+
+      if (suggestions.length >= limit) break;
+    }
+
+    // Sort: directories first, then alphabetically
+    suggestions.sort((a, b) => {
+      if (a.isDirectory !== b.isDirectory) {
+        return a.isDirectory ? -1 : 1;
+      }
+      return a.name.localeCompare(b.name);
+    });
+
+    res.json({ suggestions, basePath, partial });
+  } catch (err: any) {
+    log.error(' Failed to autocomplete path:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // DELETE /api/files/temp/:filename - Delete a temp file
 router.delete('/temp/:filename', (req: Request<{ filename: string }>, res: Response) => {
   try {

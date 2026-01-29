@@ -8,6 +8,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { store } from '../../store';
 import { PermissionRequestInline } from './PermissionRequest';
 import { getImageWebUrl } from './contentRendering';
+import { PastedTextChip } from './PastedTextChip';
 import { useSTT } from '../../hooks/useSTT';
 import type { Agent, PermissionRequest } from '../../../shared/types';
 import type { AttachedFile } from './types';
@@ -27,6 +28,7 @@ export interface TerminalInputAreaProps {
   setAttachedFiles: React.Dispatch<React.SetStateAction<AttachedFile[]>>;
   removeAttachedFile: (id: number) => void;
   uploadFile: (file: File) => Promise<AttachedFile | null>;
+  pastedTexts: Map<number, string>;
   expandPastedTexts: (text: string) => string;
   incrementPastedCount: () => number;
   setPastedTexts: React.Dispatch<React.SetStateAction<Map<number, string>>>;
@@ -58,6 +60,7 @@ export function TerminalInputArea({
   setAttachedFiles,
   removeAttachedFile,
   uploadFile,
+  pastedTexts,
   expandPastedTexts,
   incrementPastedCount,
   setPastedTexts,
@@ -157,6 +160,32 @@ export function TerminalInputArea({
       return () => clearTimeout(timeoutId);
     }
   }, [isOpen, selectedAgentId, useTextarea]);
+
+  // Remove a pasted text and its placeholder from the command
+  const removePastedText = (id: number) => {
+    // Remove placeholder from command
+    const placeholder = new RegExp(`\\[Pasted text #${id} \\+\\d+ lines\\]\\s*`, 'g');
+    setCommand(command.replace(placeholder, '').trim());
+    // Remove from pastedTexts map
+    setPastedTexts((prev) => {
+      const newMap = new Map(prev);
+      newMap.delete(id);
+      return newMap;
+    });
+  };
+
+  // Extract pasted text info from command for display
+  const getPastedTextInfo = (): Array<{ id: number; lineCount: number }> => {
+    const pattern = /\[Pasted text #(\d+) \+(\d+) lines\]/g;
+    const results: Array<{ id: number; lineCount: number }> = [];
+    let match;
+    while ((match = pattern.exec(command)) !== null) {
+      results.push({ id: parseInt(match[1], 10), lineCount: parseInt(match[2], 10) });
+    }
+    return results;
+  };
+
+  const pastedTextInfos = getPastedTextInfo();
 
   const handleSendCommand = () => {
     if ((!command.trim() && attachedFiles.length === 0) || !selectedAgentId) return;
@@ -306,6 +335,24 @@ export function TerminalInputArea({
               onDeny={() => store.respondToPermissionRequest(request.id, false)}
             />
           ))}
+        </div>
+      )}
+
+      {/* Pasted text chips display */}
+      {pastedTextInfos.length > 0 && (
+        <div className="guake-pasted-texts">
+          {pastedTextInfos.map(({ id, lineCount }) => {
+            const fullText = pastedTexts.get(id) || '';
+            return (
+              <PastedTextChip
+                key={id}
+                id={id}
+                lineCount={lineCount}
+                fullText={fullText}
+                onRemove={() => removePastedText(id)}
+              />
+            );
+          })}
         </div>
       )}
 

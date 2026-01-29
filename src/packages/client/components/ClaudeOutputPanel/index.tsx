@@ -714,6 +714,7 @@ export function ClaudeOutputPanel() {
           setAttachedFiles={terminalInput.setAttachedFiles}
           removeAttachedFile={terminalInput.removeAttachedFile}
           uploadFile={terminalInput.uploadFile}
+          pastedTexts={terminalInput.pastedTexts}
           expandPastedTexts={terminalInput.expandPastedTexts}
           incrementPastedCount={terminalInput.incrementPastedCount}
           setPastedTexts={terminalInput.setPastedTexts}

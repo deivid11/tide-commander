@@ -103,6 +103,8 @@ function AppContent() {
     const saved = localStorage.getItem('tide-commander-sidebar-collapsed');
     return saved === 'true';
   });
+  // Track if sidebar was revealed by hover (should auto-hide on mouse leave)
+  const [sidebarRevealedByHover, setSidebarRevealedByHover] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const mobileView = useMobileView();
   const fileViewerPath = useFileViewerPath();
@@ -373,7 +375,7 @@ function AppContent() {
   }, [sceneRef]);
 
   return (
-    <div className={`app ${state.terminalOpen ? 'terminal-open' : ''} ${isDrawingMode ? 'drawing-mode' : ''} mobile-view-${mobileView}`}>
+    <div className={`app ${state.terminalOpen ? 'terminal-open' : ''} ${isDrawingMode ? 'drawing-mode' : ''} ${sidebarCollapsed ? 'sidebar-collapsed' : ''} mobile-view-${mobileView}`}>
       {/* FPS Meter */}
       <FPSMeter visible={state.settings.showFPS} position="bottom-right" />
 
@@ -446,9 +448,62 @@ function AppContent() {
                 contextMenu.open(screenPos, worldPos, menuTarget);
               }}
               onMoveCommand={(agentIds, targetPos) => {
-                for (const agentId of agentIds) {
-                  store.moveAgent(agentId, { x: targetPos.x, y: 0, z: targetPos.z });
+                // Calculate formation positions (same logic as 3D scene)
+                const FORMATION_SPACING = 1.2;
+                const count = agentIds.length;
+                const positions: { x: number; y: number; z: number }[] = [];
+
+                if (count === 1) {
+                  positions.push({ x: targetPos.x, y: 0, z: targetPos.z });
+                } else if (count <= 6) {
+                  // Circle formation
+                  const radius = FORMATION_SPACING * Math.max(1, count / 3);
+                  for (let i = 0; i < count; i++) {
+                    const angle = (i / count) * Math.PI * 2 - Math.PI / 2;
+                    positions.push({
+                      x: targetPos.x + Math.cos(angle) * radius,
+                      y: 0,
+                      z: targetPos.z + Math.sin(angle) * radius,
+                    });
+                  }
+                } else {
+                  // Grid formation
+                  const cols = Math.ceil(Math.sqrt(count));
+                  const rows = Math.ceil(count / cols);
+                  const offsetX = ((cols - 1) * FORMATION_SPACING) / 2;
+                  const offsetZ = ((rows - 1) * FORMATION_SPACING) / 2;
+
+                  for (let i = 0; i < count; i++) {
+                    const col = i % cols;
+                    const row = Math.floor(i / cols);
+                    positions.push({
+                      x: targetPos.x + col * FORMATION_SPACING - offsetX,
+                      y: 0,
+                      z: targetPos.z + row * FORMATION_SPACING - offsetZ,
+                    });
+                  }
                 }
+
+                // Move each agent to their formation position
+                agentIds.forEach((agentId, index) => {
+                  store.moveAgent(agentId, positions[index]);
+                });
+              }}
+              onBuildingDragMove={(buildingId, currentPos) => {
+                // Update building position visually during drag (real-time)
+                const building = store.getState().buildings.get(buildingId);
+                if (building) {
+                  store.getState().buildings.set(buildingId, {
+                    ...building,
+                    position: { x: currentPos.x, z: currentPos.z },
+                  });
+                  // Trigger re-render of 2D scene
+                  (window as any).__tideScene2D?.syncBuildings();
+                }
+              }}
+              onBuildingDragEnd={(buildingId, endPos) => {
+                // Persist the final position to store and server
+                store.updateBuildingPosition(buildingId, endPos);
               }}
               indicatorScale={sceneConfig.indicatorScale}
               showGrid={sceneConfig.gridVisible}
@@ -480,28 +535,54 @@ function AppContent() {
           <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />
         )}
 
-        {/* Sidebar toggle button for desktop */}
-        <button
-          className={`sidebar-toggle-btn hide-on-mobile ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}
-          onClick={() => {
-            const newValue = !sidebarCollapsed;
-            setSidebarCollapsed(newValue);
-            localStorage.setItem('tide-commander-sidebar-collapsed', String(newValue));
-            // Trigger resize for Three.js canvas
-            setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
-          }}
-          title={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            {sidebarCollapsed ? (
-              <><rect x="3" y="3" width="18" height="18" rx="2" /><line x1="15" y1="3" x2="15" y2="21" /><polyline points="10 8 6 12 10 16" /></>
-            ) : (
-              <><rect x="3" y="3" width="18" height="18" rx="2" /><line x1="15" y1="3" x2="15" y2="21" /><polyline points="10 16 14 12 10 8" /></>
-            )}
-          </svg>
-        </button>
+        {/* Sidebar hover zone - shows when collapsed, reveals sidebar on hover */}
+        {sidebarCollapsed && (
+          <div
+            className="sidebar-hover-zone hide-on-mobile"
+            onMouseEnter={() => {
+              setSidebarCollapsed(false);
+              setSidebarRevealedByHover(true);
+            }}
+          />
+        )}
 
-        <aside className={`sidebar ${sidebarOpen ? 'sidebar-open' : ''} ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+        <aside
+          className={`sidebar ${sidebarOpen ? 'sidebar-open' : ''} ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}
+          onMouseLeave={() => {
+            // Auto-hide if it was revealed by hover
+            if (sidebarRevealedByHover) {
+              setSidebarCollapsed(true);
+              setSidebarRevealedByHover(false);
+            }
+          }}
+        >
+          {/* Collapse/Pin button on left edge of sidebar (desktop only) */}
+          <button
+            className={`sidebar-collapse-edge-btn hide-on-mobile ${sidebarRevealedByHover ? 'can-pin' : ''}`}
+            onClick={() => {
+              if (sidebarRevealedByHover) {
+                // Pin the sidebar (disable auto-hide)
+                setSidebarRevealedByHover(false);
+                localStorage.setItem('tide-commander-sidebar-collapsed', 'false');
+              } else {
+                // Collapse the sidebar
+                setSidebarCollapsed(true);
+                localStorage.setItem('tide-commander-sidebar-collapsed', 'true');
+                setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
+              }
+            }}
+            title={sidebarRevealedByHover ? 'Pin sidebar open' : 'Hide sidebar'}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              {sidebarRevealedByHover ? (
+                // Pin icon
+                <><circle cx="12" cy="10" r="3" /><line x1="12" y1="13" x2="12" y2="21" /><line x1="8" y1="21" x2="16" y2="21" /></>
+              ) : (
+                // Chevron right icon
+                <polyline points="9 6 15 12 9 18" />
+              )}
+            </svg>
+          </button>
           <button
             className="sidebar-close-btn show-on-mobile"
             onClick={() => setSidebarOpen(false)}

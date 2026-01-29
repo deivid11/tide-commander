@@ -16,6 +16,12 @@
   z-index: 200;
   display: flex;
   flex-direction: column;
+  transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+  // When sidebar is collapsed, extend to full width
+  .app.sidebar-collapsed & {
+    right: 0;
+  }
 
   &.open {
     .guake-content {
