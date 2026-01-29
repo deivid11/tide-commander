@@ -2,6 +2,78 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.33.0] - 2026-01-29
+
+### Added
+- **CharacterFactory Major Refactoring** - Complete rewrite of character animation and visual system
+  - Enhanced animation loading and management
+  - Improved model caching and optimization
+  - Better support for custom animations
+  - Procedural animation fallbacks for static models
+  - Extended character configuration options
+- **UI Component Enhancements** - Comprehensive visual improvements
+  - New `AboutSection` with improved styling and layout
+  - New `ConfigSection` for expanded configuration options
+  - Enhanced `AgentBar` with better styling and interactions
+  - Improved popup components (AgentHoverPopup, action popups)
+  - Better responsive design across components
+- **Scene Initialization Improvements** - Enhanced hook system
+  - Refactored `useSceneSetup` hook with improved initialization logic
+  - Better scene lifecycle management
+  - Enhanced synchronization mechanisms
+  - Improved error handling and fallbacks
+- **Visual Effects Expansion** - Extended EffectsManager capabilities
+  - Additional visual effect types
+  - Better effect layering and composition
+  - Improved performance with effect pooling
+- **Server Service Enhancements**
+  - Extended authentication service capabilities
+  - Improved skill service with better skill management
+  - Enhanced command handler with better event routing
+
+### Changed
+- **Scene Architecture** - Major refactor of scene core and manager
+  - Better state management and coordination
+  - Improved agent manager with extended styling system
+  - Enhanced selection manager with better visual feedback
+  - Better scene lifecycle coordination
+- **Agent Components** - Improved styling and interactions
+  - BossBuildingActionPopup with better layout
+  - BuildingActionPopup with improved styling
+  - DatabaseBuildingActionPopup enhancements
+  - FloatingActionButtons with better positioning
+  - SkillEditorModal improvements
+  - SpawnModal with better UX
+  - ContextMenu refinements
+- **Scene Synchronization** - Enhanced useSceneSync hook
+  - Better synchronization logic
+  - Improved state updates
+  - Better error handling
+- **Styling System** - SCSS improvements
+  - AgentBar styling enhancements
+  - AboutSection styling
+  - ConfigSection styling
+  - Better responsive breakpoints
+
+### Technical
+- Major CharacterFactory refactor (536+ lines added)
+- Enhanced SceneSetup hook logic (133+ lines added)
+- Extended EffectsManager with new capabilities (55+ lines)
+- New ConfigSection component with styling
+- Improved AboutSection with additional features
+- Enhanced AgentBar styling (64+ lines)
+- New toolbox styling sections (117+ lines)
+- Extended store selectors and types
+- Improved server authentication service (8+ lines)
+- Enhanced skill-service with better management
+- Better websocket command handler
+
+### Fixed
+- Improved scene initialization reliability
+- Better error handling in character loading
+- Enhanced animation fallback system
+- Better state synchronization
+
 ## [0.32.0] - 2026-01-29
 
 ### Added
