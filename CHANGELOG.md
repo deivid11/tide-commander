@@ -2,6 +2,59 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.32.0] - 2026-01-29
+
+### Added
+- **2D Scene Formation Movement** - Agents can now move in coordinated formations
+  - Circle formation for small groups (1-6 agents)
+  - Grid formation for larger groups
+  - Configurable formation spacing (1.2 unit default)
+  - Smooth multi-agent positioning with centralized target point
+- **Building Drag-Move Support** - Buildings can now be moved in the 2D scene
+  - Real-time visual updates during drag operations
+  - Building position synchronization
+  - Integrated with 2D scene input handler
+- **Text Attachment Handling** - Enhanced Claude output panel
+  - New `PastedTextChip` component for displaying text attachments
+  - Improved attachment rendering and styling
+- **Shared FolderInput Component** - New reusable folder/directory input component
+  - File/folder selection interface
+  - Integrated with BuildingConfigModal and other modals
+  - Better UX for directory-based configuration
+
+### Changed
+- **2D Scene Input Handler** - Extended with drag support for buildings
+  - New `onBuildingDragMove` callback for building drag operations
+  - Better event delegation for building interactions
+  - Improved input handling for 2D scene objects
+- **Scene2D Rendering** - Enhanced visual system
+  - Improved building rendering with drag indicators
+  - Better entity positioning and updates
+  - Optimized renderer performance
+- **ClaudeOutputPanel** - Improved input area
+  - Better text input handling
+  - Enhanced attachment chip styling
+  - Improved terminal header organization
+- **Server File Routes** - Expanded capabilities
+  - New file upload endpoints
+  - Enhanced file serving capabilities
+  - Better error handling
+- **WebSocket Handler** - Extended event routing
+  - New handlers for building drag operations
+  - Improved event propagation
+  - Better client-server synchronization
+
+### Technical
+- New `PastedTextChip.tsx` component for attachment rendering
+- New `FolderInput.tsx` shared component for directory selection
+- Enhanced `Scene2D.ts` with building drag state management
+- Extended `Scene2DInput.ts` with drag event handling
+- Updated `Scene2DRenderer.ts` with drag visualization
+- New file routes in `src/packages/server/routes/files.ts`
+- Extended `claude-service.ts` with new capabilities
+- Improved WebSocket handler with new event types
+- Enhanced SCSS for attachment chips and input areas
+
 ## [0.31.0] - 2026-01-28
 
 ### Added
