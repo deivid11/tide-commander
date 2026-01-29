@@ -1088,7 +1088,10 @@ export class Scene2D {
   }
 
   getAreaAtWorldPos(worldX: number, worldZ: number): Area2DData | null {
-    for (const area of this.areas.values()) {
+    // Sort areas by zIndex descending (highest first) so we check topmost areas first
+    const sortedAreas = Array.from(this.areas.values()).sort((a, b) => b.zIndex - a.zIndex);
+
+    for (const area of sortedAreas) {
       if (area.type === 'rectangle' && 'width' in area.size) {
         const { width, height } = area.size;
         const left = area.position.x - width / 2;
@@ -1215,6 +1218,7 @@ export class Scene2D {
         width,
         height,
         color: '#4a9eff',
+        zIndex: store.getNextZIndex(),
         assignedAgentIds: [],
         directories: [],
       };
@@ -1233,6 +1237,7 @@ export class Scene2D {
         center: { x: start.x, z: start.z },
         radius,
         color: '#4a9eff',
+        zIndex: store.getNextZIndex(),
         assignedAgentIds: [],
         directories: [],
       };

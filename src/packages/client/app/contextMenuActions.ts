@@ -113,6 +113,25 @@ export function buildContextMenuActions(
           },
         });
       }
+      actions.push({ id: 'divider-area-layer', label: '', divider: true, onClick: () => {} });
+      actions.push({
+        id: 'bring-to-front',
+        label: 'Bring to Front',
+        icon: '⬆️',
+        onClick: () => {
+          store.bringAreaToFront(target.id!);
+          callbacks.sceneRef.current?.syncAreas();
+        },
+      });
+      actions.push({
+        id: 'send-to-back',
+        label: 'Send to Back',
+        icon: '⬇️',
+        onClick: () => {
+          store.sendAreaToBack(target.id!);
+          callbacks.sceneRef.current?.syncAreas();
+        },
+      });
       actions.push({ id: 'divider-area', label: '', divider: true, onClick: () => {} });
       actions.push({
         id: 'delete-area',

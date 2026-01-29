@@ -565,11 +565,17 @@ export class DrawingManager {
 
   /**
    * Get area at a world position.
+   * Areas are checked in reverse z-order (highest zIndex first) so topmost area is selected.
    */
   getAreaAtPosition(pos: { x: number; z: number }): DrawingArea | null {
     const state = store.getState();
 
-    for (const area of state.areas.values()) {
+    // Sort areas by zIndex descending (highest first) so we check topmost areas first
+    const sortedAreas = Array.from(state.areas.values()).sort(
+      (a, b) => (b.zIndex ?? 0) - (a.zIndex ?? 0)
+    );
+
+    for (const area of sortedAreas) {
       if (area.type === 'rectangle' && area.width && area.height) {
         const halfW = area.width / 2;
         const halfH = area.height / 2;

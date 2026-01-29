@@ -77,6 +77,7 @@ export function useAreaSync(sceneRef: React.RefObject<SceneManager | null>): voi
         let areaHash = id.charCodeAt(0);
         areaHash += (area.width ?? 0) + (area.height ?? 0) + (area.radius ?? 0);
         areaHash += Math.floor(area.center.x * 100) + Math.floor(area.center.z * 100);
+        areaHash += (area.zIndex ?? 0) * 1000; // Include zIndex in hash
         for (let i = 0; i < area.name.length; i++) {
           areaHash += area.name.charCodeAt(i);
         }

@@ -683,6 +683,11 @@ class Store
   isPositionInArea(...args: Parameters<AreaActions['isPositionInArea']>) { return this.areaActions.isPositionInArea(...args); }
   getAreaForAgent(...args: Parameters<AreaActions['getAreaForAgent']>) { return this.areaActions.getAreaForAgent(...args); }
   setAreasFromServer(...args: Parameters<AreaActions['setAreasFromServer']>) { return this.areaActions.setAreasFromServer(...args); }
+  getAreasInZOrder(...args: Parameters<AreaActions['getAreasInZOrder']>) { return this.areaActions.getAreasInZOrder(...args); }
+  getNextZIndex(...args: Parameters<AreaActions['getNextZIndex']>) { return this.areaActions.getNextZIndex(...args); }
+  bringAreaToFront(...args: Parameters<AreaActions['bringAreaToFront']>) { return this.areaActions.bringAreaToFront(...args); }
+  sendAreaToBack(...args: Parameters<AreaActions['sendAreaToBack']>) { return this.areaActions.sendAreaToBack(...args); }
+  setAreaZIndex(...args: Parameters<AreaActions['setAreaZIndex']>) { return this.areaActions.setAreaZIndex(...args); }
 
   // ============================================================================
   // Building Actions (delegated)

@@ -62,11 +62,14 @@ export function createAreaActions(
     },
 
     addArea(area: DrawingArea): void {
+      // Assign zIndex if not set (for new areas or migration)
+      // Calculate before setState to avoid 'this' binding issues inside the updater
+      if (area.zIndex === undefined || area.zIndex === null) {
+        const currentAreas = Array.from(getState().areas.values());
+        const maxZ = currentAreas.length === 0 ? -1 : Math.max(...currentAreas.map((a) => a.zIndex ?? 0));
+        area.zIndex = maxZ + 1;
+      }
       setState((state) => {
-        // Assign zIndex if not set (for new areas or migration)
-        if (area.zIndex === undefined || area.zIndex === null) {
-          area.zIndex = this.getNextZIndex();
-        }
         state.areas.set(area.id, area);
       });
       syncAreasToServer();
@@ -213,7 +216,7 @@ export function createAreaActions(
       notify();
     },
 
-    // Z-index management
+    // Z-index management helper (internal)
     getAreasInZOrder(): DrawingArea[] {
       const areas = Array.from(getState().areas.values());
       return areas.sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0));
@@ -231,8 +234,15 @@ export function createAreaActions(
       const area = state.areas.get(areaId);
       if (!area) return;
 
-      const nextZ = this.getNextZIndex();
-      if (area.zIndex === nextZ - 1) return; // Already at front
+      // Calculate next zIndex directly to avoid 'this' binding issues
+      const allAreas = Array.from(state.areas.values());
+      const maxZ = allAreas.length === 0 ? -1 : Math.max(...allAreas.map((a) => a.zIndex ?? 0));
+      const nextZ = maxZ + 1;
+
+      // If already uniquely at front (no other area shares max zIndex), skip
+      const areaZ = area.zIndex ?? 0;
+      const areasAtMax = allAreas.filter((a) => (a.zIndex ?? 0) === maxZ);
+      if (areaZ === maxZ && areasAtMax.length === 1) return;
 
       setState((s) => {
         s.areas.get(areaId)!.zIndex = nextZ;
@@ -248,7 +258,11 @@ export function createAreaActions(
 
       const areas = Array.from(state.areas.values());
       const minZ = Math.min(...areas.map((a) => a.zIndex ?? 0));
-      if (area.zIndex === minZ) return; // Already at back
+
+      // If already uniquely at back (no other area shares min zIndex), skip
+      const areaZ = area.zIndex ?? 0;
+      const areasAtMin = areas.filter((a) => (a.zIndex ?? 0) === minZ);
+      if (areaZ === minZ && areasAtMin.length === 1) return;
 
       setState((s) => {
         // Shift all other areas up by 1, then set this one to 0

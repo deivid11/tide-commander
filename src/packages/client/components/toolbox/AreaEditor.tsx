@@ -42,6 +42,14 @@ export function AreaEditor({ area, onClose, onOpenFolder }: AreaEditorProps) {
     store.removeDirectoryFromArea(area.id, dirPath);
   };
 
+  const handleBringToFront = () => {
+    store.bringAreaToFront(area.id);
+  };
+
+  const handleSendToBack = () => {
+    store.sendAreaToBack(area.id);
+  };
+
   return (
     <div className="area-editor">
       <div className="area-editor-header">
@@ -69,6 +77,27 @@ export function AreaEditor({ area, onClose, onOpenFolder }: AreaEditorProps) {
               onClick={() => handleColorSelect(color)}
             />
           ))}
+        </div>
+      </div>
+
+      {/* Z-Index Controls */}
+      <div className="area-editor-row">
+        <div className="area-editor-label">Layer</div>
+        <div className="area-layer-buttons">
+          <button
+            className="area-layer-btn"
+            onClick={handleBringToFront}
+            title="Bring to front (place on top of other areas)"
+          >
+            ↑ Front
+          </button>
+          <button
+            className="area-layer-btn"
+            onClick={handleSendToBack}
+            title="Send to back (place behind other areas)"
+          >
+            ↓ Back
+          </button>
         </div>
       </div>
 
