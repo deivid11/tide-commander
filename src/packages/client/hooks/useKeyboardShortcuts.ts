@@ -38,7 +38,12 @@ export function useKeyboardShortcuts({
         const currentState = store.getState();
         // Exit drawing mode first if active
         if (currentState.activeTool === 'rectangle' || currentState.activeTool === 'circle') {
+          // Handle 3D scene
           sceneRef.current?.setDrawingTool(null);
+          // Handle 2D scene
+          if (typeof window !== 'undefined' && (window as any).__tideScene2D_setDrawingTool) {
+            (window as any).__tideScene2D_setDrawingTool(null);
+          }
           return;
         }
         if (spawnModal.isOpen) {

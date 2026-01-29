@@ -303,10 +303,11 @@ export class Scene2DInput {
     const worldPos = this.camera.screenToWorld(x, y);
     const agent = this.scene.getAgentAtScreenPos(x, y);
     const building = this.scene.getBuildingAtScreenPos(x, y);
+    const area = this.scene.getAreaAtScreenPos(x, y);
 
-    // If agents are selected and right-clicking on empty ground, move them (no context menu)
+    // If agents are selected and right-clicking on empty ground (not on an entity or area), move them
     const state = store.getState();
-    if (state.selectedAgentIds.size > 0 && !agent && !building) {
+    if (state.selectedAgentIds.size > 0 && !agent && !building && !area) {
       // Issue move command to selected agents
       this.scene.handleMoveCommand({ x: worldPos.x, z: worldPos.z });
       // Create visual effect at target position
@@ -314,12 +315,14 @@ export class Scene2DInput {
       return;
     }
 
-    // No agents selected or clicked on an entity - show context menu
+    // No agents selected or clicked on an entity/area - show context menu
     let target: { type: string; id?: string } | null = null;
     if (agent) {
       target = { type: 'agent', id: agent.id };
     } else if (building) {
       target = { type: 'building', id: building.id };
+    } else if (area) {
+      target = { type: 'area', id: area.id };
     }
 
     this.scene.handleContextMenu(

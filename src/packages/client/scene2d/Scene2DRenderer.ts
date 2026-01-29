@@ -1019,18 +1019,18 @@ export class Scene2DRenderer {
       this.ctx.fill();
     }
 
-    // ========== AGENT BODY (with radial gradient) ==========
+    // ========== AGENT BODY (with dark radial gradient) ==========
     const bodyRadiusX = isMoving ? screenRadius / squashAmount : screenRadius;
     const bodyRadiusY = isMoving ? screenRadius * squashAmount : screenRadius;
 
-    // Create radial gradient for 3D-like depth
+    // Create dark radial gradient for 3D-like depth (black background)
     const bodyGradient = this.ctx.createRadialGradient(
       screenPos.x - screenRadius * 0.3, screenPos.y - screenRadius * 0.3, 0,
       screenPos.x, screenPos.y, screenRadius
     );
-    bodyGradient.addColorStop(0, bodyColorLight);
-    bodyGradient.addColorStop(0.5, bodyColor);
-    bodyGradient.addColorStop(1, bodyColorDark);
+    bodyGradient.addColorStop(0, '#3a3a3a');  // Dark gray highlight
+    bodyGradient.addColorStop(0.5, '#1a1a1a'); // Near black
+    bodyGradient.addColorStop(1, '#0a0a0a');   // Very dark
 
     this.ctx.beginPath();
     if (isMoving) {
@@ -1041,15 +1041,15 @@ export class Scene2DRenderer {
     this.ctx.fillStyle = bodyGradient;
     this.ctx.fill();
 
-    // Body outline
-    this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
+    // Body outline with agent color accent
+    this.ctx.strokeStyle = this.hexToRgba(bodyColor, 0.6);
     this.ctx.lineWidth = 2;
     this.ctx.stroke();
 
-    // Inner highlight
+    // Subtle inner highlight
     this.ctx.beginPath();
     this.ctx.arc(screenPos.x - screenRadius * 0.25, screenPos.y - screenRadius * 0.25, screenRadius * 0.3, 0, Math.PI * 2);
-    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
     this.ctx.fill();
 
     this.ctx.restore(); // Remove shadow for remaining elements
@@ -1211,17 +1211,17 @@ export class Scene2DRenderer {
           timerTextColor = '#ffdd88';
           timerIcon = '⏳';
         } else {
-          timerBgColor = 'rgba(158, 74, 74, 0.9)';
-          timerTextColor = '#ffaaaa';
-          timerIcon = '⚠️';
+          timerBgColor = 'rgba(158, 120, 50, 0.9)';
+          timerTextColor = '#ffdd88';
+          timerIcon = '⏳';
         }
 
-        const timerFontSize = Math.max(9, 10 * indicatorScale);
+        const timerFontSize = Math.max(8, 9 * indicatorScale);
         this.ctx.font = `bold ${timerFontSize}px "Segoe UI Emoji", "Apple Color Emoji", Arial`;
         const timerContent = `${timerIcon} ${idleText}`;
         const timerWidth = this.ctx.measureText(timerContent).width;
-        const timerPadding = 6;
-        const timerHeight = timerFontSize + 4;
+        const timerPadding = 5;
+        const timerHeight = timerFontSize + 3;
 
         // Timer badge background (pill shape)
         this.ctx.beginPath();

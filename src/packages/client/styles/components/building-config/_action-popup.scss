@@ -2,6 +2,17 @@
 @use "sass:color";
 @use '../../variables' as *;
 
+// Transparent backdrop for click-outside-to-close behavior
+.building-popup-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 999;
+  // Transparent - just captures clicks
+}
+
 .building-action-popup {
   background: $bg-secondary;
   border: 1px solid $border-color;
