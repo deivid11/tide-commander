@@ -2,6 +2,39 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.34.0] - 2026-01-29
+
+### Added
+- **Z-Index/Stacking Order Management** - Areas now support layering and z-order control
+  - Z-index property for DrawingArea to control stacking order
+  - Store actions for z-index management: `getNextZIndex()`, `bringAreaToFront()`, `sendAreaToBack()`, `setAreaZIndex()`
+  - Z-order synchronization with server
+  - Migration support for existing areas without z-index
+- **Water Wave Ripple Effect** - Visual effect for working agents in 2D scene
+  - Animated concentric wave rings expanding from agent position
+  - Cyan to purple gradient color scheme
+  - Fading opacity as waves expand
+  - Multiple concurrent waves for continuous animation
+
+### Changed
+- **2D Scene Rendering** - Areas now sorted by z-index for proper layering
+  - DrawingManager applies z-offset to prevent z-fighting in 3D rendering
+  - Scene2D sorts areas by z-index before rendering
+  - Z-offset calculations for all area components (fill, border, labels, handles)
+- **DrawingArea Type** - Extended with z-index support
+  - New `zIndex: number` field in DrawingArea interface
+  - Automatic z-index assignment for new areas
+- **Area Store** - Enhanced z-index management
+  - Z-index migration for legacy areas
+  - New z-index management methods
+  - Server synchronization for z-order changes
+
+### Technical
+- Extended Scene2D and Scene2DRenderer with z-index sorting logic
+- New z-index offset calculations in DrawingManager (0.001 per level)
+- Water ripple wave effect implementation in Scene2DRenderer
+- Area store z-index management methods and migrations
+
 ## [0.33.0] - 2026-01-29
 
 ### Added

@@ -21,6 +21,12 @@ export interface AreaActions {
   isPositionInArea(pos: { x: number; z: number }, area: DrawingArea): boolean;
   getAreaForAgent(agentId: string): DrawingArea | null;
   setAreasFromServer(areasArray: DrawingArea[]): void;
+  // Z-index management
+  getAreasInZOrder(): DrawingArea[];
+  getNextZIndex(): number;
+  bringAreaToFront(areaId: string): void;
+  sendAreaToBack(areaId: string): void;
+  setAreaZIndex(areaId: string, zIndex: number): void;
 }
 
 export function createAreaActions(
@@ -57,6 +63,10 @@ export function createAreaActions(
 
     addArea(area: DrawingArea): void {
       setState((state) => {
+        // Assign zIndex if not set (for new areas or migration)
+        if (area.zIndex === undefined || area.zIndex === null) {
+          area.zIndex = this.getNextZIndex();
+        }
         state.areas.set(area.id, area);
       });
       syncAreasToServer();
@@ -186,15 +196,82 @@ export function createAreaActions(
     setAreasFromServer(areasArray: DrawingArea[]): void {
       setState((state) => {
         const newAreas = new Map<string, DrawingArea>();
-        for (const area of areasArray) {
+        for (let i = 0; i < areasArray.length; i++) {
+          const area = areasArray[i];
           // Migration: ensure directories array exists for old areas
           if (!area.directories) {
             area.directories = [];
+          }
+          // Migration: ensure zIndex exists for old areas
+          if (area.zIndex === undefined || area.zIndex === null) {
+            area.zIndex = i;
           }
           newAreas.set(area.id, area);
         }
         state.areas = newAreas;
       });
+      notify();
+    },
+
+    // Z-index management
+    getAreasInZOrder(): DrawingArea[] {
+      const areas = Array.from(getState().areas.values());
+      return areas.sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0));
+    },
+
+    getNextZIndex(): number {
+      const areas = Array.from(getState().areas.values());
+      if (areas.length === 0) return 0;
+      const maxZ = Math.max(...areas.map((a) => a.zIndex ?? 0));
+      return maxZ + 1;
+    },
+
+    bringAreaToFront(areaId: string): void {
+      const state = getState();
+      const area = state.areas.get(areaId);
+      if (!area) return;
+
+      const nextZ = this.getNextZIndex();
+      if (area.zIndex === nextZ - 1) return; // Already at front
+
+      setState((s) => {
+        s.areas.get(areaId)!.zIndex = nextZ;
+      });
+      syncAreasToServer();
+      notify();
+    },
+
+    sendAreaToBack(areaId: string): void {
+      const state = getState();
+      const area = state.areas.get(areaId);
+      if (!area) return;
+
+      const areas = Array.from(state.areas.values());
+      const minZ = Math.min(...areas.map((a) => a.zIndex ?? 0));
+      if (area.zIndex === minZ) return; // Already at back
+
+      setState((s) => {
+        // Shift all other areas up by 1, then set this one to 0
+        for (const a of s.areas.values()) {
+          if (a.id !== areaId) {
+            a.zIndex = (a.zIndex ?? 0) + 1;
+          }
+        }
+        s.areas.get(areaId)!.zIndex = 0;
+      });
+      syncAreasToServer();
+      notify();
+    },
+
+    setAreaZIndex(areaId: string, zIndex: number): void {
+      const state = getState();
+      const area = state.areas.get(areaId);
+      if (!area) return;
+
+      setState((s) => {
+        s.areas.get(areaId)!.zIndex = zIndex;
+      });
+      syncAreasToServer();
       notify();
     },
   };

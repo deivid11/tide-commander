@@ -179,8 +179,13 @@ export class DrawingManager {
 
     const group = new THREE.Group();
     group.userData.areaId = area.id;
+    group.userData.zIndex = area.zIndex ?? 0;
 
     const color = new THREE.Color(area.color);
+
+    // Calculate Y offset based on zIndex to prevent z-fighting
+    // Use small offset (0.001) per zIndex level
+    const zOffset = (area.zIndex ?? 0) * 0.001;
 
     if (area.type === 'rectangle' && area.width && area.height) {
       // Fill (apply brightness multiplier to opacity)
@@ -193,7 +198,7 @@ export class DrawingManager {
       });
       const fill = new THREE.Mesh(fillGeom, fillMat);
       fill.rotation.x = -Math.PI / 2;
-      fill.position.y = 0.02;
+      fill.position.y = 0.02 + zOffset;
       group.add(fill);
 
       // Border
@@ -207,7 +212,7 @@ export class DrawingManager {
       const borderGeom = new THREE.BufferGeometry().setFromPoints(borderPoints);
       const borderMat = new THREE.LineBasicMaterial({ color, linewidth: 2 });
       const border = new THREE.Line(borderGeom, borderMat);
-      border.position.y = 0.03;
+      border.position.y = 0.03 + zOffset;
       group.add(border);
 
     } else if (area.type === 'circle' && area.radius) {
@@ -221,7 +226,7 @@ export class DrawingManager {
       });
       const fill = new THREE.Mesh(fillGeom, fillMat);
       fill.rotation.x = -Math.PI / 2;
-      fill.position.y = 0.02;
+      fill.position.y = 0.02 + zOffset;
       group.add(fill);
 
       // Border
@@ -237,13 +242,13 @@ export class DrawingManager {
       const borderGeom = new THREE.BufferGeometry().setFromPoints(borderPoints);
       const borderMat = new THREE.LineBasicMaterial({ color, linewidth: 2 });
       const border = new THREE.Line(borderGeom, borderMat);
-      border.position.y = 0.03;
+      border.position.y = 0.03 + zOffset;
       group.add(border);
     }
 
     // Add name label
     const label = this.createTextLabel(area.name, area.color);
-    label.position.y = 0.05;
+    label.position.y = 0.05 + zOffset;
     label.name = 'areaLabel';
     group.add(label);
 
@@ -377,9 +382,12 @@ export class DrawingManager {
       opacity: 0.9,
     });
 
+    // Calculate Y offset based on zIndex
+    const zOffset = (area.zIndex ?? 0) * 0.001;
+
     // Create center move handle (for both rectangle and circle)
     const moveHandle = new THREE.Mesh(handleGeom.clone(), moveHandleMat.clone());
-    moveHandle.position.set(area.center.x, 0.25, area.center.z);
+    moveHandle.position.set(area.center.x, 0.25 + zOffset, area.center.z);
     moveHandle.name = 'resizeHandle';
     moveHandle.userData.handleType = 'move';
     moveHandle.userData.areaId = area.id;
@@ -399,7 +407,7 @@ export class DrawingManager {
         const handle = new THREE.Mesh(handleGeom.clone(), resizeHandleMat.clone());
         handle.position.set(
           area.center.x + corner.x,
-          0.2,
+          0.2 + zOffset,
           area.center.z + corner.z
         );
         handle.name = 'resizeHandle';
@@ -413,7 +421,7 @@ export class DrawingManager {
       const handle = new THREE.Mesh(handleGeom.clone(), resizeHandleMat.clone());
       handle.position.set(
         area.center.x + area.radius,
-        0.2,
+        0.2 + zOffset,
         area.center.z
       );
       handle.name = 'resizeHandle';
@@ -705,6 +713,8 @@ export class DrawingManager {
   ): DrawingArea | null {
     const id = `area_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const areasCount = store.getState().areas.size;
+    // New areas get the next zIndex (will be on top of existing areas)
+    const nextZIndex = store.getNextZIndex();
 
     if (this.currentTool === 'rectangle') {
       const width = Math.abs(end.x - start.x);
@@ -723,6 +733,7 @@ export class DrawingManager {
         width,
         height,
         color: '#4a9eff',
+        zIndex: nextZIndex,
         assignedAgentIds: [],
         directories: [],
       };
@@ -741,6 +752,7 @@ export class DrawingManager {
         center: { x: start.x, z: start.z },
         radius,
         color: '#4a9eff',
+        zIndex: nextZIndex,
         assignedAgentIds: [],
         directories: [],
       };

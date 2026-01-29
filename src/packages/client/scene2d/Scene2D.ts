@@ -61,6 +61,7 @@ export interface Area2DData {
   size: { width: number; height: number } | { radius: number };
   color: string;
   label?: string;
+  zIndex: number;
 }
 
 /**
@@ -291,8 +292,9 @@ export class Scene2D {
       this.renderer.drawGrid(this.gridSize, this.gridSpacing);
     }
 
-    // Draw areas
-    for (const area of this.areas.values()) {
+    // Draw areas (sorted by zIndex - lower values first, higher on top)
+    const sortedAreas = Array.from(this.areas.values()).sort((a, b) => a.zIndex - b.zIndex);
+    for (const area of sortedAreas) {
       const isSelected = area.id === this.selectedAreaId;
       this.renderer.drawArea(area, isSelected);
     }
@@ -582,6 +584,7 @@ export class Scene2D {
           size: { width: area.width, height: area.height },
           color: area.color,
           label: area.name,
+          zIndex: area.zIndex ?? 0,
         });
       } else if (area.type === 'circle' && area.radius) {
         this.areas.set(area.id, {
@@ -591,6 +594,7 @@ export class Scene2D {
           size: { radius: area.radius },
           color: area.color,
           label: area.name,
+          zIndex: area.zIndex ?? 0,
         });
       }
     }

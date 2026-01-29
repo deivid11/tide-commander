@@ -1219,6 +1219,54 @@ export class Scene2DRenderer {
     this.ctx.lineWidth = 2;
     this.ctx.stroke();
 
+    // ========== WATER WAVE RIPPLE EFFECT (for working agents) ==========
+    if (isWorking) {
+      const waveCount = 3; // Number of concurrent waves
+      const waveCycleDuration = 2; // Seconds for one wave to complete
+      const maxWaveRadius = screenRadius * 3; // How far waves expand
+      const waveThickness = 3; // Line width of waves
+
+      // Draw multiple waves at different phases
+      for (let i = 0; i < waveCount; i++) {
+        // Offset each wave's phase so they're evenly distributed
+        const wavePhase = ((this.animationTime / waveCycleDuration) + (i / waveCount)) % 1;
+
+        // Wave expands from inner radius to max radius
+        const waveRadius = screenRadius + (wavePhase * (maxWaveRadius - screenRadius));
+
+        // Opacity fades out as wave expands (peaks at start, fades to 0)
+        const waveOpacity = Math.max(0, 1 - wavePhase) * 0.8;
+
+        // Skip if wave is too faint
+        if (waveOpacity < 0.05) continue;
+
+        // Create gradient for wave ring (cyan to purple)
+        const waveGradient = this.ctx.createRadialGradient(
+          screenPos.x, screenPos.y, waveRadius - waveThickness,
+          screenPos.x, screenPos.y, waveRadius + waveThickness
+        );
+        waveGradient.addColorStop(0, 'transparent');
+        waveGradient.addColorStop(0.3, this.hexToRgba('#4a9eff', waveOpacity * 0.5)); // cyan inner
+        waveGradient.addColorStop(0.5, this.hexToRgba('#bd93f9', waveOpacity)); // purple peak
+        waveGradient.addColorStop(0.7, this.hexToRgba('#ff79c6', waveOpacity * 0.5)); // pink outer
+        waveGradient.addColorStop(1, 'transparent');
+
+        // Draw wave ring with gradient fill
+        this.ctx.beginPath();
+        this.ctx.arc(screenPos.x, screenPos.y, waveRadius, 0, Math.PI * 2);
+        this.ctx.strokeStyle = waveGradient;
+        this.ctx.lineWidth = waveThickness * 2;
+        this.ctx.stroke();
+
+        // Add a sharper inner line for definition
+        this.ctx.beginPath();
+        this.ctx.arc(screenPos.x, screenPos.y, waveRadius, 0, Math.PI * 2);
+        this.ctx.strokeStyle = this.hexToRgba('#bd93f9', waveOpacity * 0.6);
+        this.ctx.lineWidth = 1.5;
+        this.ctx.stroke();
+      }
+    }
+
     // ========== SELECTION GLOW (Animated outer ring when selected) ==========
     if (isSelected) {
       const glowPulse = 0.5 + Math.sin(glowPhase) * 0.5;

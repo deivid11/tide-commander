@@ -674,6 +674,7 @@ export interface DrawingArea {
   height?: number;  // rectangle only
   radius?: number;  // circle only
   color: string;    // hex color
+  zIndex: number;   // stacking order (higher = on top)
   assignedAgentIds: string[];
   directories: string[];  // Associated directory paths
 }
