@@ -304,6 +304,17 @@ export class Scene2DInput {
     const agent = this.scene.getAgentAtScreenPos(x, y);
     const building = this.scene.getBuildingAtScreenPos(x, y);
 
+    // If agents are selected and right-clicking on empty ground, move them (no context menu)
+    const state = store.getState();
+    if (state.selectedAgentIds.size > 0 && !agent && !building) {
+      // Issue move command to selected agents
+      this.scene.handleMoveCommand({ x: worldPos.x, z: worldPos.z });
+      // Create visual effect at target position
+      this.scene.createMoveOrderEffect({ x: worldPos.x, z: worldPos.z });
+      return;
+    }
+
+    // No agents selected or clicked on an entity - show context menu
     let target: { type: string; id?: string } | null = null;
     if (agent) {
       target = { type: 'agent', id: agent.id };
@@ -316,7 +327,6 @@ export class Scene2DInput {
       { x: worldPos.x, z: worldPos.z },
       target
     );
-    // Context menu will handle move commands via App.tsx, don't auto-move here
   };
 
   // ============================================
