@@ -4,7 +4,7 @@
   position: fixed;
   bottom: 72px; // Above the agent bar
   left: 0;
-  right: $sidebar-width;
+  right: 0;
   height: 130px;
   background: linear-gradient(180deg, rgba($dracula-bg, 0.95) 0%, rgba($dracula-bg-darker, 0.98) 100%);
   border-top: 1px solid $dracula-current;

@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.35.1] - 2026-01-29
+
+### Changed
+- **Sidebar Layout** - Improved fixed positioning system
+  - Changed sidebar from relative to fixed positioning
+  - Fixed z-index positioning for proper layering
+  - Agent bar and bottom toolbar now extend to full width
+  - Sidebar collapse animation now uses translateX instead of width change
+  - Removed unnecessary width transition for better performance
+- **App Layout** - Removed unnecessary resize event dispatch
+  - Eliminated setTimeout on sidebar collapse that could cause layout jank
+
+### Fixed
+- **Sidebar Collapse Animation** - Improved visual smoothness
+  - Changed from width-based to transform-based animation (GPU-accelerated)
+  - Better performance and smoother visual transitions
+  - Proper pointer-events handling during collapse
+- **Layout Spacing** - Agent bar and toolbar now properly span full width when sidebar is collapsed
+
 ## [0.34.0] - 2026-01-29
 
 ### Added

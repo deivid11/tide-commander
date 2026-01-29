@@ -4,7 +4,7 @@
   position: fixed;
   bottom: 0;
   left: 0;
-  right: $sidebar-width;
+  right: 0;
   height: 72px;
   background: linear-gradient(180deg, rgba($dracula-bg, 0.9) 0%, rgba($dracula-bg-darker, 0.95) 100%);
   border-top: 1px solid $dracula-current;
@@ -14,12 +14,6 @@
   padding: 8px 20px 0;
   z-index: 100;
   backdrop-filter: blur(8px);
-  transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-
-  // When sidebar is collapsed, extend to full width
-  .app.sidebar-collapsed & {
-    right: 0;
-  }
 }
 
 .agent-bar-list {

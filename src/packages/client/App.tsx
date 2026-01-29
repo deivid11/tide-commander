@@ -580,7 +580,6 @@ function AppContent() {
                 // Collapse the sidebar
                 setSidebarCollapsed(true);
                 localStorage.setItem('tide-commander-sidebar-collapsed', 'true');
-                setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
               }
             }}
             title={sidebarRevealedByHover ? 'Pin sidebar open' : 'Hide sidebar'}
