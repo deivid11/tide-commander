@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.36.0] - 2026-01-29
+
+### Added
+- **Keyboard Shortcuts System** - New keyboard event handling for agent navigation and terminal control
+  - Alt+H / Alt+L keyboard shortcuts for agent navigation (previous/next agent)
+  - Space bar to open terminal with smart context detection
+  - Proper input field detection to prevent shortcuts from triggering in text inputs
+  - Exception handling for Alt+H/L in collapsed terminal input
+- **Enhanced Terminal Integration** - Keyboard-driven terminal activation
+  - Auto-select last active agent when opening terminal with Space
+  - Terminal open/close state management via keyboard
+  - Backtick or Escape to close terminal (as before)
+
+### Changed
+- **Voice Assistant API Calls** - Switched from fetch to authFetch for authenticated requests
+  - Voice assistant, STT (Speech-To-Text), and TTS (Text-To-Speech) hooks now use authFetch
+  - Ensures proper authentication headers for API endpoints
+  - Better security for voice-based operations
+- **Scene2DInput Refactoring** - Extended keyboard event handling
+  - Added keyboard event listener setup and cleanup
+  - Proper document-level keydown event handling
+  - Feature flag for double-click camera focus (disabled by default)
+
+### Technical
+- New `onKeyDown` event handler in Scene2DInput for keyboard events
+- New `getOrderedAgents()` utility method for consistent agent ordering
+- Replaced fetch calls with authFetch in useSTT, useTTS, and VoiceAssistant
+- Feature flag: `ENABLE_DOUBLE_CLICK_CAMERA_FOCUS` for camera zoom/pan on double-click
+- Proper event listener cleanup in Scene2DInput.destroy()
+
 ## [0.35.1] - 2026-01-29
 
 ### Changed

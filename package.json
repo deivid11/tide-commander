@@ -1,6 +1,6 @@
 {
   "name": "tide-commander",
-  "version": "0.35.1",
+  "version": "0.36.0",
   "description": "RTS/MOBA-style Claude Code agents commander",
   "type": "module",
   "scripts": {
@@ -29,6 +29,7 @@
     "@capacitor/haptics": "^8.0.0",
     "@capacitor/local-notifications": "^8.0.0",
     "@capawesome/capacitor-background-task": "^8.0.0",
+    "@tanstack/react-virtual": "^3.13.18",
     "@types/oracledb": "^6.10.1",
     "archiver": "^7.0.1",
     "chokidar": "^4.0.0",
