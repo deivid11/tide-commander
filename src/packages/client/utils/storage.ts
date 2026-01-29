@@ -19,6 +19,7 @@ export const STORAGE_KEYS = {
 
   // Camera
   CAMERA_STATE: 'tide-camera-state',
+  CAMERA_STATE_2D: 'tide-camera-state-2d',
 
   // Terminal/Guake
   VIEW_MODE: 'guake-view-mode',
@@ -227,6 +228,34 @@ export async function authFetch(input: RequestInfo | URL, init?: RequestInit): P
     ...init,
     headers,
   });
+}
+
+/**
+ * Build an authenticated URL by appending the auth token as a query parameter.
+ * Use this for XHR requests (e.g., Three.js loaders) that don't support custom headers.
+ * @param url - The URL to authenticate (can be relative or absolute)
+ * @returns URL with token query parameter if auth is configured
+ */
+export function authUrl(url: string): string {
+  const token = getAuthToken();
+  if (!token) {
+    return url;
+  }
+
+  // Parse URL and add token parameter
+  try {
+    // Handle relative URLs by using a dummy base
+    const isRelative = !url.startsWith('http://') && !url.startsWith('https://');
+    const base = isRelative ? 'http://dummy' : undefined;
+    const urlObj = new URL(url, base);
+    urlObj.searchParams.set('token', token);
+    // Return relative URL if input was relative
+    return isRelative ? urlObj.pathname + urlObj.search : urlObj.toString();
+  } catch {
+    // Fallback: simple string append
+    const separator = url.includes('?') ? '&' : '?';
+    return `${url}${separator}token=${encodeURIComponent(token)}`;
+  }
 }
 
 /**

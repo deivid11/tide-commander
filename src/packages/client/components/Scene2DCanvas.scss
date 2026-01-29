@@ -1,0 +1,50 @@
+.scene-2d-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  // Dark background matching the canvas gradient center color
+  background: #0a0c12;
+
+  .scene-2d-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: default;
+    // Prevent any white flash on load
+    background: transparent;
+
+    &.panning {
+      cursor: grabbing;
+    }
+
+    &.selecting {
+      cursor: crosshair;
+    }
+  }
+
+  // Mode indicator badge - polished dark theme
+  .scene-2d-badge {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    background: linear-gradient(
+      135deg,
+      rgba(26, 31, 46, 0.95) 0%,
+      rgba(20, 24, 32, 0.98) 100%
+    );
+    color: #6a9aff;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    pointer-events: none;
+    border: 1px solid rgba(74, 158, 255, 0.25);
+    box-shadow:
+      0 2px 8px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(4px);
+    text-transform: uppercase;
+  }
+}

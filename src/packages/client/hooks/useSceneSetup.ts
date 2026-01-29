@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { store } from '../store';
-import { connect, setCallbacks } from '../websocket';
+import { setCallbacks } from '../websocket';
 import { SceneManager } from '../scene/SceneManager';
 import {
   getPersistedScene,
@@ -8,11 +8,9 @@ import {
   getIsPageUnloading,
   setPersistedScene,
   setPersistedCanvas,
-  setWsConnected,
   markWebGLActive,
 } from '../app/sceneLifecycle';
 import { loadConfig } from '../app/sceneConfig';
-import { requestNotificationPermission, initNotificationListeners } from '../utils/notifications';
 import type { ToastType } from '../components/Toast';
 import type { UseModalState } from './index';
 
@@ -39,14 +37,15 @@ interface UseSceneSetupOptions {
 }
 
 /**
- * Hook for initializing the 3D scene and WebSocket connection.
+ * Hook for initializing the 3D scene.
  * Handles scene creation, model loading, callback registration, and cleanup.
+ * Note: WebSocket connection is handled separately by useWebSocketConnection.
  */
 export function useSceneSetup({
   canvasRef,
   selectionBoxRef,
-  showToast,
-  showAgentNotification,
+  showToast: _showToast,
+  showAgentNotification: _showAgentNotification,
   toolboxModal: _toolboxModal,
   contextMenu,
   setHoveredAgentPopup: _setHoveredAgentPopup,
@@ -228,9 +227,9 @@ export function useSceneSetup({
       }
     });
 
-    // Set up websocket callbacks
+    // Set up scene-specific websocket callbacks for visual effects
+    // Note: Connection and basic callbacks are handled by useWebSocketConnection
     setCallbacks({
-      onToast: showToast,
       onAgentCreated: (agent) => {
         sceneRef.current?.addAgent(agent);
         (window as any).__spawnModalSuccess?.();
@@ -263,34 +262,10 @@ export function useSceneSetup({
         sceneRef.current?.setCustomAgentClasses(classes);
         sceneRef.current?.upgradeAgentModels();
       },
-      onReconnect: () => {
-        store.triggerReconnect();
-      },
-      onAgentNotification: (notification) => {
-        showAgentNotification(notification);
-      },
       onBuildingUpdated: (building) => {
         sceneRef.current?.updateBuilding(building);
       },
     });
-
-    connect();
-    setWsConnected(true);
-
-    // Request notification permissions
-    requestNotificationPermission();
-    initNotificationListeners((data) => {
-      if (data.agentId && typeof data.agentId === 'string') {
-        store.selectAgent(data.agentId);
-      }
-    });
-
-    // Handle app resume from background (Android)
-    const handleAppResume = () => {
-      console.log('[Tide] App resumed from background, reconnecting...');
-      setTimeout(() => connect(), 100);
-    };
-    window.addEventListener('tideAppResume', handleAppResume);
 
     // Don't dispose on HMR or StrictMode unmount
     return () => {
@@ -298,10 +273,11 @@ export function useSceneSetup({
         sceneRef.current?.dispose();
         setPersistedScene(null);
         setPersistedCanvas(null);
-        setWsConnected(false);
       }
     };
-  }, [showToast, showAgentNotification]);
+    // Re-run when canvas becomes available (e.g., switching from 2D to 3D mode)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canvasRef.current, selectionBoxRef.current]);
 
   return sceneRef;
 }

@@ -17,6 +17,7 @@ import { PM2LogsModal } from './components/PM2LogsModal';
 import { DockerLogsModal } from './components/DockerLogsModal';
 import { BossLogsModal } from './components/BossLogsModal';
 import { FPSMeter } from './components/FPSMeter';
+import { Scene2DCanvas } from './components/Scene2DCanvas';
 import { MobileFabMenu } from './components/MobileFabMenu';
 import { FloatingActionButtons } from './components/FloatingActionButtons';
 import { AppModals } from './components/AppModals';
@@ -29,6 +30,7 @@ import {
   useContextMenu,
   useModalStackRegistration,
   useSceneSetup,
+  useWebSocketConnection,
   useSelectionSync,
   useAreaSync,
   useBuildingSync,
@@ -109,6 +111,13 @@ function AppContent() {
 
   // Back navigation handling
   const { showBackNavModal, setShowBackNavModal, handleLeave } = useBackNavigation();
+
+  // WebSocket connection - runs regardless of 2D/3D view mode
+  // This ensures agents are synced on page load even when 2D mode is active
+  useWebSocketConnection({
+    showToast,
+    showAgentNotification,
+  });
 
   // Scene setup
   const sceneRef = useSceneSetup({
@@ -215,7 +224,12 @@ function AppContent() {
 
   // Handle tool changes
   const handleToolChange = useCallback((tool: 'rectangle' | 'circle' | 'select' | null) => {
+    // Try 3D scene first
     sceneRef.current?.setDrawingTool(tool);
+    // Also try 2D scene if available
+    if (typeof window !== 'undefined' && (window as any).__tideScene2D_setDrawingTool) {
+      (window as any).__tideScene2D_setDrawingTool(tool);
+    }
     if (tool === 'rectangle' || tool === 'circle') {
       const toolName = tool === 'rectangle' ? 'Rectangle' : 'Circle';
       showToast('info', `${toolName} Tool`, 'Click and drag on the battlefield to draw an area', 3000);
@@ -249,7 +263,12 @@ function AppContent() {
 
   // Handle starting new area drawing
   const handleNewArea = useCallback(() => {
+    // Try 3D scene first
     sceneRef.current?.setDrawingTool('rectangle');
+    // Also try 2D scene if available
+    if (typeof window !== 'undefined' && (window as any).__tideScene2D_setDrawingTool) {
+      (window as any).__tideScene2D_setDrawingTool('rectangle');
+    }
     showToast('info', 'Rectangle Tool', 'Click and drag on the battlefield to draw an area', 3000);
   }, [sceneRef, showToast]);
 
@@ -343,7 +362,12 @@ function AppContent() {
 
   // Handle exit drawing mode
   const handleExitDrawingMode = useCallback(() => {
+    // Try 3D scene first
     sceneRef.current?.setDrawingTool(null);
+    // Also try 2D scene if available
+    if (typeof window !== 'undefined' && (window as any).__tideScene2D_setDrawingTool) {
+      (window as any).__tideScene2D_setDrawingTool(null);
+    }
   }, [sceneRef]);
 
   return (
@@ -353,8 +377,64 @@ function AppContent() {
 
       <main className="main-content">
         <div className="battlefield-container">
-          <canvas ref={canvasRef} id="battlefield" tabIndex={0}></canvas>
-          <div ref={selectionBoxRef} id="selection-box"></div>
+          {state.settings.experimental2DView ? (
+            <Scene2DCanvas
+              onAgentClick={(agentId, shiftKey) => {
+                if (shiftKey) {
+                  store.addToSelection(agentId);
+                } else {
+                  store.selectAgent(agentId);
+                }
+              }}
+              onAgentDoubleClick={(agentId) => {
+                if (window.innerWidth <= 768) {
+                  store.openTerminalOnMobile(agentId);
+                  return;
+                }
+                store.selectAgent(agentId);
+                store.setTerminalOpen(true);
+              }}
+              onBuildingClick={(buildingId: string) => {
+                store.selectBuilding(buildingId);
+              }}
+              onBuildingDoubleClick={(buildingId: string) => {
+                const building = store.getState().buildings.get(buildingId);
+                if (building?.type === 'server' && building.pm2?.enabled) {
+                  setPm2LogsModalBuildingId(buildingId);
+                } else if (building?.type === 'boss') {
+                  setBossLogsModalBuildingId(buildingId);
+                } else if (building?.type === 'database') {
+                  setDatabasePanelBuildingId(buildingId);
+                } else if (building?.type === 'folder' && building.folderPath) {
+                  store.openFileExplorer(building.folderPath);
+                } else {
+                  buildingModal.open(buildingId);
+                }
+              }}
+              onGroundClick={() => {
+                store.selectAgent(null);
+                store.selectBuilding(null);
+              }}
+              onContextMenu={(screenPos, worldPos, target) => {
+                const menuTarget = target
+                  ? { type: target.type as 'ground' | 'agent' | 'area' | 'building', id: target.id }
+                  : { type: 'ground' as const };
+                contextMenu.open(screenPos, worldPos, menuTarget);
+              }}
+              onMoveCommand={(agentIds, targetPos) => {
+                for (const agentId of agentIds) {
+                  store.moveAgent(agentId, { x: targetPos.x, y: 0, z: targetPos.z });
+                }
+              }}
+              indicatorScale={sceneConfig.indicatorScale}
+              showGrid={sceneConfig.gridVisible}
+            />
+          ) : (
+            <>
+              <canvas ref={canvasRef} id="battlefield" tabIndex={0}></canvas>
+              <div ref={selectionBoxRef} id="selection-box"></div>
+            </>
+          )}
         </div>
 
         {/* Mobile FAB Menu */}

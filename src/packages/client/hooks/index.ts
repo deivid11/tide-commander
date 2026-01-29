@@ -25,6 +25,7 @@ export { useDocumentPiP, isDocumentPiPSupported, type DocumentPiPState, type Doc
 
 // Scene management hooks
 export { useSceneSetup } from './useSceneSetup';
+export { useWebSocketConnection } from './useWebSocketConnection';
 export {
   useSelectionSync,
   useAreaSync,

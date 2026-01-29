@@ -6,7 +6,7 @@ import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { AgentClass } from '../../../shared/types';
 import { AGENT_CLASS_MODELS, ALL_CHARACTER_MODELS } from '../config';
-import { apiUrl } from '../../utils/storage';
+import { apiUrl, authUrl } from '../../utils/storage';
 
 /**
  * Cached model data including mesh and animations.
@@ -222,8 +222,9 @@ export class CharacterLoader {
     if (existingPromise) return existingPromise;
 
     const loadPromise = new Promise<void>((resolve) => {
+      // Use authUrl to append token for XHR requests that don't support custom headers
       this.loader.load(
-        apiUrl(`/api/custom-models/${classId}`),
+        authUrl(apiUrl(`/api/custom-models/${classId}`)),
         (gltf: GLTF) => {
           const scene = this.prepareModel(gltf.scene);
           this.customModels.set(classId, {
