@@ -5,6 +5,7 @@ import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import type { AgentClass, AgentStatus } from '../../shared/types';
 import { AGENT_CLASS_MODELS } from '../scene/config';
+import { authUrl } from '../utils/storage';
 
 // Animation mapping for each status
 const STATUS_ANIMATIONS: Record<AgentStatus, string> = {
@@ -392,9 +393,11 @@ export function ModelPreview({ agentClass, modelFile, customModelFile, customMod
       );
     } else if (customModelUrl) {
       // Load from custom model URL (server endpoint)
+      // Use authUrl to append token for XHR requests that don't support custom headers
+      const authenticatedUrl = authUrl(customModelUrl);
       console.log('[ModelPreview] Loading custom model from URL:', customModelUrl);
       loader.load(
-        customModelUrl,
+        authenticatedUrl,
         (gltf) => {
           console.log('[ModelPreview] Successfully loaded custom model URL, animations:', gltf.animations.length);
           processModel(gltf);

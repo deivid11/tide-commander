@@ -99,6 +99,7 @@ export interface Settings {
   showFPS: boolean;
   powerSaving: boolean; // Experimental: Reduce FPS when idle to save power
   // Experimental features (disabled by default)
+  experimental2DView: boolean;
   experimentalVoiceAssistant: boolean;
   experimentalTTS: boolean;
 }
@@ -108,6 +109,7 @@ export const DEFAULT_SETTINGS: Settings = {
   hideCost: true,
   showFPS: false,
   powerSaving: false,
+  experimental2DView: false,
   experimentalVoiceAssistant: false,
   experimentalTTS: false,
 };

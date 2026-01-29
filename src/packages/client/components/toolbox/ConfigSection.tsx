@@ -565,6 +565,13 @@ export function ConfigSection({ config, onChange }: ConfigSectionProps) {
       {/* Experimental Features Section */}
       <CollapsibleSection title="Experimental" storageKey="experimental" defaultOpen={false}>
         <div className="config-row">
+          <span className="config-label" title="Lightweight 2D top-down view for better performance">2D View Mode 🗺️</span>
+          <Toggle
+            checked={state.settings.experimental2DView}
+            onChange={(checked) => store.updateSettings({ experimental2DView: checked })}
+          />
+        </div>
+        <div className="config-row">
           <span className="config-label" title="Voice assistant for hands-free agent control">Voice Assistant 🎤</span>
           <Toggle
             checked={state.settings.experimentalVoiceAssistant}
