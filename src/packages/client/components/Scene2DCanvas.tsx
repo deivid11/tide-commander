@@ -15,6 +15,10 @@ interface Scene2DCanvasProps {
   onAgentHover?: (agentId: string | null, screenPos: { x: number; y: number } | null) => void;
   onBuildingClick?: (buildingId: string, screenPos: { x: number; y: number }) => void;
   onBuildingDoubleClick?: (buildingId: string) => void;
+  onBuildingDragStart?: (buildingId: string, startPos: { x: number; z: number }) => void;
+  onBuildingDragMove?: (buildingId: string, currentPos: { x: number; z: number }) => void;
+  onBuildingDragEnd?: (buildingId: string, endPos: { x: number; z: number }) => void;
+  onBuildingDragCancel?: (buildingId: string) => void;
   onContextMenu?: (screenPos: { x: number; y: number }, worldPos: { x: number; z: number }, target: { type: string; id?: string } | null) => void;
   onGroundClick?: (worldPos: { x: number; z: number }) => void;
   onMoveCommand?: (agentIds: string[], targetPos: { x: number; z: number }) => void;
@@ -29,6 +33,10 @@ export function Scene2DCanvas({
   onAgentHover,
   onBuildingClick,
   onBuildingDoubleClick,
+  onBuildingDragStart,
+  onBuildingDragMove,
+  onBuildingDragEnd,
+  onBuildingDragCancel,
   onContextMenu,
   onGroundClick,
   onMoveCommand,
@@ -53,6 +61,10 @@ export function Scene2DCanvas({
     onAgentHover,
     onBuildingClick,
     onBuildingDoubleClick,
+    onBuildingDragStart,
+    onBuildingDragMove,
+    onBuildingDragEnd,
+    onBuildingDragCancel,
     onContextMenu,
     onGroundClick,
     onMoveCommand,

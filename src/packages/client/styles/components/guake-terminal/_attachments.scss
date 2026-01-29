@@ -84,6 +84,183 @@
   }
 }
 
+// =============================================================================
+// Pasted Text Chips
+// =============================================================================
+
+.guake-pasted-texts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 14px;
+  background: rgba($dracula-bg-darker, 0.95);
+  border-top: 1px solid rgba($dracula-comment, 0.15);
+}
+
+.pasted-text-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  background: rgba($dracula-cyan, 0.15);
+  border: 1px solid rgba($dracula-cyan, 0.4);
+  border-radius: $radius-md;
+  font-family: $font-mono;
+  font-size: 11px;
+  color: $dracula-cyan;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    background: rgba($dracula-cyan, 0.25);
+    border-color: $dracula-cyan;
+    transform: scale(1.02);
+    box-shadow: 0 2px 8px rgba($dracula-cyan, 0.3);
+  }
+}
+
+.pasted-text-chip-icon {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.pasted-text-chip-label {
+  font-weight: 500;
+}
+
+.pasted-text-chip-count {
+  color: rgba($dracula-cyan, 0.8);
+  font-size: 9px;
+  background: rgba($dracula-cyan, 0.15);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.pasted-text-chip-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: rgba($dracula-cyan, 0.6);
+  font-size: 12px;
+  line-height: 1;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: all $transition-fast;
+
+  &:hover {
+    color: $dracula-red;
+    background: rgba($dracula-red, 0.15);
+  }
+}
+
+// =============================================================================
+// Pasted Text Modal
+// =============================================================================
+
+.pasted-text-modal-overlay {
+  z-index: 1001;
+}
+
+.pasted-text-modal {
+  width: 720px;
+  max-width: 95vw;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  background: $dracula-bg;
+  border: 2px solid $dracula-cyan;
+  border-radius: $radius-lg;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 40px rgba($dracula-cyan, 0.3);
+  animation: modal-scale-in 0.2s ease-out;
+}
+
+.pasted-text-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  background: rgba($dracula-current, 0.5);
+  border-bottom: 1px solid $dracula-current;
+}
+
+.pasted-text-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  color: $dracula-fg;
+}
+
+.pasted-text-modal-icon {
+  font-size: 18px;
+}
+
+.pasted-text-modal-count {
+  font-size: 11px;
+  font-weight: 500;
+  color: $dracula-cyan;
+  background: rgba($dracula-cyan, 0.15);
+  padding: 2px 8px;
+  border-radius: $radius-sm;
+}
+
+.pasted-text-modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pasted-text-modal-close {
+  background: rgba($dracula-red, 0.2);
+  border: 1px solid $dracula-red;
+  color: $dracula-red;
+  width: 28px;
+  height: 28px;
+  border-radius: $radius-sm;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all $transition-fast;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  &:hover {
+    background: $dracula-red;
+    color: $dracula-bg;
+  }
+}
+
+.pasted-text-modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  min-height: 0;
+}
+
+.pasted-text-content {
+  font-family: $font-mono;
+  font-size: 12px;
+  line-height: 1.5;
+  color: $dracula-fg;
+  background: rgba($dracula-current, 0.3);
+  padding: 12px 16px;
+  border-radius: $radius-md;
+  border: 1px solid rgba($dracula-comment, 0.25);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  margin: 0;
+  max-height: calc(85vh - 120px);
+  overflow: auto;
+}
+
 // Clickable image reference in history/output
 .image-reference {
   display: inline-flex;

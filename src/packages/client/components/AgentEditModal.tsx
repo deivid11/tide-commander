@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { store, useSkillsArray, useCustomAgentClassesArray } from '../store';
 import { ModelPreview } from './ModelPreview';
+import { FolderInput } from './shared/FolderInput';
 import type { Agent, AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel } from '../../shared/types';
 import { BUILT_IN_AGENT_CLASSES, PERMISSION_MODES, CLAUDE_MODELS } from '../../shared/types';
 import { apiUrl } from '../utils/storage';
@@ -330,12 +331,12 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
             <div className="spawn-form-row">
               <div className="spawn-field">
                 <label className="spawn-label">Working Directory</label>
-                <input
-                  type="text"
-                  className="spawn-input"
+                <FolderInput
                   value={workdir}
-                  onChange={(e) => setWorkdir(e.target.value)}
+                  onChange={setWorkdir}
                   placeholder="/path/to/directory"
+                  className="spawn-input"
+                  directoriesOnly={true}
                 />
               </div>
             </div>

@@ -212,6 +212,11 @@
 .area-add-folder-inline {
   display: flex;
   gap: 4px;
+
+  // FolderInput container takes flex space
+  .folder-input-container {
+    flex: 1;
+  }
 }
 
 .area-add-folder-input {

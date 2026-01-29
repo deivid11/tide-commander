@@ -43,6 +43,15 @@ export class Scene2DInput {
   // Edge panning state
   private isMouseInCanvas = false;
 
+  // Area resize/move state
+  private isResizingArea = false;
+  private resizeHandleType: 'move' | 'nw' | 'ne' | 'sw' | 'se' | 'radius' | null = null;
+
+  // Building drag state
+  private isDraggingBuilding = false;
+  private draggingBuildingId: string | null = null;
+  private buildingDragStartPos: { x: number; z: number } | null = null;
+
   constructor(canvas: HTMLCanvasElement, camera: Scene2DCamera, scene: Scene2D) {
     this.canvas = canvas;
     this.camera = camera;
@@ -111,8 +120,26 @@ export class Scene2DInput {
         return;
       }
 
+      // Check if clicking on a resize handle (when area is selected)
+      const handle = this.scene.getAreaHandleAtWorldPos(worldPos.x, worldPos.z);
+      if (handle) {
+        this.isResizingArea = true;
+        this.resizeHandleType = handle.handleType;
+        this.scene.startAreaResize(handle.handleType, worldPos);
+        this.canvas.style.cursor = handle.handleType === 'move' ? 'move' : 'nwse-resize';
+        return;
+      }
+
       const agent = this.scene.getAgentAtScreenPos(x, y);
       const building = this.scene.getBuildingAtScreenPos(x, y);
+
+      // Start tracking building for potential drag
+      if (building && !agent) {
+        this.draggingBuildingId = building.id;
+        this.buildingDragStartPos = { ...worldPos };
+        this.isDraggingBuilding = false;
+        return;
+      }
 
       if (!agent && !building) {
         // Will start selection box on drag
@@ -155,6 +182,25 @@ export class Scene2DInput {
       this.scene.handleBuildingHover?.(newHoveredBuildingId);
     }
 
+    // Hover detection for area resize handles (update cursor)
+    if (!this.isMouseDown) {
+      const worldPos = this.camera.screenToWorld(x, y);
+      const handle = this.scene.getAreaHandleAtWorldPos(worldPos.x, worldPos.z);
+      if (handle) {
+        if (handle.handleType === 'move') {
+          this.canvas.style.cursor = 'move';
+        } else if (handle.handleType === 'nw' || handle.handleType === 'se') {
+          this.canvas.style.cursor = 'nwse-resize';
+        } else if (handle.handleType === 'ne' || handle.handleType === 'sw') {
+          this.canvas.style.cursor = 'nesw-resize';
+        } else if (handle.handleType === 'radius') {
+          this.canvas.style.cursor = 'ew-resize';
+        }
+      } else {
+        this.canvas.style.cursor = '';
+      }
+    }
+
     if (!this.isMouseDown) {
       this.lastMouseX = x;
       this.lastMouseY = y;
@@ -168,6 +214,36 @@ export class Scene2DInput {
     // Handle drawing mode
     if (this.scene.isCurrentlyDrawing()) {
       this.scene.updateDrawing(worldPos);
+      this.lastMouseX = x;
+      this.lastMouseY = y;
+      return;
+    }
+
+    // Handle area resizing/moving
+    if (this.isResizingArea) {
+      this.scene.updateAreaResize(worldPos);
+      this.lastMouseX = x;
+      this.lastMouseY = y;
+      return;
+    }
+
+    // Handle building drag
+    if (this.draggingBuildingId && this.buildingDragStartPos) {
+      const dx = worldPos.x - this.buildingDragStartPos.x;
+      const dz = worldPos.z - this.buildingDragStartPos.z;
+      const distance = Math.sqrt(dx * dx + dz * dz);
+
+      // Start dragging after moving a bit (threshold ~0.5 world units)
+      if (!this.isDraggingBuilding && distance > 0.5) {
+        this.isDraggingBuilding = true;
+        this.scene.handleBuildingDragStart(this.draggingBuildingId, this.buildingDragStartPos);
+        this.canvas.style.cursor = 'move';
+      }
+
+      if (this.isDraggingBuilding) {
+        this.scene.handleBuildingDragMove(this.draggingBuildingId, worldPos);
+      }
+
       this.lastMouseX = x;
       this.lastMouseY = y;
       return;
@@ -211,6 +287,36 @@ export class Scene2DInput {
       return;
     }
 
+    // Check for area resize completion
+    if (this.isResizingArea) {
+      this.scene.finishAreaResize();
+      this.isResizingArea = false;
+      this.resizeHandleType = null;
+      this.canvas.style.cursor = '';
+      this.isMouseDown = false;
+      return;
+    }
+
+    // Check for building drag completion
+    if (this.draggingBuildingId) {
+      if (this.isDraggingBuilding) {
+        this.scene.handleBuildingDragEnd(this.draggingBuildingId, worldPos);
+        this.draggingBuildingId = null;
+        this.buildingDragStartPos = null;
+        this.isDraggingBuilding = false;
+        this.canvas.style.cursor = '';
+        this.isMouseDown = false;
+        return;
+      } else {
+        // Was a click, not a drag - let handleClick process it for double-click detection
+        this.draggingBuildingId = null;
+        this.buildingDragStartPos = null;
+        this.isDraggingBuilding = false;
+        this.canvas.style.cursor = '';
+        // Fall through to handleClick below
+      }
+    }
+
     const wasSelecting = this.isSelecting;
     const wasPanning = this.isPanning;
 
@@ -247,6 +353,23 @@ export class Scene2DInput {
     this.selectionBox = null;
     this.isMouseInCanvas = false;
     this.canvas.classList.remove('panning', 'selecting');
+    this.canvas.style.cursor = '';
+
+    // Finish any in-progress area resize
+    if (this.isResizingArea) {
+      this.scene.finishAreaResize();
+      this.isResizingArea = false;
+      this.resizeHandleType = null;
+    }
+
+    // Finish any in-progress building drag
+    if (this.isDraggingBuilding && this.draggingBuildingId) {
+      // Cancel the drag on mouse leave (don't move the building)
+      this.scene.handleBuildingDragCancel?.(this.draggingBuildingId);
+    }
+    this.draggingBuildingId = null;
+    this.buildingDragStartPos = null;
+    this.isDraggingBuilding = false;
 
     // Clear hover states
     if (this.hoveredAgentId) {
@@ -305,9 +428,10 @@ export class Scene2DInput {
     const building = this.scene.getBuildingAtScreenPos(x, y);
     const area = this.scene.getAreaAtScreenPos(x, y);
 
-    // If agents are selected and right-clicking on empty ground (not on an entity or area), move them
+    // If agents are selected and right-clicking anywhere (not on another agent or building), move them
+    // Areas don't block move commands - you should be able to move agents into/within areas
     const state = store.getState();
-    if (state.selectedAgentIds.size > 0 && !agent && !building && !area) {
+    if (state.selectedAgentIds.size > 0 && !agent && !building) {
       // Issue move command to selected agents
       this.scene.handleMoveCommand({ x: worldPos.x, z: worldPos.z });
       // Create visual effect at target position
@@ -474,11 +598,22 @@ export class Scene2DInput {
         this.lastClickTarget = building.id;
       }
     } else {
-      // Ground click
+      // Check if clicking on an area (for selection)
+      const area = this.scene.getAreaAtScreenPos(screenX, screenY);
       const worldPos = this.camera.screenToWorld(screenX, screenY);
-      this.scene.handleGroundClick({ x: worldPos.x, z: worldPos.z });
-      this.lastClickTime = 0;
-      this.lastClickTarget = null;
+
+      if (area) {
+        // Select the area
+        this.scene.selectArea(area.id);
+        this.lastClickTime = now;
+        this.lastClickTarget = `area:${area.id}`;
+      } else {
+        // Ground click - deselect any selected area
+        this.scene.selectArea(null);
+        this.scene.handleGroundClick({ x: worldPos.x, z: worldPos.z });
+        this.lastClickTime = 0;
+        this.lastClickTarget = null;
+      }
     }
   }
 

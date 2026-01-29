@@ -49,7 +49,7 @@ export function useFileTree(currentFolder: string | null): UseFileTreeReturn {
     setLoading(true);
 
     try {
-      const res = await fetch(
+      const res = await authFetch(
         apiUrl(`/api/files/tree?path=${encodeURIComponent(currentFolder)}&depth=${INITIAL_DEPTH}`)
       );
       const data = await res.json();
@@ -102,7 +102,7 @@ export function useFileTree(currentFolder: string | null): UseFileTreeReturn {
    */
   const loadChildren = useCallback(async (dirPath: string) => {
     try {
-      const res = await fetch(
+      const res = await authFetch(
         apiUrl(`/api/files/tree?path=${encodeURIComponent(dirPath)}&depth=${EXPAND_DEPTH}`)
       );
       const data = await res.json();

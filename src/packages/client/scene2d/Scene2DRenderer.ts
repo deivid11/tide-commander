@@ -35,10 +35,22 @@ const BUILDING_STYLES_CONFIG: Record<string, { color: string; darkColor: string;
   'command-center': { color: '#ba9a5a', darkColor: '#9a7a3a', emoji: '🏛️' },
 };
 
+// Tool animation state per agent
+interface ToolAnimationState {
+  tool: string;
+  startTime: number;
+  fadeIn: boolean;      // true = fading in, false = fading out
+  opacity: number;      // current opacity (0-1)
+}
+
 export class Scene2DRenderer {
   private ctx: CanvasRenderingContext2D;
   private camera: Scene2DCamera;
   private animationTime = 0;
+  private toolAnimations: Map<string, ToolAnimationState> = new Map();
+
+  // Animation constants
+  private static readonly TOOL_FADE_DURATION = 200; // ms for fade in/out
 
   constructor(ctx: CanvasRenderingContext2D, camera: Scene2DCamera) {
     this.ctx = ctx;
@@ -46,10 +58,86 @@ export class Scene2DRenderer {
   }
 
   /**
-   * Update animation time (call from render loop)
+   * Update animation time and tool animation states (call from render loop)
    */
   update(deltaTime: number): void {
     this.animationTime += deltaTime;
+    this.updateToolAnimations();
+  }
+
+  /**
+   * Update tool animation states for smooth fade in/out
+   */
+  private updateToolAnimations(): void {
+    const now = performance.now();
+    const toRemove: string[] = [];
+
+    for (const [agentId, state] of this.toolAnimations) {
+      const elapsed = now - state.startTime;
+      const progress = Math.min(1, elapsed / Scene2DRenderer.TOOL_FADE_DURATION);
+
+      if (state.fadeIn) {
+        // Fading in - use easeOutCubic for smooth appearance
+        state.opacity = this.easeOutCubic(progress);
+      } else {
+        // Fading out - use easeInCubic for smooth disappearance
+        state.opacity = 1 - this.easeInCubic(progress);
+
+        // Remove completed fade-outs
+        if (progress >= 1) {
+          toRemove.push(agentId);
+        }
+      }
+    }
+
+    // Clean up completed fade-outs
+    for (const id of toRemove) {
+      this.toolAnimations.delete(id);
+    }
+  }
+
+  /**
+   * Update tool state for an agent - call when agent tool changes
+   */
+  updateAgentTool(agentId: string, currentTool: string | undefined): void {
+    const existing = this.toolAnimations.get(agentId);
+    const now = performance.now();
+
+    if (currentTool) {
+      // Tool is active
+      if (!existing || existing.tool !== currentTool || !existing.fadeIn) {
+        // New tool or different tool or was fading out - start fade in
+        this.toolAnimations.set(agentId, {
+          tool: currentTool,
+          startTime: now,
+          fadeIn: true,
+          opacity: existing?.opacity ?? 0, // Continue from current opacity if transitioning
+        });
+      }
+    } else {
+      // No tool - start fade out if we have an active animation
+      if (existing && existing.fadeIn) {
+        existing.fadeIn = false;
+        existing.startTime = now;
+        // Keep current opacity to fade from
+      }
+    }
+  }
+
+  /**
+   * Get tool animation state for an agent
+   */
+  getToolAnimation(agentId: string): ToolAnimationState | undefined {
+    return this.toolAnimations.get(agentId);
+  }
+
+  // Easing functions
+  private easeOutCubic(t: number): number {
+    return 1 - Math.pow(1 - t, 3);
+  }
+
+  private easeInCubic(t: number): number {
+    return t * t * t;
   }
 
   // ============================================
@@ -288,7 +376,7 @@ export class Scene2DRenderer {
   // Areas
   // ============================================
 
-  drawArea(area: Area2DData): void {
+  drawArea(area: Area2DData, isSelected: boolean = false): void {
     this.camera.applyTransform(this.ctx);
 
     const { x, z } = area.position;
@@ -303,20 +391,30 @@ export class Scene2DRenderer {
       const left = x - width / 2;
       const top = z - height / 2;
 
-      this.drawRectangleArea(left, top, width, height, baseColor, zoom, dashOffset);
+      this.drawRectangleArea(left, top, width, height, baseColor, zoom, dashOffset, isSelected);
 
       // Label at top edge
       if (area.label) {
         this.drawAreaLabel(area.label, x, top, baseColor, zoom, 'top');
       }
+
+      // Draw resize handles when selected
+      if (isSelected) {
+        this.drawRectangleResizeHandles(x, z, width, height, baseColor, zoom);
+      }
     } else if (area.type === 'circle' && 'radius' in area.size) {
       const { radius } = area.size;
 
-      this.drawCircleArea(x, z, radius, baseColor, zoom, dashOffset);
+      this.drawCircleArea(x, z, radius, baseColor, zoom, dashOffset, isSelected);
 
       // Label at top of circle
       if (area.label) {
         this.drawAreaLabel(area.label, x, z - radius, baseColor, zoom, 'top');
+      }
+
+      // Draw resize handles when selected
+      if (isSelected) {
+        this.drawCircleResizeHandles(x, z, radius, baseColor, zoom);
       }
     }
 
@@ -330,26 +428,42 @@ export class Scene2DRenderer {
     height: number,
     baseColor: string,
     zoom: number,
-    dashOffset: number
+    dashOffset: number,
+    isSelected: boolean = false
   ): void {
     const ctx = this.ctx;
     const cornerSize = Math.min(width, height) * 0.08;
 
+    // Selection glow effect
+    if (isSelected) {
+      const glowPulse = 0.5 + Math.sin(this.animationTime * 3) * 0.2;
+      ctx.save();
+      ctx.shadowColor = this.hexToRgba(baseColor, glowPulse);
+      ctx.shadowBlur = 20 / zoom;
+      ctx.strokeStyle = this.hexToRgba(baseColor, glowPulse * 0.8);
+      ctx.lineWidth = 4 / zoom;
+      ctx.beginPath();
+      ctx.rect(left - 2 / zoom, top - 2 / zoom, width + 4 / zoom, height + 4 / zoom);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     // Outer shadow (subtle glow)
     ctx.save();
-    ctx.shadowColor = this.hexToRgba(baseColor, 0.4);
-    ctx.shadowBlur = 12 / zoom;
+    ctx.shadowColor = this.hexToRgba(baseColor, isSelected ? 0.6 : 0.4);
+    ctx.shadowBlur = (isSelected ? 16 : 12) / zoom;
     ctx.fillStyle = 'transparent';
     ctx.beginPath();
     ctx.rect(left, top, width, height);
     ctx.fill();
     ctx.restore();
 
-    // Gradient fill - diagonal gradient for depth
+    // Gradient fill - diagonal gradient for depth (brighter when selected)
+    const baseOpacity = isSelected ? 0.25 : 0.15;
     const gradient = ctx.createLinearGradient(left, top, left + width, top + height);
-    gradient.addColorStop(0, this.hexToRgba(baseColor, 0.15));
-    gradient.addColorStop(0.5, this.hexToRgba(baseColor, 0.08));
-    gradient.addColorStop(1, this.hexToRgba(baseColor, 0.2));
+    gradient.addColorStop(0, this.hexToRgba(baseColor, baseOpacity));
+    gradient.addColorStop(0.5, this.hexToRgba(baseColor, baseOpacity * 0.5));
+    gradient.addColorStop(1, this.hexToRgba(baseColor, baseOpacity * 1.3));
 
     ctx.fillStyle = gradient;
     ctx.beginPath();
@@ -467,25 +581,41 @@ export class Scene2DRenderer {
     radius: number,
     baseColor: string,
     zoom: number,
-    dashOffset: number
+    dashOffset: number,
+    isSelected: boolean = false
   ): void {
     const ctx = this.ctx;
 
+    // Selection glow effect
+    if (isSelected) {
+      const glowPulse = 0.5 + Math.sin(this.animationTime * 3) * 0.2;
+      ctx.save();
+      ctx.shadowColor = this.hexToRgba(baseColor, glowPulse);
+      ctx.shadowBlur = 20 / zoom;
+      ctx.strokeStyle = this.hexToRgba(baseColor, glowPulse * 0.8);
+      ctx.lineWidth = 4 / zoom;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius + 3 / zoom, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     // Outer glow
     ctx.save();
-    ctx.shadowColor = this.hexToRgba(baseColor, 0.4);
-    ctx.shadowBlur = 12 / zoom;
+    ctx.shadowColor = this.hexToRgba(baseColor, isSelected ? 0.6 : 0.4);
+    ctx.shadowBlur = (isSelected ? 16 : 12) / zoom;
     ctx.fillStyle = 'transparent';
     ctx.beginPath();
     ctx.arc(cx, cy, radius, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
 
-    // Radial gradient fill
+    // Radial gradient fill (brighter when selected)
+    const baseOpacity = isSelected ? 0.3 : 0.2;
     const gradient = ctx.createRadialGradient(cx, cy - radius * 0.3, 0, cx, cy, radius);
-    gradient.addColorStop(0, this.hexToRgba(baseColor, 0.2));
-    gradient.addColorStop(0.6, this.hexToRgba(baseColor, 0.1));
-    gradient.addColorStop(1, this.hexToRgba(baseColor, 0.18));
+    gradient.addColorStop(0, this.hexToRgba(baseColor, baseOpacity));
+    gradient.addColorStop(0.6, this.hexToRgba(baseColor, baseOpacity * 0.5));
+    gradient.addColorStop(1, this.hexToRgba(baseColor, baseOpacity * 0.9));
 
     ctx.fillStyle = gradient;
     ctx.beginPath();
@@ -601,6 +731,124 @@ export class Scene2DRenderer {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(label, x, y + offsetY);
+
+    ctx.restore();
+  }
+
+  /**
+   * Draw resize handles for a selected rectangle area.
+   */
+  private drawRectangleResizeHandles(
+    cx: number,
+    cz: number,
+    width: number,
+    height: number,
+    baseColor: string,
+    zoom: number
+  ): void {
+    const ctx = this.ctx;
+    const handleRadius = 0.25; // World units
+    const handlePulse = 0.8 + Math.sin(this.animationTime * 4) * 0.2;
+
+    // Corner handles (white with glow) - for resizing
+    const corners = [
+      { x: cx - width / 2, z: cz - height / 2 }, // NW
+      { x: cx + width / 2, z: cz - height / 2 }, // NE
+      { x: cx - width / 2, z: cz + height / 2 }, // SW
+      { x: cx + width / 2, z: cz + height / 2 }, // SE
+    ];
+
+    for (const corner of corners) {
+      this.drawResizeHandle(corner.x, corner.z, handleRadius, '#ffffff', zoom, handlePulse);
+    }
+
+    // Center move handle (gold/yellow)
+    this.drawResizeHandle(cx, cz, handleRadius * 1.2, '#ffcc00', zoom, handlePulse, true);
+  }
+
+  /**
+   * Draw resize handles for a selected circle area.
+   */
+  private drawCircleResizeHandles(
+    cx: number,
+    cz: number,
+    radius: number,
+    baseColor: string,
+    zoom: number
+  ): void {
+    const handleRadius = 0.25;
+    const handlePulse = 0.8 + Math.sin(this.animationTime * 4) * 0.2;
+
+    // Radius handle on the right edge (white)
+    this.drawResizeHandle(cx + radius, cz, handleRadius, '#ffffff', zoom, handlePulse);
+
+    // Center move handle (gold/yellow)
+    this.drawResizeHandle(cx, cz, handleRadius * 1.2, '#ffcc00', zoom, handlePulse, true);
+  }
+
+  /**
+   * Draw a single resize handle.
+   */
+  private drawResizeHandle(
+    x: number,
+    z: number,
+    radius: number,
+    color: string,
+    zoom: number,
+    pulse: number,
+    isMove: boolean = false
+  ): void {
+    const ctx = this.ctx;
+
+    // Glow effect
+    ctx.save();
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 10 / zoom;
+
+    // Handle background (dark circle)
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.beginPath();
+    ctx.arc(x, z, radius * 1.3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Handle fill with gradient
+    const gradient = ctx.createRadialGradient(
+      x - radius * 0.3, z - radius * 0.3, 0,
+      x, z, radius
+    );
+    gradient.addColorStop(0, this.lightenColor(color, 0.3));
+    gradient.addColorStop(0.5, color);
+    gradient.addColorStop(1, this.darkenColor(color, 0.2));
+
+    ctx.fillStyle = gradient;
+    ctx.globalAlpha = pulse;
+    ctx.beginPath();
+    ctx.arc(x, z, radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Handle border
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.lineWidth = 1.5 / zoom;
+    ctx.beginPath();
+    ctx.arc(x, z, radius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Move handle has a cross icon inside
+    if (isMove) {
+      const iconSize = radius * 0.5;
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+      ctx.lineWidth = 2 / zoom;
+      ctx.lineCap = 'round';
+
+      // Draw a 4-way arrow indicator (simplified as a cross)
+      ctx.beginPath();
+      ctx.moveTo(x - iconSize, z);
+      ctx.lineTo(x + iconSize, z);
+      ctx.moveTo(x, z - iconSize);
+      ctx.lineTo(x, z + iconSize);
+      ctx.stroke();
+    }
 
     ctx.restore();
   }
@@ -903,6 +1151,11 @@ export class Scene2DRenderer {
     const baseRadius = agent.isBoss ? 0.7 : 0.5;
     const radius = baseRadius;
 
+    // Calculate zoom-based scale factor for labels
+    // At zoom 30 (default), scale is 1.0. Below that, scale down proportionally.
+    const zoom = this.camera.getZoom();
+    const zoomScaleFactor = Math.min(1, zoom / 30);
+
     // Animation parameters
     const walkSpeed = 8;
     const walkPhase = this.animationTime * walkSpeed;
@@ -914,7 +1167,7 @@ export class Scene2DRenderer {
     const workBounceSpeed = 6; // Bounce frequency
     const workBouncePhase = this.animationTime * workBounceSpeed;
     // Use absolute value of sine for a bouncing effect (always up) - in screen pixels
-    const iconBounceOffset = isWorking ? Math.abs(Math.sin(workBouncePhase)) * 8 : 0;
+    const iconBounceOffset = isWorking ? Math.abs(Math.sin(workBouncePhase)) * 8 * zoomScaleFactor : 0;
 
     // Walking animation
     const bobAmount = isMoving ? Math.sin(walkPhase * 2) * 0.05 : 0;
@@ -1055,7 +1308,7 @@ export class Scene2DRenderer {
     this.ctx.restore(); // Remove shadow for remaining elements
 
     // ========== CLASS EMOJI (Prominent in center, bounces when working) ==========
-    const emojiFontSize = Math.max(16, screenRadius * 1.1);
+    const emojiFontSize = Math.max(12 * zoomScaleFactor, screenRadius * 1.1);
     this.ctx.font = `${emojiFontSize}px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif`;
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
@@ -1063,7 +1316,7 @@ export class Scene2DRenderer {
 
     // ========== BOSS CROWN (Better positioned above agent) ==========
     if (agent.isBoss) {
-      const crownSize = Math.max(14, screenRadius * 0.6);
+      const crownSize = Math.max(10 * zoomScaleFactor, screenRadius * 0.6);
       this.ctx.font = `${crownSize}px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", serif`;
       this.ctx.textAlign = 'center';
       this.ctx.textBaseline = 'bottom';
@@ -1094,13 +1347,15 @@ export class Scene2DRenderer {
     }
 
     // ========== NAME TAG (Styled badge below agent) ==========
-    const labelY = screenPos.y + screenRadius + 14;
-    const labelFontSize = Math.max(10, 11 * indicatorScale);
+    // Scale labels with zoom level - at low zoom, make them smaller
+    const labelScale = indicatorScale * zoomScaleFactor;
+    const labelY = screenPos.y + screenRadius + 12 * zoomScaleFactor;
+    const labelFontSize = Math.max(5, 9 * labelScale);
 
     this.ctx.font = `bold ${labelFontSize}px "Segoe UI", Arial, sans-serif`;
     const nameWidth = this.ctx.measureText(agent.name).width;
-    const namePadding = 8;
-    const nameHeight = labelFontSize + 6;
+    const namePadding = 6 * zoomScaleFactor;
+    const nameHeight = labelFontSize + 4 * zoomScaleFactor;
 
     // Name tag background with gradient
     const nameTagGradient = this.ctx.createLinearGradient(
@@ -1134,16 +1389,23 @@ export class Scene2DRenderer {
     this.ctx.fillText(agent.name, screenPos.x, labelY);
 
     // ========== CONTEXT/MANA BAR (Gradient filled) ==========
-    // Calculate remaining context percentage using correct formula from unit-context
-    const used = agent.contextUsed || 0;
-    const limit = agent.contextLimit || 200000;
-    const remaining = Math.max(0, limit - used);
-    const contextPercent = (remaining / limit) * 100;
+    // Calculate remaining context percentage - prefer contextStats (from /context command) if available
+    let contextPercent: number;
+    if (agent.contextStats) {
+      // Use accurate data from /context command
+      contextPercent = 100 - agent.contextStats.usedPercent;
+    } else {
+      // Fallback to basic calculation
+      const used = agent.contextUsed || 0;
+      const limit = agent.contextLimit || 200000;
+      const remaining = Math.max(0, limit - used);
+      contextPercent = (remaining / limit) * 100;
+    }
     const manaPercent = Math.max(0, Math.min(100, contextPercent)) / 100;
 
-    const barY = labelY + nameHeight / 2 + 8;
-    const barWidth = Math.max(70, nameWidth + namePadding * 2); // Wider bar
-    const barHeight = 10; // Taller bar
+    const barY = labelY + nameHeight / 2 + 8 * zoomScaleFactor;
+    const barWidth = 100 * zoomScaleFactor; // Fixed width for all agents
+    const barHeight = 14 * zoomScaleFactor; // Thicker bar
 
     // Bar background
     this.ctx.beginPath();
@@ -1187,7 +1449,8 @@ export class Scene2DRenderer {
 
     // Bar percentage text (more prominent)
     const percentText = `${Math.round(contextPercent)}%`;
-    this.ctx.font = `bold 10px "Segoe UI", Arial, sans-serif`;
+    const percentFontSize = Math.max(6, 10 * zoomScaleFactor);
+    this.ctx.font = `bold ${percentFontSize}px "Segoe UI", Arial, sans-serif`;
     this.ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
@@ -1198,7 +1461,7 @@ export class Scene2DRenderer {
       const idleSeconds = Math.floor((Date.now() - agent.lastActivity) / 1000);
       if (idleSeconds >= 5) {
         const idleText = this.formatIdleTime(idleSeconds);
-        const timerY = barY + barHeight + 10;
+        const timerY = barY + barHeight + 10 * zoomScaleFactor;
 
         // Timer badge colors based on duration
         let timerBgColor: string, timerTextColor: string, timerIcon: string;
@@ -1216,12 +1479,12 @@ export class Scene2DRenderer {
           timerIcon = '⏳';
         }
 
-        const timerFontSize = Math.max(8, 9 * indicatorScale);
+        const timerFontSize = Math.max(6, 9 * labelScale);
         this.ctx.font = `bold ${timerFontSize}px "Segoe UI Emoji", "Apple Color Emoji", Arial`;
         const timerContent = `${timerIcon} ${idleText}`;
         const timerWidth = this.ctx.measureText(timerContent).width;
-        const timerPadding = 5;
-        const timerHeight = timerFontSize + 3;
+        const timerPadding = 5 * zoomScaleFactor;
+        const timerHeight = timerFontSize + 3 * zoomScaleFactor;
 
         // Timer badge background (pill shape)
         this.ctx.beginPath();
@@ -1243,40 +1506,55 @@ export class Scene2DRenderer {
       }
     }
 
-    // ========== CURRENT TOOL BADGE (when working) ==========
-    if (agent.currentTool) {
-      const toolIcon = TOOL_ICONS[agent.currentTool] || TOOL_ICONS.default;
-      const toolY = barY + barHeight + 10;
+    // ========== CURRENT TOOL BADGE (when working) - with smooth animation ==========
+    // Update tool animation state
+    this.updateAgentTool(agent.id, agent.currentTool);
+    const toolAnim = this.toolAnimations.get(agent.id);
 
-      const toolFontSize = Math.max(9, 10 * indicatorScale);
+    if (toolAnim && toolAnim.opacity > 0.01) {
+      const toolIcon = TOOL_ICONS[toolAnim.tool] || TOOL_ICONS.default;
+      const toolY = barY + barHeight + 10 * zoomScaleFactor;
+      const opacity = toolAnim.opacity;
+
+      // Scale animation - slightly smaller when fading in/out
+      const scaleProgress = toolAnim.fadeIn
+        ? this.easeOutCubic(opacity)
+        : opacity;
+      const scale = 0.8 + 0.2 * scaleProgress;
+
+      const toolFontSize = Math.max(6, 10 * labelScale) * scale;
       this.ctx.font = `bold ${toolFontSize}px "Segoe UI Emoji", "Apple Color Emoji", Arial`;
-      const toolContent = `${toolIcon} ${agent.currentTool}`;
+      const toolContent = `${toolIcon} ${toolAnim.tool}`;
       const toolTextWidth = this.ctx.measureText(toolContent).width;
-      const toolPadding = 6;
-      const toolBadgeHeight = toolFontSize + 4;
+      const toolPadding = 6 * zoomScaleFactor * scale;
+      const toolBadgeHeight = toolFontSize + 4 * zoomScaleFactor * scale;
+
+      // Slight vertical offset animation - slides up when appearing, down when disappearing
+      const slideOffset = (1 - scaleProgress) * 4 * zoomScaleFactor;
+      const animatedToolY = toolY + slideOffset;
 
       // Tool badge background (pill shape with blue theme)
       this.ctx.beginPath();
       this.roundedRectScreen(
         screenPos.x - toolTextWidth / 2 - toolPadding,
-        toolY - toolBadgeHeight / 2,
+        animatedToolY - toolBadgeHeight / 2,
         toolTextWidth + toolPadding * 2,
         toolBadgeHeight,
         toolBadgeHeight / 2
       );
-      this.ctx.fillStyle = 'rgba(74, 118, 158, 0.9)';
+      this.ctx.fillStyle = `rgba(74, 118, 158, ${0.9 * opacity})`;
       this.ctx.fill();
 
       // Tool badge border
-      this.ctx.strokeStyle = 'rgba(74, 158, 255, 0.6)';
+      this.ctx.strokeStyle = `rgba(74, 158, 255, ${0.6 * opacity})`;
       this.ctx.lineWidth = 1;
       this.ctx.stroke();
 
       // Tool text
-      this.ctx.fillStyle = '#aaddff';
+      this.ctx.fillStyle = `rgba(170, 221, 255, ${opacity})`;
       this.ctx.textAlign = 'center';
       this.ctx.textBaseline = 'middle';
-      this.ctx.fillText(toolContent, screenPos.x, toolY);
+      this.ctx.fillText(toolContent, screenPos.x, animatedToolY);
     }
   }
 

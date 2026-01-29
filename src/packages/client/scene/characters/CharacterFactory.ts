@@ -310,9 +310,9 @@ export class CharacterFactory {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d')!;
 
-    // Canvas size - wide enough for long names, tall enough for all elements
-    canvas.width = 768; // Wider to accommodate longer names
-    canvas.height = 384; // Enough for crown + name + mana + idle timer
+    // Higher resolution canvas for crisp rendering
+    canvas.width = 1024;
+    canvas.height = 512;
 
     this.drawCombinedUI(ctx, canvas.width, canvas.height, name, color, remainingPercent, status, lastActivity, isBoss);
 
@@ -329,9 +329,9 @@ export class CharacterFactory {
 
     const sprite = new THREE.Sprite(material);
     // Position above the character
-    sprite.position.y = isBoss ? 3.0 : 2.0;
+    sprite.position.y = isBoss ? 3.2 : 2.2;
     // Scale to match the canvas aspect ratio
-    const baseScale = isBoss ? 2.0 : 1.6;
+    const baseScale = isBoss ? 2.4 : 1.9;
     sprite.scale.set(baseScale, baseScale * (canvas.height / canvas.width), 1);
     sprite.name = 'combinedUI';
 
@@ -355,62 +355,58 @@ export class CharacterFactory {
     ctx.clearRect(0, 0, width, height);
 
     const colorHex = `#${color.toString(16).padStart(6, '0')}`;
-    let yOffset = 0;
+    let yOffset = 20; // Start with some padding from top
 
     // === Crown (for boss agents) ===
     if (isBoss) {
-      ctx.font = '64px serif';
+      ctx.font = '72px serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
       ctx.fillText('👑', width / 2, yOffset);
-      yOffset += 70;
+      yOffset += 80;
     }
 
-    // === Name label ===
-    const fontSize = 48;
-    const namePadding = 20;
-    const maxNameWidth = width - 40; // Leave 20px margin on each side
+    // === Name label (no background, just text with outline) ===
+    const fontSize = 56;
+    const maxNameWidth = width - 60;
     ctx.font = `bold ${fontSize}px Arial`;
 
     // Truncate name if too long
     let displayName = name;
     let nameWidth = ctx.measureText(displayName).width;
-    if (nameWidth > maxNameWidth - namePadding * 2) {
-      while (displayName.length > 3 && ctx.measureText(displayName + '...').width > maxNameWidth - namePadding * 2) {
+    if (nameWidth > maxNameWidth) {
+      while (displayName.length > 3 && ctx.measureText(displayName + '...').width > maxNameWidth) {
         displayName = displayName.slice(0, -1);
       }
       displayName += '...';
-      nameWidth = ctx.measureText(displayName).width;
     }
 
-    const nameBgWidth = Math.min(nameWidth + namePadding * 2, maxNameWidth);
-    const nameBgHeight = 65;
-    const nameBgX = Math.max(10, (width - nameBgWidth) / 2); // Ensure at least 10px from edge
-    const nameBgY = yOffset;
-
-    // Name background
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-    ctx.beginPath();
-    ctx.roundRect(nameBgX, nameBgY, nameBgWidth, nameBgHeight, 8);
-    ctx.fill();
-
-    // Name text
-    ctx.fillStyle = colorHex;
+    // Name text with thick outline for readability (no background)
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(displayName, width / 2, nameBgY + nameBgHeight / 2);
+    const nameY = yOffset + fontSize / 2;
 
-    yOffset += nameBgHeight + 12;
+    // Draw thick black outline
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 6;
+    ctx.lineJoin = 'round';
+    ctx.strokeText(displayName, width / 2, nameY);
+
+    // Draw colored fill
+    ctx.fillStyle = colorHex;
+    ctx.fillText(displayName, width / 2, nameY);
+
+    yOffset += fontSize + 16;
 
     // === Mana bar with status dot ===
-    const manaBarHeight = 56; // Increased from 40
-    const manaBarWidth = 380; // Increased from 280
+    const manaBarHeight = 64;
+    const manaBarWidth = 440;
     const manaBarX = (width - manaBarWidth) / 2;
     const manaBarY = yOffset;
 
     // Status dot
-    const dotSize = 38; // Increased from 28
-    const dotX = manaBarX + dotSize / 2 + 4;
+    const dotSize = 44;
+    const dotX = manaBarX + dotSize / 2 + 6;
     const dotY = manaBarY + manaBarHeight / 2;
 
     let dotColor: string;
@@ -428,19 +424,22 @@ export class CharacterFactory {
     ctx.fillStyle = dotColor;
     ctx.fill();
     ctx.shadowColor = dotColor;
-    ctx.shadowBlur = 6;
+    ctx.shadowBlur = 8;
     ctx.fill();
     ctx.shadowBlur = 0;
     ctx.strokeStyle = '#000';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 3;
     ctx.stroke();
 
     // Mana bar background
-    const barStartX = manaBarX + dotSize + 12;
-    const barWidth = manaBarWidth - dotSize - 16;
+    const barStartX = manaBarX + dotSize + 16;
+    const barWidth = manaBarWidth - dotSize - 22;
+    const barHeight = manaBarHeight - 12;
+    const barY = manaBarY + 6;
+
     ctx.fillStyle = '#000';
     ctx.beginPath();
-    ctx.roundRect(barStartX, manaBarY + 4, barWidth, manaBarHeight - 8, 5);
+    ctx.roundRect(barStartX, barY, barWidth, barHeight, 6);
     ctx.fill();
     ctx.strokeStyle = '#5a8a8a';
     ctx.lineWidth = 2;
@@ -448,7 +447,8 @@ export class CharacterFactory {
 
     // Mana fill
     const percentage = Math.max(0, Math.min(100, remainingPercent)) / 100;
-    const fillWidth = Math.max(0, (barWidth - 6) * percentage);
+    const fillPadding = 4;
+    const fillWidth = Math.max(0, (barWidth - fillPadding * 2) * percentage);
     if (fillWidth > 0) {
       let fillColor: string;
       if (percentage > 0.5) fillColor = '#6a9a78';
@@ -457,26 +457,28 @@ export class CharacterFactory {
 
       ctx.fillStyle = fillColor;
       ctx.beginPath();
-      ctx.roundRect(barStartX + 3, manaBarY + 7, fillWidth, manaBarHeight - 14, 3);
+      ctx.roundRect(barStartX + fillPadding, barY + fillPadding, fillWidth, barHeight - fillPadding * 2, 4);
       ctx.fill();
       ctx.shadowColor = fillColor;
-      ctx.shadowBlur = 6;
+      ctx.shadowBlur = 8;
       ctx.fill();
       ctx.shadowBlur = 0;
     }
 
-    // Percentage text
+    // Percentage text - centered in the bar
     const percentText = `${Math.round(percentage * 100)}%`;
-    ctx.font = 'bold 24px Arial'; // Increased from 18px
+    ctx.font = 'bold 28px Arial';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
+    const barCenterX = barStartX + barWidth / 2;
+    const barCenterY = barY + barHeight / 2;
     ctx.strokeStyle = '#000';
-    ctx.lineWidth = 3;
-    ctx.strokeText(percentText, barStartX + barWidth / 2, manaBarY + manaBarHeight / 2);
+    ctx.lineWidth = 4;
+    ctx.strokeText(percentText, barCenterX, barCenterY);
     ctx.fillStyle = '#fff';
-    ctx.fillText(percentText, barStartX + barWidth / 2, manaBarY + manaBarHeight / 2);
+    ctx.fillText(percentText, barCenterX, barCenterY);
 
-    yOffset += manaBarHeight + 8;
+    yOffset += manaBarHeight + 12;
 
     // === Idle timer (only for idle agents) ===
     if (status === 'idle' && lastActivity > 0) {
@@ -484,29 +486,29 @@ export class CharacterFactory {
       const idleText = this.formatIdleTimeShort(idleSeconds);
       const colors = this.getIdleTimerColor(idleSeconds);
 
-      ctx.font = 'bold 36px Arial'; // Increased from 28px
+      ctx.font = 'bold 40px Arial';
       const idleTextWidth = ctx.measureText(`⏱ ${idleText}`).width;
-      const idleBgWidth = idleTextWidth + 32; // Increased padding from 24
-      const idleBgHeight = 48; // Increased from 36
+      const idleBgWidth = idleTextWidth + 40;
+      const idleBgHeight = 54;
       const idleBgX = (width - idleBgWidth) / 2;
       const idleBgY = yOffset;
 
       // Background
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
       ctx.beginPath();
-      ctx.roundRect(idleBgX, idleBgY, idleBgWidth, idleBgHeight, 6);
+      ctx.roundRect(idleBgX, idleBgY, idleBgWidth, idleBgHeight, 8);
       ctx.fill();
 
       // Border
       ctx.strokeStyle = colors.border;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 3;
       ctx.stroke();
 
       // Text
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.strokeStyle = '#000';
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 4;
       ctx.strokeText(`⏱ ${idleText}`, width / 2, idleBgY + idleBgHeight / 2);
       ctx.fillStyle = colors.text;
       ctx.fillText(`⏱ ${idleText}`, width / 2, idleBgY + idleBgHeight / 2);

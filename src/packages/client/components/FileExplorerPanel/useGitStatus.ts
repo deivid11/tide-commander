@@ -25,7 +25,7 @@ export function useGitStatus(currentFolder: string | null): UseGitStatusReturn {
     setLoading(true);
 
     try {
-      const res = await fetch(
+      const res = await authFetch(
         apiUrl(`/api/files/git-status?path=${encodeURIComponent(currentFolder)}`)
       );
       const data = await res.json();
@@ -57,7 +57,7 @@ export async function loadGitOriginalContent(
   filePath: string
 ): Promise<{ content: string | null; isNew: boolean }> {
   try {
-    const res = await fetch(
+    const res = await authFetch(
       apiUrl(`/api/files/git-original?path=${encodeURIComponent(filePath)}`)
     );
     const data = await res.json();

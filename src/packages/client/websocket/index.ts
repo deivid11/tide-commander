@@ -166,6 +166,21 @@ export function clearCallbacks(): void {
   onAgentNotification = null;
 }
 
+/**
+ * Clear only scene-specific callbacks (for 3D scene disposal when switching to 2D mode).
+ * Preserves toast, reconnect, and notification callbacks that are still needed.
+ */
+export function clearSceneCallbacks(): void {
+  onAgentCreated = null;
+  onAgentUpdated = null;
+  onAgentDeleted = null;
+  onAgentsSync = null;
+  onToolUse = null;
+  onDelegation = null;
+  onCustomClassesSync = null;
+  onBuildingUpdated = null;
+}
+
 export function connect(): void {
   // Ensure we have a beforeunload listener to clean up on page refresh
   ensureBeforeUnloadListener();

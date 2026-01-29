@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { store } from '../../store';
 import type { DrawingArea } from '../../../shared/types';
 import { AREA_COLORS } from '../../utils/colors';
+import { FolderInput } from '../shared/FolderInput';
 
 interface AreaEditorProps {
   area: DrawingArea;
@@ -98,19 +99,13 @@ export function AreaEditor({ area, onClose, onOpenFolder }: AreaEditorProps) {
           ))}
           {isAddingFolder ? (
             <div className="area-add-folder-inline">
-              <input
-                type="text"
-                className="area-add-folder-input"
-                placeholder="/path/to/folder"
+              <FolderInput
                 value={newFolderPath}
-                onChange={(e) => setNewFolderPath(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleAddFolder();
-                  if (e.key === 'Escape') {
-                    setIsAddingFolder(false);
-                    setNewFolderPath('');
-                  }
-                }}
+                onChange={setNewFolderPath}
+                onSubmit={handleAddFolder}
+                placeholder="/path/to/folder"
+                className="area-add-folder-input"
+                directoriesOnly={true}
                 autoFocus
               />
               <button className="area-add-folder-confirm" onClick={handleAddFolder}>

@@ -1,11 +1,10 @@
 import { useEffect, useRef } from 'react';
 import { store } from '../store';
-import { setCallbacks } from '../websocket';
+import { setCallbacks, clearSceneCallbacks } from '../websocket';
 import { SceneManager } from '../scene/SceneManager';
 import {
   getPersistedScene,
   getPersistedCanvas,
-  getIsPageUnloading,
   setPersistedScene,
   setPersistedCanvas,
   markWebGLActive,
@@ -13,6 +12,43 @@ import {
 import { loadConfig } from '../app/sceneConfig';
 import type { ToastType } from '../components/Toast';
 import type { UseModalState } from './index';
+
+// =============================================================================
+// MEMORY OPTIMIZATION: Dispose 3D scene when switching to 2D mode
+// =============================================================================
+// When enabled (DISPOSE_3D_ON_MODE_SWITCH = true):
+//   - Switching to 2D mode fully disposes the 3D scene and frees GPU memory
+//   - Switching back to 3D mode requires reloading all models (slower transition)
+//   - Better for memory-constrained environments
+//
+// When disabled (DISPOSE_3D_ON_MODE_SWITCH = false):
+//   - 3D scene stays in memory when in 2D mode
+//   - Switching between modes is instant (smoother UX)
+//   - Uses more memory when in 2D mode
+// =============================================================================
+const DISPOSE_3D_ON_MODE_SWITCH = true;
+
+// Track if we're in the middle of an HMR update for scene-related modules
+// This prevents disposing the scene during development hot reloads
+let isHMRUpdate = false;
+if (import.meta.hot) {
+  // Only track HMR for modules that would cause the scene to remount
+  const sceneRelatedModules = ['/hooks/useSceneSetup', '/App.tsx', '/scene/'];
+  import.meta.hot.on('vite:beforeUpdate', (payload) => {
+    const isSceneRelated = payload.updates?.some((u: { path: string }) =>
+      sceneRelatedModules.some((m) => u.path.includes(m))
+    );
+    if (isSceneRelated) {
+      isHMRUpdate = true;
+    }
+  });
+  import.meta.hot.on('vite:afterUpdate', () => {
+    // Reset after a short delay to allow React to re-render
+    setTimeout(() => {
+      isHMRUpdate = false;
+    }, 100);
+  });
+}
 
 interface UseSceneSetupOptions {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
@@ -80,6 +116,9 @@ export function useSceneSetup({
         console.log('[Tide] Re-syncing agents from store after remount:', state.agents.size);
         currentPersistedScene.syncAgents(Array.from(state.agents.values()));
       }
+      // Sync areas and buildings
+      currentPersistedScene.syncAreas();
+      currentPersistedScene.syncBuildings();
     } else if (currentPersistedScene && !isSameCanvas) {
       console.log('[Tide] HMR detected - canvas changed, reattaching scene', {
         canvasConnected: canvasRef.current.isConnected,
@@ -99,6 +138,9 @@ export function useSceneSetup({
         console.log('[Tide] Re-syncing agents from store after HMR:', state.agents.size);
         currentPersistedScene.syncAgents(Array.from(state.agents.values()));
       }
+      // Sync areas and buildings after HMR reattach
+      currentPersistedScene.syncAreas();
+      currentPersistedScene.syncBuildings();
     } else {
       markWebGLActive();
 
@@ -125,6 +167,10 @@ export function useSceneSetup({
       scene.setIdleAnimation(savedConfig.animations.idleAnimation);
       scene.setWorkingAnimation(savedConfig.animations.workingAnimation);
       scene.setFpsLimit(savedConfig.fpsLimit);
+
+      // Sync areas and buildings immediately (don't need to wait for models)
+      scene.syncAreas();
+      scene.syncBuildings();
 
       // Load character models then sync agents from store
       scene.loadCharacterModels().then(() => {
@@ -267,10 +313,27 @@ export function useSceneSetup({
       },
     });
 
-    // Don't dispose on HMR or StrictMode unmount
+    // Cleanup when canvas unmounts (mode switch to 2D or page unload)
+    // Skip cleanup during HMR to preserve scene across code changes
     return () => {
-      if (getIsPageUnloading()) {
-        sceneRef.current?.dispose();
+      // Always preserve scene during HMR (dev hot reloads)
+      if (isHMRUpdate) {
+        console.log('[Tide] HMR detected - preserving scene');
+        return;
+      }
+
+      // Memory optimization: dispose 3D scene when switching to 2D mode
+      // Set DISPOSE_3D_ON_MODE_SWITCH = false at top of file for instant mode switching
+      if (DISPOSE_3D_ON_MODE_SWITCH && sceneRef.current) {
+        console.log('[Tide] 3D canvas unmounted - disposing scene to free memory');
+        // Clear scene-specific websocket callbacks
+        clearSceneCallbacks();
+        // Clear debug reference
+        if (import.meta.env.DEV && typeof window !== 'undefined') {
+          (window as any).__tideScene = null;
+        }
+        sceneRef.current.dispose();
+        sceneRef.current = null;
         setPersistedScene(null);
         setPersistedCanvas(null);
       }

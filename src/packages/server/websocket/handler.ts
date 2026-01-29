@@ -589,13 +589,23 @@ function setupServiceListeners(): void {
 
     // Parse and broadcast context stats from /context command
     if (event.type === 'context_stats' && event.contextStatsRaw) {
+      log.log(`[context_stats] Received for agent ${agentId}, raw length: ${event.contextStatsRaw.length}`);
       const stats = parseContextOutput(event.contextStatsRaw);
       if (stats) {
-        agentService.updateAgent(agentId, { contextStats: stats }, false);
+        log.log(`[context_stats] Parsed: ${stats.usedPercent}% used, ${stats.totalTokens}/${stats.contextWindow} tokens`);
+        // Update agent with full context info
+        agentService.updateAgent(agentId, {
+          contextStats: stats,
+          contextUsed: stats.totalTokens,
+          contextLimit: stats.contextWindow,
+        }, false);
+        // Broadcast to all clients
         broadcast({
           type: 'context_stats',
           payload: { agentId, stats },
         });
+      } else {
+        log.log(`[context_stats] Failed to parse context output for agent ${agentId}`);
       }
     }
 
