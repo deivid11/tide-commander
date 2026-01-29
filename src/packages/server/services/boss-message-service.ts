@@ -244,8 +244,9 @@ When the user asks to **plan**, **create a work plan**, or requests something co
 
 **IMPORTANT FORMAT RULES:**
 - **ALWAYS wrap JSON in \`\`\`work-plan fence** - never output raw JSON
-- **ALWAYS include both assignToAgent (ID) AND assignToAgentName (name)** for each task
-- Use \`null\` for both if auto-assign is desired
+- **ALWAYS assign each task to a SPECIFIC agent from your team** - use the agent's actual ID and name
+- **NEVER use null or "auto-assign"** - pick an actual subordinate for each task based on their class and availability
+- Look at your team list and assign tasks appropriately (scouts for exploration, builders for implementation, etc.)
 
 ### ⚠️ IMPORTANT: USER APPROVAL WORKFLOW
 
@@ -287,6 +288,8 @@ This ensures the user can:
 4. **assignToAgent**: Use specific agent ID, or \`null\` for system to auto-assign based on availability
 
 ### Example Work Plan:
+
+**Note:** In this example, the boss has assigned REAL agents from their team (Scout Alpha, Scout Beta, etc.). You must do the same - use your actual subordinates' names and IDs, not placeholders.
 
 User: "Analyze the frontend, create a parallelizable plan, and assign tasks"
 

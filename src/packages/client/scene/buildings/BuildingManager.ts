@@ -37,10 +37,11 @@ export class BuildingManager {
   // Brightness multiplier for building materials (affects emissive/glow intensity)
   private brightness = 1;
 
-  // Boss-subordinate connection lines
-  private bossLinePool: THREE.Line[] = [];
-  private activeBossLines: THREE.Line[] = [];
+  // Boss-subordinate connection lines - batched into single LineSegments for performance
+  private bossSubordinateLines: THREE.LineSegments | null = null;
+  private bossSubordinateMaterial: THREE.LineBasicMaterial | null = null;
   private cachedBossConnections: Array<{ bossId: string; subId: string }> = [];
+  private maxLineSegments = 50; // Pre-allocate for up to 50 connections
 
   // Callbacks
   private onBuildingClick: ((buildingId: string) => void) | null = null;
@@ -384,6 +385,7 @@ export class BuildingManager {
   /**
    * Update boss-subordinate connection lines.
    * Shows lines from selected boss buildings to their subordinates.
+   * Uses batched LineSegments for performance (single draw call).
    */
   updateBossConnectionLines(): void {
     const state = store.getState();
@@ -418,11 +420,10 @@ export class BuildingManager {
       }
     }
 
-    // Clear cached connections
+    // Clear and rebuild cached connections
     this.cachedBossConnections = [];
 
-    // Create/reuse lines for each boss-subordinate connection
-    let lineIndex = 0;
+    // Collect all connections
     for (const boss of bossBuildings) {
       const bossMesh = this.buildingMeshes.get(boss.id);
       if (!bossMesh || !boss.subordinateBuildingIds) continue;
@@ -430,46 +431,58 @@ export class BuildingManager {
       for (const subId of boss.subordinateBuildingIds) {
         const subMesh = this.buildingMeshes.get(subId);
         if (!subMesh) continue;
-
-        // Cache the connection for efficient updates
         this.cachedBossConnections.push({ bossId: boss.id, subId });
-
-        let line: THREE.Line;
-        if (lineIndex < this.bossLinePool.length) {
-          // Reuse existing line
-          line = this.bossLinePool[lineIndex];
-          line.visible = true;
-        } else {
-          // Create new line
-          const geometry = new THREE.BufferGeometry();
-          geometry.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0], 3));
-          const material = new THREE.LineBasicMaterial({
-            color: 0xffd700, // Gold color for boss connections
-            transparent: true,
-            opacity: 0.4,
-          });
-          line = new THREE.Line(geometry, material);
-          this.scene.add(line);
-          this.bossLinePool.push(line);
-        }
-
-        // Update line positions
-        const positions = line.geometry.attributes.position as THREE.BufferAttribute;
-        positions.setXYZ(0, bossMesh.group.position.x, 0.1, bossMesh.group.position.z);
-        positions.setXYZ(1, subMesh.group.position.x, 0.1, subMesh.group.position.z);
-        positions.needsUpdate = true;
-
-        lineIndex++;
       }
     }
 
-    // Hide unused lines
-    for (let i = lineIndex; i < this.bossLinePool.length; i++) {
-      this.bossLinePool[i].visible = false;
-    }
+    // Create or update batched LineSegments
+    if (this.cachedBossConnections.length > 0) {
+      if (!this.bossSubordinateLines) {
+        // Create batched LineSegments with pre-allocated buffer
+        const positions = new Float32Array(this.maxLineSegments * 6); // 2 points × 3 coords per segment
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setDrawRange(0, 0); // Start with nothing drawn
 
-    // Update active lines reference
-    this.activeBossLines = this.bossLinePool.slice(0, lineIndex);
+        this.bossSubordinateMaterial = new THREE.LineBasicMaterial({
+          color: 0xffd700, // Gold color for boss connections
+          transparent: true,
+          opacity: 0.4,
+        });
+
+        this.bossSubordinateLines = new THREE.LineSegments(geometry, this.bossSubordinateMaterial);
+        this.bossSubordinateLines.frustumCulled = false; // Always render
+        this.scene.add(this.bossSubordinateLines);
+      }
+
+      // Update positions in the batched buffer
+      const positions = this.bossSubordinateLines.geometry.attributes.position as THREE.BufferAttribute;
+      const posArray = positions.array as Float32Array;
+
+      for (let i = 0; i < this.cachedBossConnections.length && i < this.maxLineSegments; i++) {
+        const { bossId, subId } = this.cachedBossConnections[i];
+        const bossMesh = this.buildingMeshes.get(bossId);
+        const subMesh = this.buildingMeshes.get(subId);
+
+        if (bossMesh && subMesh) {
+          const baseIdx = i * 6;
+          // Start point (boss)
+          posArray[baseIdx] = bossMesh.group.position.x;
+          posArray[baseIdx + 1] = 0.1;
+          posArray[baseIdx + 2] = bossMesh.group.position.z;
+          // End point (subordinate)
+          posArray[baseIdx + 3] = subMesh.group.position.x;
+          posArray[baseIdx + 4] = 0.1;
+          posArray[baseIdx + 5] = subMesh.group.position.z;
+        }
+      }
+
+      positions.needsUpdate = true;
+      this.bossSubordinateLines.geometry.setDrawRange(0, this.cachedBossConnections.length * 2);
+      this.bossSubordinateLines.visible = true;
+    } else if (this.bossSubordinateLines) {
+      this.bossSubordinateLines.visible = false;
+    }
 
     // Highlight subordinate buildings
     for (const [buildingId, meshData] of this.buildingMeshes) {
@@ -494,22 +507,30 @@ export class BuildingManager {
    * Update line positions during building movement.
    */
   updateBossLinePositions(): void {
-    if (this.activeBossLines.length === 0) return;
+    if (!this.bossSubordinateLines || this.cachedBossConnections.length === 0) return;
 
-    for (let i = 0; i < this.cachedBossConnections.length && i < this.activeBossLines.length; i++) {
+    const positions = this.bossSubordinateLines.geometry.attributes.position as THREE.BufferAttribute;
+    const posArray = positions.array as Float32Array;
+
+    for (let i = 0; i < this.cachedBossConnections.length && i < this.maxLineSegments; i++) {
       const { bossId, subId } = this.cachedBossConnections[i];
       const bossMesh = this.buildingMeshes.get(bossId);
       const subMesh = this.buildingMeshes.get(subId);
 
       if (!bossMesh || !subMesh) continue;
 
-      const line = this.activeBossLines[i];
-      const positions = line.geometry.attributes.position as THREE.BufferAttribute;
-
-      positions.setXYZ(0, bossMesh.group.position.x, 0.1, bossMesh.group.position.z);
-      positions.setXYZ(1, subMesh.group.position.x, 0.1, subMesh.group.position.z);
-      positions.needsUpdate = true;
+      const baseIdx = i * 6;
+      // Start point (boss)
+      posArray[baseIdx] = bossMesh.group.position.x;
+      posArray[baseIdx + 1] = 0.1;
+      posArray[baseIdx + 2] = bossMesh.group.position.z;
+      // End point (subordinate)
+      posArray[baseIdx + 3] = subMesh.group.position.x;
+      posArray[baseIdx + 4] = 0.1;
+      posArray[baseIdx + 5] = subMesh.group.position.z;
     }
+
+    positions.needsUpdate = true;
   }
 
   /**
@@ -540,14 +561,14 @@ export class BuildingManager {
     for (const buildingId of this.buildingMeshes.keys()) {
       this.removeBuilding(buildingId);
     }
-    // Clean up boss lines
-    for (const line of this.bossLinePool) {
-      this.scene.remove(line);
-      line.geometry.dispose();
-      (line.material as THREE.Material).dispose();
+    // Clean up batched boss lines
+    if (this.bossSubordinateLines) {
+      this.scene.remove(this.bossSubordinateLines);
+      this.bossSubordinateLines.geometry.dispose();
+      this.bossSubordinateMaterial?.dispose();
+      this.bossSubordinateLines = null;
+      this.bossSubordinateMaterial = null;
     }
-    this.bossLinePool = [];
-    this.activeBossLines = [];
     this.cachedBossConnections = [];
   }
 }

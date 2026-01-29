@@ -16,6 +16,11 @@ export function useModalClose(onClose: () => void) {
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     mouseDownTargetRef.current = e.target;
+    // Stop propagation for backdrop mousedowns to prevent terminal's click-outside handler
+    // from tracking this as a potential close trigger
+    if (e.target === e.currentTarget) {
+      e.stopPropagation();
+    }
   }, []);
 
   const handleClick = useCallback((e: React.MouseEvent) => {
@@ -23,6 +28,9 @@ export function useModalClose(onClose: () => void) {
     // 1. The click target is the backdrop itself (not a child)
     // 2. The mousedown also started on the backdrop
     if (e.target === e.currentTarget && mouseDownTargetRef.current === e.currentTarget) {
+      // Stop propagation to prevent parent click handlers (like terminal's click-outside)
+      // from also triggering when closing a modal inside the terminal
+      e.stopPropagation();
       onClose();
     }
     mouseDownTargetRef.current = null;

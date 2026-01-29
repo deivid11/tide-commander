@@ -217,15 +217,15 @@ export function connect(): void {
     wsUrl = `ws://127.0.0.1:${defaultPort}/ws`;
   }
 
-  // Add auth token to URL if configured
-  if (authToken) {
-    const separator = wsUrl.includes('?') ? '&' : '?';
-    wsUrl = `${wsUrl}${separator}token=${encodeURIComponent(authToken)}`;
-  }
-
   let newSocket: WebSocket | null = null;
   try {
-    newSocket = new WebSocket(wsUrl);
+    // Use Sec-WebSocket-Protocol header for auth token (more secure than URL query param)
+    // Format: auth-<token> - server extracts token by removing 'auth-' prefix
+    if (authToken) {
+      newSocket = new WebSocket(wsUrl, [`auth-${authToken}`]);
+    } else {
+      newSocket = new WebSocket(wsUrl);
+    }
   } catch {
     setIsConnecting(false);
     handleReconnect();

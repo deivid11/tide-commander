@@ -323,17 +323,27 @@ export class SceneManager {
       const distance = camera.position.distanceTo(meshData.group.position);
       const scale = Math.max(0.5, Math.min(2.5, distance / 15)) * indicatorScale;
 
-      const nameLabel = meshData.group.getObjectByName('nameLabel') as THREE.Sprite;
-      if (nameLabel) {
-        const baseHeight = 0.3 * scale;
-        nameLabel.scale.set(baseHeight * (nameLabel.userData.aspectRatio || 2), baseHeight, 1);
+      // Combined UI sprite (new optimization - single sprite for all UI elements)
+      const combinedUI = meshData.group.getObjectByName('combinedUI') as THREE.Sprite;
+      if (combinedUI) {
+        const isBoss = meshData.group.userData.isBoss === true;
+        const baseScale = isBoss ? 2.0 : 1.6;
+        const aspectRatio = 384 / 768; // canvas height / width
+        combinedUI.scale.set(baseScale * scale, baseScale * aspectRatio * scale, 1);
+      } else {
+        // Legacy sprites (fallback for older agents)
+        const nameLabel = meshData.group.getObjectByName('nameLabel') as THREE.Sprite;
+        if (nameLabel) {
+          const baseHeight = 0.3 * scale;
+          nameLabel.scale.set(baseHeight * (nameLabel.userData.aspectRatio || 2), baseHeight, 1);
+        }
+
+        const manaBar = meshData.group.getObjectByName('manaBar') as THREE.Sprite;
+        if (manaBar) manaBar.scale.set(0.9 * scale, 0.14 * scale, 1);
+
+        const idleTimer = meshData.group.getObjectByName('idleTimer') as THREE.Sprite;
+        if (idleTimer) idleTimer.scale.set(0.9 * scale, 0.14 * scale, 1);
       }
-
-      const manaBar = meshData.group.getObjectByName('manaBar') as THREE.Sprite;
-      if (manaBar) manaBar.scale.set(0.9 * scale, 0.14 * scale, 1);
-
-      const idleTimer = meshData.group.getObjectByName('idleTimer') as THREE.Sprite;
-      if (idleTimer) idleTimer.scale.set(0.9 * scale, 0.14 * scale, 1);
     }
 
     // Scale building labels (same behavior as agent labels)
@@ -570,6 +580,15 @@ export class SceneManager {
       agentMeshCount: this.agentManager.getAgentMeshes().size,
       bossLineCount: 0,
     };
+  }
+
+  getRenderStats(): { calls: number; triangles: number; points: number; lines: number } | null {
+    const info = this.sceneCore.getRenderer()?.info?.render;
+    return info ? { calls: info.calls, triangles: info.triangles, points: info.points, lines: info.lines } : null;
+  }
+
+  get renderer(): THREE.WebGLRenderer {
+    return this.sceneCore.getRenderer();
   }
 
   logMemoryDiagnostics(): void {

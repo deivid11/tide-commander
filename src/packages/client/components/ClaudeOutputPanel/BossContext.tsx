@@ -7,7 +7,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { BOSS_CONTEXT_START, BOSS_CONTEXT_END } from '../../../shared/types';
 import { markdownComponents } from './MarkdownComponents';
-import type { ParsedBossContent, ParsedDelegation, ParsedBossResponse } from './types';
+import type { ParsedBossContent, ParsedDelegation, ParsedBossResponse, ParsedWorkPlanResponse, WorkPlan, WorkPlanPhase, WorkPlanTask } from './types';
 
 // ============================================================================
 // Boss Context Parsing
@@ -76,6 +76,54 @@ export function parseDelegationBlock(content: string): ParsedBossResponse {
   } catch {
     // Failed to parse JSON, return as-is
     return { hasDelegation: false, delegations: [], contentWithoutBlock: content };
+  }
+}
+
+// ============================================================================
+// Work Plan Block Parsing
+// ============================================================================
+
+/**
+ * Parse ```work-plan block from assistant response
+ */
+export function parseWorkPlanBlock(content: string): ParsedWorkPlanResponse {
+  // Match ```work-plan\n{...}\n``` block
+  const workPlanMatch = content.match(/```work-plan\s*\n([\s\S]*?)\n```/);
+
+  if (!workPlanMatch) {
+    return { hasWorkPlan: false, workPlan: null, contentWithoutBlock: content };
+  }
+
+  try {
+    const parsed = JSON.parse(workPlanMatch[1].trim());
+
+    const workPlan: WorkPlan = {
+      name: parsed.name || 'Unnamed Plan',
+      description: parsed.description || '',
+      phases: (parsed.phases || []).map((phase: WorkPlanPhase) => ({
+        id: phase.id || '',
+        name: phase.name || '',
+        execution: phase.execution || 'sequential',
+        dependsOn: phase.dependsOn || [],
+        tasks: (phase.tasks || []).map((task: WorkPlanTask) => ({
+          id: task.id || '',
+          description: task.description || '',
+          suggestedClass: task.suggestedClass || 'builder',
+          assignToAgent: task.assignToAgent || null,
+          assignToAgentName: task.assignToAgentName || null,
+          priority: task.priority || 'medium',
+          blockedBy: task.blockedBy || [],
+        })),
+      })),
+    };
+
+    // Remove the work-plan block from the content
+    const contentWithoutBlock = content.replace(/```work-plan\s*\n[\s\S]*?\n```/, '').trim();
+
+    return { hasWorkPlan: true, workPlan, contentWithoutBlock };
+  } catch {
+    // Failed to parse JSON, return as-is
+    return { hasWorkPlan: false, workPlan: null, contentWithoutBlock: content };
   }
 }
 
@@ -209,6 +257,127 @@ export function DelegatedTaskHeader({ bossName, taskCommand }: DelegatedTaskHead
       </div>
       {isExpanded && <div className="delegated-task-command">{taskCommand}</div>}
       {!isExpanded && <div className="delegated-task-preview">{truncatedCommand}</div>}
+    </div>
+  );
+}
+
+// ============================================================================
+// Work Plan Block Component
+// ============================================================================
+
+interface WorkPlanBlockProps {
+  workPlan: WorkPlan;
+}
+
+const priorityColors: Record<string, string> = {
+  high: '#ef4444',
+  medium: '#f59e0b',
+  low: '#22c55e',
+};
+
+const priorityEmoji: Record<string, string> = {
+  high: '🔴',
+  medium: '🟡',
+  low: '🟢',
+};
+
+const classEmoji: Record<string, string> = {
+  scout: '🔍',
+  builder: '🔨',
+  debugger: '🐛',
+  architect: '📐',
+  warrior: '⚔️',
+  support: '🛡️',
+};
+
+export function WorkPlanBlock({ workPlan }: WorkPlanBlockProps) {
+  const [expandedPhases, setExpandedPhases] = useState<Set<string>>(new Set(workPlan.phases.map(p => p.id)));
+
+  const togglePhase = (phaseId: string) => {
+    setExpandedPhases(prev => {
+      const next = new Set(prev);
+      if (next.has(phaseId)) {
+        next.delete(phaseId);
+      } else {
+        next.add(phaseId);
+      }
+      return next;
+    });
+  };
+
+  const totalTasks = workPlan.phases.reduce((sum, phase) => sum + phase.tasks.length, 0);
+
+  return (
+    <div className="work-plan-block">
+      <div className="work-plan-header">
+        <span className="work-plan-icon">📋</span>
+        <span className="work-plan-title">{workPlan.name}</span>
+        <span className="work-plan-stats">
+          {workPlan.phases.length} phases · {totalTasks} tasks
+        </span>
+      </div>
+
+      {workPlan.description && (
+        <div className="work-plan-description">{workPlan.description}</div>
+      )}
+
+      <div className="work-plan-phases">
+        {workPlan.phases.map((phase, phaseIndex) => (
+          <div key={phase.id} className={`work-plan-phase ${expandedPhases.has(phase.id) ? 'expanded' : 'collapsed'}`}>
+            <div className="work-plan-phase-header" onClick={() => togglePhase(phase.id)}>
+              <span className="work-plan-phase-number">{phaseIndex + 1}</span>
+              <span className="work-plan-phase-name">{phase.name}</span>
+              <span className={`work-plan-phase-execution ${phase.execution}`}>
+                {phase.execution === 'parallel' ? '⚡ parallel' : '→ sequential'}
+              </span>
+              {phase.dependsOn.length > 0 && (
+                <span className="work-plan-phase-depends">
+                  depends on: {phase.dependsOn.join(', ')}
+                </span>
+              )}
+              <span className="work-plan-phase-toggle">
+                {expandedPhases.has(phase.id) ? '▼' : '▶'}
+              </span>
+            </div>
+
+            {expandedPhases.has(phase.id) && (
+              <div className="work-plan-tasks">
+                {phase.tasks.map((task) => (
+                  <div key={task.id} className={`work-plan-task priority-${task.priority}`}>
+                    <div className="work-plan-task-header">
+                      <span className="work-plan-task-id">{task.id}</span>
+                      <span className="work-plan-task-priority" title={`Priority: ${task.priority}`}>
+                        {priorityEmoji[task.priority]}
+                      </span>
+                      <span className="work-plan-task-class" title={`Suggested: ${task.suggestedClass}`}>
+                        {classEmoji[task.suggestedClass] || '👤'} {task.suggestedClass}
+                      </span>
+                    </div>
+                    <div className="work-plan-task-description">{task.description}</div>
+                    <div className="work-plan-task-assignment">
+                      <span className="work-plan-task-assignment-label">Assigned to:</span>
+                      <span className={`work-plan-task-agent ${task.assignToAgentName ? 'assigned' : 'auto'}`}>
+                        {task.assignToAgentName || 'auto-assign (best available)'}
+                      </span>
+                    </div>
+                    {task.blockedBy.length > 0 && (
+                      <div className="work-plan-task-blocked">
+                        ⏳ blocked by: {task.blockedBy.join(', ')}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div className="work-plan-footer">
+        <span className="work-plan-approval-hint">
+          💡 Review this plan and reply to approve or request changes
+        </span>
+      </div>
     </div>
   );
 }

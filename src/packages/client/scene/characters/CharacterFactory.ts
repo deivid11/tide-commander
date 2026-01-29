@@ -156,24 +156,17 @@ export class CharacterFactory {
     const selectionRing = this.createSelectionRing(classConfig.color, isBoss);
     group.add(selectionRing);
 
-    // Name label - higher position for boss
-    const nameLabel = this.createNameLabel(agent.name, classConfig.color, isBoss);
-    group.add(nameLabel);
-
-    // Mana bar with status indicator (context remaining + status dot) - higher for boss
+    // Combined UI sprite (name + mana bar + idle timer + crown) - single draw call
     const remainingPercent = getContextRemainingPercent(agent);
-    const manaBar = this.createManaBar(remainingPercent, agent.status, isBoss);
-    group.add(manaBar);
-
-    // Idle timer indicator (shows when agent is idle) - positioned just above mana bar
-    const idleTimer = this.createIdleTimer(agent.status, agent.lastActivity, isBoss);
-    group.add(idleTimer);
-
-    // Crown indicator for boss agents
-    if (isBoss) {
-      const crownIndicator = this.createBossCrown();
-      group.add(crownIndicator);
-    }
+    const combinedUI = this.createCombinedUISprite(
+      agent.name,
+      classConfig.color,
+      remainingPercent,
+      agent.status,
+      agent.lastActivity,
+      isBoss
+    );
+    group.add(combinedUI);
 
     // Store agent metadata for updates
     group.userData.agentName = agent.name;
@@ -303,7 +296,226 @@ export class CharacterFactory {
   }
 
   /**
+   * Create a combined UI sprite containing name, mana bar, idle timer, and crown.
+   * This reduces 4-5 draw calls per agent to just 1.
+   */
+  private createCombinedUISprite(
+    name: string,
+    color: number,
+    remainingPercent: number,
+    status: string,
+    lastActivity: number,
+    isBoss: boolean
+  ): THREE.Sprite {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d')!;
+
+    // Canvas size - wide enough for long names, tall enough for all elements
+    canvas.width = 768; // Wider to accommodate longer names
+    canvas.height = 384; // Enough for crown + name + mana + idle timer
+
+    this.drawCombinedUI(ctx, canvas.width, canvas.height, name, color, remainingPercent, status, lastActivity, isBoss);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    texture.needsUpdate = true;
+
+    const material = new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      depthTest: false,
+    });
+
+    const sprite = new THREE.Sprite(material);
+    // Position above the character
+    sprite.position.y = isBoss ? 3.0 : 2.0;
+    // Scale to match the canvas aspect ratio
+    const baseScale = isBoss ? 2.0 : 1.6;
+    sprite.scale.set(baseScale, baseScale * (canvas.height / canvas.width), 1);
+    sprite.name = 'combinedUI';
+
+    return sprite;
+  }
+
+  /**
+   * Draw all UI elements on a single canvas.
+   */
+  private drawCombinedUI(
+    ctx: CanvasRenderingContext2D,
+    width: number,
+    height: number,
+    name: string,
+    color: number,
+    remainingPercent: number,
+    status: string,
+    lastActivity: number,
+    isBoss: boolean
+  ): void {
+    ctx.clearRect(0, 0, width, height);
+
+    const colorHex = `#${color.toString(16).padStart(6, '0')}`;
+    let yOffset = 0;
+
+    // === Crown (for boss agents) ===
+    if (isBoss) {
+      ctx.font = '64px serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText('👑', width / 2, yOffset);
+      yOffset += 70;
+    }
+
+    // === Name label ===
+    const fontSize = 48;
+    const namePadding = 20;
+    const maxNameWidth = width - 40; // Leave 20px margin on each side
+    ctx.font = `bold ${fontSize}px Arial`;
+
+    // Truncate name if too long
+    let displayName = name;
+    let nameWidth = ctx.measureText(displayName).width;
+    if (nameWidth > maxNameWidth - namePadding * 2) {
+      while (displayName.length > 3 && ctx.measureText(displayName + '...').width > maxNameWidth - namePadding * 2) {
+        displayName = displayName.slice(0, -1);
+      }
+      displayName += '...';
+      nameWidth = ctx.measureText(displayName).width;
+    }
+
+    const nameBgWidth = Math.min(nameWidth + namePadding * 2, maxNameWidth);
+    const nameBgHeight = 65;
+    const nameBgX = Math.max(10, (width - nameBgWidth) / 2); // Ensure at least 10px from edge
+    const nameBgY = yOffset;
+
+    // Name background
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+    ctx.beginPath();
+    ctx.roundRect(nameBgX, nameBgY, nameBgWidth, nameBgHeight, 8);
+    ctx.fill();
+
+    // Name text
+    ctx.fillStyle = colorHex;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(displayName, width / 2, nameBgY + nameBgHeight / 2);
+
+    yOffset += nameBgHeight + 12;
+
+    // === Mana bar with status dot ===
+    const manaBarHeight = 56; // Increased from 40
+    const manaBarWidth = 380; // Increased from 280
+    const manaBarX = (width - manaBarWidth) / 2;
+    const manaBarY = yOffset;
+
+    // Status dot
+    const dotSize = 38; // Increased from 28
+    const dotX = manaBarX + dotSize / 2 + 4;
+    const dotY = manaBarY + manaBarHeight / 2;
+
+    let dotColor: string;
+    switch (status) {
+      case 'working': dotColor = '#4a9eff'; break;
+      case 'orphaned': dotColor = '#ff00ff'; break;
+      case 'error': dotColor = '#ff4a4a'; break;
+      case 'waiting':
+      case 'waiting_permission': dotColor = '#ffcc00'; break;
+      default: dotColor = '#4aff9e';
+    }
+
+    ctx.beginPath();
+    ctx.arc(dotX, dotY, dotSize / 2, 0, Math.PI * 2);
+    ctx.fillStyle = dotColor;
+    ctx.fill();
+    ctx.shadowColor = dotColor;
+    ctx.shadowBlur = 6;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Mana bar background
+    const barStartX = manaBarX + dotSize + 12;
+    const barWidth = manaBarWidth - dotSize - 16;
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.roundRect(barStartX, manaBarY + 4, barWidth, manaBarHeight - 8, 5);
+    ctx.fill();
+    ctx.strokeStyle = '#5a8a8a';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Mana fill
+    const percentage = Math.max(0, Math.min(100, remainingPercent)) / 100;
+    const fillWidth = Math.max(0, (barWidth - 6) * percentage);
+    if (fillWidth > 0) {
+      let fillColor: string;
+      if (percentage > 0.5) fillColor = '#6a9a78';
+      else if (percentage > 0.2) fillColor = '#c89858';
+      else fillColor = '#c85858';
+
+      ctx.fillStyle = fillColor;
+      ctx.beginPath();
+      ctx.roundRect(barStartX + 3, manaBarY + 7, fillWidth, manaBarHeight - 14, 3);
+      ctx.fill();
+      ctx.shadowColor = fillColor;
+      ctx.shadowBlur = 6;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+
+    // Percentage text
+    const percentText = `${Math.round(percentage * 100)}%`;
+    ctx.font = 'bold 24px Arial'; // Increased from 18px
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 3;
+    ctx.strokeText(percentText, barStartX + barWidth / 2, manaBarY + manaBarHeight / 2);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(percentText, barStartX + barWidth / 2, manaBarY + manaBarHeight / 2);
+
+    yOffset += manaBarHeight + 8;
+
+    // === Idle timer (only for idle agents) ===
+    if (status === 'idle' && lastActivity > 0) {
+      const idleSeconds = Math.floor((Date.now() - lastActivity) / 1000);
+      const idleText = this.formatIdleTimeShort(idleSeconds);
+      const colors = this.getIdleTimerColor(idleSeconds);
+
+      ctx.font = 'bold 36px Arial'; // Increased from 28px
+      const idleTextWidth = ctx.measureText(`⏱ ${idleText}`).width;
+      const idleBgWidth = idleTextWidth + 32; // Increased padding from 24
+      const idleBgHeight = 48; // Increased from 36
+      const idleBgX = (width - idleBgWidth) / 2;
+      const idleBgY = yOffset;
+
+      // Background
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+      ctx.beginPath();
+      ctx.roundRect(idleBgX, idleBgY, idleBgWidth, idleBgHeight, 6);
+      ctx.fill();
+
+      // Border
+      ctx.strokeStyle = colors.border;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Text
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 3;
+      ctx.strokeText(`⏱ ${idleText}`, width / 2, idleBgY + idleBgHeight / 2);
+      ctx.fillStyle = colors.text;
+      ctx.fillText(`⏱ ${idleText}`, width / 2, idleBgY + idleBgHeight / 2);
+    }
+  }
+
+  /**
    * Create a text sprite for the agent's name.
+   * @deprecated Use createCombinedUISprite instead for better performance
    */
   private createNameLabel(name: string, color: number, isBoss: boolean = false): THREE.Sprite {
     const canvas = document.createElement('canvas');
@@ -952,10 +1164,43 @@ export class CharacterFactory {
    * @param isSubordinateOfSelectedBoss - true if this agent is a subordinate of the currently selected boss
    */
   updateVisuals(group: THREE.Group, agent: Agent, isSelected: boolean, isSubordinateOfSelectedBoss: boolean = false): void {
-    // Update name label if name changed
-    if (group.userData.agentName !== agent.name) {
-      this.updateNameLabel(group, agent.name, agent.class);
-      group.userData.agentName = agent.name;
+    const isBoss = agent.isBoss === true || agent.class === 'boss';
+    const classConfig = this.getClassConfig(agent.class);
+
+    // Update combined UI sprite
+    const combinedUI = group.getObjectByName('combinedUI') as THREE.Sprite;
+    if (combinedUI) {
+      const material = combinedUI.material as THREE.SpriteMaterial;
+      if (material.map) {
+        const canvas = material.map.image as HTMLCanvasElement;
+        if (canvas instanceof HTMLCanvasElement) {
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            const remainingPercent = getContextRemainingPercent(agent);
+            this.drawCombinedUI(
+              ctx,
+              canvas.width,
+              canvas.height,
+              agent.name,
+              classConfig.color,
+              remainingPercent,
+              agent.status,
+              agent.lastActivity,
+              isBoss
+            );
+            material.map.needsUpdate = true;
+          }
+        }
+      }
+    } else {
+      // Fallback for legacy agents with separate sprites
+      if (group.userData.agentName !== agent.name) {
+        this.updateNameLabel(group, agent.name, agent.class);
+        group.userData.agentName = agent.name;
+      }
+      const remainingPercent = getContextRemainingPercent(agent);
+      this.updateManaBar(group, remainingPercent, agent.status);
+      this.updateIdleTimer(group, agent.status, agent.lastActivity);
     }
 
     // Update selection ring visibility and color
@@ -964,8 +1209,8 @@ export class CharacterFactory {
       const material = selectionRing.material as THREE.MeshBasicMaterial;
       if (isSelected) {
         // Normal selection - use agent's class color
-        const classConfig = AGENT_CLASS_CONFIG[agent.class as BuiltInAgentClass];
-        material.color.setHex(classConfig?.color ?? 0xffffff);
+        const builtInConfig = AGENT_CLASS_CONFIG[agent.class as BuiltInAgentClass];
+        material.color.setHex(builtInConfig?.color ?? classConfig.color);
         material.opacity = 0.8;
       } else if (isSubordinateOfSelectedBoss) {
         // Subordinate of selected boss - gold ring to match boss
@@ -976,13 +1221,6 @@ export class CharacterFactory {
         material.opacity = 0;
       }
     }
-
-    // Update mana bar (includes status dot)
-    const remainingPercent = getContextRemainingPercent(agent);
-    this.updateManaBar(group, remainingPercent, agent.status);
-
-    // Update idle timer
-    this.updateIdleTimer(group, agent.status, agent.lastActivity);
   }
 
   /**

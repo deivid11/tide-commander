@@ -85,8 +85,9 @@ export const perf = {
       entry.samples.shift();
     }
 
-    // Log slow operations (>16ms = frame budget)
-    if (elapsed > 16) {
+    // Log slow operations - skip scene:render and scene:frame as they're expected to vary
+    // Only warn for non-render operations that exceed 50ms
+    if (elapsed > 50 && !label.startsWith('scene:')) {
       console.warn(`[Perf] Slow operation: ${label} took ${elapsed.toFixed(2)}ms`);
     }
 

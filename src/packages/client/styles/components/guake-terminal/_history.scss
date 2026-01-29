@@ -534,3 +534,267 @@
   border-left: 2px solid var(--accent-purple);
   margin-top: 4px;
 }
+
+// ============================================================================
+// Work Plan Block Styles - Using CSS variables for theme support
+// ============================================================================
+
+.work-plan-block {
+  margin-top: 12px;
+  border-radius: $radius-md;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--accent-cyan) 40%, transparent);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--bg-primary) 85%, transparent) 0%, color-mix(in srgb, var(--bg-secondary) 65%, transparent) 100%);
+}
+
+.work-plan-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent);
+}
+
+.work-plan-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.work-plan-title {
+  flex: 1;
+  font-family: $font-mono;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-cyan);
+}
+
+.work-plan-stats {
+  font-family: $font-mono;
+  font-size: 10px;
+  color: var(--text-muted);
+  padding: 3px 8px;
+  background: color-mix(in srgb, var(--bg-primary) 60%, transparent);
+  border-radius: $radius-sm;
+}
+
+.work-plan-description {
+  padding: 10px 14px;
+  font-family: $font-mono;
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
+}
+
+.work-plan-phases {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.work-plan-phase {
+  border-radius: $radius-sm;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--border-color) 60%, transparent);
+  background: color-mix(in srgb, var(--bg-primary) 50%, transparent);
+
+  &.expanded {
+    .work-plan-phase-header {
+      border-bottom: 1px solid color-mix(in srgb, var(--border-color) 40%, transparent);
+    }
+  }
+}
+
+.work-plan-phase-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--bg-tertiary) 40%, transparent);
+  cursor: pointer;
+  user-select: none;
+  transition: all $transition-fast;
+
+  &:hover {
+    background: color-mix(in srgb, var(--bg-tertiary) 60%, transparent);
+  }
+}
+
+.work-plan-phase-number {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: $font-mono;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-cyan);
+  background: color-mix(in srgb, var(--accent-cyan) 20%, transparent);
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.work-plan-phase-name {
+  flex: 1;
+  font-family: $font-mono;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.work-plan-phase-execution {
+  font-family: $font-mono;
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: $radius-sm;
+
+  &.parallel {
+    color: var(--accent-yellow);
+    background: color-mix(in srgb, var(--accent-yellow) 15%, transparent);
+  }
+
+  &.sequential {
+    color: var(--accent-purple);
+    background: color-mix(in srgb, var(--accent-purple) 15%, transparent);
+  }
+}
+
+.work-plan-phase-depends {
+  font-family: $font-mono;
+  font-size: 9px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.work-plan-phase-toggle {
+  font-size: 10px;
+  color: var(--text-muted);
+  transition: transform $transition-fast;
+}
+
+.work-plan-tasks {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.work-plan-task {
+  padding: 8px 10px;
+  border-radius: $radius-sm;
+  background: color-mix(in srgb, var(--bg-secondary) 60%, transparent);
+  border-left: 3px solid var(--text-muted);
+
+  &.priority-high {
+    border-left-color: #ef4444;
+  }
+
+  &.priority-medium {
+    border-left-color: #f59e0b;
+  }
+
+  &.priority-low {
+    border-left-color: #22c55e;
+  }
+}
+
+.work-plan-task-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.work-plan-task-id {
+  font-family: $font-mono;
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 1px 5px;
+  background: color-mix(in srgb, var(--bg-primary) 60%, transparent);
+  border-radius: $radius-sm;
+}
+
+.work-plan-task-priority {
+  font-size: 10px;
+  line-height: 1;
+}
+
+.work-plan-task-class {
+  font-family: $font-mono;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.work-plan-task-assignment {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed color-mix(in srgb, var(--border-color) 40%, transparent);
+}
+
+.work-plan-task-assignment-label {
+  font-family: $font-mono;
+  font-size: 9px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.work-plan-task-agent {
+  font-family: $font-mono;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: $radius-sm;
+
+  &.assigned {
+    color: var(--accent-green);
+    background: color-mix(in srgb, var(--accent-green) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-green) 30%, transparent);
+  }
+
+  &.auto {
+    color: var(--text-muted);
+    background: color-mix(in srgb, var(--bg-tertiary) 50%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
+    font-style: italic;
+  }
+}
+
+.work-plan-task-description {
+  font-family: $font-mono;
+  font-size: 11px;
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+.work-plan-task-blocked {
+  font-family: $font-mono;
+  font-size: 9px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  font-style: italic;
+}
+
+.work-plan-footer {
+  padding: 8px 14px;
+  background: color-mix(in srgb, var(--accent-green) 8%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--accent-green) 20%, transparent);
+}
+
+.work-plan-approval-hint {
+  font-family: $font-mono;
+  font-size: 10px;
+  color: var(--accent-green);
+  font-style: italic;
+}

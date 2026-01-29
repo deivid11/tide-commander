@@ -2,6 +2,7 @@
  * Terrain Elements
  *
  * Trees, bushes, house, and street lamps for the battlefield environment.
+ * Uses InstancedMesh for trees and bushes to reduce draw calls.
  */
 
 import * as THREE from 'three';
@@ -10,10 +11,10 @@ import * as THREE from 'three';
  * Result of creating terrain elements.
  */
 export interface TerrainElements {
-  trees: THREE.Group[];
-  bushes: THREE.Group[];
+  trees: THREE.Group; // Now a single group containing instanced meshes
+  bushes: THREE.InstancedMesh;
   house: THREE.Group;
-  lamps: THREE.Group[];
+  lamps: THREE.Group; // Now a single group containing instanced meshes
   lampLights: THREE.PointLight[];
   windowMaterials: THREE.MeshStandardMaterial[];
 }
@@ -22,10 +23,10 @@ export interface TerrainElements {
  * Create all terrain elements.
  */
 export function createTerrainElements(scene: THREE.Scene): TerrainElements {
-  const trees = createTrees(scene);
-  const bushes = createBushes(scene);
+  const trees = createInstancedTrees(scene);
+  const bushes = createInstancedBushes(scene);
   const { house, windowMaterials } = createHouse(scene);
-  const { lamps, lampLights } = createStreetLamps(scene);
+  const { lamps, lampLights } = createInstancedStreetLamps(scene);
 
   return {
     trees,
@@ -38,136 +39,182 @@ export function createTerrainElements(scene: THREE.Scene): TerrainElements {
 }
 
 /**
- * Create trees around the battlefield.
+ * Tree positions and scales.
  */
-function createTrees(scene: THREE.Scene): THREE.Group[] {
-  const trees: THREE.Group[] = [];
-  const treePositions = [
-    { x: -20, z: -18 },
-    { x: -22, z: -8 },
-    { x: -20, z: 5 },
-    { x: 18, z: -20 },
-    { x: 22, z: -5 },
-    { x: 20, z: 10 },
-    { x: -8, z: -22 },
-    { x: 5, z: -20 },
-    // Removed trees at z >= 18 - were blocking visibility in background
-  ];
-
-  treePositions.forEach((pos, i) => {
-    const tree = createTree(1 + Math.random() * 0.5);
-    tree.position.set(pos.x, 0, pos.z);
-    tree.rotation.y = Math.random() * Math.PI * 2;
-    tree.name = `tree_${i}`;
-    trees.push(tree);
-    scene.add(tree);
-  });
-
-  return trees;
-}
+const TREE_DATA = [
+  { x: -20, z: -18, scale: 1.2 },
+  { x: -22, z: -8, scale: 1.4 },
+  { x: -20, z: 5, scale: 1.1 },
+  { x: 18, z: -20, scale: 1.3 },
+  { x: 22, z: -5, scale: 1.0 },
+  { x: 20, z: 10, scale: 1.5 },
+  { x: -8, z: -22, scale: 1.25 },
+  { x: 5, z: -20, scale: 1.35 },
+];
 
 /**
- * Create a single tree.
+ * Create instanced trees - reduces 24 draw calls to 3.
  */
-function createTree(scale: number): THREE.Group {
-  const tree = new THREE.Group();
+function createInstancedTrees(scene: THREE.Scene): THREE.Group {
+  const treeGroup = new THREE.Group();
+  treeGroup.name = 'trees_instanced';
 
-  // Trunk
-  const trunkGeometry = new THREE.CylinderGeometry(0.3, 0.5, 3, 8);
+  const numTrees = TREE_DATA.length;
+
+  // Shared materials
   const trunkMaterial = new THREE.MeshStandardMaterial({
     color: 0x4a3728,
     roughness: 0.9,
   });
-  const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
-  trunk.position.y = 1.5;
-  trunk.castShadow = true;
-  trunk.receiveShadow = true;
-  tree.add(trunk);
-
-  // Foliage layers (cute round style)
   const foliageMaterial = new THREE.MeshStandardMaterial({
     color: 0x2d5a27,
     roughness: 0.8,
   });
 
-  // Bottom layer
-  const foliage1 = new THREE.Mesh(
-    new THREE.SphereGeometry(2, 8, 6),
-    foliageMaterial
-  );
-  foliage1.position.y = 4;
-  foliage1.scale.y = 0.8;
-  foliage1.castShadow = true;
-  tree.add(foliage1);
+  // Shared geometries
+  const trunkGeometry = new THREE.CylinderGeometry(0.3, 0.5, 3, 8);
+  const foliage1Geometry = new THREE.SphereGeometry(2, 8, 6);
+  const foliage2Geometry = new THREE.SphereGeometry(1.5, 8, 6);
 
-  // Top layer
-  const foliage2 = new THREE.Mesh(
-    new THREE.SphereGeometry(1.5, 8, 6),
-    foliageMaterial
-  );
-  foliage2.position.y = 5.5;
-  foliage2.castShadow = true;
-  tree.add(foliage2);
+  // Create instanced meshes
+  const trunkInstanced = new THREE.InstancedMesh(trunkGeometry, trunkMaterial, numTrees);
+  const foliage1Instanced = new THREE.InstancedMesh(foliage1Geometry, foliageMaterial, numTrees);
+  const foliage2Instanced = new THREE.InstancedMesh(foliage2Geometry, foliageMaterial, numTrees);
 
-  tree.scale.setScalar(scale);
-  return tree;
+  trunkInstanced.castShadow = true;
+  trunkInstanced.receiveShadow = true;
+  foliage1Instanced.castShadow = true;
+  foliage2Instanced.castShadow = true;
+
+  trunkInstanced.name = 'trees_trunks';
+  foliage1Instanced.name = 'trees_foliage1';
+  foliage2Instanced.name = 'trees_foliage2';
+
+  // Set up instance matrices
+  const matrix = new THREE.Matrix4();
+  const position = new THREE.Vector3();
+  const rotation = new THREE.Quaternion();
+  const scale = new THREE.Vector3();
+
+  TREE_DATA.forEach((tree, i) => {
+    const s = tree.scale;
+    const rotY = Math.random() * Math.PI * 2;
+
+    // Trunk: positioned at y=1.5 relative to tree base
+    position.set(tree.x, 1.5 * s, tree.z);
+    rotation.setFromEuler(new THREE.Euler(0, rotY, 0));
+    scale.set(s, s, s);
+    matrix.compose(position, rotation, scale);
+    trunkInstanced.setMatrixAt(i, matrix);
+
+    // Foliage 1 (bottom layer): y=4, scaleY=0.8
+    position.set(tree.x, 4 * s, tree.z);
+    scale.set(s, s * 0.8, s);
+    matrix.compose(position, rotation, scale);
+    foliage1Instanced.setMatrixAt(i, matrix);
+
+    // Foliage 2 (top layer): y=5.5
+    position.set(tree.x, 5.5 * s, tree.z);
+    scale.set(s, s, s);
+    matrix.compose(position, rotation, scale);
+    foliage2Instanced.setMatrixAt(i, matrix);
+  });
+
+  trunkInstanced.instanceMatrix.needsUpdate = true;
+  foliage1Instanced.instanceMatrix.needsUpdate = true;
+  foliage2Instanced.instanceMatrix.needsUpdate = true;
+
+  treeGroup.add(trunkInstanced);
+  treeGroup.add(foliage1Instanced);
+  treeGroup.add(foliage2Instanced);
+
+  scene.add(treeGroup);
+  return treeGroup;
 }
 
 /**
- * Create bushes around the battlefield.
+ * Bush positions.
  */
-function createBushes(scene: THREE.Scene): THREE.Group[] {
-  const bushes: THREE.Group[] = [];
-  const bushPositions = [
-    { x: -17, z: -14 },
-    { x: -16, z: 0 },
-    { x: -17, z: 12 },
-    { x: 17, z: -15 },
-    { x: 16, z: 3 },
-    { x: 17, z: 15 },
-    { x: -12, z: -17 },
-    { x: 0, z: -17 },
-    { x: 12, z: -17 },
-    { x: -10, z: 17 },
-    { x: 3, z: 17 },
-    { x: 14, z: 17 },
-    // Near house
-    { x: -25, z: 8 },
-    { x: -28, z: 12 },
-  ];
+const BUSH_POSITIONS = [
+  { x: -17, z: -14 },
+  { x: -16, z: 0 },
+  { x: -17, z: 12 },
+  { x: 17, z: -15 },
+  { x: 16, z: 3 },
+  { x: 17, z: 15 },
+  { x: -12, z: -17 },
+  { x: 0, z: -17 },
+  { x: 12, z: -17 },
+  { x: -10, z: 17 },
+  { x: 3, z: 17 },
+  { x: 14, z: 17 },
+  { x: -25, z: 8 },
+  { x: -28, z: 12 },
+];
+
+/**
+ * Create instanced bushes - reduces ~35 draw calls to 1.
+ * Uses a single sphere geometry with varied transforms for organic look.
+ */
+function createInstancedBushes(scene: THREE.Scene): THREE.InstancedMesh {
+  // Pre-generate bush sphere data (2-3 spheres per bush position)
+  const sphereData: Array<{ x: number; y: number; z: number; scaleX: number; scaleY: number; scaleZ: number }> = [];
+
+  // Use seeded random for consistent results
+  const seededRandom = (seed: number) => {
+    const x = Math.sin(seed) * 10000;
+    return x - Math.floor(x);
+  };
+
+  BUSH_POSITIONS.forEach((pos, bushIdx) => {
+    const numSpheres = 2 + Math.floor(seededRandom(bushIdx * 100) * 2); // 2-3 spheres
+    for (let j = 0; j < numSpheres; j++) {
+      const seed = bushIdx * 100 + j;
+      const size = 0.6 + seededRandom(seed) * 0.4;
+      const offsetX = (seededRandom(seed + 1) - 0.5) * 0.8;
+      const offsetZ = (seededRandom(seed + 2) - 0.5) * 0.8;
+      const scaleY = 0.7 + seededRandom(seed + 3) * 0.2;
+
+      sphereData.push({
+        x: pos.x + offsetX,
+        y: size * 0.7,
+        z: pos.z + offsetZ,
+        scaleX: size,
+        scaleY: size * scaleY,
+        scaleZ: size,
+      });
+    }
+  });
 
   const bushMaterial = new THREE.MeshStandardMaterial({
     color: 0x3d6a37,
     roughness: 0.85,
   });
 
-  bushPositions.forEach((pos, i) => {
-    const bushGroup = new THREE.Group();
+  const bushGeometry = new THREE.SphereGeometry(1, 8, 6); // Unit sphere, scaled per instance
+  const bushInstanced = new THREE.InstancedMesh(bushGeometry, bushMaterial, sphereData.length);
 
-    // Create 2-3 spheres for each bush
-    const numSpheres = 2 + Math.floor(Math.random() * 2);
-    for (let j = 0; j < numSpheres; j++) {
-      const size = 0.6 + Math.random() * 0.4;
-      const bushGeometry = new THREE.SphereGeometry(size, 8, 6);
-      const bush = new THREE.Mesh(bushGeometry, bushMaterial);
-      bush.position.set(
-        (Math.random() - 0.5) * 0.8,
-        size * 0.7,
-        (Math.random() - 0.5) * 0.8
-      );
-      bush.scale.y = 0.7 + Math.random() * 0.2;
-      bush.castShadow = true;
-      bush.receiveShadow = true;
-      bushGroup.add(bush);
-    }
+  bushInstanced.castShadow = true;
+  bushInstanced.receiveShadow = true;
+  bushInstanced.name = 'bushes_instanced';
 
-    bushGroup.position.set(pos.x, 0, pos.z);
-    bushGroup.name = `bush_${i}`;
-    bushes.push(bushGroup);
-    scene.add(bushGroup);
+  const matrix = new THREE.Matrix4();
+  const position = new THREE.Vector3();
+  const rotation = new THREE.Quaternion();
+  const scale = new THREE.Vector3();
+
+  sphereData.forEach((sphere, i) => {
+    position.set(sphere.x, sphere.y, sphere.z);
+    rotation.identity();
+    scale.set(sphere.scaleX, sphere.scaleY, sphere.scaleZ);
+    matrix.compose(position, rotation, scale);
+    bushInstanced.setMatrixAt(i, matrix);
   });
 
-  return bushes;
+  bushInstanced.instanceMatrix.needsUpdate = true;
+
+  scene.add(bushInstanced);
+  return bushInstanced;
 }
 
 /**
@@ -251,27 +298,91 @@ function createHouse(scene: THREE.Scene): { house: THREE.Group; windowMaterials:
 }
 
 /**
- * Create street lamps around the battlefield.
+ * Street lamp positions.
  */
-function createStreetLamps(scene: THREE.Scene): { lamps: THREE.Group[]; lampLights: THREE.PointLight[] } {
-  const lamps: THREE.Group[] = [];
+const LAMP_POSITIONS = [
+  { x: -16, z: -16 },
+  { x: 16, z: -16 },
+  { x: -16, z: 16 },
+  { x: 16, z: 16 },
+];
+
+/**
+ * Create instanced street lamps - reduces 16 draw calls to 4.
+ */
+function createInstancedStreetLamps(scene: THREE.Scene): { lamps: THREE.Group; lampLights: THREE.PointLight[] } {
+  const lampGroup = new THREE.Group();
+  lampGroup.name = 'lamps_instanced';
   const lampLights: THREE.PointLight[] = [];
 
-  const lampPositions = [
-    { x: -16, z: -16 },
-    { x: 16, z: -16 },
-    { x: -16, z: 16 },
-    { x: 16, z: 16 },
-  ];
+  const numLamps = LAMP_POSITIONS.length;
 
-  lampPositions.forEach((pos, i) => {
-    const lamp = createStreetLamp();
-    lamp.position.set(pos.x, 0, pos.z);
-    lamp.name = `streetLamp_${i}`;
-    lamps.push(lamp);
-    scene.add(lamp);
+  // Shared materials
+  const poleMaterial = new THREE.MeshStandardMaterial({
+    color: 0x333333,
+    roughness: 0.5,
+    metalness: 0.5,
+  });
+  const housingMaterial = new THREE.MeshStandardMaterial({
+    color: 0x222222,
+    roughness: 0.4,
+    metalness: 0.6,
+  });
+  const bulbMaterial = new THREE.MeshStandardMaterial({
+    color: 0xffeeaa,
+    emissive: 0xffaa44,
+    emissiveIntensity: 2,
+    roughness: 0.2,
+  });
 
-    // Add point light for each lamp (intensity controlled by time)
+  // Shared geometries
+  const poleGeometry = new THREE.CylinderGeometry(0.1, 0.15, 5, 8);
+  const armGeometry = new THREE.CylinderGeometry(0.05, 0.05, 1, 8);
+  const housingGeometry = new THREE.CylinderGeometry(0.4, 0.3, 0.6, 8);
+  const bulbGeometry = new THREE.SphereGeometry(0.25, 16, 16);
+
+  // Create instanced meshes
+  const poleInstanced = new THREE.InstancedMesh(poleGeometry, poleMaterial, numLamps);
+  const armInstanced = new THREE.InstancedMesh(armGeometry, poleMaterial, numLamps);
+  const housingInstanced = new THREE.InstancedMesh(housingGeometry, housingMaterial, numLamps);
+  const bulbInstanced = new THREE.InstancedMesh(bulbGeometry, bulbMaterial, numLamps);
+
+  poleInstanced.castShadow = true;
+  poleInstanced.name = 'lamps_poles';
+  armInstanced.name = 'lamps_arms';
+  housingInstanced.name = 'lamps_housings';
+  bulbInstanced.name = 'lamps_bulbs';
+
+  const matrix = new THREE.Matrix4();
+  const position = new THREE.Vector3();
+  const rotation = new THREE.Quaternion();
+  const scale = new THREE.Vector3(1, 1, 1);
+
+  LAMP_POSITIONS.forEach((pos, i) => {
+    // Pole: y=2.5
+    position.set(pos.x, 2.5, pos.z);
+    rotation.identity();
+    matrix.compose(position, rotation, scale);
+    poleInstanced.setMatrixAt(i, matrix);
+
+    // Arm: y=4.8, offset x=0.4, rotated 90 degrees on Z
+    position.set(pos.x + 0.4, 4.8, pos.z);
+    rotation.setFromEuler(new THREE.Euler(0, 0, Math.PI / 2));
+    matrix.compose(position, rotation, scale);
+    armInstanced.setMatrixAt(i, matrix);
+
+    // Housing: y=4.8, offset x=0.8
+    position.set(pos.x + 0.8, 4.8, pos.z);
+    rotation.identity();
+    matrix.compose(position, rotation, scale);
+    housingInstanced.setMatrixAt(i, matrix);
+
+    // Bulb: y=4.5, offset x=0.8
+    position.set(pos.x + 0.8, 4.5, pos.z);
+    matrix.compose(position, rotation, scale);
+    bulbInstanced.setMatrixAt(i, matrix);
+
+    // Point light for each lamp
     const light = new THREE.PointLight(0xffaa55, 1.5, 15);
     light.position.set(pos.x, 5, pos.z);
     light.castShadow = true;
@@ -281,58 +392,18 @@ function createStreetLamps(scene: THREE.Scene): { lamps: THREE.Group[]; lampLigh
     scene.add(light);
   });
 
-  return { lamps, lampLights };
-}
+  poleInstanced.instanceMatrix.needsUpdate = true;
+  armInstanced.instanceMatrix.needsUpdate = true;
+  housingInstanced.instanceMatrix.needsUpdate = true;
+  bulbInstanced.instanceMatrix.needsUpdate = true;
 
-/**
- * Create a single street lamp.
- */
-function createStreetLamp(): THREE.Group {
-  const lamp = new THREE.Group();
+  lampGroup.add(poleInstanced);
+  lampGroup.add(armInstanced);
+  lampGroup.add(housingInstanced);
+  lampGroup.add(bulbInstanced);
 
-  // Pole
-  const poleGeometry = new THREE.CylinderGeometry(0.1, 0.15, 5, 8);
-  const poleMaterial = new THREE.MeshStandardMaterial({
-    color: 0x333333,
-    roughness: 0.5,
-    metalness: 0.5,
-  });
-  const pole = new THREE.Mesh(poleGeometry, poleMaterial);
-  pole.position.y = 2.5;
-  pole.castShadow = true;
-  lamp.add(pole);
-
-  // Arm
-  const armGeometry = new THREE.CylinderGeometry(0.05, 0.05, 1, 8);
-  const arm = new THREE.Mesh(armGeometry, poleMaterial);
-  arm.position.set(0.4, 4.8, 0);
-  arm.rotation.z = Math.PI / 2;
-  lamp.add(arm);
-
-  // Lamp housing
-  const housingGeometry = new THREE.CylinderGeometry(0.4, 0.3, 0.6, 8);
-  const housingMaterial = new THREE.MeshStandardMaterial({
-    color: 0x222222,
-    roughness: 0.4,
-    metalness: 0.6,
-  });
-  const housing = new THREE.Mesh(housingGeometry, housingMaterial);
-  housing.position.set(0.8, 4.8, 0);
-  lamp.add(housing);
-
-  // Light bulb (glowing)
-  const bulbGeometry = new THREE.SphereGeometry(0.25, 16, 16);
-  const bulbMaterial = new THREE.MeshStandardMaterial({
-    color: 0xffeeaa,
-    emissive: 0xffaa44,
-    emissiveIntensity: 2,
-    roughness: 0.2,
-  });
-  const bulb = new THREE.Mesh(bulbGeometry, bulbMaterial);
-  bulb.position.set(0.8, 4.5, 0);
-  lamp.add(bulb);
-
-  return lamp;
+  scene.add(lampGroup);
+  return { lamps: lampGroup, lampLights };
 }
 
 /**

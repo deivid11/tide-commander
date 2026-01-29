@@ -11,7 +11,7 @@ import { BOSS_CONTEXT_START } from '../../../shared/types';
 import { filterCostText } from '../../utils/formatting';
 import { TOOL_ICONS, extractToolKeyParam, formatTimestamp } from '../../utils/outputRendering';
 import { markdownComponents } from './MarkdownComponents';
-import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock } from './BossContext';
+import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, parseWorkPlanBlock, WorkPlanBlock } from './BossContext';
 import { EditToolDiff, ReadToolInput, TodoWriteInput } from './ToolRenderers';
 import { highlightText, renderContentWithImages } from './contentRendering';
 import { useTTS } from '../../hooks/useTTS';
@@ -373,20 +373,25 @@ export const HistoryLine = memo(function HistoryLine({
     );
   }
 
-  // For assistant messages, check for delegation blocks
+  // For assistant messages, check for delegation blocks and work-plan blocks
   const delegationParsed = parseDelegationBlock(content);
-  if (delegationParsed.hasDelegation && delegationParsed.delegations.length > 0) {
+  const workPlanParsed = parseWorkPlanBlock(delegationParsed.contentWithoutBlock);
+
+  if (delegationParsed.hasDelegation || workPlanParsed.hasWorkPlan) {
     return (
       <div className={className}>
         {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
         <span className="history-role">Claude</span>
         <span className="history-content markdown-content">
           {highlight ? (
-            <div>{highlightText(delegationParsed.contentWithoutBlock, highlight)}</div>
+            <div>{highlightText(workPlanParsed.contentWithoutBlock, highlight)}</div>
           ) : (
-            renderContentWithImages(delegationParsed.contentWithoutBlock, onImageClick)
+            renderContentWithImages(workPlanParsed.contentWithoutBlock, onImageClick)
           )}
-          {delegationParsed.delegations.map((delegation, i) => (
+          {workPlanParsed.hasWorkPlan && workPlanParsed.workPlan && (
+            <WorkPlanBlock workPlan={workPlanParsed.workPlan} />
+          )}
+          {delegationParsed.hasDelegation && delegationParsed.delegations.map((delegation, i) => (
             <DelegationBlock key={`del-${i}`} delegation={delegation} />
           ))}
         </span>

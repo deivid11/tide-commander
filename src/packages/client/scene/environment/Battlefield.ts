@@ -36,11 +36,11 @@ export class Battlefield {
   private lampLights: THREE.PointLight[] = [];
   private windowMaterials: THREE.MeshStandardMaterial[] = [];
 
-  // Terrain elements (for show/hide)
-  private trees: THREE.Group[] = [];
-  private bushes: THREE.Group[] = [];
+  // Terrain elements (for show/hide) - now using instanced meshes
+  private trees: THREE.Group | null = null;
+  private bushes: THREE.InstancedMesh | null = null;
   private house: THREE.Group | null = null;
-  private lamps: THREE.Group[] = [];
+  private lamps: THREE.Group | null = null;
   private grass: THREE.Mesh | null = null;
   private baseFogDensity = 0.01;
   private brightness = 1; // Brightness multiplier (0.2 = dark, 1 = normal, 2 = bright)
@@ -172,19 +172,25 @@ export class Battlefield {
     brightness?: number;
     skyColor?: string | null;
   }): void {
-    // Toggle trees
-    this.trees.forEach(tree => { tree.visible = config.showTrees; });
+    // Toggle trees (instanced group)
+    if (this.trees) {
+      this.trees.visible = config.showTrees;
+    }
 
-    // Toggle bushes
-    this.bushes.forEach(bush => { bush.visible = config.showBushes; });
+    // Toggle bushes (instanced mesh)
+    if (this.bushes) {
+      this.bushes.visible = config.showBushes;
+    }
 
     // Toggle house
     if (this.house) {
       this.house.visible = config.showHouse;
     }
 
-    // Toggle lamps and their lights
-    this.lamps.forEach(lamp => { lamp.visible = config.showLamps; });
+    // Toggle lamps (instanced group) and their lights
+    if (this.lamps) {
+      this.lamps.visible = config.showLamps;
+    }
     this.lampLights.forEach(light => { light.visible = config.showLamps; });
 
     // Toggle grass
@@ -628,32 +634,34 @@ export class Battlefield {
       this.scene.remove(this.stars);
     }
 
-    // Dispose trees
-    for (const tree of this.trees) {
-      this.disposeGroup(tree);
-      this.scene.remove(tree);
+    // Dispose trees (instanced group)
+    if (this.trees) {
+      this.disposeGroup(this.trees);
+      this.scene.remove(this.trees);
+      this.trees = null;
     }
-    this.trees = [];
 
-    // Dispose bushes
-    for (const bush of this.bushes) {
-      this.disposeGroup(bush);
-      this.scene.remove(bush);
+    // Dispose bushes (instanced mesh)
+    if (this.bushes) {
+      this.bushes.geometry.dispose();
+      (this.bushes.material as THREE.Material).dispose();
+      this.scene.remove(this.bushes);
+      this.bushes = null;
     }
-    this.bushes = [];
 
     // Dispose house
     if (this.house) {
       this.disposeGroup(this.house);
       this.scene.remove(this.house);
+      this.house = null;
     }
 
-    // Dispose lamps
-    for (const lamp of this.lamps) {
-      this.disposeGroup(lamp);
-      this.scene.remove(lamp);
+    // Dispose lamps (instanced group)
+    if (this.lamps) {
+      this.disposeGroup(this.lamps);
+      this.scene.remove(this.lamps);
+      this.lamps = null;
     }
-    this.lamps = [];
 
     // Dispose lamp lights
     for (const light of this.lampLights) {

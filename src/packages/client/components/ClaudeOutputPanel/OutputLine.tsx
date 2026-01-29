@@ -9,7 +9,7 @@ import { useHideCost, useSettings, ClaudeOutput, store } from '../../store';
 import { filterCostText } from '../../utils/formatting';
 import { TOOL_ICONS, formatTimestamp } from '../../utils/outputRendering';
 import { markdownComponents } from './MarkdownComponents';
-import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, DelegatedTaskHeader } from './BossContext';
+import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, DelegatedTaskHeader, parseWorkPlanBlock, WorkPlanBlock } from './BossContext';
 import { EditToolDiff, ReadToolInput, TodoWriteInput } from './ToolRenderers';
 import { renderContentWithImages } from './contentRendering';
 import { ansiToHtml } from '../../utils/ansiToHtml';
@@ -325,20 +325,25 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
     className += ' output-streaming';
   }
 
-  // For Claude messages, check for delegation blocks
+  // For Claude messages, check for delegation blocks and work-plan blocks
   if (isClaudeMessage && !isStreaming) {
-    const parsed = parseDelegationBlock(text);
-    if (parsed.hasDelegation && parsed.delegations.length > 0) {
+    const delegationParsed = parseDelegationBlock(text);
+    const workPlanParsed = parseWorkPlanBlock(delegationParsed.contentWithoutBlock);
+
+    if (delegationParsed.hasDelegation || workPlanParsed.hasWorkPlan) {
       return (
         <div className={className}>
           <span className="output-timestamp" title={`${timestamp} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#666', fontFamily: 'monospace'}}>[{debugHash}]</span></span>
           <span className="output-role">Claude</span>
           <div className="markdown-content">
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-              {parsed.contentWithoutBlock}
+              {workPlanParsed.contentWithoutBlock}
             </ReactMarkdown>
           </div>
-          {parsed.delegations.map((delegation, i) => (
+          {workPlanParsed.hasWorkPlan && workPlanParsed.workPlan && (
+            <WorkPlanBlock workPlan={workPlanParsed.workPlan} />
+          )}
+          {delegationParsed.hasDelegation && delegationParsed.delegations.map((delegation, i) => (
             <DelegationBlock key={`del-${i}`} delegation={delegation} />
           ))}
           <div className="message-action-btns">

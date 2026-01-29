@@ -44,6 +44,40 @@ export interface ParsedBossResponse {
   contentWithoutBlock: string;  // Response text with the ```delegation block removed
 }
 
+// Work plan task structure
+export interface WorkPlanTask {
+  id: string;
+  description: string;
+  suggestedClass: string;
+  assignToAgent: string | null;
+  assignToAgentName: string | null;
+  priority: 'high' | 'medium' | 'low';
+  blockedBy: string[];
+}
+
+// Work plan phase structure
+export interface WorkPlanPhase {
+  id: string;
+  name: string;
+  execution: 'sequential' | 'parallel';
+  dependsOn: string[];
+  tasks: WorkPlanTask[];
+}
+
+// Work plan structure
+export interface WorkPlan {
+  name: string;
+  description: string;
+  phases: WorkPlanPhase[];
+}
+
+// Parsed work plan response
+export interface ParsedWorkPlanResponse {
+  hasWorkPlan: boolean;
+  workPlan: WorkPlan | null;
+  contentWithoutBlock: string;
+}
+
 // Edit tool input structure
 export interface EditToolInput {
   file_path?: string;
