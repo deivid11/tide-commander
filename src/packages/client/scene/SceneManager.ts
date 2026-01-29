@@ -357,7 +357,7 @@ export class SceneManager {
         }
 
         const manaBar = meshData.group.getObjectByName('manaBar') as THREE.Sprite;
-        if (manaBar) manaBar.scale.set(0.9 * scale, 0.14 * scale, 1);
+        if (manaBar) manaBar.scale.set(0.9, 0.14, 1); // Fixed size, no scaling
 
         const idleTimer = meshData.group.getObjectByName('idleTimer') as THREE.Sprite;
         if (idleTimer) idleTimer.scale.set(0.9 * scale, 0.14 * scale, 1);

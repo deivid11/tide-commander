@@ -685,30 +685,30 @@ export class EffectsManager {
     // Extract key parameter to display
     const paramText = this.formatToolParams(toolName, toolInput);
 
-    // Create single-line canvas (4:1 aspect ratio for better text rendering)
+    // Create compact single-line canvas (smaller size)
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d')!;
-    canvas.width = 600;
-    canvas.height = 150;
+    canvas.width = 400;
+    canvas.height = 100;
 
     // Build single-line text: "icon toolName param"
     const fullText = paramText ? `${icon} ${toolName}: ${paramText}` : `${icon} ${toolName}`;
 
     // Measure text to size bubble appropriately
-    ctx.font = 'bold 48px Arial';
-    const textWidth = Math.min(ctx.measureText(fullText).width, canvas.width - 60);
+    ctx.font = 'bold 32px Arial';
+    const textWidth = Math.min(ctx.measureText(fullText).width, canvas.width - 40);
 
-    // Draw speech bubble background - pill shape
-    const padding = 24;
+    // Draw speech bubble background - pill shape (compact)
+    const padding = 16;
     const bubbleWidth = textWidth + padding * 2;
-    const bubbleHeight = 72;
+    const bubbleHeight = 48;
     const bubbleX = (canvas.width - bubbleWidth) / 2;
-    const bubbleY = 15;
+    const bubbleY = (canvas.height - bubbleHeight) / 2;
     const r = bubbleHeight / 2;
 
-    ctx.fillStyle = 'rgba(15, 15, 25, 0.95)';
+    ctx.fillStyle = 'rgba(15, 15, 25, 0.85)';
     ctx.strokeStyle = '#4a9eff';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 2;
 
     // Draw pill shape
     ctx.beginPath();
@@ -721,27 +721,19 @@ export class EffectsManager {
     ctx.fill();
     ctx.stroke();
 
-    // Small pointer triangle
-    ctx.beginPath();
-    ctx.moveTo(canvas.width / 2 - 12, bubbleY + bubbleHeight);
-    ctx.lineTo(canvas.width / 2, bubbleY + bubbleHeight + 20);
-    ctx.lineTo(canvas.width / 2 + 12, bubbleY + bubbleHeight);
-    ctx.closePath();
-    ctx.fill();
-
     // Draw single-line text
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 46px Arial';
+    ctx.font = 'bold 30px Arial';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
     // Truncate if needed
     let displayText = fullText;
-    const maxWidth = canvas.width - 60;
+    const maxWidth = canvas.width - 40;
     while (ctx.measureText(displayText).width > maxWidth && displayText.length > 3) {
       displayText = displayText.slice(0, -4) + '...';
     }
-    ctx.fillText(displayText, canvas.width / 2, bubbleY + bubbleHeight / 2);
+    ctx.fillText(displayText, canvas.width / 2, canvas.height / 2);
 
     // Create sprite with high quality filtering
     const texture = new THREE.CanvasTexture(canvas);
@@ -757,11 +749,13 @@ export class EffectsManager {
     });
 
     const sprite = new THREE.Sprite(material);
-    // Match sprite scale to canvas aspect ratio (600:150 = 4:1) - 3x larger bubble
-    sprite.scale.set(7.2, 1.8, 1);
+    // Match sprite scale to canvas aspect ratio (400:100 = 4:1) - smaller bubble
+    sprite.scale.set(2.4, 0.6, 1);
+    // Ensure speech bubbles render on top of other scene elements
+    sprite.renderOrder = 1000;
 
-    // Position above the character's head
-    const baseY = agentGroup.position.y + 3.5;
+    // Position at bottom, behind name label (below character)
+    const baseY = agentGroup.position.y - 1.3;
     sprite.position.copy(agentGroup.position);
     sprite.position.y = baseY;
 
@@ -1115,19 +1109,18 @@ export class EffectsManager {
         // Calculate zoom-based scale
         const zoomScale = this.calculateZoomScale(agentGroup.position);
 
-        // Apply zoom-based scaling (4:1 aspect ratio to match canvas) - 3x larger bubble
-        bubble.sprite.scale.set(4.2 * zoomScale, 1.05 * zoomScale, 1);
+        // Apply zoom-based scaling (4:1 aspect ratio to match canvas) - smaller bubble
+        bubble.sprite.scale.set(2.4 * zoomScale, 0.6 * zoomScale, 1);
       }
 
-      // Fade in/out and bob animation
+      // Fade in/out animation (no bobbing at bottom)
       const fadeIn = Math.min(elapsed / 200, 1);
       const fadeOut = t > 0.7 ? 1 - ((t - 0.7) / 0.3) : 1;
       bubble.sprite.material.opacity = fadeIn * fadeOut;
 
-      // Gentle bobbing - position above the character's head
-      const bob = Math.sin(elapsed * 0.003) * 0.08;
+      // Position at bottom, behind name label
       const agentY = agentGroup ? agentGroup.position.y : 0;
-      bubble.sprite.position.y = agentY + 3.5 + bob;
+      bubble.sprite.position.y = agentY - 1.3;
 
       if (t >= 1) {
         toRemove.push(i);

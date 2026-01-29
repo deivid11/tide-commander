@@ -26,7 +26,7 @@ import type { UseModalState } from './index';
 //   - Switching between modes is instant (smoother UX)
 //   - Uses more memory when in 2D mode
 // =============================================================================
-const DISPOSE_3D_ON_MODE_SWITCH = false;
+const DISPOSE_3D_ON_MODE_SWITCH = true;
 
 // HMR tracking for 3D scene changes - track pending changes for manual refresh
 declare global {
@@ -71,12 +71,12 @@ export function hasPendingSceneChanges(): boolean {
 }
 
 /**
- * Refresh the 3D scene - disposes current scene and recreates it (no page reload)
+ * Refresh the 3D scene - disposes current scene and reloads page to get new code
  */
 export function refreshScene(): void {
   console.log('[Tide HMR] Manual scene refresh triggered');
 
-  // Dispose the scene to free WebGL resources
+  // Dispose the scene to free WebGL resources before reload
   const scene = getPersistedScene();
   if (scene) {
     try {
@@ -93,17 +93,19 @@ export function refreshScene(): void {
     (window as any).__tideScene = null;
   }
 
-  // Clear pending flag
-  window.__tideHmrPendingSceneChanges = false;
-
-  // Notify all listeners to trigger scene recreation
-  window.__tideHmrRefreshListeners?.forEach((listener) => {
-    try {
-      listener();
-    } catch (e) {
-      console.warn('[Tide HMR] Error in refresh listener:', e);
+  // Force WebGL context loss to free GPU memory
+  const canvas = document.getElementById('battlefield') as HTMLCanvasElement | null;
+  if (canvas) {
+    const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+    if (gl) {
+      const ext = gl.getExtension('WEBGL_lose_context');
+      if (ext) ext.loseContext();
     }
-  });
+  }
+
+  // Clear pending flag and reload to get new module code
+  window.__tideHmrPendingSceneChanges = false;
+  window.location.reload();
 }
 
 /**

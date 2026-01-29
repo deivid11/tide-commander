@@ -65,19 +65,22 @@ export const AgentHoverPopup = memo(function AgentHoverPopup({ agent, screenPos,
 
   // Memoize popup style to avoid recalculating on every render
   const popupStyle = useMemo((): React.CSSProperties => {
-    const maxWidth = 380;
-    const maxHeight = 400;
-    let left = screenPos.x + 20;
-    let top = screenPos.y - 100;
+    const maxWidth = 300;
+    const maxHeight = 320;
+    // Position closer to agent - small offset from cursor, above it
+    let left = screenPos.x - maxWidth / 2;
+    let top = screenPos.y - maxHeight - 10;
 
     if (typeof window !== 'undefined') {
-      if (screenPos.x + 20 + maxWidth > window.innerWidth) {
-        left = screenPos.x - maxWidth - 20;
+      // Keep within horizontal bounds
+      if (left < 10) {
+        left = 10;
+      } else if (left + maxWidth > window.innerWidth - 10) {
+        left = window.innerWidth - maxWidth - 10;
       }
-      if (screenPos.y - 100 < 0) {
-        top = 10;
-      } else if (screenPos.y - 100 + maxHeight > window.innerHeight) {
-        top = window.innerHeight - maxHeight - 10;
+      // If not enough room above, show below
+      if (top < 10) {
+        top = screenPos.y + 10;
       }
     }
 
@@ -85,7 +88,10 @@ export const AgentHoverPopup = memo(function AgentHoverPopup({ agent, screenPos,
       position: 'fixed',
       left,
       top,
-      zIndex: 1000,
+      zIndex: 10000,
+      maxWidth,
+      maxHeight,
+      fontSize: '0.85em',
     };
   }, [screenPos.x, screenPos.y]);
 

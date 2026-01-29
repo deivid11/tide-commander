@@ -837,16 +837,17 @@
 
 // Agent hover popup (battlefield tooltip)
 .agent-hover-popup {
-  background: rgba($dracula-bg, 0.98);
+  background: rgba($dracula-bg, 0.95);
   border: 1px solid $dracula-purple;
-  border-radius: $radius-lg;
-  padding: 20px 24px;
-  min-width: 380px;
-  max-width: 480px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-  animation: hover-popup-appear 0.2s ease-out;
+  border-radius: $radius-md;
+  padding: 12px 14px;
+  min-width: 240px;
+  max-width: 300px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  animation: hover-popup-appear 0.15s ease-out;
   pointer-events: auto;
   backdrop-filter: blur(8px);
+  font-size: 0.9em;
 }
 
 @keyframes hover-popup-appear {

@@ -150,27 +150,30 @@ export function useHistoryLoader({
         hasMoreRef.current = hasMoreValue;
         setTotalCount(data.totalCount || 0);
 
-        // Handle output deduplication
-        if (shouldClearOutputs) {
-          if (preservedOutputsSnapshot && preservedOutputsSnapshot.length > 0) {
-            const lastHistoryTimestamp = messages.length > 0
-              ? Math.max(...messages.map((m: HistoryMessage) => m.timestamp ? new Date(m.timestamp).getTime() : 0))
-              : 0;
+        // Handle output deduplication - always dedupe to avoid showing same message twice
+        if (preservedOutputsSnapshot && preservedOutputsSnapshot.length > 0) {
+          // Use preserved snapshot for reconnect scenarios
+          const lastHistoryTimestamp = messages.length > 0
+            ? Math.max(...messages.map((m: HistoryMessage) => m.timestamp ? new Date(m.timestamp).getTime() : 0))
+            : 0;
 
-            const newerOutputs = preservedOutputsSnapshot.filter(o => o.timestamp > lastHistoryTimestamp);
+          const newerOutputs = preservedOutputsSnapshot.filter(o => o.timestamp > lastHistoryTimestamp);
 
-            store.clearOutputs(selectedAgentId);
-            for (const output of newerOutputs) {
-              store.addOutput(selectedAgentId, output);
-            }
-          } else if (messages.length > 0) {
-            const lastHistoryTimestamp = Math.max(
-              ...messages.map((m: HistoryMessage) => m.timestamp ? new Date(m.timestamp).getTime() : 0)
-            );
+          store.clearOutputs(selectedAgentId);
+          for (const output of newerOutputs) {
+            store.addOutput(selectedAgentId, output);
+          }
+        } else if (messages.length > 0) {
+          // Dedupe current outputs against loaded history
+          const lastHistoryTimestamp = Math.max(
+            ...messages.map((m: HistoryMessage) => m.timestamp ? new Date(m.timestamp).getTime() : 0)
+          );
 
-            const currentOutputs = store.getOutputs(selectedAgentId);
-            const newerOutputs = currentOutputs.filter(o => o.timestamp > lastHistoryTimestamp);
+          const currentOutputs = store.getOutputs(selectedAgentId);
+          const newerOutputs = currentOutputs.filter(o => o.timestamp > lastHistoryTimestamp);
 
+          if (currentOutputs.length !== newerOutputs.length) {
+            // Only clear/re-add if there are duplicates to remove
             store.clearOutputs(selectedAgentId);
             for (const output of newerOutputs) {
               store.addOutput(selectedAgentId, output);

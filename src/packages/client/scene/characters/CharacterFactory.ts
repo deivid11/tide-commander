@@ -182,17 +182,16 @@ export class CharacterFactory {
     // Set initial position
     group.position.set(agent.position.x, agent.position.y, agent.position.z);
 
-    // Add invisible hitbox for easier clicking (extends above the model)
-    const hitboxHeight = isBoss ? 3.5 : 2.5;
-    const hitboxWidth = isBoss ? 1.2 : 0.9;
-    const hitboxGeometry = new THREE.CylinderGeometry(hitboxWidth, hitboxWidth, hitboxHeight, 8);
+    // Add invisible hitbox for easier clicking (sphere at bottom, behind name label)
+    const hitboxRadius = isBoss ? 0.9 : 0.65;
+    const hitboxGeometry = new THREE.SphereGeometry(hitboxRadius, 8, 6);
     const hitboxMaterial = new THREE.MeshBasicMaterial({
       visible: false,
       transparent: true,
       opacity: 0,
     });
     const hitbox = new THREE.Mesh(hitboxGeometry, hitboxMaterial);
-    hitbox.position.y = hitboxHeight / 2; // Center the hitbox vertically
+    hitbox.position.y = hitboxRadius; // Position sphere at ground level
     hitbox.name = 'clickHitbox';
     group.add(hitbox);
 
@@ -493,9 +492,9 @@ export class CharacterFactory {
       yOffset += 440 * scale;
     }
 
-    // === Mana bar with status dot ===
-    const manaBarHeight = 280 * scale;
-    const manaBarWidth = 2800 * scale;
+    // === Mana bar with status dot (same size for all agents) ===
+    const manaBarHeight = 200 * scale;
+    const manaBarWidth = 1350 * scale;
     const manaBarX = (width - manaBarWidth) / 2;
     const manaBarY = yOffset;
 
@@ -748,9 +747,9 @@ export class CharacterFactory {
 
     yOffset += fontSize + 64 * scale;
 
-    // === Mana bar with status dot ===
-    const manaBarHeight = 256 * scale;
-    const manaBarWidth = 1760 * scale;
+    // === Mana bar with status dot (same size for all agents) ===
+    const manaBarHeight = 200 * scale;
+    const manaBarWidth = 1350 * scale;
     const manaBarX = (width - manaBarWidth) / 2;
     const manaBarY = yOffset;
 
