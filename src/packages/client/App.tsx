@@ -94,6 +94,8 @@ function AppContent() {
     setBuildingPopupState(popup);
   }, []);
   const getBuildingPopup = useCallback(() => buildingPopupRef.current, []);
+  // Ref for pending popup timeout (used by 2D mode building click)
+  const pendingPopupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [sceneConfig, setSceneConfig] = useState(loadConfig);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -394,10 +396,32 @@ function AppContent() {
                 store.selectAgent(agentId);
                 store.setTerminalOpen(true);
               }}
-              onBuildingClick={(buildingId: string) => {
+              onBuildingClick={(buildingId: string, screenPos: { x: number; y: number }) => {
                 store.selectBuilding(buildingId);
+                const building = store.getState().buildings.get(buildingId);
+                if (building?.type === 'folder' && building.folderPath) {
+                  store.openFileExplorer(building.folderPath);
+                } else if (building?.type === 'server' || building?.type === 'boss' || building?.type === 'database') {
+                  // Clear any pending popup timeout
+                  if (pendingPopupTimeoutRef.current) {
+                    clearTimeout(pendingPopupTimeoutRef.current);
+                  }
+                  // Delay popup to allow double-click detection (150ms for faster response)
+                  pendingPopupTimeoutRef.current = setTimeout(() => {
+                    setBuildingPopup({ buildingId, screenPos, fromClick: true });
+                    pendingPopupTimeoutRef.current = null;
+                  }, 150);
+                }
               }}
               onBuildingDoubleClick={(buildingId: string) => {
+                // Clear pending popup timeout on double-click
+                if (pendingPopupTimeoutRef.current) {
+                  clearTimeout(pendingPopupTimeoutRef.current);
+                  pendingPopupTimeoutRef.current = null;
+                }
+                // Close popup if open
+                setBuildingPopup(null);
+
                 const building = store.getState().buildings.get(buildingId);
                 if (building?.type === 'server' && building.pm2?.enabled) {
                   setPm2LogsModalBuildingId(buildingId);
@@ -557,59 +581,70 @@ function AppContent() {
         const building = state.buildings.get(buildingPopup.buildingId);
         if (!building) return null;
 
+        const closePopup = () => setBuildingPopup(null);
+
         // Use BossBuildingActionPopup for boss buildings
         if (building.type === 'boss') {
           return (
-            <BossBuildingActionPopup
-              building={building}
-              screenPos={buildingPopup.screenPos}
-              onClose={() => setBuildingPopup(null)}
-              onOpenSettings={() => {
-                setBuildingPopup(null);
-                buildingModal.open(buildingPopup.buildingId);
-              }}
-              onOpenLogsModal={() => {
-                setBuildingPopup(null);
-                setBossLogsModalBuildingId(buildingPopup.buildingId);
-              }}
-              onOpenUrlInModal={handleOpenUrlInModal}
-            />
+            <>
+              <div className="building-popup-backdrop" onClick={closePopup} />
+              <BossBuildingActionPopup
+                building={building}
+                screenPos={buildingPopup.screenPos}
+                onClose={closePopup}
+                onOpenSettings={() => {
+                  closePopup();
+                  buildingModal.open(buildingPopup.buildingId);
+                }}
+                onOpenLogsModal={() => {
+                  closePopup();
+                  setBossLogsModalBuildingId(buildingPopup.buildingId);
+                }}
+                onOpenUrlInModal={handleOpenUrlInModal}
+              />
+            </>
           );
         }
 
         // Use DatabaseBuildingActionPopup for database buildings
         if (building.type === 'database') {
           return (
-            <DatabaseBuildingActionPopup
-              building={building}
-              screenPos={buildingPopup.screenPos}
-              onClose={() => setBuildingPopup(null)}
-              onOpenSettings={() => {
-                setBuildingPopup(null);
-                buildingModal.open(buildingPopup.buildingId);
-              }}
-              onOpenDatabasePanel={() => {
-                setBuildingPopup(null);
-                setDatabasePanelBuildingId(buildingPopup.buildingId);
-              }}
-            />
+            <>
+              <div className="building-popup-backdrop" onClick={closePopup} />
+              <DatabaseBuildingActionPopup
+                building={building}
+                screenPos={buildingPopup.screenPos}
+                onClose={closePopup}
+                onOpenSettings={() => {
+                  closePopup();
+                  buildingModal.open(buildingPopup.buildingId);
+                }}
+                onOpenDatabasePanel={() => {
+                  closePopup();
+                  setDatabasePanelBuildingId(buildingPopup.buildingId);
+                }}
+              />
+            </>
           );
         }
 
         return (
-          <BuildingActionPopup
-            building={building}
-            screenPos={buildingPopup.screenPos}
-            onClose={() => setBuildingPopup(null)}
-            onOpenSettings={() => {
-              setBuildingPopup(null);
-              buildingModal.open(buildingPopup.buildingId);
-            }}
-            onOpenLogsModal={() => {
-              setPm2LogsModalBuildingId(buildingPopup.buildingId);
-            }}
-            onOpenUrlInModal={handleOpenUrlInModal}
-          />
+          <>
+            <div className="building-popup-backdrop" onClick={closePopup} />
+            <BuildingActionPopup
+              building={building}
+              screenPos={buildingPopup.screenPos}
+              onClose={closePopup}
+              onOpenSettings={() => {
+                closePopup();
+                buildingModal.open(buildingPopup.buildingId);
+              }}
+              onOpenLogsModal={() => {
+                setPm2LogsModalBuildingId(buildingPopup.buildingId);
+              }}
+              onOpenUrlInModal={handleOpenUrlInModal}
+            />
+          </>
         );
       })()}
 

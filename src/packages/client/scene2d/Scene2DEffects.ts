@@ -129,7 +129,7 @@ export class Scene2DEffects {
     effect: MoveOrderEffect,
     now: number
   ): void {
-    const progress = (now - effect.startTime) / effect.duration;
+    const progress = Math.min(1, Math.max(0, (now - effect.startTime) / effect.duration));
     const zoom = camera.getZoom();
 
     // Smooth ease-out for alpha

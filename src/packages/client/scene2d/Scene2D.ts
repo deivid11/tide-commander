@@ -741,6 +741,38 @@ export class Scene2D {
     return null;
   }
 
+  getAreaAtScreenPos(screenX: number, screenY: number): Area2DData | null {
+    const worldPos = this.camera.screenToWorld(screenX, screenY);
+    return this.getAreaAtWorldPos(worldPos.x, worldPos.z);
+  }
+
+  getAreaAtWorldPos(worldX: number, worldZ: number): Area2DData | null {
+    for (const area of this.areas.values()) {
+      if (area.type === 'rectangle' && 'width' in area.size) {
+        const { width, height } = area.size;
+        const left = area.position.x - width / 2;
+        const right = area.position.x + width / 2;
+        const top = area.position.z - height / 2;
+        const bottom = area.position.z + height / 2;
+
+        if (worldX >= left && worldX <= right && worldZ >= top && worldZ <= bottom) {
+          return area;
+        }
+      } else if (area.type === 'circle' && 'radius' in area.size) {
+        const { radius } = area.size;
+        const dx = worldX - area.position.x;
+        const dz = worldZ - area.position.z;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+
+        if (dist <= radius) {
+          return area;
+        }
+      }
+    }
+
+    return null;
+  }
+
   // ============================================
   // Drawing Methods
   // ============================================
