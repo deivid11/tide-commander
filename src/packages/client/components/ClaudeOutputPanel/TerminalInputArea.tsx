@@ -5,7 +5,7 @@
  */
 
 import React, { useRef, useEffect, useState } from 'react';
-import { store } from '../../store';
+import { store, useSettings } from '../../store';
 import { PermissionRequestInline } from './PermissionRequest';
 import { getImageWebUrl } from './contentRendering';
 import { PastedTextChip } from './PastedTextChip';
@@ -81,6 +81,9 @@ export function TerminalInputArea({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const prevUseTextareaRef = useRef(useTextarea);
   const cursorPositionRef = useRef<number>(0);
+
+  // Get settings to check if TTS feature is enabled
+  const settings = useSettings();
 
   // Speech-to-text hook - automatically send transcribed text to agent
   const { recording, transcribing, toggleRecording } = useSTT({
@@ -421,14 +424,16 @@ export function TerminalInputArea({
             >
               📎
             </button>
-            <button
-              className={`guake-mic-btn ${recording ? 'recording' : ''} ${transcribing ? 'transcribing' : ''}`}
-              onClick={toggleRecording}
-              title={recording ? 'Stop recording' : transcribing ? 'Transcribing...' : 'Voice input (Whisper)'}
-              disabled={transcribing}
-            >
-              {transcribing ? '⏳' : recording ? '🔴' : '🎤'}
-            </button>
+            {settings.experimentalTTS && (
+              <button
+                className={`guake-mic-btn ${recording ? 'recording' : ''} ${transcribing ? 'transcribing' : ''}`}
+                onClick={toggleRecording}
+                title={recording ? 'Stop recording' : transcribing ? 'Transcribing...' : 'Voice input (Whisper)'}
+                disabled={transcribing}
+              >
+                {transcribing ? '⏳' : recording ? '🔴' : '🎤'}
+              </button>
+            )}
             {useTextarea ? (
               <textarea
                 ref={textareaRef}

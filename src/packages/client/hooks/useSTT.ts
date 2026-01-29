@@ -4,7 +4,7 @@
  */
 
 import { useState, useCallback, useRef } from 'react';
-import { apiUrl } from '../utils/storage';
+import { apiUrl, authFetch } from '../utils/storage';
 
 interface STTOptions {
   language?: string;
@@ -148,7 +148,7 @@ export function useSTT(options: STTOptions = {}) {
 
           console.log('[STT] Sending audio for transcription...');
 
-          const res = await fetch(apiUrl('/api/stt/transcribe'), {
+          const res = await authFetch(apiUrl('/api/stt/transcribe'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

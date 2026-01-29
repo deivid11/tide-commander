@@ -3,7 +3,7 @@ import { store, useAgents, useSkillsArray, useCustomAgentClassesArray, useCustom
 import { AGENT_CLASS_CONFIG, BUILTIN_AGENT_NAMES, CHARACTER_MODELS } from '../scene/config';
 import type { AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel } from '../../shared/types';
 import { PERMISSION_MODES, CLAUDE_MODELS } from '../../shared/types';
-import { STORAGE_KEYS, getStorageString, setStorageString, apiUrl } from '../utils/storage';
+import { STORAGE_KEYS, getStorageString, setStorageString, apiUrl, authFetch } from '../utils/storage';
 import { ModelPreview } from './ModelPreview';
 import { HelpTooltip } from './shared/Tooltip';
 import { useModalClose } from '../hooks';
@@ -202,7 +202,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
       const url = directory
         ? apiUrl(`/api/agents/claude-sessions?cwd=${encodeURIComponent(directory)}`)
         : apiUrl('/api/agents/claude-sessions');
-      const res = await fetch(url);
+      const res = await authFetch(url);
       const data = await res.json();
       setSessions(data.sessions || []);
     } catch (err) {

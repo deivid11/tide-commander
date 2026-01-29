@@ -9,7 +9,7 @@
 import React, { useState, useCallback } from 'react';
 import { useSTT } from '../hooks/useSTT';
 import { useTTS } from '../hooks/useTTS';
-import { apiUrl } from '../utils/storage';
+import { apiUrl, authFetch } from '../utils/storage';
 
 interface VoiceAssistantProps {
   className?: string;
@@ -30,7 +30,7 @@ export function VoiceAssistant({ className }: VoiceAssistantProps) {
 
     try {
       // Send to voice assistant API
-      const res = await fetch(apiUrl('/api/voice-assistant/process'), {
+      const res = await authFetch(apiUrl('/api/voice-assistant/process'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),

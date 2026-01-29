@@ -33,6 +33,9 @@ export class Scene2DInput {
   private lastClickTarget: string | null = null;
   private doubleClickDelay = 400; // Increased from 300 for better detection
 
+  // Feature flags
+  private static readonly ENABLE_DOUBLE_CLICK_CAMERA_FOCUS = false; // Set to true to enable camera zoom/pan on double-click
+
   // Selection box
   private selectionBox: SelectionBox | null = null;
 
@@ -70,6 +73,7 @@ export class Scene2DInput {
     this.canvas.removeEventListener('touchstart', this.onTouchStart);
     this.canvas.removeEventListener('touchmove', this.onTouchMove);
     this.canvas.removeEventListener('touchend', this.onTouchEnd);
+    document.removeEventListener('keydown', this.onKeyDown);
   }
 
   private setupEventListeners(): void {
@@ -84,6 +88,9 @@ export class Scene2DInput {
     this.canvas.addEventListener('touchstart', this.onTouchStart, { passive: false });
     this.canvas.addEventListener('touchmove', this.onTouchMove, { passive: false });
     this.canvas.addEventListener('touchend', this.onTouchEnd);
+
+    // Keyboard events (for space key to open terminal)
+    document.addEventListener('keydown', this.onKeyDown);
   }
 
   // ============================================
@@ -457,6 +464,101 @@ export class Scene2DInput {
   };
 
   // ============================================
+  // Keyboard Events
+  // ============================================
+
+  private onKeyDown = (event: KeyboardEvent): void => {
+    const target = event.target as HTMLElement;
+    const state = store.getState();
+
+    // Check if we're in an input field
+    const isInInputField = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+    const guakeTerminal = target.closest('.guake-terminal');
+    const isCollapsedTerminal = guakeTerminal?.classList.contains('collapsed');
+
+    // Don't handle if typing in an input field (with exceptions)
+    if (isInInputField) {
+      // Exception: Alt+H/L in collapsed terminal input - blur and continue for navigation
+      const isAltNavKey = event.altKey && (event.key === 'h' || event.key === 'l');
+
+      if (isAltNavKey && isCollapsedTerminal) {
+        (target as HTMLInputElement | HTMLTextAreaElement).blur();
+      } else {
+        // Space and other keys should not trigger when input is focused
+        return;
+      }
+    }
+
+    // Alt+H / Alt+L for agent navigation (works when terminal is closed)
+    if (event.altKey && (event.key === 'h' || event.key === 'l') && !state.terminalOpen) {
+      const orderedAgents = this.getOrderedAgents(state.agents);
+      if (orderedAgents.length <= 1) return;
+
+      const selectedId = state.selectedAgentIds.size === 1
+        ? Array.from(state.selectedAgentIds)[0]
+        : null;
+      const currentIndex = selectedId ? orderedAgents.findIndex(a => a.id === selectedId) : -1;
+
+      let nextIndex: number;
+      if (event.key === 'l') {
+        // Alt+L → next agent
+        nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % orderedAgents.length;
+      } else {
+        // Alt+H → previous agent
+        nextIndex = currentIndex === -1 ? orderedAgents.length - 1 : (currentIndex - 1 + orderedAgents.length) % orderedAgents.length;
+      }
+
+      event.preventDefault();
+      store.selectAgent(orderedAgents[nextIndex].id);
+      return;
+    }
+
+    // Space key to open terminal
+    if (event.key === ' ') {
+      // Don't trigger if inside an open terminal
+      if (guakeTerminal && !isCollapsedTerminal) {
+        return;
+      }
+
+      // Don't trigger if any interactive element has focus (buttons, links, etc.)
+      if (target.tagName === 'BUTTON' || target.tagName === 'A') {
+        return;
+      }
+
+      // Only OPEN the terminal with Space (use backtick or Escape to close)
+      if (state.terminalOpen) return;
+
+      // If no agent selected, select the last active agent
+      if (state.selectedAgentIds.size === 0) {
+        const lastAgentId = state.lastSelectedAgentId;
+        if (lastAgentId && state.agents.has(lastAgentId)) {
+          event.preventDefault();
+          store.selectAgent(lastAgentId);
+          store.setTerminalOpen(true);
+        }
+        return;
+      }
+
+      // Prevent page scroll
+      event.preventDefault();
+
+      // Open terminal
+      store.setTerminalOpen(true);
+    }
+  };
+
+  /**
+   * Get agents ordered by creation time (for Alt+H/L navigation)
+   */
+  private getOrderedAgents(agents: Map<string, any>): any[] {
+    return Array.from(agents.values()).sort((a, b) => {
+      const timeA = a.createdAt || 0;
+      const timeB = b.createdAt || 0;
+      return timeA - timeB;
+    });
+  }
+
+  // ============================================
   // Touch Events
   // ============================================
 
@@ -559,8 +661,10 @@ export class Scene2DInput {
         this.lastClickTarget === agent.id &&
         now - this.lastClickTime < this.doubleClickDelay
       ) {
-        // Focus camera on agent with smooth animation
-        this.focusCameraOnAgent(agent.id);
+        // Focus camera on agent with smooth animation (if enabled)
+        if (Scene2DInput.ENABLE_DOUBLE_CLICK_CAMERA_FOCUS) {
+          this.focusCameraOnAgent(agent.id);
+        }
         // Open terminal directly via store (same as 3D scene)
         if (window.innerWidth <= 768) {
           store.openTerminalOnMobile(agent.id);
@@ -583,8 +687,10 @@ export class Scene2DInput {
         this.lastClickTarget === building.id &&
         now - this.lastClickTime < this.doubleClickDelay
       ) {
-        // Focus camera on building with smooth animation
-        this.focusCameraOnBuilding(building.id);
+        // Focus camera on building with smooth animation (if enabled)
+        if (Scene2DInput.ENABLE_DOUBLE_CLICK_CAMERA_FOCUS) {
+          this.focusCameraOnBuilding(building.id);
+        }
         this.scene.handleBuildingDoubleClick(building.id);
         this.lastClickTime = 0;
         this.lastClickTarget = null;

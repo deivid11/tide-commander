@@ -4,7 +4,7 @@
  */
 
 import { useState, useCallback, useRef } from 'react';
-import { apiUrl } from '../utils/storage';
+import { apiUrl, authFetch } from '../utils/storage';
 
 export function useTTS() {
   const [speaking, setSpeaking] = useState(false);
@@ -26,7 +26,7 @@ export function useTTS() {
     setSpeaking(true);
 
     try {
-      const res = await fetch(apiUrl('/api/tts/speak'), {
+      const res = await authFetch(apiUrl('/api/tts/speak'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),  // Let server auto-detect language
@@ -98,7 +98,7 @@ export function useTTS() {
 // Standalone function for components that don't want the hook
 export async function speakText(text: string) {
   try {
-    const res = await fetch(apiUrl('/api/tts/speak'), {
+    const res = await authFetch(apiUrl('/api/tts/speak'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text }),  // Let server auto-detect language
