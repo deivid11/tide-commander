@@ -132,10 +132,35 @@ export class SceneCore {
       isConnected: this.canvas.isConnected,
     });
 
-    const renderer = new THREE.WebGLRenderer({
-      canvas: this.canvas,
-      antialias: true,
-    });
+    // Check if there's already a context on this canvas (from a previous failed attempt)
+    // If so, we need to lose it first
+    const existingContext = (this.canvas as any).__webglContext;
+    if (existingContext) {
+      console.log('[SceneCore] Found existing WebGL context, clearing reference');
+      (this.canvas as any).__webglContext = null;
+    }
+
+    let renderer: THREE.WebGLRenderer;
+    try {
+      renderer = new THREE.WebGLRenderer({
+        canvas: this.canvas,
+        antialias: true,
+        powerPreference: 'high-performance',
+        failIfMajorPerformanceCaveat: false,
+      });
+    } catch (error) {
+      // WebGL context creation failed - likely browser doesn't support it or too many contexts
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`[SceneCore] Failed to create WebGLRenderer: ${message}. WebGL may not be available.`);
+    }
+
+    // Verify the context was actually created
+    const gl = renderer.getContext();
+    if (!gl) {
+      renderer.dispose();
+      throw new Error('[SceneCore] Failed to initialize WebGL context - context is null');
+    }
+
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;

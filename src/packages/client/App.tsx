@@ -518,6 +518,7 @@ function AppContent() {
               }}
               indicatorScale={sceneConfig.indicatorScale}
               showGrid={sceneConfig.gridVisible}
+              fpsLimit={sceneConfig.fpsLimit}
             />
           ) : (
             <React.Fragment key={sceneKey}>

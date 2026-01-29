@@ -24,6 +24,7 @@ interface Scene2DCanvasProps {
   onMoveCommand?: (agentIds: string[], targetPos: { x: number; z: number }) => void;
   indicatorScale?: number;
   showGrid?: boolean;
+  fpsLimit?: number;
   className?: string;
 }
 
@@ -42,6 +43,7 @@ export function Scene2DCanvas({
   onMoveCommand,
   indicatorScale = 1.0,
   showGrid = true,
+  fpsLimit = 0,
   className = '',
 }: Scene2DCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -55,6 +57,7 @@ export function Scene2DCanvas({
     setIndicatorScale,
     setGridVisible,
     setDrawingTool,
+    setFpsLimit,
   } = useScene2DSetup(canvasRef, {
     onAgentClick,
     onAgentDoubleClick,
@@ -91,6 +94,11 @@ export function Scene2DCanvas({
   useEffect(() => {
     setGridVisible(showGrid);
   }, [showGrid, setGridVisible]);
+
+  // Apply FPS limit
+  useEffect(() => {
+    setFpsLimit(fpsLimit);
+  }, [fpsLimit, setFpsLimit]);
 
   // Note: Global scene reference (__tideScene2D) is now set in useScene2DSetup hook
 

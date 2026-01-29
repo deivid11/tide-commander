@@ -168,9 +168,14 @@ export function useSceneSetup({
   const sceneRef = useRef<SceneManager | null>(null);
   // Track pending popup timeout to cancel on double-click
   const pendingPopupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Track RAF ID for cleanup
+  const initRafIdRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!canvasRef.current || !selectionBoxRef.current) return;
+
+    // Flag to track if this effect has been cleaned up
+    let isCleanedUp = false;
 
     // Get current persisted state from window (survives StrictMode remounts)
     const currentPersistedScene = getPersistedScene();
@@ -178,6 +183,92 @@ export function useSceneSetup({
 
     // Check if this is the same canvas as before (StrictMode remount)
     const isSameCanvas = currentPersistedCanvas === canvasRef.current;
+
+    // Helper function to set up scene callbacks - defined here so it's available to both branches
+    function setupSceneCallbacks() {
+      // Set up building click callback
+      sceneRef.current?.setOnBuildingClick((buildingId, screenPos) => {
+        store.selectBuilding(buildingId);
+        const building = store.getState().buildings.get(buildingId);
+        if (building?.type === 'folder' && building.folderPath) {
+          store.openFileExplorer(building.folderPath);
+        } else if (building?.type === 'server' || building?.type === 'boss' || building?.type === 'database') {
+          // Clear any pending popup timeout
+          if (pendingPopupTimeoutRef.current) {
+            clearTimeout(pendingPopupTimeoutRef.current);
+          }
+          // Delay popup to allow double-click detection (150ms for faster response)
+          pendingPopupTimeoutRef.current = setTimeout(() => {
+            setBuildingPopup({ buildingId, screenPos, fromClick: true });
+            pendingPopupTimeoutRef.current = null;
+          }, 150);
+        } else {
+          // Open modal for other types
+          openBuildingModal(buildingId);
+        }
+      });
+
+      // Set up context menu callback
+      sceneRef.current?.setOnContextMenu((screenPos, worldPos, target) => {
+        contextMenu.open(screenPos, worldPos, target);
+      });
+
+      // Agent hover popup disabled - no longer showing popup on agent hover
+      sceneRef.current?.setOnAgentHover(() => {
+        // Intentionally empty - popup removed
+      });
+
+      // Set up building hover callback (5 second delay for server buildings)
+      sceneRef.current?.setOnBuildingHover((buildingId, screenPos) => {
+        const currentPopup = getBuildingPopup();
+        if (buildingId && screenPos) {
+          const building = store.getState().buildings.get(buildingId);
+          // Only show hover popup for server, boss, and database buildings (and only if not already opened by click)
+          if ((building?.type === 'server' || building?.type === 'boss' || building?.type === 'database') && !currentPopup?.fromClick) {
+            setBuildingPopup({ buildingId, screenPos, fromClick: false });
+          }
+        } else {
+          // Only close popup if it wasn't opened by a click
+          if (!currentPopup?.fromClick) {
+            setBuildingPopup(null);
+          }
+        }
+      });
+
+      // Set up ground click callback (close building popup when clicking on ground)
+      sceneRef.current?.setOnGroundClick(() => {
+        setBuildingPopup(null);
+      });
+
+      // Set up building double-click callback (open logs for server/boss buildings)
+      sceneRef.current?.setOnBuildingDoubleClick((buildingId) => {
+        // Cancel any pending popup from single click
+        if (pendingPopupTimeoutRef.current) {
+          clearTimeout(pendingPopupTimeoutRef.current);
+          pendingPopupTimeoutRef.current = null;
+        }
+        // Close any existing popup
+        setBuildingPopup(null);
+
+        const building = store.getState().buildings.get(buildingId);
+        if (building?.type === 'server' && building.pm2?.enabled) {
+          // Open PM2 logs modal for server buildings with PM2 enabled
+          openPM2LogsModal?.(buildingId);
+        } else if (building?.type === 'boss') {
+          // Open unified logs modal for boss buildings
+          openBossLogsModal?.(buildingId);
+        } else if (building?.type === 'database') {
+          // Open database panel for database buildings
+          openDatabasePanel?.(buildingId);
+        } else if (building?.type === 'folder' && building.folderPath) {
+          // Open file explorer for folder buildings
+          store.openFileExplorer(building.folderPath);
+        } else {
+          // Open building config modal for other types
+          openBuildingModal(buildingId);
+        }
+      });
+    }
 
     // Reuse existing scene for StrictMode remounts, otherwise create new
     if (currentPersistedScene && isSameCanvas) {
@@ -192,137 +283,102 @@ export function useSceneSetup({
       // Sync areas and buildings
       currentPersistedScene.syncAreas();
       currentPersistedScene.syncBuildings();
+      // Set up callbacks for reused scene
+      setupSceneCallbacks();
     } else {
-      markWebGLActive();
+      // Defer scene initialization to next frame to ensure CSS is applied
+      // This is critical for production builds where CSS may load async
+      const canvas = canvasRef.current;
+      const selectionBox = selectionBoxRef.current;
 
-      const scene = new SceneManager(canvasRef.current, selectionBoxRef.current);
-      sceneRef.current = scene;
-      setPersistedScene(scene);
-      setPersistedCanvas(canvasRef.current);
-
-      // Expose scene manager for debugging in dev mode
-      if (import.meta.env.DEV && typeof window !== 'undefined') {
-        (window as any).__tideScene = scene;
-        console.log('[Tide] SceneManager available at window.__tideScene');
-      }
-
-      // Apply saved config
-      const savedConfig = loadConfig();
-      scene.setCharacterScale(savedConfig.characterScale);
-      scene.setIndicatorScale(savedConfig.indicatorScale);
-      scene.setGridVisible(savedConfig.gridVisible);
-      scene.setTimeMode(savedConfig.timeMode);
-      scene.setTerrainConfig(savedConfig.terrain);
-      scene.setFloorStyle(savedConfig.terrain.floorStyle, true);
-      scene.setAgentModelStyle(savedConfig.modelStyle);
-      scene.setIdleAnimation(savedConfig.animations.idleAnimation);
-      scene.setWorkingAnimation(savedConfig.animations.workingAnimation);
-      scene.setFpsLimit(savedConfig.fpsLimit);
-
-      // Sync areas and buildings immediately (don't need to wait for models)
-      scene.syncAreas();
-      scene.syncBuildings();
-
-      // Load character models then sync agents from store
-      scene.loadCharacterModels().then(() => {
-        console.log('[Tide] Character models ready');
-        const state = store.getState();
-        if (state.customAgentClasses.size > 0) {
-          console.log('[Tide] Applying custom classes from store:', state.customAgentClasses.size);
-          scene.setCustomAgentClasses(state.customAgentClasses);
+      const initScene = () => {
+        // Check if effect was cleaned up before RAF executed
+        if (isCleanedUp) {
+          console.log('[Tide] Effect cleaned up before scene init, skipping');
+          return;
         }
-        if (state.agents.size > 0) {
-          console.log('[Tide] Syncing agents from store:', state.agents.size);
-          scene.syncAgents(Array.from(state.agents.values()));
+
+        // Verify canvas still exists and is connected
+        if (!canvas.isConnected || !selectionBox.isConnected) {
+          console.warn('[Tide] Canvas disconnected before initialization');
+          return;
         }
-        scene.upgradeAgentModels();
-      }).catch((err) => {
-        console.warn('[Tide] Some models failed to load, using fallback:', err);
-      });
+
+        // Ensure canvas has dimensions - fallback to window size if CSS not applied
+        if (!canvas.clientWidth || !canvas.clientHeight) {
+          console.log('[Tide] Canvas has no CSS dimensions, using window fallback');
+          canvas.style.width = '100%';
+          canvas.style.height = '100%';
+          // Force reflow
+          void canvas.offsetHeight;
+        }
+
+        // If still no dimensions, set explicit size
+        if (!canvas.clientWidth || !canvas.clientHeight) {
+          canvas.width = window.innerWidth;
+          canvas.height = window.innerHeight;
+        }
+
+        markWebGLActive();
+
+        try {
+          const scene = new SceneManager(canvas, selectionBox);
+          sceneRef.current = scene;
+          setPersistedScene(scene);
+          setPersistedCanvas(canvas);
+
+          // Expose scene manager for debugging in dev mode
+          if (import.meta.env.DEV && typeof window !== 'undefined') {
+            (window as any).__tideScene = scene;
+            console.log('[Tide] SceneManager available at window.__tideScene');
+          }
+
+          // Apply saved config
+          const savedConfig = loadConfig();
+          scene.setCharacterScale(savedConfig.characterScale);
+          scene.setIndicatorScale(savedConfig.indicatorScale);
+          scene.setGridVisible(savedConfig.gridVisible);
+          scene.setTimeMode(savedConfig.timeMode);
+          scene.setTerrainConfig(savedConfig.terrain);
+          scene.setFloorStyle(savedConfig.terrain.floorStyle, true);
+          scene.setAgentModelStyle(savedConfig.modelStyle);
+          scene.setIdleAnimation(savedConfig.animations.idleAnimation);
+          scene.setWorkingAnimation(savedConfig.animations.workingAnimation);
+          scene.setFpsLimit(savedConfig.fpsLimit);
+
+          // Sync areas and buildings immediately (don't need to wait for models)
+          scene.syncAreas();
+          scene.syncBuildings();
+
+          // Load character models then sync agents from store
+          scene.loadCharacterModels().then(() => {
+            console.log('[Tide] Character models ready');
+            const state = store.getState();
+            if (state.customAgentClasses.size > 0) {
+              console.log('[Tide] Applying custom classes from store:', state.customAgentClasses.size);
+              scene.setCustomAgentClasses(state.customAgentClasses);
+            }
+            if (state.agents.size > 0) {
+              console.log('[Tide] Syncing agents from store:', state.agents.size);
+              scene.syncAgents(Array.from(state.agents.values()));
+            }
+            scene.upgradeAgentModels();
+          }).catch((err) => {
+            console.warn('[Tide] Some models failed to load, using fallback:', err);
+          });
+
+          // Set up callbacks after scene is created
+          setupSceneCallbacks();
+        } catch (error) {
+          console.error('[Tide] Failed to initialize 3D scene:', error);
+          // Could trigger fallback to 2D mode here if needed
+        }
+      };
+
+      // Use requestAnimationFrame to ensure DOM layout is complete
+      // This prevents WebGL context creation failures in production builds
+      initRafIdRef.current = requestAnimationFrame(initScene);
     }
-
-    // Set up building click callback
-    sceneRef.current?.setOnBuildingClick((buildingId, screenPos) => {
-      store.selectBuilding(buildingId);
-      const building = store.getState().buildings.get(buildingId);
-      if (building?.type === 'folder' && building.folderPath) {
-        store.openFileExplorer(building.folderPath);
-      } else if (building?.type === 'server' || building?.type === 'boss' || building?.type === 'database') {
-        // Clear any pending popup timeout
-        if (pendingPopupTimeoutRef.current) {
-          clearTimeout(pendingPopupTimeoutRef.current);
-        }
-        // Delay popup to allow double-click detection (150ms for faster response)
-        pendingPopupTimeoutRef.current = setTimeout(() => {
-          setBuildingPopup({ buildingId, screenPos, fromClick: true });
-          pendingPopupTimeoutRef.current = null;
-        }, 150);
-      } else {
-        // Open modal for other types
-        openBuildingModal(buildingId);
-      }
-    });
-
-    // Set up context menu callback
-    sceneRef.current?.setOnContextMenu((screenPos, worldPos, target) => {
-      contextMenu.open(screenPos, worldPos, target);
-    });
-
-    // Agent hover popup disabled - no longer showing popup on agent hover
-    sceneRef.current?.setOnAgentHover(() => {
-      // Intentionally empty - popup removed
-    });
-
-    // Set up building hover callback (5 second delay for server buildings)
-    sceneRef.current?.setOnBuildingHover((buildingId, screenPos) => {
-      const currentPopup = getBuildingPopup();
-      if (buildingId && screenPos) {
-        const building = store.getState().buildings.get(buildingId);
-        // Only show hover popup for server, boss, and database buildings (and only if not already opened by click)
-        if ((building?.type === 'server' || building?.type === 'boss' || building?.type === 'database') && !currentPopup?.fromClick) {
-          setBuildingPopup({ buildingId, screenPos, fromClick: false });
-        }
-      } else {
-        // Only close popup if it wasn't opened by a click
-        if (!currentPopup?.fromClick) {
-          setBuildingPopup(null);
-        }
-      }
-    });
-
-    // Set up ground click callback (close building popup when clicking on ground)
-    sceneRef.current?.setOnGroundClick(() => {
-      setBuildingPopup(null);
-    });
-
-    // Set up building double-click callback (open logs for server/boss buildings)
-    sceneRef.current?.setOnBuildingDoubleClick((buildingId) => {
-      // Cancel any pending popup from single click
-      if (pendingPopupTimeoutRef.current) {
-        clearTimeout(pendingPopupTimeoutRef.current);
-        pendingPopupTimeoutRef.current = null;
-      }
-      // Close any existing popup
-      setBuildingPopup(null);
-
-      const building = store.getState().buildings.get(buildingId);
-      if (building?.type === 'server' && building.pm2?.enabled) {
-        // Open PM2 logs modal for server buildings with PM2 enabled
-        openPM2LogsModal?.(buildingId);
-      } else if (building?.type === 'boss') {
-        // Open unified logs modal for boss buildings
-        openBossLogsModal?.(buildingId);
-      } else if (building?.type === 'database') {
-        // Open database panel for database buildings
-        openDatabasePanel?.(buildingId);
-      } else if (building?.type === 'folder' && building.folderPath) {
-        // Open file explorer for folder buildings
-        store.openFileExplorer(building.folderPath);
-      } else {
-        // Open building config modal for other types
-        openBuildingModal(buildingId);
-      }
-    });
 
     // Set up scene-specific websocket callbacks for visual effects
     // Note: Connection and basic callbacks are handled by useWebSocketConnection
@@ -366,10 +422,19 @@ export function useSceneSetup({
 
     // Cleanup when canvas unmounts (mode switch to 2D or page unload)
     return () => {
-      // In development, React StrictMode double-mounts components.
-      // The cleanup runs between mounts, but the canvas stays connected.
+      // Mark as cleaned up to prevent pending RAF from running
+      isCleanedUp = true;
+
+      // Cancel any pending initialization RAF
+      if (initRafIdRef.current !== null) {
+        cancelAnimationFrame(initRafIdRef.current);
+        initRafIdRef.current = null;
+      }
+
+      // React may re-run effects when dependencies change, but the canvas stays connected.
       // Only dispose if the canvas is actually disconnected from DOM (real unmount).
-      if (import.meta.env.DEV && canvasRef.current?.isConnected) {
+      // This prevents losing WebGL context when canvas is being reused.
+      if (canvasRef.current?.isConnected) {
         return;
       }
 

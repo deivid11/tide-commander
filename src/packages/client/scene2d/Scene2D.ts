@@ -103,7 +103,12 @@ export class Scene2D {
   // Animation
   private animationFrameId: number | null = null;
   private lastFrameTime = 0;
+  private lastRenderTime = 0;
   private isRunning = false;
+
+  // FPS limiting
+  private fpsLimit = 0; // 0 = unlimited
+  private frameInterval = 0; // Calculated from fpsLimit
 
   // Movements (for animation)
   private movements = new Map<string, {
@@ -117,7 +122,7 @@ export class Scene2D {
   private callbacks: Scene2DCallbacks = {};
 
   // Configuration
-  private indicatorScale = 1.0;
+  private indicatorScale = 0.7;
   private showGrid = true;
   private gridSize = 30; // World units
   private gridSpacing = 2; // World units between lines
@@ -206,10 +211,26 @@ export class Scene2D {
   private animate = (): void => {
     if (!this.isRunning) return;
 
+    this.animationFrameId = requestAnimationFrame(this.animate);
+
+    const now = performance.now();
+
+    // FPS limiting - skip render if not enough time has passed
+    if (this.frameInterval > 0) {
+      const elapsed = now - this.lastRenderTime;
+      if (elapsed < this.frameInterval) {
+        // Still update camera for smooth panning even when frame-limited
+        const deltaTime = (now - this.lastFrameTime) / 1000;
+        this.lastFrameTime = now;
+        this.camera.update(deltaTime);
+        return;
+      }
+      this.lastRenderTime = now;
+    }
+
     // Track FPS for the FPSMeter component
     fpsTracker.tick();
 
-    const now = performance.now();
     const deltaTime = (now - this.lastFrameTime) / 1000;
     this.lastFrameTime = now;
 
@@ -227,8 +248,6 @@ export class Scene2D {
 
     // Render
     this.render();
-
-    this.animationFrameId = requestAnimationFrame(this.animate);
   };
 
   private updateMovements(now: number): void {
@@ -915,6 +934,12 @@ export class Scene2D {
 
   setGridVisible(visible: boolean): void {
     this.showGrid = visible;
+  }
+
+  setFpsLimit(limit: number): void {
+    this.fpsLimit = limit;
+    this.frameInterval = limit > 0 ? 1000 / limit : 0;
+    console.log(`[Tide 2D] FPS limit set to ${limit}, frameInterval: ${this.frameInterval}ms`);
   }
 
   // ============================================

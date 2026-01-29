@@ -203,6 +203,10 @@ export function useScene2DSetup(
     sceneRef.current?.setDrawingTool(tool);
   }, []);
 
+  const setFpsLimit = useCallback((limit: number) => {
+    sceneRef.current?.setFpsLimit(limit);
+  }, []);
+
   return {
     scene: sceneRef,
     focusAgent,
@@ -212,5 +216,6 @@ export function useScene2DSetup(
     setIndicatorScale,
     setGridVisible,
     setDrawingTool,
+    setFpsLimit,
   };
 }

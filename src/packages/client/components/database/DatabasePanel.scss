@@ -1,6 +1,7 @@
 /**
  * DatabasePanel Styles
  */
+@use 'sass:color';
 @use '../../styles/variables' as *;
 
 .database-panel {
@@ -105,7 +106,7 @@
       color: white;
 
       &:hover {
-        background: lighten($accent-blue, 5%);
+        background: color.adjust($accent-blue, $lightness: 5%);
       }
     }
   }
