@@ -41,7 +41,7 @@ export const DEFAULT_FPS_LIMIT = 0;
 export function loadConfig(): SceneConfig {
   const defaultConfig: SceneConfig = {
     characterScale: 2.0,
-    indicatorScale: 2.0,
+    indicatorScale: 1,
     gridVisible: true,
     timeMode: 'day',
     terrain: DEFAULT_TERRAIN,

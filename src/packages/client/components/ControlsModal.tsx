@@ -45,6 +45,9 @@ export function ControlsModal({ isOpen, onClose }: ControlsModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedContext, setExpandedContext] = useState<ShortcutConfig['context'] | 'all'>('all');
 
+  // Must be called before any early returns to maintain hook order
+  const { handleMouseDown: handleBackdropMouseDown, handleClick: handleBackdropClick } = useModalClose(onClose);
+
   // Close on escape
   useEffect(() => {
     if (!isOpen) return;
@@ -130,8 +133,6 @@ export function ControlsModal({ isOpen, onClose }: ControlsModalProps) {
     },
     { camera: [] as MouseControlConfig[], interaction: [] as MouseControlConfig[] }
   );
-
-  const { handleMouseDown: handleBackdropMouseDown, handleClick: handleBackdropClick } = useModalClose(onClose);
 
   return (
     <div className="shortcuts-modal-overlay" onMouseDown={handleBackdropMouseDown} onClick={handleBackdropClick}>

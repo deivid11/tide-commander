@@ -111,14 +111,22 @@ export function ThemeSelector() {
       </button>
 
       {isOpen && (
-        <div className="theme-selector-dropdown">
+        <div
+          className="theme-selector-dropdown"
+          onMouseDown={(e) => e.stopPropagation()} // Prevent terminal close-on-click-outside
+          onClick={(e) => e.stopPropagation()}
+        >
           <div className="theme-selector-header">Select Theme</div>
           <div className="theme-selector-list">
             {themes.map((theme, index) => (
               <button
                 key={theme.id}
                 className={`theme-selector-option ${theme.id === currentTheme ? 'active' : ''} ${index === highlightedIndex ? 'highlighted' : ''}`}
-                onClick={() => handleThemeSelect(theme.id)}
+                onClick={(e) => {
+                  e.stopPropagation(); // Prevent click-outside handler from closing terminal
+                  handleThemeSelect(theme.id);
+                }}
+                onMouseDown={(e) => e.stopPropagation()} // Prevent mousedown tracking
                 onMouseEnter={() => setHighlightedIndex(index)}
               >
                 <span

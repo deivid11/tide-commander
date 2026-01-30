@@ -31,6 +31,7 @@ const fileLogConfig: FileLogConfig = {
 let logFileStream: fs.WriteStream | null = null;
 let currentLogFilePath: string = '';
 let isInitialized = false;
+let writeCount = 0; // PERF: Counter for periodic rotation check
 
 /**
  * Initialize the log directory and file stream
@@ -126,8 +127,11 @@ function writeToFile(message: string): void {
     const cleanMessage = stripAnsiColors(message);
     logFileStream.write(cleanMessage + '\n');
 
-    // Check for rotation periodically (every write is fine for simplicity)
-    checkAndRotateLogs();
+    // PERF: Check for rotation every 100 writes instead of every write
+    // This avoids fs.statSync() on every log call
+    if (++writeCount % 100 === 0) {
+      checkAndRotateLogs();
+    }
   }
 }
 
@@ -270,7 +274,9 @@ function formatMessage(level: LogLevel, context: string, message: string, ...arg
   const { label, color } = levelConfig[level];
   const timestamp = formatTimestamp();
   const pid = process.pid;
-  const caller = getCallerInfo();
+  // PERF: Disabled stack trace extraction - creates Error object + regex on every log call
+  // const caller = getCallerInfo();
+  const caller = null;
 
   const appName = `${colors.green}[Tide]${colors.reset}`;
   const pidStr = `${colors.dim}${pid}${colors.reset}`;
@@ -278,10 +284,8 @@ function formatMessage(level: LogLevel, context: string, message: string, ...arg
   const levelStr = `${color}${colors.bright}${label.padStart(7)}${colors.reset}`;
   const contextStr = `${colors.yellow}[${context}]${colors.reset}`;
 
-  // Format caller info
-  const callerStr = caller
-    ? `${colors.dim}${caller.file}:${caller.line}${colors.reset}`
-    : '';
+  // Format caller info (disabled for performance - caller is always null)
+  const callerStr = '';
 
   let formattedMessage = message;
   if (args.length > 0) {

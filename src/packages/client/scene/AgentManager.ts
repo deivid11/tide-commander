@@ -664,15 +664,25 @@ export class AgentManager {
 
     const defaultAnimation = statusAnimations[status] || ANIMATIONS.IDLE;
 
-    // For custom models, verify the animation exists - if not, try common fallbacks
-    if (customMapping && !meshData.animations.has(defaultAnimation) && !meshData.animations.has(defaultAnimation.toLowerCase())) {
-      // Try to find any available animation as fallback
-      // Priority: idle mapping, or return null to stop animation
-      if (customMapping.idle && (meshData.animations.has(customMapping.idle) || meshData.animations.has(customMapping.idle.toLowerCase()))) {
+    // Verify the animation exists - if not, try fallbacks
+    const hasAnim = meshData.animations.has(defaultAnimation) || meshData.animations.has(defaultAnimation.toLowerCase());
+    if (!hasAnim) {
+      // For custom models with mapping, try the mapped idle animation
+      if (customMapping?.idle && (meshData.animations.has(customMapping.idle) || meshData.animations.has(customMapping.idle.toLowerCase()))) {
         return customMapping.idle;
       }
-      // No valid animation found - return null to stop animation rather than
-      // falling back to the first animation in the model file
+      // Try built-in 'idle' animation as fallback
+      if (meshData.animations.has(ANIMATIONS.IDLE) || meshData.animations.has(ANIMATIONS.IDLE.toLowerCase())) {
+        console.warn(`[AgentManager] Animation '${defaultAnimation}' not found, falling back to 'idle'`);
+        return ANIMATIONS.IDLE;
+      }
+      // Try 'static' as last resort
+      if (meshData.animations.has(ANIMATIONS.STATIC) || meshData.animations.has(ANIMATIONS.STATIC.toLowerCase())) {
+        console.warn(`[AgentManager] Animation '${defaultAnimation}' not found, falling back to 'static'`);
+        return ANIMATIONS.STATIC;
+      }
+      // No valid animation found - return null to stop animation
+      console.warn(`[AgentManager] No valid animation found for status '${status}', stopping animation`);
       return null;
     }
 

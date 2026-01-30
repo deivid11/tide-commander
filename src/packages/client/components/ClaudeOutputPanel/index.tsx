@@ -61,6 +61,7 @@ import {
 } from './TerminalModals';
 import { HistoryLine } from './HistoryLine';
 import { OutputLine } from './OutputLine';
+import { VirtualizedOutputList } from './VirtualizedOutputList';
 import { GuakeAgentLink as _GuakeAgentLink } from './GuakeAgentLink';
 import { AgentDebugPanel } from './AgentDebugPanel';
 import { agentDebugger } from '../../services/agentDebugger';
@@ -308,8 +309,21 @@ export function ClaudeOutputPanel() {
     });
   }, [keyboard.keyboardScrollLockRef, scrollToBottomSync]);
 
-  // Scroll handling
+  // Scroll handling - track if user scrolled up to disable auto-scroll
+  const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const isUserScrolledUpRef = useRef(false);
+
+  const handleUserScrollUp = useCallback(() => {
+    isUserScrolledUpRef.current = true;
+    setShouldAutoScroll(false);
+  }, []);
+
+  // Reset auto-scroll when user sends a message or agent changes
+  useEffect(() => {
+    setShouldAutoScroll(true);
+    isUserScrolledUpRef.current = false;
+  }, [selectedAgentId, outputs.length]);
+
   const handleScroll = useCallback(() => {
     if (!outputScrollRef.current) return;
     if (keyboard.keyboardScrollLockRef.current) return;
@@ -317,6 +331,10 @@ export function ClaudeOutputPanel() {
     const { scrollTop, scrollHeight, clientHeight } = outputScrollRef.current;
     const isAtBottom = scrollHeight - scrollTop - clientHeight < 150;
     isUserScrolledUpRef.current = !isAtBottom;
+
+    if (isAtBottom) {
+      setShouldAutoScroll(true);
+    }
 
     historyLoader.handleScroll(keyboard.keyboardScrollLockRef);
   }, [outputScrollRef, keyboard.keyboardScrollLockRef, historyLoader]);
@@ -628,42 +646,25 @@ export function ClaudeOutputPanel() {
                     )}
                   </div>
                 )}
-                {filteredHistory.map((msg, index) => (
-                  <div
-                    key={`h-${index}`}
-                    data-message-index={index}
-                    className={`message-nav-wrapper ${messageNav.isSelected(index) ? 'message-selected' : ''}`}
-                  >
-                    <HistoryLine
-                      message={msg}
-                      agentId={selectedAgentId}
-                      simpleView={viewMode !== 'advanced'}
-                      onImageClick={handleImageClick}
-                      onFileClick={handleFileClick}
-                      onBashClick={handleBashClick}
-                      onViewMarkdown={handleViewMarkdown}
-                    />
-                  </div>
-                ))}
-                {filteredOutputs.map((output, index) => {
-                  const globalIndex = filteredHistory.length + index;
-                  return (
-                    <div
-                      key={`o-${index}`}
-                      data-message-index={globalIndex}
-                      className={`message-nav-wrapper ${messageNav.isSelected(globalIndex) ? 'message-selected' : ''}`}
-                    >
-                      <OutputLine
-                        output={output}
-                        agentId={selectedAgentId}
-                        onImageClick={handleImageClick}
-                        onFileClick={handleFileClick}
-                        onBashClick={handleBashClick}
-                        onViewMarkdown={handleViewMarkdown}
-                      />
-                    </div>
-                  );
-                })}
+                {/* Virtualized rendering - only renders visible items + overscan buffer */}
+                <VirtualizedOutputList
+                  historyMessages={filteredHistory}
+                  liveOutputs={filteredOutputs}
+                  agentId={selectedAgentId}
+                  viewMode={viewMode}
+                  selectedMessageIndex={messageNav.selectedIndex}
+                  isMessageSelected={messageNav.isSelected}
+                  onImageClick={handleImageClick}
+                  onFileClick={handleFileClick}
+                  onBashClick={handleBashClick}
+                  onViewMarkdown={handleViewMarkdown}
+                  scrollContainerRef={outputScrollRef}
+                  onScrollTopReached={historyLoader.loadMoreHistory}
+                  isLoadingMore={historyLoader.loadingMore}
+                  hasMore={historyLoader.hasMore}
+                  shouldAutoScroll={shouldAutoScroll}
+                  onUserScroll={handleUserScrollUp}
+                />
                 {/* Boss agent progress indicators */}
                 {isBoss && agentTaskProgress.size > 0 && (
                   <div className="agent-progress-container">

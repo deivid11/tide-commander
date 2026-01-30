@@ -258,6 +258,19 @@ export function TerminalInputArea({
     }
   };
 
+  const handleMouseDown = (e: React.MouseEvent) => {
+    // Allow normal mouse events on input/textarea
+    // Middle-click paste is now only disabled on the container itself
+  };
+
+  const handleContainerAuxClick = (e: React.MouseEvent) => {
+    // Disable middle-click (auxclick is the proper event for middle-click)
+    if (e.button === 1) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  };
+
   const handlePaste = async (e: React.ClipboardEvent) => {
     const items = e.clipboardData.items;
 
@@ -416,7 +429,7 @@ export function TerminalInputArea({
             style={{ display: 'none' }}
             accept="image/*,.txt,.md,.json,.js,.ts,.tsx,.jsx,.py,.sh,.css,.scss,.html,.xml,.yaml,.yml,.toml,.ini,.cfg,.conf"
           />
-          <div className="guake-input-container">
+          <div className="guake-input-container" onAuxClick={handleContainerAuxClick}>
             <button
               className="guake-attach-btn"
               onClick={() => fileInputRef.current?.click()}
@@ -442,6 +455,7 @@ export function TerminalInputArea({
                 onChange={handleChange}
                 onKeyDown={handleKeyDown}
                 onPaste={handlePaste}
+                onMouseDown={handleMouseDown}
                 onFocus={handleInputFocus}
                 onBlur={handleInputBlur}
               />
@@ -454,6 +468,7 @@ export function TerminalInputArea({
                 onChange={handleChange}
                 onKeyDown={handleKeyDown}
                 onPaste={handlePaste}
+                onMouseDown={handleMouseDown}
                 onFocus={handleInputFocus}
                 onBlur={handleInputBlur}
               />

@@ -562,17 +562,10 @@ export class ClaudeRunner {
     try {
       const rawEvent = JSON.parse(line);
 
-      // Log all event types for debugging
-      log.log(`[EVENT] ${agentId.slice(0,4)}: type=${rawEvent.type}, subtype=${rawEvent.subtype || 'none'}, tool_name=${rawEvent.tool_name || 'none'}`);
-
-      // Extra debug logging for tool_use events
-      if (rawEvent.type === 'tool_use') {
-        log.log(`[TOOL_USE DETAIL] subtype=${rawEvent.subtype}, hasInput=${!!rawEvent.input}, hasResult=${!!rawEvent.result}, tool=${rawEvent.tool_name}`);
-      }
-
-      // Log result events for debugging context tracking
-      if (rawEvent.type === 'result') {
-        log.log(` Got result event for ${agentId}:`, JSON.stringify(rawEvent).substring(0, 500));
+      // PERF: Verbose event logging disabled - was causing CPU spikes
+      // Enable via DEBUG env var if needed for debugging
+      if (process.env.DEBUG) {
+        log.log(`[EVENT] ${agentId.slice(0,4)}: type=${rawEvent.type}, subtype=${rawEvent.subtype || 'none'}, tool_name=${rawEvent.tool_name || 'none'}`);
       }
 
       // Extract session ID if present
@@ -672,10 +665,7 @@ export class ClaudeRunner {
       case 'tool_result':
         // Send Bash tool results as text output for display
         // Other tool results are too verbose (file contents, etc.)
-        log.log(`tool_result: toolName=${event.toolName}, hasOutput=${!!event.toolOutput}, outputLen=${event.toolOutput?.length || 0}`);
         if (event.toolName === 'Bash' && event.toolOutput) {
-          // Send full output - no truncation
-          log.log(`Sending Bash output: ${event.toolOutput.slice(0, 100)}...`);
           this.callbacks.onOutput(agentId, `Bash output:\n${event.toolOutput}`);
         }
         break;
@@ -683,9 +673,7 @@ export class ClaudeRunner {
       case 'step_complete':
         // Output the result text if available (fallback for non-streamed responses)
         // This handles cases where Claude returns a quick response without streaming deltas
-        log.log(`step_complete for ${agentId}: resultText="${event.resultText?.slice(0, 50) || 'EMPTY'}", tokens=${event.tokens?.output || 0}`);
         if (event.resultText) {
-          log.log(`Outputting resultText for ${agentId}: "${event.resultText}"`);
           this.callbacks.onOutput(agentId, event.resultText);
         }
         if (event.tokens) {

@@ -362,7 +362,7 @@ export class CharacterFactory {
     // Position above the character based on model height with padding
     const padding = isBoss ? 0.8 : 0.5;
     sprite.position.y = modelHeight + padding;
-    const baseScale = isBoss ? 2.8 : 2.2;
+    const baseScale = isBoss ? 2.0 : 1.6;
     sprite.scale.set(baseScale, baseScale * (canvas.height / canvas.width), 1);
     sprite.name = 'statusBar';
 
@@ -402,7 +402,7 @@ export class CharacterFactory {
     const sprite = new THREE.Sprite(material);
     // Position below the character (lower)
     sprite.position.y = isBoss ? -0.8 : -0.6;
-    const baseScale = isBoss ? 3.5 : 2.8;
+    const baseScale = isBoss ? 2.5 : 2.0;
     sprite.scale.set(baseScale, baseScale * (canvas.height / canvas.width), 1);
     sprite.name = 'nameLabelSprite';
 

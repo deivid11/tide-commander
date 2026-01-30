@@ -409,6 +409,8 @@
   border-radius: $radius-md;
   transition: all $transition-fast;
   min-height: 32px;
+  // Disable middle-click paste
+  user-select: none;
 
   &:focus-within {
     border-color: rgba($dracula-purple, 0.5);
@@ -428,6 +430,8 @@
   font-family: $font-mono;
   line-height: 1.4;
   min-width: 0; // Allow shrinking
+  // Allow text selection in input/textarea (override container's user-select: none)
+  user-select: text;
 
   &:focus {
     outline: none;

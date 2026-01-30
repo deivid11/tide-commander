@@ -173,7 +173,7 @@ export function hasStorage(key: string): boolean {
 
 /**
  * Get the backend API base URL
- * Uses configured backend URL or defaults to 127.0.0.1:5174
+ * Uses configured backend URL or defaults to localhost:5174
  */
 export function getApiBaseUrl(): string {
   const configuredUrl = getStorageString(STORAGE_KEYS.BACKEND_URL, '');
@@ -181,7 +181,7 @@ export function getApiBaseUrl(): string {
     // Remove trailing slash if present
     return configuredUrl.replace(/\/$/, '');
   }
-  return 'http://127.0.0.1:5174';
+  return 'http://localhost:5174';
 }
 
 /**

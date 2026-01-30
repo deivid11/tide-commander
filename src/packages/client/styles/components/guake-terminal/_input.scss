@@ -130,6 +130,8 @@
   transition: all $transition-fast;
   min-height: 42px;
   position: relative;
+  // Disable middle-click paste
+  user-select: none;
 
   &:focus-within {
     border-color: rgba($dracula-purple, 0.5);
@@ -137,50 +139,36 @@
     box-shadow: 0 0 0 2px rgba($dracula-purple, 0.12);
   }
 
-  // Working state - animated bars walking around all 4 edges using offset-path
+  // Working state - single animated bar using GPU-composited transform
   .is-working & {
     --border-color: rgba($dracula-comment, 0.25);
     border: 2px solid var(--border-color) !important;
     background: rgba($dracula-bg, 0.95) !important;
     position: relative;
-    overflow: visible;
+    overflow: hidden;
 
-    // First bar - bottom border, left to right
+    // Single bar - full width bottom border with shimmer
     &::before {
       content: '';
       position: absolute;
-      width: 60px;
-      height: 1px;
-      bottom: -2px;
+      width: 200%;
+      height: 2px;
+      bottom: 0;
       left: 0;
-      background: linear-gradient(90deg,
-        transparent 0%,
-        $dracula-cyan 30%,
-        $dracula-purple 70%,
-        transparent 100%
+      background: linear-gradient(
+        90deg,
+        $dracula-cyan 0%,
+        $dracula-pink 15%,
+        $dracula-purple 30%,
+        $dracula-green 45%,
+        $dracula-cyan 50%,
+        $dracula-pink 65%,
+        $dracula-purple 80%,
+        $dracula-green 95%,
+        $dracula-cyan 100%
       );
-      border-radius: 1px;
-      animation: slide-bottom 1.5s ease-in-out infinite alternate;
-      box-shadow: 0 0 8px rgba($dracula-cyan, 0.6);
-    }
-
-    // Second bar - bottom border, right to left (opposite direction)
-    &::after {
-      content: '';
-      position: absolute;
-      width: 60px;
-      height: 1px;
-      bottom: -2px;
-      right: 0;
-      background: linear-gradient(90deg,
-        transparent 0%,
-        $dracula-pink 30%,
-        $dracula-purple 70%,
-        transparent 100%
-      );
-      border-radius: 1px;
-      animation: slide-bottom-reverse 1.5s ease-in-out infinite alternate;
-      box-shadow: 0 0 8px rgba($dracula-pink, 0.6);
+      will-change: transform;
+      animation: shimmer-slide 2s linear infinite;
     }
   }
 
@@ -193,23 +181,13 @@
   }
 }
 
-// Bottom border slide - left to right
-@keyframes slide-bottom {
+// Shimmer slide animation (GPU-accelerated transform)
+@keyframes shimmer-slide {
   0% {
-    left: -35px;
+    transform: translateX(0);
   }
   100% {
-    left: calc(100% - 35px);
-  }
-}
-
-// Bottom border slide - right to left
-@keyframes slide-bottom-reverse {
-  0% {
-    right: -35px;
-  }
-  100% {
-    right: calc(100% - 35px);
+    transform: translateX(-50%);
   }
 }
 
@@ -267,6 +245,8 @@
   font-size: 13px;
   line-height: 1.5;
   min-width: 0; // Allow shrinking
+  // Allow text selection in input/textarea (override container's user-select: none)
+  user-select: text;
 
   &:focus {
     outline: none;

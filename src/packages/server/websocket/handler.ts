@@ -118,16 +118,11 @@ export function broadcast(message: ServerMessage): void {
     }
   }
 
-  // Log ALL broadcasts for debugging
-  const suffix = skippedCount > 0 ? ` skipped=${skippedCount}` : '';
-  const errSuffix = errorCount > 0 ? ` errors=${errorCount}` : '';
-  if (message.type === 'output') {
-    const payload = message.payload as { text?: string };
-    log.log(`[BROADCAST] type=${message.type} text="${payload.text?.slice(0, 50)}..." sentTo=${sentCount}/${clients.size}${suffix}${errSuffix}`);
-  } else if (message.type === 'event') {
-    const payload = message.payload as { type?: string; toolName?: string };
-    log.log(`[BROADCAST] type=${message.type} eventType=${payload.type} tool=${payload.toolName || 'n/a'} sentTo=${sentCount}/${clients.size}${suffix}${errSuffix}`);
-  } else {
+  // PERF: Only log broadcasts when there are issues (skipped or errors)
+  // High-frequency broadcast logging was causing CPU spikes
+  if (skippedCount > 0 || errorCount > 0) {
+    const suffix = skippedCount > 0 ? ` skipped=${skippedCount}` : '';
+    const errSuffix = errorCount > 0 ? ` errors=${errorCount}` : '';
     log.log(`[BROADCAST] type=${message.type} sentTo=${sentCount}/${clients.size}${suffix}${errSuffix}`);
   }
 }

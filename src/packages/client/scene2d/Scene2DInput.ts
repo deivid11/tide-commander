@@ -515,26 +515,52 @@ export class Scene2DInput {
 
     // Space key to open terminal
     if (event.key === ' ') {
+      console.log('[Scene2DInput] Space pressed', {
+        guakeTerminal: !!guakeTerminal,
+        isCollapsedTerminal,
+        targetTag: target.tagName,
+        terminalOpen: state.terminalOpen,
+        selectedAgents: state.selectedAgentIds.size,
+        selectedBuildings: state.selectedBuildingIds.size,
+        selectedArea: state.selectedAreaId,
+        lastSelectedAgentId: state.lastSelectedAgentId,
+      });
+
       // Don't trigger if inside an open terminal
       if (guakeTerminal && !isCollapsedTerminal) {
+        console.log('[Scene2DInput] Space: blocked - inside open terminal');
         return;
       }
 
       // Don't trigger if any interactive element has focus (buttons, links, etc.)
       if (target.tagName === 'BUTTON' || target.tagName === 'A') {
+        console.log('[Scene2DInput] Space: blocked - button/link focused');
         return;
       }
 
       // Only OPEN the terminal with Space (use backtick or Escape to close)
-      if (state.terminalOpen) return;
+      if (state.terminalOpen) {
+        console.log('[Scene2DInput] Space: blocked - terminal already open');
+        return;
+      }
+
+      // Don't trigger if a building or area is focused (let other handlers deal with it)
+      if (state.selectedBuildingIds.size > 0 || state.selectedAreaId !== null) {
+        console.log('[Scene2DInput] Space: blocked - building or area focused');
+        return;
+      }
 
       // If no agent selected, select the last active agent
       if (state.selectedAgentIds.size === 0) {
         const lastAgentId = state.lastSelectedAgentId;
+        console.log('[Scene2DInput] Space: no agent selected, trying lastAgentId:', lastAgentId);
         if (lastAgentId && state.agents.has(lastAgentId)) {
           event.preventDefault();
           store.selectAgent(lastAgentId);
           store.setTerminalOpen(true);
+          console.log('[Scene2DInput] Space: opened terminal for last agent:', lastAgentId);
+        } else {
+          console.log('[Scene2DInput] Space: no valid last agent to open');
         }
         return;
       }
@@ -543,6 +569,7 @@ export class Scene2DInput {
       event.preventDefault();
 
       // Open terminal
+      console.log('[Scene2DInput] Space: opening terminal for selected agent');
       store.setTerminalOpen(true);
     }
   };

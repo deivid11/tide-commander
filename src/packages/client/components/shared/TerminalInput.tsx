@@ -160,6 +160,20 @@ export function TerminalInput({
     }
   }, [useTextarea, onForceTextarea, onSend]);
 
+  // Allow normal mouse events on input/textarea
+  // Middle-click paste is now only disabled on the container itself
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    // No-op: allow all mouse events on input/textarea
+  }, []);
+
+  // Disable middle-click (auxclick is the proper event for middle-click)
+  const handleContainerAuxClick = useCallback((e: React.MouseEvent) => {
+    if (e.button === 1) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }, []);
+
   // Combined ref handler for textarea
   const setTextareaRef = useCallback((el: HTMLTextAreaElement | null) => {
     (textareaRef as React.MutableRefObject<HTMLTextAreaElement | null>).current = el;
@@ -215,7 +229,7 @@ export function TerminalInput({
           style={{ display: 'none' }}
           accept="image/*,.txt,.md,.json,.js,.ts,.tsx,.jsx,.py,.sh,.css,.scss,.html,.xml,.yaml,.yml,.toml,.ini,.cfg,.conf"
         />
-        <div className={containerClass}>
+        <div className={containerClass} onAuxClick={handleContainerAuxClick}>
           <button
             className={attachBtnClass}
             onClick={() => fileInputRef.current?.click()}
@@ -231,6 +245,7 @@ export function TerminalInput({
               onChange={e => onCommandChange(e.target.value)}
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
+              onMouseDown={handleMouseDown}
             />
           ) : (
             <input
@@ -241,6 +256,7 @@ export function TerminalInput({
               onChange={e => onCommandChange(e.target.value)}
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
+              onMouseDown={handleMouseDown}
             />
           )}
           <button

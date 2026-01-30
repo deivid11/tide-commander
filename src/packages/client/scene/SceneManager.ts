@@ -329,13 +329,13 @@ export class SceneManager {
       const nameLabelSprite = meshData.group.getObjectByName('nameLabelSprite') as THREE.Sprite;
 
       if (statusBar) {
-        const baseScale = isBoss ? 2.8 : 2.2;
+        const baseScale = isBoss ? 2.0 : 1.6;
         const aspectRatio = 2560 / 4096; // canvas height / width (0.625)
         statusBar.scale.set(baseScale * scale, baseScale * aspectRatio * scale, 1);
       }
 
       if (nameLabelSprite) {
-        const baseScale = isBoss ? 3.5 : 2.8;
+        const baseScale = isBoss ? 2.5 : 2.0;
         const aspectRatio = 1024 / 8192; // canvas height / width (0.125)
         nameLabelSprite.scale.set(baseScale * scale, baseScale * aspectRatio * scale, 1);
       }

@@ -179,6 +179,56 @@
   font-size: 16px;
 }
 
+// Toolbox search bar
+.toolbox-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba($bg-tertiary, 0.5);
+  border-bottom: 1px solid $border-color;
+
+  svg {
+    color: $text-muted;
+    flex-shrink: 0;
+  }
+}
+
+.toolbox-search-input {
+  flex: 1;
+  background: $bg-primary;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: $text-primary;
+  outline: none;
+  transition: border-color $transition-fast;
+
+  &::placeholder {
+    color: $text-muted;
+  }
+
+  &:focus {
+    border-color: $accent-blue;
+  }
+}
+
+.toolbox-search-clear {
+  background: none;
+  border: none;
+  color: $text-muted;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  transition: color $transition-fast;
+
+  &:hover {
+    color: $text-primary;
+  }
+}
+
 .toolbox-close-btn {
   background: none;
   border: none;
@@ -257,6 +307,15 @@
     height: 1px;
     background: linear-gradient(90deg, transparent 0%, rgba($accent-blue, 0.3) 50%, transparent 100%);
   }
+}
+
+// No results message for settings search
+.config-no-results {
+  padding: 24px 16px;
+  text-align: center;
+  color: $text-muted;
+  font-size: 12px;
+  font-style: italic;
 }
 
 .config-row {
@@ -530,6 +589,14 @@
   background: rgba($bg-primary, 0.3);
   border-left: 1px solid rgba($border-color, 0.3);
   margin-left: 3px;
+}
+
+// Search text highlight
+.search-highlight {
+  background: rgba($dracula-yellow, 0.4);
+  color: $text-primary;
+  padding: 0 2px;
+  border-radius: 2px;
 }
 
 // Compact chip selector

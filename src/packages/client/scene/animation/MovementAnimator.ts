@@ -174,7 +174,11 @@ export class MovementAnimator {
 
     const agentId = meshData.group.userData.agentId as string;
 
-    const clip = meshData.animations.get(animationName);
+    // Try exact name first, then lowercase fallback
+    let clip = meshData.animations.get(animationName);
+    if (!clip) {
+      clip = meshData.animations.get(animationName.toLowerCase());
+    }
     if (!clip) {
       console.warn(`[MovementAnimator] Animation not found: ${animationName}, available:`, Array.from(meshData.animations.keys()));
       // Stop jump bounce if switching to non-existent animation and reset Y position
@@ -185,6 +189,11 @@ export class MovementAnimator {
         if (characterBody) {
           characterBody.position.y = baseY;
         }
+      }
+      // Stop current animation to avoid stale animation playing
+      if (meshData.currentAction) {
+        meshData.currentAction.fadeOut(0.2);
+        meshData.currentAction = null;
       }
       return;
     }
