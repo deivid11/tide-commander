@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.39.0] - 2026-01-29
+
+### Added
+- **Clear Subordinates Context Feature** - Boss agents can now clear context for all subordinates at once
+  - New "Clear All Subordinates" button in terminal header (visible only for boss agents with subordinates)
+  - Confirmation modal with subordinate count confirmation
+  - Clear context action for all subordinate agents simultaneously
+
+### Changed
+- **TerminalHeader Component** - Enhanced to support subordinate management
+  - Added visibility check for boss agents with subordinates
+  - New button for clearing all subordinate context
+- **TerminalModals Component** - Improved context confirmation handling
+  - Added 'clear-subordinates' action type
+  - Dynamic modal messaging based on action type
+  - Displays subordinate count in confirmation dialog
+- **ClaudeOutputPanel Component** - Removed debug logging
+  - Cleaned up console.log statements for terminal visibility detection
+  - Removed MutationObserver for terminal state sync
+
+### Technical
+- Added `clearAllSubordinatesContext()` method to store delegation actions
+- Exposed `clearAllSubordinatesContext()` through Store interface
+- Proper type definitions for 'clear-subordinates' action
+
 ## [0.38.0] - 2026-01-29
 
 ### Added
