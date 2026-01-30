@@ -114,7 +114,7 @@ export function ClaudeOutputPanel() {
   // Modal states
   const [imageModal, setImageModal] = useState<{ url: string; name: string } | null>(null);
   const [bashModal, setBashModal] = useState<BashModalState | null>(null);
-  const [contextConfirm, setContextConfirm] = useState<'collapse' | 'clear' | null>(null);
+  const [contextConfirm, setContextConfirm] = useState<'collapse' | 'clear' | 'clear-subordinates' | null>(null);
   const [responseModalContent, setResponseModalContent] = useState<string | null>(null);
 
   // Debug panel state
@@ -474,9 +474,6 @@ export function ClaudeOutputPanel() {
       const isAgentBar = target.closest('.agent-bar');
 
       isMouseDownOutsideRef.current = !isInTerminal && !isAgentBar;
-      if (isMouseDownOutsideRef.current) {
-        console.log('[ClaudeOutputPanel] ✓ Mousedown outside terminal');
-      }
     };
 
     const handleMouseUp = (e: MouseEvent) => {
@@ -485,14 +482,11 @@ export function ClaudeOutputPanel() {
         return;
       }
 
-      console.log('[ClaudeOutputPanel] ✓ Mouseup - checking if still outside');
-
       const target = e.target as HTMLElement;
       const isInTerminal = terminalRef.current?.contains(target);
       const isAgentBar = target.closest('.agent-bar');
 
       if (!isInTerminal && !isAgentBar) {
-        console.log('[ClaudeOutputPanel] ✓ CLOSING TERMINAL NOW');
         store.setTerminalOpen(false);
       }
       isMouseDownOutsideRef.current = false;
@@ -516,33 +510,6 @@ export function ClaudeOutputPanel() {
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [keyboard]);
-
-  // Sync terminal state: detect when terminal is visually hidden but state says open
-  // This fixes the issue where space bar doesn't work because state is stuck on "open"
-  useEffect(() => {
-    if (!terminalRef.current) return;
-
-    const observer = new MutationObserver(() => {
-      const element = terminalRef.current;
-      if (!element) return;
-
-      // Check if the terminal is visually collapsed (has 'collapsed' class)
-      const isCollapsed = element.classList.contains('collapsed');
-      console.log('[ClaudeOutputPanel] Terminal visibility changed', {
-        isCollapsed,
-        stateIsOpen: isOpen,
-      });
-
-      // If visually collapsed but state says open, sync the state
-      if (isCollapsed && isOpen) {
-        console.log('[ClaudeOutputPanel] Terminal state was stuck open but visually collapsed - syncing state');
-        store.setTerminalOpen(false);
-      }
-    });
-
-    observer.observe(terminalRef.current, { attributes: true, attributeFilter: ['class'] });
-    return () => observer.disconnect();
-  }, [isOpen]);
 
   // Mobile placeholder rendering
   const isMobileWidth = typeof window !== 'undefined' && window.innerWidth <= 768;
@@ -857,6 +824,7 @@ export function ClaudeOutputPanel() {
         <ContextConfirmModal
           action={contextConfirm}
           selectedAgentId={selectedAgentId}
+          subordinateCount={selectedAgent?.subordinateIds?.length || 0}
           onClose={() => setContextConfirm(null)}
           onClearHistory={historyLoader.clearHistory}
         />

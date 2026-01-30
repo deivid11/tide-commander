@@ -76,18 +76,21 @@ export function BashModal({ state, onClose }: BashModalProps) {
 
 // Context action confirmation modal
 export interface ContextConfirmModalProps {
-  action: 'collapse' | 'clear';
+  action: 'collapse' | 'clear' | 'clear-subordinates';
   selectedAgentId: string | null;
+  subordinateCount?: number;
   onClose: () => void;
   onClearHistory: () => void;
 }
 
-export function ContextConfirmModal({ action, selectedAgentId, onClose, onClearHistory }: ContextConfirmModalProps) {
+export function ContextConfirmModal({ action, selectedAgentId, subordinateCount, onClose, onClearHistory }: ContextConfirmModalProps) {
   const { handleMouseDown: handleBackdropMouseDown, handleClick: handleBackdropClick } = useModalClose(onClose);
   const handleConfirm = () => {
     if (selectedAgentId) {
       if (action === 'collapse') {
         store.collapseContext(selectedAgentId);
+      } else if (action === 'clear-subordinates') {
+        store.clearAllSubordinatesContext(selectedAgentId);
       } else {
         store.clearContext(selectedAgentId);
         onClearHistory();
@@ -96,16 +99,29 @@ export function ContextConfirmModal({ action, selectedAgentId, onClose, onClearH
     onClose();
   };
 
+  const getTitle = () => {
+    if (action === 'collapse') return 'Collapse Context';
+    if (action === 'clear-subordinates') return 'Clear All Subordinates Context';
+    return 'Clear Context';
+  };
+
   return (
     <div className="modal-overlay visible" onMouseDown={handleBackdropMouseDown} onClick={handleBackdropClick}>
       <div className="modal confirm-modal">
-        <div className="modal-header">{action === 'collapse' ? 'Collapse Context' : 'Clear Context'}</div>
+        <div className="modal-header">{getTitle()}</div>
         <div className="modal-body confirm-modal-body">
           {action === 'collapse' ? (
             <>
               <p>Collapse the conversation context?</p>
               <p className="confirm-modal-note">
                 This will summarize the conversation to save tokens while preserving important information.
+              </p>
+            </>
+          ) : action === 'clear-subordinates' ? (
+            <>
+              <p>Clear context for all {subordinateCount} subordinate agent{subordinateCount !== 1 ? 's' : ''}?</p>
+              <p className="confirm-modal-note">
+                This will start fresh sessions for all subordinate agents. All their conversation history will be lost.
               </p>
             </>
           ) : (
@@ -122,11 +138,11 @@ export function ContextConfirmModal({ action, selectedAgentId, onClose, onClearH
             Cancel
           </button>
           <button
-            className={`btn ${action === 'clear' ? 'btn-danger' : 'btn-primary'}`}
+            className={`btn ${action === 'clear' || action === 'clear-subordinates' ? 'btn-danger' : 'btn-primary'}`}
             onClick={handleConfirm}
             autoFocus
           >
-            {action === 'collapse' ? 'Collapse' : 'Clear Context'}
+            {action === 'collapse' ? 'Collapse' : action === 'clear-subordinates' ? 'Clear All' : 'Clear Context'}
           </button>
         </div>
       </div>

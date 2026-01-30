@@ -29,7 +29,7 @@ export interface TerminalHeaderProps {
   debuggerEnabled: boolean;
   setDebuggerEnabled: (enabled: boolean) => void;
   outputsLength: number;
-  setContextConfirm: (action: 'collapse' | 'clear' | null) => void;
+  setContextConfirm: (action: 'collapse' | 'clear' | 'clear-subordinates' | null) => void;
   headerRef: React.RefObject<HTMLDivElement | null>;
 }
 
@@ -100,6 +100,10 @@ export function TerminalHeader({
   const filteredStatus = agentAnalysis?.statusDescription
     ? filterCostText(agentAnalysis.statusDescription, settings.hideCost)
     : null;
+
+  // Check if selected agent is a boss with subordinates
+  const isBoss = selectedAgent.class === 'boss' || selectedAgent.isBoss;
+  const hasSubordinates = isBoss && selectedAgent.subordinateIds && selectedAgent.subordinateIds.length > 0;
 
   return (
     <div
@@ -211,6 +215,16 @@ export function TerminalHeader({
         >
           🗑️ Clear Context
         </button>
+        {/* Boss-only: Clear all subordinates' context */}
+        {hasSubordinates && (
+          <button
+            className="guake-context-btn danger hide-on-mobile"
+            onClick={() => setContextConfirm('clear-subordinates')}
+            title="Clear context for all subordinate agents"
+          >
+            👑🗑️ Clear All Subordinates
+          </button>
+        )}
         {/* Mobile close button - switch to 3D view */}
         <button
           className="guake-close-btn show-on-mobile"

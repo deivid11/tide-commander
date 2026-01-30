@@ -50,6 +50,9 @@ export interface DelegationActions {
   handleAgentTaskCompleted(bossId: string, subordinateId: string, success: boolean): void;
   getAgentTaskProgress(bossId: string): Map<string, AgentTaskProgress>;
   clearAgentTaskProgress(bossId: string, subordinateId?: string): void;
+
+  // Clear context for all subordinates of a boss agent
+  clearAllSubordinatesContext(bossId: string): void;
 }
 
 export function createDelegationActions(
@@ -313,6 +316,47 @@ export function createDelegationActions(
         }
       });
       notify();
+    },
+
+    clearAllSubordinatesContext(bossId: string): void {
+      const state = getState();
+      const boss = state.agents.get(bossId);
+      const isBoss = boss?.isBoss === true || boss?.class === 'boss';
+
+      console.log('[Store] clearAllSubordinatesContext called:', {
+        bossId,
+        bossName: boss?.name,
+        isBoss,
+        subordinateIds: boss?.subordinateIds,
+      });
+
+      if (!boss || !isBoss || !boss.subordinateIds || boss.subordinateIds.length === 0) {
+        console.log('[Store] clearAllSubordinatesContext: No boss or subordinates found, returning early');
+        return;
+      }
+
+      // Clear context for each subordinate
+      const sendMessage = getSendMessage();
+      console.log('[Store] clearAllSubordinatesContext: sendMessage available:', !!sendMessage);
+
+      for (const subordinateId of boss.subordinateIds) {
+        console.log('[Store] clearAllSubordinatesContext: Sending clear_context for subordinate:', subordinateId);
+        sendMessage?.({
+          type: 'clear_context',
+          payload: { agentId: subordinateId },
+        });
+      }
+
+      // Also clear local outputs for all subordinates
+      setState((s) => {
+        const newAgentOutputs = new Map(s.agentOutputs);
+        for (const subordinateId of boss.subordinateIds || []) {
+          newAgentOutputs.delete(subordinateId);
+        }
+        s.agentOutputs = newAgentOutputs;
+      });
+      notify();
+      console.log('[Store] clearAllSubordinatesContext: Completed');
     },
   };
 }

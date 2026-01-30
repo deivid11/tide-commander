@@ -768,6 +768,7 @@ class Store
   handleAgentTaskCompleted(...args: Parameters<DelegationActions['handleAgentTaskCompleted']>) { return this.delegationActions.handleAgentTaskCompleted(...args); }
   getAgentTaskProgress(...args: Parameters<DelegationActions['getAgentTaskProgress']>) { return this.delegationActions.getAgentTaskProgress(...args); }
   clearAgentTaskProgress(...args: Parameters<DelegationActions['clearAgentTaskProgress']>) { return this.delegationActions.clearAgentTaskProgress(...args); }
+  clearAllSubordinatesContext(...args: Parameters<DelegationActions['clearAllSubordinatesContext']>) { return this.delegationActions.clearAllSubordinatesContext(...args); }
 
   // ============================================================================
   // Skill Actions (delegated)
