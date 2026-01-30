@@ -2,6 +2,58 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.37.0] - 2026-01-29
+
+### Added
+- **VirtualizedOutputList Component** - High-performance rendering for large message lists
+  - Virtual scrolling for handling thousands of messages
+  - Dynamic item sizing based on content
+  - Optimized re-renders for large terminal histories
+  - Better memory efficiency for long-running sessions
+- **Improved Terminal Input Handling** - Enhanced UX for terminal interactions
+  - Better placeholder text and disabled state handling
+  - Improved form submission and validation
+  - Better focus management and keyboard navigation
+
+### Changed
+- **Default Settings State** - Settings now default to collapsed when no localStorage history exists
+  - Better initial UX for first-time users
+  - Settings sections collapse automatically on first visit
+  - Consistent state across fresh installations
+- **ThemeSelector Styling** - Enhanced visual design and interaction
+  - Better keyboard navigation support
+  - Improved active/focused states
+  - Refined dropdown positioning
+- **ClaudeOutputPanel Refactoring** - Major optimization of output rendering
+  - Integration with VirtualizedOutputList for large message lists
+  - Improved performance with virtualization
+  - Better memory management during long sessions
+- **Logger System Improvements** - Better error handling and formatting
+  - Enhanced log formatting with timestamps
+  - Improved error message clarity
+  - Better structured logging throughout codebase
+- **Input Handling Enhancements** - More robust keyboard event handling
+  - Better debouncing of input events
+  - Improved modifier key detection
+  - More responsive keyboard interactions
+- **Scene2DInput Touch Support** - Enhanced mobile input handling
+  - Better touch event processing
+  - Improved gesture detection
+  - More responsive touch interactions
+- **SCSS Terminal Input Styling** - Cleaner, more maintainable styles
+  - Simplified input field styling
+  - Better responsive breakpoints
+  - Improved visual hierarchy
+
+### Technical
+- New `VirtualizedOutputList.tsx` component with windowing support
+- Enhanced AgentManager state management
+- Improved InputHandler event delegation
+- Refactored Scene2DInput keyboard handling
+- Better logger formatting with optional timestamps
+- WebSocket handler message routing improvements
+- Package dependencies updated
+
 ## [0.36.0] - 2026-01-29
 
 ### Added
