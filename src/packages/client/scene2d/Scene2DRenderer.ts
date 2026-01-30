@@ -434,12 +434,12 @@ export class Scene2DRenderer {
     const ctx = this.ctx;
     const cornerSize = Math.min(width, height) * 0.08;
 
-    // Selection glow effect
+    // Selection glow effect - shadowBlur is in screen pixels, so use fixed value
     if (isSelected) {
       const glowPulse = 0.5 + Math.sin(this.animationTime * 3) * 0.2;
       ctx.save();
       ctx.shadowColor = this.hexToRgba(baseColor, glowPulse);
-      ctx.shadowBlur = 20 / zoom;
+      ctx.shadowBlur = 20;
       ctx.strokeStyle = this.hexToRgba(baseColor, glowPulse * 0.8);
       ctx.lineWidth = 4 / zoom;
       ctx.beginPath();
@@ -448,10 +448,10 @@ export class Scene2DRenderer {
       ctx.restore();
     }
 
-    // Outer shadow (subtle glow)
+    // Outer shadow (subtle glow) - shadowBlur is in screen pixels, so use fixed value
     ctx.save();
     ctx.shadowColor = this.hexToRgba(baseColor, isSelected ? 0.6 : 0.4);
-    ctx.shadowBlur = (isSelected ? 16 : 12) / zoom;
+    ctx.shadowBlur = isSelected ? 16 : 12;
     ctx.fillStyle = 'transparent';
     ctx.beginPath();
     ctx.rect(left, top, width, height);
@@ -586,12 +586,12 @@ export class Scene2DRenderer {
   ): void {
     const ctx = this.ctx;
 
-    // Selection glow effect
+    // Selection glow effect - shadowBlur is in screen pixels, so use fixed value
     if (isSelected) {
       const glowPulse = 0.5 + Math.sin(this.animationTime * 3) * 0.2;
       ctx.save();
       ctx.shadowColor = this.hexToRgba(baseColor, glowPulse);
-      ctx.shadowBlur = 20 / zoom;
+      ctx.shadowBlur = 20;
       ctx.strokeStyle = this.hexToRgba(baseColor, glowPulse * 0.8);
       ctx.lineWidth = 4 / zoom;
       ctx.beginPath();
@@ -600,10 +600,10 @@ export class Scene2DRenderer {
       ctx.restore();
     }
 
-    // Outer glow
+    // Outer glow - shadowBlur is in screen pixels, so use fixed value
     ctx.save();
     ctx.shadowColor = this.hexToRgba(baseColor, isSelected ? 0.6 : 0.4);
-    ctx.shadowBlur = (isSelected ? 16 : 12) / zoom;
+    ctx.shadowBlur = isSelected ? 16 : 12;
     ctx.fillStyle = 'transparent';
     ctx.beginPath();
     ctx.arc(cx, cy, radius, 0, Math.PI * 2);
@@ -721,11 +721,11 @@ export class Scene2DRenderer {
     this.roundedRect(bgX, bgY, bgWidth, bgHeight, borderRadius);
     ctx.stroke();
 
-    // Label text with subtle shadow
+    // Label text with subtle shadow - shadowBlur is in screen pixels
     ctx.save();
     ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
-    ctx.shadowBlur = 2 / zoom;
-    ctx.shadowOffsetY = 1 / zoom;
+    ctx.shadowBlur = 2;
+    ctx.shadowOffsetY = 1;
 
     ctx.fillStyle = this.lightenColor(baseColor, 0.3);
     ctx.textAlign = 'center';
@@ -800,10 +800,10 @@ export class Scene2DRenderer {
   ): void {
     const ctx = this.ctx;
 
-    // Glow effect
+    // Glow effect - shadowBlur is in screen pixels
     ctx.save();
     ctx.shadowColor = color;
-    ctx.shadowBlur = 10 / zoom;
+    ctx.shadowBlur = 10;
 
     // Handle background (dark circle)
     ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
@@ -1633,10 +1633,10 @@ export class Scene2DRenderer {
     const dashLength = 6 / zoom;
     const gapLength = 3 / zoom;
 
-    // ---- Outer glow/shadow effect ----
+    // ---- Outer glow/shadow effect ---- shadowBlur is in screen pixels
     ctx.save();
     ctx.shadowColor = 'rgba(74, 158, 255, 0.5)';
-    ctx.shadowBlur = 10 / zoom;
+    ctx.shadowBlur = 10;
     ctx.fillStyle = 'transparent';
     ctx.beginPath();
     ctx.rect(minX, minZ, width, height);
@@ -1711,11 +1711,11 @@ export class Scene2DRenderer {
     const dotRadius = 3 / zoom;
     ctx.fillStyle = accentColor;
 
-    // Pulsing glow for corner dots
+    // Pulsing glow for corner dots - shadowBlur is in screen pixels
     const pulseAlpha = 0.6 + Math.sin(this.animationTime * 4) * 0.3;
     ctx.save();
     ctx.shadowColor = `rgba(74, 158, 255, ${pulseAlpha})`;
-    ctx.shadowBlur = 6 / zoom;
+    ctx.shadowBlur = 6;
 
     const corners = [
       { x: minX, y: minZ },

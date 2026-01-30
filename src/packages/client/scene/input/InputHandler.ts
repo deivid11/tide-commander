@@ -661,15 +661,16 @@ export class InputHandler {
 
     // Space key to open terminal
     if (event.key === ' ') {
-      console.log('[InputHandler] Space pressed', {
-        guakeTerminal: !!guakeTerminal,
-        isCollapsedTerminal,
-        targetTag: target.tagName,
-        terminalOpen: state.terminalOpen,
-        selectedAgents: state.selectedAgentIds.size,
-        selectedBuildings: state.selectedBuildingIds.size,
-        selectedArea: state.selectedAreaId,
-        lastSelectedAgentId: state.lastSelectedAgentId,
+      // Get fresh state and DOM element
+      const freshState = store.getState();
+      const terminalDom = document.querySelector('.guake-terminal');
+      const isDomCollapsed = terminalDom?.classList.contains('collapsed');
+
+      console.log('[InputHandler] ► Space pressed', {
+        state_terminalOpen: state.terminalOpen,
+        freshState_terminalOpen: freshState.terminalOpen,
+        dom_isCollapsed: isDomCollapsed,
+        dom_hasOpen: terminalDom?.classList.contains('open'),
       });
 
       // Don't trigger if inside an open terminal
@@ -685,9 +686,24 @@ export class InputHandler {
       }
 
       // Only OPEN the terminal with Space (use backtick or Escape to close)
+      // Check both state AND visual state to handle stuck state bug
       if (state.terminalOpen) {
-        console.log('[InputHandler] Space: blocked - terminal already open');
-        return;
+        // Safeguard: if terminal is marked open but visually collapsed, reset the state
+        if (guakeTerminal && isCollapsedTerminal) {
+          console.log('[InputHandler] Space: terminal state was stuck open but visually collapsed - resetting and opening');
+          store.setTerminalOpen(false);
+          // Don't return - let it fall through to reopen
+        } else {
+          console.log('[InputHandler] Space: blocked - terminal already open');
+          return;
+        }
+      }
+
+      // Additional safety: if terminal says it's open but isn't actually on screen, force reset
+      const terminalElement = document.querySelector('.guake-terminal');
+      if (terminalElement && terminalElement.classList.contains('collapsed') && state.terminalOpen) {
+        console.log('[InputHandler] Space: detected stuck state (open in state, collapsed visually) - fixing');
+        store.setTerminalOpen(false);
       }
 
       // Don't trigger if a building or area is focused (let other handlers deal with it)

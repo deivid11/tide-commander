@@ -472,25 +472,37 @@ export class Scene2DCamera {
     const prevPosZ = this.posZ;
     const prevZoom = this.zoom;
 
-    this.posX += (this.targetPosX - this.posX) * panFactor;
-    this.posZ += (this.targetPosZ - this.posZ) * panFactor;
-    this.zoom += (this.targetZoom - this.zoom) * zoomFactor;
-
-    // Check if animation is complete (close enough to target)
+    // Check if close enough to target to snap (prevents micro-jittering)
     const posThreshold = 0.001;
     const zoomThreshold = 0.01;
 
-    const isPosComplete =
-      Math.abs(this.posX - this.targetPosX) < posThreshold &&
-      Math.abs(this.posZ - this.targetPosZ) < posThreshold;
-    const isZoomComplete = Math.abs(this.zoom - this.targetZoom) < zoomThreshold;
+    const isPosXClose = Math.abs(this.targetPosX - this.posX) < posThreshold;
+    const isPosZClose = Math.abs(this.targetPosZ - this.posZ) < posThreshold;
+    const isZoomClose = Math.abs(this.targetZoom - this.zoom) < zoomThreshold;
+
+    // Only apply easing if not close enough, otherwise snap to prevent trembling
+    if (isPosXClose) {
+      this.posX = this.targetPosX;
+    } else {
+      this.posX += (this.targetPosX - this.posX) * panFactor;
+    }
+
+    if (isPosZClose) {
+      this.posZ = this.targetPosZ;
+    } else {
+      this.posZ += (this.targetPosZ - this.posZ) * panFactor;
+    }
+
+    if (isZoomClose) {
+      this.zoom = this.targetZoom;
+    } else {
+      this.zoom += (this.targetZoom - this.zoom) * zoomFactor;
+    }
+
+    const isPosComplete = isPosXClose && isPosZClose;
+    const isZoomComplete = isZoomClose;
 
     if (this.isAnimating && isPosComplete && isZoomComplete) {
-      // Snap to target
-      this.posX = this.targetPosX;
-      this.posZ = this.targetPosZ;
-      this.zoom = this.targetZoom;
-
       this.isAnimating = false;
       this.currentPanSmoothing = this.panSmoothing;
 

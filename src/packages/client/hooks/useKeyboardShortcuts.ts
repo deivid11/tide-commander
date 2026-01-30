@@ -124,6 +124,15 @@ export function useKeyboardShortcuts({
         return;
       }
 
+      // Toggle 2D/3D View (Alt+2)
+      const toggle2DViewShortcut = shortcuts.find(s => s.id === 'toggle-2d-view');
+      if (matchesShortcut(e, toggle2DViewShortcut)) {
+        e.preventDefault();
+        const currentSettings = store.getState().settings;
+        store.updateSettings({ experimental2DView: !currentSettings.experimental2DView });
+        return;
+      }
+
       // Delete selected agents or buildings
       const deleteShortcut = shortcuts.find(s => s.id === 'delete-selected');
       const deleteBackspaceShortcut = shortcuts.find(s => s.id === 'delete-selected-backspace');
