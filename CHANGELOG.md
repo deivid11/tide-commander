@@ -2,6 +2,39 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.38.0] - 2026-01-29
+
+### Added
+- **Enhanced Keyboard Shortcuts Hook** - Improved keyboard event handling
+  - Better event delegation and propagation
+  - More responsive keyboard input detection
+  - Additional shortcut configurations in store
+
+### Changed
+- **ClaudeOutputPanel Refactoring** - Improved message rendering and UI
+  - Better layout with optimized flex properties
+  - Improved scroll behavior and message indexing
+  - Enhanced component organization
+- **InputHandler Optimization** - More responsive input handling
+  - Better event delegation for keyboard and mouse events
+  - Improved debouncing and throttling
+  - More granular event control
+- **Scene2DCamera Improvements** - Smoother camera controls
+  - Better zoom behavior with clamped values
+  - Improved pan responsiveness
+  - Optimized camera update logic
+- **Scene2DRenderer Enhancement** - Better rendering performance
+  - Cleaner render pipeline
+  - Improved performance for large scenes
+  - Better entity positioning and updates
+
+### Technical
+- Enhanced useKeyboardShortcuts hook with better event handling
+- Improved InputHandler event delegation patterns
+- Optimized Scene2DCamera with smooth transitions
+- Better Scene2DRenderer rendering pipeline
+- Store shortcuts updates for additional keyboard support
+
 ## [0.37.0] - 2026-01-29
 
 ### Added
