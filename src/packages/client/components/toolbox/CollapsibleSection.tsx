@@ -27,13 +27,15 @@ function setCollapseState(key: string, isOpen: boolean): void {
 export function CollapsibleSection({
   title,
   storageKey,
-  defaultOpen = true,
+  defaultOpen = false,
+  forceOpen = false,
   children,
   headerExtra,
 }: {
   title: string;
   storageKey?: string;
   defaultOpen?: boolean;
+  forceOpen?: boolean;
   children: React.ReactNode;
   headerExtra?: React.ReactNode;
 }) {
@@ -49,16 +51,19 @@ export function CollapsibleSection({
     }
   };
 
+  // Use forceOpen when searching, otherwise use internal state
+  const effectivelyOpen = forceOpen || isOpen;
+
   return (
-    <div className={`collapsible-section ${isOpen ? 'open' : 'collapsed'}`}>
+    <div className={`collapsible-section ${effectivelyOpen ? 'open' : 'collapsed'}`}>
       <button className="collapsible-header" onClick={handleToggle}>
         <span className="collapsible-title">{title}</span>
         <span className="collapsible-header-right">
           {headerExtra}
-          <span className="collapsible-arrow">{isOpen ? '▼' : '▶'}</span>
+          <span className="collapsible-arrow">{effectivelyOpen ? '▼' : '▶'}</span>
         </span>
       </button>
-      {isOpen && <div className="collapsible-content">{children}</div>}
+      {effectivelyOpen && <div className="collapsible-content">{children}</div>}
     </div>
   );
 }

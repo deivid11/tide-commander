@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useStore, store } from '../../store';
 import type { DrawingTool } from '../../../shared/types';
 import type { ToolboxProps } from './types';
@@ -13,6 +13,8 @@ export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose,
   const state = useStore();
   const areasArray = Array.from(state.areas.values());
   const buildingsArray = Array.from(state.buildings.values());
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Areas are loaded from server via WebSocket on connection
 
@@ -26,6 +28,17 @@ export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose,
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
+
+  // Autofocus search input when sidebar opens
+  useEffect(() => {
+    if (isOpen && searchInputRef.current) {
+      // Small delay to ensure the sidebar animation has started
+      const timer = setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -58,6 +71,27 @@ export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose,
           </button>
         </div>
 
+        {/* Search bar */}
+        <div className="toolbox-search">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="11" cy="11" r="8" />
+            <path d="M21 21l-4.35-4.35" />
+          </svg>
+          <input
+            ref={searchInputRef}
+            type="text"
+            placeholder="Search settings..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="toolbox-search-input"
+          />
+          {searchQuery && (
+            <button className="toolbox-search-clear" onClick={() => setSearchQuery('')}>
+              &times;
+            </button>
+          )}
+        </div>
+
         {/* Scrollable content area */}
         <div className="toolbox-content">
           {/* Areas Section (includes Drawing Tools) */}
@@ -65,7 +99,6 @@ export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose,
             <CollapsibleSection
               title={`Areas (${areasArray.length})`}
               storageKey="areas"
-              defaultOpen={true}
             >
               {/* Drawing Tools */}
               <div className="tool-buttons">
@@ -139,7 +172,6 @@ export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose,
             <CollapsibleSection
               title={`Buildings (${buildingsArray.length})`}
               storageKey="buildings"
-              defaultOpen={true}
               headerExtra={
                 <button
                   className="add-building-btn"
@@ -191,7 +223,7 @@ export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose,
           })()}
 
           {/* Config Section */}
-          <ConfigSection config={config} onChange={onConfigChange} />
+          <ConfigSection config={config} onChange={onConfigChange} searchQuery={searchQuery} />
         </div>
       </aside>
     </>
