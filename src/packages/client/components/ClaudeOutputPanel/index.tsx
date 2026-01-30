@@ -447,53 +447,66 @@ export function ClaudeOutputPanel() {
     return () => document.removeEventListener('keydown', handleKeyDown, true);
   }, [imageModal, bashModal, responseModalContent, search, fileViewerPath, contextModalAgentId]);
 
-  // Close terminal when clicking outside (desktop only)
-  // Track mousedown/mouseup to prevent closing during text selection
+  // Refs to track state in event handlers
+  const isOpenRef = useRef(isOpen);
+  const isMouseDownOutsideRef = useRef(false);
+
+  // Keep isOpenRef in sync with isOpen
   useEffect(() => {
-    if (!isOpen) return;
+    isOpenRef.current = isOpen;
+  }, [isOpen]);
+
+  // Close terminal when clicking outside
+  // Use refs to avoid closure issues with event listeners
+  useEffect(() => {
     const isMobile = window.innerWidth <= 768;
     if (isMobile) return;
 
-    let ignoreClicks = true;
-    const timer = setTimeout(() => { ignoreClicks = false; }, 100);
-    let mouseDownTarget: EventTarget | null = null;
-
     const handleMouseDown = (e: MouseEvent) => {
-      if (ignoreClicks) return;
-      // Track where mousedown started
-      mouseDownTarget = e.target;
-    };
-
-    const handleClick = (e: MouseEvent) => {
-      if (ignoreClicks) return;
-      const target = e.target as HTMLElement;
-
-      // Only close if BOTH mousedown and click were outside terminal
-      // This prevents closing when selecting text that ends outside
-      const mouseDownWasInside = mouseDownTarget && terminalRef.current?.contains(mouseDownTarget as Node);
-      const clickIsInside = terminalRef.current?.contains(target);
-
-      if (mouseDownWasInside || clickIsInside) {
-        mouseDownTarget = null;
+      // Only track if terminal is currently open
+      if (!isOpenRef.current) {
+        isMouseDownOutsideRef.current = false;
         return;
       }
 
-      // Don't close when clicking canvas or agent bar
-      if (target.tagName === 'CANVAS') return;
-      if (target.closest('.agent-bar')) return;
+      const target = e.target as HTMLElement;
+      const isInTerminal = terminalRef.current?.contains(target);
+      const isAgentBar = target.closest('.agent-bar');
 
-      store.setTerminalOpen(false);
-      mouseDownTarget = null;
+      isMouseDownOutsideRef.current = !isInTerminal && !isAgentBar;
+      if (isMouseDownOutsideRef.current) {
+        console.log('[ClaudeOutputPanel] ✓ Mousedown outside terminal');
+      }
     };
 
-    document.addEventListener('mousedown', handleMouseDown);
-    document.addEventListener('click', handleClick);
+    const handleMouseUp = (e: MouseEvent) => {
+      // Only close if mousedown was outside (and terminal was open at that time)
+      if (!isMouseDownOutsideRef.current) {
+        return;
+      }
+
+      console.log('[ClaudeOutputPanel] ✓ Mouseup - checking if still outside');
+
+      const target = e.target as HTMLElement;
+      const isInTerminal = terminalRef.current?.contains(target);
+      const isAgentBar = target.closest('.agent-bar');
+
+      if (!isInTerminal && !isAgentBar) {
+        console.log('[ClaudeOutputPanel] ✓ CLOSING TERMINAL NOW');
+        store.setTerminalOpen(false);
+      }
+      isMouseDownOutsideRef.current = false;
+    };
+
+    // Attach listeners once and keep them attached throughout component lifetime
+    document.addEventListener('mousedown', handleMouseDown, true);
+    document.addEventListener('mouseup', handleMouseUp, true);
+
     return () => {
-      clearTimeout(timer);
-      document.removeEventListener('mousedown', handleMouseDown);
-      document.removeEventListener('click', handleClick);
+      document.removeEventListener('mousedown', handleMouseDown, true);
+      document.removeEventListener('mouseup', handleMouseUp, true);
     };
-  }, [isOpen, terminalRef]);
+  }, []);
 
   // Visibility change cleanup
   useEffect(() => {
@@ -503,6 +516,33 @@ export function ClaudeOutputPanel() {
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [keyboard]);
+
+  // Sync terminal state: detect when terminal is visually hidden but state says open
+  // This fixes the issue where space bar doesn't work because state is stuck on "open"
+  useEffect(() => {
+    if (!terminalRef.current) return;
+
+    const observer = new MutationObserver(() => {
+      const element = terminalRef.current;
+      if (!element) return;
+
+      // Check if the terminal is visually collapsed (has 'collapsed' class)
+      const isCollapsed = element.classList.contains('collapsed');
+      console.log('[ClaudeOutputPanel] Terminal visibility changed', {
+        isCollapsed,
+        stateIsOpen: isOpen,
+      });
+
+      // If visually collapsed but state says open, sync the state
+      if (isCollapsed && isOpen) {
+        console.log('[ClaudeOutputPanel] Terminal state was stuck open but visually collapsed - syncing state');
+        store.setTerminalOpen(false);
+      }
+    });
+
+    observer.observe(terminalRef.current, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, [isOpen]);
 
   // Mobile placeholder rendering
   const isMobileWidth = typeof window !== 'undefined' && window.innerWidth <= 768;
