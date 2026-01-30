@@ -22,6 +22,7 @@ import type {
 interface ConfigSectionProps {
   config: SceneConfig;
   onChange: (config: SceneConfig) => void;
+  searchQuery?: string;
 }
 
 const TIME_MODE_OPTIONS: { value: TimeMode; label: string; icon: string }[] = [
@@ -134,7 +135,94 @@ function ChipSelector<T extends string>({
   );
 }
 
-export function ConfigSection({ config, onChange }: ConfigSectionProps) {
+// Highlight matching text in labels
+function HighlightText({ text, query }: { text: string; query: string }) {
+  if (!query.trim()) return <>{text}</>;
+
+  const lowerText = text.toLowerCase();
+  const lowerQuery = query.toLowerCase();
+  const index = lowerText.indexOf(lowerQuery);
+
+  if (index === -1) return <>{text}</>;
+
+  const before = text.slice(0, index);
+  const match = text.slice(index, index + query.length);
+  const after = text.slice(index + query.length);
+
+  return (
+    <>
+      {before}
+      <mark className="search-highlight">{match}</mark>
+      {after}
+    </>
+  );
+}
+
+// Define searchable settings configuration
+const SETTINGS_SECTIONS = [
+  {
+    id: 'general',
+    title: 'General',
+    keywords: ['history', 'hide costs', 'grid', 'fps', 'power saving', 'performance', 'limit'],
+  },
+  {
+    id: 'agentNames',
+    title: 'Agent Names',
+    keywords: ['agent', 'names', 'custom', 'characters', 'rename'],
+  },
+  {
+    id: 'appearance',
+    title: 'Appearance',
+    keywords: ['theme', 'appearance', 'color', 'dark', 'light', 'style', 'look'],
+  },
+  {
+    id: 'connection',
+    title: 'Connection',
+    keywords: ['backend', 'url', 'auth', 'token', 'reconnect', 'server', 'api', 'connect'],
+  },
+  {
+    id: 'scene',
+    title: 'Scene',
+    keywords: ['character', 'size', 'indicator', 'scale', 'time', 'dawn', 'day', 'dusk', 'night', 'auto'],
+  },
+  {
+    id: 'terrain',
+    title: 'Terrain',
+    keywords: ['trees', 'bushes', 'house', 'lamps', 'grass', 'clouds', 'fog', 'brightness', 'floor', 'sky', 'color', 'environment'],
+  },
+  {
+    id: 'modelStyle',
+    title: 'Agent Model Style',
+    keywords: ['saturation', 'roughness', 'metalness', 'glow', 'emissive', 'reflections', 'wireframe', 'color mode', 'material', 'shader'],
+  },
+  {
+    id: 'animations',
+    title: 'Animations',
+    keywords: ['idle', 'working', 'animation', 'walk', 'run', 'sprint', 'jump', 'sit', 'crouch'],
+  },
+  {
+    id: 'secrets',
+    title: 'Secrets',
+    keywords: ['secrets', 'api', 'key', 'password', 'credentials', 'env', 'environment'],
+  },
+  {
+    id: 'data',
+    title: 'Data',
+    keywords: ['export', 'import', 'backup', 'restore', 'save', 'load', 'json'],
+  },
+  {
+    id: 'experimental',
+    title: 'Experimental',
+    keywords: ['experimental', '2d', 'view', 'voice', 'assistant', 'speech', 'tts', 'text to speech'],
+  },
+  {
+    id: 'about',
+    title: 'About',
+    keywords: ['about', 'version', 'update', 'credits', 'github', 'releases'],
+  },
+];
+
+export function ConfigSection({ config, onChange, searchQuery = '' }: ConfigSectionProps) {
   const state = useStore();
   const [historyLimit, setHistoryLimit] = useState(state.settings.historyLimit);
   const [backendUrl, setBackendUrl] = useState(() => getStorageString(STORAGE_KEYS.BACKEND_URL, ''));
@@ -143,6 +231,22 @@ export function ConfigSection({ config, onChange }: ConfigSectionProps) {
   const [authTokenDirty, setAuthTokenDirty] = useState(false);
   const [showToken, setShowToken] = useState(false);
   const [newAgentName, setNewAgentName] = useState('');
+
+  // Filter sections based on search query
+  const matchingSections = searchQuery.trim()
+    ? SETTINGS_SECTIONS.filter((section) => {
+        const query = searchQuery.toLowerCase();
+        return (
+          section.title.toLowerCase().includes(query) ||
+          section.keywords.some((kw) => kw.toLowerCase().includes(query))
+        );
+      }).map((s) => s.id)
+    : null; // null means show all
+
+  const shouldShowSection = (sectionId: string) => {
+    if (!matchingSections) return true; // No search = show all
+    return matchingSections.includes(sectionId);
+  };
 
   // Custom agent names (use custom if set, otherwise use built-in defaults)
   const customAgentNames = state.settings.customAgentNames || [];
@@ -210,12 +314,26 @@ export function ConfigSection({ config, onChange }: ConfigSectionProps) {
     }
   };
 
+  const isSearching = searchQuery.trim().length > 0;
+
   return (
     <div className="config-section">
+      {/* No results message */}
+      {matchingSections && matchingSections.length === 0 && (
+        <div className="config-no-results">
+          No settings found for "{searchQuery}"
+        </div>
+      )}
+
       {/* General Settings */}
-      <CollapsibleSection title="General" storageKey="general" defaultOpen={true}>
+      {shouldShowSection('general') && (
+      <CollapsibleSection
+        title="General"
+        storageKey="general"
+        forceOpen={isSearching && shouldShowSection('general')}
+      >
         <div className="config-row">
-          <span className="config-label">History</span>
+          <span className="config-label"><HighlightText text="History" query={searchQuery} /></span>
           <input
             type="number"
             className="config-input config-input-sm"
@@ -227,28 +345,28 @@ export function ConfigSection({ config, onChange }: ConfigSectionProps) {
           />
         </div>
         <div className="config-row">
-          <span className="config-label">Hide Costs</span>
+          <span className="config-label"><HighlightText text="Hide Costs" query={searchQuery} /></span>
           <Toggle
             checked={state.settings.hideCost}
             onChange={(checked) => store.updateSettings({ hideCost: checked })}
           />
         </div>
         <div className="config-row">
-          <span className="config-label">Grid</span>
+          <span className="config-label"><HighlightText text="Grid" query={searchQuery} /></span>
           <Toggle
             checked={config.gridVisible}
             onChange={(checked) => onChange({ ...config, gridVisible: checked })}
           />
         </div>
         <div className="config-row">
-          <span className="config-label">Show FPS</span>
+          <span className="config-label"><HighlightText text="Show FPS" query={searchQuery} /></span>
           <Toggle
             checked={state.settings.showFPS}
             onChange={(checked) => store.updateSettings({ showFPS: checked })}
           />
         </div>
         <div className="config-row">
-          <span className="config-label">FPS Limit</span>
+          <span className="config-label"><HighlightText text="FPS Limit" query={searchQuery} /></span>
           <input
             type="range"
             className="config-slider"
@@ -261,16 +379,23 @@ export function ConfigSection({ config, onChange }: ConfigSectionProps) {
           <span className="config-value">{config.fpsLimit === 0 ? '∞' : config.fpsLimit}</span>
         </div>
         <div className="config-row">
-          <span className="config-label" title="Experimental: Reduce FPS when idle to save power">Power Saving ⚡</span>
+          <span className="config-label" title="Experimental: Reduce FPS when idle to save power"><HighlightText text="Power Saving" query={searchQuery} /> ⚡</span>
           <Toggle
             checked={state.settings.powerSaving}
             onChange={(checked) => store.updateSettings({ powerSaving: checked })}
           />
         </div>
       </CollapsibleSection>
+      )}
 
       {/* Agent Names Settings */}
-      <CollapsibleSection title="Agent Names" storageKey="agentNames" defaultOpen={false}>
+      {shouldShowSection('agentNames') && (
+      <CollapsibleSection
+        title="Agent Names"
+        storageKey="agentNames"
+        defaultOpen={false}
+        forceOpen={isSearching && shouldShowSection('agentNames')}
+      >
         <div className="agent-names-section">
           <span className="config-hint">
             {customAgentNames.length > 0
@@ -325,23 +450,37 @@ export function ConfigSection({ config, onChange }: ConfigSectionProps) {
           )}
         </div>
       </CollapsibleSection>
+      )}
 
       {/* Appearance Settings */}
-      <CollapsibleSection title="Appearance" storageKey="appearance" defaultOpen={false}>
+      {shouldShowSection('appearance') && (
+      <CollapsibleSection
+        title="Appearance"
+        storageKey="appearance"
+        defaultOpen={false}
+        forceOpen={isSearching && shouldShowSection('appearance')}
+      >
         <ThemeSelector />
       </CollapsibleSection>
+      )}
 
       {/* Connection Settings */}
-      <CollapsibleSection title="Connection" storageKey="connection" defaultOpen={false}>
+      {shouldShowSection('connection') && (
+      <CollapsibleSection
+        title="Connection"
+        storageKey="connection"
+        defaultOpen={false}
+        forceOpen={isSearching && shouldShowSection('connection')}
+      >
         <div className="config-row config-row-stacked">
-          <span className="config-label">Backend URL</span>
+          <span className="config-label"><HighlightText text="Backend URL" query={searchQuery} /></span>
           <div className="config-input-group">
             <input
               type="text"
               className="config-input config-input-full"
               value={backendUrl}
               onChange={(e) => handleBackendUrlChange(e.target.value)}
-              placeholder="http://127.0.0.1:5174"
+              placeholder="http://localhost:5174"
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && backendUrlDirty) {
                   handleBackendUrlSave();
@@ -361,7 +500,7 @@ export function ConfigSection({ config, onChange }: ConfigSectionProps) {
           <span className="config-hint">Leave empty for auto-detect</span>
         </div>
         <div className="config-row config-row-stacked">
-          <span className="config-label">Auth Token</span>
+          <span className="config-label"><HighlightText text="Auth Token" query={searchQuery} /></span>
           <div className="config-input-group">
             <input
               type={showToken ? 'text' : 'password'}
@@ -395,7 +534,7 @@ export function ConfigSection({ config, onChange }: ConfigSectionProps) {
           <span className="config-hint">Required if server has AUTH_TOKEN set</span>
         </div>
         <div className="config-row">
-          <span className="config-label">Manual</span>
+          <span className="config-label"><HighlightText text="Reconnect" query={searchQuery} /></span>
           <button
             className="config-btn"
             onClick={() => reconnect()}
@@ -405,11 +544,18 @@ export function ConfigSection({ config, onChange }: ConfigSectionProps) {
           </button>
         </div>
       </CollapsibleSection>
+      )}
 
       {/* Scene Settings */}
-      <CollapsibleSection title="Scene" storageKey="scene" defaultOpen={false}>
+      {shouldShowSection('scene') && (
+      <CollapsibleSection
+        title="Scene"
+        storageKey="scene"
+        defaultOpen={false}
+        forceOpen={isSearching && shouldShowSection('scene')}
+      >
         <div className="config-row">
-          <span className="config-label">Char Size</span>
+          <span className="config-label"><HighlightText text="Character Size" query={searchQuery} /></span>
           <input
             type="range"
             className="config-slider"
@@ -422,7 +568,7 @@ export function ConfigSection({ config, onChange }: ConfigSectionProps) {
           <span className="config-value">{config.characterScale.toFixed(1)}x</span>
         </div>
         <div className="config-row">
-          <span className="config-label">Indicator</span>
+          <span className="config-label"><HighlightText text="Indicator Scale" query={searchQuery} /></span>
           <input
             type="range"
             className="config-slider"
@@ -435,7 +581,7 @@ export function ConfigSection({ config, onChange }: ConfigSectionProps) {
           <span className="config-value">{config.indicatorScale.toFixed(1)}x</span>
         </div>
         <div className="config-group">
-          <span className="config-label">Time</span>
+          <span className="config-label"><HighlightText text="Time" query={searchQuery} /></span>
           <ChipSelector
             options={TIME_MODE_OPTIONS}
             value={config.timeMode}
@@ -444,9 +590,16 @@ export function ConfigSection({ config, onChange }: ConfigSectionProps) {
           />
         </div>
       </CollapsibleSection>
+      )}
 
       {/* Terrain Settings */}
-      <CollapsibleSection title="Terrain" storageKey="terrain" defaultOpen={false}>
+      {shouldShowSection('terrain') && (
+      <CollapsibleSection
+        title="Terrain"
+        storageKey="terrain"
+        defaultOpen={false}
+        forceOpen={isSearching && shouldShowSection('terrain')}
+      >
         <div className="terrain-icons">
           {TERRAIN_OPTIONS.map((opt) => (
             <button
@@ -460,7 +613,7 @@ export function ConfigSection({ config, onChange }: ConfigSectionProps) {
           ))}
         </div>
         <div className="config-row">
-          <span className="config-label">Fog</span>
+          <span className="config-label"><HighlightText text="Fog" query={searchQuery} /></span>
           <input
             type="range"
             className="config-slider"
@@ -475,7 +628,7 @@ export function ConfigSection({ config, onChange }: ConfigSectionProps) {
           </span>
         </div>
         <div className="config-row">
-          <span className="config-label">Brightness</span>
+          <span className="config-label"><HighlightText text="Brightness" query={searchQuery} /></span>
           <input
             type="range"
             className="config-slider"
@@ -490,7 +643,7 @@ export function ConfigSection({ config, onChange }: ConfigSectionProps) {
           </span>
         </div>
         <div className="config-group">
-          <span className="config-label">Floor</span>
+          <span className="config-label"><HighlightText text="Floor" query={searchQuery} /></span>
           <ChipSelector
             options={FLOOR_STYLE_OPTIONS}
             value={config.terrain.floorStyle}
@@ -499,7 +652,7 @@ export function ConfigSection({ config, onChange }: ConfigSectionProps) {
           />
         </div>
         <div className="config-group">
-          <span className="config-label">Sky</span>
+          <span className="config-label"><HighlightText text="Sky" query={searchQuery} /></span>
           <div className="sky-color-selector">
             {SKY_COLOR_OPTIONS.map((opt) => (
               <button
@@ -513,11 +666,18 @@ export function ConfigSection({ config, onChange }: ConfigSectionProps) {
           </div>
         </div>
       </CollapsibleSection>
+      )}
 
       {/* Agent Model Style Settings */}
-      <CollapsibleSection title="Agent Model Style" storageKey="modelStyle" defaultOpen={false}>
+      {shouldShowSection('modelStyle') && (
+      <CollapsibleSection
+        title="Agent Model Style"
+        storageKey="modelStyle"
+        defaultOpen={false}
+        forceOpen={isSearching && shouldShowSection('modelStyle')}
+      >
         <div className="config-row">
-          <span className="config-label">Saturation</span>
+          <span className="config-label"><HighlightText text="Saturation" query={searchQuery} /></span>
           <input
             type="range"
             className="config-slider"
@@ -532,7 +692,7 @@ export function ConfigSection({ config, onChange }: ConfigSectionProps) {
           </span>
         </div>
         <div className="config-row">
-          <span className="config-label">Roughness</span>
+          <span className="config-label"><HighlightText text="Roughness" query={searchQuery} /></span>
           <input
             type="range"
             className="config-slider"
@@ -547,7 +707,7 @@ export function ConfigSection({ config, onChange }: ConfigSectionProps) {
           </span>
         </div>
         <div className="config-row">
-          <span className="config-label">Metalness</span>
+          <span className="config-label"><HighlightText text="Metalness" query={searchQuery} /></span>
           <input
             type="range"
             className="config-slider"
@@ -562,7 +722,7 @@ export function ConfigSection({ config, onChange }: ConfigSectionProps) {
           </span>
         </div>
         <div className="config-row">
-          <span className="config-label">Glow</span>
+          <span className="config-label"><HighlightText text="Glow" query={searchQuery} /></span>
           <input
             type="range"
             className="config-slider"
@@ -577,7 +737,7 @@ export function ConfigSection({ config, onChange }: ConfigSectionProps) {
           </span>
         </div>
         <div className="config-row">
-          <span className="config-label">Reflections</span>
+          <span className="config-label"><HighlightText text="Reflections" query={searchQuery} /></span>
           <input
             type="range"
             className="config-slider"
@@ -592,14 +752,14 @@ export function ConfigSection({ config, onChange }: ConfigSectionProps) {
           </span>
         </div>
         <div className="config-row">
-          <span className="config-label">Wireframe</span>
+          <span className="config-label"><HighlightText text="Wireframe" query={searchQuery} /></span>
           <Toggle
             checked={config.modelStyle.wireframe}
             onChange={(checked) => updateModelStyle({ wireframe: checked })}
           />
         </div>
         <div className="config-group">
-          <span className="config-label">Color Mode</span>
+          <span className="config-label"><HighlightText text="Color Mode" query={searchQuery} /></span>
           <ChipSelector
             options={COLOR_MODE_OPTIONS}
             value={config.modelStyle.colorMode}
@@ -608,11 +768,18 @@ export function ConfigSection({ config, onChange }: ConfigSectionProps) {
           />
         </div>
       </CollapsibleSection>
+      )}
 
       {/* Animations Settings */}
-      <CollapsibleSection title="Animations" storageKey="animations" defaultOpen={false}>
+      {shouldShowSection('animations') && (
+      <CollapsibleSection
+        title="Animations"
+        storageKey="animations"
+        defaultOpen={false}
+        forceOpen={isSearching && shouldShowSection('animations')}
+      >
         <div className="config-group">
-          <span className="config-label">Idle</span>
+          <span className="config-label"><HighlightText text="Idle Animation" query={searchQuery} /></span>
           <ChipSelector
             options={ANIMATION_OPTIONS}
             value={config.animations.idleAnimation}
@@ -621,7 +788,7 @@ export function ConfigSection({ config, onChange }: ConfigSectionProps) {
           />
         </div>
         <div className="config-group">
-          <span className="config-label">Working</span>
+          <span className="config-label"><HighlightText text="Working Animation" query={searchQuery} /></span>
           <ChipSelector
             options={ANIMATION_OPTIONS}
             value={config.animations.workingAnimation}
@@ -630,35 +797,56 @@ export function ConfigSection({ config, onChange }: ConfigSectionProps) {
           />
         </div>
       </CollapsibleSection>
+      )}
 
       {/* Secrets Section */}
-      <CollapsibleSection title="Secrets" storageKey="secrets" defaultOpen={false}>
+      {shouldShowSection('secrets') && (
+      <CollapsibleSection
+        title="Secrets"
+        storageKey="secrets"
+        defaultOpen={false}
+        forceOpen={isSearching && shouldShowSection('secrets')}
+      >
         <SecretsSection />
       </CollapsibleSection>
+      )}
 
       {/* Data Export/Import Section */}
-      <CollapsibleSection title="Data" storageKey="data" defaultOpen={false}>
+      {shouldShowSection('data') && (
+      <CollapsibleSection
+        title="Data"
+        storageKey="data"
+        defaultOpen={false}
+        forceOpen={isSearching && shouldShowSection('data')}
+      >
         <DataSection />
       </CollapsibleSection>
+      )}
 
       {/* Experimental Features Section */}
-      <CollapsibleSection title="Experimental" storageKey="experimental" defaultOpen={false}>
+      {shouldShowSection('experimental') && (
+      <CollapsibleSection
+        title="Experimental"
+        storageKey="experimental"
+        defaultOpen={false}
+        forceOpen={isSearching && shouldShowSection('experimental')}
+      >
         <div className="config-row">
-          <span className="config-label" title="Lightweight 2D top-down view for better performance">2D View Mode 🗺️</span>
+          <span className="config-label" title="Lightweight 2D top-down view for better performance"><HighlightText text="2D View Mode" query={searchQuery} /> 🗺️</span>
           <Toggle
             checked={state.settings.experimental2DView}
             onChange={(checked) => store.updateSettings({ experimental2DView: checked })}
           />
         </div>
         <div className="config-row">
-          <span className="config-label" title="Voice assistant for hands-free agent control">Voice Assistant 🎤</span>
+          <span className="config-label" title="Voice assistant for hands-free agent control"><HighlightText text="Voice Assistant" query={searchQuery} /> 🎤</span>
           <Toggle
             checked={state.settings.experimentalVoiceAssistant}
             onChange={(checked) => store.updateSettings({ experimentalVoiceAssistant: checked })}
           />
         </div>
         <div className="config-row">
-          <span className="config-label" title="Text-to-speech for reading agent responses">Text to Speech 🔊</span>
+          <span className="config-label" title="Text-to-speech for reading agent responses"><HighlightText text="Text to Speech" query={searchQuery} /> 🔊</span>
           <Toggle
             checked={state.settings.experimentalTTS}
             onChange={(checked) => store.updateSettings({ experimentalTTS: checked })}
@@ -666,11 +854,19 @@ export function ConfigSection({ config, onChange }: ConfigSectionProps) {
         </div>
         <span className="config-hint">These features are experimental and may change</span>
       </CollapsibleSection>
+      )}
 
       {/* About Section */}
-      <CollapsibleSection title="About" storageKey="about" defaultOpen={false}>
+      {shouldShowSection('about') && (
+      <CollapsibleSection
+        title="About"
+        storageKey="about"
+        defaultOpen={false}
+        forceOpen={isSearching && shouldShowSection('about')}
+      >
         <AboutSection />
       </CollapsibleSection>
+      )}
     </div>
   );
 }
