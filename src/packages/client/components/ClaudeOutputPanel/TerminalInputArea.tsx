@@ -45,6 +45,8 @@ export interface TerminalInputAreaProps {
   // External refs for input elements (for keyboard navigation focus)
   inputRef?: React.RefObject<HTMLInputElement | null>;
   textareaRef?: React.RefObject<HTMLTextAreaElement | null>;
+  // Whether viewing a snapshot (read-only mode)
+  isSnapshotView?: boolean;
 }
 
 export function TerminalInputArea({
@@ -72,6 +74,7 @@ export function TerminalInputArea({
   onImageClick,
   inputRef: externalInputRef,
   textareaRef: externalTextareaRef,
+  isSnapshotView = false,
 }: TerminalInputAreaProps) {
   // Use external refs if provided, otherwise create internal ones
   const internalInputRef = useRef<HTMLInputElement>(null);
@@ -149,9 +152,13 @@ export function TerminalInputArea({
     const wasOpen = prevIsOpenRef.current;
     prevIsOpenRef.current = isOpen;
 
+    // Check if this selection was from a swipe gesture (consumes and clears the flag)
+    // If so, don't autofocus to prevent keyboard from popping up on mobile
+    const wasSwipe = store.consumeSwipeSelectionFlag();
+
     // Focus when terminal opens (transition from closed to open)
-    // or when agent changes while terminal is already open
-    if (isOpen && (!wasOpen || selectedAgentId)) {
+    // or when agent changes while terminal is already open (but not from swipe)
+    if (isOpen && (!wasOpen || selectedAgentId) && !wasSwipe) {
       // Small delay to ensure terminal animation has started
       const timeoutId = setTimeout(() => {
         if (useTextarea && textareaRef.current) {
@@ -405,7 +412,7 @@ export function TerminalInputArea({
         </div>
       )}
 
-      <div className={`guake-input-wrapper ${selectedAgent.status === 'working' ? 'has-stop-btn is-working' : ''} ${showCompletion ? 'is-completed' : ''}`}>
+      <div className={`guake-input-wrapper ${selectedAgent.status === 'working' ? 'has-stop-btn is-working' : ''} ${showCompletion ? 'is-completed' : ''} ${isSnapshotView ? 'is-snapshot-view' : ''}`}>
         {/* Floating stop button - shown when agent is working */}
         {selectedAgent.status === 'working' && (
           <div className="guake-stop-bar">

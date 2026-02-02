@@ -35,6 +35,7 @@
 @use 'components/pwa-install';
 @use 'components/pip';
 @use 'components/tooltip';
+@use 'components/snapshots';
 
 // Responsive styles (must be last to override component styles)
 @use 'responsive/index' as responsive;

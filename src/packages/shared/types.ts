@@ -1912,6 +1912,194 @@ export interface DeleteSecretMessage extends WSMessage {
 }
 
 // ============================================================================
+// Snapshot Types (Conversation Snapshots)
+// ============================================================================
+
+/**
+ * File captured as part of a snapshot
+ * Tracks files that were created or modified during a conversation
+ */
+export interface SnapshotFile {
+  path: string;              // Absolute file path
+  relativePath?: string;     // Path relative to agent's cwd
+  content: string;           // File content at time of snapshot
+  type: 'created' | 'modified'; // Whether file was created or modified
+  timestamp: number;         // When the file change was detected
+  size: number;              // File size in bytes
+}
+
+/**
+ * Conversation output - a message from the conversation
+ * Simplified version of SessionMessage for snapshot storage
+ */
+export interface SnapshotOutput {
+  /** Unique ID for this output */
+  id: string;
+  /** Output text content */
+  text: string;
+  /** Timestamp when output was generated */
+  timestamp: number;
+  /** Whether this was streaming or complete */
+  isStreaming?: boolean;
+}
+
+/**
+ * Full conversation snapshot
+ * Captures the complete state of a conversation including files
+ */
+export interface ConversationSnapshot {
+  id: string;
+  agentId: string;
+  agentName: string;
+  agentClass: AgentClass;
+
+  // User-provided metadata
+  title: string;
+  description?: string;
+
+  // Conversation content
+  outputs: SnapshotOutput[];    // All conversation messages
+  sessionId?: string;           // Claude session ID if available
+
+  // Captured files
+  files: SnapshotFile[];        // Files created/modified during conversation
+
+  // Context info
+  cwd: string;                  // Working directory
+
+  // Timestamps
+  createdAt: number;            // When snapshot was created
+  conversationStartedAt?: number; // When conversation started (if known)
+
+  // Metadata
+  tokensUsed?: number;          // Tokens used at time of snapshot
+  contextUsed?: number;         // Context usage at time of snapshot
+}
+
+/**
+ * Lightweight snapshot item for listing
+ * Used in the snapshot manager UI
+ */
+export interface SnapshotListItem {
+  id: string;
+  title: string;
+  description?: string;
+  agentId: string;
+  agentName: string;
+  agentClass: AgentClass;
+  cwd: string;
+  createdAt: number;
+  fileCount: number;           // Number of files in snapshot
+  outputCount: number;         // Number of messages in snapshot
+}
+
+/**
+ * Request to create a new snapshot
+ */
+export interface CreateSnapshotRequest {
+  agentId: string;
+  title: string;
+  description?: string;
+}
+
+/**
+ * Response when snapshot is created
+ */
+export interface CreateSnapshotResponse {
+  success: boolean;
+  snapshot?: ConversationSnapshot;
+  error?: string;
+}
+
+/**
+ * Request to restore files from a snapshot
+ */
+export interface RestoreSnapshotRequest {
+  snapshotId: string;
+  overwrite?: boolean;         // Whether to overwrite existing files (default: false)
+  targetDir?: string;          // Alternative directory to restore to
+}
+
+/**
+ * Response when files are restored from snapshot
+ */
+export interface RestoreSnapshotResponse {
+  success: boolean;
+  restoredFiles: string[];     // Paths of files that were restored
+  skippedFiles: string[];      // Paths of files skipped (already exist and overwrite=false)
+  error?: string;
+}
+
+// ============================================================================
+// Snapshot WebSocket Messages
+// ============================================================================
+
+// Snapshots sync message (Server -> Client) - sent on connect
+export interface SnapshotsUpdateMessage extends WSMessage {
+  type: 'snapshots_update';
+  payload: SnapshotListItem[];
+}
+
+// Snapshot created message (Server -> Client)
+export interface SnapshotCreatedMessage extends WSMessage {
+  type: 'snapshot_created';
+  payload: ConversationSnapshot;
+}
+
+// Snapshot deleted message (Server -> Client)
+export interface SnapshotDeletedMessage extends WSMessage {
+  type: 'snapshot_deleted';
+  payload: { id: string };
+}
+
+// Request snapshot list (Client -> Server)
+export interface RequestSnapshotsMessage extends WSMessage {
+  type: 'request_snapshots';
+  payload: {
+    agentId?: string;          // Optional: filter by agent
+    limit?: number;            // Max snapshots to return
+  };
+}
+
+// Request snapshot details (Client -> Server)
+export interface RequestSnapshotDetailsMessage extends WSMessage {
+  type: 'request_snapshot_details';
+  payload: {
+    snapshotId: string;
+  };
+}
+
+// Snapshot details response (Server -> Client)
+export interface SnapshotDetailsMessage extends WSMessage {
+  type: 'snapshot_details';
+  payload: ConversationSnapshot;
+}
+
+// Create snapshot request (Client -> Server)
+export interface CreateSnapshotMessage extends WSMessage {
+  type: 'create_snapshot';
+  payload: CreateSnapshotRequest;
+}
+
+// Delete snapshot request (Client -> Server)
+export interface DeleteSnapshotMessage extends WSMessage {
+  type: 'delete_snapshot';
+  payload: { id: string };
+}
+
+// Restore snapshot request (Client -> Server)
+export interface RestoreSnapshotMessage extends WSMessage {
+  type: 'restore_snapshot';
+  payload: RestoreSnapshotRequest;
+}
+
+// Restore snapshot response (Server -> Client)
+export interface SnapshotRestoredMessage extends WSMessage {
+  type: 'snapshot_restored';
+  payload: RestoreSnapshotResponse;
+}
+
+// ============================================================================
 // Database WebSocket Messages
 // ============================================================================
 
@@ -2135,7 +2323,12 @@ export type ServerMessage =
   | QueryResultMessage
   | QueryHistoryUpdateMessage
   | TableSchemaMessage
-  | TablesListMessage;
+  | TablesListMessage
+  | SnapshotsUpdateMessage
+  | SnapshotCreatedMessage
+  | SnapshotDeletedMessage
+  | SnapshotDetailsMessage
+  | SnapshotRestoredMessage;
 
 export type ClientMessage =
   | SpawnAgentMessage
@@ -2201,4 +2394,9 @@ export type ClientMessage =
   | DeleteQueryHistoryMessage
   | ClearQueryHistoryMessage
   | GetTableSchemaMessage
-  | ListTablesMessage;
+  | ListTablesMessage
+  | RequestSnapshotsMessage
+  | RequestSnapshotDetailsMessage
+  | CreateSnapshotMessage
+  | DeleteSnapshotMessage
+  | RestoreSnapshotMessage;

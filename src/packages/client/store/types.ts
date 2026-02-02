@@ -30,6 +30,7 @@ import type {
 } from '../../shared/types';
 import type { ShortcutConfig } from './shortcuts';
 import type { MouseControlsState } from './mouseControls';
+import type { SnapshotListItem, ConversationSnapshot } from '../../shared/types/snapshot';
 
 // Activity type
 export interface Activity {
@@ -220,6 +221,13 @@ export interface StoreState {
   // Docker containers list (for "existing" mode selection)
   dockerContainersList: ExistingDockerContainer[];
   dockerComposeProjectsList: ExistingComposeProject[];
+  // Snapshots
+  snapshots: Map<string, SnapshotListItem>;
+  currentSnapshot: ConversationSnapshot | null;
+  snapshotsLoading: boolean;
+  snapshotsError: string | null;
+  // Flag to track if last agent selection was via swipe (prevents autofocus on mobile)
+  lastSelectionViaSwipe: boolean;
 }
 
 // Database building state

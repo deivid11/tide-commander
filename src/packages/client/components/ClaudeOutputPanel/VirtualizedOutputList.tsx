@@ -156,6 +156,21 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   // Track if we're programmatically scrolling (to avoid triggering onUserScroll)
   const isProgrammaticScrollRef = useRef(false);
   const prevItemCountRef = useRef(allItems.length);
+  const prevAgentIdRef = useRef(agentId);
+
+  // Track if we need to scroll after agent switch
+  const pendingScrollRef = useRef(false);
+
+  // Reset item count tracking when agent changes to ensure scroll to bottom on switch
+  useEffect(() => {
+    if (prevAgentIdRef.current !== agentId) {
+      prevAgentIdRef.current = agentId;
+      // Reset to 0 so next render will trigger scroll to bottom
+      prevItemCountRef.current = 0;
+      // Mark that we need to scroll to bottom after content loads
+      pendingScrollRef.current = true;
+    }
+  }, [agentId]);
 
   // Create virtualizer
   const virtualizer = useVirtualizer({
@@ -180,16 +195,57 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
 
     prevItemCountRef.current = allItems.length;
 
-    // Scroll to bottom
+    // Scroll to bottom with multiple attempts to handle virtualizer measurement timing
     isProgrammaticScrollRef.current = true;
-    requestAnimationFrame(() => {
+
+    const scrollToEnd = () => {
       virtualizer.scrollToIndex(allItems.length - 1, { align: 'end' });
-      // Reset flag after scroll completes
+    };
+
+    // Initial scroll
+    requestAnimationFrame(() => {
+      scrollToEnd();
+      // Retry after virtualizer has measured elements (timing varies)
+      setTimeout(scrollToEnd, 50);
+      setTimeout(scrollToEnd, 150);
+      setTimeout(scrollToEnd, 300);
+      // Reset flag after all scroll attempts complete
       setTimeout(() => {
         isProgrammaticScrollRef.current = false;
-      }, 100);
+        pendingScrollRef.current = false;
+      }, 350);
     });
   }, [allItems.length, shouldAutoScroll, virtualizer]);
+
+  // Additional scroll attempts when agent changes and content becomes available
+  // This catches cases where history loads after the initial effect runs
+  useEffect(() => {
+    if (!pendingScrollRef.current) return;
+    if (!shouldAutoScroll) return;
+    if (allItems.length === 0) return;
+
+    // Schedule multiple scroll attempts with longer delays for agent switch
+    isProgrammaticScrollRef.current = true;
+
+    const scrollToEnd = () => {
+      virtualizer.scrollToIndex(allItems.length - 1, { align: 'end' });
+    };
+
+    // Longer delays to ensure virtualizer has measured all items after agent switch
+    const timeouts = [100, 250, 500, 750, 1000].map(delay =>
+      setTimeout(scrollToEnd, delay)
+    );
+
+    const cleanupTimeout = setTimeout(() => {
+      isProgrammaticScrollRef.current = false;
+      pendingScrollRef.current = false;
+    }, 1050);
+
+    return () => {
+      timeouts.forEach(clearTimeout);
+      clearTimeout(cleanupTimeout);
+    };
+  }, [agentId, allItems.length, shouldAutoScroll, virtualizer]);
 
   // Detect scroll to top for loading more history
   const handleScroll = useCallback(() => {

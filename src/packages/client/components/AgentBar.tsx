@@ -28,6 +28,10 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
   const customClasses = useCustomAgentClassesArray();
   const [hasPendingHmrChanges, setHasPendingHmrChanges] = useState(false);
 
+  // Refs for scrolling to selected agent
+  const agentBarRef = useRef<HTMLDivElement>(null);
+  const agentItemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
   // Poll for pending HMR changes (only in dev mode and 3D view)
   useEffect(() => {
     if (!import.meta.env.DEV || settings.experimental2DView) {
@@ -134,6 +138,27 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
       setToolBubbles(newBubbles);
     }
   }, [agents.map(a => a.currentTool).join(',')]);
+
+  // Scroll selected agent into view when selection changes
+  // Use lastSelectedAgentId which is more reliable than the Set for single selections
+  useEffect(() => {
+    const selectedId = state.lastSelectedAgentId;
+    if (!selectedId) return;
+
+    const agentElement = agentItemRefs.current.get(selectedId);
+
+    if (agentElement) {
+      // Use a small delay to allow the DOM to update after swipe animation
+      requestAnimationFrame(() => {
+        // Use scrollIntoView with inline: 'center' to center the element horizontally
+        agentElement.scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest',
+          inline: 'center',
+        });
+      });
+    }
+  }, [state.lastSelectedAgentId]);
 
   const handleAgentClick = (agent: Agent, e: React.MouseEvent) => {
     if (e.shiftKey) {
@@ -271,7 +296,7 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
   let globalIndex = 0;
 
   return (
-    <div className="agent-bar">
+    <div className="agent-bar" ref={agentBarRef}>
       {/* Version indicator */}
       <div className="agent-bar-version" title={`Tide Commander v${version}`}>
         <span>v{version}</span>
@@ -419,6 +444,13 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
                 return (
                   <div
                     key={agent.id}
+                    ref={(el) => {
+                      if (el) {
+                        agentItemRefs.current.set(agent.id, el);
+                      } else {
+                        agentItemRefs.current.delete(agent.id);
+                      }
+                    }}
                     className={`agent-bar-item ${isSelected ? 'selected' : ''} ${agent.status} ${agent.isBoss ? 'is-boss' : ''} ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
                     draggable
                     onDragStart={(e) => handleDragStart(e, agent)}

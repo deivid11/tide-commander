@@ -108,6 +108,10 @@
 // Wrapper for input area with floating stop button
 .guake-input-wrapper {
   position: relative;
+
+  &.is-snapshot-view {
+    display: none;
+  }
 }
 
 .guake-input {

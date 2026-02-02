@@ -30,7 +30,8 @@ const BASH_TRUNCATE_LENGTH = 300;
 /**
  * Helper to determine if output should be shown in simple view
  */
-export function isSimpleViewOutput(text: string): boolean {
+export function isSimpleViewOutput(text: string | undefined): boolean {
+  if (!text) return false;
   // SHOW tool names (will render with nice icons)
   if (text.startsWith('Using tool:')) return true;
 
@@ -78,7 +79,8 @@ export function isSimpleViewOutput(text: string): boolean {
 /**
  * Helper to determine if output should be shown in chat view
  */
-export function isChatViewOutput(text: string): boolean {
+export function isChatViewOutput(text: string | undefined): boolean {
+  if (!text) return false;
   // HIDE all tool-related messages
   if (text.startsWith('Using tool:')) return false;
   if (text.startsWith('Tool input:')) return false;
@@ -156,7 +158,7 @@ export function useFilteredOutputs({
     if (viewMode === 'chat') {
       return outputs.filter((output) => {
         if (output.isUserPrompt) return true;
-        return isChatViewOutput(output.text);
+        return output.text ? isChatViewOutput(output.text) : false;
       });
     }
 
@@ -166,6 +168,12 @@ export function useFilteredOutputs({
       const output = outputs[i];
 
       if (output.isUserPrompt) {
+        result.push(output);
+        continue;
+      }
+
+      // Skip outputs without text
+      if (!output.text) {
         result.push(output);
         continue;
       }
@@ -268,11 +276,13 @@ export function useFilteredOutputsWithLogging({
 
   // Log when input or output changes
   if (outputs.length !== prevInputLenRef.current || filtered.length !== prevOutputLenRef.current) {
+    const lastOutput = outputs.length > 0 ? outputs[outputs.length - 1] : null;
+    const lastInputText = lastOutput?.text ? lastOutput.text.slice(0, 40) : null;
     debugLog.info(`Filter: in=${outputs.length} out=${filtered.length} mode=${viewMode}`, {
       inputLen: outputs.length,
       outputLen: filtered.length,
       viewMode,
-      lastInput: outputs.length > 0 ? outputs[outputs.length - 1].text.slice(0, 40) : null,
+      lastInput: lastInputText,
     }, 'useFilteredOutputs');
     prevInputLenRef.current = outputs.length;
     prevOutputLenRef.current = filtered.length;
