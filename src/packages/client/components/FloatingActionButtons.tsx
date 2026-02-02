@@ -8,6 +8,7 @@ interface FloatingActionButtonsProps {
   onOpenSupervisor: () => void;
   onOpenControls: () => void;
   onOpenSkills: () => void;
+  onOpenSnapshots: () => void;
   isGeneratingReport: boolean;
 }
 
@@ -17,6 +18,7 @@ export const FloatingActionButtons = memo(function FloatingActionButtons({
   onOpenSupervisor,
   onOpenControls,
   onOpenSkills,
+  onOpenSnapshots,
   isGeneratingReport,
 }: FloatingActionButtonsProps) {
   const settings = useSettings();
@@ -50,6 +52,15 @@ export const FloatingActionButtons = memo(function FloatingActionButtons({
           <rect x="3" y="14" width="7" height="7" />
           <rect x="14" y="14" width="7" height="7" />
         </svg>
+      </button>
+
+      {/* Snapshots button */}
+      <button
+        className="snapshots-toggle-btn"
+        onClick={onOpenSnapshots}
+        title="View Snapshots"
+      >
+        📸
       </button>
 
       {/* Supervisor Overview button */}

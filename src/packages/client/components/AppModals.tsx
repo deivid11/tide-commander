@@ -1,4 +1,4 @@
-import React, { Profiler } from 'react';
+import React, { Profiler, useEffect } from 'react';
 import { store, useStore } from '../store';
 import { SpawnModal } from './SpawnModal';
 import { BossSpawnModal } from './BossSpawnModal';
@@ -13,6 +13,8 @@ import { ControlsModal } from './ControlsModal';
 import { SkillsPanel } from './SkillsPanel';
 import { AgentEditModal } from './AgentEditModal';
 import { ContextMenu, type ContextMenuAction } from './ContextMenu';
+import { SnapshotManager } from './SnapshotManager';
+import { SnapshotViewer } from './SnapshotViewer';
 import { profileRender } from '../utils/profiling';
 import type { UseModalState, UseModalStateWithId, UseContextMenu } from '../hooks';
 
@@ -30,6 +32,7 @@ interface AppModalsProps {
   skillsModal: UseModalState;
   buildingModal: UseModalState<string | null>;
   agentEditModal: UseModalState<string>;
+  snapshotsModal: UseModalState;
   explorerModal: UseModalStateWithId;
   contextMenu: UseContextMenu;
 
@@ -76,6 +79,7 @@ export function AppModals({
   skillsModal,
   buildingModal,
   agentEditModal,
+  snapshotsModal,
   explorerModal,
   contextMenu,
   spawnPosition,
@@ -97,6 +101,18 @@ export function AppModals({
   onOpenDatabasePanel,
 }: AppModalsProps) {
   const state = useStore();
+  // Get snapshot state from store
+  const snapshots = Array.from(state.snapshots.values());
+  const snapshotsLoading = state.snapshotsLoading;
+  const currentSnapshot = state.currentSnapshot;
+
+  // Fetch snapshots when modal opens
+  useEffect(() => {
+    if (snapshotsModal.isOpen) {
+      store.fetchSnapshots();
+    }
+  }, [snapshotsModal.isOpen]);
+
   const isSelectedBuildingsDelete = pendingBuildingDelete === 'selected';
   const pendingBuilding = pendingBuildingDelete && pendingBuildingDelete !== 'selected'
     ? state.buildings.get(pendingBuildingDelete)
@@ -294,6 +310,48 @@ export function AppModals({
         isOpen={skillsModal.isOpen}
         onClose={skillsModal.close}
       />
+
+      {/* Snapshots Manager */}
+      {snapshotsModal.isOpen && (
+        <div className="modal-overlay visible" onClick={snapshotsModal.close}>
+          <div className="modal snapshot-manager-modal" onClick={(e) => e.stopPropagation()}>
+            <SnapshotManager
+              snapshots={snapshots}
+              isLoading={snapshotsLoading}
+              onViewSnapshot={async (snapshotId) => {
+                // Load snapshot details and display in guake terminal
+                await store.loadSnapshot(snapshotId);
+                // On mobile, open the terminal to show the snapshot
+                const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+                if (isMobile && state.agents.size > 0) {
+                  // Get the first agent to show in terminal
+                  const firstAgentId = Array.from(state.agents.keys())[0];
+                  store.openTerminalOnMobile(firstAgentId);
+                } else {
+                  // On desktop, just open the terminal
+                  store.setTerminalOpen(true);
+                }
+                // Close the snapshot manager modal after loading
+                snapshotsModal.close();
+              }}
+              onDeleteSnapshot={async (snapshotId) => {
+                await store.deleteSnapshot(snapshotId);
+                await store.fetchSnapshots();
+              }}
+              onRestoreSnapshot={async (snapshotId) => {
+                await store.restoreFiles(snapshotId);
+              }}
+              onExportSnapshot={async (snapshotId) => {
+                // Load snapshot to view it
+                await store.loadSnapshot(snapshotId);
+                snapshotsModal.close();
+              }}
+              onClose={snapshotsModal.close}
+            />
+          </div>
+        </div>
+      )}
+
 
       {/* Right-click Context Menu */}
       <ContextMenu

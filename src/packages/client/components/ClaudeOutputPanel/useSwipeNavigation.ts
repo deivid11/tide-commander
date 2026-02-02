@@ -120,6 +120,8 @@ export function useSwipeNavigation({
     setPendingSwipeDirection('left');
     setSwipeOffset(0);
     setSwipeAnimationClass('');
+    // Mark that this selection is from swipe to prevent autofocus
+    store.setLastSelectionViaSwipe(true);
     store.selectAgent(sortedAgents[nextIndex].id);
   }, [selectedAgentId, sortedAgents]);
 
@@ -132,6 +134,8 @@ export function useSwipeNavigation({
     setPendingSwipeDirection('right');
     setSwipeOffset(0);
     setSwipeAnimationClass('');
+    // Mark that this selection is from swipe to prevent autofocus
+    store.setLastSelectionViaSwipe(true);
     store.selectAgent(sortedAgents[prevIndex].id);
   }, [selectedAgentId, sortedAgents]);
 

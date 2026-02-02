@@ -115,6 +115,29 @@
       background: rgba($dracula-cyan, 0.3);
       border-color: $dracula-cyan;
     }
+
+    // Highlighted option (e.g., Take Snapshot when available)
+    &--highlight {
+      background: rgba($dracula-yellow, 0.2);
+      border-color: $dracula-yellow;
+      color: $dracula-yellow;
+      animation: mobile-fab-pulse 2s ease-in-out infinite;
+
+      &:hover,
+      &:active {
+        background: rgba($dracula-yellow, 0.4);
+        border-color: $dracula-yellow;
+      }
+    }
+  }
+
+  @keyframes mobile-fab-pulse {
+    0%, 100% {
+      box-shadow: 0 0 0 0 rgba($dracula-yellow, 0.4);
+    }
+    50% {
+      box-shadow: 0 0 0 4px rgba($dracula-yellow, 0.2);
+    }
   }
 
   // Hide old standalone buttons on mobile - they're in the FAB menu now
@@ -124,6 +147,7 @@
   .supervisor-toggle-btn,
   .shortcuts-toggle-btn,
   .skills-toggle-btn,
+  .snapshots-toggle-btn,
   .voice-assistant-btn:not(.mobile-voice-assistant) {
     display: none !important;
   }

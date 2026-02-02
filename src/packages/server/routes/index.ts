@@ -14,6 +14,7 @@ import configRouter from './config.js';
 import ttsRouter from './tts.js';
 import sttRouter from './stt.js';
 import voiceAssistantRouter from './voice-assistant.js';
+import snapshotsRouter from './snapshots.js';
 
 const router = Router();
 
@@ -31,6 +32,7 @@ router.use('/custom-models', customModelsRouter);
 router.use('/tts', ttsRouter);
 router.use('/stt', sttRouter);
 router.use('/voice-assistant', voiceAssistantRouter);
+router.use('/snapshots', snapshotsRouter);
 // Config import/export routes - use raw body parser for ZIP file uploads
 router.use('/config', raw({ type: 'application/zip', limit: '100mb' }), configRouter);
 // Permission routes are mounted at root level since they're called as /api/permission-request

@@ -31,6 +31,10 @@ export interface TerminalHeaderProps {
   outputsLength: number;
   setContextConfirm: (action: 'collapse' | 'clear' | 'clear-subordinates' | null) => void;
   headerRef: React.RefObject<HTMLDivElement | null>;
+  /** Whether we're viewing a snapshot (read-only mode) */
+  isSnapshotView?: boolean;
+  /** Callback when user clicks star button to save snapshot */
+  onSaveSnapshot?: () => void;
 }
 
 export function TerminalHeader({
@@ -50,6 +54,8 @@ export function TerminalHeader({
   outputsLength,
   setContextConfirm,
   headerRef,
+  isSnapshotView = false,
+  onSaveSnapshot,
 }: TerminalHeaderProps) {
   const supervisor = useSupervisor();
   const settings = useSettings();
@@ -156,6 +162,28 @@ export function TerminalHeader({
         )}
       </div>
       <div className="guake-actions">
+        {/* Star button - only show during live conversation, not in snapshot view */}
+        {!isSnapshotView && onSaveSnapshot && outputsLength > 0 && (
+          <Tooltip
+            content={
+              <>
+                <div className="tide-tooltip__title">Save Snapshot</div>
+                <div className="tide-tooltip__text">
+                  Capture this conversation and all files created/modified by this agent
+                </div>
+              </>
+            }
+            position="bottom"
+          >
+            <button
+              className="guake-snapshot-btn hide-on-mobile"
+              onClick={onSaveSnapshot}
+              title="Save Snapshot"
+            >
+              ⭐
+            </button>
+          </Tooltip>
+        )}
         <button
           className={`guake-debug-toggle hide-on-mobile ${debugPanelOpen ? 'active' : ''}`}
           onClick={handleDebugToggle}

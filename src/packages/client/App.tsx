@@ -23,6 +23,7 @@ import { FloatingActionButtons } from './components/FloatingActionButtons';
 import { AppModals } from './components/AppModals';
 import { PiPWindow, AgentsPiPView } from './components/PiPWindow';
 import { IframeModal } from './components/IframeModal';
+import { SaveSnapshotModal } from './components/SaveSnapshotModal';
 import { profileRender } from './utils/profiling';
 import {
   useModalState,
@@ -65,6 +66,8 @@ function AppContent() {
   const skillsModal = useModalState();
   const buildingModal = useModalState<string | null>();
   const agentEditModal = useModalState<string>();
+  const snapshotsModal = useModalState();
+  const saveSnapshotModal = useModalState();
   const explorerModal = useModalStateWithId();
   const explorerFolderPath = useExplorerFolderPath();
   const contextMenu = useContextMenu();
@@ -175,6 +178,8 @@ function AppContent() {
   useModalStackRegistration('skills-modal', skillsModal.isOpen, skillsModal.close);
   useModalStackRegistration('building-modal', buildingModal.isOpen, buildingModal.close);
   useModalStackRegistration('agent-edit-modal', agentEditModal.isOpen, agentEditModal.close);
+  useModalStackRegistration('snapshots-modal', snapshotsModal.isOpen, snapshotsModal.close);
+  useModalStackRegistration('save-snapshot-modal', saveSnapshotModal.isOpen, saveSnapshotModal.close);
   useModalStackRegistration('explorer-modal', explorerModal.isOpen || explorerFolderPath !== null, () => {
     explorerModal.close();
     store.closeFileExplorer();
@@ -539,6 +544,9 @@ function AppContent() {
           onOpenSupervisor={() => supervisorModal.open()}
           onOpenControls={() => controlsModal.open()}
           onOpenSkills={() => skillsModal.open()}
+          onOpenSnapshots={() => snapshotsModal.open()}
+          onTakeSnapshot={() => saveSnapshotModal.open()}
+          canTakeSnapshot={state.selectedAgentIds.size === 1 && store.getOutputs(Array.from(state.selectedAgentIds)[0]).length > 0}
           mobileView={mobileView}
         />
 
@@ -635,7 +643,7 @@ function AppContent() {
 
         {/* Guake-style dropdown terminal */}
         <Profiler id="ClaudeOutputPanel" onRender={profileRender}>
-          <ClaudeOutputPanel />
+          <ClaudeOutputPanel onSaveSnapshot={() => saveSnapshotModal.open()} />
         </Profiler>
       </main>
 
@@ -646,6 +654,7 @@ function AppContent() {
         onOpenSupervisor={() => supervisorModal.open()}
         onOpenControls={() => controlsModal.open()}
         onOpenSkills={() => skillsModal.open()}
+        onOpenSnapshots={() => snapshotsModal.open()}
         isGeneratingReport={state.supervisor.generatingReport}
       />
 
@@ -819,6 +828,51 @@ function AppContent() {
         onClose={handleCloseIframeModal}
       />
 
+      {/* Save Snapshot Modal */}
+      {saveSnapshotModal.isOpen && state.selectedAgentIds.size === 1 && (() => {
+        const agentId = Array.from(state.selectedAgentIds)[0];
+        const agent = state.agents.get(agentId);
+        if (!agent) return null;
+        const outputs = store.getOutputs(agentId);
+        return (
+          <SaveSnapshotModal
+            isOpen={saveSnapshotModal.isOpen}
+            onClose={saveSnapshotModal.close}
+            agent={agent}
+            outputCount={outputs.length}
+            onSave={async (request) => {
+              try {
+                // Convert ClaudeOutput objects to snapshot output format
+                const snapshotOutputs = outputs.map((output) => ({
+                  type: 'message',
+                  content: output.text,
+                  timestamp: new Date(output.timestamp).toISOString(),
+                }));
+
+                // Create snapshot with store action
+                await store.createSnapshot(
+                  request.agentId,
+                  agent.name,
+                  request.title,
+                  request.description,
+                  snapshotOutputs,
+                  [] // Files will be captured by backend file tracking service
+                );
+
+                // Close modal and show success
+                saveSnapshotModal.close();
+                showToast('success', 'Snapshot Saved', `Saved snapshot: ${request.title}`);
+              } catch (error) {
+                const message = error instanceof Error ? error.message : 'Failed to create snapshot';
+                showToast('error', 'Snapshot Failed', message);
+              }
+            }}
+            isSaving={state.snapshotsLoading}
+            error={state.snapshotsError || undefined}
+          />
+        );
+      })()}
+
       {/* Bottom Agent Bar */}
       <AgentBar
         onFocusAgent={handleFocusAgent}
@@ -842,6 +896,7 @@ function AppContent() {
         skillsModal={skillsModal}
         buildingModal={buildingModal}
         agentEditModal={agentEditModal}
+        snapshotsModal={snapshotsModal}
         explorerModal={explorerModal}
         contextMenu={contextMenu}
         spawnPosition={spawnPosition}

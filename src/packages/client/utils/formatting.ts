@@ -52,7 +52,8 @@ export { getIdleTimerColor } from './colors';
 
 // Filter out cost/price mentions from text
 // Used globally when hideCost setting is enabled
-export function filterCostText(text: string, hideCost: boolean): string {
+export function filterCostText(text: string | undefined, hideCost: boolean): string {
+  if (!text) return '';
   if (!hideCost) return text;
   // Remove patterns like "$0.05", "cost: $1.23", "(cost $0.50)", "~$0.10", etc.
   return text

@@ -12,6 +12,9 @@ interface MobileFabMenuProps {
   onOpenSupervisor: () => void;
   onOpenControls: () => void;
   onOpenSkills: () => void;
+  onOpenSnapshots: () => void;
+  onTakeSnapshot: () => void;
+  canTakeSnapshot: boolean; // Whether there's an active agent with outputs to snapshot
   mobileView: '3d' | 'terminal';
 }
 
@@ -25,6 +28,9 @@ export function MobileFabMenu({
   onOpenSupervisor,
   onOpenControls,
   onOpenSkills,
+  onOpenSnapshots,
+  onTakeSnapshot,
+  canTakeSnapshot,
   mobileView,
 }: MobileFabMenuProps) {
   const settings = useSettings();
@@ -78,6 +84,20 @@ export function MobileFabMenu({
           >
             📋
           </button>
+          {/* Take Snapshot - prominent action when available */}
+          {canTakeSnapshot && (
+            <button
+              className="mobile-fab-option mobile-fab-option--highlight"
+              onClick={() => handleAction(onTakeSnapshot)}
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                handleAction(onTakeSnapshot);
+              }}
+              title="Take Snapshot"
+            >
+              ⭐
+            </button>
+          )}
           <button
             className="mobile-fab-option"
             onClick={() => handleAction(onOpenToolbox)}
@@ -132,6 +152,17 @@ export function MobileFabMenu({
             title="Manage Skills"
           >
             ⭐
+          </button>
+          <button
+            className="mobile-fab-option"
+            onClick={() => handleAction(onOpenSnapshots)}
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              handleAction(onOpenSnapshots);
+            }}
+            title="View Snapshots"
+          >
+            📸
           </button>
         </div>
       )}

@@ -496,6 +496,29 @@
   }
 }
 
+// Snapshot star button
+.guake-snapshot-btn {
+  padding: 4px 10px;
+  background: rgba($dracula-yellow, 0.1);
+  border: 1px solid rgba($dracula-yellow, 0.5);
+  border-radius: $radius-sm;
+  color: $dracula-yellow;
+  font-family: $font-mono;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background: rgba($dracula-yellow, 0.2);
+    border-color: $dracula-yellow;
+    transform: scale(1.05);
+  }
+
+  &:active {
+    transform: scale(0.98);
+  }
+}
+
 .guake-debug-toggle,
 .guake-debug-panel-toggle {
   padding: 4px 10px;

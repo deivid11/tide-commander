@@ -14,12 +14,24 @@
   padding: 8px 20px 0;
   z-index: 100;
   backdrop-filter: blur(8px);
+  // Enable horizontal scrolling when there are many agents
+  overflow-x: auto;
+  overflow-y: hidden;
+  // Hide scrollbar but keep scrolling functional
+  &::-webkit-scrollbar {
+    height: 0;
+    display: none;
+  }
+  scrollbar-width: none; // Firefox
+  -ms-overflow-style: none; // IE/Edge
 }
 
 .agent-bar-list {
   display: flex;
   gap: 12px;
   align-items: center;
+  flex-shrink: 0;
+  min-width: max-content; // Prevent wrapping, allow scroll
 }
 
 // Version indicator - positioned at left edge

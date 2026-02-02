@@ -17,4 +17,5 @@ export * as subordinateContextService from './subordinate-context-service.js';
 export * as workPlanService from './work-plan-service.js';
 export * as secretsService from './secrets-service.js';
 export * as databaseService from './database-service.js';
+export * as fileTrackerService from './fileTracker.js';
 export { buildBossSystemPrompt } from './boss-service.js';

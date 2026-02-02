@@ -26,6 +26,7 @@ import { createSkillActions, type SkillActions } from './skills';
 import { createExecTaskActions, type ExecTaskActions } from './execTasks';
 import { createSecretActions, type SecretActions } from './secrets';
 import { createDatabaseActions, type DatabaseActions } from './database';
+import { createSnapshotActions, type SnapshotActions } from './snapshots';
 
 // Import shortcuts
 import { ShortcutConfig, DEFAULT_SHORTCUTS } from './shortcuts';
@@ -138,6 +139,10 @@ export {
   useExecutingQuery,
   useDockerContainersList,
   useDockerComposeProjectsList,
+  useSnapshots,
+  useCurrentSnapshot,
+  useSnapshotsLoading,
+  useSnapshotsError,
 } from './selectors';
 
 // ============================================================================
@@ -155,7 +160,8 @@ class Store
     DelegationActions,
     SkillActions,
     ExecTaskActions,
-    SecretActions
+    SecretActions,
+    SnapshotActions
 {
   private state: StoreState;
   private listeners = new Set<Listener>();
@@ -173,6 +179,7 @@ class Store
   private execTaskActions: ExecTaskActions;
   private secretActions: SecretActions;
   private databaseActions: DatabaseActions;
+  private snapshotActions: SnapshotActions;
 
   constructor() {
     // Initialize state
@@ -232,6 +239,11 @@ class Store
       databaseState: new Map(),
       dockerContainersList: [],
       dockerComposeProjectsList: [],
+      snapshots: new Map(),
+      currentSnapshot: null,
+      snapshotsLoading: false,
+      snapshotsError: null,
+      lastSelectionViaSwipe: false,
     };
 
     // Helper functions for domain modules
@@ -255,6 +267,7 @@ class Store
     this.execTaskActions = createExecTaskActions(getState, setState, notify);
     this.secretActions = createSecretActions(getState, setState, notify, getSendMessage);
     this.databaseActions = createDatabaseActions(getState, setState, notify, getSendMessage);
+    this.snapshotActions = createSnapshotActions(getState, setState, notify);
   }
 
   private loadSettings(): Settings {
@@ -415,6 +428,25 @@ class Store
   setTerminalResizing(resizing: boolean): void {
     this.state.terminalResizing = resizing;
     this.notify();
+  }
+
+  /**
+   * Mark that the last agent selection was via swipe gesture.
+   * This prevents autofocus on mobile to avoid unwanted keyboard popup.
+   */
+  setLastSelectionViaSwipe(value: boolean): void {
+    this.state.lastSelectionViaSwipe = value;
+    // Don't notify - this is an internal flag that doesn't need to trigger re-renders
+  }
+
+  /**
+   * Consume and clear the swipe selection flag.
+   * Returns true if the flag was set, then clears it.
+   */
+  consumeSwipeSelectionFlag(): boolean {
+    const wasSwipe = this.state.lastSelectionViaSwipe;
+    this.state.lastSelectionViaSwipe = false;
+    return wasSwipe;
   }
 
   // ============================================================================
@@ -851,6 +883,22 @@ class Store
   setActiveDatabase(...args: Parameters<DatabaseActions['setActiveDatabase']>) { return this.databaseActions.setActiveDatabase(...args); }
   getDatabaseState(...args: Parameters<DatabaseActions['getDatabaseState']>) { return this.databaseActions.getDatabaseState(...args); }
   clearDatabaseState(...args: Parameters<DatabaseActions['clearDatabaseState']>) { return this.databaseActions.clearDatabaseState(...args); }
+
+  // ============================================================================
+  // Snapshot Actions (delegated)
+  // ============================================================================
+
+  fetchSnapshots(...args: Parameters<SnapshotActions['fetchSnapshots']>) { return this.snapshotActions.fetchSnapshots(...args); }
+  setSnapshots(...args: Parameters<SnapshotActions['setSnapshots']>) { return this.snapshotActions.setSnapshots(...args); }
+  createSnapshot(...args: Parameters<SnapshotActions['createSnapshot']>) { return this.snapshotActions.createSnapshot(...args); }
+  loadSnapshot(...args: Parameters<SnapshotActions['loadSnapshot']>) { return this.snapshotActions.loadSnapshot(...args); }
+  setCurrentSnapshot(...args: Parameters<SnapshotActions['setCurrentSnapshot']>) { return this.snapshotActions.setCurrentSnapshot(...args); }
+  deleteSnapshot(...args: Parameters<SnapshotActions['deleteSnapshot']>) { return this.snapshotActions.deleteSnapshot(...args); }
+  restoreFiles(...args: Parameters<SnapshotActions['restoreFiles']>) { return this.snapshotActions.restoreFiles(...args); }
+  setLoading(...args: Parameters<SnapshotActions['setLoading']>) { return this.snapshotActions.setLoading(...args); }
+  setError(...args: Parameters<SnapshotActions['setError']>) { return this.snapshotActions.setError(...args); }
+  clearError(...args: Parameters<SnapshotActions['clearError']>) { return this.snapshotActions.clearError(...args); }
+  reset(...args: Parameters<SnapshotActions['reset']>) { return this.snapshotActions.reset(...args); }
 }
 
 // Extend Window interface for HMR persistence

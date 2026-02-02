@@ -28,6 +28,7 @@ import {
   useExecTasks,
   useFileViewerPath,
   useContextModalAgentId,
+  useCurrentSnapshot,
 } from '../../store';
 import {
   STORAGE_KEYS,
@@ -70,7 +71,12 @@ import { ExecTasksContainer } from './ExecTaskIndicator';
 import { ThemeSelector } from './ThemeSelector';
 import { Tooltip } from '../shared/Tooltip';
 
-export function ClaudeOutputPanel() {
+export interface ClaudeOutputPanelProps {
+  /** Callback when user clicks star button to save snapshot */
+  onSaveSnapshot?: () => void;
+}
+
+export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {}) {
   // Store selectors
   const agents = useAgents();
   const selectedAgentIds = useSelectedAgentIds();
@@ -80,6 +86,10 @@ export function ClaudeOutputPanel() {
   const mobileView = useMobileView();
   const fileViewerPath = useFileViewerPath();
   const contextModalAgentId = useContextModalAgentId();
+
+  // Get current snapshot from store
+  const currentSnapshot = useCurrentSnapshot();
+  const isSnapshotView = !!currentSnapshot;
 
   // Get selected agent
   const selectedAgentIdsArray = Array.from(selectedAgentIds);
@@ -92,6 +102,22 @@ export function ClaudeOutputPanel() {
   const { terminalHeight, terminalRef, handleResizeStart } = useTerminalResize();
   const keyboard = useKeyboardHeight();
   const outputs = useAgentOutputs(selectedAgentId);
+
+  // Use snapshot outputs if viewing a snapshot, otherwise use agent outputs
+  const displayOutputs = isSnapshotView && currentSnapshot
+    ? currentSnapshot.outputs.map((output: any) => {
+        // Log for debugging empty messages
+        if (!output.text || !output.text.trim()) {
+          console.warn('[ClaudeOutputPanel] Empty snapshot output:', output);
+        }
+        return {
+          text: output.text || '',
+          timestamp: output.timestamp,
+          isStreaming: false,
+          isUserPrompt: false,
+        };
+      })
+    : outputs;
 
   // Shared ref for output scroll container (used by history loader and swipe)
   const outputScrollRef = useRef<HTMLDivElement>(null);
@@ -245,7 +271,7 @@ export function ClaudeOutputPanel() {
   }, [historyLoader.history, viewMode]);
 
   // Filtered outputs
-  const filteredOutputs = useFilteredOutputsWithLogging({ outputs, viewMode });
+  const filteredOutputs = useFilteredOutputsWithLogging({ outputs: displayOutputs, viewMode });
 
   // Total navigable messages count (history + live outputs)
   const totalNavigableMessages = filteredHistory.length + filteredOutputs.length;
@@ -379,26 +405,46 @@ export function ClaudeOutputPanel() {
       return;
     }
 
+    // Helper to scroll to bottom
+    const scrollToBottom = () => {
+      if (outputScrollRef.current) {
+        outputScrollRef.current.scrollTop = outputScrollRef.current.scrollHeight;
+      }
+    };
+
     // Use timeout + RAF to ensure content is fully rendered before scroll and fade-in
     const timeoutId = setTimeout(() => {
       requestAnimationFrame(() => {
-        // Scroll to bottom
-        if (outputScrollRef.current) {
-          outputScrollRef.current.scrollTop = outputScrollRef.current.scrollHeight;
-        }
+        // Initial scroll to bottom
+        scrollToBottom();
         // Mark as no longer pending and trigger fade-in
         pendingFadeInRef.current = false;
         setHistoryFadeIn(true);
-        // Scroll again after a short delay to catch any late-rendered content
-        setTimeout(() => {
-          if (outputScrollRef.current) {
-            outputScrollRef.current.scrollTop = outputScrollRef.current.scrollHeight;
-          }
-        }, 150);
+        // Scroll again after delays to catch late-rendered content (virtualized list)
+        setTimeout(scrollToBottom, 100);
+        setTimeout(scrollToBottom, 200);
+        setTimeout(scrollToBottom, 350);
       });
     }, 50);
     return () => clearTimeout(timeoutId);
   }, [selectedAgentId, historyLoader.loadingHistory, historyLoader.history.length, reconnectCount, isOpen, outputScrollRef]);
+
+  // Additional scroll to bottom when swipe animation finishes
+  useEffect(() => {
+    if (!isOpen || !swipe.swipeAnimationClass) return;
+
+    // When swipe animation class is set (e.g., 'swipe-in-left'), schedule scroll after animation
+    if (swipe.swipeAnimationClass.startsWith('swipe-in')) {
+      const scrollToBottom = () => {
+        if (outputScrollRef.current) {
+          outputScrollRef.current.scrollTop = outputScrollRef.current.scrollHeight;
+        }
+      };
+      // Scroll after animation completes (animation is ~120ms)
+      const timeoutId = setTimeout(scrollToBottom, 150);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [isOpen, swipe.swipeAnimationClass, outputScrollRef]);
 
   // Keyboard shortcut to toggle terminal
   useEffect(() => {
@@ -573,9 +619,11 @@ export function ClaudeOutputPanel() {
           setDebugPanelOpen={setDebugPanelOpen}
           debuggerEnabled={debuggerEnabled}
           setDebuggerEnabled={setDebuggerEnabled}
-          outputsLength={outputs.length}
+          outputsLength={displayOutputs.length}
           setContextConfirm={setContextConfirm}
           headerRef={swipe.headerRef}
+          onSaveSnapshot={isSnapshotView ? undefined : onSaveSnapshot}
+          isSnapshotView={isSnapshotView}
         />
 
         {/* Search bar */}
@@ -734,6 +782,7 @@ export function ClaudeOutputPanel() {
           onImageClick={handleImageClick}
           inputRef={terminalInputRef}
           textareaRef={terminalTextareaRef}
+          isSnapshotView={isSnapshotView}
         />
 
         {/* Agent Status Bar (CWD + Context) */}

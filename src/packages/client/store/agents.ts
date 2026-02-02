@@ -168,6 +168,8 @@ export function createAgentActions(
           state.selectedAgentIds.add(agentId);
           state.lastSelectedAgentId = agentId;
         }
+        // Clear snapshot view when selecting a different agent
+        state.currentSnapshot = null;
       });
       notify();
     },

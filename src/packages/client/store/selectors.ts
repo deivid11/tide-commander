@@ -927,3 +927,38 @@ export function useDockerComposeProjectsList(): import('../../shared/types').Exi
     shallowArrayEqual
   );
 }
+
+// ============================================================================
+// SNAPSHOT SELECTORS
+// ============================================================================
+
+/**
+ * Get all snapshots
+ */
+export function useSnapshots(): import('../../shared/types/snapshot').SnapshotListItem[] {
+  return useSelector((state: StoreState) => {
+    const snapshots = state.snapshots;
+    return Array.from(snapshots.values());
+  }, shallowArrayEqual);
+}
+
+/**
+ * Get current snapshot being viewed
+ */
+export function useCurrentSnapshot(): import('../../shared/types/snapshot').ConversationSnapshot | null {
+  return useSelector((state: StoreState) => state.currentSnapshot);
+}
+
+/**
+ * Get snapshot loading state
+ */
+export function useSnapshotsLoading(): boolean {
+  return useSelector((state: StoreState) => state.snapshotsLoading);
+}
+
+/**
+ * Get snapshot error state
+ */
+export function useSnapshotsError(): string | null {
+  return useSelector((state: StoreState) => state.snapshotsError);
+}

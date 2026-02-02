@@ -1,0 +1,1016 @@
+// =============================================================================
+// Snapshot Components Styles
+// =============================================================================
+
+@use '../variables' as *;
+
+// =============================================================================
+// Snapshot Manager Modal
+// =============================================================================
+
+.snapshot-manager-modal {
+  width: 800px;
+  max-width: 95vw;
+  max-height: 85vh;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  background: $bg-primary;
+  border: 1px solid $border-color;
+  border-radius: $radius-xl;
+  overflow: hidden;
+}
+
+.snapshot-viewer-modal {
+  width: 900px;
+  max-width: 95vw;
+  max-height: 85vh;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  background: $bg-primary;
+  border: 1px solid $border-color;
+  border-radius: $radius-xl;
+  overflow: hidden;
+}
+
+.snapshot-manager {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-height: 85vh;
+}
+
+.snapshot-manager-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: $bg-secondary;
+  border-bottom: 1px solid $border-color;
+}
+
+.snapshot-manager-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  color: $text-primary;
+}
+
+.snapshot-manager-icon {
+  font-size: 20px;
+}
+
+.snapshot-manager-count {
+  font-size: 12px;
+  padding: 2px 8px;
+  background: $bg-tertiary;
+  border-radius: 100px;
+  color: $text-secondary;
+}
+
+.snapshot-manager-close {
+  background: transparent;
+  border: none;
+  color: $text-secondary;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: $radius-sm;
+  transition: all $transition-fast;
+
+  &:hover {
+    background: rgba($accent-red, 0.15);
+    color: $accent-red;
+  }
+}
+
+// Toolbar (search + sort)
+.snapshot-manager-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 20px;
+  border-bottom: 1px solid $border-color;
+  background: $bg-secondary;
+}
+
+.snapshot-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  max-width: 300px;
+  background: $bg-tertiary;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  padding: 6px 12px;
+  transition: border-color $transition-fast;
+
+  &:focus-within {
+    border-color: $accent-cyan;
+  }
+}
+
+.snapshot-search-icon {
+  font-size: 14px;
+  color: $text-muted;
+}
+
+.snapshot-search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: $text-primary;
+  font-size: 13px;
+  font-family: $font-mono;
+  outline: none;
+
+  &::placeholder {
+    color: $text-muted;
+  }
+}
+
+.snapshot-search-clear {
+  background: transparent;
+  border: none;
+  color: $text-muted;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: $radius-sm;
+
+  &:hover {
+    color: $text-secondary;
+  }
+}
+
+.snapshot-sort {
+  display: flex;
+  gap: 6px;
+}
+
+.snapshot-sort-btn {
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  color: $text-secondary;
+  font-size: 11px;
+  font-family: $font-mono;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    border-color: $text-secondary;
+    color: $text-primary;
+  }
+
+  &.active {
+    border-color: $accent-cyan;
+    color: $accent-cyan;
+    background: rgba($accent-cyan, 0.1);
+  }
+}
+
+// Content area
+.snapshot-manager-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+  min-height: 0;
+}
+
+// Loading state
+.snapshot-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px 24px;
+  color: $text-secondary;
+}
+
+.snapshot-loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid $border-color;
+  border-top-color: $accent-cyan;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+// Empty state
+.snapshot-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.snapshot-empty-icon {
+  font-size: 48px;
+  opacity: 0.5;
+}
+
+.snapshot-empty-text {
+  font-size: 14px;
+  color: $text-secondary;
+}
+
+.snapshot-empty-hint {
+  font-size: 12px;
+  color: $text-muted;
+}
+
+// Snapshot grid
+.snapshot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+// Snapshot card
+.snapshot-card {
+  background: $bg-secondary;
+  border: 1px solid $border-color;
+  border-radius: $radius-md;
+  padding: 14px;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    border-color: $accent-cyan;
+    background: rgba($accent-cyan, 0.05);
+  }
+
+  &.selected {
+    border-color: $accent-blue;
+    background: rgba($accent-blue, 0.1);
+  }
+}
+
+.snapshot-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.snapshot-card-agent-icon {
+  font-size: 16px;
+}
+
+.snapshot-card-agent-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: $text-secondary;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.snapshot-card-date {
+  font-size: 11px;
+  color: $text-muted;
+}
+
+.snapshot-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: $text-primary;
+  margin-bottom: 6px;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.snapshot-card-description {
+  font-size: 12px;
+  color: $text-secondary;
+  margin-bottom: 10px;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.snapshot-card-stats {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.snapshot-card-stat {
+  font-size: 11px;
+  color: $text-muted;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.snapshot-card-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.snapshot-action-btn {
+  background: transparent;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    border-color: $accent-cyan;
+    background: rgba($accent-cyan, 0.1);
+  }
+
+  &.danger:hover {
+    border-color: $accent-red;
+    background: rgba($accent-red, 0.1);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.snapshot-delete-confirm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: $text-secondary;
+}
+
+// =============================================================================
+// Save Snapshot Modal
+// =============================================================================
+
+.snapshot-modal {
+  width: 480px;
+  max-width: 95vw;
+
+  .modal-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+}
+
+.snapshot-modal-icon {
+  font-size: 20px;
+}
+
+.snapshot-field {
+  margin-bottom: 16px;
+}
+
+.snapshot-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: $text-secondary;
+  margin-bottom: 6px;
+}
+
+.snapshot-required {
+  color: $accent-red;
+}
+
+.snapshot-optional {
+  font-weight: 400;
+  color: $text-muted;
+}
+
+.snapshot-input {
+  width: 100%;
+  padding: 10px 12px;
+  background: $bg-tertiary;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  color: $text-primary;
+  font-size: 14px;
+  font-family: $font-mono;
+  outline: none;
+  transition: border-color $transition-fast;
+
+  &:focus {
+    border-color: $accent-cyan;
+  }
+}
+
+.snapshot-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  background: $bg-tertiary;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  color: $text-primary;
+  font-size: 13px;
+  font-family: $font-mono;
+  outline: none;
+  resize: vertical;
+  min-height: 80px;
+  transition: border-color $transition-fast;
+
+  &:focus {
+    border-color: $accent-cyan;
+  }
+}
+
+// Preview section
+.snapshot-preview {
+  background: $bg-tertiary;
+  border: 1px solid $border-color;
+  border-radius: $radius-md;
+  padding: 14px;
+}
+
+.snapshot-preview-header {
+  font-size: 11px;
+  font-weight: 600;
+  color: $text-muted;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+}
+
+.snapshot-preview-stats {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 12px;
+}
+
+.snapshot-stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.snapshot-stat-icon {
+  font-size: 14px;
+}
+
+.snapshot-stat-value {
+  font-size: 16px;
+  font-weight: 600;
+  color: $text-primary;
+}
+
+.snapshot-stat-label {
+  font-size: 12px;
+  color: $text-muted;
+}
+
+// File preview in save modal
+.snapshot-files-preview {
+  border-top: 1px solid $border-color;
+  padding-top: 12px;
+}
+
+.snapshot-file-group {
+  margin-bottom: 10px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.snapshot-file-group-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: $text-secondary;
+  margin-bottom: 6px;
+}
+
+.snapshot-file-type {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: $radius-sm;
+  font-size: 11px;
+  font-weight: 600;
+
+  &.created {
+    background: rgba($accent-green, 0.2);
+    color: $accent-green;
+  }
+
+  &.modified {
+    background: rgba($accent-orange, 0.2);
+    color: $accent-orange;
+  }
+}
+
+.snapshot-file-list {
+  padding-left: 22px;
+}
+
+.snapshot-file-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 12px;
+}
+
+.snapshot-file-path {
+  color: $text-primary;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.snapshot-file-size {
+  color: $text-muted;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.snapshot-file-more {
+  font-size: 11px;
+  color: $text-muted;
+  padding: 4px 0;
+}
+
+.snapshot-no-files {
+  font-size: 12px;
+  color: $text-muted;
+  font-style: italic;
+}
+
+.snapshot-error {
+  padding: 10px 12px;
+  background: rgba($accent-red, 0.1);
+  border: 1px solid rgba($accent-red, 0.3);
+  border-radius: $radius-sm;
+  color: $accent-red;
+  font-size: 12px;
+  margin-top: 12px;
+}
+
+// =============================================================================
+// Snapshot Viewer
+// =============================================================================
+
+.snapshot-viewer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: $bg-primary;
+}
+
+.snapshot-viewer-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px 24px;
+  color: $text-secondary;
+}
+
+.snapshot-viewer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  background: $bg-secondary;
+  border-bottom: 1px solid $border-color;
+}
+
+.snapshot-viewer-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.snapshot-viewer-back {
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  color: $text-secondary;
+  font-size: 12px;
+  font-family: $font-mono;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    border-color: $accent-cyan;
+    color: $accent-cyan;
+  }
+}
+
+.snapshot-viewer-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.snapshot-viewer-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: $text-primary;
+  margin-bottom: 4px;
+}
+
+.snapshot-viewer-icon {
+  font-size: 18px;
+}
+
+.snapshot-viewer-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: $text-muted;
+}
+
+.snapshot-viewer-separator {
+  color: $border-color;
+}
+
+.snapshot-viewer-agent {
+  color: $text-secondary;
+}
+
+.snapshot-viewer-cwd {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.snapshot-viewer-header-right {
+  display: flex;
+  gap: 8px;
+}
+
+.snapshot-viewer-description {
+  padding: 12px 20px;
+  background: $bg-secondary;
+  border-bottom: 1px solid $border-color;
+  font-size: 13px;
+  color: $text-secondary;
+  line-height: 1.5;
+}
+
+// Tabs
+.snapshot-viewer-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 20px;
+  background: $bg-secondary;
+  border-bottom: 1px solid $border-color;
+}
+
+.snapshot-viewer-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: $text-secondary;
+  font-size: 13px;
+  font-family: $font-mono;
+  cursor: pointer;
+  transition: all $transition-fast;
+  margin-bottom: -1px;
+
+  &:hover {
+    color: $text-primary;
+  }
+
+  &.active {
+    color: $accent-cyan;
+    border-bottom-color: $accent-cyan;
+  }
+}
+
+.snapshot-viewer-tab-count {
+  font-size: 11px;
+  padding: 2px 6px;
+  background: $bg-tertiary;
+  border-radius: 100px;
+  color: $text-muted;
+}
+
+// Content
+.snapshot-viewer-content {
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+// Conversation tab
+.snapshot-conversation {
+  height: 100%;
+  overflow-y: auto;
+  padding: 16px 20px;
+}
+
+.snapshot-conversation-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: $text-muted;
+  font-size: 14px;
+}
+
+.snapshot-conversation-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.snapshot-message {
+  background: $bg-secondary;
+  border: 1px solid $border-color;
+  border-radius: $radius-md;
+  padding: 12px 14px;
+}
+
+.snapshot-message-time {
+  font-size: 10px;
+  color: $text-muted;
+  margin-bottom: 6px;
+}
+
+.snapshot-message-content {
+  font-size: 13px;
+  color: $text-primary;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+// Files tab
+.snapshot-files {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.snapshot-files-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 20px;
+  border-bottom: 1px solid $border-color;
+}
+
+.snapshot-files-selection {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.snapshot-files-selected-count {
+  font-size: 11px;
+  color: $text-muted;
+}
+
+.snapshot-files-container {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.snapshot-files-list {
+  width: 300px;
+  border-right: 1px solid $border-color;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.snapshot-files-empty {
+  padding: 24px;
+  text-align: center;
+  color: $text-muted;
+  font-size: 13px;
+}
+
+.snapshot-files-group {
+  padding: 12px;
+}
+
+.snapshot-files-group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: $text-secondary;
+  margin-bottom: 8px;
+}
+
+.snapshot-file-type-badge {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: $radius-sm;
+  font-size: 12px;
+  font-weight: 700;
+
+  &.created {
+    background: rgba($accent-green, 0.2);
+    color: $accent-green;
+  }
+
+  &.modified {
+    background: rgba($accent-orange, 0.2);
+    color: $accent-orange;
+  }
+}
+
+.snapshot-file-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    background: rgba($accent-cyan, 0.1);
+  }
+
+  &.selected {
+    background: rgba($accent-blue, 0.15);
+  }
+}
+
+.snapshot-file-checkbox {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
+.snapshot-file-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: $text-primary;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.snapshot-file-dir {
+  font-size: 10px;
+  color: $text-muted;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  text-align: right;
+}
+
+// File preview
+.snapshot-file-preview {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.snapshot-file-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  background: $bg-secondary;
+  border-bottom: 1px solid $border-color;
+}
+
+.snapshot-file-preview-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: $text-primary;
+}
+
+.snapshot-file-preview-lang {
+  font-size: 10px;
+  padding: 2px 8px;
+  background: $bg-tertiary;
+  border-radius: $radius-sm;
+  color: $text-muted;
+  text-transform: uppercase;
+}
+
+.snapshot-file-preview-content {
+  flex: 1;
+  margin: 0;
+  padding: 16px;
+  overflow: auto;
+  background: $bg-tertiary;
+  font-size: 12px;
+  font-family: $font-mono;
+  line-height: 1.5;
+  color: $text-primary;
+  white-space: pre;
+  tab-size: 2;
+
+  code {
+    font-family: inherit;
+    color: inherit;
+  }
+}
+
+.snapshot-file-preview-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: $text-muted;
+  font-size: 13px;
+}
+
+// Footer
+.snapshot-viewer-footer {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 20px;
+  background: $bg-secondary;
+  border-top: 1px solid $border-color;
+}
+
+.snapshot-footer-stat {
+  font-size: 11px;
+  color: $text-muted;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+// =============================================================================
+// Snapshots Toggle Button (Floating)
+// =============================================================================
+
+.snapshots-toggle-btn {
+  position: fixed;
+  bottom: 322px;  // Stacked above mouse controls button (280 + 36 + 6)
+  left: 16px;     // Aligned with other buttons
+  width: 36px;
+  height: 36px;
+  border-radius: $radius-lg;
+  background: $bg-tertiary;
+  border: 1px solid $border-color;
+  color: $text-secondary;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all $transition-fast;
+  z-index: 150;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+
+  &:hover {
+    background: rgba($accent-blue, 0.1);
+    color: $dracula-cyan;
+    border-color: $dracula-cyan;
+  }
+}
