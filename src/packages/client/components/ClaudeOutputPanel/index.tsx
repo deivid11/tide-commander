@@ -318,24 +318,6 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
     setResponseModalContent(content);
   }, []);
 
-  // Scroll helpers - synchronous version for use in effects that need immediate scroll
-  const scrollToBottomSync = useCallback(() => {
-    if (keyboard.keyboardScrollLockRef.current) return;
-    if (outputScrollRef.current) {
-      outputScrollRef.current.scrollTop = outputScrollRef.current.scrollHeight;
-    }
-  }, [keyboard.keyboardScrollLockRef, outputScrollRef]);
-
-  // Async version with RAF for use after renders
-  const _scrollToBottom = useCallback(() => {
-    if (keyboard.keyboardScrollLockRef.current) return;
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        scrollToBottomSync();
-      });
-    });
-  }, [keyboard.keyboardScrollLockRef, scrollToBottomSync]);
-
   // Scroll handling - track if user scrolled up to disable auto-scroll
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const isUserScrolledUpRef = useRef(false);
@@ -430,46 +412,16 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
       return;
     }
 
-    // Helper to scroll to bottom
-    const scrollToBottom = () => {
-      if (outputScrollRef.current) {
-        outputScrollRef.current.scrollTop = outputScrollRef.current.scrollHeight;
-      }
-    };
-
-    // Use timeout + RAF to ensure content is fully rendered before scroll and fade-in
+    // Use timeout + RAF to ensure content is fully rendered before fade-in
     const timeoutId = setTimeout(() => {
       requestAnimationFrame(() => {
-        // Initial scroll to bottom
-        scrollToBottom();
         // Mark as no longer pending and trigger fade-in
         pendingFadeInRef.current = false;
         setHistoryFadeIn(true);
-        // Scroll again after delays to catch late-rendered content (virtualized list)
-        setTimeout(scrollToBottom, 100);
-        setTimeout(scrollToBottom, 200);
-        setTimeout(scrollToBottom, 350);
       });
     }, 50);
     return () => clearTimeout(timeoutId);
   }, [historyLoader.historyLoadVersion, isOpen, outputScrollRef]);
-
-  // Additional scroll to bottom when swipe animation finishes
-  useEffect(() => {
-    if (!isOpen || !swipe.swipeAnimationClass) return;
-
-    // When swipe animation class is set (e.g., 'swipe-in-left'), schedule scroll after animation
-    if (swipe.swipeAnimationClass.startsWith('swipe-in')) {
-      const scrollToBottom = () => {
-        if (outputScrollRef.current) {
-          outputScrollRef.current.scrollTop = outputScrollRef.current.scrollHeight;
-        }
-      };
-      // Scroll after animation completes (animation is ~120ms)
-      const timeoutId = setTimeout(scrollToBottom, 150);
-      return () => clearTimeout(timeoutId);
-    }
-  }, [isOpen, swipe.swipeAnimationClass, outputScrollRef]);
 
   // Keyboard shortcut to toggle terminal
   useEffect(() => {
