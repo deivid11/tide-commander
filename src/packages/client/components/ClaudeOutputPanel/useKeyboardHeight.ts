@@ -26,7 +26,6 @@ export function useKeyboardHeight(): UseKeyboardHeightReturn {
   const keyboardHandlerRef = useRef<(() => void) | null>(null);
   const lastKeyboardHeightRef = useRef<number>(0);
   const keyboardRafRef = useRef<number>(0);
-  const initialViewportHeightRef = useRef<number>(0);
 
   // Set the CSS custom property for keyboard height on the app element
   const setKeyboardHeight = useCallback((height: number) => {
@@ -75,11 +74,6 @@ export function useKeyboardHeight(): UseKeyboardHeightReturn {
 
     // Use Visual Viewport API - the most reliable way to detect keyboard on modern mobile browsers
     if (window.visualViewport) {
-      // Capture initial viewport height BEFORE keyboard opens (only once per session)
-      if (initialViewportHeightRef.current === 0) {
-        initialViewportHeightRef.current = window.visualViewport.height;
-      }
-
       const adjustForKeyboard = () => {
         const viewport = window.visualViewport;
         if (!viewport) return;
@@ -96,17 +90,19 @@ export function useKeyboardHeight(): UseKeyboardHeightReturn {
             return;
           }
 
-          // Compare current visualViewport.height to initial height
-          const currentViewportHeight = viewport.height;
-          const initialHeight = initialViewportHeightRef.current;
+          /**
+           * Compute the *overlap* between the layout viewport (`window.innerHeight`)
+           * and the visual viewport (`visualViewport.height + offsetTop`).
+           *
+           * This avoids double-applying a keyboard offset on browsers/WebViews that
+           * already shrink `innerHeight` when the keyboard is shown (common on Android),
+           * while still correcting browsers that keep `innerHeight` stable (common on iOS).
+           */
+          const visualBottom = viewport.height + viewport.offsetTop;
+          let keyboardHeight = Math.max(0, window.innerHeight - visualBottom);
 
-          // Keyboard height is the difference
-          let keyboardHeight = Math.max(0, initialHeight - currentViewportHeight);
-
-          // Apply minimum threshold to avoid false positives from address bar changes
-          if (keyboardHeight < 150) {
-            keyboardHeight = 0;
-          }
+          // Apply minimum threshold to avoid false positives from small UI overlays
+          if (keyboardHeight < 120) keyboardHeight = 0;
 
           // Update the CSS custom property
           if (keyboardHeight !== lastKeyboardHeightRef.current) {
