@@ -148,6 +148,14 @@ export function useHistoryLoader({
     const fetchSeq = fetchSeqRef.current;
     setFetchingHistory(true);
 
+    // Clear existing history immediately on any new load to avoid briefly showing
+    // the previous agent's conversation (which can also cause scroll glitches).
+    setHistory([]);
+    historyLengthRef.current = 0;
+    setHasMore(false);
+    hasMoreRef.current = false;
+    setTotalCount(0);
+
     // Only show loading after a delay to avoid flash for quick loads
     if (!isSessionEstablishment) {
       loadingTimerRef.current = setTimeout(() => {

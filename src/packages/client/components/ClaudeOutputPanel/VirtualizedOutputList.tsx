@@ -168,6 +168,13 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   // Grace period after agent switch - don't trigger user scroll detection during this time
   const agentSwitchGraceRef = useRef(false);
 
+  const scrollToBottomSync = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return false;
+    container.scrollTop = container.scrollHeight;
+    return true;
+  }, [scrollContainerRef]);
+
   // If history fetch starts after agent selection (e.g., session establishment on mobile),
   // re-arm the pending scroll so we still scroll to bottom once loading completes.
   const prevIsLoadingHistoryRef = useRef<boolean | undefined>(isLoadingHistory);
@@ -191,29 +198,8 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
       pendingScrollRef.current = true;
       // Start grace period - don't detect user scroll for a while after agent switch
       agentSwitchGraceRef.current = true;
-
-      // End grace period after history has had time to load
-      setTimeout(() => {
-        agentSwitchGraceRef.current = false;
-      }, 3000);
     }
   }, [agentId]);
-
-  // CRITICAL: useLayoutEffect runs SYNCHRONOUSLY before browser paint
-  // This ensures scroll happens immediately when content arrives, before user sees it at top
-  useLayoutEffect(() => {
-    // Always scroll to bottom when we have pending scroll and content
-    // Note: We check pendingScrollRef ONLY, not shouldAutoScroll, because shouldAutoScroll
-    // might have been incorrectly set to false by scroll events during agent switch
-    if (pendingScrollRef.current && allItems.length > 0) {
-      const container = scrollContainerRef.current;
-      if (container && container.scrollHeight > container.clientHeight) {
-        // Force scroll to bottom synchronously before paint
-        container.scrollTop = container.scrollHeight;
-        isProgrammaticScrollRef.current = true;
-      }
-    }
-  }); // Run on every render when pending
 
   // Create virtualizer
   const virtualizer = useVirtualizer({
@@ -227,10 +213,34 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     },
   });
 
+  // Agent-switch scroll: perform a single pre-paint scroll once loading is complete and we have items.
+  // Keeping this deterministic avoids "jitter" from multiple delayed retry scrolls.
+  useLayoutEffect(() => {
+    if (!pendingScrollRef.current) return;
+    if (isLoadingHistory) return;
+    if (allItems.length === 0) return;
+
+    isProgrammaticScrollRef.current = true;
+    scrollToBottomSync();
+    pendingScrollRef.current = false;
+
+    // One extra frame helps after initial measurement without visible multi-jumps.
+    requestAnimationFrame(() => {
+      scrollToBottomSync();
+      isProgrammaticScrollRef.current = false;
+      agentSwitchGraceRef.current = false;
+    });
+  }, [agentId, allItems.length, isLoadingHistory, scrollToBottomSync]);
+
   // Auto-scroll to bottom when new items arrive
   useEffect(() => {
     if (!shouldAutoScroll) return;
     if (allItems.length === 0) return;
+    // Let the deterministic agent-switch handler own the initial post-load scroll.
+    if (pendingScrollRef.current) {
+      prevItemCountRef.current = allItems.length;
+      return;
+    }
     if (allItems.length <= prevItemCountRef.current) {
       prevItemCountRef.current = allItems.length;
       return;
@@ -238,173 +248,15 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
 
     prevItemCountRef.current = allItems.length;
 
-    // Scroll to bottom with multiple attempts to handle virtualizer measurement timing
+    // Scroll to bottom with a small retry to handle initial measurement timing
     isProgrammaticScrollRef.current = true;
 
-    const scrollToEnd = () => {
-      virtualizer.scrollToIndex(allItems.length - 1, { align: 'end' });
-    };
-
-    // Direct scroll for immediate effect
-    const forceScrollToBottom = () => {
-      const container = scrollContainerRef.current;
-      if (container) {
-        container.scrollTop = container.scrollHeight;
-      }
-    };
-
-    // Scroll immediately
-    scrollToEnd();
-    forceScrollToBottom();
-
-    // And with retries
+    scrollToBottomSync();
     requestAnimationFrame(() => {
-      scrollToEnd();
-      forceScrollToBottom();
-      setTimeout(() => { scrollToEnd(); forceScrollToBottom(); }, 50);
-      setTimeout(() => { scrollToEnd(); forceScrollToBottom(); }, 150);
-      setTimeout(() => { scrollToEnd(); forceScrollToBottom(); }, 300);
-      // Reset flag after all scroll attempts complete
-      setTimeout(() => {
-        isProgrammaticScrollRef.current = false;
-        pendingScrollRef.current = false;
-      }, 350);
-    });
-  }, [allItems.length, shouldAutoScroll, virtualizer, scrollContainerRef]);
-
-  // Additional scroll attempts when agent changes and content becomes available
-  // This catches cases where history loads after the initial effect runs
-  useEffect(() => {
-    if (!pendingScrollRef.current) return;
-    // Note: Don't check shouldAutoScroll here - pendingScrollRef takes precedence
-    // because shouldAutoScroll might be incorrectly false due to scroll events during agent switch
-    if (allItems.length === 0) return;
-
-    // Schedule multiple scroll attempts with longer delays for agent switch
-    // History can take several seconds to load for long conversations
-    isProgrammaticScrollRef.current = true;
-
-    const scrollToEnd = () => {
-      if (allItems.length > 0) {
-        virtualizer.scrollToIndex(allItems.length - 1, { align: 'end' });
-      }
-    };
-
-    // Also force scroll the container directly
-    const forceScrollToBottom = () => {
-      const container = scrollContainerRef.current;
-      if (container) {
-        container.scrollTop = container.scrollHeight;
-      }
-    };
-
-    // Extended delays to handle slow-loading conversations (up to 5 seconds)
-    const timeouts = [50, 100, 200, 400, 600, 1000, 1500, 2000, 2500, 3000, 4000, 5000].map(delay =>
-      setTimeout(() => { scrollToEnd(); forceScrollToBottom(); }, delay)
-    );
-
-    const cleanupTimeout = setTimeout(() => {
+      scrollToBottomSync();
       isProgrammaticScrollRef.current = false;
-      pendingScrollRef.current = false;
-      agentSwitchGraceRef.current = false;
-    }, 5100);
-
-    return () => {
-      timeouts.forEach(clearTimeout);
-      clearTimeout(cleanupTimeout);
-    };
-  }, [agentId, allItems.length, virtualizer, scrollContainerRef]);
-
-  // Watch specifically for history messages loading (this is the slow part)
-  // When history count changes after agent switch, scroll to bottom IMMEDIATELY
-  const prevHistoryCountRef = useRef(historyCount);
-  useEffect(() => {
-    // Only trigger if history count increased AND we have a pending scroll
-    // Note: Don't check shouldAutoScroll - pendingScrollRef takes precedence
-    if (historyCount > prevHistoryCountRef.current && pendingScrollRef.current) {
-      isProgrammaticScrollRef.current = true;
-
-      const scrollToEnd = () => {
-        if (allItems.length > 0) {
-          virtualizer.scrollToIndex(allItems.length - 1, { align: 'end' });
-        }
-      };
-
-      // Also force scroll the container directly for immediate effect
-      const forceScrollToBottom = () => {
-        const container = scrollContainerRef.current;
-        if (container) {
-          container.scrollTop = container.scrollHeight;
-        }
-      };
-
-      // Scroll immediately using both methods
-      scrollToEnd();
-      forceScrollToBottom();
-
-      // And with delays after history loads for any late measurements
-      requestAnimationFrame(() => {
-        scrollToEnd();
-        forceScrollToBottom();
-        setTimeout(() => { scrollToEnd(); forceScrollToBottom(); }, 50);
-        setTimeout(() => { scrollToEnd(); forceScrollToBottom(); }, 100);
-        setTimeout(() => { scrollToEnd(); forceScrollToBottom(); }, 200);
-        setTimeout(() => { scrollToEnd(); forceScrollToBottom(); }, 400);
-        setTimeout(() => {
-          isProgrammaticScrollRef.current = false;
-        }, 500);
-      });
-    }
-    prevHistoryCountRef.current = historyCount;
-  }, [historyCount, allItems.length, virtualizer, scrollContainerRef]);
-
-  // Watch for history loading to complete - this is the definitive trigger
-  // When isLoadingHistory transitions from true to false, scroll to bottom
-  const prevLoadingRef = useRef(isLoadingHistory);
-  useEffect(() => {
-    const wasLoading = prevLoadingRef.current;
-    const isLoading = isLoadingHistory;
-    prevLoadingRef.current = isLoading;
-
-    // Trigger scroll when loading completes AND we have content AND pending scroll
-    // Note: Don't check shouldAutoScroll - pendingScrollRef takes precedence
-    if (wasLoading && !isLoading && allItems.length > 0 && pendingScrollRef.current) {
-      isProgrammaticScrollRef.current = true;
-
-      const scrollToEnd = () => {
-        if (allItems.length > 0) {
-          virtualizer.scrollToIndex(allItems.length - 1, { align: 'end' });
-        }
-      };
-
-      // Also force scroll the container directly for immediate effect
-      const forceScrollToBottom = () => {
-        const container = scrollContainerRef.current;
-        if (container) {
-          container.scrollTop = container.scrollHeight;
-        }
-      };
-
-      // Scroll immediately using both methods
-      scrollToEnd();
-      forceScrollToBottom();
-
-      // Multiple scroll attempts after loading completes
-      requestAnimationFrame(() => {
-        scrollToEnd();
-        forceScrollToBottom();
-        setTimeout(() => { scrollToEnd(); forceScrollToBottom(); }, 50);
-        setTimeout(() => { scrollToEnd(); forceScrollToBottom(); }, 150);
-        setTimeout(() => { scrollToEnd(); forceScrollToBottom(); }, 300);
-        setTimeout(() => { scrollToEnd(); forceScrollToBottom(); }, 500);
-        setTimeout(() => {
-          isProgrammaticScrollRef.current = false;
-          pendingScrollRef.current = false;
-          agentSwitchGraceRef.current = false;
-        }, 600);
-      });
-    }
-  }, [isLoadingHistory, allItems.length, virtualizer, scrollContainerRef]);
+    });
+  }, [allItems.length, shouldAutoScroll, scrollToBottomSync]);
 
   // Detect scroll to top for loading more history
   const handleScroll = useCallback(() => {
