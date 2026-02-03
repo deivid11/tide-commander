@@ -156,9 +156,13 @@ export function TerminalInputArea({
     // If so, don't autofocus to prevent keyboard from popping up on mobile
     const wasSwipe = store.consumeSwipeSelectionFlag();
 
+    // Check if this selection was from a direct click on agent bar (consumes and clears the flag)
+    // If so, don't autofocus to prevent keyboard from popping up on mobile
+    const wasDirectClick = store.consumeDirectClickSelectionFlag();
+
     // Focus when terminal opens (transition from closed to open)
-    // or when agent changes while terminal is already open (but not from swipe)
-    if (isOpen && (!wasOpen || selectedAgentId) && !wasSwipe) {
+    // or when agent changes while terminal is already open (but not from swipe or direct click)
+    if (isOpen && (!wasOpen || selectedAgentId) && !wasSwipe && !wasDirectClick) {
       // Small delay to ensure terminal animation has started
       const timeoutId = setTimeout(() => {
         if (useTextarea && textareaRef.current) {

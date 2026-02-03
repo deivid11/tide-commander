@@ -161,6 +161,10 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
   }, [state.lastSelectedAgentId]);
 
   const handleAgentClick = (agent: Agent, e: React.MouseEvent) => {
+    // Mark that selection came from direct click (not swipe gesture)
+    // This prevents autofocus of input on mobile
+    store.setLastSelectionViaDirectClick(true);
+
     if (e.shiftKey) {
       // Shift+click to add/remove from selection
       store.addToSelection(agent.id);

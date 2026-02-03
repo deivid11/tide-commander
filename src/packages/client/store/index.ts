@@ -244,6 +244,7 @@ class Store
       snapshotsLoading: false,
       snapshotsError: null,
       lastSelectionViaSwipe: false,
+      lastSelectionViaDirectClick: false,
     };
 
     // Helper functions for domain modules
@@ -447,6 +448,25 @@ class Store
     const wasSwipe = this.state.lastSelectionViaSwipe;
     this.state.lastSelectionViaSwipe = false;
     return wasSwipe;
+  }
+
+  /**
+   * Mark that the last agent selection was via direct click on agent bar.
+   * This prevents autofocus to avoid unwanted keyboard popup.
+   */
+  setLastSelectionViaDirectClick(value: boolean): void {
+    this.state.lastSelectionViaDirectClick = value;
+    // Don't notify - this is an internal flag that doesn't need to trigger re-renders
+  }
+
+  /**
+   * Consume and clear the direct click selection flag.
+   * Returns true if the flag was set, then clears it.
+   */
+  consumeDirectClickSelectionFlag(): boolean {
+    const wasDirectClick = this.state.lastSelectionViaDirectClick;
+    this.state.lastSelectionViaDirectClick = false;
+    return wasDirectClick;
   }
 
   // ============================================================================

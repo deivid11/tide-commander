@@ -338,8 +338,12 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
   // Scroll handling - track if user scrolled up to disable auto-scroll
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const isUserScrolledUpRef = useRef(false);
+  // Grace period after agent switch - don't detect user scroll during this time
+  const agentSwitchGraceRef = useRef(false);
 
   const handleUserScrollUp = useCallback(() => {
+    // Don't disable auto-scroll during grace period after agent switch
+    if (agentSwitchGraceRef.current) return;
     isUserScrolledUpRef.current = true;
     setShouldAutoScroll(false);
   }, []);
@@ -348,6 +352,12 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
   useEffect(() => {
     setShouldAutoScroll(true);
     isUserScrolledUpRef.current = false;
+    // Start grace period - for 3 seconds after agent change, don't detect user scroll
+    agentSwitchGraceRef.current = true;
+    const timeout = setTimeout(() => {
+      agentSwitchGraceRef.current = false;
+    }, 3000);
+    return () => clearTimeout(timeout);
   }, [selectedAgentId, outputs.length]);
 
   const handleScroll = useCallback(() => {
@@ -356,10 +366,14 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
 
     const { scrollTop, scrollHeight, clientHeight } = outputScrollRef.current;
     const isAtBottom = scrollHeight - scrollTop - clientHeight < 150;
-    isUserScrolledUpRef.current = !isAtBottom;
 
-    if (isAtBottom) {
-      setShouldAutoScroll(true);
+    // Only track user scroll state outside of grace period
+    if (!agentSwitchGraceRef.current) {
+      isUserScrolledUpRef.current = !isAtBottom;
+
+      if (isAtBottom) {
+        setShouldAutoScroll(true);
+      }
     }
 
     historyLoader.handleScroll(keyboard.keyboardScrollLockRef);
@@ -381,9 +395,13 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
   }, [outputs.length, lastOutputLength, keyboard.keyboardScrollLockRef, outputScrollRef]);
 
   // Hide content immediately when agent changes (useLayoutEffect to avoid flicker)
+  // Also clear snapshot view when switching agents
   useLayoutEffect(() => {
     setHistoryFadeIn(false);
-  }, [selectedAgentId]);
+    if (isSnapshotView) {
+      store.setCurrentSnapshot(null);
+    }
+  }, [selectedAgentId, isSnapshotView]);
 
   // Track when we need to scroll and fade in (to avoid stale closure issues)
   const pendingFadeInRef = useRef(false);
@@ -719,6 +737,7 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
                   hasMore={historyLoader.hasMore}
                   shouldAutoScroll={shouldAutoScroll}
                   onUserScroll={handleUserScrollUp}
+                  isLoadingHistory={historyLoader.loadingHistory}
                 />
                 {/* Boss agent progress indicators */}
                 {isBoss && agentTaskProgress.size > 0 && (

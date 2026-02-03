@@ -228,6 +228,8 @@ export interface StoreState {
   snapshotsError: string | null;
   // Flag to track if last agent selection was via swipe (prevents autofocus on mobile)
   lastSelectionViaSwipe: boolean;
+  // Flag to track if last agent selection was via direct click on agent bar (prevents autofocus)
+  lastSelectionViaDirectClick: boolean;
 }
 
 // Database building state
