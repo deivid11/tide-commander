@@ -52,7 +52,15 @@ interface VirtualizedOutputListProps {
   shouldAutoScroll: boolean;
   onUserScroll?: () => void;
 
-  // History loading state - used to trigger scroll when loading completes
+  /**
+   * When true, the list will actively "pin" itself to the bottom (for agent switching / initial load),
+   * keeping the viewport at the latest message even while row heights are still being measured.
+   */
+  pinToBottom?: boolean;
+  /** Optional callback when the user scrolls during pin mode (so the parent can cancel pinning). */
+  onPinCancel?: () => void;
+
+  // History loading state (used only to avoid pinning while fetch is active)
   isLoadingHistory?: boolean;
 }
 
@@ -151,6 +159,8 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   hasMore,
   shouldAutoScroll,
   onUserScroll,
+  pinToBottom = false,
+  onPinCancel,
   isLoadingHistory,
 }: VirtualizedOutputListProps) {
   // Combine history and live outputs into single array
@@ -160,98 +170,7 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   // Track if we're programmatically scrolling (to avoid triggering onUserScroll)
   const isProgrammaticScrollRef = useRef(false);
   const prevItemCountRef = useRef(allItems.length);
-  const prevAgentIdRef = useRef<string | null>(null);
-
-  // Track if we need to scroll after agent switch
-  const pendingScrollRef = useRef(false);
-
-  // Grace period after agent switch - don't trigger user scroll detection during this time
   const agentSwitchGraceRef = useRef(false);
-
-  const scrollToBottomSync = useCallback(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return false;
-    container.scrollTop = container.scrollHeight;
-    return true;
-  }, [scrollContainerRef]);
-
-  const settleRafRef = useRef<number | null>(null);
-  const settleUntilRef = useRef(0);
-
-  const beginSettleToBottom = useCallback((durationMs: number) => {
-    isProgrammaticScrollRef.current = true;
-    agentSwitchGraceRef.current = true;
-    const desiredUntil = performance.now() + durationMs;
-    // Never shorten an in-progress settle window. This prevents a short "new output"
-    // settle (e.g. 150ms) from canceling a longer agent-switch settle on large histories.
-    settleUntilRef.current = Math.max(settleUntilRef.current, desiredUntil);
-
-    const isAtBottom = (container: HTMLDivElement) => {
-      const { scrollTop, scrollHeight, clientHeight } = container;
-      return scrollHeight - scrollTop - clientHeight <= 2;
-    };
-
-    const tick = () => {
-      const container = scrollContainerRef.current;
-      if (!container) {
-        settleRafRef.current = null;
-        isProgrammaticScrollRef.current = false;
-        agentSwitchGraceRef.current = false;
-        return;
-      }
-
-      const now = performance.now();
-      if (now >= settleUntilRef.current) {
-        settleRafRef.current = null;
-        isProgrammaticScrollRef.current = false;
-        agentSwitchGraceRef.current = false;
-        return;
-      }
-
-      // If content height changed due to measurement, keep pinned to bottom.
-      if (!isAtBottom(container)) scrollToBottomSync();
-      settleRafRef.current = requestAnimationFrame(tick);
-    };
-
-    // Kick immediately + then monitor for a short window.
-    scrollToBottomSync();
-    if (settleRafRef.current === null) {
-      settleRafRef.current = requestAnimationFrame(tick);
-    }
-  }, [scrollContainerRef, scrollToBottomSync]);
-
-  // Cleanup any pending settle loop on unmount
-  useEffect(() => {
-    return () => {
-      if (settleRafRef.current !== null) {
-        cancelAnimationFrame(settleRafRef.current);
-      }
-    };
-  }, []);
-
-  // If history fetch starts after agent selection (e.g., session establishment on mobile),
-  // re-arm the pending scroll so we still scroll to bottom once loading completes.
-  const prevIsLoadingHistoryRef = useRef<boolean | undefined>(isLoadingHistory);
-  useEffect(() => {
-    const wasLoading = prevIsLoadingHistoryRef.current;
-    prevIsLoadingHistoryRef.current = isLoadingHistory;
-    if (!wasLoading && isLoadingHistory) {
-      pendingScrollRef.current = true;
-      // Reset to 0 so the next item increase can trigger the auto-scroll effect
-      prevItemCountRef.current = 0;
-    }
-  }, [isLoadingHistory]);
-
-  // Reset item count tracking when agent changes (or on initial mount) to ensure scroll to bottom.
-  // useLayoutEffect ensures the pending flag is set before the scroll layout effect runs.
-  useLayoutEffect(() => {
-    if (prevAgentIdRef.current !== agentId) {
-      prevAgentIdRef.current = agentId;
-      prevItemCountRef.current = 0;
-      pendingScrollRef.current = true;
-      agentSwitchGraceRef.current = true;
-    }
-  }, [agentId]);
 
   // Create virtualizer
   const virtualizer = useVirtualizer({
@@ -265,32 +184,39 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     },
   });
 
-  // Agent-switch scroll: perform a single pre-paint scroll once loading is complete and we have items.
-  // Keeping this deterministic avoids "jitter" from multiple delayed retry scrolls.
+  const scrollToBottom = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    if (allItems.length <= 0) return;
+    // Use both the virtualizer and direct scrollTop for robustness.
+    virtualizer.scrollToIndex(allItems.length - 1, { align: 'end' });
+    container.scrollTop = container.scrollHeight;
+  }, [allItems.length, scrollContainerRef, virtualizer]);
+
+  // Pin-to-bottom mode (used for agent switching / initial load).
+  // While pinned, we keep applying a bottom scroll on layout changes so large conversations can't
+  // land mid-list due to measurement updates.
   useLayoutEffect(() => {
-    if (!pendingScrollRef.current) return;
+    if (!pinToBottom) return;
     if (isLoadingHistory) return;
     if (allItems.length === 0) return;
+    isProgrammaticScrollRef.current = true;
+    agentSwitchGraceRef.current = true;
+    scrollToBottom();
+  }, [pinToBottom, isLoadingHistory, allItems.length, scrollToBottom]);
 
-    // One pre-paint scroll + short settle window to handle virtualization measurement changes.
-    // This avoids landing mid-list when row heights re-measure after render.
-    scrollToBottomSync();
-    pendingScrollRef.current = false;
-
-    // Keep pinned longer on mobile: virtualization measurement + image loads can adjust heights
-    // after the history fetch completes.
-    beginSettleToBottom(1500);
-  }, [agentId, allItems.length, isLoadingHistory, scrollToBottomSync, beginSettleToBottom]);
+  // Release flags once pin mode ends.
+  useEffect(() => {
+    if (!pinToBottom) {
+      isProgrammaticScrollRef.current = false;
+      agentSwitchGraceRef.current = false;
+    }
+  }, [pinToBottom]);
 
   // Auto-scroll to bottom when new items arrive
   useEffect(() => {
     if (!shouldAutoScroll) return;
     if (allItems.length === 0) return;
-    // Let the deterministic agent-switch handler own the initial post-load scroll.
-    if (pendingScrollRef.current) {
-      prevItemCountRef.current = allItems.length;
-      return;
-    }
     if (allItems.length <= prevItemCountRef.current) {
       prevItemCountRef.current = allItems.length;
       return;
@@ -298,16 +224,24 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
 
     prevItemCountRef.current = allItems.length;
 
-    // Scroll to bottom with a small retry to handle initial measurement timing
-    scrollToBottomSync();
-    beginSettleToBottom(150);
-  }, [allItems.length, shouldAutoScroll, scrollToBottomSync, beginSettleToBottom]);
+    // Normal streaming case: scroll to bottom once when new content arrives.
+    isProgrammaticScrollRef.current = true;
+    scrollToBottom();
+    requestAnimationFrame(() => {
+      isProgrammaticScrollRef.current = false;
+    });
+  }, [allItems.length, shouldAutoScroll, scrollToBottom]);
 
   // Detect scroll to top for loading more history
   const handleScroll = useCallback(() => {
     if (!scrollContainerRef.current) return;
 
     const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+
+    // If the user scrolls while we are pinning, cancel pin mode (so we don't fight them).
+    if (pinToBottom && !isProgrammaticScrollRef.current) {
+      onPinCancel?.();
+    }
 
     // Check if user scrolled up (not at bottom)
     // BUT: Don't trigger during grace period after agent switch, as this would
@@ -321,7 +255,7 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     if (scrollTop < 200 && hasMore && !isLoadingMore && onScrollTopReached) {
       onScrollTopReached();
     }
-  }, [hasMore, isLoadingMore, onScrollTopReached, onUserScroll, scrollContainerRef]);
+  }, [hasMore, isLoadingMore, onScrollTopReached, onUserScroll, scrollContainerRef, pinToBottom, onPinCancel]);
 
   // Attach scroll listener
   useEffect(() => {

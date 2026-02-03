@@ -154,6 +154,7 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
 
   // History fade-in state
   const [historyFadeIn, setHistoryFadeIn] = useState(false);
+  const [pinToBottom, setPinToBottom] = useState(false);
 
   // Use store's terminal state
   const isOpen = terminalOpen && selectedAgent !== null;
@@ -392,6 +393,7 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
   // Mark pending fade-in when agent changes
   useEffect(() => {
     pendingFadeInRef.current = true;
+    setPinToBottom(true);
   }, [selectedAgentId, reconnectCount]);
 
   // If history fetching starts after agent selection (e.g., session establishment),
@@ -399,8 +401,65 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
   useEffect(() => {
     if (historyLoader.fetchingHistory) {
       pendingFadeInRef.current = true;
+      setPinToBottom(true);
     }
   }, [historyLoader.fetchingHistory]);
+
+  // Release pinning once the scroll container stabilizes at the bottom after a load.
+  useEffect(() => {
+    if (!pinToBottom) return;
+    if (!isOpen) return;
+    if (historyLoader.fetchingHistory) return;
+
+    const container = outputScrollRef.current;
+    if (!container) return;
+
+    let rafId: number | null = null;
+    const start = performance.now();
+    let stableFrames = 0;
+    let lastScrollHeight = -1;
+
+    const isAtBottom = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      return scrollHeight - scrollTop - clientHeight <= 2;
+    };
+
+    const tick = () => {
+      const now = performance.now();
+      const currentScrollHeight = container.scrollHeight;
+      const heightStable = Math.abs(currentScrollHeight - lastScrollHeight) <= 1;
+      const atBottom = isAtBottom();
+
+      if (heightStable && atBottom) {
+        stableFrames += 1;
+      } else {
+        stableFrames = 0;
+      }
+
+      lastScrollHeight = currentScrollHeight;
+
+      // If we've been stable at the bottom for a few frames, stop pinning.
+      if (stableFrames >= 8) {
+        setPinToBottom(false);
+        rafId = null;
+        return;
+      }
+
+      // Hard cap so we don't pin forever on pathological content.
+      if (now - start > 8000) {
+        setPinToBottom(false);
+        rafId = null;
+        return;
+      }
+
+      rafId = requestAnimationFrame(tick);
+    };
+
+    rafId = requestAnimationFrame(tick);
+    return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+    };
+  }, [pinToBottom, isOpen, historyLoader.fetchingHistory, historyLoader.historyLoadVersion]);
 
   // After content loads: scroll first, then fade in
   useEffect(() => {
@@ -661,12 +720,14 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
                   />
                 ))}
               </>
-            ) : historyLoader.loadingHistory ? (
-              <div className="guake-empty loading">Loading conversation<span className="loading-dots"><span></span><span></span><span></span></span></div>
-            ) : historyLoader.history.length === 0 && outputs.length === 0 && selectedAgent.status !== 'working' ? (
-              <div className="guake-empty">No output yet. Send a command to this agent.</div>
             ) : (
               <div className={`guake-history-content ${historyFadeIn ? 'fade-in' : ''}`}>
+                {historyLoader.loadingHistory && historyLoader.history.length === 0 && outputs.length === 0 && (
+                  <div className="guake-empty loading">Loading conversation<span className="loading-dots"><span></span><span></span><span></span></span></div>
+                )}
+                {!historyLoader.loadingHistory && historyLoader.history.length === 0 && outputs.length === 0 && selectedAgent.status !== 'working' && (
+                  <div className="guake-empty">No output yet. Send a command to this agent.</div>
+                )}
                 {historyLoader.hasMore && !search.searchMode && (
                   <div className="guake-load-more">
                     {historyLoader.loadingMore ? (
@@ -696,6 +757,8 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
                   hasMore={historyLoader.hasMore}
                   shouldAutoScroll={shouldAutoScroll}
                   onUserScroll={handleUserScrollUp}
+                  pinToBottom={pinToBottom}
+                  onPinCancel={() => setPinToBottom(false)}
                   // Use in-flight flag so the virtualized list can reliably detect load completion
                   // (the spinner flag is intentionally delayed and may never toggle true on fast loads).
                   isLoadingHistory={historyLoader.fetchingHistory}
