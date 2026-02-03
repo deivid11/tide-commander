@@ -160,7 +160,7 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   // Track if we're programmatically scrolling (to avoid triggering onUserScroll)
   const isProgrammaticScrollRef = useRef(false);
   const prevItemCountRef = useRef(allItems.length);
-  const prevAgentIdRef = useRef(agentId);
+  const prevAgentIdRef = useRef<string | null>(null);
 
   // Track if we need to scroll after agent switch
   const pendingScrollRef = useRef(false);
@@ -188,15 +188,13 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     }
   }, [isLoadingHistory]);
 
-  // Reset item count tracking when agent changes to ensure scroll to bottom on switch
-  useEffect(() => {
+  // Reset item count tracking when agent changes (or on initial mount) to ensure scroll to bottom.
+  // useLayoutEffect ensures the pending flag is set before the scroll layout effect runs.
+  useLayoutEffect(() => {
     if (prevAgentIdRef.current !== agentId) {
       prevAgentIdRef.current = agentId;
-      // Reset to 0 so next render will trigger scroll to bottom
       prevItemCountRef.current = 0;
-      // Mark that we need to scroll to bottom after content loads
       pendingScrollRef.current = true;
-      // Start grace period - don't detect user scroll for a while after agent switch
       agentSwitchGraceRef.current = true;
     }
   }, [agentId]);
