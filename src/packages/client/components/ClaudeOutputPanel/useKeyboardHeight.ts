@@ -26,6 +26,7 @@ export function useKeyboardHeight(): UseKeyboardHeightReturn {
   const keyboardHandlerRef = useRef<(() => void) | null>(null);
   const lastKeyboardHeightRef = useRef<number>(0);
   const keyboardRafRef = useRef<number>(0);
+  const baselineOverlapRef = useRef<number>(0);
 
   // Set the CSS custom property for keyboard height on the app element
   const setKeyboardHeight = useCallback((height: number) => {
@@ -74,6 +75,14 @@ export function useKeyboardHeight(): UseKeyboardHeightReturn {
 
     // Use Visual Viewport API - the most reliable way to detect keyboard on modern mobile browsers
     if (window.visualViewport) {
+      // Capture "UI chrome" overlap before the keyboard opens (e.g. URL bars).
+      // Some browsers report a small overlap even with no keyboard, which would
+      // otherwise lift the input a bit above the keyboard.
+      baselineOverlapRef.current = Math.max(
+        0,
+        window.innerHeight - (window.visualViewport.height + window.visualViewport.offsetTop)
+      );
+
       const adjustForKeyboard = () => {
         const viewport = window.visualViewport;
         if (!viewport) return;
@@ -99,10 +108,15 @@ export function useKeyboardHeight(): UseKeyboardHeightReturn {
            * while still correcting browsers that keep `innerHeight` stable (common on iOS).
            */
           const visualBottom = viewport.height + viewport.offsetTop;
-          let keyboardHeight = Math.max(0, window.innerHeight - visualBottom);
+          const overlap = Math.max(0, window.innerHeight - visualBottom);
 
-          // Apply minimum threshold to avoid false positives from small UI overlays
-          if (keyboardHeight < 120) keyboardHeight = 0;
+          // Treat small overlaps as "no keyboard" and keep updating the baseline.
+          // This handles address bar expansion/collapse while focused.
+          if (overlap < 120) {
+            baselineOverlapRef.current = overlap;
+          }
+
+          let keyboardHeight = Math.max(0, overlap - baselineOverlapRef.current);
 
           // Update the CSS custom property
           if (keyboardHeight !== lastKeyboardHeightRef.current) {

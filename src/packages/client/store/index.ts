@@ -384,9 +384,15 @@ class Store
       console.trace('[Store] Closing terminal - stack trace:');
     }
     this.state.terminalOpen = open;
-    // On mobile, switch to terminal view when opening terminal
+    // When opening terminal, ensure we can actually render the terminal panel.
+    // ClaudeOutputPanel returns null when no agent is selected.
     if (open) {
       this.state.mobileView = 'terminal';
+      if (this.state.selectedAgentIds.size === 0 && this.state.agents.size > 0) {
+        const firstAgentId = Array.from(this.state.agents.keys())[0];
+        console.log('[Store] Auto-selecting first agent for terminal open:', firstAgentId);
+        this.state.selectedAgentIds = new Set([firstAgentId]);
+      }
     }
     this.notify();
     console.log('[Store] After notify, terminalOpen:', this.state.terminalOpen);
