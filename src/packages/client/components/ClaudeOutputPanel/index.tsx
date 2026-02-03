@@ -178,7 +178,8 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
     agents,
     selectedAgentId,
     isOpen,
-    loadingHistory: historyLoader.loadingHistory,
+    // Use in-flight flag so swipe-in animation waits even when the UI loading flag is delayed
+    loadingHistory: historyLoader.fetchingHistory,
     hasModalOpen: !!(imageModal || bashModal || responseModalContent || fileViewerPath || contextModalAgentId),
     outputRef: outputScrollRef,
   });
@@ -411,12 +412,18 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
     pendingFadeInRef.current = true;
   }, [selectedAgentId, reconnectCount]);
 
+  // If history fetching starts after agent selection (e.g., session establishment),
+  // ensure we still perform the post-load scroll.
+  useEffect(() => {
+    if (historyLoader.fetchingHistory) {
+      pendingFadeInRef.current = true;
+    }
+  }, [historyLoader.fetchingHistory]);
+
   // After content loads: scroll first, then fade in
   useEffect(() => {
-    // Wait until open and not loading
-    if (!isOpen || historyLoader.loadingHistory) {
-      return;
-    }
+    // Wait until open
+    if (!isOpen) return;
 
     // Check if we have a pending fade-in
     if (!pendingFadeInRef.current) {
@@ -445,7 +452,7 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
       });
     }, 50);
     return () => clearTimeout(timeoutId);
-  }, [selectedAgentId, historyLoader.loadingHistory, historyLoader.history.length, reconnectCount, isOpen, outputScrollRef]);
+  }, [historyLoader.historyLoadVersion, isOpen, outputScrollRef]);
 
   // Additional scroll to bottom when swipe animation finishes
   useEffect(() => {
@@ -737,7 +744,9 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
                   hasMore={historyLoader.hasMore}
                   shouldAutoScroll={shouldAutoScroll}
                   onUserScroll={handleUserScrollUp}
-                  isLoadingHistory={historyLoader.loadingHistory}
+                  // Use in-flight flag so the virtualized list can reliably detect load completion
+                  // (the spinner flag is intentionally delayed and may never toggle true on fast loads).
+                  isLoadingHistory={historyLoader.fetchingHistory}
                 />
                 {/* Boss agent progress indicators */}
                 {isBoss && agentTaskProgress.size > 0 && (

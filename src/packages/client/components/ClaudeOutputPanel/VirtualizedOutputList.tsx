@@ -168,6 +168,19 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   // Grace period after agent switch - don't trigger user scroll detection during this time
   const agentSwitchGraceRef = useRef(false);
 
+  // If history fetch starts after agent selection (e.g., session establishment on mobile),
+  // re-arm the pending scroll so we still scroll to bottom once loading completes.
+  const prevIsLoadingHistoryRef = useRef<boolean | undefined>(isLoadingHistory);
+  useEffect(() => {
+    const wasLoading = prevIsLoadingHistoryRef.current;
+    prevIsLoadingHistoryRef.current = isLoadingHistory;
+    if (!wasLoading && isLoadingHistory) {
+      pendingScrollRef.current = true;
+      // Reset to 0 so the next item increase can trigger the auto-scroll effect
+      prevItemCountRef.current = 0;
+    }
+  }, [isLoadingHistory]);
+
   // Reset item count tracking when agent changes to ensure scroll to bottom on switch
   useEffect(() => {
     if (prevAgentIdRef.current !== agentId) {

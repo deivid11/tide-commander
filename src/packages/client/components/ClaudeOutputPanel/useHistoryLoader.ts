@@ -24,6 +24,14 @@ export interface UseHistoryLoaderReturn {
   history: HistoryMessage[];
   /** Whether initial history is loading */
   loadingHistory: boolean;
+  /**
+   * Whether a history fetch is currently in-flight.
+   * This is set immediately (unlike `loadingHistory`, which is delayed to avoid UI flashes).
+   * Use this for logic that must run strictly after history finishes loading (e.g., scroll-to-bottom).
+   */
+  fetchingHistory: boolean;
+  /** Monotonic counter incremented when a history load completes (success or failure). */
+  historyLoadVersion: number;
   /** Whether more history is being loaded */
   loadingMore: boolean;
   /** Whether more history is available */
@@ -49,10 +57,15 @@ export function useHistoryLoader({
 }: UseHistoryLoaderProps): UseHistoryLoaderReturn {
   const [history, setHistory] = useState<HistoryMessage[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [fetchingHistory, setFetchingHistory] = useState(false);
+  const [historyLoadVersion, setHistoryLoadVersion] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const isMountedRef = useRef(true);
+
+  // Token to ignore out-of-order fetch completions when switching agents quickly
+  const fetchSeqRef = useRef(0);
 
   // Track history length in a ref to avoid dependency issues in loadMoreHistory
   const historyLengthRef = useRef(0);
@@ -86,6 +99,9 @@ export function useHistoryLoader({
       hasMoreRef.current = false;
       setTotalCount(0);
       setLoadingHistory(false);
+      setFetchingHistory(false);
+      // Treat clearing as a completed "load" for downstream effects
+      setHistoryLoadVersion((v) => v + 1);
       prevHasSessionIdRef.current = false;
       loadedForRef.current = null;
       return;
@@ -126,6 +142,11 @@ export function useHistoryLoader({
       clearTimeout(loadingTimerRef.current);
       loadingTimerRef.current = null;
     }
+
+    // Mark fetch as in-flight immediately (used for logic like scroll-to-bottom)
+    fetchSeqRef.current += 1;
+    const fetchSeq = fetchSeqRef.current;
+    setFetchingHistory(true);
 
     // Only show loading after a delay to avoid flash for quick loads
     if (!isSessionEstablishment) {
@@ -207,12 +228,18 @@ export function useHistoryLoader({
         }
       })
       .finally(() => {
+        if (!isMountedRef.current) return;
+        // Ignore out-of-order completions if a newer fetch started
+        if (fetchSeq !== fetchSeqRef.current) return;
+
         // Clear loading timer if it hasn't fired yet
         if (loadingTimerRef.current) {
           clearTimeout(loadingTimerRef.current);
           loadingTimerRef.current = null;
         }
         setLoadingHistory(false);
+        setFetchingHistory(false);
+        setHistoryLoadVersion((v) => v + 1);
       });
   // Note: lastPrompts intentionally excluded from deps - we only use it to set initial prompt, not to trigger reloads
   }, [selectedAgentId, hasSessionId, reconnectCount]);
@@ -294,6 +321,8 @@ export function useHistoryLoader({
   return {
     history,
     loadingHistory,
+    fetchingHistory,
+    historyLoadVersion,
     loadingMore,
     hasMore,
     totalCount,
