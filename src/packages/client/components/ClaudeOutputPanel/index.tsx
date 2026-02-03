@@ -70,6 +70,7 @@ import { AgentProgressIndicator } from './AgentProgressIndicator';
 import { ExecTasksContainer } from './ExecTaskIndicator';
 import { ThemeSelector } from './ThemeSelector';
 import { Tooltip } from '../shared/Tooltip';
+import type { Agent } from '../../../shared/types';
 
 export interface ClaudeOutputPanelProps {
   /** Callback when user clicks star button to save snapshot */
@@ -91,17 +92,40 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
   const currentSnapshot = useCurrentSnapshot();
   const isSnapshotView = !!currentSnapshot;
 
+  // Snapshots should be viewable even when no agent is selected/running.
+  const snapshotAgent = useMemo<Agent | null>(() => {
+    if (!currentSnapshot) return null;
+    return {
+      id: currentSnapshot.agentId,
+      name: currentSnapshot.agentName,
+      class: currentSnapshot.agentClass as Agent['class'],
+      status: 'idle',
+      position: { x: 0, y: 0, z: 0 },
+      cwd: currentSnapshot.cwd,
+      permissionMode: 'interactive',
+      tokensUsed: 0,
+      contextUsed: 0,
+      contextLimit: 200000,
+      taskCount: 0,
+      createdAt: currentSnapshot.createdAt,
+      lastActivity: currentSnapshot.createdAt,
+    };
+  }, [currentSnapshot]);
+
   // Get selected agent
   const selectedAgentIdsArray = Array.from(selectedAgentIds);
   const isSingleSelection = selectedAgentIdsArray.length === 1;
   const selectedAgentId = isSingleSelection ? selectedAgentIdsArray[0] : null;
   const selectedAgent = useAgent(selectedAgentId) || null;
-  const hasSessionId = !!selectedAgent?.sessionId;
+
+  const activeAgent = selectedAgent ?? (isSnapshotView ? snapshotAgent : null);
+  const activeAgentId = selectedAgentId ?? (isSnapshotView ? currentSnapshot?.agentId ?? null : null);
+  const hasSessionId = !!activeAgent?.sessionId && !isSnapshotView;
 
   // Use extracted hooks
   const { terminalHeight, terminalRef, handleResizeStart } = useTerminalResize();
   const keyboard = useKeyboardHeight();
-  const outputs = useAgentOutputs(selectedAgentId);
+  const outputs = useAgentOutputs(activeAgentId);
 
   // Use snapshot outputs if viewing a snapshot, otherwise use agent outputs
   const displayOutputs = isSnapshotView && currentSnapshot
@@ -157,11 +181,11 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
   const [pinToBottom, setPinToBottom] = useState(false);
 
   // Use store's terminal state
-  const isOpen = terminalOpen && selectedAgent !== null;
+  const isOpen = terminalOpen && activeAgent !== null;
 
   // History loader hook
   const historyLoader = useHistoryLoader({
-    selectedAgentId,
+    selectedAgentId: activeAgentId,
     hasSessionId,
     reconnectCount,
     lastPrompts,
@@ -170,14 +194,14 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
 
   // Search hook
   const search = useSearchHistory({
-    selectedAgentId,
+    selectedAgentId: activeAgentId,
     isOpen,
   });
 
   // Swipe navigation hook
   const swipe = useSwipeNavigation({
     agents,
-    selectedAgentId,
+    selectedAgentId: activeAgentId,
     isOpen,
     // Use in-flight flag so swipe-in animation waits even when the UI loading flag is delayed
     loadingHistory: historyLoader.fetchingHistory,
@@ -189,14 +213,16 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
   const terminalInput = useTerminalInput({ selectedAgentId });
 
   // Get pending permission requests
-  const pendingPermissions = selectedAgentId ? store.getPendingPermissionsForAgent(selectedAgentId) : [];
+  const pendingPermissions = !isSnapshotView && activeAgentId
+    ? store.getPendingPermissionsForAgent(activeAgentId)
+    : [];
 
   // Check if selected agent is a boss
-  const isBoss = selectedAgent?.class === 'boss' || selectedAgent?.isBoss;
-  const agentTaskProgress = useAgentTaskProgress(isBoss ? selectedAgentId : null);
+  const isBoss = activeAgent?.class === 'boss' || activeAgent?.isBoss;
+  const agentTaskProgress = useAgentTaskProgress(!isSnapshotView && isBoss ? activeAgentId : null);
 
   // Get exec tasks for the selected agent
-  const execTasks = useExecTasks(selectedAgentId);
+  const execTasks = useExecTasks(!isSnapshotView ? activeAgentId : null);
 
   // Auto-enable debugger when panel opens
   useEffect(() => {
@@ -208,7 +234,7 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
 
   // Detect completion state
   useEffect(() => {
-    const currentStatus = selectedAgent?.status;
+    const currentStatus = activeAgent?.status;
     const prevStatus = prevStatusRef.current;
 
     if (prevStatus === 'working' && currentStatus === 'idle') {
@@ -231,7 +257,7 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
     return () => {
       if (completionTimerRef.current) clearTimeout(completionTimerRef.current);
     };
-  }, [selectedAgent?.status]);
+  }, [activeAgent?.status]);
 
   // Memoized filtered history
   const filteredHistory = useMemo((): EnrichedHistoryMessage[] => {
@@ -284,7 +310,7 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
     isOpen,
     hasModalOpen: !!(imageModal || bashModal || responseModalContent || fileViewerPath),
     scrollContainerRef: outputScrollRef,
-    selectedAgentId,
+    selectedAgentId: activeAgentId,
     inputRef: terminalInputRef,
     textareaRef: terminalTextareaRef,
     useTextarea: terminalInput.useTextarea,
@@ -342,7 +368,7 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
       agentSwitchGraceRef.current = false;
     }, 3000);
     return () => clearTimeout(timeout);
-  }, [selectedAgentId, outputs.length]);
+  }, [activeAgentId, displayOutputs.length]);
 
   const handleScroll = useCallback(() => {
     if (!outputScrollRef.current) return;
@@ -380,12 +406,16 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
 
   // Hide content immediately when agent changes (useLayoutEffect to avoid flicker)
   // Also clear snapshot view when switching agents
+  const prevSelectedAgentIdRef = useRef<string | null>(null);
   useLayoutEffect(() => {
     setHistoryFadeIn(false);
-    if (isSnapshotView) {
+    const prev = prevSelectedAgentIdRef.current;
+    const changed = prev !== selectedAgentId;
+    prevSelectedAgentIdRef.current = selectedAgentId;
+    if (changed && store.getState().currentSnapshot) {
       store.setCurrentSnapshot(null);
     }
-  }, [selectedAgentId, isSnapshotView]);
+  }, [selectedAgentId]);
 
   // Track when we need to scroll and fade in (to avoid stale closure issues)
   const pendingFadeInRef = useRef(false);
@@ -394,7 +424,7 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
   useEffect(() => {
     pendingFadeInRef.current = true;
     setPinToBottom(true);
-  }, [selectedAgentId, reconnectCount]);
+  }, [activeAgentId, reconnectCount]);
 
   // If history fetching starts after agent selection (e.g., session establishment),
   // ensure we still perform the post-load scroll.
@@ -485,7 +515,7 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
   // Keyboard shortcut to toggle terminal
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === '`' && !e.ctrlKey && !e.altKey && selectedAgent) {
+      if (e.key === '`' && !e.ctrlKey && !e.altKey && activeAgent) {
         const target = e.target as HTMLElement;
         if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
           e.preventDefault();
@@ -495,7 +525,7 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [selectedAgent]);
+  }, [activeAgent]);
 
   // Escape key handler for modals and search (higher priority than message navigation)
   useEffect(() => {
@@ -596,7 +626,7 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
   // Mobile placeholder rendering
   const isMobileWidth = typeof window !== 'undefined' && window.innerWidth <= 768;
 
-  if (!selectedAgent) {
+  if (!activeAgent) {
     if (isMobileWidth && mobileView === 'terminal' && selectedAgentIds.size === 0) {
       return (
         <div ref={terminalRef} className="guake-terminal open" style={{ '--terminal-height': `${terminalHeight}%` } as React.CSSProperties}>
@@ -626,8 +656,8 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
     return null;
   }
 
-  // At this point selectedAgent exists, so selectedAgentId must exist too
-  if (!selectedAgentId) return null;
+  // At this point activeAgent exists, so activeAgentId must exist too
+  if (!activeAgentId) return null;
 
   return (
     <div
@@ -636,14 +666,14 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
       style={{ '--terminal-height': `${terminalHeight}%` } as React.CSSProperties}
     >
       {/* Debug Panel */}
-      {debugPanelOpen && isOpen && selectedAgentId && (
-        <AgentDebugPanel agentId={selectedAgentId} onClose={() => setDebugPanelOpen(false)} />
+      {!isSnapshotView && debugPanelOpen && isOpen && activeAgentId && (
+        <AgentDebugPanel agentId={activeAgentId} onClose={() => setDebugPanelOpen(false)} />
       )}
 
       <div className="guake-content">
         <TerminalHeader
-          selectedAgent={selectedAgent}
-          selectedAgentId={selectedAgentId}
+          selectedAgent={activeAgent}
+          selectedAgentId={activeAgentId}
           sortedAgents={swipe.sortedAgents}
           swipeOffset={swipe.swipeOffset}
           viewMode={viewMode}
@@ -711,7 +741,7 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
                   <HistoryLine
                     key={`s-${index}`}
                     message={msg as EnrichedHistoryMessage}
-                    agentId={selectedAgentId}
+                    agentId={activeAgentId}
                     highlight={search.searchQuery}
                     onImageClick={handleImageClick}
                     onFileClick={handleFileClick}
@@ -725,7 +755,7 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
                 {historyLoader.loadingHistory && historyLoader.history.length === 0 && outputs.length === 0 && (
                   <div className="guake-empty loading">Loading conversation<span className="loading-dots"><span></span><span></span><span></span></span></div>
                 )}
-                {!historyLoader.loadingHistory && historyLoader.history.length === 0 && outputs.length === 0 && selectedAgent.status !== 'working' && (
+                {!historyLoader.loadingHistory && historyLoader.history.length === 0 && displayOutputs.length === 0 && activeAgent.status !== 'working' && (
                   <div className="guake-empty">No output yet. Send a command to this agent.</div>
                 )}
                 {historyLoader.hasMore && !search.searchMode && (
@@ -743,7 +773,7 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
                 <VirtualizedOutputList
                   historyMessages={filteredHistory}
                   liveOutputs={filteredOutputs}
-                  agentId={selectedAgentId}
+                  agentId={activeAgentId}
                   viewMode={viewMode}
                   selectedMessageIndex={messageNav.selectedIndex}
                   isMessageSelected={messageNav.isSelected}
@@ -782,15 +812,15 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
                   </div>
                 )}
                 {/* Exec tasks (streaming command output) */}
-                {execTasks.length > 0 && selectedAgentId && (
+                {!isSnapshotView && execTasks.length > 0 && activeAgentId && (
                   <ExecTasksContainer
                     tasks={execTasks}
-                    onClearCompleted={() => store.clearCompletedExecTasks(selectedAgentId)}
+                    onClearCompleted={() => store.clearCompletedExecTasks(activeAgentId)}
                     onDismiss={(taskId) => {
                       // Remove completed task from the map
                       const task = store.getExecTask(taskId);
                       if (task && task.status !== 'running') {
-                        store.clearCompletedExecTasks(selectedAgentId);
+                        store.clearCompletedExecTasks(activeAgentId);
                       }
                     }}
                   />
@@ -801,8 +831,8 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
         </div>
 
         <TerminalInputArea
-          selectedAgent={selectedAgent}
-          selectedAgentId={selectedAgentId}
+          selectedAgent={activeAgent}
+          selectedAgentId={activeAgentId}
           isOpen={isOpen}
           command={terminalInput.command}
           setCommand={terminalInput.setCommand}
@@ -830,7 +860,7 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
 
         {/* Agent Status Bar (CWD + Context) */}
         <div className="guake-agent-status-bar">
-          {selectedAgent?.isDetached && (
+          {!isSnapshotView && activeAgent?.isDetached && (
             <Tooltip
               content={
                 <>
@@ -848,17 +878,17 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
               <span className="guake-detached-badge">📡 Detached</span>
             </Tooltip>
           )}
-          {selectedAgent?.cwd && (
+          {activeAgent?.cwd && (
             <span className="guake-agent-cwd">
-              📁 {selectedAgent.cwd.split('/').filter(Boolean).slice(-2).join('/') || selectedAgent.cwd}
+              📁 {activeAgent.cwd.split('/').filter(Boolean).slice(-2).join('/') || activeAgent.cwd}
             </span>
           )}
-          {selectedAgent && (() => {
+          {!isSnapshotView && activeAgent && (() => {
             // Use contextStats if available (from /context command), otherwise fallback to basic
-            const stats = selectedAgent.contextStats;
+            const stats = activeAgent.contextStats;
             const hasData = !!stats;
-            const totalTokens = stats ? stats.totalTokens : (selectedAgent.contextUsed || 0);
-            const contextWindow = stats ? stats.contextWindow : (selectedAgent.contextLimit || 200000);
+            const totalTokens = stats ? stats.totalTokens : (activeAgent.contextUsed || 0);
+            const contextWindow = stats ? stats.contextWindow : (activeAgent.contextLimit || 200000);
             const usedPercent = stats ? stats.usedPercent : Math.round((totalTokens / contextWindow) * 100);
             const freePercent = Math.round(100 - usedPercent);
             const percentColor = usedPercent >= 80 ? '#ff4a4a' : usedPercent >= 60 ? '#ff9e4a' : usedPercent >= 40 ? '#ffd700' : '#4aff9e';
@@ -867,7 +897,7 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
             return (
               <span
                 className="guake-agent-context"
-                onClick={() => store.setContextModalAgentId(selectedAgentId)}
+                onClick={() => store.setContextModalAgentId(activeAgentId)}
                 title={hasData ? "Click to view detailed context stats" : "Click to fetch context stats"}
               >
                 <span className="context-icon">📊</span>
@@ -906,7 +936,7 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
         style={{ top: isOpen ? `${terminalHeight}%` : '0' }}
       >
         <span className="guake-handle-icon">{isOpen ? '▲' : '▼'}</span>
-        <span className="guake-handle-text">{selectedAgent.name}</span>
+        <span className="guake-handle-text">{activeAgent.name}</span>
       </div>
 
       {/* Modals */}
@@ -915,15 +945,17 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
       {contextConfirm && (
         <ContextConfirmModal
           action={contextConfirm}
-          selectedAgentId={selectedAgentId}
-          subordinateCount={selectedAgent?.subordinateIds?.length || 0}
+          selectedAgentId={activeAgentId}
+          subordinateCount={activeAgent?.subordinateIds?.length || 0}
           onClose={() => setContextConfirm(null)}
           onClearHistory={historyLoader.clearHistory}
         />
       )}
       <ContextModalFromGuake />
       <FileViewerFromGuake />
-      <AgentResponseModalWrapper agent={selectedAgent} content={responseModalContent} onClose={() => setResponseModalContent(null)} />
+      {!isSnapshotView && (
+        <AgentResponseModalWrapper agent={activeAgent} content={responseModalContent} onClose={() => setResponseModalContent(null)} />
+      )}
     </div>
   );
 }

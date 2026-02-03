@@ -25,24 +25,28 @@ export function useKeyboardHeight(): UseKeyboardHeightReturn {
   const keyboardScrollLockRef = useRef(false);
   const keyboardHandlerRef = useRef<(() => void) | null>(null);
   const lastKeyboardHeightRef = useRef<number>(0);
+  const lastKeyboardVisibleRef = useRef<boolean>(false);
   const keyboardRafRef = useRef<number>(0);
   const baselineOverlapRef = useRef<number>(0);
+  const baselineInnerHeightRef = useRef<number>(0);
 
   // Set the CSS custom property for keyboard height on the app element
-  const setKeyboardHeight = useCallback((height: number) => {
+  const setKeyboardState = useCallback((height: number, visible: boolean) => {
     const app = document.querySelector('.app.mobile-view-terminal') as HTMLElement;
     if (app) {
       app.style.setProperty('--keyboard-height', `${height}px`);
-      app.style.setProperty('--keyboard-visible', height > 0 ? '1' : '0');
+      app.style.setProperty('--keyboard-visible', visible ? '1' : '0');
+      app.classList.toggle('keyboard-visible', visible);
     }
     lastKeyboardHeightRef.current = height;
+    lastKeyboardVisibleRef.current = visible;
   }, []);
 
   // Reset keyboard styles by clearing the CSS custom property
   const resetKeyboardStyles = useCallback(() => {
-    setKeyboardHeight(0);
+    setKeyboardState(0, false);
     keyboardScrollLockRef.current = false;
-  }, [setKeyboardHeight]);
+  }, [setKeyboardState]);
 
   // Cleanup keyboard listeners
   const cleanupKeyboardHandling = useCallback(() => {
@@ -82,6 +86,7 @@ export function useKeyboardHeight(): UseKeyboardHeightReturn {
         0,
         window.innerHeight - (window.visualViewport.height + window.visualViewport.offsetTop)
       );
+      baselineInnerHeightRef.current = window.innerHeight;
 
       const adjustForKeyboard = () => {
         const viewport = window.visualViewport;
@@ -110,21 +115,30 @@ export function useKeyboardHeight(): UseKeyboardHeightReturn {
           const visualBottom = viewport.height + viewport.offsetTop;
           const overlap = Math.max(0, window.innerHeight - visualBottom);
 
+          // If the browser already shrinks the layout viewport when the keyboard shows,
+          // applying an additional fixed-position offset will double-shift the input.
+          const layoutShrink = Math.max(0, baselineInnerHeightRef.current - window.innerHeight);
+
+          const keyboardVisible = overlap >= 120 || layoutShrink >= 120;
+
           // Treat small overlaps as "no keyboard" and keep updating the baseline.
           // This handles address bar expansion/collapse while focused.
-          if (overlap < 120) {
+          if (!keyboardVisible) {
             baselineOverlapRef.current = overlap;
+            baselineInnerHeightRef.current = window.innerHeight;
           }
 
-          let keyboardHeight = Math.max(0, overlap - baselineOverlapRef.current);
+          // If layout is shrinking, fixed elements already sit above the keyboard.
+          // Keep keyboardHeight at 0 so CSS doesn't push the input upward.
+          const keyboardHeight = layoutShrink >= 120 ? 0 : Math.max(0, overlap - baselineOverlapRef.current);
 
           // Update the CSS custom property
-          if (keyboardHeight !== lastKeyboardHeightRef.current) {
-            setKeyboardHeight(keyboardHeight);
+          if (keyboardHeight !== lastKeyboardHeightRef.current || keyboardVisible !== lastKeyboardVisibleRef.current) {
+            setKeyboardState(keyboardHeight, keyboardVisible);
           }
 
           // Release scroll lock after keyboard has stabilized
-          if (keyboardHeight > 0) {
+          if (keyboardVisible) {
             setTimeout(() => {
               keyboardScrollLockRef.current = false;
             }, 300);
@@ -142,7 +156,7 @@ export function useKeyboardHeight(): UseKeyboardHeightReturn {
       // Initial adjustment
       adjustForKeyboard();
     }
-  }, [cleanupKeyboardHandling, resetKeyboardStyles, setKeyboardHeight]);
+  }, [cleanupKeyboardHandling, resetKeyboardStyles, setKeyboardState]);
 
   const handleInputBlur = useCallback(() => {
     isInputFocusedRef.current = false;

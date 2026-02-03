@@ -171,6 +171,7 @@
   .app.mobile-view-terminal {
     // CSS custom property for keyboard height - controlled by JavaScript
     --keyboard-height: 0px;
+    --keyboard-visible: 0;
 
     .battlefield-container {
       display: none;
@@ -185,12 +186,19 @@
       right: 0;
     }
 
+    // When the keyboard is open, hide the agent bar so only the input is shown above the keyboard.
+    &.keyboard-visible {
+      .agent-bar {
+        display: none !important;
+      }
+    }
+
     .main-content {
       display: flex;
       flex-direction: column;
       // Full height minus agent bar only - keyboard doesn't affect layout
-      height: calc(100% - 32px) !important;
-      max-height: calc(100% - 32px) !important;
+      height: calc(100% - (32px * (1 - var(--keyboard-visible, 0)))) !important;
+      max-height: calc(100% - (32px * (1 - var(--keyboard-visible, 0)))) !important;
       overflow: hidden;
     }
 
@@ -238,8 +246,8 @@
     .guake-input-wrapper {
       position: fixed !important;
       // When keyboard closed: 32px above bottom (for agent bar)
-      // When keyboard open: keyboard height (agent bar hidden behind keyboard)
-      bottom: max(32px, var(--keyboard-height, 0px)) !important;
+      // When keyboard open: bottom aligns to viewport bottom; we translate up by keyboard height.
+      bottom: calc(32px * (1 - var(--keyboard-visible, 0))) !important;
       left: 0 !important;
       right: 0 !important;
       z-index: 200 !important;
@@ -248,6 +256,14 @@
       padding: 8px !important;
       padding-bottom: calc(8px + env(safe-area-inset-bottom, 0)) !important;
       border-top: 1px solid rgba(139, 233, 253, 0.2) !important;
+    }
+
+    &.keyboard-visible {
+      .guake-input-wrapper {
+        // Keep the bar pinned to the (shrunk) layout viewport bottom, then lift by measured keyboard height.
+        // On Android/WebViews that shrink the layout viewport, `--keyboard-height` will be 0.
+        transform: translateY(calc(var(--keyboard-height, 0px) * -1)) !important;
+      }
     }
 
     // Ensure the input itself is fully visible
