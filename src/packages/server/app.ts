@@ -8,6 +8,7 @@ import cors from 'cors';
 import path from 'path';
 import os from 'os';
 import fs from 'fs';
+import { fileURLToPath } from 'url';
 import routes from './routes/index.js';
 import { logger } from './utils/logger.js';
 import { authMiddleware, isAuthEnabled, getAuthTokenPreview } from './auth/index.js';
@@ -17,7 +18,7 @@ const UPLOADS_DIR = path.join(os.tmpdir(), 'tide-commander-uploads');
 
 // Find project root (where package.json is)
 function findProjectRoot(): string {
-  let dir = import.meta.dirname;
+  let dir = path.dirname(fileURLToPath(import.meta.url));
   while (dir !== '/') {
     if (fs.existsSync(path.join(dir, 'package.json'))) {
       return dir;
