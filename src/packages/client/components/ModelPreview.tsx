@@ -55,6 +55,7 @@ export function ModelPreview({ agentClass, modelFile, customModelFile, customMod
   const animationIdRef = useRef<number>(0);
   const clockRef = useRef<THREE.Clock>(new THREE.Clock());
   const [isReady, setIsReady] = useState(false);
+  const [webglFailed, setWebglFailed] = useState(false);
   const hasAnimationsRef = useRef(false);
   const proceduralTimeRef = useRef(0);
   const basePositionRef = useRef(new THREE.Vector3());
@@ -69,6 +70,8 @@ export function ModelPreview({ agentClass, modelFile, customModelFile, customMod
     const container = containerRef.current;
     if (!container) return;
 
+    setWebglFailed(false);
+
     // Create scene
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x1a1a24);
@@ -81,7 +84,14 @@ export function ModelPreview({ agentClass, modelFile, customModelFile, customMod
     cameraRef.current = camera;
 
     // Create renderer
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    let renderer: THREE.WebGLRenderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    } catch {
+      console.warn('[ModelPreview] WebGL context creation failed — too many active contexts');
+      setWebglFailed(true);
+      return;
+    }
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setClearColor(0x1a1a24, 1);
@@ -526,6 +536,30 @@ export function ModelPreview({ agentClass, modelFile, customModelFile, customMod
       }
     }
   }, [idleAnimation, isReady, status]);
+
+  if (webglFailed) {
+    return (
+      <div
+        className="model-preview"
+        style={{
+          width,
+          height,
+          borderRadius: 8,
+          overflow: 'hidden',
+          background: '#1a1a24',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: '#666',
+          fontSize: 12,
+          textAlign: 'center' as const,
+          padding: 8,
+        }}
+      >
+        3D preview unavailable
+      </div>
+    );
+  }
 
   return (
     <div
