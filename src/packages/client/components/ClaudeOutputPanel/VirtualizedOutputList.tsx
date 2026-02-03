@@ -175,6 +175,60 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     return true;
   }, [scrollContainerRef]);
 
+  const settleRafRef = useRef<number | null>(null);
+  const settleUntilRef = useRef(0);
+
+  const beginSettleToBottom = useCallback((durationMs: number) => {
+    isProgrammaticScrollRef.current = true;
+    agentSwitchGraceRef.current = true;
+    const desiredUntil = performance.now() + durationMs;
+    // Never shorten an in-progress settle window. This prevents a short "new output"
+    // settle (e.g. 150ms) from canceling a longer agent-switch settle on large histories.
+    settleUntilRef.current = Math.max(settleUntilRef.current, desiredUntil);
+
+    const isAtBottom = (container: HTMLDivElement) => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      return scrollHeight - scrollTop - clientHeight <= 2;
+    };
+
+    const tick = () => {
+      const container = scrollContainerRef.current;
+      if (!container) {
+        settleRafRef.current = null;
+        isProgrammaticScrollRef.current = false;
+        agentSwitchGraceRef.current = false;
+        return;
+      }
+
+      const now = performance.now();
+      if (now >= settleUntilRef.current) {
+        settleRafRef.current = null;
+        isProgrammaticScrollRef.current = false;
+        agentSwitchGraceRef.current = false;
+        return;
+      }
+
+      // If content height changed due to measurement, keep pinned to bottom.
+      if (!isAtBottom(container)) scrollToBottomSync();
+      settleRafRef.current = requestAnimationFrame(tick);
+    };
+
+    // Kick immediately + then monitor for a short window.
+    scrollToBottomSync();
+    if (settleRafRef.current === null) {
+      settleRafRef.current = requestAnimationFrame(tick);
+    }
+  }, [scrollContainerRef, scrollToBottomSync]);
+
+  // Cleanup any pending settle loop on unmount
+  useEffect(() => {
+    return () => {
+      if (settleRafRef.current !== null) {
+        cancelAnimationFrame(settleRafRef.current);
+      }
+    };
+  }, []);
+
   // If history fetch starts after agent selection (e.g., session establishment on mobile),
   // re-arm the pending scroll so we still scroll to bottom once loading completes.
   const prevIsLoadingHistoryRef = useRef<boolean | undefined>(isLoadingHistory);
@@ -218,17 +272,15 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     if (isLoadingHistory) return;
     if (allItems.length === 0) return;
 
-    isProgrammaticScrollRef.current = true;
+    // One pre-paint scroll + short settle window to handle virtualization measurement changes.
+    // This avoids landing mid-list when row heights re-measure after render.
     scrollToBottomSync();
     pendingScrollRef.current = false;
 
-    // One extra frame helps after initial measurement without visible multi-jumps.
-    requestAnimationFrame(() => {
-      scrollToBottomSync();
-      isProgrammaticScrollRef.current = false;
-      agentSwitchGraceRef.current = false;
-    });
-  }, [agentId, allItems.length, isLoadingHistory, scrollToBottomSync]);
+    // Keep pinned longer on mobile: virtualization measurement + image loads can adjust heights
+    // after the history fetch completes.
+    beginSettleToBottom(1500);
+  }, [agentId, allItems.length, isLoadingHistory, scrollToBottomSync, beginSettleToBottom]);
 
   // Auto-scroll to bottom when new items arrive
   useEffect(() => {
@@ -247,14 +299,9 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     prevItemCountRef.current = allItems.length;
 
     // Scroll to bottom with a small retry to handle initial measurement timing
-    isProgrammaticScrollRef.current = true;
-
     scrollToBottomSync();
-    requestAnimationFrame(() => {
-      scrollToBottomSync();
-      isProgrammaticScrollRef.current = false;
-    });
-  }, [allItems.length, shouldAutoScroll, scrollToBottomSync]);
+    beginSettleToBottom(150);
+  }, [allItems.length, shouldAutoScroll, scrollToBottomSync, beginSettleToBottom]);
 
   // Detect scroll to top for loading more history
   const handleScroll = useCallback(() => {
