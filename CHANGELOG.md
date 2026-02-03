@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.40.0] - 2026-02-03
+
+### Added
+- **Snapshot Feature Format Migration** - Support for seamless snapshot format versioning
+  - Version tracking for snapshot data structures
+  - Automatic migration between snapshot formats
+  - Better compatibility across snapshot versions
+
+### Changed
+- **VirtualizedOutputList Component** - Enhanced with snapshot state management
+  - Improved snapshot compatibility and data handling
+  - Better state preservation during snapshot operations
+  - Enhanced performance for large message lists
+- **TerminalInputArea Component** - Snapshot feature integration
+  - Improved compatibility with snapshot data
+  - Better input handling during snapshot operations
+- **Agent Switching** - Seamless context preservation
+  - Agents can now switch while preserving snapshot context
+  - Better state management during agent transitions
+- **Store Types** - Updated snapshot handling types
+  - New snapshot version tracking
+  - Improved type definitions for snapshot operations
+
+### Technical
+- Added snapshot format versioning system
+- Enhanced AgentBar integration with snapshot feature
+- Improved store actions for snapshot migration
+- Better type safety for snapshot operations
+
 ## [0.39.0] - 2026-01-29
 
 ### Added
