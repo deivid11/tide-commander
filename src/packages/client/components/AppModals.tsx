@@ -336,16 +336,11 @@ export function AppModals({
               onViewSnapshot={async (snapshotId) => {
                 // Load snapshot details and display in guake terminal
                 await store.loadSnapshot(snapshotId);
-                // On mobile, open the terminal to show the snapshot
-                const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
-                if (isMobile && state.agents.size > 0) {
-                  // Get the first agent to show in terminal
-                  const firstAgentId = Array.from(state.agents.keys())[0];
-                  store.openTerminalOnMobile(firstAgentId);
-                } else {
-                  // On desktop, just open the terminal
-                  store.setTerminalOpen(true);
-                }
+                // Clear agent selection so snapshot view takes priority
+                // (ClaudeOutputPanel uses snapshotAgent when no agent is selected)
+                state.selectedAgentIds.clear();
+                // Open terminal (handles mobile view switching)
+                store.setTerminalOpen(true);
                 // Close the snapshot manager modal after loading
                 snapshotsModal.close();
               }}

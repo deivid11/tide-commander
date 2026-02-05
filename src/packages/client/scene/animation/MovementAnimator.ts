@@ -49,9 +49,9 @@ const JUMP_BOUNCE = {
  */
 export class MovementAnimator {
   private movements = new Map<string, MovementState>();
-  private clock = new THREE.Clock();
   private jumpingAgents = new Map<string, number>(); // Track agents playing jump animation -> base Y position
   private animatingAgents = new Set<string>(); // Track agents with active mixer animations
+  private jumpTime = 0; // Accumulated time for jump bounce (synced with render loop delta)
 
   /**
    * Check if an agent is currently moving.
@@ -275,12 +275,15 @@ export class MovementAnimator {
   /**
    * Update all animations and movements.
    * @param agentMeshes Map of agent IDs to mesh data
+   * @param deltaTime Time since last frame in seconds (from render loop)
    * @returns List of agent IDs that completed their movements
    */
-  update(agentMeshes: Map<string, AgentMeshData>): string[] {
-    const deltaTime = this.clock.getDelta();
+  update(agentMeshes: Map<string, AgentMeshData>, deltaTime: number): string[] {
     const now = performance.now();
     const completed: string[] = [];
+
+    // Accumulate jump time using the same deltaTime as everything else
+    this.jumpTime += deltaTime;
 
     // Only update mixers for agents with active animations (much more efficient)
     for (const agentId of this.animatingAgents) {
@@ -288,7 +291,7 @@ export class MovementAnimator {
       meshData?.mixer?.update(deltaTime);
     }
 
-    // Apply jump bounce effect to jumping agents
+    // Apply jump bounce effect to jumping agents (using accumulated time synced with render loop)
     for (const [agentId, baseY] of this.jumpingAgents) {
       const meshData = agentMeshes.get(agentId);
       if (!meshData) continue;
@@ -297,7 +300,7 @@ export class MovementAnimator {
       if (characterBody) {
         // Use absolute sine wave for bounce (always positive, 0 to height)
         // Add bounce on top of the base Y position to preserve any model offset
-        const bounceOffset = Math.abs(Math.sin(now * 0.001 * JUMP_BOUNCE.speed * Math.PI * 2)) * JUMP_BOUNCE.height;
+        const bounceOffset = Math.abs(Math.sin(this.jumpTime * JUMP_BOUNCE.speed * Math.PI * 2)) * JUMP_BOUNCE.height;
         characterBody.position.y = baseY + bounceOffset;
       }
     }
@@ -385,5 +388,6 @@ export class MovementAnimator {
     this.movements.clear();
     this.jumpingAgents.clear();
     this.animatingAgents.clear();
+    this.jumpTime = 0;
   }
 }

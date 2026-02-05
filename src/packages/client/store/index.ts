@@ -388,7 +388,9 @@ class Store
     // ClaudeOutputPanel returns null when no agent is selected.
     if (open) {
       this.state.mobileView = 'terminal';
-      if (this.state.selectedAgentIds.size === 0 && this.state.agents.size > 0) {
+      // Don't auto-select an agent when viewing a snapshot — let ClaudeOutputPanel
+      // use the virtual snapshotAgent from currentSnapshot instead
+      if (this.state.selectedAgentIds.size === 0 && this.state.agents.size > 0 && !this.state.currentSnapshot) {
         const firstAgentId = Array.from(this.state.agents.keys())[0];
         console.log('[Store] Auto-selecting first agent for terminal open:', firstAgentId);
         this.state.selectedAgentIds = new Set([firstAgentId]);
@@ -405,7 +407,7 @@ class Store
     setStorageString(STORAGE_KEYS.MOBILE_VIEW, view);
     // When switching to terminal view on mobile, ensure an agent is selected
     // Otherwise the terminal component returns null
-    if (view === 'terminal' && this.state.selectedAgentIds.size === 0 && this.state.agents.size > 0) {
+    if (view === 'terminal' && this.state.selectedAgentIds.size === 0 && this.state.agents.size > 0 && !this.state.currentSnapshot) {
       const firstAgentId = Array.from(this.state.agents.keys())[0];
       console.log('[Store] Auto-selecting first agent for terminal view:', firstAgentId);
       this.state.selectedAgentIds = new Set([firstAgentId]);

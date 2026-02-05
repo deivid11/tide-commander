@@ -113,7 +113,7 @@ export class SceneManager {
       },
       {
         onUpdateBattlefield: (deltaTime, now) => this.updateBattlefield(deltaTime, now),
-        onUpdateAnimations: () => this.updateAnimations(),
+        onUpdateAnimations: (deltaTime) => this.updateAnimations(deltaTime),
         onUpdateProceduralAnimations: (deltaTime) => this.updateProceduralAnimations(deltaTime),
         onHandleMovementCompletions: (ids) => this.agentManager.handleMovementCompletions(ids),
         onUpdateIdleTimers: () => this.agentManager.updateIdleTimers(),
@@ -294,10 +294,10 @@ export class SceneManager {
     this.battlefield.updateCloudAnimation(deltaTime);
   }
 
-  private updateAnimations(): string[] {
-    const completedMovements = this.movementAnimator.update(this.agentManager.getAgentMeshes());
+  private updateAnimations(deltaTime: number): string[] {
+    const completedMovements = this.movementAnimator.update(this.agentManager.getAgentMeshes(), deltaTime);
     this.effectsManager.update();
-    this.buildingManager.update(0.016);
+    this.buildingManager.update(deltaTime);
     return completedMovements;
   }
 

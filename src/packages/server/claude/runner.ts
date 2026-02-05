@@ -522,6 +522,7 @@ export class ClaudeRunner {
     return new Promise((resolve) => {
       const decoder = new StringDecoder('utf8');
       let buffer = '';
+      let resolved = false; // Guard against double-resolve race condition
 
       process.stdout?.on('data', (data: Buffer) => {
         // Decode with UTF-8 safety for multi-byte characters
@@ -545,12 +546,20 @@ export class ClaudeRunner {
           this.processLine(agentId, remaining);
         }
         // Signal that stdout is fully processed
-        resolve();
+        if (!resolved) {
+          resolved = true;
+          resolve();
+        }
       });
 
       // Also resolve on close in case end doesn't fire
+      // But only if 'end' hasn't already resolved (fixes race condition where
+      // 'close' can fire before 'end', causing the last message to be lost)
       process.stdout?.on('close', () => {
-        resolve();
+        if (!resolved) {
+          resolved = true;
+          resolve();
+        }
       });
     });
   }
@@ -655,10 +664,11 @@ export class ClaudeRunner {
 
       case 'tool_start':
         // Send tool name as text output (needed for simple view mode display)
-        this.callbacks.onOutput(agentId, `Using tool: ${event.toolName}`);
+        // Send immediately without marking as streaming to ensure it displays
+        this.callbacks.onOutput(agentId, `Using tool: ${event.toolName}`, false);
         // Send tool input as JSON (needed for simple view to show file paths, commands, etc.)
         if (event.toolInput) {
-          this.callbacks.onOutput(agentId, `Tool input: ${JSON.stringify(event.toolInput)}`);
+          this.callbacks.onOutput(agentId, `Tool input: ${JSON.stringify(event.toolInput)}`, false);
         }
         break;
 
@@ -666,7 +676,8 @@ export class ClaudeRunner {
         // Send Bash tool results as text output for display
         // Other tool results are too verbose (file contents, etc.)
         if (event.toolName === 'Bash' && event.toolOutput) {
-          this.callbacks.onOutput(agentId, `Bash output:\n${event.toolOutput}`);
+          // Send as non-streaming to ensure it displays properly in Guake
+          this.callbacks.onOutput(agentId, `Bash output:\n${event.toolOutput}`, false);
         }
         break;
 
@@ -674,16 +685,17 @@ export class ClaudeRunner {
         // Output the result text if available (fallback for non-streamed responses)
         // This handles cases where Claude returns a quick response without streaming deltas
         if (event.resultText) {
-          this.callbacks.onOutput(agentId, event.resultText);
+          this.callbacks.onOutput(agentId, event.resultText, false);
         }
         if (event.tokens) {
           this.callbacks.onOutput(
             agentId,
-            `Tokens: ${event.tokens.input} in, ${event.tokens.output} out`
+            `Tokens: ${event.tokens.input} in, ${event.tokens.output} out`,
+            false
           );
         }
         if (event.cost !== undefined) {
-          this.callbacks.onOutput(agentId, `Cost: $${event.cost.toFixed(4)}`);
+          this.callbacks.onOutput(agentId, `Cost: $${event.cost.toFixed(4)}`, false);
         }
         break;
 
@@ -694,7 +706,7 @@ export class ClaudeRunner {
       case 'context_stats':
         // Send context stats raw output to client for rendering
         if (event.contextStatsRaw) {
-          this.callbacks.onOutput(agentId, event.contextStatsRaw);
+          this.callbacks.onOutput(agentId, event.contextStatsRaw, false);
         }
         break;
     }

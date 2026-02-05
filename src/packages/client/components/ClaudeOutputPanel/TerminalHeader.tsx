@@ -162,7 +162,7 @@ export function TerminalHeader({
         )}
       </div>
       <div className="guake-actions">
-        {/* Star button - only show during live conversation, not in snapshot view */}
+        {/* Star button - show for all conversations with messages (not in snapshot view) */}
         {!isSnapshotView && onSaveSnapshot && outputsLength > 0 && (
           <Tooltip
             content={

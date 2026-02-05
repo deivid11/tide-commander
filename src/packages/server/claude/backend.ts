@@ -270,32 +270,46 @@ export class ClaudeBackend implements CLIBackend {
   }
 
   private parseAssistantEvent(event: ClaudeRawEvent): StandardEvent | StandardEvent[] | null {
-    // Check for tool_use blocks in assistant message content
-    // Claude CLI sends tool_use as content blocks within assistant events, not as separate events
+    // Check for content blocks in assistant message
+    // Claude CLI sends both text and tool_use as content blocks within assistant events
     if (event.message?.content && Array.isArray(event.message.content)) {
+      const events: StandardEvent[] = [];
+
+      // Extract text blocks - emit as non-streaming final text
+      // This ensures text is captured even if streaming deltas were missed
+      const textBlocks = event.message.content.filter((b: any) => b.type === 'text');
+      for (const block of textBlocks) {
+        if (block.text && block.text.trim()) {
+          events.push({
+            type: 'text' as const,
+            text: block.text,
+            isStreaming: false, // Mark as final, non-streaming text
+          });
+        }
+      }
+
+      // Extract tool_use blocks
       const toolUseBlocks = event.message.content.filter((b: any) => b.type === 'tool_use');
-      if (toolUseBlocks.length > 0) {
-        // Return array of tool_start events for each tool_use block
-        const events: StandardEvent[] = toolUseBlocks.map((block: any) => {
-          const toolName = block.name || 'unknown';
-          // Store tool_use_id to name mapping for later tool_result matching
-          if (block.id) {
-            toolUseIdToName.set(block.id, toolName);
-            log.log(`parseAssistantEvent: Stored mapping ${block.id} -> ${toolName}`);
-          }
-          return {
-            type: 'tool_start' as const,
-            toolName,
-            toolInput: block.input,
-          };
+      for (const block of toolUseBlocks) {
+        const toolName = block.name || 'unknown';
+        // Store tool_use_id to name mapping for later tool_result matching
+        if (block.id) {
+          toolUseIdToName.set(block.id, toolName);
+          log.log(`parseAssistantEvent: Stored mapping ${block.id} -> ${toolName}`);
+        }
+        events.push({
+          type: 'tool_start' as const,
+          toolName,
+          toolInput: block.input,
         });
-        log.log(`parseAssistantEvent: extracted ${events.length} tool_use block(s): ${events.map(e => e.toolName).join(', ')}`);
-        return events;
+      }
+
+      if (events.length > 0) {
+        log.log(`parseAssistantEvent: extracted ${textBlocks.length} text block(s) and ${toolUseBlocks.length} tool_use block(s)`);
+        return events.length === 1 ? events[0] : events;
       }
     }
 
-    // NOTE: We return null for text/thinking content because:
-    // - 'text' and 'thinking' blocks are already sent via streaming deltas (stream_event)
     return null;
   }
 

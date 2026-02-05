@@ -51,11 +51,14 @@ export class ProceduralAnimator {
 
   /**
    * Set the animation state for a model.
+   * Resets animation time to 0 on state change so the new animation
+   * starts cleanly instead of snapping to an arbitrary phase.
    */
   setState(id: string, state: ProceduralAnimationState): void {
     const data = this.animations.get(id);
-    if (data) {
+    if (data && data.state !== state) {
       data.state = state;
+      data.time = 0;
     }
   }
 

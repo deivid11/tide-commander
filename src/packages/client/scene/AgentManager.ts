@@ -25,6 +25,7 @@ export class AgentManager {
   private brightness = 1;
   private idleAnimation: string = ANIMATIONS.SIT;
   private workingAnimation: string = ANIMATIONS.WALK;
+  private previousAgentStatuses = new Map<string, string>(); // Track previous status for each agent
 
   // Agent model style settings
   private modelStyle = {
@@ -419,6 +420,9 @@ export class AgentManager {
       for (const agent of agents) {
         this.addAgent(agent);
       }
+      // After processing pending agents, trigger a callback to ensure the render loop
+      // captures the updated agent meshes in the next frame
+      this.onAgentMeshesChanged?.();
     }
   }
 
@@ -481,7 +485,7 @@ export class AgentManager {
     }
 
     if (!this.modelsReady) {
-      console.log(`[AgentManager] Queueing agent ${agent.name} (models not ready)`);
+      console.log(`[AgentManager] Queueing agent ${agent.name} (models not ready, pending count: ${this.pendingAgents.length})`);
       const existingIdx = this.pendingAgents.findIndex(a => a.id === agent.id);
       if (existingIdx >= 0) {
         this.pendingAgents[existingIdx] = agent;
@@ -491,8 +495,11 @@ export class AgentManager {
       return;
     }
 
+    console.log(`[AgentManager] addAgent ${agent.name} (models ready, current meshes: ${this.agentMeshes.size})`);
+
     const existing = this.agentMeshes.get(agent.id);
     if (existing) {
+      console.log(`[AgentManager] Agent ${agent.name} already exists, removing old mesh`);
       this.scene.remove(existing.group);
       this.characterFactory.disposeAgentMesh(existing);
       this.proceduralAnimator.unregister(agent.id);
@@ -503,6 +510,7 @@ export class AgentManager {
     const customClasses = store.getState().customAgentClasses;
     const customClass = customClasses.get(agent.class);
     if (customClass?.customModelPath && !this.characterLoader.hasCustomModel(customClass.id)) {
+      console.log(`[AgentManager] Loading custom model for class ${agent.class}`);
       this.characterLoader.loadCustomModel(customClass.id).then(() => {
         this.addAgentInternal(agent);
       }).catch(err => {
@@ -516,8 +524,11 @@ export class AgentManager {
   }
 
   private addAgentInternal(agent: Agent): void {
+    console.log(`[AgentManager] addAgentInternal called for ${agent.name}, position: (${agent.position.x}, ${agent.position.y}, ${agent.position.z})`);
+
     const existing = this.agentMeshes.get(agent.id);
     if (existing) {
+      console.log(`[AgentManager] Removing existing mesh for ${agent.name}`);
       this.scene.remove(existing.group);
       this.characterFactory.disposeAgentMesh(existing);
       this.proceduralAnimator.unregister(agent.id);
@@ -528,6 +539,7 @@ export class AgentManager {
     const meshData = this.characterFactory.createAgentMesh(agent);
     this.scene.add(meshData.group);
     this.agentMeshes.set(agent.id, meshData);
+    console.log(`[AgentManager] Agent ${agent.name} added to scene, total meshes: ${this.agentMeshes.size}`);
 
     // Apply current brightness to new agent's materials
     this.applyStyleToMesh(meshData.group);
@@ -561,6 +573,8 @@ export class AgentManager {
     }
 
     this.updateStatusAnimation(agent, meshData);
+    // Register initial status for tracking changes
+    this.previousAgentStatuses.set(agent.id, agent.status);
     this.onAgentMeshesChanged?.();
   }
 
@@ -573,6 +587,7 @@ export class AgentManager {
     }
 
     this.proceduralAnimator.unregister(agentId);
+    this.previousAgentStatuses.delete(agentId);
     this.onProceduralCacheInvalidated?.();
     this.effectsManager.removeAgentEffects(agentId);
     this.onAgentMeshesChanged?.();
@@ -598,6 +613,13 @@ export class AgentManager {
       meshData.group.position.set(agent.position.x, agent.position.y, agent.position.z);
     }
 
+    // Check if agent status has changed and track it
+    const previousStatus = this.previousAgentStatuses.get(agent.id);
+    if (previousStatus !== agent.status) {
+      this.previousAgentStatuses.set(agent.id, agent.status);
+      console.log(`[AgentManager] Agent status changed: ${agent.name} ${previousStatus || 'initial'} → ${agent.status}`);
+    }
+
     if (!this.movementAnimator.isMoving(agent.id)) {
       this.updateStatusAnimation(agent, meshData);
     } else {
@@ -608,8 +630,16 @@ export class AgentManager {
   }
 
   syncAgents(agents: Agent[]): void {
-    console.log(`[AgentManager] syncAgents called with ${agents.length} agents, modelsReady: ${this.modelsReady}`);
+    console.log(`[AgentManager] syncAgents called with ${agents.length} agents, modelsReady: ${this.modelsReady}, pending: ${this.pendingAgents.length}`);
     const previousCount = this.agentMeshes.size;
+
+    // Log pending agents before clearing
+    if (this.pendingAgents.length > 0) {
+      console.warn(`[AgentManager] WARNING: syncAgents called with ${this.pendingAgents.length} pending agents that will be discarded!`);
+      for (const pending of this.pendingAgents) {
+        console.warn(`  - ${pending.name}`);
+      }
+    }
 
     this.pendingAgents = [];
 
@@ -618,6 +648,7 @@ export class AgentManager {
       this.characterFactory.disposeAgentMesh(meshData);
     }
     this.agentMeshes.clear();
+    this.previousAgentStatuses.clear();
 
     this.proceduralAnimator.clear();
     this.effectsManager.clear();
@@ -625,11 +656,12 @@ export class AgentManager {
     // Filter out agents that are in archived areas
     const visibleAgents = agents.filter(agent => !store.isAgentInArchivedArea(agent.id));
 
+    console.log(`[AgentManager] syncAgents: adding ${visibleAgents.length} visible agents (filtered from ${agents.length}, ${agents.length - visibleAgents.length} in archived areas)`);
     for (const agent of visibleAgents) {
       this.addAgent(agent);
     }
 
-    console.log(`[AgentManager] syncAgents: disposed ${previousCount} agents, added ${visibleAgents.length} visible agents (${agents.length - visibleAgents.length} hidden in archived areas)`);
+    console.log(`[AgentManager] syncAgents complete: disposed ${previousCount} agents, added ${visibleAgents.length} visible agents`);
   }
 
   // ============================================

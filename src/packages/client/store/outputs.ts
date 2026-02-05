@@ -41,6 +41,40 @@ export function createOutputActions(
       setState((s) => {
         const currentOutputs = s.agentOutputs.get(agentId) || [];
 
+        // Deduplicate: if this non-streaming output is identical to a recent non-streaming output,
+        // skip it to avoid duplicates. This handles the case where text is streamed in deltas
+        // and then sent again as a final consolidated message from the assistant event.
+        // IMPORTANT: Only deduplicate if the existing output is ALSO non-streaming. If the
+        // existing output is streaming, allow the final consolidated message through, as the
+        // streaming chunks may be incomplete.
+        // NOTE: Do NOT deduplicate tool outputs ("Using tool:", "Tool input:", "Bash output:", etc.)
+        // as they need to appear every time a tool is used, even if identical to previous use.
+        const isToolOutput = output.text && (
+          output.text.startsWith('Using tool:') ||
+          output.text.startsWith('Tool input:') ||
+          output.text.startsWith('Tool result:') ||
+          output.text.startsWith('Bash output:') ||
+          output.text.startsWith('Tokens:') ||
+          output.text.startsWith('Cost:')
+        );
+
+        if (!output.isStreaming && !output.isUserPrompt && !isToolOutput && currentOutputs.length > 0) {
+          // Check if this exact text already exists in recent non-streaming outputs (last 20)
+          const recentOutputs = currentOutputs.slice(-20);
+          const isDuplicate = recentOutputs.some(existing =>
+            !existing.isUserPrompt &&
+            !existing.isStreaming &&
+            existing.text === output.text
+          );
+          if (isDuplicate) {
+            debugLog.info(`Store: Skipping duplicate output`, {
+              agentId,
+              text: output.text.slice(0, 60),
+            }, 'store:addOutput:dedupe');
+            return; // Skip this duplicate
+          }
+        }
+
         // Create NEW array with the new output appended (immutable update for React reactivity)
         let newOutputs = [...currentOutputs, output];
 
