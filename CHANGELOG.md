@@ -2,6 +2,70 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.42.0] - 2026-02-05
+
+### Added
+- **Agent Overview Panel** - New component for displaying agent information and status
+  - Agent details display
+  - Status indicators
+  - Integrated into terminal header
+
+- **Subagent Store** - New store module for managing agent delegation hierarchy
+  - Delegation relationship management
+  - Subordinate agent tracking
+  - Agent hierarchy utilities
+
+### Changed
+- **OutputLine Component** - Enhanced formatting and styling
+  - Better output display
+  - Improved tool output rendering
+  - Enhanced visual separation
+
+- **HistoryLine Component** - Improved history display
+  - Better formatting for historical messages
+  - Enhanced readability
+  - Improved styling
+
+- **TerminalHeader** - Integrated agent overview
+  - Agent information display
+  - Better status visualization
+  - Enhanced button layout
+
+- **Dashboard Components** - Improved rendering and data handling
+  - Better AgentStatusCards display
+  - Enhanced BuildingStatusOverview
+  - Improved type definitions and utilities
+
+- **SidebarTreeView** - Enhanced tree rendering
+  - Better node rendering
+  - Improved tree utilities
+  - Enhanced example usage
+
+- **Database Panel** - UI improvements
+  - Better layout and styling
+  - Improved component organization
+
+- **Scene Management** - Better error handling and logging
+  - Enhanced SceneManager
+  - Improved AgentManager
+  - Better character factory support
+
+- **Effects Manager** - New animation capabilities
+  - Enhanced animation effects
+  - Better visual feedback
+
+- **WebSocket Handlers** - Improved agent management
+  - Better event handling
+  - Improved message processing
+
+### Technical
+- New AgentOverviewPanel component
+- New subagents store module
+- Enhanced type definitions and utilities
+- Improved storage utilities and selectors
+- Enhanced Claude backend logging
+- Better error handling across components
+
 ## [0.41.0] - 2026-02-04
 
 ### Added
