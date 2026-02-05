@@ -6,20 +6,24 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { ExecTask } from '../../../shared/types';
 import { ansiToHtml } from '../../utils/ansiToHtml';
+import { store } from '../../store';
 
 interface ExecTaskIndicatorProps {
   task: ExecTask;
   defaultExpanded?: boolean;
   onClose?: (taskId: string) => void;
+  onStop?: (taskId: string) => void;
 }
 
 export function ExecTaskIndicator({
   task,
   defaultExpanded = true,
   onClose,
+  onStop,
 }: ExecTaskIndicatorProps) {
   // Track user-initiated collapse state
   const [userCollapsed, setUserCollapsed] = useState<boolean | null>(null);
+  const [stopping, setStopping] = useState(false);
   const outputRef = useRef<HTMLDivElement>(null);
 
   // Auto-expand when running
@@ -71,6 +75,17 @@ export function ExecTaskIndicator({
     onClose?.(task.taskId);
   };
 
+  const handleStop = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (stopping) return;
+    setStopping(true);
+    const success = await store.stopExecTask(task.taskId);
+    if (!success) {
+      setStopping(false);
+    }
+    onStop?.(task.taskId);
+  };
+
   return (
     <div
       className={`exec-task-indicator status-${task.status} ${isExpanded ? 'expanded' : 'collapsed'}`}
@@ -84,7 +99,16 @@ export function ExecTaskIndicator({
         </span>
         <span className="exec-task-elapsed">{getElapsedTime()}</span>
         <span className="exec-task-toggle">{isExpanded ? '▼' : '▶'}</span>
-        {task.status !== 'running' && (
+        {task.status === 'running' ? (
+          <button
+            className="exec-task-stop"
+            onClick={handleStop}
+            title="Stop task"
+            disabled={stopping}
+          >
+            {stopping ? '...' : '■'}
+          </button>
+        ) : (
           <button className="exec-task-close" onClick={handleClose} title="Dismiss">
             ×
           </button>

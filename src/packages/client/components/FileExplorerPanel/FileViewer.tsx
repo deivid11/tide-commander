@@ -44,6 +44,7 @@ function FileViewerHeader({
         <span className="file-viewer-filename">{file.filename}</span>
         <span className="file-viewer-meta">
           {formatFileSize(file.size)} • {language}
+          {file.content && ` • ${file.content.split('\n').length} lines`}
         </span>
       </div>
       <div className="file-viewer-header-right">
@@ -99,10 +100,11 @@ function isMarkdownFile(extension: string): boolean {
 }
 
 /**
- * Text file viewer with syntax highlighting
+ * Text file viewer with syntax highlighting and line numbers
  */
-function TextFileViewer({ file, onRevealInTree }: { file: FileData; onRevealInTree?: (path: string) => void }) {
+function TextFileViewer({ file, onRevealInTree, scrollToLine }: { file: FileData; onRevealInTree?: (path: string) => void; scrollToLine?: number }) {
   const codeRef = useRef<HTMLElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (codeRef.current) {
@@ -110,12 +112,32 @@ function TextFileViewer({ file, onRevealInTree }: { file: FileData; onRevealInTr
     }
   }, [file]);
 
+  // Scroll to target line
+  useEffect(() => {
+    if (!scrollToLine || !wrapperRef.current || !codeRef.current) return;
+
+    // Wait for rendering
+    requestAnimationFrame(() => {
+      const pre = codeRef.current?.parentElement;
+      if (!pre) return;
+      const lineHeight = parseFloat(getComputedStyle(pre).lineHeight) || 19.5;
+      const targetTop = (scrollToLine - 1) * lineHeight;
+      wrapperRef.current?.scrollTo({ top: Math.max(0, targetTop - 100), behavior: 'smooth' });
+    });
+  }, [scrollToLine, file]);
+
   const language = getLanguageForExtension(file.extension);
+  const lineCount = file.content.split('\n').length;
 
   return (
     <>
       <FileViewerHeader file={file} onRevealInTree={onRevealInTree} />
-      <div className="file-viewer-code-wrapper">
+      <div className="file-viewer-code-with-lines" ref={wrapperRef}>
+        <div className="file-viewer-line-gutter" aria-hidden="true">
+          {Array.from({ length: lineCount }, (_, i) => (
+            <div key={i + 1} className={`file-viewer-line-num${scrollToLine === i + 1 ? ' highlighted' : ''}`}>{i + 1}</div>
+          ))}
+        </div>
         <pre className="file-viewer-pre">
           <code ref={codeRef} className={`language-${language}`}>
             {file.content}
@@ -383,7 +405,7 @@ function BinaryFileViewer({ file, onRevealInTree }: { file: FileData; onRevealIn
 // FILE VIEWER COMPONENT
 // ============================================================================
 
-function FileViewerComponent({ file, loading, error, onRevealInTree }: FileViewerProps) {
+function FileViewerComponent({ file, loading, error, onRevealInTree, scrollToLine }: FileViewerProps) {
   // Global markdown render preference (persisted to localStorage)
   const [renderMarkdown, toggleRenderMarkdown] = useMarkdownRenderPreference();
 
@@ -421,7 +443,7 @@ function FileViewerComponent({ file, loading, error, onRevealInTree }: FileViewe
           onToggleRender={toggleRenderMarkdown}
         />
       )}
-      {fileType === 'text' && !isMarkdown && <TextFileViewer file={file} onRevealInTree={onRevealInTree} />}
+      {fileType === 'text' && !isMarkdown && <TextFileViewer file={file} onRevealInTree={onRevealInTree} scrollToLine={scrollToLine} />}
       {fileType === 'image' && <ImageFileViewer file={file} onRevealInTree={onRevealInTree} />}
       {fileType === 'pdf' && <PdfFileViewer file={file} onRevealInTree={onRevealInTree} />}
       {fileType === 'binary' && <BinaryFileViewer file={file} onRevealInTree={onRevealInTree} />}
@@ -434,9 +456,10 @@ function FileViewerComponent({ file, loading, error, onRevealInTree }: FileViewe
  * Prevents unnecessary re-renders when file hasn't changed
  */
 export const FileViewer = memo(FileViewerComponent, (prev, next) => {
-  // Re-render only if file, loading, or error changed
+  // Re-render only if file, loading, error, or scrollToLine changed
   if (prev.loading !== next.loading) return false;
   if (prev.error !== next.error) return false;
+  if (prev.scrollToLine !== next.scrollToLine) return false;
 
   // Deep compare file object
   if (prev.file === null && next.file === null) return true;

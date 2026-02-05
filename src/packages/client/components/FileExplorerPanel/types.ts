@@ -116,6 +116,7 @@ export interface FileViewerProps {
   loading: boolean;
   error: string | null;
   onRevealInTree?: (path: string) => void;
+  scrollToLine?: number;
 }
 
 export interface SearchResultsProps {
@@ -153,6 +154,8 @@ export interface GitChangesProps {
   onFileSelect: (path: string, status: GitFileStatusType) => void;
   selectedPath: string | null;
   onRefresh: () => void;
+  onStageFiles: (paths: string[]) => Promise<void>;
+  stagingPaths: Set<string>;
 }
 
 // ============================================================================

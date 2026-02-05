@@ -15,6 +15,7 @@ import { AgentEditModal } from './AgentEditModal';
 import { ContextMenu, type ContextMenuAction } from './ContextMenu';
 import { SnapshotManager } from './SnapshotManager';
 import { SnapshotViewer } from './SnapshotViewer';
+import { RestoreArchivedAreaModal } from './RestoreArchivedAreaModal';
 import { profileRender } from '../utils/profiling';
 import type { UseModalState, UseModalStateWithId, UseContextMenu } from '../hooks';
 
@@ -33,6 +34,7 @@ interface AppModalsProps {
   buildingModal: UseModalState<string | null>;
   agentEditModal: UseModalState<string>;
   snapshotsModal: UseModalState;
+  restoreArchivedModal: UseModalState<{ x: number; z: number } | null>;
   explorerModal: UseModalStateWithId;
   contextMenu: UseContextMenu;
 
@@ -64,6 +66,9 @@ interface AppModalsProps {
   onOpenPM2LogsModal: (buildingId: string) => void;
   onOpenBossLogsModal: (buildingId: string) => void;
   onOpenDatabasePanel: (buildingId: string) => void;
+
+  // Scene sync callback for restore
+  onSyncScene?: () => void;
 }
 
 export function AppModals({
@@ -80,6 +85,7 @@ export function AppModals({
   buildingModal,
   agentEditModal,
   snapshotsModal,
+  restoreArchivedModal,
   explorerModal,
   contextMenu,
   spawnPosition,
@@ -99,6 +105,7 @@ export function AppModals({
   onOpenPM2LogsModal,
   onOpenBossLogsModal,
   onOpenDatabasePanel,
+  onSyncScene,
 }: AppModalsProps) {
   const state = useStore();
   // Get snapshot state from store
@@ -309,6 +316,14 @@ export function AppModals({
       <SkillsPanel
         isOpen={skillsModal.isOpen}
         onClose={skillsModal.close}
+      />
+
+      {/* Restore Archived Area Modal */}
+      <RestoreArchivedAreaModal
+        isOpen={restoreArchivedModal.isOpen}
+        restorePosition={restoreArchivedModal.data ?? null}
+        onClose={restoreArchivedModal.close}
+        onRestored={onSyncScene}
       />
 
       {/* Snapshots Manager */}

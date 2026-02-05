@@ -16,7 +16,7 @@
   backdrop-filter: blur(8px);
   // Enable horizontal scrolling when there are many agents
   overflow-x: auto;
-  overflow-y: hidden;
+  overflow-y: visible;
   // Hide scrollbar but keep scrolling functional
   &::-webkit-scrollbar {
     height: 0;
@@ -734,6 +734,7 @@
   margin-bottom: 8px;
   animation: tool-bubble-appear 0.3s ease-out;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 8px rgba($dracula-pink, 0.3);
+  z-index: 201;
 
   &::after {
     content: '';

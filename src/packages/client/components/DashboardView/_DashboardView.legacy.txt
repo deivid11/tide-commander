@@ -1,0 +1,204 @@
+import React, { useState, useMemo, useCallback } from 'react';
+import { Agent, Building } from '@packages/shared/types';
+import { MetricsDisplay } from './MetricsDisplay';
+import { AgentStatusCards } from './AgentStatusCards';
+import { BuildingStatusOverview } from './BuildingStatusOverview';
+import { EventsTimeline } from './EventsTimeline';
+import {
+  DashboardViewProps,
+  DashboardFilters,
+  RecentEvent,
+  DashboardError,
+} from './types';
+import {
+  calculateMetrics,
+  generateRecentEvents,
+} from './utils';
+import styles from './dashboard-view.module.scss';
+
+interface DashboardViewInternalProps extends DashboardViewProps {
+  agents: Map<string, Agent>;
+  buildings: Map<string, Building>;
+  selectedAgentIds: Set<string>;
+  selectedBuildingIds: Set<string>;
+  recentErrors?: DashboardError[];
+}
+
+/**
+ * Filter Controls Component
+ */
+const FilterControls: React.FC<{
+  filters: DashboardFilters;
+  onFiltersChange: (filters: DashboardFilters) => void;
+}> = ({ filters, onFiltersChange }) => {
+  return (
+    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+      <label style={{ display: 'flex', gap: '6px', alignItems: 'center', fontSize: '12px', cursor: 'pointer' }}>
+        <input
+          type="checkbox"
+          checked={filters.showOnlyActive}
+          onChange={(e) =>
+            onFiltersChange({
+              ...filters,
+              showOnlyActive: e.target.checked,
+            })
+          }
+        />
+        Active Only
+      </label>
+      <label style={{ display: 'flex', gap: '6px', alignItems: 'center', fontSize: '12px', cursor: 'pointer' }}>
+        <input
+          type="checkbox"
+          checked={filters.showOnlyErrors}
+          onChange={(e) =>
+            onFiltersChange({
+              ...filters,
+              showOnlyErrors: e.target.checked,
+            })
+          }
+        />
+        Errors Only
+      </label>
+      <select
+        value={filters.agentClassFilter}
+        onChange={(e) =>
+          onFiltersChange({
+            ...filters,
+            agentClassFilter: e.target.value,
+          })
+        }
+        style={{
+          padding: '4px 8px',
+          backgroundColor: '#1c1c28',
+          color: '#d0d0d8',
+          border: '1px solid #2a2a38',
+          borderRadius: '4px',
+          fontSize: '12px',
+          cursor: 'pointer',
+        }}
+      >
+        <option value="all">All Agent Classes</option>
+        <option value="scout">Scout</option>
+        <option value="builder">Builder</option>
+        <option value="debugger">Debugger</option>
+        <option value="architect">Architect</option>
+        <option value="warrior">Warrior</option>
+        <option value="support">Support</option>
+        <option value="boss">Boss</option>
+      </select>
+    </div>
+  );
+};
+
+/**
+ * Main DashboardView Component
+ */
+export const DashboardView: React.FC<DashboardViewInternalProps> = ({
+  agents,
+  buildings,
+  selectedAgentIds,
+  selectedBuildingIds,
+  recentErrors = [],
+  onSelectAgent,
+  onSelectBuilding,
+  onOpenAgentDetails,
+}) => {
+  const [filters, setFilters] = useState<DashboardFilters>({
+    showOnlyActive: false,
+    showOnlyErrors: false,
+    agentClassFilter: 'all',
+    buildingTypeFilter: 'all',
+  });
+
+  // Calculate metrics
+  const metrics = useMemo(
+    () => calculateMetrics(agents, buildings, recentErrors),
+    [agents, buildings, recentErrors]
+  );
+
+  // Generate recent events
+  const recentEvents = useMemo(
+    () => generateRecentEvents(agents, buildings),
+    [agents, buildings]
+  );
+
+  // Handlers
+  const handleSelectAgent = useCallback(
+    (agentId: string) => {
+      onSelectAgent?.(agentId);
+    },
+    [onSelectAgent]
+  );
+
+  const handleSelectBuilding = useCallback(
+    (buildingId: string) => {
+      onSelectBuilding?.(buildingId);
+    },
+    [onSelectBuilding]
+  );
+
+  const handleOpenAgentDetails = useCallback(
+    (agentId: string) => {
+      onOpenAgentDetails?.(agentId);
+    },
+    [onOpenAgentDetails]
+  );
+
+  const handleFiltersChange = useCallback((newFilters: DashboardFilters) => {
+    setFilters(newFilters);
+  }, []);
+
+  return (
+    <div className={styles['dashboard-view']}>
+      {/* Dashboard Content */}
+      <div className={styles['dashboard-view__content']}>
+        {/* Top Row: Metrics and Timeline */}
+        <div style={{ gridColumn: '1 / -1' }}>
+          <MetricsDisplay metrics={metrics} />
+        </div>
+
+        {/* Filter Controls */}
+        <div style={{ gridColumn: '1 / -1', padding: '0 4px' }}>
+          <FilterControls filters={filters} onFiltersChange={handleFiltersChange} />
+        </div>
+
+        {/* Agents and Buildings Sections */}
+        <AgentStatusCards
+          agents={agents}
+          filters={filters}
+          selectedAgentIds={selectedAgentIds}
+          onSelectAgent={handleSelectAgent}
+          onFocusAgent={handleOpenAgentDetails}
+          onKillAgent={handleOpenAgentDetails}
+        />
+
+        <BuildingStatusOverview
+          buildings={buildings}
+          filters={filters}
+          selectedBuildingIds={selectedBuildingIds}
+          onSelectBuilding={handleSelectBuilding}
+          onOpenBuildingDetails={handleOpenAgentDetails}
+        />
+
+        {/* Timeline (spans full width on large screens) */}
+        <div style={{ gridColumn: '1 / -1' }}>
+          <EventsTimeline
+            events={recentEvents}
+            maxVisible={6}
+            onEventClick={(event) => {
+              if (event.agentId) {
+                handleSelectAgent(event.agentId);
+              } else if (event.buildingId) {
+                handleSelectBuilding(event.buildingId);
+              }
+            }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+DashboardView.displayName = 'DashboardView';
+
+export default DashboardView;

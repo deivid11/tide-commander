@@ -104,6 +104,7 @@ let onAgentCreated: ((agent: Agent) => void) | null = null;
 let onAgentUpdated: ((agent: Agent, positionChanged: boolean) => void) | null = null;
 let onAgentDeleted: ((agentId: string) => void) | null = null;
 let onAgentsSync: ((agents: Agent[]) => void) | null = null;
+let onAreasSync: (() => void) | null = null; // Called after areas are synced, to re-filter agents for archived areas
 let onSpawnError: (() => void) | null = null;
 let onSpawnSuccess: (() => void) | null = null;
 let onToolUse: ((agentId: string, toolName: string, toolInput?: Record<string, unknown>) => void) | null = null;
@@ -120,6 +121,7 @@ export function setCallbacks(callbacks: {
   onAgentUpdated?: typeof onAgentUpdated;
   onAgentDeleted?: typeof onAgentDeleted;
   onAgentsSync?: typeof onAgentsSync;
+  onAreasSync?: typeof onAreasSync;
   onSpawnError?: typeof onSpawnError;
   onSpawnSuccess?: typeof onSpawnSuccess;
   onToolUse?: typeof onToolUse;
@@ -135,6 +137,7 @@ export function setCallbacks(callbacks: {
   if (callbacks.onAgentUpdated) onAgentUpdated = callbacks.onAgentUpdated;
   if (callbacks.onAgentDeleted) onAgentDeleted = callbacks.onAgentDeleted;
   if (callbacks.onAgentsSync) onAgentsSync = callbacks.onAgentsSync;
+  if (callbacks.onAreasSync) onAreasSync = callbacks.onAreasSync;
   if (callbacks.onSpawnError) onSpawnError = callbacks.onSpawnError;
   if (callbacks.onSpawnSuccess) onSpawnSuccess = callbacks.onSpawnSuccess;
   if (callbacks.onToolUse) onToolUse = callbacks.onToolUse;
@@ -156,6 +159,7 @@ export function clearCallbacks(): void {
   onAgentUpdated = null;
   onAgentDeleted = null;
   onAgentsSync = null;
+  onAreasSync = null;
   onSpawnError = null;
   onSpawnSuccess = null;
   onToolUse = null;
@@ -175,6 +179,7 @@ export function clearSceneCallbacks(): void {
   onAgentUpdated = null;
   onAgentDeleted = null;
   onAgentsSync = null;
+  onAreasSync = null;
   onToolUse = null;
   onDelegation = null;
   onCustomClassesSync = null;
@@ -563,6 +568,8 @@ function handleServerMessage(message: ServerMessage): void {
     case 'areas_update': {
       const areasArray = message.payload as import('../../shared/types').DrawingArea[];
       store.setAreasFromServer(areasArray);
+      // Notify scene to re-sync agents (to filter out those in archived areas)
+      onAreasSync?.();
       break;
     }
 

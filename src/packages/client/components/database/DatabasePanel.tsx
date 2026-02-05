@@ -12,6 +12,7 @@ import { DatabaseSidebar } from './DatabaseSidebar';
 import { QueryEditor } from './QueryEditor';
 import { ResultsTable } from './ResultsTable';
 import { QueryHistoryPanel } from './QueryHistoryPanel';
+import { DatabaseTabs, type DatabaseTab } from './DatabaseTabs';
 import './DatabasePanel.scss';
 
 interface DatabasePanelProps {
@@ -26,6 +27,11 @@ interface StoredDbState {
   connectionId?: string;
   database?: string;
   lastQuery?: string;
+  openTabs?: Array<{ connectionId: string; database: string }>;
+  activeTabId?: string;
+  // Per-database queries: key is "connectionId:database", general is for no-db context
+  queries?: Record<string, string>;
+  generalQuery?: string;
 }
 
 function loadStoredState(buildingId: string): StoredDbState {
@@ -54,14 +60,63 @@ export const DatabasePanel: React.FC<DatabasePanelProps> = ({ building, onClose 
   // Load stored state on mount
   const storedState = useRef(loadStoredState(building.id));
 
-  const [query, setQuery] = useState(storedState.current.lastQuery ?? '');
+  // Get current connection and database
+  const connections = building.database?.connections ?? [];
+
+  // Helper to generate tab ID
+  const generateTabId = (connectionId: string, database: string) => `${connectionId}:${database}`;
+
+  // Helper to get query for a tab
+  const getQueryForTab = (tabId: string | null) => {
+    if (!tabId) return storedState.current.generalQuery ?? '';
+    const stored = storedState.current.queries ?? {};
+    return stored[tabId] ?? '';
+  };
+
   const [activeTab, setActiveTab] = useState<'results' | 'history'>('results');
   const [selectedResultIndex, setSelectedResultIndex] = useState(0);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [initialized, setInitialized] = useState(false);
 
-  // Get current connection and database
-  const connections = building.database?.connections ?? [];
+  // Tab management
+  const [openTabs, setOpenTabs] = useState<DatabaseTab[]>(() => {
+    const stored = storedState.current.openTabs ?? [];
+    return stored.map(tab => ({
+      id: `${tab.connectionId}:${tab.database}`,
+      connectionId: tab.connectionId,
+      connectionName: connections.find(c => c.id === tab.connectionId)?.name ?? tab.connectionId,
+      database: tab.database,
+    }));
+  });
+  const [activeTabId, setActiveTabId] = useState<string | null>(storedState.current.activeTabId ?? null);
+
+  // Per-database query storage: key is tabId, value is query text
+  const [queries, setQueries] = useState<Record<string, string>>(() => {
+    const stored = storedState.current.queries ?? {};
+    const generalQuery = storedState.current.generalQuery ?? '';
+    return stored;
+  });
+
+  // Current query based on active tab
+  const [query, setQueryText] = useState(getQueryForTab(activeTabId));
+
+  // Wrapper for setQuery that also updates queries map
+  const setQuery = useCallback((value: string | ((prev: string) => string)) => {
+    setQueryText(prev => {
+      const newQuery = typeof value === 'function' ? value(prev) : value;
+
+      // Update the queries map
+      setQueries(prevQueries => {
+        const updated = { ...prevQueries };
+        if (activeTabId) {
+          updated[activeTabId] = newQuery;
+        }
+        return updated;
+      });
+
+      return newQuery;
+    });
+  }, [activeTabId]);
 
   // Use stored state for initial values, then fall back to defaults
   const activeConnectionId = dbState.activeConnectionId
@@ -72,6 +127,61 @@ export const DatabasePanel: React.FC<DatabasePanelProps> = ({ building, onClose 
     ?? storedState.current.database
     ?? building.database?.activeDatabase;
   const activeConnection = connections.find(c => c.id === activeConnectionId);
+
+  // Tab handlers
+  const handleOpenTab = useCallback((connectionId: string, database: string) => {
+    const tabId = generateTabId(connectionId, database);
+    const connectionName = connections.find(c => c.id === connectionId)?.name ?? connectionId;
+
+    setOpenTabs(prev => {
+      // Check if tab already exists
+      if (prev.some(t => t.id === tabId)) {
+        return prev;
+      }
+      // Add new tab
+      const newTab: DatabaseTab = {
+        id: tabId,
+        connectionId,
+        connectionName,
+        database,
+      };
+      return [...prev, newTab];
+    });
+
+    // Switch to the tab and load its query
+    setActiveTabId(tabId);
+    setQueryText(queries[tabId] ?? '');
+    store.setActiveConnection(building.id, connectionId);
+    store.setActiveDatabase(building.id, database);
+  }, [building.id, connections, queries]);
+
+  const handleCloseTab = useCallback((tabId: string) => {
+    setOpenTabs(prev => prev.filter(t => t.id !== tabId));
+
+    // If closing active tab, switch to another
+    if (activeTabId === tabId) {
+      setOpenTabs(prev => {
+        if (prev.length > 0) {
+          const nextTab = prev[0];
+          setActiveTabId(nextTab.id);
+          setQueryText(queries[nextTab.id] ?? '');
+          store.setActiveConnection(building.id, nextTab.connectionId);
+          store.setActiveDatabase(building.id, nextTab.database);
+        } else {
+          setActiveTabId(null);
+          setQueryText('');
+        }
+        return prev;
+      });
+    }
+  }, [activeTabId, building.id, queries]);
+
+  const handleSelectTab = useCallback((tab: DatabaseTab) => {
+    setActiveTabId(tab.id);
+    setQueryText(queries[tab.id] ?? '');
+    store.setActiveConnection(building.id, tab.connectionId);
+    store.setActiveDatabase(building.id, tab.database);
+  }, [building.id, queries]);
 
   // Initialize connection/database from stored state on mount
   useEffect(() => {
@@ -99,16 +209,23 @@ export const DatabasePanel: React.FC<DatabasePanelProps> = ({ building, onClose 
     store.requestQueryHistory(building.id);
   }, [building.id]);
 
-  // Save connection/database to localStorage when they change
+  // Save connection/database, queries, and tabs to localStorage when they change
   useEffect(() => {
     if (initialized && activeConnectionId) {
       saveStoredState(building.id, {
         connectionId: activeConnectionId,
         database: activeDatabase,
-        lastQuery: query,
+        lastQuery: query, // For backwards compatibility
+        queries,
+        generalQuery: '',
+        openTabs: openTabs.map(t => ({
+          connectionId: t.connectionId,
+          database: t.database,
+        })),
+        activeTabId,
       });
     }
-  }, [building.id, activeConnectionId, activeDatabase, query, initialized]);
+  }, [building.id, activeConnectionId, activeDatabase, query, initialized, openTabs, activeTabId, queries]);
 
   // Execute query handler
   const handleExecuteQuery = useCallback(() => {
@@ -132,12 +249,12 @@ export const DatabasePanel: React.FC<DatabasePanelProps> = ({ building, onClose 
 
   // Database change handler
   const handleDatabaseChange = useCallback((database: string) => {
-    store.setActiveDatabase(building.id, database);
-    // List tables for the new database
     if (activeConnectionId) {
+      // Open or switch to tab for this database
+      handleOpenTab(activeConnectionId, database);
       store.listTables(building.id, activeConnectionId, database);
     }
-  }, [building.id, activeConnectionId]);
+  }, [building.id, activeConnectionId, handleOpenTab]);
 
   // Current result
   const currentResult = queryResults[selectedResultIndex];
@@ -208,6 +325,16 @@ export const DatabasePanel: React.FC<DatabasePanelProps> = ({ building, onClose 
 
         {/* Main Content */}
         <div className="database-panel__main">
+          {/* Database Tabs */}
+          {openTabs.length > 0 && (
+            <DatabaseTabs
+              tabs={openTabs}
+              activeTabId={activeTabId}
+              onTabClick={handleSelectTab}
+              onTabClose={handleCloseTab}
+            />
+          )}
+
           {/* Query Editor */}
           <QueryEditor
             query={query}

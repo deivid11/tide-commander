@@ -405,6 +405,28 @@
   }
 }
 
+.exec-task-stop {
+  padding: 2px 6px;
+  background: rgba($accent-red, 0.2);
+  border: 1px solid rgba($accent-red, 0.4);
+  border-radius: 4px;
+  color: $accent-red;
+  font-size: 12px;
+  cursor: pointer;
+  line-height: 1;
+  transition: all $transition-fast;
+
+  &:hover:not(:disabled) {
+    background: rgba($accent-red, 0.3);
+    border-color: rgba($accent-red, 0.6);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
 .exec-task-expanded {
   padding: 0 12px 12px 12px;
   border-top: 1px solid rgba($border-color, 0.5);

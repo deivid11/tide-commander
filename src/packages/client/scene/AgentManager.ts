@@ -475,6 +475,11 @@ export class AgentManager {
   // ============================================
 
   addAgent(agent: Agent): void {
+    // Don't add agents that are in archived areas
+    if (store.isAgentInArchivedArea(agent.id)) {
+      return;
+    }
+
     if (!this.modelsReady) {
       console.log(`[AgentManager] Queueing agent ${agent.name} (models not ready)`);
       const existingIdx = this.pendingAgents.findIndex(a => a.id === agent.id);
@@ -617,11 +622,14 @@ export class AgentManager {
     this.proceduralAnimator.clear();
     this.effectsManager.clear();
 
-    for (const agent of agents) {
+    // Filter out agents that are in archived areas
+    const visibleAgents = agents.filter(agent => !store.isAgentInArchivedArea(agent.id));
+
+    for (const agent of visibleAgents) {
       this.addAgent(agent);
     }
 
-    console.log(`[AgentManager] syncAgents: disposed ${previousCount} agents, added ${agents.length} new agents`);
+    console.log(`[AgentManager] syncAgents: disposed ${previousCount} agents, added ${visibleAgents.length} visible agents (${agents.length - visibleAgents.length} hidden in archived areas)`);
   }
 
   // ============================================

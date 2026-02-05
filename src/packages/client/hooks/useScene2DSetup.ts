@@ -94,10 +94,11 @@ export function useScene2DSetup(
     });
 
     // Sync initial state from store
+    // IMPORTANT: Sync areas BEFORE agents so isAgentInArchivedArea works correctly
     const state = store.getState();
-    scene.syncAgents(Array.from(state.agents.values()));
-    scene.syncBuildings();
     scene.syncAreas();
+    scene.syncBuildings();
+    scene.syncAgents(Array.from(state.agents.values()));
     scene.setSelectedAgents(state.selectedAgentIds);
     scene.setSelectedBuildings(state.selectedBuildingIds);
 
@@ -120,6 +121,8 @@ export function useScene2DSetup(
       // On first agent sync (e.g., after WebSocket connects), do a full sync
       if (!hasInitialAgents && newState.agents.size > 0) {
         hasInitialAgents = true;
+        // IMPORTANT: Sync areas BEFORE agents so isAgentInArchivedArea works correctly
+        scene.syncAreas();
         scene.syncAgents(Array.from(newState.agents.values()));
         // Initialize position tracking
         for (const agent of newState.agents.values()) {
@@ -128,6 +131,16 @@ export function useScene2DSetup(
       } else {
         // Check for position changes and animate them
         for (const agent of newState.agents.values()) {
+          // Skip agents in archived areas
+          if (store.isAgentInArchivedArea(agent.id)) {
+            // Remove from scene if it was previously visible
+            if (prevAgentPositions.has(agent.id)) {
+              scene.removeAgent(agent.id);
+              prevAgentPositions.delete(agent.id);
+            }
+            continue;
+          }
+
           const prevPos = prevAgentPositions.get(agent.id);
           const posChanged = !prevPos ||
             prevPos.x !== agent.position.x ||
@@ -148,9 +161,9 @@ export function useScene2DSetup(
           }
         }
 
-        // Remove agents that no longer exist
+        // Remove agents that no longer exist or are in archived areas
         for (const id of prevAgentPositions.keys()) {
-          if (!newState.agents.has(id)) {
+          if (!newState.agents.has(id) || store.isAgentInArchivedArea(id)) {
             scene.removeAgent(id);
             prevAgentPositions.delete(id);
           }

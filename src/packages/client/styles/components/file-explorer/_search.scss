@@ -123,6 +123,17 @@
   border-radius: 2px;
 }
 
+.search-result-line-badge {
+  font-family: $font-mono;
+  font-size: 10px;
+  color: $dracula-yellow;
+  background: rgba($dracula-yellow, 0.15);
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-left: 6px;
+  font-weight: 600;
+}
+
 // Unified Search Results
 .unified-search-results {
   padding: 0;

@@ -358,7 +358,7 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
     setShouldAutoScroll(false);
   }, []);
 
-  // Reset auto-scroll when user sends a message or agent changes
+  // Reset auto-scroll when agent changes (NOT on new outputs - that would override user scroll-up)
   useEffect(() => {
     setShouldAutoScroll(true);
     isUserScrolledUpRef.current = false;
@@ -368,7 +368,7 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
       agentSwitchGraceRef.current = false;
     }, 3000);
     return () => clearTimeout(timeout);
-  }, [activeAgentId, displayOutputs.length]);
+  }, [activeAgentId]);
 
   const handleScroll = useCallback(() => {
     if (!outputScrollRef.current) return;
@@ -389,10 +389,11 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
     historyLoader.handleScroll(keyboard.keyboardScrollLockRef);
   }, [outputScrollRef, keyboard.keyboardScrollLockRef, historyLoader]);
 
-  // Auto-scroll on new output
+  // Auto-scroll on new output (only if user hasn't scrolled up)
   const lastOutputLength = outputs.length > 0 ? outputs[outputs.length - 1]?.text?.length || 0 : 0;
   useEffect(() => {
     if (keyboard.keyboardScrollLockRef.current) return;
+    if (isUserScrolledUpRef.current) return;
     requestAnimationFrame(() => {
       if (outputScrollRef.current) {
         const { scrollTop, scrollHeight, clientHeight } = outputScrollRef.current;

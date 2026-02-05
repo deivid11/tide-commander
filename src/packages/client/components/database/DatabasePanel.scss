@@ -151,7 +151,13 @@
   &__tab-content {
     flex: 1;
     overflow: auto;
-    padding: 16px;
+    min-height: 0;
+
+    // Only add padding when showing non-table content (empty state, history)
+    > .database-panel__empty,
+    > .query-history-panel {
+      padding: 16px;
+    }
   }
 
   &__empty {

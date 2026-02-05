@@ -1,0 +1,108 @@
+// =============================================================================
+// Right Panel - Tab Content Styles
+// =============================================================================
+
+@use '../../variables' as *;
+
+// --- Empty State ---
+
+.right-panel-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 100%;
+  min-height: 200px;
+  padding: 32px;
+  color: $dracula-comment;
+  font-family: $font-mono;
+  font-size: 13px;
+  text-align: center;
+
+  .empty-icon {
+    font-size: 32px;
+    margin-bottom: 4px;
+    opacity: 0.7;
+  }
+
+  .empty-hint {
+    font-size: 11px;
+    opacity: 0.6;
+    margin-top: 4px;
+  }
+}
+
+// --- Details Tab ---
+
+.right-panel-details {
+  padding: 12px;
+}
+
+.details-section {
+  margin-bottom: 16px;
+  padding: 10px;
+  background: rgba($dracula-bg, 0.5);
+  border-radius: $radius-md;
+  border: 1px solid rgba($border-color, 0.5);
+}
+
+.details-header {
+  font-family: $font-mono;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: $dracula-comment;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba($border-color, 0.5);
+}
+
+.details-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 3px 0;
+  font-family: $font-mono;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.details-label {
+  color: $dracula-comment;
+  flex-shrink: 0;
+  margin-right: 12px;
+}
+
+.details-value {
+  color: $text-primary;
+  text-align: right;
+  word-break: break-all;
+}
+
+.details-class {
+  color: $accent-purple;
+}
+
+.details-mono {
+  font-size: 11px;
+  opacity: 0.85;
+}
+
+// Context progress bar in details tab
+.details-context-bar {
+  width: 100%;
+  height: 4px;
+  background: rgba($dracula-current, 0.5);
+  border-radius: 2px;
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+
+.details-context-fill {
+  height: 100%;
+  background: $accent-blue;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}

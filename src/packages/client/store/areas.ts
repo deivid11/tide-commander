@@ -27,6 +27,13 @@ export interface AreaActions {
   bringAreaToFront(areaId: string): void;
   sendAreaToBack(areaId: string): void;
   setAreaZIndex(areaId: string, zIndex: number): void;
+  // Archive management
+  // stopAgentsFn should stop agents (not kill) so they can be restored later
+  archiveArea(areaId: string, stopAgentsFn?: (agentId: string) => void): void;
+  restoreArchivedArea(areaId: string, newCenter?: { x: number; z: number }): void;
+  getArchivedAreas(): DrawingArea[];
+  getVisibleAreas(): DrawingArea[];
+  isAgentInArchivedArea(agentId: string): boolean;
 }
 
 export function createAreaActions(
@@ -209,6 +216,10 @@ export function createAreaActions(
           if (area.zIndex === undefined || area.zIndex === null) {
             area.zIndex = i;
           }
+          // Migration: ensure archived defaults to false for old areas
+          if (area.archived === undefined) {
+            area.archived = false;
+          }
           newAreas.set(area.id, area);
         }
         state.areas = newAreas;
@@ -287,6 +298,93 @@ export function createAreaActions(
       });
       syncAreasToServer();
       notify();
+    },
+
+    // Archive management
+    archiveArea(areaId: string, stopAgentsFn?: (agentId: string) => void): void {
+      const state = getState();
+      const area = state.areas.get(areaId);
+      if (!area || area.archived) return;
+
+      // Stop all agents assigned to this area (stop, not kill, so they can be restored)
+      if (stopAgentsFn) {
+        for (const agentId of area.assignedAgentIds) {
+          stopAgentsFn(agentId);
+        }
+      }
+
+      setState((s) => {
+        const a = s.areas.get(areaId)!;
+        a.archived = true;
+        a.archivedAt = Date.now();
+        a.originalCenter = { ...a.center };
+        // Deselect if this area was selected
+        if (s.selectedAreaId === areaId) {
+          s.selectedAreaId = null;
+        }
+      });
+      syncAreasToServer();
+      notify();
+    },
+
+    restoreArchivedArea(areaId: string, newCenter?: { x: number; z: number }): void {
+      const state = getState();
+      const area = state.areas.get(areaId);
+      if (!area || !area.archived) return;
+
+      const oldCenter = area.center;
+      const targetCenter = newCenter || area.originalCenter || area.center;
+
+      // Calculate offset for moving agents
+      const offsetX = targetCenter.x - oldCenter.x;
+      const offsetZ = targetCenter.z - oldCenter.z;
+
+      // Calculate next zIndex to bring to front
+      const allAreas = Array.from(state.areas.values());
+      const maxZ = allAreas.length === 0 ? -1 : Math.max(...allAreas.map((a) => a.zIndex ?? 0));
+      const nextZ = maxZ + 1;
+
+      setState((s) => {
+        const a = s.areas.get(areaId)!;
+        a.archived = false;
+        a.archivedAt = undefined;
+        a.center = targetCenter;
+        a.zIndex = nextZ; // Bring to front
+
+        // Move assigned agents with the area if position changed
+        if (offsetX !== 0 || offsetZ !== 0) {
+          for (const agentId of a.assignedAgentIds) {
+            const agent = s.agents.get(agentId);
+            if (agent) {
+              agent.position = {
+                x: agent.position.x + offsetX,
+                y: agent.position.y,
+                z: agent.position.z + offsetZ,
+              };
+            }
+          }
+        }
+      });
+      syncAreasToServer();
+      notify();
+    },
+
+    getArchivedAreas(): DrawingArea[] {
+      return Array.from(getState().areas.values()).filter((a) => a.archived === true);
+    },
+
+    getVisibleAreas(): DrawingArea[] {
+      return Array.from(getState().areas.values()).filter((a) => !a.archived);
+    },
+
+    isAgentInArchivedArea(agentId: string): boolean {
+      const state = getState();
+      for (const area of state.areas.values()) {
+        if (area.archived && area.assignedAgentIds.includes(agentId)) {
+          return true;
+        }
+      }
+      return false;
     },
   };
 }

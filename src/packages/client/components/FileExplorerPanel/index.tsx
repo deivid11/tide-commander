@@ -26,6 +26,7 @@ import { useFileTree } from './useFileTree';
 import { useGitStatus, loadGitOriginalContent } from './useGitStatus';
 import { useFileContent } from './useFileContent';
 import { useFileExplorerStorage } from './useFileExplorerStorage';
+import { useTreePanelResize } from './useTreePanelResize';
 
 // Components
 import { TreeNodeItem } from './TreeNodeItem';
@@ -117,6 +118,9 @@ export function FileExplorerPanel({
     clearFile,
   } = useFileContent();
 
+  // Tree panel resize
+  const { treePanelWidth, handleResizeStart, isResizing } = useTreePanelResize();
+
   // Storage hook for persistence
   const { loadStoredState, saveState } = useFileExplorerStorage({
     areaId: areaId || null,
@@ -141,10 +145,14 @@ export function FileExplorerPanel({
   const [newFolderPath, setNewFolderPath] = useState('');
   const [hasRestoredState, setHasRestoredState] = useState(false);
   const [treePanelCollapsed, setTreePanelCollapsed] = useState(false);
+  const [stagingPaths, setStagingPaths] = useState<Set<string>>(new Set());
 
   // File tabs state
   const [openTabs, setOpenTabs] = useState<FileTab[]>([]);
   const [activeTabPath, setActiveTabPath] = useState<string | null>(null);
+
+  // Line number to scroll to (from file:line search)
+  const [scrollToLine, setScrollToLine] = useState<number | undefined>(undefined);
 
   // -------------------------------------------------------------------------
   // REFS
@@ -209,9 +217,19 @@ export function FileExplorerPanel({
   // SEARCH
   // -------------------------------------------------------------------------
 
+  // Parse search query for file:line pattern (e.g., "Filename.java:135")
+  const parsedSearch = useMemo(() => {
+    const query = searchQuery.trim();
+    const match = query.match(/^(.+):(\d+)$/);
+    if (match) {
+      return { query: match[1], lineNumber: parseInt(match[2], 10) };
+    }
+    return { query, lineNumber: undefined };
+  }, [searchQuery]);
+
   // Handle unified search - both filename and content, prioritizing filename matches
   useEffect(() => {
-    if (!searchQuery.trim() || !currentFolder) {
+    if (!parsedSearch.query || !currentFolder) {
       setSearchResults([]);
       setContentSearchResults([]);
       setIsSearching(false);
@@ -223,15 +241,15 @@ export function FileExplorerPanel({
     // Debounce search requests
     const timeoutId = setTimeout(async () => {
       try {
-        const query = searchQuery.trim();
+        const query = parsedSearch.query;
 
         // Always search by filename
         const filenamePromise = authFetch(
           apiUrl(`/api/files/search?path=${encodeURIComponent(currentFolder)}&q=${encodeURIComponent(query)}&limit=20`)
         ).then(res => res.json()).catch(() => ({ results: [] }));
 
-        // Only search content if query is at least 2 chars
-        const contentPromise = query.length >= 2
+        // Only search content if query is at least 2 chars and no line number specified
+        const contentPromise = query.length >= 2 && !parsedSearch.lineNumber
           ? authFetch(
               apiUrl(`/api/files/search-content?path=${encodeURIComponent(currentFolder)}&q=${encodeURIComponent(query)}&limit=20`)
             ).then(res => res.json()).catch(() => ({ results: [] }))
@@ -251,7 +269,7 @@ export function FileExplorerPanel({
     }, 300);
 
     return () => clearTimeout(timeoutId);
-  }, [searchQuery, currentFolder]);
+  }, [parsedSearch.query, parsedSearch.lineNumber, currentFolder]);
 
   // -------------------------------------------------------------------------
   // EFFECTS
@@ -407,7 +425,7 @@ export function FileExplorerPanel({
   // -------------------------------------------------------------------------
 
   // Helper to open a file in a tab
-  const openFileInTab = (filePath: string, filename: string, extension: string) => {
+  const openFileInTab = (filePath: string, filename: string, extension: string, lineNumber?: number) => {
     // Check if tab already exists
     const existingTab = openTabs.find(t => t.path === filePath);
     if (!existingTab) {
@@ -417,6 +435,7 @@ export function FileExplorerPanel({
     }
     setActiveTabPath(filePath);
     setSelectedPath(filePath);
+    setScrollToLine(lineNumber);
     loadFile(filePath);
   };
 
@@ -424,17 +443,17 @@ export function FileExplorerPanel({
     if (!node.isDirectory) {
       setSelectedGitStatus(null);
       setOriginalContent(null);
-      openFileInTab(node.path, node.name, node.extension);
+      // If search has a :lineNumber suffix, pass it along
+      openFileInTab(node.path, node.name, node.extension, parsedSearch.lineNumber);
     }
   };
 
-  const handleContentSearchSelect = (path: string, _line?: number) => {
+  const handleContentSearchSelect = (path: string, line?: number) => {
     setSelectedGitStatus(null);
     setOriginalContent(null);
     const filename = path.split('/').pop() || path;
     const extension = path.substring(path.lastIndexOf('.')).toLowerCase();
-    openFileInTab(path, filename, extension);
-    // TODO: Could scroll to line if we implement line navigation
+    openFileInTab(path, filename, extension, line);
   };
 
   const handleGitFileSelect = async (path: string, status: GitFileStatusType) => {
@@ -459,6 +478,7 @@ export function FileExplorerPanel({
     setSelectedPath(path);
     setSelectedGitStatus(null);
     setOriginalContent(null);
+    setScrollToLine(undefined);
 
     // Check if we have cached data
     const tab = openTabs.find(t => t.path === path);
@@ -541,18 +561,26 @@ export function FileExplorerPanel({
 
   // Reveal a file in the tree by expanding all parent directories
   const handleRevealInTree = useCallback((filePath: string) => {
-    // Clear search to show tree
+    // Switch to files view and clear search to show tree
+    setViewMode('files');
     setSearchQuery('');
 
-    // Build list of all parent paths to expand
-    const pathsToExpand = new Set(expandedPaths);
-    const parts = filePath.split('/');
+    // Build list of all parent paths to expand - start with root folder
+    const pathsToExpand = new Set<string>();
+    if (currentFolder) {
+      pathsToExpand.add(currentFolder);
+    }
 
-    // Build each parent path and add to expanded set
-    let currentPath = '';
-    for (let i = 0; i < parts.length - 1; i++) {
-      currentPath += (i === 0 ? '' : '/') + parts[i];
-      if (currentPath) {
+    // Get all parent directories by building up the path from currentFolder
+    if (filePath.startsWith(currentFolder!)) {
+      // Get relative path from currentFolder
+      const relativePath = filePath.substring(currentFolder!.length);
+      const parts = relativePath.split('/').filter(p => p);
+
+      // Build each parent path relative to currentFolder
+      let currentPath = currentFolder!;
+      for (let i = 0; i < parts.length - 1; i++) {
+        currentPath = currentPath + '/' + parts[i];
         pathsToExpand.add(currentPath);
       }
     }
@@ -560,14 +588,52 @@ export function FileExplorerPanel({
     setExpandedPaths(pathsToExpand);
     setSelectedPath(filePath);
 
-    // Scroll the file into view after a short delay for DOM update
-    setTimeout(() => {
-      const fileElement = document.querySelector(`[data-path="${filePath}"]`);
-      if (fileElement) {
-        fileElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // Scroll the file into view after DOM update - use longer timeout for reliability
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const fileElement = document.querySelector(`[data-path="${filePath}"]`);
+        if (fileElement) {
+          fileElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      });
+    });
+  }, [currentFolder]);
+
+  // Stage files (git add)
+  const handleStageFiles = useCallback(async (paths: string[]) => {
+    if (!currentFolder || paths.length === 0) return;
+
+    // Mark paths as staging
+    setStagingPaths(prev => {
+      const next = new Set(prev);
+      for (const p of paths) next.add(p);
+      return next;
+    });
+
+    try {
+      const res = await authFetch(apiUrl('/api/files/git-add'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paths, directory: currentFolder }),
+      });
+
+      if (res.ok) {
+        // Refresh git status to reflect staged changes
+        await loadGitStatus();
+      } else {
+        const data = await res.json();
+        console.error('[FileExplorer] Git add failed:', data.error);
       }
-    }, 100);
-  }, [expandedPaths, setExpandedPaths]);
+    } catch (err) {
+      console.error('[FileExplorer] Git add failed:', err);
+    } finally {
+      setStagingPaths(prev => {
+        const next = new Set(prev);
+        for (const p of paths) next.delete(p);
+        return next;
+      });
+    }
+  }, [currentFolder, loadGitStatus]);
 
   // -------------------------------------------------------------------------
   // RENDER
@@ -688,7 +754,10 @@ export function FileExplorerPanel({
       {/* Main Content */}
       <div className="file-explorer-main">
         {/* Tree Panel (Left) */}
-        <div className={`file-explorer-tree-panel ${treePanelCollapsed ? 'collapsed' : ''}`}>
+        <div
+          className={`file-explorer-tree-panel ${treePanelCollapsed ? 'collapsed' : ''}`}
+          style={{ width: treePanelWidth }}
+        >
           {/* Tab Bar */}
           <div className="file-explorer-tabs">
             <button
@@ -794,7 +863,7 @@ export function FileExplorerPanel({
                   ref={searchInputRef}
                   type="text"
                   className="file-explorer-search-input"
-                  placeholder="Search files & content... (Cmd+P)"
+                  placeholder="Search files... (file:line) (Cmd+P)"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
@@ -833,7 +902,7 @@ export function FileExplorerPanel({
             {viewMode === 'files' ? (
               treeLoading ? (
                 <div className="tree-loading">Loading...</div>
-              ) : searchQuery.trim() ? (
+              ) : parsedSearch.query ? (
                 isSearching ? (
                   <div className="tree-loading">Searching...</div>
                 ) : (
@@ -843,7 +912,8 @@ export function FileExplorerPanel({
                     onSelectFile={handleSelect}
                     onSelectContent={handleContentSearchSelect}
                     selectedPath={selectedPath}
-                    query={searchQuery}
+                    query={parsedSearch.query}
+                    lineNumber={parsedSearch.lineNumber}
                   />
                 )
               ) : (
@@ -873,10 +943,18 @@ export function FileExplorerPanel({
                 onFileSelect={handleGitFileSelect}
                 selectedPath={selectedPath}
                 onRefresh={loadGitStatus}
+                onStageFiles={handleStageFiles}
+                stagingPaths={stagingPaths}
               />
             )}
           </div>
         </div>
+
+        {/* Resize Handle */}
+        <div
+          className={`file-explorer-resize-handle ${isResizing ? 'active' : ''}`}
+          onMouseDown={handleResizeStart}
+        />
 
         {/* File Viewer (Right) */}
         <div className="file-explorer-viewer-panel">
@@ -897,7 +975,7 @@ export function FileExplorerPanel({
               language={EXTENSION_TO_LANGUAGE[selectedFile.extension] || 'plaintext'}
             />
           ) : (
-            <FileViewer file={selectedFile} loading={fileLoading} error={fileError} onRevealInTree={handleRevealInTree} />
+            <FileViewer file={selectedFile} loading={fileLoading} error={fileError} onRevealInTree={handleRevealInTree} scrollToLine={scrollToLine} />
           )}
         </div>
       </div>

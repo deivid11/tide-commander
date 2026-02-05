@@ -14,6 +14,10 @@ import { createLogger } from '../utils/index.js';
 // Track active log streams by building ID
 const activeLogStreams = new Map<string, ChildProcess>();
 
+// Track stream generation to prevent duplicate initial logs
+// When a new stream starts, its generation is incremented and old streams' chunks are ignored
+const streamGenerations = new Map<string, number>();
+
 const execAsync = promisify(exec);
 const log = createLogger('PM2Service');
 
@@ -403,8 +407,12 @@ export function startLogStream(
   // Stop any existing stream for this building
   stopLogStream(buildingId);
 
+  // Increment stream generation to invalidate any in-flight chunks from previous stream
+  const currentGeneration = (streamGenerations.get(buildingId) || 0) + 1;
+  streamGenerations.set(buildingId, currentGeneration);
+
   try {
-    log.log(`Starting log stream for: ${name} (initial ${initialLines} lines)`);
+    log.log(`Starting log stream for: ${name} (initial ${initialLines} lines, gen ${currentGeneration})`);
 
     // Use pm2 logs without --nostream for real-time streaming
     const child = spawn('pm2', ['logs', name, '--lines', String(initialLines)], {
@@ -415,12 +423,20 @@ export function startLogStream(
 
     // Handle stdout (normal logs)
     child.stdout?.on('data', (data: Buffer) => {
+      // Check if this stream is still the current generation
+      if (streamGenerations.get(buildingId) !== currentGeneration) {
+        return; // Discard chunks from old streams
+      }
       const chunk = data.toString();
       callbacks.onChunk(chunk, false);
     });
 
     // Handle stderr (error logs)
     child.stderr?.on('data', (data: Buffer) => {
+      // Check if this stream is still the current generation
+      if (streamGenerations.get(buildingId) !== currentGeneration) {
+        return; // Discard chunks from old streams
+      }
       const chunk = data.toString();
       callbacks.onChunk(chunk, true);
     });
@@ -429,14 +445,20 @@ export function startLogStream(
     child.on('close', (code) => {
       log.log(`Log stream ended for ${name} with code ${code}`);
       activeLogStreams.delete(buildingId);
-      callbacks.onEnd();
+      // Only call onEnd if this is still the current generation
+      if (streamGenerations.get(buildingId) === currentGeneration) {
+        callbacks.onEnd();
+      }
     });
 
     // Handle errors
     child.on('error', (error) => {
       log.error(`Log stream error for ${name}: ${error.message}`);
       activeLogStreams.delete(buildingId);
-      callbacks.onError(error.message);
+      // Only call onError if this is still the current generation
+      if (streamGenerations.get(buildingId) === currentGeneration) {
+        callbacks.onError(error.message);
+      }
     });
 
     const stop = () => {

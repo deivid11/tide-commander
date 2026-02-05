@@ -1,0 +1,116 @@
+/**
+ * DatabaseTabs Styles
+ */
+@use 'sass:color';
+@use '../../styles/variables' as *;
+
+.database-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px;
+  background: $bg-secondary;
+  border-bottom: 1px solid $border-color;
+  overflow-x: auto;
+  overflow-y: hidden;
+
+  &::-webkit-scrollbar {
+    height: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: $border-color;
+    border-radius: 3px;
+
+    &:hover {
+      background: color.adjust($border-color, $lightness: -10%);
+    }
+  }
+
+  &__tab {
+    display: flex;
+    align-items: center;
+    background: $bg-tertiary;
+    border: 1px solid $border-color;
+    border-radius: 4px 4px 0 0;
+    flex-shrink: 0;
+    transition: all 0.2s ease;
+
+    &--active {
+      background: $accent-blue;
+      border-color: $accent-blue;
+      box-shadow: 0 -2px 0 $accent-blue inset;
+
+      .database-tabs__tab-label {
+        color: white;
+      }
+
+      .database-tabs__tab-close {
+        color: rgba(white, 0.7);
+
+        &:hover {
+          background: rgba(0, 0, 0, 0.2);
+          color: white;
+        }
+      }
+    }
+
+    &:hover {
+      background: color.adjust($bg-tertiary, $lightness: 5%);
+      border-color: color.adjust($border-color, $lightness: 10%);
+    }
+  }
+
+  &__tab-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    background: none;
+    border: none;
+    color: $text-primary;
+    cursor: pointer;
+    font-size: 0.9em;
+    flex: 1;
+    min-width: 0;
+    max-width: 180px;
+
+    &:hover {
+      color: $text-primary;
+    }
+  }
+
+  &__tab-connection {
+    font-size: 0.8em;
+    color: $text-secondary;
+    white-space: nowrap;
+  }
+
+  &__tab-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    background: none;
+    border: none;
+    color: $text-secondary;
+    cursor: pointer;
+    font-size: 1.1em;
+    line-height: 1;
+    transition: all 0.2s ease;
+
+    &:hover {
+      background: rgba($text-primary, 0.1);
+      color: $text-primary;
+    }
+
+    &:active {
+      opacity: 0.7;
+    }
+  }
+}

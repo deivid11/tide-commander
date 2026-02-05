@@ -677,6 +677,10 @@ export interface DrawingArea {
   zIndex: number;   // stacking order (higher = on top)
   assignedAgentIds: string[];
   directories: string[];  // Associated directory paths
+  // Archive support
+  archived?: boolean;              // True if area is hidden from view
+  archivedAt?: number;             // Timestamp when archived
+  originalCenter?: { x: number; z: number }; // Position before archive (for restore)
 }
 
 // Claude Code Tools

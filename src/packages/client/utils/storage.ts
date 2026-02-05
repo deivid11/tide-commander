@@ -40,6 +40,9 @@ export const STORAGE_KEYS = {
   FILES_COLLAPSED: 'tide-file-history-collapsed',
   MOBILE_VIEW: 'tide-mobile-view',
 
+  // File Explorer
+  TREE_PANEL_WIDTH: 'tide-tree-panel-width',
+
   // Agent Bar
   AGENT_ORDER: 'tide-agent-order',
 } as const;

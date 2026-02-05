@@ -1,0 +1,426 @@
+@use '../../styles/variables' as *;
+
+.dashboard-view {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: $bg-primary;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+
+  // Metrics bar
+  &__metrics {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    animation: dashboard-section-enter 0.3s cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+
+  &__metric {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 10px 16px;
+    background: $bg-secondary;
+    border: 1px solid $border-color;
+    border-radius: $radius-md;
+    min-width: 72px;
+    transition: border-color $transition-fast ease, transform $transition-fast ease;
+
+    &:hover {
+      transform: translateY(-1px);
+    }
+
+    &--working {
+      border-color: rgba($accent-orange, 0.3);
+      .dashboard-view__metric-value { color: $accent-orange; }
+    }
+
+    &--idle {
+      border-color: rgba($accent-green, 0.3);
+      .dashboard-view__metric-value { color: $accent-green; }
+    }
+
+    &--error {
+      border-color: rgba($accent-red, 0.3);
+      .dashboard-view__metric-value { color: $accent-red; }
+    }
+  }
+
+  &__metric-value {
+    font-size: 20px;
+    font-weight: 700;
+    font-family: $font-mono;
+    color: $text-primary;
+    line-height: 1;
+  }
+
+  &__metric-label {
+    font-size: 10px;
+    color: $text-muted;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  // Filter bar
+  &__filters {
+    display: flex;
+    gap: 4px;
+    animation: dashboard-section-enter 0.3s cubic-bezier(0.4, 0, 0.2, 1) 0.05s both;
+  }
+
+  &__filter-btn {
+    padding: 5px 12px;
+    border: 1px solid $border-color;
+    border-radius: $radius-sm;
+    background: transparent;
+    color: $text-secondary;
+    font-size: 11px;
+    font-family: $font-mono;
+    cursor: pointer;
+    transition: all $transition-fast ease;
+
+    &:hover:not(&--active) {
+      background: rgba(255, 255, 255, 0.05);
+      color: $text-primary;
+    }
+
+    &--active {
+      background: rgba($accent-orange, 0.15);
+      border-color: rgba($accent-orange, 0.4);
+      color: $accent-orange;
+    }
+  }
+
+  // Sections
+  &__section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  &__section-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: $text-secondary;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 0;
+  }
+
+  &__empty {
+    padding: 24px;
+    text-align: center;
+    color: $text-muted;
+    font-size: 13px;
+    background: $bg-secondary;
+    border-radius: $radius-md;
+    border: 1px solid $border-color;
+  }
+
+  // Cards grid
+  &__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 8px;
+  }
+
+  // Agent/Building card
+  &__card {
+    background: $bg-secondary;
+    border: 1px solid $border-color;
+    border-radius: $radius-md;
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: all $transition-fast ease;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    animation: dashboard-card-enter 0.25s cubic-bezier(0.4, 0, 0.2, 1) both;
+
+    // Stagger cards up to 20 items
+    @for $i from 1 through 20 {
+      &:nth-child(#{$i}) {
+        animation-delay: #{0.03s * $i};
+      }
+    }
+
+    &:hover {
+      border-color: rgba(255, 255, 255, 0.15);
+      background: $bg-tertiary;
+      transform: translateY(-1px);
+    }
+
+    &--selected {
+      border-color: rgba($accent-orange, 0.5);
+      background: rgba($accent-orange, 0.05);
+    }
+
+    &--healthy {
+      border-left: 3px solid $accent-green;
+    }
+
+    &--working {
+      border-left: 3px solid $accent-orange;
+    }
+
+    &--error {
+      border-left: 3px solid $accent-red;
+    }
+
+    &--unknown {
+      border-left: 3px solid $text-muted;
+    }
+
+    &--building {
+      border-left: 3px solid $accent-blue;
+    }
+  }
+
+  &__card-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  &__card-icon {
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+
+  &__card-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: $text-primary;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+  }
+
+  &__card-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+
+    &--healthy { background: $accent-green; }
+    &--working { background: $accent-orange; }
+    &--error { background: $accent-red; }
+    &--unknown { background: $text-muted; }
+  }
+
+  &__card-body {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  &__card-status {
+    font-size: 11px;
+    color: $text-secondary;
+  }
+
+  &__card-class {
+    font-size: 10px;
+    color: $text-muted;
+    padding: 1px 6px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: $radius-sm;
+  }
+
+  &__card-actions {
+    display: flex;
+    gap: 4px;
+    margin-top: 2px;
+  }
+
+  &__card-action {
+    padding: 3px 8px;
+    border: 1px solid $border-color;
+    border-radius: $radius-sm;
+    background: transparent;
+    color: $text-secondary;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all $transition-fast ease;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: $text-primary;
+    }
+
+    &--danger:hover {
+      background: rgba($accent-red, 0.15);
+      border-color: rgba($accent-red, 0.3);
+      color: $accent-red;
+    }
+  }
+}
+
+// --- Mobile Responsive ---
+
+@media (max-width: 768px) {
+  .dashboard-view {
+    padding: 12px;
+    gap: 12px;
+    // Ensure scrolling works within mobile viewport
+    -webkit-overflow-scrolling: touch;
+
+    &__metrics {
+      gap: 6px;
+      // Horizontal scroll for metrics on small screens
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      &::-webkit-scrollbar { display: none; }
+      padding-bottom: 4px;
+    }
+
+    &__metric {
+      min-width: 64px;
+      padding: 8px 12px;
+      flex-shrink: 0;
+    }
+
+    &__metric-value {
+      font-size: 18px;
+    }
+
+    &__metric-label {
+      font-size: 9px;
+    }
+
+    &__filters {
+      gap: 3px;
+    }
+
+    &__filter-btn {
+      padding: 8px 12px;
+      min-height: 36px;
+      font-size: 12px;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+
+      &:active {
+        opacity: 0.7;
+      }
+    }
+
+    &__grid {
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 6px;
+    }
+
+    &__card {
+      padding: 8px 10px;
+      gap: 4px;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+
+      &:active {
+        transform: scale(0.98);
+      }
+    }
+
+    &__card-name {
+      font-size: 11px;
+    }
+
+    &__card-status {
+      font-size: 10px;
+    }
+
+    &__card-class {
+      font-size: 9px;
+    }
+
+    &__card-actions {
+      gap: 3px;
+    }
+
+    &__card-action {
+      padding: 6px 10px;
+      min-height: 32px;
+      min-width: 32px;
+      font-size: 12px;
+    }
+
+    &__section-title {
+      font-size: 11px;
+    }
+
+    &__empty {
+      padding: 16px;
+      font-size: 12px;
+    }
+  }
+}
+
+// Small mobile: single column cards
+@media (max-width: 480px) {
+  .dashboard-view {
+    padding: 8px;
+    gap: 10px;
+
+    &__grid {
+      grid-template-columns: 1fr;
+      gap: 4px;
+    }
+
+    &__metric {
+      min-width: 56px;
+      padding: 6px 10px;
+    }
+
+    &__metric-value {
+      font-size: 16px;
+    }
+
+    &__filter-btn {
+      padding: 6px 10px;
+      font-size: 11px;
+    }
+  }
+}
+
+// Touch device: larger action buttons
+@media (pointer: coarse) {
+  .dashboard-view__card-action {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 8px 12px;
+  }
+
+  .dashboard-view__filter-btn {
+    min-height: 44px;
+  }
+}
+
+// Keyframes for dashboard animations
+@keyframes dashboard-section-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes dashboard-card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}

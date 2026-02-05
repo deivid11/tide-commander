@@ -51,6 +51,8 @@ export const DEFAULT_SHORTCUTS: ShortcutConfig[] = [
   shortcut('open-terminal', 'Open Terminal', 'Open terminal for selected agent', 'Space', {}),
   shortcut('next-agent', 'Next Agent', 'Select next agent on battlefield', 'l', { alt: true }),
   shortcut('prev-agent', 'Previous Agent', 'Select previous agent on battlefield', 'h', { alt: true }),
+  shortcut('next-working-agent', 'Next Working Agent', 'Select next working agent on battlefield', 'l', { alt: true, shift: true }),
+  shortcut('prev-working-agent', 'Previous Working Agent', 'Select previous working agent on battlefield', 'h', { alt: true, shift: true }),
   shortcut('next-message', 'Next Message', 'Navigate to next message in terminal', 'j', { alt: true }),
   shortcut('prev-message', 'Previous Message', 'Navigate to previous message in terminal', 'k', { alt: true }),
   shortcut('page-down-messages', 'Page Down Messages', 'Jump down 10 messages in terminal', 'd', { alt: true }),

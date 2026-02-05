@@ -623,8 +623,8 @@ export class InputHandler {
 
     // Don't handle if typing in an input field (with exceptions)
     if (isInInputField) {
-      // Exception: Alt+H/L in collapsed terminal input - blur and continue for navigation
-      const isAltNavKey = event.altKey && (event.key === 'h' || event.key === 'l');
+      // Exception: Alt+H/L and Alt+Shift+H/L in collapsed terminal input - blur and continue for navigation
+      const isAltNavKey = event.altKey && (event.code === 'KeyH' || event.code === 'KeyL');
 
       if (isAltNavKey && isCollapsedTerminal) {
         (target as HTMLInputElement | HTMLTextAreaElement).blur();
@@ -635,6 +635,7 @@ export class InputHandler {
     }
 
     // Alt+H / Alt+L for agent navigation (works when terminal is closed)
+    // Note: Alt+Shift+H/L for working agents is handled in useKeyboardShortcuts.ts
     if (event.altKey && (event.key === 'h' || event.key === 'l') && !state.terminalOpen) {
       const orderedAgents = this.getOrderedAgents(state.agents);
       if (orderedAgents.length <= 1) return;
@@ -1171,8 +1172,29 @@ export class InputHandler {
 
     // Map IDs to actual agent objects
     const agentMap = new Map(agents.map(a => [a.id, a]));
-    return finalOrder
+    const orderedAgents = finalOrder
       .map(id => agentMap.get(id))
       .filter((a): a is Agent => a !== undefined);
+
+    // Group by area (matching useSwipeNavigation order)
+    const groups = new Map<string | null, { area: { name: string } | null; agents: Agent[] }>();
+    for (const agent of orderedAgents) {
+      const area = store.getAreaForAgent(agent.id);
+      const areaKey = area?.id || null;
+      if (!groups.has(areaKey)) {
+        groups.set(areaKey, { area: area ? { name: area.name } : null, agents: [] });
+      }
+      groups.get(areaKey)!.agents.push(agent);
+    }
+
+    const groupArray = Array.from(groups.values());
+    groupArray.sort((a, b) => {
+      if (!a.area && b.area) return 1;
+      if (a.area && !b.area) return -1;
+      if (!a.area && !b.area) return 0;
+      return (a.area?.name || '').localeCompare(b.area?.name || '');
+    });
+
+    return groupArray.flatMap(group => group.agents);
   }
 }

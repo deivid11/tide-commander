@@ -86,6 +86,7 @@ const EXTENSION_LANGUAGES: Record<string, string> = {
 };
 
 const MARKDOWN_EXTENSIONS = ['.md', '.mdx', '.markdown'];
+const PDF_EXTENSIONS = ['.pdf'];
 
 export function FileViewerModal({ isOpen, onClose, filePath, action, editData }: FileViewerModalProps) {
   const [fileData, setFileData] = useState<FileData | null>(null);
@@ -146,8 +147,14 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
               panel.scrollBy({ top: scrollAmount, behavior: 'smooth' });
             });
           } else {
-            // Regular content view
-            contentRef.current.scrollBy({ top: scrollAmount, behavior: 'smooth' });
+            // Check for code-with-lines container (has its own scroll)
+            const codeWithLines = contentRef.current.querySelector('.file-viewer-code-with-lines');
+            if (codeWithLines) {
+              codeWithLines.scrollBy({ top: scrollAmount, behavior: 'smooth' });
+            } else {
+              // Regular content view
+              contentRef.current.scrollBy({ top: scrollAmount, behavior: 'smooth' });
+            }
           }
         }
         return;
@@ -191,12 +198,25 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
     setError(null);
 
     try {
-      const res = await authFetch(apiUrl(`/api/files/read?path=${encodeURIComponent(filePath)}`));
+      const ext = filePath.split('.').pop()?.toLowerCase();
+      const isPdfFile = ext === 'pdf';
+
+      // For PDFs, only fetch metadata (no content needed - rendered via iframe)
+      const endpoint = isPdfFile
+        ? `/api/files/info?path=${encodeURIComponent(filePath)}`
+        : `/api/files/read?path=${encodeURIComponent(filePath)}`;
+
+      const res = await authFetch(apiUrl(endpoint));
       const data = await res.json();
 
       if (!res.ok) {
         setError(data.error || 'Failed to load file');
         return;
+      }
+
+      // For PDFs, info endpoint doesn't return content - set empty string
+      if (isPdfFile) {
+        data.content = '';
       }
 
       setFileData(data);
@@ -281,7 +301,9 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
   };
 
   const isMarkdown = fileData && MARKDOWN_EXTENSIONS.includes(fileData.extension);
-  const language = fileData ? EXTENSION_LANGUAGES[fileData.extension] || 'text' : 'text';
+  const isPdf = fileData && PDF_EXTENSIONS.includes(fileData.extension);
+  const language = isPdf ? 'PDF' : (fileData ? EXTENSION_LANGUAGES[fileData.extension] || 'text' : 'text');
+  const pdfUrl = isPdf ? apiUrl(`/api/files/binary?path=${encodeURIComponent(filePath)}`) : null;
 
   if (!isOpen) return null;
 
@@ -320,6 +342,16 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
                 </button>
               </>
             )}
+            {isPdf && pdfUrl && (
+              <a
+                className="file-viewer-copy-html-btn"
+                href={`${pdfUrl}&download=true`}
+                download={fileData?.filename}
+                title="Download PDF"
+              >
+                Download
+              </a>
+            )}
             <button className="file-viewer-close" onClick={onClose}>×</button>
           </div>
         </div>
@@ -333,6 +365,12 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
             <span>{formatFileSize(fileData.size)}</span>
             <span>•</span>
             <span>{language}</span>
+            {fileData.content && (
+              <>
+                <span>•</span>
+                <span>{fileData.content.split('\n').length} lines</span>
+              </>
+            )}
           </div>
         )}
 
@@ -346,7 +384,16 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
           )}
 
           {fileData && !loading && !error && (
-            showDiffView ? (
+            isPdf && pdfUrl ? (
+              // Show embedded PDF viewer
+              <div className="file-viewer-pdf-embed">
+                <iframe
+                  src={pdfUrl}
+                  title={fileData.filename}
+                  className="file-viewer-pdf-iframe"
+                />
+              </div>
+            ) : showDiffView ? (
               // Show side-by-side diff view for Edit tool
               <DiffViewer
                 originalContent={originalContent!}
@@ -374,9 +421,16 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{fileData.content}</ReactMarkdown>
               </div>
             ) : (
-              <pre className="file-viewer-code">
-                <code ref={codeRef} className={`language-${language}`}>{fileData.content}</code>
-              </pre>
+              <div className="file-viewer-code-with-lines">
+                <div className="file-viewer-line-gutter" aria-hidden="true">
+                  {fileData.content.split('\n').map((_, idx) => (
+                    <div key={idx + 1} className="file-viewer-line-num">{idx + 1}</div>
+                  ))}
+                </div>
+                <pre className="file-viewer-code">
+                  <code ref={codeRef} className={`language-${language}`}>{fileData.content}</code>
+                </pre>
+              </div>
             )
           )}
         </div>

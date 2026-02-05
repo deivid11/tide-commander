@@ -497,17 +497,19 @@ export class Scene2D {
   }
 
   syncAgents(agents: Agent[]): void {
-    // Remove agents that no longer exist
+    // Remove agents that no longer exist or are in archived areas
     const agentIds = new Set(agents.map(a => a.id));
     for (const id of this.agents.keys()) {
-      if (!agentIds.has(id)) {
+      if (!agentIds.has(id) || store.isAgentInArchivedArea(id)) {
         this.removeAgent(id);
       }
     }
 
-    // Add/update agents
+    // Add/update agents (skip those in archived areas)
     for (const agent of agents) {
-      this.updateAgent(agent, false);
+      if (!store.isAgentInArchivedArea(agent.id)) {
+        this.updateAgent(agent, false);
+      }
     }
   }
 
@@ -576,6 +578,9 @@ export class Scene2D {
     this.areas.clear();
 
     for (const area of state.areas.values()) {
+      // Skip archived areas - they should not be rendered
+      if (area.archived) continue;
+
       if (area.type === 'rectangle' && area.width && area.height) {
         this.areas.set(area.id, {
           id: area.id,

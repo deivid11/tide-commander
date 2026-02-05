@@ -7,6 +7,7 @@
 import type { Scene2D } from './Scene2D';
 import type { Scene2DCamera } from './Scene2DCamera';
 import { store } from '../store';
+import { getStorage, STORAGE_KEYS } from '../utils/storage';
 
 interface SelectionBox {
   start: { x: number; z: number };
@@ -577,12 +578,46 @@ export class Scene2DInput {
   /**
    * Get agents ordered by creation time (for Alt+H/L navigation)
    */
-  private getOrderedAgents(agents: Map<string, any>): any[] {
-    return Array.from(agents.values()).sort((a, b) => {
-      const timeA = a.createdAt || 0;
-      const timeB = b.createdAt || 0;
-      return timeA - timeB;
+  private getOrderedAgents(agentsMap: Map<string, any>): any[] {
+    const agents = Array.from(agentsMap.values());
+    const currentAgentIds = new Set(agents.map((a: any) => a.id));
+
+    // Get saved order from localStorage
+    const savedOrder = getStorage<string[]>(STORAGE_KEYS.AGENT_ORDER, []);
+    const validSavedOrder = savedOrder.filter(id => currentAgentIds.has(id));
+
+    // New agents not in saved order - sort by creation time
+    const newAgents = agents
+      .filter((a: any) => !validSavedOrder.includes(a.id))
+      .sort((a: any, b: any) => (a.createdAt || 0) - (b.createdAt || 0));
+    const newAgentIds = newAgents.map((a: any) => a.id);
+
+    const finalOrder = [...validSavedOrder, ...newAgentIds];
+    const agentMap = new Map(agents.map((a: any) => [a.id, a]));
+    const orderedAgents = finalOrder
+      .map(id => agentMap.get(id))
+      .filter((a): a is any => a !== undefined);
+
+    // Group by area (matching useSwipeNavigation order)
+    const groups = new Map<string | null, { area: { name: string } | null; agents: any[] }>();
+    for (const agent of orderedAgents) {
+      const area = store.getAreaForAgent(agent.id);
+      const areaKey = area?.id || null;
+      if (!groups.has(areaKey)) {
+        groups.set(areaKey, { area: area ? { name: area.name } : null, agents: [] });
+      }
+      groups.get(areaKey)!.agents.push(agent);
+    }
+
+    const groupArray = Array.from(groups.values());
+    groupArray.sort((a, b) => {
+      if (!a.area && b.area) return 1;
+      if (a.area && !b.area) return -1;
+      if (!a.area && !b.area) return 0;
+      return (a.area?.name || '').localeCompare(b.area?.name || '');
     });
+
+    return groupArray.flatMap(group => group.agents);
   }
 
   // ============================================

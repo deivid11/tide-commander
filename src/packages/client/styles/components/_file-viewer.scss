@@ -166,8 +166,54 @@
   color: var(--accent-red);
 }
 
+// PDF embed in modal
+.file-viewer-pdf-embed {
+  width: 100%;
+  height: 100%;
+  display: flex;
+}
+
+.file-viewer-pdf-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: var(--bg-primary);
+}
+
 .file-viewer-markdown {
   padding: 16px 20px;
+}
+
+// Code with line numbers layout (modal)
+.file-viewer-content > .file-viewer-code-with-lines {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+
+  .file-viewer-line-gutter {
+    position: sticky;
+    left: 0;
+    flex-shrink: 0;
+    padding: 16px 0;
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--bg-tertiary);
+    user-select: none;
+    z-index: 1;
+  }
+
+  .file-viewer-line-num {
+    padding: 0 12px 0 8px;
+    text-align: right;
+    font-family: $font-mono;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--text-muted);
+    opacity: 0.5;
+    min-width: 40px;
+  }
 }
 
 .file-viewer-code {
@@ -184,21 +230,16 @@
   // Parent .file-viewer-content handles scrolling (both x and y)
   // This ensures j/k keyboard scrolling works on the content container
 
+  .file-viewer-code-with-lines & {
+    padding: 16px 16px;
+    min-width: 0;
+  }
+
   code {
     background: none;
     padding: 0;
     font-size: inherit;
     color: inherit;
-  }
-}
-
-// Add line numbers effect
-.file-viewer-code code {
-  display: block;
-  counter-reset: line;
-
-  &::before {
-    content: none;
   }
 }
 

@@ -1,0 +1,136 @@
+@use '../../styles/variables' as *;
+
+// Yellow accent for active state (per design spec)
+$toggle-active-color: #d4a05a;
+
+.view-mode-toggle {
+  display: flex;
+  gap: 2px;
+  position: relative;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: $radius-md;
+  padding: 3px;
+  border: 1px solid $border-color;
+
+  // Sliding indicator behind active button
+  &__indicator {
+    position: absolute;
+    top: 3px;
+    bottom: 3px;
+    background: rgba($toggle-active-color, 0.18);
+    border-radius: $radius-sm;
+    transition: left $transition-normal cubic-bezier(0.4, 0, 0.2, 1),
+                width $transition-normal cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  &__btn {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 10px;
+    border: none;
+    border-radius: $radius-sm;
+    background: transparent;
+    color: $text-secondary;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: $font-mono;
+    cursor: pointer;
+    transition: color $transition-fast ease,
+                background $transition-fast ease;
+    white-space: nowrap;
+    position: relative;
+    z-index: 1;
+
+    &:hover:not(&--active) {
+      background: rgba(255, 255, 255, 0.08);
+      color: $text-primary;
+    }
+
+    &--active {
+      color: $toggle-active-color;
+
+      svg {
+        stroke: $toggle-active-color;
+      }
+    }
+  }
+
+  &__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  &__label {
+    line-height: 1;
+  }
+
+  // Floating position variant (fixed in viewport)
+  &--floating {
+    position: fixed;
+    bottom: 70px;
+    left: 60px;
+    z-index: 150;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+
+  // Mobile: centered bottom bar with larger touch targets
+  // Positioning (bottom, left) is handled by _mobile.scss responsive rules
+  @media (max-width: 768px) {
+    &--floating {
+      display: flex;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 160;
+      padding: 4px;
+      gap: 3px;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(10px);
+      border-color: rgba(255, 255, 255, 0.15);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+    }
+
+    &__btn {
+      padding: 10px 14px;
+      min-height: 44px;
+      min-width: 44px;
+      font-size: 12px;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+
+      &:active {
+        opacity: 0.7;
+        transform: scale(0.95);
+      }
+    }
+
+    &__icon svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    &__label {
+      font-size: 11px;
+    }
+  }
+
+  // Small mobile: icon-only mode
+  @media (max-width: 480px) {
+    &--floating {
+      padding: 3px;
+    }
+
+    &__btn {
+      padding: 8px 10px;
+      min-height: 44px;
+    }
+
+    &__label {
+      display: none;
+    }
+  }
+}

@@ -746,6 +746,12 @@ class Store
   bringAreaToFront(...args: Parameters<AreaActions['bringAreaToFront']>) { return this.areaActions.bringAreaToFront(...args); }
   sendAreaToBack(...args: Parameters<AreaActions['sendAreaToBack']>) { return this.areaActions.sendAreaToBack(...args); }
   setAreaZIndex(...args: Parameters<AreaActions['setAreaZIndex']>) { return this.areaActions.setAreaZIndex(...args); }
+  // Archive management
+  archiveArea(...args: Parameters<AreaActions['archiveArea']>) { return this.areaActions.archiveArea(...args); }
+  restoreArchivedArea(...args: Parameters<AreaActions['restoreArchivedArea']>) { return this.areaActions.restoreArchivedArea(...args); }
+  getArchivedAreas(...args: Parameters<AreaActions['getArchivedAreas']>) { return this.areaActions.getArchivedAreas(...args); }
+  getVisibleAreas(...args: Parameters<AreaActions['getVisibleAreas']>) { return this.areaActions.getVisibleAreas(...args); }
+  isAgentInArchivedArea(...args: Parameters<AreaActions['isAgentInArchivedArea']>) { return this.areaActions.isAgentInArchivedArea(...args); }
 
   // ============================================================================
   // Building Actions (delegated)
@@ -864,6 +870,7 @@ class Store
   handleExecTaskStarted(...args: Parameters<ExecTaskActions['handleExecTaskStarted']>) { return this.execTaskActions.handleExecTaskStarted(...args); }
   handleExecTaskOutput(...args: Parameters<ExecTaskActions['handleExecTaskOutput']>) { return this.execTaskActions.handleExecTaskOutput(...args); }
   handleExecTaskCompleted(...args: Parameters<ExecTaskActions['handleExecTaskCompleted']>) { return this.execTaskActions.handleExecTaskCompleted(...args); }
+  stopExecTask(...args: Parameters<ExecTaskActions['stopExecTask']>) { return this.execTaskActions.stopExecTask(...args); }
   getExecTasks(...args: Parameters<ExecTaskActions['getExecTasks']>) { return this.execTaskActions.getExecTasks(...args); }
   getAllExecTasks() { return this.execTaskActions.getAllExecTasks(); }
   getExecTask(...args: Parameters<ExecTaskActions['getExecTask']>) { return this.execTaskActions.getExecTask(...args); }

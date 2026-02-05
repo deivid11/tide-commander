@@ -201,6 +201,45 @@
   min-height: 0;
 }
 
+// Code wrapper with line numbers
+.file-viewer-code-with-lines {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+
+  // Inner layout: gutter + code side by side
+  // Using display:grid so both columns share the same row height (content-driven)
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+}
+
+.file-viewer-line-gutter {
+  position: sticky;
+  left: 0;
+  flex-shrink: 0;
+  padding: 16px 0;
+  background: inherit;
+  border-right: 1px solid $border-color;
+  user-select: none;
+  z-index: 1;
+}
+
+.file-viewer-line-num {
+  padding: 0 12px 0 8px;
+  text-align: right;
+  font-family: $font-mono;
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgba($dracula-comment, 0.5);
+  min-width: 40px;
+
+  &.highlighted {
+    color: $dracula-yellow;
+    background: rgba($dracula-yellow, 0.1);
+  }
+}
+
 .file-viewer-pre {
   margin: 0;
   padding: 16px;
@@ -209,6 +248,11 @@
   font-size: 13px;
   line-height: 1.5;
   tab-size: 2;
+
+  .file-viewer-code-with-lines & {
+    padding-left: 12px;
+    min-width: 0;
+  }
 
   code {
     background: transparent !important;

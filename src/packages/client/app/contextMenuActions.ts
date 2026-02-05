@@ -20,6 +20,7 @@ export interface ContextMenuCallbacks {
   openAgentEditModal: (agentId: string) => void;
   requestBuildingDelete: (buildingId: string) => void;
   setSpawnPosition: (pos: { x: number; z: number }) => void;
+  openRestoreArchivedModal: (worldPos: { x: number; z: number }) => void;
   sceneRef: React.RefObject<SceneManager | null>;
 }
 
@@ -133,6 +134,20 @@ export function buildContextMenuActions(
         },
       });
       actions.push({ id: 'divider-area', label: '', divider: true, onClick: () => {} });
+      actions.push({
+        id: 'archive-area',
+        label: `Archive "${area.name}"`,
+        icon: '📦',
+        onClick: () => {
+          const agentCount = area.assignedAgentIds.length;
+          // Use stopAgent instead of killAgent so agents are preserved for restore
+          store.archiveArea(target.id!, (agentId) => store.stopAgent(agentId));
+          callbacks.sceneRef.current?.syncAreas();
+          callbacks.sceneRef.current?.syncAgents(Array.from(store.getState().agents.values()));
+          const agentMsg = agentCount > 0 ? ` (${agentCount} agent${agentCount > 1 ? 's' : ''} stopped)` : '';
+          callbacks.showToast('info', 'Zone Archived', `"${area.name}" has been archived${agentMsg}`);
+        },
+      });
       actions.push({
         id: 'delete-area',
         label: `Delete "${area.name}"`,
@@ -256,6 +271,18 @@ export function buildContextMenuActions(
       callbacks.openBuildingModal(null);
     },
   });
+  // Show "Restore Archived Zone" if there are any archived areas
+  const archivedCount = Array.from(areas.values()).filter((a) => a.archived).length;
+  if (archivedCount > 0) {
+    actions.push({
+      id: 'restore-archived',
+      label: `Restore Archived Zone (${archivedCount})`,
+      icon: '📦',
+      onClick: () => {
+        callbacks.openRestoreArchivedModal(worldPos);
+      },
+    });
+  }
   actions.push({ id: 'divider-2', label: '', divider: true, onClick: () => {} });
   actions.push({
     id: 'open-settings',

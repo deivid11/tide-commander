@@ -21,6 +21,7 @@ export function PM2LogsModal({ building, isOpen, onClose }: PM2LogsModalProps) {
   const isStreaming = streamingBuildingIds.has(building.id);
 
   // Start streaming when modal opens
+  // Server handles deduplication via stream generations to prevent duplicate logs
   useEffect(() => {
     if (isOpen && building.pm2?.enabled) {
       store.startLogStreaming(building.id, 200);

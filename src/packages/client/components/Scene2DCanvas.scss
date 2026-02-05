@@ -5,6 +5,7 @@
   overflow: hidden;
   // Dark background matching the canvas gradient center color
   background: #0a0c12;
+  z-index: 1;
 
   .scene-2d-canvas {
     display: block;

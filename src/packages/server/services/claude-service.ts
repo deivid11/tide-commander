@@ -622,10 +622,28 @@ export async function sendSilentCommand(agentId: string, command: string): Promi
 }
 
 export async function stopAgent(agentId: string): Promise<void> {
-  if (!runner) {
-    return;
+  // Try to stop the tracked process first
+  if (runner) {
+    await runner.stop(agentId);
   }
-  await runner.stop(agentId);
+
+  // Also try to kill any detached Claude process for this agent
+  const agent = agentService.getAgent(agentId);
+  if (agent?.cwd) {
+    const { killClaudeProcessInCwd } = await import('../claude/session-loader.js');
+    const killed = await killClaudeProcessInCwd(agent.cwd);
+    if (killed) {
+      log.log(`Killed detached Claude process for agent ${agentId}`);
+    }
+  }
+
+  // Update agent status to idle
+  agentService.updateAgent(agentId, {
+    status: 'idle',
+    currentTask: undefined,
+    currentTool: undefined,
+    isDetached: false,
+  });
 }
 
 export function isAgentRunning(agentId: string): boolean {

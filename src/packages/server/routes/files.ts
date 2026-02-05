@@ -642,9 +642,14 @@ router.get('/git-status', async (req: Request, res: Response) => {
       return;
     }
 
-    // Check if directory is a git repo
+    // Check if directory is a git repo and get the git root
+    let gitRoot: string;
     try {
-      execSync('git rev-parse --git-dir', { cwd: dirPath, stdio: 'pipe' });
+      gitRoot = execSync('git rev-parse --show-toplevel', {
+        cwd: dirPath,
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      }).trim();
     } catch {
       res.json({ isGitRepo: false, files: [] });
       return;
@@ -665,13 +670,16 @@ router.get('/git-status', async (req: Request, res: Response) => {
     }
 
     const files: GitFileStatus[] = [];
-    const lines = statusOutput.trim().split('\n').filter(Boolean);
+    const lines = statusOutput.replace(/\n$/, '').split('\n').filter(Boolean);
 
     for (const line of lines) {
-      // Porcelain format: XY PATH or XY ORIG_PATH -> NEW_PATH for renames
+      // Porcelain v1 format: "XY PATH" or "XY ORIG -> NEW" for renames
+      // X = index status (pos 0), Y = worktree status (pos 1),
+      // space separator (pos 2), path starts at pos 3.
+      // Paths are always relative to the git root.
       const indexStatus = line[0];
       const workTreeStatus = line[1];
-      const filePart = line.slice(3);
+      const filePart = line.substring(3);
 
       let status: GitFileStatus['status'];
       let filePath: string;
@@ -680,11 +688,11 @@ router.get('/git-status', async (req: Request, res: Response) => {
       // Check for rename (contains ' -> ')
       if (filePart.includes(' -> ')) {
         const [old, newPath] = filePart.split(' -> ');
-        filePath = path.join(dirPath, newPath);
-        oldPath = path.join(dirPath, old);
+        filePath = path.join(gitRoot, newPath);
+        oldPath = path.join(gitRoot, old);
         status = 'renamed';
       } else {
-        filePath = path.join(dirPath, filePart);
+        filePath = path.join(gitRoot, filePart);
 
         // Determine status from XY codes
         if (indexStatus === '?' || workTreeStatus === '?') {
@@ -741,6 +749,83 @@ router.get('/git-status', async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     log.error(' Failed to get git status:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/files/git-add - Stage files with git add
+router.post('/git-add', async (req: Request, res: Response) => {
+  try {
+    const { paths, directory } = req.body as { paths?: string[]; directory?: string };
+
+    if (!directory || typeof directory !== 'string') {
+      res.status(400).json({ error: 'Missing directory parameter' });
+      return;
+    }
+
+    if (!path.isAbsolute(directory)) {
+      res.status(400).json({ error: 'Directory must be absolute' });
+      return;
+    }
+
+    if (!paths || !Array.isArray(paths) || paths.length === 0) {
+      res.status(400).json({ error: 'Missing or empty paths array' });
+      return;
+    }
+
+    // Validate all paths are absolute and don't contain traversal
+    for (const p of paths) {
+      if (!path.isAbsolute(p)) {
+        res.status(400).json({ error: `Path must be absolute: ${p}` });
+        return;
+      }
+      if (p.includes('..')) {
+        res.status(400).json({ error: `Path traversal not allowed: ${p}` });
+        return;
+      }
+    }
+
+    // Find git root
+    let gitRoot: string;
+    try {
+      gitRoot = execSync('git rev-parse --show-toplevel', {
+        cwd: directory,
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      }).trim();
+    } catch {
+      res.status(400).json({ error: 'Not in a git repository' });
+      return;
+    }
+
+    // Convert absolute paths to relative paths from git root and validate they're within the repo
+    const relativePaths: string[] = [];
+    for (const p of paths) {
+      const rel = path.relative(gitRoot, p);
+      if (rel.startsWith('..')) {
+        res.status(400).json({ error: `Path is outside the git repository: ${p}` });
+        return;
+      }
+      relativePaths.push(rel);
+    }
+
+    // Stage the files
+    const quotedPaths = relativePaths.map(p => `"${p}"`).join(' ');
+    try {
+      execSync(`git add ${quotedPaths}`, {
+        cwd: gitRoot,
+        encoding: 'utf-8',
+        maxBuffer: 10 * 1024 * 1024,
+      });
+    } catch (err: any) {
+      log.error(' Git add failed:', err);
+      res.status(500).json({ error: `Git add failed: ${err.message}` });
+      return;
+    }
+
+    res.json({ success: true, staged: paths.length });
+  } catch (err: any) {
+    log.error(' Failed to stage files:', err);
     res.status(500).json({ error: err.message });
   }
 });
