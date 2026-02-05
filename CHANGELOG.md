@@ -2,6 +2,69 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.41.0] - 2026-02-04
+
+### Added
+- **Dashboard View Component** - New comprehensive dashboard with agent status and metrics
+  - Agent status cards with real-time information
+  - Building status overview with progress tracking
+  - Events timeline for monitoring activities
+  - Metrics display panel for performance analytics
+  - Responsive design for desktop and mobile
+
+- **View Mode Toggle** - Switch between different application views
+  - Toggle between 3D scene, terminal, and dashboard modes
+  - State persistence across sessions
+  - Keyboard shortcuts for quick switching
+
+- **Right Panel Component** - Configurable side panel with tab support
+  - Resizable panel with drag-to-resize functionality
+  - Tab-based content organization
+  - Flexible content integration
+
+- **Sidebar Tree View** - Hierarchical tree component for navigation
+  - Expandable/collapsible tree nodes
+  - Custom rendering support
+  - Utility functions for tree operations
+
+- **Performance Monitoring** - New profiling guide and test reports
+  - Performance profiling guide for optimization
+  - Phase 4 test plan and reports
+  - Build status tracking documentation
+
+### Changed
+- **UI Architecture** - Refactored for multi-view support
+  - App component enhanced with view mode switching
+  - Modal system improved with new RestoreArchivedAreaModal
+  - Enhanced keyboard shortcuts configuration and documentation
+
+- **Mobile Optimizations** - Improved mobile experience
+  - Better keyboard handling and overlay detection
+  - Optimized layout for smaller screens
+  - Improved touch interactions
+
+- **File Explorer** - Enhanced with new features
+  - Tree panel resize functionality
+  - Unified search results display
+  - Improved file utilities and types
+
+- **Database Panel** - UI and UX improvements
+  - New DatabaseTabs component for multi-database support
+  - Enhanced query editor with better styling
+  - Improved results table display
+
+- **3D Scene** - Input and rendering enhancements
+  - Better input handling for Scene2D
+  - Improved drawing manager
+  - Enhanced agent manager functionality
+
+### Technical
+- New hooks: useViewMode, useTreePanelResize, useRightPanelResize
+- Updated keyboard shortcuts with new configuration options
+- Improved store with view mode management
+- Enhanced area management with new modal support
+- Better TypeScript types for view modes and components
+
 ## [0.40.0] - 2026-02-03
 
 ### Added
