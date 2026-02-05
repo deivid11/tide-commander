@@ -393,11 +393,15 @@ export class AgentManager {
   }
 
   setCustomAgentClasses(classes: Map<string, CustomAgentClass>): void {
+    console.log(`[AgentManager] setCustomAgentClasses called with ${classes.size} classes`);
     this.characterFactory.setCustomClasses(classes);
     for (const customClass of classes.values()) {
       if (customClass.customModelPath) {
-        this.characterLoader.loadCustomModel(customClass.id).catch(err => {
-          console.warn(`[AgentManager] Failed to preload custom model for class ${customClass.id}:`, err);
+        console.log(`[AgentManager] Preloading custom model for class ${customClass.id}: ${customClass.customModelPath}`);
+        this.characterLoader.loadCustomModel(customClass.id).then(() => {
+          console.log(`[AgentManager] Successfully preloaded custom model for class ${customClass.id}`);
+        }).catch(err => {
+          console.error(`[AgentManager] Failed to preload custom model for class ${customClass.id}:`, err);
         });
       }
     }
@@ -510,16 +514,19 @@ export class AgentManager {
     const customClasses = store.getState().customAgentClasses;
     const customClass = customClasses.get(agent.class);
     if (customClass?.customModelPath && !this.characterLoader.hasCustomModel(customClass.id)) {
-      console.log(`[AgentManager] Loading custom model for class ${agent.class}`);
+      console.log(`[AgentManager] Custom model for class ${agent.class} not yet loaded, loading async...`);
       this.characterLoader.loadCustomModel(customClass.id).then(() => {
+        console.log(`[AgentManager] Custom model loaded for class ${agent.class}, now adding agent ${agent.name}`);
         this.addAgentInternal(agent);
       }).catch(err => {
-        console.warn(`[AgentManager] Failed to load custom model for ${agent.class}, using fallback:`, err);
+        console.error(`[AgentManager] Failed to load custom model for ${agent.class}:`, err);
+        console.warn(`[AgentManager] Using fallback model for agent ${agent.name}`);
         this.addAgentInternal(agent);
       });
       return;
     }
 
+    console.log(`[AgentManager] Custom model already loaded for class ${agent.class}, adding agent directly`);
     this.addAgentInternal(agent);
   }
 
