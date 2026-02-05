@@ -9,6 +9,7 @@
 import React, { useState, useMemo } from 'react';
 import type { ConversationSnapshot, SnapshotFile } from '../../shared/types/snapshot';
 import { BUILT_IN_AGENT_CLASSES, type BuiltInAgentClass } from '../../shared/types';
+import { OutputLine } from './ClaudeOutputPanel/OutputLine';
 
 export interface SnapshotViewerProps {
   /** The snapshot to view */
@@ -247,14 +248,24 @@ export function SnapshotViewer({
               </div>
             ) : (
               <div className="snapshot-conversation-messages">
-                {snapshot.outputs.map((output) => (
-                  <div key={output.id} className="snapshot-message">
-                    <div className="snapshot-message-time">
-                      {new Date(output.timestamp).toLocaleTimeString()}
-                    </div>
-                    <div className="snapshot-message-content">{output.text}</div>
-                  </div>
-                ))}
+                {snapshot.outputs.map((output) => {
+                  // Convert snapshot output to ClaudeOutput format for OutputLine component
+                  const claudeOutput = {
+                    id: output.id,
+                    text: output.text,
+                    timestamp: output.timestamp,
+                    isStreaming: output.isStreaming || false,
+                    isUserPrompt: false,
+                    isDelegation: false,
+                  };
+                  return (
+                    <OutputLine
+                      key={output.id}
+                      output={claudeOutput}
+                      agentId={null}
+                    />
+                  );
+                })}
               </div>
             )}
           </div>
