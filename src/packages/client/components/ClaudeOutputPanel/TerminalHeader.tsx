@@ -184,13 +184,15 @@ export function TerminalHeader({
             </button>
           </Tooltip>
         )}
-        <button
-          className={`guake-debug-toggle hide-on-mobile ${debugPanelOpen ? 'active' : ''}`}
-          onClick={handleDebugToggle}
-          title={debugPanelOpen ? 'Hide Debug Panel' : 'Show Debug Panel'}
-        >
-          🐛
-        </button>
+        {!isSnapshotView && (
+          <button
+            className={`guake-debug-toggle hide-on-mobile ${debugPanelOpen ? 'active' : ''}`}
+            onClick={handleDebugToggle}
+            title={debugPanelOpen ? 'Hide Debug Panel' : 'Show Debug Panel'}
+          >
+            🐛
+          </button>
+        )}
         <button
           className={`guake-search-toggle hide-on-mobile ${searchMode ? 'active' : ''}`}
           onClick={handleSearchToggle}
