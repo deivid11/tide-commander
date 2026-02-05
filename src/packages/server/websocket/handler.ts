@@ -5,7 +5,7 @@
 
 import { Server as HttpServer, IncomingMessage } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
-import type { Agent, ClientMessage, ServerMessage, PermissionRequest, DelegationDecision, Skill, CustomAgentClass } from '../../shared/types.js';
+import type { Agent, ClientMessage, ServerMessage, PermissionRequest, DelegationDecision, Skill, CustomAgentClass, Subagent } from '../../shared/types.js';
 import { agentService, claudeService, supervisorService, permissionService, bossService, skillService, customClassService, bossMessageService, agentLifecycleService } from '../services/index.js';
 import { loadAreas, saveAreas, loadBuildings, saveBuildings } from '../data/index.js';
 import { parseContextOutput } from '../claude/backend.js';
@@ -569,6 +569,75 @@ function setupServiceListeners(): void {
     } else if (event.type === 'tool_start') {
       const details = formatToolActivity(event.toolName, event.toolInput);
       sendActivity(agentId, details);
+
+      // Detect Task tool subagent spawning
+      if (event.toolName === 'Task' && event.toolUseId && event.subagentName) {
+        const subagent = claudeService.getActiveSubagentByToolUseId(event.toolUseId);
+        if (subagent) {
+          // Calculate position near parent agent
+          const parentAgent = agentService.getAgent(agentId);
+          const parentPos = parentAgent?.position || { x: 0, y: 0, z: 0 };
+          // Offset subagents in a circle around parent
+          const activeSubagents = claudeService.getActiveSubagentsForAgent(agentId);
+          const angle = (activeSubagents.length - 1) * (Math.PI * 2 / Math.max(activeSubagents.length, 3));
+          const radius = 3;
+          const subagentPayload: Subagent = {
+            id: subagent.id,
+            parentAgentId: agentId,
+            toolUseId: subagent.toolUseId,
+            name: subagent.name,
+            description: subagent.description,
+            subagentType: subagent.subagentType,
+            model: subagent.model,
+            status: 'working',
+            startedAt: subagent.startedAt,
+            position: {
+              x: parentPos.x + Math.cos(angle) * radius,
+              y: parentPos.y,
+              z: parentPos.z + Math.sin(angle) * radius,
+            },
+          };
+          broadcast({
+            type: 'subagent_started',
+            payload: subagentPayload,
+          } as any);
+          sendActivity(agentId, `Spawned subagent: ${subagent.name} (${subagent.subagentType})`);
+          log.log(`[Subagent] Broadcast subagent_started: ${subagent.name} (${subagent.id})`);
+        }
+      }
+    } else if (event.type === 'tool_result' && event.toolName === 'Task' && event.toolUseId) {
+      // Check if this is a subagent completion
+      // subagentName is attached by claude-service before cleanup
+      // Extract clean text from result (may be JSON array of content blocks)
+      let cleanPreview: string | undefined;
+      if (event.toolOutput) {
+        try {
+          const parsed = JSON.parse(event.toolOutput);
+          if (Array.isArray(parsed)) {
+            // Claude API format: [{"type":"text","text":"..."}]
+            cleanPreview = parsed
+              .filter((b: any) => b.type === 'text' && b.text)
+              .map((b: any) => b.text)
+              .join(' ')
+              .slice(0, 200);
+          } else {
+            cleanPreview = event.toolOutput.slice(0, 200);
+          }
+        } catch {
+          cleanPreview = event.toolOutput.slice(0, 200);
+        }
+      }
+      broadcast({
+        type: 'subagent_completed',
+        payload: {
+          subagentId: event.toolUseId, // Client uses toolUseId to find the subagent
+          parentAgentId: agentId,
+          success: true,
+          resultPreview: cleanPreview,
+          subagentName: event.subagentName, // From claude-service, attached before cleanup
+        },
+      } as any);
+      log.log(`[Subagent] Broadcast subagent_completed for toolUseId=${event.toolUseId}, name=${event.subagentName || 'unknown'}`);
     } else if (event.type === 'error') {
       sendActivity(agentId, `Error: ${event.errorMessage}`);
     }
@@ -611,7 +680,7 @@ function setupServiceListeners(): void {
     });
   });
 
-  claudeService.on('output', (agentId, text, isStreaming) => {
+  claudeService.on('output', (agentId, text, isStreaming, subagentName) => {
     const textPreview = text.slice(0, 80).replace(/\n/g, '\\n');
     log.log(`[OUTPUT] agent=${agentId.slice(0,4)} streaming=${isStreaming} text="${textPreview}"`);
 
@@ -622,6 +691,7 @@ function setupServiceListeners(): void {
         text,
         isStreaming: isStreaming || false,
         timestamp: Date.now(),
+        ...(subagentName ? { subagentName } : {}),
       },
     });
 

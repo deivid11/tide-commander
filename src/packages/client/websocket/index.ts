@@ -1,4 +1,4 @@
-import type { Agent, ServerMessage, ClientMessage, PermissionRequest, DelegationDecision, CustomAgentClass, AgentNotification } from '../../shared/types';
+import type { Agent, ServerMessage, ClientMessage, PermissionRequest, DelegationDecision, CustomAgentClass, AgentNotification, Subagent } from '../../shared/types';
 import { store } from '../store';
 import { perf } from '../utils/profiling';
 import { agentDebugger, debugLog } from '../services/agentDebugger';
@@ -114,6 +114,8 @@ let onCustomClassesSync: ((classes: Map<string, CustomAgentClass>) => void) | nu
 let onReconnect: (() => void) | null = null;
 let onAgentNotification: ((notification: AgentNotification) => void) | null = null;
 let onBuildingUpdated: ((building: import('../../shared/types').Building) => void) | null = null;
+let onSubagentStarted: ((subagent: Subagent) => void) | null = null;
+let onSubagentCompleted: ((subagentId: string) => void) | null = null;
 
 export function setCallbacks(callbacks: {
   onToast?: typeof onToast;
@@ -131,6 +133,8 @@ export function setCallbacks(callbacks: {
   onReconnect?: typeof onReconnect;
   onAgentNotification?: typeof onAgentNotification;
   onBuildingUpdated?: typeof onBuildingUpdated;
+  onSubagentStarted?: typeof onSubagentStarted;
+  onSubagentCompleted?: typeof onSubagentCompleted;
 }): void {
   if (callbacks.onToast) onToast = callbacks.onToast;
   if (callbacks.onAgentCreated) onAgentCreated = callbacks.onAgentCreated;
@@ -147,6 +151,8 @@ export function setCallbacks(callbacks: {
   if (callbacks.onReconnect) onReconnect = callbacks.onReconnect;
   if (callbacks.onAgentNotification) onAgentNotification = callbacks.onAgentNotification;
   if (callbacks.onBuildingUpdated) onBuildingUpdated = callbacks.onBuildingUpdated;
+  if (callbacks.onSubagentStarted) onSubagentStarted = callbacks.onSubagentStarted;
+  if (callbacks.onSubagentCompleted) onSubagentCompleted = callbacks.onSubagentCompleted;
 }
 
 /**
@@ -168,6 +174,8 @@ export function clearCallbacks(): void {
   onCustomClassesSync = null;
   onReconnect = null;
   onAgentNotification = null;
+  onSubagentStarted = null;
+  onSubagentCompleted = null;
 }
 
 /**
@@ -184,6 +192,8 @@ export function clearSceneCallbacks(): void {
   onDelegation = null;
   onCustomClassesSync = null;
   onBuildingUpdated = null;
+  onSubagentStarted = null;
+  onSubagentCompleted = null;
 }
 
 export function connect(): void {
@@ -441,6 +451,7 @@ function handleServerMessage(message: ServerMessage): void {
         timestamp: number;
         isDelegation?: boolean;
         skillUpdate?: import('../../shared/types').SkillUpdateData;
+        subagentName?: string;
       };
       debugLog.debug(`Output: "${output.text.slice(0, 80)}..."`, {
         agentId: output.agentId,
@@ -454,6 +465,7 @@ function handleServerMessage(message: ServerMessage): void {
         timestamp: output.timestamp,
         isDelegation: output.isDelegation,
         skillUpdate: output.skillUpdate,
+        subagentName: output.subagentName,
       });
       break;
     }
@@ -948,6 +960,71 @@ function handleServerMessage(message: ServerMessage): void {
       };
       console.log(`[WebSocket] Exec task completed: ${taskId} for agent ${agentId}, success: ${success}`);
       store.handleExecTaskCompleted(taskId, agentId, exitCode, success);
+      break;
+    }
+
+    // ========================================================================
+    // Subagent Messages (Claude Code Task tool)
+    // ========================================================================
+
+    case 'subagent_started': {
+      const subagent = message.payload as Subagent;
+      console.log(`[WebSocket] Subagent started: ${subagent.name} (${subagent.id}) for agent ${subagent.parentAgentId}`);
+      store.addSubagent(subagent);
+      onSubagentStarted?.(subagent);
+      // Also add an output line to the parent agent's terminal
+      store.addOutput(subagent.parentAgentId, {
+        text: `🔀 Spawned subagent: ${subagent.name} (${subagent.subagentType})`,
+        isStreaming: false,
+        timestamp: subagent.startedAt,
+        subagentName: subagent.name,
+      });
+      break;
+    }
+
+    case 'subagent_output': {
+      const { subagentId, parentAgentId, text, isStreaming, timestamp } = message.payload as {
+        subagentId: string;
+        parentAgentId: string;
+        text: string;
+        isStreaming: boolean;
+        timestamp: number;
+      };
+      // Resolve subagent name for badge display
+      const subForOutput = store.getSubagent(subagentId) || store.getSubagentByToolUseId(subagentId);
+      const subOutputName = subForOutput?.name || subagentId;
+      // Route subagent output to the parent agent's terminal with a prefix
+      store.addOutput(parentAgentId, {
+        text: `[${subagentId}] ${text}`,
+        isStreaming,
+        timestamp,
+        subagentName: subOutputName,
+      });
+      break;
+    }
+
+    case 'subagent_completed': {
+      const { subagentId, parentAgentId, success, resultPreview, subagentName: completedSubName } = message.payload as {
+        subagentId: string;
+        parentAgentId: string;
+        success: boolean;
+        resultPreview?: string;
+        subagentName?: string;
+      };
+      console.log(`[WebSocket] Subagent completed: ${subagentId} for agent ${parentAgentId}, success: ${success}`);
+      store.completeSubagent(subagentId, parentAgentId, success);
+      onSubagentCompleted?.(subagentId);
+      // Resolve name: prefer server-provided name, then store lookup, then ID
+      const sub = store.getSubagent(subagentId) || store.getSubagentByToolUseId(subagentId);
+      const subName = completedSubName || sub?.name || subagentId;
+      const statusEmoji = success ? '✅' : '❌';
+      const preview = resultPreview ? `: ${resultPreview.slice(0, 100)}` : '';
+      store.addOutput(parentAgentId, {
+        text: `${statusEmoji} Subagent ${subName} ${success ? 'completed' : 'failed'}${preview}`,
+        isStreaming: false,
+        timestamp: Date.now(),
+        subagentName: subName,
+      });
       break;
     }
 

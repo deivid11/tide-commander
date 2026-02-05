@@ -29,6 +29,7 @@ import {
   useFileViewerPath,
   useContextModalAgentId,
   useCurrentSnapshot,
+  useOverviewPanelOpen,
 } from '../../store';
 import {
   STORAGE_KEYS,
@@ -65,6 +66,7 @@ import { OutputLine } from './OutputLine';
 import { VirtualizedOutputList } from './VirtualizedOutputList';
 import { GuakeAgentLink as _GuakeAgentLink } from './GuakeAgentLink';
 import { AgentDebugPanel } from './AgentDebugPanel';
+import { AgentOverviewPanel } from './AgentOverviewPanel';
 import { agentDebugger } from '../../services/agentDebugger';
 import { AgentProgressIndicator } from './AgentProgressIndicator';
 import { ExecTasksContainer } from './ExecTaskIndicator';
@@ -170,6 +172,10 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
   // Debug panel state
   const [debugPanelOpen, setDebugPanelOpen] = useState(false);
   const [debuggerEnabled, setDebuggerEnabled] = useState(() => agentDebugger.isEnabled());
+
+  // Agent overview panel state (persisted in store across agent switches)
+  const overviewPanelOpen = useOverviewPanelOpen();
+  const setOverviewPanelOpen = useCallback((open: boolean) => store.setOverviewPanelOpen(open), []);
 
   // Completion indicator state
   const [showCompletion, setShowCompletion] = useState(false);
@@ -663,12 +669,23 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
   return (
     <div
       ref={terminalRef}
-      className={`guake-terminal ${isOpen ? 'open' : 'collapsed'} ${debugPanelOpen && isOpen ? 'with-debug-panel' : ''}`}
+      className={`guake-terminal ${isOpen ? 'open' : 'collapsed'} ${debugPanelOpen && isOpen ? 'with-debug-panel' : ''} ${overviewPanelOpen && isOpen ? 'with-overview-panel' : ''}`}
       style={{ '--terminal-height': `${terminalHeight}%` } as React.CSSProperties}
     >
       {/* Debug Panel */}
       {!isSnapshotView && debugPanelOpen && isOpen && activeAgentId && (
         <AgentDebugPanel agentId={activeAgentId} onClose={() => setDebugPanelOpen(false)} />
+      )}
+
+      {/* Agent Overview Panel */}
+      {!isSnapshotView && overviewPanelOpen && isOpen && activeAgentId && (
+        <AgentOverviewPanel
+          activeAgentId={activeAgentId}
+          onClose={() => setOverviewPanelOpen(false)}
+          onSelectAgent={(agentId) => {
+            store.selectAgent(agentId);
+          }}
+        />
       )}
 
       <div className="guake-content">
@@ -686,6 +703,8 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
           setDebugPanelOpen={setDebugPanelOpen}
           debuggerEnabled={debuggerEnabled}
           setDebuggerEnabled={setDebuggerEnabled}
+          overviewPanelOpen={overviewPanelOpen}
+          setOverviewPanelOpen={setOverviewPanelOpen}
           outputsLength={displayOutputs.length + filteredHistory.length}
           setContextConfirm={setContextConfirm}
           headerRef={swipe.headerRef}

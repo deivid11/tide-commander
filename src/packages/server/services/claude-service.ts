@@ -17,7 +17,7 @@ const log = logger.claude;
 // Event types emitted by Claude service
 export interface ClaudeServiceEvents {
   event: (agentId: string, event: StandardEvent) => void;
-  output: (agentId: string, text: string, isStreaming?: boolean) => void;
+  output: (agentId: string, text: string, isStreaming?: boolean, subagentName?: string) => void;
   complete: (agentId: string, success: boolean) => void;
   error: (agentId: string, error: string) => void;
 }
@@ -33,6 +33,31 @@ let runner: ClaudeRunner | null = null;
 // When sendSilentCommand sends /context, the agentId is added here
 // When step_complete fires, we check this set to avoid triggering another /context
 const pendingSilentContextRefresh = new Set<string>();
+
+// ============================================================================
+// Subagent Tracking (Task tool spawned subagents)
+// ============================================================================
+
+// Map: toolUseId -> subagent info (tracks active Task tool subagents)
+interface ActiveSubagent {
+  id: string;
+  parentAgentId: string;
+  toolUseId: string;
+  name: string;
+  description: string;
+  subagentType: string;
+  model?: string;
+  startedAt: number;
+}
+const activeSubagents = new Map<string, ActiveSubagent>();
+
+// Reverse lookup: subagentId -> toolUseId
+const subagentIdToToolUseId = new Map<string, string>();
+
+let subagentCounter = 0;
+function generateSubagentId(): string {
+  return `sub_${Date.now().toString(36)}_${(subagentCounter++).toString(36)}`;
+}
 
 // Track agents that received step_complete for their current turn
 // This is used to avoid duplicate /context refresh in handleComplete
@@ -170,6 +195,20 @@ async function pollOrphanedAgents(): Promise<void> {
 }
 
 // ============================================================================
+// Subagent Public API
+// ============================================================================
+
+/** Get an active subagent by toolUseId */
+export function getActiveSubagentByToolUseId(toolUseId: string): ActiveSubagent | undefined {
+  return activeSubagents.get(toolUseId);
+}
+
+/** Get all active subagents for a parent agent */
+export function getActiveSubagentsForAgent(parentAgentId: string): ActiveSubagent[] {
+  return Array.from(activeSubagents.values()).filter(s => s.parentAgentId === parentAgentId);
+}
+
+// ============================================================================
 // Event System
 // ============================================================================
 
@@ -228,9 +267,44 @@ function handleEvent(agentId: string, event: StandardEvent): void {
         status: 'working',
         currentTool: event.toolName,
       });
+      // Track Task tool subagent spawning
+      if (event.toolName === 'Task' && event.toolUseId && event.subagentName) {
+        const subId = generateSubagentId();
+        const subagent: ActiveSubagent = {
+          id: subId,
+          parentAgentId: agentId,
+          toolUseId: event.toolUseId,
+          name: event.subagentName,
+          description: event.subagentDescription || '',
+          subagentType: event.subagentType || 'general-purpose',
+          model: event.subagentModel,
+          startedAt: Date.now(),
+        };
+        activeSubagents.set(event.toolUseId, subagent);
+        subagentIdToToolUseId.set(subId, event.toolUseId);
+        log.log(`[Subagent] Started: ${subagent.name} (${subId}) for agent ${agentId}, toolUseId=${event.toolUseId}`);
+        // Emit subagent_started event for websocket handler to broadcast
+        emit('event', agentId, {
+          ...event,
+          type: 'tool_start',
+          // Attach subagent info so handler can create the Subagent object
+        });
+      }
       break;
 
     case 'tool_result':
+      // Check if this is a Task tool result (subagent completion)
+      if (event.toolName === 'Task' && event.toolUseId) {
+        const subagent = activeSubagents.get(event.toolUseId);
+        if (subagent) {
+          log.log(`[Subagent] Completed: ${subagent.name} (${subagent.id}) for agent ${agentId}`);
+          // Attach subagent name to the event BEFORE cleaning up so websocket handler can use it
+          event.subagentName = subagent.name;
+          // Clean up
+          activeSubagents.delete(event.toolUseId);
+          subagentIdToToolUseId.delete(subagent.id);
+        }
+      }
       agentService.updateAgent(agentId, { currentTool: undefined });
       break;
 
@@ -350,8 +424,8 @@ function handleEvent(agentId: string, event: StandardEvent): void {
   emit('event', agentId, event);
 }
 
-function handleOutput(agentId: string, text: string, isStreaming?: boolean): void {
-  emit('output', agentId, text, isStreaming);
+function handleOutput(agentId: string, text: string, isStreaming?: boolean, subagentName?: string): void {
+  emit('output', agentId, text, isStreaming, subagentName);
 }
 
 function handleSessionId(agentId: string, sessionId: string): void {

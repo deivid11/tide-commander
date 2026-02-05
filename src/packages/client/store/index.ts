@@ -27,6 +27,7 @@ import { createExecTaskActions, type ExecTaskActions } from './execTasks';
 import { createSecretActions, type SecretActions } from './secrets';
 import { createDatabaseActions, type DatabaseActions } from './database';
 import { createSnapshotActions, type SnapshotActions } from './snapshots';
+import { createSubagentActions, type SubagentActions } from './subagents';
 
 // Import shortcuts
 import { ShortcutConfig, DEFAULT_SHORTCUTS } from './shortcuts';
@@ -143,6 +144,10 @@ export {
   useCurrentSnapshot,
   useSnapshotsLoading,
   useSnapshotsError,
+  useSubagents,
+  useSubagentsForAgent,
+  useViewMode,
+  useOverviewPanelOpen,
 } from './selectors';
 
 // ============================================================================
@@ -161,7 +166,8 @@ class Store
     SkillActions,
     ExecTaskActions,
     SecretActions,
-    SnapshotActions
+    SnapshotActions,
+    SubagentActions
 {
   private state: StoreState;
   private listeners = new Set<Listener>();
@@ -180,6 +186,7 @@ class Store
   private secretActions: SecretActions;
   private databaseActions: DatabaseActions;
   private snapshotActions: SnapshotActions;
+  private subagentActions: SubagentActions;
 
   constructor() {
     // Initialize state
@@ -245,6 +252,9 @@ class Store
       snapshotsError: null,
       lastSelectionViaSwipe: false,
       lastSelectionViaDirectClick: false,
+      subagents: new Map(),
+      viewMode: '3d',
+      overviewPanelOpen: false,
     };
 
     // Helper functions for domain modules
@@ -269,6 +279,7 @@ class Store
     this.secretActions = createSecretActions(getState, setState, notify, getSendMessage);
     this.databaseActions = createDatabaseActions(getState, setState, notify, getSendMessage);
     this.snapshotActions = createSnapshotActions(getState, setState, notify);
+    this.subagentActions = createSubagentActions(getState, setState, notify);
   }
 
   private loadSettings(): Settings {
@@ -400,6 +411,11 @@ class Store
     console.log('[Store] After notify, terminalOpen:', this.state.terminalOpen);
   }
 
+  setOverviewPanelOpen(open: boolean): void {
+    this.state.overviewPanelOpen = open;
+    this.notify();
+  }
+
   setMobileView(view: 'terminal' | '3d'): void {
     console.log('[Store] setMobileView called:', view, 'previous:', this.state.mobileView);
     this.state.mobileView = view;
@@ -413,6 +429,11 @@ class Store
       this.state.selectedAgentIds = new Set([firstAgentId]);
       this.state.terminalOpen = true;
     }
+    this.notify();
+  }
+
+  setViewMode(mode: '2d' | '3d' | 'dashboard'): void {
+    this.state.viewMode = mode;
     this.notify();
   }
 
@@ -934,6 +955,17 @@ class Store
   setError(...args: Parameters<SnapshotActions['setError']>) { return this.snapshotActions.setError(...args); }
   clearError(...args: Parameters<SnapshotActions['clearError']>) { return this.snapshotActions.clearError(...args); }
   reset(...args: Parameters<SnapshotActions['reset']>) { return this.snapshotActions.reset(...args); }
+
+  // ============================================================================
+  // Subagent Actions (delegated)
+  // ============================================================================
+
+  addSubagent(...args: Parameters<SubagentActions['addSubagent']>) { return this.subagentActions.addSubagent(...args); }
+  completeSubagent(...args: Parameters<SubagentActions['completeSubagent']>) { return this.subagentActions.completeSubagent(...args); }
+  getSubagentsForAgent(...args: Parameters<SubagentActions['getSubagentsForAgent']>) { return this.subagentActions.getSubagentsForAgent(...args); }
+  getSubagent(...args: Parameters<SubagentActions['getSubagent']>) { return this.subagentActions.getSubagent(...args); }
+  removeSubagent(...args: Parameters<SubagentActions['removeSubagent']>) { return this.subagentActions.removeSubagent(...args); }
+  getSubagentByToolUseId(...args: Parameters<SubagentActions['getSubagentByToolUseId']>) { return this.subagentActions.getSubagentByToolUseId(...args); }
 }
 
 // Extend Window interface for HMR persistence

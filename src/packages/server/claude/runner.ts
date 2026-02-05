@@ -56,6 +56,10 @@ export class ClaudeRunner {
   // Auto-restart enabled flag
   private autoRestartEnabled = true;
 
+  // Track active subagent name per agent (for attributing tool calls to subagents)
+  // Set on Task tool_start, cleared on Task tool_result
+  private activeSubagentName: Map<string, string> = new Map();
+
   // Callbacks for activity watchdog (called when next activity is received)
   private activityCallbacks: Map<string, Array<() => void>> = new Map();
 
@@ -662,24 +666,38 @@ export class ClaudeRunner {
         }
         break;
 
-      case 'tool_start':
+      case 'tool_start': {
+        // Track active subagent: when Task tool starts, store the subagent name
+        // All subsequent tool calls until Task tool_result belong to this subagent
+        if (event.toolName === 'Task' && event.subagentName) {
+          this.activeSubagentName.set(agentId, event.subagentName);
+        }
+        // Resolve subagent name: use event's own subagentName (for Task), or active subagent name
+        const toolStartSubName = event.subagentName || this.activeSubagentName.get(agentId);
         // Send tool name as text output (needed for simple view mode display)
-        // Send immediately without marking as streaming to ensure it displays
-        this.callbacks.onOutput(agentId, `Using tool: ${event.toolName}`, false);
+        this.callbacks.onOutput(agentId, `Using tool: ${event.toolName}`, false, toolStartSubName);
         // Send tool input as JSON (needed for simple view to show file paths, commands, etc.)
         if (event.toolInput) {
-          this.callbacks.onOutput(agentId, `Tool input: ${JSON.stringify(event.toolInput)}`, false);
+          this.callbacks.onOutput(agentId, `Tool input: ${JSON.stringify(event.toolInput)}`, false, toolStartSubName);
         }
         break;
+      }
 
-      case 'tool_result':
+      case 'tool_result': {
+        // Resolve subagent name for this tool result
+        const toolResultSubName = this.activeSubagentName.get(agentId);
         // Send Bash tool results as text output for display
         // Other tool results are too verbose (file contents, etc.)
         if (event.toolName === 'Bash' && event.toolOutput) {
           // Send as non-streaming to ensure it displays properly in Guake
-          this.callbacks.onOutput(agentId, `Bash output:\n${event.toolOutput}`, false);
+          this.callbacks.onOutput(agentId, `Bash output:\n${event.toolOutput}`, false, toolResultSubName);
+        }
+        // Clear active subagent when Task tool completes
+        if (event.toolName === 'Task') {
+          this.activeSubagentName.delete(agentId);
         }
         break;
+      }
 
       case 'step_complete':
         // Output the result text if available (fallback for non-streamed responses)

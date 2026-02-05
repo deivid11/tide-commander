@@ -428,6 +428,19 @@ export class SceneManager {
     this.effectsManager.createDelegationEffect(bossId, subordinateId);
   }
 
+  addSubagentEffect(subagentId: string, parentAgentId: string, name: string, subagentType: string): void {
+    this.effectsManager.setAgentMeshes(this.agentManager.getAgentMeshes());
+    this.effectsManager.addSubagentEffect(subagentId, parentAgentId, name, subagentType);
+  }
+
+  completeSubagentEffect(subagentId: string): void {
+    this.effectsManager.completeSubagentEffect(subagentId);
+  }
+
+  removeSubagentEffect(subagentId: string): void {
+    this.effectsManager.removeSubagentEffect(subagentId);
+  }
+
   // ============================================
   // Public API - Camera
   // ============================================

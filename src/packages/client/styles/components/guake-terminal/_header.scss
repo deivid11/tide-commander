@@ -775,3 +775,73 @@
   color: var(--accent-green);
   font-weight: bold;
 }
+
+// =============================================================================
+// Subagent Indicators (Claude Code Task tool subprocesses)
+// =============================================================================
+
+.guake-subagents-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 4px;
+  flex-shrink: 0;
+}
+
+.guake-subagent-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: $radius-sm;
+  font-family: $font-mono;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: help;
+  transition: all 0.2s ease;
+
+  &.active {
+    background: rgba($dracula-cyan, 0.12);
+    border: 1px solid rgba($dracula-cyan, 0.4);
+    color: $dracula-cyan;
+    animation: guake-subagent-pulse 2s ease-in-out infinite;
+  }
+
+  &.completed {
+    background: rgba($dracula-green, 0.1);
+    border: 1px solid rgba($dracula-green, 0.3);
+    color: $dracula-green;
+    opacity: 0.7;
+  }
+
+  &.failed {
+    background: rgba($dracula-red, 0.1);
+    border: 1px solid rgba($dracula-red, 0.3);
+    color: $dracula-red;
+    opacity: 0.7;
+  }
+}
+
+.guake-subagent-icon {
+  font-size: 11px;
+  opacity: 0.9;
+}
+
+.guake-subagent-name {
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@keyframes guake-subagent-pulse {
+  0%, 100% {
+    border-color: rgba($dracula-cyan, 0.3);
+    box-shadow: 0 0 2px rgba($dracula-cyan, 0.1);
+  }
+  50% {
+    border-color: rgba($dracula-cyan, 0.6);
+    box-shadow: 0 0 6px rgba($dracula-cyan, 0.2);
+  }
+}

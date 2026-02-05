@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Building } from '@packages/shared/types';
+import { Building } from '@shared/types';
 import { BuildingCardData, DashboardFilters } from './types';
 import {
   buildBuildingCardData,

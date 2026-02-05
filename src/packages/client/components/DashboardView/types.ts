@@ -1,4 +1,4 @@
-import { Agent, Building } from '@packages/shared/types';
+import { Agent, Building } from '@shared/types';
 
 /**
  * Dashboard metrics and statistics

@@ -45,6 +45,9 @@ export const STORAGE_KEYS = {
 
   // Agent Bar
   AGENT_ORDER: 'tide-agent-order',
+
+  // Agent Overview Panel
+  AOP_CONFIG: 'tide-aop-config',
 } as const;
 
 /**

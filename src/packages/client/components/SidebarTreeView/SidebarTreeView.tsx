@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { Agent, Building } from '@packages/shared/types';
+import { Agent, Building } from '@shared/types';
 import { TreeView } from './TreeView';
 import { FilterOptions, StatusColor } from './types';
 import styles from './sidebar-tree-view.module.scss';

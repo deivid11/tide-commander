@@ -44,6 +44,10 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
   const { text: rawText, isStreaming, isUserPrompt, timestamp, skillUpdate, _toolKeyParam, _editData, _todoInput, _bashOutput, _bashCommand, _isRunning } = output;
   const text = filterCostText(rawText, hideCost);
 
+  // Resolve agent name for tool attribution (prefer subagent name if present)
+  const parentAgentName = agentId ? store.getState().agents.get(agentId)?.name : null;
+  const agentName = output.subagentName || parentAgentName;
+
   // All hooks must be called before any conditional returns (Rules of Hooks)
   const [sessionExpanded, setSessionExpanded] = useState(false);
   const { toggle: toggleTTS, speaking } = useTTS();
@@ -183,6 +187,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
         title={isBashTool ? 'Click to view output' : undefined}
       >
         <span className="output-timestamp" title={`${timestamp} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#666', fontFamily: 'monospace'}}>[{debugHash}]</span></span>
+        {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
         <span className="output-tool-icon">{icon}</span>
         <span className="output-tool-name">{toolName}</span>
         {_toolKeyParam && (

@@ -212,6 +212,7 @@ export class ClaudeBackend implements CLIBackend {
             type: 'tool_result',
             toolName,
             toolOutput: content,
+            toolUseId: block.tool_use_id, // Preserve for subagent correlation
           });
           // Clean up the mapping after use (tool_use_id is unique per invocation)
           toolUseIdToName.delete(block.tool_use_id);
@@ -297,11 +298,22 @@ export class ClaudeBackend implements CLIBackend {
           toolUseIdToName.set(block.id, toolName);
           log.log(`parseAssistantEvent: Stored mapping ${block.id} -> ${toolName}`);
         }
-        events.push({
+        const toolEvent: StandardEvent = {
           type: 'tool_start' as const,
           toolName,
           toolInput: block.input,
-        });
+          toolUseId: block.id,
+        };
+        // Extract subagent metadata from Task tool inputs
+        if (toolName === 'Task' && block.input) {
+          const input = block.input as Record<string, unknown>;
+          toolEvent.subagentName = (input.name as string) || (input.description as string) || 'Subagent';
+          toolEvent.subagentDescription = (input.description as string) || '';
+          toolEvent.subagentType = (input.subagent_type as string) || 'general-purpose';
+          toolEvent.subagentModel = (input.model as string) || undefined;
+          log.log(`parseAssistantEvent: Task tool detected - name="${toolEvent.subagentName}", type="${toolEvent.subagentType}", model="${toolEvent.subagentModel || 'inherit'}"`);
+        }
+        events.push(toolEvent);
       }
 
       if (events.length > 0) {

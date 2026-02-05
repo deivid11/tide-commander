@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { store, useSupervisor, useSettings, useLastPrompts } from '../../store';
+import { store, useSupervisor, useSettings, useLastPrompts, useSubagentsForAgent } from '../../store';
 import { filterCostText } from '../../utils/formatting';
 import { STORAGE_KEYS, setStorageString } from '../../utils/storage';
 import { agentDebugger } from '../../services/agentDebugger';
@@ -35,6 +35,9 @@ export interface TerminalHeaderProps {
   isSnapshotView?: boolean;
   /** Callback when user clicks star button to save snapshot */
   onSaveSnapshot?: () => void;
+  /** Agent overview panel open state */
+  overviewPanelOpen?: boolean;
+  setOverviewPanelOpen?: (open: boolean) => void;
 }
 
 export function TerminalHeader({
@@ -56,6 +59,8 @@ export function TerminalHeader({
   headerRef,
   isSnapshotView = false,
   onSaveSnapshot,
+  overviewPanelOpen = false,
+  setOverviewPanelOpen,
 }: TerminalHeaderProps) {
   const supervisor = useSupervisor();
   const settings = useSettings();
@@ -111,6 +116,9 @@ export function TerminalHeader({
   const isBoss = selectedAgent.class === 'boss' || selectedAgent.isBoss;
   const hasSubordinates = isBoss && selectedAgent.subordinateIds && selectedAgent.subordinateIds.length > 0;
 
+  // Check for active subagents (Claude Code Task tool subprocesses)
+  const subagents = useSubagentsForAgent(selectedAgentId);
+
   return (
     <div
       className={`guake-header ${sortedAgents.length > 1 ? 'has-multiple-agents' : ''} ${swipeOffset > 0.1 ? 'swiping-right' : ''} ${swipeOffset < -0.1 ? 'swiping-left' : ''}`}
@@ -160,6 +168,20 @@ export function TerminalHeader({
             {!filteredStatus && lastInput && <span className="guake-last-input">{lastInput}</span>}
           </span>
         )}
+        {subagents.length > 0 && (
+          <span className="guake-subagents-indicator">
+            {subagents.map(sub => (
+              <span
+                key={sub.id}
+                className={`guake-subagent-badge ${sub.status === 'completed' ? 'completed' : sub.status === 'failed' ? 'failed' : 'active'}`}
+                title={`${sub.name} (${sub.subagentType}) - ${sub.status}`}
+              >
+                <span className="guake-subagent-icon">⑂</span>
+                <span className="guake-subagent-name">{sub.name}</span>
+              </span>
+            ))}
+          </span>
+        )}
       </div>
       <div className="guake-actions">
         {/* Star button - show for all conversations with messages (not in snapshot view) */}
@@ -183,6 +205,15 @@ export function TerminalHeader({
               ⭐
             </button>
           </Tooltip>
+        )}
+        {!isSnapshotView && setOverviewPanelOpen && (
+          <button
+            className={`guake-overview-toggle hide-on-mobile ${overviewPanelOpen ? 'active' : ''}`}
+            onClick={() => setOverviewPanelOpen(!overviewPanelOpen)}
+            title={overviewPanelOpen ? 'Hide Agent Overview' : 'Show Agent Overview'}
+          >
+            📊
+          </button>
         )}
         {!isSnapshotView && (
           <button
@@ -221,39 +252,43 @@ export function TerminalHeader({
         >
           {viewMode === 'simple' ? '○' : viewMode === 'chat' ? '◐' : '◉'}
         </button>
-        {outputsLength > 0 && (
-          <button
-            className="guake-clear"
-            onClick={() => store.clearOutputs(selectedAgentId)}
-            title="Clear output"
-          >
-            🗑
-          </button>
-        )}
-        <button
-          className="guake-context-btn hide-on-mobile"
-          onClick={() => setContextConfirm('collapse')}
-          title="Collapse context - summarize conversation to save tokens"
-          disabled={selectedAgent.status !== 'idle'}
-        >
-          📦 Collapse
-        </button>
-        <button
-          className="guake-context-btn danger hide-on-mobile"
-          onClick={() => setContextConfirm('clear')}
-          title="Clear context - start fresh session"
-        >
-          🗑️ Clear Context
-        </button>
-        {/* Boss-only: Clear all subordinates' context */}
-        {hasSubordinates && (
-          <button
-            className="guake-context-btn danger hide-on-mobile"
-            onClick={() => setContextConfirm('clear-subordinates')}
-            title="Clear context for all subordinate agents"
-          >
-            👑🗑️ Clear All Subordinates
-          </button>
+        {!isSnapshotView && (
+          <>
+            {outputsLength > 0 && (
+              <button
+                className="guake-clear"
+                onClick={() => store.clearOutputs(selectedAgentId)}
+                title="Clear output"
+              >
+                🗑
+              </button>
+            )}
+            <button
+              className="guake-context-btn hide-on-mobile"
+              onClick={() => setContextConfirm('collapse')}
+              title="Collapse context - summarize conversation to save tokens"
+              disabled={selectedAgent.status !== 'idle'}
+            >
+              📦 Collapse
+            </button>
+            <button
+              className="guake-context-btn danger hide-on-mobile"
+              onClick={() => setContextConfirm('clear')}
+              title="Clear context - start fresh session"
+            >
+              🗑️ Clear Context
+            </button>
+            {/* Boss-only: Clear all subordinates' context */}
+            {hasSubordinates && (
+              <button
+                className="guake-context-btn danger hide-on-mobile"
+                onClick={() => setContextConfirm('clear-subordinates')}
+                title="Clear context for all subordinate agents"
+              >
+                👑🗑️ Clear All Subordinates
+              </button>
+            )}
+          </>
         )}
         {/* Mobile close button - switch to 3D view */}
         <button

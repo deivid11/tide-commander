@@ -315,11 +315,13 @@ export class CharacterFactory {
       side: THREE.DoubleSide,
       transparent: true,
       opacity: 0,
+      depthTest: false,
     });
 
     const ring = new THREE.Mesh(geometry, material);
     ring.rotation.x = -Math.PI / 2;
     ring.position.y = 0.05;
+    ring.renderOrder = 999;
     ring.name = 'selectionRing';
 
     return ring;

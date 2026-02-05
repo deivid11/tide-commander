@@ -20,6 +20,7 @@ import type {
   Secret,
   QueryResult,
   QueryHistoryEntry,
+  Subagent,
 } from '../../shared/types';
 import type {
   StoreState,
@@ -961,4 +962,48 @@ export function useSnapshotsLoading(): boolean {
  */
 export function useSnapshotsError(): string | null {
   return useSelector((state: StoreState) => state.snapshotsError);
+}
+
+// ============================================================================
+// SUBAGENT SELECTORS
+// ============================================================================
+
+/**
+ * Get all subagents map
+ */
+export function useSubagents(): Map<string, Subagent> {
+  return useSelector((state: StoreState) => state.subagents, shallowMapEqual);
+}
+
+/**
+ * Get subagents for a specific parent agent
+ */
+export function useSubagentsForAgent(parentAgentId: string | null): Subagent[] {
+  return useSelector(
+    useCallback(
+      (state: StoreState) => {
+        if (!parentAgentId) return [];
+        return Array.from(state.subagents.values()).filter(
+          (s) => s.parentAgentId === parentAgentId
+        );
+      },
+      [parentAgentId]
+    ),
+    shallowArrayEqual
+  );
+}
+
+// ============================================================================
+// VIEW MODE SELECTORS
+// ============================================================================
+
+/**
+ * Get current view mode
+ */
+export function useViewMode(): StoreState['viewMode'] {
+  return useSelector((state: StoreState) => state.viewMode);
+}
+
+export function useOverviewPanelOpen(): boolean {
+  return useSelector(useCallback((state: StoreState) => state.overviewPanelOpen, []));
 }

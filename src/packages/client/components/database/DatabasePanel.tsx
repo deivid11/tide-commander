@@ -222,7 +222,7 @@ export const DatabasePanel: React.FC<DatabasePanelProps> = ({ building, onClose 
           connectionId: t.connectionId,
           database: t.database,
         })),
-        activeTabId,
+        activeTabId: activeTabId ?? undefined,
       });
     }
   }, [building.id, activeConnectionId, activeDatabase, query, initialized, openTabs, activeTabId, queries]);

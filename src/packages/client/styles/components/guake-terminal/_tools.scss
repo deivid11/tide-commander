@@ -76,6 +76,24 @@
   animation: pulse-dots 1.5s infinite;
 }
 
+// Agent name badge shown next to tool usage
+.output-agent-badge {
+  font-family: $font-mono;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent-pink);
+  background: rgba(var(--accent-pink-rgb, 255, 121, 198), 0.12);
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid rgba(var(--accent-pink-rgb, 255, 121, 198), 0.25);
+  white-space: nowrap;
+  flex-shrink: 0;
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: default;
+}
+
 // Simple view tool - more compact
 .output-tool-simple {
   padding: 3px 8px;

@@ -41,7 +41,7 @@ export function FullLayoutExample() {
     if (multi) {
       // Multi-select with Ctrl/Cmd+Click
       if (state.selectedAgentIds.has(agentId)) {
-        store.removeFromSelection(agentId);
+        store.addToSelection(agentId);
       } else {
         store.addToSelection(agentId);
       }

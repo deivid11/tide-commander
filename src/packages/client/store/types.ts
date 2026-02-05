@@ -27,6 +27,7 @@ import type {
   ForeignKey,
   ExistingDockerContainer,
   ExistingComposeProject,
+  Subagent,
 } from '../../shared/types';
 import type { ShortcutConfig } from './shortcuts';
 import type { MouseControlsState } from './mouseControls';
@@ -56,6 +57,7 @@ export interface ClaudeOutput {
   isUserPrompt?: boolean; // True if this is a user-sent command
   isDelegation?: boolean; // True if this is a delegation message from a boss agent
   skillUpdate?: SkillUpdateData; // True if this is a skill update notification
+  subagentName?: string; // Name of the subagent that produced this output (for badge display)
 }
 
 // Tool execution entry
@@ -230,6 +232,12 @@ export interface StoreState {
   lastSelectionViaSwipe: boolean;
   // Flag to track if last agent selection was via direct click on agent bar (prevents autofocus)
   lastSelectionViaDirectClick: boolean;
+  // Virtual subagents (Task tool spawned by Claude Code)
+  subagents: Map<string, Subagent>;  // subagent.id -> Subagent
+  // View mode for main viewport (3d, 2d, dashboard)
+  viewMode: '2d' | '3d' | 'dashboard';
+  // Agent overview panel open state (persists across agent switches)
+  overviewPanelOpen: boolean;
 }
 
 // Database building state

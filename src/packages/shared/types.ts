@@ -168,6 +168,58 @@ export interface Agent {
 export type DrawingTool = 'rectangle' | 'circle' | 'select' | null;
 
 // ============================================================================
+// Subagent Types (Claude Code Task tool spawned agents)
+// ============================================================================
+
+// Virtual subagent status
+export type SubagentStatus = 'spawning' | 'working' | 'completed' | 'failed';
+
+// Virtual subagent - represents a Task tool subagent spawned by Claude Code
+export interface Subagent {
+  id: string;                        // Generated ID for this virtual subagent
+  parentAgentId: string;             // The TC agent that spawned this subagent
+  toolUseId: string;                 // The tool_use_id that created this subagent
+  name: string;                      // Name from Task input (e.g., "UX Analyst")
+  description: string;               // Description from Task input
+  subagentType: string;              // e.g., "general-purpose", "Explore", "Bash"
+  model?: string;                    // Model used (e.g., "opus", "sonnet")
+  status: SubagentStatus;
+  startedAt: number;
+  completedAt?: number;
+  // Position near parent agent
+  position?: { x: number; y: number; z: number };
+}
+
+// Subagent started message (Server -> Client)
+export interface SubagentStartedMessage extends WSMessage {
+  type: 'subagent_started';
+  payload: Subagent;
+}
+
+// Subagent output message (Server -> Client)
+export interface SubagentOutputMessage extends WSMessage {
+  type: 'subagent_output';
+  payload: {
+    subagentId: string;
+    parentAgentId: string;
+    text: string;
+    isStreaming: boolean;
+    timestamp: number;
+  };
+}
+
+// Subagent completed message (Server -> Client)
+export interface SubagentCompletedMessage extends WSMessage {
+  type: 'subagent_completed';
+  payload: {
+    subagentId: string;
+    parentAgentId: string;
+    success: boolean;
+    resultPreview?: string;           // First 500 chars of result
+  };
+}
+
+// ============================================================================
 // Boss Agent Types
 // ============================================================================
 
@@ -2332,7 +2384,10 @@ export type ServerMessage =
   | SnapshotCreatedMessage
   | SnapshotDeletedMessage
   | SnapshotDetailsMessage
-  | SnapshotRestoredMessage;
+  | SnapshotRestoredMessage
+  | SubagentStartedMessage
+  | SubagentOutputMessage
+  | SubagentCompletedMessage;
 
 export type ClientMessage =
   | SpawnAgentMessage

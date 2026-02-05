@@ -1,4 +1,4 @@
-import { Agent, Building, AgentStatus, BuildingStatus } from '@packages/shared/types';
+import { Agent, Building } from '@shared/types';
 import { TreeNodeData, StatusColor, ExpandedState, FilterOptions } from './types';
 
 /**

@@ -689,6 +689,7 @@ export class AgentManager {
     const customMapping = characterBody?.userData?.animationMapping as AnimationMapping | undefined;
 
     if (customMapping) {
+      // Check if custom mapping exists for this status and the animation is available
       if ((status === 'idle') && customMapping.idle) {
         if (meshData.animations.has(customMapping.idle) || meshData.animations.has(customMapping.idle.toLowerCase())) {
           return customMapping.idle;
@@ -699,11 +700,16 @@ export class AgentManager {
           return customMapping.working;
         }
       }
-      // If custom mapping exists but no mapping is set for this status, return null (no animation)
-      if ((status === 'idle') && !customMapping.idle) {
+
+      // If custom mapping exists but no mapping is SET (explicitly null/undefined) for this status,
+      // fall through to default animations. Only return null if the mapping value is the empty string
+      // which explicitly means "no animation for this status".
+      const idleMapping = customMapping.idle;
+      const workingMapping = customMapping.working;
+      if ((status === 'idle') && idleMapping === '') {
         return null;
       }
-      if ((status === 'working' || status === 'orphaned') && !customMapping.working) {
+      if ((status === 'working' || status === 'orphaned') && workingMapping === '') {
         return null;
       }
     }

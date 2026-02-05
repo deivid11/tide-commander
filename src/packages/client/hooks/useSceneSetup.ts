@@ -426,6 +426,12 @@ export function useSceneSetup({
       onBuildingUpdated: (building) => {
         sceneRef.current?.updateBuilding(building);
       },
+      onSubagentStarted: (subagent) => {
+        sceneRef.current?.addSubagentEffect(subagent.id, subagent.parentAgentId, subagent.name, subagent.subagentType);
+      },
+      onSubagentCompleted: (subagentId) => {
+        sceneRef.current?.completeSubagentEffect(subagentId);
+      },
     });
 
     // Cleanup when canvas unmounts (mode switch to 2D or page unload)

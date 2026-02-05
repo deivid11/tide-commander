@@ -52,6 +52,12 @@ export interface StandardEvent {
   }>;
   contextStatsRaw?: string;  // Raw /context command output for parsing
   usageStatsRaw?: string;    // Raw /usage command output for parsing
+  // Subagent fields (for Task tool events)
+  subagentName?: string;       // Task input.name
+  subagentDescription?: string;// Task input.description
+  subagentType?: string;       // Task input.subagent_type
+  subagentModel?: string;      // Task input.model
+  toolUseId?: string;          // tool_use block ID (for correlating subagent results)
 }
 
 // Custom agent definition for --agents flag
@@ -187,7 +193,7 @@ export interface RunnerRequest {
 // Runner callbacks
 export interface RunnerCallbacks {
   onEvent: (agentId: string, event: StandardEvent) => void;
-  onOutput: (agentId: string, text: string, isStreaming?: boolean) => void;
+  onOutput: (agentId: string, text: string, isStreaming?: boolean, subagentName?: string) => void;
   onSessionId: (agentId: string, sessionId: string) => void;
   onComplete: (agentId: string, success: boolean) => void;
   onError: (agentId: string, error: string) => void;

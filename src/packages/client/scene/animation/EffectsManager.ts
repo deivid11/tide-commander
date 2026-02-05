@@ -51,6 +51,19 @@ interface DelegationEffect {
 }
 
 /**
+ * Subagent indicator effect - small sprite showing a virtual subagent near parent.
+ */
+interface SubagentEffect {
+  sprite: THREE.Sprite;
+  subagentId: string;
+  parentAgentId: string;
+  name: string;
+  subagentType: string;
+  startTime: number;
+  completed: boolean;
+}
+
+/**
  * Pooled sprite for reuse
  */
 interface PooledSprite {
@@ -69,6 +82,7 @@ export class EffectsManager {
   private sleepingEffects: SleepingEffect[] = [];
   private waitingPermissionEffects: WaitingPermissionEffect[] = [];
   private delegationEffects: DelegationEffect[] = [];
+  private subagentEffects: SubagentEffect[] = [];
   private agentMeshes: Map<string, THREE.Group> = new Map();
 
   // ============================================
@@ -109,7 +123,8 @@ export class EffectsManager {
       this.speechBubbles.length > 0 ||
       this.sleepingEffects.length > 0 ||
       this.waitingPermissionEffects.length > 0 ||
-      this.delegationEffects.length > 0;
+      this.delegationEffects.length > 0 ||
+      this.subagentEffects.length > 0;
   }
 
   /**
@@ -893,6 +908,9 @@ export class EffectsManager {
 
     // Update delegation effects
     this.updateDelegationEffects(now);
+
+    // Update subagent effects
+    this.updateSubagentEffects(now);
   }
 
   /**
@@ -1151,6 +1169,192 @@ export class EffectsManager {
     });
   }
 
+  // ============================================
+  // SUBAGENT EFFECTS
+  // ============================================
+
+  /**
+   * Create a subagent indicator sprite near the parent agent.
+   */
+  addSubagentEffect(subagentId: string, parentAgentId: string, name: string, subagentType: string): void {
+    const agentGroup = this.agentMeshes.get(parentAgentId);
+    if (!agentGroup) {
+      console.warn(`[EffectsManager] Cannot add subagent effect: parent agent ${parentAgentId} not found`);
+      return;
+    }
+
+    // Check if already exists
+    if (this.subagentEffects.find(e => e.subagentId === subagentId)) return;
+
+    // Create canvas texture for the badge
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d')!;
+
+    // Badge background
+    ctx.fillStyle = 'rgba(30, 30, 60, 0.85)';
+    const radius = 12;
+    ctx.beginPath();
+    ctx.moveTo(radius, 0);
+    ctx.lineTo(canvas.width - radius, 0);
+    ctx.quadraticCurveTo(canvas.width, 0, canvas.width, radius);
+    ctx.lineTo(canvas.width, canvas.height - radius);
+    ctx.quadraticCurveTo(canvas.width, canvas.height, canvas.width - radius, canvas.height);
+    ctx.lineTo(radius, canvas.height);
+    ctx.quadraticCurveTo(0, canvas.height, 0, canvas.height - radius);
+    ctx.lineTo(0, radius);
+    ctx.quadraticCurveTo(0, 0, radius, 0);
+    ctx.closePath();
+    ctx.fill();
+
+    // Border
+    ctx.strokeStyle = 'rgba(100, 180, 255, 0.8)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Icon (fork symbol for subagent)
+    ctx.fillStyle = '#64b4ff';
+    ctx.font = 'bold 28px monospace';
+    ctx.fillText('⑂', 8, 40);
+
+    // Name text
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '22px sans-serif';
+    const displayName = name.length > 14 ? name.slice(0, 12) + '..' : name;
+    ctx.fillText(displayName, 40, 38);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.needsUpdate = true;
+
+    const material = new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      opacity: 0.85,
+      depthTest: false,
+    });
+
+    const sprite = new THREE.Sprite(material);
+    sprite.scale.set(1.5, 0.4, 1);
+
+    // Position offset from parent - distribute subagents in arc
+    const existingCount = this.subagentEffects.filter(e => e.parentAgentId === parentAgentId && !e.completed).length;
+    const angle = (existingCount * Math.PI / 4) - Math.PI / 4; // spread in front
+    const offsetRadius = 1.5;
+    const parentPos = agentGroup.position;
+
+    sprite.position.set(
+      parentPos.x + Math.sin(angle) * offsetRadius,
+      parentPos.y + 2.5 + existingCount * 0.5,
+      parentPos.z + Math.cos(angle) * offsetRadius
+    );
+
+    this.scene.add(sprite);
+
+    this.subagentEffects.push({
+      sprite,
+      subagentId,
+      parentAgentId,
+      name,
+      subagentType,
+      startTime: performance.now(),
+      completed: false,
+    });
+
+    this.markDirty();
+    console.log(`[EffectsManager] Added subagent effect: ${name} (${subagentId}) near ${parentAgentId}`);
+  }
+
+  /**
+   * Mark a subagent effect as completed (will fade out).
+   */
+  completeSubagentEffect(subagentId: string): void {
+    const effect = this.subagentEffects.find(e => e.subagentId === subagentId);
+    if (effect) {
+      effect.completed = true;
+      this.markDirty();
+    }
+  }
+
+  /**
+   * Remove a subagent effect.
+   */
+  removeSubagentEffect(subagentId: string): void {
+    const index = this.subagentEffects.findIndex(e => e.subagentId === subagentId);
+    if (index !== -1) {
+      const effect = this.subagentEffects[index];
+      this.scene.remove(effect.sprite);
+      effect.sprite.material.map?.dispose();
+      effect.sprite.material.dispose();
+      this.subagentEffects.splice(index, 1);
+      this.markDirty();
+    }
+  }
+
+  /**
+   * Update subagent effects (follow parent position, fade completed ones).
+   */
+  updateSubagentEffects(time: number): void {
+    const toRemove: number[] = [];
+
+    for (let i = 0; i < this.subagentEffects.length; i++) {
+      const effect = this.subagentEffects[i];
+      const agentGroup = this.agentMeshes.get(effect.parentAgentId);
+
+      if (!agentGroup) {
+        toRemove.push(i);
+        continue;
+      }
+
+      // Follow parent position
+      const existingBefore = this.subagentEffects
+        .slice(0, i)
+        .filter(e => e.parentAgentId === effect.parentAgentId && !e.completed).length;
+      const angle = (existingBefore * Math.PI / 4) - Math.PI / 4;
+      const offsetRadius = 1.5;
+      const parentPos = agentGroup.position;
+
+      effect.sprite.position.set(
+        parentPos.x + Math.sin(angle) * offsetRadius,
+        parentPos.y + 2.5 + existingBefore * 0.5,
+        parentPos.z + Math.cos(angle) * offsetRadius
+      );
+
+      // Gentle floating animation
+      const elapsed = (time - effect.startTime) / 1000;
+      effect.sprite.position.y += Math.sin(elapsed * 1.5) * 0.05;
+
+      // Fade completed subagents
+      if (effect.completed) {
+        const fadeStart = effect.startTime;
+        const fadeElapsed = (time - fadeStart) / 1000;
+        // Start fading 2 seconds after completion
+        if (fadeElapsed > 2) {
+          const opacity = Math.max(0, 0.85 - (fadeElapsed - 2) * 0.3);
+          effect.sprite.material.opacity = opacity;
+          if (opacity <= 0) {
+            toRemove.push(i);
+          }
+        }
+      }
+
+      // Pulse opacity for active subagents
+      if (!effect.completed) {
+        effect.sprite.material.opacity = 0.75 + Math.sin(elapsed * 2) * 0.1;
+      }
+    }
+
+    // Remove faded out effects
+    for (let i = toRemove.length - 1; i >= 0; i--) {
+      const idx = toRemove[i];
+      const effect = this.subagentEffects[idx];
+      this.scene.remove(effect.sprite);
+      effect.sprite.material.map?.dispose();
+      effect.sprite.material.dispose();
+      this.subagentEffects.splice(idx, 1);
+    }
+  }
+
   /**
    * Remove all effects for a specific agent.
    */
@@ -1163,6 +1367,14 @@ export class EffectsManager {
 
     // Remove speech bubble
     this.removeSpeechBubble(agentId);
+
+    // Remove subagent effects (for both parent and child relationships)
+    const subagentIdsToRemove = this.subagentEffects
+      .filter(e => e.parentAgentId === agentId)
+      .map(e => e.subagentId);
+    for (const id of subagentIdsToRemove) {
+      this.removeSubagentEffect(id);
+    }
 
     // Remove from agent meshes reference
     this.agentMeshes.delete(agentId);
@@ -1209,6 +1421,14 @@ export class EffectsManager {
       bubble.sprite.material.dispose();
     }
     this.speechBubbles = [];
+
+    // Clear subagent effects
+    for (const effect of this.subagentEffects) {
+      this.scene.remove(effect.sprite);
+      effect.sprite.material.map?.dispose();
+      effect.sprite.material.dispose();
+    }
+    this.subagentEffects = [];
   }
 
   /**

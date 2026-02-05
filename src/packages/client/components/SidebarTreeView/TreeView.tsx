@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, ReactNode } from 'react';
-import { Agent, Building } from '@packages/shared/types';
+import { Agent, Building } from '@shared/types';
 import { TreeNodeItem } from './TreeNodeItem';
 import { TreeNodeData, ExpandedState, FilterOptions } from './types';
 import {
@@ -92,16 +92,16 @@ export const TreeView = React.memo(
         const agent = node.data as Agent;
         if (agent.subordinateIds) {
           childNodes = agent.subordinateIds
-            .map((id) => {
+            .map((id): TreeNodeData | null => {
               const subAgent = allAgents.get(id);
               if (!subAgent) return null;
 
               return {
                 id: subAgent.id,
                 label: subAgent.name,
-                type: 'agent' as const,
+                type: 'agent',
                 icon: node.icon,
-                status: 'working' as const,
+                status: 'working',
                 level: node.level + 1,
                 hasChildren: (subAgent.subordinateIds || []).length > 0,
                 data: subAgent,
@@ -115,16 +115,16 @@ export const TreeView = React.memo(
         const building = node.data as Building;
         if (building.subordinateBuildingIds) {
           childNodes = building.subordinateBuildingIds
-            .map((id) => {
+            .map((id): TreeNodeData | null => {
               const subBuilding = allBuildings.get(id);
               if (!subBuilding) return null;
 
               return {
                 id: subBuilding.id,
                 label: subBuilding.name,
-                type: 'building' as const,
+                type: 'building',
                 icon: node.icon,
-                status: 'working' as const,
+                status: 'working',
                 level: node.level + 1,
                 hasChildren: (subBuilding.subordinateBuildingIds || []).length > 0,
                 data: subBuilding,

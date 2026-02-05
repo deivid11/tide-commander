@@ -1,5 +1,5 @@
 import React, { useMemo, useCallback } from 'react';
-import { Agent } from '@packages/shared/types';
+import { Agent } from '@shared/types';
 import { AgentCardData, DashboardFilters } from './types';
 import {
   buildAgentCardData,
