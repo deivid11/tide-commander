@@ -487,6 +487,10 @@ export class SceneManager {
     this.callbackManager.setOnGroundClick(callback);
   }
 
+  setOnToast(callback: (type: 'error' | 'success' | 'warning' | 'info', title: string, message: string) => void): void {
+    this.agentManager.setOnToast(callback);
+  }
+
   // ============================================
   // Public API - Config
   // ============================================

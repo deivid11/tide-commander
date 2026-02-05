@@ -41,6 +41,7 @@ export class AgentManager {
   // Callbacks for external updates
   private onAgentMeshesChanged: (() => void) | null = null;
   private onProceduralCacheInvalidated: (() => void) | null = null;
+  private onToast: ((type: 'error' | 'success' | 'warning' | 'info', title: string, message: string) => void) | null = null;
 
   constructor(
     scene: THREE.Scene,
@@ -68,6 +69,10 @@ export class AgentManager {
 
   setOnProceduralCacheInvalidated(callback: () => void): void {
     this.onProceduralCacheInvalidated = callback;
+  }
+
+  setOnToast(callback: (type: 'error' | 'success' | 'warning' | 'info', title: string, message: string) => void): void {
+    this.onToast = callback;
   }
 
   // ============================================
@@ -401,7 +406,9 @@ export class AgentManager {
         this.characterLoader.loadCustomModel(customClass.id).then(() => {
           console.log(`[AgentManager] Successfully preloaded custom model for class ${customClass.id}`);
         }).catch(err => {
+          const errorMsg = err instanceof Error ? err.message : String(err);
           console.error(`[AgentManager] Failed to preload custom model for class ${customClass.id}:`, err);
+          this.onToast?.('error', 'Model Load Failed', `Failed to load custom model for ${customClass.name}: ${errorMsg}`);
         });
       }
     }
@@ -519,8 +526,10 @@ export class AgentManager {
         console.log(`[AgentManager] Custom model loaded for class ${agent.class}, now adding agent ${agent.name}`);
         this.addAgentInternal(agent);
       }).catch(err => {
+        const errorMsg = err instanceof Error ? err.message : String(err);
         console.error(`[AgentManager] Failed to load custom model for ${agent.class}:`, err);
         console.warn(`[AgentManager] Using fallback model for agent ${agent.name}`);
+        this.onToast?.('warning', 'Model Load Failed', `Could not load custom model for ${agent.class}, using fallback`);
         this.addAgentInternal(agent);
       });
       return;

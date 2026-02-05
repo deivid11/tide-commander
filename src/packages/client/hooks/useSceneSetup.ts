@@ -186,6 +186,9 @@ export function useSceneSetup({
 
     // Helper function to set up scene callbacks - defined here so it's available to both branches
     function setupSceneCallbacks() {
+      // Set up toast callback for agent manager notifications
+      sceneRef.current?.setOnToast(_showToast);
+
       // Set up building click callback
       sceneRef.current?.setOnBuildingClick((buildingId, screenPos) => {
         store.selectBuilding(buildingId);
