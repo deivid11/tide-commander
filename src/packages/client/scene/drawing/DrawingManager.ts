@@ -160,10 +160,19 @@ export class DrawingManager {
 
   /**
    * Render all areas from store.
+   * Skips archived areas.
    */
   renderAllAreas(): void {
     const state = store.getState();
     for (const area of state.areas.values()) {
+      // Skip archived areas
+      if (area.archived) {
+        // Remove mesh if it exists (area was just archived)
+        if (this.areaMeshes.has(area.id)) {
+          this.removeAreaMesh(area.id);
+        }
+        continue;
+      }
       if (!this.areaMeshes.has(area.id)) {
         this.renderArea(area);
       }
@@ -566,14 +575,16 @@ export class DrawingManager {
   /**
    * Get area at a world position.
    * Areas are checked in reverse z-order (highest zIndex first) so topmost area is selected.
+   * Archived areas are excluded.
    */
   getAreaAtPosition(pos: { x: number; z: number }): DrawingArea | null {
     const state = store.getState();
 
     // Sort areas by zIndex descending (highest first) so we check topmost areas first
-    const sortedAreas = Array.from(state.areas.values()).sort(
-      (a, b) => (b.zIndex ?? 0) - (a.zIndex ?? 0)
-    );
+    // Filter out archived areas
+    const sortedAreas = Array.from(state.areas.values())
+      .filter((a) => !a.archived)
+      .sort((a, b) => (b.zIndex ?? 0) - (a.zIndex ?? 0));
 
     for (const area of sortedAreas) {
       if (area.type === 'rectangle' && area.width && area.height) {
@@ -601,20 +612,24 @@ export class DrawingManager {
 
   /**
    * Sync areas from store (e.g., after loading from localStorage).
+   * Removes meshes for deleted or archived areas.
    */
   syncFromStore(): void {
     const state = store.getState();
 
-    // Remove meshes for deleted areas
+    // Remove meshes for deleted OR archived areas
     for (const areaId of this.areaMeshes.keys()) {
-      if (!state.areas.has(areaId)) {
+      const area = state.areas.get(areaId);
+      if (!area || area.archived) {
         this.removeAreaMesh(areaId);
       }
     }
 
-    // Add/update meshes for existing areas
+    // Add/update meshes for visible (non-archived) areas only
     for (const area of state.areas.values()) {
-      this.renderArea(area);
+      if (!area.archived) {
+        this.renderArea(area);
+      }
     }
   }
 

@@ -68,6 +68,7 @@ function AppContent() {
   const agentEditModal = useModalState<string>();
   const snapshotsModal = useModalState();
   const saveSnapshotModal = useModalState();
+  const restoreArchivedModal = useModalState<{ x: number; z: number } | null>();
   const explorerModal = useModalStateWithId();
   const explorerFolderPath = useExplorerFolderPath();
   const contextMenu = useContextMenu();
@@ -350,6 +351,7 @@ function AppContent() {
         openAgentEditModal: (agentId) => agentEditModal.open(agentId),
         requestBuildingDelete: (buildingId) => setPendingBuildingDelete(buildingId),
         setSpawnPosition,
+        openRestoreArchivedModal: (worldPos) => restoreArchivedModal.open(worldPos),
         sceneRef,
       }
     );
@@ -366,6 +368,7 @@ function AppContent() {
     commanderModal,
     explorerModal,
     agentEditModal,
+    restoreArchivedModal,
     showToast,
     sceneRef,
   ]);
@@ -897,6 +900,7 @@ function AppContent() {
         buildingModal={buildingModal}
         agentEditModal={agentEditModal}
         snapshotsModal={snapshotsModal}
+        restoreArchivedModal={restoreArchivedModal}
         explorerModal={explorerModal}
         contextMenu={contextMenu}
         spawnPosition={spawnPosition}
@@ -916,6 +920,10 @@ function AppContent() {
         onOpenPM2LogsModal={(buildingId) => setPm2LogsModalBuildingId(buildingId)}
         onOpenBossLogsModal={(buildingId) => setBossLogsModalBuildingId(buildingId)}
         onOpenDatabasePanel={(buildingId) => setDatabasePanelBuildingId(buildingId)}
+        onSyncScene={() => {
+          sceneRef.current?.syncAreas();
+          sceneRef.current?.syncAgents(Array.from(store.getState().agents.values()));
+        }}
       />
     </div>
   );

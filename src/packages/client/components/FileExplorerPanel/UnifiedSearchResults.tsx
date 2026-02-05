@@ -61,6 +61,7 @@ interface FilenameResultItemProps {
   query: string;
   isSelected: boolean;
   onSelect: (node: TreeNode) => void;
+  lineNumber?: number;
 }
 
 const FilenameResultItem = memo(function FilenameResultItem({
@@ -68,6 +69,7 @@ const FilenameResultItem = memo(function FilenameResultItem({
   query,
   isSelected,
   onSelect,
+  lineNumber,
 }: FilenameResultItemProps) {
   return (
     <div
@@ -80,6 +82,7 @@ const FilenameResultItem = memo(function FilenameResultItem({
       <div className="search-result-info">
         <span className="search-result-name">
           <HighlightMatch text={node.name} query={query} />
+          {lineNumber && <span className="search-result-line-badge">:{lineNumber}</span>}
         </span>
         <span className="search-result-path">{node.path}</span>
       </div>
@@ -153,6 +156,7 @@ export interface UnifiedSearchResultsProps {
   onSelectContent: (path: string, line?: number) => void;
   selectedPath: string | null;
   query: string;
+  lineNumber?: number;
 }
 
 function UnifiedSearchResultsComponent({
@@ -162,6 +166,7 @@ function UnifiedSearchResultsComponent({
   onSelectContent,
   selectedPath,
   query,
+  lineNumber,
 }: UnifiedSearchResultsProps) {
   const hasFilenameResults = filenameResults.length > 0;
   const hasContentResults = contentResults.length > 0;
@@ -188,6 +193,7 @@ function UnifiedSearchResultsComponent({
                 query={query}
                 isSelected={selectedPath === node.path}
                 onSelect={onSelectFile}
+                lineNumber={lineNumber}
               />
             ))}
           </div>

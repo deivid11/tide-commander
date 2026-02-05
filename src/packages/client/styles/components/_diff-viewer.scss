@@ -186,6 +186,25 @@
   }
 }
 
+// Connector gutter between left and right panels (IntelliJ-style)
+.diff-connector-gutter {
+  flex-shrink: 0;
+  width: 40px;
+  overflow: hidden;
+  position: relative;
+  background: $dracula-bg-darker;
+  border-left: 1px solid $dracula-current;
+  border-right: 1px solid $dracula-current;
+
+  canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+}
+
 .diff-panel {
   flex: 1;
   display: flex;
@@ -282,6 +301,20 @@
       color: $dracula-fg;
     }
   }
+
+  // Horizontal hunk boundary lines (IntelliJ-style)
+  &.diff-hunk-top {
+    box-shadow: inset 0 1px 0 0 rgba($dracula-comment, 0.5);
+  }
+
+  &.diff-hunk-bottom {
+    box-shadow: inset 0 -1px 0 0 rgba($dracula-comment, 0.5);
+  }
+
+  &.diff-hunk-top.diff-hunk-bottom {
+    box-shadow: inset 0 1px 0 0 rgba($dracula-comment, 0.5),
+                inset 0 -1px 0 0 rgba($dracula-comment, 0.5);
+  }
 }
 
 .diff-line-num {
@@ -306,6 +339,10 @@
 @media (max-width: 900px) {
   .diff-viewer-panels {
     flex-direction: column;
+  }
+
+  .diff-connector-gutter {
+    display: none;
   }
 
   .diff-panel {

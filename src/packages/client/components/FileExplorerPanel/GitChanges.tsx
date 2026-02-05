@@ -2,45 +2,156 @@
  * GitChanges - Git status panel component
  *
  * Displays git status with modified, added, deleted, and untracked files.
- * Following ClaudeOutputPanel's component decomposition pattern.
+ * Supports two view modes: flat list (grouped by status) and directory tree.
  */
 
-import React, { memo } from 'react';
+import React, { memo, useState, useMemo, useEffect, useCallback } from 'react';
 import type { GitChangesProps, GitFileStatusType, GitFileStatus } from './types';
 import { GIT_STATUS_CONFIG } from './constants';
+import { buildGitTree, collectGitTreeDirPaths, getIconForExtension } from './fileUtils';
+import type { GitTreeNode } from './fileUtils';
+
+type GitViewMode = 'flat' | 'tree';
 
 // ============================================================================
-// GIT FILE ITEM
+// GIT FILE ITEM (used in both flat and tree modes)
 // ============================================================================
 
 interface GitFileItemProps {
   file: GitFileStatus;
   isSelected: boolean;
   onSelect: (path: string, status: GitFileStatusType) => void;
+  status: GitFileStatusType;
+  onStage?: (path: string) => void;
+  isStaging?: boolean;
+  showDirPath?: boolean;
 }
 
 const GitFileItem = memo(function GitFileItem({
   file,
   isSelected,
   onSelect,
+  status,
+  onStage,
+  isStaging,
+  showDirPath,
 }: GitFileItemProps) {
-  const config = GIT_STATUS_CONFIG[file.status];
-  const isDeleted = file.status === 'deleted';
+  const config = GIT_STATUS_CONFIG[status];
+  const isDeleted = status === 'deleted';
+  const showStageBtn = status === 'untracked' && onStage;
+  const ext = file.name.includes('.') ? '.' + file.name.split('.').pop() : '';
+  const dirPath = showDirPath && file.path.includes('/')
+    ? file.path.slice(0, file.path.lastIndexOf('/'))
+    : '';
 
   return (
     <div
       className={`git-file-item ${isSelected ? 'selected' : ''}`}
-      onClick={() => !isDeleted && onSelect(file.path, file.status)}
+      onClick={() => !isDeleted && onSelect(file.path, status)}
       style={{ cursor: isDeleted ? 'not-allowed' : 'pointer' }}
+      title={file.path}
     >
+      <span className="tree-arrow-spacer" />
+      <span className="tree-icon">{getIconForExtension(ext)}</span>
+      <span className="git-file-name">
+        {file.name}
+        {dirPath && <span className="git-file-dir">{dirPath}</span>}
+      </span>
       <span className="git-file-status" style={{ color: config.color }}>
         {config.icon}
       </span>
-      <span className="git-file-name">{file.name}</span>
       {file.oldPath && (
         <span className="git-file-renamed">
           ← {file.oldPath.split('/').pop()}
         </span>
+      )}
+      {showStageBtn && (
+        <button
+          className={`git-stage-btn ${isStaging ? 'staging' : ''}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (!isStaging) onStage(file.path);
+          }}
+          title="Stage file (git add)"
+          disabled={isStaging}
+        >
+          {isStaging ? '...' : '+'}
+        </button>
+      )}
+    </div>
+  );
+});
+
+// ============================================================================
+// GIT TREE NODE ITEM (recursive directory/file renderer for tree mode)
+// ============================================================================
+
+interface GitTreeNodeItemProps {
+  node: GitTreeNode;
+  expandedDirs: Set<string>;
+  onToggleDir: (path: string) => void;
+  selectedPath: string | null;
+  onSelect: (path: string, status: GitFileStatusType) => void;
+  status: GitFileStatusType;
+  onStage?: (path: string) => void;
+  stagingPaths?: Set<string>;
+}
+
+const GitTreeNodeItem = memo(function GitTreeNodeItem({
+  node,
+  expandedDirs,
+  onToggleDir,
+  selectedPath,
+  onSelect,
+  status,
+  onStage,
+  stagingPaths,
+}: GitTreeNodeItemProps) {
+  if (!node.isDirectory) {
+    return (
+      <GitFileItem
+        file={node.file!}
+        isSelected={selectedPath === node.path}
+        onSelect={onSelect}
+        status={status}
+        onStage={status === 'untracked' ? onStage : undefined}
+        isStaging={stagingPaths?.has(node.path)}
+      />
+    );
+  }
+
+  const isExpanded = expandedDirs.has(node.path);
+
+  return (
+    <div className="tree-node-wrapper">
+      <div
+        className={`tree-node directory ${isExpanded ? 'expanded' : ''}`}
+        style={{ paddingLeft: '4px' }}
+        onClick={() => onToggleDir(node.path)}
+      >
+        <span className={`tree-arrow ${isExpanded ? 'expanded' : ''}`}>▸</span>
+        <span className="tree-folder-icon">{isExpanded ? '📂' : '📁'}</span>
+        <span className="tree-name">{node.name}</span>
+        <span className="git-tree-file-count">
+          {node.fileCount} {node.fileCount === 1 ? 'file' : 'files'}
+        </span>
+      </div>
+      {isExpanded && (
+        <div className="tree-children">
+          {node.children.map((child) => (
+            <GitTreeNodeItem
+              key={child.path}
+              node={child}
+              expandedDirs={expandedDirs}
+              onToggleDir={onToggleDir}
+              selectedPath={selectedPath}
+              onSelect={onSelect}
+              status={status}
+              onStage={onStage}
+              stagingPaths={stagingPaths}
+            />
+          ))}
+        </div>
       )}
     </div>
   );
@@ -53,19 +164,35 @@ const GitFileItem = memo(function GitFileItem({
 interface GitStatusGroupProps {
   status: GitFileStatusType;
   files: GitFileStatus[];
+  treeNodes: GitTreeNode[];
+  viewMode: GitViewMode;
   selectedPath: string | null;
+  expandedDirs: Set<string>;
+  onToggleDir: (path: string) => void;
   onFileSelect: (path: string, status: GitFileStatusType) => void;
+  onStageFile?: (path: string) => void;
+  onStageAll?: () => void;
+  stagingPaths?: Set<string>;
 }
 
 const GitStatusGroup = memo(function GitStatusGroup({
   status,
   files,
+  treeNodes,
+  viewMode,
   selectedPath,
+  expandedDirs,
+  onToggleDir,
   onFileSelect,
+  onStageFile,
+  onStageAll,
+  stagingPaths,
 }: GitStatusGroupProps) {
   if (files.length === 0) return null;
 
   const config = GIT_STATUS_CONFIG[status];
+  const showStageAll = status === 'untracked' && onStageAll && files.length > 0;
+  const isStagingAll = stagingPaths ? files.every(f => stagingPaths.has(f.path)) : false;
 
   return (
     <div className="git-status-group">
@@ -74,15 +201,53 @@ const GitStatusGroup = memo(function GitStatusGroup({
           {config.icon}
         </span>
         {config.label} ({files.length})
+        {showStageAll && (
+          <button
+            className={`git-stage-all-btn ${isStagingAll ? 'staging' : ''}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!isStagingAll) onStageAll();
+            }}
+            title="Stage all untracked files"
+            disabled={isStagingAll}
+          >
+            {isStagingAll ? '...' : 'Stage All'}
+          </button>
+        )}
       </div>
-      {files.map((file) => (
-        <GitFileItem
-          key={file.path}
-          file={file}
-          isSelected={selectedPath === file.path}
-          onSelect={onFileSelect}
-        />
-      ))}
+
+      {viewMode === 'tree' ? (
+        <div className="git-tree-content">
+          {treeNodes.map((node) => (
+            <GitTreeNodeItem
+              key={node.path}
+              node={node}
+              expandedDirs={expandedDirs}
+              onToggleDir={onToggleDir}
+              selectedPath={selectedPath}
+              onSelect={onFileSelect}
+              status={status}
+              onStage={status === 'untracked' ? onStageFile : undefined}
+              stagingPaths={status === 'untracked' ? stagingPaths : undefined}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="git-flat-content">
+          {files.map((file) => (
+            <GitFileItem
+              key={file.path}
+              file={file}
+              isSelected={selectedPath === file.path}
+              onSelect={onFileSelect}
+              status={status}
+              onStage={status === 'untracked' ? onStageFile : undefined}
+              isStaging={stagingPaths?.has(file.path)}
+              showDirPath
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 });
@@ -97,7 +262,58 @@ function GitChangesComponent({
   onFileSelect,
   selectedPath,
   onRefresh,
+  onStageFiles,
+  stagingPaths,
 }: GitChangesProps) {
+  const [gitViewMode, setGitViewMode] = useState<GitViewMode>('tree');
+  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
+
+  const toggleDir = useCallback((dirPath: string) => {
+    setExpandedDirs(prev => {
+      const next = new Set(prev);
+      if (next.has(dirPath)) {
+        next.delete(dirPath);
+      } else {
+        next.add(dirPath);
+      }
+      return next;
+    });
+  }, []);
+
+  // Build trees for each status group
+  const { groupedTrees, grouped, allDirPaths } = useMemo(() => {
+    if (!gitStatus || !gitStatus.isGitRepo || gitStatus.files.length === 0) {
+      return {
+        groupedTrees: {} as Record<GitFileStatusType, GitTreeNode[]>,
+        grouped: {} as Record<GitFileStatusType, GitFileStatus[]>,
+        allDirPaths: new Set<string>(),
+      };
+    }
+
+    const statuses: GitFileStatusType[] = ['modified', 'added', 'deleted', 'renamed', 'untracked'];
+    const grp: Record<string, GitFileStatus[]> = {};
+    const trees: Record<string, GitTreeNode[]> = {};
+    const dirs = new Set<string>();
+
+    for (const s of statuses) {
+      const files = gitStatus.files.filter(f => f.status === s);
+      grp[s] = files;
+      trees[s] = buildGitTree(files);
+      collectGitTreeDirPaths(trees[s], dirs);
+    }
+
+    return {
+      groupedTrees: trees as Record<GitFileStatusType, GitTreeNode[]>,
+      grouped: grp as Record<GitFileStatusType, GitFileStatus[]>,
+      allDirPaths: dirs,
+    };
+  }, [gitStatus]);
+
+  // Auto-expand all directories when git status changes
+  useEffect(() => {
+    setExpandedDirs(allDirPaths);
+  }, [allDirPaths]);
+
   // Loading state
   if (loading) {
     return <div className="git-changes-loading">Loading git status...</div>;
@@ -124,18 +340,20 @@ function GitChangesComponent({
     );
   }
 
-  // Group files by status
-  const grouped: Record<GitFileStatusType, GitFileStatus[]> = {
-    modified: gitStatus.files.filter((f) => f.status === 'modified'),
-    added: gitStatus.files.filter((f) => f.status === 'added'),
-    deleted: gitStatus.files.filter((f) => f.status === 'deleted'),
-    renamed: gitStatus.files.filter((f) => f.status === 'renamed'),
-    untracked: gitStatus.files.filter((f) => f.status === 'untracked'),
+  const handleStageFile = (filePath: string) => {
+    onStageFiles([filePath]);
+  };
+
+  const handleStageAllUntracked = () => {
+    const untrackedPaths = (grouped.untracked || []).map(f => f.path);
+    if (untrackedPaths.length > 0) {
+      onStageFiles(untrackedPaths);
+    }
   };
 
   return (
     <div className="git-changes">
-      {/* Compact header: branch + counts + refresh */}
+      {/* Compact header: branch + counts + view toggle + refresh */}
       <div className="git-changes-header">
         <span className="git-branch">
           <span className="git-branch-icon">⎇</span>
@@ -157,6 +375,31 @@ function GitChangesComponent({
             )}
           </div>
         )}
+        <div className="git-view-toggle">
+          <button
+            className={`git-view-toggle-btn ${gitViewMode === 'flat' ? 'active' : ''}`}
+            onClick={() => setGitViewMode('flat')}
+            title="Flat list"
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+              <rect x="2" y="3" width="12" height="1.5" rx="0.5" />
+              <rect x="2" y="7" width="12" height="1.5" rx="0.5" />
+              <rect x="2" y="11" width="12" height="1.5" rx="0.5" />
+            </svg>
+          </button>
+          <button
+            className={`git-view-toggle-btn ${gitViewMode === 'tree' ? 'active' : ''}`}
+            onClick={() => setGitViewMode('tree')}
+            title="Directory tree"
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+              <rect x="1" y="2" width="6" height="1.5" rx="0.5" />
+              <rect x="4" y="5.5" width="8" height="1.5" rx="0.5" />
+              <rect x="4" y="9" width="8" height="1.5" rx="0.5" />
+              <rect x="7" y="12.5" width="7" height="1.5" rx="0.5" />
+            </svg>
+          </button>
+        </div>
         <button
           className="git-refresh-btn"
           onClick={onRefresh}
@@ -173,9 +416,16 @@ function GitChangesComponent({
             <GitStatusGroup
               key={status}
               status={status}
-              files={grouped[status]}
+              files={grouped[status] || []}
+              treeNodes={groupedTrees[status] || []}
+              viewMode={gitViewMode}
               selectedPath={selectedPath}
+              expandedDirs={expandedDirs}
+              onToggleDir={toggleDir}
               onFileSelect={onFileSelect}
+              onStageFile={status === 'untracked' ? handleStageFile : undefined}
+              onStageAll={status === 'untracked' ? handleStageAllUntracked : undefined}
+              stagingPaths={status === 'untracked' ? stagingPaths : undefined}
             />
           )
         )}
@@ -190,6 +440,7 @@ function GitChangesComponent({
 export const GitChanges = memo(GitChangesComponent, (prev, next) => {
   if (prev.loading !== next.loading) return false;
   if (prev.selectedPath !== next.selectedPath) return false;
+  if (prev.stagingPaths !== next.stagingPaths) return false;
 
   // Compare git status
   if (prev.gitStatus === null && next.gitStatus === null) return true;

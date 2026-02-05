@@ -274,15 +274,14 @@ export function useSceneSetup({
     if (currentPersistedScene && isSameCanvas) {
       sceneRef.current = currentPersistedScene;
       console.log('[Tide] Reusing existing scene (StrictMode remount)');
-      // Re-sync agents from store after remount (models are already loaded)
+      // IMPORTANT: Sync areas BEFORE agents so isAgentInArchivedArea works correctly
       const state = store.getState();
+      currentPersistedScene.syncAreas();
+      currentPersistedScene.syncBuildings();
       if (state.agents.size > 0) {
         console.log('[Tide] Re-syncing agents from store after remount:', state.agents.size);
         currentPersistedScene.syncAgents(Array.from(state.agents.values()));
       }
-      // Sync areas and buildings
-      currentPersistedScene.syncAreas();
-      currentPersistedScene.syncBuildings();
       // Set up callbacks for reused scene
       setupSceneCallbacks();
     } else {
@@ -394,6 +393,12 @@ export function useSceneSetup({
         sceneRef.current?.removeAgent(agentId);
       },
       onAgentsSync: (agents) => {
+        sceneRef.current?.syncAgents(agents);
+      },
+      onAreasSync: () => {
+        // Re-sync agents after areas are loaded to filter out those in archived areas
+        sceneRef.current?.syncAreas();
+        const agents = Array.from(store.getState().agents.values());
         sceneRef.current?.syncAgents(agents);
       },
       onSpawnError: () => {

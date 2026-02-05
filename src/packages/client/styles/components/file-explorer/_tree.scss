@@ -8,11 +8,10 @@
 
 // IDE Style - Tree Panel (Left)
 .file-explorer-tree-panel {
-  width: 280px;
-  min-width: 220px;
-  max-width: 400px;
+  min-width: 150px;
+  max-width: 1200px;
   flex-shrink: 0;
-  border-right: 1px solid $border-color;
+  border-right: none;
   background: $dracula-bg-darker;
   display: flex;
   flex-direction: column;
@@ -25,6 +24,21 @@
 
   .file-explorer-search {
     flex-shrink: 0;
+  }
+}
+
+// Resize handle between tree panel and viewer
+.file-explorer-resize-handle {
+  width: 4px;
+  flex-shrink: 0;
+  cursor: ew-resize;
+  background: $border-color;
+  position: relative;
+  transition: background 0.15s ease;
+
+  &:hover,
+  &.active {
+    background: $accent-blue;
   }
 }
 

@@ -21,6 +21,9 @@ export interface ExecTaskActions {
   handleExecTaskOutput(taskId: string, agentId: string, output: string, isError?: boolean): void;
   handleExecTaskCompleted(taskId: string, agentId: string, exitCode: number | null, success: boolean): void;
 
+  // Task control
+  stopExecTask(taskId: string): Promise<boolean>;
+
   // Getters
   getExecTasks(agentId: string): ExecTask[];
   getAllExecTasks(): ExecTask[];
@@ -101,6 +104,33 @@ export function createExecTaskActions(
         }
       });
       notify();
+    },
+
+    async stopExecTask(taskId: string): Promise<boolean> {
+      try {
+        const response = await fetch(`/api/exec/tasks/${taskId}`, {
+          method: 'DELETE',
+        });
+        if (response.ok) {
+          // Mark the task as failed/stopped in local state immediately
+          // (Server will also broadcast exec_task_completed event)
+          setState((state) => {
+            const task = state.execTasks?.get(taskId);
+            if (task && task.status === 'running') {
+              task.status = 'failed';
+              task.exitCode = -15; // SIGTERM exit code
+              task.completedAt = Date.now();
+              task.output.push('[Task stopped by user]');
+            }
+          });
+          notify();
+          return true;
+        }
+        return false;
+      } catch (err) {
+        console.error('Failed to stop exec task:', err);
+        return false;
+      }
     },
 
     getExecTasks(agentId: string): ExecTask[] {

@@ -209,6 +209,26 @@ export function useSwipeNavigation({
       if (!isOpen || sortedAgents.length <= 1) return;
       if (hasModalOpen) return;
 
+      // Alt+Shift+H → previous working agent
+      if (e.altKey && e.shiftKey && e.code === 'KeyH') {
+        e.preventDefault();
+        const workingAgents = sortedAgents.filter(a => a.status === 'working');
+        if (workingAgents.length === 0) return;
+        const currentIndex = selectedAgentId ? workingAgents.findIndex(a => a.id === selectedAgentId) : -1;
+        const nextIndex = currentIndex === -1 ? workingAgents.length - 1 : (currentIndex - 1 + workingAgents.length) % workingAgents.length;
+        store.selectAgent(workingAgents[nextIndex].id);
+        return;
+      }
+      // Alt+Shift+L → next working agent
+      if (e.altKey && e.shiftKey && e.code === 'KeyL') {
+        e.preventDefault();
+        const workingAgents = sortedAgents.filter(a => a.status === 'working');
+        if (workingAgents.length === 0) return;
+        const currentIndex = selectedAgentId ? workingAgents.findIndex(a => a.id === selectedAgentId) : -1;
+        const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % workingAgents.length;
+        store.selectAgent(workingAgents[nextIndex].id);
+        return;
+      }
       // Alt+H → previous agent
       if (e.altKey && e.key === 'h') {
         e.preventDefault();
@@ -222,7 +242,7 @@ export function useSwipeNavigation({
     };
     document.addEventListener('keydown', handleAgentNavKeyDown);
     return () => document.removeEventListener('keydown', handleAgentNavKeyDown);
-  }, [isOpen, sortedAgents.length, handleSwipeLeft, handleSwipeRight, hasModalOpen]);
+  }, [isOpen, sortedAgents, selectedAgentId, handleSwipeLeft, handleSwipeRight, hasModalOpen]);
 
   return {
     sortedAgents,

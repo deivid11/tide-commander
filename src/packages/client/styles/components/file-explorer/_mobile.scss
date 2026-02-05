@@ -139,6 +139,11 @@ $breakpoint-small: 480px;
     height: calc(100dvh - 36px);
   }
 
+  // Hide resize handle on mobile (layout is stacked)
+  .file-explorer-resize-handle {
+    display: none;
+  }
+
   // Tree panel - compact
   .file-explorer-tree-panel {
     width: 100%;

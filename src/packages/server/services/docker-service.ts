@@ -23,6 +23,10 @@ import { createLogger } from '../utils/index.js';
 // Track active log streams by building ID
 const activeLogStreams = new Map<string, ChildProcess>();
 
+// Track stream generation to prevent duplicate initial logs
+// When a new stream starts, its generation is incremented and old streams' chunks are ignored
+const streamGenerations = new Map<string, number>();
+
 const execAsync = promisify(exec);
 const log = createLogger('DockerService');
 
@@ -859,6 +863,10 @@ export async function startLogStream(
   // Stop any existing stream for this building
   stopLogStream(buildingId);
 
+  // Increment stream generation to invalidate any in-flight chunks from previous stream
+  const currentGeneration = (streamGenerations.get(buildingId) || 0) + 1;
+  streamGenerations.set(buildingId, currentGeneration);
+
   try {
     let child: ChildProcess;
 
@@ -869,7 +877,7 @@ export async function startLogStream(
       const composeCmd = await getComposeCommand();
       const composeFile = composePath || 'docker-compose.yml';
 
-      log.log(`Starting compose log stream for project: ${projectName}`);
+      log.log(`Starting compose log stream for project: ${projectName} (gen ${currentGeneration})`);
 
       const args = [
         ...composeCmd.split(' ').slice(1), // Handle 'docker compose' vs 'docker-compose'
@@ -891,7 +899,7 @@ export async function startLogStream(
       });
     } else {
       const containerName = getContainerName(building);
-      log.log(`Starting Docker log stream for: ${containerName}`);
+      log.log(`Starting Docker log stream for: ${containerName} (gen ${currentGeneration})`);
 
       child = spawn('docker', ['logs', '-f', '--tail', String(initialLines), containerName], {
         stdio: ['ignore', 'pipe', 'pipe'],
@@ -902,12 +910,20 @@ export async function startLogStream(
 
     // Handle stdout
     child.stdout?.on('data', (data: Buffer) => {
+      // Check if this stream is still the current generation
+      if (streamGenerations.get(buildingId) !== currentGeneration) {
+        return; // Discard chunks from old streams
+      }
       const chunk = data.toString();
       callbacks.onChunk(chunk, false, service);
     });
 
     // Handle stderr (Docker logs outputs to stderr)
     child.stderr?.on('data', (data: Buffer) => {
+      // Check if this stream is still the current generation
+      if (streamGenerations.get(buildingId) !== currentGeneration) {
+        return; // Discard chunks from old streams
+      }
       const chunk = data.toString();
       callbacks.onChunk(chunk, true, service);
     });
@@ -916,14 +932,20 @@ export async function startLogStream(
     child.on('close', (code) => {
       log.log(`Docker log stream ended for ${buildingId} with code ${code}`);
       activeLogStreams.delete(buildingId);
-      callbacks.onEnd();
+      // Only call onEnd if this is still the current generation
+      if (streamGenerations.get(buildingId) === currentGeneration) {
+        callbacks.onEnd();
+      }
     });
 
     // Handle errors
     child.on('error', (error) => {
       log.error(`Docker log stream error for ${buildingId}: ${error.message}`);
       activeLogStreams.delete(buildingId);
-      callbacks.onError(error.message);
+      // Only call onError if this is still the current generation
+      if (streamGenerations.get(buildingId) === currentGeneration) {
+        callbacks.onError(error.message);
+      }
     });
 
     const stop = () => {

@@ -102,10 +102,12 @@
     flex: 1;
     min-height: 100px;
     max-height: 300px;
-    overflow: auto;
+    overflow: hidden;
     background: $bg-tertiary;
     border: 1px solid $border-color;
     border-radius: 0 4px 4px 0;
+    display: flex;
+    flex-direction: column;
   }
 
   &__highlight {
@@ -124,6 +126,7 @@
     overflow: hidden;
     pointer-events: none;
     color: $text-primary;
+    box-sizing: border-box;
 
     // SQL syntax highlighting colors
     .token {
@@ -170,9 +173,8 @@
 
   &__textarea {
     position: relative;
+    flex: 1;
     width: 100%;
-    min-height: 100px;
-    max-height: 300px;
     padding: 10px 12px;
     background: transparent;
     border: none;
@@ -181,11 +183,14 @@
     font-family: $font-mono;
     font-size: 13px;
     line-height: 1.5;
-    resize: vertical;
+    resize: none;
     outline: none;
     white-space: pre-wrap;
     word-wrap: break-word;
     overflow: auto;
+    z-index: 1;
+    box-sizing: border-box;
+    margin: 0;
 
     &::placeholder {
       color: $text-muted;

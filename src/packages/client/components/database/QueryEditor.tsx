@@ -27,6 +27,7 @@ export const QueryEditor: React.FC<QueryEditorProps> = ({
   autoFocus = true,
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const highlightRef = useRef<HTMLPreElement>(null);
 
   // Auto-focus on mount
   useEffect(() => {
@@ -38,6 +39,15 @@ export const QueryEditor: React.FC<QueryEditorProps> = ({
       return () => clearTimeout(timer);
     }
   }, [autoFocus, disabled]);
+
+  // Synchronize textarea scroll with highlight
+  const handleScroll = useCallback((e: React.UIEvent<HTMLTextAreaElement>) => {
+    const textarea = e.currentTarget;
+    if (highlightRef.current) {
+      highlightRef.current.scrollLeft = textarea.scrollLeft;
+      highlightRef.current.scrollTop = textarea.scrollTop;
+    }
+  }, []);
 
   // Handle keyboard shortcuts
   const handleKeyDown = useCallback((e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -119,6 +129,7 @@ export const QueryEditor: React.FC<QueryEditorProps> = ({
         <div className="query-editor__editor">
           {/* Syntax highlighted background */}
           <pre
+            ref={highlightRef}
             className="query-editor__highlight"
             aria-hidden="true"
             dangerouslySetInnerHTML={{ __html: highlightedCode + '\n' }}
@@ -131,6 +142,7 @@ export const QueryEditor: React.FC<QueryEditorProps> = ({
             value={query}
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={handleKeyDown}
+            onScroll={handleScroll}
             placeholder={disabled ? 'Select a database to start querying...' : 'Enter your SQL query here...'}
             disabled={disabled}
             spellCheck={false}

@@ -1,0 +1,296 @@
+// =============================================================================
+// Right Panel - Base Layout & Core Structure
+// =============================================================================
+
+@use '../../variables' as *;
+
+.right-panel {
+  --right-panel-width: 420px;
+
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: var(--right-panel-width);
+  z-index: 180; // Above sidebar (150), below terminal (200) and modals
+  display: flex;
+  flex-direction: row;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+  // Expanded state
+  &--expanded {
+    transform: translateX(0);
+  }
+
+  // Collapsed state
+  &--collapsed {
+    width: 0;
+    transform: translateX(100%);
+
+    .right-panel__content {
+      opacity: 0;
+      pointer-events: none;
+    }
+  }
+
+  // During resize, disable transitions for smooth dragging
+  &--resizing {
+    transition: none;
+
+    .right-panel__content {
+      transition: none;
+    }
+  }
+
+  // Mobile: full-width overlay from right
+  @media (max-width: 768px) {
+    --right-panel-width: 100vw;
+    width: 100vw;
+    z-index: 250; // Above terminal (200) on mobile
+    touch-action: pan-y;
+    flex-direction: column;
+    overflow: hidden;
+
+    &--collapsed {
+      width: 0;
+      transform: translateX(100%);
+    }
+
+    &--expanded {
+      transform: translateX(0);
+    }
+  }
+}
+
+// --- Resize Handle (left edge) ---
+
+.right-panel__resize-handle {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  background: transparent;
+  cursor: ew-resize;
+  z-index: 182;
+  transition: background $transition-fast;
+
+  // Visual indicator line
+  &::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 1px;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 60px;
+    background: rgba($dracula-comment, 0.3);
+    border-radius: 2px;
+    transition: all $transition-fast;
+  }
+
+  &:hover {
+    background: rgba($accent-blue, 0.08);
+
+    &::after {
+      background: $accent-blue;
+      height: 80px;
+    }
+  }
+
+  &:active {
+    background: rgba($accent-blue, 0.15);
+
+    &::after {
+      background: $accent-blue;
+    }
+  }
+}
+
+// --- Collapse/Expand Button ---
+
+.right-panel__collapse-btn {
+  position: absolute;
+  left: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 183;
+  width: 20px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba($bg-secondary, 0.95);
+  border: 1px solid $border-color;
+  border-radius: 4px 0 0 4px;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  transition:
+    opacity 0.2s ease,
+    left 0.15s ease,
+    width 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+  opacity: 0;
+
+  .right-panel:hover & {
+    opacity: 1;
+  }
+
+  &:hover {
+    background: $bg-secondary;
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.3);
+    width: 24px;
+    left: -14px;
+  }
+
+  &:active {
+    left: -8px;
+  }
+
+  // When collapsed, always show the button
+  &--collapsed {
+    opacity: 1;
+    left: -24px;
+    width: 24px;
+    border-radius: 4px 0 0 4px;
+    background: rgba($bg-tertiary, 0.95);
+
+    &:hover {
+      left: -28px;
+      width: 28px;
+      background: rgba($accent-blue, 0.15);
+      border-color: $accent-blue;
+      color: $accent-blue;
+    }
+  }
+}
+
+.right-panel__collapse-icon {
+  font-size: 10px;
+  line-height: 1;
+}
+
+// --- Content Wrapper ---
+
+.right-panel__content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: rgba($bg-secondary, 0.95);
+  border-left: 1px solid $border-color;
+  backdrop-filter: blur(12px);
+  overflow: hidden;
+  opacity: 1;
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+// --- Body (tab content area) ---
+
+.right-panel__body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+// --- Mobile Overrides ---
+
+@media (max-width: 768px) {
+  // Hide resize handle on mobile (full-width, no resizing)
+  .right-panel__resize-handle {
+    display: none;
+  }
+
+  // Hide the edge collapse button entirely on mobile
+  // Panel is opened from FAB menu and closed via backdrop/swipe
+  .right-panel__collapse-btn {
+    display: none;
+  }
+
+  // Full-width content, no left border
+  .right-panel__content {
+    border-left: none;
+    background: $bg-secondary;
+  }
+}
+
+// Hide mobile-only elements on desktop
+.right-panel__swipe-handle {
+  display: none;
+}
+
+.right-panel__mobile-header {
+  display: none;
+}
+
+.right-panel__mobile-close {
+  display: none;
+}
+
+// Show mobile header on mobile
+@media (max-width: 768px) {
+  .right-panel__mobile-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    padding: 4px 8px 0;
+    background: $bg-secondary;
+  }
+
+  .right-panel__mobile-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 50%;
+    background: rgba($dracula-red, 0.15);
+    color: $dracula-red;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+
+    &:active {
+      background: rgba($dracula-red, 0.3);
+      transform: scale(0.9);
+    }
+  }
+
+  .right-panel__swipe-handle {
+    display: block;
+    width: 40px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 2px;
+    margin: 8px 0;
+    flex-shrink: 0;
+  }
+}
+
+// Mobile overlay backdrop
+.right-panel-backdrop {
+  display: none;
+
+  @media (max-width: 768px) {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 249; // Just below the right panel
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+
+    &--visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+  }
+}

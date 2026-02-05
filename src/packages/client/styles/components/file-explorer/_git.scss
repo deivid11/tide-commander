@@ -81,6 +81,50 @@
   min-width: 0;
 }
 
+// View mode toggle (flat / tree)
+.git-view-toggle {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.git-view-toggle-btn {
+  background: transparent;
+  border: 1px solid $border-color;
+  color: $text-muted;
+  width: 24px;
+  height: 24px;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all $transition-fast;
+  padding: 0;
+
+  &:first-child {
+    border-radius: $radius-sm 0 0 $radius-sm;
+    border-right: none;
+  }
+
+  &:last-child {
+    border-radius: 0 $radius-sm $radius-sm 0;
+  }
+
+  &:hover {
+    color: $text-primary;
+    background: rgba($accent-blue, 0.1);
+  }
+
+  &.active {
+    background: rgba($accent-blue, 0.2);
+    border-color: $accent-blue;
+    color: $accent-blue;
+  }
+}
+
 .git-refresh-btn {
   background: transparent;
   border: 1px solid $border-color;
@@ -95,7 +139,6 @@
   justify-content: center;
   transition: all $transition-fast;
   flex-shrink: 0;
-  margin-left: auto;
 
   &:hover {
     background: $accent-blue;
@@ -199,6 +242,41 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
+}
+
+// Directory path shown after filename in flat mode
+.git-file-dir {
+  margin-left: 6px;
+  font-size: 10px;
+  color: $text-muted;
+  opacity: 0.7;
+}
+
+// Flat content wrapper within status groups
+.git-flat-content {
+  padding-left: 8px;
+}
+
+// File count shown next to folder names in git tree
+.git-tree-file-count {
+  font-family: $font-mono;
+  font-size: 9px;
+  color: $text-muted;
+  margin-left: auto;
+  padding-right: 4px;
+  opacity: 0.7;
+}
+
+// Tree content wrapper within status groups
+.git-tree-content {
+  padding-left: 8px;
+}
+
+// Git file items within tree context
+.git-tree-content .git-file-item {
+  padding: 2px 4px;
+  gap: 4px;
 }
 
 .git-file-renamed {
@@ -206,4 +284,66 @@
   font-size: 10px;
   color: $text-muted;
   white-space: nowrap;
+}
+
+// Stage button on individual untracked files
+.git-stage-btn {
+  background: transparent;
+  border: 1px solid rgba($dracula-green, 0.4);
+  color: $dracula-green;
+  width: 20px;
+  height: 20px;
+  border-radius: $radius-sm;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all $transition-fast;
+  flex-shrink: 0;
+  margin-left: auto;
+  opacity: 0;
+
+  .git-file-item:hover & {
+    opacity: 1;
+  }
+
+  &:hover {
+    background: rgba($dracula-green, 0.2);
+    border-color: $dracula-green;
+  }
+
+  &.staging {
+    opacity: 1;
+    color: $text-muted;
+    border-color: $border-color;
+    cursor: wait;
+  }
+}
+
+// Stage All button in untracked group header
+.git-stage-all-btn {
+  background: transparent;
+  border: 1px solid rgba($dracula-green, 0.4);
+  color: $dracula-green;
+  padding: 2px 8px;
+  border-radius: $radius-sm;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all $transition-fast;
+  margin-left: auto;
+  white-space: nowrap;
+
+  &:hover {
+    background: rgba($dracula-green, 0.2);
+    border-color: $dracula-green;
+  }
+
+  &.staging {
+    color: $text-muted;
+    border-color: $border-color;
+    cursor: wait;
+  }
 }

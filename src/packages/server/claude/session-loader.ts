@@ -652,6 +652,94 @@ export async function isClaudeProcessRunningInCwd(cwd: string): Promise<boolean>
   }
 }
 
+/**
+ * Kill any Claude process running in the specified directory
+ * Returns true if a process was found and killed
+ */
+export async function killClaudeProcessInCwd(cwd: string): Promise<boolean> {
+  // Only works on Linux/Unix/macOS
+  if (process.platform === 'win32') {
+    return false;
+  }
+
+  try {
+    const { execSync } = await import('child_process');
+
+    // Get all claude process PIDs
+    const psOutput = execSync('ps aux | grep -E "(claude$|/claude )" | grep -v grep | awk \'{print $2}\'', {
+      encoding: 'utf-8',
+      timeout: 5000,
+    }).trim();
+
+    if (!psOutput) return false;
+
+    const pids = psOutput.split('\n').filter(p => p.trim());
+
+    // Normalize the target cwd
+    const normalizedCwd = cwd.replace(/\/+$/, '');
+
+    // Check each PID's working directory
+    for (const pid of pids) {
+      try {
+        let processCwd: string;
+
+        if (process.platform === 'darwin') {
+          // macOS: use lsof
+          const lsofOutput = execSync(`lsof -a -d cwd -p ${pid} -Fn 2>/dev/null | grep '^n'`, {
+            encoding: 'utf-8',
+            timeout: 2000,
+            shell: '/bin/bash',
+          }).trim();
+
+          if (!lsofOutput || !lsofOutput.startsWith('n')) continue;
+          processCwd = lsofOutput.substring(1);
+        } else {
+          // Linux: use /proc filesystem
+          processCwd = execSync(`readlink /proc/${pid}/cwd`, {
+            encoding: 'utf-8',
+            timeout: 1000,
+          }).trim();
+        }
+
+        // Normalize and compare
+        const normalizedProcessCwd = processCwd.replace(/\/+$/, '');
+        if (normalizedProcessCwd === normalizedCwd) {
+          log.log(`🛑 Killing detached Claude process ${pid} in ${cwd}`);
+
+          // Send SIGTERM first, then SIGKILL after a delay
+          try {
+            process.kill(parseInt(pid), 'SIGTERM');
+
+            // Give it a moment, then force kill if still running
+            setTimeout(() => {
+              try {
+                // Check if process is still running
+                process.kill(parseInt(pid), 0);
+                // If we get here, process is still running - force kill
+                log.log(`🛑 Force killing Claude process ${pid}`);
+                process.kill(parseInt(pid), 'SIGKILL');
+              } catch {
+                // Process already dead, good
+              }
+            }, 1000);
+
+            return true;
+          } catch (killErr) {
+            log.error(`Failed to kill Claude process ${pid}:`, killErr);
+          }
+        }
+      } catch {
+        // Process may have exited, skip
+      }
+    }
+
+    return false;
+  } catch (err) {
+    log.error('Error killing Claude process:', err);
+    return false;
+  }
+}
+
 export async function loadToolHistory(
   cwd: string,
   sessionId: string,

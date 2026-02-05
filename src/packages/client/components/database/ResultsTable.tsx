@@ -4,7 +4,7 @@
  * Displays query results in a paginated, sortable table with pretty formatting.
  */
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import type { QueryResult } from '../../../shared/types';
 import './ResultsTable.scss';
 
@@ -16,58 +16,30 @@ interface ResultsTableProps {
 const PAGE_SIZE_OPTIONS = [25, 50, 100, 250];
 const DEFAULT_PAGE_SIZE = 50;
 
+/** Get raw string representation of a cell value */
+const getRawValue = (value: unknown): string => {
+  if (value === null) return 'NULL';
+  if (value === undefined) return 'undefined';
+  if (typeof value === 'object') return JSON.stringify(value, null, 2);
+  return String(value);
+};
+
 export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId }) => {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [cellDetail, setCellDetail] = useState<{ column: string; value: unknown } | null>(null);
+  const [copyFeedback, setCopyFeedback] = useState(false);
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+  const detailRef = useRef<HTMLDivElement>(null);
+  const resizingRef = useRef<{ column: string; startX: number; startWidth: number } | null>(null);
+  const didResizeRef = useRef(false);
 
-  // Error display
-  if (result.status === 'error') {
-    return (
-      <div className="results-table results-table--error">
-        <div className="results-table__error">
-          <div className="results-table__error-header">
-            <span className="results-table__error-icon">&#10007;</span>
-            Query Error
-          </div>
-          <div className="results-table__error-message">
-            {result.error}
-          </div>
-          {result.errorCode && (
-            <div className="results-table__error-code">
-              Error Code: {result.errorCode}
-            </div>
-          )}
-          <div className="results-table__error-query">
-            <code>{result.query}</code>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const isError = result.status === 'error';
+  const isEmpty = !result.rows || result.rows.length === 0;
 
-  // No rows (INSERT/UPDATE/DELETE result)
-  if (!result.rows || result.rows.length === 0) {
-    return (
-      <div className="results-table results-table--success">
-        <div className="results-table__success">
-          <span className="results-table__success-icon">&#10003;</span>
-          Query executed successfully
-          {result.affectedRows !== undefined && (
-            <span className="results-table__affected">
-              {result.affectedRows} row(s) affected
-            </span>
-          )}
-          <span className="results-table__duration">
-            {result.duration}ms
-          </span>
-        </div>
-      </div>
-    );
-  }
-
-  // Sort rows
+  // Sort rows (hooks must always be called in the same order)
   const sortedRows = useMemo(() => {
     if (!sortColumn || !result.rows) return result.rows;
 
@@ -103,10 +75,14 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId }
   const totalPages = Math.ceil((sortedRows?.length ?? 0) / pageSize);
 
   // Get column names
-  const columns = result.fields?.map(f => f.name) ?? Object.keys(result.rows[0] || {});
+  const columns = result.fields?.map(f => f.name) ?? Object.keys(result.rows?.[0] || {});
 
-  // Handle sort
+  // Handle sort (skip if resize just finished)
   const handleSort = useCallback((column: string) => {
+    if (didResizeRef.current) {
+      didResizeRef.current = false;
+      return;
+    }
     if (sortColumn === column) {
       setSortDirection(d => d === 'asc' ? 'desc' : 'asc');
     } else {
@@ -114,6 +90,109 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId }
       setSortDirection('asc');
     }
   }, [sortColumn]);
+
+  // Handle cell click to show detail overlay
+  const handleCellClick = useCallback((column: string, value: unknown) => {
+    setCellDetail({ column, value });
+  }, []);
+
+  // Column resize handlers - no state deps to avoid re-renders during drag
+  const handleResizeStart = useCallback((e: React.MouseEvent, column: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const th = (e.target as HTMLElement).closest('th');
+    if (!th) return;
+    const startWidth = th.getBoundingClientRect().width;
+    resizingRef.current = { column, startX: e.clientX, startWidth };
+
+    const handleMouseMove = (moveE: MouseEvent) => {
+      if (!resizingRef.current) return;
+      const diff = moveE.clientX - resizingRef.current.startX;
+      const newWidth = Math.max(50, resizingRef.current.startWidth + diff);
+      setColumnWidths(prev => ({ ...prev, [resizingRef.current!.column]: newWidth }));
+    };
+
+    const handleMouseUp = () => {
+      resizingRef.current = null;
+      didResizeRef.current = true;
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, []);
+
+  // Close detail overlay on outside click or Escape
+  useEffect(() => {
+    if (!cellDetail) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setCellDetail(null);
+    };
+    const handleClick = (e: MouseEvent) => {
+      if (detailRef.current && !detailRef.current.contains(e.target as Node)) {
+        setCellDetail(null);
+      }
+    };
+    document.addEventListener('keydown', handleKey);
+    document.addEventListener('mousedown', handleClick);
+    return () => {
+      document.removeEventListener('keydown', handleKey);
+      document.removeEventListener('mousedown', handleClick);
+    };
+  }, [cellDetail]);
+
+  // Copy all results as enriched HTML table
+  const handleCopyAll = useCallback(async () => {
+    if (!result.rows || result.rows.length === 0) return;
+    const cols = result.fields?.map(f => f.name) ?? Object.keys(result.rows[0] || {});
+    const rows = sortedRows ?? result.rows;
+
+    // Build HTML table
+    const htmlParts = ['<table><thead><tr>'];
+    cols.forEach(col => htmlParts.push(`<th>${col}</th>`));
+    htmlParts.push('</tr></thead><tbody>');
+    rows.forEach(row => {
+      htmlParts.push('<tr>');
+      cols.forEach(col => {
+        const val = row[col];
+        htmlParts.push(`<td>${val === null ? 'NULL' : typeof val === 'object' ? JSON.stringify(val) : String(val)}</td>`);
+      });
+      htmlParts.push('</tr>');
+    });
+    htmlParts.push('</tbody></table>');
+
+    // Build plain text tab-separated table
+    const textParts = [cols.join('\t')];
+    rows.forEach(row => {
+      textParts.push(cols.map(col => {
+        const val = row[col];
+        return val === null ? 'NULL' : typeof val === 'object' ? JSON.stringify(val) : String(val);
+      }).join('\t'));
+    });
+
+    try {
+      const htmlBlob = new Blob([htmlParts.join('')], { type: 'text/html' });
+      const textBlob = new Blob([textParts.join('\n')], { type: 'text/plain' });
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          'text/html': htmlBlob,
+          'text/plain': textBlob,
+        }),
+      ]);
+      setCopyFeedback(true);
+      setTimeout(() => setCopyFeedback(false), 2000);
+    } catch {
+      // Fallback to plain text
+      await navigator.clipboard.writeText(textParts.join('\n'));
+      setCopyFeedback(true);
+      setTimeout(() => setCopyFeedback(false), 2000);
+    }
+  }, [result, sortedRows]);
 
   // Format cell value
   const formatValue = (value: unknown): React.ReactNode => {
@@ -150,6 +229,50 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId }
     return strValue;
   };
 
+  // Early returns after all hooks
+  if (isError) {
+    return (
+      <div className="results-table results-table--error">
+        <div className="results-table__error">
+          <div className="results-table__error-header">
+            <span className="results-table__error-icon">&#10007;</span>
+            Query Error
+          </div>
+          <div className="results-table__error-message">
+            {result.error}
+          </div>
+          {result.errorCode && (
+            <div className="results-table__error-code">
+              Error Code: {result.errorCode}
+            </div>
+          )}
+          <div className="results-table__error-query">
+            <code>{result.query}</code>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isEmpty) {
+    return (
+      <div className="results-table results-table--success">
+        <div className="results-table__success">
+          <span className="results-table__success-icon">&#10003;</span>
+          Query executed successfully
+          {result.affectedRows !== undefined && (
+            <span className="results-table__affected">
+              {result.affectedRows} row(s) affected
+            </span>
+          )}
+          <span className="results-table__duration">
+            {result.duration}ms
+          </span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="results-table">
       {/* Status bar */}
@@ -161,6 +284,13 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId }
           <span className="results-table__duration">
             {result.duration}ms
           </span>
+          <button
+            className={`results-table__copy-btn ${copyFeedback ? 'results-table__copy-btn--success' : ''}`}
+            onClick={handleCopyAll}
+            title="Copy all results as table"
+          >
+            {copyFeedback ? '✓ Copied' : '⧉ Copy All'}
+          </button>
         </div>
 
         {/* Pagination controls */}
@@ -218,7 +348,9 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId }
 
       {/* Table */}
       <div className="results-table__wrapper">
-        <table className="results-table__table">
+        <table
+          className={`results-table__table ${Object.keys(columnWidths).length > 0 ? 'results-table__table--resized' : ''}`}
+        >
           <thead>
             <tr>
               <th className="results-table__row-num">#</th>
@@ -232,6 +364,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId }
                     className={`results-table__header ${isSorted ? 'results-table__header--sorted' : ''}`}
                     onClick={() => handleSort(col)}
                     title={field?.type ? `Type: ${field.type}` : undefined}
+                    style={columnWidths[col] ? { width: columnWidths[col], minWidth: columnWidths[col], maxWidth: columnWidths[col] } : undefined}
                   >
                     <span className="results-table__header-name">{col}</span>
                     {isSorted && (
@@ -239,6 +372,10 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId }
                         {sortDirection === 'asc' ? '▲' : '▼'}
                       </span>
                     )}
+                    <span
+                      className="results-table__resize-handle"
+                      onMouseDown={(e) => handleResizeStart(e, col)}
+                    />
                   </th>
                 );
               })}
@@ -251,7 +388,11 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId }
                   {page * pageSize + rowIndex + 1}
                 </td>
                 {columns.map(col => (
-                  <td key={col} className="results-table__cell">
+                  <td
+                    key={col}
+                    className="results-table__cell"
+                    onClick={() => handleCellClick(col, row[col])}
+                  >
                     {formatValue(row[col])}
                   </td>
                 ))}
@@ -260,6 +401,29 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId }
           </tbody>
         </table>
       </div>
+
+      {/* Cell detail overlay */}
+      {cellDetail && (
+        <div className="results-table__detail-backdrop">
+          <div className="results-table__detail" ref={detailRef}>
+            <div className="results-table__detail-header">
+              <span className="results-table__detail-column">{cellDetail.column}</span>
+              <button
+                className="results-table__detail-close"
+                onClick={() => setCellDetail(null)}
+              >
+                ✕
+              </button>
+            </div>
+            <textarea
+              className="results-table__detail-textarea"
+              value={getRawValue(cellDetail.value)}
+              readOnly
+              onFocus={(e) => e.target.select()}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

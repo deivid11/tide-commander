@@ -1117,3 +1117,136 @@
   display: flex;
   flex-direction: column;
 }
+
+// Restore Archived Area Modal
+.restore-archived-modal {
+  width: 480px;
+  max-width: 95vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+
+  .modal-header {
+    padding: 14px 20px;
+    margin-bottom: 0;
+    border-bottom: 1px solid $border-color;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    .header-icon {
+      font-size: 20px;
+    }
+  }
+
+  .modal-footer {
+    padding: 12px 20px;
+    border-top: 1px solid $border-color;
+    justify-content: flex-end;
+  }
+}
+
+.restore-archived-body {
+  padding: 16px 20px;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.restore-info {
+  font-size: 12px;
+  color: $text-secondary;
+  margin: 0 0 16px;
+  line-height: 1.5;
+}
+
+.archived-empty {
+  padding: 24px;
+  text-align: center;
+  color: $text-muted;
+  font-size: 13px;
+}
+
+.archived-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 350px;
+  overflow-y: auto;
+}
+
+.archived-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: $bg-tertiary;
+  border: 1px solid $border-color;
+  border-radius: $radius-md;
+  transition: all $transition-fast;
+
+  &:hover {
+    border-color: $text-secondary;
+  }
+}
+
+.archived-item-color {
+  width: 8px;
+  height: 40px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.archived-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.archived-item-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: $text-primary;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.archived-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 11px;
+  color: $text-muted;
+}
+
+.archived-item-type {
+  text-transform: capitalize;
+}
+
+.archived-item-agents {
+  color: $dracula-cyan;
+}
+
+.archived-item-dirs {
+  color: $dracula-orange;
+}
+
+.archived-item-time {
+  color: $text-muted;
+}
+
+.archived-item-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.restore-all-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid $border-color;
+  text-align: center;
+}

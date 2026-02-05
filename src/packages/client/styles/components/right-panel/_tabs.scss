@@ -1,0 +1,53 @@
+// =============================================================================
+// Right Panel - Tab System
+// =============================================================================
+
+@use '../../variables' as *;
+
+.right-panel__tabs {
+  display: flex;
+  background: rgba($dracula-bg, 0.8);
+  border-bottom: 1px solid $border-color;
+  flex-shrink: 0;
+}
+
+.right-panel__tab {
+  flex: 1;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: $dracula-comment;
+  font-family: $font-mono;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+  white-space: nowrap;
+
+  &:hover {
+    background: rgba($accent-blue, 0.06);
+    color: $text-primary;
+  }
+
+  &--active {
+    color: $accent-blue;
+    border-bottom-color: $accent-blue;
+    background: rgba($accent-blue, 0.08);
+  }
+
+  // Mobile: larger touch targets
+  @media (max-width: 768px) {
+    padding: 14px 12px;
+    min-height: 44px;
+    font-size: 12px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+
+    &:active {
+      opacity: 0.7;
+    }
+  }
+}

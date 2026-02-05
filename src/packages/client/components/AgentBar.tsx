@@ -57,11 +57,12 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
   const dragCounter = useRef(0);
 
   // Get agents sorted by creation time as base, then apply custom order
+  // Filter out agents in archived areas
   const baseAgents = useMemo(() =>
-    Array.from(state.agents.values()).sort(
-      (a, b) => (a.createdAt || 0) - (b.createdAt || 0)
-    ),
-    [state.agents]
+    Array.from(state.agents.values())
+      .filter(agent => !store.isAgentInArchivedArea(agent.id))
+      .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)),
+    [state.agents, state.areas] // Re-run when areas change (archived state may change)
   );
 
   // Use the reorder hook for persistent ordering

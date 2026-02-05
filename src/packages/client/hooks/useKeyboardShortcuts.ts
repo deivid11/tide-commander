@@ -133,6 +133,38 @@ export function useKeyboardShortcuts({
         return;
       }
 
+      // Navigate between working agents (Alt+Shift+H / Alt+Shift+L)
+      const nextWorkingShortcut = shortcuts.find(s => s.id === 'next-working-agent');
+      const prevWorkingShortcut = shortcuts.find(s => s.id === 'prev-working-agent');
+      if ((matchesShortcut(e, nextWorkingShortcut) || matchesShortcut(e, prevWorkingShortcut)) && !isInputFocused) {
+        const currentState = store.getState();
+        if (currentState.terminalOpen) return; // Let terminal handle its own navigation
+
+        const agents = Array.from(currentState.agents.values());
+        const workingAgents = agents.filter(a => a.status === 'working');
+        if (workingAgents.length === 0) return;
+
+        e.preventDefault();
+
+        const selectedId = currentState.selectedAgentIds.size === 1
+          ? Array.from(currentState.selectedAgentIds)[0]
+          : null;
+        const currentIndex = selectedId ? workingAgents.findIndex(a => a.id === selectedId) : -1;
+
+        let nextIndex: number;
+        if (matchesShortcut(e, nextWorkingShortcut)) {
+          // Alt+Shift+L → next working agent
+          nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % workingAgents.length;
+        } else {
+          // Alt+Shift+H → previous working agent
+          nextIndex = currentIndex === -1 ? workingAgents.length - 1 : (currentIndex - 1 + workingAgents.length) % workingAgents.length;
+        }
+
+        store.selectAgent(workingAgents[nextIndex].id);
+        sceneRef.current?.refreshSelectionVisuals();
+        return;
+      }
+
       // Delete selected agents or buildings
       const deleteShortcut = shortcuts.find(s => s.id === 'delete-selected');
       const deleteBackspaceShortcut = shortcuts.find(s => s.id === 'delete-selected-backspace');
