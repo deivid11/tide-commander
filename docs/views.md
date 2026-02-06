@@ -19,6 +19,8 @@ The default view. A Three.js-powered battlefield where agents are rendered as 3D
 
 ### 2D View
 
+![2D View](preview-2d.png)
+
 A lightweight canvas-based alternative to the 3D view. Same functionality with lower resource usage - useful on less powerful machines or when running many agents.
 
 ### Dashboard
