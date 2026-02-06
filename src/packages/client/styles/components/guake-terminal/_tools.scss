@@ -831,6 +831,8 @@
   padding: 10px 16px;
   background: rgba($bg-tertiary, 0.4);
   border-bottom: 1px solid $border-color;
+  max-height: 120px;
+  overflow-y: auto;
 
   pre {
     margin: 0;

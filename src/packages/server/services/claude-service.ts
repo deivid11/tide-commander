@@ -624,6 +624,9 @@ export async function sendCommand(agentId: string, command: string, systemPrompt
       status: 'working',
       currentTask: command.substring(0, 100),
     });
+    // Broadcast reattachment notification to UI
+    emit('output', agentId, `🔄 [System] Reattaching to existing session... (Session: ${agent.sessionId})`, false, undefined, 'system-reattach');
+    emit('output', agentId, `📋 [System] Resuming task: ${command.substring(0, 100)}${command.length > 100 ? '...' : ''}`, false, undefined, 'system-reattach');
     // Execute with existing session (forceNewSession=false means resume)
     await executeCommand(agentId, command, systemPrompt, false, customAgent);
     return;

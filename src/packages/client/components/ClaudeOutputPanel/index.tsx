@@ -884,18 +884,22 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
             <Tooltip
               content={
                 <>
-                  <div className="tide-tooltip__title">Detached Mode</div>
+                  <div className="tide-tooltip__title">🔄 Reattaching Session...</div>
                   <div className="tide-tooltip__text">
-                    This agent's Claude process is running independently. This happens when Tide Commander
-                    restarts while an agent is working. Output is being recovered from the session file.
-                    Send a new message to fully reattach.
+                    This agent's Claude process is running independently. Tide Commander is automatically
+                    attempting to reattach to the existing session. If reattachment fails, send a new message
+                    to manually resume the session.
+                    <br /><br />
+                    <strong>Status:</strong> Recovering session context and output history...
                   </div>
                 </>
               }
               position="top"
               className="tide-tooltip--detached"
             >
-              <span className="guake-detached-badge">📡 Detached</span>
+              <span className="guake-detached-badge" title="Agent is detached - reattaching...">
+                <span className="guake-detached-spinner">🔄</span> Reattaching...
+              </span>
             </Tooltip>
           )}
           {activeAgent?.cwd && (

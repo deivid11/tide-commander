@@ -159,6 +159,21 @@
   }
 }
 
+.guake-detached-spinner {
+  display: inline-block;
+  animation: guake-detached-spin 1.5s linear infinite;
+  margin-right: 4px;
+}
+
+@keyframes guake-detached-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 // Agent Status Bar (CWD + Context indicator)
 .guake-agent-status-bar {
   display: flex;
