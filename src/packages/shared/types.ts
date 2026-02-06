@@ -932,6 +932,13 @@ export interface SendCommandMessage extends WSMessage {
   };
 }
 
+export interface ReattachAgentMessage extends WSMessage {
+  type: 'reattach_agent';
+  payload: {
+    agentId: string;
+  };
+}
+
 export interface MoveAgentMessage extends WSMessage {
   type: 'move_agent';
   payload: {
@@ -2392,6 +2399,7 @@ export type ServerMessage =
 export type ClientMessage =
   | SpawnAgentMessage
   | SendCommandMessage
+  | ReattachAgentMessage
   | MoveAgentMessage
   | KillAgentMessage
   | StopAgentMessage
