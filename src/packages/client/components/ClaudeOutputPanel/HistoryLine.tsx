@@ -13,7 +13,7 @@ import { TOOL_ICONS, extractToolKeyParam, formatTimestamp } from '../../utils/ou
 import { markdownComponents } from './MarkdownComponents';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, parseWorkPlanBlock, WorkPlanBlock } from './BossContext';
 import { EditToolDiff, ReadToolInput, TodoWriteInput } from './ToolRenderers';
-import { highlightText, renderContentWithImages } from './contentRendering';
+import { highlightText, renderContentWithImages, renderUserPromptContent } from './contentRendering';
 import { useTTS } from '../../hooks/useTTS';
 import type { EnrichedHistoryMessage, EditData } from './types';
 
@@ -372,14 +372,14 @@ export const HistoryLine = memo(function HistoryLine({
       <div className={className}>
         {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
         <span className="history-role">You</span>
-        <span className="history-content markdown-content">
+        <span className="history-content user-prompt-text">
           {parsedBoss.hasContext && parsedBoss.context && (
             <BossContext key={`boss-${timestamp || content.slice(0, 50)}`} context={parsedBoss.context} />
           )}
           {highlight ? (
             <div>{highlightText(displayMessage, highlight)}</div>
           ) : (
-            renderContentWithImages(displayMessage, onImageClick)
+            renderUserPromptContent(displayMessage, onImageClick)
           )}
         </span>
       </div>
@@ -436,8 +436,10 @@ export const HistoryLine = memo(function HistoryLine({
     <div className={className}>
       {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
       <span className="history-role">{isUser ? 'You' : 'Claude'}</span>
-      <span className="history-content markdown-content">
-        {highlight ? <div>{highlightText(content, highlight)}</div> : renderContentWithImages(content, onImageClick)}
+      <span className={`history-content ${isUser ? 'user-prompt-text' : 'markdown-content'}`}>
+        {highlight ? <div>{highlightText(content, highlight)}</div> : (
+          isUser ? renderUserPromptContent(content, onImageClick) : renderContentWithImages(content, onImageClick)
+        )}
       </span>
       {!isUser && (
         <div className="message-action-btns">

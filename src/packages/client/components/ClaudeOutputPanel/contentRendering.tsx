@@ -115,3 +115,67 @@ export function renderContentWithImages(
 
   return <>{parts}</>;
 }
+
+/**
+ * Render user prompt content preserving whitespace and newlines.
+ * Unlike renderContentWithImages (which uses ReactMarkdown and collapses whitespace),
+ * this renders text with pre-wrap so pasted content keeps its formatting.
+ * Still supports [Image: path] references.
+ */
+export function renderUserPromptContent(
+  content: string,
+  onImageClick?: (url: string, name: string) => void
+): React.ReactNode {
+  // Pattern to match [Image: /path/to/image.png]
+  const imagePattern = /\[Image:\s*([^\]]+)\]/g;
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = imagePattern.exec(content)) !== null) {
+    // Add text before the match
+    if (match.index > lastIndex) {
+      const textBefore = content.slice(lastIndex, match.index);
+      parts.push(
+        <span key={`text-${lastIndex}`} className="user-prompt-text">
+          {textBefore}
+        </span>
+      );
+    }
+
+    // Add clickable image placeholder
+    const imagePath = match[1].trim();
+    const imageName = imagePath.split('/').pop() || 'image';
+    const imageUrl = getImageWebUrl(imagePath);
+
+    parts.push(
+      <span
+        key={`img-${match.index}`}
+        className="image-reference clickable"
+        onClick={() => onImageClick?.(imageUrl, imageName)}
+        title="Click to view image"
+      >
+        🖼️ {imageName}
+      </span>
+    );
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Add remaining text after last match
+  if (lastIndex < content.length) {
+    const textAfter = content.slice(lastIndex);
+    parts.push(
+      <span key={`text-${lastIndex}`} className="user-prompt-text">
+        {textAfter}
+      </span>
+    );
+  }
+
+  // If no images found, just return the text
+  if (parts.length === 0) {
+    return <span className="user-prompt-text">{content}</span>;
+  }
+
+  return <>{parts}</>;
+}

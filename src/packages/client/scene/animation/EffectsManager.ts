@@ -61,6 +61,7 @@ interface SubagentEffect {
   subagentType: string;
   startTime: number;
   completed: boolean;
+  completedAt: number;
 }
 
 /**
@@ -1259,6 +1260,7 @@ export class EffectsManager {
       subagentType,
       startTime: performance.now(),
       completed: false,
+      completedAt: 0,
     });
 
     this.markDirty();
@@ -1272,7 +1274,11 @@ export class EffectsManager {
     const effect = this.subagentEffects.find(e => e.subagentId === subagentId);
     if (effect) {
       effect.completed = true;
+      effect.completedAt = performance.now();
       this.markDirty();
+      console.log(`[EffectsManager] Marked subagent effect completed: ${effect.name} (${subagentId})`);
+    } else {
+      console.warn(`[EffectsManager] completeSubagentEffect: no effect found for subagentId=${subagentId}`);
     }
   }
 
@@ -1325,9 +1331,8 @@ export class EffectsManager {
       effect.sprite.position.y += Math.sin(elapsed * 1.5) * 0.05;
 
       // Fade completed subagents
-      if (effect.completed) {
-        const fadeStart = effect.startTime;
-        const fadeElapsed = (time - fadeStart) / 1000;
+      if (effect.completed && effect.completedAt > 0) {
+        const fadeElapsed = (time - effect.completedAt) / 1000;
         // Start fading 2 seconds after completion
         if (fadeElapsed > 2) {
           const opacity = Math.max(0, 0.85 - (fadeElapsed - 2) * 0.3);

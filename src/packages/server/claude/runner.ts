@@ -99,10 +99,58 @@ export class ClaudeRunner {
   }
 
   /**
+   * Get current state of all active processes
+   * Useful for diagnosing concurrent operation issues
+   */
+  getActiveProcessesState(): Array<{
+    agentId: string;
+    pid: number | undefined;
+    runtimeSec: number;
+    lastActivitySec: number;
+    hasError: boolean;
+    stdinWritable: boolean;
+  }> {
+    const now = Date.now();
+    return Array.from(this.activeProcesses.entries()).map(([agentId, proc]) => ({
+      agentId,
+      pid: proc.process.pid,
+      runtimeSec: (now - proc.startTime) / 1000,
+      lastActivitySec: proc.lastActivityTime ? (now - proc.lastActivityTime) / 1000 : -1,
+      hasError: !!proc.lastError,
+      stdinWritable: !!(proc.process.stdin && proc.process.stdin.writable),
+    }));
+  }
+
+  /**
+   * Log diagnostic info about all active processes
+   */
+  logProcessDiagnostics(): void {
+    const state = this.getActiveProcessesState();
+    const count = state.length;
+
+    if (count === 0) {
+      log.log(`📊 [DIAGNOSTICS] No active processes`);
+      return;
+    }
+
+    log.log(`📊 [DIAGNOSTICS] ${count} active process(es):`);
+    for (const proc of state) {
+      const errorStr = proc.hasError ? ` ❌ERROR` : '';
+      const stdinStr = proc.stdinWritable ? ` ✅stdin` : ` ❌stdin`;
+      log.log(`   ${proc.agentId.slice(0, 8)}: PID=${proc.pid} runtime=${proc.runtimeSec.toFixed(1)}s activity=${proc.lastActivitySec >= 0 ? proc.lastActivitySec.toFixed(1) + 's' : 'none'}${stdinStr}${errorStr}`);
+    }
+  }
+
+  /**
    * Watchdog - periodically check that tracked processes are still alive
    * If a process dies without triggering the 'close' event, this will catch it
    */
   private runWatchdog(): void {
+    const activeCount = this.activeProcesses.size;
+    if (activeCount > 0) {
+      log.log(`🐕 [WATCHDOG] Checking ${activeCount} process(es)...`);
+    }
+
     for (const [agentId, activeProcess] of this.activeProcesses) {
       const pid = activeProcess.process.pid;
       if (!pid) continue;
@@ -126,6 +174,12 @@ export class ClaudeRunner {
         // Clean up
         this.activeProcesses.delete(agentId);
         this.lastStderr.delete(agentId);
+
+        // Log remaining processes
+        const remaining = this.activeProcesses.size;
+        if (remaining > 0) {
+          log.log(`🐕 [WATCHDOG] After cleanup: ${remaining} process(es) still active`);
+        }
 
         // Attempt auto-restart
         this.maybeAutoRestart(agentId, activeProcess, null, null);
@@ -168,11 +222,16 @@ export class ClaudeRunner {
 
     if (recentDeaths.length >= 3) {
       log.error(`⚠️ [PATTERN] ${recentDeaths.length} processes died in the last minute!`);
+      log.error(`   Deaths summary:`);
+      for (const death of recentDeaths) {
+        const age = Math.round((now - death.timestamp) / 1000);
+        log.error(`   - Agent ${death.agentId}: exit=${death.exitCode} signal=${death.signal} runtime=${(death.runtime/1000).toFixed(1)}s ago=${age}s${death.wasTracked ? '' : ' [UNTRACKED]'}`);
+      }
 
       // Check if all deaths have the same signal
       const signals = recentDeaths.map(d => d.signal).filter(s => s);
       if (signals.length > 0 && signals.every(s => s === signals[0])) {
-        log.error(`⚠️ [PATTERN] All deaths have signal: ${signals[0]} - possible external kill`);
+        log.error(`⚠️ [PATTERN] All deaths have signal: ${signals[0]} - possible external kill or resource exhaustion`);
       }
 
       // Check if all deaths have the same exit code
@@ -180,16 +239,28 @@ export class ClaudeRunner {
       if (codes.length > 0 && codes.every(c => c === codes[0])) {
         log.error(`⚠️ [PATTERN] All deaths have exit code: ${codes[0]}`);
         if (codes[0] === 137) {
-          log.error(`⚠️ [PATTERN] Exit code 137 = OOM killed! Check system memory.`);
+          log.error(`⚠️ [PATTERN] Exit code 137 = Out of Memory killed! System memory exhausted.`);
+          log.error(`   Actions: Reduce number of concurrent agents or increase system RAM`);
         } else if (codes[0] === 1) {
           log.error(`⚠️ [PATTERN] Exit code 1 = general error. Check Claude Code installation.`);
+        } else if (codes[0] === 139) {
+          log.error(`⚠️ [PATTERN] Exit code 139 = Segmentation fault (SIGSEGV). Possible memory corruption.`);
         }
       }
 
       // Check for very short runtimes (config/startup errors)
       const shortLived = recentDeaths.filter(d => d.runtime < 5000);
       if (shortLived.length >= 2) {
-        log.error(`⚠️ [PATTERN] ${shortLived.length} processes died within 5s of starting - likely config error`);
+        log.error(`⚠️ [PATTERN] ${shortLived.length} processes died within 5s of starting:`);
+        for (const death of shortLived) {
+          log.error(`   - ${death.agentId}: ${death.runtime}ms - likely config/startup error`);
+        }
+      }
+
+      // Check for many tracked deaths (high reliability)
+      const trackedCount = recentDeaths.filter(d => d.wasTracked).length;
+      if (trackedCount === recentDeaths.length) {
+        log.error(`✅ [PATTERN] All deaths were properly tracked and logged`);
       }
     }
   }
@@ -461,11 +532,21 @@ export class ClaudeRunner {
     // Send the prompt via stdin
     if (this.backend.requiresStdinInput() && childProcess.stdin) {
       const stdinInput = this.backend.formatStdinInput(prompt);
+      log.log(`📤 [STDIN] Sending initial prompt (${prompt.length} chars) to agent ${agentId}`);
       childProcess.stdin.write(stdinInput + '\n', 'utf8', (err) => {
         if (err) {
-          log.error(`Failed to write initial prompt to stdin for ${agentId}:`, err);
+          log.error(`❌ [STDIN] Failed to write initial prompt to stdin for ${agentId}: ${err.message}`);
+          activeProcess.lastError = {
+            type: 'initial_stdin_write_error',
+            message: err.message,
+            timestamp: Date.now(),
+          };
+        } else {
+          log.log(`✅ [STDIN] Initial prompt sent successfully to ${agentId}`);
         }
       });
+    } else {
+      log.log(`⏭️ [STDIN] Skipping stdin input for ${agentId} (requiresStdinInput=${this.backend.requiresStdinInput()}, stdin=${!!childProcess.stdin})`);
     }
   }
 
@@ -476,18 +557,34 @@ export class ClaudeRunner {
   sendMessage(agentId: string, message: string): boolean {
     const activeProcess = this.activeProcesses.get(agentId);
     if (!activeProcess) {
+      log.error(`❌ [SEND_MESSAGE] No active process for agent ${agentId}`);
       return false;
     }
 
     const stdin = activeProcess.process.stdin;
-    if (!stdin || !stdin.writable) {
+    if (!stdin) {
+      log.error(`❌ [SEND_MESSAGE] stdin is null for agent ${agentId}`);
+      return false;
+    }
+    if (!stdin.writable) {
+      log.error(`❌ [SEND_MESSAGE] stdin is not writable for agent ${agentId} (destroyed: ${stdin.destroyed}, closed: ${(stdin as any).closed})`);
       return false;
     }
 
     const stdinInput = this.backend.formatStdinInput(message);
+    const messageLen = message.length;
+
     stdin.write(stdinInput + '\n', 'utf8', (err) => {
       if (err) {
-        log.error(`Failed to write to stdin for ${agentId}:`, err);
+        log.error(`❌ [SEND_MESSAGE] Failed to write ${messageLen} chars to stdin for ${agentId}: ${err.message}`);
+        // Track this write failure for potential auto-restart
+        activeProcess.lastError = {
+          type: 'stdin_write_error',
+          message: err.message,
+          timestamp: Date.now(),
+        };
+      } else {
+        log.log(`✅ [SEND_MESSAGE] Successfully wrote ${messageLen} chars to ${agentId}`);
       }
     });
 
@@ -516,6 +613,13 @@ export class ClaudeRunner {
       log.error(`Failed to interrupt ${agentId}:`, e);
       return false;
     }
+  }
+
+  /**
+   * Get count of active processes (for load monitoring)
+   */
+  getActiveProcessCount(): number {
+    return this.activeProcesses.size;
   }
 
   /**

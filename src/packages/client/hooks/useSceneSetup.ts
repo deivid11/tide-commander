@@ -430,7 +430,15 @@ export function useSceneSetup({
         sceneRef.current?.addSubagentEffect(subagent.id, subagent.parentAgentId, subagent.name, subagent.subagentType);
       },
       onSubagentCompleted: (subagentId) => {
-        sceneRef.current?.completeSubagentEffect(subagentId);
+        // subagentId from server is toolUseId, but scene effects use the sub_xxx ID.
+        // Resolve the actual subagent ID from the store.
+        const sub = store.getSubagent(subagentId) || store.getSubagentByToolUseId(subagentId);
+        const effectId = sub?.id || subagentId;
+        sceneRef.current?.completeSubagentEffect(effectId);
+        // Auto-remove effect from scene after fade-out (matches store's 30s auto-remove)
+        setTimeout(() => {
+          sceneRef.current?.removeSubagentEffect(effectId);
+        }, 30000);
       },
     });
 
