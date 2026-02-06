@@ -530,16 +530,25 @@ async function executeCommand(agentId: string, command: string, systemPrompt?: s
   // Don't update lastAssignedTask for system messages (like auto-resume) to avoid recursive loops
   // Don't update status for silent commands (internal operations like /context refresh)
   const isSystemMessage = command.startsWith('[System:');
+
+  const updateData: Partial<Parameters<typeof agentService.updateAgent>[1]> = {};
+
+  // Only update status/UI fields for non-silent commands
   if (!silent) {
-    const updateData: Partial<Parameters<typeof agentService.updateAgent>[1]> = {
-      status: 'working' as const,
-      currentTask: command.substring(0, 100),
-      isDetached: false, // Agent is now attached since we're executing a command
-    };
-    if (!isSystemMessage) {
-      updateData.lastAssignedTask = command;
-      updateData.lastAssignedTaskTime = Date.now();
-    }
+    updateData.status = 'working' as const;
+    updateData.currentTask = command.substring(0, 100);
+    updateData.isDetached = false; // Agent is now attached since we're executing a command
+  }
+
+  // ALWAYS update lastAssignedTask for non-system messages (needed for context recalc recursion detection)
+  // This must happen even for silent commands so that the next step_complete knows what was sent
+  if (!isSystemMessage) {
+    updateData.lastAssignedTask = command;
+    updateData.lastAssignedTaskTime = Date.now();
+  }
+
+  // Only update agent if there are changes
+  if (Object.keys(updateData).length > 0) {
     agentService.updateAgent(agentId, updateData);
   }
 
