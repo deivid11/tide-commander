@@ -12,6 +12,16 @@
   overflow: hidden;
 }
 
+// View mode toggle (3D / 2D / Dashboard) positioned top-center
+.app-view-mode-toggle {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 150;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
 .battlefield-container {
   flex: 1;
   min-width: 0; // Allow shrinking below content size

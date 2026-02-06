@@ -57,10 +57,10 @@ Save the full conversation history and any created/modified files from an agent'
 Securely store API keys, tokens, and other credentials. Use `{{SECRET_NAME}}` placeholders in your prompts, and the server injects the real values before sending to Claude. Secrets never leave the server.
 
 ### View Modes
-Three ways to view the battlefield:
-- **3D View** (Alt+2) - Full Three.js battlefield with character models and post-processing
-- **2D View** (Alt+1) - Lightweight canvas-based rendering for better performance
-- **Dashboard** (Alt+3) - Agent status cards, building health, metrics, and activity timeline
+Three ways to view the battlefield (cycle with Alt+2):
+- **3D View** - Full Three.js battlefield with character models and post-processing (default)
+- **2D View** - Lightweight canvas-based rendering for better performance
+- **Dashboard** - Agent status cards, building overview, and metrics
 
 ### Spotlight Search
 Press **Ctrl+K** (or Alt+P) to open the command palette. Search for agents by name, class, or current task. Jump to areas, find modified files across all agents, or trigger quick actions.
@@ -84,7 +84,7 @@ Press **Ctrl+K** (or Alt+P) to open the command palette. Search for agents by na
 - 🔑 **Secrets Management** - Secure storage with `{{PLACEHOLDER}}` injection into prompts
 - 🔍 **Spotlight Search** - Command palette (Ctrl+K) to find agents, files, and actions
 - 📺 **Commander View** - See all agent terminals at once in a grid, grouped by area
-- 📊 **Dashboard View** - Metrics, agent status cards, and activity timeline
+- 📊 **Dashboard View** - Agent status cards, building overview, and metrics
 - 🖥️ **Guake Terminal** - Drop-down terminal overlay for agent conversations
 - 🌐 **Multiplayer** - WebSocket-based multi-user support
 - 📱 **Mobile Compatible** - Works on mobile devices and Android (optional APK)
@@ -100,7 +100,7 @@ Detailed guides for each feature are available in the [`docs/`](docs/) folder:
 | [Skills](docs/skills.md) | Built-in and custom skills, tool permissions, and assignment |
 | [Snapshots](docs/snapshots.md) | Save and restore conversation history and file artifacts |
 | [Secrets](docs/secrets.md) | Secure credential storage with placeholder injection |
-| [Views & UI](docs/views.md) | 3D, 2D, Dashboard, Commander View, and Guake terminal |
+| [Views & UI](docs/views.md) | 3D, 2D, Dashboard, Commander View, Guake terminal, and Spotlight |
 | [Android APK](docs/android.md) | Build and install the optional mobile companion app |
 | [Docker Deployment](docs/docker.md) | Run Tide Commander in a Docker container |
 
@@ -141,7 +141,7 @@ You can spawn multiple agents, each working in different directories or on diffe
 | Alt+N | Spawn new agent |
 | Enter | Send command (when input focused) |
 | Ctrl+K / Alt+P | Spotlight search |
-| Alt+1 / Alt+2 / Alt+3 | Switch view mode (2D / 3D / Dashboard) |
+| Alt+2 | Cycle view mode (3D / 2D / Dashboard) |
 | Alt+S | Toggle sidebar |
 | Alt+R | Toggle right panel |
 | Alt+E | Toggle file explorer |

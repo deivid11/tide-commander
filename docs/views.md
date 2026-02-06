@@ -4,9 +4,9 @@ Tide Commander has multiple view modes and UI components for interacting with yo
 
 ## View Modes
 
-Switch between views with keyboard shortcuts or the view switcher in the toolbar.
+Cycle between views with Alt+2, or use the toggle in the top toolbar.
 
-### 3D View (Alt+2)
+### 3D View
 
 The default view. A Three.js-powered battlefield where agents are rendered as 3D character models. Features:
 
@@ -17,17 +17,18 @@ The default view. A Three.js-powered battlefield where agents are rendered as 3D
 - Building models with animated status indicators
 - Drawing areas (rectangles and circles) for organization
 
-### 2D View (Alt+1)
+### 2D View
 
 A lightweight canvas-based alternative to the 3D view. Same functionality with lower resource usage - useful on less powerful machines or when running many agents.
 
-### Dashboard (Alt+3)
+### Dashboard
 
 A metrics-focused view with:
-- Agent status cards showing current task, context usage, and token stats
-- Building health overview with service status
-- Activity timeline with filtering
-- Global usage statistics
+- Metrics bar showing agent counts (total, working, idle, errors) and building count
+- Filter agents by status (all, working, errors)
+- Agent cards with status indicators, class icons, and quick actions (focus in 3D, kill)
+- Building cards showing type and status
+- Click any agent card to select it; use the focus button to jump to the 3D view centered on that agent
 
 ## Commander View
 

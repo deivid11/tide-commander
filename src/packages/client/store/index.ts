@@ -434,6 +434,8 @@ class Store
 
   setViewMode(mode: '2d' | '3d' | 'dashboard'): void {
     this.state.viewMode = mode;
+    // Keep experimental2DView in sync for backward compatibility
+    this.state.settings.experimental2DView = mode === '2d';
     this.notify();
   }
 

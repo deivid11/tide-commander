@@ -125,12 +125,13 @@ export function useKeyboardShortcuts({
         return;
       }
 
-      // Toggle 2D/3D View (Alt+2)
+      // Cycle View Mode: 3D → 2D → Dashboard → 3D (Alt+2)
       const toggle2DViewShortcut = shortcuts.find(s => s.id === 'toggle-2d-view');
       if (matchesShortcut(e, toggle2DViewShortcut)) {
         e.preventDefault();
-        const currentSettings = store.getState().settings;
-        store.updateSettings({ experimental2DView: !currentSettings.experimental2DView });
+        const currentMode = store.getState().viewMode;
+        const nextMode = currentMode === '3d' ? '2d' : currentMode === '2d' ? 'dashboard' : '3d';
+        store.setViewMode(nextMode);
         return;
       }
 

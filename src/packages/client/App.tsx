@@ -18,6 +18,8 @@ import { DockerLogsModal } from './components/DockerLogsModal';
 import { BossLogsModal } from './components/BossLogsModal';
 import { FPSMeter } from './components/FPSMeter';
 import { Scene2DCanvas } from './components/Scene2DCanvas';
+import { DashboardView } from './components/DashboardView';
+import { ViewModeToggle } from './components/ViewModeToggle/ViewModeToggle';
 import { MobileFabMenu } from './components/MobileFabMenu';
 import { FloatingActionButtons } from './components/FloatingActionButtons';
 import { AppModals } from './components/AppModals';
@@ -398,9 +400,22 @@ function AppContent() {
       {/* FPS Meter */}
       <FPSMeter visible={state.settings.showFPS} position="bottom-right" />
 
+      {/* View Mode Toggle (3D / 2D / Dashboard) */}
+      <ViewModeToggle className="app-view-mode-toggle" />
+
       <main className="main-content">
         <div className="battlefield-container">
-          {state.settings.experimental2DView ? (
+          {state.viewMode === 'dashboard' ? (
+            <DashboardView
+              onSelectAgent={(agentId) => store.selectAgent(agentId)}
+              onFocusAgent={(agentId) => {
+                store.setViewMode('3d');
+                handleFocusAgent(agentId);
+              }}
+              onKillAgent={handleKillAgent}
+              onSelectBuilding={(buildingId) => store.selectBuilding(buildingId)}
+            />
+          ) : state.viewMode === '2d' ? (
             <Scene2DCanvas
               onAgentClick={(agentId, shiftKey) => {
                 if (shiftKey) {
