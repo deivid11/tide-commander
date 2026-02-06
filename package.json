@@ -1,6 +1,6 @@
 {
   "name": "tide-commander",
-  "version": "0.42.1",
+  "version": "0.43.0",
   "description": "RTS/MOBA-style Claude Code agents commander",
   "type": "module",
   "scripts": {

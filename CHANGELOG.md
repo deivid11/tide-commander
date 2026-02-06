@@ -2,6 +2,61 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.43.0] - 2026-02-05
+
+### Added
+- **Enhanced Keyboard Shortcuts** - Improved keyboard event handling throughout the application
+  - Better event delegation and propagation
+  - More responsive keyboard input detection
+  - Additional shortcut configurations
+
+### Changed
+- **Message Navigation** - Improved useMessageNavigation hook
+  - Better message traversal logic
+  - Enhanced navigation state management
+  - Improved performance
+
+- **Swipe Navigation** - Enhanced useSwipeNavigation hook
+  - Better gesture handling
+  - Improved swipe detection
+  - Better event coordination
+
+- **Controls Modal** - Improved keyboard integration
+  - Better shortcut handling in modal context
+  - Improved focus management
+  - Enhanced keyboard event processing
+
+- **File Explorer** - Better keyboard navigation
+  - Improved file tree navigation
+  - Better keyboard shortcuts integration
+  - Enhanced accessibility
+
+- **Key Capture Input** - Enhanced input component
+  - Better event handling
+  - Improved key detection
+  - Enhanced user feedback
+
+- **Input Handler** - Better input processing
+  - Improved event delegation
+  - Better throttling and debouncing
+  - Enhanced input coordination
+
+- **Scene2D Input** - Improved keyboard support
+  - Better keyboard event handling
+  - Enhanced input coordination with UI
+  - Improved scene interaction
+
+- **Shortcuts Modal** - Enhanced styling
+  - Better visual presentation
+  - Improved readability
+  - Better component organization
+
+### Technical
+- Enhanced useKeyboardShortcuts hook with better event handling
+- Improved store shortcuts configuration
+- Better event delegation patterns across components
+- Enhanced keyboard event processing pipeline
+
 ## [0.42.1] - 2026-02-05
 
 ### Fixed
