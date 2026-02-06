@@ -18,6 +18,23 @@ Despite looking like a game, Tide Commander is a full-featured Claude Code GUI p
 
 Think of it like having a team of AI developers at your command. Assign one agent to investigate a bug while another implements a feature. Watch them work in real-time, send follow-up commands, and keep your project moving forward on multiple fronts.
 
+## 📋 Prerequisites
+
+- Node.js 18+ or Bun
+- Claude Code CLI (`claude` command available in PATH)
+
+## 🚀 Getting Started
+
+```bash
+# Install dependencies
+bun install
+
+# Start the application
+bun run dev
+```
+
+Open http://localhost:5173 in your browser (or your configured `VITE_PORT`) and you're ready to go!
+
 ## 🎖️ Agent Concepts
 
 Tide Commander introduces several powerful concepts for orchestrating your AI agents:
@@ -109,23 +126,6 @@ Detailed guides for each feature are available in the [`docs/`](docs/) folder:
 | [Views & UI](docs/views.md) | 3D, 2D, Dashboard, Commander View, Guake terminal, and Spotlight |
 | [Android APK](docs/android.md) | Build and install the optional mobile companion app |
 | [Docker Deployment](docs/docker.md) | Run Tide Commander in a Docker container |
-
-## 📋 Prerequisites
-
-- Node.js 18+ or Bun
-- Claude Code CLI (`claude` command available in PATH)
-
-## 🚀 Getting Started
-
-```bash
-# Install dependencies
-bun install
-
-# Start the application
-bun run dev
-```
-
-Open http://localhost:5173 in your browser (or your configured `VITE_PORT`) and you're ready to go! 🎉
 
 ## 🎮 How to Use
 
