@@ -1,18 +1,20 @@
 # 🌊 Tide Commander
 
+**A visual multi-agent orchestrator for Claude Code**
+
 ![Tide Commander Preview](docs/preview-3d.png)
 
 ![2D View](docs/preview-2d.png)
 
 [![Watch the demo](https://img.shields.io/badge/YouTube-Watch%20Demo-red?style=for-the-badge&logo=youtube)](https://www.youtube.com/watch?v=r1Op_xfhqOM)
 
-A game-like Claude Code orchestrator. Deploy, position, and command multiple Claude Code instances on a strategic battlefield inspired by RTS games like Warcraft.
+Tide Commander is a Claude Code orchestrator and manager that lets you deploy, control, and monitor multiple Claude Code agents from a single visual interface. Spawn agents, assign tasks, and watch them work in real-time on an RTS-inspired 3D battlefield — or switch to a lightweight 2D canvas or a metrics dashboard.
 
 ## 💡 Why Tide Commander?
 
-Tired of working with tons of terminals with Claude Code open at the same time? Tide Commander transforms your AI-powered development workflow into a real-time strategy interface.
+Managing multiple Claude Code terminals at the same time is painful. Tide Commander replaces that mess with a single visual UI where you can see every agent, their status, and their output at a glance.
 
-This project is not meant to be a game. It looks like a game but internally has many tools for developers, so using an IDE, at least for me, is almost unnecessary. The same interface has file diff viewers on the Claude Code conversation, and a file explorer with differences of uncommitted changes.
+Despite looking like a game, Tide Commander is a full-featured Claude Code GUI packed with developer tools: built-in file explorer with git diffs, conversation history with tool formatting, permission controls, and a command palette. For many workflows, an IDE becomes almost unnecessary.
 
 Think of it like having a team of AI developers at your command. Assign one agent to investigate a bug while another implements a feature. Watch them work in real-time, send follow-up commands, and keep your project moving forward on multiple fronts.
 
@@ -69,10 +71,12 @@ Press **Ctrl+K** (or Alt+P) to open the command palette. Search for agents by na
 
 ## ✨ Features
 
+Claude Code orchestration and multi-agent management features:
+
 - 🎮 **3D Battlefield** - Visual command center with Three.js (also has a lightweight 2D canvas mode)
 - 🎯 **RTS Controls** - Click to select, right-click to move, number keys for quick selection
-- 📡 **Real-time Activity Feed** - Watch your agents work in real-time
-- 🤹 **Multi-Agent Management** - Spawn and control multiple Claude Code instances
+- 📡 **Real-time Activity Feed** - Watch your Claude Code agents work in real-time
+- 🤹 **Multi-Agent Management** - Spawn and control multiple Claude Code instances simultaneously
 - 💾 **Session Persistence** - Agents resume their Claude Code sessions across restarts
 - 📊 **Context Tracking** - Mana bar visualization showing agent context usage
 - 📁 **File Explorer** - Built-in file browser with git diff viewer for uncommitted changes
@@ -156,7 +160,7 @@ Shortcuts are fully customizable in Settings.
 
 ### Overview
 
-Tide Commander provides a visual interface for managing multiple Claude Code CLI instances simultaneously. Each "agent" you spawn is a real Claude Code process running in the background, and you can send commands to them and watch their output in real-time.
+Tide Commander is a Claude Code orchestrator that provides a visual interface for managing multiple Claude Code CLI instances simultaneously. Each "agent" you spawn is a real Claude Code process running in the background, and you can send commands to them and watch their output in real-time.
 
 ### Core Components
 
