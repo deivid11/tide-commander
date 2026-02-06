@@ -756,7 +756,7 @@ export class ClaudeRunner {
 
       case 'text':
         if (event.text) {
-          this.callbacks.onOutput(agentId, event.text, event.isStreaming);
+          this.callbacks.onOutput(agentId, event.text, event.isStreaming, undefined, event.uuid);
         }
         break;
 

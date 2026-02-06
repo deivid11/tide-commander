@@ -424,8 +424,8 @@ function handleEvent(agentId: string, event: StandardEvent): void {
   emit('event', agentId, event);
 }
 
-function handleOutput(agentId: string, text: string, isStreaming?: boolean, subagentName?: string): void {
-  emit('output', agentId, text, isStreaming, subagentName);
+function handleOutput(agentId: string, text: string, isStreaming?: boolean, subagentName?: string, uuid?: string): void {
+  emit('output', agentId, text, isStreaming, subagentName, uuid);
 }
 
 function handleSessionId(agentId: string, sessionId: string): void {

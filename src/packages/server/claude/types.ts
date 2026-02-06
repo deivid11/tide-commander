@@ -58,6 +58,7 @@ export interface StandardEvent {
   subagentType?: string;       // Task input.subagent_type
   subagentModel?: string;      // Task input.model
   toolUseId?: string;          // tool_use block ID (for correlating subagent results)
+  uuid?: string;               // Unique message UUID from Claude session for deduplication
 }
 
 // Custom agent definition for --agents flag
@@ -90,6 +91,7 @@ export interface ClaudeRawEvent {
   session_id?: string;
   model?: string;
   tools?: string[];
+  uuid?: string;  // Unique message UUID from Claude
   message?: {
     content?: Array<{
       type: string;
@@ -193,7 +195,7 @@ export interface RunnerRequest {
 // Runner callbacks
 export interface RunnerCallbacks {
   onEvent: (agentId: string, event: StandardEvent) => void;
-  onOutput: (agentId: string, text: string, isStreaming?: boolean, subagentName?: string) => void;
+  onOutput: (agentId: string, text: string, isStreaming?: boolean, subagentName?: string, uuid?: string) => void;
   onSessionId: (agentId: string, sessionId: string) => void;
   onComplete: (agentId: string, success: boolean) => void;
   onError: (agentId: string, error: string) => void;

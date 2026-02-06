@@ -58,6 +58,7 @@ export interface ClaudeOutput {
   isDelegation?: boolean; // True if this is a delegation message from a boss agent
   skillUpdate?: SkillUpdateData; // True if this is a skill update notification
   subagentName?: string; // Name of the subagent that produced this output (for badge display)
+  uuid?: string; // Unique message UUID from Claude (for deduplication)
 }
 
 // Tool execution entry

@@ -41,20 +41,18 @@ export function createOutputActions(
       setState((s) => {
         const currentOutputs = s.agentOutputs.get(agentId) || [];
 
-        // DEDUPLICATION DISABLED: The previous text-matching deduplication was too aggressive
-        // and was removing legitimate messages that happened to have identical text but arrived
-        // at different times. For example, if an agent outputs "Perfect! Let me create..." twice
-        // in the same session, the second one would be incorrectly filtered out.
-        //
-        // This is a streaming application where duplicate detection should be based on:
-        // - Message IDs/timestamps (not available in current output format)
-        // - Streaming state + content (streamed chunks are marked isStreaming=true, final is false)
-        //
-        // For now, we allow all non-duplicate messages through. The streaming deduplication
-        // is already handled at the server level for streamed vs final consolidated messages.
-        //
-        // TODO: Implement proper deduplication using message IDs or sequence numbers
-        // if duplicates become a problem in the future.
+          // DEDUPLICATION: Use message UUID if available, otherwise skip dedup
+        // This ensures reliable message delivery without false positives
+        if (output.uuid) {
+          // Check if we already have this exact message UUID (indicates a resend)
+          const isDuplicate = currentOutputs.some(existing =>
+            existing.uuid === output.uuid
+          );
+          if (isDuplicate) {
+            // Message already delivered - skip
+            return;
+          }
+        }
 
         // Create NEW array with the new output appended (immutable update for React reactivity)
         let newOutputs = [...currentOutputs, output];

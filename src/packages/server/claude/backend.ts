@@ -275,6 +275,8 @@ export class ClaudeBackend implements CLIBackend {
     // Claude CLI sends both text and tool_use as content blocks within assistant events
     if (event.message?.content && Array.isArray(event.message.content)) {
       const events: StandardEvent[] = [];
+      // Use event UUID if available (unique identifier from Claude)
+      const uuid = event.uuid;
 
       // Extract text blocks - emit as non-streaming final text
       // This ensures text is captured even if streaming deltas were missed
@@ -285,6 +287,7 @@ export class ClaudeBackend implements CLIBackend {
             type: 'text' as const,
             text: block.text,
             isStreaming: false, // Mark as final, non-streaming text
+            uuid, // Add message UUID for deduplication
           });
         }
       }
@@ -303,6 +306,7 @@ export class ClaudeBackend implements CLIBackend {
           toolName,
           toolInput: block.input,
           toolUseId: block.id,
+          uuid: block.id, // tool_use block has unique ID for deduplication
         };
         // Extract subagent metadata from Task tool inputs
         if (toolName === 'Task' && block.input) {
@@ -317,7 +321,7 @@ export class ClaudeBackend implements CLIBackend {
       }
 
       if (events.length > 0) {
-        log.log(`parseAssistantEvent: extracted ${textBlocks.length} text block(s) and ${toolUseBlocks.length} tool_use block(s)`);
+        log.log(`parseAssistantEvent: extracted ${textBlocks.length} text block(s) and ${toolUseBlocks.length} tool_use block(s), uuid=${uuid}`);
         return events.length === 1 ? events[0] : events;
       }
     }
@@ -416,6 +420,7 @@ export class ClaudeBackend implements CLIBackend {
           type: 'text',
           text: streamEvent.delta.text,
           isStreaming: true,
+          uuid: event.uuid, // Propagate UUID for streaming chunks
         };
       } else if (
         streamEvent.delta?.type === 'thinking_delta' &&
@@ -425,6 +430,7 @@ export class ClaudeBackend implements CLIBackend {
           type: 'thinking',
           text: streamEvent.delta.text,
           isStreaming: true,
+          uuid: event.uuid, // Propagate UUID for streaming chunks
         };
       }
     } else if (streamEvent.type === 'content_block_start') {
@@ -433,11 +439,13 @@ export class ClaudeBackend implements CLIBackend {
         return {
           type: 'block_start',
           blockType: blockType,
+          uuid: event.uuid, // Include UUID for block markers too
         };
       }
     } else if (streamEvent.type === 'content_block_stop') {
       return {
         type: 'block_end',
+        uuid: event.uuid,
       };
     }
     return null;

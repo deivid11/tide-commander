@@ -675,9 +675,9 @@ function setupServiceListeners(): void {
     });
   });
 
-  claudeService.on('output', (agentId, text, isStreaming, subagentName) => {
+  claudeService.on('output', (agentId, text, isStreaming, subagentName, uuid) => {
     const textPreview = text.slice(0, 80).replace(/\n/g, '\\n');
-    log.log(`[OUTPUT] agent=${agentId.slice(0,4)} streaming=${isStreaming} text="${textPreview}"`);
+    log.log(`[OUTPUT] agent=${agentId.slice(0,4)} streaming=${isStreaming} text="${textPreview}" uuid=${uuid || 'none'}`);
 
     broadcast({
       type: 'output' as any,
@@ -687,6 +687,7 @@ function setupServiceListeners(): void {
         isStreaming: isStreaming || false,
         timestamp: Date.now(),
         ...(subagentName ? { subagentName } : {}),
+        ...(uuid ? { uuid } : {}),
       },
     });
 
