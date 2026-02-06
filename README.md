@@ -1,6 +1,6 @@
 # 🌊 Tide Commander
 
-![Tide Commander Preview](docs/preview.png?v=2)
+![Tide Commander Preview](docs/preview-3d.png)
 
 ![2D View](docs/preview-2d.png)
 
