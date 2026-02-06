@@ -2,6 +2,38 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.46.0] - 2026-02-06
+
+### Added
+- **Enhanced Agent Debugging** - Improved debugging panel and utilities
+  - Better AgentDebugPanel with enhanced debugging information
+  - Improved agentDebugger service with better logging
+  - Enhanced debugging type definitions
+
+### Changed
+- **Output Rendering** - Improved OutputLine component
+  - Enhanced formatting and visual presentation
+  - Better output styling and organization
+  - Improved content rendering utilities
+
+- **WebSocket Communication** - Better message handling
+  - Improved WebSocket handler with enhanced message processing
+  - Better message routing and coordination
+  - Enhanced error handling and recovery
+
+- **Type System** - Updated type definitions
+  - Better type definitions for debugging
+  - Improved type safety across packages
+  - Enhanced type definitions for shared types
+
+### Technical
+- Enhanced AgentDebugPanel component
+- Improved OutputLine with better formatting
+- Better agentDebugger service
+- Enhanced output rendering utilities
+- Improved WebSocket handlers
+- Better type definitions across all packages
+
 ## [0.45.0] - 2026-02-06
 
 ### Added
