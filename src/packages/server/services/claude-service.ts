@@ -17,7 +17,7 @@ const log = logger.claude;
 // Event types emitted by Claude service
 export interface ClaudeServiceEvents {
   event: (agentId: string, event: StandardEvent) => void;
-  output: (agentId: string, text: string, isStreaming?: boolean, subagentName?: string, uuid?: string) => void;
+  output: (agentId: string, text: string, isStreaming?: boolean, subagentName?: string, uuid?: string, toolMeta?: { toolName?: string; toolInput?: Record<string, unknown> }) => void;
   complete: (agentId: string, success: boolean) => void;
   error: (agentId: string, error: string) => void;
 }
@@ -424,8 +424,8 @@ function handleEvent(agentId: string, event: StandardEvent): void {
   emit('event', agentId, event);
 }
 
-function handleOutput(agentId: string, text: string, isStreaming?: boolean, subagentName?: string, uuid?: string): void {
-  emit('output', agentId, text, isStreaming, subagentName, uuid);
+function handleOutput(agentId: string, text: string, isStreaming?: boolean, subagentName?: string, uuid?: string, toolMeta?: { toolName?: string; toolInput?: Record<string, unknown> }): void {
+  emit('output', agentId, text, isStreaming, subagentName, uuid, toolMeta);
 }
 
 function handleSessionId(agentId: string, sessionId: string): void {

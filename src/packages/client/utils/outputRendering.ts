@@ -103,15 +103,23 @@ export function extractToolKeyParam(toolName: string, inputJson: string): string
       }
       case 'Grep': {
         const pattern = input.pattern;
+        const path = input.path;
+        if (pattern && path) {
+          return `"${pattern}" in ${path}`;
+        }
         if (pattern) {
-          return `"${pattern}"`; // Full pattern
+          return `"${pattern}"`;
         }
         break;
       }
       case 'Glob': {
         const pattern = input.pattern;
+        const path = input.path;
+        if (pattern && path) {
+          return `${pattern} in ${path}`;
+        }
         if (pattern) {
-          return pattern; // Full pattern
+          return pattern;
         }
         break;
       }

@@ -895,6 +895,13 @@ export interface OutputMessage extends WSMessage {
     timestamp: number;
     isDelegation?: boolean; // True if this is a delegation message from a boss agent
     skillUpdate?: SkillUpdateData; // Skill update notification (UI only, not injected into conversation)
+    subagentName?: string; // Name of subagent if this output is from a delegated task
+    uuid?: string; // Unique message UUID for deduplication
+    // Tool information extracted from text for better debugger display
+    toolName?: string; // Name of tool being used (e.g., "Bash", "Read")
+    toolInput?: Record<string, unknown>; // Parsed tool input parameters
+    toolInputRaw?: string; // Raw tool input if JSON parsing failed
+    toolOutput?: string; // Tool output/result
   };
 }
 

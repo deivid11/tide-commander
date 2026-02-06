@@ -82,7 +82,7 @@ class AgentDebuggerService {
 
     try {
       const parsed = JSON.parse(raw);
-      console.log('[AgentDebugger] Capturing SENT message for agent:', agentId, 'type:', parsed.type);
+      console.log(`[AgentDebugger] SENT - agent: ${agentId.slice(0,4)}, type: ${parsed.type}, size: ${raw.length}B`);
       this.addMessage(agentId, {
         id: generateUUID(),
         agentId,
@@ -94,6 +94,7 @@ class AgentDebuggerService {
         raw,
       });
     } catch (_e) {
+      console.error(`[AgentDebugger] Failed to parse SENT message:`, String(_e).slice(0, 80));
       this.addMessage(agentId, {
         id: generateUUID(),
         agentId,
@@ -115,7 +116,7 @@ class AgentDebuggerService {
 
     try {
       const parsed = JSON.parse(raw);
-      console.log('[AgentDebugger] Capturing RECEIVED message for agent:', agentId, 'type:', parsed.type);
+      console.log(`[AgentDebugger] RECEIVED - agent: ${agentId.slice(0,4)}, type: ${parsed.type}, size: ${raw.length}B`);
       this.addMessage(agentId, {
         id: generateUUID(),
         agentId,
@@ -127,6 +128,7 @@ class AgentDebuggerService {
         raw,
       });
     } catch (_e) {
+      console.error(`[AgentDebugger] Failed to parse RECEIVED message:`, String(_e).slice(0, 80));
       this.addMessage(agentId, {
         id: generateUUID(),
         agentId,

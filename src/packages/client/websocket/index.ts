@@ -302,7 +302,15 @@ export function connect(): void {
 
       handleServerMessage(message);
     } catch (err) {
+      // Log the malformed data to debug message contamination issues
+      const preview = event.data.substring(0, 200);
       console.error(`[WS] Failed to parse message:`, err);
+      console.error(`[WS] Raw data (first 200 chars):`, preview);
+      console.error(`[WS] Full data length:`, event.data.length);
+      // Only log full data if it's not too large
+      if (event.data.length < 5000) {
+        console.error(`[WS] Full malformed message:`, event.data);
+      }
     }
   };
 
@@ -453,6 +461,10 @@ function handleServerMessage(message: ServerMessage): void {
         skillUpdate?: import('../../shared/types').SkillUpdateData;
         subagentName?: string;
         uuid?: string;
+        toolName?: string;
+        toolInput?: Record<string, unknown>;
+        toolInputRaw?: string;
+        toolOutput?: string;
       };
       debugLog.debug(`Output: "${output.text.slice(0, 80)}..."`, {
         agentId: output.agentId,
@@ -460,6 +472,7 @@ function handleServerMessage(message: ServerMessage): void {
         length: output.text.length,
         hasSkillUpdate: !!output.skillUpdate,
         uuid: output.uuid,
+        toolName: output.toolName,
       }, 'ws:output');
       store.addOutput(output.agentId, {
         text: output.text,
@@ -469,6 +482,9 @@ function handleServerMessage(message: ServerMessage): void {
         skillUpdate: output.skillUpdate,
         subagentName: output.subagentName,
         uuid: output.uuid,
+        toolName: output.toolName,
+        toolInput: output.toolInput,
+        toolOutput: output.toolOutput,
       });
       break;
     }

@@ -93,28 +93,77 @@ const clients = new Set<WebSocket>();
 // ============================================================================
 
 export function broadcast(message: ServerMessage): void {
-  const data = JSON.stringify(message);
-  let sentCount = 0;
-  let errorCount = 0;
+  try {
+    // SAFETY: Use a replacer to handle non-serializable objects
+    const data = JSON.stringify(message, (key, value) => {
+      // Handle non-serializable types gracefully
+      if (value === undefined) return null;
+      if (typeof value === 'function') {
+        return `[Function: ${(value as Function).name || 'anonymous'}]`;
+      }
+      if (value instanceof Error) {
+        return {
+          name: value.name,
+          message: value.message,
+          stack: value.stack,
+        };
+      }
+      // Handle circular references and iterables (Set, Map, etc)
+      if (typeof value === 'object' && value !== null) {
+        if (value instanceof Date) return value.toISOString();
+        if (value instanceof Map) return Array.from(value.entries());
+        if (value instanceof Set) return Array.from(value);
+        if (typeof value[Symbol.iterator] === 'function' && !Array.isArray(value)) {
+          try {
+            return Array.from(value as Iterable<unknown>);
+          } catch {
+            // Not iterable, let default handling continue
+          }
+        }
+      }
+      return value;
+    });
 
-  for (const client of clients) {
-    if (client.readyState === WebSocket.OPEN) {
-      try {
-        client.send(data);
-        sentCount++;
-      } catch (err) {
-        log.error(`Failed to send ${message.type} to client:`, err);
-        errorCount++;
+    // SAFETY: Verify the stringified data can be parsed back
+    if (data.length === 0 || !data.startsWith('{')) {
+      log.error(`[BROADCAST] Invalid JSON generated for ${message.type}:`, data.substring(0, 100));
+      return;
+    }
+
+    // SAFETY: Verify it can be parsed back
+    try {
+      JSON.parse(data);
+    } catch (parseErr) {
+      log.error(`[BROADCAST] Generated invalid JSON for ${message.type}:`, parseErr);
+      log.error(`[BROADCAST] Data preview:`, data.substring(0, 200));
+      return;
+    }
+
+    let sentCount = 0;
+    let errorCount = 0;
+
+    for (const client of clients) {
+      if (client.readyState === WebSocket.OPEN) {
+        try {
+          client.send(data);
+          sentCount++;
+        } catch (err) {
+          log.error(`Failed to send ${message.type} to client:`, err);
+          errorCount++;
+        }
       }
     }
-  }
 
-  // PERF: Only log broadcasts when there are errors
-  // High-frequency broadcast logging was causing CPU spikes
-  // Note: Removed backpressure check (bufferedAmount > 1MB) that was silently dropping messages
-  // WebSocket.send() already handles buffering internally - messages are queued, not dropped
-  if (errorCount > 0) {
-    log.log(`[BROADCAST] type=${message.type} sentTo=${sentCount}/${clients.size} errors=${errorCount}`);
+    // PERF: Only log broadcasts when there are errors
+    // High-frequency broadcast logging was causing CPU spikes
+    // Note: Removed backpressure check (bufferedAmount > 1MB) that was silently dropping messages
+    // WebSocket.send() already handles buffering internally - messages are queued, not dropped
+    if (errorCount > 0) {
+      log.log(`[BROADCAST] type=${message.type} sentTo=${sentCount}/${clients.size} errors=${errorCount}`);
+    }
+  } catch (err) {
+    log.error(`[BROADCAST] Failed to serialize message of type ${message.type}:`, err);
+    log.error(`[BROADCAST] Message type structure:`, typeof message, Object.keys(message || {}));
   }
 }
 
@@ -675,21 +724,49 @@ function setupServiceListeners(): void {
     });
   });
 
-  claudeService.on('output', (agentId, text, isStreaming, subagentName, uuid) => {
+  claudeService.on('output', (agentId: string, text: string, isStreaming: boolean | undefined, subagentName: string | undefined, uuid: string | undefined, toolMeta?: { toolName?: string; toolInput?: Record<string, unknown> }) => {
     const textPreview = text.slice(0, 80).replace(/\n/g, '\\n');
     log.log(`[OUTPUT] agent=${agentId.slice(0,4)} streaming=${isStreaming} text="${textPreview}" uuid=${uuid || 'none'}`);
 
+    // Extract tool information from text for better debugger display
+    const payload: Record<string, unknown> = {
+      agentId,
+      text,
+      isStreaming: isStreaming || false,
+      timestamp: Date.now(),
+      ...(subagentName ? { subagentName } : {}),
+      ...(uuid ? { uuid } : {}),
+    };
+
+    // Use toolMeta from runner if available (attached to "Using tool:" messages)
+    if (toolMeta?.toolName) {
+      payload.toolName = toolMeta.toolName;
+    }
+    if (toolMeta?.toolInput) {
+      payload.toolInput = toolMeta.toolInput;
+    }
+
+    // Parse tool information from text messages for better debugger integration
+    if (text.startsWith('Using tool:') && !payload.toolName) {
+      payload.toolName = text.replace('Using tool:', '').trim();
+    } else if (text.startsWith('Tool input:')) {
+      try {
+        const jsonStr = text.replace('Tool input:', '').trim();
+        payload.toolInput = JSON.parse(jsonStr);
+      } catch (e) {
+        // If JSON parsing fails, store raw input text
+        payload.toolInputRaw = text.replace('Tool input:', '').trim();
+      }
+    } else if (text.startsWith('Bash output:')) {
+      payload.toolOutput = text.replace('Bash output:', '').trim();
+    } else if (text.startsWith('Tool result:')) {
+      payload.toolOutput = text.replace('Tool result:', '').trim();
+    }
+
     broadcast({
-      type: 'output' as any,
-      payload: {
-        agentId,
-        text,
-        isStreaming: isStreaming || false,
-        timestamp: Date.now(),
-        ...(subagentName ? { subagentName } : {}),
-        ...(uuid ? { uuid } : {}),
-      },
-    });
+      type: 'output',
+      payload,
+    } as ServerMessage);
 
     // If this subordinate is working on a delegated task, forward output to boss
     const delegation = getBossForSubordinate(agentId);

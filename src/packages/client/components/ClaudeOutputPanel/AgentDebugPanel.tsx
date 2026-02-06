@@ -19,6 +19,20 @@ function highlightJson(json: string): React.ReactNode[] {
   const nodes: React.ReactNode[] = [];
   let key = 0;
 
+  // Validate JSON first
+  try {
+    JSON.parse(json);
+  } catch (e) {
+    // If JSON is invalid, show error and raw content
+    nodes.push(
+      <span key={key++} className="json-error">
+        [Invalid JSON: {String(e).slice(0, 50)}]
+      </span>
+    );
+    nodes.push(<span key={key++}>{json}</span>);
+    return nodes;
+  }
+
   // Regex to match JSON tokens
   const tokenRegex = /("(?:\\.|[^"\\])*")\s*:|("(?:\\.|[^"\\])*")|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)|(\btrue\b|\bfalse\b)|(\bnull\b)|([{}[\],:])/g;
 
@@ -608,7 +622,20 @@ export const AgentDebugPanel: React.FC<AgentDebugPanelProps> = ({
                     )}
 
                     {/* Full JSON payload */}
-                    <pre>{highlightJson(JSON.stringify(msg.payload, null, 2))}</pre>
+                    <pre>
+                      {highlightJson(
+                        JSON.stringify(msg.payload, (key, value) => {
+                          // Safeguard: ensure all values are serializable
+                          if (value === undefined) return null;
+                          if (typeof value === 'object' && value !== null && !(value instanceof Date) && !Array.isArray(value) && typeof value[Symbol.iterator] === 'function') {
+                            // Iterator (like Set, Map) - convert to array
+                            return Array.from(value as Iterable<unknown>);
+                          }
+                          if (typeof value === 'function') return `[Function: ${(value as Function).name || 'anonymous'}]`;
+                          return value;
+                        }, 2)
+                      )}
+                    </pre>
                   </div>
                 )}
               </div>
@@ -692,7 +719,16 @@ export const AgentDebugPanel: React.FC<AgentDebugPanelProps> = ({
 
                     {isExpanded && log.data !== undefined ? (
                       <div className="message-body">
-                        <pre><>{highlightJson(JSON.stringify(log.data as Record<string, unknown>, null, 2))}</></pre>
+                        <pre><>{highlightJson(JSON.stringify(log.data as Record<string, unknown>, (key, value) => {
+                          // Safeguard: ensure all values are serializable
+                          if (value === undefined) return null;
+                          if (typeof value === 'object' && value !== null && !(value instanceof Date) && !Array.isArray(value) && typeof value[Symbol.iterator] === 'function') {
+                            // Iterator (like Set, Map) - convert to array
+                            return Array.from(value as Iterable<unknown>);
+                          }
+                          if (typeof value === 'function') return `[Function: ${(value as Function).name || 'anonymous'}]`;
+                          return value;
+                        }, 2))}</></pre>
                       </div>
                     ) : null}
                   </div>

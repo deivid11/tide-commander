@@ -2,7 +2,7 @@
  * OutputLine component for rendering live streaming output
  */
 
-import React, { memo, useState } from 'react';
+import React, { memo, useState, useRef, useCallback, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useHideCost, useSettings, ClaudeOutput, store } from '../../store';
@@ -38,11 +38,122 @@ function getDebugHash(output: ClaudeOutput): string {
   return `${flags}:${(hash >>> 0).toString(16).slice(0, 6)}`;
 }
 
+// Metadata tooltip that appears on timestamp click
+function MessageMetadataTooltip({ output, debugHash, onClose }: { output: ClaudeOutput; debugHash: string; onClose: () => void }) {
+  const tooltipRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (tooltipRef.current && !tooltipRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [onClose]);
+
+  const copyField = (value: string) => {
+    navigator.clipboard.writeText(value);
+  };
+
+  const date = new Date(output.timestamp);
+  const fullTime = date.toISOString();
+
+  // Determine message type
+  let msgType = 'assistant';
+  if (output.isUserPrompt) msgType = 'user';
+  else if (output.text.startsWith('Using tool:')) msgType = 'tool_use';
+  else if (output.text.startsWith('Tool input:')) msgType = 'tool_input';
+  else if (output.text.startsWith('Tool result:')) msgType = 'tool_result';
+  else if (output.text.startsWith('Bash output:')) msgType = 'bash_output';
+  else if (output.text.startsWith('Tokens:') || output.text.startsWith('Cost:')) msgType = 'stats';
+  else if (output.text.startsWith('[thinking]')) msgType = 'thinking';
+  else if (output.skillUpdate) msgType = 'skill_update';
+
+  const rows: Array<{ label: string; value: string; mono?: boolean }> = [
+    { label: 'UUID', value: output.uuid || '(none)', mono: true },
+    { label: 'Hash', value: debugHash, mono: true },
+    { label: 'Type', value: msgType },
+    { label: 'Time', value: fullTime, mono: true },
+    { label: 'Epoch', value: String(output.timestamp), mono: true },
+  ];
+
+  if (output.isStreaming) rows.push({ label: 'State', value: 'streaming' });
+  if (output.isDelegation) rows.push({ label: 'Flag', value: 'delegation' });
+  if (output.toolName) rows.push({ label: 'Tool', value: output.toolName });
+  if (output.subagentName) rows.push({ label: 'Subagent', value: output.subagentName });
+
+  return (
+    <div className="msg-meta-tooltip" ref={tooltipRef}>
+      <div className="msg-meta-tooltip__header">
+        <span>Message Info</span>
+        <button className="msg-meta-tooltip__close" onClick={onClose}>&times;</button>
+      </div>
+      <div className="msg-meta-tooltip__body">
+        {rows.map(({ label, value, mono }) => (
+          <div key={label} className="msg-meta-tooltip__row">
+            <span className="msg-meta-tooltip__label">{label}</span>
+            <span
+              className={`msg-meta-tooltip__value ${mono ? 'mono' : ''}`}
+              onClick={() => copyField(value)}
+              title="Click to copy"
+            >
+              {value}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Timestamp that opens metadata tooltip on click
+function TimestampWithMeta({ output, timeStr, debugHash }: { output: ClaudeOutput; timeStr: string; debugHash: string }) {
+  const [showMeta, setShowMeta] = useState(false);
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowMeta(prev => !prev);
+  }, []);
+  const handleClose = useCallback(() => setShowMeta(false), []);
+
+  return (
+    <span className="output-timestamp-wrapper">
+      <span
+        className="output-timestamp output-timestamp--clickable"
+        onClick={handleClick}
+        title="Click for message info"
+      >
+        {timeStr}
+      </span>
+      {showMeta && <MessageMetadataTooltip output={output} debugHash={debugHash} onClose={handleClose} />}
+    </span>
+  );
+}
+
 export const OutputLine = memo(function OutputLine({ output, agentId, onImageClick, onFileClick, onBashClick, onViewMarkdown }: OutputLineProps) {
   const hideCost = useHideCost();
   const settings = useSettings();
   const { text: rawText, isStreaming, isUserPrompt, timestamp, skillUpdate, _toolKeyParam, _editData, _todoInput, _bashOutput, _bashCommand, _isRunning } = output;
   const text = filterCostText(rawText, hideCost);
+
+  // Extract tool info from payload (for real-time display before look-ahead completes)
+  const payloadToolName = output.toolName;
+  const payloadToolInput = output.toolInput;
+  const payloadToolOutput = output.toolOutput;
+
+  // Fallback to extracted key param if available, otherwise try to extract from payload
+  let toolKeyParamOrFallback = _toolKeyParam;
+  if (!toolKeyParamOrFallback && payloadToolInput && typeof payloadToolInput === 'object') {
+    const input = payloadToolInput as Record<string, unknown>;
+    // For search tools, combine pattern + path for better context
+    if (payloadToolName === 'Glob' && input.pattern) {
+      toolKeyParamOrFallback = input.path ? `${input.pattern} in ${input.path}` : input.pattern as string;
+    } else if (payloadToolName === 'Grep' && input.pattern) {
+      toolKeyParamOrFallback = input.path ? `"${input.pattern}" in ${input.path}` : `"${input.pattern}"` as string;
+    } else {
+      toolKeyParamOrFallback = (input.file_path || input.path || input.notebook_path || input.command || input.pattern || input.url || input.query) as string;
+    }
+  }
 
   // Resolve agent name for tool attribution (prefer subagent name if present)
   const parentAgentName = agentId ? store.getState().agents.get(agentId)?.name : null;
@@ -62,7 +173,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
   if (skillUpdate) {
     return (
       <div className="output-line output-skill-update">
-        <span className="output-timestamp" title={`${timestamp} | ${debugHash}`}>{timeStr}</span>
+        <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} />
         <span className="skill-update-icon">🔄</span>
         <span className="skill-update-label">Skills updated:</span>
         <span className="skill-update-list">
@@ -85,7 +196,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
         onClick={() => setSessionExpanded(!sessionExpanded)}
         title="Click to expand/collapse"
       >
-        <span className="output-timestamp" title={`${timestamp} | ${debugHash}`}>{timeStr}</span>
+        <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} />
         <span className="session-continuation-icon">🔗</span>
         <span className="session-continuation-label">Session continued from previous context</span>
         <span className="session-continuation-toggle">{sessionExpanded ? '▼' : '▶'}</span>
@@ -118,7 +229,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
 
     return (
       <div className="output-line output-user">
-        <span className="output-timestamp" title={`${timestamp} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#666', fontFamily: 'monospace'}}>[{debugHash}]</span></span>
+        <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} />
         {isDelegatedTask ? (
           <DelegatedTaskHeader bossName={delegation.bossName} taskCommand={delegation.taskCommand} />
         ) : (
@@ -156,8 +267,8 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
 
     // Check if this is a Bash tool that should be clickable (with command or output)
     const isBashTool = toolName === 'Bash' && onBashClick;
-    const hasBashOutput = !!_bashOutput;
-    const bashCommand = _bashCommand || _toolKeyParam || '';
+    const hasBashOutput = !!_bashOutput || !!payloadToolOutput;
+    const bashCommand = _bashCommand || _toolKeyParam || toolKeyParamOrFallback || '';
 
     const handleParamClick = (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -186,20 +297,35 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
         onClick={isBashTool ? handleBashClick : undefined}
         title={isBashTool ? 'Click to view output' : undefined}
       >
-        <span className="output-timestamp" title={`${timestamp} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#666', fontFamily: 'monospace'}}>[{debugHash}]</span></span>
+        <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} />
         {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
         <span className="output-tool-icon">{icon}</span>
         <span className="output-tool-name">{toolName}</span>
-        {_toolKeyParam && (
+
+        {/* For Bash tools, show the command inline (more useful than file paths) */}
+        {isBashTool && bashCommand && (
+          <span
+            className="output-tool-param bash-command"
+            onClick={handleBashClick}
+            title="Click to view full output"
+            style={{ cursor: 'pointer', fontFamily: 'monospace', fontSize: '0.9em', color: '#888' }}
+          >
+            {bashCommand}
+          </span>
+        )}
+
+        {/* For file tools, show the file path */}
+        {!isBashTool && toolKeyParamOrFallback && (
           <span
             className={`output-tool-param ${isFileClickable ? 'clickable-path' : ''}`}
             onClick={isFileClickable ? handleParamClick : undefined}
             title={isFileClickable ? (toolName === 'Edit' && _editData ? 'Click to view diff' : 'Click to view file') : undefined}
             style={isFileClickable ? { cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' } : undefined}
           >
-            {_toolKeyParam}
+            {toolKeyParamOrFallback}
           </span>
         )}
+
         {isBashTool && !_isRunning && <span className="bash-output-indicator">{hasBashOutput ? '📄' : '💻'}</span>}
         {isStreaming && <span className="output-tool-loading">...</span>}
       </div>
@@ -216,7 +342,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
       if (parsed.file_path && (parsed.old_string !== undefined || parsed.new_string !== undefined)) {
         return (
           <div className="output-line output-tool-input">
-            <span className="output-timestamp" title={`${timestamp} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#666', fontFamily: 'monospace'}}>[{debugHash}]</span></span>
+            <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} />
             <EditToolDiff content={inputText} onFileClick={onFileClick} />
           </div>
         );
@@ -224,7 +350,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
       if (parsed.file_path && parsed.old_string === undefined && parsed.new_string === undefined) {
         return (
           <div className="output-line output-tool-input">
-            <span className="output-timestamp" title={`${timestamp} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#666', fontFamily: 'monospace'}}>[{debugHash}]</span></span>
+            <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} />
             <ReadToolInput content={inputText} onFileClick={onFileClick} />
           </div>
         );
@@ -232,7 +358,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
       if (Array.isArray(parsed.todos)) {
         return (
           <div className="output-line output-tool-input">
-            <span className="output-timestamp" title={`${timestamp} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#666', fontFamily: 'monospace'}}>[{debugHash}]</span></span>
+            <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} />
             <TodoWriteInput content={inputText} />
           </div>
         );
@@ -243,7 +369,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
 
     return (
       <div className="output-line output-tool-input">
-        <span className="output-timestamp" title={`${timestamp} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#666', fontFamily: 'monospace'}}>[{debugHash}]</span></span>
+        <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} />
         <pre className="output-input-content">{inputText}</pre>
       </div>
     );
@@ -255,7 +381,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
     const isError = resultText.toLowerCase().includes('error') || resultText.toLowerCase().includes('failed');
     return (
       <div className={`output-line output-tool-result ${isError ? 'is-error' : ''}`}>
-        <span className="output-timestamp" title={`${timestamp} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#666', fontFamily: 'monospace'}}>[{debugHash}]</span></span>
+        <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} />
         <span className="output-result-icon">{isError ? '❌' : '✓'}</span>
         <pre className="output-result-content">{resultText}</pre>
       </div>
@@ -272,7 +398,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
     const isTruncated = bashOutput.includes('... (truncated,');
     return (
       <div className={`output-line output-bash-result ${isError ? 'is-error' : ''}`}>
-        <span className="output-timestamp" title={`${timestamp} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#666', fontFamily: 'monospace'}}>[{debugHash}]</span></span>
+        <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} />
         <div className="bash-output-container">
           <div className="bash-output-header">
             <span className="bash-output-icon">$</span>
@@ -338,7 +464,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
     if (delegationParsed.hasDelegation || workPlanParsed.hasWorkPlan) {
       return (
         <div className={className}>
-          <span className="output-timestamp" title={`${timestamp} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#666', fontFamily: 'monospace'}}>[{debugHash}]</span></span>
+          <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} />
           <span className="output-role">Claude</span>
           <div className="markdown-content">
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
@@ -378,7 +504,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
 
   return (
     <div className={className}>
-      <span className="output-timestamp" title={`${timestamp} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#666', fontFamily: 'monospace'}}>[{debugHash}]</span></span>
+      <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} />
       {isClaudeMessage && <span className="output-role">Claude</span>}
       {useMarkdown ? (
         <div className="markdown-content">

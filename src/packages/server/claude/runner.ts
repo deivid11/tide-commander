@@ -781,8 +781,12 @@ export class ClaudeRunner {
         // Resolve subagent name: use event's own subagentName (for Task), or active subagent name
         const toolStartSubName = event.subagentName || this.activeSubagentName.get(agentId);
         // Send tool name as text output (needed for simple view mode display)
-        this.callbacks.onOutput(agentId, `Using tool: ${event.toolName}`, false, toolStartSubName, event.uuid);
-        // Send tool input as JSON (needed for simple view to show file paths, commands, etc.)
+        // Include toolInput in metadata so client can render key params immediately
+        this.callbacks.onOutput(agentId, `Using tool: ${event.toolName}`, false, toolStartSubName, event.uuid, {
+          toolName: event.toolName,
+          toolInput: event.toolInput as Record<string, unknown> | undefined,
+        });
+        // Send tool input as JSON (needed for advanced view and debugger)
         if (event.toolInput) {
           this.callbacks.onOutput(agentId, `Tool input: ${JSON.stringify(event.toolInput)}`, false, toolStartSubName, event.uuid);
         }

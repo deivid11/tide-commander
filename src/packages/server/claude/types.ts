@@ -195,7 +195,7 @@ export interface RunnerRequest {
 // Runner callbacks
 export interface RunnerCallbacks {
   onEvent: (agentId: string, event: StandardEvent) => void;
-  onOutput: (agentId: string, text: string, isStreaming?: boolean, subagentName?: string, uuid?: string) => void;
+  onOutput: (agentId: string, text: string, isStreaming?: boolean, subagentName?: string, uuid?: string, toolMeta?: { toolName?: string; toolInput?: Record<string, unknown> }) => void;
   onSessionId: (agentId: string, sessionId: string) => void;
   onComplete: (agentId: string, success: boolean) => void;
   onError: (agentId: string, error: string) => void;

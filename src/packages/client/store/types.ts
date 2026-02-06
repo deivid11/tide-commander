@@ -59,6 +59,9 @@ export interface ClaudeOutput {
   skillUpdate?: SkillUpdateData; // True if this is a skill update notification
   subagentName?: string; // Name of the subagent that produced this output (for badge display)
   uuid?: string; // Unique message UUID from Claude (for deduplication)
+  toolName?: string; // Tool name extracted from "Using tool:" messages (for real-time display)
+  toolInput?: Record<string, unknown>; // Parsed tool input JSON (for key param extraction before look-ahead)
+  toolOutput?: string; // Tool result/bash output text
 }
 
 // Tool execution entry
