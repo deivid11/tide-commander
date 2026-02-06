@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.44.0] - 2026-02-05
+
+### Added
+- **Comprehensive Documentation** - Complete guides for all major features
+  - Android development guide
+  - Buildings and structures documentation
+  - Custom agent classes guide
+  - Docker setup and usage documentation
+  - Secrets management guide
+  - Skills system documentation
+  - Snapshot feature documentation
+  - Views and view modes documentation
+
+### Changed
+- **Documentation Organization** - Improved docs structure
+  - Consolidated documentation in docs folder
+  - Updated README with documentation references
+  - Better organized guides and tutorials
+
 ## [0.43.2] - 2026-02-05
 
 ### Removed
