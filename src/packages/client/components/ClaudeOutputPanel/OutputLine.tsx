@@ -11,7 +11,7 @@ import { TOOL_ICONS, formatTimestamp } from '../../utils/outputRendering';
 import { markdownComponents } from './MarkdownComponents';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, DelegatedTaskHeader, parseWorkPlanBlock, WorkPlanBlock } from './BossContext';
 import { EditToolDiff, ReadToolInput, TodoWriteInput } from './ToolRenderers';
-import { renderContentWithImages } from './contentRendering';
+import { renderContentWithImages, renderUserPromptContent } from './contentRendering';
 import { ansiToHtml } from '../../utils/ansiToHtml';
 import { useTTS } from '../../hooks/useTTS';
 import type { EditData } from './types';
@@ -127,7 +127,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
             {parsed.hasContext && parsed.context && (
               <BossContext key={`boss-stream-${text.slice(0, 50)}`} context={parsed.context} />
             )}
-            {renderContentWithImages(parsed.userMessage, onImageClick)}
+            {renderUserPromptContent(parsed.userMessage, onImageClick)}
           </>
         )}
       </div>

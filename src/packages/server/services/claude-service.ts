@@ -478,8 +478,22 @@ function handleComplete(agentId: string, success: boolean): void {
 }
 
 function handleError(agentId: string, error: string): void {
-  log.error(`Agent ${agentId} error: ${error}`);
-  agentService.updateAgent(agentId, { status: 'error' });
+  const agent = agentService.getAgent(agentId);
+  const timestamp = new Date().toISOString();
+
+  log.error(`❌ [ERROR] Agent ${agent?.name || agentId} (${agentId})`);
+  log.error(`   Time: ${timestamp}`);
+  log.error(`   Message: ${error}`);
+  log.error(`   Status before: ${agent?.status}`);
+  log.error(`   Last task: ${agent?.lastAssignedTask}`);
+  log.error(`   Current tool: ${agent?.currentTool}`);
+  log.error(`   Session ID: ${agent?.sessionId}`);
+
+  agentService.updateAgent(agentId, {
+    status: 'error',
+    currentTask: undefined,
+    currentTool: undefined,
+  });
   emit('error', agentId, error);
 }
 

@@ -221,6 +221,12 @@ export interface ActiveProcess {
   isReconnected?: boolean;
   // Track last activity time for stdin watchdog (detects stuck processes)
   lastActivityTime?: number;
+  // Track errors that occur during the process lifetime
+  lastError?: {
+    type: string;  // 'stdin_write_error', 'initial_stdin_write_error', etc.
+    message: string;
+    timestamp: number;
+  };
 }
 
 // Process death info for diagnostics

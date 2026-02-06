@@ -203,6 +203,14 @@
   .output-role {
     color: var(--msg-user-text);
   }
+
+}
+
+// Preserve whitespace/newlines in user prompt text (pasted content)
+// Used by both OutputLine (live) and HistoryLine (loaded history)
+.user-prompt-text {
+  white-space: pre-wrap;
+  word-wrap: break-word;
 }
 
 .output-role {
