@@ -38,3 +38,6 @@ npm-debug.log*
 
 # Testing
 coverage/
+
+# Release artifacts
+release/
