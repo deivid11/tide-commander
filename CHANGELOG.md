@@ -2,6 +2,37 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.45.0] - 2026-02-06
+
+### Added
+- **Automatic Session Reattachment** - Agents automatically reconnect to previous sessions
+  - ReattachAgentMessage type definition for agent reconnection
+  - Visual feedback for automatic reattachment process
+  - Seamless reconnection on session loss
+
+### Changed
+- **Performance Optimization** - System messages now non-blocking
+  - Improved reattachment speed and responsiveness
+  - Better performance during agent initialization
+  - Reduced blocking operations
+
+- **Message Deduplication** - UUID-based deduplication system
+  - Pass UUID for all output events in runner
+  - UUID propagated through WebSocket output messages
+  - Complete client-side deduplication support
+
+### Fixed
+- **Session Persistence** - Better handling of agent reconnection
+  - Improved reconnection logic
+  - Better error recovery
+  - More reliable session management
+
+### Technical
+- Added ReattachAgentMessage type definition
+- Improved runner output event handling with UUID
+- Enhanced WebSocket message propagation
+- Better system message handling for non-blocking operations
+
 ## [0.44.1] - 2026-02-05
 
 ### Changed
