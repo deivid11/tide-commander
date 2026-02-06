@@ -2,6 +2,46 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.42.1] - 2026-02-05
+
+### Fixed
+- **Output Rendering** - Improved formatting and display
+  - Enhanced OutputLine component for better content formatting
+  - Better handling of tool outputs
+  - Improved visual separation and styling
+
+- **History Display** - Better historical message rendering
+  - Improved HistoryLine component content handling
+  - Enhanced formatting for historical conversations
+  - Better readability
+
+- **Content Rendering** - Enhanced content utilities
+  - Improved content rendering pipeline
+  - Better formatting options
+  - Enhanced component integration
+
+- **Server Diagnostics** - Better logging and error handling
+  - Improved runner logging
+  - Enhanced error context in service
+  - Better type definitions for CLI operations
+
+- **Effects Animation** - Better animation handling
+  - Improved effects manager functionality
+  - Better visual feedback
+
+### Changed
+- **Terminal Styling** - Enhanced output panel styling
+  - Better visual presentation of outputs
+  - Improved spacing and formatting
+  - Enhanced color and contrast
+
+### Removed
+- Cleanup of diagnostic and debugging documentation files
+  - Removed performance profiling guides (moved to inline documentation)
+  - Removed phase 4 test reports
+  - Removed snapshot debugging guides
+  - Removed task completion summaries
+
 ## [0.42.0] - 2026-02-05
 
 ### Added
