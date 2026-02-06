@@ -25,32 +25,84 @@ The boss agent has context of other agents assigned to him. The boss can delegat
 Like god, the supervisor sees everything on the field, knows when an agent finished, and generates a summary of their last task, appending it to a global, centralized panel.
 
 ### Group Areas
-Help to organize agents in projects and find them quickly. Areas can have assigned folders, enabling the file explorer on those added folders.
+Help to organize agents in projects and find them quickly. Areas can have assigned folders, enabling the file explorer on those added folders. Completed or inactive areas can be **archived** to hide them from the battlefield without deleting them - they can be restored at any time.
 
-### Buildings (WIP)
-The idea is to have a model on the field with customized functionality, like defining a server and being able to restart it from the battlefield.
+### Buildings
+3D models placed on the battlefield with real functionality. Building types include:
+- **Server** - Start/stop/restart services with real-time log streaming (supports PM2 and Docker)
+- **Database** - Connect to MySQL, PostgreSQL, or Oracle with a built-in SQL query editor, schema browser, and query history
+- **Docker** - Manage containers and compose projects with health checks and port detection
+- **Link** - Quick URL shortcuts accessible from the field
+- **Folder** - Opens the file explorer for a specific directory
+- **Boss Building** - Manages multiple subordinate buildings with unified controls
 
 ### Classes
 Like COD or Minecraft classes, you assign a class to the agent character. It has a linked model, a definition of instructions (like a claude.md), and a definition of skills (you can also create skills on the same interface).
 
+Built-in classes include Scout, Builder, Debugger, Architect, Warrior, Support, and Boss. You can also create **custom classes** with your own 3D models, instructions, and default skills.
+
+### Custom 3D Models
+You can upload your own 3D character models in **GLB format**. Custom models support animation mapping for idle, walk, and working states. Models are uploaded through the class editor and stored locally. Scaling and position offsets are configurable per model.
+
 ### Commander View
 A view where you can see all the Claude Code agent terminals on a single view, grouped by areas.
 
+### Skills
+Built-in and custom skills that extend what agents can do. Skills are like plugins with defined tool permissions and can be assigned to specific agents or classes. Built-in skills include notifications, inter-agent messaging, git workflows, server log access, and streaming command execution. You can create your own skills in TypeScript.
+
+### Snapshots
+Save the full conversation history and any created/modified files from an agent's session. Snapshots can be reviewed later with full tool formatting, and files can be restored from them.
+
+### Secrets
+Securely store API keys, tokens, and other credentials. Use `{{SECRET_NAME}}` placeholders in your prompts, and the server injects the real values before sending to Claude. Secrets never leave the server.
+
+### View Modes
+Three ways to view the battlefield:
+- **3D View** (Alt+2) - Full Three.js battlefield with character models and post-processing
+- **2D View** (Alt+1) - Lightweight canvas-based rendering for better performance
+- **Dashboard** (Alt+3) - Agent status cards, building health, metrics, and activity timeline
+
+### Spotlight Search
+Press **Ctrl+K** (or Alt+P) to open the command palette. Search for agents by name, class, or current task. Jump to areas, find modified files across all agents, or trigger quick actions.
+
 ## ✨ Features
 
-- 🎮 **3D Battlefield** - Visual command center with Three.js
+- 🎮 **3D Battlefield** - Visual command center with Three.js (also has a lightweight 2D canvas mode)
 - 🎯 **RTS Controls** - Click to select, right-click to move, number keys for quick selection
 - 📡 **Real-time Activity Feed** - Watch your agents work in real-time
 - 🤹 **Multi-Agent Management** - Spawn and control multiple Claude Code instances
 - 💾 **Session Persistence** - Agents resume their Claude Code sessions across restarts
 - 📊 **Context Tracking** - Mana bar visualization showing agent context usage
-- 📁 **File Change Tracking** - See which files each agent has modified
+- 📁 **File Explorer** - Built-in file browser with git diff viewer for uncommitted changes
 - 📋 **Large Text & Screenshot Paste** - Compact and send large content easily
 - ⌨️ **Custom Hotkeys** - Configurable keyboard shortcuts
 - 🔐 **Permission Control** - Permissionless or permission-enabled per agent
-- 🎬 **Custom Animations** - Customizable idle and working animations
+- 🎬 **Custom 3D Models** - Upload your own GLB models with animation mapping
+- 🏗️ **Buildings** - Servers, databases, Docker containers, and links managed from the battlefield
+- 🧩 **Skills System** - Built-in and custom skills assignable to agents or classes
+- 📸 **Snapshots** - Save conversation history and modified files for later review or restore
+- 🔑 **Secrets Management** - Secure storage with `{{PLACEHOLDER}}` injection into prompts
+- 🔍 **Spotlight Search** - Command palette (Ctrl+K) to find agents, files, and actions
+- 📺 **Commander View** - See all agent terminals at once in a grid, grouped by area
+- 📊 **Dashboard View** - Metrics, agent status cards, and activity timeline
+- 🖥️ **Guake Terminal** - Drop-down terminal overlay for agent conversations
 - 🌐 **Multiplayer** - WebSocket-based multi-user support
-- 📱 **Mobile Compatible** - Works on mobile devices
+- 📱 **Mobile Compatible** - Works on mobile devices and Android (optional APK)
+
+## 📚 Documentation
+
+Detailed guides for each feature are available in the [`docs/`](docs/) folder:
+
+| Topic | Description |
+|-------|-------------|
+| [Buildings](docs/buildings.md) | Server, Database, Docker, and Boss building types with PM2 integration |
+| [Custom Classes & 3D Models](docs/custom-classes.md) | Create custom agent classes with your own GLB models and animations |
+| [Skills](docs/skills.md) | Built-in and custom skills, tool permissions, and assignment |
+| [Snapshots](docs/snapshots.md) | Save and restore conversation history and file artifacts |
+| [Secrets](docs/secrets.md) | Secure credential storage with placeholder injection |
+| [Views & UI](docs/views.md) | 3D, 2D, Dashboard, Commander View, and Guake terminal |
+| [Android APK](docs/android.md) | Build and install the optional mobile companion app |
+| [Docker Deployment](docs/docker.md) | Run Tide Commander in a Docker container |
 
 ## 📋 Prerequisites
 
@@ -88,6 +140,15 @@ You can spawn multiple agents, each working in different directories or on diffe
 | Escape | Deselect / Close modal |
 | Alt+N | Spawn new agent |
 | Enter | Send command (when input focused) |
+| Ctrl+K / Alt+P | Spotlight search |
+| Alt+1 / Alt+2 / Alt+3 | Switch view mode (2D / 3D / Dashboard) |
+| Alt+S | Toggle sidebar |
+| Alt+R | Toggle right panel |
+| Alt+E | Toggle file explorer |
+| Alt+J / Alt+K | Navigate messages in terminal |
+| ` (backtick) | Toggle Guake terminal |
+
+Shortcuts are fully customizable in Settings.
 
 ## 🔧 How It Works
 
@@ -143,7 +204,14 @@ Tide Commander provides a visual interface for managing multiple Claude Code CLI
 **Server State** is saved to `~/.local/share/tide-commander/`:
 - `agents.json` - Agent configurations (name, position, session mapping, token usage)
 - `areas.json` - Drawing areas synced from the frontend
+- `buildings.json` - Building configurations and service definitions
+- `skills.json` - Custom skill definitions
+- `custom-classes.json` - Custom agent class definitions
+- `secrets.json` - Encrypted secrets storage
 - `supervisor-history.json` - Agent supervisor history
+- `snapshots/` - Saved conversation snapshots with file captures
+
+**Custom Models** are stored in `~/.tide-commander/custom-models/`
 
 **Claude Conversations** are read from `~/.claude/projects/`:
 - Claude Code stores session files as JSONL (one JSON object per line)
@@ -215,13 +283,15 @@ When spawning an agent, select the permission mode in the spawn dialog. You can 
 
 ## ⚙️ Configuration
 
-Ports can be configured via environment variables:
+Configuration via environment variables (see `.env.example`):
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORT` | 5174 | Backend server port |
 | `VITE_PORT` | 5173 | Vite dev server port |
 | `TIDE_SERVER` | `http://localhost:$PORT` | Server URL for hooks |
+| `LISTEN_ALL_INTERFACES` | _(unset)_ | Set to `1` to listen on 0.0.0.0 instead of localhost |
+| `AUTH_TOKEN` | _(unset)_ | Token for authenticating WebSocket and HTTP connections |
 
 ## 🛠️ Development
 
@@ -238,6 +308,35 @@ bun run dev
 # Build for production
 bun run build
 ```
+
+## 🐳 Docker
+
+```bash
+docker build -t tide-commander .
+docker run -p 5174:5174 \
+  -v ~/.local/share/tide-commander:/root/.local/share/tide-commander \
+  tide-commander
+```
+
+> Note: The Docker container still needs `claude` CLI accessible inside the container for agent processes to work.
+
+## 📱 Android APK (Optional)
+
+Tide Commander can be built as an Android app using Capacitor. The APK connects to your Tide Commander server over the local network, giving you a mobile remote control for your agents.
+
+**Prerequisites:** Android SDK and Java 17+
+
+```bash
+# Build debug APK
+make apk
+
+# Or build release APK
+make apk-release
+```
+
+The APK will be at `android/app/build/outputs/apk/debug/app-debug.apk`.
+
+To configure which server the app connects to, set `LISTEN_ALL_INTERFACES=1` on your server and update the server URL in the app settings.
 
 ## 🐛 Troubleshooting
 
