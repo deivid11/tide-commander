@@ -17,7 +17,7 @@ const log = logger.claude;
 // Event types emitted by Claude service
 export interface ClaudeServiceEvents {
   event: (agentId: string, event: StandardEvent) => void;
-  output: (agentId: string, text: string, isStreaming?: boolean, subagentName?: string) => void;
+  output: (agentId: string, text: string, isStreaming?: boolean, subagentName?: string, uuid?: string) => void;
   complete: (agentId: string, success: boolean) => void;
   error: (agentId: string, error: string) => void;
 }
