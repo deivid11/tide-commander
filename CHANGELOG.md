@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.43.2] - 2026-02-05
+
+### Removed
+- **Skills Directory** - Skills functionality consolidated into TypeScript files
+  - Removed separate skills directory
+  - All skills now defined as TypeScript implementations
+  - Cleaner codebase organization
+  - Better code colocation
+
+### Changed
+- **Codebase Structure** - Improved organization
+  - Skills moved into TypeScript files
+  - Better code organization and maintainability
+  - Simplified skill management
+
 ## [0.43.1] - 2026-02-05
 
 ### Changed
