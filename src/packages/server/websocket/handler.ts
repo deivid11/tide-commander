@@ -25,6 +25,7 @@ import {
   handleRenameAgent,
   handleUpdateAgentProperties,
   handleCreateDirectory,
+  handleReattachAgent,
 } from './handlers/agent-handler.js';
 import {
   handleCreateSkill,
@@ -222,6 +223,10 @@ function handleClientMessage(ws: WebSocket, message: ClientMessage): void {
 
     case 'create_directory':
       handleCreateDirectory(ctx, message.payload);
+      break;
+
+    case 'reattach_agent':
+      handleReattachAgent(ctx, message.payload);
       break;
 
     case 'set_supervisor_config':

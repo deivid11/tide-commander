@@ -531,3 +531,49 @@ export async function handleCreateDirectory(
     ctx.sendError(`Failed to create directory: ${err.message}`);
   }
 }
+
+/**
+ * Handle reattach_agent message - reattach a detached agent to its existing session
+ * Detached agents are those with running Claude processes that survived a server restart
+ */
+export async function handleReattachAgent(
+  ctx: HandlerContext,
+  payload: { agentId: string }
+): Promise<void> {
+  const agent = agentService.getAgent(payload.agentId);
+  if (!agent) {
+    log.error(` Agent not found: ${payload.agentId}`);
+    ctx.sendError(`Agent not found: ${payload.agentId}`);
+    return;
+  }
+
+  if (!agent.isDetached) {
+    log.log(` Agent ${payload.agentId} is not detached, no action needed`);
+    ctx.sendActivity(payload.agentId, 'Agent is already attached to the session');
+    return;
+  }
+
+  if (!agent.sessionId) {
+    log.error(` Cannot reattach agent ${payload.agentId} - no session ID available`);
+    ctx.sendError(`Cannot reattach agent - no existing session found`);
+    return;
+  }
+
+  try {
+    log.log(` Reattaching agent ${payload.agentId} to existing session ${agent.sessionId}`);
+
+    // Clear the detached flag
+    agentService.updateAgent(payload.agentId, {
+      isDetached: false,
+      status: 'idle',
+      currentTask: undefined,
+      currentTool: undefined,
+    });
+
+    ctx.sendActivity(payload.agentId, `Reattached to existing session ${agent.sessionId}`);
+    log.log(` Successfully reattached agent ${payload.agentId}`);
+  } catch (err: any) {
+    log.error(` Failed to reattach agent ${payload.agentId}:`, err);
+    ctx.sendError(`Failed to reattach agent: ${err.message}`);
+  }
+}

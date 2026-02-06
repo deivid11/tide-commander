@@ -615,6 +615,20 @@ export async function sendCommand(agentId: string, command: string, systemPrompt
   // Increment task counter for this agent
   agentService.updateAgent(agentId, { taskCount: (agent.taskCount || 0) + 1 });
 
+  // If agent is detached, reattach by resuming the existing session
+  // This allows the agent to pick up where it left off after server restart
+  if (agent.isDetached && agent.sessionId && !forceNewSession) {
+    log.log(`[sendCommand] Agent ${agentId} is detached, reattaching to existing session ${agent.sessionId}`);
+    agentService.updateAgent(agentId, {
+      isDetached: false, // Mark as reattached
+      status: 'working',
+      currentTask: command.substring(0, 100),
+    });
+    // Execute with existing session (forceNewSession=false means resume)
+    await executeCommand(agentId, command, systemPrompt, false, customAgent);
+    return;
+  }
+
   // Agent is idle, sending failed, or we need special options - execute with new process
   await executeCommand(agentId, command, systemPrompt, forceNewSession, customAgent);
 }
