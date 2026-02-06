@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.43.1] - 2026-02-05
+
+### Changed
+- **Repository Cleanup** - Improved repository organization
+  - Removed stale APK files from release directory
+  - Cleaned up old release notes and changelogs
+  - Release artifacts now managed separately
+  - Better release folder organization
+
+### Removed
+- Old APK artifacts (v0.24.1, v0.25.0, v0.26.0, v0.27.0)
+- Stale release documentation files
+- Obsolete release notes and changelogs
+
 ## [0.43.0] - 2026-02-05
 
 ### Added
