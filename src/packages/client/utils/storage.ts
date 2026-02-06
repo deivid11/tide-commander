@@ -17,6 +17,9 @@ export const STORAGE_KEYS = {
   BACKEND_URL: 'tide-backend-url',
   AUTH_TOKEN: 'tide-auth-token',
 
+  // Scene view mode (2d/3d/dashboard)
+  SCENE_VIEW_MODE: 'tide-scene-view-mode',
+
   // Camera
   CAMERA_STATE: 'tide-camera-state',
   CAMERA_STATE_2D: 'tide-camera-state-2d',

@@ -6,6 +6,7 @@
  */
 
 import { useState, useCallback } from 'react';
+import { STORAGE_KEYS, getStorageString, setStorageString } from '../utils/storage';
 import './SceneViewSwitcher.scss';
 
 export type SceneViewMode = '2d' | '3d';
@@ -46,13 +47,13 @@ export function SceneViewSwitcher({ mode, onModeChange, className = '' }: SceneV
  */
 export function useSceneViewMode(defaultMode: SceneViewMode = '3d') {
   const [mode, setMode] = useState<SceneViewMode>(() => {
-    const saved = localStorage.getItem('tide-commander-scene-view-mode');
+    const saved = getStorageString(STORAGE_KEYS.SCENE_VIEW_MODE, defaultMode);
     return (saved === '2d' || saved === '3d') ? saved : defaultMode;
   });
 
   const setModeWithPersist = useCallback((newMode: SceneViewMode) => {
     setMode(newMode);
-    localStorage.setItem('tide-commander-scene-view-mode', newMode);
+    setStorageString(STORAGE_KEYS.SCENE_VIEW_MODE, newMode);
   }, []);
 
   return [mode, setModeWithPersist] as const;

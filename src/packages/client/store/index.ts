@@ -253,7 +253,10 @@ class Store
       lastSelectionViaSwipe: false,
       lastSelectionViaDirectClick: false,
       subagents: new Map(),
-      viewMode: '3d',
+      viewMode: (() => {
+        const saved = getStorageString(STORAGE_KEYS.SCENE_VIEW_MODE, '3d');
+        return (saved === '2d' || saved === '3d' || saved === 'dashboard') ? saved as StoreState['viewMode'] : '3d';
+      })(),
       overviewPanelOpen: false,
     };
 
@@ -434,6 +437,7 @@ class Store
 
   setViewMode(mode: '2d' | '3d' | 'dashboard'): void {
     this.state.viewMode = mode;
+    setStorageString(STORAGE_KEYS.SCENE_VIEW_MODE, mode);
     // Keep experimental2DView in sync for backward compatibility
     this.state.settings.experimental2DView = mode === '2d';
     this.notify();

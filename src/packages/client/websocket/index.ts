@@ -452,12 +452,14 @@ function handleServerMessage(message: ServerMessage): void {
         isDelegation?: boolean;
         skillUpdate?: import('../../shared/types').SkillUpdateData;
         subagentName?: string;
+        uuid?: string;
       };
       debugLog.debug(`Output: "${output.text.slice(0, 80)}..."`, {
         agentId: output.agentId,
         isStreaming: output.isStreaming,
         length: output.text.length,
         hasSkillUpdate: !!output.skillUpdate,
+        uuid: output.uuid,
       }, 'ws:output');
       store.addOutput(output.agentId, {
         text: output.text,
@@ -466,6 +468,7 @@ function handleServerMessage(message: ServerMessage): void {
         isDelegation: output.isDelegation,
         skillUpdate: output.skillUpdate,
         subagentName: output.subagentName,
+        uuid: output.uuid,
       });
       break;
     }
