@@ -619,15 +619,12 @@ export async function sendCommand(agentId: string, command: string, systemPrompt
   // This allows the agent to pick up where it left off after server restart
   if (agent.isDetached && agent.sessionId && !forceNewSession) {
     log.log(`[sendCommand] Agent ${agentId} is detached, reattaching to existing session ${agent.sessionId}`);
-    agentService.updateAgent(agentId, {
-      isDetached: false, // Mark as reattached
-      status: 'working',
-      currentTask: command.substring(0, 100),
+    // Broadcast reattachment notification to UI immediately (non-blocking)
+    setImmediate(() => {
+      emit('output', agentId, `🔄 [System] Reattaching to existing session... (Session: ${agent.sessionId})`, false, undefined, 'system-reattach');
+      emit('output', agentId, `📋 [System] Resuming task: ${command.substring(0, 100)}${command.length > 100 ? '...' : ''}`, false, undefined, 'system-reattach');
     });
-    // Broadcast reattachment notification to UI
-    emit('output', agentId, `🔄 [System] Reattaching to existing session... (Session: ${agent.sessionId})`, false, undefined, 'system-reattach');
-    emit('output', agentId, `📋 [System] Resuming task: ${command.substring(0, 100)}${command.length > 100 ? '...' : ''}`, false, undefined, 'system-reattach');
-    // Execute with existing session (forceNewSession=false means resume)
+    // Execute with existing session (forceNewSession=false means resume) - don't wait for UI notifications
     await executeCommand(agentId, command, systemPrompt, false, customAgent);
     return;
   }
