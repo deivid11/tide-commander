@@ -60,6 +60,11 @@ export class ClaudeRunner {
   // Set on Task tool_start, cleared on Task tool_result
   private activeSubagentName: Map<string, string> = new Map();
 
+  // Track whether text has been emitted for an agent in the current turn
+  // Set true on 'text' events, cleared on 'step_complete'
+  // Prevents step_complete.resultText from duplicating already-streamed text
+  private textEmittedInTurn: Set<string> = new Set();
+
   // Callbacks for activity watchdog (called when next activity is received)
   private activityCallbacks: Map<string, Array<() => void>> = new Map();
 
@@ -757,6 +762,9 @@ export class ClaudeRunner {
       case 'text':
         if (event.text) {
           this.callbacks.onOutput(agentId, event.text, event.isStreaming, undefined, event.uuid);
+          // Mark that text was already emitted for this agent's turn
+          // This prevents step_complete.resultText from re-emitting the same content
+          this.textEmittedInTurn.add(agentId);
         }
         break;
 
@@ -809,12 +817,19 @@ export class ClaudeRunner {
         break;
       }
 
-      case 'step_complete':
-        // Output the result text if available (fallback for non-streamed responses)
-        // This handles cases where Claude returns a quick response without streaming deltas
-        if (event.resultText) {
+      case 'step_complete': {
+        // Output the result text ONLY if it wasn't already emitted via streaming/text events
+        // When text is streamed, 'text' events deliver the content first, then 'assistant' event
+        // re-sends the complete text. step_complete.resultText duplicates this.
+        // Only emit resultText as a fallback for non-streamed responses (quick one-shot answers).
+        if (event.resultText && !this.textEmittedInTurn.has(agentId)) {
+          log.log(`[step_complete] Emitting resultText as fallback (no prior text events) for agent ${agentId.slice(0, 4)}`);
           this.callbacks.onOutput(agentId, event.resultText, false, undefined, event.uuid);
+        } else if (event.resultText) {
+          log.log(`[step_complete] Skipping resultText (already emitted via text events) for agent ${agentId.slice(0, 4)}`);
         }
+        // Reset text-emitted tracker for next turn
+        this.textEmittedInTurn.delete(agentId);
         if (event.tokens) {
           this.callbacks.onOutput(
             agentId,
@@ -828,6 +843,7 @@ export class ClaudeRunner {
           this.callbacks.onOutput(agentId, `Cost: $${event.cost.toFixed(4)}`, false, undefined, event.uuid);
         }
         break;
+      }
 
       case 'error':
         this.callbacks.onError(agentId, event.errorMessage || 'Unknown error');

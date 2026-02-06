@@ -228,6 +228,14 @@
   font-style: italic;
 }
 
+// Timestamp wrapper - positions the metadata tooltip relative to the timestamp
+.output-timestamp-wrapper {
+  position: relative;
+  display: inline;
+  flex-shrink: 0;
+  margin-right: 6px;
+}
+
 // Timestamp display - inline with role, with background for legibility
 .output-timestamp {
   font-family: $font-mono;
@@ -236,9 +244,147 @@
   background: color-mix(in srgb, var(--bg-primary) 70%, transparent);
   padding: 1px 4px;
   border-radius: 3px;
-  margin-right: 6px;
   flex-shrink: 0;
   user-select: none;
+
+  &--clickable {
+    cursor: pointer;
+    transition: all 0.15s ease;
+
+    &:hover {
+      color: var(--accent-cyan);
+      background: color-mix(in srgb, var(--accent-cyan) 15%, var(--bg-primary) 70%);
+    }
+  }
+}
+
+// =============================================================================
+// Message Metadata Tooltip (appears on timestamp click)
+// =============================================================================
+.msg-meta-tooltip {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 1000;
+  min-width: 280px;
+  max-width: 400px;
+  background: color-mix(in srgb, var(--bg-primary) 97%, white);
+  border: 1px solid var(--border-color);
+  border-radius: $radius-md;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), 0 0 1px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
+  font-family: $font-mono;
+  font-size: 11px;
+  animation: msg-meta-fade-in 0.12s ease-out;
+  pointer-events: auto;
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border-color);
+    font-weight: 600;
+    font-size: 11px;
+    color: var(--accent-cyan);
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  &__copy-all {
+    background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-cyan) 30%, transparent);
+    color: var(--accent-cyan);
+    font-size: 9px;
+    font-family: $font-mono;
+    cursor: pointer;
+    padding: 1px 5px;
+    border-radius: 3px;
+    line-height: 1.3;
+
+    &:hover {
+      background: color-mix(in srgb, var(--accent-cyan) 25%, transparent);
+    }
+  }
+
+  &__close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 0 2px;
+    line-height: 1;
+
+    &:hover {
+      color: var(--text-primary);
+    }
+  }
+
+  &__body {
+    padding: 6px 10px 8px;
+  }
+
+  &__row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 2px 0;
+    line-height: 1.4;
+
+    &:not(:last-child) {
+      border-bottom: 1px solid color-mix(in srgb, var(--border-color) 30%, transparent);
+    }
+  }
+
+  &__label {
+    flex-shrink: 0;
+    width: 56px;
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  &__value {
+    flex: 1;
+    color: var(--text-primary);
+    word-break: break-all;
+    cursor: pointer;
+    padding: 1px 3px;
+    border-radius: 2px;
+    transition: background 0.1s ease;
+
+    &:hover {
+      background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+    }
+
+    &:active {
+      background: color-mix(in srgb, var(--accent-cyan) 25%, transparent);
+    }
+
+    &.mono {
+      font-family: $font-mono;
+      font-size: 10px;
+      color: var(--accent-green);
+    }
+  }
+}
+
+@keyframes msg-meta-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .output-stats {

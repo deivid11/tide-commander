@@ -325,10 +325,19 @@ export function TerminalInputArea({
       const start = target.selectionStart || 0;
       const end = target.selectionEnd || 0;
       const newCommand = command.slice(0, start) + placeholder + command.slice(end);
+      const newCursorPos = start + placeholder.length;
+      cursorPositionRef.current = newCursorPos;
       setCommand(newCommand);
 
       if (!useTextarea) {
         setForceTextarea(true);
+      } else {
+        // Already in textarea mode - restore cursor after React re-render
+        requestAnimationFrame(() => {
+          if (textareaRef.current) {
+            textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
+          }
+        });
       }
     }
   };

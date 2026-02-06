@@ -39,7 +39,7 @@ function getDebugHash(output: ClaudeOutput): string {
 }
 
 // Metadata tooltip that appears on timestamp click
-function MessageMetadataTooltip({ output, debugHash, onClose }: { output: ClaudeOutput; debugHash: string; onClose: () => void }) {
+function MessageMetadataTooltip({ output, debugHash, agentId, onClose }: { output: ClaudeOutput; debugHash: string; agentId: string | null; onClose: () => void }) {
   const tooltipRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -70,24 +70,65 @@ function MessageMetadataTooltip({ output, debugHash, onClose }: { output: Claude
   else if (output.text.startsWith('[thinking]')) msgType = 'thinking';
   else if (output.skillUpdate) msgType = 'skill_update';
 
+  // Determine source - helps debug where duplicates originate
+  const source = output.uuid ? 'server' : output.isUserPrompt ? 'client (user)' : 'client/system';
+
+  // Copy all metadata as JSON for pasting into bug reports
+  const copyAll = () => {
+    const data: Record<string, unknown> = {
+      uuid: output.uuid || null,
+      hash: debugHash,
+      type: msgType,
+      timestamp: output.timestamp,
+      iso: fullTime,
+      agentId: agentId || null,
+      isStreaming: output.isStreaming,
+      source,
+      textLen: output.text.length,
+      textPreview: output.text.slice(0, 120),
+    };
+    if (output.isDelegation) data.isDelegation = true;
+    if (output.toolName) data.toolName = output.toolName;
+    if (output.toolInput) data.toolInput = output.toolInput;
+    if (output.toolOutput) data.toolOutputLen = output.toolOutput.length;
+    if (output.subagentName) data.subagentName = output.subagentName;
+    if (output.isUserPrompt) data.isUserPrompt = true;
+    if (output.skillUpdate) data.skillUpdate = output.skillUpdate;
+    navigator.clipboard.writeText(JSON.stringify(data, null, 2));
+  };
+
+  // Find this output's index in the store for positional debugging
+  const allOutputs = agentId ? store.getState().agentOutputs.get(agentId) : null;
+  const outputIndex = allOutputs ? allOutputs.indexOf(output) : -1;
+  const totalOutputs = allOutputs ? allOutputs.length : 0;
+
   const rows: Array<{ label: string; value: string; mono?: boolean }> = [
     { label: 'UUID', value: output.uuid || '(none)', mono: true },
     { label: 'Hash', value: debugHash, mono: true },
     { label: 'Type', value: msgType },
+    { label: 'Source', value: source },
+    { label: 'Agent', value: agentId || '(none)', mono: true },
     { label: 'Time', value: fullTime, mono: true },
     { label: 'Epoch', value: String(output.timestamp), mono: true },
+    { label: 'Index', value: outputIndex >= 0 ? `${outputIndex} / ${totalOutputs}` : '(unknown)', mono: true },
+    { label: 'Text', value: `[${output.text.length} chars] ${output.text.slice(0, 120)}`, mono: true },
   ];
 
   if (output.isStreaming) rows.push({ label: 'State', value: 'streaming' });
   if (output.isDelegation) rows.push({ label: 'Flag', value: 'delegation' });
   if (output.toolName) rows.push({ label: 'Tool', value: output.toolName });
+  if (output.toolInput) rows.push({ label: 'ToolIn', value: JSON.stringify(output.toolInput).slice(0, 200), mono: true });
+  if (output.toolOutput) rows.push({ label: 'ToolOut', value: `[${output.toolOutput.length} chars] ${output.toolOutput.slice(0, 120)}`, mono: true });
   if (output.subagentName) rows.push({ label: 'Subagent', value: output.subagentName });
 
   return (
     <div className="msg-meta-tooltip" ref={tooltipRef}>
       <div className="msg-meta-tooltip__header">
         <span>Message Info</span>
-        <button className="msg-meta-tooltip__close" onClick={onClose}>&times;</button>
+        <div className="msg-meta-tooltip__actions">
+          <button className="msg-meta-tooltip__copy-all" onClick={copyAll} title="Copy all as JSON">JSON</button>
+          <button className="msg-meta-tooltip__close" onClick={onClose}>&times;</button>
+        </div>
       </div>
       <div className="msg-meta-tooltip__body">
         {rows.map(({ label, value, mono }) => (
@@ -108,7 +149,7 @@ function MessageMetadataTooltip({ output, debugHash, onClose }: { output: Claude
 }
 
 // Timestamp that opens metadata tooltip on click
-function TimestampWithMeta({ output, timeStr, debugHash }: { output: ClaudeOutput; timeStr: string; debugHash: string }) {
+function TimestampWithMeta({ output, timeStr, debugHash, agentId }: { output: ClaudeOutput; timeStr: string; debugHash: string; agentId?: string | null }) {
   const [showMeta, setShowMeta] = useState(false);
   const handleClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -125,7 +166,7 @@ function TimestampWithMeta({ output, timeStr, debugHash }: { output: ClaudeOutpu
       >
         {timeStr}
       </span>
-      {showMeta && <MessageMetadataTooltip output={output} debugHash={debugHash} onClose={handleClose} />}
+      {showMeta && <MessageMetadataTooltip output={output} debugHash={debugHash} agentId={agentId || null} onClose={handleClose} />}
     </span>
   );
 }
@@ -173,7 +214,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
   if (skillUpdate) {
     return (
       <div className="output-line output-skill-update">
-        <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} />
+        <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
         <span className="skill-update-icon">🔄</span>
         <span className="skill-update-label">Skills updated:</span>
         <span className="skill-update-list">
@@ -196,7 +237,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
         onClick={() => setSessionExpanded(!sessionExpanded)}
         title="Click to expand/collapse"
       >
-        <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} />
+        <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
         <span className="session-continuation-icon">🔗</span>
         <span className="session-continuation-label">Session continued from previous context</span>
         <span className="session-continuation-toggle">{sessionExpanded ? '▼' : '▶'}</span>
@@ -229,7 +270,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
 
     return (
       <div className="output-line output-user">
-        <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} />
+        <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
         {isDelegatedTask ? (
           <DelegatedTaskHeader bossName={delegation.bossName} taskCommand={delegation.taskCommand} />
         ) : (
@@ -297,7 +338,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
         onClick={isBashTool ? handleBashClick : undefined}
         title={isBashTool ? 'Click to view output' : undefined}
       >
-        <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} />
+        <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
         {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
         <span className="output-tool-icon">{icon}</span>
         <span className="output-tool-name">{toolName}</span>
@@ -342,7 +383,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
       if (parsed.file_path && (parsed.old_string !== undefined || parsed.new_string !== undefined)) {
         return (
           <div className="output-line output-tool-input">
-            <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} />
+            <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
             <EditToolDiff content={inputText} onFileClick={onFileClick} />
           </div>
         );
@@ -350,7 +391,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
       if (parsed.file_path && parsed.old_string === undefined && parsed.new_string === undefined) {
         return (
           <div className="output-line output-tool-input">
-            <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} />
+            <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
             <ReadToolInput content={inputText} onFileClick={onFileClick} />
           </div>
         );
@@ -358,7 +399,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
       if (Array.isArray(parsed.todos)) {
         return (
           <div className="output-line output-tool-input">
-            <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} />
+            <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
             <TodoWriteInput content={inputText} />
           </div>
         );
@@ -369,7 +410,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
 
     return (
       <div className="output-line output-tool-input">
-        <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} />
+        <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
         <pre className="output-input-content">{inputText}</pre>
       </div>
     );
@@ -381,7 +422,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
     const isError = resultText.toLowerCase().includes('error') || resultText.toLowerCase().includes('failed');
     return (
       <div className={`output-line output-tool-result ${isError ? 'is-error' : ''}`}>
-        <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} />
+        <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
         <span className="output-result-icon">{isError ? '❌' : '✓'}</span>
         <pre className="output-result-content">{resultText}</pre>
       </div>
@@ -398,7 +439,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
     const isTruncated = bashOutput.includes('... (truncated,');
     return (
       <div className={`output-line output-bash-result ${isError ? 'is-error' : ''}`}>
-        <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} />
+        <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
         <div className="bash-output-container">
           <div className="bash-output-header">
             <span className="bash-output-icon">$</span>
@@ -464,7 +505,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
     if (delegationParsed.hasDelegation || workPlanParsed.hasWorkPlan) {
       return (
         <div className={className}>
-          <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} />
+          <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
           <span className="output-role">Claude</span>
           <div className="markdown-content">
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
@@ -504,7 +545,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
 
   return (
     <div className={className}>
-      <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} />
+      <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
       {isClaudeMessage && <span className="output-role">Claude</span>}
       {useMarkdown ? (
         <div className="markdown-content">
