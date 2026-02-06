@@ -765,7 +765,9 @@ export class ClaudeRunner {
           this.callbacks.onOutput(
             agentId,
             `[thinking] ${event.text}`,
-            event.isStreaming
+            event.isStreaming,
+            undefined,
+            event.uuid
           );
         }
         break;
@@ -779,10 +781,10 @@ export class ClaudeRunner {
         // Resolve subagent name: use event's own subagentName (for Task), or active subagent name
         const toolStartSubName = event.subagentName || this.activeSubagentName.get(agentId);
         // Send tool name as text output (needed for simple view mode display)
-        this.callbacks.onOutput(agentId, `Using tool: ${event.toolName}`, false, toolStartSubName);
+        this.callbacks.onOutput(agentId, `Using tool: ${event.toolName}`, false, toolStartSubName, event.uuid);
         // Send tool input as JSON (needed for simple view to show file paths, commands, etc.)
         if (event.toolInput) {
-          this.callbacks.onOutput(agentId, `Tool input: ${JSON.stringify(event.toolInput)}`, false, toolStartSubName);
+          this.callbacks.onOutput(agentId, `Tool input: ${JSON.stringify(event.toolInput)}`, false, toolStartSubName, event.uuid);
         }
         break;
       }
@@ -794,7 +796,7 @@ export class ClaudeRunner {
         // Other tool results are too verbose (file contents, etc.)
         if (event.toolName === 'Bash' && event.toolOutput) {
           // Send as non-streaming to ensure it displays properly in Guake
-          this.callbacks.onOutput(agentId, `Bash output:\n${event.toolOutput}`, false, toolResultSubName);
+          this.callbacks.onOutput(agentId, `Bash output:\n${event.toolOutput}`, false, toolResultSubName, event.uuid);
         }
         // Clear active subagent when Task tool completes
         if (event.toolName === 'Task') {
@@ -807,17 +809,19 @@ export class ClaudeRunner {
         // Output the result text if available (fallback for non-streamed responses)
         // This handles cases where Claude returns a quick response without streaming deltas
         if (event.resultText) {
-          this.callbacks.onOutput(agentId, event.resultText, false);
+          this.callbacks.onOutput(agentId, event.resultText, false, undefined, event.uuid);
         }
         if (event.tokens) {
           this.callbacks.onOutput(
             agentId,
             `Tokens: ${event.tokens.input} in, ${event.tokens.output} out`,
-            false
+            false,
+            undefined,
+            event.uuid
           );
         }
         if (event.cost !== undefined) {
-          this.callbacks.onOutput(agentId, `Cost: $${event.cost.toFixed(4)}`, false);
+          this.callbacks.onOutput(agentId, `Cost: $${event.cost.toFixed(4)}`, false, undefined, event.uuid);
         }
         break;
 
@@ -828,7 +832,7 @@ export class ClaudeRunner {
       case 'context_stats':
         // Send context stats raw output to client for rendering
         if (event.contextStatsRaw) {
-          this.callbacks.onOutput(agentId, event.contextStatsRaw, false);
+          this.callbacks.onOutput(agentId, event.contextStatsRaw, false, undefined, event.uuid);
         }
         break;
     }
