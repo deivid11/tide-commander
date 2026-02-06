@@ -94,20 +94,10 @@ const clients = new Set<WebSocket>();
 export function broadcast(message: ServerMessage): void {
   const data = JSON.stringify(message);
   let sentCount = 0;
-  let skippedCount = 0;
   let errorCount = 0;
 
   for (const client of clients) {
     if (client.readyState === WebSocket.OPEN) {
-      // Check if WebSocket buffer is backed up (backpressure)
-      // bufferedAmount > 0 means messages are queued waiting to be sent
-      const buffered = client.bufferedAmount;
-      if (buffered > 1024 * 1024) { // 1MB threshold
-        log.log(`[BROADCAST] WARNING: Client buffer backed up (${buffered} bytes), skipping message`);
-        skippedCount++;
-        continue;
-      }
-
       try {
         client.send(data);
         sentCount++;
@@ -118,12 +108,12 @@ export function broadcast(message: ServerMessage): void {
     }
   }
 
-  // PERF: Only log broadcasts when there are issues (skipped or errors)
+  // PERF: Only log broadcasts when there are errors
   // High-frequency broadcast logging was causing CPU spikes
-  if (skippedCount > 0 || errorCount > 0) {
-    const suffix = skippedCount > 0 ? ` skipped=${skippedCount}` : '';
-    const errSuffix = errorCount > 0 ? ` errors=${errorCount}` : '';
-    log.log(`[BROADCAST] type=${message.type} sentTo=${sentCount}/${clients.size}${suffix}${errSuffix}`);
+  // Note: Removed backpressure check (bufferedAmount > 1MB) that was silently dropping messages
+  // WebSocket.send() already handles buffering internally - messages are queued, not dropped
+  if (errorCount > 0) {
+    log.log(`[BROADCAST] type=${message.type} sentTo=${sentCount}/${clients.size} errors=${errorCount}`);
   }
 }
 
