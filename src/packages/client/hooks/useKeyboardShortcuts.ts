@@ -119,6 +119,7 @@ export function useKeyboardShortcuts({
       // Toggle Spotlight (Alt+P)
       const spotlightShortcut = shortcuts.find(s => s.id === 'toggle-spotlight');
       if (matchesShortcut(e, spotlightShortcut) || (e.altKey && !e.ctrlKey && !e.metaKey && e.code === 'KeyP')) {
+        console.log('[useKeyboardShortcuts] Spotlight shortcut matched!', { spotlightShortcut, altKey: e.altKey, code: e.code });
         e.preventDefault();
         spotlightModal.toggle();
         return;

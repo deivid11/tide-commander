@@ -7,6 +7,7 @@
 import type { Scene2D } from './Scene2D';
 import type { Scene2DCamera } from './Scene2DCamera';
 import { store } from '../store';
+import { matchesShortcut } from '../store/shortcuts';
 import { getStorage, STORAGE_KEYS } from '../utils/storage';
 
 interface SelectionBox {
@@ -74,7 +75,7 @@ export class Scene2DInput {
     this.canvas.removeEventListener('touchstart', this.onTouchStart);
     this.canvas.removeEventListener('touchmove', this.onTouchMove);
     this.canvas.removeEventListener('touchend', this.onTouchEnd);
-    document.removeEventListener('keydown', this.onKeyDown);
+    document.removeEventListener('keydown', this.onKeyDown, true);
   }
 
   private setupEventListeners(): void {
@@ -91,7 +92,8 @@ export class Scene2DInput {
     this.canvas.addEventListener('touchend', this.onTouchEnd);
 
     // Keyboard events (for space key to open terminal)
-    document.addEventListener('keydown', this.onKeyDown);
+    // Use capture phase so global shortcuts (like spotlight) are processed first
+    document.addEventListener('keydown', this.onKeyDown, true);
   }
 
   // ============================================
@@ -478,20 +480,32 @@ export class Scene2DInput {
     const isCollapsedTerminal = guakeTerminal?.classList.contains('collapsed');
 
     // Don't handle if typing in an input field (with exceptions)
+    const shortcuts = store.getShortcuts();
+    const nextAgentShortcut = shortcuts.find(s => s.id === 'next-agent');
+    const prevAgentShortcut = shortcuts.find(s => s.id === 'prev-agent');
+    const openTerminalShortcut = shortcuts.find(s => s.id === 'open-terminal');
+    const spotlightShortcut = shortcuts.find(s => s.id === 'toggle-spotlight');
+
+    // Allow global shortcuts to pass through (let other handlers deal with them)
+    if (matchesShortcut(event, spotlightShortcut)) {
+      console.log('[Scene2DInput] Spotlight shortcut detected, passing through');
+      return; // Let useKeyboardShortcuts handle spotlight
+    }
+
     if (isInInputField) {
-      // Exception: Alt+H/L in collapsed terminal input - blur and continue for navigation
-      const isAltNavKey = event.altKey && (event.key === 'h' || event.key === 'l');
+      // Exception: agent nav shortcuts in collapsed terminal input - blur and continue for navigation
+      const isAltNavKey = matchesShortcut(event, nextAgentShortcut)
+        || matchesShortcut(event, prevAgentShortcut);
 
       if (isAltNavKey && isCollapsedTerminal) {
         (target as HTMLInputElement | HTMLTextAreaElement).blur();
       } else {
-        // Space and other keys should not trigger when input is focused
         return;
       }
     }
 
-    // Alt+H / Alt+L for agent navigation (works when terminal is closed)
-    if (event.altKey && (event.key === 'h' || event.key === 'l') && !state.terminalOpen) {
+    // Agent navigation (works when terminal is closed)
+    if ((matchesShortcut(event, nextAgentShortcut) || matchesShortcut(event, prevAgentShortcut)) && !state.terminalOpen) {
       const orderedAgents = this.getOrderedAgents(state.agents);
       if (orderedAgents.length <= 1) return;
 
@@ -501,11 +515,9 @@ export class Scene2DInput {
       const currentIndex = selectedId ? orderedAgents.findIndex(a => a.id === selectedId) : -1;
 
       let nextIndex: number;
-      if (event.key === 'l') {
-        // Alt+L → next agent
+      if (matchesShortcut(event, nextAgentShortcut)) {
         nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % orderedAgents.length;
       } else {
-        // Alt+H → previous agent
         nextIndex = currentIndex === -1 ? orderedAgents.length - 1 : (currentIndex - 1 + orderedAgents.length) % orderedAgents.length;
       }
 
@@ -514,8 +526,8 @@ export class Scene2DInput {
       return;
     }
 
-    // Space key to open terminal
-    if (event.key === ' ') {
+    // Open terminal
+    if (matchesShortcut(event, openTerminalShortcut)) {
       console.log('[Scene2DInput] Space pressed', {
         guakeTerminal: !!guakeTerminal,
         isCollapsedTerminal,

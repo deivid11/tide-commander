@@ -169,6 +169,60 @@
   }
 }
 
+// Find by shortcut button
+.shortcuts-find-by-key-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid $border-color;
+  border-radius: $radius-md;
+  color: $text-secondary;
+  cursor: pointer;
+  transition: all $transition-fast;
+  flex-shrink: 0;
+
+  &:hover {
+    border-color: $accent-cyan;
+    color: $accent-cyan;
+  }
+
+  &.active {
+    background: rgba($accent-cyan, 0.15);
+    border-color: $accent-cyan;
+    color: $accent-cyan;
+  }
+}
+
+// Find by shortcut active state on search bar
+.shortcuts-search.find-by-shortcut-active {
+  border-color: $accent-cyan;
+  background: rgba($accent-cyan, 0.05);
+
+  svg {
+    color: $accent-cyan;
+  }
+}
+
+.find-by-shortcut-prompt {
+  color: $text-muted;
+  font-style: italic;
+  font-size: 13px;
+}
+
+.find-by-shortcut-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: $accent-cyan;
+  font-size: 13px;
+  font-family: $font-mono;
+  font-weight: 500;
+}
+
 .shortcuts-reset-all-btn {
   padding: 8px 16px;
   background: transparent;

@@ -118,6 +118,11 @@ export function matchesShortcut(event: KeyboardEvent, shortcut: ShortcutConfig |
     return event.code === expectedCode;
   }
 
+  // For Space key, compare using event.code since event.key is ' '
+  if (shortcutKey === 'Space' || shortcutKey === ' ') {
+    return event.code === 'Space';
+  }
+
   // For special keys, compare event.key directly
   const eventKey = event.key;
   return eventKey === shortcutKey;
@@ -180,9 +185,10 @@ export function findConflictingShortcuts(
     // Check context compatibility - global conflicts with everything
     if (context && s.context !== 'global' && s.context !== context) return false;
 
-    // Check if keys match
-    const sKey = s.key.length === 1 ? s.key.toLowerCase() : s.key;
-    const nKey = newShortcut.key.length === 1 ? newShortcut.key.toLowerCase() : newShortcut.key;
+    // Check if keys match (normalize Space key: ' ' and 'Space' are equivalent)
+    const normalizeKey = (k: string) => (k === ' ' || k === 'Space') ? 'Space' : (k.length === 1 ? k.toLowerCase() : k);
+    const sKey = normalizeKey(s.key);
+    const nKey = normalizeKey(newShortcut.key);
     if (sKey !== nKey) return false;
 
     // Check if modifiers match

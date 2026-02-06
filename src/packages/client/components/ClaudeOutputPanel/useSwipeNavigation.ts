@@ -7,6 +7,7 @@
 
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { store } from '../../store';
+import { matchesShortcut } from '../../store/shortcuts';
 import { useSwipeGesture, useAgentOrder } from '../../hooks';
 import type { Agent } from '../../../shared/types';
 
@@ -209,8 +210,14 @@ export function useSwipeNavigation({
       if (!isOpen || sortedAgents.length <= 1) return;
       if (hasModalOpen) return;
 
-      // Alt+Shift+H → previous working agent
-      if (e.altKey && e.shiftKey && e.code === 'KeyH') {
+      const shortcuts = store.getShortcuts();
+      const prevWorkingShortcut = shortcuts.find(s => s.id === 'prev-working-agent');
+      const nextWorkingShortcut = shortcuts.find(s => s.id === 'next-working-agent');
+      const prevAgentShortcut = shortcuts.find(s => s.id === 'prev-agent-terminal');
+      const nextAgentShortcut = shortcuts.find(s => s.id === 'next-agent-terminal');
+
+      // Previous working agent
+      if (matchesShortcut(e, prevWorkingShortcut)) {
         e.preventDefault();
         const workingAgents = sortedAgents.filter(a => a.status === 'working');
         if (workingAgents.length === 0) return;
@@ -219,8 +226,8 @@ export function useSwipeNavigation({
         store.selectAgent(workingAgents[nextIndex].id);
         return;
       }
-      // Alt+Shift+L → next working agent
-      if (e.altKey && e.shiftKey && e.code === 'KeyL') {
+      // Next working agent
+      if (matchesShortcut(e, nextWorkingShortcut)) {
         e.preventDefault();
         const workingAgents = sortedAgents.filter(a => a.status === 'working');
         if (workingAgents.length === 0) return;
@@ -229,15 +236,17 @@ export function useSwipeNavigation({
         store.selectAgent(workingAgents[nextIndex].id);
         return;
       }
-      // Alt+H → previous agent
-      if (e.altKey && e.key === 'h') {
+      // Previous agent
+      if (matchesShortcut(e, prevAgentShortcut)) {
         e.preventDefault();
         handleSwipeRight();
+        return;
       }
-      // Alt+L → next agent
-      if (e.altKey && e.key === 'l') {
+      // Next agent
+      if (matchesShortcut(e, nextAgentShortcut)) {
         e.preventDefault();
         handleSwipeLeft();
+        return;
       }
     };
     document.addEventListener('keydown', handleAgentNavKeyDown);

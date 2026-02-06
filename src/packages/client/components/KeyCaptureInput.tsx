@@ -41,9 +41,22 @@ export function KeyCaptureInput({ shortcut, onUpdate }: KeyCaptureInputProps) {
         return;
       }
 
+      // Normalize the key: on Mac, Alt/Option modifies the character (e.g., Option+H = ˙)
+      // Use event.code to get the actual key for letters and numbers
+      let capturedKey = e.key;
+      if (e.code.startsWith('Key') && e.code.length === 4) {
+        // e.code is "KeyH" → extract "h" (lowercase)
+        capturedKey = e.code.charAt(3).toLowerCase();
+      } else if (e.code.startsWith('Digit') && e.code.length === 6) {
+        // e.code is "Digit1" → extract "1"
+        capturedKey = e.code.charAt(5);
+      } else if (e.code === 'Space') {
+        capturedKey = 'Space';
+      }
+
       // Capture the key combination
       const newKey = {
-        key: e.key,
+        key: capturedKey,
         modifiers: {
           ctrl: e.ctrlKey,
           alt: e.altKey,

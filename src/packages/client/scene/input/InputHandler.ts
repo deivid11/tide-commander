@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { store } from '../../store';
+import { matchesShortcut } from '../../store/shortcuts';
 import { DRAG_THRESHOLD, FORMATION_SPACING } from '../config';
 import type { AgentMeshData } from '../characters/CharacterFactory';
 import { getStorage, STORAGE_KEYS } from '../../utils/storage';
@@ -247,7 +248,7 @@ export class InputHandler {
     this.clearBuildingHoverTimer();
     window.removeEventListener('blur', this.onWindowBlur);
     document.removeEventListener('visibilitychange', this.onVisibilityChange);
-    document.removeEventListener('keydown', this.onKeyDown);
+    document.removeEventListener('keydown', this.onKeyDown, true);
   }
 
   /**
@@ -333,7 +334,8 @@ export class InputHandler {
     // Also listen for visibility changes
     document.addEventListener('visibilitychange', this.onVisibilityChange);
     // Keyboard events for Space key to toggle terminal
-    document.addEventListener('keydown', this.onKeyDown);
+    // Use capture phase so global shortcuts (like spotlight) are processed first
+    document.addEventListener('keydown', this.onKeyDown, true);
   }
 
   // --- Pointer Event Handlers ---
@@ -621,10 +623,28 @@ export class InputHandler {
     const guakeTerminal = target.closest('.guake-terminal');
     const isCollapsedTerminal = guakeTerminal?.classList.contains('collapsed');
 
+    // Alt+H / Alt+L for agent navigation (works when terminal is closed)
+    // Note: Alt+Shift+H/L for working agents is handled in useKeyboardShortcuts.ts
+    const shortcuts = store.getShortcuts();
+    const spotlightShortcut = shortcuts.find(s => s.id === 'toggle-spotlight');
+    const nextAgentShortcut = shortcuts.find(s => s.id === 'next-agent');
+    const prevAgentShortcut = shortcuts.find(s => s.id === 'prev-agent');
+    const openTerminalShortcut = shortcuts.find(s => s.id === 'open-terminal');
+
+    // Allow global shortcuts to pass through (let other handlers deal with them)
+    if (matchesShortcut(event, spotlightShortcut)) {
+      console.log('[InputHandler] Spotlight shortcut detected, passing through');
+      return; // Let useKeyboardShortcuts handle spotlight
+    }
+
     // Don't handle if typing in an input field (with exceptions)
     if (isInInputField) {
-      // Exception: Alt+H/L and Alt+Shift+H/L in collapsed terminal input - blur and continue for navigation
-      const isAltNavKey = event.altKey && (event.code === 'KeyH' || event.code === 'KeyL');
+      // Exception: agent nav shortcuts in collapsed terminal input - blur and continue for navigation
+      const navShortcuts = store.getShortcuts();
+      const isAltNavKey = matchesShortcut(event, navShortcuts.find(s => s.id === 'next-agent'))
+        || matchesShortcut(event, navShortcuts.find(s => s.id === 'prev-agent'))
+        || matchesShortcut(event, navShortcuts.find(s => s.id === 'next-working-agent'))
+        || matchesShortcut(event, navShortcuts.find(s => s.id === 'prev-working-agent'));
 
       if (isAltNavKey && isCollapsedTerminal) {
         (target as HTMLInputElement | HTMLTextAreaElement).blur();
@@ -634,9 +654,7 @@ export class InputHandler {
       }
     }
 
-    // Alt+H / Alt+L for agent navigation (works when terminal is closed)
-    // Note: Alt+Shift+H/L for working agents is handled in useKeyboardShortcuts.ts
-    if (event.altKey && (event.key === 'h' || event.key === 'l') && !state.terminalOpen) {
+    if ((matchesShortcut(event, nextAgentShortcut) || matchesShortcut(event, prevAgentShortcut)) && !state.terminalOpen) {
       const orderedAgents = this.getOrderedAgents(state.agents);
       if (orderedAgents.length <= 1) return;
 
@@ -646,11 +664,9 @@ export class InputHandler {
       const currentIndex = selectedId ? orderedAgents.findIndex(a => a.id === selectedId) : -1;
 
       let nextIndex: number;
-      if (event.key === 'l') {
-        // Alt+L → next agent
+      if (matchesShortcut(event, nextAgentShortcut)) {
         nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % orderedAgents.length;
       } else {
-        // Alt+H → previous agent
         nextIndex = currentIndex === -1 ? orderedAgents.length - 1 : (currentIndex - 1 + orderedAgents.length) % orderedAgents.length;
       }
 
@@ -660,8 +676,8 @@ export class InputHandler {
       return;
     }
 
-    // Space key to open terminal
-    if (event.key === ' ') {
+    // Open terminal
+    if (matchesShortcut(event, openTerminalShortcut)) {
       // Get fresh state and DOM element
       const freshState = store.getState();
       const terminalDom = document.querySelector('.guake-terminal');

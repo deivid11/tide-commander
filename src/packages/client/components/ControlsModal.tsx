@@ -44,13 +44,16 @@ export function ControlsModal({ isOpen, onClose }: ControlsModalProps) {
   const [activeTab, setActiveTab] = useState<ControlTab>('keyboard');
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedContext, setExpandedContext] = useState<ShortcutConfig['context'] | 'all'>('all');
+  const [findByShortcut, setFindByShortcut] = useState(false);
+  const [capturedKeys, setCapturedKeys] = useState<{ key: string; modifiers: { ctrl?: boolean; alt?: boolean; shift?: boolean; meta?: boolean } } | null>(null);
+  const searchInputRef = React.useRef<HTMLInputElement>(null);
 
   // Must be called before any early returns to maintain hook order
   const { handleMouseDown: handleBackdropMouseDown, handleClick: handleBackdropClick } = useModalClose(onClose);
 
-  // Close on escape
+  // Close on escape (skip if find-by-shortcut is active - it handles Escape itself)
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || findByShortcut) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -62,19 +65,85 @@ export function ControlsModal({ isOpen, onClose }: ControlsModalProps) {
 
     document.addEventListener('keydown', handleKeyDown, true);
     return () => document.removeEventListener('keydown', handleKeyDown, true);
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, findByShortcut]);
 
   // Reset search when closing
   useEffect(() => {
     if (!isOpen) {
       setSearchQuery('');
+      setFindByShortcut(false);
+      setCapturedKeys(null);
     }
   }, [isOpen]);
 
+  // Capture keystrokes when find-by-shortcut mode is active
+  useEffect(() => {
+    if (!isOpen || !findByShortcut) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Allow Escape to exit find-by-shortcut mode
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        setFindByShortcut(false);
+        setCapturedKeys(null);
+        return;
+      }
+
+      // Ignore bare modifier keys
+      if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      // Normalize key: on Mac, Alt/Option modifies the character (e.g., Option+H = ˙)
+      let capturedKey = e.key;
+      if (e.code.startsWith('Key') && e.code.length === 4) {
+        capturedKey = e.code.charAt(3).toLowerCase();
+      } else if (e.code.startsWith('Digit') && e.code.length === 6) {
+        capturedKey = e.code.charAt(5);
+      } else if (e.code === 'Space') {
+        capturedKey = 'Space';
+      }
+
+      setCapturedKeys({
+        key: capturedKey,
+        modifiers: {
+          ctrl: e.ctrlKey,
+          alt: e.altKey,
+          shift: e.shiftKey,
+          meta: e.metaKey,
+        },
+      });
+    };
+
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
+  }, [isOpen, findByShortcut]);
+
   if (!isOpen) return null;
 
-  // Filter shortcuts by search query
+  // Filter shortcuts by search query or captured keys
   const filteredShortcuts = state.shortcuts.filter((shortcut) => {
+    if (findByShortcut && capturedKeys) {
+      // Match by key combination (normalize Space: ' ' and 'Space' are equivalent)
+      const normalizeKey = (k: string) => (k === ' ' || k === 'Space') ? 'Space' : (k.length === 1 ? k.toLowerCase() : k);
+      const sKey = normalizeKey(shortcut.key);
+      const cKey = normalizeKey(capturedKeys.key);
+      // Also match via event.code for letter keys (Alt can modify characters)
+      const codeMatch = cKey.length === 1 && /^[a-zA-Z]$/.test(sKey)
+        ? `Key${sKey.toUpperCase()}` === `Key${cKey.toUpperCase()}`
+        : sKey === cKey;
+      if (!codeMatch) return false;
+      const sm = shortcut.modifiers;
+      const cm = capturedKeys.modifiers;
+      return (
+        (sm.ctrl || false) === (cm.ctrl || false) &&
+        (sm.alt || false) === (cm.alt || false) &&
+        (sm.shift || false) === (cm.shift || false) &&
+        (sm.meta || false) === (cm.meta || false)
+      );
+    }
     if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
     return (
@@ -190,24 +259,58 @@ export function ControlsModal({ isOpen, onClose }: ControlsModalProps) {
           <>
             {/* Search and actions */}
             <div className="shortcuts-modal-toolbar">
-              <div className="shortcuts-search">
+              {findByShortcut ? (
+                <div className={`shortcuts-search find-by-shortcut-active`}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="2" y="4" width="20" height="16" rx="2" />
+                    <path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M6 12h.01M18 12h.01M8 16h8" />
+                  </svg>
+                  {capturedKeys ? (
+                    <span className="find-by-shortcut-display">
+                      {formatShortcut({ key: capturedKeys.key, modifiers: capturedKeys.modifiers } as ShortcutConfig)}
+                      <button className="shortcuts-search-clear" onClick={() => setCapturedKeys(null)}>
+                        &times;
+                      </button>
+                    </span>
+                  ) : (
+                    <span className="find-by-shortcut-prompt">Press a key combination...</span>
+                  )}
+                </div>
+              ) : (
+                <div className="shortcuts-search">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="M21 21l-4.35-4.35" />
+                  </svg>
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    placeholder="Search shortcuts..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    autoFocus
+                  />
+                  {searchQuery && (
+                    <button className="shortcuts-search-clear" onClick={() => setSearchQuery('')}>
+                      &times;
+                    </button>
+                  )}
+                </div>
+              )}
+              <button
+                className={`shortcuts-find-by-key-btn ${findByShortcut ? 'active' : ''}`}
+                onClick={() => {
+                  setFindByShortcut(!findByShortcut);
+                  setCapturedKeys(null);
+                  setSearchQuery('');
+                }}
+                title={findByShortcut ? 'Switch to text search' : 'Find by pressing shortcut keys'}
+              >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="11" cy="11" r="8" />
-                  <path d="M21 21l-4.35-4.35" />
+                  <rect x="2" y="4" width="20" height="16" rx="2" />
+                  <path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M6 12h.01M18 12h.01M8 16h8" />
                 </svg>
-                <input
-                  type="text"
-                  placeholder="Search shortcuts..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  autoFocus
-                />
-                {searchQuery && (
-                  <button className="shortcuts-search-clear" onClick={() => setSearchQuery('')}>
-                    &times;
-                  </button>
-                )}
-              </div>
+              </button>
               <button className="shortcuts-reset-all-btn" onClick={handleResetAll}>
                 Reset
               </button>
@@ -272,7 +375,15 @@ export function ControlsModal({ isOpen, onClose }: ControlsModalProps) {
 
               {filteredShortcuts.length === 0 && (
                 <div className="shortcuts-empty">
-                  <p>No shortcuts found for "{searchQuery}"</p>
+                  {findByShortcut ? (
+                    capturedKeys ? (
+                      <p>No shortcut bound to {formatShortcut({ key: capturedKeys.key, modifiers: capturedKeys.modifiers } as ShortcutConfig)}</p>
+                    ) : (
+                      <p>Press a key combination to find its shortcut</p>
+                    )
+                  ) : (
+                    <p>No shortcuts found for "{searchQuery}"</p>
+                  )}
                 </div>
               )}
             </div>
@@ -338,7 +449,9 @@ export function ControlsModal({ isOpen, onClose }: ControlsModalProps) {
         <div className="shortcuts-modal-footer">
           <span className="shortcuts-modal-hint">
             {activeTab === 'keyboard'
-              ? 'Click on a shortcut to change it. Press Escape to cancel.'
+              ? findByShortcut
+                ? 'Press any key combination to find its binding. Press Escape to exit.'
+                : 'Click on a shortcut to change it. Press Escape to cancel.'
               : activeTab === 'mouse'
                 ? 'Click binding to change. Hold modifiers (Alt/Shift/Ctrl) while clicking.'
                 : 'Configure trackpad gestures. Enable/disable features and adjust sensitivity.'}

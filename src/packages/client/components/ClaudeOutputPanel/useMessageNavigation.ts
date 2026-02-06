@@ -6,6 +6,8 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { store } from '../../store';
+import { matchesShortcut } from '../../store/shortcuts';
 
 export interface UseMessageNavigationProps {
   /** Total number of navigable messages (history + output combined) */
@@ -243,59 +245,66 @@ export function useMessageNavigation({
     return selectedIndex === index;
   }, [selectedIndex]);
 
-  // Keyboard shortcuts for message navigation (Alt+J / Alt+K)
+  // Keyboard shortcuts for message navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!isOpen) return;
       if (hasModalOpen) return;
 
-      // Alt+K → previous message (up)
-      if (e.altKey && !e.ctrlKey && !e.metaKey && e.key === 'k') {
+      const shortcuts = store.getShortcuts();
+      const prevMessageShortcut = shortcuts.find(s => s.id === 'prev-message');
+      const nextMessageShortcut = shortcuts.find(s => s.id === 'next-message');
+      const pageUpShortcut = shortcuts.find(s => s.id === 'page-up-messages');
+      const pageDownShortcut = shortcuts.find(s => s.id === 'page-down-messages');
+      const activateShortcut = shortcuts.find(s => s.id === 'activate-message');
+
+      // Previous message (up)
+      if (matchesShortcut(e, prevMessageShortcut)) {
         e.preventDefault();
-        // Blur input when starting navigation
         if (document.activeElement instanceof HTMLElement) {
           document.activeElement.blur();
         }
         navigatePrev();
+        return;
       }
-      // Alt+J → next message (down)
-      if (e.altKey && !e.ctrlKey && !e.metaKey && e.key === 'j') {
+      // Next message (down)
+      if (matchesShortcut(e, nextMessageShortcut)) {
         e.preventDefault();
-        // Blur input when starting navigation
         if (document.activeElement instanceof HTMLElement) {
           document.activeElement.blur();
         }
         navigateNext();
+        return;
       }
-      // Alt+U → page up (fast navigation)
-      if (e.altKey && !e.ctrlKey && !e.metaKey && e.key === 'u') {
+      // Page up (fast navigation)
+      if (matchesShortcut(e, pageUpShortcut)) {
         e.preventDefault();
-        // Blur input when starting navigation
         if (document.activeElement instanceof HTMLElement) {
           document.activeElement.blur();
         }
         navigatePageUp();
+        return;
       }
-      // Alt+D → page down (fast navigation)
-      if (e.altKey && !e.ctrlKey && !e.metaKey && e.key === 'd') {
+      // Page down (fast navigation)
+      if (matchesShortcut(e, pageDownShortcut)) {
         e.preventDefault();
-        // Blur input when starting navigation
         if (document.activeElement instanceof HTMLElement) {
           document.activeElement.blur();
         }
         navigatePageDown();
+        return;
       }
       // Escape → clear selection
       if (e.key === 'Escape' && selectedIndex !== -1) {
         e.preventDefault();
         clearSelection();
+        return;
       }
 
-      // Space → activate selected message (click on tool param, bash output, etc.)
-      // But don't trigger when typing in an input field
+      // Activate selected message (click on tool param, bash output, etc.)
       const target = e.target as HTMLElement;
       const isInInputField = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
-      if (e.key === ' ' && selectedIndex !== -1 && !isInInputField) {
+      if (matchesShortcut(e, activateShortcut) && selectedIndex !== -1 && !isInInputField) {
         e.preventDefault();
         const container = scrollContainerRef.current;
         if (!container) return;
@@ -331,13 +340,14 @@ export function useMessageNavigation({
       // focus the input and let the character be typed
       if (selectedIndex !== -1 && !isInInputField) {
         // Skip navigation keys, modifier-only keys, and special keys
-        const isNavigationKey = e.altKey && ['j', 'k', 'u', 'd'].includes(e.key.toLowerCase());
+        const isNavShortcut = matchesShortcut(e, prevMessageShortcut) || matchesShortcut(e, nextMessageShortcut)
+          || matchesShortcut(e, pageUpShortcut) || matchesShortcut(e, pageDownShortcut);
         const isSpecialKey = ['Escape', 'Tab', 'Shift', 'Control', 'Alt', 'Meta', 'CapsLock'].includes(e.key);
         const isArrowKey = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key);
         const isFunctionKey = e.key.startsWith('F') && e.key.length <= 3; // F1-F12
 
         // If it's a printable character or common editing key (not a navigation/special key)
-        if (!isNavigationKey && !isSpecialKey && !isArrowKey && !isFunctionKey && !e.ctrlKey && !e.metaKey) {
+        if (!isNavShortcut && !isSpecialKey && !isArrowKey && !isFunctionKey && !e.ctrlKey && !e.metaKey) {
           // Focus the appropriate input element
           const inputElement = useTextarea ? textareaRef?.current : inputRef?.current;
           if (inputElement) {

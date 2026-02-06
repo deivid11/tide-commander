@@ -7,6 +7,7 @@
 
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useStore, store } from '../../store';
+import { matchesShortcut } from '../../store/shortcuts';
 import { DiffViewer } from '../DiffViewer';
 import { apiUrl, authFetch } from '../../utils/storage';
 
@@ -375,8 +376,9 @@ export function FileExplorerPanel({
         searchInputRef.current?.focus();
       }
 
-      // Alt+W: Close active tab
-      if (e.altKey && e.key === 'w') {
+      // Close active tab
+      const closeTabShortcut = store.getShortcuts().find(s => s.id === 'file-explorer-close-tab');
+      if (matchesShortcut(e, closeTabShortcut)) {
         e.preventDefault();
         e.stopPropagation();
         if (activeTabPath) {
