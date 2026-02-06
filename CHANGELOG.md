@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.46.1] - 2026-02-06
+
+### Fixed
+- **Output Rendering** - Improved OutputLine component rendering
+  - Better formatting and display
+  - Enhanced visual presentation
+  - Improved component performance
+
+- **Terminal Styling** - Enhanced terminal output display
+  - Better styling for terminal output
+  - Improved color and contrast
+  - Enhanced visual separation
+
+- **Runner Output** - Better output handling
+  - Improved output event processing
+  - Better error handling
+  - Enhanced logging
+
+### Changed
+- **Package Dependencies** - Updated for stability
+  - Updated package-lock.json
+  - Better dependency management
+
 ## [0.46.0] - 2026-02-06
 
 ### Added
