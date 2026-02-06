@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.44.1] - 2026-02-05
+
+### Changed
+- **Keyboard Shortcuts** - Enhanced useKeyboardShortcuts hook
+  - Better keyboard event handling
+  - Improved shortcut detection
+  - Better integration with App component
+
+- **Layout Optimization** - Improved responsive design
+  - Better layout styling for different screen sizes
+  - Optimized spacing and positioning
+  - Enhanced visual presentation
+
+- **Store Management** - Better shortcuts configuration
+  - Improved store shortcuts structure
+  - Better organization of keyboard mappings
+  - Enhanced configuration management
+
+- **Documentation** - Updated and improved
+  - Enhanced views documentation
+  - Updated README with latest information
+  - Better documentation organization
+
+### Technical
+- Enhanced keyboard event handling in hooks
+- Better layout styling with improved responsiveness
+- Improved store shortcuts configuration
+- Better component keyboard integration
+
 ## [0.44.0] - 2026-02-05
 
 ### Added
