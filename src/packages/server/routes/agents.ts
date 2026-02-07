@@ -7,7 +7,7 @@ import { Router, Request, Response } from 'express';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { agentService, claudeService, bossMessageService } from '../services/index.js';
+import { agentService, runtimeService, bossMessageService } from '../services/index.js';
 import { getClaudeProjectDir } from '../data/index.js';
 // Session listing is done inline for performance
 import { createLogger } from '../utils/logger.js';
@@ -182,7 +182,7 @@ router.get('/tool-history', async (req: Request, res: Response) => {
 router.get('/status', async (_req: Request, res: Response) => {
   try {
     // Sync status before returning
-    await claudeService.syncAllAgentStatus();
+    await runtimeService.syncAllAgentStatus();
 
     const agents = agentService.getAllAgents();
 
@@ -192,7 +192,7 @@ router.get('/status', async (_req: Request, res: Response) => {
       status: agent.status,
       currentTask: agent.currentTask,
       currentTool: agent.currentTool,
-      isProcessRunning: claudeService.isAgentRunning(agent.id),
+      isProcessRunning: runtimeService.isAgentRunning(agent.id),
     }));
 
     res.json(statuses);
@@ -362,11 +362,11 @@ router.post('/:id/message', async (req: Request<{ id: string }>, res: Response) 
     // Handle boss agents with their special context building
     if (agent.isBoss || agent.class === 'boss') {
       const { message: bossMessage, systemPrompt } = await bossMessageService.buildBossMessage(agentId, message);
-      await claudeService.sendCommand(agentId, bossMessage, systemPrompt);
+      await runtimeService.sendCommand(agentId, bossMessage, systemPrompt);
     } else {
       // Regular agents get custom agent config (identity header, class instructions, skills)
       const customAgentConfig = buildCustomAgentConfig(agentId, agent.class);
-      await claudeService.sendCommand(agentId, message, undefined, undefined, customAgentConfig);
+      await runtimeService.sendCommand(agentId, message, undefined, undefined, customAgentConfig);
     }
 
     res.status(200).json({

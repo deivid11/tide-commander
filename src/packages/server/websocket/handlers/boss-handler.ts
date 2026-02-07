@@ -3,10 +3,11 @@
  * Handles boss agent operations including spawning, subordinate management, and delegation
  */
 
-import { agentService, claudeService, bossService } from '../../services/index.js';
+import { agentService, runtimeService, bossService } from '../../services/index.js';
 import { createLogger } from '../../utils/index.js';
 import type { HandlerContext } from './types.js';
 import { buildCustomAgentConfig } from './command-handler.js';
+import type { AgentProvider, CodexConfig } from '../../../shared/types.js';
 
 const log = createLogger('BossHandler');
 
@@ -22,8 +23,11 @@ export async function handleSpawnBossAgent(
     position?: { x: number; y: number; z: number };
     useChrome?: boolean;
     permissionMode?: string;
+    provider?: AgentProvider;
+    codexConfig?: CodexConfig;
     subordinateIds?: string[];
     model?: string;
+    codexModel?: string;
     customInstructions?: string;
     initialSkillIds?: string[];
   }
@@ -40,7 +44,10 @@ export async function handleSpawnBossAgent(
       payload.initialSkillIds,
       true, // isBoss flag
       payload.model as any,
-      payload.customInstructions
+      payload.codexModel as any,
+      payload.customInstructions,
+      payload.provider,
+      payload.codexConfig
     );
 
     // Assign initial subordinates if provided
@@ -127,7 +134,7 @@ export async function handleSendBossCommand(
     try {
       const targetAgent = agentService.getAgent(decision.selectedAgentId);
       const customAgentConfig = targetAgent ? buildCustomAgentConfig(decision.selectedAgentId, targetAgent.class) : undefined;
-      await claudeService.sendCommand(decision.selectedAgentId, command, undefined, undefined, customAgentConfig);
+      await runtimeService.sendCommand(decision.selectedAgentId, command, undefined, undefined, customAgentConfig);
       ctx.sendActivity(bossId, `Delegated to ${decision.selectedAgentName}`);
     } catch (err: any) {
       log.error(' Failed to send delegated command:', err);

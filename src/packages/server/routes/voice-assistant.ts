@@ -282,7 +282,7 @@ router.post('/process', async (req: Request, res: Response) => {
         });
       }
 
-      const { claudeService, bossMessageService } = await import('../services/index.js');
+      const { runtimeService, bossMessageService } = await import('../services/index.js');
       const { buildCustomAgentConfig } = await import('../websocket/handlers/command-handler.js');
 
       if (targetAgent.isBoss || targetAgent.class === 'boss') {
@@ -290,10 +290,10 @@ router.post('/process', async (req: Request, res: Response) => {
           parsed.targetAgentId,
           parsed.messageToAgent
         );
-        await claudeService.sendCommand(parsed.targetAgentId, bossMessage, systemPrompt);
+        await runtimeService.sendCommand(parsed.targetAgentId, bossMessage, systemPrompt);
       } else {
         const customAgentConfig = buildCustomAgentConfig(parsed.targetAgentId, targetAgent.class);
-        await claudeService.sendCommand(parsed.targetAgentId, parsed.messageToAgent, undefined, undefined, customAgentConfig);
+        await runtimeService.sendCommand(parsed.targetAgentId, parsed.messageToAgent, undefined, undefined, customAgentConfig);
       }
 
       logger.server.log(`[VoiceAssistant] Sent to ${targetAgent.name}: "${parsed.messageToAgent}"`);

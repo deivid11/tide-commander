@@ -1,6 +1,6 @@
 # 🌊 Tide Commander
 
-**A visual multi-agent orchestrator for Claude Code**
+**A visual multi-agent orchestrator for Claude Code and Codex**
 
 ![Tide Commander Preview](docs/preview-3d.png)
 
@@ -8,7 +8,7 @@
 
 [![Watch the demo](https://img.shields.io/badge/YouTube-Watch%20Demo-red?style=for-the-badge&logo=youtube)](https://www.youtube.com/watch?v=r1Op_xfhqOM)
 
-Tide Commander is a Claude Code orchestrator and manager that lets you deploy, control, and monitor multiple Claude Code agents from a single visual interface. Spawn agents, assign tasks, and watch them work in real-time on an RTS-inspired 3D battlefield — or switch to a lightweight 2D canvas or a metrics dashboard.
+Tide Commander is a Claude Code and Codex orchestrator and manager that lets you deploy, control, and monitor multiple AI coding agents from a single visual interface. Spawn agents, assign tasks, and watch them work in real-time on an RTS-inspired 3D battlefield — or switch to a lightweight 2D canvas or a metrics dashboard.
 
 ## 💡 Why Tide Commander?
 
@@ -22,6 +22,7 @@ Think of it like having a team of AI developers at your command. Assign one agen
 
 - Node.js 18+ or Bun
 - Claude Code CLI (`claude` command available in PATH)
+- OpenAI Codex CLI compatibility (experimental)
 
 ## 🚀 Getting Started
 
@@ -160,7 +161,7 @@ Shortcuts are fully customizable in Settings.
 
 ### Overview
 
-Tide Commander is a Claude Code orchestrator that provides a visual interface for managing multiple Claude Code CLI instances simultaneously. Each "agent" you spawn is a real Claude Code process running in the background, and you can send commands to them and watch their output in real-time.
+Tide Commander is a Claude Code and Codex-compatible orchestrator that provides a visual interface for managing multiple AI coding CLI instances simultaneously. Each "agent" you spawn is a real CLI process running in the background, and you can send commands to them and watch their output in real-time.
 
 ### Core Components
 
@@ -371,7 +372,7 @@ Planned features and improvements — contributions and feedback welcome:
 
 - [ ] **Test Coverage** — Unit, integration, and E2E tests (currently minimal)
 - [ ] **Multilingual Support** — i18n with translations for Chinese, French, Spanish, and more
-- [ ] **Codex Compatibility** — Support for OpenAI Codex CLI alongside Claude Code
+- [x] **Codex Integration (Experimental)** — Compatible with OpenAI Codex CLI alongside Claude Code
 - [ ] **Buildings Plugin System** — External plugin API for community-built building types
 - [ ] **API Documentation** — OpenAPI/Swagger spec for the REST and WebSocket APIs
 - [ ] **Observability** — Error tracking, logging aggregation, and performance monitoring
@@ -381,3 +382,6 @@ Have a feature idea or found a bug? Open an [issue](https://github.com/your-repo
 ## 📄 License
 
 MIT
+
+Added line.
+This line was added as requested.

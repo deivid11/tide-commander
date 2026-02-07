@@ -49,8 +49,8 @@ export interface SkillUpdateData {
   }>;
 }
 
-// Claude output entry
-export interface ClaudeOutput {
+// Agent output entry (provider-agnostic)
+export interface AgentOutput {
   text: string;
   isStreaming: boolean;
   timestamp: number;
@@ -63,6 +63,9 @@ export interface ClaudeOutput {
   toolInput?: Record<string, unknown>; // Parsed tool input JSON (for key param extraction before look-ahead)
   toolOutput?: string; // Tool result/bash output text
 }
+
+// Backward-compatible alias for existing references
+export type ClaudeOutput = AgentOutput;
 
 // Tool execution entry
 export interface ToolExecution {
@@ -165,8 +168,8 @@ export interface StoreState {
   streamingBuildingIds: Set<string>; // Building IDs currently streaming logs
   // Boss building unified logs
   bossStreamingLogs: Map<string, Array<{ subordinateId: string; subordinateName: string; chunk: string; timestamp: number; isError?: boolean }>>;
-  // Claude outputs per agent
-  agentOutputs: Map<string, ClaudeOutput[]>;
+  // Agent outputs per agent
+  agentOutputs: Map<string, AgentOutput[]>;
   // Last prompt per agent
   lastPrompts: Map<string, LastPrompt>;
   // Tool execution history

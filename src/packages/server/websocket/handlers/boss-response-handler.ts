@@ -4,7 +4,7 @@
  */
 
 import type { AgentClass, DelegationDecision, ServerMessage } from '../../../shared/types.js';
-import { agentService, claudeService, bossService, workPlanService } from '../../services/index.js';
+import { agentService, runtimeService, bossService, workPlanService } from '../../services/index.js';
 import { logger } from '../../utils/index.js';
 import { getLastBossCommand, buildCustomAgentConfig } from './command-handler.js';
 
@@ -133,7 +133,7 @@ export function parseBossDelegation(
         // Build customAgentConfig for the target agent to ensure it gets its class instructions
         const targetAgent = agentService.getAgent(decision.selectedAgentId);
         const customAgentConfig = targetAgent ? buildCustomAgentConfig(decision.selectedAgentId, targetAgent.class) : undefined;
-        claudeService.sendCommand(decision.selectedAgentId, decision.userCommand, undefined, undefined, customAgentConfig)
+        runtimeService.sendCommand(decision.selectedAgentId, decision.userCommand, undefined, undefined, customAgentConfig)
           .catch(err => {
             log.error(` Failed to auto-forward command to ${decision.selectedAgentName}:`, err);
           });
@@ -296,7 +296,7 @@ export function parseBossAnalysisRequest(
       // Build custom config for the target agent
       const customAgentConfig = targetAgent ? buildCustomAgentConfig(draft.targetAgent, targetAgent.class) : undefined;
 
-      claudeService.sendCommand(draft.targetAgent, analysisCommand, undefined, undefined, customAgentConfig)
+      runtimeService.sendCommand(draft.targetAgent, analysisCommand, undefined, undefined, customAgentConfig)
         .catch(err => {
           log.error(` Failed to send analysis request to ${agentName}:`, err);
         });

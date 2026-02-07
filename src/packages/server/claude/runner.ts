@@ -68,8 +68,10 @@ export class ClaudeRunner {
   // Callbacks for activity watchdog (called when next activity is received)
   private activityCallbacks: Map<string, Array<() => void>> = new Map();
 
-  constructor(callbacks: RunnerCallbacks) {
-    this.backend = new ClaudeBackend();
+  constructor(callbacks: RunnerCallbacks);
+  constructor(callbacks: RunnerCallbacks, backend: CLIBackend);
+  constructor(callbacks: RunnerCallbacks, backend?: CLIBackend) {
+    this.backend = backend ?? new ClaudeBackend();
     this.callbacks = callbacks;
 
     // Start periodic persistence of running processes
@@ -429,8 +431,10 @@ export class ClaudeRunner {
       workingDir,
       permissionMode,
       useChrome,
+      prompt,
       systemPrompt,
       customAgent,
+      codexConfig: request.codexConfig,
     };
     const args = this.backend.buildArgs(backendConfig);
     const executable = this.backend.getExecutablePath();

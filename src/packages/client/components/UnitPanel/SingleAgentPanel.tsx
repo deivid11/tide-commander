@@ -235,7 +235,7 @@ export function SingleAgentPanel({
             <span style={{ color: AGENT_STATUS_COLORS[agent.status] || AGENT_STATUS_COLORS.default }}>
               {agent.status}
             </span>
-            <span> • {agent.class}</span>
+            <span> • {agent.class} • {agent.provider}</span>
           </div>
           {/* Idle timer - shows how long agent has been idle */}
           {agent.status === 'idle' && agent.lastActivity > 0 && (

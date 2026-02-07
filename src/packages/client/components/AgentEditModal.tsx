@@ -7,8 +7,8 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { store, useSkillsArray, useCustomAgentClassesArray } from '../store';
 import { ModelPreview } from './ModelPreview';
 import { FolderInput } from './shared/FolderInput';
-import type { Agent, AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel } from '../../shared/types';
-import { BUILT_IN_AGENT_CLASSES, PERMISSION_MODES, CLAUDE_MODELS } from '../../shared/types';
+import type { Agent, AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, CodexModel, AgentProvider, CodexConfig } from '../../shared/types';
+import { BUILT_IN_AGENT_CLASSES, PERMISSION_MODES, CLAUDE_MODELS, CODEX_MODELS } from '../../shared/types';
 import { apiUrl } from '../utils/storage';
 import { useModalClose } from '../hooks';
 
@@ -25,7 +25,15 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
   // Form state
   const [selectedClass, setSelectedClass] = useState<AgentClass>(agent.class);
   const [permissionMode, setPermissionMode] = useState<PermissionMode>(agent.permissionMode);
+  const [selectedProvider, setSelectedProvider] = useState<AgentProvider>(agent.provider || 'claude');
+  const [codexConfig, setCodexConfig] = useState<CodexConfig>(agent.codexConfig || {
+    fullAuto: true,
+    sandbox: 'workspace-write',
+    approvalMode: 'on-request',
+    search: false,
+  });
   const [selectedModel, setSelectedModel] = useState<ClaudeModel>(agent.model || 'sonnet');
+  const [selectedCodexModel, setSelectedCodexModel] = useState<CodexModel>(agent.codexModel || 'gpt-5.3-codex');
   const [useChrome, setUseChrome] = useState<boolean>(agent.useChrome || false);
   const [workdir, setWorkdir] = useState<string>(agent.cwd);
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set());
@@ -54,7 +62,15 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
     if (isOpen) {
       setSelectedClass(agent.class);
       setPermissionMode(agent.permissionMode);
+      setSelectedProvider(agent.provider || 'claude');
+      setCodexConfig(agent.codexConfig || {
+        fullAuto: true,
+        sandbox: 'workspace-write',
+        approvalMode: 'on-request',
+        search: false,
+      });
       setSelectedModel(agent.model || 'sonnet');
+      setSelectedCodexModel(agent.codexModel || 'gpt-5.3-codex');
       setUseChrome(agent.useChrome || false);
       setWorkdir(agent.cwd);
       const directlyAssigned = allSkills
@@ -137,7 +153,10 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
   const hasChanges = useMemo(() => {
     if (selectedClass !== agent.class) return true;
     if (permissionMode !== agent.permissionMode) return true;
-    if (selectedModel !== (agent.model || 'sonnet')) return true;
+    if (selectedProvider !== (agent.provider || 'claude')) return true;
+    if (selectedProvider === 'claude' && selectedModel !== (agent.model || 'sonnet')) return true;
+    if (selectedProvider === 'codex' && selectedCodexModel !== (agent.codexModel || 'gpt-5.3-codex')) return true;
+    if (selectedProvider === 'codex' && JSON.stringify(codexConfig || {}) !== JSON.stringify(agent.codexConfig || {})) return true;
     if (useChrome !== (agent.useChrome || false)) return true;
     if (workdir !== agent.cwd) return true;
 
@@ -151,13 +170,16 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
     if (currentDirectSkills !== newSkills) return true;
 
     return false;
-  }, [selectedClass, permissionMode, selectedModel, useChrome, workdir, selectedSkillIds, agent, allSkills]);
+  }, [selectedClass, permissionMode, selectedProvider, selectedModel, selectedCodexModel, codexConfig, useChrome, workdir, selectedSkillIds, agent, allSkills]);
 
   // Handle save
   const handleSave = () => {
     const updates: {
       class?: AgentClass;
       permissionMode?: PermissionMode;
+      provider?: AgentProvider;
+      codexConfig?: CodexConfig;
+      codexModel?: CodexModel;
       model?: ClaudeModel;
       useChrome?: boolean;
       skillIds?: string[];
@@ -172,7 +194,19 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
       updates.permissionMode = permissionMode;
     }
 
-    if (selectedModel !== (agent.model || 'sonnet')) {
+    if (selectedProvider !== (agent.provider || 'claude')) {
+      updates.provider = selectedProvider;
+    }
+
+    if (selectedProvider === 'codex' && JSON.stringify(codexConfig || {}) !== JSON.stringify(agent.codexConfig || {})) {
+      updates.codexConfig = codexConfig;
+    }
+
+    if (selectedProvider === 'codex' && selectedCodexModel !== (agent.codexModel || 'gpt-5.3-codex')) {
+      updates.codexModel = selectedCodexModel;
+    }
+
+    if (selectedProvider === 'claude' && selectedModel !== (agent.model || 'sonnet')) {
       updates.model = selectedModel;
     }
 
@@ -272,22 +306,25 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
 
           {/* Form Fields */}
           <div className="spawn-form-section">
-            {/* Row 1: Model + Permission */}
+            {/* Row 1: Runtime + Permission */}
             <div className="spawn-form-row">
               <div className="spawn-field">
-                <label className="spawn-label">Model</label>
+                <label className="spawn-label">Runtime</label>
                 <div className="spawn-select-row">
-                  {(Object.keys(CLAUDE_MODELS) as ClaudeModel[]).map((model) => (
-                    <button
-                      key={model}
-                      className={`spawn-select-btn ${selectedModel === model ? 'selected' : ''}`}
-                      onClick={() => setSelectedModel(model)}
-                      title={CLAUDE_MODELS[model].description}
-                    >
-                      <span>{CLAUDE_MODELS[model].icon}</span>
-                      <span>{CLAUDE_MODELS[model].label}</span>
-                    </button>
-                  ))}
+                  <button
+                    className={`spawn-select-btn ${selectedProvider === 'claude' ? 'selected' : ''}`}
+                    onClick={() => setSelectedProvider('claude')}
+                  >
+                    <span>🧠</span>
+                    <span>Claude</span>
+                  </button>
+                  <button
+                    className={`spawn-select-btn ${selectedProvider === 'codex' ? 'selected' : ''}`}
+                    onClick={() => setSelectedProvider('codex')}
+                  >
+                    <span>⚙️</span>
+                    <span>Codex</span>
+                  </button>
                 </div>
               </div>
               <div className="spawn-field">
@@ -308,26 +345,121 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
               </div>
             </div>
 
+            {/* Row 2: Model */}
+            <div className="spawn-form-row">
+              <div className="spawn-field">
+                <label className="spawn-label">Model</label>
+                {selectedProvider === 'claude' ? (
+                  <div className="spawn-select-row">
+                    {(Object.keys(CLAUDE_MODELS) as ClaudeModel[]).map((model) => (
+                      <button
+                        key={model}
+                        className={`spawn-select-btn ${selectedModel === model ? 'selected' : ''}`}
+                        onClick={() => setSelectedModel(model)}
+                        title={CLAUDE_MODELS[model].description}
+                      >
+                        <span>{CLAUDE_MODELS[model].icon}</span>
+                        <span>{CLAUDE_MODELS[model].label}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : selectedProvider === 'codex' ? (
+                  <div className="spawn-select-row">
+                    {(Object.keys(CODEX_MODELS) as CodexModel[]).map((model) => (
+                      <button
+                        key={model}
+                        className={`spawn-select-btn ${selectedCodexModel === model ? 'selected' : ''}`}
+                        onClick={() => setSelectedCodexModel(model)}
+                        title={CODEX_MODELS[model].description}
+                      >
+                        <span>{CODEX_MODELS[model].icon}</span>
+                        <span>{CODEX_MODELS[model].label}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="spawn-inline-hint">Choose the Codex model for this agent.</div>
+                )}
+              </div>
+            </div>
+
+            {selectedProvider === 'codex' && (
+              <div className="spawn-form-row">
+                <div className="spawn-field">
+                  <label className="spawn-label">Codex Config</label>
+                  <div className="spawn-options-row" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <label className="spawn-checkbox">
+                      <input
+                        type="checkbox"
+                        checked={codexConfig.fullAuto !== false}
+                        onChange={(e) => setCodexConfig((prev) => ({ ...prev, fullAuto: e.target.checked }))}
+                      />
+                      <span>Use `--full-auto`</span>
+                    </label>
+                    <label className="spawn-checkbox">
+                      <input
+                        type="checkbox"
+                        checked={!!codexConfig.search}
+                        onChange={(e) => setCodexConfig((prev) => ({ ...prev, search: e.target.checked }))}
+                      />
+                      <span>Enable live web search (`--search`)</span>
+                    </label>
+                    {codexConfig.fullAuto === false && (
+                      <>
+                        <select
+                          className="spawn-input"
+                          value={codexConfig.sandbox || 'workspace-write'}
+                          onChange={(e) => setCodexConfig((prev) => ({ ...prev, sandbox: e.target.value as CodexConfig['sandbox'] }))}
+                        >
+                          <option value="read-only">Sandbox: read-only</option>
+                          <option value="workspace-write">Sandbox: workspace-write</option>
+                          <option value="danger-full-access">Sandbox: danger-full-access</option>
+                        </select>
+                        <select
+                          className="spawn-input"
+                          value={codexConfig.approvalMode || 'on-request'}
+                          onChange={(e) => setCodexConfig((prev) => ({ ...prev, approvalMode: e.target.value as CodexConfig['approvalMode'] }))}
+                        >
+                          <option value="untrusted">Approvals: untrusted</option>
+                          <option value="on-failure">Approvals: on-failure</option>
+                          <option value="on-request">Approvals: on-request</option>
+                          <option value="never">Approvals: never</option>
+                        </select>
+                      </>
+                    )}
+                    <input
+                      type="text"
+                      className="spawn-input"
+                      placeholder="Profile (optional)"
+                      value={codexConfig.profile || ''}
+                      onChange={(e) => setCodexConfig((prev) => ({ ...prev, profile: e.target.value || undefined }))}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Model change notice */}
-            {selectedModel !== (agent.model || 'sonnet') && (
+            {selectedProvider === 'claude' && selectedModel !== (agent.model || 'sonnet') && (
               <div className="model-change-notice">
                 Context preserved - will resume with new model
               </div>
             )}
 
-            {/* Row 2: Chrome toggle */}
+            {/* Row 3: Chrome toggle */}
             <div className="spawn-form-row spawn-options-row">
               <label className="spawn-checkbox">
                 <input
                   type="checkbox"
                   checked={useChrome}
                   onChange={(e) => setUseChrome(e.target.checked)}
+                  disabled={selectedProvider !== 'claude'}
                 />
                 <span>🌐 Chrome Browser</span>
               </label>
             </div>
 
-            {/* Row 3: Working Directory */}
+            {/* Row 4: Working Directory */}
             <div className="spawn-form-row">
               <div className="spawn-field">
                 <label className="spawn-label">Working Directory</label>

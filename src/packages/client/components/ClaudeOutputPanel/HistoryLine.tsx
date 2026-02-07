@@ -60,6 +60,8 @@ export const HistoryLine = memo(function HistoryLine({
   // Resolve agent name for tool attribution badge
   // For Task tool_use messages, show the subagent name instead of parent agent
   const parentAgentName = agentId ? store.getState().agents.get(agentId)?.name : null;
+  const provider = agentId ? store.getState().agents.get(agentId)?.provider : undefined;
+  const assistantRoleLabel = provider === 'codex' ? 'Codex' : 'Claude';
   const subagentNameFromInput = (type === 'tool_use' && toolName === 'Task' && message.toolInput)
     ? ((message.toolInput.name as string) || (message.toolInput.description as string) || null)
     : null;
@@ -394,7 +396,7 @@ export const HistoryLine = memo(function HistoryLine({
     return (
       <div className={className}>
         {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
-        <span className="history-role">Claude</span>
+        <span className="history-role">{assistantRoleLabel}</span>
         <span className="history-content markdown-content">
           {highlight ? (
             <div>{highlightText(workPlanParsed.contentWithoutBlock, highlight)}</div>
@@ -435,7 +437,7 @@ export const HistoryLine = memo(function HistoryLine({
   return (
     <div className={className}>
       {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
-      <span className="history-role">{isUser ? 'You' : 'Claude'}</span>
+      <span className="history-role">{isUser ? 'You' : assistantRoleLabel}</span>
       <span className={`history-content ${isUser ? 'user-prompt-text' : 'markdown-content'}`}>
         {highlight ? <div>{highlightText(content, highlight)}</div> : (
           isUser ? renderUserPromptContent(content, onImageClick) : renderContentWithImages(content, onImageClick)

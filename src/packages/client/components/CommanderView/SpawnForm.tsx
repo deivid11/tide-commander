@@ -3,7 +3,7 @@
  */
 
 import React, { useState } from 'react';
-import type { DrawingArea, AgentClass } from '../../../shared/types';
+import type { DrawingArea, AgentClass, AgentProvider } from '../../../shared/types';
 import { AGENT_CLASS_CONFIG, DEFAULT_NAMES, CHARACTER_MODELS } from '../../scene/config';
 import { store } from '../../store';
 import { STORAGE_KEYS, getStorageString, setStorageString } from '../../utils/storage';
@@ -21,6 +21,7 @@ export function SpawnForm({ currentArea, onClose }: SpawnFormProps) {
   });
   const [cwd, setCwd] = useState(() => getStorageString(STORAGE_KEYS.LAST_CWD));
   const [selectedClass, setSelectedClass] = useState<AgentClass>('scout');
+  const [selectedProvider, setSelectedProvider] = useState<AgentProvider>('claude');
   const [isSpawning, setIsSpawning] = useState(false);
 
   const handleSpawn = () => {
@@ -39,7 +40,17 @@ export function SpawnForm({ currentArea, onClose }: SpawnFormProps) {
       };
     }
 
-    store.spawnAgent(name.trim(), selectedClass, cwd.trim(), position);
+    store.spawnAgent(
+      name.trim(),
+      selectedClass,
+      cwd.trim(),
+      position,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      selectedProvider,
+    );
 
     // Close after a short delay
     setTimeout(() => {
@@ -109,6 +120,26 @@ export function SpawnForm({ currentArea, onClose }: SpawnFormProps) {
                   </button>
                 );
               })}
+            </div>
+          </div>
+
+          <div className="commander-spawn-field">
+            <label>Runtime</label>
+            <div className="commander-spawn-classes">
+              <button
+                className={`commander-spawn-class ${selectedProvider === 'claude' ? 'selected' : ''}`}
+                onClick={() => setSelectedProvider('claude')}
+              >
+                <span className="commander-spawn-class-icon">🧠</span>
+                <span>Claude</span>
+              </button>
+              <button
+                className={`commander-spawn-class ${selectedProvider === 'codex' ? 'selected' : ''}`}
+                onClick={() => setSelectedProvider('codex')}
+              >
+                <span className="commander-spawn-class-icon">⚙️</span>
+                <span>Codex</span>
+              </button>
             </div>
           </div>
         </div>

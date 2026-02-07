@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { store, useAgents, useSkillsArray, useCustomAgentClassesArray, useCustomAgentNames } from '../store';
 import { AGENT_CLASS_CONFIG, BUILTIN_AGENT_NAMES, CHARACTER_MODELS } from '../scene/config';
-import type { AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel } from '../../shared/types';
-import { PERMISSION_MODES, CLAUDE_MODELS } from '../../shared/types';
+import type { AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, CodexModel, AgentProvider, CodexConfig } from '../../shared/types';
+import { PERMISSION_MODES, CLAUDE_MODELS, CODEX_MODELS } from '../../shared/types';
 import { STORAGE_KEYS, getStorageString, setStorageString, apiUrl, authFetch } from '../utils/storage';
 import { ModelPreview } from './ModelPreview';
 import { HelpTooltip } from './shared/Tooltip';
@@ -61,8 +61,16 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
   const [classSearch, setClassSearch] = useState('');
   const [useChrome, setUseChrome] = useState(true); // Enabled by default
   const [permissionMode, setPermissionMode] = useState<PermissionMode>('bypass'); // Default to permissionless
+  const [selectedProvider, setSelectedProvider] = useState<AgentProvider>('claude');
+  const [codexConfig, setCodexConfig] = useState<CodexConfig>({
+    fullAuto: true,
+    sandbox: 'workspace-write',
+    approvalMode: 'on-request',
+    search: false,
+  });
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set());
   const [selectedModel, setSelectedModel] = useState<ClaudeModel>('opus'); // Default to opus
+  const [selectedCodexModel, setSelectedCodexModel] = useState<CodexModel>('gpt-5.3-codex');
   const [customInstructions, setCustomInstructions] = useState('');
   const [skillSearch, setSkillSearch] = useState('');
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -291,6 +299,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
     console.log('[SpawnModal] Agent name:', name);
     console.log('[SpawnModal] Agent class:', selectedClass);
     console.log('[SpawnModal] Permission mode:', permissionMode);
+    console.log('[SpawnModal] Provider:', selectedProvider);
     console.log('[SpawnModal] Use Chrome:', useChrome);
     console.log('[SpawnModal] Session ID:', selectedSessionId || 'none');
 
@@ -319,14 +328,31 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
       class: selectedClass,
       cwd: effectiveCwd.trim(),
       sessionId: selectedSessionId || undefined,
-      useChrome,
+      useChrome: selectedProvider === 'claude' ? useChrome : false,
       permissionMode,
+      provider: selectedProvider,
+      codexConfig: selectedProvider === 'codex' ? codexConfig : undefined,
+      codexModel: selectedProvider === 'codex' ? selectedCodexModel : undefined,
       initialSkillIds,
-      model: selectedModel,
+      model: selectedProvider === 'claude' ? selectedModel : undefined,
       customInstructions: trimmedInstructions ? `${trimmedInstructions.length} chars` : undefined,
     });
 
-    store.spawnAgent(name.trim(), selectedClass, effectiveCwd.trim(), spawnPosition || undefined, selectedSessionId || undefined, useChrome, permissionMode, initialSkillIds, selectedModel, trimmedInstructions);
+    store.spawnAgent(
+      name.trim(),
+      selectedClass,
+      effectiveCwd.trim(),
+      spawnPosition || undefined,
+      selectedSessionId || undefined,
+      selectedProvider === 'claude' ? useChrome : false,
+      permissionMode,
+      initialSkillIds,
+      selectedProvider,
+      selectedProvider === 'codex' ? codexConfig : undefined,
+      selectedProvider === 'codex' ? selectedCodexModel : undefined,
+      selectedProvider === 'claude' ? selectedModel : undefined,
+      trimmedInstructions
+    );
   };
 
   const handleSuccess = () => {
@@ -523,34 +549,38 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
               </div>
             </div>
 
-            {/* Row 2: Model + Permission */}
+            {/* Row 2: Runtime + Permission */}
             <div className="spawn-form-row">
               <div className="spawn-field">
                 <label className="spawn-label">
-                  Model
+                  Runtime
                   <HelpTooltip
                     text={<>
-                      <strong>Opus:</strong> Most capable, best for complex tasks<br/>
-                      <strong>Sonnet:</strong> Balanced speed and capability<br/>
-                      <strong>Haiku:</strong> Fastest, good for simple tasks
+                      <strong>Claude:</strong> Uses Claude CLI runtime<br/>
+                      <strong>Codex:</strong> Uses Codex CLI runtime with JSON events
                     </>}
-                    title="Claude Model"
+                    title="Agent Runtime"
                     position="top"
                     size="sm"
                   />
                 </label>
                 <div className="spawn-select-row">
-                  {(Object.keys(CLAUDE_MODELS) as ClaudeModel[]).map((model) => (
-                    <button
-                      key={model}
-                      className={`spawn-select-btn ${selectedModel === model ? 'selected' : ''}`}
-                      onClick={() => setSelectedModel(model)}
-                      title={CLAUDE_MODELS[model].description}
-                    >
-                      <span>{CLAUDE_MODELS[model].icon}</span>
-                      <span>{CLAUDE_MODELS[model].label}</span>
-                    </button>
-                  ))}
+                  <button
+                    className={`spawn-select-btn ${selectedProvider === 'claude' ? 'selected' : ''}`}
+                    onClick={() => setSelectedProvider('claude')}
+                    title="Use Claude CLI"
+                  >
+                    <span>🧠</span>
+                    <span>Claude</span>
+                  </button>
+                  <button
+                    className={`spawn-select-btn ${selectedProvider === 'codex' ? 'selected' : ''}`}
+                    onClick={() => setSelectedProvider('codex')}
+                    title="Use Codex CLI"
+                  >
+                    <span>⚙️</span>
+                    <span>Codex</span>
+                  </button>
                 </div>
               </div>
               <div className="spawn-field">
@@ -582,23 +612,159 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
               </div>
             </div>
 
-            {/* Row 3: Chrome toggle */}
-            <div className="spawn-form-row spawn-options-row">
-              <label className="spawn-checkbox">
-                <input
-                  type="checkbox"
-                  checked={useChrome}
-                  onChange={(e) => setUseChrome(e.target.checked)}
-                />
-                <span>🌐 Chrome Browser</span>
-                <HelpTooltip
-                  text="Enable Chrome browser automation. The agent can navigate web pages, fill forms, and interact with web applications. Requires Claude in Chrome extension."
-                  title="Chrome Browser"
-                  position="top"
-                  size="sm"
-                />
-              </label>
+            {/* Row 3: Model (Claude only) + Chrome */}
+            <div className="spawn-form-row">
+              <div className="spawn-field">
+                <label className="spawn-label">
+                  Model
+                  <HelpTooltip
+                    text={<>
+                      <strong>Opus:</strong> Most capable, best for complex tasks<br/>
+                      <strong>Sonnet:</strong> Balanced speed and capability<br/>
+                      <strong>Haiku:</strong> Fastest, good for simple tasks
+                    </>}
+                    title="Claude Model"
+                    position="top"
+                    size="sm"
+                  />
+                </label>
+                {selectedProvider === 'claude' ? (
+                  <div className="spawn-select-row">
+                    {(Object.keys(CLAUDE_MODELS) as ClaudeModel[]).map((model) => (
+                      <button
+                        key={model}
+                        className={`spawn-select-btn ${selectedModel === model ? 'selected' : ''}`}
+                        onClick={() => setSelectedModel(model)}
+                        title={CLAUDE_MODELS[model].description}
+                      >
+                        <span>{CLAUDE_MODELS[model].icon}</span>
+                        <span>{CLAUDE_MODELS[model].label}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : selectedProvider === 'codex' ? (
+                  <div className="spawn-select-row">
+                    {(Object.keys(CODEX_MODELS) as CodexModel[]).map((model) => (
+                      <button
+                        key={model}
+                        className={`spawn-select-btn ${selectedCodexModel === model ? 'selected' : ''}`}
+                        onClick={() => setSelectedCodexModel(model)}
+                        title={CODEX_MODELS[model].description}
+                      >
+                        <span>{CODEX_MODELS[model].icon}</span>
+                        <span>{CODEX_MODELS[model].label}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="spawn-inline-hint">Choose the Codex model for this agent.</div>
+                )}
+              </div>
+              <div className="spawn-field">
+                <label className="spawn-label">Browser</label>
+                <div className="spawn-form-row spawn-options-row">
+                  <label className="spawn-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={useChrome}
+                      onChange={(e) => setUseChrome(e.target.checked)}
+                      disabled={selectedProvider !== 'claude'}
+                    />
+                    <span>🌐 Chrome Browser</span>
+                    <HelpTooltip
+                      text={selectedProvider === 'claude'
+                        ? 'Enable Chrome browser automation. The agent can navigate web pages, fill forms, and interact with web applications. Requires Claude in Chrome extension.'
+                        : 'Chrome automation is currently available only with Claude runtime.'
+                      }
+                      title="Chrome Browser"
+                      position="top"
+                      size="sm"
+                    />
+                  </label>
+                </div>
+              </div>
             </div>
+
+            {selectedProvider === 'codex' && (
+              <div className="spawn-form-row">
+                <div className="spawn-field">
+                  <label className="spawn-label">Codex Config</label>
+                  <div className="spawn-options-row" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <label className="spawn-checkbox">
+                      <input
+                        type="checkbox"
+                        checked={codexConfig.fullAuto !== false}
+                        onChange={(e) =>
+                          setCodexConfig((prev) => ({
+                            ...prev,
+                            fullAuto: e.target.checked,
+                          }))
+                        }
+                      />
+                      <span>Use `--full-auto`</span>
+                    </label>
+                    <label className="spawn-checkbox">
+                      <input
+                        type="checkbox"
+                        checked={!!codexConfig.search}
+                        onChange={(e) =>
+                          setCodexConfig((prev) => ({
+                            ...prev,
+                            search: e.target.checked,
+                          }))
+                        }
+                      />
+                      <span>Enable live web search (`--search`)</span>
+                    </label>
+                    {codexConfig.fullAuto === false && (
+                      <>
+                        <select
+                          className="spawn-input"
+                          value={codexConfig.sandbox || 'workspace-write'}
+                          onChange={(e) =>
+                            setCodexConfig((prev) => ({
+                              ...prev,
+                              sandbox: e.target.value as CodexConfig['sandbox'],
+                            }))
+                          }
+                        >
+                          <option value="read-only">Sandbox: read-only</option>
+                          <option value="workspace-write">Sandbox: workspace-write</option>
+                          <option value="danger-full-access">Sandbox: danger-full-access</option>
+                        </select>
+                        <select
+                          className="spawn-input"
+                          value={codexConfig.approvalMode || 'on-request'}
+                          onChange={(e) =>
+                            setCodexConfig((prev) => ({
+                              ...prev,
+                              approvalMode: e.target.value as CodexConfig['approvalMode'],
+                            }))
+                          }
+                        >
+                          <option value="untrusted">Approvals: untrusted</option>
+                          <option value="on-failure">Approvals: on-failure</option>
+                          <option value="on-request">Approvals: on-request</option>
+                          <option value="never">Approvals: never</option>
+                        </select>
+                      </>
+                    )}
+                    <input
+                      type="text"
+                      className="spawn-input"
+                      placeholder="Profile (optional)"
+                      value={codexConfig.profile || ''}
+                      onChange={(e) =>
+                        setCodexConfig((prev) => ({
+                          ...prev,
+                          profile: e.target.value || undefined,
+                        }))
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Skills section */}
             {availableSkills.length > 0 && (

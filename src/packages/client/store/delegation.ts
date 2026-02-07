@@ -4,7 +4,7 @@
  * Handles boss agent delegation logic.
  */
 
-import type { ClientMessage, Agent, AgentClass, PermissionMode, ClaudeModel, DelegationDecision } from '../../shared/types';
+import type { ClientMessage, Agent, AgentClass, PermissionMode, ClaudeModel, CodexModel, AgentProvider, CodexConfig, DelegationDecision } from '../../shared/types';
 import type { StoreState, AgentTaskProgress } from './types';
 
 export interface DelegationActions {
@@ -17,6 +17,9 @@ export interface DelegationActions {
     subordinateIds?: string[],
     useChrome?: boolean,
     permissionMode?: PermissionMode,
+    provider?: AgentProvider,
+    codexConfig?: CodexConfig,
+    codexModel?: CodexModel,
     model?: ClaudeModel,
     customInstructions?: string,
     initialSkillIds?: string[]
@@ -70,6 +73,9 @@ export function createDelegationActions(
       subordinateIds?: string[],
       useChrome?: boolean,
       permissionMode?: PermissionMode,
+      provider?: AgentProvider,
+      codexConfig?: CodexConfig,
+      codexModel?: CodexModel,
       model?: ClaudeModel,
       customInstructions?: string,
       initialSkillIds?: string[]
@@ -77,7 +83,7 @@ export function createDelegationActions(
       const pos3d = position ? { x: position.x, y: 0, z: position.z } : undefined;
       getSendMessage()?.({
         type: 'spawn_boss_agent',
-        payload: { name, class: agentClass, cwd, position: pos3d, subordinateIds, useChrome, permissionMode, model, customInstructions, initialSkillIds },
+        payload: { name, class: agentClass, cwd, position: pos3d, subordinateIds, useChrome, permissionMode, provider, codexConfig, codexModel, model, customInstructions, initialSkillIds },
       });
     },
 

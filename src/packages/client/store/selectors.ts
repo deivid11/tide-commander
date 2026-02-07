@@ -24,7 +24,7 @@ import type {
 } from '../../shared/types';
 import type {
   StoreState,
-  ClaudeOutput,
+  AgentOutput,
   LastPrompt,
   Activity,
   Settings,
@@ -234,8 +234,8 @@ export function useSubordinateAgents(): Agent[] {
 /**
  * Get outputs for a specific agent. Only re-renders when that agent's outputs change.
  */
-export function useAgentOutputs(agentId: string | null): ClaudeOutput[] {
-  const emptyArray = useRef<ClaudeOutput[]>([]);
+export function useAgentOutputs(agentId: string | null): AgentOutput[] {
+  const emptyArray = useRef<AgentOutput[]>([]);
   const prevLengthRef = useRef(0);
 
   const outputs = useSelector(

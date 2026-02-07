@@ -105,13 +105,23 @@ const DetailsTab = React.memo(function DetailsTab({ agent }: { agent: Agent | nu
         <div className="details-section">
           <div className="details-header">Configuration</div>
           <div className="details-row">
+            <span className="details-label">Runtime</span>
+            <span className="details-value details-mono">{agent.provider}</span>
+          </div>
+          <div className="details-row">
             <span className="details-label">Permission</span>
             <span className="details-value">{agent.permissionMode}</span>
           </div>
-          {agent.model && (
+          {agent.provider === 'claude' && agent.model && (
             <div className="details-row">
               <span className="details-label">Model</span>
               <span className="details-value details-mono">{agent.model}</span>
+            </div>
+          )}
+          {agent.provider === 'codex' && agent.codexModel && (
+            <div className="details-row">
+              <span className="details-label">Model</span>
+              <span className="details-value details-mono">{agent.codexModel}</span>
             </div>
           )}
         </div>

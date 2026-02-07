@@ -3,7 +3,7 @@
  * Handles sending commands to agents (both regular and boss agents)
  */
 
-import { agentService, claudeService, skillService, customClassService } from '../../services/index.js';
+import { agentService, runtimeService, skillService, customClassService } from '../../services/index.js';
 import { createLogger } from '../../utils/index.js';
 import { getAuthToken, isAuthEnabled } from '../../auth/index.js';
 import type { HandlerContext } from './types.js';
@@ -116,7 +116,7 @@ export async function handleSendCommand(
   // Handle /clear command - clear session and start fresh
   if (command.trim() === '/clear') {
     log.log(`Agent ${agent.name}: /clear command - clearing session`);
-    await claudeService.stopAgent(agentId);
+    await runtimeService.stopAgent(agentId);
     agentService.updateAgent(agentId, {
       status: 'idle',
       currentTask: undefined,
@@ -160,11 +160,11 @@ async function handleBossCommand(
   try {
     // Boss agents get context injected in the user message with delimiters
     const { message: bossMessage, systemPrompt } = await buildBossMessage(agentId, command);
-    claudeService.sendCommand(agentId, bossMessage, systemPrompt);
+    runtimeService.sendCommand(agentId, bossMessage, systemPrompt);
   } catch (err: any) {
     log.error(` Boss ${agentName}: failed to build boss message:`, err);
     // Fallback to sending raw command
-    claudeService.sendCommand(agentId, command);
+    runtimeService.sendCommand(agentId, command);
   }
 
   if (isTeamQuestion) {
@@ -182,8 +182,27 @@ async function handleRegularAgentCommand(
   ctx: HandlerContext,
   agentId: string,
   command: string,
-  agent: { id: string; name: string; class: string }
+  agent: { id: string; name: string; class: string; provider?: 'claude' | 'codex'; contextUsed?: number; contextLimit?: number }
 ): Promise<void> {
+  const trimmedCommand = command.trim();
+  if (agent.provider === 'codex' && (trimmedCommand === '/context' || trimmedCommand === '/cost' || trimmedCommand === '/compact')) {
+    const contextUsed = Math.max(0, Math.round(agent.contextUsed || 0));
+    const contextLimit = Math.max(1, Math.round(agent.contextLimit || 200000));
+    const usedPercent = Math.min(100, Math.round((contextUsed / contextLimit) * 100));
+    const freePercent = 100 - usedPercent;
+
+    ctx.broadcast({
+      type: 'output',
+      payload: {
+        agentId,
+        text: `Context (estimated from Codex turn usage): ${(contextUsed / 1000).toFixed(1)}k/${(contextLimit / 1000).toFixed(1)}k (${freePercent}% free)`,
+        isStreaming: false,
+        timestamp: Date.now(),
+      },
+    });
+    return;
+  }
+
   const customAgentConfig = buildCustomAgentConfig(agentId, agent.class);
 
   if (customAgentConfig) {
@@ -226,7 +245,7 @@ async function handleRegularAgentCommand(
   }
 
   try {
-    await claudeService.sendCommand(agentId, finalCommand, undefined, undefined, customAgentConfig);
+    await runtimeService.sendCommand(agentId, finalCommand, undefined, undefined, customAgentConfig);
   } catch (err: any) {
     log.error(' Failed to send command:', err);
     ctx.sendActivity(agentId, `Error: ${err.message}`);

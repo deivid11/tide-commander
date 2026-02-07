@@ -55,6 +55,55 @@ export const PERMISSION_MODES: Record<PermissionMode, { label: string; descripti
   interactive: { label: 'Interactive', description: 'Ask for approval before sensitive operations' },
 };
 
+// Agent runtime provider
+export type AgentProvider = 'claude' | 'codex';
+
+// Codex CLI execution controls
+export type CodexApprovalMode = 'untrusted' | 'on-failure' | 'on-request' | 'never';
+export type CodexSandboxMode = 'read-only' | 'workspace-write' | 'danger-full-access';
+export type CodexModel =
+  | 'gpt-5.3-codex'
+  | 'gpt-5.2-codex'
+  | 'gpt-5.1-codex-max'
+  | 'gpt-5.1-codex-mini'
+  | 'gpt-5.2';
+
+export interface CodexConfig {
+  fullAuto?: boolean; // maps to --full-auto
+  approvalMode?: CodexApprovalMode; // maps to --ask-for-approval
+  sandbox?: CodexSandboxMode; // maps to --sandbox
+  search?: boolean; // maps to --search
+  profile?: string; // maps to --profile
+}
+
+export const CODEX_MODELS: Record<CodexModel, { label: string; description: string; icon: string }> = {
+  'gpt-5.3-codex': {
+    label: 'GPT-5.3 Codex',
+    description: 'Latest frontier agentic coding model',
+    icon: '⚙️',
+  },
+  'gpt-5.2-codex': {
+    label: 'GPT-5.2 Codex',
+    description: 'Frontier agentic coding model',
+    icon: '🧠',
+  },
+  'gpt-5.1-codex-max': {
+    label: 'GPT-5.1 Codex Max',
+    description: 'Codex-optimized flagship for deep and fast reasoning',
+    icon: '🚀',
+  },
+  'gpt-5.1-codex-mini': {
+    label: 'GPT-5.1 Codex Mini',
+    description: 'Optimized for codex, cheaper and faster',
+    icon: '⚡',
+  },
+  'gpt-5.2': {
+    label: 'GPT-5.2',
+    description: 'General frontier model with strong reasoning and coding',
+    icon: '🧩',
+  },
+};
+
 // Claude Model - which AI model to use
 export type ClaudeModel = 'sonnet' | 'opus' | 'haiku';
 
@@ -117,6 +166,7 @@ export interface Agent {
   name: string;
   class: AgentClass;
   status: AgentStatus;
+  provider: AgentProvider;
 
   // Position on battlefield (3D coordinates)
   position: { x: number; y: number; z: number };
@@ -127,6 +177,8 @@ export interface Agent {
   useChrome?: boolean; // Start with --chrome flag
   permissionMode: PermissionMode; // How permissions are handled
   model?: ClaudeModel; // Claude model to use (sonnet, opus, haiku)
+  codexModel?: CodexModel; // Codex model to use (for provider='codex')
+  codexConfig?: CodexConfig; // Codex CLI config (only for provider='codex')
 
   // Resources
   tokensUsed: number;
@@ -925,6 +977,9 @@ export interface SpawnAgentMessage extends WSMessage {
     sessionId?: string;
     useChrome?: boolean;
     permissionMode?: PermissionMode; // defaults to 'bypass' for backwards compatibility
+    provider?: AgentProvider; // defaults to 'claude' for backwards compatibility
+    codexConfig?: CodexConfig;
+    codexModel?: CodexModel;
     initialSkillIds?: string[]; // Skills to assign on creation
     model?: ClaudeModel; // Claude model to use (defaults to sonnet)
     customInstructions?: string;  // Custom instructions to append to system prompt
@@ -1027,7 +1082,10 @@ export interface UpdateAgentPropertiesMessage extends WSMessage {
     updates: {
       class?: AgentClass;
       permissionMode?: PermissionMode;
+      provider?: AgentProvider;
       model?: ClaudeModel;
+      codexModel?: CodexModel;
+      codexConfig?: CodexConfig;
       skillIds?: string[];  // Complete list of skill IDs to assign (replaces existing)
     };
   };
@@ -1541,6 +1599,9 @@ export interface SpawnBossAgentMessage extends WSMessage {
     subordinateIds?: string[];  // Initial subordinates (optional)
     useChrome?: boolean;
     permissionMode?: PermissionMode;
+    provider?: AgentProvider; // defaults to 'claude' for backwards compatibility
+    codexConfig?: CodexConfig;
+    codexModel?: CodexModel;
     model?: ClaudeModel; // Claude model to use (defaults to sonnet)
     customInstructions?: string;  // Custom instructions to append to system prompt
     initialSkillIds?: string[];  // Initial skills to assign to the boss

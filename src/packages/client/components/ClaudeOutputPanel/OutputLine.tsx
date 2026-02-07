@@ -199,6 +199,8 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
   // Resolve agent name for tool attribution (prefer subagent name if present)
   const parentAgentName = agentId ? store.getState().agents.get(agentId)?.name : null;
   const agentName = output.subagentName || parentAgentName;
+  const provider = agentId ? store.getState().agents.get(agentId)?.provider : undefined;
+  const assistantRoleLabel = provider === 'codex' ? 'Codex' : 'Claude';
 
   // All hooks must be called before any conditional returns (Rules of Hooks)
   const [sessionExpanded, setSessionExpanded] = useState(false);
@@ -525,7 +527,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
     className += ' output-streaming';
   }
 
-  // For Claude messages, check for delegation blocks and work-plan blocks
+  // For assistant messages, check for delegation blocks and work-plan blocks
   if (isClaudeMessage && !isStreaming) {
     const delegationParsed = parseDelegationBlock(text);
     const workPlanParsed = parseWorkPlanBlock(delegationParsed.contentWithoutBlock);
@@ -534,7 +536,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
       return (
         <div className={className}>
           <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
-          <span className="output-role">Claude</span>
+          <span className="output-role">{assistantRoleLabel}</span>
           <div className="markdown-content">
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
               {workPlanParsed.contentWithoutBlock}
@@ -574,7 +576,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
   return (
     <div className={className}>
       <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
-      {isClaudeMessage && <span className="output-role">Claude</span>}
+      {isClaudeMessage && <span className="output-role">{assistantRoleLabel}</span>}
       {useMarkdown ? (
         <div className="markdown-content">
           <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>

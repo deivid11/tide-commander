@@ -6,7 +6,7 @@
 import { Server as HttpServer, IncomingMessage } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import type { Agent, ClientMessage, ServerMessage, PermissionRequest, DelegationDecision, Skill, CustomAgentClass, Subagent } from '../../shared/types.js';
-import { agentService, claudeService, supervisorService, permissionService, bossService, skillService, customClassService, bossMessageService, agentLifecycleService } from '../services/index.js';
+import { agentService, runtimeService, supervisorService, permissionService, bossService, skillService, customClassService, bossMessageService, agentLifecycleService } from '../services/index.js';
 import { loadAreas, saveAreas, loadBuildings, saveBuildings } from '../data/index.js';
 import { parseContextOutput } from '../claude/backend.js';
 import { logger, createLogger, formatToolActivity } from '../utils/index.js';
@@ -606,7 +606,7 @@ function setupServiceListeners(): void {
   });
 
   // Claude events
-  claudeService.on('event', (agentId, event) => {
+  runtimeService.on('event', (agentId, event) => {
     // Send activity for important events
     if (event.type === 'init') {
       sendActivity(agentId, `Session initialized (${event.model})`);
@@ -616,13 +616,13 @@ function setupServiceListeners(): void {
 
       // Detect Task tool subagent spawning
       if (event.toolName === 'Task' && event.toolUseId && event.subagentName) {
-        const subagent = claudeService.getActiveSubagentByToolUseId(event.toolUseId);
+        const subagent = runtimeService.getActiveSubagentByToolUseId(event.toolUseId);
         if (subagent) {
           // Calculate position near parent agent
           const parentAgent = agentService.getAgent(agentId);
           const parentPos = parentAgent?.position || { x: 0, y: 0, z: 0 };
           // Offset subagents in a circle around parent
-          const activeSubagents = claudeService.getActiveSubagentsForAgent(agentId);
+          const activeSubagents = runtimeService.getActiveSubagentsForAgent(agentId);
           const angle = (activeSubagents.length - 1) * (Math.PI * 2 / Math.max(activeSubagents.length, 3));
           const radius = 3;
           const subagentPayload: Subagent = {
@@ -724,7 +724,7 @@ function setupServiceListeners(): void {
     });
   });
 
-  claudeService.on('output', (agentId: string, text: string, isStreaming: boolean | undefined, subagentName: string | undefined, uuid: string | undefined, toolMeta?: { toolName?: string; toolInput?: Record<string, unknown> }) => {
+  runtimeService.on('output', (agentId: string, text: string, isStreaming: boolean | undefined, subagentName: string | undefined, uuid: string | undefined, toolMeta?: { toolName?: string; toolInput?: Record<string, unknown> }) => {
     const textPreview = text.slice(0, 80).replace(/\n/g, '\\n');
     log.log(`[OUTPUT] agent=${agentId.slice(0,4)} streaming=${isStreaming} text="${textPreview}" uuid=${uuid || 'none'}`);
 
@@ -784,7 +784,7 @@ function setupServiceListeners(): void {
     }
   });
 
-  claudeService.on('complete', (agentId, success) => {
+  runtimeService.on('complete', (agentId, success) => {
     sendActivity(agentId, success ? 'Task completed' : 'Task failed');
 
     // If this subordinate was working on a delegated task, notify boss
@@ -806,12 +806,12 @@ function setupServiceListeners(): void {
     }
   });
 
-  claudeService.on('error', (agentId, error) => {
+  runtimeService.on('error', (agentId, error) => {
     sendActivity(agentId, `Error: ${error}`);
   });
 
   // Set up command started callback
-  claudeService.setCommandStartedCallback((agentId, command) => {
+  runtimeService.setCommandStartedCallback((agentId, command) => {
     broadcast({
       type: 'command_started',
       payload: { agentId, command },
@@ -820,7 +820,7 @@ function setupServiceListeners(): void {
 
   // Set up session update callback for orphaned agents
   // When an orphaned agent's session file is updated, notify clients to refresh history
-  claudeService.setSessionUpdateCallback((agentId) => {
+  runtimeService.setSessionUpdateCallback((agentId) => {
     broadcast({
       type: 'session_updated',
       payload: { agentId },
@@ -993,7 +993,7 @@ export function init(server: HttpServer): WebSocketServer {
 
     // Sync agent status with actual process state before sending to client
     // This only corrects 'working' -> 'idle' if the process is dead
-    await claudeService.syncAllAgentStatus();
+    await runtimeService.syncAllAgentStatus();
 
     // Send custom agent classes FIRST - agents need these for custom model loading
     const customClasses = customClassService.getAllCustomClasses();

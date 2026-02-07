@@ -4,8 +4,8 @@
  */
 
 import * as fs from 'fs';
-import type { Agent } from '../../../shared/types.js';
-import { agentService, claudeService, skillService, customClassService, bossService, permissionService } from '../../services/index.js';
+import type { Agent, AgentProvider, CodexConfig } from '../../../shared/types.js';
+import { agentService, runtimeService, skillService, customClassService, bossService, permissionService } from '../../services/index.js';
 import { createLogger } from '../../utils/index.js';
 import type { HandlerContext } from './types.js';
 
@@ -57,6 +57,9 @@ export async function handleSpawnAgent(
     sessionId?: string;
     useChrome?: boolean;
     permissionMode?: string;
+    provider?: AgentProvider;
+    codexConfig?: CodexConfig;
+    codexModel?: string;
     position?: { x: number; y: number; z: number };
     initialSkillIds?: string[];
     model?: string;
@@ -88,7 +91,10 @@ export async function handleSpawnAgent(
       undefined, // initialSkillIds handled separately below
       undefined, // isBoss
       payload.model as any,
-      payload.customInstructions
+      payload.codexModel as any,
+      payload.customInstructions,
+      payload.provider,
+      payload.codexConfig
     );
 
     log.log('Agent created successfully:', {
@@ -156,7 +162,7 @@ export async function handleKillAgent(
     });
   }
 
-  await claudeService.stopAgent(payload.agentId);
+  await runtimeService.stopAgent(payload.agentId);
   unlinkAgentFromBossHierarchy(payload.agentId);
   agentService.deleteAgent(payload.agentId);
 
@@ -182,7 +188,7 @@ export async function handleStopAgent(
     });
   }
 
-  await claudeService.stopAgent(payload.agentId);
+  await runtimeService.stopAgent(payload.agentId);
   agentService.updateAgent(payload.agentId, {
     status: 'idle',
     currentTask: undefined,
@@ -203,7 +209,7 @@ export async function handleClearContext(
   const agent = agentService.getAgent(payload.agentId);
   log.log(`Agent ${agent?.name || payload.agentId}: User requested context clear`);
 
-  await claudeService.stopAgent(payload.agentId);
+  await runtimeService.stopAgent(payload.agentId);
   agentService.updateAgent(payload.agentId, {
     status: 'idle',
     currentTask: undefined,
@@ -227,7 +233,7 @@ export async function handleCollapseContext(
   const agent = agentService.getAgent(payload.agentId);
   if (agent && agent.status === 'idle') {
     try {
-      await claudeService.sendCommand(payload.agentId, '/compact');
+      await runtimeService.sendCommand(payload.agentId, '/compact');
       ctx.sendActivity(payload.agentId, 'Context collapse initiated');
     } catch (err) {
       log.error(` Failed to collapse context: ${err}`);
@@ -246,9 +252,27 @@ export async function handleRequestContextStats(
   payload: { agentId: string }
 ): Promise<void> {
   const agent = agentService.getAgent(payload.agentId);
+  if (agent?.provider === 'codex') {
+    const contextUsed = Math.max(0, Math.round(agent.contextUsed || 0));
+    const contextLimit = Math.max(1, Math.round(agent.contextLimit || 200000));
+    const usedPercent = Math.min(100, Math.round((contextUsed / contextLimit) * 100));
+    const freePercent = 100 - usedPercent;
+
+    ctx.broadcast({
+      type: 'output',
+      payload: {
+        agentId: payload.agentId,
+        text: `Context (estimated from Codex turn usage): ${(contextUsed / 1000).toFixed(1)}k/${(contextLimit / 1000).toFixed(1)}k (${freePercent}% free)`,
+        isStreaming: false,
+        timestamp: Date.now(),
+      },
+    });
+    return;
+  }
+
   if (agent && agent.status === 'idle') {
     try {
-      await claudeService.sendCommand(payload.agentId, '/context');
+      await runtimeService.sendCommand(payload.agentId, '/context');
     } catch (err) {
       log.error(` Failed to request context stats: ${err}`);
     }
@@ -304,7 +328,10 @@ export async function handleUpdateAgentProperties(
     updates: {
       class?: string;
       permissionMode?: string;
+      provider?: AgentProvider;
+      codexConfig?: CodexConfig;
       model?: string;
+      codexModel?: string;
       useChrome?: boolean;
       skillIds?: string[];
       cwd?: string;
@@ -319,8 +346,22 @@ export async function handleUpdateAgentProperties(
     return;
   }
 
+  const nextProvider = updates.provider ?? agent.provider;
+  const normalizedUpdatedModel =
+    updates.model !== undefined
+      ? agentService.sanitizeModelForProvider(nextProvider, updates.model)
+      : undefined;
+  const normalizedUpdatedCodexModel =
+    updates.codexModel !== undefined
+      ? agentService.sanitizeCodexModel(updates.codexModel)
+      : undefined;
+
   // Track if model changed (requires hot restart to apply new model while preserving context)
-  const modelChanged = updates.model !== undefined && updates.model !== agent.model;
+  const modelChanged = updates.model !== undefined && normalizedUpdatedModel !== agent.model;
+  const codexModelChanged = updates.codexModel !== undefined && normalizedUpdatedCodexModel !== agent.codexModel;
+  const providerChanged = updates.provider !== undefined && updates.provider !== agent.provider;
+  const codexConfigChanged = updates.codexConfig !== undefined
+    && JSON.stringify(updates.codexConfig || {}) !== JSON.stringify(agent.codexConfig || {});
   const sessionId = agent.sessionId; // Save before update
 
   // Track if Chrome flag changed (requires hot restart to add/remove --chrome flag)
@@ -352,8 +393,23 @@ export async function handleUpdateAgentProperties(
     agentUpdates.permissionMode = updates.permissionMode as any;
   }
 
+  if (updates.provider !== undefined) {
+    agentUpdates.provider = updates.provider;
+  }
+
+  if (updates.codexConfig !== undefined) {
+    agentUpdates.codexConfig = updates.codexConfig;
+  }
+
   if (updates.model !== undefined) {
-    agentUpdates.model = updates.model as any;
+    agentUpdates.model = normalizedUpdatedModel as any;
+    if (nextProvider === 'claude' && normalizedUpdatedModel === undefined) {
+      ctx.sendActivity(agentId, `Ignored unsupported Claude model "${updates.model}"`);
+    }
+  }
+
+  if (updates.codexModel !== undefined) {
+    agentUpdates.codexModel = normalizedUpdatedCodexModel as any;
   }
 
   if (updates.useChrome !== undefined) {
@@ -377,38 +433,45 @@ export async function handleUpdateAgentProperties(
 
   // If model changed, do a hot restart: stop process, resume with new model
   // This preserves context by using --resume with the existing sessionId
-  if (modelChanged && sessionId) {
-    log.log(`Agent ${agent.name}: Model changed to ${updates.model}, hot restarting with --resume to preserve context`);
+  if ((modelChanged || codexModelChanged || providerChanged || codexConfigChanged) && sessionId) {
+    const reason = providerChanged
+      ? `runtime changed to ${updates.provider}`
+      : codexConfigChanged
+        ? 'Codex config changed'
+        : codexModelChanged
+          ? `Codex model changed to ${updates.codexModel}`
+        : `model changed to ${updates.model}`;
+    log.log(`Agent ${agent.name}: ${reason}, hot restarting with --resume to preserve context`);
     try {
-      // Stop the current Claude process
-      await claudeService.stopAgent(agentId);
-
-      // Mark as idle temporarily (the resume will happen on next command)
-      // Keep sessionId to allow resume with new model
+      await runtimeService.stopAgent(agentId);
       agentService.updateAgent(agentId, {
         status: 'idle',
         currentTask: undefined,
         currentTool: undefined,
-        // Keep sessionId! This allows --resume to work with the new model
       }, false);
-
-      ctx.sendActivity(agentId, `Model changed to ${updates.model} - context preserved`);
+      ctx.sendActivity(agentId, `${reason} - context preserved`);
     } catch (err) {
-      log.error(`Failed to hot restart agent ${agent.name} after model change:`, err);
+      log.error(`Failed to hot restart agent ${agent.name} after runtime config change:`, err);
     }
-  } else if (modelChanged && !sessionId) {
-    // No existing session, just update the model (will apply on next start)
-    log.log(`Agent ${agent.name}: Model changed to ${updates.model}, will apply on next session start`);
+  } else if ((modelChanged || codexModelChanged || providerChanged || codexConfigChanged) && !sessionId) {
+    const reason = providerChanged
+      ? `runtime changed to ${updates.provider}`
+      : codexConfigChanged
+        ? 'Codex config changed'
+        : codexModelChanged
+          ? `Codex model changed to ${updates.codexModel}`
+        : `model changed to ${updates.model}`;
+    log.log(`Agent ${agent.name}: ${reason}, will apply on next session start`);
   }
 
   // If Chrome flag changed, do a hot restart to add/remove --chrome flag
   // Only restart if model didn't already trigger a restart
-  if (useChromeChanged && !modelChanged && sessionId) {
+  if (useChromeChanged && !modelChanged && !codexModelChanged && !providerChanged && !codexConfigChanged && sessionId) {
     const chromeStatus = updates.useChrome ? 'enabled' : 'disabled';
     log.log(`Agent ${agent.name}: Chrome ${chromeStatus}, hot restarting with --resume to apply change`);
     try {
       // Stop the current Claude process
-      await claudeService.stopAgent(agentId);
+      await runtimeService.stopAgent(agentId);
 
       // Mark as idle temporarily (the resume will happen on next command)
       // Keep sessionId to allow resume with chrome flag change
@@ -423,7 +486,7 @@ export async function handleUpdateAgentProperties(
     } catch (err) {
       log.error(`Failed to hot restart agent ${agent.name} after Chrome change:`, err);
     }
-  } else if (useChromeChanged && !sessionId) {
+  } else if (useChromeChanged && !providerChanged && !codexConfigChanged && !codexModelChanged && !sessionId) {
     // No existing session, chrome flag will apply on next start
     const chromeStatus = updates.useChrome ? 'enabled' : 'disabled';
     log.log(`Agent ${agent.name}: Chrome ${chromeStatus}, will apply on next session start`);
@@ -436,7 +499,7 @@ export async function handleUpdateAgentProperties(
     log.log(`Agent ${agent.name}: Working directory changed to ${updates.cwd}, clearing session (cwd change requires new session)`);
     try {
       // Stop the current Claude process
-      await claudeService.stopAgent(agentId);
+      await runtimeService.stopAgent(agentId);
 
       // Mark as idle and CLEAR sessionId - cwd changes require a fresh session
       agentService.updateAgent(agentId, {
@@ -475,11 +538,11 @@ export async function handleUpdateAgentProperties(
 
     // If skills changed and we didn't already hot restart for model/chrome/cwd change, do it now
     // Skills are injected into the system prompt, so we need to restart to apply them
-    if (skillsChanged && !modelChanged && !useChromeChanged && !cwdChanged && sessionId) {
+    if (skillsChanged && !modelChanged && !codexModelChanged && !providerChanged && !codexConfigChanged && !useChromeChanged && !cwdChanged && sessionId) {
       log.log(`Agent ${agent.name}: Skills changed, hot restarting with --resume to apply new system prompt`);
       try {
         // Stop the current Claude process
-        await claudeService.stopAgent(agentId);
+        await runtimeService.stopAgent(agentId);
 
         // Mark as idle temporarily (the resume will happen on next command)
         // Keep sessionId to allow resume with new skills in system prompt

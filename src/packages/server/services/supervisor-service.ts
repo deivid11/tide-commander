@@ -15,7 +15,7 @@ import type {
   AgentSupervisorHistoryEntry,
   AgentSupervisorHistory,
 } from '../../shared/types.js';
-import type { StandardEvent } from '../claude/index.js';
+import type { RuntimeEvent as StandardEvent } from '../runtime/index.js';
 import { loadSession } from '../claude/index.js';
 import { callClaudeForAnalysis, stripCodeFences } from './supervisor-claude.js';
 import {
@@ -806,4 +806,3 @@ export async function requestUsageRefresh(): Promise<string | null> {
     return null;
   }
 }
-

@@ -97,11 +97,12 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
   // Snapshots should be viewable even when no agent is selected/running.
   const snapshotAgent = useMemo<Agent | null>(() => {
     if (!currentSnapshot) return null;
-    return {
-      id: currentSnapshot.agentId,
-      name: currentSnapshot.agentName,
-      class: currentSnapshot.agentClass as Agent['class'],
-      status: 'idle',
+      return {
+        id: currentSnapshot.agentId,
+        name: currentSnapshot.agentName,
+        class: currentSnapshot.agentClass as Agent['class'],
+        status: 'idle',
+        provider: 'claude',
       position: { x: 0, y: 0, z: 0 },
       cwd: currentSnapshot.cwd,
       permissionMode: 'interactive',
@@ -338,9 +339,33 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
     setImageModal({ url, name });
   }, []);
 
+  const resolveFilePath = useCallback((filePath: string): string => {
+    if (!filePath) return filePath;
+    if (filePath.startsWith('/')) return filePath;
+
+    const cwd = activeAgent?.cwd;
+    if (!cwd || !cwd.startsWith('/')) return filePath;
+
+    const rel = filePath.replace(/^\.\//, '');
+    const cwdParts = cwd.split('/').filter(Boolean);
+    const relParts = rel.split('/').filter(Boolean);
+    const stack = [...cwdParts];
+
+    for (const part of relParts) {
+      if (part === '.') continue;
+      if (part === '..') {
+        if (stack.length > 0) stack.pop();
+        continue;
+      }
+      stack.push(part);
+    }
+
+    return `/${stack.join('/')}`;
+  }, [activeAgent?.cwd]);
+
   const handleFileClick = useCallback((path: string, editData?: { oldString?: string; newString?: string; highlightRange?: { offset: number; limit: number } }) => {
-    store.setFileViewerPath(path, editData);
-  }, []);
+    store.setFileViewerPath(resolveFilePath(path), editData);
+  }, [resolveFilePath]);
 
   const handleBashClick = useCallback((command: string, output: string) => {
     const isLive = output === 'Running...';

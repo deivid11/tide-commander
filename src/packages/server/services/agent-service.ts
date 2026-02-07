@@ -4,7 +4,7 @@
  */
 
 import * as fs from 'fs';
-import type { Agent, AgentClass, PermissionMode, ClaudeModel } from '../../shared/types.js';
+import type { Agent, AgentClass, PermissionMode, ClaudeModel, AgentProvider, CodexConfig, CodexModel } from '../../shared/types.js';
 import { loadAgents, saveAgents, getDataDir } from '../data/index.js';
 import {
   listSessions,
@@ -16,6 +16,7 @@ import {
 import { logger, generateId } from '../utils/index.js';
 
 const log = logger.agent;
+const CLAUDE_MODELS = new Set<ClaudeModel>(['sonnet', 'opus', 'haiku']);
 
 // In-memory agent storage
 const agents = new Map<string, Agent>();
@@ -45,6 +46,24 @@ interface PendingPropertyUpdate {
   oldUseChrome?: boolean;
 }
 const pendingPropertyUpdates = new Map<string, PendingPropertyUpdate>();
+
+export function sanitizeModelForProvider(
+  provider: AgentProvider,
+  model: unknown
+): ClaudeModel | undefined {
+  if (provider !== 'claude') return undefined;
+  if (typeof model !== 'string') return undefined;
+  if (CLAUDE_MODELS.has(model as ClaudeModel)) {
+    return model as ClaudeModel;
+  }
+  return undefined;
+}
+
+export function sanitizeCodexModel(model: unknown): CodexModel | undefined {
+  if (typeof model !== 'string') return undefined;
+  const trimmed = model.trim();
+  return trimmed.length > 0 ? (trimmed as CodexModel) : undefined;
+}
 
 // ============================================================================
 // Initialization
@@ -88,6 +107,7 @@ export function initAgents(): void {
       const agent: Agent = {
         ...stored,
         status: 'idle', // Ready to receive commands
+        provider: stored.provider ?? 'claude', // Migration for existing agents
         // Clear runtime state on server restart - we don't know if tasks are still valid
         currentTask: undefined,
         currentTool: undefined,
@@ -97,7 +117,9 @@ export function initAgents(): void {
         taskCount: stored.taskCount ?? 0, // Migration for existing agents
         permissionMode: stored.permissionMode ?? 'bypass', // Migration for existing agents
         useChrome: stored.useChrome, // Restore Chrome flag
-        model: stored.model, // Restore model selection
+        model: sanitizeModelForProvider(stored.provider ?? 'claude', stored.model), // Restore only valid Claude model
+        codexModel: sanitizeCodexModel(stored.codexModel),
+        codexConfig: stored.codexConfig,
         // Boss field - fallback to checking class for backward compatibility
         isBoss: stored.isBoss ?? stored.class === 'boss',
       };
@@ -171,7 +193,10 @@ export async function createAgent(
   initialSkillIds?: string[],
   isBoss?: boolean,
   model?: ClaudeModel,
-  customInstructions?: string
+  codexModel?: CodexModel,
+  customInstructions?: string,
+  provider: AgentProvider = 'claude',
+  codexConfig?: CodexConfig
 ): Promise<Agent> {
   log.log('🎆 [CREATE_AGENT] Starting agent creation:', {
     name,
@@ -182,6 +207,8 @@ export async function createAgent(
     permissionMode,
     isBoss,
     model,
+    codexModel,
+    codexConfig,
     customInstructions: customInstructions ? `${customInstructions.length} chars` : undefined,
   });
 
@@ -203,6 +230,7 @@ export async function createAgent(
     name,
     class: agentClass,
     status: 'idle',
+    provider,
     position: position || {
       x: Math.random() * 10 - 5,
       y: 0,
@@ -211,7 +239,9 @@ export async function createAgent(
     cwd,
     useChrome,
     permissionMode,
-    model,
+    model: sanitizeModelForProvider(provider, model),
+    codexModel: provider === 'codex' ? sanitizeCodexModel(codexModel) : undefined,
+    codexConfig,
     tokensUsed: 0,
     contextUsed: 0,
     contextLimit: 200000, // Claude's default context limit

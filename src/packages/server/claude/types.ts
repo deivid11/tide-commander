@@ -3,6 +3,8 @@
  * Modular abstraction for CLI backend communication
  */
 
+import type { CodexConfig } from '../../shared/types.js';
+
 // Standard normalized event format (backend-agnostic)
 export interface StandardEvent {
   type:
@@ -82,6 +84,7 @@ export interface BackendConfig {
     name: string;  // Agent name to use with --agent flag
     definition: CustomAgentDefinition;
   };
+  codexConfig?: CodexConfig;
 }
 
 // Raw event from Claude CLI (partial typing for flexibility)
@@ -190,6 +193,7 @@ export interface RunnerRequest {
     name: string;
     definition: CustomAgentDefinition;
   };
+  codexConfig?: CodexConfig;
 }
 
 // Runner callbacks

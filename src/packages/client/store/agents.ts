@@ -4,7 +4,7 @@
  * Handles agent management: CRUD operations, selection, movement, etc.
  */
 
-import type { Agent, AgentClass, PermissionMode, ClaudeModel, ClientMessage, ContextStats } from '../../shared/types';
+import type { Agent, AgentClass, PermissionMode, ClaudeModel, CodexModel, AgentProvider, CodexConfig, ClientMessage, ContextStats } from '../../shared/types';
 import type { StoreState, Activity } from './types';
 import { perf } from '../utils/profiling';
 import { apiUrl, authFetch } from '../utils/storage';
@@ -33,6 +33,9 @@ export interface AgentActions {
     useChrome?: boolean,
     permissionMode?: PermissionMode,
     initialSkillIds?: string[],
+    provider?: AgentProvider,
+    codexConfig?: CodexConfig,
+    codexModel?: CodexModel,
     model?: ClaudeModel,
     customInstructions?: string
   ): void;
@@ -51,6 +54,9 @@ export interface AgentActions {
     updates: {
       class?: AgentClass;
       permissionMode?: PermissionMode;
+      provider?: AgentProvider;
+      codexConfig?: CodexConfig;
+      codexModel?: CodexModel;
       model?: ClaudeModel;
       useChrome?: boolean;
       skillIds?: string[];
@@ -211,6 +217,9 @@ export function createAgentActions(
       useChrome?: boolean,
       permissionMode?: PermissionMode,
       initialSkillIds?: string[],
+      provider?: AgentProvider,
+      codexConfig?: CodexConfig,
+      codexModel?: CodexModel,
       model?: ClaudeModel,
       customInstructions?: string
     ): void {
@@ -223,6 +232,9 @@ export function createAgentActions(
         useChrome,
         permissionMode,
         initialSkillIds,
+        provider,
+        codexConfig,
+        codexModel,
         model,
         customInstructions: customInstructions ? `${customInstructions.length} chars` : undefined,
       });
@@ -239,6 +251,9 @@ export function createAgentActions(
           useChrome,
           permissionMode,
           initialSkillIds,
+          provider,
+          codexConfig,
+          codexModel,
           model,
           customInstructions,
         },
@@ -368,6 +383,9 @@ export function createAgentActions(
       updates: {
         class?: AgentClass;
         permissionMode?: PermissionMode;
+        provider?: AgentProvider;
+        codexConfig?: CodexConfig;
+        codexModel?: CodexModel;
         model?: ClaudeModel;
         useChrome?: boolean;
         skillIds?: string[];
@@ -387,6 +405,15 @@ export function createAgentActions(
           }
           if (updates.model !== undefined) {
             updatedAgent.model = updates.model;
+          }
+          if (updates.provider !== undefined) {
+            updatedAgent.provider = updates.provider;
+          }
+          if (updates.codexConfig !== undefined) {
+            updatedAgent.codexConfig = updates.codexConfig;
+          }
+          if (updates.codexModel !== undefined) {
+            updatedAgent.codexModel = updates.codexModel;
           }
           if (updates.useChrome !== undefined) {
             updatedAgent.useChrome = updates.useChrome;

@@ -17,6 +17,17 @@ const log = createLogger('Session');
 // Claude's project directory
 const CLAUDE_DIR = path.join(os.homedir(), '.claude');
 const PROJECTS_DIR = path.join(CLAUDE_DIR, 'projects');
+const CODEX_DIR = path.join(os.homedir(), '.codex');
+const CODEX_SESSIONS_DIR = path.join(CODEX_DIR, 'sessions');
+
+type SessionProvider = 'claude' | 'codex';
+
+interface ResolvedSessionFile {
+  provider: SessionProvider;
+  filePath: string;
+}
+
+const codexSessionFileById = new Map<string, string>();
 
 // Message types from Claude session files
 export interface SessionMessage {
@@ -58,6 +69,96 @@ export interface FileChange {
   action: 'created' | 'modified' | 'deleted' | 'read';
   filePath: string;
   timestamp: number;
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function normalizeTextContent(content: unknown): string {
+  if (typeof content === 'string') return content;
+  if (content === null || content === undefined) return '';
+  if (typeof content === 'object') return JSON.stringify(content, null, 2);
+  return String(content);
+}
+
+function safeParseJson(input: string): unknown {
+  try {
+    return JSON.parse(input);
+  } catch {
+    return null;
+  }
+}
+
+function parseFunctionCallArguments(raw: unknown): Record<string, unknown> {
+  if (isObject(raw)) {
+    return raw;
+  }
+  if (typeof raw !== 'string') {
+    return {};
+  }
+  const parsed = safeParseJson(raw);
+  return isObject(parsed) ? parsed : { raw: raw };
+}
+
+function findCodexSessionFile(sessionId: string): string | null {
+  const cached = codexSessionFileById.get(sessionId);
+  if (cached && fs.existsSync(cached)) {
+    return cached;
+  }
+
+  if (!fs.existsSync(CODEX_SESSIONS_DIR)) {
+    return null;
+  }
+
+  const queue = [CODEX_SESSIONS_DIR];
+
+  while (queue.length > 0) {
+    const dir = queue.pop();
+    if (!dir) continue;
+
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        queue.push(fullPath);
+        continue;
+      }
+
+      if (!entry.isFile() || !entry.name.endsWith('.jsonl')) {
+        continue;
+      }
+
+      if (!entry.name.includes(sessionId)) {
+        continue;
+      }
+
+      codexSessionFileById.set(sessionId, fullPath);
+      return fullPath;
+    }
+  }
+
+  return null;
+}
+
+function resolveSessionFile(cwd: string, sessionId: string): ResolvedSessionFile | null {
+  const claudeFile = path.join(getProjectDir(cwd), `${sessionId}.jsonl`);
+  if (fs.existsSync(claudeFile)) {
+    return { provider: 'claude', filePath: claudeFile };
+  }
+
+  const codexFile = findCodexSessionFile(sessionId);
+  if (codexFile && fs.existsSync(codexFile)) {
+    return { provider: 'codex', filePath: codexFile };
+  }
+
+  return null;
 }
 
 /**
@@ -153,6 +254,215 @@ async function waitForFileStable(filePath: string, maxWaitMs: number = 500): Pro
   }
 }
 
+type SessionActivityMessageType = 'user' | 'assistant' | 'tool_use' | 'tool_result' | null;
+
+function parseClaudeEntryMessages(
+  entry: any,
+  messages: SessionMessage[],
+  toolUseIdToName: Map<string, string>
+): void {
+  if (entry.type === 'user' && entry.message?.content) {
+    if (Array.isArray(entry.message.content)) {
+      for (const block of entry.message.content) {
+        if (block.type === 'tool_result') {
+          const content = typeof block.content === 'string'
+            ? block.content
+            : JSON.stringify(block.content);
+          const toolName = toolUseIdToName.get(block.tool_use_id) || 'unknown';
+          messages.push({
+            type: 'tool_result',
+            content,
+            timestamp: entry.timestamp,
+            uuid: entry.uuid ?? `${entry.timestamp}-tool-result`,
+            toolName,
+            toolUseId: block.tool_use_id,
+          });
+        } else if (block.type === 'text' && block.text) {
+          messages.push({
+            type: 'user',
+            content: block.text,
+            timestamp: entry.timestamp,
+            uuid: entry.uuid ?? `${entry.timestamp}-user`,
+          });
+        }
+      }
+      return;
+    }
+
+    messages.push({
+      type: 'user',
+      content: entry.message.content,
+      timestamp: entry.timestamp,
+      uuid: entry.uuid ?? `${entry.timestamp}-user`,
+    });
+    return;
+  }
+
+  if (entry.type === 'assistant' && entry.message?.content) {
+    if (Array.isArray(entry.message.content)) {
+      for (const block of entry.message.content) {
+        if (block.type === 'text' && block.text) {
+          messages.push({
+            type: 'assistant',
+            content: block.text,
+            timestamp: entry.timestamp,
+            uuid: entry.uuid ?? `${entry.timestamp}-assistant`,
+          });
+        } else if (block.type === 'tool_use' && block.name) {
+          if (block.id) {
+            toolUseIdToName.set(block.id, block.name);
+          }
+          messages.push({
+            type: 'tool_use',
+            content: JSON.stringify(block.input || {}, null, 2),
+            timestamp: entry.timestamp,
+            uuid: entry.uuid ?? `${entry.timestamp}-tool-use`,
+            toolName: block.name,
+            toolInput: block.input,
+            toolUseId: block.id,
+          });
+        }
+      }
+      return;
+    }
+
+    if (typeof entry.message.content === 'string') {
+      messages.push({
+        type: 'assistant',
+        content: entry.message.content,
+        timestamp: entry.timestamp,
+        uuid: entry.uuid ?? `${entry.timestamp}-assistant`,
+      });
+    }
+  }
+}
+
+function extractCodexMessageText(content: unknown): string {
+  if (!Array.isArray(content)) {
+    return normalizeTextContent(content);
+  }
+
+  const textParts: string[] = [];
+  for (const block of content) {
+    if (!isObject(block)) continue;
+    const type = block.type;
+    if (type === 'input_text' || type === 'output_text' || type === 'text') {
+      const maybeText = block.text;
+      if (typeof maybeText === 'string' && maybeText.trim().length > 0) {
+        textParts.push(maybeText);
+      }
+    }
+  }
+
+  if (textParts.length > 0) {
+    return textParts.join('\n');
+  }
+
+  return normalizeTextContent(content);
+}
+
+function parseCodexEntryMessages(
+  entry: any,
+  messages: SessionMessage[],
+  toolUseIdToName: Map<string, string>
+): void {
+  if (entry.type === 'event_msg' && isObject(entry.payload)) {
+    const payload = entry.payload as Record<string, unknown>;
+    if (payload.type === 'user_message' && typeof payload.message === 'string') {
+      messages.push({
+        type: 'user',
+        content: payload.message,
+        timestamp: entry.timestamp,
+        uuid: `${entry.timestamp}-user`,
+      });
+      return;
+    }
+    if (payload.type === 'agent_message' && typeof payload.message === 'string') {
+      messages.push({
+        type: 'assistant',
+        content: payload.message,
+        timestamp: entry.timestamp,
+        uuid: `${entry.timestamp}-assistant`,
+      });
+      return;
+    }
+  }
+
+  if (entry.type !== 'response_item' || !isObject(entry.payload)) {
+    return;
+  }
+
+  const payload = entry.payload as Record<string, unknown>;
+  const payloadType = payload.type;
+
+  if (payloadType === 'function_call') {
+    const toolName = typeof payload.name === 'string' ? payload.name : 'unknown';
+    const toolUseId = typeof payload.call_id === 'string' ? payload.call_id : undefined;
+    if (toolUseId) {
+      toolUseIdToName.set(toolUseId, toolName);
+    }
+    const toolInput = parseFunctionCallArguments(payload.arguments);
+    messages.push({
+      type: 'tool_use',
+      content: JSON.stringify(toolInput, null, 2),
+      timestamp: entry.timestamp,
+      uuid: `${entry.timestamp}-tool-use`,
+      toolName,
+      toolInput,
+      toolUseId,
+    });
+    return;
+  }
+
+  if (payloadType === 'function_call_output') {
+    const toolUseId = typeof payload.call_id === 'string' ? payload.call_id : undefined;
+    const toolName = toolUseId ? (toolUseIdToName.get(toolUseId) || 'unknown') : 'unknown';
+    const content = normalizeTextContent(payload.output);
+    messages.push({
+      type: 'tool_result',
+      content,
+      timestamp: entry.timestamp,
+      uuid: `${entry.timestamp}-tool-result`,
+      toolName,
+      toolUseId,
+    });
+  }
+}
+
+async function parseSessionMessages(
+  resolved: ResolvedSessionFile
+): Promise<{ messages: SessionMessage[]; lastMessageType: SessionActivityMessageType; lastMessageTimestamp: Date | null }> {
+  const messages: SessionMessage[] = [];
+  const toolUseIdToName = new Map<string, string>();
+
+  const fileStream = fs.createReadStream(resolved.filePath);
+  const rl = readline.createInterface({
+    input: fileStream,
+    crlfDelay: Infinity,
+  });
+
+  for await (const line of rl) {
+    if (!line.trim()) continue;
+    try {
+      const entry = JSON.parse(line);
+      if (resolved.provider === 'claude') {
+        parseClaudeEntryMessages(entry, messages, toolUseIdToName);
+      } else {
+        parseCodexEntryMessages(entry, messages, toolUseIdToName);
+      }
+    } catch {
+      // Skip invalid/incomplete lines
+    }
+  }
+
+  const last = messages.length > 0 ? messages[messages.length - 1] : null;
+  return {
+    messages,
+    lastMessageType: last?.type ?? null,
+    lastMessageTimestamp: last?.timestamp ? new Date(last.timestamp) : null,
+  };
+}
+
 /**
  * Load conversation history from a session file
  * @param cwd - Working directory
@@ -166,113 +476,14 @@ export async function loadSession(
   limit: number = 50,
   offset: number = 0
 ): Promise<ConversationHistory | null> {
-  const projectDir = getProjectDir(cwd);
-  const sessionFile = path.join(projectDir, `${sessionId}.jsonl`);
-
-  if (!fs.existsSync(sessionFile)) {
-    log.log(` Session file not found: ${sessionFile}`);
+  const resolved = resolveSessionFile(cwd, sessionId);
+  if (!resolved) {
+    log.log(` Session file not found for session ${sessionId}`);
     return null;
   }
 
-  // Wait for file to be stable before reading (Claude might still be writing)
-  await waitForFileStable(sessionFile);
-
-  const messages: SessionMessage[] = [];
-  // Track tool_use_id to tool_name mapping for linking tool_result
-  const toolUseIdToName: Map<string, string> = new Map();
-
-  // Read file line by line
-  const fileStream = fs.createReadStream(sessionFile);
-  const rl = readline.createInterface({
-    input: fileStream,
-    crlfDelay: Infinity,
-  });
-
-  for await (const line of rl) {
-    if (!line.trim()) continue;
-
-    try {
-      const entry = JSON.parse(line);
-
-      if (entry.type === 'user' && entry.message?.content) {
-        // Check if content is an array (tool results or text blocks)
-        if (Array.isArray(entry.message.content)) {
-          for (const block of entry.message.content) {
-            if (block.type === 'tool_result') {
-              const content = typeof block.content === 'string'
-                ? block.content
-                : JSON.stringify(block.content);
-              // Look up actual tool name from the mapping
-              const toolName = toolUseIdToName.get(block.tool_use_id) || 'unknown';
-              // Never truncate - show full content
-              messages.push({
-                type: 'tool_result',
-                content,
-                timestamp: entry.timestamp,
-                uuid: entry.uuid,
-                toolName,
-                toolUseId: block.tool_use_id,
-              });
-            } else if (block.type === 'text' && block.text) {
-              // User message stored as text block (e.g., boss context messages)
-              messages.push({
-                type: 'user',
-                content: block.text,
-                timestamp: entry.timestamp,
-                uuid: entry.uuid,
-              });
-            }
-          }
-        } else {
-          // Regular user message (string content)
-          messages.push({
-            type: 'user',
-            content: entry.message.content,
-            timestamp: entry.timestamp,
-            uuid: entry.uuid,
-          });
-        }
-      } else if (entry.type === 'assistant' && entry.message?.content) {
-        // Process all content blocks
-        if (Array.isArray(entry.message.content)) {
-          for (const block of entry.message.content) {
-            if (block.type === 'text' && block.text) {
-              messages.push({
-                type: 'assistant',
-                content: block.text,
-                timestamp: entry.timestamp,
-                uuid: entry.uuid,
-              });
-            } else if (block.type === 'tool_use' && block.name) {
-              // Store tool_use_id to name mapping for later tool_result linking
-              if (block.id) {
-                toolUseIdToName.set(block.id, block.name);
-              }
-              messages.push({
-                type: 'tool_use',
-                content: JSON.stringify(block.input || {}, null, 2),
-                timestamp: entry.timestamp,
-                uuid: entry.uuid,
-                toolName: block.name,
-                toolInput: block.input,
-                toolUseId: block.id,
-              });
-            }
-            // Skip thinking blocks for display
-          }
-        } else if (typeof entry.message.content === 'string') {
-          messages.push({
-            type: 'assistant',
-            content: entry.message.content,
-            timestamp: entry.timestamp,
-            uuid: entry.uuid,
-          });
-        }
-      }
-    } catch {
-      // Skip invalid lines
-    }
-  }
+  await waitForFileStable(resolved.filePath);
+  const { messages } = await parseSessionMessages(resolved);
 
   const totalCount = messages.length;
 
@@ -305,82 +516,22 @@ export async function searchSession(
   query: string,
   limit: number = 50
 ): Promise<{ matches: SessionMessage[]; totalMatches: number } | null> {
-  const projectDir = getProjectDir(cwd);
-  const sessionFile = path.join(projectDir, `${sessionId}.jsonl`);
-
-  if (!fs.existsSync(sessionFile)) {
+  const resolved = resolveSessionFile(cwd, sessionId);
+  if (!resolved) {
     return null;
   }
 
+  await waitForFileStable(resolved.filePath);
+  const { messages } = await parseSessionMessages(resolved);
   const queryLower = query.toLowerCase();
   const matches: SessionMessage[] = [];
 
-  // Read file line by line
-  const fileStream = fs.createReadStream(sessionFile);
-  const rl = readline.createInterface({
-    input: fileStream,
-    crlfDelay: Infinity,
-  });
-
-  for await (const line of rl) {
-    if (!line.trim()) continue;
-
-    try {
-      const entry = JSON.parse(line);
-
-      // Helper to check if content matches query
-      const checkMatch = (content: string, type: SessionMessage['type'], toolName?: string) => {
-        if (content.toLowerCase().includes(queryLower)) {
-          // Never truncate - show full content
-          matches.push({
-            type,
-            content,
-            timestamp: entry.timestamp,
-            uuid: entry.uuid,
-            toolName,
-          });
-        }
-      };
-
-      if (entry.type === 'user' && entry.message?.content) {
-        if (Array.isArray(entry.message.content)) {
-          for (const block of entry.message.content) {
-            if (block.type === 'tool_result') {
-              const content = typeof block.content === 'string'
-                ? block.content
-                : JSON.stringify(block.content);
-              checkMatch(content, 'tool_result', block.tool_use_id);
-            }
-          }
-        } else if (typeof entry.message.content === 'string') {
-          checkMatch(entry.message.content, 'user');
-        }
-      } else if (entry.type === 'assistant' && entry.message?.content) {
-        if (Array.isArray(entry.message.content)) {
-          for (const block of entry.message.content) {
-            if (block.type === 'text' && block.text) {
-              checkMatch(block.text, 'assistant');
-            } else if (block.type === 'tool_use' && block.name) {
-              const inputStr = JSON.stringify(block.input || {});
-              if (block.name.toLowerCase().includes(queryLower) || inputStr.toLowerCase().includes(queryLower)) {
-                // Never truncate - show full content
-                matches.push({
-                  type: 'tool_use',
-                  content: inputStr,
-                  timestamp: entry.timestamp,
-                  uuid: entry.uuid,
-                  toolName: block.name,
-                });
-              }
-            }
-          }
-        } else if (typeof entry.message.content === 'string') {
-          checkMatch(entry.message.content, 'assistant');
-        }
-      }
-    } catch {
-      // Skip invalid lines
-    }
+  for (const message of messages) {
+    const contentLower = message.content.toLowerCase();
+    const toolNameLower = message.toolName?.toLowerCase() || '';
+    const matched = contentLower.includes(queryLower) || toolNameLower.includes(queryLower);
+    if (!matched) continue;
+    matches.push(message);
   }
 
   const totalMatches = matches.length;
@@ -498,64 +649,16 @@ export async function getSessionActivityStatus(
   sessionId: string,
   activeThresholdSeconds: number = 60
 ): Promise<SessionActivityStatus | null> {
-  const projectDir = getProjectDir(cwd);
-  const sessionFile = path.join(projectDir, `${sessionId}.jsonl`);
-
-  if (!fs.existsSync(sessionFile)) {
+  const resolved = resolveSessionFile(cwd, sessionId);
+  if (!resolved) {
     return null;
   }
 
-  const stats = fs.statSync(sessionFile);
+  const stats = fs.statSync(resolved.filePath);
   const lastModified = stats.mtime;
   const now = new Date();
   const secondsSinceModified = (now.getTime() - lastModified.getTime()) / 1000;
-
-  // Read the last few lines of the file to get the last message
-  let lastMessageType: SessionActivityStatus['lastMessageType'] = null;
-  let lastMessageTimestamp: Date | null = null;
-
-  try {
-    const content = fs.readFileSync(sessionFile, 'utf-8');
-    const lines = content.trim().split('\n').filter(l => l.trim());
-
-    // Check last few lines for the most recent message
-    for (let i = lines.length - 1; i >= Math.max(0, lines.length - 10); i--) {
-      try {
-        const entry = JSON.parse(lines[i]);
-        if (entry.timestamp) {
-          lastMessageTimestamp = new Date(entry.timestamp);
-        }
-
-        if (entry.type === 'user') {
-          // Check if it's a tool result or a user message
-          if (Array.isArray(entry.message?.content)) {
-            const hasToolResult = entry.message.content.some((b: any) => b.type === 'tool_result');
-            if (hasToolResult) {
-              lastMessageType = 'tool_result';
-            } else {
-              lastMessageType = 'user';
-            }
-          } else {
-            lastMessageType = 'user';
-          }
-          break;
-        } else if (entry.type === 'assistant') {
-          // Check if it contains tool_use
-          if (Array.isArray(entry.message?.content)) {
-            const hasToolUse = entry.message.content.some((b: any) => b.type === 'tool_use');
-            lastMessageType = hasToolUse ? 'tool_use' : 'assistant';
-          } else {
-            lastMessageType = 'assistant';
-          }
-          break;
-        }
-      } catch {
-        // Skip invalid lines
-      }
-    }
-  } catch (err) {
-    log.error(` Error reading session file for activity check:`, err);
-  }
+  const { lastMessageType, lastMessageTimestamp } = await parseSessionMessages(resolved);
 
   // Determine if work is pending based on last message type:
   // - Last message was from user (Claude should be processing) OR
@@ -747,75 +850,52 @@ export async function loadToolHistory(
   agentName: string,
   limit: number = 100
 ): Promise<{ toolExecutions: ToolExecution[]; fileChanges: FileChange[] }> {
-  const projectDir = getProjectDir(cwd);
-  const sessionFile = path.join(projectDir, `${sessionId}.jsonl`);
-
   const toolExecutions: ToolExecution[] = [];
   const fileChanges: FileChange[] = [];
 
-  if (!fs.existsSync(sessionFile)) {
+  const resolved = resolveSessionFile(cwd, sessionId);
+  if (!resolved) {
     return { toolExecutions, fileChanges };
   }
 
-  // Read file line by line
-  const fileStream = fs.createReadStream(sessionFile);
-  const rl = readline.createInterface({
-    input: fileStream,
-    crlfDelay: Infinity,
-  });
+  await waitForFileStable(resolved.filePath);
+  const { messages } = await parseSessionMessages(resolved);
 
-  for await (const line of rl) {
-    if (!line.trim()) continue;
+  for (const msg of messages) {
+    if (msg.type !== 'tool_use' || !msg.toolName) continue;
 
-    try {
-      const entry = JSON.parse(line);
+    const timestamp = new Date(msg.timestamp).getTime();
+    const toolInput = msg.toolInput;
 
-      // Look for tool_use in assistant messages
-      if (entry.type === 'assistant' && entry.message?.content) {
-        if (Array.isArray(entry.message.content)) {
-          for (const block of entry.message.content) {
-            if (block.type === 'tool_use' && block.name) {
-              const timestamp = new Date(entry.timestamp).getTime();
-              const toolInput = block.input as Record<string, unknown> | undefined;
+    toolExecutions.push({
+      agentId,
+      agentName,
+      toolName: msg.toolName,
+      toolInput,
+      timestamp,
+    });
 
-              // Add tool execution
-              toolExecutions.push({
-                agentId,
-                agentName,
-                toolName: block.name,
-                toolInput,
-                timestamp,
-              });
+    if (!toolInput) continue;
 
-              // Check for file operations
-              if (toolInput) {
-                const filePath = (toolInput.file_path || toolInput.path) as string | undefined;
-                if (filePath) {
-                  let action: FileChange['action'] | null = null;
-                  if (block.name === 'Write') {
-                    action = 'created';
-                  } else if (block.name === 'Edit') {
-                    action = 'modified';
-                  } else if (block.name === 'Read') {
-                    action = 'read';
-                  }
-                  if (action) {
-                    fileChanges.push({
-                      agentId,
-                      agentName,
-                      action,
-                      filePath,
-                      timestamp,
-                    });
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    } catch {
-      // Skip invalid lines
+    const filePath = (toolInput.file_path || toolInput.path) as string | undefined;
+    if (!filePath) continue;
+
+    let action: FileChange['action'] | null = null;
+    if (msg.toolName === 'Write') {
+      action = 'created';
+    } else if (msg.toolName === 'Edit') {
+      action = 'modified';
+    } else if (msg.toolName === 'Read') {
+      action = 'read';
+    }
+    if (action) {
+      fileChanges.push({
+        agentId,
+        agentName,
+        action,
+        filePath,
+        timestamp,
+      });
     }
   }
 

@@ -6,7 +6,7 @@
 import 'dotenv/config';
 import { createServer } from 'http';
 import { createApp } from './app.js';
-import { agentService, claudeService, supervisorService, bossService, skillService, customClassService, secretsService, buildingService } from './services/index.js';
+import { agentService, runtimeService, supervisorService, bossService, skillService, customClassService, secretsService, buildingService } from './services/index.js';
 import * as websocket from './websocket/handler.js';
 import { getDataDir } from './data/index.js';
 import { logger, closeFileLogging, getLogFilePath } from './utils/logger.js';
@@ -48,7 +48,7 @@ process.on('SIGPIPE', () => {
 async function main(): Promise<void> {
   // Initialize services
   agentService.initAgents();
-  claudeService.init();
+  runtimeService.init();
   supervisorService.init();
   bossService.init();
   skillService.initSkills();
@@ -66,7 +66,7 @@ async function main(): Promise<void> {
   websocket.init(server);
 
   // Set up skill hot-reload (must be after websocket init to have broadcast available)
-  skillService.setupSkillHotReload(agentService, claudeService, websocket.broadcast);
+  skillService.setupSkillHotReload(agentService, runtimeService, websocket.broadcast);
 
   // Start PM2 status polling for buildings
   buildingService.startPM2StatusPolling(websocket.broadcast);
@@ -88,7 +88,7 @@ async function main(): Promise<void> {
     bossService.shutdown();
     buildingService.stopPM2StatusPolling();
     buildingService.stopDockerStatusPolling();
-    await claudeService.shutdown();
+    await runtimeService.shutdown();
     agentService.persistAgents();
     server.close();
     closeFileLogging();

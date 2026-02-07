@@ -46,6 +46,7 @@ export interface StoredAgent {
   id: string;
   name: string;
   class: Agent['class'];
+  provider?: Agent['provider']; // May be missing in older data
   position: Agent['position'];
   cwd: string;
   tokensUsed: number;
@@ -56,6 +57,8 @@ export interface StoredAgent {
   permissionMode?: Agent['permissionMode']; // May be missing in older data
   useChrome?: boolean;   // May be missing in older data
   model?: Agent['model']; // May be missing in older data
+  codexModel?: Agent['codexModel']; // May be missing in older data
+  codexConfig?: Agent['codexConfig']; // May be missing in older data
   createdAt: number;
   lastActivity: number;
   sessionId?: string;
@@ -115,6 +118,7 @@ export function saveAgents(agents: Agent[]): void {
       id: agent.id,
       name: agent.name,
       class: agent.class,
+      provider: agent.provider,
       position: agent.position,
       cwd: agent.cwd,
       tokensUsed: agent.tokensUsed,
@@ -125,6 +129,8 @@ export function saveAgents(agents: Agent[]): void {
       permissionMode: agent.permissionMode, // Persist permission mode
       useChrome: agent.useChrome, // Persist Chrome flag
       model: agent.model, // Persist model selection
+      codexModel: agent.codexModel,
+      codexConfig: agent.codexConfig,
       createdAt: agent.createdAt,
       lastActivity: agent.lastActivity,
       sessionId: agent.sessionId,
@@ -198,11 +204,14 @@ export function updateAgentSession(agentId: string, sessionId: string): void {
     // Re-save with proper typing - ensure context fields have defaults
     saveAgents(agents.map(a => ({
       ...a,
+      provider: a.provider ?? 'claude',
       status: 'offline' as const,
       contextUsed: a.contextUsed ?? 0,
       contextLimit: a.contextLimit ?? 200000,
       taskCount: a.taskCount ?? 0,
       permissionMode: a.permissionMode ?? 'bypass',
+      codexModel: a.codexModel,
+      codexConfig: a.codexConfig,
     })));
   }
 }

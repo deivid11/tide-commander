@@ -5,7 +5,7 @@
 
 import type { Agent, Skill } from '../../shared/types.js';
 import * as agentService from './agent-service.js';
-import * as claudeService from './claude-service.js';
+import * as runtimeService from './runtime-service.js';
 import * as customClassService from './custom-class-service.js';
 import { createLogger } from '../utils/index.js';
 
@@ -90,7 +90,7 @@ async function restartAgent(
     log.log(`🔄 Restarting agent ${agent.name} (${agent.id}) due to ${reason}`);
 
     // Stop the current process if running
-    await claudeService.stopAgent(agent.id);
+    await runtimeService.stopAgent(agent.id);
 
     // Reset status but preserve sessionId - the session will resume with new instructions
     agentService.updateAgent(agent.id, {
