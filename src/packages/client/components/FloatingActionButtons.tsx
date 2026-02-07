@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
 import { useSettings } from '../store';
 import { VoiceAssistant } from './VoiceAssistant';
+import type { DocumentPiPState } from '../hooks/useDocumentPiP';
 
 interface FloatingActionButtonsProps {
   onOpenToolbox: () => void;
@@ -10,6 +11,7 @@ interface FloatingActionButtonsProps {
   onOpenSkills: () => void;
   onOpenSnapshots: () => void;
   isGeneratingReport: boolean;
+  pip: DocumentPiPState;
 }
 
 export const FloatingActionButtons = memo(function FloatingActionButtons({
@@ -20,6 +22,7 @@ export const FloatingActionButtons = memo(function FloatingActionButtons({
   onOpenSkills,
   onOpenSnapshots,
   isGeneratingReport,
+  pip,
 }: FloatingActionButtonsProps) {
   const settings = useSettings();
 
@@ -100,6 +103,19 @@ export const FloatingActionButtons = memo(function FloatingActionButtons({
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+        </svg>
+      </button>
+
+      {/* Picture-in-Picture button */}
+      <button
+        className={`pip-toggle-btn ${pip.isOpen ? 'active' : ''}`}
+        onClick={() => pip.isSupported && pip.toggle({ width: 320, height: 400 })}
+        title={!pip.isSupported ? 'PiP not supported in this browser' : pip.isOpen ? 'Close Agents in PiP Mode' : 'Open Agents in PiP Mode'}
+        disabled={!pip.isSupported}
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <rect x="2" y="3" width="20" height="14" rx="2" />
+          <rect x="12" y="9" width="8" height="6" rx="1" />
         </svg>
       </button>
     </>

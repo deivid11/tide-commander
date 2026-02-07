@@ -6,6 +6,7 @@ import { PERMISSION_MODES, CLAUDE_MODELS } from '../../shared/types';
 import { STORAGE_KEYS, getStorageString, setStorageString, apiUrl, authFetch } from '../utils/storage';
 import { ModelPreview } from './ModelPreview';
 import { HelpTooltip } from './shared/Tooltip';
+import { FolderInput } from './shared/FolderInput';
 import { useModalClose } from '../hooks';
 
 interface ClaudeSession {
@@ -509,15 +510,15 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                     size="sm"
                   />
                 </label>
-                <input
-                  type="text"
-                  className={`spawn-input ${hasError ? 'error' : ''}`}
-                  placeholder="/path/to/project"
+                <FolderInput
                   value={cwd}
-                  onChange={(e) => {
-                    setCwd(e.target.value);
+                  onChange={(val) => {
+                    setCwd(val);
                     setHasError(false);
                   }}
+                  placeholder="/path/to/project"
+                  className={`spawn-input ${hasError ? 'error' : ''}`}
+                  directoriesOnly={true}
                 />
               </div>
             </div>

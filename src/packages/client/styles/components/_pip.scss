@@ -34,6 +34,17 @@
     box-shadow: 0 0 12px rgba($dracula-cyan, 0.3);
   }
 
+  &:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+
+    &:hover {
+      background: linear-gradient(180deg, $dracula-current 0%, $dracula-bg 100%);
+      border-color: $dracula-comment;
+      color: $dracula-cyan;
+    }
+  }
+
   svg {
     width: 18px;
     height: 18px;

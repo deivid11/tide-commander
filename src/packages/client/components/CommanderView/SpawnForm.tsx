@@ -7,6 +7,7 @@ import type { DrawingArea, AgentClass } from '../../../shared/types';
 import { AGENT_CLASS_CONFIG, DEFAULT_NAMES, CHARACTER_MODELS } from '../../scene/config';
 import { store } from '../../store';
 import { STORAGE_KEYS, getStorageString, setStorageString } from '../../utils/storage';
+import { FolderInput } from '../shared/FolderInput';
 
 interface SpawnFormProps {
   currentArea: DrawingArea | null;
@@ -83,12 +84,12 @@ export function SpawnForm({ currentArea, onClose }: SpawnFormProps) {
 
           <div className="commander-spawn-field">
             <label>Working Directory</label>
-            <input
-              type="text"
+            <FolderInput
               value={cwd}
-              onChange={e => setCwd(e.target.value)}
-              onKeyDown={handleKeyDown}
+              onChange={setCwd}
+              onSubmit={handleSpawn}
               placeholder="/path/to/project"
+              directoriesOnly={true}
             />
           </div>
 

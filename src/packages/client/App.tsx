@@ -674,6 +674,7 @@ function AppContent() {
         onOpenSkills={() => skillsModal.open()}
         onOpenSnapshots={() => snapshotsModal.open()}
         isGeneratingReport={state.supervisor.generatingReport}
+        pip={pip}
       />
 
       {/* Drawing Mode Indicator */}
@@ -818,20 +819,6 @@ function AppContent() {
           </div>
         );
       })()}
-
-      {/* Picture-in-Picture button */}
-      {pip.isSupported && (
-        <button
-          className={`pip-toggle-btn ${pip.isOpen ? 'active' : ''}`}
-          onClick={() => pip.toggle({ width: 320, height: 400 })}
-          title={pip.isOpen ? 'Close Agents in PiP Mode' : 'Open Agents in PiP Mode'}
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect x="2" y="3" width="20" height="14" rx="2" />
-            <rect x="12" y="9" width="8" height="6" rx="1" />
-          </svg>
-        </button>
-      )}
 
       {/* PiP Window with Agents View */}
       <PiPWindow pip={pip} title="Tide Commander - Agents">

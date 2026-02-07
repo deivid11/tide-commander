@@ -359,6 +359,25 @@ To configure which server the app connects to, set `LISTEN_ALL_INTERFACES=1` on 
 - Check that the server is running (default port 5174, or your configured `PORT`)
 - Look for CORS or firewall issues
 
+## 💬 Community
+
+Join the Discord to chat, share feedback, report bugs, or request features:
+
+[![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/MymXXDCvf)
+
+## 🗺️ Roadmap
+
+Planned features and improvements — contributions and feedback welcome:
+
+- [ ] **Test Coverage** — Unit, integration, and E2E tests (currently minimal)
+- [ ] **Multilingual Support** — i18n with translations for Chinese, French, Spanish, and more
+- [ ] **Codex Compatibility** — Support for OpenAI Codex CLI alongside Claude Code
+- [ ] **Buildings Plugin System** — External plugin API for community-built building types
+- [ ] **API Documentation** — OpenAPI/Swagger spec for the REST and WebSocket APIs
+- [ ] **Observability** — Error tracking, logging aggregation, and performance monitoring
+
+Have a feature idea or found a bug? Open an [issue](https://github.com/your-repo/tide-commander/issues) or drop it in the [Discord](https://discord.gg/MymXXDCvf).
+
 ## 📄 License
 
 MIT

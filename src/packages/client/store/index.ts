@@ -905,6 +905,7 @@ class Store
   getExecTask(...args: Parameters<ExecTaskActions['getExecTask']>) { return this.execTaskActions.getExecTask(...args); }
   clearCompletedExecTasks(...args: Parameters<ExecTaskActions['clearCompletedExecTasks']>) { return this.execTaskActions.clearCompletedExecTasks(...args); }
   clearAllExecTasks(...args: Parameters<ExecTaskActions['clearAllExecTasks']>) { return this.execTaskActions.clearAllExecTasks(...args); }
+  removeExecTask(...args: Parameters<ExecTaskActions['removeExecTask']>) { return this.execTaskActions.removeExecTask(...args); }
 
   // ============================================================================
   // Secret Actions (delegated)

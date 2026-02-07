@@ -32,6 +32,7 @@ export interface ExecTaskActions {
   // Cleanup
   clearCompletedExecTasks(agentId: string): void;
   clearAllExecTasks(agentId: string): void;
+  removeExecTask(taskId: string): void;
 }
 
 export function createExecTaskActions(
@@ -170,6 +171,14 @@ export function createExecTaskActions(
             state.execTasks.delete(taskId);
           }
         }
+      });
+      notify();
+    },
+
+    removeExecTask(taskId: string): void {
+      setState((state) => {
+        if (!state.execTasks) return;
+        state.execTasks.delete(taskId);
       });
       notify();
     },

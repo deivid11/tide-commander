@@ -261,6 +261,10 @@ export function buildContextMenuActions(
     icon: '📐',
     onClick: () => {
       callbacks.sceneRef.current?.setDrawingTool('rectangle');
+      if (typeof window !== 'undefined' && (window as any).__tideScene2D_setDrawingTool) {
+        (window as any).__tideScene2D_setDrawingTool('rectangle');
+      }
+      callbacks.showToast('info', 'Rectangle Tool', 'Click and drag on the battlefield to draw an area');
     },
   });
   actions.push({
