@@ -303,8 +303,33 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
     // Check if this tool uses file paths that should be clickable
     const fileTools = ['Read', 'Edit', 'Write', 'Glob', 'Grep', 'NotebookEdit'];
     const isFileTool = fileTools.includes(toolName);
-    const isFilePath = _toolKeyParam && (_toolKeyParam.startsWith('/') || _toolKeyParam.includes('/'));
+
+    const payloadInputRecord = (payloadToolInput && typeof payloadToolInput === 'object')
+      ? payloadToolInput as Record<string, unknown>
+      : null;
+
+    const payloadFilePath = payloadInputRecord
+      ? (
+          (typeof payloadInputRecord.file_path === 'string' ? payloadInputRecord.file_path : undefined)
+          || (typeof payloadInputRecord.path === 'string' ? payloadInputRecord.path : undefined)
+          || (typeof payloadInputRecord.notebook_path === 'string' ? payloadInputRecord.notebook_path : undefined)
+        )
+      : undefined;
+
+    const resolvedFilePathForClick = _toolKeyParam || payloadFilePath;
+    const isFilePath = !!resolvedFilePathForClick && (resolvedFilePathForClick.startsWith('/') || resolvedFilePathForClick.includes('/'));
     const isFileClickable = isFileTool && isFilePath && onFileClick;
+
+    const editDataFallback = (toolName === 'Edit' && payloadInputRecord)
+      ? {
+          oldString: String(payloadInputRecord.old_string ?? ''),
+          newString: String(payloadInputRecord.new_string ?? ''),
+        }
+      : undefined;
+
+    const readRangeFallback = (toolName === 'Read' && payloadInputRecord && typeof payloadInputRecord.offset === 'number' && typeof payloadInputRecord.limit === 'number')
+      ? { highlightRange: { offset: payloadInputRecord.offset, limit: payloadInputRecord.limit } }
+      : undefined;
 
     // Check if this is a Bash tool that should be clickable (with command or output)
     const isBashTool = toolName === 'Bash' && onBashClick;
@@ -313,11 +338,14 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
 
     const handleParamClick = (e: React.MouseEvent) => {
       e.stopPropagation();
-      if (isFileClickable && _toolKeyParam) {
-        if (toolName === 'Edit' && _editData) {
-          onFileClick(_toolKeyParam, _editData);
+      if (isFileClickable && resolvedFilePathForClick) {
+        const editData = _editData || editDataFallback;
+        if (toolName === 'Edit' && editData) {
+          onFileClick(resolvedFilePathForClick, editData);
+        } else if (toolName === 'Read' && readRangeFallback) {
+          onFileClick(resolvedFilePathForClick, readRangeFallback);
         } else {
-          onFileClick(_toolKeyParam);
+          onFileClick(resolvedFilePathForClick);
         }
       }
     };
@@ -360,7 +388,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
           <span
             className={`output-tool-param ${isFileClickable ? 'clickable-path' : ''}`}
             onClick={isFileClickable ? handleParamClick : undefined}
-            title={isFileClickable ? (toolName === 'Edit' && _editData ? 'Click to view diff' : 'Click to view file') : undefined}
+            title={isFileClickable ? (toolName === 'Edit' && (_editData || editDataFallback) ? 'Click to view diff' : 'Click to view file') : undefined}
             style={isFileClickable ? { cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' } : undefined}
           >
             {toolKeyParamOrFallback}
