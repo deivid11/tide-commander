@@ -2,6 +2,37 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.47.0] - 2026-02-07
+
+### Added
+- **Codex Runtime Support** - Multi-runtime architecture for agent execution
+  - New Codex runtime provider alongside Claude
+  - JSON event parser for Codex protocol support
+  - Runtime abstraction layer enabling pluggable backends
+  - Comprehensive test suite for Codex integration
+
+- **Runtime Service Refactor** - Modularized agent execution layer
+  - New RuntimeService for unified runtime management
+  - Improved separation of concerns in agent execution
+  - Better support for multiple runtime backends
+
+### Changed
+- **UI Components** - Enhanced modal dialogs and forms
+  - Improved AgentEditModal with better layout
+  - Enhanced BossSpawnModal with better UX
+  - Improved SpawnModal with additional options
+  - Better modal styling and responsive design
+
+- **Agent Management** - Updated store and service layer
+  - Improved agent lifecycle management
+  - Better delegation tracking
+  - Enhanced output handling with UUID deduplication
+
+### Fixed
+- **Tool Output Rendering** - Proper formatting in streamed output
+  - Fixed file links in tool use blocks
+  - Better tool output display
+
 ## [0.46.1] - 2026-02-06
 
 ### Fixed
