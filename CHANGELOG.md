@@ -2,6 +2,40 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.49.0] - 2026-02-07
+
+### Changed
+- **Major Code Refactoring** - Improved maintainability and code organization
+  - Modularized BuildingConfigModal into focused sub-components
+  - Split CharacterFactory into specialized modules (AnimationConfigurator, ModelLoader, VisualConfig)
+  - Refactored Scene2D renderer into separate renderer modules
+  - Reorganized WebSocket layer into logical modules (callbacks, connection, handlers, send, state)
+  - Better separation of concerns across all packages
+
+- **Type System Cleanup** - Organized shared types
+  - Split monolithic types.ts into focused type modules
+  - Created agent-types, building-types, common-types, database-types, websocket-messages
+  - Better type organization for maintainability
+
+- **Component Architecture** - Improved structure
+  - BuildingConfigPanel sub-components (Boss, Database, Docker, PM2, Logs, Commands)
+  - Character system modularization with test coverage
+  - Scene renderer specialization
+
+### Added
+- **Test Coverage** - Comprehensive test suites
+  - AnimationConfigurator tests
+  - CharacterFactory tests
+  - ModelLoader tests
+  - VisualConfig tests
+  - Better test infrastructure for components
+
+### Removed
+- **Code Cleanup** - Reduced maintenance burden
+  - Removed ~9,000 lines of legacy code
+  - Eliminated monolithic file dependencies
+  - Cleaned up unused code patterns
+
 ## [0.48.1] - 2026-02-07
 
 ### Changed
