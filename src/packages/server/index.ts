@@ -12,7 +12,7 @@ import { getDataDir } from './data/index.js';
 import { logger, closeFileLogging, getLogFilePath } from './utils/logger.js';
 
 // Configuration
-const PORT = process.env.PORT || 5174;
+const PORT = process.env.PORT || 6200;
 const HOST = process.env.HOST || (process.env.LISTEN_ALL_INTERFACES ? '::' : '127.0.0.1');
 
 // ============================================================================

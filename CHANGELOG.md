@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.53.4] - 2026-02-08
+
+### Changed
+- **Default port** - Changed default server port from 5174 to 6200 across all files (server, client, CLI, docs, env example)
+
 ## [0.53.3] - 2026-02-08
 
 ### Added

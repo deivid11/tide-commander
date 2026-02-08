@@ -355,7 +355,7 @@ To configure which server the app connects to, set `LISTEN_ALL_INTERFACES=1` on 
 - Run `which claude` to verify installation
 
 **WebSocket disconnects**
-- Check that the server is running (default port 5174, or your configured `PORT`)
+- Check that the server is running (default port 6200, or your configured `PORT`)
 - Look for CORS or firewall issues
 
 ## 💬 Community
