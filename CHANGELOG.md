@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.51.4] - 2026-02-08
+
+### Changed
+- **Exec task output collapsible** - Long exec outputs now show only the last 3 lines by default with a toggle to expand/collapse full output
+- **Better exec task matching** - Exec tasks are now matched to their triggering bash command by timestamp proximity (within 2s) instead of recency, preventing mismatched output
+- **Styles for toggle UI** - Added toggle arrow, hover state, and ellipsis indicator for collapsed exec output
+
+### Fixed
+- **Lint warning** - Prefixed unused `truncatedTaskCommand` variable in OutputLine.tsx
+
 ## [0.51.3] - 2026-02-08
 
 ### Changed
