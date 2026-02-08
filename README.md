@@ -89,12 +89,12 @@ Press **Ctrl+K** (or Alt+P) to open the command palette. Search for agents by na
 
 ## ✨ Features
 
-Claude Code orchestration and multi-agent management features:
+AI coding orchestration and multi-agent management features:
 
 - 🎮 **3D Battlefield** - Visual command center with Three.js (also has a lightweight 2D canvas mode)
 - 🎯 **RTS Controls** - Click to select, right-click to move, number keys for quick selection
-- 📡 **Real-time Activity Feed** - Watch your Claude Code agents work in real-time
-- 🤹 **Multi-Agent Management** - Spawn and control multiple Claude Code instances simultaneously
+- 📡 **Real-time Activity Feed** - Watch your agents work in real-time
+- 🤹 **Multi-Agent Management** - Spawn and control multiple Claude/Codex instances simultaneously
 - 💾 **Session Persistence** - Agents resume their Claude Code or Codex sessions across restarts
 - 📊 **Context Tracking** - Mana bar visualization showing agent context usage
 - 📁 **File Explorer** - Built-in file browser with git diff viewer for uncommitted changes
