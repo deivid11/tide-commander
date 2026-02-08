@@ -477,7 +477,6 @@ export function useSceneSetup({
       }
     };
     // Re-run when canvas becomes available (e.g., switching from 2D to 3D mode)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canvasRef.current, selectionBoxRef.current]);
 
   return sceneRef;

@@ -127,6 +127,7 @@ Detailed guides for each feature are available in the [`docs/`](docs/) folder:
 | [Views & UI](docs/views.md) | 3D, 2D, Dashboard, Commander View, Guake terminal, and Spotlight |
 | [Android APK](docs/android.md) | Build and install the optional mobile companion app |
 | [Docker Deployment](docs/docker.md) | Run Tide Commander in a Docker container |
+| [Contributing](CONTRIBUTING.md) | Setup, workflow, and pull request guidelines for contributors |
 
 ## 🎮 How to Use
 

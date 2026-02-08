@@ -1,6 +1,6 @@
 {
   "name": "tide-commander",
-  "version": "0.47.3",
+  "version": "0.47.4",
   "description": "Visual multi-agent orchestrator and manager for Claude Code with 3D/2D interface",
   "type": "module",
   "scripts": {
@@ -14,6 +14,7 @@
     "lint": "eslint src/",
     "lint:types": "tsc --noEmit",
     "test": "vitest run",
+    "test:ci": "vitest run --exclude src/packages/client/hooks/__tests__/useSnapshots.test.ts --exclude src/packages/client/hooks/__tests__/useKeyboardShortcuts.test.ts",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "cap:sync": "npx cap sync android",

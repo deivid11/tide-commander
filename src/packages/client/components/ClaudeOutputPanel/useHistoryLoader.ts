@@ -204,7 +204,7 @@ export function useHistoryLoader({
         return res.json();
       })
       .then((data) => {
-        const messages = data.messages || [];
+        const messages: HistoryMessage[] = Array.isArray(data.messages) ? data.messages : [];
         setHistory(messages);
         historyLengthRef.current = messages.length;
         const hasMoreValue = data.hasMore || false;
@@ -218,7 +218,11 @@ export function useHistoryLoader({
           const lastHistoryTimestamp = messages.length > 0
             ? Math.max(...messages.map((m: HistoryMessage) => m.timestamp ? new Date(m.timestamp).getTime() : 0))
             : 0;
-          const historyUuidSet = new Set(messages.map((m: HistoryMessage) => m.uuid).filter((uuid): uuid is string => !!uuid));
+          const historyUuidSet = new Set<string>(
+            messages
+              .map((m) => m.uuid)
+              .filter((uuid): uuid is string => typeof uuid === 'string' && uuid.length > 0)
+          );
           const latestHistoryTsByKey = new Map<string, number>();
           for (const msg of messages) {
             if (msg.type !== 'user' && msg.type !== 'assistant') continue;
@@ -244,7 +248,11 @@ export function useHistoryLoader({
           const lastHistoryTimestamp = Math.max(
             ...messages.map((m: HistoryMessage) => m.timestamp ? new Date(m.timestamp).getTime() : 0)
           );
-          const historyUuidSet = new Set(messages.map((m: HistoryMessage) => m.uuid).filter((uuid): uuid is string => !!uuid));
+          const historyUuidSet = new Set<string>(
+            messages
+              .map((m) => m.uuid)
+              .filter((uuid): uuid is string => typeof uuid === 'string' && uuid.length > 0)
+          );
           const latestHistoryTsByKey = new Map<string, number>();
           for (const msg of messages) {
             if (msg.type !== 'user' && msg.type !== 'assistant') continue;

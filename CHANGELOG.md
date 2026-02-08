@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.47.4] - 2026-02-07
+
+### Added
+- **Contributing Guide** - New contributor documentation
+  - Setup and workflow guidelines for developers
+  - Pull request guidelines and best practices
+
+- **CI Workflow** - Quality assurance automation
+  - GitHub Actions workflow for testing
+  - Automated quality checks and test exclusions
+
+- **Testing Infrastructure** - Enhanced test suite
+  - New tool formatting tests
+  - CI-specific test exclusions
+
+### Changed
+- **History Loading** - Improved type safety and UUID handling
+  - Better type annotations for history messages
+  - Enhanced UUID filtering with stricter validation
+  - Improved message array handling
+
+### Fixed
+- **Scene Setup** - Code cleanup and optimization
+  - Removed unused variable
+  - Better code maintainability
+
 ## [0.47.3] - 2026-02-07
 
 ### Added
