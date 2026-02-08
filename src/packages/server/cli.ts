@@ -34,7 +34,7 @@ Usage:
   tide-commander version
 
 Options:
-  -p, --port <port>     Set server port (default: 5174)
+  -p, --port <port>     Set server port (default: 6200)
   -H, --host <host>     Set server host (default: 127.0.0.1)
   -l, --listen-all      Listen on all network interfaces
   -f, --foreground      Run in foreground (default is background)
@@ -207,7 +207,7 @@ function statusCommand(): number {
     return 1;
   }
 
-  const port = process.env.PORT || '5174';
+  const port = process.env.PORT || '6200';
   const host = process.env.HOST || 'localhost';
   const url = `http://${host}:${port}`;
   const uptime = getProcessUptime(pid);
@@ -342,7 +342,7 @@ async function main(): Promise<void> {
   const existingPid = readPidFile();
 
   if (existingPid && isRunning(existingPid)) {
-    const port = process.env.PORT || '5174';
+    const port = process.env.PORT || '6200';
     const host = process.env.HOST || 'localhost';
     const url = `http://${host}:${port}`;
     console.log(`\n🌊 Tide Commander is already running (PID: ${existingPid})`);
@@ -371,7 +371,7 @@ async function main(): Promise<void> {
       writePidFile(child.pid);
     }
     child.unref();
-    const port = process.env.PORT || '5174';
+    const port = process.env.PORT || '6200';
     const host = process.env.HOST || 'localhost';
     const url = `http://${host}:${port}`;
 

@@ -100,7 +100,7 @@ export function connect(): void {
   const authToken = getAuthToken();
 
   // Build WebSocket URL
-  const defaultPort = typeof __SERVER_PORT__ !== 'undefined' ? __SERVER_PORT__ : 5174;
+  const defaultPort = typeof __SERVER_PORT__ !== 'undefined' ? __SERVER_PORT__ : 6200;
   let wsUrl: string;
   if (configuredUrl) {
     const wsConfigured = configuredUrl
