@@ -888,6 +888,37 @@
   flex: 1;
 }
 
+.exec-task-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  margin: 0;
+  background: rgba(var(--accent-cyan-rgb, 0 180 220), 0.1);
+  border-bottom: 1px solid rgba(var(--accent-cyan-rgb, 0 180 220), 0.2);
+  cursor: pointer;
+  user-select: none;
+  font-family: $font-mono;
+  font-size: 11px;
+  color: var(--accent-cyan, #00b4dc);
+  transition: background 0.2s;
+
+  &:hover {
+    background: rgba(var(--accent-cyan-rgb, 0 180 220), 0.15);
+  }
+}
+
+.exec-task-toggle-arrow {
+  display: inline-block;
+  transition: transform 0.2s;
+  width: 10px;
+  text-align: center;
+}
+
+.exec-task-toggle-text {
+  white-space: nowrap;
+}
+
 .exec-task-inline-terminal {
   max-height: 300px;
   overflow-y: auto;
@@ -895,6 +926,15 @@
   font-family: $font-mono;
   font-size: 12px;
   line-height: 1.5;
+}
+
+.exec-task-ellipsis {
+  padding: 4px 12px;
+  color: var(--text-secondary, rgba(var(--text-primary-rgb), 0.6));
+  font-size: 14px;
+  font-weight: bold;
+  text-align: center;
+  user-select: none;
 }
 
 .exec-task-inline-output {

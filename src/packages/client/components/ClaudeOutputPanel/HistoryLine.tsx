@@ -52,6 +52,7 @@ export const HistoryLine = memo(function HistoryLine({
   onBashClick,
   onViewMarkdown,
 }: HistoryLineProps) {
+  const [expandedExecTasks, setExpandedExecTasks] = useState<Set<string>>(new Set());
   const hideCost = useHideCost();
   const settings = useSettings();
   const { type, content: rawContent, toolName, timestamp, _bashOutput, _bashCommand } = message;
@@ -339,13 +340,54 @@ export const HistoryLine = memo(function HistoryLine({
           {isCurlExecCommand && execTaskOutput && (
             <div className="exec-task-output-container">
               <div className="exec-task-inline status-completed">
-                <div className="exec-task-inline-terminal">
-                  <pre className="exec-task-inline-output">
-                    {execTaskOutput.output.map((line, idx) => (
-                      <div key={idx} dangerouslySetInnerHTML={{ __html: ansiToHtml(line) }} />
-                    ))}
-                  </pre>
-                </div>
+                {(() => {
+                  const taskId = `history-curl-${timestamp}`;
+                  const isExpanded = expandedExecTasks.has(taskId);
+                  const lastThreeLines = execTaskOutput.output.slice(-3);
+                  const isCollapsed = execTaskOutput.output.length > 3;
+                  const displayLines = isExpanded ? execTaskOutput.output : lastThreeLines;
+
+                  return (
+                    <>
+                      {/* Collapse/expand toggle */}
+                      {isCollapsed && (
+                        <div
+                          className="exec-task-toggle"
+                          onClick={() =>
+                            setExpandedExecTasks((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(taskId)) {
+                                next.delete(taskId);
+                              } else {
+                                next.add(taskId);
+                              }
+                              return next;
+                            })
+                          }
+                        >
+                          <span className="exec-task-toggle-arrow">{isExpanded ? '▼' : '▶'}</span>
+                          <span className="exec-task-toggle-text">
+                            {isExpanded ? 'Hide' : `Show all (${execTaskOutput.output.length} lines)`}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Output lines */}
+                      <div className="exec-task-inline-terminal">
+                        {/* Ellipsis indicator when collapsed */}
+                        {isCollapsed && !isExpanded && (
+                          <div className="exec-task-ellipsis">...</div>
+                        )}
+
+                        <pre className="exec-task-inline-output">
+                          {displayLines.map((line, idx) => (
+                            <div key={idx} dangerouslySetInnerHTML={{ __html: ansiToHtml(line) }} />
+                          ))}
+                        </pre>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             </div>
           )}

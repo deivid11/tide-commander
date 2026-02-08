@@ -173,6 +173,7 @@ function TimestampWithMeta({ output, timeStr, debugHash, agentId }: { output: Cl
 export const OutputLine = memo(function OutputLine({ output, agentId, execTasks = [], onImageClick, onFileClick, onBashClick, onViewMarkdown }: OutputLineProps) {
   const hideCost = useHideCost();
   const settings = useSettings();
+  const [expandedExecTasks, setExpandedExecTasks] = useState<Set<string>>(new Set());
   const { text: rawText, isStreaming, isUserPrompt, timestamp, skillUpdate, _toolKeyParam, _editData, _todoInput, _bashOutput, _bashCommand, _isRunning } = output;
   const text = filterCostText(rawText, hideCost);
 
@@ -337,13 +338,27 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     const hasBashOutput = !!_bashOutput || !!payloadToolOutput;
     const bashCommand = _bashCommand || _toolKeyParam || toolKeyParamOrFallback || '';
     const isCurlExecCommand = /\bcurl\b[\s\S]*\/api\/exec\b/.test(bashCommand);
-    // Show only recently started exec tasks (within last 30 seconds) for this curl command
+    // Show only the MOST RECENT exec task that started shortly after this bash command
     const now = Date.now();
-    const matchingExecTasks = isCurlExecCommand
-      ? execTasks.filter((task) => (now - task.startedAt) < 30000)
+    const bashTimestampMs = timestamp ? new Date(timestamp).getTime() : 0;
+    const matchingExecTasks = isCurlExecCommand && execTasks.length > 0
+      ? (() => {
+          // Find the most recent task that started after this bash command (within 2 seconds)
+          const tasksAfterBash = execTasks.filter(
+            (task) => task.startedAt >= bashTimestampMs && task.startedAt <= bashTimestampMs + 2000
+          );
+          if (tasksAfterBash.length > 0) {
+            // Return only the most recent one
+            const mostRecent = tasksAfterBash.reduce((latest, current) =>
+              current.startedAt > latest.startedAt ? current : latest
+            );
+            return [mostRecent];
+          }
+          return [];
+        })()
       : [];
     const showInlineRunningTasks = Boolean(isBashTool && isCurlExecCommand && matchingExecTasks.length > 0);
-    const truncatedTaskCommand = (value: string) => (value.length > 52 ? `${value.slice(0, 52)}...` : value);
+    const _truncatedTaskCommand = (value: string) => (value.length > 52 ? `${value.slice(0, 52)}...` : value);
     const bashSearchCommand = isBashTool && bashCommand ? parseBashSearchCommand(bashCommand) : null;
     const bashNotificationCommand = isBashTool && bashCommand ? parseBashNotificationCommand(bashCommand) : null;
 
@@ -451,18 +466,54 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         {/* Exec task output below bash command line */}
         {showInlineRunningTasks && (
           <div className="exec-task-output-container">
-            {matchingExecTasks.map((task) => (
-              <div key={task.taskId} className={`exec-task-inline status-${task.status}`}>
-                <div className="exec-task-inline-terminal">
-                  <pre className="exec-task-inline-output">
-                    {task.output.map((line, idx) => (
-                      <div key={idx} dangerouslySetInnerHTML={{ __html: ansiToHtml(line) }} />
-                    ))}
-                    {task.status === 'running' && <span className="exec-task-cursor">▌</span>}
-                  </pre>
+            {matchingExecTasks.map((task) => {
+              const isExpanded = expandedExecTasks.has(task.taskId);
+              const lastThreeLines = task.output.slice(-3);
+              const isCollapsed = task.output.length > 3;
+              const displayLines = isExpanded ? task.output : lastThreeLines;
+
+              return (
+                <div key={task.taskId} className={`exec-task-inline status-${task.status}`}>
+                  {/* Collapse/expand toggle */}
+                  {isCollapsed && (
+                    <div
+                      className="exec-task-toggle"
+                      onClick={() =>
+                        setExpandedExecTasks((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(task.taskId)) {
+                            next.delete(task.taskId);
+                          } else {
+                            next.add(task.taskId);
+                          }
+                          return next;
+                        })
+                      }
+                    >
+                      <span className="exec-task-toggle-arrow">{isExpanded ? '▼' : '▶'}</span>
+                      <span className="exec-task-toggle-text">
+                        {isExpanded ? 'Hide' : `Show all (${task.output.length} lines)`}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Output lines */}
+                  <div className="exec-task-inline-terminal">
+                    {/* Ellipsis indicator when collapsed */}
+                    {isCollapsed && !isExpanded && (
+                      <div className="exec-task-ellipsis">...</div>
+                    )}
+
+                    <pre className="exec-task-inline-output">
+                      {displayLines.map((line, idx) => (
+                        <div key={idx} dangerouslySetInnerHTML={{ __html: ansiToHtml(line) }} />
+                      ))}
+                      {task.status === 'running' && <span className="exec-task-cursor">▌</span>}
+                    </pre>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </>
