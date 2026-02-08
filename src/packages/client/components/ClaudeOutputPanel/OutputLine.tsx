@@ -436,14 +436,32 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         )}
 
         {showInlineRunningTasks && (
-          <span className="output-tool-running-tasks">
-            {runningExecTasks.length === 1
-              ? `running: ${truncatedTaskCommand(runningExecTasks[0].command)}`
-              : `running: ${truncatedTaskCommand(runningExecTasks[0].command)} +${runningExecTasks.length - 1} more`}
-          </span>
+          <div className="output-tool-running-tasks">
+            {runningExecTasks.map((task) => (
+              <div key={task.taskId} className={`exec-task-inline status-${task.status}`}>
+                <div className="exec-task-inline-header">
+                  <span className="exec-task-inline-icon">⏳</span>
+                  <span className="exec-task-inline-cmd">{truncatedTaskCommand(task.command)}</span>
+                </div>
+                {task.output.length > 0 && (
+                  <div className="exec-task-inline-output">
+                    {task.output.slice(-10).map((line, idx) => (
+                      <div key={idx} className="exec-task-inline-line">
+                        {line}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         )}
 
-        {isBashTool && !_isRunning && <span className="bash-output-indicator">{hasBashOutput ? '📄' : '💻'}</span>}
+        {isBashTool && !_isRunning && (
+          <span className="bash-output-indicator">
+            {execTasks.some(t => t.status === 'completed') ? '✅' : (hasBashOutput ? '📄' : '💻')}
+          </span>
+        )}
         {isStreaming && <span className="output-tool-loading">...</span>}
       </div>
     );
