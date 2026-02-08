@@ -196,7 +196,7 @@ export function MobileResponsiveExample() {
   const state = useStore();
   const [sidebarVisible, setSidebarVisible] = React.useState(false);
 
-  const handleSelectAgent = (agentId: string, multi: boolean) => {
+  const handleSelectAgent = (agentId: string, _multi: boolean) => {
     store.selectAgent(agentId);
     // Collapse sidebar after selection on mobile
     if (window.innerWidth < 768) {

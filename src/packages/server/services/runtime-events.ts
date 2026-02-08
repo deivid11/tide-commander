@@ -1,4 +1,4 @@
-import type { AgentProvider, ContextStats } from '../../shared/types.js';
+import type { ContextStats, GlobalUsageStats } from '../../shared/types.js';
 import type { SessionMessage } from '../claude/session-loader.js';
 import { loadSession } from '../claude/session-loader.js';
 import type { RuntimeEvent } from '../runtime/index.js';
@@ -42,7 +42,7 @@ interface RuntimeEventsDeps {
   ) => void;
   emitComplete: (agentId: string, success: boolean) => void;
   emitError: (agentId: string, error: string) => void;
-  parseUsageOutput: (raw: string) => unknown;
+  parseUsageOutput: (raw: string) => Pick<GlobalUsageStats, 'session' | 'weeklyAllModels' | 'weeklySonnet'> | null;
   executeCommand: (
     agentId: string,
     command: string,

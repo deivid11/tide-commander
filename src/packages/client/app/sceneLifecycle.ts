@@ -75,7 +75,7 @@ export function markWebGLActive(): void {
 /**
  * Cleanup function to dispose scene - called from multiple unload events
  */
-export function cleanupScene(source: string): void {
+export function cleanupScene(_source: string): void {
   setIsPageUnloading(true);
 
   // Clear the session flag to indicate clean shutdown

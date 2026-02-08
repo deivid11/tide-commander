@@ -12,7 +12,6 @@
 import { Router, Request, Response } from 'express';
 import type {
   ConversationSnapshot,
-  SnapshotListItem,
   SnapshotOutput,
   CreateSnapshotRequest,
   CreateSnapshotResponse,

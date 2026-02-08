@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import type { Building, DatabaseConnection, QueryResult } from '../../../shared/types';
+import type { Building } from '../../../shared/types';
 import { store, useDatabaseState, useQueryResults, useQueryHistory, useExecutingQuery } from '../../store';
 import { DatabaseSidebar } from './DatabaseSidebar';
 import { QueryEditor } from './QueryEditor';
@@ -93,7 +93,7 @@ export const DatabasePanel: React.FC<DatabasePanelProps> = ({ building, onClose 
   // Per-database query storage: key is tabId, value is query text
   const [queries, setQueries] = useState<Record<string, string>>(() => {
     const stored = storedState.current.queries ?? {};
-    const generalQuery = storedState.current.generalQuery ?? '';
+    const _generalQuery = storedState.current.generalQuery ?? '';
     return stored;
   });
 

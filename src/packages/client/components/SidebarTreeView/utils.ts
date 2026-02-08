@@ -111,7 +111,7 @@ function createAgentTreeNode(
   agent: Agent,
   agents: Map<string, Agent>,
   level: number,
-  selectedIds: Set<string>
+  _selectedIds: Set<string>
 ): TreeNodeData {
   const subordinates = (agent.subordinateIds || [])
     .map((id) => agents.get(id))
@@ -161,7 +161,7 @@ function createBuildingTreeNode(
   building: Building,
   buildings: Map<string, Building>,
   level: number,
-  selectedIds: Set<string>
+  _selectedIds: Set<string>
 ): TreeNodeData {
   const subordinates = (building.subordinateBuildingIds || [])
     .map((id) => buildings.get(id))

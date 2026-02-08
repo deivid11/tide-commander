@@ -65,7 +65,6 @@ import {
   type BashModalState,
 } from './TerminalModals';
 import { HistoryLine } from './HistoryLine';
-import { OutputLine } from './OutputLine';
 import { VirtualizedOutputList } from './VirtualizedOutputList';
 import { GuakeAgentLink as _GuakeAgentLink } from './GuakeAgentLink';
 import { AgentDebugPanel } from './AgentDebugPanel';

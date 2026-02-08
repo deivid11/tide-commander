@@ -56,7 +56,7 @@ vi.mock('../config', () => ({
 }));
 
 import { ModelLoader } from './ModelLoader';
-import type { CustomAgentClass } from '../../../shared/types';
+import type { Agent, CustomAgentClass } from '../../../shared/types';
 
 function createMockCharacterLoader() {
   return {
@@ -66,7 +66,7 @@ function createMockCharacterLoader() {
   } as any;
 }
 
-function createMockAgent(overrides: Partial<any> = {}) {
+function createMockAgent(overrides: Partial<Agent> = {}): Agent {
   return {
     id: 'agent-1',
     name: 'TestAgent',
@@ -83,7 +83,7 @@ function createMockAgent(overrides: Partial<any> = {}) {
     cwd: '/tmp',
     permissionMode: 'bypass',
     ...overrides,
-  };
+  } as Agent;
 }
 
 describe('ModelLoader', () => {
@@ -246,7 +246,7 @@ describe('ModelLoader', () => {
 
       const mockMesh = {
         name: '',
-        userData: {},
+        userData: {} as Record<string, unknown>,
         position: { set: vi.fn() },
       };
       mockCharacterLoader.cloneCustomModel.mockReturnValue({
@@ -268,7 +268,7 @@ describe('ModelLoader', () => {
     it('falls back to built-in model clone', () => {
       const mockMesh = {
         name: '',
-        userData: {},
+        userData: {} as Record<string, unknown>,
         position: { set: vi.fn() },
       };
       mockCharacterLoader.cloneByModelFile.mockReturnValue({
@@ -309,7 +309,7 @@ describe('ModelLoader', () => {
 
       const mockMesh = {
         name: '',
-        userData: {},
+        userData: {} as Record<string, unknown>,
         position: { set: vi.fn() },
       };
       mockCharacterLoader.cloneByModelFile.mockReturnValue({
@@ -320,7 +320,7 @@ describe('ModelLoader', () => {
       const agent = createMockAgent({ class: 'dancer' });
       loader.createCharacterBody(agent, 0x888888);
 
-      expect(mockMesh.userData.animationMapping).toEqual({ idle: 'Dance', working: 'Spin' });
+      expect((mockMesh.userData as { animationMapping?: unknown }).animationMapping).toEqual({ idle: 'Dance', working: 'Spin' });
     });
 
     it('applies model offset when non-zero', () => {
@@ -340,7 +340,7 @@ describe('ModelLoader', () => {
 
       const mockMesh = {
         name: '',
-        userData: {},
+        userData: {} as Record<string, unknown>,
         position: { set: vi.fn() },
       };
       mockCharacterLoader.cloneByModelFile.mockReturnValue({
@@ -403,7 +403,7 @@ describe('ModelLoader', () => {
 
   describe('disposeMaterial', () => {
     it('disposes material and all texture maps', () => {
-      const mat = {
+      const _mat = {
         dispose: vi.fn(),
         map: { dispose: vi.fn() },
         normalMap: { dispose: vi.fn() },

@@ -1,7 +1,6 @@
 import React, { useState, useRef, useCallback, useMemo, memo, useEffect } from 'react';
 import { store, useDatabaseState } from '../store';
-import type { Building, DatabaseConnection } from '../../shared/types';
-import { BUILDING_STATUS_COLORS } from '../utils/colors';
+import type { Building } from '../../shared/types';
 
 interface DatabaseBuildingActionPopupProps {
   building: Building;

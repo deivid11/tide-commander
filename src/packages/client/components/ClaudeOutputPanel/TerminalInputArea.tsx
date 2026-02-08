@@ -4,7 +4,7 @@
  * Handles text input, file attachments, paste handling, and send functionality.
  */
 
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { store, useSettings } from '../../store';
 import { PermissionRequestInline } from './PermissionRequest';
 import { getImageWebUrl } from './contentRendering';
@@ -283,7 +283,7 @@ export function TerminalInputArea({
     }
   };
 
-  const handleMouseDown = (e: React.MouseEvent) => {
+  const handleMouseDown = (_e: React.MouseEvent) => {
     // Allow normal mouse events on input/textarea
     // Middle-click paste is now only disabled on the container itself
   };

@@ -980,7 +980,7 @@ export class Scene2D {
     this.callbacks.onBuildingDoubleClick?.(buildingId);
   }
 
-  handleBuildingHover(buildingId: string | null): void {
+  handleBuildingHover(_buildingId: string | null): void {
     // Optional callback - building hover state is mainly used for visual feedback
     // Store in a member variable if we want to render hover effects
   }

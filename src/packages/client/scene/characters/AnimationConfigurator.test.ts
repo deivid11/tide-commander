@@ -73,8 +73,8 @@ describe('AnimationConfigurator', () => {
   describe('createAnimationSetup', () => {
     it('creates a mixer and maps clips by lowercase and original name', () => {
       // Minimal THREE mock objects
-      const mockMesh = { userData: {} } as any;
-      const mockClips = [
+      const _mockMesh = { userData: {} } as any;
+      const _mockClips = [
         { name: 'Idle' },
         { name: 'Walk' },
         { name: 'Run_Fast' },

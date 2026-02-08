@@ -381,7 +381,7 @@ interface WorkPlanBlockProps {
   workPlan: WorkPlan;
 }
 
-const priorityColors: Record<string, string> = {
+const _priorityColors: Record<string, string> = {
   high: '#ef4444',
   medium: '#f59e0b',
   low: '#22c55e',

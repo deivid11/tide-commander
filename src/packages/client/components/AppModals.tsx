@@ -14,7 +14,6 @@ import { SkillsPanel } from './SkillsPanel';
 import { AgentEditModal } from './AgentEditModal';
 import { ContextMenu, type ContextMenuAction } from './ContextMenu';
 import { SnapshotManager } from './SnapshotManager';
-import { SnapshotViewer } from './SnapshotViewer';
 import { RestoreArchivedAreaModal } from './RestoreArchivedAreaModal';
 import { profileRender } from '../utils/profiling';
 import type { UseModalState, UseModalStateWithId, UseContextMenu } from '../hooks';
@@ -111,7 +110,7 @@ export function AppModals({
   // Get snapshot state from store
   const snapshots = Array.from(state.snapshots.values());
   const snapshotsLoading = state.snapshotsLoading;
-  const currentSnapshot = state.currentSnapshot;
+  const _currentSnapshot = state.currentSnapshot;
 
   // Fetch snapshots when modal opens
   useEffect(() => {

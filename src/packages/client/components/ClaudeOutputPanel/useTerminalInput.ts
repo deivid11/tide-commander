@@ -7,7 +7,7 @@
  */
 
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { STORAGE_KEYS, getStorageString, setStorageString, removeStorage, apiUrl, authFetch, getAuthHeaders } from '../../utils/storage';
+import { STORAGE_KEYS, getStorageString, setStorageString, removeStorage, apiUrl, authFetch } from '../../utils/storage';
 import type { AttachedFile } from './types';
 
 interface UseTerminalInputOptions {

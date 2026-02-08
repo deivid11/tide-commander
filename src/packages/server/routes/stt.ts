@@ -81,7 +81,7 @@ router.post('/transcribe', async (req: Request, res: Response) => {
             // Clean up txt file
             unlink(txtPath).catch(() => {});
             resolve(text.trim());
-          } catch (err) {
+          } catch {
             // If txt file not found, try to parse from stdout
             const match = stdout.match(/\[\d+:\d+\.\d+ --> \d+:\d+\.\d+\]\s*(.+)/g);
             if (match) {

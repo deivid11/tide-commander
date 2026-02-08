@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import type { SnapshotListItem, ConversationSnapshot, SnapshotFile } from '../../../shared/types/snapshot';
+import type { SnapshotListItem, ConversationSnapshot } from '../../../shared/types/snapshot';
 import { createSnapshotActions } from '../snapshots';
 import type { StoreState } from '../types';
 

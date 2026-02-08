@@ -3,122 +3,123 @@
  * Phase 4: Keyboard Shortcuts Testing
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { matchesShortcut, DEFAULT_SHORTCUTS, ShortcutConfig } from '../../store/shortcuts';
 
 describe('useKeyboardShortcuts', () => {
   describe('Shortcut Matching', () => {
-    it('should match Alt+1 shortcut', () => {
-      const shortcut = DEFAULT_SHORTCUTS.find(s => s.id === 'view-mode-2d');
-      expect(shortcut).toBeDefined();
-      expect(shortcut?.modifiers.alt).toBe(true);
-      expect(shortcut?.key).toBe('1');
-    });
-
-    it('should match Alt+2 shortcut', () => {
-      const shortcut = DEFAULT_SHORTCUTS.find(s => s.id === 'view-mode-3d');
+    it('should match Alt+2 shortcut (toggle-2d-view)', () => {
+      const shortcut = DEFAULT_SHORTCUTS.find(s => s.id === 'toggle-2d-view');
       expect(shortcut).toBeDefined();
       expect(shortcut?.modifiers.alt).toBe(true);
       expect(shortcut?.key).toBe('2');
     });
 
-    it('should match Alt+3 shortcut', () => {
-      const shortcut = DEFAULT_SHORTCUTS.find(s => s.id === 'view-mode-dashboard');
+    it('should match Alt+N shortcut (spawn-agent)', () => {
+      const shortcut = DEFAULT_SHORTCUTS.find(s => s.id === 'spawn-agent');
       expect(shortcut).toBeDefined();
       expect(shortcut?.modifiers.alt).toBe(true);
-      expect(shortcut?.key).toBe('3');
+      expect(shortcut?.key).toBe('n');
     });
 
-    it('should match Alt+S shortcut', () => {
-      const shortcut = DEFAULT_SHORTCUTS.find(s => s.id === 'toggle-sidebar');
+    it('should match Alt+E shortcut (toggle-file-explorer)', () => {
+      const shortcut = DEFAULT_SHORTCUTS.find(s => s.id === 'toggle-file-explorer');
       expect(shortcut).toBeDefined();
       expect(shortcut?.modifiers.alt).toBe(true);
-      expect(shortcut?.key).toBe('s');
+      expect(shortcut?.key).toBe('e');
     });
 
-    it('should match Alt+R shortcut', () => {
-      const shortcut = DEFAULT_SHORTCUTS.find(s => s.id === 'toggle-right-panel');
+    it('should match Alt+P shortcut (toggle-spotlight)', () => {
+      const shortcut = DEFAULT_SHORTCUTS.find(s => s.id === 'toggle-spotlight');
       expect(shortcut).toBeDefined();
       expect(shortcut?.modifiers.alt).toBe(true);
-      expect(shortcut?.key).toBe('r');
+      expect(shortcut?.key).toBe('p');
+    });
+
+    it('should match Ctrl+K shortcut (toggle-commander)', () => {
+      const shortcut = DEFAULT_SHORTCUTS.find(s => s.id === 'toggle-commander');
+      expect(shortcut).toBeDefined();
+      expect(shortcut?.modifiers.ctrl).toBe(true);
+      expect(shortcut?.key).toBe('k');
     });
   });
 
   describe('Shortcut Conflict Detection', () => {
-    it('should not have conflicting Alt+1', () => {
-      const conflicts = DEFAULT_SHORTCUTS.filter(s => s.modifiers.alt && s.key === '1');
+    it('should not have conflicting Alt+2 in global context', () => {
+      const conflicts = DEFAULT_SHORTCUTS.filter(
+        s => s.modifiers.alt && !s.modifiers.shift && s.key === '2' && s.context === 'global'
+      );
       expect(conflicts.length).toBe(1);
     });
 
     it('should not have conflicting Alt+2', () => {
-      const conflicts = DEFAULT_SHORTCUTS.filter(s => s.modifiers.alt && s.key === '2');
+      const conflicts = DEFAULT_SHORTCUTS.filter(s => s.modifiers.alt && !s.modifiers.shift && s.key === '2');
       // Alt+2 can have multiple (cycle vs direct), should be fine
       expect(conflicts.length).toBeGreaterThan(0);
     });
 
-    it('should not have conflicting Alt+3', () => {
-      const conflicts = DEFAULT_SHORTCUTS.filter(s => s.modifiers.alt && s.key === '3');
+    it('should not have conflicting Alt+N in global context', () => {
+      const conflicts = DEFAULT_SHORTCUTS.filter(
+        s => s.modifiers.alt && !s.modifiers.shift && s.key === 'n' && s.context === 'global'
+      );
       expect(conflicts.length).toBe(1);
     });
 
-    it('should not have conflicting Alt+S', () => {
-      const conflicts = DEFAULT_SHORTCUTS.filter(s => s.modifiers.alt && s.key === 's');
+    it('should not have conflicting Alt+E in global context', () => {
+      const conflicts = DEFAULT_SHORTCUTS.filter(
+        s => s.modifiers.alt && !s.modifiers.shift && s.key === 'e' && s.context === 'global'
+      );
       expect(conflicts.length).toBe(1);
     });
 
-    it('should not have conflicting Alt+R', () => {
-      const conflicts = DEFAULT_SHORTCUTS.filter(s => s.modifiers.alt && s.key === 'r');
+    it('should not have conflicting Alt+P in global context', () => {
+      const conflicts = DEFAULT_SHORTCUTS.filter(
+        s => s.modifiers.alt && !s.modifiers.shift && s.key === 'p' && s.context === 'global'
+      );
       expect(conflicts.length).toBe(1);
     });
   });
 
   describe('Browser Compatibility', () => {
     it('should use Alt modifier (cross-browser compatible)', () => {
-      const modeShortcuts = [
-        DEFAULT_SHORTCUTS.find(s => s.id === 'view-mode-2d'),
-        DEFAULT_SHORTCUTS.find(s => s.id === 'view-mode-3d'),
-        DEFAULT_SHORTCUTS.find(s => s.id === 'view-mode-dashboard'),
+      const altShortcuts = [
+        DEFAULT_SHORTCUTS.find(s => s.id === 'toggle-2d-view'),
+        DEFAULT_SHORTCUTS.find(s => s.id === 'spawn-agent'),
+        DEFAULT_SHORTCUTS.find(s => s.id === 'toggle-file-explorer'),
       ];
 
-      modeShortcuts.forEach(shortcut => {
+      altShortcuts.forEach(shortcut => {
         expect(shortcut?.modifiers.alt).toBe(true);
         expect(shortcut?.modifiers.ctrl).toBeUndefined();
       });
     });
 
     it('should not use Ctrl modifier (to avoid conflicts)', () => {
-      const modeShortcuts = [
-        DEFAULT_SHORTCUTS.find(s => s.id === 'view-mode-2d'),
-        DEFAULT_SHORTCUTS.find(s => s.id === 'view-mode-3d'),
-        DEFAULT_SHORTCUTS.find(s => s.id === 'view-mode-dashboard'),
+      const altShortcuts = [
+        DEFAULT_SHORTCUTS.find(s => s.id === 'toggle-2d-view'),
+        DEFAULT_SHORTCUTS.find(s => s.id === 'spawn-agent'),
+        DEFAULT_SHORTCUTS.find(s => s.id === 'toggle-file-explorer'),
       ];
 
-      modeShortcuts.forEach(shortcut => {
+      altShortcuts.forEach(shortcut => {
         expect(shortcut?.modifiers.ctrl).toBeUndefined();
       });
     });
 
     it('should not conflict with browser Alt shortcuts', () => {
-      // Alt+1, Alt+2, Alt+3 are not used by major browsers
-      const modeShortcuts = [
-        DEFAULT_SHORTCUTS.find(s => s.id === 'view-mode-2d'),
-        DEFAULT_SHORTCUTS.find(s => s.id === 'view-mode-3d'),
-        DEFAULT_SHORTCUTS.find(s => s.id === 'view-mode-dashboard'),
-      ];
-
-      modeShortcuts.forEach(shortcut => {
-        // These are safe in Chrome, Firefox, Safari, Edge
-        expect(shortcut?.key).toMatch(/^[123]$/);
-        expect(shortcut?.modifiers.alt).toBe(true);
-      });
+      // Alt+2 is not commonly used by major browsers
+      const shortcut = DEFAULT_SHORTCUTS.find(s => s.id === 'toggle-2d-view');
+      expect(shortcut?.key).toBe('2');
+      expect(shortcut?.modifiers.alt).toBe(true);
     });
   });
 
   describe('matchesShortcut Function', () => {
-    it('should match Alt+1 KeyboardEvent', () => {
-      const shortcut = DEFAULT_SHORTCUTS.find(s => s.id === 'view-mode-2d');
+    it('should match Alt+2 KeyboardEvent', () => {
+      const shortcut = DEFAULT_SHORTCUTS.find(s => s.id === 'toggle-2d-view');
       const event = new KeyboardEvent('keydown', {
-        key: '1',
+        key: '2',
+        code: 'Digit2',
         altKey: true,
         ctrlKey: false,
         shiftKey: false,
@@ -127,10 +128,11 @@ describe('useKeyboardShortcuts', () => {
       expect(matchesShortcut(event, shortcut)).toBe(true);
     });
 
-    it('should not match Alt+1 without Alt key', () => {
-      const shortcut = DEFAULT_SHORTCUTS.find(s => s.id === 'view-mode-2d');
+    it('should not match Alt+2 without Alt key', () => {
+      const shortcut = DEFAULT_SHORTCUTS.find(s => s.id === 'toggle-2d-view');
       const event = new KeyboardEvent('keydown', {
-        key: '1',
+        key: '2',
+        code: 'Digit2',
         altKey: false,
         ctrlKey: false,
         shiftKey: false,
@@ -140,9 +142,10 @@ describe('useKeyboardShortcuts', () => {
     });
 
     it('should not match Alt+2 when Ctrl is also pressed', () => {
-      const shortcut = DEFAULT_SHORTCUTS.find(s => s.id === 'view-mode-3d');
+      const shortcut = DEFAULT_SHORTCUTS.find(s => s.id === 'toggle-2d-view');
       const event = new KeyboardEvent('keydown', {
         key: '2',
+        code: 'Digit2',
         altKey: true,
         ctrlKey: true,
         shiftKey: false,
@@ -164,6 +167,7 @@ describe('useKeyboardShortcuts', () => {
 
       const event = new KeyboardEvent('keydown', {
         key: '1',
+        code: 'Digit1',
         altKey: true,
         ctrlKey: false,
         shiftKey: false,
@@ -174,33 +178,23 @@ describe('useKeyboardShortcuts', () => {
   });
 
   describe('Shortcut Properties', () => {
-    it('all new shortcuts should have proper context', () => {
-      const newShortcuts = [
-        'view-mode-2d',
-        'view-mode-3d',
-        'view-mode-dashboard',
-        'toggle-sidebar',
-        'toggle-right-panel',
+    it('all global Alt shortcuts should have proper context', () => {
+      const globalAltShortcuts = [
+        'toggle-2d-view',
+        'spawn-agent',
+        'toggle-file-explorer',
+        'toggle-spotlight',
       ];
 
-      newShortcuts.forEach(id => {
+      globalAltShortcuts.forEach(id => {
         const shortcut = DEFAULT_SHORTCUTS.find(s => s.id === id);
         expect(shortcut?.context).toBe('global');
       });
     });
 
-    it('all new shortcuts should be enabled by default', () => {
-      const newShortcuts = [
-        'view-mode-2d',
-        'view-mode-3d',
-        'view-mode-dashboard',
-        'toggle-sidebar',
-        'toggle-right-panel',
-      ];
-
-      newShortcuts.forEach(id => {
-        const shortcut = DEFAULT_SHORTCUTS.find(s => s.id === id);
-        expect(shortcut?.enabled).toBe(true);
+    it('all shortcuts should be enabled by default', () => {
+      DEFAULT_SHORTCUTS.forEach(shortcut => {
+        expect(shortcut.enabled).toBe(true);
       });
     });
 
