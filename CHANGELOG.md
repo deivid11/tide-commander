@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.52.0] - 2026-02-08
+
+### Added
+- **Global npm install** - Tide Commander can now be installed globally via `npm i -g tide-commander` with a CLI entry point supporting `--port`, `--host`, and `--listen-all` flags
+- **CLI entry point** - New `src/packages/server/cli.ts` with argument parsing and server spawning
+- **Server build pipeline** - Added `build:server` script using dedicated `tsconfig.server.json` for producing publishable dist output
+- **Exec curl generation endpoint** - New `POST /api/exec/generate-curl` route for generating properly escaped curl commands for Codex agents
+- **HOST env variable** - Backend now supports `HOST` environment variable to set bind address
+
+### Changed
+- **Exec command display** - Curl `/api/exec` commands now show the actual inner command being executed instead of the full curl wrapper, both in live output and history
+- **History exec output parsing** - Improved robustness of exec task output extraction from stored history payloads with wrapper-aware JSON parsing
+- **Session loader** - Tool results now prefer raw `stdout`/`stderr` from `tool_use_result` over potentially summarized `block.content` for richer history
+- **ESM import paths** - Added `.js` extensions to all shared module imports for proper ESM compatibility in compiled output
+- **Build script** - Changed from `tsc && vite build` to `npm run build:types && vite build && npm run build:server`
+- **Exec route logging** - Added detailed request and error logging for exec endpoint
+
+### Fixed
+- **Exec route error responses** - Error responses now include structured details (code, syscall) for better debugging
+
 ## [0.51.5] - 2026-02-08
 
 ### Changed

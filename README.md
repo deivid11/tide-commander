@@ -36,6 +36,21 @@ bun run dev
 
 Open http://localhost:5173 in your browser (or your configured `VITE_PORT`) and you're ready to go!
 
+## 📦 Global npm Install
+
+```bash
+npm i -g tide-commander
+tide-commander
+```
+
+CLI flags:
+
+```bash
+tide-commander --port 8080 --host 0.0.0.0
+# or
+tide-commander --listen-all --port 8080
+```
+
 ## 🎖️ Agent Concepts
 
 Tide Commander introduces several powerful concepts for orchestrating your AI agents:
@@ -252,6 +267,7 @@ Configuration via environment variables (see `.env.example`):
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORT` | 5174 | Backend server port |
+| `HOST` | `127.0.0.1` | Backend bind host |
 | `VITE_PORT` | 5173 | Vite dev server port |
 | `TIDE_SERVER` | `http://localhost:$PORT` | Server URL for hooks |
 | `LISTEN_ALL_INTERFACES` | _(unset)_ | Set to `1` to listen on 0.0.0.0 instead of localhost |

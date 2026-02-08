@@ -13,7 +13,7 @@ import { logger, closeFileLogging, getLogFilePath } from './utils/logger.js';
 
 // Configuration
 const PORT = process.env.PORT || 5174;
-const HOST = process.env.LISTEN_ALL_INTERFACES ? '::' : '127.0.0.1';
+const HOST = process.env.HOST || (process.env.LISTEN_ALL_INTERFACES ? '::' : '127.0.0.1');
 
 // ============================================================================
 // Global Error Handlers

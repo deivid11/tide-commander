@@ -79,10 +79,18 @@ router.post('/', async (req: Request, res: Response) => {
 
     // Validate required fields
     if (!agentId || !command) {
+      log.error(`[Exec] Missing required fields. Body: ${JSON.stringify(req.body)}`);
       res.status(400).json({
-        error: 'Missing required fields: agentId, command'
+        error: 'Missing required fields: agentId, command',
+        received: req.body
       });
       return;
+    }
+
+    log.log(`[Exec] Received exec request for agent ${agentId}`);
+    log.log(`[Exec] Command: ${command.slice(0, 100)}${command.length > 100 ? '...' : ''}`);
+    if (cwd) {
+      log.log(`[Exec] CWD: ${cwd}`);
     }
 
     // Get agent info
@@ -221,7 +229,19 @@ router.post('/', async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     log.error('Failed to execute command:', err);
-    res.status(500).json({ error: err.message });
+    log.error('Error details:', {
+      message: err.message,
+      code: err.code,
+      errno: err.errno,
+      syscall: err.syscall,
+    });
+    res.status(500).json({
+      error: err.message,
+      details: {
+        code: err.code,
+        syscall: err.syscall,
+      }
+    });
   }
 });
 
@@ -250,6 +270,47 @@ router.delete('/tasks/:taskId', (req: Request, res: Response) => {
   } else {
     res.status(404).json({ error: `Task not found: ${taskId}` });
   }
+});
+
+/**
+ * POST /api/exec/generate-curl - Generate properly escaped curl command for shell execution
+ *
+ * This endpoint generates a curl command with proper escaping for Codex agents
+ * that need to execute it through shell (zsh, bash, etc.)
+ */
+router.post('/generate-curl', (req: Request, res: Response) => {
+  const { agentId, command, cwd } = req.body;
+
+  if (!agentId || !command) {
+    res.status(400).json({
+      error: 'Missing required fields: agentId, command'
+    });
+    return;
+  }
+
+  // Build the JSON payload
+  const payload: Record<string, string> = {
+    agentId,
+    command,
+  };
+  if (cwd) {
+    payload.cwd = cwd;
+  }
+
+  // Escape the JSON payload properly for shell execution
+  // Use single quotes around JSON and escape any single quotes inside
+  const jsonStr = JSON.stringify(payload);
+  const escapedJson = jsonStr.replace(/'/g, "'\\''");
+
+  // Generate curl command using $'...' syntax (ANSI-C quoting)
+  // This is more reliable across different shells
+  const curlCommand = `curl -s -X POST http://localhost:5174/api/exec -H "Content-Type: application/json" -d '${escapedJson}'`;
+
+  res.json({
+    success: true,
+    command: curlCommand,
+    payload,
+  });
 });
 
 export default router;

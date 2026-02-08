@@ -97,6 +97,24 @@ export function extractToolKeyParam(toolName: string, inputJson: string): string
       case 'Bash': {
         const cmd = input.command;
         if (cmd) {
+          // Extract inner command from curl /api/exec payloads
+          if (cmd.includes('curl') && cmd.includes('/api/exec')) {
+            try {
+              // Extract JSON payload from curl command
+              // Pattern: -d '{"agentId":"...","command":"...","cwd":"..."}'
+              const jsonMatch = cmd.match(/-d\s+'({[^}]+})'/);
+              if (jsonMatch) {
+                const payload = JSON.parse(jsonMatch[1]);
+                if (payload.command) {
+                  // Show the actual command being executed
+                  return payload.command;
+                }
+              }
+            } catch {
+              // If extraction fails, show the full command
+              return cmd;
+            }
+          }
           return cmd; // Full command, no truncation
         }
         break;

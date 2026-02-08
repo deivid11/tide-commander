@@ -340,9 +340,19 @@ function parseClaudeEntryMessages(
     if (Array.isArray(entry.message.content)) {
       for (const block of entry.message.content) {
         if (block.type === 'tool_result') {
-          const content = typeof block.content === 'string'
-            ? block.content
-            : JSON.stringify(block.content);
+          // Prefer raw tool_use_result stdout/stderr when available so history
+          // preserves full command output (block.content can be summarized).
+          let content: string;
+          if (entry.tool_use_result?.stdout !== undefined) {
+            content = String(entry.tool_use_result.stdout ?? '');
+            if (entry.tool_use_result?.stderr) {
+              content += (content ? '\n' : '') + `[stderr] ${String(entry.tool_use_result.stderr)}`;
+            }
+          } else {
+            content = typeof block.content === 'string'
+              ? block.content
+              : JSON.stringify(block.content);
+          }
           const toolName = toolUseIdToName.get(block.tool_use_id) || 'unknown';
           messages.push({
             type: 'tool_result',

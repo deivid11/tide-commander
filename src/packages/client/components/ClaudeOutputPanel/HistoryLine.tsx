@@ -198,6 +198,35 @@ export const HistoryLine = memo(function HistoryLine({
   // For user messages, parse boss context
   const parsedBoss = type === 'user' ? parseBossContext(content) : null;
 
+  const extractExecTaskOutputLines = (raw: string): string[] | null => {
+    if (!raw) return null;
+
+    const tryParse = (value: string): string[] | null => {
+      try {
+        const parsed = JSON.parse(value);
+        if (parsed && typeof parsed === 'object' && typeof (parsed as any).output === 'string') {
+          return (parsed as any).output.split('\n').filter((line: string) => line.length > 0);
+        }
+      } catch {
+        // ignore parse errors and fall through
+      }
+      return null;
+    };
+
+    const direct = tryParse(raw);
+    if (direct) return direct;
+
+    // Some stored history payloads include wrappers around the JSON response.
+    const firstBrace = raw.indexOf('{');
+    const lastBrace = raw.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace > firstBrace) {
+      const extracted = tryParse(raw.slice(firstBrace, lastBrace + 1));
+      if (extracted) return extracted;
+    }
+
+    return null;
+  };
+
   if (type === 'tool_use') {
     const icon = TOOL_ICONS[toolName || ''] || TOOL_ICONS.default;
 
@@ -267,16 +296,11 @@ export const HistoryLine = memo(function HistoryLine({
       let execTaskOutput: { output: string[] } | null = null;
 
       if (isCurlExecCommand && _bashOutput) {
-        try {
-          const parsed = JSON.parse(_bashOutput);
-          if (parsed.output && typeof parsed.output === 'string') {
-            // Convert the output string to an array of lines
-            execTaskOutput = {
-              output: parsed.output.split('\n').filter((line: string) => line.length > 0),
-            };
-          }
-        } catch {
-          // If parsing fails, just show the bash output normally
+        const outputLines = extractExecTaskOutputLines(_bashOutput);
+        if (outputLines && outputLines.length > 0) {
+          execTaskOutput = {
+            output: outputLines,
+          };
         }
       }
 
