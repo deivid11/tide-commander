@@ -95,7 +95,7 @@ Claude Code orchestration and multi-agent management features:
 - 🎯 **RTS Controls** - Click to select, right-click to move, number keys for quick selection
 - 📡 **Real-time Activity Feed** - Watch your Claude Code agents work in real-time
 - 🤹 **Multi-Agent Management** - Spawn and control multiple Claude Code instances simultaneously
-- 💾 **Session Persistence** - Agents resume their Claude Code sessions across restarts
+- 💾 **Session Persistence** - Agents resume their Claude Code or Codex sessions across restarts
 - 📊 **Context Tracking** - Mana bar visualization showing agent context usage
 - 📁 **File Explorer** - Built-in file browser with git diff viewer for uncommitted changes
 - 📋 **Large Text & Screenshot Paste** - Compact and send large content easily
@@ -177,12 +177,12 @@ Tide Commander is a Claude Code and Codex-compatible orchestrator that provides 
 **⚙️ Backend (Node.js + Express)**
 - REST API for agent CRUD operations
 - WebSocket server for real-time event streaming
-- Process manager that spawns and controls Claude CLI instances
+- Process manager that spawns and controls Claude and Codex CLI instances
 
-**🤖 Claude CLI Integration**
-- Each agent runs `claude` with `--output-format stream-json`
-- Events (tool usage, text output, errors) are parsed from stdout
-- Commands are sent via stdin in stream-json format
+**🤖 CLI Integration (Claude + Codex)**
+- Claude agents run `claude` with `--output-format stream-json` and use stdin for follow-up messages
+- Codex agents run `codex exec --json` and resume via session-based command args
+- Events (tool usage, text output, errors) are parsed from stdout for both providers
 - Sessions are persisted and can be resumed
 
 ### Architecture
@@ -198,7 +198,7 @@ For Mermaid diagrams and deeper design notes, see [`docs/architecture.md`](docs/
 - `areas.json` - Drawing areas synced from the frontend
 - `buildings.json` - Building configurations and service definitions
 - `skills.json` - Custom skill definitions
-- `custom-classes.json` - Custom agent class definitions
+- `custom-agent-classes.json` - Custom agent class definitions
 - `secrets.json` - Encrypted secrets storage
 - `supervisor-history.json` - Agent supervisor history
 - `snapshots/` - Saved conversation snapshots with file captures
