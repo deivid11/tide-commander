@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseBashNotificationCommand, parseBashSearchCommand } from './outputRendering';
+import { decodeTideFileHref, linkifyFilePathsForMarkdown, parseBashNotificationCommand, parseBashSearchCommand } from './outputRendering';
 
 describe('parseBashSearchCommand', () => {
   it('parses zsh -lc rg search command', () => {
@@ -45,5 +45,52 @@ describe('parseBashNotificationCommand', () => {
   it('returns null for non-notification command', () => {
     const parsed = parseBashNotificationCommand('/usr/bin/zsh -lc "npm test"');
     expect(parsed).toBeNull();
+  });
+});
+
+describe('linkifyFilePathsForMarkdown', () => {
+  it('linkifies plain file path lines', () => {
+    const input = [
+      'Added',
+      'docs/architecture.md',
+      'README.md',
+    ].join('\n');
+    const output = linkifyFilePathsForMarkdown(input);
+    expect(output).toContain('[docs/architecture.md](tide-file://docs%2Farchitecture.md)');
+    expect(output).toContain('[README.md](tide-file://README.md)');
+  });
+
+  it('does not linkify URLs or fenced code blocks', () => {
+    const input = [
+      'Visit https://example.com/docs/architecture.md',
+      '```',
+      'docs/architecture.md',
+      '```',
+    ].join('\n');
+    const output = linkifyFilePathsForMarkdown(input);
+    expect(output).toContain('https://example.com/docs/architecture.md');
+    expect(output).toContain('\n```\ndocs/architecture.md\n```');
+    expect(output).not.toContain('tide-file://https');
+  });
+
+  it('linkifies backtick-wrapped file paths from history markdown', () => {
+    const input = [
+      '### Added',
+      '- `docs/architecture.md`',
+      '- `docs/interactive-permissions.md`',
+    ].join('\n');
+    const output = linkifyFilePathsForMarkdown(input);
+    expect(output).toContain('[`docs/architecture.md`](tide-file://docs%2Farchitecture.md)');
+    expect(output).toContain('[`docs/interactive-permissions.md`](tide-file://docs%2Finteractive-permissions.md)');
+  });
+});
+
+describe('decodeTideFileHref', () => {
+  it('decodes custom tide file hrefs', () => {
+    expect(decodeTideFileHref('tide-file://docs%2Farchitecture.md')).toBe('docs/architecture.md');
+  });
+
+  it('returns null for non file hrefs', () => {
+    expect(decodeTideFileHref('https://example.com')).toBeNull();
   });
 });

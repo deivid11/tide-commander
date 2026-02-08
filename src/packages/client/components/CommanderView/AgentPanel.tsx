@@ -12,11 +12,13 @@ import { useSupervisor, store, ClaudeOutput } from '../../store';
 import { formatTokens } from '../../utils/formatting';
 import { HistoryLine } from '../ClaudeOutputPanel/HistoryLine';
 import { OutputLine } from '../ClaudeOutputPanel/OutputLine';
+import { ImageModal, BashModal, AgentResponseModalWrapper, type BashModalState } from '../ClaudeOutputPanel/TerminalModals';
 import { TerminalInput } from '../shared/TerminalInput';
 import { useFilteredOutputs } from '../shared/useFilteredOutputs';
 import type { AgentHistory, AttachedFile } from './types';
 import { STATUS_COLORS, SCROLL_THRESHOLD } from './types';
 import { apiUrl, authFetch } from '../../utils/storage';
+import { resolveAgentFilePath } from '../../utils/filePaths';
 
 interface AgentPanelProps {
   agent: Agent;
@@ -48,6 +50,9 @@ export function AgentPanel({
   const [loadingMore, setLoadingMore] = useState(false);
   const scrollPositionRef = useRef<number>(0);
   const isUserScrolledUpRef = useRef(false);
+  const [imageModal, setImageModal] = useState<{ url: string; name: string } | null>(null);
+  const [bashModal, setBashModal] = useState<BashModalState | null>(null);
+  const [responseModalContent, setResponseModalContent] = useState<string | null>(null);
 
   // Input state - simple local state since Commander panels don't persist
   const [command, setCommand] = useState('');
@@ -245,6 +250,23 @@ export function AgentPanel({
     pastedCountRef.current = 0;
   }, [agent.id, command, canSend, pastedTexts, attachedFiles]);
 
+  const handleImageClick = useCallback((url: string, name: string) => {
+    setImageModal({ url, name });
+  }, []);
+
+  const handleFileClick = useCallback((path: string, editData?: { oldString?: string; newString?: string; operation?: string; highlightRange?: { offset: number; limit: number } }) => {
+    store.setFileViewerPath(resolveAgentFilePath(path, agent.cwd), editData);
+  }, [agent.cwd]);
+
+  const handleBashClick = useCallback((commandText: string, output: string) => {
+    const isLive = output === 'Running...';
+    setBashModal({ command: commandText, output, isLive });
+  }, []);
+
+  const handleViewMarkdown = useCallback((content: string) => {
+    setResponseModalContent(content);
+  }, []);
+
   const statusColor = STATUS_COLORS[agent.status] || '#888888';
   const messages = history?.messages || [];
 
@@ -351,6 +373,10 @@ export function AgentPanel({
                 message={msg}
                 agentId={agent.id}
                 simpleView={!advancedView}
+                onImageClick={handleImageClick}
+                onFileClick={handleFileClick}
+                onBashClick={handleBashClick}
+                onViewMarkdown={handleViewMarkdown}
               />
             ))}
             {filteredOutputs.map((output, i) => (
@@ -358,6 +384,10 @@ export function AgentPanel({
                 key={`o-${i}`}
                 output={output}
                 agentId={agent.id}
+                onImageClick={handleImageClick}
+                onFileClick={handleFileClick}
+                onBashClick={handleBashClick}
+                onViewMarkdown={handleViewMarkdown}
               />
             ))}
             {!messages.length && !filteredOutputs.length && (
@@ -407,6 +437,10 @@ export function AgentPanel({
         compact={true}
         inputRef={inputRef}
       />
+
+      {imageModal && <ImageModal url={imageModal.url} name={imageModal.name} onClose={() => setImageModal(null)} />}
+      {bashModal && <BashModal state={bashModal} onClose={() => setBashModal(null)} />}
+      <AgentResponseModalWrapper agent={agent} content={responseModalContent} onClose={() => setResponseModalContent(null)} />
     </div>
   );
 }

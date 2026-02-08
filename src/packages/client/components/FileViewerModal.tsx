@@ -87,6 +87,7 @@ const EXTENSION_LANGUAGES: Record<string, string> = {
 };
 
 const MARKDOWN_EXTENSIONS = ['.md', '.mdx', '.markdown'];
+const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.ico', '.svg'];
 const PDF_EXTENSIONS = ['.pdf'];
 
 export function FileViewerModal({ isOpen, onClose, filePath, action, editData }: FileViewerModalProps) {
@@ -221,11 +222,12 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
     setError(null);
 
     try {
-      const ext = filePath.split('.').pop()?.toLowerCase();
-      const isPdfFile = ext === 'pdf';
+      const ext = filePath.substring(filePath.lastIndexOf('.')).toLowerCase();
+      const isPdfFile = PDF_EXTENSIONS.includes(ext);
+      const isImageFile = IMAGE_EXTENSIONS.includes(ext);
 
-      // For PDFs, only fetch metadata (no content needed - rendered via iframe)
-      const endpoint = isPdfFile
+      // For binary-rendered media, only fetch metadata (content is loaded via binary endpoint)
+      const endpoint = (isPdfFile || isImageFile)
         ? `/api/files/info?path=${encodeURIComponent(filePath)}`
         : `/api/files/read?path=${encodeURIComponent(filePath)}`;
 
@@ -237,8 +239,8 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
         return;
       }
 
-      // For PDFs, info endpoint doesn't return content - set empty string
-      if (isPdfFile) {
+      // Info endpoint doesn't return content - set empty string for media files
+      if (isPdfFile || isImageFile) {
         data.content = '';
       }
 
@@ -324,8 +326,10 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
   };
 
   const isMarkdown = fileData && MARKDOWN_EXTENSIONS.includes(fileData.extension);
+  const isImage = fileData && IMAGE_EXTENSIONS.includes(fileData.extension);
   const isPdf = fileData && PDF_EXTENSIONS.includes(fileData.extension);
-  const language = isPdf ? 'PDF' : (fileData ? EXTENSION_LANGUAGES[fileData.extension] || 'text' : 'text');
+  const language = isImage ? 'Image' : isPdf ? 'PDF' : (fileData ? EXTENSION_LANGUAGES[fileData.extension] || 'text' : 'text');
+  const imageUrl = isImage ? apiUrl(`/api/files/binary?path=${encodeURIComponent(filePath)}`) : null;
   const pdfUrl = isPdf ? apiUrl(`/api/files/binary?path=${encodeURIComponent(filePath)}`) : null;
 
   if (!isOpen) return null;
@@ -365,16 +369,16 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
                 </button>
               </>
             )}
-            {isPdf && pdfUrl && (
+            {(isImage && imageUrl) || (isPdf && pdfUrl) ? (
               <a
                 className="file-viewer-copy-html-btn"
-                href={`${pdfUrl}&download=true`}
+                href={`${isImage ? imageUrl : pdfUrl}&download=true`}
                 download={fileData?.filename}
-                title="Download PDF"
+                title={isImage ? 'Download image' : 'Download PDF'}
               >
                 Download
               </a>
-            )}
+            ) : null}
             <button className="file-viewer-close" onClick={onClose}>×</button>
           </div>
         </div>
@@ -388,7 +392,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
             <span>{formatFileSize(fileData.size)}</span>
             <span>•</span>
             <span>{language}</span>
-            {fileData.content && (
+            {fileData.content && !isImage && !isPdf && (
               <>
                 <span>•</span>
                 <span>{fileData.content.split('\n').length} lines</span>
@@ -407,7 +411,16 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
           )}
 
           {fileData && !loading && !error && (
-            isPdf && pdfUrl ? (
+            isImage && imageUrl ? (
+              // Show image viewer
+              <div className="file-viewer-image-wrapper">
+                <img
+                  src={imageUrl}
+                  alt={fileData.filename}
+                  className="file-viewer-image"
+                />
+              </div>
+            ) : isPdf && pdfUrl ? (
               // Show embedded PDF viewer
               <div className="file-viewer-pdf-embed">
                 <iframe

@@ -6,7 +6,7 @@ import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { BOSS_CONTEXT_START, BOSS_CONTEXT_END } from '../../../shared/types';
-import { markdownComponents } from './MarkdownComponents';
+import { createMarkdownComponents } from './MarkdownComponents';
 import type { ParsedBossContent, ParsedDelegation, ParsedBossResponse, ParsedInjectedInstructions, ParsedWorkPlanResponse, WorkPlan, WorkPlanPhase, WorkPlanTask } from './types';
 
 // ============================================================================
@@ -216,10 +216,12 @@ export function parseWorkPlanBlock(content: string): ParsedWorkPlanResponse {
 interface BossContextProps {
   context: string;
   defaultCollapsed?: boolean;
+  onFileClick?: (path: string) => void;
 }
 
-export function BossContext({ context, defaultCollapsed = true }: BossContextProps) {
+export function BossContext({ context, defaultCollapsed = true, onFileClick }: BossContextProps) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  const markdownComponents = createMarkdownComponents({ onFileClick });
 
   // Extract agent count from the "# YOUR TEAM (N agents)" header
   const teamMatch = context.match(/# YOUR TEAM \((\d+) agents?\)/);
@@ -248,10 +250,12 @@ export function BossContext({ context, defaultCollapsed = true }: BossContextPro
 interface InjectedInstructionsBlockProps {
   content: string;
   defaultCollapsed?: boolean;
+  onFileClick?: (path: string) => void;
 }
 
-export function InjectedInstructionsBlock({ content, defaultCollapsed = true }: InjectedInstructionsBlockProps) {
+export function InjectedInstructionsBlock({ content, defaultCollapsed = true, onFileClick }: InjectedInstructionsBlockProps) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  const markdownComponents = createMarkdownComponents({ onFileClick });
 
   return (
     <div className={`injected-instructions ${collapsed ? 'collapsed' : 'expanded'}`}>

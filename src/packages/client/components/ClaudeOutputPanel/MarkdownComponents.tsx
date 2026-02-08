@@ -5,10 +5,47 @@
 
 import React from 'react';
 import { Components } from 'react-markdown';
+import { decodeTideFileHref } from '../../utils/outputRendering';
+
+interface MarkdownComponentOptions {
+  onFileClick?: (path: string) => void;
+}
+
+function getNodeText(node: React.ReactNode): string {
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(getNodeText).join('');
+  if (React.isValidElement<{ children?: React.ReactNode }>(node)) {
+    return getNodeText(node.props.children);
+  }
+  return '';
+}
+
+function isLikelyFileHref(href: string): boolean {
+  if (!href) return false;
+  if (href.startsWith('#')) return false;
+  if (/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(href)) return false; // http:, https:, mailto:, etc
+  return href.includes('.') || href.startsWith('/') || href.startsWith('./') || href.startsWith('../');
+}
+
+function isLikelyFileText(value: string): boolean {
+  if (!value) return false;
+  if (value.includes('\n')) return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  if (/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(trimmed)) return false;
+  return trimmed.includes('.') && (trimmed.includes('/') || /^[A-Za-z0-9._-]+\.[A-Za-z0-9._-]+$/.test(trimmed));
+}
+
+function stripFileReferenceSuffix(fileRef: string): string {
+  const withoutAnchor = fileRef.replace(/#L\d+(?:C\d+)?$/i, '');
+  const hasLineSuffix = /\/[^:\s]+:\d+(?::\d+)?$/.test(withoutAnchor);
+  if (!hasLineSuffix) return withoutAnchor;
+  return withoutAnchor.replace(/:\d+(?::\d+)?$/, '');
+}
 
 // Create markdown components that use CSS variables directly
 // This allows themes to change without recreating components
-export const markdownComponents: Components = {
+export const createMarkdownComponents = ({ onFileClick }: MarkdownComponentOptions = {}): Components => ({
   h1: ({ children }) => (
     <h1 style={{ fontSize: '1.4em', color: 'var(--accent-pink)', fontWeight: 600, margin: '0.6em 0 0.3em' }}>
       {children}
@@ -97,11 +134,39 @@ export const markdownComponents: Components = {
       {children}
     </blockquote>
   ),
-  a: ({ children, href }) => (
-    <a href={href} style={{ color: 'var(--accent-cyan)', textDecoration: 'underline' }}>
-      {children}
-    </a>
-  ),
+  a: ({ children, href }) => {
+    const normalizedHref = typeof href === 'string' ? href.trim() : '';
+    const tideFileRef = decodeTideFileHref(normalizedHref);
+    const textRef = getNodeText(children).trim();
+    const fileRef = tideFileRef
+      || (normalizedHref && isLikelyFileHref(normalizedHref) ? normalizedHref : null)
+      || ((!normalizedHref || normalizedHref === '#') && isLikelyFileText(textRef) ? textRef : null);
+    if (fileRef && onFileClick) {
+      const path = stripFileReferenceSuffix(fileRef);
+      return (
+        <a
+          href="#"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onFileClick(path);
+          }}
+          className="clickable-path"
+          title={`Open ${path}`}
+        >
+          {children}
+        </a>
+      );
+    }
+    if (!normalizedHref) {
+      return <span>{children}</span>;
+    }
+    return (
+      <a href={normalizedHref} style={{ color: 'var(--accent-cyan)', textDecoration: 'underline' }}>
+        {children}
+      </a>
+    );
+  },
   hr: () => <hr style={{ border: 'none', borderTop: '1px solid var(--border-color)', margin: '1em 0' }} />,
   table: ({ children }) => (
     <table style={{ width: '100%', borderCollapse: 'collapse', margin: '0.6em 0', fontSize: '12px' }}>
@@ -138,7 +203,7 @@ export const markdownComponents: Components = {
     type === 'checkbox' ? (
       <input type="checkbox" checked={checked} readOnly style={{ marginRight: '0.5em', accentColor: 'var(--accent-green)' }} />
     ) : null,
-};
+});
 
 // Legacy export for backward compatibility (same as markdownComponents)
-export const createMarkdownComponents = () => markdownComponents;
+export const markdownComponents: Components = createMarkdownComponents();

@@ -3,12 +3,9 @@
  */
 
 import React, { memo, useState, useRef, useCallback, useEffect } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { useHideCost, useSettings, ClaudeOutput, store } from '../../store';
 import { filterCostText } from '../../utils/formatting';
 import { TOOL_ICONS, formatTimestamp, parseBashNotificationCommand, parseBashSearchCommand } from '../../utils/outputRendering';
-import { markdownComponents } from './MarkdownComponents';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, DelegatedTaskHeader, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions } from './BossContext';
 import { EditToolDiff, ReadToolInput, TodoWriteInput } from './ToolRenderers';
 import { renderContentWithImages, renderUserPromptContent } from './contentRendering';
@@ -245,9 +242,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
         <span className="session-continuation-toggle">{sessionExpanded ? '▼' : '▶'}</span>
         {sessionExpanded && (
           <div className="session-continuation-content">
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-              {text}
-            </ReactMarkdown>
+            {renderContentWithImages(text, onImageClick, onFileClick)}
           </div>
         )}
       </div>
@@ -280,7 +275,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
           <>
             <span className="output-role">You</span>
             {parsed.hasContext && parsed.context && (
-              <BossContext key={`boss-stream-${text.slice(0, 50)}`} context={parsed.context} />
+              <BossContext key={`boss-stream-${text.slice(0, 50)}`} context={parsed.context} onFileClick={onFileClick} />
             )}
             {renderUserPromptContent(parsedInjected.userMessage, onImageClick)}
           </>
@@ -587,9 +582,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
           <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
           <span className="output-role">{assistantRoleLabel}</span>
           <div className="markdown-content">
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-              {workPlanParsed.contentWithoutBlock}
-            </ReactMarkdown>
+            {renderContentWithImages(workPlanParsed.contentWithoutBlock, onImageClick, onFileClick)}
           </div>
           {workPlanParsed.hasWorkPlan && workPlanParsed.workPlan && (
             <WorkPlanBlock workPlan={workPlanParsed.workPlan} />
@@ -630,9 +623,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
       {outputRoleLabel && <span className="output-role">{outputRoleLabel}</span>}
       {useMarkdown ? (
         <div className="markdown-content">
-          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-            {text}
-          </ReactMarkdown>
+          {renderContentWithImages(text, onImageClick, onFileClick)}
         </div>
       ) : isThinking ? (
         <>

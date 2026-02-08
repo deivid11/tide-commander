@@ -124,6 +124,7 @@ Detailed guides for each feature are available in the [`docs/`](docs/) folder:
 | [Skills](docs/skills.md) | Built-in and custom skills, tool permissions, and assignment |
 | [Snapshots](docs/snapshots.md) | Save and restore conversation history and file artifacts |
 | [Secrets](docs/secrets.md) | Secure credential storage with placeholder injection |
+| [Architecture](docs/architecture.md) | Runtime architecture, command flow, and incremental improvements |
 | [Views & UI](docs/views.md) | 3D, 2D, Dashboard, Commander View, Guake terminal, and Spotlight |
 | [Android APK](docs/android.md) | Build and install the optional mobile companion app |
 | [Docker Deployment](docs/docker.md) | Run Tide Commander in a Docker container |
@@ -186,27 +187,9 @@ Tide Commander is a Claude Code and Codex-compatible orchestrator that provides 
 
 ### Architecture
 
-```
-┌─────────────────────────────────────────┐
-│           Browser (Three.js)            │
-│  - 3D battlefield visualization         │
-│  - Agent selection & movement           │
-│  - Command interface                    │
-└─────────────────┬───────────────────────┘
-                  │ WebSocket
-┌─────────────────▼───────────────────────┐
-│           Node.js Server                │
-│  - Agent lifecycle management           │
-│  - Claude CLI process management        │
-│  - Event broadcasting                   │
-└─────────────────┬───────────────────────┘
-                  │ stdin/stdout (stream-json)
-┌─────────────────▼───────────────────────┐
-│         Claude Code Instances           │
-│  - Each agent = Claude CLI process      │
-│  - Events streamed via JSON output      │
-└─────────────────────────────────────────┘
-```
+For Mermaid diagrams and deeper design notes, see [`docs/architecture.md`](docs/architecture.md).
+
+![System Architecture](docs/system-architecture.png)
 
 ### Data Storage
 
@@ -236,34 +219,6 @@ Agents run with `--dangerously-skip-permissions`, allowing them to execute any t
 
 ### Interactive Mode
 Agents require user approval for potentially dangerous operations. This mode uses a hook-based system:
-
-```
-┌─────────────────────────────────────────┐
-│         Claude Code Agent               │
-│  Wants to run: Bash "rm -rf ./temp"     │
-└─────────────────┬───────────────────────┘
-                  │ PreToolUse hook
-┌─────────────────▼───────────────────────┐
-│       permission-hook.sh                │
-│  1. Auto-approves safe tools (Read,     │
-│     Glob, Grep, etc.)                   │
-│  2. Checks remembered patterns          │
-│  3. Sends dangerous ops to server       │
-└─────────────────┬───────────────────────┘
-                  │ HTTP POST /api/permission-request
-┌─────────────────▼───────────────────────┐
-│       Tide Commander Server             │
-│  - Broadcasts to UI via WebSocket       │
-│  - Holds request until user responds    │
-└─────────────────┬───────────────────────┘
-                  │ WebSocket
-┌─────────────────▼───────────────────────┐
-│       Browser UI                        │
-│  - Shows permission dialog              │
-│  - User approves/denies                 │
-│  - Optional: Remember for this session  │
-└─────────────────────────────────────────┘
-```
 
 #### Safe Tools (Auto-Approved)
 These read-only tools are automatically approved without prompting:
