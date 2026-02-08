@@ -1,35 +1,63 @@
 #!/usr/bin/env node
 
 import { spawn } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+type CliCommand = 'start' | 'stop' | 'status' | 'logs';
+
 type CliOptions = {
+  command: CliCommand;
   port?: string;
   host?: string;
   listenAll?: boolean;
+  foreground?: boolean;
+  follow?: boolean;
+  lines?: number;
   help?: boolean;
 };
+
+const PID_DIR = path.join(os.homedir(), '.local', 'share', 'tide-commander');
+const PID_FILE = path.join(PID_DIR, 'server.pid');
+const LOG_FILE = path.join(process.cwd(), 'logs', 'server.log');
 
 function printHelp(): void {
   console.log(`Tide Commander
 
 Usage:
-  tide-commander [options]
+  tide-commander [start] [options]
+  tide-commander stop
+  tide-commander status
+  tide-commander logs [--lines <n>] [--follow]
 
 Options:
   -p, --port <port>     Set server port (default: 5174)
   -H, --host <host>     Set server host (default: 127.0.0.1)
   -l, --listen-all      Listen on all network interfaces
+  -f, --foreground      Run in foreground (default is background)
+      --lines <n>       Number of log lines for logs command (default: 100)
+      --follow          Follow logs stream (like tail -f)
   -h, --help            Show this help message
 `);
 }
 
 function parseArgs(argv: string[]): CliOptions {
-  const options: CliOptions = {};
+  const options: CliOptions = { command: 'start' };
+  let commandParsed = false;
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
+
+    if (!arg.startsWith('-') && !commandParsed) {
+      if (arg === 'start' || arg === 'stop' || arg === 'status' || arg === 'logs') {
+        options.command = arg;
+        commandParsed = true;
+        continue;
+      }
+      throw new Error(`Unknown command: ${arg}`);
+    }
 
     switch (arg) {
       case '-p':
@@ -56,6 +84,30 @@ function parseArgs(argv: string[]): CliOptions {
       case '--listen-all':
         options.listenAll = true;
         break;
+      case '-f':
+      case '--foreground':
+        if (options.command === 'logs') {
+          options.follow = true;
+        } else {
+          options.foreground = true;
+        }
+        break;
+      case '--follow':
+        options.follow = true;
+        break;
+      case '--lines': {
+        const value = argv[i + 1];
+        if (!value || value.startsWith('-')) {
+          throw new Error(`Missing value for ${arg}`);
+        }
+        const lines = Number(value);
+        if (!Number.isInteger(lines) || lines < 1) {
+          throw new Error(`Invalid lines value: ${value}`);
+        }
+        options.lines = lines;
+        i += 1;
+        break;
+      }
       case '-h':
       case '--help':
         options.help = true;
@@ -75,12 +127,120 @@ function validatePort(value: string): void {
   }
 }
 
+function ensurePidDir(): void {
+  fs.mkdirSync(PID_DIR, { recursive: true });
+}
+
+function writePidFile(pid: number): void {
+  ensurePidDir();
+  fs.writeFileSync(PID_FILE, `${pid}\n`, 'utf8');
+}
+
+function clearPidFile(): void {
+  try {
+    fs.rmSync(PID_FILE, { force: true });
+  } catch {
+    // no-op
+  }
+}
+
+function readPidFile(): number | null {
+  try {
+    const raw = fs.readFileSync(PID_FILE, 'utf8').trim();
+    const pid = Number(raw);
+    return Number.isInteger(pid) && pid > 0 ? pid : null;
+  } catch {
+    return null;
+  }
+}
+
+function isRunning(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function stopCommand(): number {
+  const pid = readPidFile();
+  if (!pid) {
+    console.log('Tide Commander is not running');
+    return 0;
+  }
+
+  if (!isRunning(pid)) {
+    clearPidFile();
+    console.log('Removed stale PID file');
+    return 0;
+  }
+
+  process.kill(pid, 'SIGTERM');
+  console.log(`Sent SIGTERM to Tide Commander (PID: ${pid})`);
+  return 0;
+}
+
+function statusCommand(): number {
+  const pid = readPidFile();
+  if (!pid) {
+    console.log('Tide Commander is stopped');
+    return 1;
+  }
+
+  if (!isRunning(pid)) {
+    clearPidFile();
+    console.log('Tide Commander is stopped (stale PID file removed)');
+    return 1;
+  }
+
+  console.log(`Tide Commander is running (PID: ${pid})`);
+  return 0;
+}
+
+async function logsCommand(options: CliOptions): Promise<number> {
+  if (!fs.existsSync(LOG_FILE)) {
+    console.error(`Log file not found: ${LOG_FILE}`);
+    return 1;
+  }
+
+  const lines = options.lines ?? 100;
+  const args = ['-n', String(lines)];
+  if (options.follow) {
+    args.push('-f');
+  }
+  args.push(LOG_FILE);
+
+  const tail = spawn('tail', args, { stdio: 'inherit' });
+  return await new Promise<number>((resolve) => {
+    tail.on('error', (error) => {
+      console.error(`Failed to read logs: ${error.message}`);
+      resolve(1);
+    });
+    tail.on('exit', (code) => {
+      resolve(code ?? 0);
+    });
+  });
+}
+
 async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2));
 
   if (options.help) {
     printHelp();
     return;
+  }
+
+  if (options.command === 'stop') {
+    process.exit(stopCommand());
+  }
+
+  if (options.command === 'status') {
+    process.exit(statusCommand());
+  }
+
+  if (options.command === 'logs') {
+    process.exit(await logsCommand(options));
   }
 
   if (options.port) {
@@ -97,16 +257,45 @@ async function main(): Promise<void> {
 
   const cliDir = path.dirname(fileURLToPath(import.meta.url));
   const serverEntry = path.join(cliDir, 'index.js');
+  const runInForeground = options.foreground === true || process.env.TIDE_COMMANDER_FOREGROUND === '1';
+  const existingPid = readPidFile();
+
+  if (existingPid && isRunning(existingPid)) {
+    console.log(`Tide Commander is already running (PID: ${existingPid})`);
+    return;
+  }
+  clearPidFile();
+
   const child = spawn(
     process.execPath,
     ['--experimental-specifier-resolution=node', serverEntry],
     {
-      stdio: 'inherit',
+      stdio: runInForeground ? 'inherit' : 'ignore',
+      detached: !runInForeground,
       env: process.env
     }
   );
 
+  child.on('error', (error) => {
+    console.error(`Failed to start Tide Commander: ${error.message}`);
+    process.exit(1);
+  });
+
+  if (!runInForeground) {
+    if (child.pid) {
+      writePidFile(child.pid);
+    }
+    child.unref();
+    console.log(`Tide Commander started in background (PID: ${child.pid ?? 'unknown'})`);
+    return;
+  }
+
+  if (child.pid) {
+    writePidFile(child.pid);
+  }
+
   child.on('exit', (code, signal) => {
+    clearPidFile();
     if (signal) {
       process.kill(process.pid, signal);
       return;

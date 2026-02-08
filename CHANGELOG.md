@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.53.0] - 2026-02-08
+
+### Added
+- **CLI subcommands** - `tide-commander start|stop|status|logs` for full server lifecycle management
+- **Background mode** - Server runs in background by default with PID file tracking (`~/.local/share/tide-commander/server.pid`)
+- **Foreground mode** - `--foreground` flag to run server in the foreground
+- **Log viewing** - `tide-commander logs` with `--lines` and `--follow` flags
+- **Duplicate instance detection** - Prevents starting a second server when one is already running
+
+### Changed
+- **README restructured** - Getting started section now leads with global install and CLI usage; development setup moved to separate section
+- **Codex integration** - Removed "Experimental" label from Codex integration in roadmap
+
 ## [0.52.0] - 2026-02-08
 
 ### Added
