@@ -368,81 +368,87 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     };
 
     return (
-      <div
-        className={`output-line output-tool-use ${isStreaming ? 'output-streaming' : ''} ${isBashTool ? 'bash-clickable' : ''} ${bashNotificationCommand ? 'bash-notify-use' : ''}`}
-        onClick={isBashTool ? handleBashClick : undefined}
-        title={isBashTool ? 'Click to view output' : undefined}
-      >
-        <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
-        {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
-        <span className="output-tool-icon">{icon}</span>
-        <span className="output-tool-name">{toolName}</span>
+      <>
+        <div
+          className={`output-line output-tool-use ${isStreaming ? 'output-streaming' : ''} ${isBashTool ? 'bash-clickable' : ''} ${bashNotificationCommand ? 'bash-notify-use' : ''}`}
+          onClick={isBashTool ? handleBashClick : undefined}
+          title={isBashTool ? 'Click to view output' : undefined}
+        >
+          <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
+          {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+          <span className="output-tool-icon">{icon}</span>
+          <span className="output-tool-name">{toolName}</span>
 
-        {/* For Bash tools, show the command inline (more useful than file paths) */}
-        {isBashTool && bashCommand && (
-          bashNotificationCommand ? (
-            <span
-              className="output-tool-param bash-command bash-notify-param"
-              onClick={handleBashClick}
-              title={bashNotificationCommand.commandBody}
-              style={{ cursor: 'pointer' }}
-            >
-              {bashNotificationCommand.shellPrefix && (
-                <span className="bash-search-shell">{bashNotificationCommand.shellPrefix}</span>
-              )}
-              <span className="bash-notify-chip">notify</span>
-              {bashNotificationCommand.title && (
-                <span className="bash-notify-title">{bashNotificationCommand.title}</span>
-              )}
-              {bashNotificationCommand.message && (
-                <span className="bash-notify-message">{bashNotificationCommand.message}</span>
-              )}
-            </span>
-          ) : bashSearchCommand ? (
-            <span
-              className="output-tool-param bash-command bash-search-param"
-              onClick={handleBashClick}
-              title={bashSearchCommand.commandBody}
-              style={{ cursor: 'pointer' }}
-            >
-              {bashSearchCommand.shellPrefix && (
-                <span className="bash-search-shell">{bashSearchCommand.shellPrefix}</span>
-              )}
-              <span className="bash-search-chip">search</span>
-              <span className="bash-search-term">{bashSearchCommand.searchTerm}</span>
-            </span>
-          ) : (
-            <span
-              className="output-tool-param bash-command"
-              onClick={handleBashClick}
-              title="Click to view full output"
-              style={{ cursor: 'pointer', fontFamily: 'monospace', fontSize: '0.9em', color: '#888' }}
-            >
-              {bashCommand}
-            </span>
-          )
-        )}
+          {/* For Bash tools, show the command inline (more useful than file paths) */}
+          {isBashTool && bashCommand && (
+            bashNotificationCommand ? (
+              <span
+                className="output-tool-param bash-command bash-notify-param"
+                onClick={handleBashClick}
+                title={bashNotificationCommand.commandBody}
+                style={{ cursor: 'pointer' }}
+              >
+                {bashNotificationCommand.shellPrefix && (
+                  <span className="bash-search-shell">{bashNotificationCommand.shellPrefix}</span>
+                )}
+                <span className="bash-notify-chip">notify</span>
+                {bashNotificationCommand.title && (
+                  <span className="bash-notify-title">{bashNotificationCommand.title}</span>
+                )}
+                {bashNotificationCommand.message && (
+                  <span className="bash-notify-message">{bashNotificationCommand.message}</span>
+                )}
+              </span>
+            ) : bashSearchCommand ? (
+              <span
+                className="output-tool-param bash-command bash-search-param"
+                onClick={handleBashClick}
+                title={bashSearchCommand.commandBody}
+                style={{ cursor: 'pointer' }}
+              >
+                {bashSearchCommand.shellPrefix && (
+                  <span className="bash-search-shell">{bashSearchCommand.shellPrefix}</span>
+                )}
+                <span className="bash-search-chip">search</span>
+                <span className="bash-search-term">{bashSearchCommand.searchTerm}</span>
+              </span>
+            ) : (
+              <span
+                className="output-tool-param bash-command"
+                onClick={handleBashClick}
+                title="Click to view full output"
+                style={{ cursor: 'pointer', fontFamily: 'monospace', fontSize: '0.9em', color: '#888' }}
+              >
+                {bashCommand}
+              </span>
+            )
+          )}
 
-        {/* For file tools, show the file path */}
-        {!isBashTool && toolKeyParamOrFallback && (
-          <span
-            className={`output-tool-param ${isFileClickable ? 'clickable-path' : ''}`}
-            onClick={isFileClickable ? handleParamClick : undefined}
-            title={isFileClickable ? (toolName === 'Edit' && (_editData || editDataFallback) ? 'Click to view diff' : 'Click to view file') : undefined}
-            style={isFileClickable ? { cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' } : undefined}
-          >
-            {toolKeyParamOrFallback}
-          </span>
-        )}
+          {/* For file tools, show the file path */}
+          {!isBashTool && toolKeyParamOrFallback && (
+            <span
+              className={`output-tool-param ${isFileClickable ? 'clickable-path' : ''}`}
+              onClick={isFileClickable ? handleParamClick : undefined}
+              title={isFileClickable ? (toolName === 'Edit' && (_editData || editDataFallback) ? 'Click to view diff' : 'Click to view file') : undefined}
+              style={isFileClickable ? { cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' } : undefined}
+            >
+              {toolKeyParamOrFallback}
+            </span>
+          )}
 
+          {isBashTool && !_isRunning && (
+            <span className="bash-output-indicator">
+              {execTasks.some(t => t.status === 'completed') ? '✅' : (hasBashOutput ? '📄' : '💻')}
+            </span>
+          )}
+          {isStreaming && <span className="output-tool-loading">...</span>}
+        </div>
+
+        {/* Exec task output below bash command line */}
         {showInlineRunningTasks && (
-          <div className="output-tool-running-tasks">
+          <div className="exec-task-output-container">
             {runningExecTasks.map((task) => (
               <div key={task.taskId} className={`exec-task-inline status-${task.status}`}>
-                <div className="exec-task-inline-header">
-                  <span className="exec-task-inline-icon">{task.status === 'running' ? '⏳' : (task.status === 'completed' ? '✅' : '❌')}</span>
-                  <span className="exec-task-inline-cmd">{truncatedTaskCommand(task.command)}</span>
-                </div>
                 <div className="exec-task-inline-terminal">
                   <pre className="exec-task-inline-output">
                     {task.output.map((line, idx) => (
@@ -455,14 +461,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
             ))}
           </div>
         )}
-
-        {isBashTool && !_isRunning && (
-          <span className="bash-output-indicator">
-            {execTasks.some(t => t.status === 'completed') ? '✅' : (hasBashOutput ? '📄' : '💻')}
-          </span>
-        )}
-        {isStreaming && <span className="output-tool-loading">...</span>}
-      </div>
+      </>
     );
   }
 
