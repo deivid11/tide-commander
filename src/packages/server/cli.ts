@@ -286,7 +286,16 @@ async function main(): Promise<void> {
       writePidFile(child.pid);
     }
     child.unref();
-    console.log(`Tide Commander started in background (PID: ${child.pid ?? 'unknown'})`);
+    const port = process.env.PORT || '5174';
+    const host = process.env.HOST || 'localhost';
+    const url = `http://${host}:${port}`;
+
+    console.log('\n🌊 Tide Commander');
+    console.log('═══════════════════════════════════════════════════════════');
+    console.log(`✓ Started in background (PID: ${child.pid ?? 'unknown'})`);
+    console.log(`🚀 Open: ${url}`);
+    console.log(`📝 Logs: tail -f logs/server.log`);
+    console.log('═══════════════════════════════════════════════════════════\n');
     return;
   }
 

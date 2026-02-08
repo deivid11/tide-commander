@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.53.1] - 2026-02-08
+
+### Changed
+- **CLI startup banner** - Background mode now shows a formatted banner with server URL and log file path
+
 ## [0.53.0] - 2026-02-08
 
 ### Added
