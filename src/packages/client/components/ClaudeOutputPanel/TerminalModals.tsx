@@ -249,6 +249,8 @@ export function AgentInfoModal({ agent, isOpen, onClose }: AgentInfoModalProps) 
   const hasClassInstructions = classInstructions.length > 0;
   const hasAgentInstructions = agentInstructions.length > 0;
   const hasCustomPrompt = hasClassInstructions || hasAgentInstructions;
+  const showCombinedPrompt = hasClassInstructions && hasAgentInstructions;
+  const combinedPrompt = [classInstructions, agentInstructions].filter(Boolean).join('\n\n');
 
   const contextWindow = Math.max(1, agent.contextStats?.contextWindow || agent.contextLimit || 200000);
   const usedTokens = agent.contextStats?.totalTokens || agent.contextUsed || 0;
@@ -280,20 +282,34 @@ export function AgentInfoModal({ agent, isOpen, onClose }: AgentInfoModalProps) 
 
           <section className="agent-info-section">
             <h4>Prompt and Instructions</h4>
-            <div className="agent-info-grid">
-              <div className="agent-info-item">
-                <span>Custom prompt</span>
-                <strong className={hasCustomPrompt ? 'ok' : 'warn'}>
-                  {hasCustomPrompt ? 'Loaded' : 'Not configured'}
-                </strong>
-              </div>
-              <div className="agent-info-item">
+            <div className="agent-info-prompts">
+              {showCombinedPrompt && (
+                <div className="agent-info-prompt-block">
+                  <span>Custom prompt</span>
+                  <pre>{combinedPrompt}</pre>
+                </div>
+              )}
+              {!hasCustomPrompt && (
+                <div className="agent-info-prompt-block">
+                  <span>Custom prompt</span>
+                  <strong className="warn">Not configured</strong>
+                </div>
+              )}
+              <div className="agent-info-prompt-block">
                 <span>Class prompt</span>
-                <strong>{hasClassInstructions ? `${classInstructions.length} chars` : 'None'}</strong>
+                {hasClassInstructions ? (
+                  <pre>{classInstructions}</pre>
+                ) : (
+                  <strong>None</strong>
+                )}
               </div>
-              <div className="agent-info-item">
+              <div className="agent-info-prompt-block">
                 <span>Agent prompt</span>
-                <strong>{hasAgentInstructions ? `${agentInstructions.length} chars` : 'None'}</strong>
+                {hasAgentInstructions ? (
+                  <pre>{agentInstructions}</pre>
+                ) : (
+                  <strong>None</strong>
+                )}
               </div>
             </div>
           </section>

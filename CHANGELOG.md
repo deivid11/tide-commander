@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.49.2] - 2026-02-07
+
+### Changed
+- **Agent Info Modal** - Enhanced prompt display
+  - Display combined class and agent prompts side-by-side
+  - Show full prompt text in formatted blocks
+  - Better visual organization of prompt sections
+  - Improved readability with proper formatting
+
+- **Appended Instructions** - Clarified path requirements
+  - Emphasize full project-relative paths (never abbreviated)
+  - Better documentation of path conventions
+  - Clearer guidance on file reference formatting
+  - More explicit about avoiding absolute paths
+
+- **Styling** - Agent info modal improvements
+  - Enhanced prompt display styling
+  - Better visual hierarchy for prompt blocks
+  - Improved spacing and organization
+  - Better readability for long prompts
+
+### Fixed
+- **Prompt Display** - Better modal formatting
+  - Proper handling of combined prompts
+  - Better text wrapping and display
+  - Improved visual consistency
+
 ## [0.49.1] - 2026-02-07
 
 ### Added

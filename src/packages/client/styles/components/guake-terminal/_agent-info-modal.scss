@@ -129,6 +129,54 @@
   }
 }
 
+.agent-info-prompts {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.agent-info-prompt-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+
+  span {
+    color: $dracula-comment;
+    font-family: $font-mono;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.35px;
+  }
+
+  strong {
+    color: $dracula-fg;
+    font-size: 12px;
+    font-family: $font-mono;
+    font-weight: 600;
+
+    &.warn {
+      color: $dracula-orange;
+    }
+  }
+
+  pre {
+    margin: 0;
+    padding: 10px;
+    border: 1px solid rgba($dracula-current, 0.75);
+    border-radius: $radius-sm;
+    background: rgba($dracula-bg-darker, 0.45);
+    color: $dracula-fg;
+    font-family: $font-mono;
+    font-size: 12px;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 180px;
+    overflow: auto;
+  }
+}
+
 .agent-info-empty {
   color: $dracula-comment;
   font-family: $font-mono;
