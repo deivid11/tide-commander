@@ -240,6 +240,33 @@
   display: inline;  // Inline with timestamp
 }
 
+// Optional chip treatment for role labels where stronger separation is needed
+.output-role-chip,
+.history-role-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 75%, transparent);
+  background: color-mix(in srgb, var(--bg-primary) 65%, transparent);
+  line-height: 1.2;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+.output-role-user-chip {
+  color: color-mix(in srgb, var(--msg-user-text) 96%, #f2f6ff 4%);
+  border-color: color-mix(in srgb, var(--msg-user-text) 46%, var(--border-color) 54%);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--msg-user-text) 24%, var(--bg-primary) 76%),
+    color-mix(in srgb, var(--msg-user-text) 16%, var(--bg-primary) 84%)
+  );
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--msg-user-text) 24%, transparent),
+    0 1px 0 color-mix(in srgb, var(--bg-primary) 78%, transparent);
+}
+
 .output-session {
   color: var(--accent-purple);
   font-style: italic;

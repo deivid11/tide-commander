@@ -36,13 +36,6 @@ function isLikelyFileText(value: string): boolean {
   return trimmed.includes('.') && (trimmed.includes('/') || /^[A-Za-z0-9._-]+\.[A-Za-z0-9._-]+$/.test(trimmed));
 }
 
-function stripFileReferenceSuffix(fileRef: string): string {
-  const withoutAnchor = fileRef.replace(/#L\d+(?:C\d+)?$/i, '');
-  const hasLineSuffix = /\/[^:\s]+:\d+(?::\d+)?$/.test(withoutAnchor);
-  if (!hasLineSuffix) return withoutAnchor;
-  return withoutAnchor.replace(/:\d+(?::\d+)?$/, '');
-}
-
 // Create markdown components that use CSS variables directly
 // This allows themes to change without recreating components
 export const createMarkdownComponents = ({ onFileClick }: MarkdownComponentOptions = {}): Components => ({
@@ -142,17 +135,16 @@ export const createMarkdownComponents = ({ onFileClick }: MarkdownComponentOptio
       || (normalizedHref && isLikelyFileHref(normalizedHref) ? normalizedHref : null)
       || ((!normalizedHref || normalizedHref === '#') && isLikelyFileText(textRef) ? textRef : null);
     if (fileRef && onFileClick) {
-      const path = stripFileReferenceSuffix(fileRef);
       return (
         <a
           href="#"
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            onFileClick(path);
+            onFileClick(fileRef);
           }}
           className="clickable-path"
-          title={`Open ${path}`}
+          title={`Open ${fileRef}`}
         >
           {children}
         </a>

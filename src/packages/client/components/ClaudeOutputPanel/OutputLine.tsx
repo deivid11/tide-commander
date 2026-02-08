@@ -273,7 +273,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
           <DelegatedTaskHeader bossName={delegation.bossName} taskCommand={delegation.taskCommand} />
         ) : (
           <>
-            <span className="output-role">You</span>
+            <span className="output-role output-role-chip output-role-user-chip">You</span>
             {parsed.hasContext && parsed.context && (
               <BossContext key={`boss-stream-${text.slice(0, 50)}`} context={parsed.context} onFileClick={onFileClick} />
             )}

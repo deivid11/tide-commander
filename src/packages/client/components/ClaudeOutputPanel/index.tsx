@@ -35,7 +35,7 @@ import {
   STORAGE_KEYS,
   getStorageString,
 } from '../../utils/storage';
-import { resolveAgentFilePath } from '../../utils/filePaths';
+import { resolveAgentFileReference } from '../../utils/filePaths';
 
 // Import types
 import type { ViewMode, EnrichedHistoryMessage } from './types';
@@ -490,8 +490,12 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
     setImageModal({ url, name });
   }, []);
 
-  const handleFileClick = useCallback((path: string, editData?: { oldString?: string; newString?: string; operation?: string; highlightRange?: { offset: number; limit: number } }) => {
-    store.setFileViewerPath(resolveAgentFilePath(path, activeAgent?.cwd), editData);
+  const handleFileClick = useCallback((path: string, editData?: { oldString?: string; newString?: string; operation?: string; highlightRange?: { offset: number; limit: number }; targetLine?: number }) => {
+    const ref = resolveAgentFileReference(path, activeAgent?.cwd);
+    const mergedEditData = ref.line
+      ? { ...(editData || {}), targetLine: ref.line }
+      : editData;
+    store.setFileViewerPath(ref.path, mergedEditData);
   }, [activeAgent?.cwd]);
 
   const handleBashClick = useCallback((command: string, output: string) => {

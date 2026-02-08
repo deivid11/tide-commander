@@ -628,11 +628,13 @@ export async function handleReattachAgent(
   try {
     log.log(` Reattaching agent ${payload.agentId} to existing session ${agent.sessionId}`);
 
-    // Clear the detached flag
+    // Clear detached mode while preserving "working" status if this agent
+    // already appears to be processing. This avoids flipping back/forth.
+    const shouldRemainWorking = agent.status === 'working';
     agentService.updateAgent(payload.agentId, {
       isDetached: false,
-      status: 'idle',
-      currentTask: undefined,
+      status: shouldRemainWorking ? 'working' : 'idle',
+      currentTask: shouldRemainWorking ? (agent.currentTask || 'Processing...') : undefined,
       currentTool: undefined,
     });
 

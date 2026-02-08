@@ -237,6 +237,14 @@
     opacity: 0.5;
     min-width: 40px;
   }
+
+  .file-viewer-line-num-target {
+    opacity: 1;
+    color: var(--accent-yellow);
+    background: color-mix(in srgb, var(--accent-yellow) 12%, transparent);
+    border-left: 2px solid var(--accent-yellow);
+    padding-left: 6px;
+  }
 }
 
 .file-viewer-code {
@@ -263,6 +271,61 @@
     padding: 0;
     font-size: inherit;
     color: inherit;
+    display: block;
+    font-family: inherit;
+    white-space: inherit;
+    line-height: inherit !important;
+  }
+
+  .token {
+    line-height: inherit;
+  }
+}
+
+// Normal code view rendered line-by-line with Prism HTML
+.file-viewer-code-lines {
+  padding: 8px 0;
+
+  .file-line {
+    display: flex;
+    align-items: baseline;
+    min-height: calc(1.6em);
+    line-height: 1.6;
+    padding: 0 16px;
+
+    &.file-line-highlighted {
+      background: color-mix(in srgb, var(--accent-yellow) 12%, transparent);
+      border-left: 2px solid var(--accent-yellow);
+      padding-left: 14px;
+    }
+  }
+
+  .file-line-num {
+    flex-shrink: 0;
+    width: 45px;
+    padding-right: 12px;
+    text-align: right;
+    font-family: $font-mono;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--text-muted);
+    opacity: 0.55;
+    user-select: none;
+  }
+
+  .file-viewer-line-num-target {
+    opacity: 1;
+    color: var(--accent-yellow);
+  }
+
+  code {
+    flex: 1;
+    min-width: 0;
+    display: block;
+    background: none;
+    padding: 0;
+    white-space: pre;
+    line-height: 1.6 !important;
   }
 }
 

@@ -2,6 +2,50 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.49.1] - 2026-02-07
+
+### Added
+- **Runtime Service Decomposition** - Better service organization
+  - New `runtime-command-execution.ts` for command handling
+  - New `runtime-events.ts` for event management
+  - New `runtime-status-sync.ts` for status synchronization
+  - New `runtime-subagents.ts` for subagent orchestration
+  - New `runtime-watchdog.ts` for process monitoring
+  - New `prompts/tide-commander.ts` for prompt templates
+
+- **Client-Side Improvements** - Better UI and utilities
+  - New `filePaths.test.ts` with comprehensive path utility tests
+  - Enhanced file viewer modal with improved styling
+  - Better output line rendering
+  - Improved PiP agent view
+
+- **Styling Enhancements** - Better visual presentation
+  - Enhanced file viewer styling
+  - Better terminal history display
+  - Improved terminal output formatting
+
+### Changed
+- **Runtime Service** - Simplified and delegated
+  - Reduced from 1,138 to 12k lines with better delegation
+  - Commands now handled by runtime-command-execution
+  - Events now managed by runtime-events
+  - Status sync handled by runtime-status-sync
+  - Subagent orchestration via runtime-subagents
+  - Process watchdog monitoring via runtime-watchdog
+
+- **Component Updates** - Better functionality
+  - Improved output panel components
+  - Better agent panel rendering
+  - Enhanced file viewer modal
+  - Better history line display
+
+### Fixed
+- **Process Management** - Better reliability
+  - Improved status synchronization
+  - Better subagent tracking
+  - Enhanced watchdog monitoring
+  - More robust command execution
+
 ## [0.49.0] - 2026-02-07
 
 ### Changed

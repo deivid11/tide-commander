@@ -416,7 +416,7 @@ export const HistoryLine = memo(function HistoryLine({
     return (
       <div className={className}>
         {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
-        <span className="history-role">You</span>
+        <span className="history-role history-role-chip">You</span>
         <span className="history-content user-prompt-text">
           {parsedBoss.hasContext && parsedBoss.context && (
             <BossContext key={`boss-${timestamp || content.slice(0, 50)}`} context={parsedBoss.context} onFileClick={onFileClick ? (path) => onFileClick(path) : undefined} />
@@ -480,7 +480,7 @@ export const HistoryLine = memo(function HistoryLine({
   return (
     <div className={className}>
       {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
-      <span className="history-role">{isUser ? 'You' : assistantOrSystemRoleLabel}</span>
+      <span className={`history-role ${isUser ? 'history-role-chip' : ''}`}>{isUser ? 'You' : assistantOrSystemRoleLabel}</span>
       <span className={`history-content ${isUser ? 'user-prompt-text' : 'markdown-content'}`}>
         {highlight ? <div>{highlightText(content, highlight)}</div> : (
           isUser ? renderUserPromptContent(content, onImageClick) : renderContentWithImages(content, onImageClick, onFileClick)

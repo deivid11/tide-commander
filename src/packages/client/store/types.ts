@@ -198,6 +198,8 @@ export interface StoreState {
     operation?: string;
     // For Read tool - highlight these lines
     highlightRange?: { offset: number; limit: number };
+    // Optional target line from `path:line` references
+    targetLine?: number;
   } | null;
   // File explorer folder path (to open file explorer from other components)
   explorerFolderPath: string | null;

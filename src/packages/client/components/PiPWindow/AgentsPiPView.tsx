@@ -19,6 +19,7 @@ import type { EnrichedHistoryMessage, ViewMode } from '../ClaudeOutputPanel/type
 // Reuse UnitPanel components
 import { ContextBar } from '../UnitPanel/AgentStatsRow';
 import { calculateContextInfo } from '../UnitPanel/agentUtils';
+import { resolveAgentFileReference } from '../../utils/filePaths';
 
 import './pip-styles.scss';
 
@@ -431,9 +432,13 @@ function ConversationView({ agentId, onBack }: ConversationViewProps) {
   }, [agentId]);
 
   // File click handler (open file viewer)
-  const handleFileClick = useCallback((path: string, editData?: { oldString?: string; newString?: string; operation?: string; highlightRange?: { offset: number; limit: number } }) => {
-    store.setFileViewerPath(path, editData);
-  }, []);
+  const handleFileClick = useCallback((path: string, editData?: { oldString?: string; newString?: string; operation?: string; highlightRange?: { offset: number; limit: number }; targetLine?: number }) => {
+    const ref = resolveAgentFileReference(path, agent?.cwd);
+    const mergedEditData = ref.line
+      ? { ...(editData || {}), targetLine: ref.line }
+      : editData;
+    store.setFileViewerPath(ref.path, mergedEditData);
+  }, [agent?.cwd]);
 
   if (!agent) {
     return (

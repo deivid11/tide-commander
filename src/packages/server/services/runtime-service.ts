@@ -3,17 +3,14 @@
  * Manages Claude/Codex runtime runners and command execution
  */
 
-import { parseContextOutput, parseUsageOutput } from '../claude/backend.js';
+import { parseUsageOutput } from '../claude/backend.js';
 import {
-  getSessionActivityStatus,
-  loadSession,
   isClaudeProcessRunningInCwd,
   isCodexProcessRunningInCwd,
   killClaudeProcessInCwd,
   killCodexProcessInCwd,
 } from '../claude/session-loader.js';
 import * as agentService from './agent-service.js';
-import * as supervisorService from './supervisor-service.js';
 import { loadRunningProcesses, isProcessRunning } from '../data/index.js';
 import { logger } from '../utils/logger.js';
 import {
@@ -22,10 +19,19 @@ import {
   type RuntimeProvider,
   type RuntimeRunner,
   type RuntimeEvent,
-  type CustomAgentDefinition as RuntimeCustomAgentDefinition,
 } from '../runtime/index.js';
-import type { AgentProvider, ContextStats } from '../../shared/types.js';
-import type { SessionMessage } from '../claude/session-loader.js';
+import type { AgentProvider } from '../../shared/types.js';
+import {
+  createRuntimeCommandExecution,
+  type CustomAgentConfig,
+} from './runtime-command-execution.js';
+import { createRuntimeEventHandlers } from './runtime-events.js';
+import { createRuntimeStatusSync } from './runtime-status-sync.js';
+import {
+  getActiveSubagentByToolUseId as getTrackedSubagentByToolUseId,
+  getActiveSubagentsForAgent as getTrackedSubagentsForAgent,
+  type ActiveSubagent,
+} from './runtime-subagents.js';
 
 const log = logger.claude;
 
@@ -40,7 +46,6 @@ export interface RuntimeServiceEvents {
 // Backward-compatible alias while call sites migrate
 export type ClaudeServiceEvents = RuntimeServiceEvents;
 
-// Event listeners
 type EventListener<K extends keyof RuntimeServiceEvents> = RuntimeServiceEvents[K];
 const eventListeners = new Map<keyof RuntimeServiceEvents, Set<EventListener<any>>>();
 
@@ -64,134 +69,7 @@ function getRunnerForAgent(agentId: string): RuntimeRunner | null {
 }
 
 function isAnyRunnerActive(agentId: string): boolean {
-  return Array.from(runners.values()).some((r) => r.isRunning(agentId));
-}
-
-// Track agents with pending silent /context refresh to prevent recursive loops
-// When sendSilentCommand sends /context, the agentId is added here
-// When step_complete fires, we check this set to avoid triggering another /context
-const pendingSilentContextRefresh = new Set<string>();
-
-// ============================================================================
-// Subagent Tracking (Task tool spawned subagents)
-// ============================================================================
-
-// Map: toolUseId -> subagent info (tracks active Task tool subagents)
-interface ActiveSubagent {
-  id: string;
-  parentAgentId: string;
-  toolUseId: string;
-  name: string;
-  description: string;
-  subagentType: string;
-  model?: string;
-  startedAt: number;
-}
-const activeSubagents = new Map<string, ActiveSubagent>();
-
-// Reverse lookup: subagentId -> toolUseId
-const subagentIdToToolUseId = new Map<string, string>();
-
-let subagentCounter = 0;
-function generateSubagentId(): string {
-  return `sub_${Date.now().toString(36)}_${(subagentCounter++).toString(36)}`;
-}
-
-// Track agents that received step_complete for their current turn
-// This is used to avoid duplicate /context refresh in handleComplete
-// Set in step_complete handler, cleared in handleComplete
-const stepCompleteReceived = new Set<string>();
-const DEFAULT_CODEX_CONTEXT_WINDOW = 200000;
-const CODEX_ROLLING_CONTEXT_TURNS = 40;
-const CODEX_PLAUSIBLE_USAGE_MULTIPLIER = 1.2;
-const CODEX_RECOVERABLE_RESUME_ERRORS = [
-  'state db missing rollout path for thread',
-  'killing the current session',
-];
-const CODEX_RECOVERY_HISTORY_LIMIT = 12;
-const CODEX_RECOVERY_LINE_MAX_CHARS = 400;
-const codexRecoveryState = new Map<string, { signature: string; attempts: number }>();
-const codexContextGrowthHistory = new Map<string, number[]>();
-
-function detectRecoverableCodexResumeError(error: string): string | null {
-  const normalizedError = String(error || '').toLowerCase();
-  for (const marker of CODEX_RECOVERABLE_RESUME_ERRORS) {
-    if (normalizedError.includes(marker)) {
-      return marker;
-    }
-  }
-  return null;
-}
-
-function truncateRecoveryText(text: string, maxChars: number = CODEX_RECOVERY_LINE_MAX_CHARS): string {
-  if (text.length <= maxChars) return text;
-  return `${text.slice(0, maxChars)}...`;
-}
-
-function estimateTokensFromText(text: string | undefined): number {
-  if (!text) return 0;
-  const normalized = text.trim();
-  if (!normalized) return 0;
-  // Cheap approximation for GPT tokenization.
-  return Math.max(1, Math.ceil(normalized.length / 4));
-}
-
-function updateCodexRollingContextEstimate(agentId: string, turnGrowth: number): number {
-  const history = codexContextGrowthHistory.get(agentId) || [];
-  history.push(Math.max(0, Math.round(turnGrowth)));
-  if (history.length > CODEX_ROLLING_CONTEXT_TURNS) {
-    history.splice(0, history.length - CODEX_ROLLING_CONTEXT_TURNS);
-  }
-  codexContextGrowthHistory.set(agentId, history);
-  return history.reduce((sum, tokens) => sum + tokens, 0);
-}
-
-function buildCodexRecoverySystemPrompt(sessionId: string, messages: SessionMessage[]): string {
-  const lines = messages.slice(-CODEX_RECOVERY_HISTORY_LIMIT).map((msg) => {
-    const role = msg.type === 'assistant'
-      ? 'Assistant'
-      : msg.type === 'user'
-        ? 'User'
-        : msg.type === 'tool_use'
-          ? `ToolUse(${msg.toolName || 'unknown'})`
-          : `ToolResult(${msg.toolName || 'unknown'})`;
-    const content = truncateRecoveryText((msg.content || '').replace(/\s+/g, ' ').trim());
-    return `${role}: ${content}`;
-  });
-
-  return [
-    `Previous Codex session (${sessionId}) could not be resumed due to stale state.`,
-    'Use this recovered recent transcript to continue seamlessly:',
-    lines.join('\n'),
-    'Continue with the latest user request. If context is still ambiguous, ask a focused clarifying question.',
-  ].join('\n\n');
-}
-
-function buildEstimatedCodexContextStats(
-  totalTokens: number,
-  contextWindow: number,
-  model?: string
-): ContextStats {
-  const safeWindow = contextWindow > 0 ? contextWindow : DEFAULT_CODEX_CONTEXT_WINDOW;
-  const usedPercent = Math.min(100, Math.max(0, Math.round((totalTokens / safeWindow) * 100)));
-  const freeTokens = Math.max(0, safeWindow - totalTokens);
-  const messagesPercent = Number(((totalTokens / safeWindow) * 100).toFixed(1));
-  const freePercent = Number(((freeTokens / safeWindow) * 100).toFixed(1));
-
-  return {
-    model: model || 'codex',
-    contextWindow: safeWindow,
-    totalTokens,
-    usedPercent,
-    categories: {
-      systemPrompt: { tokens: 0, percent: 0 },
-      systemTools: { tokens: 0, percent: 0 },
-      messages: { tokens: totalTokens, percent: messagesPercent },
-      freeSpace: { tokens: freeTokens, percent: freePercent },
-      autocompactBuffer: { tokens: 0, percent: 0 },
-    },
-    lastUpdated: Date.now(),
-  };
+  return Array.from(runners.values()).some((runner) => runner.isRunning(agentId));
 }
 
 // Command started callback (set by websocket handler)
@@ -206,18 +84,6 @@ function notifyCommandStarted(agentId: string, command: string): void {
     commandStartedCallback(agentId, command);
   }
 }
-
-// ============================================================================
-// Initialization
-// ============================================================================
-
-// Interval for periodic status sync (30 seconds)
-const STATUS_SYNC_INTERVAL = 30000;
-let statusSyncTimer: NodeJS.Timeout | null = null;
-
-// Interval for polling orphaned agents (10 seconds)
-const ORPHAN_POLL_INTERVAL = 10000;
-let orphanPollTimer: NodeJS.Timeout | null = null;
 
 // Callback for broadcasting session updates to clients
 let sessionUpdateCallback: ((agentId: string) => void) | null = null;
@@ -240,23 +106,118 @@ async function killDetachedProviderProcessInCwd(provider: AgentProvider, cwd: st
   return killClaudeProcessInCwd(cwd);
 }
 
+export function on<K extends keyof RuntimeServiceEvents>(
+  event: K,
+  listener: RuntimeServiceEvents[K]
+): void {
+  if (!eventListeners.has(event)) {
+    eventListeners.set(event, new Set());
+  }
+  eventListeners.get(event)!.add(listener);
+}
+
+export function off<K extends keyof RuntimeServiceEvents>(
+  event: K,
+  listener: RuntimeServiceEvents[K]
+): void {
+  eventListeners.get(event)?.delete(listener);
+}
+
+function emit<K extends keyof RuntimeServiceEvents>(
+  event: K,
+  ...args: Parameters<RuntimeServiceEvents[K]>
+): void {
+  const listeners = eventListeners.get(event);
+  const listenerCount = listeners?.size || 0;
+
+  if (event === 'event') {
+    const standardEvent = args[1] as any;
+    log.log(`[EMIT] event: type=${standardEvent?.type} tool=${standardEvent?.toolName || 'n/a'} listeners=${listenerCount}`);
+  }
+
+  if (listeners) {
+    listeners.forEach((listener) => (listener as Function)(...args));
+  }
+}
+
+function scheduleSilentContextRefresh(agentId: string, reason: 'step_complete' | 'handle_complete'): void {
+  setTimeout(() => {
+    if (reason === 'step_complete') {
+      log.log(`[step_complete] Sending silent /context for agent ${agentId}`);
+    }
+    if (reason === 'handle_complete') {
+      log.log(`[handleComplete] Triggering fallback /context refresh for agent ${agentId}`);
+    }
+    sendSilentCommand(agentId, '/context').catch((err) => {
+      if (reason === 'step_complete') {
+        log.log(`[step_complete] Silent /context failed for ${agentId}: ${err}`);
+      } else {
+        log.log(`[handleComplete] Fallback /context failed for ${agentId}: ${err}`);
+      }
+    });
+  }, 300);
+}
+
+const commandExecution = createRuntimeCommandExecution({
+  log,
+  getRunner,
+  getRunnerForAgent,
+  notifyCommandStarted,
+  emitOutput: (agentId, text, isStreaming, subagentName, uuid) => {
+    emit('output', agentId, text, isStreaming, subagentName, uuid);
+  },
+  killDetachedProviderProcessInCwd,
+});
+
+const runtimeEvents = createRuntimeEventHandlers({
+  log,
+  emitEvent: (agentId, event) => emit('event', agentId, event),
+  emitOutput: (agentId, text, isStreaming, subagentName, uuid, toolMeta) => {
+    emit('output', agentId, text, isStreaming, subagentName, uuid, toolMeta);
+  },
+  emitComplete: (agentId, success) => emit('complete', agentId, success),
+  emitError: (agentId, error) => emit('error', agentId, error),
+  parseUsageOutput: (raw) => parseUsageOutput(raw),
+  executeCommand: (agentId, command, systemPrompt, forceNewSession) =>
+    commandExecution.executeCommand(agentId, command, systemPrompt, forceNewSession),
+  scheduleSilentContextRefresh,
+});
+
+const statusSync = createRuntimeStatusSync({
+  log,
+  getRunnerForAgent,
+  isProviderProcessRunningInCwd,
+  onSessionUpdate: (agentId) => {
+    if (sessionUpdateCallback) {
+      sessionUpdateCallback(agentId);
+    }
+  },
+});
+
+// Interval for periodic status sync (30 seconds)
+const STATUS_SYNC_INTERVAL = 30000;
+let statusSyncTimer: NodeJS.Timeout | null = null;
+
+// Interval for polling orphaned agents (10 seconds)
+const ORPHAN_POLL_INTERVAL = 10000;
+let orphanPollTimer: NodeJS.Timeout | null = null;
+
 export function init(): void {
   runners.set('claude', runtimeProviders.claude.createRunner({
-    onEvent: handleEvent,
-    onOutput: handleOutput,
-    onSessionId: handleSessionId,
-    onComplete: handleComplete,
-    onError: handleError,
+    onEvent: runtimeEvents.handleEvent,
+    onOutput: runtimeEvents.handleOutput,
+    onSessionId: runtimeEvents.handleSessionId,
+    onComplete: runtimeEvents.handleComplete,
+    onError: runtimeEvents.handleError,
   }));
   runners.set('codex', runtimeProviders.codex.createRunner({
-    onEvent: handleEvent,
-    onOutput: handleOutput,
-    onSessionId: handleSessionId,
-    onComplete: handleComplete,
-    onError: handleError,
+    onEvent: runtimeEvents.handleEvent,
+    onOutput: runtimeEvents.handleOutput,
+    onSessionId: runtimeEvents.handleSessionId,
+    onComplete: runtimeEvents.handleComplete,
+    onError: runtimeEvents.handleError,
   }));
 
-  // Start periodic status sync to catch processes that die unexpectedly
   if (statusSyncTimer) {
     clearInterval(statusSyncTimer);
   }
@@ -264,12 +225,11 @@ export function init(): void {
     syncAllAgentStatus();
   }, STATUS_SYNC_INTERVAL);
 
-  // Start polling for orphaned agents with active sessions
   if (orphanPollTimer) {
     clearInterval(orphanPollTimer);
   }
   orphanPollTimer = setInterval(() => {
-    pollOrphanedAgents();
+    statusSync.pollOrphanedAgents();
   }, ORPHAN_POLL_INTERVAL);
 
   log.log(' Initialized with periodic status sync and orphan polling');
@@ -296,778 +256,32 @@ export async function shutdown(killProcesses: boolean = false): Promise<void> {
   runners.clear();
 }
 
-/**
- * Poll orphaned agents (those with 'working' status but no tracked process)
- * to check if their session files have been updated, indicating the detached
- * provider process is still active.
- */
-async function pollOrphanedAgents(): Promise<void> {
-  const agents = agentService.getAllAgents();
-
-  for (const agent of agents) {
-    // Only poll agents that are marked as working but we're not tracking their process
-    if (agent.status !== 'working') continue;
-
-    const isTracked = getRunnerForAgent(agent.id)?.isRunning(agent.id) ?? false;
-    if (isTracked) continue;
-
-    // This is an orphaned working agent - check its session activity
-    if (!agent.sessionId || !agent.cwd) continue;
-
-    try {
-      const activity = await getSessionActivityStatus(agent.cwd, agent.sessionId, 60);
-
-      if (activity && activity.isActive) {
-        // Session file was updated recently - the orphaned process is still working
-        // Notify clients to refresh the history for this agent
-        if (sessionUpdateCallback) {
-          sessionUpdateCallback(agent.id);
-        }
-      } else if (activity && !activity.isActive) {
-        // Session file hasn't been updated in 60+ seconds - process likely finished
-        // Check if there's still an orphaned process running
-        const provider = agent.provider ?? 'claude';
-        const hasOrphanedProcess = await isProviderProcessRunningInCwd(provider, agent.cwd);
-
-        if (!hasOrphanedProcess) {
-          // No orphaned process and no recent activity - mark as idle
-          log.log(`Orphaned agent ${agent.id} has no activity - marking as idle`);
-          agentService.updateAgent(agent.id, {
-            status: 'idle',
-            currentTask: undefined,
-            currentTool: undefined,
-            isDetached: false,
-          });
-        }
-      }
-    } catch (err) {
-      // Failed to check session activity, skip this agent
-      log.error(`Failed to poll orphaned agent ${agent.id}:`, err);
-    }
-  }
-}
-
-// ============================================================================
-// Subagent Public API
-// ============================================================================
-
 /** Get an active subagent by toolUseId */
 export function getActiveSubagentByToolUseId(toolUseId: string): ActiveSubagent | undefined {
-  return activeSubagents.get(toolUseId);
+  return getTrackedSubagentByToolUseId(toolUseId);
 }
 
 /** Get all active subagents for a parent agent */
 export function getActiveSubagentsForAgent(parentAgentId: string): ActiveSubagent[] {
-  return Array.from(activeSubagents.values()).filter(s => s.parentAgentId === parentAgentId);
+  return getTrackedSubagentsForAgent(parentAgentId);
 }
 
-// ============================================================================
-// Event System
-// ============================================================================
-
-export function on<K extends keyof RuntimeServiceEvents>(
-  event: K,
-  listener: RuntimeServiceEvents[K]
-): void {
-  if (!eventListeners.has(event)) {
-    eventListeners.set(event, new Set());
-  }
-  eventListeners.get(event)!.add(listener);
-}
-
-export function off<K extends keyof RuntimeServiceEvents>(
-  event: K,
-  listener: RuntimeServiceEvents[K]
-): void {
-  eventListeners.get(event)?.delete(listener);
-}
-
-function emit<K extends keyof RuntimeServiceEvents>(
-  event: K,
-  ...args: Parameters<RuntimeServiceEvents[K]>
-): void {
-  const listeners = eventListeners.get(event);
-  const listenerCount = listeners?.size || 0;
-
-  // Debug log for event emissions
-  if (event === 'event') {
-    const standardEvent = args[1] as any;
-    log.log(`[EMIT] event: type=${standardEvent?.type} tool=${standardEvent?.toolName || 'n/a'} listeners=${listenerCount}`);
-  }
-
-  if (listeners) {
-    listeners.forEach((listener) => (listener as Function)(...args));
-  }
-}
-
-// ============================================================================
-// Runner Callbacks
-// ============================================================================
-
-function handleEvent(agentId: string, event: RuntimeEvent): void {
-  const agent = agentService.getAgent(agentId);
-  if (!agent) {
-    return;
-  }
-
-  switch (event.type) {
-    case 'init':
-      agentService.updateAgent(agentId, { status: 'working' });
-      break;
-
-    case 'tool_start':
-      agentService.updateAgent(agentId, {
-        status: 'working',
-        currentTool: event.toolName,
-      });
-      // Track Task tool subagent spawning
-      if (event.toolName === 'Task' && event.toolUseId && event.subagentName) {
-        const subId = generateSubagentId();
-        const subagent: ActiveSubagent = {
-          id: subId,
-          parentAgentId: agentId,
-          toolUseId: event.toolUseId,
-          name: event.subagentName,
-          description: event.subagentDescription || '',
-          subagentType: event.subagentType || 'general-purpose',
-          model: event.subagentModel,
-          startedAt: Date.now(),
-        };
-        activeSubagents.set(event.toolUseId, subagent);
-        subagentIdToToolUseId.set(subId, event.toolUseId);
-        log.log(`[Subagent] Started: ${subagent.name} (${subId}) for agent ${agentId}, toolUseId=${event.toolUseId}`);
-        // Emit subagent_started event for websocket handler to broadcast
-        emit('event', agentId, {
-          ...event,
-          type: 'tool_start',
-          // Attach subagent info so handler can create the Subagent object
-        });
-      }
-      break;
-
-    case 'tool_result':
-      // Check if this is a Task tool result (subagent completion)
-      if (event.toolName === 'Task' && event.toolUseId) {
-        const subagent = activeSubagents.get(event.toolUseId);
-        if (subagent) {
-          log.log(`[Subagent] Completed: ${subagent.name} (${subagent.id}) for agent ${agentId}`);
-          // Attach subagent name to the event BEFORE cleaning up so websocket handler can use it
-          event.subagentName = subagent.name;
-          // Clean up
-          activeSubagents.delete(event.toolUseId);
-          subagentIdToToolUseId.delete(subagent.id);
-        }
-      }
-      agentService.updateAgent(agentId, { currentTool: undefined });
-      break;
-
-    case 'step_complete': {
-      // Mark that step_complete was received for this agent's turn
-      // This prevents duplicate /context refresh in handleComplete
-      stepCompleteReceived.add(agentId);
-
-      const isClaudeProvider = (agent.provider ?? 'claude') === 'claude';
-      const isCodexProvider = (agent.provider ?? 'claude') === 'codex';
-      const lastTask = agent.lastAssignedTask?.trim() || '';
-      const isContextCommand = lastTask === '/context' || lastTask === '/cost' || lastTask === '/compact';
-
-      // step_complete signals provider finished processing this turn.
-      // Claude: use cache/input/output token breakdown.
-      // Codex: estimate from turn usage.
-      let contextUsed = agent.contextUsed || 0;
-      let contextLimit = agent.contextLimit || 200000;
-
-      if (event.modelUsage) {
-        const cacheRead = event.modelUsage.cacheReadInputTokens || 0;
-        const cacheCreation = event.modelUsage.cacheCreationInputTokens || 0;
-        const inputTokens = event.modelUsage.inputTokens || 0;
-        const outputTokens = event.modelUsage.outputTokens || 0;
-        contextLimit = event.modelUsage.contextWindow || 200000;
-        if (isCodexProvider) {
-          const turnGrowthEstimate = estimateTokensFromText(agent.lastAssignedTask) + outputTokens;
-          const rollingEstimate = updateCodexRollingContextEstimate(agentId, turnGrowthEstimate);
-          const plausibleSnapshotLimit = contextLimit * CODEX_PLAUSIBLE_USAGE_MULTIPLIER;
-          const hasPlausibleSnapshot = inputTokens > 0 && inputTokens <= plausibleSnapshotLimit;
-          // Codex usage can be aggregate turn cost in some resume/error paths.
-          contextUsed = hasPlausibleSnapshot
-            ? Math.max(rollingEstimate, inputTokens + outputTokens)
-            : rollingEstimate;
-        } else {
-          contextUsed = cacheRead + cacheCreation + inputTokens + outputTokens;
-        }
-      } else if (event.tokens) {
-        if (isClaudeProvider) {
-          const cacheRead = event.tokens.cacheRead || 0;
-          const cacheCreation = event.tokens.cacheCreation || 0;
-          const inputTokens = event.tokens.input || 0;
-          const outputTokens = event.tokens.output || 0;
-          contextUsed = cacheRead + cacheCreation + inputTokens + outputTokens;
-        } else {
-          const inputTokens = event.tokens.input || 0;
-          const outputTokens = event.tokens.output || 0;
-          const turnGrowthEstimate = estimateTokensFromText(agent.lastAssignedTask) + outputTokens;
-          const rollingEstimate = updateCodexRollingContextEstimate(agentId, turnGrowthEstimate);
-          const plausibleSnapshotLimit = contextLimit * CODEX_PLAUSIBLE_USAGE_MULTIPLIER;
-          const hasPlausibleSnapshot = inputTokens > 0 && inputTokens <= plausibleSnapshotLimit;
-          contextUsed = hasPlausibleSnapshot
-            ? Math.max(rollingEstimate, inputTokens + outputTokens)
-            : rollingEstimate;
-          contextLimit = agent.contextLimit || DEFAULT_CODEX_CONTEXT_WINDOW;
-        }
-      }
-
-      // Claude can emit error turns with empty usage/modelUsage (e.g. invalid --resume session).
-      // In these cases, keep previous context instead of overwriting with zeros/stale values.
-      const hasZeroTokenUsage = !!event.tokens
-        && (event.tokens.input || 0) === 0
-        && (event.tokens.output || 0) === 0
-        && (event.tokens.cacheRead || 0) === 0
-        && (event.tokens.cacheCreation || 0) === 0;
-      const hasNoModelUsage = !event.modelUsage;
-      if (isClaudeProvider && hasZeroTokenUsage && hasNoModelUsage && !isContextCommand) {
-        contextUsed = agent.contextUsed || 0;
-        contextLimit = agent.contextLimit || 200000;
-        log.log(`[step_complete] Claude empty usage detected for ${agentId}; preserving previous context`);
-      }
-
-      contextUsed = Math.max(0, Math.min(contextUsed, contextLimit));
-
-      const newTokensUsed = (agent.tokensUsed || 0) + (event.tokens?.input || 0) + (event.tokens?.output || 0);
-      const updates: Record<string, unknown> = {
-        tokensUsed: newTokensUsed,
-        contextUsed,
-        contextLimit,
-      };
-      if (!isClaudeProvider) {
-        updates.contextStats = buildEstimatedCodexContextStats(
-          Math.max(0, Math.round(contextUsed)),
-          Math.max(1, Math.round(contextLimit)),
-          agent.codexModel || agent.model
-        );
-      }
-      agentService.updateAgent(agentId, updates);
-
-      // Delay setting to idle to ensure output messages are sent to clients first.
-      // For Codex, wait for process close (handleComplete) to avoid transient false-idle
-      // states while trailing events are still being emitted.
-      if (!isCodexProvider) {
-        setTimeout(() => {
-          log.log(`[step_complete] Setting status to idle for agent ${agentId} (lastTask: ${agent.lastAssignedTask})`);
-          agentService.updateAgent(agentId, {
-            status: 'idle',
-            currentTask: undefined,
-            currentTool: undefined,
-          });
-        }, 200);
-      } else {
-        log.log(`[step_complete] Codex agent ${agentId} will be set idle on process completion`);
-      }
-
-      // Auto-refresh context stats after turn completion
-      // Skip if:
-      // 1. The last assigned task was a /context command (user already ran it)
-      // 2. There's already a pending silent /context refresh for this agent
-      const hasPendingSilentRefresh = pendingSilentContextRefresh.has(agentId);
-
-      log.log(`[step_complete] Auto-refresh check: agentId=${agentId}, lastTask="${lastTask}", isContextCmd=${isContextCommand}, hasPending=${hasPendingSilentRefresh}`);
-
-      // Clear the pending flag since step_complete means the command finished
-      pendingSilentContextRefresh.delete(agentId);
-
-      // Re-fetch agent to get latest sessionId (may have been set by handleSessionId after initial fetch)
-      const currentAgent = agentService.getAgent(agentId);
-      const hasSession = !!currentAgent?.sessionId;
-      const shouldRefresh = isClaudeProvider && hasSession && !isContextCommand && !hasPendingSilentRefresh;
-
-      log.log(`[step_complete] sessionId=${currentAgent?.sessionId}, shouldRefresh=${shouldRefresh}`);
-
-      if (shouldRefresh) {
-        // Small delay to let the process settle
-        setTimeout(() => {
-          log.log(`[step_complete] Sending silent /context for agent ${agentId}`);
-          // Send /context to the running process or spawn new one
-          import('./runtime-service.js').then(({ sendSilentCommand }) => {
-            sendSilentCommand(agentId, '/context').catch((err) => {
-              log.log(`[step_complete] Silent /context failed for ${agentId}: ${err}`);
-            });
-          });
-        }, 300);
-      }
-      break;
-    }
-
-    case 'error':
-      agentService.updateAgent(agentId, { status: 'error' });
-      break;
-
-    case 'context_stats':
-      // Context stats are parsed and broadcast in websocket/handler.ts
-      // This event just flows through to the handler which does:
-      // 1. Parse contextStatsRaw into ContextStats
-      // 2. Update agent with contextStats
-      // 3. Broadcast to all clients via WebSocket
-      break;
-
-    case 'usage_stats':
-      console.log('[Claude] Received usage_stats event');
-      console.log('[Claude] usageStatsRaw:', event.usageStatsRaw?.substring(0, 200));
-      if (event.usageStatsRaw) {
-        const usageStats = parseUsageOutput(event.usageStatsRaw);
-        console.log('[Claude] Parsed usage stats:', usageStats);
-        if (usageStats) {
-          // Store in supervisor service for global access
-          supervisorService.updateGlobalUsage(agentId, agent.name, usageStats);
-        } else {
-          console.log('[Claude] Failed to parse usage stats');
-        }
-      } else {
-        console.log('[Claude] No usageStatsRaw in event');
-      }
-      break;
-  }
-
-  // Generate human-readable narrative for supervisor
-  supervisorService.generateNarrative(agentId, event);
-
-  emit('event', agentId, event);
-}
-
-function handleOutput(agentId: string, text: string, isStreaming?: boolean, subagentName?: string, uuid?: string, toolMeta?: { toolName?: string; toolInput?: Record<string, unknown> }): void {
-  emit('output', agentId, text, isStreaming, subagentName, uuid, toolMeta);
-}
-
-function handleSessionId(agentId: string, sessionId: string): void {
-  const agent = agentService.getAgent(agentId);
-  const existingSessionId = agent?.sessionId;
-
-  if (!existingSessionId) {
-    agentService.updateAgent(agentId, { sessionId });
-  } else if (existingSessionId !== sessionId) {
-    // Claude returned a different session ID - resume failed, keep original
-    log.log(`Session mismatch for ${agentId}: expected ${existingSessionId}, got ${sessionId}`);
-  }
-}
-
-function handleComplete(agentId: string, success: boolean): void {
-  const receivedStepComplete = stepCompleteReceived.has(agentId);
-  stepCompleteReceived.delete(agentId);
-
-  agentService.updateAgent(agentId, {
-    status: 'idle',
-    currentTask: undefined,
-    currentTool: undefined,
-    isDetached: false,
-  });
-  emit('complete', agentId, success);
-
-  // Fallback: trigger /context refresh if step_complete wasn't received
-  // This handles edge cases where the process exits without emitting a result event
-  // (e.g., when the last response is a tool use that doesn't complete normally)
-  if (!receivedStepComplete && success) {
-    const agent = agentService.getAgent(agentId);
-    const lastTask = agent?.lastAssignedTask?.trim() || '';
-    const isContextCommand = lastTask === '/context' || lastTask === '/cost' || lastTask === '/compact';
-    const hasSession = !!agent?.sessionId;
-    const hasPendingSilentRefresh = pendingSilentContextRefresh.has(agentId);
-
-    log.log(`[handleComplete] Fallback /context check: agentId=${agentId}, receivedStepComplete=${receivedStepComplete}, lastTask="${lastTask}", isContextCmd=${isContextCommand}, hasSession=${hasSession}, hasPending=${hasPendingSilentRefresh}`);
-
-    const isClaudeProvider = (agent?.provider ?? 'claude') === 'claude';
-    if (isClaudeProvider && hasSession && !isContextCommand && !hasPendingSilentRefresh) {
-      log.log(`[handleComplete] Triggering fallback /context refresh for agent ${agentId}`);
-      setTimeout(() => {
-        import('./runtime-service.js').then(({ sendSilentCommand }) => {
-          sendSilentCommand(agentId, '/context').catch((err) => {
-            log.log(`[handleComplete] Fallback /context failed for ${agentId}: ${err}`);
-          });
-        });
-      }, 300);
-    }
-  }
-}
-
-function handleError(agentId: string, error: string): void {
-  const agent = agentService.getAgent(agentId);
-  const timestamp = new Date().toISOString();
-
-  const isCodexProvider = (agent?.provider ?? 'claude') === 'codex';
-  const matchedRecoverableError = detectRecoverableCodexResumeError(error);
-  const isRecoverableCodexResumeError =
-    isCodexProvider
-    && !!matchedRecoverableError
-    && !!agent?.sessionId
-    && !!agent?.lastAssignedTask?.trim();
-
-  if (isRecoverableCodexResumeError && agent) {
-    const signature = `${matchedRecoverableError}:${agent.sessionId}`;
-    const previous = codexRecoveryState.get(agentId);
-    const attemptsForSignature = previous?.signature === signature ? previous.attempts : 0;
-
-    if (attemptsForSignature < 1) {
-      codexRecoveryState.set(agentId, { signature, attempts: attemptsForSignature + 1 });
-      const taskToRetry = agent.lastAssignedTask!.trim();
-      const staleSessionId = agent.sessionId!;
-      const staleCwd = agent.cwd;
-
-      log.warn(`[Codex] Recoverable resume error for ${agent.name} (${agentId}), resetting session and retrying once`);
-      agentService.updateAgent(agentId, {
-        sessionId: undefined,
-        status: 'idle',
-        currentTask: undefined,
-        currentTool: undefined,
-      }, false);
-      emit('output', agentId, '[System] Codex session state was stale. Retrying with a fresh session…', false, undefined, 'system-codex-retry');
-
-      // Small delay to let the failed process fully exit before spawning a new one.
-      // executeCommand -> runner.run() calls stop() internally, but the 'close' event
-      // from the dying process may not have fired yet, causing a race condition.
-      setTimeout(async () => {
-        try {
-          let recoverySystemPrompt: string | undefined;
-          if (staleCwd) {
-            try {
-              const recovered = await loadSession(staleCwd, staleSessionId, CODEX_RECOVERY_HISTORY_LIMIT, 0);
-              const recoveredMessages = recovered?.messages || [];
-              if (recoveredMessages.length > 0) {
-                recoverySystemPrompt = buildCodexRecoverySystemPrompt(staleSessionId, recoveredMessages);
-                log.warn(`[Codex] Loaded ${recoveredMessages.length} recovered message(s) from stale session ${staleSessionId} for retry`);
-                emit('output', agentId, `[System] Recovered ${recoveredMessages.length} recent message(s) from the previous Codex session.`, false, undefined, 'system-codex-retry-context');
-              } else {
-                log.warn(`[Codex] No recoverable messages found for stale session ${staleSessionId}; retrying without recovered context`);
-              }
-            } catch (sessionErr) {
-              log.warn(`[Codex] Failed to load stale session ${staleSessionId} context for retry: ${String(sessionErr)}`);
-            }
-          } else {
-            log.warn(`[Codex] No cwd available for ${agentId}; retrying stale-session recovery without recovered context`);
-          }
-
-          await executeCommand(agentId, taskToRetry, recoverySystemPrompt, true);
-        } catch (retryErr) {
-          log.error(`[Codex] Recovery retry failed for ${agentId}:`, retryErr);
-          agentService.updateAgent(agentId, {
-            status: 'error',
-            currentTask: undefined,
-            currentTool: undefined,
-          });
-          emit('error', agentId, `Codex auto-retry failed: ${String(retryErr)}`);
-        }
-      }, 500);
-
-      return;
-    }
-  }
-
-  log.error(`❌ [ERROR] Agent ${agent?.name || agentId} (${agentId})`);
-  log.error(`   Time: ${timestamp}`);
-  log.error(`   Message: ${error}`);
-  log.error(`   Status before: ${agent?.status}`);
-  log.error(`   Last task: ${agent?.lastAssignedTask}`);
-  log.error(`   Current tool: ${agent?.currentTool}`);
-  log.error(`   Session ID: ${agent?.sessionId}`);
-
-  agentService.updateAgent(agentId, {
-    status: 'error',
-    currentTask: undefined,
-    currentTool: undefined,
-  });
-  emit('error', agentId, error);
-}
-
-// ============================================================================
-// Command Execution
-// ============================================================================
-
-// Custom agent config type
-interface CustomAgentConfig {
-  name: string;
-  definition: RuntimeCustomAgentDefinition;
-}
-
-// Internal function to actually execute a command
-// forceNewSession: when true, don't resume existing session (for boss team questions)
-// customAgent: optional custom agent config for --agents flag (used for custom class instructions)
-// silent: when true, don't update agent status to 'working' (used for internal commands like /context refresh)
-async function executeCommand(agentId: string, command: string, systemPrompt?: string, forceNewSession?: boolean, customAgent?: CustomAgentConfig, silent?: boolean): Promise<void> {
-  const agent = agentService.getAgent(agentId);
-  if (!agent) {
-    throw new Error(`Agent not found: ${agentId}`);
-  }
-  const runner = getRunner(agent.provider ?? 'claude');
-  if (!runner) {
-    throw new Error(`Runtime provider not initialized: ${agent.provider}`);
-  }
-
-  // Notify that command is starting (so client can show user prompt in conversation)
-  // Skip notification for silent commands (internal operations)
-  if (!silent) {
-    notifyCommandStarted(agentId, command);
-  }
-
-  // Don't update lastAssignedTask for system messages (like auto-resume) to avoid recursive loops
-  // Don't update status for silent commands (internal operations like /context refresh)
-  const isSystemMessage = command.startsWith('[System:');
-
-  const updateData: Partial<Parameters<typeof agentService.updateAgent>[1]> = {};
-
-  // Only update status/UI fields for non-silent commands
-  if (!silent) {
-    updateData.status = 'working' as const;
-    updateData.currentTask = command.substring(0, 100);
-    updateData.isDetached = false; // Agent is now attached since we're executing a command
-  }
-
-  // ALWAYS update lastAssignedTask for non-system messages (needed for context recalc recursion detection)
-  // This must happen even for silent commands so that the next step_complete knows what was sent
-  if (!isSystemMessage) {
-    updateData.lastAssignedTask = command;
-    updateData.lastAssignedTaskTime = Date.now();
-  }
-
-  // Only update agent if there are changes
-  if (Object.keys(updateData).length > 0) {
-    agentService.updateAgent(agentId, updateData);
-  }
-
-  // Ensure class instructions/skills/custom instructions are always available to the runtime,
-  // even for internal execution paths that don't explicitly pass customAgent
-  // (e.g. recovery retries after stale session errors).
-  let resolvedCustomAgent = customAgent;
-  if (!resolvedCustomAgent && agent.class !== 'boss') {
-    try {
-      const { buildCustomAgentConfig } = await import('../websocket/handlers/command-handler.js');
-      resolvedCustomAgent = buildCustomAgentConfig(agentId, agent.class);
-    } catch (err) {
-      log.warn(`[executeCommand] Failed to build fallback customAgentConfig for ${agentId}: ${String(err)}`);
-    }
-  }
-
-  await runner.run({
-    agentId,
-    prompt: command,
-    workingDir: agent.cwd,
-    sessionId: agent.sessionId,
-    model: agent.provider === 'claude'
-      ? agentService.sanitizeModelForProvider(agent.provider, agent.model)
-      : agentService.sanitizeCodexModel(agent.codexModel),
-    useChrome: agent.useChrome,
-    permissionMode: agent.permissionMode,
-    codexConfig: agent.codexConfig,
-    systemPrompt,
-    customAgent: resolvedCustomAgent,
-    forceNewSession,
-  });
-}
-
-// Timeout for stdin message watchdog (10 seconds)
-const STDIN_ACTIVITY_TIMEOUT_MS = 10000;
-
-// Track active stdin watchdog timers to prevent duplicates
-const stdinWatchdogTimers = new Map<string, NodeJS.Timeout>();
-
-// Public function to send a command - sends directly to running process if busy
-// This allows users to send messages while Claude is working - Claude will see them in stdin
-// systemPrompt is only used when starting a new process (not for messages to running process)
-// forceNewSession: when true, don't resume existing session (for boss team questions with context)
-// customAgent: optional custom agent config for --agents flag (used for custom class instructions)
-export async function sendCommand(agentId: string, command: string, systemPrompt?: string, forceNewSession?: boolean, customAgent?: CustomAgentConfig): Promise<void> {
-  const agent = agentService.getAgent(agentId);
-  if (!agent) {
-    throw new Error(`Agent not found: ${agentId}`);
-  }
-  const runner = getRunner(agent.provider ?? 'claude');
-  if (!runner) {
-    throw new Error(`Runtime provider not initialized: ${agent.provider}`);
-  }
-
-  // Check if agent is currently busy (has a running process)
-  // For stdin-capable backends (Claude): send message via stdin to the running process
-  // For non-stdin backends (Codex): stop the running process and spawn a new one with resume
-  if (runner.isRunning(agentId) && !forceNewSession) {
-    if (runner.supportsStdin()) {
-      // Claude: send follow-up message via stdin to the running process
-      const sent = runner.sendMessage(agentId, command);
-      if (sent) {
-        notifyCommandStarted(agentId, command);
-        const isSystemMessage = command.startsWith('[System:');
-        const updateData: Record<string, unknown> = {
-          taskCount: (agent.taskCount || 0) + 1,
-        };
-        if (!isSystemMessage) {
-          updateData.lastAssignedTask = command;
-          updateData.lastAssignedTaskTime = Date.now();
-        }
-        agentService.updateAgent(agentId, updateData);
-
-        // Start stdin activity watchdog
-        // If no activity is received within timeout, the process may be stuck
-        // We'll respawn the process with the same command
-        startStdinWatchdog(agentId, command, systemPrompt, customAgent);
-
-        return;
-      }
-    } else {
-      // Codex: stdin not supported. Stop the current process and fall through
-      // to spawn a new one with session resume below.
-      log.log(`[sendCommand] Agent ${agentId} (${agent.provider}): backend does not support stdin, stopping current process to respawn with resume`);
-      await runner.stop(agentId);
-      // Fall through to executeCommand below which will resume the session
-    }
-  }
-
-  // Increment task counter for this agent
-  agentService.updateAgent(agentId, { taskCount: (agent.taskCount || 0) + 1 });
-
-  // If agent is detached, reattach by resuming the existing session
-  // This allows the agent to pick up where it left off after server restart
-  if (agent.isDetached && agent.sessionId && !forceNewSession) {
-    log.log(`[sendCommand] Agent ${agentId} is detached, reattaching to existing session ${agent.sessionId}`);
-    // Broadcast reattachment notification to UI immediately (non-blocking)
-    setImmediate(() => {
-      emit('output', agentId, `🔄 [System] Reattaching to existing session... (Session: ${agent.sessionId})`, false, undefined, 'system-reattach');
-      emit('output', agentId, `📋 [System] Resuming task: ${command.substring(0, 100)}${command.length > 100 ? '...' : ''}`, false, undefined, 'system-reattach');
-    });
-    // Execute with existing session (forceNewSession=false means resume) - don't wait for UI notifications
-    await executeCommand(agentId, command, systemPrompt, false, customAgent);
-    return;
-  }
-
-  // Agent is idle, sending failed, or we need special options - execute with new process
-  await executeCommand(agentId, command, systemPrompt, forceNewSession, customAgent);
-}
-
-/**
- * Start a watchdog timer for stdin messages
- * If no activity is received within the timeout, respawn the process
- */
-function startStdinWatchdog(
+export async function sendCommand(
   agentId: string,
   command: string,
   systemPrompt?: string,
+  forceNewSession?: boolean,
   customAgent?: CustomAgentConfig
-): void {
-  const runner = getRunnerForAgent(agentId);
-  if (!runner) return;
-
-  // Clear any existing watchdog for this agent
-  const existingTimer = stdinWatchdogTimers.get(agentId);
-  if (existingTimer) {
-    clearTimeout(existingTimer);
-  }
-
-  log.log(`[STDIN-WATCHDOG] Starting watchdog for ${agentId}, timeout=${STDIN_ACTIVITY_TIMEOUT_MS}ms`);
-
-  // Create the watchdog timer
-  const watchdogTimer = setTimeout(async () => {
-    stdinWatchdogTimers.delete(agentId);
-
-    // Check if we received any activity since sending the message
-    if (runner && !runner.hasRecentActivity(agentId, STDIN_ACTIVITY_TIMEOUT_MS)) {
-      log.warn(`[STDIN-WATCHDOG] Agent ${agentId}: No activity after stdin message, respawning process...`);
-
-      // Stop the stuck process
-      await runner.stop(agentId);
-
-      // Respawn with the same command
-      try {
-        await executeCommand(agentId, command, systemPrompt, false, customAgent);
-        log.log(`[STDIN-WATCHDOG] Agent ${agentId}: Successfully respawned process`);
-      } catch (err) {
-        log.error(`[STDIN-WATCHDOG] Agent ${agentId}: Failed to respawn process:`, err);
-      }
-    } else {
-      log.log(`[STDIN-WATCHDOG] Agent ${agentId}: Activity received, watchdog cleared`);
-    }
-  }, STDIN_ACTIVITY_TIMEOUT_MS);
-
-  stdinWatchdogTimers.set(agentId, watchdogTimer);
-
-  // Register callback to clear the watchdog when activity is received
-  runner.onNextActivity(agentId, () => {
-    const timer = stdinWatchdogTimers.get(agentId);
-    if (timer) {
-      clearTimeout(timer);
-      stdinWatchdogTimers.delete(agentId);
-      log.log(`[STDIN-WATCHDOG] Agent ${agentId}: Cleared watchdog on activity`);
-    }
-  });
+): Promise<void> {
+  await commandExecution.sendCommand(agentId, command, systemPrompt, forceNewSession, customAgent);
 }
 
-/**
- * Send a silent command that doesn't update agent status
- * Used for internal operations like auto /context refresh
- *
- * IMPORTANT: This does NOT change the agent's visible status.
- * The agent will appear "idle" to the user while the silent command runs.
- * This prevents UI flickering when auto-refreshing context after step_complete.
- */
 export async function sendSilentCommand(agentId: string, command: string): Promise<void> {
-  const agent = agentService.getAgent(agentId);
-  if (!agent) {
-    throw new Error(`Agent not found: ${agentId}`);
-  }
-  const runner = getRunner(agent.provider ?? 'claude');
-  if (!runner) {
-    throw new Error(`Runtime provider not initialized: ${agent.provider}`);
-  }
-
-  // Track /context commands to prevent recursive loops
-  // When step_complete fires, it will check this set before auto-refreshing
-  const isContextCommand = command.trim() === '/context' || command.trim() === '/cost' || command.trim() === '/compact';
-  if (isContextCommand) {
-    pendingSilentContextRefresh.add(agentId);
-  }
-
-  // Only attempt stdin for backends that support it (Claude).
-  // Codex processes are one-shot and don't accept stdin messages.
-  if (!runner.supportsStdin()) {
-    log.log(`[sendSilentCommand] Backend for ${agentId} (${agent.provider}) does not support stdin, skipping silent command: ${command}`);
-    pendingSilentContextRefresh.delete(agentId);
-    return;
-  }
-
-  // If agent has a running process, send the command to it via stdin
-  // This is the expected case for /context refresh after step_complete
-  if (runner.isRunning(agentId)) {
-    log.log(`[sendSilentCommand] Sending command via stdin for agent ${agentId} (command: ${command}) - status unchanged`);
-
-    const sent = runner.sendMessage(agentId, command);
-    if (sent) {
-      log.log(`[sendSilentCommand] Command sent via stdin for agent ${agentId}`);
-      return;
-    }
-    // If sendMessage failed, fall through to spawn new process
-  }
-
-  // Execute silently - no command notifications, no status changes
-  log.log(`[sendSilentCommand] Spawning new process for silent command for agent ${agentId} (command: ${command}) - status unchanged`);
-  await executeCommand(agentId, command, undefined, undefined, undefined, true);
+  await commandExecution.sendSilentCommand(agentId, command);
 }
 
 export async function stopAgent(agentId: string): Promise<void> {
-  // Try to stop the tracked process first
-  const runner = getRunnerForAgent(agentId);
-  if (runner) {
-    await runner.stop(agentId);
-  }
-
-  // Also try to kill any detached provider process for this agent
-  const agent = agentService.getAgent(agentId);
-  if (agent?.cwd) {
-    const provider = agent.provider ?? 'claude';
-    const killed = await killDetachedProviderProcessInCwd(provider, agent.cwd);
-    if (killed) {
-      log.log(`Killed detached ${provider} process for agent ${agentId}`);
-    }
-  }
-
-  // Update agent status to idle
-  agentService.updateAgent(agentId, {
-    status: 'idle',
-    currentTask: undefined,
-    currentTool: undefined,
-    isDetached: false,
-  });
+  await commandExecution.stopAgent(agentId);
 }
 
 export function isAgentRunning(agentId: string): boolean {
@@ -1081,110 +295,23 @@ export function isAgentRunning(agentId: string): boolean {
  */
 function _checkForOrphanedProcess(agentId: string): boolean {
   try {
-    // Check our persisted PID records - this is agent-specific
     const savedProcesses = loadRunningProcesses();
-    const savedProcess = savedProcesses.find((p: { agentId: string }) => p.agentId === agentId);
+    const savedProcess = savedProcesses.find((process: { agentId: string }) => process.agentId === agentId);
     if (savedProcess && isProcessRunning(savedProcess.pid)) {
       return true;
     }
-
     return false;
   } catch {
     return false;
   }
 }
 
-/**
- * Sync agent status with actual process state and session activity
- * Called on startup and client reconnection to ensure UI shows correct status
- *
- * The rules are:
- * 1. If we're tracking the process -> trust the current status
- * 2. If agent shows 'working' but no tracked process AND session is not active -> set to idle
- * 3. If agent shows 'idle' but session is RECENTLY active (< 30s) with pending work -> set to working
- *    (This handles server restart while Claude was processing - ONLY during startup sync)
- *
- * @param agentId - The agent ID to sync
- * @param isStartupSync - If true, apply full recovery logic including reviving idle agents.
- *                        If false (periodic sync), only set stale working agents to idle.
- */
 export async function syncAgentStatus(agentId: string, isStartupSync: boolean = false): Promise<void> {
-  const agent = agentService.getAgent(agentId);
-  if (!agent) return;
-
-  // Check 1: Is our runner tracking this process?
-  const isTrackedProcess = getRunnerForAgent(agentId)?.isRunning(agentId) ?? false;
-  if (isTrackedProcess) return;
-
-  // Check 2: Session file activity - is there recent pending work?
-  let isRecentlyActive = false;
-  let hasOrphanedProcess = false;
-
-  if (agent.sessionId && agent.cwd) {
-    try {
-      // Use 60 second threshold for orphaned process detection
-      const activity = await getSessionActivityStatus(agent.cwd, agent.sessionId, 60);
-      if (activity) {
-        isRecentlyActive = activity.isActive;
-      }
-    } catch {
-      // Session activity check failed, assume not active
-    }
-
-    // Check 3: Is there an orphaned process running in this cwd?
-    // This detects processes that survived a server restart
-    if (agent.status === 'idle') {
-      try {
-        const provider = agent.provider ?? 'claude';
-        hasOrphanedProcess = await isProviderProcessRunningInCwd(provider, agent.cwd);
-        if (hasOrphanedProcess) {
-          log.log(`[syncAgentStatus] Agent ${agentId}: Found orphaned ${provider} process, isRecentlyActive=${isRecentlyActive}`);
-        }
-      } catch (err) {
-        // Process detection failed, assume no orphaned process
-        log.error(`[syncAgentStatus] Agent ${agentId}: Failed to check for orphaned process:`, err);
-      }
-    }
-  }
-
-  // Case 1: Agent shows 'working' but no tracked process and not recently active -> set to idle
-  // This applies during both startup and periodic syncs
-  if (agent.status === 'working' && !isRecentlyActive && !hasOrphanedProcess) {
-    agentService.updateAgent(agentId, {
-      status: 'idle',
-      currentTask: undefined,
-      currentTool: undefined,
-      isDetached: false,
-    });
-  }
-  // Case 2: Agent shows 'idle' but there's an orphaned process with recent session activity
-  // Mark as working so the UI reflects the actual state
-  else if (agent.status === 'idle' && hasOrphanedProcess && isRecentlyActive) {
-    const provider = agent.provider ?? 'claude';
-    log.log(`Agent ${agentId} has orphaned ${provider} process with recent activity - marking as working (detached)`);
-    agentService.updateAgent(agentId, {
-      status: 'working',
-      currentTask: 'Processing (detached)...',
-      isDetached: true,
-    });
-  }
-  // Case 3: Legacy startup sync behavior for agents without orphaned process detection
-  else if (isStartupSync && agent.status === 'idle' && isRecentlyActive) {
-    agentService.updateAgent(agentId, {
-      status: 'working',
-      currentTask: 'Processing...',
-    });
-  }
+  await statusSync.syncAgentStatus(agentId, isStartupSync);
 }
 
-/**
- * Sync all agents' status with actual process state and session activity
- * @param isStartupSync - If true, apply full recovery logic including reviving idle agents.
- *                        If false (default, periodic sync), only set stale working agents to idle.
- */
 export async function syncAllAgentStatus(isStartupSync: boolean = false): Promise<void> {
-  const agents = agentService.getAllAgents();
-  await Promise.all(agents.map(agent => syncAgentStatus(agent.id, isStartupSync)));
+  await statusSync.syncAllAgentStatus(isStartupSync);
 }
 
 /**
@@ -1207,28 +334,23 @@ export async function autoResumeWorkingAgents(): Promise<void> {
         continue;
       }
 
-      // Don't resume if agent is already running somehow
       if (isAnyRunnerActive(agentInfo.id)) {
         continue;
       }
 
-      // Build customAgentConfig using the same function as command-handler
-      // This ensures agent ID is properly injected into the prompt
       const { buildCustomAgentConfig } = await import('../websocket/handlers/command-handler.js');
       const customAgentConfig = buildCustomAgentConfig(agentInfo.id, agent.class);
 
-      // Send a continuation message to Claude
       const resumeMessage = `[System: The commander server was restarted while you were working. Please continue with your previous task. Your last assigned task was: "${agentInfo.lastTask}"]`;
 
       await sendCommand(agentInfo.id, resumeMessage, undefined, undefined, customAgentConfig);
 
-      // Small delay between agents to avoid overwhelming the system
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
     } catch (err) {
       log.error(`Failed to auto-resume ${agentInfo.name}:`, err);
     }
   }
 
-  // Clear the list after processing
   agentService.clearAgentsToResume();
 }
+

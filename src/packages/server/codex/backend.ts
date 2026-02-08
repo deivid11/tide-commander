@@ -3,6 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 import type { CLIBackend, BackendConfig, StandardEvent } from '../claude/types.js';
 import { CodexJsonEventParser } from './json-event-parser.js';
+import { TIDE_COMMANDER_APPENDED_PROMPT } from '../prompts/tide-commander.js';
 
 interface CodexRawEvent {
   type?: string;
@@ -30,6 +31,8 @@ function buildCodexPrompt(config: BackendConfig): string {
   if (systemPrompt) {
     injectedSections.push(`## System Context\n${systemPrompt}`);
   }
+
+  injectedSections.push(TIDE_COMMANDER_APPENDED_PROMPT);
 
   if (injectedSections.length === 0) {
     return userPrompt;

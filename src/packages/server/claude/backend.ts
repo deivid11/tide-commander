@@ -13,6 +13,7 @@ import type {
   ClaudeRawEvent,
 } from './types.js';
 import { createLogger, sanitizeUnicode } from '../utils/index.js';
+import { TIDE_COMMANDER_APPENDED_PROMPT } from '../prompts/tide-commander.js';
 
 const log = createLogger('Backend');
 
@@ -123,6 +124,10 @@ export class ClaudeBackend implements CLIBackend {
       log.log(` Adding systemPrompt via file (${config.systemPrompt.length} chars)`);
       args.push('--append-system-prompt-file', promptFile);
     }
+
+    // Tide Commander enforced prompt additions (always appended last so rules win).
+    const tidePromptFile = writePromptToFile(TIDE_COMMANDER_APPENDED_PROMPT, `${config.agentId || 'agent'}-tide`);
+    args.push('--append-system-prompt-file', tidePromptFile);
 
     return args;
   }

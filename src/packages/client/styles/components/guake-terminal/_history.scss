@@ -57,6 +57,19 @@
   }
 }
 
+.history-role-chip {
+  color: color-mix(in srgb, var(--msg-user-text) 96%, #f2f6ff 4%);
+  border-color: color-mix(in srgb, var(--msg-user-text) 46%, var(--border-color) 54%);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--msg-user-text) 24%, var(--bg-primary) 76%),
+    color-mix(in srgb, var(--msg-user-text) 16%, var(--bg-primary) 84%)
+  );
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--msg-user-text) 24%, transparent),
+    0 1px 0 color-mix(in srgb, var(--bg-primary) 78%, transparent);
+}
+
 .history-content {
   color: var(--msg-user-text);
 

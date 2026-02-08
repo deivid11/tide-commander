@@ -557,7 +557,9 @@ export function useFileViewerPath(): string | null {
 export function useFileViewerEditData(): {
   oldString?: string;
   newString?: string;
+  operation?: string;
   highlightRange?: { offset: number; limit: number };
+  targetLine?: number;
 } | null {
   return useSelector(useCallback((state: StoreState) => state.fileViewerEditData, []));
 }

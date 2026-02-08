@@ -18,7 +18,7 @@ import { useFilteredOutputs } from '../shared/useFilteredOutputs';
 import type { AgentHistory, AttachedFile } from './types';
 import { STATUS_COLORS, SCROLL_THRESHOLD } from './types';
 import { apiUrl, authFetch } from '../../utils/storage';
-import { resolveAgentFilePath } from '../../utils/filePaths';
+import { resolveAgentFileReference } from '../../utils/filePaths';
 
 interface AgentPanelProps {
   agent: Agent;
@@ -254,8 +254,12 @@ export function AgentPanel({
     setImageModal({ url, name });
   }, []);
 
-  const handleFileClick = useCallback((path: string, editData?: { oldString?: string; newString?: string; operation?: string; highlightRange?: { offset: number; limit: number } }) => {
-    store.setFileViewerPath(resolveAgentFilePath(path, agent.cwd), editData);
+  const handleFileClick = useCallback((path: string, editData?: { oldString?: string; newString?: string; operation?: string; highlightRange?: { offset: number; limit: number }; targetLine?: number }) => {
+    const ref = resolveAgentFileReference(path, agent.cwd);
+    const mergedEditData = ref.line
+      ? { ...(editData || {}), targetLine: ref.line }
+      : editData;
+    store.setFileViewerPath(ref.path, mergedEditData);
   }, [agent.cwd]);
 
   const handleBashClick = useCallback((commandText: string, output: string) => {

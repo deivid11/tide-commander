@@ -5,6 +5,7 @@ import Prism from 'prismjs';
 import { DiffViewer } from './DiffViewer';
 import { apiUrl, authFetch } from '../utils/storage';
 import { useModalClose } from '../hooks';
+import { parseFilePathReference } from '../utils/filePaths';
 import 'prismjs/components/prism-typescript';
 import 'prismjs/components/prism-javascript';
 import 'prismjs/components/prism-jsx';
@@ -37,6 +38,8 @@ interface FileViewerModalProps {
     operation?: string;
     // For Read tool - highlight these lines
     highlightRange?: { offset: number; limit: number };
+    // For direct file references like path/to/file.ts:16
+    targetLine?: number;
   };
 }
 
@@ -96,19 +99,23 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
   const [error, setError] = useState<string | null>(null);
   const [copyRichTextStatus, setCopyRichTextStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [copyHtmlStatus, setCopyHtmlStatus] = useState<'idle' | 'copied' | 'error'>('idle');
-  const codeRef = useRef<HTMLElement>(null);
   const markdownContentRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
+  const parsedReference = useMemo(() => parseFilePathReference(filePath), [filePath]);
+  const effectivePath = parsedReference.path;
+  const targetLine = editData?.targetLine ?? parsedReference.line;
+  const effectiveHighlightRange = editData?.highlightRange
+    || undefined;
 
   useEffect(() => {
-    if (isOpen && filePath) {
+    if (isOpen && effectivePath) {
       loadFile();
     } else {
       setFileData(null);
       setError(null);
     }
-  }, [isOpen, filePath]);
+  }, [isOpen, effectivePath]);
 
   // Focus overlay when modal opens to capture keyboard events
   useEffect(() => {
@@ -208,28 +215,58 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
 
   const hasEditStrings = !!editData && (!editData.highlightRange) && (!!editData.oldString || !!editData.newString);
   const showDiffView = hasEditStrings && originalContent !== null;
-  const showHighlightView = editData?.highlightRange !== undefined;
+  const showHighlightView = effectiveHighlightRange !== undefined;
 
-  // Apply syntax highlighting when file data changes (only when showing plain code view)
-  useEffect(() => {
-    if (fileData && codeRef.current && !MARKDOWN_EXTENSIONS.includes(fileData.extension) && !showDiffView && !showHighlightView) {
-      Prism.highlightElement(codeRef.current);
-    }
+  const highlightedLines = useMemo(() => {
+    if (!fileData || showDiffView || showHighlightView || MARKDOWN_EXTENSIONS.includes(fileData.extension)) return [];
+    const codeLanguage = EXTENSION_LANGUAGES[fileData.extension] || 'text';
+    const grammar = Prism.languages[codeLanguage];
+    const escapeHtml = (value: string) => value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    return fileData.content.split('\n').map((line) => {
+      if (!grammar) return escapeHtml(line || ' ');
+      return Prism.highlight(line || ' ', grammar, codeLanguage);
+    });
   }, [fileData, showDiffView, showHighlightView]);
+
+  // When a specific line is requested, center it in view.
+  useEffect(() => {
+    if (!isOpen || !fileData || !contentRef.current) return;
+    const id = window.setTimeout(() => {
+      const scrollToTarget = () => {
+        if (!contentRef.current) return;
+        // Prefer row highlight in both regular and read-highlight views.
+        const targetRow = contentRef.current.querySelector('.file-line-highlighted') as HTMLElement | null;
+        if (targetRow) {
+          targetRow.scrollIntoView({ block: 'center', behavior: 'auto' });
+          return;
+        }
+        if (targetLine) {
+          const targetGutterLine = contentRef.current.querySelector(`.file-viewer-line-num[data-line="${targetLine}"]`) as HTMLElement | null;
+          targetGutterLine?.scrollIntoView({ block: 'center', behavior: 'auto' });
+        }
+      };
+      // Ensure DOM + layout are settled after Prism HTML render.
+      window.requestAnimationFrame(() => window.requestAnimationFrame(scrollToTarget));
+    }, 0);
+    return () => window.clearTimeout(id);
+  }, [isOpen, fileData, showHighlightView, effectiveHighlightRange?.offset, targetLine]);
 
   const loadFile = async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const ext = filePath.substring(filePath.lastIndexOf('.')).toLowerCase();
+      const ext = effectivePath.substring(effectivePath.lastIndexOf('.')).toLowerCase();
       const isPdfFile = PDF_EXTENSIONS.includes(ext);
       const isImageFile = IMAGE_EXTENSIONS.includes(ext);
 
       // For binary-rendered media, only fetch metadata (content is loaded via binary endpoint)
       const endpoint = (isPdfFile || isImageFile)
-        ? `/api/files/info?path=${encodeURIComponent(filePath)}`
-        : `/api/files/read?path=${encodeURIComponent(filePath)}`;
+        ? `/api/files/info?path=${encodeURIComponent(effectivePath)}`
+        : `/api/files/read?path=${encodeURIComponent(effectivePath)}`;
 
       const res = await authFetch(apiUrl(endpoint));
       const data = await res.json();
@@ -329,8 +366,8 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
   const isImage = fileData && IMAGE_EXTENSIONS.includes(fileData.extension);
   const isPdf = fileData && PDF_EXTENSIONS.includes(fileData.extension);
   const language = isImage ? 'Image' : isPdf ? 'PDF' : (fileData ? EXTENSION_LANGUAGES[fileData.extension] || 'text' : 'text');
-  const imageUrl = isImage ? apiUrl(`/api/files/binary?path=${encodeURIComponent(filePath)}`) : null;
-  const pdfUrl = isPdf ? apiUrl(`/api/files/binary?path=${encodeURIComponent(filePath)}`) : null;
+  const imageUrl = isImage ? apiUrl(`/api/files/binary?path=${encodeURIComponent(effectivePath)}`) : null;
+  const pdfUrl = isPdf ? apiUrl(`/api/files/binary?path=${encodeURIComponent(effectivePath)}`) : null;
 
   if (!isOpen) return null;
 
@@ -348,7 +385,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
             <span className="file-viewer-action" style={{ color: getActionColor() }}>
               {getActionLabel()}
             </span>
-            <span className="file-viewer-filename">{fileData?.filename || filePath.split('/').pop()}</span>
+            <span className="file-viewer-filename">{fileData?.filename || effectivePath.split('/').pop()}</span>
           </div>
           <div className="file-viewer-header-buttons">
             {isMarkdown && fileData && !showDiffView && (
@@ -384,7 +421,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
         </div>
 
         <div className="file-viewer-path">
-          {filePath}
+          {effectivePath}
         </div>
 
         {fileData && (
@@ -442,7 +479,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
               <pre className="file-viewer-code file-viewer-code-highlighted">
                 {fileData.content.split('\n').map((line, idx) => {
                   const lineNum = idx + 1;
-                  const range = editData?.highlightRange;
+                  const range = effectiveHighlightRange;
                   const isHighlighted = range && lineNum >= range.offset && lineNum < range.offset + range.limit;
                   return (
                     <div key={idx} className={`file-line ${isHighlighted ? 'file-line-highlighted' : ''}`}>
@@ -457,16 +494,25 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{fileData.content}</ReactMarkdown>
               </div>
             ) : (
-              <div className="file-viewer-code-with-lines">
-                <div className="file-viewer-line-gutter" aria-hidden="true">
-                  {fileData.content.split('\n').map((_, idx) => (
-                    <div key={idx + 1} className="file-viewer-line-num">{idx + 1}</div>
-                  ))}
-                </div>
-                <pre className="file-viewer-code">
-                  <code ref={codeRef} className={`language-${language}`}>{fileData.content}</code>
-                </pre>
-              </div>
+              <pre className={`file-viewer-code file-viewer-code-lines language-${language}`}>
+                {highlightedLines.map((lineHtml, idx) => (
+                  <div
+                    key={idx + 1}
+                    className={`file-line ${targetLine === idx + 1 ? 'file-line-highlighted' : ''}`}
+                  >
+                    <span
+                      className={`file-line-num ${targetLine === idx + 1 ? 'file-viewer-line-num-target' : ''}`}
+                      data-line={idx + 1}
+                    >
+                      {idx + 1}
+                    </span>
+                    <code
+                      className={`language-${language}`}
+                      dangerouslySetInnerHTML={{ __html: lineHtml }}
+                    />
+                  </div>
+                ))}
+              </pre>
             )
           )}
         </div>

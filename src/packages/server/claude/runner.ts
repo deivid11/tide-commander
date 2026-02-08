@@ -391,9 +391,9 @@ export class ClaudeRunner {
   }
 
   /**
-   * Check for orphaned processes from a previous commander instance
-   * Since we use pipe-based I/O, processes die when server restarts.
-   * This just cleans up the tracking state.
+   * Check for orphaned processes from a previous commander instance.
+   * Pipe-based processes die when the server restarts.  For non-stdin backends
+   * (Codex) that have a saved session, automatically resume with "continue".
    */
   private recoverOrphanedProcesses(): void {
     const savedProcesses = loadRunningProcesses();
@@ -404,18 +404,39 @@ export class ClaudeRunner {
 
     log.log(`🔍 Checking ${savedProcesses.length} processes from previous commander instance...`);
 
+    const toResume: RunningProcessInfo[] = [];
+
     for (const savedProcess of savedProcesses) {
       if (isProcessRunning(savedProcess.pid)) {
         log.log(`✅ Found orphaned process for agent ${savedProcess.agentId} (PID ${savedProcess.pid}) - still running`);
-        // Note: We can't reconnect to pipe-based processes, but we can note they're running
-        // The agent's status will be synced separately
       } else {
         log.log(`❌ Process for agent ${savedProcess.agentId} (PID ${savedProcess.pid}) is no longer running`);
+        // If this was a non-stdin backend (Codex) with a session, queue for resume
+        if (!this.backend.requiresStdinInput() && savedProcess.sessionId && savedProcess.lastRequest) {
+          toResume.push(savedProcess);
+        }
       }
     }
 
-    // Clear the saved processes - agents will be restarted if needed
+    // Clear the saved processes
     clearRunningProcesses();
+
+    // Resume dead codex sessions after a short delay (let the rest of the server initialize)
+    if (toResume.length > 0) {
+      setTimeout(() => {
+        for (const saved of toResume) {
+          const lastRequest = saved.lastRequest as RunnerRequest;
+          log.log(`🔄 [RESUME] Resuming codex session for agent ${saved.agentId} (session ${saved.sessionId})`);
+          this.run({
+            ...lastRequest,
+            sessionId: saved.sessionId,
+            prompt: 'continue',
+          }).catch((err) => {
+            log.error(`🔄 [RESUME] Failed to resume agent ${saved.agentId}:`, err);
+          });
+        }
+      }, 2000);
+    }
   }
 
   /**

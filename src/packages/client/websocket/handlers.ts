@@ -9,6 +9,32 @@ import { debugLog } from '../services/agentDebugger';
 import { cb } from './callbacks';
 import { sendMessage } from './send';
 
+const reattachInFlight = new Set<string>();
+const REATTACH_RETRY_DELAY_MS = 5000;
+
+function maybeRequestReattach(agent: Agent): void {
+  if (!agent.isDetached || !agent.sessionId) {
+    reattachInFlight.delete(agent.id);
+    return;
+  }
+
+  if (reattachInFlight.has(agent.id)) {
+    return;
+  }
+
+  reattachInFlight.add(agent.id);
+  sendMessage({
+    type: 'reattach_agent',
+    payload: {
+      agentId: agent.id,
+    },
+  });
+
+  setTimeout(() => {
+    reattachInFlight.delete(agent.id);
+  }, REATTACH_RETRY_DELAY_MS);
+}
+
 export function handleServerMessage(message: ServerMessage): void {
   perf.start(`ws:${message.type}`);
 
@@ -28,6 +54,9 @@ export function handleServerMessage(message: ServerMessage): void {
       cb.onAgentsSync?.(agentList);
       // Load tool history after agents are synced
       store.loadToolHistory();
+      for (const agent of agentList) {
+        maybeRequestReattach(agent);
+      }
       break;
     }
 
@@ -67,12 +96,14 @@ export function handleServerMessage(message: ServerMessage): void {
         : false;
 
       store.updateAgent(updatedAgent);
+      maybeRequestReattach(updatedAgent);
       cb.onAgentUpdated?.(updatedAgent, positionChanged);
       break;
     }
 
     case 'agent_deleted': {
       const { id } = message.payload as { id: string };
+      reattachInFlight.delete(id);
       store.removeAgent(id);
       cb.onAgentDeleted?.(id);
       break;
