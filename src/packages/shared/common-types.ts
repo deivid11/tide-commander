@@ -1,4 +1,4 @@
-import type { AgentClass } from './agent-types';
+import type { AgentClass } from './agent-types.js';
 
 // ============================================================================
 // Drawing Types

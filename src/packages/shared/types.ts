@@ -6,8 +6,8 @@
 //   - common-types.ts: Drawing, tools, skills, events, permissions, notifications, secrets, snapshots, exec tasks
 //   - websocket-messages.ts: All WebSocket message interfaces and union types
 
-export * from './agent-types';
-export * from './building-types';
-export * from './database-types';
-export * from './common-types';
-export * from './websocket-messages';
+export * from './agent-types.js';
+export * from './building-types.js';
+export * from './database-types.js';
+export * from './common-types.js';
+export * from './websocket-messages.js';

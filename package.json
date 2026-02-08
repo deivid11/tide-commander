@@ -1,22 +1,33 @@
 {
   "name": "tide-commander",
-  "version": "0.51.5",
+  "version": "0.52.0",
   "description": "Visual multi-agent orchestrator and manager for Claude Code with 3D/2D interface",
   "type": "module",
+  "bin": {
+    "tide-commander": "./dist/src/packages/server/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "dev": "LISTEN_ALL_INTERFACES=1 concurrently \"bun run dev:client\" \"bun run dev:server\"",
     "dev:client": "vite",
     "dev:server": "tsx watch src/packages/server/index.ts",
     "dev:landing": "vite --open /src/packages/landing/index.html",
-    "build": "tsc && vite build",
+    "build": "npm run build:types && vite build && npm run build:server",
+    "build:server": "tsc -p tsconfig.server.json",
     "preview": "vite preview",
     "setup": "tsx src/packages/server/setup.ts",
     "lint": "eslint src/",
+    "build:types": "tsc --noEmit",
     "lint:types": "tsc --noEmit",
     "test": "vitest run",
     "test:ci": "vitest run --exclude src/packages/client/hooks/__tests__/useSnapshots.test.ts --exclude src/packages/client/hooks/__tests__/useKeyboardShortcuts.test.ts",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "prepack": "npm run build",
     "cap:sync": "npx cap sync android",
     "cap:open": "npx cap open android",
     "cap:build": "npm run build && npx cap sync android",

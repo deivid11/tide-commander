@@ -4,19 +4,19 @@ import type {
   WorkPlan, AnalysisRequest, ActivityNarrative, AgentAnalysis,
   SupervisorReport, SupervisorConfig, AgentSupervisorHistory,
   CustomAgentClass,
-} from './agent-types';
+} from './agent-types.js';
 import type {
   Building, BuildingStatus, ExistingDockerContainer, ExistingComposeProject,
-} from './building-types';
+} from './building-types.js';
 import type {
   QueryResult, QueryHistoryEntry, TableColumn, TableIndex, ForeignKey, TableInfo,
-} from './database-types';
+} from './database-types.js';
 import type {
   ClaudeEvent, DrawingArea, Skill, PermissionRequest, PermissionResponse,
   AgentNotification, Secret, SnapshotListItem, ConversationSnapshot,
   CreateSnapshotRequest, RestoreSnapshotRequest, RestoreSnapshotResponse,
   SkillUpdateData,
-} from './common-types';
+} from './common-types.js';
 
 // ============================================================================
 // WebSocket Base

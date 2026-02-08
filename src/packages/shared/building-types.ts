@@ -1,4 +1,4 @@
-import type { DatabaseConfig } from './database-types';
+import type { DatabaseConfig } from './database-types.js';
 
 // ============================================================================
 // Building Types
