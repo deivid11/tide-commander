@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-type CliCommand = 'start' | 'stop' | 'status' | 'logs';
+type CliCommand = 'start' | 'stop' | 'status' | 'logs' | 'version';
 
 type CliOptions = {
   command: CliCommand;
@@ -31,6 +31,7 @@ Usage:
   tide-commander stop
   tide-commander status
   tide-commander logs [--lines <n>] [--follow]
+  tide-commander version
 
 Options:
   -p, --port <port>     Set server port (default: 5174)
@@ -51,7 +52,7 @@ function parseArgs(argv: string[]): CliOptions {
     const arg = argv[i];
 
     if (!arg.startsWith('-') && !commandParsed) {
-      if (arg === 'start' || arg === 'stop' || arg === 'status' || arg === 'logs') {
+      if (arg === 'start' || arg === 'stop' || arg === 'status' || arg === 'logs' || arg === 'version') {
         options.command = arg;
         commandParsed = true;
         continue;
@@ -111,6 +112,10 @@ function parseArgs(argv: string[]): CliOptions {
       case '-h':
       case '--help':
         options.help = true;
+        break;
+      case '-v':
+      case '--version':
+        options.command = 'version';
         break;
       default:
         throw new Error(`Unknown argument: ${arg}`);
@@ -182,19 +187,41 @@ function stopCommand(): number {
 }
 
 function statusCommand(): number {
+  // ANSI color codes
+  const cyan = '\x1b[36m';
+  const green = '\x1b[32m';
+  const red = '\x1b[31m';
+  const bright = '\x1b[1m';
+  const reset = '\x1b[0m';
+  const blue = '\x1b[34m';
+
   const pid = readPidFile();
   if (!pid) {
-    console.log('Tide Commander is stopped');
+    console.log(`\n${red}${bright}⨯ Tide Commander is stopped${reset}\n`);
     return 1;
   }
 
   if (!isRunning(pid)) {
     clearPidFile();
-    console.log('Tide Commander is stopped (stale PID file removed)');
+    console.log(`\n${red}${bright}⨯ Tide Commander is stopped${reset} (stale PID file removed)\n`);
     return 1;
   }
 
-  console.log(`Tide Commander is running (PID: ${pid})`);
+  const port = process.env.PORT || '5174';
+  const host = process.env.HOST || 'localhost';
+  const url = `http://${host}:${port}`;
+  const uptime = getProcessUptime(pid);
+  const version = getPackageVersion();
+
+  console.log(`\n${cyan}${bright}🌊 Tide Commander Status${reset}`);
+  console.log(`${cyan}${'═'.repeat(60)}${reset}`);
+  console.log(`${green}✓ Running${reset} (PID: ${pid})`);
+  console.log(`${blue}${bright}🚀 Access: ${url}${reset}`);
+  console.log(`   Version: ${version}`);
+  if (uptime) {
+    console.log(`   Uptime: ${uptime}`);
+  }
+  console.log(`${cyan}${'═'.repeat(60)}${reset}\n`);
   return 0;
 }
 
@@ -223,11 +250,65 @@ async function logsCommand(options: CliOptions): Promise<number> {
   });
 }
 
+function getPackageVersion(): string {
+  try {
+    const cliDir = path.dirname(fileURLToPath(import.meta.url));
+    const packagePath = path.join(cliDir, '..', '..', '..', '..', 'package.json');
+    const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+    return packageJson.version;
+  } catch {
+    return 'unknown';
+  }
+}
+
+function getProcessUptime(pid: number): string | null {
+  try {
+    // Try to get process start time from /proc/[pid]/stat (Linux)
+    if (fs.existsSync(`/proc/${pid}/stat`)) {
+      const stat = fs.readFileSync(`/proc/${pid}/stat`, 'utf8').split(' ');
+      const starttime = Number(stat[21]); // starttime in jiffies
+      const uptimeFile = fs.readFileSync('/proc/uptime', 'utf8').split(' ')[0];
+      const systemUptimeJiffies = Number(uptimeFile) * 100; // convert to jiffies (assuming 100 Hz)
+      const processUptimeJiffies = systemUptimeJiffies - starttime;
+      const processUptimeSeconds = Math.floor(processUptimeJiffies / 100);
+
+      const hours = Math.floor(processUptimeSeconds / 3600);
+      const minutes = Math.floor((processUptimeSeconds % 3600) / 60);
+      const seconds = processUptimeSeconds % 60;
+
+      if (hours > 0) {
+        return `${hours}h ${minutes}m ${seconds}s`;
+      } else if (minutes > 0) {
+        return `${minutes}m ${seconds}s`;
+      } else {
+        return `${seconds}s`;
+      }
+    }
+  } catch {
+    // Uptime not available (not on Linux or /proc not available)
+  }
+  return null;
+}
+
+function versionCommand(): void {
+  try {
+    const version = getPackageVersion();
+    console.log(`Tide Commander v${version}`);
+  } catch {
+    console.error('Failed to read version information');
+  }
+}
+
 async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2));
 
   if (options.help) {
     printHelp();
+    return;
+  }
+
+  if (options.command === 'version') {
+    versionCommand();
     return;
   }
 
@@ -261,7 +342,11 @@ async function main(): Promise<void> {
   const existingPid = readPidFile();
 
   if (existingPid && isRunning(existingPid)) {
-    console.log(`Tide Commander is already running (PID: ${existingPid})`);
+    const port = process.env.PORT || '5174';
+    const host = process.env.HOST || 'localhost';
+    const url = `http://${host}:${port}`;
+    console.log(`\n🌊 Tide Commander is already running (PID: ${existingPid})`);
+    console.log(`🚀 Open: ${url}\n`);
     return;
   }
   clearPidFile();
@@ -290,12 +375,20 @@ async function main(): Promise<void> {
     const host = process.env.HOST || 'localhost';
     const url = `http://${host}:${port}`;
 
-    console.log('\n🌊 Tide Commander');
-    console.log('═══════════════════════════════════════════════════════════');
-    console.log(`✓ Started in background (PID: ${child.pid ?? 'unknown'})`);
-    console.log(`🚀 Open: ${url}`);
-    console.log(`📝 Logs: tail -f logs/server.log`);
-    console.log('═══════════════════════════════════════════════════════════\n');
+    // ANSI color codes for beautiful output
+    const cyan = '\x1b[36m';
+    const green = '\x1b[32m';
+    const bright = '\x1b[1m';
+    const reset = '\x1b[0m';
+    const blue = '\x1b[34m';
+
+    console.log(`\n${cyan}${bright}🌊 Tide Commander${reset}`);
+    console.log(`${cyan}${'═'.repeat(60)}${reset}`);
+    console.log(`${green}✓${reset} Started in background (PID: ${child.pid ?? 'unknown'})`);
+    console.log(`${blue}${bright}🚀 Open: ${url}${reset}`);
+    console.log(`   Version: ${getPackageVersion()}`);
+    console.log(`${green}📝 Logs${reset}: tail -f logs/server.log`);
+    console.log(`${cyan}${'═'.repeat(60)}${reset}\n`);
     return;
   }
 
