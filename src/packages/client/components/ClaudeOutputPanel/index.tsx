@@ -66,7 +66,7 @@ import {
 } from './TerminalModals';
 import { HistoryLine } from './HistoryLine';
 import { VirtualizedOutputList } from './VirtualizedOutputList';
-import { ExecTasksContainer } from './ExecTaskIndicator';
+import { ExecTaskIndicator } from './ExecTaskIndicator';
 import { GuakeAgentLink as _GuakeAgentLink } from './GuakeAgentLink';
 import { AgentDebugPanel } from './AgentDebugPanel';
 import { AgentOverviewPanel } from './AgentOverviewPanel';
@@ -989,18 +989,15 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
                     ))}
                   </div>
                 )}
-                {/* Exec tasks container for streaming command output */}
-                {execTasks.length > 0 && (
-                  <ExecTasksContainer
-                    tasks={execTasks}
-                    onClearCompleted={() => {
-                      if (activeAgentId) {
-                        store.clearCompletedExecTasks(activeAgentId);
-                      }
-                    }}
-                    onDismiss={(taskId) => store.removeExecTask(taskId)}
+                {/* Exec tasks rendered as individual output lines */}
+                {execTasks.map((task) => (
+                  <ExecTaskIndicator
+                    key={task.taskId}
+                    task={task}
+                    defaultExpanded={task.status === 'running'}
+                    onClose={() => store.removeExecTask(task.taskId)}
                   />
-                )}
+                ))}
               </div>
             )}
           </div>
