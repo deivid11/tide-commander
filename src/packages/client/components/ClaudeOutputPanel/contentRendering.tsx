@@ -5,8 +5,9 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { markdownComponents } from './MarkdownComponents';
+import { createMarkdownComponents } from './MarkdownComponents';
 import { getApiBaseUrl } from '../../utils/storage';
+import { linkifyFilePathsForMarkdown } from '../../utils/outputRendering';
 
 /**
  * Helper to highlight search terms in text
@@ -50,18 +51,20 @@ export function getImageWebUrl(imagePath: string): string {
  */
 export function renderContentWithImages(
   content: string,
-  onImageClick?: (url: string, name: string) => void
+  onImageClick?: (url: string, name: string) => void,
+  onFileClick?: (path: string) => void
 ): React.ReactNode {
   // Pattern to match [Image: /path/to/image.png]
   const imagePattern = /\[Image:\s*([^\]]+)\]/g;
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
   let match;
+  const markdownComponents = createMarkdownComponents({ onFileClick });
 
   while ((match = imagePattern.exec(content)) !== null) {
     // Add text before the match
     if (match.index > lastIndex) {
-      const textBefore = content.slice(lastIndex, match.index);
+      const textBefore = linkifyFilePathsForMarkdown(content.slice(lastIndex, match.index));
       parts.push(
         <div key={`text-${lastIndex}`} className="markdown-content">
           <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
@@ -92,7 +95,7 @@ export function renderContentWithImages(
 
   // Add remaining text after last match
   if (lastIndex < content.length) {
-    const textAfter = content.slice(lastIndex);
+    const textAfter = linkifyFilePathsForMarkdown(content.slice(lastIndex));
     parts.push(
       <div key={`text-${lastIndex}`} className="markdown-content">
         <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
@@ -107,7 +110,7 @@ export function renderContentWithImages(
     return (
       <div className="markdown-content">
         <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-          {content}
+          {linkifyFilePathsForMarkdown(content)}
         </ReactMarkdown>
       </div>
     );

@@ -10,7 +10,7 @@ import { store } from '../../store';
 import { BOSS_CONTEXT_START } from '../../../shared/types';
 import { filterCostText } from '../../utils/formatting';
 import { TOOL_ICONS, extractToolKeyParam, formatTimestamp, parseBashNotificationCommand, parseBashSearchCommand } from '../../utils/outputRendering';
-import { markdownComponents } from './MarkdownComponents';
+import { createMarkdownComponents } from './MarkdownComponents';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions } from './BossContext';
 import { EditToolDiff, ReadToolInput, TodoWriteInput } from './ToolRenderers';
 import { highlightText, renderContentWithImages, renderUserPromptContent } from './contentRendering';
@@ -56,6 +56,7 @@ export const HistoryLine = memo(function HistoryLine({
   const { type, content: rawContent, toolName, timestamp, _bashOutput, _bashCommand } = message;
   const content = filterCostText(rawContent, hideCost);
   const { toggle: toggleTTS, speaking } = useTTS();
+  const markdownComponents = createMarkdownComponents({ onFileClick: onFileClick ? (path) => onFileClick(path) : undefined });
 
   // Resolve agent name for tool attribution badge
   // For Task tool_use messages, show the subagent name instead of parent agent
@@ -418,7 +419,7 @@ export const HistoryLine = memo(function HistoryLine({
         <span className="history-role">You</span>
         <span className="history-content user-prompt-text">
           {parsedBoss.hasContext && parsedBoss.context && (
-            <BossContext key={`boss-${timestamp || content.slice(0, 50)}`} context={parsedBoss.context} />
+            <BossContext key={`boss-${timestamp || content.slice(0, 50)}`} context={parsedBoss.context} onFileClick={onFileClick ? (path) => onFileClick(path) : undefined} />
           )}
           {highlight ? (
             <div>{highlightText(displayMessage, highlight)}</div>
@@ -443,7 +444,7 @@ export const HistoryLine = memo(function HistoryLine({
           {highlight ? (
             <div>{highlightText(workPlanParsed.contentWithoutBlock, highlight)}</div>
           ) : (
-            renderContentWithImages(workPlanParsed.contentWithoutBlock, onImageClick)
+            renderContentWithImages(workPlanParsed.contentWithoutBlock, onImageClick, onFileClick)
           )}
           {workPlanParsed.hasWorkPlan && workPlanParsed.workPlan && (
             <WorkPlanBlock workPlan={workPlanParsed.workPlan} />
@@ -482,7 +483,7 @@ export const HistoryLine = memo(function HistoryLine({
       <span className="history-role">{isUser ? 'You' : assistantOrSystemRoleLabel}</span>
       <span className={`history-content ${isUser ? 'user-prompt-text' : 'markdown-content'}`}>
         {highlight ? <div>{highlightText(content, highlight)}</div> : (
-          isUser ? renderUserPromptContent(content, onImageClick) : renderContentWithImages(content, onImageClick)
+          isUser ? renderUserPromptContent(content, onImageClick) : renderContentWithImages(content, onImageClick, onFileClick)
         )}
       </span>
       {!isUser && (

@@ -2,6 +2,48 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.48.0] - 2026-02-07
+
+### Added
+- **Architecture Documentation** - Comprehensive runtime architecture guide
+  - New `docs/architecture.md` with Mermaid diagrams
+  - System architecture diagram image
+  - Runtime flow and command lifecycle documentation
+  - Detailed explanation of agent orchestration
+
+- **Output Rendering Utilities** - Enhanced text formatting
+  - New `filePaths.ts` utility for path manipulation
+  - Comprehensive output rendering test suite
+  - Better markdown component rendering
+
+- **UI Components** - Improved agent panel and file viewer
+  - Enhanced CommanderView AgentPanel with better styling
+  - Improved FileViewerModal with better file handling
+  - Better visual styling for file viewer components
+
+### Changed
+- **Documentation** - Simplified README
+  - Moved detailed architecture to dedicated docs
+  - Better organization of technical documentation
+  - Added link to architecture guide
+
+- **Component Refactoring** - Better code organization
+  - Improved MarkdownComponents with enhanced rendering
+  - Refactored OutputLine component for clarity
+  - Better BossContext and HistoryLine organization
+  - Enhanced contentRendering module
+
+- **Styling** - Responsive improvements
+  - Better file viewer styling
+  - Improved responsive design for mobile
+  - Enhanced visual consistency
+
+### Fixed
+- **Output Rendering** - Better text formatting
+  - Improved markdown and code block rendering
+  - Better handling of special characters
+  - More robust output parsing and display
+
 ## [0.47.4] - 2026-02-07
 
 ### Added

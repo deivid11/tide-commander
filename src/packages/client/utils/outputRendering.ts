@@ -270,6 +270,82 @@ export interface BashNotificationCommandInfo {
   viaGdbus: boolean;
 }
 
+const TIDE_FILE_LINK_SCHEME = 'tide-file://';
+const FILE_PATH_TOKEN_REGEX = /(^|[\s(>])((?:\.\.?\/|\/)?(?:[A-Za-z0-9._-]+\/)*[A-Za-z0-9._-]+(?:\.[A-Za-z0-9._-]+)+(?:#L\d+(?:C\d+)?)?(?::\d+(?::\d+)?)?)(?=$|[\s),.;])/g;
+const INLINE_CODE_FILE_PATH_REGEX = /`((?:\.\.?\/|\/)?(?:[A-Za-z0-9._-]+\/)*[A-Za-z0-9._-]+(?:\.[A-Za-z0-9._-]+)+(?:#L\d+(?:C\d+)?)?(?::\d+(?::\d+)?)?)`/g;
+
+function isLikelyFilePathToken(token: string): boolean {
+  if (!token) return false;
+  if (token.includes('://')) return false;
+  if (token.startsWith('www.')) return false;
+  if (token.includes('@')) return false;
+  return token.includes('.') && !token.endsWith('.');
+}
+
+/**
+ * Convert bare file paths in plain output text into markdown links.
+ * Uses a custom scheme so markdown renderers can route clicks to the file viewer modal.
+ */
+export function linkifyFilePathsForMarkdown(text: string): string {
+  if (!text || !text.includes('.')) return text;
+
+  const lines = text.split('\n');
+  let inFence = false;
+
+  const rendered = lines.map((line) => {
+    const trimmed = line.trimStart();
+    if (trimmed.startsWith('```')) {
+      inFence = !inFence;
+      return line;
+    }
+    if (inFence) return line;
+
+    const withInlineCodeLinks = line.replace(INLINE_CODE_FILE_PATH_REGEX, (match, token: string) => {
+      if (!isLikelyFilePathToken(token)) {
+        return match;
+      }
+      const encoded = encodeURIComponent(token);
+      return `[\`${token}\`](${TIDE_FILE_LINK_SCHEME}${encoded})`;
+    });
+
+    return withInlineCodeLinks.replace(FILE_PATH_TOKEN_REGEX, (match, prefix: string, token: string, offset: number) => {
+      const tokenStart = offset + prefix.length;
+      const prevChar = tokenStart > 0 ? withInlineCodeLinks[tokenStart - 1] : '';
+      const nextChar = tokenStart + token.length < withInlineCodeLinks.length ? withInlineCodeLinks[tokenStart + token.length] : '';
+
+      // Avoid rewriting markdown link targets like [label](path/to/file)
+      if (prevChar === '(' && tokenStart > 1 && withInlineCodeLinks[tokenStart - 2] === ']') {
+        return match;
+      }
+      if (prevChar === '[' || nextChar === ']') {
+        return match;
+      }
+      if (!isLikelyFilePathToken(token)) {
+        return match;
+      }
+
+      const encoded = encodeURIComponent(token);
+      return `${prefix}[${token}](${TIDE_FILE_LINK_SCHEME}${encoded})`;
+    });
+  });
+
+  return rendered.join('\n');
+}
+
+/**
+ * Decode custom markdown href back into a file reference string.
+ */
+export function decodeTideFileHref(href?: string | null): string | null {
+  if (!href || !href.startsWith(TIDE_FILE_LINK_SCHEME)) return null;
+  const encoded = href.slice(TIDE_FILE_LINK_SCHEME.length);
+  if (!encoded) return null;
+  try {
+    return decodeURIComponent(encoded);
+  } catch {
+    return encoded;
+  }
+}
+
 function stripWrappingQuotes(value: string): string {
   if (
     (value.startsWith('"') && value.endsWith('"'))
