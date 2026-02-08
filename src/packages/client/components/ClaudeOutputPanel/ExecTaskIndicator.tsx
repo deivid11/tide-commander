@@ -31,15 +31,8 @@ export function ExecTaskIndicator({
     ? !userCollapsed
     : (task.status === 'running' || defaultExpanded);
 
-  // Auto-dismiss completed tasks after 10 seconds
-  useEffect(() => {
-    if (task.status !== 'running') {
-      const timer = setTimeout(() => {
-        store.removeExecTask(task.taskId);
-      }, 10000); // 10 seconds after completion
-      return () => clearTimeout(timer);
-    }
-  }, [task.status, task.taskId]);
+  // Note: Completed tasks persist until user dismisses them
+  // This allows users to review output and copy results
 
   // Auto-scroll to bottom when new output arrives
   useEffect(() => {
