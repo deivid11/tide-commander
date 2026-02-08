@@ -5,6 +5,7 @@
 
 import 'dotenv/config';
 import { createServer } from 'http';
+import type { Socket } from 'node:net';
 import { createApp } from './app.js';
 import { agentService, runtimeService, supervisorService, bossService, skillService, customClassService, secretsService, buildingService } from './services/index.js';
 import * as websocket from './websocket/handler.js';
@@ -14,6 +15,7 @@ import { logger, closeFileLogging, getLogFilePath } from './utils/logger.js';
 // Configuration
 const PORT = process.env.PORT || 6200;
 const HOST = process.env.HOST || (process.env.LISTEN_ALL_INTERFACES ? '::' : '127.0.0.1');
+const FORCE_SHUTDOWN_TIMEOUT_MS = 4500;
 
 // ============================================================================
 // Global Error Handlers
@@ -24,6 +26,12 @@ const HOST = process.env.HOST || (process.env.LISTEN_ALL_INTERFACES ? '::' : '12
 
 process.on('uncaughtException', (err) => {
   logger.server.error('Uncaught exception (commander will continue):', err);
+  const code = (err as NodeJS.ErrnoException)?.code;
+  if (code === 'EADDRINUSE') {
+    logger.server.error('Fatal startup error: address already in use, exiting process');
+    closeFileLogging();
+    process.exit(1);
+  }
   // Log the error but don't exit - agents should continue running
   // In production, you might want to notify monitoring systems here
 });
@@ -61,9 +69,17 @@ async function main(): Promise<void> {
   // Create Express app and HTTP server
   const app = createApp();
   const server = createServer(app);
+  const sockets = new Set<Socket>();
+
+  server.on('connection', (socket) => {
+    sockets.add(socket);
+    socket.on('close', () => {
+      sockets.delete(socket);
+    });
+  });
 
   // Initialize WebSocket
-  websocket.init(server);
+  const wss = websocket.init(server);
 
   // Set up skill hot-reload (must be after websocket init to have broadcast available)
   skillService.setupSkillHotReload(agentService, runtimeService, websocket.broadcast);
@@ -75,6 +91,15 @@ async function main(): Promise<void> {
   buildingService.startDockerStatusPolling(websocket.broadcast);
 
   // Start server
+  server.on('error', (err: NodeJS.ErrnoException) => {
+    logger.server.error('Server listen error:', err);
+    if (err.code === 'EADDRINUSE') {
+      logger.server.error(`Port ${PORT} is already in use. Exiting.`);
+      closeFileLogging();
+      process.exit(1);
+    }
+  });
+
   server.listen(Number(PORT), HOST, () => {
     logger.server.log(`Server running on http://${HOST}:${PORT}`);
     logger.server.log(`WebSocket available at ws://${HOST}:${PORT}/ws`);
@@ -91,6 +116,13 @@ async function main(): Promise<void> {
     isShuttingDown = true;
     logger.server.warn(`Shutting down on ${signal}...`);
 
+    const forceShutdownTimer = setTimeout(() => {
+      logger.server.error(`Forced shutdown after ${FORCE_SHUTDOWN_TIMEOUT_MS}ms timeout on ${signal}`);
+      closeFileLogging();
+      process.exit(0);
+    }, FORCE_SHUTDOWN_TIMEOUT_MS);
+    forceShutdownTimer.unref();
+
     try {
       supervisorService.shutdown();
       bossService.shutdown();
@@ -98,10 +130,15 @@ async function main(): Promise<void> {
       buildingService.stopDockerStatusPolling();
       await runtimeService.shutdown();
       agentService.persistAgents();
+      wss.clients.forEach((client) => client.terminate());
+      await new Promise<void>((resolve) => wss.close(() => resolve()));
+      sockets.forEach((socket) => socket.destroy());
       await new Promise<void>((resolve) => server.close(() => resolve()));
+      clearTimeout(forceShutdownTimer);
       closeFileLogging();
       process.exit(0);
     } catch (err) {
+      clearTimeout(forceShutdownTimer);
       logger.server.error(`Graceful shutdown failed on ${signal}:`, err);
       closeFileLogging();
       process.exit(1);

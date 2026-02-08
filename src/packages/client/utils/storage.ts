@@ -182,7 +182,7 @@ export function hasStorage(key: string): boolean {
 
 /**
  * Get the backend API base URL
- * Uses configured backend URL or defaults to localhost:6200
+ * Uses configured backend URL, dev default, or same-origin in production.
  */
 export function getApiBaseUrl(): string {
   const configuredUrl = getStorageString(STORAGE_KEYS.BACKEND_URL, '');
@@ -190,7 +190,15 @@ export function getApiBaseUrl(): string {
     // Remove trailing slash if present
     return configuredUrl.replace(/\/$/, '');
   }
-  return 'http://localhost:5174';
+
+  // In dev, frontend (Vite) and backend run on different ports.
+  if (import.meta.env.DEV) {
+    const defaultPort = typeof __SERVER_PORT__ !== 'undefined' ? __SERVER_PORT__ : 6200;
+    return `http://localhost:${defaultPort}`;
+  }
+
+  // In production, use the same host that served the UI.
+  return `${window.location.protocol}//${window.location.host}`;
 }
 
 /**

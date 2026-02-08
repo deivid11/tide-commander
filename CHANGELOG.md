@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.54.0] - 2026-02-08
+
+### Added
+- **npm publish workflow** - GitHub Actions workflow to publish to npm on release or manual trigger
+- **Server metadata persistence** - CLI now writes `server-meta.json` alongside PID file to track host/port across commands
+- **Startup verification** - Background start waits briefly to detect immediate crashes before reporting success
+- **Graceful restart** - `tide-commander start --port X` auto-stops the existing server before starting with new options
+- **Force shutdown timeout** - Server force-exits after 4.5s if graceful shutdown stalls
+- **EADDRINUSE handling** - Server exits immediately with clear error when port is already in use
+- **Colorized log viewer** - `tide-commander logs` now colorizes log levels, timestamps, and component tags
+- **Server entry resolution** - CLI can launch from both compiled `.js` and development `.ts` entry points
+
+### Changed
+- **Production client networking** - API base URL and WebSocket connection now use same-origin in production builds instead of hardcoded localhost, enabling deployment on any host/port
+- **Dev-only localhost fallback** - `localhost:6200` fallback is now only used in development mode (`import.meta.env.DEV`)
+- **Robust version detection** - `getPackageVersion()` now walks up directory tree to find `package.json` instead of using relative path offsets
+- **Status uses saved metadata** - `tide-commander status` reads host/port from saved server metadata instead of env vars
+- **Server shutdown** - WebSocket clients are terminated and sockets destroyed during graceful shutdown
+- **Socket tracking** - Server tracks active connections for clean shutdown
+
 ## [0.53.4] - 2026-02-08
 
 ### Changed

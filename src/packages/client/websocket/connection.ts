@@ -108,7 +108,12 @@ export function connect(): void {
       .replace(/^http:\/\//, 'ws://');
     wsUrl = wsConfigured.endsWith('/ws') ? wsConfigured : `${wsConfigured.replace(/\/$/, '')}/ws`;
   } else {
-    wsUrl = `ws://127.0.0.1:${defaultPort}/ws`;
+    if (import.meta.env.DEV) {
+      wsUrl = `ws://127.0.0.1:${defaultPort}/ws`;
+    } else {
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      wsUrl = `${wsProtocol}//${window.location.host}/ws`;
+    }
   }
 
   let newSocket: WebSocket | null = null;

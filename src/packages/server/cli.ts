@@ -4,9 +4,14 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { StringDecoder } from 'node:string_decoder';
 import { fileURLToPath } from 'node:url';
 
 type CliCommand = 'start' | 'stop' | 'status' | 'logs' | 'version';
+type ServerLaunchConfig = {
+  command: string;
+  args: string[];
+};
 
 type CliOptions = {
   command: CliCommand;
@@ -21,7 +26,25 @@ type CliOptions = {
 
 const PID_DIR = path.join(os.homedir(), '.local', 'share', 'tide-commander');
 const PID_FILE = path.join(PID_DIR, 'server.pid');
+const META_FILE = path.join(PID_DIR, 'server-meta.json');
 const LOG_FILE = path.join(process.cwd(), 'logs', 'server.log');
+
+type ServerMeta = {
+  pid: number;
+  host: string;
+  port: string;
+};
+
+function findProjectRoot(startDir: string): string | null {
+  let current = startDir;
+  while (current !== path.dirname(current)) {
+    if (fs.existsSync(path.join(current, 'package.json'))) {
+      return current;
+    }
+    current = path.dirname(current);
+  }
+  return null;
+}
 
 function printHelp(): void {
   console.log(`Tide Commander
@@ -149,6 +172,36 @@ function clearPidFile(): void {
   }
 }
 
+function writeServerMeta(meta: ServerMeta): void {
+  ensurePidDir();
+  fs.writeFileSync(META_FILE, `${JSON.stringify(meta)}\n`, 'utf8');
+}
+
+function readServerMeta(): ServerMeta | null {
+  try {
+    const raw = fs.readFileSync(META_FILE, 'utf8').trim();
+    const parsed = JSON.parse(raw) as Partial<ServerMeta>;
+    if (
+      typeof parsed.pid === 'number'
+      && typeof parsed.host === 'string'
+      && typeof parsed.port === 'string'
+    ) {
+      return parsed as ServerMeta;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function clearServerMeta(): void {
+  try {
+    fs.rmSync(META_FILE, { force: true });
+  } catch {
+    // no-op
+  }
+}
+
 function readPidFile(): number | null {
   try {
     const raw = fs.readFileSync(PID_FILE, 'utf8').trim();
@@ -168,15 +221,74 @@ function isRunning(pid: number): boolean {
   }
 }
 
+async function waitForProcessExit(pid: number, timeoutMs = 8000): Promise<boolean> {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    if (!isRunning(pid)) {
+      return true;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+  return !isRunning(pid);
+}
+
+async function waitForChildStartup(child: ReturnType<typeof spawn>, timeoutMs = 700): Promise<boolean> {
+  return await new Promise<boolean>((resolve) => {
+    let settled = false;
+
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      resolve(true);
+    }, timeoutMs);
+
+    child.once('exit', () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(false);
+    });
+
+    child.once('error', () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(false);
+    });
+  });
+}
+
+function resolveServerLaunch(cliDir: string): ServerLaunchConfig {
+  const serverEntryJs = path.join(cliDir, 'index.js');
+  if (fs.existsSync(serverEntryJs)) {
+    return {
+      command: process.execPath,
+      args: ['--experimental-specifier-resolution=node', serverEntryJs],
+    };
+  }
+
+  const serverEntryTs = path.join(cliDir, 'index.ts');
+  if (fs.existsSync(serverEntryTs)) {
+    return {
+      command: process.execPath,
+      args: ['--import', 'tsx', serverEntryTs],
+    };
+  }
+
+  throw new Error(`Could not find server entrypoint in ${cliDir}`);
+}
+
 function stopCommand(): number {
   const pid = readPidFile();
   if (!pid) {
+    clearServerMeta();
     console.log('Tide Commander is not running');
     return 0;
   }
 
   if (!isRunning(pid)) {
     clearPidFile();
+    clearServerMeta();
     console.log('Removed stale PID file');
     return 0;
   }
@@ -197,18 +309,21 @@ function statusCommand(): number {
 
   const pid = readPidFile();
   if (!pid) {
+    clearServerMeta();
     console.log(`\n${red}${bright}⨯ Tide Commander is stopped${reset}\n`);
     return 1;
   }
 
   if (!isRunning(pid)) {
     clearPidFile();
+    clearServerMeta();
     console.log(`\n${red}${bright}⨯ Tide Commander is stopped${reset} (stale PID file removed)\n`);
     return 1;
   }
 
-  const port = process.env.PORT || '6200';
-  const host = process.env.HOST || 'localhost';
+  const meta = readServerMeta();
+  const port = meta?.port ?? process.env.PORT ?? '6200';
+  const host = meta?.host ?? process.env.HOST ?? 'localhost';
   const url = `http://${host}:${port}`;
   const uptime = getProcessUptime(pid);
   const version = getPackageVersion();
@@ -238,13 +353,67 @@ async function logsCommand(options: CliOptions): Promise<number> {
   }
   args.push(LOG_FILE);
 
-  const tail = spawn('tail', args, { stdio: 'inherit' });
+  const tail = spawn('tail', args, { stdio: ['ignore', 'pipe', 'pipe'] });
+  const stdoutDecoder = new StringDecoder('utf8');
+  const stderrDecoder = new StringDecoder('utf8');
+
+  const formatLine = (line: string): string => {
+    const colors = {
+      reset: '\x1b[0m',
+      bright: '\x1b[1m',
+      dim: '\x1b[2m',
+      red: '\x1b[31m',
+      green: '\x1b[32m',
+      yellow: '\x1b[33m',
+      cyan: '\x1b[36m',
+    };
+
+    return line
+      .replace(/\[Tide\]/g, `${colors.green}[Tide]${colors.reset}`)
+      .replace(/\[(?!Tide\])([A-Za-z][A-Za-z0-9_-]{0,40})\]/g, `[${colors.yellow}$1${colors.reset}]`)
+      .replace(/\s-\s(\d{2}\/\d{2}\/\d{4},\s\d{2}:\d{2}:\d{2}\s[AP]M)\s/g, ` - ${colors.dim}$1${colors.reset} `)
+      .replace(/\bERROR\b/g, `${colors.red}${colors.bright}ERROR${colors.reset}`)
+      .replace(/\bWARN\b/g, `${colors.yellow}${colors.bright}WARN${colors.reset}`)
+      .replace(/\bLOG\b/g, `${colors.green}${colors.bright}LOG${colors.reset}`)
+      .replace(/\bDEBUG\b/g, `${colors.cyan}${colors.bright}DEBUG${colors.reset}`)
+    ;
+  };
+
+  let stdoutBuffer = '';
+  tail.stdout?.on('data', (chunk: Buffer) => {
+    stdoutBuffer += stdoutDecoder.write(chunk);
+    const lines = stdoutBuffer.split('\n');
+    stdoutBuffer = lines.pop() ?? '';
+    for (const line of lines) {
+      process.stdout.write(`${formatLine(line)}\n`);
+    }
+  });
+
+  let stderrBuffer = '';
+  tail.stderr?.on('data', (chunk: Buffer) => {
+    stderrBuffer += stderrDecoder.write(chunk);
+    const lines = stderrBuffer.split('\n');
+    stderrBuffer = lines.pop() ?? '';
+    for (const line of lines) {
+      process.stderr.write(`${line}\n`);
+    }
+  });
+
   return await new Promise<number>((resolve) => {
     tail.on('error', (error) => {
       console.error(`Failed to read logs: ${error.message}`);
       resolve(1);
     });
     tail.on('exit', (code) => {
+      const remainingOut = stdoutBuffer + stdoutDecoder.end();
+      if (remainingOut.trim().length > 0) {
+        process.stdout.write(`${formatLine(remainingOut)}\n`);
+      }
+
+      const remainingErr = stderrBuffer + stderrDecoder.end();
+      if (remainingErr.trim().length > 0) {
+        process.stderr.write(`${remainingErr}\n`);
+      }
       resolve(code ?? 0);
     });
   });
@@ -253,7 +422,11 @@ async function logsCommand(options: CliOptions): Promise<number> {
 function getPackageVersion(): string {
   try {
     const cliDir = path.dirname(fileURLToPath(import.meta.url));
-    const packagePath = path.join(cliDir, '..', '..', '..', '..', 'package.json');
+    const projectRoot = findProjectRoot(cliDir);
+    if (!projectRoot) {
+      return 'unknown';
+    }
+    const packagePath = path.join(projectRoot, 'package.json');
     const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
     return packageJson.version;
   } catch {
@@ -337,23 +510,47 @@ async function main(): Promise<void> {
   }
 
   const cliDir = path.dirname(fileURLToPath(import.meta.url));
-  const serverEntry = path.join(cliDir, 'index.js');
+  const serverLaunch = resolveServerLaunch(cliDir);
   const runInForeground = options.foreground === true || process.env.TIDE_COMMANDER_FOREGROUND === '1';
   const existingPid = readPidFile();
+  const hasStartupOverrides = options.port !== undefined
+    || options.host !== undefined
+    || options.listenAll === true
+    || options.foreground === true;
 
   if (existingPid && isRunning(existingPid)) {
-    const port = process.env.PORT || '6200';
-    const host = process.env.HOST || 'localhost';
+    if (hasStartupOverrides) {
+      try {
+        process.kill(existingPid, 'SIGTERM');
+      } catch (error) {
+        console.error(`Failed to restart Tide Commander: ${(error as Error).message}`);
+        process.exit(1);
+      }
+
+      const stopped = await waitForProcessExit(existingPid);
+      if (!stopped) {
+        console.error(`Failed to restart Tide Commander: process ${existingPid} did not stop in time`);
+        process.exit(1);
+      }
+
+      clearPidFile();
+      clearServerMeta();
+    } else {
+    const meta = readServerMeta();
+    const port = meta?.port ?? process.env.PORT ?? '6200';
+    const host = meta?.host ?? process.env.HOST ?? 'localhost';
     const url = `http://${host}:${port}`;
     console.log(`\n🌊 Tide Commander is already running (PID: ${existingPid})`);
     console.log(`🚀 Open: ${url}\n`);
     return;
+    }
   }
   clearPidFile();
+  clearServerMeta();
 
   const child = spawn(
-    process.execPath,
-    ['--experimental-specifier-resolution=node', serverEntry],
+    serverLaunch.command,
+    serverLaunch.args,
     {
       stdio: runInForeground ? 'inherit' : 'ignore',
       detached: !runInForeground,
@@ -367,8 +564,20 @@ async function main(): Promise<void> {
   });
 
   if (!runInForeground) {
+    const started = await waitForChildStartup(child);
+    if (!started) {
+      clearPidFile();
+      clearServerMeta();
+      console.error('Failed to start Tide Commander: process exited immediately');
+      process.exit(1);
+    }
     if (child.pid) {
       writePidFile(child.pid);
+      writeServerMeta({
+        pid: child.pid,
+        host: process.env.HOST || 'localhost',
+        port: process.env.PORT || '6200',
+      });
     }
     child.unref();
     const port = process.env.PORT || '6200';
@@ -394,10 +603,16 @@ async function main(): Promise<void> {
 
   if (child.pid) {
     writePidFile(child.pid);
+    writeServerMeta({
+      pid: child.pid,
+      host: process.env.HOST || 'localhost',
+      port: process.env.PORT || '6200',
+    });
   }
 
   child.on('exit', (code, signal) => {
     clearPidFile();
+    clearServerMeta();
     if (signal) {
       process.kill(process.pid, signal);
       return;
