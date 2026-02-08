@@ -162,7 +162,7 @@ export function TerminalInput({
 
   // Allow normal mouse events on input/textarea
   // Middle-click paste is now only disabled on the container itself
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+  const handleMouseDown = useCallback((_e: React.MouseEvent) => {
     // No-op: allow all mouse events on input/textarea
   }, []);
 

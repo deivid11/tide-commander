@@ -24,7 +24,7 @@ const getRawValue = (value: unknown): string => {
   return String(value);
 };
 
-export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId }) => {
+export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId: _buildingId }) => {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [sortColumn, setSortColumn] = useState<string | null>(null);

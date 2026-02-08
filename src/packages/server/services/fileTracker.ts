@@ -40,7 +40,7 @@ export async function extractFileChangesFromSession(
   const projectDir = getProjectDir(cwd);
   const sessionFile = path.join(projectDir, `${sessionId}.jsonl`);
 
-  const fileChanges: TrackedFileChange[] = [];
+  const _fileChanges: TrackedFileChange[] = [];
   const seenPaths = new Map<string, TrackedFileChange>(); // Track latest change per path
 
   if (!fs.existsSync(sessionFile)) {

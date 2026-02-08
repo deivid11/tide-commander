@@ -5,7 +5,7 @@
  */
 
 import React, { useEffect, useState, useCallback } from 'react';
-import type { Building, DatabaseConnection, TableInfo } from '../../../shared/types';
+import type { Building, DatabaseConnection } from '../../../shared/types';
 import { store, useDatabaseState } from '../../store';
 import './DatabaseSidebar.scss';
 

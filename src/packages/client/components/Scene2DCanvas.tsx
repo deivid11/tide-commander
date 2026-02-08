@@ -6,7 +6,6 @@
 
 import { useRef, useEffect } from 'react';
 import { useScene2DSetup } from '../hooks/useScene2DSetup';
-import type { Agent } from '../../shared/types';
 import './Scene2DCanvas.scss';
 
 interface Scene2DCanvasProps {
@@ -50,10 +49,10 @@ export function Scene2DCanvas({
 
   const {
     scene,
-    focusAgent,
-    updateAgent,
-    createMoveOrderEffect,
-    showToolBubble,
+    focusAgent: _focusAgent,
+    updateAgent: _updateAgent,
+    createMoveOrderEffect: _createMoveOrderEffect,
+    showToolBubble: _showToolBubble,
     setIndicatorScale,
     setGridVisible,
     setDrawingTool,

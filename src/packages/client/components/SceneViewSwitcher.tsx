@@ -18,10 +18,6 @@ interface SceneViewSwitcherProps {
 }
 
 export function SceneViewSwitcher({ mode, onModeChange, className = '' }: SceneViewSwitcherProps) {
-  const handleToggle = useCallback(() => {
-    onModeChange(mode === '2d' ? '3d' : '2d');
-  }, [mode, onModeChange]);
-
   return (
     <div className={`scene-view-switcher ${className}`}>
       <button

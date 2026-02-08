@@ -37,7 +37,7 @@ function getEventIcon(type: RecentEvent['type']): string {
 const TimelineEvent = React.memo(
   ({
     event,
-    isFirst,
+    isFirst: _isFirst,
     isLast,
     onClick,
   }: {

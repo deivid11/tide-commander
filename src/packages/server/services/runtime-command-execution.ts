@@ -1,5 +1,5 @@
 import type { AgentProvider } from '../../shared/types.js';
-import type { RuntimeCustomAgentDefinition, RuntimeRunner } from '../runtime/index.js';
+import type { CustomAgentDefinition, RuntimeRunner } from '../runtime/index.js';
 import * as agentService from './agent-service.js';
 import {
   clearPendingSilentContextRefresh,
@@ -10,7 +10,7 @@ import {
 
 export interface CustomAgentConfig {
   name: string;
-  definition: RuntimeCustomAgentDefinition;
+  definition: CustomAgentDefinition;
 }
 
 interface RuntimeCommandExecutionDeps {

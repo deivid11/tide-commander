@@ -64,7 +64,7 @@ export class AgentRenderer extends BaseRenderer {
     const statusConfig = STATUS_COLORS[agent.status] || STATUS_COLORS.idle;
     const bodyColor = this.numberToHex(agent.color);
     const bodyColorDark = this.darkenColor(bodyColor, 0.4);
-    const bodyColorLight = this.lightenColor(bodyColor, 0.3);
+    const _bodyColorLight = this.lightenColor(bodyColor, 0.3);
 
     const classEmoji = this.getAgentClassIcon(agent.class);
 

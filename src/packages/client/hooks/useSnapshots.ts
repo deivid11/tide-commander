@@ -5,7 +5,7 @@
  * Simplifies snapshot operations for components.
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import type { SnapshotActions } from '../store/snapshots';
 import type {
   ConversationSnapshot,
@@ -29,7 +29,7 @@ export interface UseListSnapshotsResult {
 }
 
 export function useListSnapshots(snapshotActions: SnapshotActions): UseListSnapshotsResult {
-  const [snapshots, setSnapshots] = useState<SnapshotListItem[]>([]);
+  const [snapshots, _setSnapshots] = useState<SnapshotListItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -132,7 +132,7 @@ export interface UseLoadSnapshotResult {
 }
 
 export function useLoadSnapshot(snapshotActions: SnapshotActions): UseLoadSnapshotResult {
-  const [snapshot, setSnapshot] = useState<ConversationSnapshot | null>(null);
+  const [snapshot, _setSnapshot] = useState<ConversationSnapshot | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

@@ -526,7 +526,7 @@ export class AgentManager {
         console.log(`[AgentManager] Custom model loaded for class ${agent.class}, now adding agent ${agent.name}`);
         this.addAgentInternal(agent);
       }).catch(err => {
-        const errorMsg = err instanceof Error ? err.message : String(err);
+        const _errorMsg = err instanceof Error ? err.message : String(err);
         console.error(`[AgentManager] Failed to load custom model for ${agent.class}:`, err);
         console.warn(`[AgentManager] Using fallback model for agent ${agent.name}`);
         this.onToast?.('warning', 'Model Load Failed', `Could not load custom model for ${agent.class}, using fallback`);

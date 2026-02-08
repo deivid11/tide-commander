@@ -128,7 +128,7 @@ function parseHealthStatus(health: string | undefined): DockerHealthStatus {
 /**
  * Parse port mapping string (e.g., "0.0.0.0:8080->80/tcp") to DockerPortMapping
  */
-function parsePortMapping(portStr: string): DockerPortMapping | null {
+function _parsePortMapping(portStr: string): DockerPortMapping | null {
   // Format: 0.0.0.0:8080->80/tcp or :::8080->80/tcp or 8080->80/tcp
   const match = portStr.match(/(?:[\d.]+:|:::)?(\d+)->(\d+)\/(tcp|udp)/);
   if (match) {

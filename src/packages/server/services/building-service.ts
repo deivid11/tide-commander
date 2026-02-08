@@ -230,7 +230,7 @@ async function executeDockerCommand(
 ): Promise<BuildingCommandResult> {
   const buildingId = building.id;
   const isCompose = building.docker?.mode === 'compose';
-  const isExisting = building.docker?.mode === 'existing';
+  const _isExisting = building.docker?.mode === 'existing';
 
   switch (command) {
     case 'start': {

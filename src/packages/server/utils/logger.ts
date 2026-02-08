@@ -227,7 +227,7 @@ interface CallerInfo {
   column: number;
 }
 
-function getCallerInfo(): CallerInfo | null {
+function _getCallerInfo(): CallerInfo | null {
   const err = new Error();
   const stack = err.stack?.split('\n');
 
@@ -275,8 +275,8 @@ function formatMessage(level: LogLevel, context: string, message: string, ...arg
   const timestamp = formatTimestamp();
   const pid = process.pid;
   // PERF: Disabled stack trace extraction - creates Error object + regex on every log call
-  // const caller = getCallerInfo();
-  const caller = null;
+  // const caller = _getCallerInfo();
+  const _caller = null;
 
   const appName = `${colors.green}[Tide]${colors.reset}`;
   const pidStr = `${colors.dim}${pid}${colors.reset}`;

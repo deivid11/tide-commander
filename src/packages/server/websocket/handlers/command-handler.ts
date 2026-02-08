@@ -5,7 +5,7 @@
 
 import { agentService, runtimeService, skillService, customClassService } from '../../services/index.js';
 import { createLogger } from '../../utils/index.js';
-import { getAuthToken, isAuthEnabled } from '../../auth/index.js';
+import { getAuthToken } from '../../auth/index.js';
 import type { HandlerContext } from './types.js';
 
 const log = createLogger('CommandHandler');

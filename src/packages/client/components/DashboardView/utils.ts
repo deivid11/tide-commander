@@ -9,7 +9,6 @@ import {
   DashboardError,
   ZoneGroup,
   StatusFilter,
-  GroupingMode,
 } from './types';
 
 /**
