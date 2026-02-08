@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.48.1] - 2026-02-07
+
+### Changed
+- **Documentation** - Improved runtime provider information
+  - Clarify Claude and Codex CLI integration details
+  - Better explanation of session persistence for both providers
+  - Updated backend process manager documentation
+  - Correct custom agent classes filename reference
+
+### Fixed
+- **Documentation Accuracy** - Better runtime support clarity
+  - Specify how Claude vs Codex handle CLI invocation
+  - Clarify session resumption mechanisms
+
 ## [0.48.0] - 2026-02-07
 
 ### Added
