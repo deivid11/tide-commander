@@ -10,6 +10,7 @@ export interface HistoryMessage {
   type: 'user' | 'assistant' | 'tool_use' | 'tool_result';
   content: string;
   timestamp: string;
+  uuid?: string;
   toolName?: string;
   toolUseId?: string; // For linking tool_use with tool_result
   toolInput?: Record<string, unknown>; // Parsed tool input

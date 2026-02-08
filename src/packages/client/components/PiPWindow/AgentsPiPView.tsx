@@ -431,7 +431,7 @@ function ConversationView({ agentId, onBack }: ConversationViewProps) {
   }, [agentId]);
 
   // File click handler (open file viewer)
-  const handleFileClick = useCallback((path: string, editData?: { oldString?: string; newString?: string; highlightRange?: { offset: number; limit: number } }) => {
+  const handleFileClick = useCallback((path: string, editData?: { oldString?: string; newString?: string; operation?: string; highlightRange?: { offset: number; limit: number } }) => {
     store.setFileViewerPath(path, editData);
   }, []);
 

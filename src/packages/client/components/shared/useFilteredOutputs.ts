@@ -12,6 +12,7 @@ import { debugLog } from '../../services/agentDebugger';
 export interface EditData {
   oldString: string;
   newString: string;
+  operation?: string;
 }
 
 // Extended output type with tool enrichment
@@ -43,7 +44,7 @@ export function isSimpleViewOutput(text: string | undefined): boolean {
   // HIDE stats and system messages
   if (text.startsWith('Tokens:')) return false;
   if (text.startsWith('Cost:')) return false;
-  if (text.startsWith('[thinking]')) return false;
+  if (text.startsWith('[thinking]')) return true;
   if (text.startsWith('[raw]')) return false;
   if (text.startsWith('Session started:')) return false;
   if (text.startsWith('Session initialized')) return false;
@@ -197,7 +198,11 @@ export function useFilteredOutputs({
               try {
                 const parsed = JSON.parse(inputJson);
                 if (parsed.old_string !== undefined || parsed.new_string !== undefined) {
-                  editData = { oldString: parsed.old_string || '', newString: parsed.new_string || '' };
+                  editData = {
+                    oldString: parsed.old_string || '',
+                    newString: parsed.new_string || '',
+                    operation: typeof parsed.operation === 'string' ? parsed.operation : undefined,
+                  };
                 }
               } catch {
                 /* ignore parse errors */

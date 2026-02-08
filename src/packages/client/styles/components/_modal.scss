@@ -63,6 +63,7 @@
     border-top: 1px solid $border-color;
     justify-content: flex-end;
   }
+
 }
 
 .spawn-modal-body {
@@ -256,6 +257,7 @@
   color: $text-primary;
   flex: 1;
   justify-content: center;
+  min-width: 0;
 
   &:hover {
     border-color: $text-secondary;
@@ -265,6 +267,33 @@
   &.selected {
     border-color: $dracula-cyan;
     background: rgba($dracula-cyan, 0.15);
+  }
+}
+
+.spawn-select-row--codex-models {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+
+  .spawn-select-btn {
+    justify-content: flex-start;
+    align-items: flex-start;
+    text-align: left;
+
+    &:last-child:nth-child(odd) {
+      grid-column: 1 / -1;
+    }
+
+    span:first-child {
+      flex-shrink: 0;
+      line-height: 1;
+      margin-top: 1px;
+    }
+
+    span:last-child {
+      line-height: 1.2;
+      overflow-wrap: anywhere;
+    }
   }
 }
 
@@ -1116,6 +1145,109 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+// Codex configuration section styling
+.codex-config-section {
+  padding: 14px;
+  background: linear-gradient(135deg, rgba($accent-orange, 0.08), rgba($accent-orange, 0.04));
+  border: 1px solid rgba($accent-orange, 0.25);
+  border-radius: $radius-md;
+  gap: 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+.codex-config-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: $text-secondary;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.codex-config-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.codex-option-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.codex-option-header {
+  font-size: 10px;
+  font-weight: 600;
+  color: $text-muted;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  opacity: 0.75;
+}
+
+.spawn-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 11px;
+  background: rgba($bg-tertiary, 0.6);
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  font-size: 12px;
+  cursor: pointer;
+  color: $text-primary;
+  transition: all $transition-fast;
+
+  &:hover {
+    border-color: $text-secondary;
+    background: rgba($bg-tertiary, 0.8);
+  }
+
+  input {
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
+    accent-color: $dracula-cyan;
+  }
+}
+
+// Improved select styling for Codex
+.spawn-input {
+  &[type="text"],
+  &:is(select) {
+    transition: all $transition-fast;
+    font-size: 12px;
+
+    &:focus {
+      box-shadow: 0 0 0 2px rgba($accent-blue, 0.1);
+    }
+  }
+}
+
+select.spawn-input {
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238be9fd' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 16px;
+  padding-right: 32px;
+  cursor: pointer;
+
+  option {
+    background: $bg-secondary;
+    color: $text-primary;
+    padding: 8px;
+  }
 }
 
 // Restore Archived Area Modal

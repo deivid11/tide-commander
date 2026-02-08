@@ -11,7 +11,7 @@ import { BOSS_CONTEXT_START } from '../../../shared/types';
 import { filterCostText } from '../../utils/formatting';
 import { TOOL_ICONS, extractToolKeyParam, formatTimestamp } from '../../utils/outputRendering';
 import { markdownComponents } from './MarkdownComponents';
-import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, parseWorkPlanBlock, WorkPlanBlock } from './BossContext';
+import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions } from './BossContext';
 import { EditToolDiff, ReadToolInput, TodoWriteInput } from './ToolRenderers';
 import { highlightText, renderContentWithImages, renderUserPromptContent } from './contentRendering';
 import { useTTS } from '../../hooks/useTTS';
@@ -220,7 +220,11 @@ export const HistoryLine = memo(function HistoryLine({
             try {
               const parsed = JSON.parse(content);
               if (parsed.old_string !== undefined || parsed.new_string !== undefined) {
-                onFileClick(keyParam, { oldString: parsed.old_string || '', newString: parsed.new_string || '' });
+                onFileClick(keyParam, {
+                  oldString: parsed.old_string || '',
+                  newString: parsed.new_string || '',
+                  operation: typeof parsed.operation === 'string' ? parsed.operation : undefined,
+                });
                 return;
               }
             } catch {
@@ -364,11 +368,14 @@ export const HistoryLine = memo(function HistoryLine({
   }
 
   const isUser = type === 'user';
-  const className = isUser ? 'history-line history-user' : 'history-line history-assistant';
+  const isSystemMessage = !isUser && /^\s*(?:[\u{1F300}-\u{1FAFF}\u2600-\u27BF]\s*)?\[System\]/u.test(content);
+  const className = isUser ? 'history-line history-user' : (isSystemMessage ? 'history-line history-system' : 'history-line history-assistant');
+  const assistantOrSystemRoleLabel = isSystemMessage ? 'System' : assistantRoleLabel;
 
   // For user messages, check for boss context
   if (isUser && parsedBoss) {
-    const displayMessage = parsedBoss.userMessage;
+    const parsedInjected = parseInjectedInstructions(parsedBoss.userMessage);
+    const displayMessage = parsedInjected.userMessage;
 
     return (
       <div className={className}>
@@ -396,7 +403,7 @@ export const HistoryLine = memo(function HistoryLine({
     return (
       <div className={className}>
         {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
-        <span className="history-role">{assistantRoleLabel}</span>
+        <span className="history-role">{assistantOrSystemRoleLabel}</span>
         <span className="history-content markdown-content">
           {highlight ? (
             <div>{highlightText(workPlanParsed.contentWithoutBlock, highlight)}</div>
@@ -437,7 +444,7 @@ export const HistoryLine = memo(function HistoryLine({
   return (
     <div className={className}>
       {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
-      <span className="history-role">{isUser ? 'You' : assistantRoleLabel}</span>
+      <span className="history-role">{isUser ? 'You' : assistantOrSystemRoleLabel}</span>
       <span className={`history-content ${isUser ? 'user-prompt-text' : 'markdown-content'}`}>
         {highlight ? <div>{highlightText(content, highlight)}</div> : (
           isUser ? renderUserPromptContent(content, onImageClick) : renderContentWithImages(content, onImageClick)

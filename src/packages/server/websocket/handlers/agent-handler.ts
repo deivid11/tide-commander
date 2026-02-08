@@ -214,9 +214,12 @@ export async function handleClearContext(
     status: 'idle',
     currentTask: undefined,
     currentTool: undefined,
+    lastAssignedTask: undefined,
+    lastAssignedTaskTime: undefined,
     sessionId: undefined, // Clear session to force new one
     tokensUsed: 0,
     contextUsed: 0,
+    contextStats: undefined,
   });
   ctx.sendActivity(payload.agentId, 'Context cleared - new session on next command');
 

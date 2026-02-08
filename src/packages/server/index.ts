@@ -81,19 +81,35 @@ async function main(): Promise<void> {
     logger.server.log(`API available at http://${HOST}:${PORT}/api`);
   });
 
-  // Graceful shutdown
-  process.on('SIGINT', async () => {
-    logger.server.warn('Shutting down...');
-    supervisorService.shutdown();
-    bossService.shutdown();
-    buildingService.stopPM2StatusPolling();
-    buildingService.stopDockerStatusPolling();
-    await runtimeService.shutdown();
-    agentService.persistAgents();
-    server.close();
-    closeFileLogging();
-    process.exit(0);
-  });
+  let isShuttingDown = false;
+  const gracefulShutdown = async (signal: NodeJS.Signals): Promise<void> => {
+    if (isShuttingDown) {
+      logger.server.warn(`Shutdown already in progress (received ${signal})`);
+      return;
+    }
+
+    isShuttingDown = true;
+    logger.server.warn(`Shutting down on ${signal}...`);
+
+    try {
+      supervisorService.shutdown();
+      bossService.shutdown();
+      buildingService.stopPM2StatusPolling();
+      buildingService.stopDockerStatusPolling();
+      await runtimeService.shutdown();
+      agentService.persistAgents();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      closeFileLogging();
+      process.exit(0);
+    } catch (err) {
+      logger.server.error(`Graceful shutdown failed on ${signal}:`, err);
+      closeFileLogging();
+      process.exit(1);
+    }
+  };
+
+  process.on('SIGINT', () => { void gracefulShutdown('SIGINT'); });
+  process.on('SIGTERM', () => { void gracefulShutdown('SIGTERM'); });
 }
 
 main().catch(console.error);

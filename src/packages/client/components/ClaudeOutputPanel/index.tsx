@@ -1,5 +1,5 @@
 /**
- * ClaudeOutputPanel - Main component
+ * GuakeOutputPanel - Main component
  *
  * A Guake-style terminal interface for interacting with Claude agents.
  * Features:
@@ -48,6 +48,7 @@ import { useSearchHistory } from './useSearchHistory';
 import { useTerminalInput } from './useTerminalInput';
 import { useMessageNavigation } from './useMessageNavigation';
 import { useFilteredOutputsWithLogging } from '../shared/useFilteredOutputs';
+import { parseBossContext, parseInjectedInstructions } from './BossContext';
 
 // Import extracted components
 import { TerminalHeader, SearchBar } from './TerminalHeader';
@@ -74,12 +75,41 @@ import { ThemeSelector } from './ThemeSelector';
 import { Tooltip } from '../shared/Tooltip';
 import type { Agent } from '../../../shared/types';
 
-export interface ClaudeOutputPanelProps {
+const LIVE_DUPLICATE_WINDOW_MS = 10_000;
+const HISTORY_OUTPUT_DUPLICATE_WINDOW_MS = 30_000;
+const HISTORY_ASSISTANT_OUTPUT_DUPLICATE_WINDOW_MS = 120_000;
+
+function normalizeUserMessage(text: string): string {
+  const parsedBoss = parseBossContext(text);
+  const parsedInjected = parseInjectedInstructions(parsedBoss.userMessage);
+  return parsedInjected.userMessage.trim().replace(/\r\n/g, '\n');
+}
+
+function normalizeAssistantMessage(text: string): string {
+  return text.trim().replace(/\r\n/g, '\n');
+}
+
+function isToolOrSystemOutput(text: string): boolean {
+  return text.startsWith('Using tool:')
+    || text.startsWith('Tool input:')
+    || text.startsWith('Tool result:')
+    || text.startsWith('Bash output:')
+    || text.startsWith('Session started:')
+    || text.startsWith('[thinking]')
+    || text.startsWith('Tokens:')
+    || text.startsWith('Cost:')
+    || text.startsWith('Context (estimated from Codex turn usage):')
+    || text.startsWith('🔄 [System]')
+    || text.startsWith('📋 [System]')
+    || text.startsWith('[System]');
+}
+
+export interface GuakeOutputPanelProps {
   /** Callback when user clicks star button to save snapshot */
   onSaveSnapshot?: () => void;
 }
 
-export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {}) {
+export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {}) {
   // Store selectors
   const agents = useAgents();
   const selectedAgentIds = useSelectedAgentIds();
@@ -135,7 +165,7 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
     ? currentSnapshot.outputs.map((output: any) => {
         // Log for debugging empty messages
         if (!output.text || !output.text.trim()) {
-          console.warn('[ClaudeOutputPanel] Empty snapshot output:', output);
+          console.warn('[GuakeOutputPanel] Empty snapshot output:', output);
         }
         return {
           text: output.text || '',
@@ -308,8 +338,99 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
   // Filtered outputs
   const filteredOutputs = useFilteredOutputsWithLogging({ outputs: displayOutputs, viewMode });
 
+  // Remove accidental duplicate user prompts from history (same normalized text, emitted within a short window)
+  const dedupedHistory = useMemo((): EnrichedHistoryMessage[] => {
+    const result: EnrichedHistoryMessage[] = [];
+    let lastUserKey: string | null = null;
+    let lastUserTs = 0;
+
+    for (const msg of filteredHistory) {
+      if (msg.type !== 'user') {
+        result.push(msg);
+        continue;
+      }
+
+      const key = normalizeUserMessage(msg.content);
+      const ts = msg.timestamp ? new Date(msg.timestamp).getTime() : 0;
+      if (lastUserKey === key && Math.abs(ts - lastUserTs) <= LIVE_DUPLICATE_WINDOW_MS) {
+        continue;
+      }
+
+      result.push(msg);
+      lastUserKey = key;
+      lastUserTs = ts;
+    }
+
+    return result;
+  }, [filteredHistory]);
+
+  // Remove live user prompts that are duplicates of very recent history/live prompts
+  const dedupedOutputs = useMemo(() => {
+    const latestHistoryUserTsByKey = new Map<string, number>();
+    const historyAssistantUuidSet = new Set<string>();
+    const latestHistoryAssistantTsByKey = new Map<string, number>();
+    for (const msg of dedupedHistory) {
+      const ts = msg.timestamp ? new Date(msg.timestamp).getTime() : 0;
+      if (msg.type === 'user') {
+        const key = normalizeUserMessage(msg.content);
+        const prev = latestHistoryUserTsByKey.get(key) ?? 0;
+        if (ts > prev) latestHistoryUserTsByKey.set(key, ts);
+        continue;
+      }
+      if (msg.type !== 'assistant') continue;
+      if (msg.uuid) {
+        historyAssistantUuidSet.add(msg.uuid);
+      }
+      const key = normalizeAssistantMessage(msg.content);
+      const prev = latestHistoryAssistantTsByKey.get(key) ?? 0;
+      if (ts > prev) latestHistoryAssistantTsByKey.set(key, ts);
+    }
+
+    const result: typeof filteredOutputs = [];
+    let lastLiveUserKey: string | null = null;
+    let lastLiveUserTs = 0;
+
+    for (const output of filteredOutputs) {
+      if (!output.isUserPrompt) {
+        if (!output.isStreaming && !isToolOrSystemOutput(output.text)) {
+          if (output.uuid && historyAssistantUuidSet.has(output.uuid)) {
+            continue;
+          }
+          const key = normalizeAssistantMessage(output.text);
+          const ts = output.timestamp || 0;
+          const historyTs = latestHistoryAssistantTsByKey.get(key);
+          if (historyTs && Math.abs(ts - historyTs) <= HISTORY_ASSISTANT_OUTPUT_DUPLICATE_WINDOW_MS) {
+            continue;
+          }
+        }
+        result.push(output);
+        continue;
+      }
+
+      const key = normalizeUserMessage(output.text);
+      const ts = output.timestamp || 0;
+      const latestHistoryTs = latestHistoryUserTsByKey.get(key);
+
+      // Duplicate of freshly-loaded history copy of the same user prompt
+      if (latestHistoryTs && ts >= latestHistoryTs && ts - latestHistoryTs <= HISTORY_OUTPUT_DUPLICATE_WINDOW_MS) {
+        continue;
+      }
+
+      // Duplicate command_started events that occasionally arrive twice
+      if (lastLiveUserKey === key && Math.abs(ts - lastLiveUserTs) <= LIVE_DUPLICATE_WINDOW_MS) {
+        continue;
+      }
+
+      result.push(output);
+      lastLiveUserKey = key;
+      lastLiveUserTs = ts;
+    }
+
+    return result;
+  }, [filteredOutputs, dedupedHistory]);
+
   // Total navigable messages count (history + live outputs)
-  const totalNavigableMessages = filteredHistory.length + filteredOutputs.length;
+  const totalNavigableMessages = dedupedHistory.length + dedupedOutputs.length;
 
   // Message navigation hook (Alt+J/K)
   const messageNav = useMessageNavigation({
@@ -326,13 +447,13 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
   // Auto-update bash modal when output arrives
   useEffect(() => {
     if (!bashModal?.isLive || !bashModal.command) return;
-    for (const output of filteredOutputs) {
+    for (const output of dedupedOutputs) {
       if (output._bashCommand === bashModal.command && output._bashOutput) {
         setBashModal({ command: bashModal.command, output: output._bashOutput, isLive: false });
         return;
       }
     }
-  }, [bashModal, filteredOutputs]);
+  }, [bashModal, dedupedOutputs]);
 
   // Memoized callbacks
   const handleImageClick = useCallback((url: string, name: string) => {
@@ -363,7 +484,7 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
     return `/${stack.join('/')}`;
   }, [activeAgent?.cwd]);
 
-  const handleFileClick = useCallback((path: string, editData?: { oldString?: string; newString?: string; highlightRange?: { offset: number; limit: number } }) => {
+  const handleFileClick = useCallback((path: string, editData?: { oldString?: string; newString?: string; operation?: string; highlightRange?: { offset: number; limit: number } }) => {
     store.setFileViewerPath(resolveFilePath(path), editData);
   }, [resolveFilePath]);
 
@@ -730,7 +851,7 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
           setDebuggerEnabled={setDebuggerEnabled}
           overviewPanelOpen={overviewPanelOpen}
           setOverviewPanelOpen={setOverviewPanelOpen}
-          outputsLength={displayOutputs.length + filteredHistory.length}
+          outputsLength={dedupedHistory.length + dedupedOutputs.length}
           setContextConfirm={setContextConfirm}
           headerRef={swipe.headerRef}
           onSaveSnapshot={isSnapshotView ? undefined : onSaveSnapshot}
@@ -816,8 +937,8 @@ export function ClaudeOutputPanel({ onSaveSnapshot }: ClaudeOutputPanelProps = {
                 )}
                 {/* Virtualized rendering - only renders visible items + overscan buffer */}
                 <VirtualizedOutputList
-                  historyMessages={filteredHistory}
-                  liveOutputs={filteredOutputs}
+                  historyMessages={dedupedHistory}
+                  liveOutputs={dedupedOutputs}
                   agentId={activeAgentId}
                   viewMode={viewMode}
                   selectedMessageIndex={messageNav.selectedIndex}

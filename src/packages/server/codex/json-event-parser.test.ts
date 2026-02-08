@@ -38,6 +38,19 @@ describe('CodexJsonEventParser', () => {
     });
   });
 
+  it('filters turn_aborted marker noise from agent_message', () => {
+    const parser = new CodexJsonEventParser();
+    const events = parser.parseEvent({
+      type: 'item.completed',
+      item: {
+        type: 'agent_message',
+        text: 'You<turn_aborted>\nThe user interrupted the previous turn on purpose.\n</turn_aborted>',
+      },
+    });
+
+    expect(events).toHaveLength(0);
+  });
+
   it('maps web_search started/completed to tool_start/tool_result', () => {
     const parser = new CodexJsonEventParser();
 
@@ -120,6 +133,33 @@ describe('CodexJsonEventParser', () => {
       type: 'tool_result',
       toolName: 'Bash',
       toolOutput: 'line1\nline2\n',
+    });
+  });
+
+  it('infers append edit from printf redirect command', () => {
+    const parser = new CodexJsonEventParser();
+    const events = parser.parseEvent({
+      type: 'item.completed',
+      item: {
+        id: 'cmd_456',
+        type: 'command_execution',
+        command: '/usr/bin/zsh -lc "printf \'\\nLine added.\\n\' >> README.md && tail -n 5 README.md"',
+        aggregated_output: 'MIT\n\nAdded line.\nThis line was added as requested.\n\nLine added.\n',
+        exit_code: 0,
+        status: 'completed',
+      },
+    });
+
+    const editStart = events.find((event) => event.type === 'tool_start' && event.toolName === 'Edit');
+    expect(editStart).toMatchObject({
+      type: 'tool_start',
+      toolName: 'Edit',
+      toolInput: {
+        file_path: './README.md',
+        operation: 'append',
+        old_string: '',
+        new_string: '\nLine added.\n',
+      },
     });
   });
 

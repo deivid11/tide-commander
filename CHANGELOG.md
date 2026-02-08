@@ -2,6 +2,40 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.47.1] - 2026-02-07
+
+### Added
+- **Boss Context System** - Enhanced context management for multi-agent coordination
+  - New BossContext component for coordinating agent activities
+  - Better context tracking and session management
+
+- **Improved History Loading** - Enhanced conversation history retrieval
+  - Better history loader with agent history tracking
+  - Improved filtering and output management
+  - Support for multi-agent conversations
+
+### Changed
+- **Output Rendering** - Enhanced output line component
+  - Better formatting for different message types
+  - Improved visual presentation and readability
+  - Better handling of streamed content
+
+- **Modal Components** - UI refinements
+  - Improved FileViewerModal with better file handling
+  - Enhanced modal styling and spacing
+  - Better responsive design
+
+- **Terminal Styling** - Enhanced visual display
+  - Better history line rendering
+  - Improved output formatting
+  - Enhanced visual separation between messages
+
+### Fixed
+- **History Loading** - Better agent history retrieval
+  - Improved conversation history loading from sessions
+  - Better output deduplication
+  - Enhanced error handling
+
 ## [0.47.0] - 2026-02-07
 
 ### Added

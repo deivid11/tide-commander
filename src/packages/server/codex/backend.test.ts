@@ -12,7 +12,7 @@ describe('CodexBackend', () => {
     expect(args).toEqual([
       'exec',
       '--json',
-      '--full-auto',
+      '--dangerously-bypass-approvals-and-sandbox',
       '-C',
       '/tmp/project',
       'find recent taco recipes',
@@ -30,7 +30,7 @@ describe('CodexBackend', () => {
     expect(args).toEqual([
       'exec',
       '--json',
-      '--full-auto',
+      '--dangerously-bypass-approvals-and-sandbox',
       '-C',
       '/tmp/project',
       'resume',
@@ -96,7 +96,7 @@ describe('CodexBackend', () => {
 
     expect(args[0]).toBe('exec');
     expect(args[1]).toBe('--json');
-    expect(args[2]).toBe('--full-auto');
+    expect(args[2]).toBe('--dangerously-bypass-approvals-and-sandbox');
     expect(args[3]).toBe('-C');
     expect(args[4]).toBe('/tmp/project');
 

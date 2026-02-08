@@ -16,6 +16,38 @@ import { MESSAGES_PER_PAGE } from './types';
 import { useReconnectCount, store } from '../../store';
 import { apiUrl, authFetch } from '../../utils/storage';
 
+const HISTORY_LIVE_DEDUP_WINDOW_MS = 120_000;
+
+function normalizeMessage(text: string): string {
+  return text.trim().replace(/\r\n/g, '\n');
+}
+
+function buildOutputHistoryKey(type: 'user' | 'assistant', content: string): string {
+  return `${type}:${normalizeMessage(content)}`;
+}
+
+function shouldKeepOutput(
+  output: ClaudeOutput,
+  historyUuidSet: Set<string>,
+  latestHistoryTsByKey: Map<string, number>,
+  lastHistoryTimestamp: number
+): boolean {
+  if (output.uuid && historyUuidSet.has(output.uuid)) {
+    return false;
+  }
+
+  const outputType: 'user' | 'assistant' = output.isUserPrompt ? 'user' : 'assistant';
+  const key = buildOutputHistoryKey(outputType, output.text);
+  const outputTs = output.timestamp || 0;
+  const historyTs = latestHistoryTsByKey.get(key);
+
+  if (historyTs !== undefined && Math.abs(outputTs - historyTs) <= HISTORY_LIVE_DEDUP_WINDOW_MS) {
+    return false;
+  }
+
+  return outputTs > lastHistoryTimestamp;
+}
+
 /**
  * Compare two Maps for equality by checking if all keys and values are the same.
  * For Agent values, we only compare the id to avoid re-renders on status changes.
@@ -142,6 +174,15 @@ export function useAgentHistory({ isOpen, agents }: UseAgentHistoryOptions): Use
         const lastHistoryTimestamp = historyMessages.length > 0
           ? Math.max(...historyMessages.map(m => m.timestamp ? new Date(m.timestamp).getTime() : 0))
           : 0;
+        const historyUuidSet = new Set(historyMessages.map(m => m.uuid).filter((uuid): uuid is string => !!uuid));
+        const latestHistoryTsByKey = new Map<string, number>();
+        for (const msg of historyMessages) {
+          if (msg.type !== 'user' && msg.type !== 'assistant') continue;
+          const key = buildOutputHistoryKey(msg.type, msg.content);
+          const msgTs = msg.timestamp ? new Date(msg.timestamp).getTime() : 0;
+          const prev = latestHistoryTsByKey.get(key) ?? 0;
+          if (msgTs > prev) latestHistoryTsByKey.set(key, msgTs);
+        }
 
         // Get current outputs from store
         const currentOutputs = store.getOutputs(agent.id);
@@ -151,8 +192,12 @@ export function useAgentHistory({ isOpen, agents }: UseAgentHistoryOptions): Use
           ? [...preserved, ...currentOutputs]
           : currentOutputs;
 
-        // Only keep outputs newer than history (history already has older messages)
-        const newerOutputs = allOutputs.filter(o => o.timestamp > lastHistoryTimestamp);
+        const newerOutputs = allOutputs.filter((output) => shouldKeepOutput(
+          output,
+          historyUuidSet,
+          latestHistoryTsByKey,
+          lastHistoryTimestamp
+        ));
 
         // Clear and restore only newer outputs
         store.clearOutputs(agent.id);

@@ -91,6 +91,14 @@ export class ClaudeRunner {
   }
 
   /**
+   * Whether this runner's backend supports stdin-based follow-up messages.
+   * Codex does not use stdin — prompts are baked into CLI args.
+   */
+  supportsStdin(): boolean {
+    return this.backend.requiresStdinInput();
+  }
+
+  /**
    * Enable or disable auto-restart
    */
   setAutoRestart(enabled: boolean): void {
@@ -519,7 +527,14 @@ export class ClaudeRunner {
         this.recordDeath(deathInfo);
       }
 
-      this.callbacks.onComplete(agentId, code === 0);
+      // Skip onComplete if the process was explicitly stopped (removed from tracking
+      // before close fired). This prevents a stopped-then-respawned agent from getting
+      // its 'working' status overwritten back to 'idle' by the old process's close event.
+      if (!wasTracked && (signal === 'SIGINT' || signal === 'SIGTERM')) {
+        log.log(`⏭️ [EXIT] Agent ${agentId}: Skipping onComplete - process was explicitly stopped (signal=${signal})`);
+      } else {
+        this.callbacks.onComplete(agentId, code === 0);
+      }
 
       // Attempt auto-restart for unexpected crashes
       if (trackedProcess && code !== 0 && signal !== 'SIGINT' && signal !== 'SIGTERM') {

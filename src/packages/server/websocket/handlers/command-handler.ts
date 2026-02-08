@@ -121,6 +121,8 @@ export async function handleSendCommand(
       status: 'idle',
       currentTask: undefined,
       currentTool: undefined,
+      lastAssignedTask: undefined,
+      lastAssignedTaskTime: undefined,
       sessionId: undefined,
       tokensUsed: 0,
       contextUsed: 0,

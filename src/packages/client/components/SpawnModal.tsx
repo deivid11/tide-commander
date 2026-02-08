@@ -643,7 +643,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                     ))}
                   </div>
                 ) : selectedProvider === 'codex' ? (
-                  <div className="spawn-select-row">
+                  <div className="spawn-select-row spawn-select-row--codex-models">
                     {(Object.keys(CODEX_MODELS) as CodexModel[]).map((model) => (
                       <button
                         key={model}
@@ -686,10 +686,11 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
             </div>
 
             {selectedProvider === 'codex' && (
-              <div className="spawn-form-row">
-                <div className="spawn-field">
-                  <label className="spawn-label">Codex Config</label>
-                  <div className="spawn-options-row" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div className="codex-config-section">
+                <div className="codex-config-title">Configuration</div>
+                <div className="codex-config-options">
+                  {/* Flags section */}
+                  <div className="codex-option-group">
                     <label className="spawn-checkbox">
                       <input
                         type="checkbox"
@@ -701,7 +702,13 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                           }))
                         }
                       />
-                      <span>Use `--full-auto`</span>
+                      <span>`--full-auto` mode</span>
+                      <HelpTooltip
+                        text="Enable full autonomous mode. Agent operates without approval gates."
+                        title="Full Auto Mode"
+                        position="top"
+                        size="sm"
+                      />
                     </label>
                     <label className="spawn-checkbox">
                       <input
@@ -714,45 +721,59 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                           }))
                         }
                       />
-                      <span>Enable live web search (`--search`)</span>
+                      <span>`--search` live web search</span>
+                      <HelpTooltip
+                        text="Enable real-time internet search for current information."
+                        title="Live Web Search"
+                        position="top"
+                        size="sm"
+                      />
                     </label>
-                    {codexConfig.fullAuto === false && (
-                      <>
-                        <select
-                          className="spawn-input"
-                          value={codexConfig.sandbox || 'workspace-write'}
-                          onChange={(e) =>
-                            setCodexConfig((prev) => ({
-                              ...prev,
-                              sandbox: e.target.value as CodexConfig['sandbox'],
-                            }))
-                          }
-                        >
-                          <option value="read-only">Sandbox: read-only</option>
-                          <option value="workspace-write">Sandbox: workspace-write</option>
-                          <option value="danger-full-access">Sandbox: danger-full-access</option>
-                        </select>
-                        <select
-                          className="spawn-input"
-                          value={codexConfig.approvalMode || 'on-request'}
-                          onChange={(e) =>
-                            setCodexConfig((prev) => ({
-                              ...prev,
-                              approvalMode: e.target.value as CodexConfig['approvalMode'],
-                            }))
-                          }
-                        >
-                          <option value="untrusted">Approvals: untrusted</option>
-                          <option value="on-failure">Approvals: on-failure</option>
-                          <option value="on-request">Approvals: on-request</option>
-                          <option value="never">Approvals: never</option>
-                        </select>
-                      </>
-                    )}
+                  </div>
+
+                  {/* Conditional options when not full-auto */}
+                  {codexConfig.fullAuto === false && (
+                    <div className="codex-option-group">
+                      <div className="codex-option-header">Restrictions</div>
+                      <select
+                        className="spawn-input codex-select"
+                        value={codexConfig.sandbox || 'workspace-write'}
+                        onChange={(e) =>
+                          setCodexConfig((prev) => ({
+                            ...prev,
+                            sandbox: e.target.value as CodexConfig['sandbox'],
+                          }))
+                        }
+                      >
+                        <option value="read-only">📖 Sandbox: read-only</option>
+                        <option value="workspace-write">✏️  Sandbox: workspace-write</option>
+                        <option value="danger-full-access">⚡ Sandbox: danger-full-access</option>
+                      </select>
+                      <select
+                        className="spawn-input codex-select"
+                        value={codexConfig.approvalMode || 'on-request'}
+                        onChange={(e) =>
+                          setCodexConfig((prev) => ({
+                            ...prev,
+                            approvalMode: e.target.value as CodexConfig['approvalMode'],
+                          }))
+                        }
+                      >
+                        <option value="untrusted">🔒 Approvals: untrusted</option>
+                        <option value="on-failure">⚠️  Approvals: on-failure</option>
+                        <option value="on-request">🤔 Approvals: on-request</option>
+                        <option value="never">✅ Approvals: never</option>
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Profile option */}
+                  <div className="codex-option-group">
+                    <div className="codex-option-header">Profile</div>
                     <input
                       type="text"
-                      className="spawn-input"
-                      placeholder="Profile (optional)"
+                      className="spawn-input codex-profile-input"
+                      placeholder="Optional profile name"
                       value={codexConfig.profile || ''}
                       onChange={(e) =>
                         setCodexConfig((prev) => ({

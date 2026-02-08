@@ -82,6 +82,18 @@ function normalizeTextContent(content: unknown): string {
   return String(content);
 }
 
+function sanitizeCodexMessageText(text: string): string {
+  const hadTurnAborted = /<turn_aborted>[\s\S]*?<\/turn_aborted>/.test(text);
+  if (hadTurnAborted) {
+    log.warn('Filtered <turn_aborted> marker from Codex session history message');
+  }
+  const withoutTurnAborted = text.replace(/<turn_aborted>[\s\S]*?<\/turn_aborted>/g, '').trim();
+  if (withoutTurnAborted === 'You') {
+    return '';
+  }
+  return withoutTurnAborted;
+}
+
 function safeParseJson(input: string): unknown {
   try {
     return JSON.parse(input);
@@ -99,6 +111,36 @@ function parseFunctionCallArguments(raw: unknown): Record<string, unknown> {
   }
   const parsed = safeParseJson(raw);
   return isObject(parsed) ? parsed : { raw: raw };
+}
+
+interface NormalizedCodexToolCall {
+  toolName: string;
+  toolInput: Record<string, unknown>;
+}
+
+function normalizeCodexFunctionToolCall(
+  rawToolName: string,
+  rawToolInput: Record<string, unknown>
+): NormalizedCodexToolCall {
+  // Codex session history stores tool names as function identifiers (e.g. exec_command),
+  // while live runtime events use normalized names (e.g. Bash). Align them so reload
+  // renders identical rich tool rows in the UI.
+  if (rawToolName === 'exec_command') {
+    const cmd = typeof rawToolInput.cmd === 'string' ? rawToolInput.cmd : undefined;
+    const command = typeof rawToolInput.command === 'string' ? rawToolInput.command : cmd;
+    return {
+      toolName: 'Bash',
+      toolInput: {
+        ...rawToolInput,
+        ...(command ? { command } : {}),
+      },
+    };
+  }
+
+  return {
+    toolName: rawToolName,
+    toolInput: rawToolInput,
+  };
 }
 
 function findCodexSessionFile(sessionId: string): string | null {
@@ -339,7 +381,7 @@ function parseClaudeEntryMessages(
 
 function extractCodexMessageText(content: unknown): string {
   if (!Array.isArray(content)) {
-    return normalizeTextContent(content);
+    return sanitizeCodexMessageText(normalizeTextContent(content));
   }
 
   const textParts: string[] = [];
@@ -355,10 +397,54 @@ function extractCodexMessageText(content: unknown): string {
   }
 
   if (textParts.length > 0) {
-    return textParts.join('\n');
+    return sanitizeCodexMessageText(textParts.join('\n'));
   }
 
-  return normalizeTextContent(content);
+  return sanitizeCodexMessageText(normalizeTextContent(content));
+}
+
+function stripCodexInjectedUserMessage(content: string): string {
+  let normalized = content.replace(/\r\n/g, '\n').trim();
+  if (!normalized) return normalized;
+
+  // Some Codex session formats prefix role markers inline (e.g. "You# AGENTS...").
+  // Remove this marker only when immediately followed by known wrapper starters.
+  normalized = normalized.replace(/^You(?=[<#])/gm, '');
+
+  const userRequestHeader = '## User Request';
+  const userRequestHeaderIndex = normalized.lastIndexOf(userRequestHeader);
+  const hadUserRequestHeader = userRequestHeaderIndex !== -1;
+
+  if (hadUserRequestHeader) {
+    normalized = normalized.slice(userRequestHeaderIndex + userRequestHeader.length).trim();
+  }
+
+  const wrapperPatterns = [
+    /^# AGENTS\.md instructions[^\n]*\n[\s\S]*?<\/INSTRUCTIONS>\s*/i,
+    /^<environment_context>\s*[\s\S]*?<\/environment_context>\s*/i,
+    /^Follow all instructions below for this task\.\s*/i,
+  ];
+
+  let keepStripping = true;
+  let didStripWrapper = false;
+  while (keepStripping) {
+    keepStripping = false;
+    for (const pattern of wrapperPatterns) {
+      const match = normalized.match(pattern);
+      if (match) {
+        normalized = normalized.slice(match[0].length).trimStart();
+        keepStripping = true;
+        didStripWrapper = true;
+        break;
+      }
+    }
+  }
+
+  if ((hadUserRequestHeader || didStripWrapper) && /^You\S/.test(normalized)) {
+    normalized = normalized.slice(3).trimStart();
+  }
+
+  return normalized.trim();
 }
 
 function parseCodexEntryMessages(
@@ -369,9 +455,13 @@ function parseCodexEntryMessages(
   if (entry.type === 'event_msg' && isObject(entry.payload)) {
     const payload = entry.payload as Record<string, unknown>;
     if (payload.type === 'user_message' && typeof payload.message === 'string') {
+      const normalizedMessage = stripCodexInjectedUserMessage(payload.message);
+      if (!normalizedMessage) {
+        return;
+      }
       messages.push({
         type: 'user',
-        content: payload.message,
+        content: normalizedMessage,
         timestamp: entry.timestamp,
         uuid: `${entry.timestamp}-user`,
       });
@@ -395,13 +485,35 @@ function parseCodexEntryMessages(
   const payload = entry.payload as Record<string, unknown>;
   const payloadType = payload.type;
 
+  if (payloadType === 'message') {
+    const role = payload.role;
+    if (role !== 'user' && role !== 'assistant') {
+      return;
+    }
+
+    const rawContent = extractCodexMessageText(payload.content);
+    const content = role === 'user' ? stripCodexInjectedUserMessage(rawContent) : rawContent;
+    if (!content.trim()) {
+      return;
+    }
+
+    messages.push({
+      type: role,
+      content,
+      timestamp: entry.timestamp,
+      uuid: `${entry.timestamp}-${role}`,
+    });
+    return;
+  }
+
   if (payloadType === 'function_call') {
-    const toolName = typeof payload.name === 'string' ? payload.name : 'unknown';
+    const rawToolName = typeof payload.name === 'string' ? payload.name : 'unknown';
     const toolUseId = typeof payload.call_id === 'string' ? payload.call_id : undefined;
+    const rawToolInput = parseFunctionCallArguments(payload.arguments);
+    const { toolName, toolInput } = normalizeCodexFunctionToolCall(rawToolName, rawToolInput);
     if (toolUseId) {
       toolUseIdToName.set(toolUseId, toolName);
     }
-    const toolInput = parseFunctionCallArguments(payload.arguments);
     messages.push({
       type: 'tool_use',
       content: JSON.stringify(toolInput, null, 2),
@@ -683,12 +795,57 @@ export async function getSessionActivityStatus(
   };
 }
 
-/**
- * Check if there's a Claude process running in a specific directory
- * This uses OS-level process inspection to detect Claude processes
- * that survived a server restart
- */
-export async function isClaudeProcessRunningInCwd(cwd: string): Promise<boolean> {
+const PROVIDER_PROCESS_PATTERNS: Record<SessionProvider, string> = {
+  claude: '(claude$|/claude( |$)|claude\\.cmd|claude\\.exe)',
+  codex: '(codex$|/codex( |$)|codex\\.cmd|codex\\.exe)',
+};
+
+type ExecSyncFn = typeof import('child_process').execSync;
+
+function providerDisplayName(provider: SessionProvider): string {
+  return provider === 'codex' ? 'Codex' : 'Claude';
+}
+
+function getProviderProcessPids(provider: SessionProvider, execSync: ExecSyncFn): string[] {
+  const pattern = PROVIDER_PROCESS_PATTERNS[provider];
+  try {
+    const psOutput = execSync(`ps aux | grep -E "${pattern}" | grep -v grep | awk '{print $2}'`, {
+      encoding: 'utf-8',
+      timeout: 5000,
+    }).trim();
+    if (!psOutput) {
+      return [];
+    }
+    return psOutput.split('\n').filter(p => p.trim());
+  } catch {
+    return [];
+  }
+}
+
+function getProcessCwd(pid: string, execSync: ExecSyncFn): string | null {
+  try {
+    if (process.platform === 'darwin') {
+      const lsofOutput = execSync(`lsof -a -d cwd -p ${pid} -Fn 2>/dev/null | grep '^n'`, {
+        encoding: 'utf-8',
+        timeout: 2000,
+        shell: '/bin/bash',
+      }).trim();
+      if (!lsofOutput.startsWith('n')) {
+        return null;
+      }
+      return lsofOutput.substring(1);
+    }
+
+    return execSync(`readlink /proc/${pid}/cwd`, {
+      encoding: 'utf-8',
+      timeout: 1000,
+    }).trim();
+  } catch {
+    return null;
+  }
+}
+
+async function isProviderProcessRunningInCwd(cwd: string, provider: SessionProvider): Promise<boolean> {
   // Only works on Linux/Unix/macOS
   if (process.platform === 'win32') {
     return false;
@@ -696,63 +853,100 @@ export async function isClaudeProcessRunningInCwd(cwd: string): Promise<boolean>
 
   try {
     const { execSync } = await import('child_process');
+    const pids = getProviderProcessPids(provider, execSync);
+    if (pids.length === 0) {
+      return false;
+    }
 
-    // Get all claude process PIDs (matches both 'claude' command and full path like '/home/user/.local/bin/claude')
-    // Pattern matches: lines ending in 'claude' OR lines containing '/claude '
-    const psOutput = execSync('ps aux | grep -E "(claude$|/claude )" | grep -v grep | awk \'{print $2}\'', {
-      encoding: 'utf-8',
-      timeout: 5000,
-    }).trim();
-
-    if (!psOutput) return false;
-
-    const pids = psOutput.split('\n').filter(p => p.trim());
-
-    // Normalize the target cwd (remove trailing slash)
     const normalizedCwd = cwd.replace(/\/+$/, '');
 
-    // Check each PID's working directory
     for (const pid of pids) {
-      try {
-        let processCwd: string;
-
-        if (process.platform === 'darwin') {
-          // macOS: use lsof to get the current working directory
-          // lsof -a -d cwd filters for only the cwd file descriptor
-          // -Fn outputs just the name field with 'n' prefix
-          const lsofOutput = execSync(`lsof -a -d cwd -p ${pid} -Fn 2>/dev/null | grep '^n'`, {
-            encoding: 'utf-8',
-            timeout: 2000,
-            shell: '/bin/bash',
-          }).trim();
-
-          // lsof output format: "n/path/to/directory"
-          if (!lsofOutput || !lsofOutput.startsWith('n')) continue;
-          processCwd = lsofOutput.substring(1); // Remove the 'n' prefix
-        } else {
-          // Linux: use /proc filesystem
-          processCwd = execSync(`readlink /proc/${pid}/cwd`, {
-            encoding: 'utf-8',
-            timeout: 1000,
-          }).trim();
-        }
-
-        // Normalize and compare
-        const normalizedProcessCwd = processCwd.replace(/\/+$/, '');
-        if (normalizedProcessCwd === normalizedCwd) {
-          log.log(` Found Claude process ${pid} running in ${cwd}`);
-          return true;
-        }
-      } catch {
-        // Process may have exited, skip
+      const processCwd = getProcessCwd(pid, execSync);
+      if (!processCwd) {
+        continue;
+      }
+      const normalizedProcessCwd = processCwd.replace(/\/+$/, '');
+      if (normalizedProcessCwd === normalizedCwd) {
+        log.log(` Found ${providerDisplayName(provider)} process ${pid} running in ${cwd}`);
+        return true;
       }
     }
 
     return false;
   } catch (err) {
-    log.error(' Error checking for Claude processes:', err);
+    log.error(` Error checking for ${providerDisplayName(provider)} processes:`, err);
     return false;
   }
+}
+
+async function killProviderProcessInCwd(cwd: string, provider: SessionProvider): Promise<boolean> {
+  // Only works on Linux/Unix/macOS
+  if (process.platform === 'win32') {
+    return false;
+  }
+
+  try {
+    const { execSync } = await import('child_process');
+    const pids = getProviderProcessPids(provider, execSync);
+    if (pids.length === 0) {
+      return false;
+    }
+
+    const normalizedCwd = cwd.replace(/\/+$/, '');
+
+    for (const pid of pids) {
+      const processCwd = getProcessCwd(pid, execSync);
+      if (!processCwd) {
+        continue;
+      }
+
+      const normalizedProcessCwd = processCwd.replace(/\/+$/, '');
+      if (normalizedProcessCwd !== normalizedCwd) {
+        continue;
+      }
+
+      const label = providerDisplayName(provider);
+      log.log(`🛑 Killing detached ${label} process ${pid} in ${cwd}`);
+
+      try {
+        const numericPid = parseInt(pid, 10);
+        process.kill(numericPid, 'SIGTERM');
+        setTimeout(() => {
+          try {
+            process.kill(numericPid, 0);
+            log.log(`🛑 Force killing ${label} process ${pid}`);
+            process.kill(numericPid, 'SIGKILL');
+          } catch {
+            // Process already dead, good
+          }
+        }, 1000);
+        return true;
+      } catch (killErr) {
+        log.error(`Failed to kill ${label} process ${pid}:`, killErr);
+      }
+    }
+
+    return false;
+  } catch (err) {
+    log.error(`Error killing ${providerDisplayName(provider)} process:`, err);
+    return false;
+  }
+}
+
+/**
+ * Check if there's a Claude process running in a specific directory
+ * This uses OS-level process inspection to detect Claude processes
+ * that survived a server restart
+ */
+export async function isClaudeProcessRunningInCwd(cwd: string): Promise<boolean> {
+  return isProviderProcessRunningInCwd(cwd, 'claude');
+}
+
+/**
+ * Check if there's a Codex process running in a specific directory.
+ */
+export async function isCodexProcessRunningInCwd(cwd: string): Promise<boolean> {
+  return isProviderProcessRunningInCwd(cwd, 'codex');
 }
 
 /**
@@ -760,87 +954,15 @@ export async function isClaudeProcessRunningInCwd(cwd: string): Promise<boolean>
  * Returns true if a process was found and killed
  */
 export async function killClaudeProcessInCwd(cwd: string): Promise<boolean> {
-  // Only works on Linux/Unix/macOS
-  if (process.platform === 'win32') {
-    return false;
-  }
+  return killProviderProcessInCwd(cwd, 'claude');
+}
 
-  try {
-    const { execSync } = await import('child_process');
-
-    // Get all claude process PIDs
-    const psOutput = execSync('ps aux | grep -E "(claude$|/claude )" | grep -v grep | awk \'{print $2}\'', {
-      encoding: 'utf-8',
-      timeout: 5000,
-    }).trim();
-
-    if (!psOutput) return false;
-
-    const pids = psOutput.split('\n').filter(p => p.trim());
-
-    // Normalize the target cwd
-    const normalizedCwd = cwd.replace(/\/+$/, '');
-
-    // Check each PID's working directory
-    for (const pid of pids) {
-      try {
-        let processCwd: string;
-
-        if (process.platform === 'darwin') {
-          // macOS: use lsof
-          const lsofOutput = execSync(`lsof -a -d cwd -p ${pid} -Fn 2>/dev/null | grep '^n'`, {
-            encoding: 'utf-8',
-            timeout: 2000,
-            shell: '/bin/bash',
-          }).trim();
-
-          if (!lsofOutput || !lsofOutput.startsWith('n')) continue;
-          processCwd = lsofOutput.substring(1);
-        } else {
-          // Linux: use /proc filesystem
-          processCwd = execSync(`readlink /proc/${pid}/cwd`, {
-            encoding: 'utf-8',
-            timeout: 1000,
-          }).trim();
-        }
-
-        // Normalize and compare
-        const normalizedProcessCwd = processCwd.replace(/\/+$/, '');
-        if (normalizedProcessCwd === normalizedCwd) {
-          log.log(`🛑 Killing detached Claude process ${pid} in ${cwd}`);
-
-          // Send SIGTERM first, then SIGKILL after a delay
-          try {
-            process.kill(parseInt(pid), 'SIGTERM');
-
-            // Give it a moment, then force kill if still running
-            setTimeout(() => {
-              try {
-                // Check if process is still running
-                process.kill(parseInt(pid), 0);
-                // If we get here, process is still running - force kill
-                log.log(`🛑 Force killing Claude process ${pid}`);
-                process.kill(parseInt(pid), 'SIGKILL');
-              } catch {
-                // Process already dead, good
-              }
-            }, 1000);
-
-            return true;
-          } catch (killErr) {
-            log.error(`Failed to kill Claude process ${pid}:`, killErr);
-          }
-        }
-      } catch {
-        // Process may have exited, skip
-      }
-    }
-
-    return false;
-  } catch (err) {
-    log.error('Error killing Claude process:', err);
-    return false;
-  }
+/**
+ * Kill any Codex process running in the specified directory.
+ * Returns true if a process was found and killed.
+ */
+export async function killCodexProcessInCwd(cwd: string): Promise<boolean> {
+  return killProviderProcessInCwd(cwd, 'codex');
 }
 
 export async function loadToolHistory(

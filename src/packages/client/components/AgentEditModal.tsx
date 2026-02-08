@@ -364,7 +364,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                     ))}
                   </div>
                 ) : selectedProvider === 'codex' ? (
-                  <div className="spawn-select-row">
+                  <div className="spawn-select-row spawn-select-row--codex-models">
                     {(Object.keys(CODEX_MODELS) as CodexModel[]).map((model) => (
                       <button
                         key={model}

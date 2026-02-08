@@ -34,6 +34,7 @@ interface FileViewerModalProps {
   editData?: {
     oldString?: string;
     newString?: string;
+    operation?: string;
     // For Read tool - highlight these lines
     highlightRange?: { offset: number; limit: number };
   };
@@ -170,20 +171,42 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
     return () => window.removeEventListener('keydown', handleGlobalKeyDown, { capture: true });
   }, [isOpen, onClose]);
 
-  // Compute original content by reversing the edit (replace newString back with oldString)
+  // Compute original content by reversing the edit operation where possible.
   const originalContent = useMemo(() => {
     if (!fileData || !editData) return null;
     // Skip if this is a highlight range (not an edit)
     if (editData.highlightRange) return null;
-    const { oldString, newString } = editData;
-    if (!oldString || !newString) return null;
-    // The current file has newString, so we replace it with oldString to get the original
-    const index = fileData.content.indexOf(newString);
-    if (index === -1) return null; // Can't find the edit, skip diff view
-    return fileData.content.slice(0, index) + oldString + fileData.content.slice(index + newString.length);
+    const { oldString = '', newString = '', operation } = editData;
+
+    if (!oldString && !newString) return null;
+
+    // Append operations are common in inferred Codex shell edits (e.g. printf >> file).
+    if (operation === 'append' && newString) {
+      if (fileData.content.endsWith(newString)) {
+        return fileData.content.slice(0, fileData.content.length - newString.length);
+      }
+      const appendIndex = fileData.content.lastIndexOf(newString);
+      if (appendIndex !== -1) {
+        return fileData.content.slice(0, appendIndex) + fileData.content.slice(appendIndex + newString.length);
+      }
+      return null;
+    }
+
+    // Generic replacement/reconstruction fallback.
+    if (newString) {
+      const index = fileData.content.indexOf(newString);
+      if (index !== -1) {
+        return fileData.content.slice(0, index) + oldString + fileData.content.slice(index + newString.length);
+      }
+      return null;
+    }
+
+    // Deletions with only oldString cannot be reliably reconstructed without full pre-edit context.
+    return null;
   }, [fileData, editData]);
 
-  const showDiffView = editData && editData.oldString && editData.newString && originalContent !== null;
+  const hasEditStrings = !!editData && (!editData.highlightRange) && (!!editData.oldString || !!editData.newString);
+  const showDiffView = hasEditStrings && originalContent !== null;
   const showHighlightView = editData?.highlightRange !== undefined;
 
   // Apply syntax highlighting when file data changes (only when showing plain code view)

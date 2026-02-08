@@ -195,6 +195,7 @@ export interface StoreState {
   fileViewerEditData: {
     oldString?: string;
     newString?: string;
+    operation?: string;
     // For Read tool - highlight these lines
     highlightRange?: { offset: number; limit: number };
   } | null;

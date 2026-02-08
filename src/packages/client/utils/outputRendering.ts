@@ -195,7 +195,7 @@ export function isSimpleViewOutput(text: string): boolean {
   if (text.startsWith('Tool result:')) return false;
   if (text.startsWith('Tokens:')) return false;
   if (text.startsWith('Cost:')) return false;
-  if (text.startsWith('[thinking]')) return false;
+  if (text.startsWith('[thinking]')) return true;
   if (text.startsWith('Session started:')) return false;
 
   // SHOW everything else (actual content)

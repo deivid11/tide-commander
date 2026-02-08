@@ -10,6 +10,39 @@ import { apiUrl, authFetch } from '../../utils/storage';
 import type { HistoryMessage } from './types';
 import { MESSAGES_PER_PAGE, SCROLL_THRESHOLD } from './types';
 
+const HISTORY_LIVE_DEDUP_WINDOW_MS = 120_000;
+
+function normalizeMessage(text: string): string {
+  return text.trim().replace(/\r\n/g, '\n');
+}
+
+function buildOutputHistoryKey(type: 'user' | 'assistant', content: string): string {
+  return `${type}:${normalizeMessage(content)}`;
+}
+
+function shouldKeepOutput(
+  output: ClaudeOutput,
+  historyUuidSet: Set<string>,
+  latestHistoryTsByKey: Map<string, number>,
+  lastHistoryTimestamp: number
+): boolean {
+  if (output.uuid && historyUuidSet.has(output.uuid)) {
+    return false;
+  }
+
+  const outputType: 'user' | 'assistant' = output.isUserPrompt ? 'user' : 'assistant';
+  const key = buildOutputHistoryKey(outputType, output.text);
+  const outputTs = output.timestamp || 0;
+  const historyTs = latestHistoryTsByKey.get(key);
+
+  if (historyTs !== undefined && Math.abs(outputTs - historyTs) <= HISTORY_LIVE_DEDUP_WINDOW_MS) {
+    return false;
+  }
+
+  // If no close signature match was found, keep only outputs that are newer than loaded history.
+  return outputTs > lastHistoryTimestamp;
+}
+
 export interface UseHistoryLoaderProps {
   selectedAgentId: string | null;
   hasSessionId: boolean;
@@ -185,8 +218,22 @@ export function useHistoryLoader({
           const lastHistoryTimestamp = messages.length > 0
             ? Math.max(...messages.map((m: HistoryMessage) => m.timestamp ? new Date(m.timestamp).getTime() : 0))
             : 0;
+          const historyUuidSet = new Set(messages.map((m: HistoryMessage) => m.uuid).filter((uuid): uuid is string => !!uuid));
+          const latestHistoryTsByKey = new Map<string, number>();
+          for (const msg of messages) {
+            if (msg.type !== 'user' && msg.type !== 'assistant') continue;
+            const key = buildOutputHistoryKey(msg.type, msg.content);
+            const msgTs = msg.timestamp ? new Date(msg.timestamp).getTime() : 0;
+            const prev = latestHistoryTsByKey.get(key) ?? 0;
+            if (msgTs > prev) latestHistoryTsByKey.set(key, msgTs);
+          }
 
-          const newerOutputs = preservedOutputsSnapshot.filter(o => o.timestamp > lastHistoryTimestamp);
+          const newerOutputs = preservedOutputsSnapshot.filter((output) => shouldKeepOutput(
+            output,
+            historyUuidSet,
+            latestHistoryTsByKey,
+            lastHistoryTimestamp
+          ));
 
           store.clearOutputs(selectedAgentId);
           for (const output of newerOutputs) {
@@ -197,9 +244,23 @@ export function useHistoryLoader({
           const lastHistoryTimestamp = Math.max(
             ...messages.map((m: HistoryMessage) => m.timestamp ? new Date(m.timestamp).getTime() : 0)
           );
+          const historyUuidSet = new Set(messages.map((m: HistoryMessage) => m.uuid).filter((uuid): uuid is string => !!uuid));
+          const latestHistoryTsByKey = new Map<string, number>();
+          for (const msg of messages) {
+            if (msg.type !== 'user' && msg.type !== 'assistant') continue;
+            const key = buildOutputHistoryKey(msg.type, msg.content);
+            const msgTs = msg.timestamp ? new Date(msg.timestamp).getTime() : 0;
+            const prev = latestHistoryTsByKey.get(key) ?? 0;
+            if (msgTs > prev) latestHistoryTsByKey.set(key, msgTs);
+          }
 
           const currentOutputs = store.getOutputs(selectedAgentId);
-          const newerOutputs = currentOutputs.filter(o => o.timestamp > lastHistoryTimestamp);
+          const newerOutputs = currentOutputs.filter((output) => shouldKeepOutput(
+            output,
+            historyUuidSet,
+            latestHistoryTsByKey,
+            lastHistoryTimestamp
+          ));
 
           if (currentOutputs.length !== newerOutputs.length) {
             // Only clear/re-add if there are duplicates to remove

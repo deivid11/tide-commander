@@ -1,4 +1,5 @@
 import type { RuntimeEvent } from '../runtime/types.js';
+import { createLogger } from '../utils/logger.js';
 
 type JsonObject = Record<string, unknown>;
 
@@ -37,6 +38,19 @@ interface InferredToolCall {
   toolName: 'Read' | 'Write' | 'Edit';
   toolInput: Record<string, unknown>;
   toolOutput?: string;
+}
+
+const log = createLogger('CodexParser');
+
+function sanitizeCodexMessageText(text: string): { text: string; hadTurnAborted: boolean } {
+  const hadTurnAborted = /<turn_aborted>[\s\S]*?<\/turn_aborted>/.test(text);
+  const withoutTurnAborted = text.replace(/<turn_aborted>[\s\S]*?<\/turn_aborted>/g, '').trim();
+  // Codex sometimes prefixes the marker with "You". If that's all that remains,
+  // treat it as synthetic noise and drop it.
+  if (withoutTurnAborted === 'You') {
+    return { text: '', hadTurnAborted };
+  }
+  return { text: withoutTurnAborted, hadTurnAborted };
 }
 
 function isObject(value: unknown): value is JsonObject {
@@ -178,7 +192,12 @@ export class CodexJsonEventParser {
     }
 
     if (item.type === 'agent_message' && item.text) {
-      return [{ type: 'text', text: item.text, isStreaming: false }];
+      const sanitized = sanitizeCodexMessageText(item.text);
+      if (sanitized.hadTurnAborted) {
+        log.warn(`Filtered <turn_aborted> marker from Codex agent_message${item.id ? ` (itemId=${item.id})` : ''}`);
+      }
+      if (!sanitized.text) return [];
+      return [{ type: 'text', text: sanitized.text, isStreaming: false }];
     }
 
     if (item.type === 'web_search') {

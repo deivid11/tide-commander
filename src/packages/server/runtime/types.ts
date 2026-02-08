@@ -37,6 +37,8 @@ export interface RuntimeRunner {
   sendMessage(agentId: string, message: string): boolean;
   hasRecentActivity(agentId: string, withinMs: number): boolean;
   onNextActivity(agentId: string, callback: () => void): void;
+  /** Whether this runner's backend supports stdin-based follow-up messages */
+  supportsStdin(): boolean;
 }
 
 export interface RuntimeProvider {

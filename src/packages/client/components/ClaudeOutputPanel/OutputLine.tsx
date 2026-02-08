@@ -9,7 +9,7 @@ import { useHideCost, useSettings, ClaudeOutput, store } from '../../store';
 import { filterCostText } from '../../utils/formatting';
 import { TOOL_ICONS, formatTimestamp } from '../../utils/outputRendering';
 import { markdownComponents } from './MarkdownComponents';
-import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, DelegatedTaskHeader, parseWorkPlanBlock, WorkPlanBlock } from './BossContext';
+import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, DelegatedTaskHeader, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions } from './BossContext';
 import { EditToolDiff, ReadToolInput, TodoWriteInput } from './ToolRenderers';
 import { renderContentWithImages, renderUserPromptContent } from './contentRendering';
 import { ansiToHtml } from '../../utils/ansiToHtml';
@@ -266,6 +266,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
     }
 
     const parsed = parseBossContext(text);
+    const parsedInjected = parseInjectedInstructions(parsed.userMessage);
 
     // Check if this user prompt matches a delegated task (text matches taskCommand)
     const isDelegatedTask = delegation && text.trim() === delegation.taskCommand.trim();
@@ -281,7 +282,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
             {parsed.hasContext && parsed.context && (
               <BossContext key={`boss-stream-${text.slice(0, 50)}`} context={parsed.context} />
             )}
-            {renderUserPromptContent(parsed.userMessage, onImageClick)}
+            {renderUserPromptContent(parsedInjected.userMessage, onImageClick)}
           </>
         )}
       </div>
@@ -326,6 +327,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
       ? {
           oldString: String(payloadInputRecord.old_string ?? ''),
           newString: String(payloadInputRecord.new_string ?? ''),
+          operation: typeof payloadInputRecord.operation === 'string' ? payloadInputRecord.operation : undefined,
         }
       : undefined;
 
@@ -501,6 +503,10 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
     return null;
   }
 
+  const isThinking = text.startsWith('[thinking]');
+  const thinkingText = isThinking ? text.replace(/^\[thinking\]\s*/, '') : '';
+  const isSystemMessage = /^\s*(?:[\u{1F300}-\u{1FAFF}\u2600-\u27BF]\s*)?\[System\]/u.test(text);
+
   // Categorize other output types
   let className = 'output-line';
   let useMarkdown = true;
@@ -512,12 +518,14 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
   } else if (text.startsWith('Tokens:') || text.startsWith('Cost:')) {
     className += ' output-stats';
     useMarkdown = false;
-  } else if (text.startsWith('[thinking]')) {
-    className += ' output-thinking';
+  } else if (isThinking) {
+    className += ' output-thinking output-tool-use';
     useMarkdown = false;
   } else if (text.startsWith('[raw]')) {
     className += ' output-raw';
     useMarkdown = false;
+  } else if (isSystemMessage) {
+    className += ' output-text output-system markdown-content';
   } else {
     className += ' output-text output-claude markdown-content';
     isClaudeMessage = true;
@@ -573,15 +581,29 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
     }
   }
 
+  const outputRoleLabel = isClaudeMessage ? assistantRoleLabel : (isSystemMessage ? 'System' : null);
+
   return (
     <div className={className}>
       <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
-      {isClaudeMessage && <span className="output-role">{assistantRoleLabel}</span>}
+      {outputRoleLabel && <span className="output-role">{outputRoleLabel}</span>}
       {useMarkdown ? (
         <div className="markdown-content">
           <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
             {text}
           </ReactMarkdown>
+        </div>
+      ) : isThinking ? (
+        <div className="output-thinking-block">
+          <span className="output-thinking-icon">✨</span>
+          <span className="output-thinking-label">
+            {provider === 'codex' ? 'Codex Thinking' : 'Thinking'}
+          </span>
+          <div className="output-thinking-content output-tool-param markdown-content">
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+              {thinkingText || '(processing)'}
+            </ReactMarkdown>
+          </div>
         </div>
       ) : (
         text

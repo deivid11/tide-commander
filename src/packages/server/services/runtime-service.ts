@@ -4,7 +4,14 @@
  */
 
 import { parseContextOutput, parseUsageOutput } from '../claude/backend.js';
-import { getSessionActivityStatus, isClaudeProcessRunningInCwd } from '../claude/session-loader.js';
+import {
+  getSessionActivityStatus,
+  loadSession,
+  isClaudeProcessRunningInCwd,
+  isCodexProcessRunningInCwd,
+  killClaudeProcessInCwd,
+  killCodexProcessInCwd,
+} from '../claude/session-loader.js';
 import * as agentService from './agent-service.js';
 import * as supervisorService from './supervisor-service.js';
 import { loadRunningProcesses, isProcessRunning } from '../data/index.js';
@@ -18,6 +25,7 @@ import {
   type CustomAgentDefinition as RuntimeCustomAgentDefinition,
 } from '../runtime/index.js';
 import type { AgentProvider, ContextStats } from '../../shared/types.js';
+import type { SessionMessage } from '../claude/session-loader.js';
 
 const log = logger.claude;
 
@@ -95,7 +103,35 @@ function generateSubagentId(): string {
 const stepCompleteReceived = new Set<string>();
 const DEFAULT_CODEX_CONTEXT_WINDOW = 200000;
 const CODEX_RESUME_ROLLOUT_ERROR = 'state db missing rollout path for thread';
+const CODEX_RECOVERY_HISTORY_LIMIT = 12;
+const CODEX_RECOVERY_LINE_MAX_CHARS = 400;
 const codexRecoveryState = new Map<string, { signature: string; attempts: number }>();
+
+function truncateRecoveryText(text: string, maxChars: number = CODEX_RECOVERY_LINE_MAX_CHARS): string {
+  if (text.length <= maxChars) return text;
+  return `${text.slice(0, maxChars)}...`;
+}
+
+function buildCodexRecoverySystemPrompt(sessionId: string, messages: SessionMessage[]): string {
+  const lines = messages.slice(-CODEX_RECOVERY_HISTORY_LIMIT).map((msg) => {
+    const role = msg.type === 'assistant'
+      ? 'Assistant'
+      : msg.type === 'user'
+        ? 'User'
+        : msg.type === 'tool_use'
+          ? `ToolUse(${msg.toolName || 'unknown'})`
+          : `ToolResult(${msg.toolName || 'unknown'})`;
+    const content = truncateRecoveryText((msg.content || '').replace(/\s+/g, ' ').trim());
+    return `${role}: ${content}`;
+  });
+
+  return [
+    `Previous Codex session (${sessionId}) could not be resumed due to stale state.`,
+    'Use this recovered recent transcript to continue seamlessly:',
+    lines.join('\n'),
+    'Continue with the latest user request. If context is still ambiguous, ask a focused clarifying question.',
+  ].join('\n\n');
+}
 
 function buildEstimatedCodexContextStats(
   totalTokens: number,
@@ -154,6 +190,20 @@ let sessionUpdateCallback: ((agentId: string) => void) | null = null;
 
 export function setSessionUpdateCallback(callback: (agentId: string) => void): void {
   sessionUpdateCallback = callback;
+}
+
+async function isProviderProcessRunningInCwd(provider: AgentProvider, cwd: string): Promise<boolean> {
+  if (provider === 'codex') {
+    return isCodexProcessRunningInCwd(cwd);
+  }
+  return isClaudeProcessRunningInCwd(cwd);
+}
+
+async function killDetachedProviderProcessInCwd(provider: AgentProvider, cwd: string): Promise<boolean> {
+  if (provider === 'codex') {
+    return killCodexProcessInCwd(cwd);
+  }
+  return killClaudeProcessInCwd(cwd);
 }
 
 export function init(): void {
@@ -215,7 +265,7 @@ export async function shutdown(): Promise<void> {
 /**
  * Poll orphaned agents (those with 'working' status but no tracked process)
  * to check if their session files have been updated, indicating the detached
- * Claude process is still active.
+ * provider process is still active.
  */
 async function pollOrphanedAgents(): Promise<void> {
   const agents = agentService.getAllAgents();
@@ -242,7 +292,8 @@ async function pollOrphanedAgents(): Promise<void> {
       } else if (activity && !activity.isActive) {
         // Session file hasn't been updated in 60+ seconds - process likely finished
         // Check if there's still an orphaned process running
-        const hasOrphanedProcess = await isClaudeProcessRunningInCwd(agent.cwd);
+        const provider = agent.provider ?? 'claude';
+        const hasOrphanedProcess = await isProviderProcessRunningInCwd(provider, agent.cwd);
 
         if (!hasOrphanedProcess) {
           // No orphaned process and no recent activity - mark as idle
@@ -382,6 +433,7 @@ function handleEvent(agentId: string, event: RuntimeEvent): void {
       stepCompleteReceived.add(agentId);
 
       const isClaudeProvider = (agent.provider ?? 'claude') === 'claude';
+      const isCodexProvider = (agent.provider ?? 'claude') === 'codex';
 
       // step_complete signals provider finished processing this turn.
       // Claude: use cache/input/output token breakdown.
@@ -430,17 +482,21 @@ function handleEvent(agentId: string, event: RuntimeEvent): void {
       }
       agentService.updateAgent(agentId, updates);
 
-      // Delay setting to idle to ensure output messages are sent to clients first
-      // This fixes a race condition where the status change could arrive before the final output
-      // Using 200ms to ensure all output messages have time to be broadcast
-      setTimeout(() => {
-        log.log(`[step_complete] Setting status to idle for agent ${agentId} (lastTask: ${agent.lastAssignedTask})`);
-        agentService.updateAgent(agentId, {
-          status: 'idle',
-          currentTask: undefined,
-          currentTool: undefined,
-        });
-      }, 200);
+      // Delay setting to idle to ensure output messages are sent to clients first.
+      // For Codex, wait for process close (handleComplete) to avoid transient false-idle
+      // states while trailing events are still being emitted.
+      if (!isCodexProvider) {
+        setTimeout(() => {
+          log.log(`[step_complete] Setting status to idle for agent ${agentId} (lastTask: ${agent.lastAssignedTask})`);
+          agentService.updateAgent(agentId, {
+            status: 'idle',
+            currentTask: undefined,
+            currentTool: undefined,
+          });
+        }, 200);
+      } else {
+        log.log(`[step_complete] Codex agent ${agentId} will be set idle on process completion`);
+      }
 
       // Auto-refresh context stats after turn completion
       // Skip if:
@@ -587,6 +643,8 @@ function handleError(agentId: string, error: string): void {
     if (attemptsForSignature < 1) {
       codexRecoveryState.set(agentId, { signature, attempts: attemptsForSignature + 1 });
       const taskToRetry = agent.lastAssignedTask!.trim();
+      const staleSessionId = agent.sessionId!;
+      const staleCwd = agent.cwd;
 
       log.warn(`[Codex] Recoverable resume error for ${agent.name} (${agentId}), resetting session and retrying once`);
       agentService.updateAgent(agentId, {
@@ -597,13 +655,31 @@ function handleError(agentId: string, error: string): void {
       }, false);
       emit('output', agentId, '[System] Codex session state was stale. Retrying with a fresh session…', false, undefined, 'system-codex-retry');
 
-      void (async () => {
+      // Small delay to let the failed process fully exit before spawning a new one.
+      // executeCommand -> runner.run() calls stop() internally, but the 'close' event
+      // from the dying process may not have fired yet, causing a race condition.
+      setTimeout(async () => {
         try {
-          const runner = getRunnerForAgent(agentId);
-          if (runner?.isRunning(agentId)) {
-            await runner.stop(agentId);
+          let recoverySystemPrompt: string | undefined;
+          if (staleCwd) {
+            try {
+              const recovered = await loadSession(staleCwd, staleSessionId, CODEX_RECOVERY_HISTORY_LIMIT, 0);
+              const recoveredMessages = recovered?.messages || [];
+              if (recoveredMessages.length > 0) {
+                recoverySystemPrompt = buildCodexRecoverySystemPrompt(staleSessionId, recoveredMessages);
+                log.warn(`[Codex] Loaded ${recoveredMessages.length} recovered message(s) from stale session ${staleSessionId} for retry`);
+                emit('output', agentId, `[System] Recovered ${recoveredMessages.length} recent message(s) from the previous Codex session.`, false, undefined, 'system-codex-retry-context');
+              } else {
+                log.warn(`[Codex] No recoverable messages found for stale session ${staleSessionId}; retrying without recovered context`);
+              }
+            } catch (sessionErr) {
+              log.warn(`[Codex] Failed to load stale session ${staleSessionId} context for retry: ${String(sessionErr)}`);
+            }
+          } else {
+            log.warn(`[Codex] No cwd available for ${agentId}; retrying stale-session recovery without recovered context`);
           }
-          await executeCommand(agentId, taskToRetry, undefined, true);
+
+          await executeCommand(agentId, taskToRetry, recoverySystemPrompt, true);
         } catch (retryErr) {
           log.error(`[Codex] Recovery retry failed for ${agentId}:`, retryErr);
           agentService.updateAgent(agentId, {
@@ -613,7 +689,7 @@ function handleError(agentId: string, error: string): void {
           });
           emit('error', agentId, `Codex auto-retry failed: ${String(retryErr)}`);
         }
-      })();
+      }, 500);
 
       return;
     }
@@ -690,6 +766,19 @@ async function executeCommand(agentId: string, command: string, systemPrompt?: s
     agentService.updateAgent(agentId, updateData);
   }
 
+  // Ensure class instructions/skills/custom instructions are always available to the runtime,
+  // even for internal execution paths that don't explicitly pass customAgent
+  // (e.g. recovery retries after stale session errors).
+  let resolvedCustomAgent = customAgent;
+  if (!resolvedCustomAgent && agent.class !== 'boss') {
+    try {
+      const { buildCustomAgentConfig } = await import('../websocket/handlers/command-handler.js');
+      resolvedCustomAgent = buildCustomAgentConfig(agentId, agent.class);
+    } catch (err) {
+      log.warn(`[executeCommand] Failed to build fallback customAgentConfig for ${agentId}: ${String(err)}`);
+    }
+  }
+
   await runner.run({
     agentId,
     prompt: command,
@@ -702,7 +791,7 @@ async function executeCommand(agentId: string, command: string, systemPrompt?: s
     permissionMode: agent.permissionMode,
     codexConfig: agent.codexConfig,
     systemPrompt,
-    customAgent,
+    customAgent: resolvedCustomAgent,
     forceNewSession,
   });
 }
@@ -729,27 +818,37 @@ export async function sendCommand(agentId: string, command: string, systemPrompt
   }
 
   // Check if agent is currently busy (has a running process)
-  // If busy, send the message directly to the running process via stdin
+  // For stdin-capable backends (Claude): send message via stdin to the running process
+  // For non-stdin backends (Codex): stop the running process and spawn a new one with resume
   if (runner.isRunning(agentId) && !forceNewSession) {
-    const sent = runner.sendMessage(agentId, command);
-    if (sent) {
-      notifyCommandStarted(agentId, command);
-      const isSystemMessage = command.startsWith('[System:');
-      const updateData: Record<string, unknown> = {
-        taskCount: (agent.taskCount || 0) + 1,
-      };
-      if (!isSystemMessage) {
-        updateData.lastAssignedTask = command;
-        updateData.lastAssignedTaskTime = Date.now();
+    if (runner.supportsStdin()) {
+      // Claude: send follow-up message via stdin to the running process
+      const sent = runner.sendMessage(agentId, command);
+      if (sent) {
+        notifyCommandStarted(agentId, command);
+        const isSystemMessage = command.startsWith('[System:');
+        const updateData: Record<string, unknown> = {
+          taskCount: (agent.taskCount || 0) + 1,
+        };
+        if (!isSystemMessage) {
+          updateData.lastAssignedTask = command;
+          updateData.lastAssignedTaskTime = Date.now();
+        }
+        agentService.updateAgent(agentId, updateData);
+
+        // Start stdin activity watchdog
+        // If no activity is received within timeout, the process may be stuck
+        // We'll respawn the process with the same command
+        startStdinWatchdog(agentId, command, systemPrompt, customAgent);
+
+        return;
       }
-      agentService.updateAgent(agentId, updateData);
-
-      // Start stdin activity watchdog
-      // If no activity is received within timeout, the process may be stuck
-      // We'll respawn the process with the same command
-      startStdinWatchdog(agentId, command, systemPrompt, customAgent);
-
-      return;
+    } else {
+      // Codex: stdin not supported. Stop the current process and fall through
+      // to spawn a new one with session resume below.
+      log.log(`[sendCommand] Agent ${agentId} (${agent.provider}): backend does not support stdin, stopping current process to respawn with resume`);
+      await runner.stop(agentId);
+      // Fall through to executeCommand below which will resume the session
     }
   }
 
@@ -856,6 +955,14 @@ export async function sendSilentCommand(agentId: string, command: string): Promi
     pendingSilentContextRefresh.add(agentId);
   }
 
+  // Only attempt stdin for backends that support it (Claude).
+  // Codex processes are one-shot and don't accept stdin messages.
+  if (!runner.supportsStdin()) {
+    log.log(`[sendSilentCommand] Backend for ${agentId} (${agent.provider}) does not support stdin, skipping silent command: ${command}`);
+    pendingSilentContextRefresh.delete(agentId);
+    return;
+  }
+
   // If agent has a running process, send the command to it via stdin
   // This is the expected case for /context refresh after step_complete
   if (runner.isRunning(agentId)) {
@@ -881,13 +988,13 @@ export async function stopAgent(agentId: string): Promise<void> {
     await runner.stop(agentId);
   }
 
-  // Also try to kill any detached Claude process for this agent
+  // Also try to kill any detached provider process for this agent
   const agent = agentService.getAgent(agentId);
-  if (agent?.cwd && (agent.provider ?? 'claude') === 'claude') {
-    const { killClaudeProcessInCwd } = await import('../claude/session-loader.js');
-    const killed = await killClaudeProcessInCwd(agent.cwd);
+  if (agent?.cwd) {
+    const provider = agent.provider ?? 'claude';
+    const killed = await killDetachedProviderProcessInCwd(provider, agent.cwd);
     if (killed) {
-      log.log(`Killed detached Claude process for agent ${agentId}`);
+      log.log(`Killed detached ${provider} process for agent ${agentId}`);
     }
   }
 
@@ -905,7 +1012,7 @@ export function isAgentRunning(agentId: string): boolean {
 }
 
 /**
- * Check if there's an orphaned Claude process for this agent
+ * Check if there's an orphaned process for this agent
  * Uses ONLY PID tracking - not general process discovery
  * (Process discovery is too aggressive and matches unrelated Claude sessions)
  */
@@ -950,7 +1057,7 @@ export async function syncAgentStatus(agentId: string, isStartupSync: boolean = 
   let isRecentlyActive = false;
   let hasOrphanedProcess = false;
 
-  if (agent.sessionId && agent.cwd && (agent.provider ?? 'claude') === 'claude') {
+  if (agent.sessionId && agent.cwd) {
     try {
       // Use 60 second threshold for orphaned process detection
       const activity = await getSessionActivityStatus(agent.cwd, agent.sessionId, 60);
@@ -961,13 +1068,14 @@ export async function syncAgentStatus(agentId: string, isStartupSync: boolean = 
       // Session activity check failed, assume not active
     }
 
-    // Check 3: Is there an orphaned Claude process running in this cwd?
+    // Check 3: Is there an orphaned process running in this cwd?
     // This detects processes that survived a server restart
     if (agent.status === 'idle') {
       try {
-        hasOrphanedProcess = await isClaudeProcessRunningInCwd(agent.cwd);
+        const provider = agent.provider ?? 'claude';
+        hasOrphanedProcess = await isProviderProcessRunningInCwd(provider, agent.cwd);
         if (hasOrphanedProcess) {
-          log.log(`[syncAgentStatus] Agent ${agentId}: Found orphaned process, isRecentlyActive=${isRecentlyActive}`);
+          log.log(`[syncAgentStatus] Agent ${agentId}: Found orphaned ${provider} process, isRecentlyActive=${isRecentlyActive}`);
         }
       } catch (err) {
         // Process detection failed, assume no orphaned process
@@ -989,7 +1097,8 @@ export async function syncAgentStatus(agentId: string, isStartupSync: boolean = 
   // Case 2: Agent shows 'idle' but there's an orphaned process with recent session activity
   // Mark as working so the UI reflects the actual state
   else if (agent.status === 'idle' && hasOrphanedProcess && isRecentlyActive) {
-    log.log(`Agent ${agentId} has orphaned Claude process with recent activity - marking as working (detached)`);
+    const provider = agent.provider ?? 'claude';
+    log.log(`Agent ${agentId} has orphaned ${provider} process with recent activity - marking as working (detached)`);
     agentService.updateAgent(agentId, {
       status: 'working',
       currentTask: 'Processing (detached)...',

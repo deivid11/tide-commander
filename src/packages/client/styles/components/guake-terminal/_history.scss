@@ -29,6 +29,13 @@
   border-left: 3px solid var(--msg-assistant-border);
 }
 
+// System messages in history (session/runtime notices)
+.history-system {
+  background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-blue) 35%, transparent);
+  border-left: 3px solid color-mix(in srgb, var(--accent-blue) 72%, var(--text-muted));
+}
+
 .history-role {
   font-weight: bold;
   color: var(--msg-user-text);
@@ -41,6 +48,10 @@
   .history-assistant & {
     color: var(--msg-assistant-text);
   }
+
+  .history-system & {
+    color: color-mix(in srgb, var(--accent-blue) 84%, var(--text-primary));
+  }
 }
 
 .history-content {
@@ -48,6 +59,10 @@
 
   .history-assistant & {
     color: var(--msg-assistant-text);
+  }
+
+  .history-system & {
+    color: color-mix(in srgb, var(--accent-blue) 78%, var(--text-primary));
   }
 }
 

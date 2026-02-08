@@ -510,7 +510,7 @@ class Store
 
   setFileViewerPath(
     path: string | null,
-    editData?: { oldString?: string; newString?: string; highlightRange?: { offset: number; limit: number } }
+    editData?: { oldString?: string; newString?: string; operation?: string; highlightRange?: { offset: number; limit: number } }
   ): void {
     this.state.fileViewerPath = path;
     this.state.fileViewerEditData = editData || null;

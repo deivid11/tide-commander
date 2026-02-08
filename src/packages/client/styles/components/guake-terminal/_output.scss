@@ -206,6 +206,20 @@
 
 }
 
+// System message styling (for runtime/session notifications)
+.output-system {
+  background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
+  border-left: 3px solid color-mix(in srgb, var(--accent-blue) 72%, var(--text-muted));
+  padding: 8px 12px;
+  margin: 4px 0;
+  border-radius: $radius-sm;
+  color: color-mix(in srgb, var(--accent-blue) 78%, var(--text-primary));
+
+  .output-role {
+    color: color-mix(in srgb, var(--accent-blue) 84%, var(--text-primary));
+  }
+}
+
 // Preserve whitespace/newlines in user prompt text (pasted content)
 // Used by both OutputLine (live) and HistoryLine (loaded history)
 .user-prompt-text {
@@ -393,9 +407,126 @@
 }
 
 .output-thinking {
-  color: var(--text-secondary);
-  opacity: 0.7;
-  font-style: italic;
+  border-left: 3px solid rgba(136, 192, 208, 0.5);
+  background: linear-gradient(135deg, rgba(136, 192, 208, 0.08) 0%, rgba(102, 153, 204, 0.05) 100%);
+  position: relative;
+  overflow: hidden;
+  border-radius: 0 4px 4px 0;
+  margin: 8px 0;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(136, 192, 208, 0.4), transparent);
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(136, 192, 208, 0.25), transparent);
+  }
+}
+
+.output-thinking-block {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 0;
+}
+
+.output-thinking-icon {
+  font-size: 16px;
+  margin-top: 2px;
+  color: rgba(136, 192, 208, 0.7);
+  flex-shrink: 0;
+  font-weight: 600;
+  letter-spacing: 1px;
+  opacity: 0.85;
+  animation: pulse-thinking 2s ease-in-out infinite;
+
+  @keyframes pulse-thinking {
+    0%, 100% {
+      opacity: 0.5;
+    }
+    50% {
+      opacity: 0.95;
+    }
+  }
+}
+
+.output-thinking-label {
+  color: rgba(136, 192, 208, 0.75);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(136, 192, 208, 0.08);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.output-thinking-content.output-tool-param {
+  margin-left: 0;
+  color: rgba(200, 220, 240, 0.85);
+  font-style: normal;
+  opacity: 0.9;
+  flex: 1;
+  min-width: 0;
+  line-height: 1.5;
+
+  &::before {
+    display: none;
+  }
+
+  p {
+    margin: 0.3em 0;
+    line-height: 1.5;
+
+    &:first-child {
+      margin-top: 0;
+    }
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  strong {
+    color: rgba(139, 233, 253, 0.9);
+    font-weight: 600;
+  }
+
+  em {
+    color: rgba(189, 147, 249, 0.85);
+  }
+
+  code {
+    background: rgba(68, 71, 90, 0.4);
+    color: rgba(139, 233, 253, 0.95);
+    padding: 2px 4px;
+    border-radius: 2px;
+    font-size: 0.9em;
+  }
+
+  ul, ol {
+    margin: 0.3em 0;
+    padding-left: 1.2em;
+
+    li {
+      margin: 0.1em 0;
+    }
+  }
 }
 
 .output-raw {
@@ -564,6 +695,55 @@
     .session-continuation-toggle {
       opacity: 1;
     }
+  }
+}
+
+// Collapsible codex-injected prompt preamble in user messages
+.injected-instructions {
+  margin: 6px 0 8px 0;
+  border: 1px solid color-mix(in srgb, var(--accent-yellow) 35%, var(--border-color));
+  border-radius: $radius-sm;
+  background: color-mix(in srgb, var(--accent-yellow) 8%, transparent);
+  overflow: hidden;
+
+  .injected-instructions-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    cursor: pointer;
+    user-select: none;
+    font-size: 11px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid transparent;
+    transition: background-color 0.15s ease;
+
+    &:hover {
+      background: color-mix(in srgb, var(--accent-yellow) 12%, transparent);
+    }
+  }
+
+  .injected-instructions-icon {
+    color: var(--accent-yellow);
+  }
+
+  .injected-instructions-label {
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .injected-instructions-toggle {
+    margin-left: auto;
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+
+  .injected-instructions-content {
+    padding: 8px 10px;
+    border-top: 1px solid color-mix(in srgb, var(--accent-yellow) 20%, var(--border-color));
+    max-height: 320px;
+    overflow-y: auto;
+    font-size: 12px;
   }
 }
 

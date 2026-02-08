@@ -7,7 +7,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { BOSS_CONTEXT_START, BOSS_CONTEXT_END } from '../../../shared/types';
 import { markdownComponents } from './MarkdownComponents';
-import type { ParsedBossContent, ParsedDelegation, ParsedBossResponse, ParsedWorkPlanResponse, WorkPlan, WorkPlanPhase, WorkPlanTask } from './types';
+import type { ParsedBossContent, ParsedDelegation, ParsedBossResponse, ParsedInjectedInstructions, ParsedWorkPlanResponse, WorkPlan, WorkPlanPhase, WorkPlanTask } from './types';
 
 // ============================================================================
 // Boss Context Parsing
@@ -37,6 +37,88 @@ export function parseBossContext(content: string): ParsedBossContent {
   const userMessage = trimmedContent.slice(endIdx + BOSS_CONTEXT_END.length).trim();
 
   return { hasContext: true, context, userMessage };
+}
+
+// ============================================================================
+// Injected Instructions Parsing (Codex prompt wrappers)
+// ============================================================================
+
+/**
+ * Parse Codex-injected instruction preamble from a user message.
+ * The codex backend composes prompts as:
+ *   Follow all instructions below for this task.
+ *   ...
+ *   ## User Request
+ *   <actual user text>
+ */
+export function parseInjectedInstructions(content: string): ParsedInjectedInstructions {
+  const normalized = content.replace(/\r\n/g, '\n').trim();
+  const followMarker = 'Follow all instructions below for this task.';
+  const userRequestHeader = '## User Request';
+  const userRequestHeaderIndex = normalized.lastIndexOf(userRequestHeader);
+
+  // Primary path: split by explicit "## User Request" marker.
+  // Use lastIndexOf because injected blocks can contain nested markdown headings.
+  if (userRequestHeaderIndex !== -1) {
+    const headerWithPreamble = normalized.slice(0, userRequestHeaderIndex).trim();
+    const userMessage = normalized
+      .slice(userRequestHeaderIndex + userRequestHeader.length)
+      .trim();
+
+    if (userMessage) {
+      return {
+        hasInstructions: headerWithPreamble.length > 0,
+        instructions: headerWithPreamble.length > 0 ? headerWithPreamble : null,
+        userMessage,
+      };
+    }
+  }
+
+  // Fallback path: remove known injected wrappers that sometimes appear
+  // without the explicit "## User Request" section.
+  let remaining = normalized;
+  const strippedChunks: string[] = [];
+  const wrapperPatterns = [
+    /^(?:You)?# AGENTS\.md instructions[^\n]*\n[\s\S]*?<\/INSTRUCTIONS>\s*/i,
+    /^(?:You)?<environment_context>\s*[\s\S]*?<\/environment_context>\s*/i,
+    /^(?:You)?Follow all instructions below for this task\.\s*/i,
+  ];
+
+  let didStrip = false;
+  let keepStripping = true;
+
+  while (keepStripping) {
+    keepStripping = false;
+    for (const pattern of wrapperPatterns) {
+      const match = remaining.match(pattern);
+      if (match) {
+        strippedChunks.push(match[0].trim());
+        remaining = remaining.slice(match[0].length).trimStart();
+        didStrip = true;
+        keepStripping = true;
+        break;
+      }
+    }
+  }
+
+  if (didStrip && remaining) {
+    return {
+      hasInstructions: true,
+      instructions: strippedChunks.join('\n\n'),
+      userMessage: remaining.trim(),
+    };
+  }
+
+  // Keep previous strict check as final compatibility guard.
+  if (!normalized.includes(followMarker)) {
+    return { hasInstructions: false, instructions: null, userMessage: content };
+  }
+
+  return {
+    hasInstructions: false,
+    instructions: null,
+    userMessage: content,
+  };
 }
 
 // ============================================================================
@@ -156,6 +238,32 @@ export function BossContext({ context, defaultCollapsed = true }: BossContextPro
         <div className="boss-context-content">
           <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
             {context}
+          </ReactMarkdown>
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface InjectedInstructionsBlockProps {
+  content: string;
+  defaultCollapsed?: boolean;
+}
+
+export function InjectedInstructionsBlock({ content, defaultCollapsed = true }: InjectedInstructionsBlockProps) {
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
+
+  return (
+    <div className={`injected-instructions ${collapsed ? 'collapsed' : 'expanded'}`}>
+      <div className="injected-instructions-header" onClick={() => setCollapsed(!collapsed)}>
+        <span className="injected-instructions-icon">⚙️</span>
+        <span className="injected-instructions-label">Injected Agent Instructions</span>
+        <span className="injected-instructions-toggle">{collapsed ? '▶' : '▼'}</span>
+      </div>
+      {!collapsed && (
+        <div className="injected-instructions-content">
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+            {content}
           </ReactMarkdown>
         </div>
       )}

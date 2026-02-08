@@ -28,6 +28,13 @@ export interface ParsedBossContent {
   userMessage: string;
 }
 
+// Parsed Codex-injected instruction preamble in a user prompt
+export interface ParsedInjectedInstructions {
+  hasInstructions: boolean;
+  instructions: string | null;
+  userMessage: string;
+}
+
 // Delegation block structure
 export interface ParsedDelegation {
   selectedAgentId: string;
@@ -104,6 +111,7 @@ export interface TodoItem {
 export interface EditData {
   oldString: string;
   newString: string;
+  operation?: string;
 }
 
 // Enriched history message with linked tool results
@@ -111,6 +119,7 @@ export interface EnrichedHistoryMessage {
   type: 'user' | 'assistant' | 'tool_use' | 'tool_result';
   content: string;
   timestamp: string;
+  uuid?: string;
   toolName?: string;
   toolUseId?: string;
   toolInput?: Record<string, unknown>;

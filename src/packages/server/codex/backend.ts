@@ -54,7 +54,10 @@ export class CodexBackend implements CLIBackend {
     const fullAuto = codexConfig?.fullAuto !== false;
 
     if (fullAuto) {
-      args.push('--full-auto');
+      // --full-auto uses --sandbox workspace-write which blocks localhost network
+      // access (needed for Tide Commander notifications and API calls).
+      // Use --dangerously-bypass-approvals-and-sandbox to match Claude's bypass mode.
+      args.push('--dangerously-bypass-approvals-and-sandbox');
     } else {
       if (codexConfig?.approvalMode) {
         args.push('--ask-for-approval', codexConfig.approvalMode);

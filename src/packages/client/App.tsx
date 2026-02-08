@@ -5,7 +5,7 @@ import { AgentNotificationProvider, useAgentNotification } from './components/Ag
 import { UnitPanel } from './components/UnitPanel';
 import { ToolHistory } from './components/ToolHistory';
 import { type SceneConfig } from './components/toolbox';
-import { ClaudeOutputPanel } from './components/ClaudeOutputPanel';
+import { GuakeOutputPanel } from './components/ClaudeOutputPanel';
 import { AgentBar } from './components/AgentBar';
 import { DrawingModeIndicator } from './components/DrawingModeIndicator';
 import { AgentHoverPopup } from './components/AgentHoverPopup';
@@ -660,8 +660,8 @@ function AppContent() {
         </aside>
 
         {/* Guake-style dropdown terminal */}
-        <Profiler id="ClaudeOutputPanel" onRender={profileRender}>
-          <ClaudeOutputPanel onSaveSnapshot={() => saveSnapshotModal.open()} />
+        <Profiler id="GuakeOutputPanel" onRender={profileRender}>
+          <GuakeOutputPanel onSaveSnapshot={() => saveSnapshotModal.open()} />
         </Profiler>
       </main>
 
