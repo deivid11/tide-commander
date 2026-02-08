@@ -1,6 +1,6 @@
 {
   "name": "tide-commander",
-  "version": "0.54.0",
+  "version": "0.54.1",
   "description": "Visual multi-agent orchestrator and manager for Claude Code with 3D/2D interface",
   "type": "module",
   "bin": {
@@ -12,7 +12,8 @@
     "LICENSE"
   ],
   "scripts": {
-    "dev": "LISTEN_ALL_INTERFACES=1 concurrently \"bun run dev:client\" \"bun run dev:server\"",
+    "dev": "PORT=5174 LISTEN_ALL_INTERFACES=1 concurrently \"bun run dev:client\" \"bun run dev:server\"",
+    "dev:5174": "PORT=5174 LISTEN_ALL_INTERFACES=1 concurrently \"bun run dev:client\" \"bun run dev:server\"",
     "dev:client": "vite",
     "dev:server": "tsx watch src/packages/server/index.ts",
     "dev:landing": "vite --open /src/packages/landing/index.html",

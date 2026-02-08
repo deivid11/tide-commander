@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.54.1] - 2026-02-08
+
+### Changed
+- **README Documentation** - Fixed image URLs for better portability
+  - Use raw GitHub URLs for preview images
+  - Better image loading on various markdown renderers
+  - Improved documentation display
+
+- **Development Configuration** - Better default port handling
+  - Set default PORT to 6200 in vite.config.ts
+  - Add convenient `dev:5174` script for legacy port preference
+  - Explicit PORT=5174 in dev script
+
+- **WebSocket Connection** - Improved LAN device access
+  - Detect browser hostname for WebSocket connection in dev mode
+  - Prefer browser hostname for LAN device access
+  - Keep loopback fallback for localhost browsing
+  - Better multi-device development experience
+
+### Fixed
+- **Image Loading** - Absolute URLs for GitHub rendering
+- **Dev Port Configuration** - Explicit default port handling
+
 ## [0.54.0] - 2026-02-08
 
 ### Added
