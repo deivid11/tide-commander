@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.51.3] - 2026-02-08
+
+### Changed
+- **History Line Rendering** - Major refactoring for better output display (135+ lines)
+  - Improved component organization
+  - Better formatting of output content
+  - Enhanced visual consistency
+  - Cleaner code structure
+
+- **Output Line Component** - Better formatting and display
+  - Improved component logic
+  - Better text handling
+  - Enhanced styling consistency
+
+- **Exec Task Output** - Better streaming and display
+  - Improved streaming exec task handling
+  - Better output formatting in builtin skills
+  - Enhanced display consistency
+
 ## [0.51.2] - 2026-02-08
 
 ### Fixed
