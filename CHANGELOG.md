@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.51.2] - 2026-02-08
+
+### Fixed
+- **Detached process cleanup** - Only kill detached provider processes when the agent is actually in detached state, preventing accidental process termination for non-detached agents
+
+### Added
+- Test for non-detached agent stop behavior to verify processes are not killed
+
 ## [0.51.1] - 2026-02-08
 
 ### Changed

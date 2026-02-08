@@ -234,7 +234,7 @@ export function createRuntimeCommandExecution(deps: RuntimeCommandExecutionDeps)
     }
 
     const agent = agentService.getAgent(agentId);
-    if (agent?.cwd) {
+    if (agent?.cwd && agent.isDetached) {
       const provider = agent.provider ?? 'claude';
       const killed = await killDetachedProviderProcessInCwd(provider, agent.cwd);
       if (killed) {

@@ -84,6 +84,7 @@ describe('runtime-service codex detached behavior', () => {
       id: 'agent-codex',
       provider: 'codex',
       cwd: '/tmp/project',
+      isDetached: true,
     });
     mockKillCodexProcessInCwd.mockResolvedValue(true);
 
@@ -91,6 +92,30 @@ describe('runtime-service codex detached behavior', () => {
     await stopAgent('agent-codex');
 
     expect(mockKillCodexProcessInCwd).toHaveBeenCalledWith('/tmp/project');
+    expect(mockKillClaudeProcessInCwd).not.toHaveBeenCalled();
+    expect(mockUpdateAgent).toHaveBeenCalledWith(
+      'agent-codex',
+      expect.objectContaining({
+        status: 'idle',
+        currentTask: undefined,
+        currentTool: undefined,
+        isDetached: false,
+      })
+    );
+  });
+
+  it('does not kill detached codex process when agent is not detached', async () => {
+    mockGetAgent.mockReturnValue({
+      id: 'agent-codex',
+      provider: 'codex',
+      cwd: '/tmp/project',
+      isDetached: false,
+    });
+
+    const { stopAgent } = await import('./runtime-service.js');
+    await stopAgent('agent-codex');
+
+    expect(mockKillCodexProcessInCwd).not.toHaveBeenCalled();
     expect(mockKillClaudeProcessInCwd).not.toHaveBeenCalled();
     expect(mockUpdateAgent).toHaveBeenCalledWith(
       'agent-codex',
