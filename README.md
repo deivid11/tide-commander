@@ -2,9 +2,9 @@
 
 **A visual multi-agent orchestrator for Claude Code and Codex**
 
-![Tide Commander Preview](docs/preview-3d.png)
+![Tide Commander Preview](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/preview-3d.png)
 
-![2D View](docs/preview-2d.png)
+![2D View](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/preview-2d.png)
 
 [![Watch the demo](https://img.shields.io/badge/YouTube-Watch%20Demo-red?style=for-the-badge&logo=youtube)](https://www.youtube.com/watch?v=r1Op_xfhqOM)
 

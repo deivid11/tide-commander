@@ -109,7 +109,13 @@ export function connect(): void {
     wsUrl = wsConfigured.endsWith('/ws') ? wsConfigured : `${wsConfigured.replace(/\/$/, '')}/ws`;
   } else {
     if (import.meta.env.DEV) {
-      wsUrl = `ws://127.0.0.1:${defaultPort}/ws`;
+      // In dev, prefer the browser host so LAN devices can connect to the backend.
+      // Keep loopback for local browsing on the same machine.
+      const browserHost = window.location.hostname;
+      const wsHost = (browserHost === 'localhost' || browserHost === '127.0.0.1' || browserHost === '::1')
+        ? '127.0.0.1'
+        : browserHost;
+      wsUrl = `ws://${wsHost}:${defaultPort}/ws`;
     } else {
       const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       wsUrl = `${wsProtocol}//${window.location.host}/ws`;
