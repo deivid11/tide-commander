@@ -7,6 +7,17 @@ const mockIsClaudeProcessRunningInCwd = vi.hoisted(() => vi.fn());
 const mockIsCodexProcessRunningInCwd = vi.hoisted(() => vi.fn());
 const mockKillClaudeProcessInCwd = vi.hoisted(() => vi.fn());
 const mockKillCodexProcessInCwd = vi.hoisted(() => vi.fn());
+const mockRunnerStopAll = vi.hoisted(() => vi.fn(async () => {}));
+const mockCreateRunner = vi.hoisted(() => vi.fn(() => ({
+  run: vi.fn(async () => {}),
+  stop: vi.fn(async () => {}),
+  stopAll: mockRunnerStopAll,
+  isRunning: vi.fn(() => false),
+  sendMessage: vi.fn(() => false),
+  hasRecentActivity: vi.fn(() => false),
+  onNextActivity: vi.fn(),
+  supportsStdin: vi.fn(() => false),
+})));
 
 vi.mock('./agent-service.js', () => ({
   getAgent: mockGetAgent,
@@ -24,13 +35,21 @@ vi.mock('../claude/session-loader.js', () => ({
 }));
 
 vi.mock('../runtime/index.js', () => ({
-  createClaudeRuntimeProvider: vi.fn(() => ({ createRunner: vi.fn() })),
-  createCodexRuntimeProvider: vi.fn(() => ({ createRunner: vi.fn() })),
+  createClaudeRuntimeProvider: vi.fn(() => ({ createRunner: mockCreateRunner })),
+  createCodexRuntimeProvider: vi.fn(() => ({ createRunner: mockCreateRunner })),
 }));
 
 describe('runtime-service codex detached behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('preserves detached processes on default shutdown', async () => {
+    const { init, shutdown } = await import('./runtime-service.js');
+    init();
+    await shutdown();
+
+    expect(mockRunnerStopAll).toHaveBeenCalledWith(false);
   });
 
   it('marks idle codex agent as detached working when orphan process is active', async () => {

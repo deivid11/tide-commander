@@ -5,7 +5,15 @@
  */
 
 import React from 'react';
-import { store, useContextModalAgentId, useFileViewerPath, useFileViewerEditData, useAgents } from '../../store';
+import {
+  store,
+  useContextModalAgentId,
+  useFileViewerPath,
+  useFileViewerEditData,
+  useAgents,
+  useAgentSkills,
+  useCustomAgentClass,
+} from '../../store';
 import { ContextViewModal } from '../ContextViewModal';
 import { FileViewerModal } from '../FileViewerModal';
 import { AgentResponseModal } from './AgentResponseModal';
@@ -207,5 +215,118 @@ export function AgentResponseModalWrapper({ agent, content, onClose }: AgentResp
       isOpen={!!content}
       onClose={onClose}
     />
+  );
+}
+
+export interface AgentInfoModalProps {
+  agent: Agent | null;
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+function formatDateTime(timestamp?: number): string {
+  if (!timestamp) return 'N/A';
+  try {
+    return new Date(timestamp).toLocaleString();
+  } catch {
+    return 'N/A';
+  }
+}
+
+export function AgentInfoModal({ agent, isOpen, onClose }: AgentInfoModalProps) {
+  const { handleMouseDown: handleBackdropMouseDown, handleClick: handleBackdropClick } = useModalClose(onClose);
+  const skills = useAgentSkills(agent?.id || null);
+  const customClass = useCustomAgentClass(agent?.class || null);
+
+  if (!isOpen || !agent) return null;
+
+  const model = agent.provider === 'codex'
+    ? (agent.codexModel || 'gpt-5.3-codex')
+    : (agent.model || 'sonnet');
+
+  const classInstructions = customClass?.instructions?.trim() || '';
+  const agentInstructions = agent.customInstructions?.trim() || '';
+  const hasClassInstructions = classInstructions.length > 0;
+  const hasAgentInstructions = agentInstructions.length > 0;
+  const hasCustomPrompt = hasClassInstructions || hasAgentInstructions;
+
+  const contextWindow = Math.max(1, agent.contextStats?.contextWindow || agent.contextLimit || 200000);
+  const usedTokens = agent.contextStats?.totalTokens || agent.contextUsed || 0;
+  const usedPercent = agent.contextStats?.usedPercent || Math.round((usedTokens / contextWindow) * 100);
+
+  return (
+    <div className="agent-info-modal-overlay" onMouseDown={handleBackdropMouseDown} onClick={handleBackdropClick}>
+      <div className="agent-info-modal">
+        <div className="agent-info-modal-header">
+          <div className="agent-info-modal-title">
+            <span className="icon">ℹ️</span>
+            <span>{agent.name} Agent Info</span>
+          </div>
+          <button className="agent-info-modal-close" onClick={onClose}>×</button>
+        </div>
+
+        <div className="agent-info-modal-body">
+          <section className="agent-info-section">
+            <h4>Runtime</h4>
+            <div className="agent-info-grid">
+              <div className="agent-info-item"><span>Backend</span><strong>{agent.provider}</strong></div>
+              <div className="agent-info-item"><span>Model</span><strong>{model}</strong></div>
+              <div className="agent-info-item"><span>Status</span><strong>{agent.status}</strong></div>
+              <div className="agent-info-item"><span>Class</span><strong>{agent.class}</strong></div>
+              <div className="agent-info-item"><span>Permission</span><strong>{agent.permissionMode}</strong></div>
+              <div className="agent-info-item"><span>Session</span><strong>{agent.sessionId || 'Not started'}</strong></div>
+            </div>
+          </section>
+
+          <section className="agent-info-section">
+            <h4>Prompt and Instructions</h4>
+            <div className="agent-info-grid">
+              <div className="agent-info-item">
+                <span>Custom prompt</span>
+                <strong className={hasCustomPrompt ? 'ok' : 'warn'}>
+                  {hasCustomPrompt ? 'Loaded' : 'Not configured'}
+                </strong>
+              </div>
+              <div className="agent-info-item">
+                <span>Class prompt</span>
+                <strong>{hasClassInstructions ? `${classInstructions.length} chars` : 'None'}</strong>
+              </div>
+              <div className="agent-info-item">
+                <span>Agent prompt</span>
+                <strong>{hasAgentInstructions ? `${agentInstructions.length} chars` : 'None'}</strong>
+              </div>
+            </div>
+          </section>
+
+          <section className="agent-info-section">
+            <h4>Skills ({skills.length})</h4>
+            {skills.length === 0 ? (
+              <div className="agent-info-empty">No enabled skills assigned</div>
+            ) : (
+              <div className="agent-info-skills">
+                {skills.map((skill) => (
+                  <div key={skill.id} className="agent-info-skill">
+                    <div className="agent-info-skill-name">{skill.name}</div>
+                    <div className="agent-info-skill-desc">{skill.description}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="agent-info-section">
+            <h4>Diagnostics</h4>
+            <div className="agent-info-grid">
+              <div className="agent-info-item"><span>Context</span><strong>{usedTokens.toLocaleString()} / {contextWindow.toLocaleString()} ({usedPercent}%)</strong></div>
+              <div className="agent-info-item"><span>Tasks sent</span><strong>{agent.taskCount}</strong></div>
+              <div className="agent-info-item"><span>Working dir</span><strong>{agent.cwd}</strong></div>
+              <div className="agent-info-item"><span>Last activity</span><strong>{formatDateTime(agent.lastActivity)}</strong></div>
+              <div className="agent-info-item"><span>Created</span><strong>{formatDateTime(agent.createdAt)}</strong></div>
+              <div className="agent-info-item"><span>Detached</span><strong>{agent.isDetached ? 'Yes' : 'No'}</strong></div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
   );
 }

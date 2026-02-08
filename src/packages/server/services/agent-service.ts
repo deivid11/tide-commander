@@ -80,8 +80,12 @@ export function initAgents(): void {
     for (const stored of storedAgents) {
       const contextLimit = stored.contextLimit ?? 200000;
       const tokensUsed = stored.tokensUsed ?? 0;
-      // Just use tokensUsed as contextUsed - it's a good proxy for conversation fullness
-      const contextUsed = tokensUsed;
+      // Preserve persisted context usage. Falling back to lifetime tokens can
+      // inflate context on restart because tokensUsed is cumulative over time.
+      const persistedContextUsed = typeof stored.contextUsed === 'number'
+        ? stored.contextUsed
+        : tokensUsed;
+      const contextUsed = Math.max(0, Math.min(persistedContextUsed, contextLimit));
 
       // Track agents that were working before restart
       // Use lastAssignedTask (which persists) instead of currentTask (which gets cleared)

@@ -30,6 +30,42 @@
   flex-shrink: 0;
 }
 
+.guake-title-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  border-radius: $radius-sm;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  .guake-title {
+    color: var(--accent-pink);
+  }
+
+  .guake-title-info {
+    color: $dracula-comment;
+    font-size: 11px;
+    line-height: 1;
+  }
+
+  &:hover {
+    background: rgba($dracula-pink, 0.1);
+    border-color: rgba($dracula-pink, 0.35);
+
+    .guake-title-info {
+      color: $dracula-pink;
+    }
+  }
+
+  &.active {
+    background: rgba($dracula-pink, 0.15);
+    border-color: rgba($dracula-pink, 0.55);
+  }
+}
+
 .guake-task {
   color: var(--text-muted);
   font-weight: 400;

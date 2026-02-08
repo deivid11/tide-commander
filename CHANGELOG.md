@@ -2,6 +2,47 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.47.3] - 2026-02-07
+
+### Added
+- **Agent Info Modal** - New modal for displaying detailed agent information
+  - New agent info modal styling and layout
+  - Better agent information presentation
+
+### Changed
+- **Terminal Header** - Enhanced terminal header component
+  - Improved header layout and styling
+  - Better UI organization
+
+- **Terminal Input Area** - Enhanced input component
+  - Better input field handling
+  - Improved user interaction
+
+- **Terminal Modals** - UI improvements
+  - Better modal dialog handling
+  - Improved terminal modal management
+
+- **Terminal Display** - Better visual presentation
+  - Improved terminal styling and layout
+  - Better organization of terminal elements
+
+- **Agent Service** - Service improvements
+  - Better agent lifecycle management
+  - Improved agent handling
+
+- **Runtime Service** - Better runtime management
+  - Enhanced runtime service tests
+  - Improved runtime type definitions
+
+- **Session Loader** - Better session handling
+  - Improved session loading
+  - Better session management
+
+### Fixed
+- **Terminal UI** - Various UI refinements
+  - Better terminal component organization
+  - Improved visual consistency
+
 ## [0.47.2] - 2026-02-07
 
 ### Added

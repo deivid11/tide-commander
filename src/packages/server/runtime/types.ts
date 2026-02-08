@@ -32,7 +32,7 @@ export interface RuntimeRunnerCallbacks {
 export interface RuntimeRunner {
   run(request: RuntimeCommandRequest): Promise<void>;
   stop(agentId: string): Promise<void>;
-  stopAll(): Promise<void>;
+  stopAll(killProcesses?: boolean): Promise<void>;
   isRunning(agentId: string): boolean;
   sendMessage(agentId: string, message: string): boolean;
   hasRecentActivity(agentId: string, withinMs: number): boolean;
@@ -45,4 +45,3 @@ export interface RuntimeProvider {
   readonly name: string;
   createRunner(callbacks: RuntimeRunnerCallbacks): RuntimeRunner;
 }
-

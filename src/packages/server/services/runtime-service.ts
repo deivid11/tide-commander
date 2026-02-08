@@ -102,14 +102,48 @@ function generateSubagentId(): string {
 // Set in step_complete handler, cleared in handleComplete
 const stepCompleteReceived = new Set<string>();
 const DEFAULT_CODEX_CONTEXT_WINDOW = 200000;
-const CODEX_RESUME_ROLLOUT_ERROR = 'state db missing rollout path for thread';
+const CODEX_ROLLING_CONTEXT_TURNS = 40;
+const CODEX_PLAUSIBLE_USAGE_MULTIPLIER = 1.2;
+const CODEX_RECOVERABLE_RESUME_ERRORS = [
+  'state db missing rollout path for thread',
+  'killing the current session',
+];
 const CODEX_RECOVERY_HISTORY_LIMIT = 12;
 const CODEX_RECOVERY_LINE_MAX_CHARS = 400;
 const codexRecoveryState = new Map<string, { signature: string; attempts: number }>();
+const codexContextGrowthHistory = new Map<string, number[]>();
+
+function detectRecoverableCodexResumeError(error: string): string | null {
+  const normalizedError = String(error || '').toLowerCase();
+  for (const marker of CODEX_RECOVERABLE_RESUME_ERRORS) {
+    if (normalizedError.includes(marker)) {
+      return marker;
+    }
+  }
+  return null;
+}
 
 function truncateRecoveryText(text: string, maxChars: number = CODEX_RECOVERY_LINE_MAX_CHARS): string {
   if (text.length <= maxChars) return text;
   return `${text.slice(0, maxChars)}...`;
+}
+
+function estimateTokensFromText(text: string | undefined): number {
+  if (!text) return 0;
+  const normalized = text.trim();
+  if (!normalized) return 0;
+  // Cheap approximation for GPT tokenization.
+  return Math.max(1, Math.ceil(normalized.length / 4));
+}
+
+function updateCodexRollingContextEstimate(agentId: string, turnGrowth: number): number {
+  const history = codexContextGrowthHistory.get(agentId) || [];
+  history.push(Math.max(0, Math.round(turnGrowth)));
+  if (history.length > CODEX_ROLLING_CONTEXT_TURNS) {
+    history.splice(0, history.length - CODEX_ROLLING_CONTEXT_TURNS);
+  }
+  codexContextGrowthHistory.set(agentId, history);
+  return history.reduce((sum, tokens) => sum + tokens, 0);
 }
 
 function buildCodexRecoverySystemPrompt(sessionId: string, messages: SessionMessage[]): string {
@@ -242,12 +276,12 @@ export function init(): void {
 }
 
 /**
- * Shutdown the Claude service
- * @param killProcesses - If true, kill all running Claude processes.
+ * Shutdown the runtime service
+ * @param killProcesses - If true, kill all running runtime processes.
  *                        If false (default), processes continue running independently.
  *                        Set to true for clean shutdown, false for commander restart/crash recovery.
  */
-export async function shutdown(): Promise<void> {
+export async function shutdown(killProcesses: boolean = false): Promise<void> {
   if (statusSyncTimer) {
     clearInterval(statusSyncTimer);
     statusSyncTimer = null;
@@ -257,7 +291,7 @@ export async function shutdown(): Promise<void> {
     orphanPollTimer = null;
   }
   for (const runner of runners.values()) {
-    await runner.stopAll();
+    await runner.stopAll(killProcesses);
   }
   runners.clear();
 }
@@ -434,6 +468,8 @@ function handleEvent(agentId: string, event: RuntimeEvent): void {
 
       const isClaudeProvider = (agent.provider ?? 'claude') === 'claude';
       const isCodexProvider = (agent.provider ?? 'claude') === 'codex';
+      const lastTask = agent.lastAssignedTask?.trim() || '';
+      const isContextCommand = lastTask === '/context' || lastTask === '/cost' || lastTask === '/compact';
 
       // step_complete signals provider finished processing this turn.
       // Claude: use cache/input/output token breakdown.
@@ -446,8 +482,19 @@ function handleEvent(agentId: string, event: RuntimeEvent): void {
         const cacheCreation = event.modelUsage.cacheCreationInputTokens || 0;
         const inputTokens = event.modelUsage.inputTokens || 0;
         const outputTokens = event.modelUsage.outputTokens || 0;
-        contextUsed = cacheRead + cacheCreation + inputTokens + outputTokens;
         contextLimit = event.modelUsage.contextWindow || 200000;
+        if (isCodexProvider) {
+          const turnGrowthEstimate = estimateTokensFromText(agent.lastAssignedTask) + outputTokens;
+          const rollingEstimate = updateCodexRollingContextEstimate(agentId, turnGrowthEstimate);
+          const plausibleSnapshotLimit = contextLimit * CODEX_PLAUSIBLE_USAGE_MULTIPLIER;
+          const hasPlausibleSnapshot = inputTokens > 0 && inputTokens <= plausibleSnapshotLimit;
+          // Codex usage can be aggregate turn cost in some resume/error paths.
+          contextUsed = hasPlausibleSnapshot
+            ? Math.max(rollingEstimate, inputTokens + outputTokens)
+            : rollingEstimate;
+        } else {
+          contextUsed = cacheRead + cacheCreation + inputTokens + outputTokens;
+        }
       } else if (event.tokens) {
         if (isClaudeProvider) {
           const cacheRead = event.tokens.cacheRead || 0;
@@ -456,16 +503,34 @@ function handleEvent(agentId: string, event: RuntimeEvent): void {
           const outputTokens = event.tokens.output || 0;
           contextUsed = cacheRead + cacheCreation + inputTokens + outputTokens;
         } else {
-          const cacheRead = event.tokens.cacheRead || 0;
-          const cacheCreation = event.tokens.cacheCreation || 0;
           const inputTokens = event.tokens.input || 0;
           const outputTokens = event.tokens.output || 0;
-          const turnUsageEstimate = cacheRead + cacheCreation + inputTokens + outputTokens;
-          const previousUsage = agent.contextUsed || 0;
-          contextUsed = Math.max(previousUsage, turnUsageEstimate);
+          const turnGrowthEstimate = estimateTokensFromText(agent.lastAssignedTask) + outputTokens;
+          const rollingEstimate = updateCodexRollingContextEstimate(agentId, turnGrowthEstimate);
+          const plausibleSnapshotLimit = contextLimit * CODEX_PLAUSIBLE_USAGE_MULTIPLIER;
+          const hasPlausibleSnapshot = inputTokens > 0 && inputTokens <= plausibleSnapshotLimit;
+          contextUsed = hasPlausibleSnapshot
+            ? Math.max(rollingEstimate, inputTokens + outputTokens)
+            : rollingEstimate;
           contextLimit = agent.contextLimit || DEFAULT_CODEX_CONTEXT_WINDOW;
         }
       }
+
+      // Claude can emit error turns with empty usage/modelUsage (e.g. invalid --resume session).
+      // In these cases, keep previous context instead of overwriting with zeros/stale values.
+      const hasZeroTokenUsage = !!event.tokens
+        && (event.tokens.input || 0) === 0
+        && (event.tokens.output || 0) === 0
+        && (event.tokens.cacheRead || 0) === 0
+        && (event.tokens.cacheCreation || 0) === 0;
+      const hasNoModelUsage = !event.modelUsage;
+      if (isClaudeProvider && hasZeroTokenUsage && hasNoModelUsage && !isContextCommand) {
+        contextUsed = agent.contextUsed || 0;
+        contextLimit = agent.contextLimit || 200000;
+        log.log(`[step_complete] Claude empty usage detected for ${agentId}; preserving previous context`);
+      }
+
+      contextUsed = Math.max(0, Math.min(contextUsed, contextLimit));
 
       const newTokensUsed = (agent.tokensUsed || 0) + (event.tokens?.input || 0) + (event.tokens?.output || 0);
       const updates: Record<string, unknown> = {
@@ -502,8 +567,6 @@ function handleEvent(agentId: string, event: RuntimeEvent): void {
       // Skip if:
       // 1. The last assigned task was a /context command (user already ran it)
       // 2. There's already a pending silent /context refresh for this agent
-      const lastTask = agent.lastAssignedTask?.trim() || '';
-      const isContextCommand = lastTask === '/context' || lastTask === '/cost' || lastTask === '/compact';
       const hasPendingSilentRefresh = pendingSilentContextRefresh.has(agentId);
 
       log.log(`[step_complete] Auto-refresh check: agentId=${agentId}, lastTask="${lastTask}", isContextCmd=${isContextCommand}, hasPending=${hasPendingSilentRefresh}`);
@@ -628,15 +691,15 @@ function handleError(agentId: string, error: string): void {
   const timestamp = new Date().toISOString();
 
   const isCodexProvider = (agent?.provider ?? 'claude') === 'codex';
-  const normalizedError = String(error || '').toLowerCase();
+  const matchedRecoverableError = detectRecoverableCodexResumeError(error);
   const isRecoverableCodexResumeError =
     isCodexProvider
-    && normalizedError.includes(CODEX_RESUME_ROLLOUT_ERROR)
+    && !!matchedRecoverableError
     && !!agent?.sessionId
     && !!agent?.lastAssignedTask?.trim();
 
   if (isRecoverableCodexResumeError && agent) {
-    const signature = `${CODEX_RESUME_ROLLOUT_ERROR}:${agent.sessionId}`;
+    const signature = `${matchedRecoverableError}:${agent.sessionId}`;
     const previous = codexRecoveryState.get(agentId);
     const attemptsForSignature = previous?.signature === signature ? previous.attempts : 0;
 

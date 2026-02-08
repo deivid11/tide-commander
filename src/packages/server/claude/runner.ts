@@ -465,6 +465,11 @@ export class ClaudeRunner {
       detached: isWindows ? false : true,
     });
 
+    // Fully detach on POSIX so the child can outlive commander restarts/crashes.
+    if (!isWindows) {
+      childProcess.unref();
+    }
+
     // Track the active process with the request for potential auto-restart
     const activeProcess: ActiveProcess = {
       agentId,
@@ -966,7 +971,7 @@ export class ClaudeRunner {
   /**
    * Stop all running processes
    */
-  async stopAll(): Promise<void> {
+  async stopAll(killProcesses: boolean = true): Promise<void> {
     // Stop the persist timer
     if (this.persistTimer) {
       clearInterval(this.persistTimer);
@@ -982,13 +987,20 @@ export class ClaudeRunner {
     // Disable auto-restart during shutdown
     this.autoRestartEnabled = false;
 
-    // Stop all tracked processes
-    for (const [agentId] of this.activeProcesses) {
-      await this.stop(agentId);
-    }
+    if (killProcesses) {
+      // Stop all tracked processes
+      for (const [agentId] of this.activeProcesses) {
+        await this.stop(agentId);
+      }
 
-    // Clear the persisted processes file
-    clearRunningProcesses();
+      // Clear the persisted processes file
+      clearRunningProcesses();
+    } else {
+      // Preserve process tracking for crash/restart recovery.
+      this.persistRunningProcesses();
+      this.activeProcesses.clear();
+      this.activityCallbacks.clear();
+    }
 
     // Clear stderr tracking
     this.lastStderr.clear();

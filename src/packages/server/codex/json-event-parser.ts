@@ -41,6 +41,7 @@ interface InferredToolCall {
 }
 
 const log = createLogger('CodexParser');
+let hasLoggedTurnAbortedLiveWarning = false;
 
 function sanitizeCodexMessageText(text: string): { text: string; hadTurnAborted: boolean } {
   const hadTurnAborted = /<turn_aborted>[\s\S]*?<\/turn_aborted>/.test(text);
@@ -194,7 +195,12 @@ export class CodexJsonEventParser {
     if (item.type === 'agent_message' && item.text) {
       const sanitized = sanitizeCodexMessageText(item.text);
       if (sanitized.hadTurnAborted) {
-        log.warn(`Filtered <turn_aborted> marker from Codex agent_message${item.id ? ` (itemId=${item.id})` : ''}`);
+        if (!hasLoggedTurnAbortedLiveWarning) {
+          log.warn('Filtered <turn_aborted> markers from Codex agent messages (suppressing repeat logs)');
+          hasLoggedTurnAbortedLiveWarning = true;
+        } else {
+          log.debug(`Filtered <turn_aborted> marker from Codex agent_message${item.id ? ` (itemId=${item.id})` : ''}`);
+        }
       }
       if (!sanitized.text) return [];
       return [{ type: 'text', text: sanitized.text, isStreaming: false }];

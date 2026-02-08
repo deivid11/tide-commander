@@ -59,6 +59,7 @@ import {
   ContextConfirmModal,
   ContextModalFromGuake,
   FileViewerFromGuake,
+  AgentInfoModal,
   AgentResponseModalWrapper,
   type BashModalState,
 } from './TerminalModals';
@@ -199,6 +200,7 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
   const [bashModal, setBashModal] = useState<BashModalState | null>(null);
   const [contextConfirm, setContextConfirm] = useState<'collapse' | 'clear' | 'clear-subordinates' | null>(null);
   const [responseModalContent, setResponseModalContent] = useState<string | null>(null);
+  const [agentInfoOpen, setAgentInfoOpen] = useState(false);
 
   // Debug panel state
   const [debugPanelOpen, setDebugPanelOpen] = useState(false);
@@ -268,6 +270,12 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
       agentDebugger.setEnabled(true);
     }
   }, [debugPanelOpen, debuggerEnabled]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setAgentInfoOpen(false);
+    }
+  }, [isOpen]);
 
   // Detect completion state
   useEffect(() => {
@@ -341,22 +349,43 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
   // Remove accidental duplicate user prompts from history (same normalized text, emitted within a short window)
   const dedupedHistory = useMemo((): EnrichedHistoryMessage[] => {
     const result: EnrichedHistoryMessage[] = [];
+    const seenAssistantKeys = new Set<string>();
+    const seenUserUuidKeys = new Set<string>();
     let lastUserKey: string | null = null;
     let lastUserTs = 0;
 
     for (const msg of filteredHistory) {
+      if (msg.type === 'assistant') {
+        const assistantKey = msg.uuid
+          ? `uuid:${msg.uuid}:${normalizeAssistantMessage(msg.content)}`
+          : `sig:${msg.timestamp}:${normalizeAssistantMessage(msg.content)}`;
+        if (seenAssistantKeys.has(assistantKey)) {
+          continue;
+        }
+        seenAssistantKeys.add(assistantKey);
+        result.push(msg);
+        continue;
+      }
+
       if (msg.type !== 'user') {
         result.push(msg);
         continue;
       }
 
       const key = normalizeUserMessage(msg.content);
+      const userUuidKey = msg.uuid ? `uuid:${msg.uuid}:${key}` : null;
+      if (userUuidKey && seenUserUuidKeys.has(userUuidKey)) {
+        continue;
+      }
       const ts = msg.timestamp ? new Date(msg.timestamp).getTime() : 0;
       if (lastUserKey === key && Math.abs(ts - lastUserTs) <= LIVE_DUPLICATE_WINDOW_MS) {
         continue;
       }
 
       result.push(msg);
+      if (userUuidKey) {
+        seenUserUuidKeys.add(userUuidKey);
+      }
       lastUserKey = key;
       lastUserTs = ts;
     }
@@ -851,6 +880,8 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
           setDebuggerEnabled={setDebuggerEnabled}
           overviewPanelOpen={overviewPanelOpen}
           setOverviewPanelOpen={setOverviewPanelOpen}
+          agentInfoOpen={agentInfoOpen}
+          onToggleAgentInfo={() => setAgentInfoOpen(!agentInfoOpen)}
           outputsLength={dedupedHistory.length + dedupedOutputs.length}
           setContextConfirm={setContextConfirm}
           headerRef={swipe.headerRef}
@@ -1022,6 +1053,7 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
           inputRef={terminalInputRef}
           textareaRef={terminalTextareaRef}
           isSnapshotView={isSnapshotView}
+          onClearHistory={historyLoader.clearHistory}
         />
 
         {/* Agent Status Bar (CWD + Context) */}
@@ -1123,6 +1155,7 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
       )}
       <ContextModalFromGuake />
       <FileViewerFromGuake />
+      <AgentInfoModal agent={activeAgent} isOpen={agentInfoOpen} onClose={() => setAgentInfoOpen(false)} />
       {!isSnapshotView && (
         <AgentResponseModalWrapper agent={activeAgent} content={responseModalContent} onClose={() => setResponseModalContent(null)} />
       )}

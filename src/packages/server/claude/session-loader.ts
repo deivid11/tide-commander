@@ -28,6 +28,7 @@ interface ResolvedSessionFile {
 }
 
 const codexSessionFileById = new Map<string, string>();
+let hasLoggedTurnAbortedHistoryWarning = false;
 
 // Message types from Claude session files
 export interface SessionMessage {
@@ -71,6 +72,33 @@ export interface FileChange {
   timestamp: number;
 }
 
+function deduplicateSessionMessages(messages: SessionMessage[]): SessionMessage[] {
+  const deduped: SessionMessage[] = [];
+  const seen = new Set<string>();
+
+  for (const message of messages) {
+    const toolInputSignature = message.toolInput ? JSON.stringify(message.toolInput) : '';
+    const key = [
+      message.type,
+      message.timestamp,
+      message.uuid,
+      message.content,
+      message.toolName ?? '',
+      message.toolUseId ?? '',
+      toolInputSignature,
+    ].join('\u241f');
+
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    deduped.push(message);
+  }
+
+  return deduped;
+}
+
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -85,7 +113,12 @@ function normalizeTextContent(content: unknown): string {
 function sanitizeCodexMessageText(text: string): string {
   const hadTurnAborted = /<turn_aborted>[\s\S]*?<\/turn_aborted>/.test(text);
   if (hadTurnAborted) {
-    log.warn('Filtered <turn_aborted> marker from Codex session history message');
+    if (!hasLoggedTurnAbortedHistoryWarning) {
+      log.warn('Filtered <turn_aborted> markers from Codex session history messages (suppressing repeat logs)');
+      hasLoggedTurnAbortedHistoryWarning = true;
+    } else {
+      log.debug('Filtered <turn_aborted> marker from Codex session history message');
+    }
   }
   const withoutTurnAborted = text.replace(/<turn_aborted>[\s\S]*?<\/turn_aborted>/g, '').trim();
   if (withoutTurnAborted === 'You') {
@@ -567,9 +600,10 @@ async function parseSessionMessages(
     }
   }
 
-  const last = messages.length > 0 ? messages[messages.length - 1] : null;
+  const dedupedMessages = deduplicateSessionMessages(messages);
+  const last = dedupedMessages.length > 0 ? dedupedMessages[dedupedMessages.length - 1] : null;
   return {
-    messages,
+    messages: dedupedMessages,
     lastMessageType: last?.type ?? null,
     lastMessageTimestamp: last?.timestamp ? new Date(last.timestamp) : null,
   };

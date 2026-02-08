@@ -38,6 +38,10 @@ export interface TerminalHeaderProps {
   /** Agent overview panel open state */
   overviewPanelOpen?: boolean;
   setOverviewPanelOpen?: (open: boolean) => void;
+  /** Agent info modal open state */
+  agentInfoOpen?: boolean;
+  /** Callback to open/close agent info modal */
+  onToggleAgentInfo?: () => void;
 }
 
 export function TerminalHeader({
@@ -61,6 +65,8 @@ export function TerminalHeader({
   onSaveSnapshot,
   overviewPanelOpen = false,
   setOverviewPanelOpen,
+  agentInfoOpen = false,
+  onToggleAgentInfo,
 }: TerminalHeaderProps) {
   const supervisor = useSupervisor();
   const settings = useSettings();
@@ -154,7 +160,18 @@ export function TerminalHeader({
             </span>
           </Tooltip>
         )}
-        <span className="guake-title">{selectedAgent.name}</span>
+        {onToggleAgentInfo ? (
+          <button
+            className={`guake-title-btn ${agentInfoOpen ? 'active' : ''}`}
+            onClick={onToggleAgentInfo}
+            title="Show agent info"
+          >
+            <span className="guake-title">{selectedAgent.name}</span>
+            <span className="guake-title-info">ⓘ</span>
+          </button>
+        ) : (
+          <span className="guake-title">{selectedAgent.name}</span>
+        )}
         {(lastInput || agentAnalysis) && (
           <span
             className="guake-status-line"

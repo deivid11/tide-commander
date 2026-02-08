@@ -47,6 +47,8 @@ export interface TerminalInputAreaProps {
   textareaRef?: React.RefObject<HTMLTextAreaElement | null>;
   // Whether viewing a snapshot (read-only mode)
   isSnapshotView?: boolean;
+  // Clear loaded history in panel (used by /clear command parity with header action)
+  onClearHistory: () => void;
 }
 
 export function TerminalInputArea({
@@ -75,6 +77,7 @@ export function TerminalInputArea({
   inputRef: externalInputRef,
   textareaRef: externalTextareaRef,
   isSnapshotView = false,
+  onClearHistory,
 }: TerminalInputAreaProps) {
   // Use external refs if provided, otherwise create internal ones
   const internalInputRef = useRef<HTMLInputElement>(null);
@@ -203,6 +206,17 @@ export function TerminalInputArea({
 
   const handleSendCommand = () => {
     if ((!command.trim() && attachedFiles.length === 0) || !selectedAgentId) return;
+
+    if (command.trim() === '/clear' && attachedFiles.length === 0) {
+      store.clearContext(selectedAgentId);
+      onClearHistory();
+      setCommand('');
+      setForceTextarea(false);
+      setPastedTexts(new Map());
+      setAttachedFiles([]);
+      resetPastedCount();
+      return;
+    }
 
     let fullCommand = expandPastedTexts(command.trim());
 

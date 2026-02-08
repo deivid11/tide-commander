@@ -345,14 +345,14 @@ export function SingleAgentPanel({
             title="Click to copy"
             onClick={async () => {
               try {
-                await navigator.clipboard.writeText(`claude --resume ${agent.sessionId}`);
+                await navigator.clipboard.writeText(`codex resume ${agent.sessionId}`);
                 showToast('success', 'Copied!', 'Resume command copied to clipboard', 2000);
               } catch {
                 showToast('error', 'Error', 'Failed to copy to clipboard', 3000);
               }
             }}
           >
-            claude --resume {agent.sessionId}
+            codex resume {agent.sessionId}
           </div>
         </div>
       ) : (

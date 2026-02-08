@@ -1,0 +1,163 @@
+// =============================================================================
+// Guake Terminal - Agent Info Modal
+// =============================================================================
+
+@use '../../variables' as *;
+
+.agent-info-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+  padding: 20px;
+}
+
+.agent-info-modal {
+  width: min(880px, 100%);
+  max-height: min(82vh, 760px);
+  display: flex;
+  flex-direction: column;
+  background: rgba($dracula-bg-darker, 0.98);
+  border: 1px solid rgba($dracula-cyan, 0.35);
+  border-radius: $radius-lg;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+}
+
+.agent-info-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba($dracula-current, 0.9);
+  background: rgba($dracula-bg, 0.7);
+}
+
+.agent-info-modal-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: $dracula-cyan;
+  font-family: $font-mono;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.agent-info-modal-close {
+  border: 1px solid transparent;
+  border-radius: $radius-sm;
+  background: transparent;
+  color: $dracula-comment;
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+  padding: 2px 8px;
+
+  &:hover {
+    background: rgba($dracula-red, 0.15);
+    border-color: rgba($dracula-red, 0.35);
+    color: $dracula-red;
+  }
+}
+
+.agent-info-modal-body {
+  padding: 14px 16px 18px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.agent-info-section {
+  border: 1px solid rgba($dracula-current, 0.75);
+  border-radius: $radius-md;
+  background: rgba($dracula-bg, 0.45);
+  padding: 12px;
+
+  h4 {
+    margin: 0 0 10px;
+    color: $dracula-purple;
+    font-family: $font-mono;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.35px;
+  }
+}
+
+.agent-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.agent-info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+
+  span {
+    color: $dracula-comment;
+    font-family: $font-mono;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.35px;
+  }
+
+  strong {
+    color: $dracula-fg;
+    font-size: 12px;
+    font-family: $font-mono;
+    font-weight: 600;
+    word-break: break-word;
+
+    &.ok {
+      color: $dracula-green;
+    }
+
+    &.warn {
+      color: $dracula-orange;
+    }
+  }
+}
+
+.agent-info-empty {
+  color: $dracula-comment;
+  font-family: $font-mono;
+  font-size: 12px;
+}
+
+.agent-info-skills {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.agent-info-skill {
+  border: 1px solid rgba($dracula-current, 0.75);
+  border-radius: $radius-sm;
+  background: rgba($dracula-bg-darker, 0.45);
+  padding: 8px 10px;
+}
+
+.agent-info-skill-name {
+  color: $dracula-cyan;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: $font-mono;
+  margin-bottom: 4px;
+}
+
+.agent-info-skill-desc {
+  color: $dracula-fg;
+  font-size: 12px;
+  line-height: 1.35;
+}
