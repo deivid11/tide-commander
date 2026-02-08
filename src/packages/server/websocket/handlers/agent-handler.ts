@@ -363,6 +363,7 @@ export async function handleUpdateAgentProperties(
   const modelChanged = updates.model !== undefined && normalizedUpdatedModel !== agent.model;
   const codexModelChanged = updates.codexModel !== undefined && normalizedUpdatedCodexModel !== agent.codexModel;
   const providerChanged = updates.provider !== undefined && updates.provider !== agent.provider;
+  const classChanged = updates.class !== undefined && updates.class !== agent.class;
   const codexConfigChanged = updates.codexConfig !== undefined
     && JSON.stringify(updates.codexConfig || {}) !== JSON.stringify(agent.codexConfig || {});
   const sessionId = agent.sessionId; // Save before update
@@ -436,9 +437,11 @@ export async function handleUpdateAgentProperties(
 
   // If model changed, do a hot restart: stop process, resume with new model
   // This preserves context by using --resume with the existing sessionId
-  if ((modelChanged || codexModelChanged || providerChanged || codexConfigChanged) && sessionId) {
+  if ((modelChanged || codexModelChanged || providerChanged || codexConfigChanged || classChanged) && sessionId) {
     const reason = providerChanged
       ? `runtime changed to ${updates.provider}`
+      : classChanged
+        ? `class changed to ${updates.class}`
       : codexConfigChanged
         ? 'Codex config changed'
         : codexModelChanged
@@ -456,9 +459,11 @@ export async function handleUpdateAgentProperties(
     } catch (err) {
       log.error(`Failed to hot restart agent ${agent.name} after runtime config change:`, err);
     }
-  } else if ((modelChanged || codexModelChanged || providerChanged || codexConfigChanged) && !sessionId) {
+  } else if ((modelChanged || codexModelChanged || providerChanged || codexConfigChanged || classChanged) && !sessionId) {
     const reason = providerChanged
       ? `runtime changed to ${updates.provider}`
+      : classChanged
+        ? `class changed to ${updates.class}`
       : codexConfigChanged
         ? 'Codex config changed'
         : codexModelChanged
@@ -541,7 +546,7 @@ export async function handleUpdateAgentProperties(
 
     // If skills changed and we didn't already hot restart for model/chrome/cwd change, do it now
     // Skills are injected into the system prompt, so we need to restart to apply them
-    if (skillsChanged && !modelChanged && !codexModelChanged && !providerChanged && !codexConfigChanged && !useChromeChanged && !cwdChanged && sessionId) {
+    if (skillsChanged && !modelChanged && !codexModelChanged && !providerChanged && !codexConfigChanged && !classChanged && !useChromeChanged && !cwdChanged && sessionId) {
       log.log(`Agent ${agent.name}: Skills changed, hot restarting with --resume to apply new system prompt`);
       try {
         // Stop the current Claude process

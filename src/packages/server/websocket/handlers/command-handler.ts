@@ -71,12 +71,16 @@ export function buildCustomAgentConfig(agentId: string, agentClass: string): { n
   // Always include agent identity header so agents know their ID
   let combinedPrompt = buildAgentIdentityHeader(agentId);
 
-  if (classInstructions) {
-    combinedPrompt += classInstructions;
-  }
   if (skillsContent) {
-    if (classInstructions) combinedPrompt += '\n\n';
     combinedPrompt += skillsContent;
+  }
+
+  // Keep class instructions in a dedicated section near the end so they are
+  // less likely to get buried by long skill docs.
+  if (classInstructions) {
+    combinedPrompt += '\n\n# Agent Class Instructions\n\n';
+    combinedPrompt += 'The following class instructions are mandatory and must be followed unless the user explicitly overrides them.\n\n';
+    combinedPrompt += classInstructions;
   }
 
   // Append agent-specific custom instructions at the end

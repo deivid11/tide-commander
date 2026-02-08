@@ -6,6 +6,27 @@
 import { describe, it, expect } from 'vitest';
 import { matchesShortcut, DEFAULT_SHORTCUTS, ShortcutConfig } from '../../store/shortcuts';
 
+/**
+ * Create a mock KeyboardEvent for Node.js test environment (no DOM).
+ */
+function createKeyboardEvent(opts: {
+  key: string;
+  code: string;
+  altKey?: boolean;
+  ctrlKey?: boolean;
+  shiftKey?: boolean;
+  metaKey?: boolean;
+}): KeyboardEvent {
+  return {
+    key: opts.key,
+    code: opts.code,
+    altKey: opts.altKey ?? false,
+    ctrlKey: opts.ctrlKey ?? false,
+    shiftKey: opts.shiftKey ?? false,
+    metaKey: opts.metaKey ?? false,
+  } as unknown as KeyboardEvent;
+}
+
 describe('useKeyboardShortcuts', () => {
   describe('Shortcut Matching', () => {
     it('should match Alt+2 shortcut (toggle-2d-view)', () => {
@@ -117,12 +138,10 @@ describe('useKeyboardShortcuts', () => {
   describe('matchesShortcut Function', () => {
     it('should match Alt+2 KeyboardEvent', () => {
       const shortcut = DEFAULT_SHORTCUTS.find(s => s.id === 'toggle-2d-view');
-      const event = new KeyboardEvent('keydown', {
+      const event = createKeyboardEvent({
         key: '2',
         code: 'Digit2',
         altKey: true,
-        ctrlKey: false,
-        shiftKey: false,
       });
 
       expect(matchesShortcut(event, shortcut)).toBe(true);
@@ -130,12 +149,9 @@ describe('useKeyboardShortcuts', () => {
 
     it('should not match Alt+2 without Alt key', () => {
       const shortcut = DEFAULT_SHORTCUTS.find(s => s.id === 'toggle-2d-view');
-      const event = new KeyboardEvent('keydown', {
+      const event = createKeyboardEvent({
         key: '2',
         code: 'Digit2',
-        altKey: false,
-        ctrlKey: false,
-        shiftKey: false,
       });
 
       expect(matchesShortcut(event, shortcut)).toBe(false);
@@ -143,12 +159,11 @@ describe('useKeyboardShortcuts', () => {
 
     it('should not match Alt+2 when Ctrl is also pressed', () => {
       const shortcut = DEFAULT_SHORTCUTS.find(s => s.id === 'toggle-2d-view');
-      const event = new KeyboardEvent('keydown', {
+      const event = createKeyboardEvent({
         key: '2',
         code: 'Digit2',
         altKey: true,
         ctrlKey: true,
-        shiftKey: false,
       });
 
       expect(matchesShortcut(event, shortcut)).toBe(false);
@@ -165,12 +180,10 @@ describe('useKeyboardShortcuts', () => {
         context: 'global',
       };
 
-      const event = new KeyboardEvent('keydown', {
+      const event = createKeyboardEvent({
         key: '1',
         code: 'Digit1',
         altKey: true,
-        ctrlKey: false,
-        shiftKey: false,
       });
 
       expect(matchesShortcut(event, shortcut)).toBe(false);

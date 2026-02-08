@@ -37,6 +37,32 @@ function writePromptToFile(prompt: string, agentId?: string): string {
   return promptPath;
 }
 
+function buildAppendedProjectInstructions(config: BackendConfig): string {
+  const sections: string[] = [
+    '## CLAUDE.md / Project instructions — Tide Commander-specific rules',
+    TIDE_COMMANDER_APPENDED_PROMPT,
+  ];
+
+  const customPrompt = config.customAgent?.definition?.prompt?.trim();
+  if (customPrompt) {
+    sections.push(
+      '## Agent Class Instructions',
+      'The following instructions are mandatory unless the user explicitly overrides them.',
+      customPrompt
+    );
+  }
+
+  const runtimeSystemPrompt = config.systemPrompt?.trim();
+  if (runtimeSystemPrompt) {
+    sections.push(
+      '## Runtime System Context',
+      runtimeSystemPrompt
+    );
+  }
+
+  return sections.join('\n\n');
+}
+
 export class ClaudeBackend implements CLIBackend {
   readonly name = 'claude';
 
@@ -101,33 +127,10 @@ export class ClaudeBackend implements CLIBackend {
       args.push('--chrome');
     }
 
-    // Custom agent instructions (class instructions + skills)
-    // Write prompt to file and use --append-system-prompt-file
-    // This appends to Claude's default system prompt rather than replacing it
-    if (config.customAgent) {
-      const prompt = config.customAgent.definition?.prompt;
-      log.log(` customAgent detected: name=${config.customAgent.name}, hasDefinition=${!!config.customAgent.definition}, prompt=${prompt ? `${prompt.length} chars` : 'EMPTY/UNDEFINED'}`);
-      if (prompt) {
-        const promptFile = writePromptToFile(prompt, config.customAgent.name);
-        log.log(` Adding customAgent prompt via file (${prompt.length} chars)`);
-        args.push('--append-system-prompt-file', promptFile);
-      } else {
-        log.log(` WARNING: customAgent has no prompt!`);
-      }
-    }
-
-    // System prompt for boss agents or custom context
-    // Write prompt to file and use --append-system-prompt-file
-    // This appends to Claude's default system prompt rather than replacing it
-    if (config.systemPrompt && !config.customAgent) {
-      const promptFile = writePromptToFile(config.systemPrompt, config.agentId);
-      log.log(` Adding systemPrompt via file (${config.systemPrompt.length} chars)`);
-      args.push('--append-system-prompt-file', promptFile);
-    }
-
-    // Tide Commander enforced prompt additions (always appended last so rules win).
-    const tidePromptFile = writePromptToFile(TIDE_COMMANDER_APPENDED_PROMPT, `${config.agentId || 'agent'}-tide`);
-    args.push('--append-system-prompt-file', tidePromptFile);
+    const projectInstructions = buildAppendedProjectInstructions(config);
+    const projectPromptFile = writePromptToFile(projectInstructions, `${config.agentId || 'agent'}-project`);
+    log.log(` Adding merged project instructions via file (${projectInstructions.length} chars)`);
+    args.push('--append-system-prompt-file', projectPromptFile);
 
     return args;
   }

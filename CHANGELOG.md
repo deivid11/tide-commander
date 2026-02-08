@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.51.0] - 2026-02-08
+
+### Changed
+- **Consolidated system prompt injection** - Merged Tide Commander rules, custom agent prompt, and runtime system prompt into a single `--append-system-prompt-file` instead of three separate files
+- **Class instructions ordering** - Moved class instructions after skills in prompt so they are less likely to get buried by long skill docs
+- **Agent class hot restart** - Changing an agent's class now triggers a hot restart (same as model/provider changes), preserving session context
+
+### Fixed
+- **Keyboard shortcut tests** - Replaced `new KeyboardEvent()` with mock objects for Node.js test compatibility
+- **Snapshot hook tests** - Skipped tests that require React rendering context (useState), added export validation tests instead
+- **Codex backend tests** - Updated assertions to match new prompt wrapping format
+
+### Added
+- New test files: `outputs.test.ts`, `backend.test.ts`, `command-handler.test.ts`
+
 ## [0.50.0] - 2026-02-07
 
 ### Added
