@@ -1,4 +1,5 @@
 import { Agent, Building } from '@shared/types';
+import type { DrawingArea } from '../../../shared/common-types';
 
 /**
  * Dashboard metrics and statistics
@@ -80,10 +81,33 @@ export interface DashboardFilters {
 }
 
 /**
+ * Zone group - agents grouped by their DrawingArea
+ */
+export interface ZoneGroup {
+  area: DrawingArea | null;  // null = unassigned agents
+  agents: Agent[];
+  label: string;
+  color: string;
+}
+
+/**
+ * Grouping mode for agent display
+ */
+export type GroupingMode = 'zone' | 'status';
+
+/**
+ * Status filter for agents
+ */
+export type StatusFilter = 'all' | 'working' | 'error';
+
+/**
  * Props for main DashboardView component
  */
 export interface DashboardViewProps {
   onSelectAgent?: (agentId: string) => void;
+  onFocusAgent?: (agentId: string) => void;
+  onKillAgent?: (agentId: string) => void;
   onSelectBuilding?: (buildingId: string) => void;
-  onOpenAgentDetails?: (agentId: string) => void;
+  onOpenTerminal?: (agentId: string) => void;
+  onFocusZone?: (areaId: string) => void;
 }

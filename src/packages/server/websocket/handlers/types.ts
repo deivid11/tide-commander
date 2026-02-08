@@ -11,6 +11,7 @@ import type { ServerMessage } from '../../../shared/types.js';
 export interface HandlerContext {
   ws: WebSocket;
   broadcast: (message: ServerMessage) => void;
+  broadcastToOthers: (message: ServerMessage) => void;
   sendToClient: (message: ServerMessage) => void;
   sendError: (message: string) => void;
   sendActivity: (agentId: string, message: string) => void;

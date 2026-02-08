@@ -207,6 +207,11 @@
         border-color: color.adjust($dracula-purple, $lightness: 10%);
       }
 
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
       &.clear-btn {
         background: rgba($dracula-red, 0.2);
         border-color: $dracula-red;
@@ -621,6 +626,117 @@
           color: $dracula-fg;
         }
       }
+    }
+  }
+
+  .agent-debug-process-output {
+    .process-error {
+      color: $dracula-fg;
+      font-family: $font-mono;
+      font-size: 12px;
+      padding: 8px;
+      background: rgba($dracula-bg, 0.55);
+      border: 1px solid $dracula-current;
+      border-radius: $radius-sm;
+    }
+
+    .process-output-block {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      font-family: $font-mono;
+      font-size: 11px;
+
+      .process-meta-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .meta-item {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        padding: 6px 8px;
+        background: rgba($dracula-bg, 0.5);
+        border: 1px solid $dracula-current;
+        border-radius: $radius-sm;
+      }
+
+      .meta-label {
+        color: $dracula-comment;
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+      }
+
+      .meta-value {
+        color: $dracula-fg;
+      }
+
+      .process-command {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        background: rgba($dracula-bg, 0.5);
+        border: 1px solid $dracula-current;
+        border-radius: $radius-sm;
+        padding: 8px;
+
+        code {
+          color: $dracula-fg;
+          font-family: $font-mono;
+          word-break: break-word;
+          white-space: pre-wrap;
+        }
+      }
+
+      .process-stream-label {
+        color: $dracula-comment;
+        font-size: 10px;
+        text-transform: uppercase;
+      }
+
+      pre {
+        margin: 0;
+        padding: 8px;
+        background: rgba($dracula-bg, 0.5);
+        border: 1px solid $dracula-current;
+        border-radius: $radius-sm;
+        color: $dracula-fg;
+        line-height: 1.4;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .ansi {
+        color: $dracula-fg;
+      }
+
+      .ansi-bold {
+        font-weight: 700;
+      }
+
+      .ansi-dim {
+        opacity: 0.7;
+      }
+
+      .ansi-fg-black { color: color.adjust($dracula-bg, $lightness: 22%); }
+      .ansi-fg-red { color: $dracula-red; }
+      .ansi-fg-green { color: $dracula-green; }
+      .ansi-fg-yellow { color: $dracula-yellow; }
+      .ansi-fg-blue { color: $accent-blue; }
+      .ansi-fg-magenta { color: $dracula-pink; }
+      .ansi-fg-cyan { color: $dracula-cyan; }
+      .ansi-fg-white { color: $dracula-fg; }
+      .ansi-fg-bright-black { color: color.adjust($dracula-comment, $lightness: 10%); }
+      .ansi-fg-bright-red { color: color.adjust($dracula-red, $lightness: 10%); }
+      .ansi-fg-bright-green { color: color.adjust($dracula-green, $lightness: 10%); }
+      .ansi-fg-bright-yellow { color: color.adjust($dracula-yellow, $lightness: 10%); }
+      .ansi-fg-bright-blue { color: color.adjust($accent-blue, $lightness: 10%); }
+      .ansi-fg-bright-magenta { color: color.adjust($dracula-pink, $lightness: 10%); }
+      .ansi-fg-bright-cyan { color: color.adjust($dracula-cyan, $lightness: 10%); }
+      .ansi-fg-bright-white { color: white; }
     }
   }
 }

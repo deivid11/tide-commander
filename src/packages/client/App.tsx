@@ -414,6 +414,18 @@ function AppContent() {
               }}
               onKillAgent={handleKillAgent}
               onSelectBuilding={(buildingId) => store.selectBuilding(buildingId)}
+              onOpenTerminal={(agentId) => {
+                store.selectAgent(agentId);
+                store.setTerminalOpen(true);
+              }}
+              onFocusZone={(areaId) => {
+                store.setViewMode('3d');
+                const area = store.getState().areas.get(areaId);
+                if (area && area.assignedAgentIds.length > 0) {
+                  // Focus camera on the first agent in this zone
+                  handleFocusAgent(area.assignedAgentIds[0]);
+                }
+              }}
             />
           ) : state.viewMode === '2d' ? (
             <Scene2DCanvas

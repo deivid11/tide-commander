@@ -1,4 +1,5 @@
 import { Agent, Building } from '@shared/types';
+import type { DrawingArea } from '../../../shared/common-types';
 import {
   DashboardMetrics,
   AgentCardData,
@@ -6,6 +7,9 @@ import {
   RecentEvent,
   DashboardFilters,
   DashboardError,
+  ZoneGroup,
+  StatusFilter,
+  GroupingMode,
 } from './types';
 
 /**
@@ -310,4 +314,148 @@ export function getTaskProgress(agent: Agent): number {
   if (agent.status === 'working') return 45;
   if (agent.status === 'error') return 0;
   return 25;
+}
+
+/**
+ * Group agents by their DrawingArea (zone).
+ * Agents not assigned to any area go into an "Unassigned" group.
+ */
+export function groupAgentsByZone(
+  agents: Map<string, Agent>,
+  areas: Map<string, DrawingArea>,
+): ZoneGroup[] {
+  const groups: ZoneGroup[] = [];
+  const assignedAgentIds = new Set<string>();
+
+  // Build a group for each non-archived area that has agents
+  for (const area of areas.values()) {
+    if (area.archived) continue;
+    const zoneAgents: Agent[] = [];
+    for (const agentId of area.assignedAgentIds) {
+      const agent = agents.get(agentId);
+      if (agent) {
+        zoneAgents.push(agent);
+        assignedAgentIds.add(agentId);
+      }
+    }
+    if (zoneAgents.length > 0) {
+      groups.push({
+        area,
+        agents: zoneAgents,
+        label: area.name,
+        color: area.color,
+      });
+    }
+  }
+
+  // Sort zone groups alphabetically
+  groups.sort((a, b) => a.label.localeCompare(b.label));
+
+  // Collect unassigned agents
+  const unassigned: Agent[] = [];
+  for (const agent of agents.values()) {
+    if (!assignedAgentIds.has(agent.id)) {
+      unassigned.push(agent);
+    }
+  }
+
+  if (unassigned.length > 0) {
+    groups.push({
+      area: null,
+      agents: unassigned,
+      label: 'Unassigned',
+      color: '#555',
+    });
+  }
+
+  return groups;
+}
+
+/**
+ * Group agents by status category
+ */
+export function groupAgentsByStatus(agents: Map<string, Agent>): ZoneGroup[] {
+  const working: Agent[] = [];
+  const idle: Agent[] = [];
+  const errored: Agent[] = [];
+
+  for (const agent of agents.values()) {
+    if (agent.status === 'working' || agent.status === 'waiting' || agent.status === 'waiting_permission') {
+      working.push(agent);
+    } else if (agent.status === 'error' || agent.status === 'offline' || agent.status === 'orphaned') {
+      errored.push(agent);
+    } else {
+      idle.push(agent);
+    }
+  }
+
+  const groups: ZoneGroup[] = [];
+  if (errored.length > 0) groups.push({ area: null, agents: errored, label: 'Errors', color: '#d64545' });
+  if (working.length > 0) groups.push({ area: null, agents: working, label: 'Working', color: '#f5d76e' });
+  if (idle.length > 0) groups.push({ area: null, agents: idle, label: 'Idle', color: '#5cb88a' });
+  return groups;
+}
+
+/**
+ * Filter agents by status and search query, returning a filtered agents Map
+ */
+export function filterAgentsByStatusAndSearch(
+  agents: Map<string, Agent>,
+  statusFilter: StatusFilter,
+  search: string,
+): Map<string, Agent> {
+  const result = new Map<string, Agent>();
+  const lowerSearch = search.toLowerCase().trim();
+
+  for (const [id, agent] of agents) {
+    // Status filter
+    if (statusFilter === 'working') {
+      if (agent.status !== 'working' && agent.status !== 'waiting' && agent.status !== 'waiting_permission') continue;
+    } else if (statusFilter === 'error') {
+      if (agent.status !== 'error' && agent.status !== 'offline' && agent.status !== 'orphaned') continue;
+    }
+
+    // Search filter
+    if (lowerSearch && !agent.name.toLowerCase().includes(lowerSearch) && !agent.class.toLowerCase().includes(lowerSearch)) {
+      continue;
+    }
+
+    result.set(id, agent);
+  }
+
+  return result;
+}
+
+/**
+ * Get context usage percentage for an agent
+ */
+export function getContextPercent(agent: Agent): number {
+  if (agent.contextLimit <= 0) return 0;
+  return Math.round((agent.contextUsed / agent.contextLimit) * 100);
+}
+
+/**
+ * Get context bar color based on usage percentage
+ */
+export function getContextBarColor(percent: number): 'green' | 'yellow' | 'red' {
+  if (percent >= 80) return 'red';
+  if (percent >= 50) return 'yellow';
+  return 'green';
+}
+
+/**
+ * Sort agents within a group: errors first, then working, then idle, then alphabetically
+ */
+export function sortAgentsInGroup(agents: Agent[]): Agent[] {
+  return [...agents].sort((a, b) => {
+    const statusOrder: Record<string, number> = {
+      error: 0, offline: 0, orphaned: 0,
+      working: 1, waiting: 1, waiting_permission: 1,
+      idle: 2,
+    };
+    const orderA = statusOrder[a.status] ?? 3;
+    const orderB = statusOrder[b.status] ?? 3;
+    if (orderA !== orderB) return orderA - orderB;
+    return a.name.localeCompare(b.name);
+  });
 }

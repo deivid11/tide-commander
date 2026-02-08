@@ -2,6 +2,72 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.50.0] - 2026-02-07
+
+### Added
+- **WebSocket Handler Decomposition** - Better handler organization
+  - New `notification-handler.ts` for notification events
+  - New `permission-handler.ts` for permission handling
+  - New `supervisor-handler.ts` for supervisor events
+  - New `sync-handler.ts` for state synchronization
+
+- **WebSocket Listener System** - Centralized event listening
+  - New `listeners/index.ts` for listener registration
+  - New `listeners/boss-listeners.ts` for boss events
+  - New `listeners/permission-listeners.ts` for permission events
+  - New `listeners/runtime-listeners.ts` for runtime events
+  - New `listeners/skill-listeners.ts` for skill events
+  - New `listeners/supervisor-listeners.ts` for supervisor events
+
+- **Runner Module Decomposition** - Better process management
+  - New `runner/internal-events.ts` for internal event handling
+  - New `runner/process-lifecycle.ts` for process lifecycle management
+  - New `runner/recovery-store.ts` for recovery state management
+  - New `runner/resource-monitor.ts` for resource monitoring
+  - New `runner/restart-policy.ts` for restart policies
+  - New `runner/stdout-pipeline.ts` for stdout processing
+  - New `runner/watchdog.ts` for process watchdog monitoring
+
+- **Test Coverage** - Comprehensive test suites
+  - Internal events tests
+  - Restart policy tests
+  - Stdout pipeline tests
+  - Watchdog tests
+
+- **Dashboard Improvements** - Better status visualization
+  - Enhanced agent debug panel (264+ lines)
+  - Improved agent status cards
+  - Better building status overview
+  - New dashboard utils module
+
+- **Agent Routes** - New API endpoints
+  - Agent management REST API routes
+  - Better agent lifecycle management
+
+### Changed
+- **WebSocket Handler Architecture** - Simplified main handler
+  - Reduced from 926 to ~500 lines with better delegation
+  - Handlers now focus on specific domains
+  - Better separation of concerns
+
+- **Runner Architecture** - Simplified main runner
+  - Reduced from 1,120 to ~500 lines with better delegation
+  - Process lifecycle now modular
+  - Better recovery and restart handling
+  - Improved watchdog monitoring
+
+- **Client-Side Styling** - Dashboard improvements
+  - 881+ lines of styling refactoring
+  - Better responsive design
+  - Improved visual consistency
+  - Enhanced debug panel styling
+
+### Removed
+- **Code Cleanup** - Reduced maintenance burden
+  - Removed ~2,778 lines of monolithic code
+  - Eliminated complex handler dependencies
+  - Cleaned up process management code
+
 ## [0.49.2] - 2026-02-07
 
 ### Changed

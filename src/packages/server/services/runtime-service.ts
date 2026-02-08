@@ -9,6 +9,8 @@ import {
   isCodexProcessRunningInCwd,
   killClaudeProcessInCwd,
   killCodexProcessInCwd,
+  findClaudeProcessPidInCwd,
+  findCodexProcessPidInCwd,
 } from '../claude/session-loader.js';
 import * as agentService from './agent-service.js';
 import { loadRunningProcesses, isProcessRunning } from '../data/index.js';
@@ -54,6 +56,15 @@ const runtimeProviders: Record<AgentProvider, RuntimeProvider> = {
   codex: createCodexRuntimeProvider(),
 };
 const runners = new Map<AgentProvider, RuntimeRunner>();
+
+interface RuntimeProcessState {
+  agentId: string;
+  pid: number | undefined;
+}
+
+interface RuntimeRunnerWithProcessState extends RuntimeRunner {
+  getActiveProcessesState?: () => RuntimeProcessState[];
+}
 
 function getRunner(provider: AgentProvider): RuntimeRunner | null {
   return runners.get(provider) ?? null;
@@ -288,6 +299,65 @@ export function isAgentRunning(agentId: string): boolean {
   return isAnyRunnerActive(agentId);
 }
 
+export interface AgentRuntimeProcessInfo {
+  pid?: number;
+  isRunning: boolean;
+  source: 'active' | 'persisted' | 'discovered' | 'none';
+}
+
+/**
+ * Get the current runtime PID for an agent process, if known.
+ * Prefers in-memory active runner state, then falls back to persisted crash-recovery state.
+ */
+export async function getAgentRuntimeProcessInfo(agentId: string): Promise<AgentRuntimeProcessInfo> {
+  // Check all in-memory runners first so provider drift/migration doesn't hide live processes.
+  for (const runner of runners.values()) {
+    const runnerWithState = runner as RuntimeRunnerWithProcessState;
+    if (!runnerWithState.getActiveProcessesState) {
+      continue;
+    }
+    const state = runnerWithState.getActiveProcessesState().find((proc) => proc.agentId === agentId);
+    if (state?.pid) {
+      return {
+        pid: state.pid,
+        isRunning: true,
+        source: 'active',
+      };
+    }
+  }
+
+  const persistedProcess = loadRunningProcesses().find((proc) => proc.agentId === agentId);
+  if (persistedProcess?.pid && isProcessRunning(persistedProcess.pid)) {
+    return {
+      pid: persistedProcess.pid,
+      isRunning: true,
+      source: 'persisted',
+    };
+  }
+
+  const agent = agentService.getAgent(agentId);
+  if (agent?.cwd) {
+    const provider = agent.provider ?? 'claude';
+    const discoveredPid =
+      provider === 'codex'
+        ? (await findCodexProcessPidInCwd(agent.cwd)) ?? (await findClaudeProcessPidInCwd(agent.cwd))
+        : (await findClaudeProcessPidInCwd(agent.cwd)) ?? (await findCodexProcessPidInCwd(agent.cwd));
+
+    if (discoveredPid && isProcessRunning(discoveredPid)) {
+      return {
+        pid: discoveredPid,
+        isRunning: true,
+        source: 'discovered',
+      };
+    }
+  }
+
+  return {
+    isRunning: false,
+    source: 'none',
+  };
+}
+
 /**
  * Check if there's an orphaned process for this agent
  * Uses ONLY PID tracking - not general process discovery
@@ -353,4 +423,3 @@ export async function autoResumeWorkingAgents(): Promise<void> {
 
   agentService.clearAgentsToResume();
 }
-

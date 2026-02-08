@@ -831,7 +831,7 @@ export async function getSessionActivityStatus(
 
 const PROVIDER_PROCESS_PATTERNS: Record<SessionProvider, string> = {
   claude: '(claude$|/claude( |$)|claude\\.cmd|claude\\.exe)',
-  codex: '(codex$|/codex( |$)|codex\\.cmd|codex\\.exe)',
+  codex: '(codex($| )|/codex( |$)|codex\\.cmd|codex\\.exe|codex\\.js|@openai/codex)',
 };
 
 type ExecSyncFn = typeof import('child_process').execSync;
@@ -913,6 +913,41 @@ async function isProviderProcessRunningInCwd(cwd: string, provider: SessionProvi
   }
 }
 
+async function findProviderProcessPidInCwd(cwd: string, provider: SessionProvider): Promise<number | undefined> {
+  if (process.platform === 'win32') {
+    return undefined;
+  }
+
+  try {
+    const { execSync } = await import('child_process');
+    const pids = getProviderProcessPids(provider, execSync);
+    if (pids.length === 0) {
+      return undefined;
+    }
+
+    const normalizedCwd = cwd.replace(/\/+$/, '');
+
+    for (const pid of pids) {
+      const processCwd = getProcessCwd(pid, execSync);
+      if (!processCwd) {
+        continue;
+      }
+      const normalizedProcessCwd = processCwd.replace(/\/+$/, '');
+      if (normalizedProcessCwd === normalizedCwd) {
+        const numericPid = Number.parseInt(pid, 10);
+        if (Number.isFinite(numericPid) && numericPid > 0) {
+          return numericPid;
+        }
+      }
+    }
+
+    return undefined;
+  } catch (err) {
+    log.error(` Error finding ${providerDisplayName(provider)} PID in ${cwd}:`, err);
+    return undefined;
+  }
+}
+
 async function killProviderProcessInCwd(cwd: string, provider: SessionProvider): Promise<boolean> {
   // Only works on Linux/Unix/macOS
   if (process.platform === 'win32') {
@@ -981,6 +1016,14 @@ export async function isClaudeProcessRunningInCwd(cwd: string): Promise<boolean>
  */
 export async function isCodexProcessRunningInCwd(cwd: string): Promise<boolean> {
   return isProviderProcessRunningInCwd(cwd, 'codex');
+}
+
+export async function findClaudeProcessPidInCwd(cwd: string): Promise<number | undefined> {
+  return findProviderProcessPidInCwd(cwd, 'claude');
+}
+
+export async function findCodexProcessPidInCwd(cwd: string): Promise<number | undefined> {
+  return findProviderProcessPidInCwd(cwd, 'codex');
 }
 
 /**

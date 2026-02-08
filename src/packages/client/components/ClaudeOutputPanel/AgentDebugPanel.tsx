@@ -11,6 +11,7 @@ import {
   type AgentDebugStats,
   type DebugLog,
 } from '../../services/agentDebugger';
+import { apiUrl, authFetch } from '../../utils/storage';
 
 /**
  * Syntax highlight JSON string with Dracula colors
@@ -81,18 +82,154 @@ function highlightJson(json: string): React.ReactNode[] {
   return nodes;
 }
 
+type AnsiColor =
+  | 'black'
+  | 'red'
+  | 'green'
+  | 'yellow'
+  | 'blue'
+  | 'magenta'
+  | 'cyan'
+  | 'white'
+  | 'bright-black'
+  | 'bright-red'
+  | 'bright-green'
+  | 'bright-yellow'
+  | 'bright-blue'
+  | 'bright-magenta'
+  | 'bright-cyan'
+  | 'bright-white';
+
+interface AnsiTextState {
+  color?: AnsiColor;
+  bold: boolean;
+  dim: boolean;
+}
+
+function renderAnsiText(input: string): React.ReactNode[] {
+  const nodes: React.ReactNode[] = [];
+  const regex = /\u001b\[([0-9;]*)m/g;
+  let state: AnsiTextState = { bold: false, dim: false };
+  let lastIndex = 0;
+  let key = 0;
+
+  const applyCode = (code: number) => {
+    if (code === 0) {
+      state = { bold: false, dim: false };
+      return;
+    }
+    if (code === 1) {
+      state.bold = true;
+      return;
+    }
+    if (code === 2) {
+      state.dim = true;
+      return;
+    }
+    if (code === 22) {
+      state.bold = false;
+      state.dim = false;
+      return;
+    }
+    if (code === 39) {
+      state.color = undefined;
+      return;
+    }
+
+    const colorMap: Record<number, AnsiColor> = {
+      30: 'black',
+      31: 'red',
+      32: 'green',
+      33: 'yellow',
+      34: 'blue',
+      35: 'magenta',
+      36: 'cyan',
+      37: 'white',
+      90: 'bright-black',
+      91: 'bright-red',
+      92: 'bright-green',
+      93: 'bright-yellow',
+      94: 'bright-blue',
+      95: 'bright-magenta',
+      96: 'bright-cyan',
+      97: 'bright-white',
+    };
+
+    if (colorMap[code]) {
+      state.color = colorMap[code];
+    }
+  };
+
+  const classNameFor = () => {
+    const classes = ['ansi'];
+    if (state.color) classes.push(`ansi-fg-${state.color}`);
+    if (state.bold) classes.push('ansi-bold');
+    if (state.dim) classes.push('ansi-dim');
+    return classes.join(' ');
+  };
+
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(input)) !== null) {
+    if (match.index > lastIndex) {
+      const chunk = input.slice(lastIndex, match.index);
+      nodes.push(
+        <span key={key++} className={classNameFor()}>
+          {chunk}
+        </span>
+      );
+    }
+
+    const codes = (match[1] || '0')
+      .split(';')
+      .map((v) => (v === '' ? 0 : Number(v)))
+      .filter((v) => Number.isFinite(v));
+    if (codes.length === 0) {
+      applyCode(0);
+    } else {
+      codes.forEach(applyCode);
+    }
+
+    lastIndex = regex.lastIndex;
+  }
+
+  if (lastIndex < input.length) {
+    nodes.push(
+      <span key={key++} className={classNameFor()}>
+        {input.slice(lastIndex)}
+      </span>
+    );
+  }
+
+  return nodes;
+}
+
 interface AgentDebugPanelProps {
   agentId: string;
   onClose: () => void;
+}
+
+interface AgentProcessOutputResponse {
+  agentId: string;
+  pid: number;
+  source: 'active' | 'persisted' | 'none';
+  command: string;
+  exitCode: number | null;
+  output: string;
+  errorOutput: string;
+  fetchedAt: number;
 }
 
 export const AgentDebugPanel: React.FC<AgentDebugPanelProps> = ({
   agentId,
   onClose,
 }) => {
-  const [activeTab, setActiveTab] = useState<'messages' | 'logs'>('messages');
+  const [activeTab, setActiveTab] = useState<'messages' | 'logs' | 'process'>('messages');
   const [messages, setMessages] = useState<AgentDebugMessage[]>([]);
   const [logs, setLogs] = useState<DebugLog[]>([]);
+  const [processOutput, setProcessOutput] = useState<AgentProcessOutputResponse | null>(null);
+  const [processError, setProcessError] = useState<string>('');
+  const [processLoading, setProcessLoading] = useState(false);
+  const [hasLoadedProcessOutput, setHasLoadedProcessOutput] = useState(false);
   const [stats, setStats] = useState<AgentDebugStats>({
     total: 0,
     sent: 0,
@@ -122,6 +259,29 @@ export const AgentDebugPanel: React.FC<AgentDebugPanelProps> = ({
     const logEntries = agentDebugger.getLogs();
     setLogs([...logEntries]);
   }, []);
+
+  const loadProcessOutput = useCallback(async () => {
+    setProcessLoading(true);
+    setProcessError('');
+    try {
+      const res = await authFetch(apiUrl(`/api/agents/${encodeURIComponent(agentId)}/process-output`));
+      const data = await res.json();
+
+      if (!res.ok) {
+        setProcessOutput(null);
+        setProcessError(data?.error || 'Failed to load process output');
+        return;
+      }
+
+      setProcessOutput(data as AgentProcessOutputResponse);
+    } catch (err) {
+      setProcessOutput(null);
+      setProcessError(err instanceof Error ? err.message : 'Failed to load process output');
+    } finally {
+      setProcessLoading(false);
+      setHasLoadedProcessOutput(true);
+    }
+  }, [agentId]);
 
   // Subscribe to debugger updates
   useEffect(() => {
@@ -213,6 +373,19 @@ export const AgentDebugPanel: React.FC<AgentDebugPanelProps> = ({
     }
   }, [filteredLogs, autoScroll, activeTab]);
 
+  useEffect(() => {
+    if (activeTab === 'process' && !hasLoadedProcessOutput && !processLoading) {
+      void loadProcessOutput();
+    }
+  }, [activeTab, hasLoadedProcessOutput, processLoading, loadProcessOutput]);
+
+  useEffect(() => {
+    setProcessOutput(null);
+    setProcessError('');
+    setProcessLoading(false);
+    setHasLoadedProcessOutput(false);
+  }, [agentId]);
+
   // Toggle message expansion
   const toggleExpanded = (id: string) => {
     setExpandedIds((prev) => {
@@ -254,6 +427,25 @@ export const AgentDebugPanel: React.FC<AgentDebugPanelProps> = ({
   // Clear logs
   const clearLogs = () => {
     agentDebugger.clearLogs();
+  };
+
+  const copyProcessOutput = () => {
+    if (!processOutput) return;
+    const text = [
+      `agentId: ${processOutput.agentId}`,
+      `pid: ${processOutput.pid}`,
+      `source: ${processOutput.source}`,
+      `command: ${processOutput.command}`,
+      `exitCode: ${processOutput.exitCode ?? 'null'}`,
+      `fetchedAt: ${new Date(processOutput.fetchedAt).toISOString()}`,
+      '',
+      '[stdout]',
+      processOutput.output || '(empty)',
+      '',
+      '[stderr]',
+      processOutput.errorOutput || '(empty)',
+    ].join('\n');
+    navigator.clipboard.writeText(text);
   };
 
   // Toggle log expansion
@@ -324,6 +516,12 @@ export const AgentDebugPanel: React.FC<AgentDebugPanelProps> = ({
           onClick={() => setActiveTab('logs')}
         >
           📋 Logs ({logs.length})
+        </button>
+        <button
+          className={`tab ${activeTab === 'process' ? 'active' : ''}`}
+          onClick={() => setActiveTab('process')}
+        >
+          🧪 Process Output
         </button>
       </div>
 
@@ -734,6 +932,70 @@ export const AgentDebugPanel: React.FC<AgentDebugPanelProps> = ({
                   </div>
                 );
               })
+            )}
+          </div>
+        </>
+      )}
+
+      {activeTab === 'process' && (
+        <>
+          <div className="agent-debug-actions process-actions">
+            <button
+              onClick={() => {
+                void loadProcessOutput();
+              }}
+              className="action-btn"
+              title="Refresh process output"
+              disabled={processLoading}
+            >
+              {processLoading ? 'Loading...' : 'Refresh'}
+            </button>
+            <button
+              onClick={copyProcessOutput}
+              className="action-btn"
+              title="Copy process output"
+              disabled={!processOutput}
+            >
+              Copy Output
+            </button>
+          </div>
+
+          <div className="agent-debug-messages agent-debug-process-output">
+            {processError ? (
+              <div className="process-error">{processError}</div>
+            ) : processOutput ? (
+              <div className="process-output-block">
+                <div className="process-meta-grid">
+                  <div className="meta-item">
+                    <span className="meta-label">PID</span>
+                    <span className="meta-value">{processOutput.pid}</span>
+                  </div>
+                  <div className="meta-item">
+                    <span className="meta-label">Source</span>
+                    <span className="meta-value">{processOutput.source}</span>
+                  </div>
+                  <div className="meta-item">
+                    <span className="meta-label">Exit</span>
+                    <span className="meta-value">{processOutput.exitCode ?? 'null'}</span>
+                  </div>
+                  <div className="meta-item">
+                    <span className="meta-label">Fetched</span>
+                    <span className="meta-value">{new Date(processOutput.fetchedAt).toLocaleString('en-US', { hour12: false })}</span>
+                  </div>
+                </div>
+                <div className="process-command">
+                  <span className="meta-label">Command</span>
+                  <code>{processOutput.command}</code>
+                </div>
+                <div className="process-stream-label">stdout</div>
+                <pre className="ansi-output">{renderAnsiText(processOutput.output || '(empty)')}</pre>
+                <div className="process-stream-label">stderr</div>
+                <pre className="ansi-output">{renderAnsiText(processOutput.errorOutput || '(empty)')}</pre>
+              </div>
+            ) : (
+              <div className="no-messages">
+                {processLoading ? 'Loading process output...' : 'No process output loaded'}
+              </div>
             )}
           </div>
         </>

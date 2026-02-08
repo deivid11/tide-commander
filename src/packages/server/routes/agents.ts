@@ -4,6 +4,7 @@
  */
 
 import { Router, Request, Response } from 'express';
+import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -16,6 +17,66 @@ import { buildCustomAgentConfig } from '../websocket/handlers/command-handler.js
 const log = createLogger('Routes');
 
 const router = Router();
+
+interface ProcessCommandResult {
+  exitCode: number | null;
+  output: string;
+  errorOutput: string;
+}
+
+function runCommandWithTimeout(
+  command: string,
+  args: string[],
+  timeoutMs: number,
+  cwd?: string
+): Promise<ProcessCommandResult> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: process.env,
+    });
+
+    const stdoutChunks: Buffer[] = [];
+    const stderrChunks: Buffer[] = [];
+    let timedOut = false;
+
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill('SIGTERM');
+    }, timeoutMs);
+
+    child.stdout?.on('data', (chunk: Buffer) => stdoutChunks.push(chunk));
+    child.stderr?.on('data', (chunk: Buffer) => stderrChunks.push(chunk));
+
+    child.on('error', (err) => {
+      clearTimeout(timer);
+      reject(err);
+    });
+
+    child.on('close', (code) => {
+      clearTimeout(timer);
+
+      const output = Buffer.concat(stdoutChunks).toString('utf-8').trim();
+      const errorOutput = Buffer.concat(stderrChunks).toString('utf-8').trim();
+
+      if (timedOut) {
+        resolve({
+          exitCode: code,
+          output,
+          errorOutput: errorOutput || `Command timed out after ${timeoutMs}ms`,
+        });
+        return;
+      }
+
+      resolve({
+        exitCode: code,
+        output,
+        errorOutput,
+      });
+    });
+  });
+}
 
 // GET /api/agents/claude-sessions - List all Claude Code sessions
 // NOTE: This must be defined BEFORE /:id routes to prevent being interpreted as an ID
@@ -199,6 +260,46 @@ router.get('/status', async (_req: Request, res: Response) => {
   } catch (err: any) {
     log.error(' Failed to get agent status:', err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/agents/:id/process-output - Get `witr --pid` output for this agent process
+router.get('/:id/process-output', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const agentId = req.params.id;
+    const agent = agentService.getAgent(agentId);
+
+    if (!agent) {
+      res.status(404).json({ error: 'Agent not found' });
+      return;
+    }
+
+    const processInfo = await runtimeService.getAgentRuntimeProcessInfo(agentId);
+    if (!processInfo.pid) {
+      res.status(404).json({ error: 'No running process found for agent' });
+      return;
+    }
+
+    const result = await runCommandWithTimeout('witr', ['--pid', String(processInfo.pid)], 8000, agent.cwd);
+
+    res.json({
+      agentId,
+      pid: processInfo.pid,
+      source: processInfo.source,
+      command: `witr --pid ${processInfo.pid}`,
+      exitCode: result.exitCode,
+      output: result.output,
+      errorOutput: result.errorOutput,
+      fetchedAt: Date.now(),
+    });
+  } catch (err: any) {
+    if (err?.code === 'ENOENT') {
+      res.status(501).json({ error: 'witr command not found on server' });
+      return;
+    }
+
+    log.error(' Failed to fetch agent process output:', err);
+    res.status(500).json({ error: err?.message || 'Failed to fetch process output' });
   }
 });
 

@@ -1,83 +1,40 @@
 /**
- * DashboardView - Metrics and status overview mode
+ * DashboardView - Zone-centric agent management dashboard
  *
- * Displays agent status cards, building overview, and key metrics.
- * Used when viewMode === 'dashboard'.
+ * Groups agents by their DrawingArea (zone), shows context usage,
+ * current tasks, and provides quick actions (chat, focus, kill).
  */
 
-import React, { useState, useMemo } from 'react';
-import { useAgents, useBuildings, useSelectedAgentIds } from '../../store/selectors';
-import type { Agent, Building } from '../../../shared/types';
+import React, { useState, useMemo, useCallback } from 'react';
+import { useAgents, useBuildings, useSelectedAgentIds, useAreas } from '../../store/selectors';
+import { AgentCard } from './AgentStatusCards';
+import { BuildingPills } from './BuildingStatusOverview';
+import {
+  groupAgentsByZone,
+  groupAgentsByStatus,
+  filterAgentsByStatusAndSearch,
+  sortAgentsInGroup,
+} from './utils';
+import type { DashboardViewProps, GroupingMode, StatusFilter } from './types';
 import './DashboardView.scss';
-
-interface DashboardViewProps {
-  onSelectAgent?: (agentId: string) => void;
-  onFocusAgent?: (agentId: string) => void;
-  onKillAgent?: (agentId: string) => void;
-  onSelectBuilding?: (buildingId: string) => void;
-}
-
-type StatusColor = 'healthy' | 'working' | 'error' | 'unknown';
-
-function getStatusColor(status: string): StatusColor {
-  switch (status) {
-    case 'idle':
-    case 'running':
-      return 'healthy';
-    case 'working':
-    case 'waiting':
-    case 'waiting_permission':
-      return 'working';
-    case 'error':
-    case 'offline':
-    case 'orphaned':
-      return 'error';
-    default:
-      return 'unknown';
-  }
-}
-
-function getClassIcon(agentClass: string): string {
-  switch (agentClass) {
-    case 'boss': return '👑';
-    case 'scout': return '🔍';
-    case 'builder': return '🔨';
-    case 'debugger': return '🐛';
-    default: return '🤖';
-  }
-}
-
-function getBuildingIcon(type: string): string {
-  switch (type) {
-    case 'server': return '🖥️';
-    case 'boss': return '🏰';
-    case 'database': return '🗄️';
-    case 'folder': return '📁';
-    default: return '🏢';
-  }
-}
 
 export function DashboardView({
   onSelectAgent,
   onFocusAgent,
   onKillAgent,
   onSelectBuilding,
+  onOpenTerminal,
+  onFocusZone,
 }: DashboardViewProps) {
   const agents = useAgents();
   const buildings = useBuildings();
+  const areas = useAreas();
   const selectedAgentIds = useSelectedAgentIds();
 
-  const [filter, setFilter] = useState<'all' | 'working' | 'error'>('all');
-
-  const agentArray = useMemo(() => {
-    const arr = Array.from(agents.values());
-    if (filter === 'all') return arr;
-    if (filter === 'working') return arr.filter(a => a.status === 'working' || a.status === 'waiting' || a.status === 'waiting_permission');
-    if (filter === 'error') return arr.filter(a => a.status === 'error' || a.status === 'offline' || a.status === 'orphaned');
-    return arr;
-  }, [agents, filter]);
-
-  const buildingArray = useMemo(() => Array.from(buildings.values()), [buildings]);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [grouping, setGrouping] = useState<GroupingMode>('zone');
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   // Metrics
   const metrics = useMemo(() => {
@@ -87,135 +44,171 @@ export function DashboardView({
       working: all.filter(a => a.status === 'working' || a.status === 'waiting' || a.status === 'waiting_permission').length,
       idle: all.filter(a => a.status === 'idle').length,
       error: all.filter(a => a.status === 'error' || a.status === 'offline' || a.status === 'orphaned').length,
-      buildings: buildingArray.length,
     };
-  }, [agents, buildingArray]);
+  }, [agents]);
+
+  // Filter agents first, then group
+  const filteredAgents = useMemo(
+    () => filterAgentsByStatusAndSearch(agents, statusFilter, search),
+    [agents, statusFilter, search],
+  );
+
+  const groups = useMemo(() => {
+    if (grouping === 'zone') {
+      return groupAgentsByZone(filteredAgents, areas);
+    }
+    return groupAgentsByStatus(filteredAgents);
+  }, [filteredAgents, areas, grouping]);
+
+  const toggleGroup = useCallback((label: string) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      return next;
+    });
+  }, []);
+
+  const handleDoubleClick = useCallback((agentId: string) => {
+    onOpenTerminal?.(agentId);
+  }, [onOpenTerminal]);
 
   return (
     <div className="dashboard-view">
-      {/* Metrics Bar */}
-      <div className="dashboard-view__metrics">
-        <div className="dashboard-view__metric">
-          <span className="dashboard-view__metric-value">{metrics.total}</span>
-          <span className="dashboard-view__metric-label">Agents</span>
+      {/* Top bar: metrics + search */}
+      <div className="dashboard-view__topbar">
+        <div className="dashboard-view__metrics">
+          <button
+            className={`dashboard-view__metric-btn ${statusFilter === 'all' ? 'dashboard-view__metric-btn--active' : ''}`}
+            onClick={() => setStatusFilter('all')}
+          >
+            <span className="dashboard-view__metric-value">{metrics.total}</span>
+            <span className="dashboard-view__metric-label">Agents</span>
+          </button>
+          <button
+            className={`dashboard-view__metric-btn dashboard-view__metric-btn--working ${statusFilter === 'working' ? 'dashboard-view__metric-btn--active' : ''}`}
+            onClick={() => setStatusFilter('working')}
+          >
+            <span className="dashboard-view__metric-value">{metrics.working}</span>
+            <span className="dashboard-view__metric-label">Working</span>
+          </button>
+          <button
+            className={`dashboard-view__metric-btn dashboard-view__metric-btn--idle ${statusFilter === 'all' ? '' : ''}`}
+            onClick={() => setStatusFilter('all')}
+          >
+            <span className="dashboard-view__metric-value">{metrics.idle}</span>
+            <span className="dashboard-view__metric-label">Idle</span>
+          </button>
+          <button
+            className={`dashboard-view__metric-btn dashboard-view__metric-btn--error ${statusFilter === 'error' ? 'dashboard-view__metric-btn--active' : ''}`}
+            onClick={() => setStatusFilter('error')}
+          >
+            <span className="dashboard-view__metric-value">{metrics.error}</span>
+            <span className="dashboard-view__metric-label">Errors</span>
+          </button>
         </div>
-        <div className="dashboard-view__metric dashboard-view__metric--working">
-          <span className="dashboard-view__metric-value">{metrics.working}</span>
-          <span className="dashboard-view__metric-label">Working</span>
-        </div>
-        <div className="dashboard-view__metric dashboard-view__metric--idle">
-          <span className="dashboard-view__metric-value">{metrics.idle}</span>
-          <span className="dashboard-view__metric-label">Idle</span>
-        </div>
-        <div className="dashboard-view__metric dashboard-view__metric--error">
-          <span className="dashboard-view__metric-value">{metrics.error}</span>
-          <span className="dashboard-view__metric-label">Errors</span>
-        </div>
-        <div className="dashboard-view__metric">
-          <span className="dashboard-view__metric-value">{metrics.buildings}</span>
-          <span className="dashboard-view__metric-label">Buildings</span>
-        </div>
+
+        <input
+          className="dashboard-view__search"
+          type="text"
+          placeholder="Search agents..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
       </div>
 
-      {/* Filter Bar */}
-      <div className="dashboard-view__filters">
+      {/* Grouping toggle */}
+      <div className="dashboard-view__grouping">
         <button
-          className={`dashboard-view__filter-btn ${filter === 'all' ? 'dashboard-view__filter-btn--active' : ''}`}
-          onClick={() => setFilter('all')}
+          className={`dashboard-view__grouping-btn ${grouping === 'zone' ? 'dashboard-view__grouping-btn--active' : ''}`}
+          onClick={() => setGrouping('zone')}
         >
-          All ({metrics.total})
+          By Zone
         </button>
         <button
-          className={`dashboard-view__filter-btn ${filter === 'working' ? 'dashboard-view__filter-btn--active' : ''}`}
-          onClick={() => setFilter('working')}
+          className={`dashboard-view__grouping-btn ${grouping === 'status' ? 'dashboard-view__grouping-btn--active' : ''}`}
+          onClick={() => setGrouping('status')}
         >
-          Working ({metrics.working})
-        </button>
-        <button
-          className={`dashboard-view__filter-btn ${filter === 'error' ? 'dashboard-view__filter-btn--active' : ''}`}
-          onClick={() => setFilter('error')}
-        >
-          Errors ({metrics.error})
+          By Status
         </button>
       </div>
 
-      {/* Agent Cards Grid */}
-      <div className="dashboard-view__section">
-        <h3 className="dashboard-view__section-title">Agents</h3>
-        {agentArray.length === 0 ? (
-          <div className="dashboard-view__empty">
-            {filter === 'all' ? 'No agents spawned yet' : `No ${filter} agents`}
-          </div>
-        ) : (
-          <div className="dashboard-view__grid">
-            {agentArray.map(agent => {
-              const color = getStatusColor(agent.status);
-              const isSelected = selectedAgentIds.has(agent.id);
-              return (
-                <div
-                  key={agent.id}
-                  className={`dashboard-view__card dashboard-view__card--${color} ${isSelected ? 'dashboard-view__card--selected' : ''}`}
-                  onClick={() => onSelectAgent?.(agent.id)}
-                >
-                  <div className="dashboard-view__card-header">
-                    <span className="dashboard-view__card-icon">{getClassIcon(agent.class)}</span>
-                    <span className="dashboard-view__card-name">{agent.name}</span>
-                    <span className={`dashboard-view__card-dot dashboard-view__card-dot--${color}`} />
-                  </div>
-                  <div className="dashboard-view__card-body">
-                    <span className="dashboard-view__card-status">{agent.status}</span>
-                    <span className="dashboard-view__card-class">{agent.class}</span>
-                  </div>
-                  <div className="dashboard-view__card-actions">
-                    {onFocusAgent && (
-                      <button
-                        className="dashboard-view__card-action"
-                        onClick={(e) => { e.stopPropagation(); onFocusAgent(agent.id); }}
-                        title="Focus in 3D view"
-                      >
-                        🎯
-                      </button>
-                    )}
-                    {onKillAgent && (
-                      <button
-                        className="dashboard-view__card-action dashboard-view__card-action--danger"
-                        onClick={(e) => { e.stopPropagation(); onKillAgent(agent.id); }}
-                        title="Kill agent"
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </div>
+      {/* Scrollable content */}
+      <div className="dashboard-view__content">
+        {/* Zone groups */}
+        {groups.map((group) => {
+          const isCollapsed = collapsedGroups.has(group.label);
+          const sorted = sortAgentsInGroup(group.agents);
+          const workingCount = group.agents.filter(a => a.status === 'working' || a.status === 'waiting' || a.status === 'waiting_permission').length;
+
+          return (
+            <div key={group.label} className="dashboard-view__zone">
+              <div
+                className="dashboard-view__zone-header"
+                onClick={() => toggleGroup(group.label)}
+              >
+                <div className="dashboard-view__zone-left">
+                  <span className={`dashboard-view__zone-chevron ${isCollapsed ? 'dashboard-view__zone-chevron--collapsed' : ''}`}>
+                    ▼
+                  </span>
+                  <span
+                    className="dashboard-view__zone-dot"
+                    style={{ backgroundColor: group.color }}
+                  />
+                  <span className="dashboard-view__zone-name">{group.label}</span>
+                  <span className="dashboard-view__zone-count">
+                    {group.agents.length} agent{group.agents.length !== 1 ? 's' : ''}
+                    {workingCount > 0 && <span className="dashboard-view__zone-working"> · {workingCount} working</span>}
+                  </span>
                 </div>
-              );
-            })}
+                {group.area && onFocusZone && (
+                  <button
+                    className="dashboard-view__zone-focus"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onFocusZone(group.area!.id);
+                    }}
+                    title="Focus zone in 3D view"
+                  >
+                    Focus Zone
+                  </button>
+                )}
+              </div>
+
+              {!isCollapsed && (
+                <div className="dashboard-view__zone-grid">
+                  {sorted.map((agent) => (
+                    <AgentCard
+                      key={agent.id}
+                      agent={agent}
+                      isSelected={selectedAgentIds.has(agent.id)}
+                      onSelect={() => onSelectAgent?.(agent.id)}
+                      onDoubleClick={() => handleDoubleClick(agent.id)}
+                      onChat={() => onOpenTerminal?.(agent.id)}
+                      onFocus={onFocusAgent ? () => onFocusAgent(agent.id) : undefined}
+                      onKill={onKillAgent ? () => onKillAgent(agent.id) : undefined}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {groups.length === 0 && (
+          <div className="dashboard-view__empty">
+            {search ? `No agents matching "${search}"` : 'No agents spawned yet'}
           </div>
         )}
-      </div>
 
-      {/* Buildings Section */}
-      {buildingArray.length > 0 && (
-        <div className="dashboard-view__section">
-          <h3 className="dashboard-view__section-title">Buildings</h3>
-          <div className="dashboard-view__grid">
-            {buildingArray.map(building => (
-              <div
-                key={building.id}
-                className="dashboard-view__card dashboard-view__card--building"
-                onClick={() => onSelectBuilding?.(building.id)}
-              >
-                <div className="dashboard-view__card-header">
-                  <span className="dashboard-view__card-icon">{getBuildingIcon(building.type)}</span>
-                  <span className="dashboard-view__card-name">{building.name}</span>
-                </div>
-                <div className="dashboard-view__card-body">
-                  <span className="dashboard-view__card-status">{building.type}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+        {/* Buildings section */}
+        {buildings.size > 0 && (
+          <BuildingPills
+            buildings={buildings}
+            onSelectBuilding={onSelectBuilding}
+          />
+        )}
+      </div>
     </div>
   );
 }
