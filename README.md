@@ -128,6 +128,7 @@ Detailed guides for each feature are available in the [`docs/`](docs/) folder:
 | [Android APK](docs/android.md) | Build and install the optional mobile companion app |
 | [Docker Deployment](docs/docker.md) | Run Tide Commander in a Docker container |
 | [Contributing](CONTRIBUTING.md) | Setup, workflow, and pull request guidelines for contributors |
+| [Security Policy](SECURITY.md) | Supported versions, vulnerability reporting, and disclosure process |
 
 ## 🎮 How to Use
 
