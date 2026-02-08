@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.53.2] - 2026-02-08
+
+### Fixed
+- **Capacitor imports** - Wrapped Capacitor imports (core, haptics, local-notifications) in try-catch for conditional loading so web/CLI builds work without Capacitor packages installed
+- **Null-safe platform checks** - `Capacitor.getPlatform()`, `isNativePlatform()`, and haptics calls now use optional chaining to prevent crashes when Capacitor is unavailable
+
 ## [0.53.1] - 2026-02-08
 
 ### Changed

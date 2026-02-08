@@ -6,7 +6,17 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { Capacitor, CapacitorHttp } from '@capacitor/core';
+
+// Conditionally import Capacitor (only available on Android builds)
+let Capacitor: any;
+let CapacitorHttp: any;
+
+try {
+  Capacitor = require('@capacitor/core').Capacitor;
+  CapacitorHttp = require('@capacitor/core').CapacitorHttp;
+} catch {
+  // Capacitor not available (web build)
+}
 
 const GITHUB_REPO = 'deivid11/tide-commander';
 const GITHUB_RELEASES_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
@@ -67,7 +77,7 @@ export function useAppUpdate() {
     currentVersion: CURRENT_VERSION,
   });
 
-  const isAndroid = Capacitor.getPlatform() === 'android';
+  const isAndroid = Capacitor?.getPlatform?.() === 'android' || false;
 
   /**
    * Parse version string to comparable number
@@ -100,7 +110,8 @@ export function useAppUpdate() {
    * Falls back to regular fetch on web
    */
   const fetchJson = async <T>(url: string): Promise<{ data: T; status: number }> => {
-    if (Capacitor.isNativePlatform()) {
+    const isNative = Capacitor && CapacitorHttp && Capacitor.isNativePlatform?.() === true;
+    if (isNative) {
       // Use native HTTP to bypass CORS restrictions on mobile
       const response = await CapacitorHttp.get({
         url,

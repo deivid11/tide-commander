@@ -9,8 +9,16 @@
  * - Play sound and vibrate
  */
 
-import { LocalNotifications } from '@capacitor/local-notifications';
-import { Capacitor } from '@capacitor/core';
+// Conditionally import Capacitor (only available on Android builds)
+let LocalNotifications: any;
+let Capacitor: any;
+
+try {
+  LocalNotifications = require('@capacitor/local-notifications').LocalNotifications;
+  Capacitor = require('@capacitor/core').Capacitor;
+} catch {
+  // Capacitor not available (web build)
+}
 
 let notificationId = 1;
 
@@ -21,7 +29,7 @@ const AGENT_NOTIFICATION_CHANNEL_ID = 'agent_alerts';
  * Check if we're running in a native Capacitor app
  */
 export function isNativeApp(): boolean {
-  return Capacitor.isNativePlatform();
+  return Capacitor?.isNativePlatform?.() ?? false;
 }
 
 /**
@@ -102,8 +110,8 @@ export async function showNotification(options: {
 export async function initNotificationListeners(
   onTap?: (data: Record<string, unknown>) => void
 ): Promise<void> {
-  if (isNativeApp()) {
-    await LocalNotifications.addListener('localNotificationActionPerformed', (notification) => {
+  if (isNativeApp() && LocalNotifications) {
+    await LocalNotifications.addListener('localNotificationActionPerformed', (notification: any) => {
       if (onTap && notification.notification.extra) {
         onTap(notification.notification.extra);
       }

@@ -5,7 +5,17 @@
  */
 
 import { useRef, useEffect, useCallback } from 'react';
-import { Haptics, ImpactStyle } from '@capacitor/haptics';
+
+// Conditionally import Capacitor Haptics (only available on Android builds)
+let Haptics: any;
+let ImpactStyle: any;
+
+try {
+  Haptics = require('@capacitor/haptics').Haptics;
+  ImpactStyle = require('@capacitor/haptics').ImpactStyle;
+} catch {
+  // Capacitor Haptics not available (web build)
+}
 
 export interface SwipeGestureOptions {
   /** Minimum distance in pixels to trigger a swipe */
@@ -121,12 +131,19 @@ export function useSwipeGesture(
       duration < 500 // Must complete within 500ms for quick swipe
     ) {
       // Light haptic feedback using Capacitor Haptics
-      Haptics.impact({ style: ImpactStyle.Light }).catch(() => {
-        // Fallback to web vibration API if Haptics not available
+      if (Haptics && ImpactStyle) {
+        Haptics.impact({ style: ImpactStyle.Light }).catch(() => {
+          // Fallback to web vibration API if Haptics not available
+          if (navigator.vibrate) {
+            navigator.vibrate(8);
+          }
+        });
+      } else {
+        // Web vibration API fallback
         if (navigator.vibrate) {
           navigator.vibrate(8);
         }
-      });
+      }
 
       if (deltaX > 0) {
         // Swiped right (left-to-right)
