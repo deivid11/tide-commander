@@ -339,7 +339,6 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     const bashCommand = _bashCommand || _toolKeyParam || toolKeyParamOrFallback || '';
     const isCurlExecCommand = /\bcurl\b[\s\S]*\/api\/exec\b/.test(bashCommand);
     // Show only the MOST RECENT exec task that started shortly after this bash command
-    const now = Date.now();
     const bashTimestampMs = timestamp ? new Date(timestamp).getTime() : 0;
     const matchingExecTasks = isCurlExecCommand && execTasks.length > 0
       ? (() => {

@@ -7,21 +7,27 @@ export const streamingExec: BuiltinSkillDefinition = {
   allowedTools: ['Bash(curl:*)'],
   content: `# Streaming Command Execution
 
-**MANDATORY: ALL shell commands MUST be executed through this streaming exec endpoint.** Do NOT use the Bash tool directly for any command execution. Every command, regardless of how quick or simple, must go through the exec API so the user can see all command output in the terminal.
+Use this endpoint for commands that are long-running, noisy, or operationally important so users can see live progress in the terminal.
 
 ## When to Use Streaming Exec
 
-**ALWAYS.** Every shell command must use this endpoint, including but not limited to:
+Use \`/api/exec\` for commands like:
 - Build commands (\`npm run build\`, \`cargo build\`, \`make\`)
 - Test suites (\`npm test\`, \`pytest\`, \`jest\`)
 - Development servers (\`npm run dev\`, \`bun run dev\`)
 - Package installations (\`npm install\`, \`pip install\`)
-- Git commands (\`git status\`, \`git diff\`, \`git log\`, \`git commit\`)
-- File operations (\`ls\`, \`cat\`, \`pwd\`, \`mkdir\`, \`cp\`, \`mv\`)
-- Quick checks and diagnostics
-- Any and all shell commands without exception
+- Docker and container commands (\`docker build\`, \`docker compose up\`, \`docker logs\`)
+- Long git/network operations (\`git clone\`, \`git fetch\`, \`git push\`)
+- Any command expected to run longer than a couple seconds
 
-**There are NO exceptions.** Never run commands directly through the Bash tool. Always route through the exec endpoint.
+## When Not to Use Streaming Exec
+
+For near-instant local commands, run them directly with normal shell tools. Examples:
+- Fast reads/searches (\`cat\`, \`grep\`, \`rg\`, \`sed\`, \`head\`, \`tail\`)
+- Quick filesystem checks (\`ls\`, \`pwd\`, \`stat\`)
+- Short git inspection (\`git status\`, \`git diff\`, \`git log -n 5\`)
+
+Rule of thumb: if it is effectively instant and only used for quick inspection, do not route it through \`/api/exec\`.
 
 ## Command Format
 

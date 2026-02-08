@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.51.5] - 2026-02-08
+
+### Changed
+- **Streaming exec skill** - Clarified when to use streaming exec vs direct shell commands; no longer mandates routing every command through `/api/exec`
+
+### Fixed
+- **Lint warning** - Removed unused `now` variable in OutputLine.tsx
+
 ## [0.51.4] - 2026-02-08
 
 ### Changed
