@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.53.3] - 2026-02-08
+
+### Added
+- **Version command** - `tide-commander version` and `-v`/`--version` flags to display current version
+- **Process uptime** - `tide-commander status` now shows server uptime on Linux via `/proc` stats
+- **Version in banners** - Start and status banners now display the package version
+
+### Changed
+- **Colorized CLI output** - Status, start, and already-running banners now use ANSI colors for better readability
+- **Richer status display** - Status command shows server URL, version, and uptime in a formatted panel
+- **Already-running message** - Now includes the server URL for quick access
+
 ## [0.53.2] - 2026-02-08
 
 ### Fixed
