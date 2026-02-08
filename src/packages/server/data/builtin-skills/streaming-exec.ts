@@ -7,22 +7,21 @@ export const streamingExec: BuiltinSkillDefinition = {
   allowedTools: ['Bash(curl:*)'],
   content: `# Streaming Command Execution
 
-For **long-running commands** that produce ongoing output (builds, tests, dev servers, installations), use the streaming exec endpoint instead of running them directly. This streams output to the terminal in real-time so you and the user can monitor progress.
+**MANDATORY: ALL shell commands MUST be executed through this streaming exec endpoint.** Do NOT use the Bash tool directly for any command execution. Every command, regardless of how quick or simple, must go through the exec API so the user can see all command output in the terminal.
 
 ## When to Use Streaming Exec
 
-Use streaming exec for:
+**ALWAYS.** Every shell command must use this endpoint, including but not limited to:
 - Build commands (\`npm run build\`, \`cargo build\`, \`make\`)
 - Test suites (\`npm test\`, \`pytest\`, \`jest\`)
 - Development servers (\`npm run dev\`, \`bun run dev\`)
 - Package installations (\`npm install\`, \`pip install\`)
-- Long compilation tasks
-- Any command expected to run more than 5-10 seconds
+- Git commands (\`git status\`, \`git diff\`, \`git log\`, \`git commit\`)
+- File operations (\`ls\`, \`cat\`, \`pwd\`, \`mkdir\`, \`cp\`, \`mv\`)
+- Quick checks and diagnostics
+- Any and all shell commands without exception
 
-**Do NOT use** for quick commands like:
-- \`ls\`, \`cat\`, \`pwd\`, \`git status\`
-- Simple file operations
-- Quick checks that return immediately
+**There are NO exceptions.** Never run commands directly through the Bash tool. Always route through the exec endpoint.
 
 ## Command Format
 

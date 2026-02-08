@@ -336,9 +336,13 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     const isBashTool = toolName === 'Bash' && onBashClick;
     const hasBashOutput = !!_bashOutput || !!payloadToolOutput;
     const bashCommand = _bashCommand || _toolKeyParam || toolKeyParamOrFallback || '';
-    const runningExecTasks = execTasks.filter((task) => task.status === 'running');
     const isCurlExecCommand = /\bcurl\b[\s\S]*\/api\/exec\b/.test(bashCommand);
-    const showInlineRunningTasks = Boolean(isBashTool && _isRunning && isCurlExecCommand && runningExecTasks.length > 0);
+    // Show only recently started exec tasks (within last 30 seconds) for this curl command
+    const now = Date.now();
+    const matchingExecTasks = isCurlExecCommand
+      ? execTasks.filter((task) => (now - task.startedAt) < 30000)
+      : [];
+    const showInlineRunningTasks = Boolean(isBashTool && isCurlExecCommand && matchingExecTasks.length > 0);
     const truncatedTaskCommand = (value: string) => (value.length > 52 ? `${value.slice(0, 52)}...` : value);
     const bashSearchCommand = isBashTool && bashCommand ? parseBashSearchCommand(bashCommand) : null;
     const bashNotificationCommand = isBashTool && bashCommand ? parseBashNotificationCommand(bashCommand) : null;
@@ -447,7 +451,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         {/* Exec task output below bash command line */}
         {showInlineRunningTasks && (
           <div className="exec-task-output-container">
-            {runningExecTasks.map((task) => (
+            {matchingExecTasks.map((task) => (
               <div key={task.taskId} className={`exec-task-inline status-${task.status}`}>
                 <div className="exec-task-inline-terminal">
                   <pre className="exec-task-inline-output">

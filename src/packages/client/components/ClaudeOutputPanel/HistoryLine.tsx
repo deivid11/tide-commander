@@ -15,6 +15,7 @@ import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, p
 import { EditToolDiff, ReadToolInput, TodoWriteInput } from './ToolRenderers';
 import { highlightText, renderContentWithImages, renderUserPromptContent } from './contentRendering';
 import { useTTS } from '../../hooks/useTTS';
+import { ansiToHtml } from '../../utils/ansiToHtml';
 import type { EnrichedHistoryMessage, EditData } from './types';
 
 interface HistoryLineProps {
@@ -260,61 +261,95 @@ export const HistoryLine = memo(function HistoryLine({
         ? 'Click to view output'
         : (isFileClickable ? 'Click to view file' : undefined);
 
+      // Check if this is a curl exec command and try to parse the exec output
+      const isCurlExecCommand = /\bcurl\b[\s\S]*\/api\/exec\b/.test(bashCommand);
+      let execTaskOutput: { output: string[] } | null = null;
+
+      if (isCurlExecCommand && _bashOutput) {
+        try {
+          const parsed = JSON.parse(_bashOutput);
+          if (parsed.output && typeof parsed.output === 'string') {
+            // Convert the output string to an array of lines
+            execTaskOutput = {
+              output: parsed.output.split('\n').filter((line: string) => line.length > 0),
+            };
+          }
+        } catch {
+          // If parsing fails, just show the bash output normally
+        }
+      }
+
       return (
-        <div
-          className={`output-line output-tool-use output-tool-simple ${isBashTool ? 'clickable-bash' : ''} ${bashNotificationCommand ? 'bash-notify-use' : ''}`}
-          onClick={isBashTool ? handleBashClick : undefined}
-          style={isBashTool ? { cursor: 'pointer' } : undefined}
-          title={isBashTool ? 'Click to view output' : undefined}
-        >
-          {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
-          {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
-          <span className="output-tool-icon">{icon}</span>
-          <span className="output-tool-name">{toolName}</span>
-          {isBashTool && bashNotificationCommand ? (
-            <span
-              className="output-tool-param bash-command bash-notify-param"
-              onClick={handleBashClick}
-              title={bashNotificationCommand.commandBody}
-              style={{ cursor: 'pointer' }}
-            >
-              {bashNotificationCommand.shellPrefix && (
-                <span className="bash-search-shell">{bashNotificationCommand.shellPrefix}</span>
-              )}
-              <span className="bash-notify-chip">notify</span>
-              {bashNotificationCommand.title && (
-                <span className="bash-notify-title">{bashNotificationCommand.title}</span>
-              )}
-              {bashNotificationCommand.message && (
-                <span className="bash-notify-message">{bashNotificationCommand.message}</span>
-              )}
-            </span>
-          ) : isBashTool && bashSearchCommand ? (
-            <span
-              className="output-tool-param bash-command bash-search-param"
-              onClick={handleBashClick}
-              title={bashSearchCommand.commandBody}
-              style={{ cursor: 'pointer' }}
-            >
-              {bashSearchCommand.shellPrefix && (
-                <span className="bash-search-shell">{bashSearchCommand.shellPrefix}</span>
-              )}
-              <span className="bash-search-chip">search</span>
-              <span className="bash-search-term">{bashSearchCommand.searchTerm}</span>
-            </span>
-          ) : (
-            keyParam && (
+        <>
+          <div
+            className={`output-line output-tool-use output-tool-simple ${isBashTool ? 'clickable-bash' : ''} ${bashNotificationCommand ? 'bash-notify-use' : ''}`}
+            onClick={isBashTool ? handleBashClick : undefined}
+            style={isBashTool ? { cursor: 'pointer' } : undefined}
+            title={isBashTool ? 'Click to view output' : undefined}
+          >
+            {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+            {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+            <span className="output-tool-icon">{icon}</span>
+            <span className="output-tool-name">{toolName}</span>
+            {isBashTool && bashNotificationCommand ? (
               <span
-                className={`output-tool-param ${isFileClickable ? 'clickable-path' : ''}`}
-                onClick={isFileClickable ? handleParamClick : undefined}
-                title={clickTitle}
-                style={isFileClickable ? { cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' } : undefined}
+                className="output-tool-param bash-command bash-notify-param"
+                onClick={handleBashClick}
+                title={bashNotificationCommand.commandBody}
+                style={{ cursor: 'pointer' }}
               >
-                {keyParam}
+                {bashNotificationCommand.shellPrefix && (
+                  <span className="bash-search-shell">{bashNotificationCommand.shellPrefix}</span>
+                )}
+                <span className="bash-notify-chip">notify</span>
+                {bashNotificationCommand.title && (
+                  <span className="bash-notify-title">{bashNotificationCommand.title}</span>
+                )}
+                {bashNotificationCommand.message && (
+                  <span className="bash-notify-message">{bashNotificationCommand.message}</span>
+                )}
               </span>
-            )
+            ) : isBashTool && bashSearchCommand ? (
+              <span
+                className="output-tool-param bash-command bash-search-param"
+                onClick={handleBashClick}
+                title={bashSearchCommand.commandBody}
+                style={{ cursor: 'pointer' }}
+              >
+                {bashSearchCommand.shellPrefix && (
+                  <span className="bash-search-shell">{bashSearchCommand.shellPrefix}</span>
+                )}
+                <span className="bash-search-chip">search</span>
+                <span className="bash-search-term">{bashSearchCommand.searchTerm}</span>
+              </span>
+            ) : (
+              keyParam && (
+                <span
+                  className={`output-tool-param ${isFileClickable ? 'clickable-path' : ''}`}
+                  onClick={isFileClickable ? handleParamClick : undefined}
+                  title={clickTitle}
+                  style={isFileClickable ? { cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' } : undefined}
+                >
+                  {keyParam}
+                </span>
+              )
+            )}
+          </div>
+          {/* Render exec task output for curl exec commands */}
+          {isCurlExecCommand && execTaskOutput && (
+            <div className="exec-task-output-container">
+              <div className="exec-task-inline status-completed">
+                <div className="exec-task-inline-terminal">
+                  <pre className="exec-task-inline-output">
+                    {execTaskOutput.output.map((line, idx) => (
+                      <div key={idx} dangerouslySetInnerHTML={{ __html: ansiToHtml(line) }} />
+                    ))}
+                  </pre>
+                </div>
+              </div>
+            </div>
           )}
-        </div>
+        </>
       );
     }
 
