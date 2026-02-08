@@ -834,17 +834,106 @@
 }
 
 .output-tool-running-tasks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  width: 100%;
+}
+
+.exec-task-inline {
+  border: 1px solid $border-color;
+  border-radius: 6px;
+  background: rgba($bg-tertiary, 0.6);
+  overflow: hidden;
+
+  &.status-running {
+    border-color: var(--accent-yellow);
+    background: color-mix(in srgb, var(--accent-yellow) 8%, rgba($bg-tertiary, 0.6));
+  }
+
+  &.status-completed {
+    border-color: var(--accent-green);
+    background: color-mix(in srgb, var(--accent-green) 8%, rgba($bg-tertiary, 0.6));
+  }
+
+  &.status-failed {
+    border-color: var(--accent-red);
+    background: color-mix(in srgb, var(--accent-red) 8%, rgba($bg-tertiary, 0.6));
+  }
+}
+
+.exec-task-inline-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid $border-color;
+  background: rgba($bg-secondary, 0.6);
   font-family: $font-mono;
-  font-size: 10px;
-  color: var(--accent-cyan);
-  background: color-mix(in srgb, var(--accent-cyan) 14%, transparent);
-  border: 1px solid color-mix(in srgb, var(--accent-cyan) 36%, transparent);
-  border-radius: 4px;
-  padding: 1px 6px;
-  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.exec-task-inline-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.exec-task-inline-cmd {
+  font-family: $font-mono;
+  font-size: 12px;
+  color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: min(50vw, 420px);
+  white-space: nowrap;
+  flex: 1;
+}
+
+.exec-task-inline-terminal {
+  max-height: 300px;
+  overflow-y: auto;
+  background: rgba($bg-primary, 0.8);
+  font-family: $font-mono;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.exec-task-inline-output {
+  padding: 12px;
+  margin: 0;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+
+  > div {
+    margin: 0;
+    padding: 0;
+  }
+}
+
+.exec-task-cursor {
+  animation: blink 1s step-end infinite;
+  color: var(--accent-cyan);
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+@keyframes blink {
+  0%, 49% {
+    opacity: 1;
+  }
+  50%, 100% {
+    opacity: 0;
+  }
 }
 
 // =============================================================================
