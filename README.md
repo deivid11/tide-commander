@@ -10,6 +10,64 @@
 
 Tide Commander is a Claude Code and Codex orchestrator and manager that lets you deploy, control, and monitor multiple AI coding agents from a single visual interface. Spawn agents, assign tasks, and watch them work in real-time on an RTS-inspired 3D battlefield — or switch to a lightweight 2D canvas or a metrics dashboard.
 
+## 🚀 Getting Started
+
+Requirements:
+- Node.js 18+
+- Claude Code CLI (`claude` command available in PATH)
+- OpenAI Codex CLI compatibility
+
+Install and run:
+
+```bash
+# Always install/update to latest published release
+npm i -g tide-commander@latest
+tide-commander start
+```
+
+Command lifecycle:
+
+```bash
+# Start in background (default)
+tide-commander start
+
+# Stop the background server
+tide-commander stop
+
+# Check whether server is running
+tide-commander status
+
+# Show the latest server logs
+tide-commander logs
+
+# Follow logs in real time
+tide-commander logs --follow
+```
+
+CLI flags (for `start`):
+
+```bash
+tide-commander --help
+tide-commander --foreground
+tide-commander logs --lines 200
+tide-commander --port 8080 --host 0.0.0.0
+tide-commander --listen-all --port 8080
+```
+
+## 🧑‍💻 Development Setup
+
+Use this only if you are developing Tide Commander itself:
+
+```bash
+# Install dependencies
+bun install
+
+# Start dev frontend + backend
+bun run dev
+```
+
+Open http://localhost:5173 in your browser (or your configured `VITE_PORT`).
+
 ## 💡 Why Tide Commander?
 
 Managing multiple Claude Code terminals at the same time is painful. Tide Commander replaces that mess with a single visual UI where you can see every agent, their status, and their output at a glance.
@@ -17,39 +75,6 @@ Managing multiple Claude Code terminals at the same time is painful. Tide Comman
 Despite looking like a game, Tide Commander is a full-featured Claude Code GUI packed with developer tools: built-in file explorer with git diffs, conversation history with tool formatting, permission controls, and a command palette. For many workflows, an IDE becomes almost unnecessary.
 
 Think of it like having a team of AI developers at your command. Assign one agent to investigate a bug while another implements a feature. Watch them work in real-time, send follow-up commands, and keep your project moving forward on multiple fronts.
-
-## 📋 Prerequisites
-
-- Node.js 18+ or Bun
-- Claude Code CLI (`claude` command available in PATH)
-- OpenAI Codex CLI compatibility (experimental)
-
-## 🚀 Getting Started
-
-```bash
-# Install dependencies
-bun install
-
-# Start the application
-bun run dev
-```
-
-Open http://localhost:5173 in your browser (or your configured `VITE_PORT`) and you're ready to go!
-
-## 📦 Global npm Install
-
-```bash
-npm i -g tide-commander
-tide-commander
-```
-
-CLI flags:
-
-```bash
-tide-commander --port 8080 --host 0.0.0.0
-# or
-tide-commander --listen-all --port 8080
-```
 
 ## 🎖️ Agent Concepts
 
@@ -345,7 +370,7 @@ Planned features and improvements — contributions and feedback welcome:
 
 - [ ] **Test Coverage** — Unit, integration, and E2E tests (currently minimal)
 - [ ] **Multilingual Support** — i18n with translations for Chinese, French, Spanish, and more
-- [x] **Codex Integration (Experimental)** — Compatible with OpenAI Codex CLI alongside Claude Code
+- [x] **Codex Integration** — Compatible with OpenAI Codex CLI alongside Claude Code
 - [ ] **Buildings Plugin System** — External plugin API for community-built building types
 - [ ] **API Documentation** — OpenAPI/Swagger spec for the REST and WebSocket APIs
 - [ ] **Observability** — Error tracking, logging aggregation, and performance monitoring
