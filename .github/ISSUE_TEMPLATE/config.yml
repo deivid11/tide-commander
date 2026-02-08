@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report on Discord
+    url: https://discord.gg/example
+    about: Report bugs, features, or issues directly to @deivid11 on Discord
+  - name: Security Issues
+    url: https://github.com/deivid11/tide-commander/blob/master/SECURITY.md
+    about: Report security vulnerabilities using private channels (Discord or email)
+  - name: Documentation
+    url: https://github.com/deivid11/tide-commander/blob/master/docs/README.md
+    about: Check our documentation for setup, features, and troubleshooting
+  - name: Contributing Guide
+    url: https://github.com/deivid11/tide-commander/blob/master/CONTRIBUTING.md
+    about: Learn how to contribute and set up your development environment
