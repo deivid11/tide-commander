@@ -2,6 +2,34 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.47.2] - 2026-02-07
+
+### Added
+- **Output Rendering Tests** - Comprehensive test coverage for output formatting
+  - Test suite for outputRendering utilities
+  - Better validation of output formatting logic
+
+### Changed
+- **Output Formatting** - Enhanced terminal output rendering
+  - Improved HistoryLine component rendering
+  - Better OutputLine component with enhanced formatting
+  - Improved visual presentation in terminal
+
+- **Terminal Styling** - Better terminal display
+  - Enhanced history styling with better readability
+  - Improved output styling for clarity
+  - Better tool output display with proper formatting
+
+- **Runner Output** - Better streaming output handling
+  - Improved output event processing
+  - Better handling of streamed content
+
+### Fixed
+- **Output Display** - Fixes to terminal output rendering
+  - Better formatting of history lines
+  - Improved output line rendering
+  - Fixed tool output display issues
+
 ## [0.47.1] - 2026-02-07
 
 ### Added

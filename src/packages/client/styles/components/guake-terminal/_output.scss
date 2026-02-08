@@ -214,9 +214,12 @@
   margin: 4px 0;
   border-radius: $radius-sm;
   color: color-mix(in srgb, var(--accent-blue) 78%, var(--text-primary));
+  font-size: 10px;
+  line-height: 1.35;
 
   .output-role {
     color: color-mix(in srgb, var(--accent-blue) 84%, var(--text-primary));
+    font-size: 9px;
   }
 }
 
@@ -407,87 +410,25 @@
 }
 
 .output-thinking {
-  border-left: 3px solid rgba(136, 192, 208, 0.5);
-  background: linear-gradient(135deg, rgba(136, 192, 208, 0.08) 0%, rgba(102, 153, 204, 0.05) 100%);
-  position: relative;
-  overflow: hidden;
-  border-radius: 0 4px 4px 0;
-  margin: 8px 0;
-
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(136, 192, 208, 0.4), transparent);
-  }
-
-  &::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(136, 192, 208, 0.25), transparent);
-  }
-}
-
-.output-thinking-block {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  width: 100%;
-  padding: 10px 0;
-}
-
-.output-thinking-icon {
-  font-size: 16px;
-  margin-top: 2px;
-  color: rgba(136, 192, 208, 0.7);
-  flex-shrink: 0;
-  font-weight: 600;
-  letter-spacing: 1px;
-  opacity: 0.85;
-  animation: pulse-thinking 2s ease-in-out infinite;
-
-  @keyframes pulse-thinking {
-    0%, 100% {
-      opacity: 0.5;
-    }
-    50% {
-      opacity: 0.95;
-    }
-  }
+  // Keep thinking entries visually consistent with tool-use rows.
+  background: color-mix(in srgb, var(--tool-use-bg) 85%, transparent);
+  border-left-color: color-mix(in srgb, var(--tool-use-border) 80%, var(--accent-cyan));
+  flex-wrap: nowrap;
 }
 
 .output-thinking-label {
-  color: rgba(136, 192, 208, 0.75);
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  font-size: 10px;
-  font-weight: 600;
-  padding: 2px 6px;
-  border-radius: 3px;
-  background: rgba(136, 192, 208, 0.08);
-  flex-shrink: 0;
-  margin-top: 2px;
+  color: color-mix(in srgb, var(--tool-use-name, var(--tool-use-text)) 90%, white);
+  flex: 0 0 auto;
 }
 
 .output-thinking-content.output-tool-param {
-  margin-left: 0;
-  color: rgba(200, 220, 240, 0.85);
-  font-style: normal;
-  opacity: 0.9;
-  flex: 1;
+  color: color-mix(in srgb, var(--tool-use-text) 92%, white);
+  opacity: 0.95;
+  flex: 1 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   min-width: 0;
-  line-height: 1.5;
-
-  &::before {
-    display: none;
-  }
 
   p {
     margin: 0.3em 0;
@@ -512,8 +453,8 @@
   }
 
   code {
-    background: rgba(68, 71, 90, 0.4);
-    color: rgba(139, 233, 253, 0.95);
+    background: color-mix(in srgb, var(--tool-use-bg) 65%, black);
+    color: color-mix(in srgb, var(--tool-use-text) 92%, white);
     padding: 2px 4px;
     border-radius: 2px;
     font-size: 0.9em;

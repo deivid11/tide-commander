@@ -255,6 +255,120 @@ export function formatToolInput(content: string): string {
   }
 }
 
+export interface BashSearchCommandInfo {
+  shellPrefix?: string;
+  commandBody: string;
+  searchTerm: string;
+}
+
+export interface BashNotificationCommandInfo {
+  shellPrefix?: string;
+  commandBody: string;
+  title?: string;
+  message?: string;
+  viaCurl: boolean;
+  viaGdbus: boolean;
+}
+
+function stripWrappingQuotes(value: string): string {
+  if (
+    (value.startsWith('"') && value.endsWith('"'))
+    || (value.startsWith('\'') && value.endsWith('\''))
+  ) {
+    return value.slice(1, -1);
+  }
+  return value;
+}
+
+/**
+ * Parse Bash commands that search terms via: rg --files | rg <term>
+ * Returns null when the command is not a search-term pattern.
+ */
+export function parseBashSearchCommand(command: string): BashSearchCommandInfo | null {
+  const trimmed = command.trim();
+  if (!trimmed) return null;
+
+  let shellPrefix: string | undefined;
+  let commandBody = trimmed;
+
+  const shellWrapped = trimmed.match(/^(\S+)\s+-lc\s+([\s\S]+)$/);
+  if (shellWrapped) {
+    shellPrefix = `${shellWrapped[1]} -lc`;
+    commandBody = stripWrappingQuotes(shellWrapped[2].trim());
+  }
+
+  if (!/\brg\s+--files\b/.test(commandBody) || !/\|\s*rg\b/.test(commandBody)) {
+    return null;
+  }
+
+  const pipeSearchMatch = commandBody.match(/\|\s*rg\b\s+(.+)$/);
+  if (!pipeSearchMatch) return null;
+
+  const searchArgs = pipeSearchMatch[1].trim();
+  if (!searchArgs) return null;
+
+  const termWithoutFlags = searchArgs.replace(/^(?:-\S+\s+)*/, '').trim();
+  const searchTerm = stripWrappingQuotes(termWithoutFlags || searchArgs);
+  if (!searchTerm) return null;
+
+  return {
+    shellPrefix,
+    commandBody,
+    searchTerm,
+  };
+}
+
+/**
+ * Parse Bash commands that send Tide notifications via curl api/notify and/or gdbus Notify.
+ * Returns null when command does not look like a notification command.
+ */
+export function parseBashNotificationCommand(command: string): BashNotificationCommandInfo | null {
+  const trimmed = command.trim();
+  if (!trimmed) return null;
+
+  let shellPrefix: string | undefined;
+  let commandBody = trimmed;
+
+  const shellWrapped = trimmed.match(/^(\S+)\s+-lc\s+([\s\S]+)$/);
+  if (shellWrapped) {
+    shellPrefix = `${shellWrapped[1]} -lc`;
+    commandBody = stripWrappingQuotes(shellWrapped[2].trim());
+  }
+
+  const viaCurl = /\bcurl\b[\s\S]*\/api\/notify\b/.test(commandBody);
+  const viaGdbus = /\bgdbus\b[\s\S]*org\.freedesktop\.Notifications\.Notify\b/.test(commandBody);
+  if (!viaCurl && !viaGdbus) return null;
+
+  let title: string | undefined;
+  let message: string | undefined;
+
+  // Try curl JSON payload first: -d '{"title":"...","message":"..."}'
+  const payloadMatch = commandBody.match(/-d\s+((['"])([\s\S]*?)\2)/);
+  if (payloadMatch) {
+    const rawPayload = stripWrappingQuotes(payloadMatch[1]).replace(/\\"/g, '"');
+    const parsedTitle = rawPayload.match(/"title"\s*:\s*"([^"]*)"/);
+    const parsedMessage = rawPayload.match(/"message"\s*:\s*"([^"]*)"/);
+    if (parsedTitle?.[1]) title = parsedTitle[1];
+    if (parsedMessage?.[1]) message = parsedMessage[1];
+  }
+
+  // Fallback to gdbus notify args: ... 'ICON' 'TITLE' 'MESSAGE' '[]' '{}' 5000
+  if (!title || !message) {
+    const gdbusArgs = commandBody.match(/Notifications\.Notify[\s\S]*?\s'[^']*'\s+\d+\s+'[^']*'\s+'([^']*)'\s+'([^']*)'/);
+    if (!title && gdbusArgs?.[1]) title = gdbusArgs[1];
+    if (!message && gdbusArgs?.[2]) message = gdbusArgs[2];
+  }
+
+  return {
+    shellPrefix,
+    commandBody,
+    title,
+    message,
+    viaCurl,
+    viaGdbus,
+  };
+}
+
 /**
  * Parse tool name from "Using tool: ToolName" format
  */

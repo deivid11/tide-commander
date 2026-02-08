@@ -9,7 +9,7 @@ import { useHideCost, useSettings } from '../../store';
 import { store } from '../../store';
 import { BOSS_CONTEXT_START } from '../../../shared/types';
 import { filterCostText } from '../../utils/formatting';
-import { TOOL_ICONS, extractToolKeyParam, formatTimestamp } from '../../utils/outputRendering';
+import { TOOL_ICONS, extractToolKeyParam, formatTimestamp, parseBashNotificationCommand, parseBashSearchCommand } from '../../utils/outputRendering';
 import { markdownComponents } from './MarkdownComponents';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions } from './BossContext';
 import { EditToolDiff, ReadToolInput, TodoWriteInput } from './ToolRenderers';
@@ -213,6 +213,8 @@ export const HistoryLine = memo(function HistoryLine({
       // Bash tools are clickable if we have onBashClick handler
       const isBashTool = toolName === 'Bash' && onBashClick;
       const bashCommand = _bashCommand || keyParam || '';
+      const bashSearchCommand = isBashTool && bashCommand ? parseBashSearchCommand(bashCommand) : null;
+      const bashNotificationCommand = isBashTool && bashCommand ? parseBashNotificationCommand(bashCommand) : null;
 
       const handleParamClick = () => {
         if (isFileClickable && keyParam) {
@@ -259,7 +261,7 @@ export const HistoryLine = memo(function HistoryLine({
 
       return (
         <div
-          className={`output-line output-tool-use output-tool-simple ${isBashTool ? 'clickable-bash' : ''}`}
+          className={`output-line output-tool-use output-tool-simple ${isBashTool ? 'clickable-bash' : ''} ${bashNotificationCommand ? 'bash-notify-use' : ''}`}
           onClick={isBashTool ? handleBashClick : undefined}
           style={isBashTool ? { cursor: 'pointer' } : undefined}
           title={isBashTool ? 'Click to view output' : undefined}
@@ -268,15 +270,48 @@ export const HistoryLine = memo(function HistoryLine({
           {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
           <span className="output-tool-icon">{icon}</span>
           <span className="output-tool-name">{toolName}</span>
-          {keyParam && (
+          {isBashTool && bashNotificationCommand ? (
             <span
-              className={`output-tool-param ${isFileClickable ? 'clickable-path' : ''}`}
-              onClick={isFileClickable ? handleParamClick : undefined}
-              title={clickTitle}
-              style={isFileClickable ? { cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' } : undefined}
+              className="output-tool-param bash-command bash-notify-param"
+              onClick={handleBashClick}
+              title={bashNotificationCommand.commandBody}
+              style={{ cursor: 'pointer' }}
             >
-              {keyParam}
+              {bashNotificationCommand.shellPrefix && (
+                <span className="bash-search-shell">{bashNotificationCommand.shellPrefix}</span>
+              )}
+              <span className="bash-notify-chip">notify</span>
+              {bashNotificationCommand.title && (
+                <span className="bash-notify-title">{bashNotificationCommand.title}</span>
+              )}
+              {bashNotificationCommand.message && (
+                <span className="bash-notify-message">{bashNotificationCommand.message}</span>
+              )}
             </span>
+          ) : isBashTool && bashSearchCommand ? (
+            <span
+              className="output-tool-param bash-command bash-search-param"
+              onClick={handleBashClick}
+              title={bashSearchCommand.commandBody}
+              style={{ cursor: 'pointer' }}
+            >
+              {bashSearchCommand.shellPrefix && (
+                <span className="bash-search-shell">{bashSearchCommand.shellPrefix}</span>
+              )}
+              <span className="bash-search-chip">search</span>
+              <span className="bash-search-term">{bashSearchCommand.searchTerm}</span>
+            </span>
+          ) : (
+            keyParam && (
+              <span
+                className={`output-tool-param ${isFileClickable ? 'clickable-path' : ''}`}
+                onClick={isFileClickable ? handleParamClick : undefined}
+                title={clickTitle}
+                style={isFileClickable ? { cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' } : undefined}
+              >
+                {keyParam}
+              </span>
+            )
           )}
         </div>
       );

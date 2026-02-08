@@ -71,6 +71,79 @@
   }
 }
 
+.output-tool-param.bash-search-param {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.output-tool-param.bash-notify-param {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.bash-notify-chip {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--accent-green);
+  background: color-mix(in srgb, var(--accent-green) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-green) 40%, transparent);
+  border-radius: 4px;
+  padding: 1px 6px;
+  flex-shrink: 0;
+}
+
+.bash-notify-title {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--accent-cyan) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-cyan) 35%, transparent);
+  border-radius: 4px;
+  padding: 1px 6px;
+  flex-shrink: 0;
+}
+
+.bash-notify-message {
+  color: var(--text-secondary);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bash-search-shell {
+  color: var(--text-muted);
+  opacity: 0.9;
+}
+
+.bash-search-chip {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--accent-blue);
+  background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-blue) 40%, transparent);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+.bash-search-term {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--accent-orange) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-orange) 35%, transparent);
+  border-radius: 4px;
+  padding: 1px 6px;
+  max-width: 100%;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .output-tool-loading {
   color: $text-muted;
   animation: pulse-dots 1.5s infinite;

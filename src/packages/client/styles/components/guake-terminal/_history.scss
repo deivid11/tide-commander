@@ -34,6 +34,8 @@
   background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent-blue) 35%, transparent);
   border-left: 3px solid color-mix(in srgb, var(--accent-blue) 72%, var(--text-muted));
+  font-size: 10px;
+  line-height: 1.35;
 }
 
 .history-role {
@@ -51,6 +53,7 @@
 
   .history-system & {
     color: color-mix(in srgb, var(--accent-blue) 84%, var(--text-primary));
+    font-size: 9px;
   }
 }
 

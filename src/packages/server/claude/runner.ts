@@ -895,10 +895,9 @@ export class ClaudeRunner {
       }
       this.lastStderr.set(agentId, stderrBuffer);
 
-      // Don't treat all stderr as errors - some is just logging
-      if (text.toLowerCase().includes('error')) {
-        this.callbacks.onError(agentId, text);
-      }
+      // Do not escalate generic stderr text to runtime errors.
+      // Many tools print "error"/warnings to stderr while the agent keeps working,
+      // and promoting that to onError causes false "error" status in the UI.
     });
   }
 

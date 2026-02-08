@@ -7,7 +7,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useHideCost, useSettings, ClaudeOutput, store } from '../../store';
 import { filterCostText } from '../../utils/formatting';
-import { TOOL_ICONS, formatTimestamp } from '../../utils/outputRendering';
+import { TOOL_ICONS, formatTimestamp, parseBashNotificationCommand, parseBashSearchCommand } from '../../utils/outputRendering';
 import { markdownComponents } from './MarkdownComponents';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, DelegatedTaskHeader, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions } from './BossContext';
 import { EditToolDiff, ReadToolInput, TodoWriteInput } from './ToolRenderers';
@@ -339,6 +339,8 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
     const isBashTool = toolName === 'Bash' && onBashClick;
     const hasBashOutput = !!_bashOutput || !!payloadToolOutput;
     const bashCommand = _bashCommand || _toolKeyParam || toolKeyParamOrFallback || '';
+    const bashSearchCommand = isBashTool && bashCommand ? parseBashSearchCommand(bashCommand) : null;
+    const bashNotificationCommand = isBashTool && bashCommand ? parseBashNotificationCommand(bashCommand) : null;
 
     const handleParamClick = (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -366,7 +368,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
 
     return (
       <div
-        className={`output-line output-tool-use ${isStreaming ? 'output-streaming' : ''} ${isBashTool ? 'bash-clickable' : ''}`}
+        className={`output-line output-tool-use ${isStreaming ? 'output-streaming' : ''} ${isBashTool ? 'bash-clickable' : ''} ${bashNotificationCommand ? 'bash-notify-use' : ''}`}
         onClick={isBashTool ? handleBashClick : undefined}
         title={isBashTool ? 'Click to view output' : undefined}
       >
@@ -377,14 +379,47 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
 
         {/* For Bash tools, show the command inline (more useful than file paths) */}
         {isBashTool && bashCommand && (
-          <span
-            className="output-tool-param bash-command"
-            onClick={handleBashClick}
-            title="Click to view full output"
-            style={{ cursor: 'pointer', fontFamily: 'monospace', fontSize: '0.9em', color: '#888' }}
-          >
-            {bashCommand}
-          </span>
+          bashNotificationCommand ? (
+            <span
+              className="output-tool-param bash-command bash-notify-param"
+              onClick={handleBashClick}
+              title={bashNotificationCommand.commandBody}
+              style={{ cursor: 'pointer' }}
+            >
+              {bashNotificationCommand.shellPrefix && (
+                <span className="bash-search-shell">{bashNotificationCommand.shellPrefix}</span>
+              )}
+              <span className="bash-notify-chip">notify</span>
+              {bashNotificationCommand.title && (
+                <span className="bash-notify-title">{bashNotificationCommand.title}</span>
+              )}
+              {bashNotificationCommand.message && (
+                <span className="bash-notify-message">{bashNotificationCommand.message}</span>
+              )}
+            </span>
+          ) : bashSearchCommand ? (
+            <span
+              className="output-tool-param bash-command bash-search-param"
+              onClick={handleBashClick}
+              title={bashSearchCommand.commandBody}
+              style={{ cursor: 'pointer' }}
+            >
+              {bashSearchCommand.shellPrefix && (
+                <span className="bash-search-shell">{bashSearchCommand.shellPrefix}</span>
+              )}
+              <span className="bash-search-chip">search</span>
+              <span className="bash-search-term">{bashSearchCommand.searchTerm}</span>
+            </span>
+          ) : (
+            <span
+              className="output-tool-param bash-command"
+              onClick={handleBashClick}
+              title="Click to view full output"
+              style={{ cursor: 'pointer', fontFamily: 'monospace', fontSize: '0.9em', color: '#888' }}
+            >
+              {bashCommand}
+            </span>
+          )
         )}
 
         {/* For file tools, show the file path */}
@@ -505,6 +540,12 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
 
   const isThinking = text.startsWith('[thinking]');
   const thinkingText = isThinking ? text.replace(/^\[thinking\]\s*/, '') : '';
+  const thinkingInlineText = isThinking
+    ? (thinkingText || '(processing)')
+      .replace(/\*+/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+    : '';
   const isSystemMessage = /^\s*(?:[\u{1F300}-\u{1FAFF}\u2600-\u27BF]\s*)?\[System\]/u.test(text);
 
   // Categorize other output types
@@ -594,17 +635,15 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
           </ReactMarkdown>
         </div>
       ) : isThinking ? (
-        <div className="output-thinking-block">
-          <span className="output-thinking-icon">✨</span>
-          <span className="output-thinking-label">
+        <>
+          {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+          <span className="output-tool-name output-thinking-label">
             {provider === 'codex' ? 'Codex Thinking' : 'Thinking'}
           </span>
-          <div className="output-thinking-content output-tool-param markdown-content">
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-              {thinkingText || '(processing)'}
-            </ReactMarkdown>
-          </div>
-        </div>
+          <span className="output-tool-param output-thinking-content" title={thinkingInlineText}>
+            {thinkingInlineText}
+          </span>
+        </>
       ) : (
         text
       )}
