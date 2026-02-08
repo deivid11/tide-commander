@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.51.1] - 2026-02-08
+
+### Changed
+- **Inline exec task display** - Running exec tasks now show inline on the Bash tool output line instead of a separate container, with a styled cyan badge showing the command
+- **Removed ExecTasksContainer** - Replaced the standalone exec tasks section with the new inline display
+
+### Fixed
+- **package-lock.json** - Updated version to match package.json (was stuck at 0.50.0)
+
 ## [0.51.0] - 2026-02-08
 
 ### Changed

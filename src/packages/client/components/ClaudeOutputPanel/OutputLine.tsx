@@ -12,10 +12,12 @@ import { renderContentWithImages, renderUserPromptContent } from './contentRende
 import { ansiToHtml } from '../../utils/ansiToHtml';
 import { useTTS } from '../../hooks/useTTS';
 import type { EditData } from './types';
+import type { ExecTask } from '../../../shared/types';
 
 interface OutputLineProps {
   output: ClaudeOutput & { _toolKeyParam?: string; _editData?: EditData; _todoInput?: string; _bashOutput?: string; _bashCommand?: string; _isRunning?: boolean };
   agentId: string | null;
+  execTasks?: ExecTask[];
   onImageClick?: (url: string, name: string) => void;
   onFileClick?: (path: string, editData?: EditData | { highlightRange: { offset: number; limit: number } }) => void;
   onBashClick?: (command: string, output: string) => void;
@@ -168,7 +170,7 @@ function TimestampWithMeta({ output, timeStr, debugHash, agentId }: { output: Cl
   );
 }
 
-export const OutputLine = memo(function OutputLine({ output, agentId, onImageClick, onFileClick, onBashClick, onViewMarkdown }: OutputLineProps) {
+export const OutputLine = memo(function OutputLine({ output, agentId, execTasks = [], onImageClick, onFileClick, onBashClick, onViewMarkdown }: OutputLineProps) {
   const hideCost = useHideCost();
   const settings = useSettings();
   const { text: rawText, isStreaming, isUserPrompt, timestamp, skillUpdate, _toolKeyParam, _editData, _todoInput, _bashOutput, _bashCommand, _isRunning } = output;
@@ -334,6 +336,10 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
     const isBashTool = toolName === 'Bash' && onBashClick;
     const hasBashOutput = !!_bashOutput || !!payloadToolOutput;
     const bashCommand = _bashCommand || _toolKeyParam || toolKeyParamOrFallback || '';
+    const runningExecTasks = execTasks.filter((task) => task.status === 'running');
+    const isCurlExecCommand = /\bcurl\b[\s\S]*\/api\/exec\b/.test(bashCommand);
+    const showInlineRunningTasks = Boolean(isBashTool && _isRunning && isCurlExecCommand && runningExecTasks.length > 0);
+    const truncatedTaskCommand = (value: string) => (value.length > 52 ? `${value.slice(0, 52)}...` : value);
     const bashSearchCommand = isBashTool && bashCommand ? parseBashSearchCommand(bashCommand) : null;
     const bashNotificationCommand = isBashTool && bashCommand ? parseBashNotificationCommand(bashCommand) : null;
 
@@ -426,6 +432,14 @@ export const OutputLine = memo(function OutputLine({ output, agentId, onImageCli
             style={isFileClickable ? { cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' } : undefined}
           >
             {toolKeyParamOrFallback}
+          </span>
+        )}
+
+        {showInlineRunningTasks && (
+          <span className="output-tool-running-tasks">
+            {runningExecTasks.length === 1
+              ? `running: ${truncatedTaskCommand(runningExecTasks[0].command)}`
+              : `running: ${truncatedTaskCommand(runningExecTasks[0].command)} +${runningExecTasks.length - 1} more`}
           </span>
         )}
 

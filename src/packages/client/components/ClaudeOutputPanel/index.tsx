@@ -71,7 +71,6 @@ import { AgentDebugPanel } from './AgentDebugPanel';
 import { AgentOverviewPanel } from './AgentOverviewPanel';
 import { agentDebugger } from '../../services/agentDebugger';
 import { AgentProgressIndicator } from './AgentProgressIndicator';
-import { ExecTasksContainer } from './ExecTaskIndicator';
 import { ThemeSelector } from './ThemeSelector';
 import { Tooltip } from '../shared/Tooltip';
 import type { Agent } from '../../../shared/types';
@@ -951,6 +950,7 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
                   historyMessages={dedupedHistory}
                   liveOutputs={dedupedOutputs}
                   agentId={activeAgentId}
+                  execTasks={execTasks}
                   viewMode={viewMode}
                   selectedMessageIndex={messageNav.selectedIndex}
                   isMessageSelected={messageNav.isSelected}
@@ -987,20 +987,6 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
                       />
                     ))}
                   </div>
-                )}
-                {/* Exec tasks (streaming command output) */}
-                {!isSnapshotView && execTasks.length > 0 && activeAgentId && (
-                  <ExecTasksContainer
-                    tasks={execTasks}
-                    onClearCompleted={() => store.clearCompletedExecTasks(activeAgentId)}
-                    onDismiss={(taskId) => {
-                      // Remove completed task from the map
-                      const task = store.getExecTask(taskId);
-                      if (task && task.status !== 'running') {
-                        store.clearCompletedExecTasks(activeAgentId);
-                      }
-                    }}
-                  />
                 )}
               </div>
             )}

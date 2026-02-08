@@ -833,6 +833,20 @@
   opacity: 0.7;
 }
 
+.output-tool-running-tasks {
+  font-family: $font-mono;
+  font-size: 10px;
+  color: var(--accent-cyan);
+  background: color-mix(in srgb, var(--accent-cyan) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-cyan) 36%, transparent);
+  border-radius: 4px;
+  padding: 1px 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: min(50vw, 420px);
+}
+
 // =============================================================================
 // Bash Output Modal
 // =============================================================================
