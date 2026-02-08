@@ -440,18 +440,17 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
             {runningExecTasks.map((task) => (
               <div key={task.taskId} className={`exec-task-inline status-${task.status}`}>
                 <div className="exec-task-inline-header">
-                  <span className="exec-task-inline-icon">⏳</span>
+                  <span className="exec-task-inline-icon">{task.status === 'running' ? '⏳' : (task.status === 'completed' ? '✅' : '❌')}</span>
                   <span className="exec-task-inline-cmd">{truncatedTaskCommand(task.command)}</span>
                 </div>
-                {task.output.length > 0 && (
-                  <div className="exec-task-inline-output">
-                    {task.output.slice(-10).map((line, idx) => (
-                      <div key={idx} className="exec-task-inline-line">
-                        {line}
-                      </div>
+                <div className="exec-task-inline-terminal">
+                  <pre className="exec-task-inline-output">
+                    {task.output.map((line, idx) => (
+                      <div key={idx} dangerouslySetInnerHTML={{ __html: ansiToHtml(line) }} />
                     ))}
-                  </div>
-                )}
+                    {task.status === 'running' && <span className="exec-task-cursor">▌</span>}
+                  </pre>
+                </div>
               </div>
             ))}
           </div>
