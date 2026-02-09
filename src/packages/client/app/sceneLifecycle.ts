@@ -193,11 +193,6 @@ export function initializePageLifecycle(): void {
   window.onunload = () => cleanupScene('onunload');
   window.onbeforeunload = (e: BeforeUnloadEvent) => {
     cleanupScene('onbeforeunload');
-    // Only show browser's native "Leave site?" dialog on mobile
-    if (window.innerWidth <= 768) {
-      e.preventDefault();
-      return '';
-    }
     return undefined;
   };
   window.addEventListener('pagehide', (event) => {

@@ -1,6 +1,8 @@
 import React from 'react';
 import type { Agent } from '@shared/types';
 import { getStatusColor, getAgentClassIcon, getContextPercent, getContextBarColor } from './utils';
+import { formatIdleTime, formatTimeAgo } from '../../utils/formatting';
+import { getIdleTimerColor } from '../../utils/colors';
 
 interface AgentCardProps {
   agent: Agent;
@@ -10,6 +12,7 @@ interface AgentCardProps {
   onChat?: () => void;
   onFocus?: () => void;
   onKill?: () => void;
+  onDragStart?: (agent: Agent) => void;
 }
 
 export const AgentCard = React.memo(({
@@ -20,12 +23,21 @@ export const AgentCard = React.memo(({
   onChat,
   onFocus,
   onKill,
+  onDragStart,
 }: AgentCardProps) => {
   const statusColor = getStatusColor(agent.status);
   const icon = getAgentClassIcon(agent.class);
   const contextPercent = getContextPercent(agent);
   const barColor = getContextBarColor(contextPercent);
   const taskPreview = agent.currentTask || agent.lastAssignedTask;
+  const showIdleTime = agent.status === 'idle' && agent.lastActivity > 0;
+  const [, setTick] = React.useState(0);
+
+  React.useEffect(() => {
+    if (!showIdleTime) return;
+    const interval = window.setInterval(() => setTick((v) => v + 1), 15000);
+    return () => window.clearInterval(interval);
+  }, [showIdleTime]);
 
   return (
     <div
@@ -35,13 +47,21 @@ export const AgentCard = React.memo(({
         e.stopPropagation();
         onDoubleClick();
       }}
-      title="Double-click to open terminal"
+      onDragStart={(e) => {
+        onDragStart?.(agent);
+        e.dataTransfer.effectAllowed = 'move';
+      }}
+      draggable
+      title="Double-click to open terminal | Drag to move to another area"
     >
-      {/* Row 1: Status dot + name + class badge */}
+      {/* Row 1: Status dot + name + class badge + provider */}
       <div className="dash-card__row1">
         <span className={`dash-card__status-dot dash-card__status-dot--${statusColor}`} />
         <span className="dash-card__name">{agent.name}</span>
         <span className="dash-card__class">{icon} {agent.class}</span>
+        <span className={`dash-card__provider dash-card__provider--${agent.provider}`}>
+          {agent.provider === 'codex' ? '🔸' : '🤖'} {agent.provider}
+        </span>
       </div>
 
       {/* Row 2: Status + context bar + percentage */}
@@ -58,14 +78,30 @@ export const AgentCard = React.memo(({
         </div>
       </div>
 
-      {/* Row 3: Task preview (if exists) */}
+      {/* Row 3: Working directory + idle time */}
+      <div className="dash-card__row3">
+        <span className="dash-card__workdir" title={agent.cwd}>
+          📁 {agent.cwd.split('/').pop() || agent.cwd}
+        </span>
+        {showIdleTime && (
+          <span
+            className="dash-card__idle-time"
+            style={{ color: getIdleTimerColor(agent.lastActivity) }}
+            title={formatIdleTime(agent.lastActivity)}
+          >
+            ⏱ {formatTimeAgo(agent.lastActivity)}
+          </span>
+        )}
+      </div>
+
+      {/* Row 4: Task preview (if exists) */}
       {taskPreview && (
-        <div className="dash-card__row3">
+        <div className="dash-card__row4">
           <span className="dash-card__task">{taskPreview}</span>
         </div>
       )}
 
-      {/* Row 4: Action buttons */}
+      {/* Row 5: Action buttons */}
       <div className="dash-card__actions">
         {onChat && (
           <button
@@ -74,15 +110,6 @@ export const AgentCard = React.memo(({
             title="Open terminal"
           >
             Chat
-          </button>
-        )}
-        {onFocus && (
-          <button
-            className="dash-card__action-btn"
-            onClick={(e) => { e.stopPropagation(); onFocus(); }}
-            title="Focus in 3D view"
-          >
-            Focus
           </button>
         )}
         {onKill && (

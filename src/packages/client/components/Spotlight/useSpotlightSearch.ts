@@ -449,22 +449,29 @@ export function useSpotlightSearch({
       return suggested;
     }
 
+    const lowerQuery = query.toLowerCase();
+
     // Search each category
     const matchedAgents = agentFuse.search(query).slice(0, 8);
     const matchedCommands = commandFuse.search(query).slice(0, 3);
     const matchedAreas = areaFuse.search(query).slice(0, 2);
     const matchedModifiedFiles = modifiedFileFuse.search(query).slice(0, 3);
     const matchedActivities = activityFuse.search(query).slice(0, 3);
-    const matchedBuildings = buildingFuse.search(query).slice(0, 4);
+    const matchedBuildings = buildingFuse
+      .search(query)
+      .filter((r) => {
+        const score = r.score ?? 1;
+        const searchable = `${r.item.title} ${r.item.subtitle || ''} ${r.item._searchText || ''}`.toLowerCase();
+        // Keep direct text matches; only keep pure fuzzy matches if they are very strong.
+        return searchable.includes(lowerQuery) || score <= 0.2;
+      })
+      .slice(0, 4);
 
-    // Combine results - BUILDINGS FIRST (priority), then agents
+    // Combine results
     const finalResults: SearchResult[] = [];
-    const lowerQuery = query.toLowerCase();
 
-    // Buildings (servers and bosses) first
-    for (const r of matchedBuildings) {
-      finalResults.push(r.item);
-    }
+    const prioritizedAgents: SearchResult[] = [];
+    const remainingAgents: SearchResult[] = [];
 
     // Agents - check for matching files and user queries
     for (const r of matchedAgents) {
@@ -523,6 +530,26 @@ export function useSpotlightSearch({
           }
         }
       }
+      const lowerTitle = item.title.toLowerCase();
+      if (lowerTitle === lowerQuery || lowerTitle.startsWith(lowerQuery)) {
+        prioritizedAgents.push(item);
+      } else {
+        remainingAgents.push(item);
+      }
+    }
+
+    // If agent name is an exact/prefix match, prioritize it ahead of infrastructure hits.
+    for (const item of prioritizedAgents) {
+      finalResults.push(item);
+    }
+
+    // Buildings (servers and bosses)
+    for (const r of matchedBuildings) {
+      finalResults.push(r.item);
+    }
+
+    // Remaining agents
+    for (const item of remainingAgents) {
       finalResults.push(item);
     }
 

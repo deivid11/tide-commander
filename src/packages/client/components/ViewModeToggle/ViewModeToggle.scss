@@ -78,22 +78,8 @@ $toggle-active-color: #d4a05a;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   }
 
-  // Mobile: centered bottom bar with larger touch targets
-  // Positioning (bottom, left) is handled by _mobile.scss responsive rules
+  // Mobile: larger touch targets
   @media (max-width: 768px) {
-    &--floating {
-      display: flex;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 160;
-      padding: 4px;
-      gap: 3px;
-      background: rgba(0, 0, 0, 0.85);
-      backdrop-filter: blur(10px);
-      border-color: rgba(255, 255, 255, 0.15);
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-    }
-
     &__btn {
       padding: 10px 14px;
       min-height: 44px;

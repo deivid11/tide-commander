@@ -96,6 +96,12 @@ export function TerminalHeader({
     }
   };
 
+  const handleRemoveAgent = () => {
+    const confirmed = window.confirm(`Remove ${selectedAgent.name} from view?`);
+    if (!confirmed) return;
+    store.removeAgentFromServer(selectedAgentId);
+  };
+
   // Get status info
   const lastInput =
     selectedAgent.currentTask ||
@@ -298,6 +304,13 @@ export function TerminalHeader({
               title="Clear context - start fresh session"
             >
               🗑️ Clear Context
+            </button>
+            <button
+              className="guake-remove-agent-btn hide-on-mobile"
+              onClick={handleRemoveAgent}
+              title="Remove this agent from view"
+            >
+              🗑️ Remove Agent
             </button>
             {/* Boss-only: Clear all subordinates' context */}
             {hasSubordinates && (

@@ -13,7 +13,11 @@ import {
   getWsConnected,
   setWsConnected,
 } from '../app/sceneLifecycle';
-import { requestNotificationPermission, initNotificationListeners } from '../utils/notifications';
+import {
+  requestNotificationPermission,
+  initNotificationListeners,
+  openAgentTerminalFromNotification,
+} from '../utils/notifications';
 import type { ToastType } from '../components/Toast';
 
 interface UseWebSocketConnectionOptions {
@@ -57,8 +61,8 @@ export function useWebSocketConnection({
     // Request notification permissions
     requestNotificationPermission();
     initNotificationListeners((data) => {
-      if (data.agentId && typeof data.agentId === 'string') {
-        store.selectAgent(data.agentId);
+      if (data.type === 'agent_notification' && typeof data.agentId === 'string') {
+        openAgentTerminalFromNotification(data.agentId);
       }
     });
 

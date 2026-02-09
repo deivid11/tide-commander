@@ -93,7 +93,7 @@ export interface ZoneGroup {
 /**
  * Grouping mode for agent display
  */
-export type GroupingMode = 'zone' | 'status';
+export type GroupingMode = 'zone' | 'status' | 'activity';
 
 /**
  * Status filter for agents

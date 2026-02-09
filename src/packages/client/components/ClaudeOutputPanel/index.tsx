@@ -692,25 +692,26 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        // Handle modals first - stop propagation to prevent message nav from also handling
+        // Handle modals first - stopImmediatePropagation prevents other capture-phase
+        // listeners on document (e.g. useKeyboardShortcuts) from also firing
         // Priority: store-controlled modals first (FileViewer, ContextModal), then local state modals
         if (fileViewerPath) {
-          e.stopPropagation();
+          e.stopImmediatePropagation();
           store.clearFileViewerPath();
         } else if (contextModalAgentId) {
-          e.stopPropagation();
+          e.stopImmediatePropagation();
           store.closeContextModal();
         } else if (responseModalContent) {
-          e.stopPropagation();
+          e.stopImmediatePropagation();
           setResponseModalContent(null);
         } else if (bashModal) {
-          e.stopPropagation();
+          e.stopImmediatePropagation();
           setBashModal(null);
         } else if (imageModal) {
-          e.stopPropagation();
+          e.stopImmediatePropagation();
           setImageModal(null);
         } else if (search.searchMode) {
-          e.stopPropagation();
+          e.stopImmediatePropagation();
           search.closeSearch();
         }
       }

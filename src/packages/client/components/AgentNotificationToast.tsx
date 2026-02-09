@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect, use
 import { store } from '../store';
 import type { AgentNotification, AgentClass } from '../../shared/types';
 import { BUILT_IN_AGENT_CLASSES } from '../../shared/types';
-import { showNotification } from '../utils/notifications';
+import { showNotification, openAgentTerminalFromNotification } from '../utils/notifications';
 
 interface AgentNotificationContextType {
   showAgentNotification: (notification: AgentNotification) => void;
@@ -92,10 +92,8 @@ export function AgentNotificationProvider({ children }: { children: React.ReactN
   }, [removeNotification]);
 
   const handleNotificationClick = useCallback((notification: AgentNotification) => {
-    // Select the agent and open its terminal panel
-    store.selectAgent(notification.agentId);
-    // Optionally focus the terminal panel - this would require UI state management
-    // For now, selecting the agent should be enough to show its panel
+    // Force-open terminal for the sending agent when clicking an agent notification.
+    openAgentTerminalFromNotification(notification.agentId);
     removeNotification(notification.id);
   }, [removeNotification]);
 

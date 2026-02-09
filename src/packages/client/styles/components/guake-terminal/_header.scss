@@ -508,6 +508,23 @@
   }
 }
 
+.guake-remove-agent-btn {
+  background: transparent;
+  border: 1px solid $dracula-comment;
+  color: $dracula-comment;
+  padding: 4px 10px;
+  border-radius: $radius-sm;
+  font-size: 11px;
+  font-family: $font-mono;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    border-color: $dracula-red;
+    color: $dracula-red;
+  }
+}
+
 // Supervisor info section - compact single line
 .guake-supervisor-info {
   display: flex;

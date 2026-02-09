@@ -142,6 +142,8 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-height: 0; // Critical for flex scrolling to work
+  -webkit-overflow-scrolling: touch; // Smooth momentum scrolling on mobile
 
   &::-webkit-scrollbar {
     width: 6px;
@@ -174,6 +176,14 @@
   border-radius: $radius-md;
   background: $bg-secondary;
   overflow: hidden;
+  transition: all $transition-fast ease;
+
+  &--drag-over {
+    border: 2px dashed $accent-blue;
+    border-color: rgba($accent-blue, 0.6);
+    background: rgba($accent-blue, 0.08);
+    box-shadow: inset 0 0 8px rgba($accent-blue, 0.1);
+  }
 }
 
 .dashboard-view__zone-header {
@@ -262,6 +272,7 @@
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 6px;
   padding: 0 8px 8px;
+  min-width: 0; // Prevent grid from overflowing
 }
 
 // ============================================================================
@@ -278,6 +289,8 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0; // Critical: allow card to shrink and prevent overflow
+  overflow: hidden; // Clip any overflowing content
 
   &:hover {
     border-color: rgba(255, 255, 255, 0.15);
@@ -330,6 +343,14 @@
   min-width: 0;
 }
 
+.dash-card__idle-time {
+  font-size: 9px;
+  font-family: $font-mono;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 .dash-card__class {
   font-size: 10px;
   color: $text-muted;
@@ -338,6 +359,27 @@
   border-radius: 3px;
   white-space: nowrap;
   flex-shrink: 0;
+}
+
+.dash-card__provider {
+  font-size: 9px;
+  color: $text-muted;
+  padding: 1px 4px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 3px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  text-transform: capitalize;
+
+  &--claude {
+    color: rgba(100, 200, 255, 0.8);
+    background: rgba(100, 200, 255, 0.05);
+  }
+
+  &--codex {
+    color: rgba(255, 165, 0, 0.8);
+    background: rgba(255, 165, 0, 0.05);
+  }
 }
 
 // Row 2: status text + context bar
@@ -399,8 +441,30 @@
   &--red    { color: $accent-red; }
 }
 
-// Row 3: task preview
+// Row 3: working directory
 .dash-card__row3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 1px;
+  min-width: 0;
+}
+
+.dash-card__workdir {
+  font-size: 9px;
+  color: $text-muted;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+  line-height: 1.2;
+  font-family: $font-mono;
+  flex: 1;
+  min-width: 0;
+}
+
+// Row 4: task preview
+.dash-card__row4 {
   margin-top: 1px;
 }
 
@@ -531,57 +595,683 @@
 }
 
 // ============================================================================
-// Mobile Responsive
+// Mobile Responsive - Tablet (768px and below)
 // ============================================================================
 
 @media (max-width: 768px) {
+  .dashboard-view {
+    margin-top: 50px;
+  }
+
+  // Topbar: Stack search on mobile, make metrics responsive
   .dashboard-view__topbar {
     flex-wrap: wrap;
     padding: 8px 10px;
     gap: 8px;
   }
 
-  .dashboard-view__search {
-    max-width: 100%;
-    flex-basis: 100%;
-    order: -1;
+  .dashboard-view__metrics {
+    flex-shrink: 0;
+    gap: 6px;
   }
 
   .dashboard-view__metric-btn {
-    min-width: 52px;
-    padding: 5px 10px;
+    min-width: 56px;
+    padding: 6px 12px;
+    font-size: 11px;
   }
 
   .dashboard-view__metric-value {
     font-size: 16px;
   }
 
-  .dashboard-view__content {
-    padding: 6px 10px 10px;
+  .dashboard-view__metric-label {
+    font-size: 8px;
   }
 
-  .dashboard-view__zone-grid {
-    grid-template-columns: 1fr;
+  .dashboard-view__search {
+    max-width: 100%;
+    flex-basis: 100%;
+    order: -1;
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+
+  // Grouping toggle: More compact
+  .dashboard-view__grouping {
+    padding: 6px 10px;
     gap: 4px;
   }
 
-  .dash-card__action-btn {
-    padding: 6px 0;
+  .dashboard-view__grouping-btn {
+    padding: 5px 12px;
+    font-size: 11px;
+  }
+
+  // Content: Better height calculation
+  .dashboard-view__content {
+    padding: 8px 10px 12px;
+    max-height: calc(100vh - 50px - 36px - 28px - 40px);
+    gap: 8px;
+  }
+
+  // Zone: More padding for touch targets
+  .dashboard-view__zone-header {
+    padding: 10px 12px;
+  }
+
+  .dashboard-view__zone-name {
+    font-size: 13px;
+  }
+
+  .dashboard-view__zone-count {
+    font-size: 11px;
+  }
+
+  .dashboard-view__zone-focus {
+    padding: 5px 12px;
+    font-size: 11px;
     min-height: 32px;
+  }
+
+  // Zone grid: Single column layout
+  .dashboard-view__zone-grid {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    padding: 0 8px 8px;
+  }
+
+  // Cards: Better spacing for touch
+  .dash-card {
+    padding: 10px 12px;
+    gap: 6px;
+  }
+
+  .dash-card__name {
+    font-size: 13px;
+  }
+
+  .dash-card__class {
+    font-size: 11px;
+    padding: 2px 6px;
+  }
+
+  .dash-card__provider {
+    font-size: 10px;
+    padding: 2px 5px;
+  }
+
+  .dash-card__status {
+    font-size: 11px;
+  }
+
+  .dash-card__workdir {
+    font-size: 10px;
+  }
+
+  .dash-card__task {
+    font-size: 11px;
+  }
+
+  .dash-card__action-btn {
+    padding: 8px 6px;
+    min-height: 36px;
+    font-size: 11px;
+  }
+
+  // Buildings: Better layout for mobile
+  .dashboard-view__buildings-title {
+    font-size: 12px;
+  }
+
+  .dashboard-view__buildings-count {
+    font-size: 11px;
+  }
+
+  .dashboard-view__buildings-row {
+    gap: 6px;
+  }
+
+  .dash-pill {
+    padding: 6px 12px;
+    font-size: 11px;
+  }
+
+  .dash-pill__icon {
+    font-size: 13px;
+  }
+
+  .dash-pill__name {
+    font-size: 12px;
   }
 }
 
-@media (max-width: 480px) {
+// ============================================================================
+// Mobile Responsive - Small Tablet (600px and below)
+// ============================================================================
+
+@media (max-width: 600px) {
+  .dashboard-view__topbar {
+    gap: 6px;
+  }
+
   .dashboard-view__metrics {
-    gap: 2px;
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: space-between;
   }
 
   .dashboard-view__metric-btn {
-    min-width: 48px;
-    padding: 4px 8px;
+    flex: 1;
+    min-width: 0;
+    padding: 8px 6px;
+    font-size: 10px;
   }
 
   .dashboard-view__metric-value {
     font-size: 14px;
+  }
+
+  .dashboard-view__metric-label {
+    font-size: 7px;
+    letter-spacing: 0.3px;
+  }
+
+  .dashboard-view__search {
+    width: 100%;
+    flex-basis: auto;
+  }
+
+  .dashboard-view__grouping {
+    padding: 6px 10px;
+    justify-content: space-between;
+  }
+
+  .dashboard-view__grouping-btn {
+    flex: 1;
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+
+  // Compact zone headers
+  .dashboard-view__zone-left {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .dashboard-view__zone-name {
+    max-width: 150px;
+  }
+
+  .dashboard-view__zone-focus {
+    padding: 4px 10px;
+    font-size: 10px;
+    min-height: 28px;
+  }
+
+  // Content spacing
+  .dashboard-view__content {
+    padding: 6px 8px 10px;
+    gap: 6px;
+  }
+}
+
+// ============================================================================
+// Mobile Responsive - Phone (480px and below)
+// ============================================================================
+
+@media (max-width: 480px) {
+  .dashboard-view {
+    margin-top: 50px;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  // Topbar: Compact and fixed height
+  .dashboard-view__topbar {
+    flex-direction: column;
+    padding: 8px 8px;
+    gap: 6px;
+    flex-shrink: 0;
+    border-bottom: 1px solid $border-color;
+  }
+
+  .dashboard-view__metrics {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 3px;
+  }
+
+  .dashboard-view__metric-btn {
+    padding: 5px 2px;
+    font-size: 8px;
+    min-width: auto;
+    border-radius: 3px;
+  }
+
+  .dashboard-view__metric-value {
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .dashboard-view__metric-label {
+    font-size: 5px;
+    text-transform: uppercase;
+    letter-spacing: 0.1px;
+  }
+
+  .dashboard-view__search {
+    width: 100%;
+    padding: 6px 8px;
+    font-size: 12px;
+    order: 0;
+    flex-shrink: 0;
+  }
+
+  // Grouping: Full-width buttons
+  .dashboard-view__grouping {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    padding: 4px 8px;
+    gap: 4px;
+    flex-shrink: 0;
+    border-bottom: 1px solid $border-color;
+  }
+
+  .dashboard-view__grouping-btn {
+    padding: 6px 8px;
+    font-size: 10px;
+    width: 100%;
+    border-radius: 3px;
+  }
+
+  // Content: Proper scrollable height
+  .dashboard-view__content {
+    flex: 1;
+    padding: 6px 6px 8px;
+    gap: 4px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 0;
+    min-width: 0; // Critical: prevent flex children from overflowing
+    width: 100%; // Force to fill available width
+  }
+
+  // Zone section: Minimal padding
+  .dashboard-view__zone {
+    border-radius: 3px;
+    flex-shrink: 0;
+    min-width: 0; // Prevent zone from overflowing
+    overflow: hidden; // Clip any overflow
+  }
+
+  .dashboard-view__zone-header {
+    padding: 6px 8px;
+    gap: 6px;
+    min-width: 0; // Allow flex children to shrink
+    overflow: hidden; // Prevent overflow
+  }
+
+  .dashboard-view__zone-chevron {
+    font-size: 9px;
+    flex-shrink: 0;
+  }
+
+  .dashboard-view__zone-left {
+    flex: 1;
+    min-width: 0; // Allow flex children to shrink
+    gap: 4px;
+    flex-wrap: nowrap; // Don't wrap to prevent width expansion
+    align-items: center;
+    overflow: hidden;
+  }
+
+  .dashboard-view__zone-dot {
+    width: 8px;
+    height: 8px;
+    flex-shrink: 0;
+  }
+
+  .dashboard-view__zone-name {
+    font-size: 11px;
+    max-width: 120px;
+    flex-shrink: 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .dashboard-view__zone-count {
+    font-size: 9px;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .dashboard-view__zone-focus {
+    padding: 3px 6px;
+    font-size: 8px;
+    min-height: 24px;
+    margin-top: 0;
+    width: auto;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  // Zone grid: Single column, compact
+  .dashboard-view__zone-grid {
+    grid-template-columns: 1fr;
+    gap: 4px;
+    padding: 0 6px 6px;
+    min-width: 0; // Prevent grid from overflowing
+  }
+
+  // Agent cards: Minimal padding
+  .dash-card {
+    padding: 6px 8px;
+    gap: 4px;
+    border-radius: 3px;
+    min-width: 0; // Prevent card from overflowing
+  }
+
+  .dash-card__row1 {
+    gap: 4px;
+    min-width: 0; // Allow flex children to shrink
+  }
+
+  .dash-card__status-dot {
+    width: 6px;
+    height: 6px;
+    flex-shrink: 0;
+  }
+
+  .dash-card__name {
+    font-size: 11px;
+    min-width: 0; // Allow text to truncate
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .dash-card__class {
+    font-size: 8px;
+    padding: 1px 4px;
+    flex-shrink: 0;
+  }
+
+  .dash-card__provider {
+    font-size: 8px;
+    padding: 1px 3px;
+    flex-shrink: 0;
+  }
+
+  .dash-card__row2 {
+    gap: 4px;
+    min-width: 0; // Allow flex children to shrink
+  }
+
+  .dash-card__status {
+    font-size: 9px;
+    min-width: 40px;
+    flex-shrink: 0;
+  }
+
+  .dash-card__row3 {
+    margin-top: 1px;
+    min-width: 0;
+  }
+
+  .dash-card__workdir {
+    font-size: 8px;
+    min-width: 0;
+  }
+
+  .dash-card__row4 {
+    margin-top: 1px;
+    min-width: 0;
+  }
+
+  .dash-card__context-bar {
+    height: 3px;
+    min-width: 0;
+  }
+
+  .dash-card__context-pct {
+    font-size: 8px;
+    min-width: 24px;
+    flex-shrink: 0;
+  }
+
+  .dash-card__row3 {
+    margin-top: 0;
+    min-width: 0; // Prevent overflow
+  }
+
+  .dash-card__task {
+    font-size: 9px;
+    line-height: 1.2;
+    max-height: 1.2em;
+    min-width: 0; // Allow text to truncate
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  // Action buttons: Tall touch targets
+  .dash-card__actions {
+    gap: 3px;
+    margin-top: 2px;
+  }
+
+  .dash-card__action-btn {
+    padding: 4px 3px;
+    min-height: 28px;
+    font-size: 9px;
+    flex: 1;
+    border-radius: 2px;
+  }
+
+  // Buildings section: Compact
+  .dashboard-view__buildings {
+    margin-top: 4px;
+  }
+
+  .dashboard-view__buildings-header {
+    padding: 4px 0;
+    gap: 4px;
+  }
+
+  .dashboard-view__buildings-title {
+    font-size: 9px;
+    letter-spacing: 0.3px;
+  }
+
+  .dashboard-view__buildings-count {
+    font-size: 8px;
+    padding: 1px 4px;
+  }
+
+  .dashboard-view__buildings-row {
+    gap: 3px;
+  }
+
+  // Building pills: Minimal
+  .dash-pill {
+    padding: 3px 6px;
+    font-size: 9px;
+    min-height: 24px;
+    border-radius: 12px;
+  }
+
+  .dash-pill__icon {
+    font-size: 10px;
+  }
+
+  .dash-pill__name {
+    font-size: 9px;
+  }
+
+  .dash-pill__dot {
+    width: 4px;
+    height: 4px;
+  }
+
+  // Empty state
+  .dashboard-view__empty {
+    padding: 16px 12px;
+    font-size: 11px;
+  }
+}
+
+// ============================================================================
+// Mobile Responsive - Small Phone (360px and below)
+// ============================================================================
+
+@media (max-width: 360px) {
+  .dashboard-view__metrics {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2px;
+  }
+
+  .dashboard-view__metric-btn {
+    padding: 4px 2px;
+    font-size: 7px;
+  }
+
+  .dashboard-view__metric-value {
+    font-size: 11px;
+  }
+
+  .dashboard-view__metric-label {
+    font-size: 4px;
+    letter-spacing: 0px;
+  }
+
+  .dashboard-view__search {
+    padding: 5px 6px;
+    font-size: 11px;
+  }
+
+  .dashboard-view__grouping-btn {
+    padding: 5px 6px;
+    font-size: 9px;
+  }
+
+  .dashboard-view__zone-header {
+    padding: 5px 6px;
+  }
+
+  .dashboard-view__zone-name {
+    max-width: 90px;
+    font-size: 10px;
+  }
+
+  .dashboard-view__zone-count {
+    font-size: 8px;
+  }
+
+  .dashboard-view__zone-focus {
+    padding: 2px 5px;
+    font-size: 7px;
+    min-height: 22px;
+  }
+
+  .dashboard-view__zone-grid {
+    gap: 3px;
+    padding: 0 4px 4px;
+  }
+
+  .dash-card {
+    padding: 5px 6px;
+    gap: 3px;
+  }
+
+  .dash-card__row1 {
+    gap: 3px;
+  }
+
+  .dash-card__status-dot {
+    width: 5px;
+    height: 5px;
+  }
+
+  .dash-card__name {
+    font-size: 10px;
+  }
+
+  .dash-card__class {
+    font-size: 7px;
+    padding: 0px 3px;
+  }
+
+  .dash-card__provider {
+    font-size: 7px;
+    padding: 0px 2px;
+  }
+
+  .dash-card__row2 {
+    gap: 3px;
+  }
+
+  .dash-card__status {
+    font-size: 8px;
+    min-width: 35px;
+  }
+
+  .dash-card__workdir {
+    font-size: 7px;
+  }
+
+  .dash-card__context-bar {
+    height: 2px;
+  }
+
+  .dash-card__context-pct {
+    font-size: 7px;
+    min-width: 20px;
+  }
+
+  .dash-card__task {
+    font-size: 8px;
+  }
+
+  .dash-card__actions {
+    gap: 2px;
+  }
+
+  .dash-card__action-btn {
+    padding: 3px 2px;
+    min-height: 24px;
+    font-size: 8px;
+  }
+
+  .dashboard-view__buildings-title {
+    font-size: 8px;
+  }
+
+  .dashboard-view__buildings-count {
+    font-size: 7px;
+    padding: 0px 3px;
+  }
+
+  .dashboard-view__buildings-row {
+    gap: 2px;
+  }
+
+  .dash-pill {
+    padding: 2px 5px;
+    font-size: 8px;
+    min-height: 20px;
+  }
+
+  .dash-pill__icon {
+    font-size: 9px;
+  }
+
+  .dash-pill__name {
+    font-size: 8px;
   }
 }

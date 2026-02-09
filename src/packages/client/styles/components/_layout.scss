@@ -20,6 +20,13 @@
   transform: translateX(-50%);
   z-index: 150;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+
+  // Hide on mobile when terminal is open - terminal provides its own view mode toggle
+  @media (max-width: 768px) {
+    .app.terminal-open & {
+      display: none !important;
+    }
+  }
 }
 
 .battlefield-container {
