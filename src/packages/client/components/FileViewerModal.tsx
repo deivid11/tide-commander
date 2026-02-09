@@ -6,6 +6,7 @@ import { DiffViewer } from './DiffViewer';
 import { apiUrl, authFetch } from '../utils/storage';
 import { useModalClose } from '../hooks';
 import { parseFilePathReference } from '../utils/filePaths';
+import { ModalPortal } from './shared/ModalPortal';
 import 'prismjs/components/prism-typescript';
 import 'prismjs/components/prism-javascript';
 import 'prismjs/components/prism-jsx';
@@ -372,14 +373,15 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
   if (!isOpen) return null;
 
   return (
-    <div
-      ref={overlayRef}
-      className="file-viewer-overlay"
-      onMouseDown={handleOverlayMouseDown}
-      onClick={handleOverlayClick}
-      tabIndex={-1}
-    >
-      <div className="file-viewer-modal">
+    <ModalPortal>
+      <div
+        ref={overlayRef}
+        className="file-viewer-overlay"
+        onMouseDown={handleOverlayMouseDown}
+        onClick={handleOverlayClick}
+        tabIndex={-1}
+      >
+        <div className="file-viewer-modal">
         <div className="file-viewer-header">
           <div className="file-viewer-title">
             <span className="file-viewer-action" style={{ color: getActionColor() }}>
@@ -516,7 +518,8 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
             )
           )}
         </div>
+        </div>
       </div>
-    </div>
+    </ModalPortal>
   );
 }

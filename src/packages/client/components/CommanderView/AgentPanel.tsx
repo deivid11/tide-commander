@@ -13,12 +13,14 @@ import { formatTokens } from '../../utils/formatting';
 import { HistoryLine } from '../ClaudeOutputPanel/HistoryLine';
 import { OutputLine } from '../ClaudeOutputPanel/OutputLine';
 import { ImageModal, BashModal, AgentResponseModalWrapper, type BashModalState } from '../ClaudeOutputPanel/TerminalModals';
+import { useTerminalInput } from '../ClaudeOutputPanel/useTerminalInput';
 import { TerminalInput } from '../shared/TerminalInput';
+import { WorkingIndicator } from '../shared/WorkingIndicator';
 import { useFilteredOutputs } from '../shared/useFilteredOutputs';
-import type { AgentHistory, AttachedFile } from './types';
+import type { AgentHistory } from './types';
 import { STATUS_COLORS, SCROLL_THRESHOLD } from './types';
-import { apiUrl, authFetch } from '../../utils/storage';
 import { resolveAgentFileReference } from '../../utils/filePaths';
+import { useModalStackRegistration } from '../../hooks/useModalStack';
 
 interface AgentPanelProps {
   agent: Agent;
@@ -54,16 +56,25 @@ export function AgentPanel({
   const [bashModal, setBashModal] = useState<BashModalState | null>(null);
   const [responseModalContent, setResponseModalContent] = useState<string | null>(null);
 
-  // Input state - simple local state since Commander panels don't persist
-  const [command, setCommand] = useState('');
-  const [forceTextarea, setForceTextarea] = useState(false);
-  const [pastedTexts, setPastedTexts] = useState<Map<number, string>>(new Map());
-  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
-  const pastedCountRef = useRef(0);
-  const fileCountRef = useRef(0);
+  useModalStackRegistration(`commander-image-modal-${agent.id}`, imageModal !== null, () => setImageModal(null));
+
+  const {
+    command,
+    setCommand,
+    forceTextarea,
+    setForceTextarea,
+    useTextarea,
+    setPastedTexts,
+    incrementPastedCount,
+    resetPastedCount,
+    attachedFiles,
+    setAttachedFiles,
+    removeAttachedFile,
+    uploadFile,
+    expandPastedTexts,
+  } = useTerminalInput({ selectedAgentId: agent.id });
 
   // Computed values
-  const useTextarea = forceTextarea || command.includes('\n') || command.length > 50;
   const canSend = command.trim().length > 0 || attachedFiles.length > 0;
 
   // Filter outputs based on view mode (same as Guake terminal)
@@ -180,57 +191,20 @@ export function AgentPanel({
 
   // Input handlers
   const handleAddPastedText = useCallback((text: string): number => {
-    pastedCountRef.current += 1;
-    const id = pastedCountRef.current;
+    const id = incrementPastedCount();
     setPastedTexts(prev => new Map(prev).set(id, text));
     return id;
-  }, []);
+  }, [incrementPastedCount, setPastedTexts]);
 
-  const handleAddFile = useCallback((file: AttachedFile) => {
+  const handleAddFile = useCallback((file: (typeof attachedFiles)[number]) => {
     setAttachedFiles(prev => [...prev, file]);
-  }, []);
-
-  const handleRemoveFile = useCallback((id: number) => {
-    setAttachedFiles(prev => prev.filter(f => f.id !== id));
-  }, []);
-
-  const uploadFile = useCallback(async (file: File | Blob, filename?: string): Promise<AttachedFile | null> => {
-    try {
-      const response = await authFetch(apiUrl('/api/files/upload'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': file.type || 'application/octet-stream',
-          'X-Filename': filename || (file instanceof File ? file.name : ''),
-        },
-        body: file,
-      });
-
-      if (!response.ok) return null;
-
-      const data = await response.json();
-      fileCountRef.current += 1;
-
-      return {
-        id: fileCountRef.current,
-        name: data.filename,
-        path: data.absolutePath,
-        isImage: data.isImage,
-        size: data.size,
-      };
-    } catch {
-      return null;
-    }
-  }, []);
+  }, [setAttachedFiles]);
 
   const handleSend = useCallback(() => {
     if (!canSend) return;
 
-    // Expand pasted text placeholders
-    let fullCommand = command.trim();
-    for (const [id, pastedText] of pastedTexts) {
-      const placeholder = new RegExp(`\\[Pasted text #${id} \\+\\d+ lines\\]`, 'g');
-      fullCommand = fullCommand.replace(placeholder, pastedText);
-    }
+    // Expand pasted text placeholders before sending
+    let fullCommand = expandPastedTexts(command.trim());
 
     // Add file references
     if (attachedFiles.length > 0) {
@@ -247,8 +221,8 @@ export function AgentPanel({
     setForceTextarea(false);
     setPastedTexts(new Map());
     setAttachedFiles([]);
-    pastedCountRef.current = 0;
-  }, [agent.id, command, canSend, pastedTexts, attachedFiles]);
+    resetPastedCount();
+  }, [agent.id, command, canSend, attachedFiles, expandPastedTexts, resetPastedCount, setCommand, setForceTextarea, setPastedTexts, setAttachedFiles]);
 
   const handleImageClick = useCallback((url: string, name: string) => {
     setImageModal({ url, name });
@@ -294,6 +268,9 @@ export function AgentPanel({
             {agent.name}
           </span>
           <span className="agent-panel-class">{agent.class}</span>
+          <span className={`agent-panel-provider ${agent.provider === 'codex' ? 'codex' : 'claude'}`}>
+            {agent.provider === 'codex' ? 'codex' : 'claude'}
+          </span>
           <span className="agent-panel-id" title={`ID: ${agent.id}`}>
             [{agent.id.substring(0, 4)}]
           </span>
@@ -404,9 +381,7 @@ export function AgentPanel({
             )}
             {agent.status === 'working' && (
               <div className="agent-panel-typing">
-                <span className="typing-dot"></span>
-                <span className="typing-dot"></span>
-                <span className="typing-dot"></span>
+                <WorkingIndicator detached={agent.isDetached} />
                 <button
                   className="agent-panel-stop-btn"
                   onClick={e => {
@@ -423,24 +398,26 @@ export function AgentPanel({
         )}
       </div>
 
-      {/* Input - using shared TerminalInput */}
-      <TerminalInput
-        command={command}
-        onCommandChange={setCommand}
-        useTextarea={useTextarea}
-        forceTextarea={forceTextarea}
-        onForceTextarea={setForceTextarea}
-        onSend={handleSend}
-        canSend={canSend}
-        attachedFiles={attachedFiles}
-        onAddFile={handleAddFile}
-        onRemoveFile={handleRemoveFile}
-        uploadFile={uploadFile}
-        onAddPastedText={handleAddPastedText}
-        placeholder={`Command ${agent.name}...`}
-        compact={true}
-        inputRef={inputRef}
-      />
+      {/* Input - using shared TerminalInput with guake wrapper state classes */}
+      <div className={`guake-input-wrapper ${agent.status === 'working' ? 'is-working' : ''}`}>
+        <TerminalInput
+          command={command}
+          onCommandChange={setCommand}
+          useTextarea={useTextarea}
+          forceTextarea={forceTextarea}
+          onForceTextarea={setForceTextarea}
+          onSend={handleSend}
+          canSend={canSend}
+          attachedFiles={attachedFiles}
+          onAddFile={handleAddFile}
+          onRemoveFile={removeAttachedFile}
+          uploadFile={uploadFile}
+          onAddPastedText={handleAddPastedText}
+          placeholder={`Command ${agent.name}...`}
+          compact={false}
+          inputRef={inputRef}
+        />
+      </div>
 
       {imageModal && <ImageModal url={imageModal.url} name={imageModal.name} onClose={() => setImageModal(null)} />}
       {bashModal && <BashModal state={bashModal} onClose={() => setBashModal(null)} />}

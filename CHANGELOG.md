@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.55.0] - 2026-02-09
+
+### Added
+- **ModalPortal component** - Shared portal component for rendering modals outside the DOM hierarchy
+- **WorkingIndicator component** - Shared animated working/loading indicator
+- **Agent filtering and sorting** - Commander view supports filtering by status, activity window, and sorting by activity/name/created/context
+- **Dashboard zone grouping** - Dashboard view groups agents by zone with improved layout
+- **Terminal input enhancements** - Additional keyboard shortcut support
+- **Session loader tests** - New test coverage for session loading edge cases
+
+### Changed
+- **Commander view overhaul** - Major refactoring of agent panel layout and interaction (143+ lines added)
+- **Dashboard view expansion** - Significant expansion with zone-based grouping and agent management (244+ lines added)
+- **Terminal modals refactor** - Reorganized modal components for cleaner architecture
+- **Agent response modal** - Updated to use portal-based rendering
+- **Context view modal** - Updated to use portal-based rendering
+- **File viewer modal** - Updated to use portal-based rendering
+- **Commander grid styles** - Reworked grid layout for better responsiveness
+- **Commander header styles** - Enhanced header styling with new filter controls
+- **Session loader** - Improved robustness of history message parsing
+- **Storage utility** - Added new storage key
+
+### Fixed
+- **Lint warnings** - Fixed unused variable warnings in sceneLifecycle, AgentStatusCards, and DashboardView
+
 ## [0.54.1] - 2026-02-08
 
 ### Changed

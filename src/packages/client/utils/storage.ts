@@ -33,6 +33,7 @@ export const STORAGE_KEYS = {
 
   // Commander
   COMMANDER_TAB: 'commander-active-tab',
+  COMMANDER_FILTERS: 'commander-filters',
 
   // Spawn/CWD
   LAST_CWD: 'tide-last-cwd',

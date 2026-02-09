@@ -79,4 +79,78 @@ describe('session-loader codex normalization', () => {
       content: 'hello\n',
     });
   });
+
+  it('normalizes codex image user_message content without base64 blobs', async () => {
+    const sessionId = 'session-image123';
+    const sessionDir = path.join(tempHomeDir, '.codex', 'sessions', '2026', '02', '07');
+    fs.mkdirSync(sessionDir, { recursive: true });
+    const sessionFile = path.join(sessionDir, `run-${sessionId}.jsonl`);
+
+    const entryUserMessage = {
+      timestamp: '2026-02-07T00:00:00.000Z',
+      type: 'event_msg',
+      payload: {
+        type: 'user_message',
+        message: JSON.stringify([
+          { type: 'input_text', text: 'what says this image?\n\n' },
+          { type: 'input_image', image_url: 'data:image/png;base64,AAAAABBBBB' },
+        ]),
+      },
+    };
+
+    fs.writeFileSync(sessionFile, `${JSON.stringify(entryUserMessage)}\n`, 'utf8');
+
+    const { loadSession } = await import('./session-loader.js');
+    const history = await loadSession('/workspace/project', sessionId, 20, 0);
+
+    expect(history).not.toBeNull();
+    expect(history?.messages).toHaveLength(1);
+    expect(history?.messages[0].type).toBe('user');
+    expect(history?.messages[0].content).toContain('what says this image?');
+    expect(history?.messages[0].content).toContain('[Image attached]');
+    expect(history?.messages[0].content).not.toContain('data:image/png;base64');
+  });
+
+  it('skips image-only response_item user duplicates', async () => {
+    const sessionId = 'session-image-dup';
+    const sessionDir = path.join(tempHomeDir, '.codex', 'sessions', '2026', '02', '07');
+    fs.mkdirSync(sessionDir, { recursive: true });
+    const sessionFile = path.join(sessionDir, `run-${sessionId}.jsonl`);
+
+    const primaryUserMessage = {
+      timestamp: '2026-02-07T00:00:00.000Z',
+      type: 'event_msg',
+      payload: {
+        type: 'user_message',
+        message: 'what this image says?\n\n[Image: /tmp/tide-commander-uploads/image-xlz8m7.png]',
+      },
+    };
+
+    const imageOnlyDuplicate = {
+      timestamp: '2026-02-07T00:00:00.100Z',
+      type: 'response_item',
+      payload: {
+        type: 'message',
+        role: 'user',
+        content: [
+          { type: 'input_image', image_url: 'data:image/png;base64,AAAAABBBBB' },
+        ],
+      },
+    };
+
+    fs.writeFileSync(
+      sessionFile,
+      `${JSON.stringify(primaryUserMessage)}\n${JSON.stringify(imageOnlyDuplicate)}\n`,
+      'utf8'
+    );
+
+    const { loadSession } = await import('./session-loader.js');
+    const history = await loadSession('/workspace/project', sessionId, 20, 0);
+
+    expect(history).not.toBeNull();
+    expect(history?.messages).toHaveLength(1);
+    expect(history?.messages[0].type).toBe('user');
+    expect(history?.messages[0].content).toContain('[Image: /tmp/tide-commander-uploads/image-xlz8m7.png]');
+    expect(history?.messages[0].content).not.toContain('[Image attached]');
+  });
 });

@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { store, useStore } from '../../store';
+import { store } from '../../store';
 import { useAgents, useBuildings, useSelectedAgentIds, useAreas } from '../../store/selectors';
 import { matchesShortcut } from '../../store/shortcuts';
 import type { Agent } from '@shared/types';
@@ -16,7 +16,6 @@ import {
   groupAgentsByZone,
   groupAgentsByStatus,
   groupAgentsByActivity,
-  filterAgentsByStatusAndSearch,
   sortAgentsInGroup,
   sortAgentsInGroupWithOptions,
   findSafePositionInArea,
@@ -43,6 +42,8 @@ export function DashboardView({
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [draggedAgent, setDraggedAgent] = useState<Agent | null>(null);
   const [dragOverZoneId, setDragOverZoneId] = useState<string | null>(null);
+  const [keyboardSelectorEnabled, setKeyboardSelectorEnabled] = useState(false);
+  const [keyboardFocusedAgentId, setKeyboardFocusedAgentId] = useState<string | null>(null);
 
   // Metrics
   const metrics = useMemo(() => {
@@ -95,11 +96,33 @@ export function DashboardView({
     return filtered.filter(group => group.agents.length > 0);
   }, [allGroups, statusFilter, search, grouping]);
 
-  const toggleGroup = useCallback((label: string) => {
+  const getGroupKey = useCallback((group: { area: { id: string } | null; label: string }): string => {
+    if (group.area) {
+      return `area:${group.area.id}`;
+    }
+    return `${grouping}:${group.label}`;
+  }, [grouping]);
+
+  const visibleAgents = useMemo(() => {
+    const agentsInView: Agent[] = [];
+    groups.forEach((group) => {
+      const groupKey = getGroupKey(group);
+      if (collapsedGroups.has(groupKey)) {
+        return;
+      }
+      const sorted = grouping === 'status'
+        ? sortAgentsInGroupWithOptions(group.agents, { prioritizeRecentlyIdle: true })
+        : sortAgentsInGroup(group.agents);
+      agentsInView.push(...sorted);
+    });
+    return agentsInView;
+  }, [groups, collapsedGroups, grouping, getGroupKey]);
+
+  const toggleGroup = useCallback((groupKey: string) => {
     setCollapsedGroups(prev => {
       const next = new Set(prev);
-      if (next.has(label)) next.delete(label);
-      else next.add(label);
+      if (next.has(groupKey)) next.delete(groupKey);
+      else next.add(groupKey);
       return next;
     });
   }, []);
@@ -161,29 +184,194 @@ export function DashboardView({
     setDragOverZoneId(null);
   }, [draggedAgent, areas, agents]);
 
-  // Handle space key to open terminal in dashboard mode
+  // Keep keyboard focus anchored to available cards.
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      const isInputFocused = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
+    if (visibleAgents.length === 0) {
+      setKeyboardSelectorEnabled(false);
+      setKeyboardFocusedAgentId(null);
+      return;
+    }
 
-      // Don't handle space if typing in an input field
-      if (isInputFocused) {
+    if (!keyboardSelectorEnabled) {
+      return;
+    }
+
+    if (!keyboardFocusedAgentId || !visibleAgents.some(agent => agent.id === keyboardFocusedAgentId)) {
+      setKeyboardFocusedAgentId(visibleAgents[0].id);
+      onSelectAgent?.(visibleAgents[0].id);
+    }
+  }, [visibleAgents, keyboardSelectorEnabled, keyboardFocusedAgentId, onSelectAgent]);
+
+  // Dashboard keyboard shortcuts: selector + vim nav + open terminal.
+  useEffect(() => {
+    const isTypingTarget = (target: EventTarget | null): boolean => {
+      if (!(target instanceof HTMLElement)) return false;
+      return target.tagName === 'INPUT'
+        || target.tagName === 'TEXTAREA'
+        || target.tagName === 'SELECT'
+        || target.isContentEditable;
+    };
+
+    const isGuakeElement = (target: EventTarget | null): boolean => {
+      if (!(target instanceof HTMLElement)) return false;
+      return !!target.closest('.guake-terminal') || target.classList.contains('guake-input') || target.classList.contains('agent-panel-input');
+    };
+
+    const scrollCardIntoView = (agentId: string): void => {
+      const card = Array.from(document.querySelectorAll<HTMLElement>('.dash-card[data-agent-id]'))
+        .find((node) => node.dataset.agentId === agentId);
+      card?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    };
+
+    const moveFocus = (
+      currentId: string,
+      direction: 'left' | 'right' | 'up' | 'down'
+    ): string => {
+      const cards = Array.from(document.querySelectorAll<HTMLElement>('.dash-card[data-agent-id]'))
+        .map((node) => {
+          const id = node.dataset.agentId;
+          if (!id) return null;
+          const rect = node.getBoundingClientRect();
+          return {
+            id,
+            centerX: rect.left + rect.width / 2,
+            centerY: rect.top + rect.height / 2,
+            height: rect.height,
+          };
+        })
+        .filter((entry): entry is { id: string; centerX: number; centerY: number; height: number } => entry !== null)
+        .sort((a, b) => (a.centerY - b.centerY) || (a.centerX - b.centerX));
+
+      if (cards.length === 0) return currentId;
+
+      const avgHeight = cards.reduce((sum, card) => sum + card.height, 0) / cards.length;
+      const rowTolerance = Math.max(18, avgHeight * 0.6);
+
+      const rows: Array<Array<{ id: string; centerX: number; centerY: number }>> = [];
+      for (const card of cards) {
+        const lastRow = rows[rows.length - 1];
+        if (!lastRow) {
+          rows.push([{ id: card.id, centerX: card.centerX, centerY: card.centerY }]);
+          continue;
+        }
+        const rowCenterY = lastRow.reduce((sum, item) => sum + item.centerY, 0) / lastRow.length;
+        if (Math.abs(card.centerY - rowCenterY) <= rowTolerance) {
+          lastRow.push({ id: card.id, centerX: card.centerX, centerY: card.centerY });
+        } else {
+          rows.push([{ id: card.id, centerX: card.centerX, centerY: card.centerY }]);
+        }
+      }
+
+      rows.forEach((row) => row.sort((a, b) => a.centerX - b.centerX));
+
+      const currentRowIndex = rows.findIndex((row) => row.some((card) => card.id === currentId));
+      if (currentRowIndex === -1) {
+        return rows[0]?.[0]?.id ?? currentId;
+      }
+
+      const currentRow = rows[currentRowIndex];
+      const currentColIndex = currentRow.findIndex((card) => card.id === currentId);
+      if (currentColIndex === -1) {
+        return rows[0]?.[0]?.id ?? currentId;
+      }
+
+      if (direction === 'left') {
+        return currentRow[Math.max(0, currentColIndex - 1)]?.id ?? currentId;
+      }
+      if (direction === 'right') {
+        return currentRow[Math.min(currentRow.length - 1, currentColIndex + 1)]?.id ?? currentId;
+      }
+
+      const targetRowIndex = direction === 'up'
+        ? Math.max(0, currentRowIndex - 1)
+        : Math.min(rows.length - 1, currentRowIndex + 1);
+      const targetRow = rows[targetRowIndex];
+      const currentCenterX = currentRow[currentColIndex].centerX;
+
+      let best = targetRow[0];
+      let bestDistance = Math.abs(best.centerX - currentCenterX);
+      for (const candidate of targetRow) {
+        const distance = Math.abs(candidate.centerX - currentCenterX);
+        if (distance < bestDistance) {
+          best = candidate;
+          bestDistance = distance;
+        }
+      }
+
+      return best?.id ?? currentId;
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const shortcuts = store.getShortcuts();
+      const selectorShortcut = shortcuts.find(s => s.id === 'dashboard-selector-toggle');
+      const leftShortcut = shortcuts.find(s => s.id === 'dashboard-vim-left');
+      const downShortcut = shortcuts.find(s => s.id === 'dashboard-vim-down');
+      const upShortcut = shortcuts.find(s => s.id === 'dashboard-vim-up');
+      const rightShortcut = shortcuts.find(s => s.id === 'dashboard-vim-right');
+      const openTerminalShortcut = shortcuts.find(s => s.id === 'open-terminal');
+      const state = store.getState();
+
+      if (isTypingTarget(e.target)) {
+        // If terminal is closed but focus is still on hidden guake input, reclaim focus for dashboard navigation.
+        if (!state.terminalOpen && isGuakeElement(e.target) && document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        } else {
+          return;
+        }
+      }
+
+      if (matchesShortcut(e, selectorShortcut)) {
+        if (visibleAgents.length === 0) return;
+        e.preventDefault();
+        e.stopPropagation();
+        setKeyboardSelectorEnabled(true);
+        setKeyboardFocusedAgentId((previousFocused) => {
+          const focused = previousFocused && visibleAgents.some(agent => agent.id === previousFocused)
+            ? previousFocused
+            : visibleAgents[0].id;
+          onSelectAgent?.(focused);
+          window.setTimeout(() => scrollCardIntoView(focused), 0);
+          return focused;
+        });
         return;
       }
 
-      const shortcuts = store.getShortcuts();
-      const openTerminalShortcut = shortcuts.find(s => s.id === 'open-terminal');
+      const navDirection = matchesShortcut(e, leftShortcut) || e.key === 'ArrowLeft'
+        ? 'left'
+        : (matchesShortcut(e, downShortcut) || e.key === 'ArrowDown')
+          ? 'down'
+          : (matchesShortcut(e, upShortcut) || e.key === 'ArrowUp')
+            ? 'up'
+            : (matchesShortcut(e, rightShortcut) || e.key === 'ArrowRight')
+              ? 'right'
+              : null;
+
+      if (navDirection && keyboardSelectorEnabled && keyboardFocusedAgentId) {
+        e.preventDefault();
+        e.stopPropagation();
+        const nextAgentId = moveFocus(keyboardFocusedAgentId, navDirection);
+        if (nextAgentId !== keyboardFocusedAgentId) {
+          setKeyboardFocusedAgentId(nextAgentId);
+          onSelectAgent?.(nextAgentId);
+          window.setTimeout(() => scrollCardIntoView(nextAgentId), 0);
+        }
+        return;
+      }
 
       if (matchesShortcut(e, openTerminalShortcut)) {
-        const state = store.getState();
-
         // Don't trigger if terminal is already open
         if (state.terminalOpen) {
           return;
         }
 
-        // If an agent is selected, open terminal for it
+        // If keyboard selector is active, open terminal for focused card.
+        if (keyboardSelectorEnabled && keyboardFocusedAgentId && state.agents.has(keyboardFocusedAgentId)) {
+          e.preventDefault();
+          onOpenTerminal?.(keyboardFocusedAgentId);
+          return;
+        }
+
+        // If an agent is selected, open terminal for it.
         if (state.selectedAgentIds.size === 1) {
           e.preventDefault();
           const agentId = Array.from(state.selectedAgentIds)[0];
@@ -200,9 +388,18 @@ export function DashboardView({
       }
     };
 
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onOpenTerminal]);
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
+  }, [visibleAgents, keyboardSelectorEnabled, keyboardFocusedAgentId, onOpenTerminal, onSelectAgent]);
+
+  // Dashboard mode should not keep hidden terminal input focused.
+  useEffect(() => {
+    const active = document.activeElement;
+    if (!(active instanceof HTMLElement)) return;
+    if (active.closest('.guake-terminal') && !store.getState().terminalOpen) {
+      active.blur();
+    }
+  }, []);
 
   return (
     <div className="dashboard-view">
@@ -274,7 +471,8 @@ export function DashboardView({
       <div className="dashboard-view__content">
         {/* Zone groups */}
         {groups.map((group) => {
-          const isCollapsed = collapsedGroups.has(group.label);
+          const groupKey = getGroupKey(group);
+          const isCollapsed = collapsedGroups.has(groupKey);
           const sorted = grouping === 'status'
             ? sortAgentsInGroupWithOptions(group.agents, { prioritizeRecentlyIdle: true })
             : sortAgentsInGroup(group.agents);
@@ -282,7 +480,7 @@ export function DashboardView({
 
           return (
             <div
-              key={group.label}
+              key={groupKey}
               className={`dashboard-view__zone ${dragOverZoneId === (group.area ? group.area.id : null) && draggedAgent ? 'dashboard-view__zone--drag-over' : ''}`}
               onDragOver={(e) => handleDragOver(e, group.area ? group.area.id : null)}
               onDragLeave={handleDragLeave}
@@ -290,7 +488,7 @@ export function DashboardView({
             >
               <div
                 className="dashboard-view__zone-header"
-                onClick={() => toggleGroup(group.label)}
+                onClick={() => toggleGroup(groupKey)}
               >
                 <div className="dashboard-view__zone-left">
                   <span className={`dashboard-view__zone-chevron ${isCollapsed ? 'dashboard-view__zone-chevron--collapsed' : ''}`}>
@@ -327,7 +525,12 @@ export function DashboardView({
                       key={agent.id}
                       agent={agent}
                       isSelected={selectedAgentIds.has(agent.id)}
-                      onSelect={() => onSelectAgent?.(agent.id)}
+                      isKeyboardFocused={keyboardSelectorEnabled && keyboardFocusedAgentId === agent.id}
+                      onSelect={() => {
+                        onSelectAgent?.(agent.id);
+                        setKeyboardSelectorEnabled(true);
+                        setKeyboardFocusedAgentId(agent.id);
+                      }}
                       onDoubleClick={() => handleDoubleClick(agent.id)}
                       onChat={() => onOpenTerminal?.(agent.id)}
                       onFocus={onFocusAgent ? () => onFocusAgent(agent.id) : undefined}

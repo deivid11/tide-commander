@@ -7,6 +7,7 @@ import { getIdleTimerColor } from '../../utils/colors';
 interface AgentCardProps {
   agent: Agent;
   isSelected: boolean;
+  isKeyboardFocused?: boolean;
   onSelect: () => void;
   onDoubleClick: () => void;
   onChat?: () => void;
@@ -18,10 +19,11 @@ interface AgentCardProps {
 export const AgentCard = React.memo(({
   agent,
   isSelected,
+  isKeyboardFocused = false,
   onSelect,
   onDoubleClick,
   onChat,
-  onFocus,
+  onFocus: _onFocus,
   onKill,
   onDragStart,
 }: AgentCardProps) => {
@@ -41,7 +43,8 @@ export const AgentCard = React.memo(({
 
   return (
     <div
-      className={`dash-card dash-card--${statusColor} ${isSelected ? 'dash-card--selected' : ''}`}
+      className={`dash-card dash-card--${statusColor} ${isSelected ? 'dash-card--selected' : ''} ${isKeyboardFocused ? 'dash-card--keyboard-focused' : ''}`}
+      data-agent-id={agent.id}
       onClick={onSelect}
       onDoubleClick={(e) => {
         e.stopPropagation();

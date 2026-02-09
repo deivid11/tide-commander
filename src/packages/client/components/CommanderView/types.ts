@@ -36,6 +36,31 @@ export interface TabConfig {
   color?: string;
 }
 
+/**
+ * Agent filter options for CommanderView
+ */
+export type AgentStatusFilter = 'all' | 'working' | 'idle' | 'error' | 'offline';
+export type AgentActivityFilter = 'all' | '1h' | '6h' | '24h';
+export type AgentSortOption = 'activity' | 'name' | 'created' | 'context';
+
+export interface AgentFilters {
+  status: AgentStatusFilter;
+  activity: AgentActivityFilter;
+  sort: AgentSortOption;
+}
+
+export const DEFAULT_FILTERS: AgentFilters = {
+  status: 'all',
+  activity: 'all',
+  sort: 'activity',
+};
+
+export const ACTIVITY_THRESHOLDS: Record<Exclude<AgentActivityFilter, 'all'>, number> = {
+  '1h': 60 * 60 * 1000,
+  '6h': 6 * 60 * 60 * 1000,
+  '24h': 24 * 60 * 60 * 1000,
+};
+
 // Layout constants
 export const AGENTS_PER_PAGE = 20;
 export const GRID_COLS = 3;

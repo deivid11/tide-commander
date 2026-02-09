@@ -191,7 +191,7 @@ export function initializePageLifecycle(): void {
 
   // Cleanup handlers for page unload
   window.onunload = () => cleanupScene('onunload');
-  window.onbeforeunload = (e: BeforeUnloadEvent) => {
+  window.onbeforeunload = (_e: BeforeUnloadEvent) => {
     cleanupScene('onbeforeunload');
     return undefined;
   };

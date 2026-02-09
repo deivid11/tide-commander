@@ -146,6 +146,62 @@ function parseFunctionCallArguments(raw: unknown): Record<string, unknown> {
   return isObject(parsed) ? parsed : { raw: raw };
 }
 
+function normalizeCodexImageReference(rawImageUrl: unknown): string {
+  if (typeof rawImageUrl !== 'string') return '[Image attached]';
+
+  const imageUrl = rawImageUrl.trim();
+  if (!imageUrl) return '[Image attached]';
+
+  // Avoid dumping inline base64 payloads into terminal history.
+  if (imageUrl.startsWith('data:image/')) {
+    return '[Image attached]';
+  }
+
+  return `[Image: ${imageUrl}]`;
+}
+
+function extractCodexContentSegments(content: unknown): string[] {
+  if (!Array.isArray(content)) {
+    const normalized = sanitizeCodexMessageText(normalizeTextContent(content));
+    return normalized ? [normalized] : [];
+  }
+
+  const segments: string[] = [];
+  for (const block of content) {
+    if (!isObject(block)) continue;
+    const type = block.type;
+
+    if (type === 'input_text' || type === 'output_text' || type === 'text') {
+      const maybeText = block.text;
+      if (typeof maybeText === 'string' && maybeText.trim().length > 0) {
+        segments.push(maybeText);
+      }
+      continue;
+    }
+
+    if (type === 'input_image') {
+      segments.push(normalizeCodexImageReference(block.image_url));
+      continue;
+    }
+  }
+
+  if (segments.length > 0) {
+    return segments;
+  }
+
+  const fallback = sanitizeCodexMessageText(normalizeTextContent(content));
+  return fallback ? [fallback] : [];
+}
+
+function extractCodexUserMessageFromString(rawMessage: string): string {
+  const parsed = safeParseJson(rawMessage);
+  const normalizedFromJson = extractCodexContentSegments(parsed).join('\n');
+  if (normalizedFromJson.trim()) {
+    return normalizedFromJson;
+  }
+  return sanitizeCodexMessageText(rawMessage);
+}
+
 interface NormalizedCodexToolCall {
   toolName: string;
   toolInput: Record<string, unknown>;
@@ -423,27 +479,14 @@ function parseClaudeEntryMessages(
 }
 
 function extractCodexMessageText(content: unknown): string {
-  if (!Array.isArray(content)) {
-    return sanitizeCodexMessageText(normalizeTextContent(content));
-  }
+  const segments = extractCodexContentSegments(content);
+  return sanitizeCodexMessageText(segments.join('\n'));
+}
 
-  const textParts: string[] = [];
-  for (const block of content) {
-    if (!isObject(block)) continue;
-    const type = block.type;
-    if (type === 'input_text' || type === 'output_text' || type === 'text') {
-      const maybeText = block.text;
-      if (typeof maybeText === 'string' && maybeText.trim().length > 0) {
-        textParts.push(maybeText);
-      }
-    }
-  }
-
-  if (textParts.length > 0) {
-    return sanitizeCodexMessageText(textParts.join('\n'));
-  }
-
-  return sanitizeCodexMessageText(normalizeTextContent(content));
+function isImageOnlyCodexMessage(content: string): boolean {
+  const normalized = content.trim();
+  if (!normalized) return false;
+  return /^(?:\[(?:Image attached|Image:\s*[^\]]+)\]\s*)+$/m.test(normalized);
 }
 
 function stripCodexInjectedUserMessage(content: string): string {
@@ -498,7 +541,9 @@ function parseCodexEntryMessages(
   if (entry.type === 'event_msg' && isObject(entry.payload)) {
     const payload = entry.payload as Record<string, unknown>;
     if (payload.type === 'user_message' && typeof payload.message === 'string') {
-      const normalizedMessage = stripCodexInjectedUserMessage(payload.message);
+      const normalizedMessage = stripCodexInjectedUserMessage(
+        extractCodexUserMessageFromString(payload.message)
+      );
       if (!normalizedMessage) {
         return;
       }
@@ -535,6 +580,12 @@ function parseCodexEntryMessages(
     }
 
     const rawContent = extractCodexMessageText(payload.content);
+    if (role === 'user' && isImageOnlyCodexMessage(rawContent)) {
+      // Codex often emits a second user response_item containing only input_image
+      // blocks (data URL content) after the primary event_msg user_message.
+      // Skip this synthetic duplicate to keep history clean and clickable.
+      return;
+    }
     const content = role === 'user' ? stripCodexInjectedUserMessage(rawContent) : rawContent;
     if (!content.trim()) {
       return;

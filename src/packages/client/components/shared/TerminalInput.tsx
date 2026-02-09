@@ -63,6 +63,17 @@ export function TerminalInput({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // When switching from input to textarea, focus and place cursor at end
+  const prevUseTextareaRef = useRef(useTextarea);
+  useEffect(() => {
+    if (useTextarea && !prevUseTextareaRef.current && textareaRef.current) {
+      const ta = textareaRef.current;
+      ta.focus();
+      ta.selectionStart = ta.selectionEnd = ta.value.length;
+    }
+    prevUseTextareaRef.current = useTextarea;
+  }, [useTextarea]);
+
   // Auto-resize textarea to fit content
   useEffect(() => {
     const textarea = textareaRef.current;

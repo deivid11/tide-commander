@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { store } from '../store';
 import { matchesShortcut } from '../store/shortcuts';
 import { SceneManager } from '../scene/SceneManager';
+import { closeTopModal } from './useModalStack';
 import type { UseModalState, UseModalStateWithId } from './index';
 
 interface UseKeyboardShortcutsOptions {
@@ -35,6 +36,12 @@ export function useKeyboardShortcuts({
       // Escape to deselect or close modal/terminal/drawing mode
       const deselectShortcut = shortcuts.find(s => s.id === 'deselect-all');
       if (matchesShortcut(e, deselectShortcut)) {
+        // Always close the top-most modal first (including image modal inside terminal).
+        if (closeTopModal()) {
+          e.preventDefault();
+          return;
+        }
+
         const currentState = store.getState();
         // Exit drawing mode first if active
         if (currentState.activeTool === 'rectangle' || currentState.activeTool === 'circle') {

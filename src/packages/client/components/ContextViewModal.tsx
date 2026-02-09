@@ -6,6 +6,7 @@
 import React, { useMemo, useState } from 'react';
 import type { Agent, ContextStats } from '../../shared/types';
 import { useModalClose } from '../hooks';
+import { ModalPortal } from './shared/ModalPortal';
 
 interface ContextViewModalProps {
   agent: Agent;
@@ -107,8 +108,9 @@ export function ContextViewModal({ agent, isOpen, onClose, onRefresh }: ContextV
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay visible" onMouseDown={handleBackdropMouseDown} onClick={handleBackdropClick}>
-      <div className="modal context-view-modal" style={{ maxWidth: '520px' }}>
+    <ModalPortal>
+      <div className="modal-overlay visible" onMouseDown={handleBackdropMouseDown} onClick={handleBackdropClick}>
+        <div className="modal context-view-modal" style={{ maxWidth: '520px' }}>
         <div className="modal-header" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <span style={{ flex: 1 }}>Context Window: {agent.name}</span>
           {onRefresh && (
@@ -313,7 +315,8 @@ export function ContextViewModal({ agent, isOpen, onClose, onRefresh }: ContextV
             Close
           </button>
         </div>
+        </div>
       </div>
-    </div>
+    </ModalPortal>
   );
 }

@@ -50,6 +50,7 @@ import { useTerminalInput } from './useTerminalInput';
 import { useMessageNavigation } from './useMessageNavigation';
 import { useFilteredOutputsWithLogging } from '../shared/useFilteredOutputs';
 import { parseBossContext, parseInjectedInstructions } from './BossContext';
+import { useModalStackRegistration } from '../../hooks/useModalStack';
 
 // Import extracted components
 import { TerminalHeader, SearchBar } from './TerminalHeader';
@@ -200,6 +201,9 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
   const [contextConfirm, setContextConfirm] = useState<'collapse' | 'clear' | 'clear-subordinates' | null>(null);
   const [responseModalContent, setResponseModalContent] = useState<string | null>(null);
   const [agentInfoOpen, setAgentInfoOpen] = useState(false);
+
+  // Register terminal-local modals so global Escape can close the top-most one first.
+  useModalStackRegistration('guake-image-modal', imageModal !== null, () => setImageModal(null));
 
   // Debug panel state
   const [debugPanelOpen, setDebugPanelOpen] = useState(false);

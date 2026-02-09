@@ -1,6 +1,6 @@
 {
   "name": "tide-commander",
-  "version": "0.54.1",
+  "version": "0.55.0",
   "description": "Visual multi-agent orchestrator and manager for Claude Code with 3D/2D interface",
   "type": "module",
   "bin": {

@@ -22,9 +22,9 @@ import { STORAGE_KEYS, getStorageString, setStorageString } from '../../utils/st
 import { useAgentHistory } from './useAgentHistory';
 import { AgentPanel } from './AgentPanel';
 import { SpawnForm } from './SpawnForm';
-import type { TabId, TabConfig } from './types';
+import type { TabId, TabConfig, AgentFilters, AgentStatusFilter, AgentActivityFilter, AgentSortOption } from './types';
 import type { AgentHistory } from './types';
-import { AGENTS_PER_PAGE, GRID_COLS } from './types';
+import { AGENTS_PER_PAGE, GRID_COLS, DEFAULT_FILTERS, ACTIVITY_THRESHOLDS } from './types';
 
 /**
  * Wrapper component that isolates output updates to prevent parent re-renders.
@@ -118,6 +118,13 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
   const [showSpawnForm, setShowSpawnForm] = useState(false);
   const [fileExplorerAreaId, setFileExplorerAreaId] = useState<string | null>(null);
   const [advancedView, setAdvancedView] = useState(false);
+  const [filters, setFilters] = useState<AgentFilters>(() => {
+    try {
+      const saved = getStorageString(STORAGE_KEYS.COMMANDER_FILTERS, '');
+      if (saved) return { ...DEFAULT_FILTERS, ...JSON.parse(saved) };
+    } catch { /* ignore */ }
+    return DEFAULT_FILTERS;
+  });
   const inputRefs = useRef<Map<string, HTMLInputElement | HTMLTextAreaElement>>(new Map());
   const visibleAgentsRef = useRef<Agent[]>([]);
 
@@ -155,28 +162,73 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
     return areas.get(activeTab) || null;
   }, [activeTab, areas]);
 
-  // Sort and filter agents by active tab
-  // Bosses always appear first, then sorted by creation time
+  // Filter helpers
+  const hasActiveFilters = filters.status !== 'all' || filters.activity !== 'all' || filters.sort !== 'activity';
+  const activeFilterCount = (filters.status !== 'all' ? 1 : 0)
+    + (filters.activity !== 'all' ? 1 : 0)
+    + (filters.sort !== 'activity' ? 1 : 0);
+
+  // Sort and filter agents by active tab + filters
   const filteredAgents = useMemo(() => {
     const isBoss = (agent: Agent) => agent.isBoss === true || agent.class === 'boss';
-    const sortedAgents = Array.from(agents.values()).sort((a, b) => {
-      // Bosses first
+    const now = Date.now();
+
+    let result = Array.from(agents.values());
+
+    // Tab filter
+    if (activeTab === 'unassigned') {
+      result = result.filter(agent => !store.getAreaForAgent(agent.id));
+    } else if (activeTab !== 'all') {
+      result = result.filter(agent => {
+        const area = store.getAreaForAgent(agent.id);
+        return area?.id === activeTab;
+      });
+    }
+
+    // Status filter
+    if (filters.status !== 'all') {
+      result = result.filter(agent => {
+        switch (filters.status) {
+          case 'working': return agent.status === 'working';
+          case 'idle': return agent.status === 'idle';
+          case 'error': return agent.status === 'error' || agent.status === 'waiting' || agent.status === 'waiting_permission';
+          case 'offline': return agent.status === 'offline' || agent.status === 'orphaned';
+          default: return true;
+        }
+      });
+    }
+
+    // Activity filter
+    if (filters.activity !== 'all') {
+      const threshold = ACTIVITY_THRESHOLDS[filters.activity];
+      result = result.filter(agent => (now - (agent.lastActivity || 0)) < threshold);
+    }
+
+    // Sort
+    result.sort((a, b) => {
+      // Bosses always first
       if (isBoss(a) && !isBoss(b)) return -1;
       if (!isBoss(a) && isBoss(b)) return 1;
-      // Then by creation time
-      return (a.createdAt || 0) - (b.createdAt || 0);
+
+      switch (filters.sort) {
+        case 'activity':
+          return (b.lastActivity || 0) - (a.lastActivity || 0);
+        case 'name':
+          return a.name.localeCompare(b.name);
+        case 'created':
+          return (a.createdAt || 0) - (b.createdAt || 0);
+        case 'context': {
+          const aCtx = a.contextStats?.usedPercent ?? ((a.contextUsed || 0) / (a.contextLimit || 200000) * 100);
+          const bCtx = b.contextStats?.usedPercent ?? ((b.contextUsed || 0) / (b.contextLimit || 200000) * 100);
+          return bCtx - aCtx; // Most used first
+        }
+        default:
+          return (b.lastActivity || 0) - (a.lastActivity || 0);
+      }
     });
 
-    if (activeTab === 'all') return sortedAgents;
-    if (activeTab === 'unassigned') {
-      return sortedAgents.filter(agent => !store.getAreaForAgent(agent.id));
-    }
-    // Filter by specific area
-    return sortedAgents.filter(agent => {
-      const area = store.getAreaForAgent(agent.id);
-      return area?.id === activeTab;
-    });
-  }, [agents, activeTab]);
+    return result;
+  }, [agents, activeTab, filters]);
 
   const totalPages = Math.ceil(filteredAgents.length / AGENTS_PER_PAGE);
   const visibleAgents = filteredAgents.slice(page * AGENTS_PER_PAGE, (page + 1) * AGENTS_PER_PAGE);
@@ -197,6 +249,12 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
     setPage(0);
     setStorageString(STORAGE_KEYS.COMMANDER_TAB, activeTab);
   }, [activeTab]);
+
+  // Persist filters to localStorage
+  useEffect(() => {
+    setStorageString(STORAGE_KEYS.COMMANDER_FILTERS, JSON.stringify(filters));
+    setPage(0);
+  }, [filters]);
 
   // Focus input when focusedIndex changes or when expanded (not on terminal updates)
   useEffect(() => {
@@ -393,6 +451,55 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
               </button>
             );
           })}
+        </div>
+
+        {/* Filter Bar */}
+        <div className="commander-filters">
+          <div className="commander-filter-group">
+            <span className="commander-filter-label">Status</span>
+            {(['all', 'working', 'idle', 'error', 'offline'] as AgentStatusFilter[]).map(s => (
+              <button
+                key={s}
+                className={`commander-filter-btn ${filters.status === s ? 'active' : ''}`}
+                onClick={() => setFilters(f => ({ ...f, status: s }))}
+              >
+                {s === 'all' ? 'All' : s === 'error' ? 'Needs Attn' : s.charAt(0).toUpperCase() + s.slice(1)}
+              </button>
+            ))}
+          </div>
+          <div className="commander-filter-group">
+            <span className="commander-filter-label">Active</span>
+            {(['all', '1h', '6h', '24h'] as AgentActivityFilter[]).map(a => (
+              <button
+                key={a}
+                className={`commander-filter-btn ${filters.activity === a ? 'active' : ''}`}
+                onClick={() => setFilters(f => ({ ...f, activity: a }))}
+              >
+                {a === 'all' ? 'Any' : `< ${a}`}
+              </button>
+            ))}
+          </div>
+          <div className="commander-filter-group">
+            <span className="commander-filter-label">Sort</span>
+            {(['activity', 'name', 'created', 'context'] as AgentSortOption[]).map(s => (
+              <button
+                key={s}
+                className={`commander-filter-btn ${filters.sort === s ? 'active' : ''}`}
+                onClick={() => setFilters(f => ({ ...f, sort: s }))}
+              >
+                {s === 'activity' ? 'Recent' : s === 'context' ? 'Context' : s.charAt(0).toUpperCase() + s.slice(1)}
+              </button>
+            ))}
+          </div>
+          {hasActiveFilters && (
+            <button
+              className="commander-filter-clear"
+              onClick={() => setFilters(DEFAULT_FILTERS)}
+              title="Clear all filters"
+            >
+              Clear ({activeFilterCount})
+            </button>
+          )}
         </div>
 
         {/* Pagination */}

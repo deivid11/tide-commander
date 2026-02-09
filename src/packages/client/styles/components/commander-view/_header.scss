@@ -33,8 +33,9 @@
   backdrop-filter: blur(4px);
   z-index: 900; // Above Guake terminal (200) but below modals (1000)
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
+  padding: 0 14px 14px;
   animation: fadeIn $transition-normal ease-out;
 }
 
@@ -44,16 +45,30 @@
 }
 
 .commander-view {
-  width: 95%;
-  height: 90%;
+  width: 100%;
+  height: min(94vh, 1200px);
   background: linear-gradient(180deg, rgba($dracula-bg, 0.95) 0%, rgba($dracula-bg-darker, 0.98) 100%);
-  border-radius: $radius-xl;
+  border-radius: 0 0 $radius-xl $radius-xl;
   border: 2px solid $dracula-purple;
+  border-top: none;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 40px rgba($dracula-purple, 0.15);
   backdrop-filter: blur(12px);
+  transform-origin: top center;
+  animation: commander-drop-in 170ms cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+@keyframes commander-drop-in {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 .commander-header {
@@ -167,5 +182,74 @@
   &:hover {
     border-color: $dracula-red;
     color: $dracula-red;
+  }
+}
+
+// Filter bar
+.commander-filters {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 6px 12px;
+  background: rgba($dracula-bg-darker, 0.6);
+  border-bottom: 1px solid $dracula-current;
+  flex-wrap: wrap;
+}
+
+.commander-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.commander-filter-label {
+  font-size: 10px;
+  color: $dracula-comment;
+  font-family: $font-mono;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-right: 4px;
+  user-select: none;
+}
+
+.commander-filter-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: $dracula-comment;
+  padding: 3px 8px;
+  border-radius: $radius-sm;
+  font-size: 11px;
+  font-family: $font-mono;
+  cursor: pointer;
+  transition: all $transition-fast;
+  white-space: nowrap;
+
+  &:hover {
+    color: $dracula-fg;
+    background: rgba($dracula-current, 0.4);
+  }
+
+  &.active {
+    color: $dracula-cyan;
+    background: rgba($dracula-cyan, 0.12);
+    border-color: rgba($dracula-cyan, 0.3);
+  }
+}
+
+.commander-filter-clear {
+  background: transparent;
+  border: 1px solid rgba($dracula-red, 0.3);
+  color: $dracula-red;
+  padding: 3px 8px;
+  border-radius: $radius-sm;
+  font-size: 10px;
+  font-family: $font-mono;
+  cursor: pointer;
+  transition: all $transition-fast;
+  margin-left: auto;
+
+  &:hover {
+    background: rgba($dracula-red, 0.12);
+    border-color: $dracula-red;
   }
 }

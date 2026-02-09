@@ -10,6 +10,7 @@ import { filterCostText } from '../../utils/formatting';
 import { STORAGE_KEYS, setStorageString } from '../../utils/storage';
 import { agentDebugger } from '../../services/agentDebugger';
 import { Tooltip } from '../shared/Tooltip';
+import { WorkingIndicator } from '../shared/WorkingIndicator';
 import type { Agent, AgentAnalysis } from '../../../shared/types';
 import type { ViewMode } from './types';
 import { VIEW_MODES } from './types';
@@ -138,11 +139,7 @@ export function TerminalHeader({
     >
       <div className="guake-header-left">
         {selectedAgent.status === 'working' && (
-          <span className={`guake-working-indicator ${selectedAgent.isDetached ? 'detached' : ''}`}>
-            <span className="guake-working-dot"></span>
-            <span className="guake-working-dot"></span>
-            <span className="guake-working-dot"></span>
-          </span>
+          <WorkingIndicator detached={selectedAgent.isDetached} />
         )}
         {selectedAgent.isDetached && (
           <Tooltip

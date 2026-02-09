@@ -8,6 +8,7 @@
 import React, { useCallback } from 'react';
 import type { Agent } from '../../../shared/types';
 import { useModalClose } from '../../hooks';
+import { ModalPortal } from '../shared/ModalPortal';
 
 interface AgentResponseModalProps {
   agent: Agent;
@@ -31,8 +32,9 @@ export function AgentResponseModal({
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay visible" onMouseDown={handleBackdropMouseDown} onClick={handleBackdropClick}>
-      <div className="modal agent-response-modal">
+    <ModalPortal>
+      <div className="modal-overlay visible" onMouseDown={handleBackdropMouseDown} onClick={handleBackdropClick}>
+        <div className="modal agent-response-modal">
         <div className="modal-header agent-response-modal-header">
           <div className="agent-response-modal-title">
             <span className="agent-response-modal-icon">📝</span>
@@ -66,7 +68,8 @@ export function AgentResponseModal({
             Close
           </button>
         </div>
+        </div>
       </div>
-    </div>
+    </ModalPortal>
   );
 }
