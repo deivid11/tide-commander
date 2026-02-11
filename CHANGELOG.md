@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.56.1] - 2026-02-10
+
+### Added
+- **Create building skill** - New builtin skill for creating PM2-managed buildings with real examples and learned lessons
+- **Wind Back and Wind Front buildings** - New building types with PM2 configuration
+
+### Changed
+- **Bitbucket PR skill** - Expanded documentation with variable reference table, PR ID extraction, agent variable management guide
+- **Create building skill** - Updated with learned lessons from real usage
+
 ## [0.56.0] - 2026-02-10
 
 ### Added

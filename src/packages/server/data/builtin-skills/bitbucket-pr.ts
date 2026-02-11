@@ -50,15 +50,27 @@ curl -s -u "{{BITBUCKET_EMAIL}}:{{BITBUCKET_TOKEN}}" ...
 
 ---
 
-## Integration with Streaming Exec
+## IMPORTANT: All API Calls Must Use Streaming Exec
 
-For long-running git operations (like pushing large branches), use the **Streaming Command Execution** skill to stream output to the terminal. Example:
+**Secret placeholders like \`{{BITBUCKET_EMAIL}}\` and \`{{BITBUCKET_TOKEN}}\` are ONLY replaced when commands are executed through the Streaming Exec API (\`/api/exec\`).** Running curl commands directly via Bash will NOT replace the placeholders and will result in authentication failures.
+
+**Every curl command that uses \`{{SECRET}}\` placeholders MUST be wrapped in a Streaming Exec call:**
+
+\`\`\`bash
+curl -s -X POST http://localhost:5174/api/exec \\
+  -H "Content-Type: application/json" \\
+  -d '{"agentId":"YOUR_AGENT_ID","command":"curl -s -u \\"{{BITBUCKET_EMAIL}}:{{BITBUCKET_TOKEN}}\\" https://api.bitbucket.org/2.0/repositories/$WORKSPACE/$REPO_SLUG/pullrequests"}'
+\`\`\`
+
+This also applies to git push and other long-running operations:
 
 \`\`\`bash
 curl -s -X POST http://localhost:5174/api/exec \\
   -H "Content-Type: application/json" \\
   -d '{"agentId":"YOUR_AGENT_ID","command":"git push -u origin feature-branch"}'
 \`\`\`
+
+**If you get a 401 Unauthorized error, the most likely cause is running curl directly instead of through /api/exec.**
 
 ---
 

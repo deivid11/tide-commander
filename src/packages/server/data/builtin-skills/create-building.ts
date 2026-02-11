@@ -121,24 +121,25 @@ ${BT3}
 
 **Symfony-Specific Instructions:**
 - Script: "symfony" (requires Symfony CLI installed and in PATH)
-- Args: "server:start --allow-http --port=XXXX --daemon"
+- Args: "server:start --allow-http --port=XXXX --no-tls"
 - --allow-http: Allows HTTP (use for dev). Remove for HTTPS
-- **IMPORTANT: Add --daemon flag** - Symfony runs as daemon by default, required for PM2 tracking
+- --no-tls: Disable TLS (useful for local dev behind proxy)
+- **IMPORTANT: Do NOT use --daemon flag** - PM2 needs the process to run in foreground. The --daemon flag causes Symfony to fork and exit, which PM2 interprets as a crash
 - Port goes in args, not env vars
 - PM2 auto-detects port from startup output
 - Note: Symfony server opens an extra port (42421 in example) for the server monitor
-- Tip: Check status with: symfony server:status
+- Tip: If PM2 shows "errored", check if a Symfony daemon is already running with: symfony server:status. Stop it with: symfony server:stop
 
-### PHP Built-in Server (Wind Back - Port 7205)
+### PHP Built-in Server (Example - Port 7205)
 
 ${BT3}bash
 jq '.buildings += [{
-  "name": "Wind Back",
+  "name": "My PHP App",
   "type": "server",
   "style": "server-rack",
   "color": "#2a3a4a",
   "position": {"x": 0.77, "z": 3.96},
-  "cwd": "/home/riven/d/wind/back",
+  "cwd": "/home/riven/d/myapp",
   "pm2": {
     "enabled": true,
     "script": "php",
@@ -146,7 +147,7 @@ jq '.buildings += [{
     "interpreter": "none"
   },
   "scale": 0.75,
-  "id": "building_1770769766821_wind_back",
+  "id": "building_1770769766821_myapp",
   "status": "stopped",
   "createdAt": 1770769766821
 }]' ~/.local/share/tide-commander/buildings.json > /tmp/b.json && mv /tmp/b.json ~/.local/share/tide-commander/buildings.json
@@ -235,6 +236,36 @@ jq '.buildings += [{
 ${BT3}
 
 Key: Full bun path, multiple env vars, uses concurrently internally.
+
+### Bun Frontend with Port in Args (MDO Front - Port 6200)
+
+${BT3}bash
+jq '.buildings += [{
+  "name": "MDO front",
+  "type": "server",
+  "style": "desktop",
+  "color": "#3a3a4a",
+  "position": {"x": -9.5, "z": 2.55},
+  "cwd": "/home/riven/d/mdo/front",
+  "pm2": {
+    "enabled": true,
+    "script": "bun",
+    "args": "dev --port 6200",
+    "interpreter": "none"
+  },
+  "scale": 0.75,
+  "id": "building_1769553790570_mdo_front",
+  "status": "stopped",
+  "createdAt": 1769553790570
+}]' ~/.local/share/tide-commander/buildings.json > /tmp/b.json && mv /tmp/b.json ~/.local/share/tide-commander/buildings.json
+${BT3}
+
+**Bun with Port in Args:**
+- Script: "bun" (short name, assumes bun is in PATH)
+- Args: "dev --port XXXX" passes port directly to the dev server
+- No env var needed when the framework CLI accepts --port flag
+- Works with frameworks like Vite, Next.js, Nuxt where ${BT}bun dev --port${BT} is supported
+- Alternative: Use full path ${BT}/home/riven/.bun/bin/bun${BT} if bun is not in PATH
 
 ### Vite + Bun Frontend (Wind Front - Port 6205)
 
@@ -349,6 +380,40 @@ ${BT3}
 
 Key: Engines: mysql, postgresql, oracle. Each with host/port/username/password.
 
+### Database Building (Oracle)
+
+${BT3}bash
+jq '.buildings += [{
+  "name": "Oracle",
+  "type": "database",
+  "style": "factory",
+  "position": {"x": -8.0, "z": -0.34},
+  "cwd": "/home/riven/d/tide-commander",
+  "commands": {},
+  "database": {
+    "connections": [{
+      "id": "conn_1769624485179_oracle",
+      "name": "Connection 1",
+      "engine": "oracle",
+      "host": "127.0.0.1",
+      "port": 1521,
+      "username": "MY_USER",
+      "password": "my_password",
+      "database": "ORCLPDB1"
+    }],
+    "activeConnectionId": "conn_1769624485179_oracle"
+  },
+  "id": "building_1769624489000_oracle",
+  "status": "stopped",
+  "createdAt": 1769624489000
+}]' ~/.local/share/tide-commander/buildings.json > /tmp/b.json && mv /tmp/b.json ~/.local/share/tide-commander/buildings.json
+${BT3}
+
+**Oracle-Specific:**
+- Engine: "oracle", default port: 1521
+- ${BT}database${BT} field: the PDB/service name (e.g., "ORCLPDB1")
+- Host: typically 127.0.0.1 for local Oracle XE/Docker instances
+
 ## Step 3: Verify
 
 ${BT3}bash
@@ -381,21 +446,29 @@ ${BT3}bash
 ${BT3}
 
 **Key Options:**
-- server:start: Start the Symfony local web server
+- server:start: Start the Symfony local web server (runs in foreground - required for PM2)
 - --allow-http: Allow HTTP (remove for production/HTTPS)
+- --no-tls: Disable TLS certificate generation
 - --port=XXXX: Listening port
+- **NEVER use --daemon**: This forks the process and PM2 loses track of it
 - Extra ports: Symfony opens additional monitoring ports (e.g., 42421)
 - Auto-detects port from startup logs
 
-**Debugging Symfony:**
+**Debugging Symfony with PM2:**
 ${BT3}bash
 # Check if symfony CLI is installed
 symfony --version
 
-# Run manually to debug issues
+# Check if a daemon is already running (common cause of PM2 "errored" status)
+cd /path/to/symfony/project && symfony server:status
+
+# Stop any existing daemon before PM2 can manage it
+cd /path/to/symfony/project && symfony server:stop
+
+# Run manually to debug issues (foreground - same as PM2 will run it)
 cd /path/to/symfony/project && symfony server:start --allow-http --port=7200
 
-# View logs
+# View PM2 logs
 pm2 logs [building_name_from_pm2_list]
 ${BT3}
 
@@ -430,9 +503,9 @@ ${BT3}
 ## Lessons Learned from Real Deployments
 
 ### Symfony Server with PM2
-- **Problem**: Symfony server runs as daemon and PM2 loses track (shows as "errored")
-- **Solution**: Add ${BT}--daemon${BT} flag explicitly to args
-- **Verification**: ${BT}symfony server:status${BT} shows running instance
+- **Problem**: Symfony server with ${BT}--daemon${BT} forks to background and exits immediately. PM2 sees the parent exit and marks the process as "errored" or "stopped"
+- **Solution**: Do NOT use ${BT}--daemon${BT} flag. PM2 must be the process manager, so Symfony must run in foreground: ${BT}server:start --allow-http --port=7200${BT}
+- **Debugging**: If PM2 shows "errored" with "already running" in logs, a Symfony daemon is running outside PM2. Stop it first: ${BT}cd /project/dir && symfony server:stop${BT}, then restart via PM2
 - **Port Monitoring**: Opens main port + monitor port (e.g., 7205 + 42421)
 
 ### Vite Configuration for Environment Variables
@@ -469,7 +542,7 @@ ${BT3}
    - PHP/Symfony/Java: set via args (--port=XXXX or -S ADDR:PORT)
    - PM2 auto-detects ports from console output
 5. **Special cases**:
-   - Symfony: Add --daemon flag for PM2 tracking
+   - Symfony: Do NOT use --daemon (PM2 needs foreground process)
    - Vite: Update vite.config.mjs to read PORT env var
    - Full bun path: Use /home/riven/.bun/bin/bun (not just "bun")
 
