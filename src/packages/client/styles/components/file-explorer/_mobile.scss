@@ -73,13 +73,11 @@ $breakpoint-small: 480px;
     height: 6px;
   }
 
-  .file-explorer-area-selector,
   .file-explorer-folder-selector {
     padding: 3px 5px;
     margin: -1px -3px;
   }
 
-  .file-explorer-area-dropdown-icon,
   .file-explorer-folder-dropdown-icon {
     font-size: 6px;
   }
@@ -113,7 +111,6 @@ $breakpoint-small: 480px;
   }
 
   // Dropdowns - full width on mobile
-  .file-explorer-area-dropdown,
   .file-explorer-folder-dropdown {
     position: fixed;
     top: 52px;
@@ -126,13 +123,11 @@ $breakpoint-small: 480px;
     z-index: 1100;
   }
 
-  .file-explorer-area-option,
   .file-explorer-folder-option {
     padding: 12px 14px;
     min-height: 44px;
   }
 
-  .file-explorer-area-option-name,
   .file-explorer-folder-option-name {
     font-size: 14px;
   }

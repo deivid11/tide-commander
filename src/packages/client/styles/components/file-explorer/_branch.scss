@@ -1,0 +1,309 @@
+// =============================================================================
+// File Explorer - Branch Widget Styles
+// =============================================================================
+// IntelliJ-style branch selector with dropdown
+// =============================================================================
+
+@use '../../variables' as *;
+
+// Branch indicator in header
+.branch-widget {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.branch-widget-selector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  margin: -4px 0;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  transition: background $transition-fast;
+
+  &:hover {
+    background: rgba($accent-blue, 0.1);
+  }
+}
+
+.branch-widget-icon {
+  width: 14px;
+  height: 14px;
+  opacity: 0.8;
+  flex-shrink: 0;
+  color: $dracula-purple;
+}
+
+.branch-widget-name {
+  font-family: $font-mono;
+  font-size: 12px;
+  color: $dracula-purple;
+  font-weight: 500;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.branch-widget-arrow {
+  font-size: 7px;
+  color: $text-muted;
+  margin-left: 2px;
+}
+
+// Dropdown popup
+.branch-widget-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  background: $bg-tertiary;
+  border: 1px solid $border-color;
+  border-radius: $radius-md;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  min-width: 300px;
+  max-width: 400px;
+  max-height: 480px;
+  overflow-y: auto;
+  z-index: 1002;
+}
+
+// Search
+.branch-widget-search {
+  padding: 8px;
+  border-bottom: 1px solid $border-color;
+}
+
+.branch-widget-search-input {
+  width: 100%;
+  padding: 6px 10px;
+  background: $dracula-bg;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  color: $text-primary;
+  font-family: $font-mono;
+  font-size: 12px;
+  outline: none;
+  box-sizing: border-box;
+
+  &:focus {
+    border-color: $accent-blue;
+  }
+
+  &::placeholder {
+    color: $text-muted;
+  }
+}
+
+// Status messages
+.branch-widget-status {
+  padding: 6px 12px;
+  font-size: 11px;
+  font-family: $font-mono;
+  border-bottom: 1px solid $border-color;
+
+  &.error {
+    color: $dracula-red;
+    background: rgba($dracula-red, 0.1);
+  }
+
+  &.success {
+    color: $dracula-green;
+    background: rgba($dracula-green, 0.1);
+  }
+}
+
+// Section headers
+.branch-widget-section-header {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: $text-muted;
+  padding: 8px 12px 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+
+  &.clickable {
+    cursor: pointer;
+    transition: color $transition-fast;
+
+    &:hover {
+      color: $text-primary;
+    }
+  }
+}
+
+.branch-widget-section-toggle {
+  font-size: 10px;
+}
+
+.branch-widget-loading-hint {
+  font-weight: 400;
+  font-size: 10px;
+  text-transform: none;
+  letter-spacing: 0;
+  opacity: 0.6;
+}
+
+// Quick actions
+.branch-widget-actions {
+  padding: 4px 0;
+  border-bottom: 1px solid $border-color;
+}
+
+.branch-widget-action-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  cursor: pointer;
+  transition: background $transition-fast;
+  font-size: 13px;
+  color: $text-primary;
+
+  &:hover:not(.disabled) {
+    background: rgba($accent-blue, 0.12);
+  }
+
+  &.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.branch-widget-action-icon {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: $text-secondary;
+  flex-shrink: 0;
+}
+
+.branch-widget-action-label {
+  flex: 1;
+}
+
+// New branch input
+.branch-widget-new-branch {
+  padding: 6px 12px;
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid $border-color;
+}
+
+.branch-widget-new-branch-input {
+  flex: 1;
+  padding: 5px 8px;
+  background: $dracula-bg;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  color: $text-primary;
+  font-family: $font-mono;
+  font-size: 12px;
+  outline: none;
+
+  &:focus {
+    border-color: $accent-blue;
+  }
+
+  &::placeholder {
+    color: $text-muted;
+  }
+}
+
+.branch-widget-new-branch-confirm {
+  background: $accent-blue;
+  border: none;
+  color: white;
+  padding: 5px 12px;
+  border-radius: $radius-sm;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background $transition-fast;
+  white-space: nowrap;
+
+  &:hover:not(:disabled) {
+    background: #5aafff;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+// Branch list
+.branch-widget-branch-list {
+  padding: 2px 0;
+}
+
+.branch-widget-empty {
+  padding: 8px 12px;
+  font-size: 11px;
+  color: $text-muted;
+  font-style: italic;
+}
+
+.branch-widget-branch-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background $transition-fast;
+
+  &:hover:not(.disabled):not(.current) {
+    background: rgba($accent-blue, 0.1);
+  }
+
+  &.current {
+    background: rgba($accent-blue, 0.15);
+    cursor: default;
+
+    .branch-widget-branch-name {
+      color: $dracula-green;
+      font-weight: 600;
+    }
+  }
+
+  &.remote {
+    .branch-widget-branch-name {
+      color: $text-secondary;
+    }
+  }
+
+  &.disabled:not(.current) {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.branch-widget-branch-name {
+  font-family: $font-mono;
+  font-size: 12px;
+  color: $text-primary;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.branch-widget-current-marker {
+  color: $dracula-green;
+  margin-right: 4px;
+  font-weight: 700;
+}
+
+.branch-widget-branch-commit {
+  font-family: $font-mono;
+  font-size: 10px;
+  color: $text-muted;
+  flex-shrink: 0;
+}

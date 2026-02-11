@@ -73,21 +73,8 @@ export function useFileTree(currentFolder: string | null): UseFileTreeReturn {
         collectLoadedPaths(sortedTree, loaded);
         setLoadedPaths(loaded);
 
-        // Auto-expand root and first two levels of subdirectories
-        const pathsToExpand = new Set<string>([currentFolder]);
-        for (const child of sortedTree) {
-          if (child.isDirectory) {
-            pathsToExpand.add(child.path);
-            if (child.children) {
-              for (const grandchild of child.children) {
-                if (grandchild.isDirectory) {
-                  pathsToExpand.add(grandchild.path);
-                }
-              }
-            }
-          }
-        }
-        setExpandedPaths(pathsToExpand);
+        // Auto-expand only the root folder by default (single nesting level visible)
+        setExpandedPaths(new Set<string>([currentFolder]));
       }
     } catch (err) {
       console.error('[FileExplorer] Failed to load tree:', err);
@@ -100,7 +87,7 @@ export function useFileTree(currentFolder: string | null): UseFileTreeReturn {
   /**
    * Load children for a specific directory path (lazy loading)
    */
-  const loadChildren = useCallback(async (dirPath: string) => {
+  const loadChildren = useCallback(async (dirPath: string): Promise<TreeNode[] | null> => {
     try {
       const res = await authFetch(
         apiUrl(`/api/files/tree?path=${encodeURIComponent(dirPath)}&depth=${EXPAND_DEPTH}`)
@@ -127,10 +114,14 @@ export function useFileTree(currentFolder: string | null): UseFileTreeReturn {
           collectLoadedPaths(data.tree, next);
           return next;
         });
+
+        return sortedChildren;
       }
     } catch (err) {
       console.error('[FileExplorer] Failed to load children:', err);
     }
+
+    return null;
   }, []);
 
   /**
@@ -156,16 +147,32 @@ export function useFileTree(currentFolder: string | null): UseFileTreeReturn {
         return next;
       });
 
-      // Check if we need to load children (using refs for current state)
-      const currentTree = treeRef.current;
-      const currentLoadedPaths = loadedPathsRef.current;
-      const node = findNodeByPath(currentTree, path);
+      // IntelliJ-like behavior: when expanding, walk single-dir chains in one click.
+      let currentNode = findNodeByPath(treeRef.current, path);
 
-      if (node && node.isDirectory) {
-        const needsLoad = !currentLoadedPaths.has(path);
-        if (needsLoad) {
-          await loadChildren(path);
+      while (currentNode && currentNode.isDirectory) {
+        let children = currentNode.children;
+
+        if ((!children || children.length === 0) && !loadedPathsRef.current.has(currentNode.path)) {
+          const loadedChildren = await loadChildren(currentNode.path);
+          children = loadedChildren || [];
         }
+
+        if (!children || children.length === 0) break;
+
+        const directoryChildren = children.filter((child) => child.isDirectory);
+        const hasFiles = children.some((child) => !child.isDirectory);
+
+        // Stop at branching points or when files exist.
+        if (hasFiles || directoryChildren.length !== 1) break;
+
+        const nextDirectory = directoryChildren[0];
+        setExpandedPaths((prev) => {
+          const next = new Set(prev);
+          next.add(nextDirectory.path);
+          return next;
+        });
+        currentNode = nextDirectory;
       }
     }
   }, [loadChildren]); // Only depends on loadChildren which is stable

@@ -6,11 +6,12 @@
 
 @use '../../variables' as *;
 
-// IDE Style - Search Bar
+// IDE Style - Search Bar (IntelliJ inspired)
 .file-explorer-search {
   display: flex;
   align-items: center;
-  padding: 8px 12px;
+  gap: 8px;
+  padding: 6px 12px;
   background: $bg-tertiary;
   border-bottom: 1px solid $border-color;
   position: relative;
@@ -18,18 +19,20 @@
 
 .file-explorer-search-input {
   flex: 1;
-  padding: 8px 12px;
-  padding-right: 32px;
+  padding: 6px 8px;
+  padding-right: 24px;
   background: $dracula-bg;
   border: 1px solid $border-color;
-  border-radius: $radius-md;
+  border-radius: 4px;
   color: $text-primary;
   font-family: $font-mono;
   font-size: 12px;
+  transition: border-color $transition-fast, box-shadow $transition-fast;
 
   &:focus {
     outline: none;
     border-color: $accent-blue;
+    box-shadow: 0 0 0 2px rgba($accent-blue, 0.15);
   }
 
   &::placeholder {
@@ -39,13 +42,16 @@
 
 .file-explorer-search-clear {
   position: absolute;
-  right: 20px;
+  right: 36px;
   background: transparent;
   border: none;
   color: $text-muted;
-  font-size: 16px;
+  font-size: 14px;
   cursor: pointer;
-  padding: 4px 8px;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 
   &:hover {
     color: $text-primary;
@@ -56,12 +62,12 @@
 .file-explorer-search-icon {
   font-size: 14px;
   flex-shrink: 0;
-  opacity: 0.6;
+  opacity: 0.5;
 }
 
 // Search Results
 .search-results {
-  padding: 4px 0;
+  padding: 0;
 }
 
 .search-no-results {
@@ -75,16 +81,17 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
+  padding: 6px 12px;
   cursor: pointer;
   transition: background $transition-fast;
+  height: 22px;
 
   &:hover {
-    background: rgba($accent-blue, 0.1);
+    background: rgba($accent-blue, 0.08);
   }
 
   &.selected {
-    background: rgba($accent-blue, 0.2);
+    background: rgba($accent-blue, 0.15);
   }
 }
 
@@ -149,8 +156,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
-  background: rgba(0, 0, 0, 0.2);
+  padding: 6px 12px;
+  background: rgba(0, 0, 0, 0.08);
   font-size: 11px;
   color: $text-muted;
   text-transform: uppercase;

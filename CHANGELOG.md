@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.58.0] - 2026-02-11
+
+### Added
+- **Git branch widget** - New branch switcher in file explorer with local/remote branch listing, checkout, and fetch
+- **Git branch API endpoints** - `GET /api/files/git-branches`, `POST /api/files/git-checkout`, `POST /api/files/git-fetch` server routes
+- **Multiple folder icons per area** - Areas with multiple directories show individual folder icons in a grid layout (3D and 2D)
+- **More area colors** - 16 additional area colors (8 bright + 8 dark variants)
+
+### Changed
+- **File explorer refactor** - Extracted shared types, simplified panel structure, improved state restoration logic
+- **File explorer styles** - Cleaned up and consolidated SCSS, added viewer-specific styles
+- **Folder icon click** - Now passes folder path to open the correct directory in explorer
+- **2D area folder icons** - Grid layout with per-directory icons, matching 3D behavior
+
 ## [0.57.2] - 2026-02-11
 
 ### Added

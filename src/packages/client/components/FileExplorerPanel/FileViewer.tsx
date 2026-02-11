@@ -12,6 +12,7 @@ import remarkGfm from 'remark-gfm';
 import type { FileViewerProps, FileData } from './types';
 import { formatFileSize } from './fileUtils';
 import { highlightElement, getLanguageForExtension } from './syntaxHighlighting';
+import { apiUrl, authFetch } from '../../utils/storage';
 
 // ============================================================================
 // CONSTANTS
@@ -48,6 +49,21 @@ function FileViewerHeader({
         </span>
       </div>
       <div className="file-viewer-header-right">
+        <button
+          className="file-viewer-open-editor-btn"
+          onClick={() => {
+            authFetch(apiUrl('/api/files/open-in-editor'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ path: file.path }),
+            }).catch(() => {});
+          }}
+          title="Open in default editor"
+        >
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M1.5 1h6v1.5h-5v11h11v-5H15v6.5H0V1h1.5zm8 0H15v5.5h-1.5V3.56L7.28 9.78l-1.06-1.06L12.44 2.5H9.5V1z" />
+          </svg>
+        </button>
         {onRevealInTree && (
           <button
             className="file-viewer-locate-btn"

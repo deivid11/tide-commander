@@ -35,6 +35,7 @@ import { FileViewer } from './FileViewer';
 import { UnifiedSearchResults } from './UnifiedSearchResults';
 import { GitChanges } from './GitChanges';
 import { FileTabs } from './FileTabs';
+import { BranchWidget } from './BranchWidget';
 
 // Constants
 import { EXTENSION_TO_LANGUAGE } from './constants';
@@ -56,9 +57,9 @@ export function FileExplorerPanel({
   // AREA & FOLDER STATE
   // -------------------------------------------------------------------------
 
-  // Check if we're in "direct folder mode" (opened from a folder building)
-  // folderPath takes priority over areaId when both are present
-  const isDirectFolderMode = !!folderPath;
+  // Direct folder mode is used for standalone folder openings (e.g. folder buildings)
+  // If areaId is also present, we stay in area mode and use folderPath as initial folder selection.
+  const isDirectFolderMode = !!folderPath && !areaId;
 
   const area = !isDirectFolderMode && areaId ? state.areas.get(areaId) : null;
   const directories = isDirectFolderMode ? [folderPath] : (area?.directories || []);
@@ -66,7 +67,6 @@ export function FileExplorerPanel({
 
   const [selectedFolderIndex, setSelectedFolderIndex] = useState(0);
   const [pendingFolderPath, setPendingFolderPath] = useState<string | null>(null);
-  const [showAreaSelector, setShowAreaSelector] = useState(false);
   const [showFolderSelector, setShowFolderSelector] = useState(false);
 
   const currentFolder = directories[selectedFolderIndex] || directories[0] || null;
@@ -76,6 +76,13 @@ export function FileExplorerPanel({
   useEffect(() => {
     setSelectedFolderIndex(0);
   }, [folderPath, isDirectFolderMode]);
+
+  // If a specific folder was requested with an area, use it as pending selection.
+  useEffect(() => {
+    if (!isDirectFolderMode && folderPath) {
+      setPendingFolderPath(folderPath);
+    }
+  }, [isDirectFolderMode, folderPath]);
 
   // Get all folders from all areas for the folder selector
   const allFolders = useMemo<FolderInfo[]>(() => {
@@ -143,8 +150,6 @@ export function FileExplorerPanel({
   const [originalContent, setOriginalContent] = useState<string | null>(null);
   const [selectedGitStatus, setSelectedGitStatus] = useState<GitFileStatusType | null>(null);
   const [hasInitializedView, setHasInitializedView] = useState(false);
-  const [isAddingFolder, setIsAddingFolder] = useState(false);
-  const [newFolderPath, setNewFolderPath] = useState('');
   const [hasRestoredState, setHasRestoredState] = useState(false);
   const [treePanelCollapsed, setTreePanelCollapsed] = useState(false);
   const [stagingPaths, setStagingPaths] = useState<Set<string>>(new Set());
@@ -161,7 +166,6 @@ export function FileExplorerPanel({
   // -------------------------------------------------------------------------
 
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const addFolderInputRef = useRef<HTMLInputElement>(null);
 
   // -------------------------------------------------------------------------
   // STORAGE PERSISTENCE
@@ -192,6 +196,8 @@ export function FileExplorerPanel({
         setViewMode(stored.viewMode);
         setSelectedFolderIndex(nextFolderIndex);
         setExpandedPaths(stored.expandedPaths);
+        // Mark view as initialized so auto-switch to git tab doesn't override restored preference
+        setHasInitializedView(true);
 
         // Load the active tab's file content
         if (stored.activeTabPath) {
@@ -314,16 +320,20 @@ export function FileExplorerPanel({
     }
   }, [state.fileViewerPath, isOpen, loadFile]);
 
-  // Auto-select git tab if there are changes (only on initial load, and only if no stored state was restored)
+  // Auto-select git tab if there are changes (only if storage restore didn't load a saved view mode)
   useEffect(() => {
+    // Wait for storage restore to complete before deciding on view mode
+    if (!hasRestoredState) return;
+
     // Don't auto-switch if we restored state from storage (user's previous choice)
-    if (!hasInitializedView && !hasRestoredState && gitStatus && gitStatus.isGitRepo && gitStatus.files.length > 0) {
+    // viewMode was already set from stored state above
+    if (!hasInitializedView && viewMode === 'files' && gitStatus && gitStatus.isGitRepo && gitStatus.files.length > 0) {
       setViewMode('git');
       setHasInitializedView(true);
     } else if (!hasInitializedView && gitStatus) {
       setHasInitializedView(true);
     }
-  }, [gitStatus, hasInitializedView, hasRestoredState]);
+  }, [gitStatus, hasInitializedView, hasRestoredState, viewMode]);
 
   // Reset when area changes - clear transient state but let storage restore persistent state
   useEffect(() => {
@@ -356,20 +366,6 @@ export function FileExplorerPanel({
       if (!isOpen) return;
 
       if (e.key === 'Escape') {
-        const target = e.target as HTMLElement;
-        const isInAddFolderInput = target === addFolderInputRef.current;
-
-        if (isInAddFolderInput && isAddingFolder) {
-          return;
-        }
-
-        if (showAreaSelector) {
-          e.preventDefault();
-          e.stopPropagation();
-          setShowAreaSelector(false);
-          return;
-        }
-
         if (showFolderSelector) {
           e.preventDefault();
           e.stopPropagation();
@@ -391,6 +387,7 @@ export function FileExplorerPanel({
       // Close active tab
       const closeTabShortcut = store.getShortcuts().find(s => s.id === 'file-explorer-close-tab');
       if (matchesShortcut(e, closeTabShortcut)) {
+        if (e.repeat) return;
         e.preventDefault();
         e.stopPropagation();
         if (activeTabPath) {
@@ -401,14 +398,6 @@ export function FileExplorerPanel({
 
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      if (showAreaSelector) {
-        if (
-          !target.closest('.file-explorer-area-selector') &&
-          !target.closest('.file-explorer-area-dropdown')
-        ) {
-          setShowAreaSelector(false);
-        }
-      }
       if (showFolderSelector) {
         if (
           !target.closest('.file-explorer-folder-selector') &&
@@ -425,14 +414,32 @@ export function FileExplorerPanel({
       document.removeEventListener('keydown', handleKeyDown, true);
       document.removeEventListener('click', handleClickOutside);
     };
-  }, [isOpen, onClose, isAddingFolder, showAreaSelector, showFolderSelector]);
+  }, [isOpen, onClose, showFolderSelector, activeTabPath]);
 
-  // Focus add folder input when shown
-  useEffect(() => {
-    if (isAddingFolder && addFolderInputRef.current) {
-      addFolderInputRef.current.focus();
+  // -------------------------------------------------------------------------
+  // GIT STATUS ENRICHMENT
+  // -------------------------------------------------------------------------
+
+  // Create a map of file paths to git status for quick lookup
+  const gitStatusMap = useMemo(() => {
+    const map = new Map<string, GitFileStatusType>();
+    if (gitStatus?.files) {
+      for (const file of gitStatus.files) {
+        map.set(file.path, file.status);
+      }
     }
-  }, [isAddingFolder]);
+    return map;
+  }, [gitStatus?.files]);
+
+  // Enrich tree nodes with git status
+  const enrichedTree = useMemo(() => {
+    const enrichNode = (node: TreeNode): TreeNode => ({
+      ...node,
+      gitStatus: gitStatusMap.get(node.path),
+      children: node.children ? node.children.map(enrichNode) : undefined,
+    });
+    return tree.map(enrichNode);
+  }, [tree, gitStatusMap]);
 
   // -------------------------------------------------------------------------
   // HANDLERS
@@ -536,30 +543,6 @@ export function FileExplorerPanel({
     });
   };
 
-  const handleAddFolder = () => {
-    if (newFolderPath.trim() && areaId) {
-      store.addDirectoryToArea(areaId, newFolderPath.trim());
-      setNewFolderPath('');
-      setIsAddingFolder(false);
-      loadTree();
-    }
-  };
-
-  const handleRemoveFolder = (dirPath: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (areaId) {
-      store.removeDirectoryFromArea(areaId, dirPath);
-      loadTree();
-    }
-  };
-
-  const handleAreaChange = (newAreaId: string) => {
-    setShowAreaSelector(false);
-    if (newAreaId !== areaId && onChangeArea) {
-      onChangeArea(newAreaId);
-    }
-  };
-
   const handleFolderSelect = (folder: FolderInfo) => {
     setShowFolderSelector(false);
     if (folder.areaId !== areaId) {
@@ -658,81 +641,47 @@ export function FileExplorerPanel({
 
   const gitChangeCount = gitStatus?.files.length || 0;
 
-  // Display name for the header
-  const displayName = isDirectFolderMode
-    ? (folderPath?.split('/').pop() || 'Folder')
-    : (area?.name || 'Explorer');
-
   return (
     <div className="file-explorer-panel ide-style">
       {/* Header */}
       <div className="file-explorer-panel-header">
         <div className="file-explorer-panel-title">
-          {/* Area selector (only shown when we have areas, not in direct folder mode) */}
-          {!isDirectFolderMode && area ? (
+          {/* Folder selector */}
+          {currentFolder && (
             <div
-              className="file-explorer-area-selector"
-              onClick={() => allAreas.length > 1 && setShowAreaSelector(!showAreaSelector)}
-              style={{ cursor: allAreas.length > 1 ? 'pointer' : 'default' }}
+              className="file-explorer-folder-selector"
+              onClick={() => !isDirectFolderMode && allFolders.length > 0 && setShowFolderSelector(!showFolderSelector)}
+              style={{ cursor: !isDirectFolderMode && allFolders.length > 0 ? 'pointer' : 'default' }}
+              title={currentFolder}
             >
-              <span className="file-explorer-panel-dot" style={{ background: area.color }} />
-              <span>{area.name}</span>
-              {allAreas.length > 1 && (
-                <span className="file-explorer-area-dropdown-icon">▼</span>
+              <span className="file-explorer-panel-dot" style={{ background: area?.color || '#ffd700' }} />
+              <span className="file-explorer-folder-name">
+                {currentFolderName}
+              </span>
+              <span className="file-explorer-folder-path-hint">{currentFolder}</span>
+              {!isDirectFolderMode && allFolders.length > 1 && (
+                <span className="file-explorer-folder-dropdown-icon">▼</span>
               )}
-            </div>
-          ) : (
-            <div className="file-explorer-area-selector">
-              <span className="file-explorer-panel-dot" style={{ background: '#ffd700' }} />
-              <span>{displayName}</span>
             </div>
           )}
 
-          {/* Folder selector (hide dropdown controls in direct folder mode) */}
-          {currentFolder && !isDirectFolderMode && (
+          {/* Branch Widget - show if current folder is a git repo */}
+          {gitStatus?.isGitRepo && currentFolder && (
             <>
               <span className="file-explorer-path-separator">/</span>
-              <div
-                className="file-explorer-folder-selector"
-                onClick={() => allFolders.length > 0 && setShowFolderSelector(!showFolderSelector)}
-                style={{ cursor: allFolders.length > 0 ? 'pointer' : 'default' }}
-                title={currentFolder}
-              >
-                <span className="file-explorer-folder-name">
-                  {currentFolderName}
-                </span>
-                <span className="file-explorer-folder-path-hint">{currentFolder}</span>
-                {allFolders.length > 1 && (
-                  <span className="file-explorer-folder-dropdown-icon">▼</span>
-                )}
-              </div>
+              <BranchWidget
+                currentFolder={currentFolder}
+                gitStatus={gitStatus}
+                onBranchChanged={() => {
+                  loadGitStatus();
+                  loadTree();
+                }}
+              />
             </>
           )}
 
           {selectedFile && (
             <span className="file-explorer-current-file">/ {selectedFile.filename}</span>
-          )}
-
-          {/* Area Selector Dropdown (not shown in direct folder mode) */}
-          {!isDirectFolderMode && showAreaSelector && allAreas.length > 1 && (
-            <div className="file-explorer-area-dropdown">
-              {allAreas.map((a) => (
-                <div
-                  key={a.id}
-                  className={`file-explorer-area-option ${a.id === areaId ? 'active' : ''}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleAreaChange(a.id);
-                  }}
-                >
-                  <span className="file-explorer-area-option-dot" style={{ background: a.color }} />
-                  <span className="file-explorer-area-option-name">{a.name}</span>
-                  <span className="file-explorer-area-option-count">
-                    {a.directories.length} folders
-                  </span>
-                </div>
-              ))}
-            </div>
           )}
 
           {/* Folder Selector Dropdown (not shown in direct folder mode) */}
@@ -749,11 +698,11 @@ export function FileExplorerPanel({
                     handleFolderSelect(folder);
                   }}
                 >
-                  <span
-                    className="file-explorer-folder-option-dot"
-                    style={{ background: folder.areaColor }}
-                  />
                   <span className="file-explorer-folder-option-name">
+                    <span
+                      className="file-explorer-folder-option-dot"
+                      style={{ background: folder.areaColor }}
+                    />
                     {folder.path.split('/').pop() || folder.path}
                   </span>
                   <span className="file-explorer-folder-option-path">{folder.path}</span>
@@ -800,76 +749,6 @@ export function FileExplorerPanel({
               {gitChangeCount > 0 && <span className="tab-badge">{gitChangeCount}</span>}
             </button>
           </div>
-
-          {/* Folders Section (only in files mode, not in direct folder mode) */}
-          {viewMode === 'files' && !isDirectFolderMode && (
-            <div className="file-explorer-folders">
-              <div className="file-explorer-folders-header">
-                <span className="file-explorer-folders-title">Folders</span>
-                <button
-                  className="file-explorer-add-folder-btn"
-                  onClick={() => setIsAddingFolder(true)}
-                  title="Add folder"
-                >
-                  +
-                </button>
-              </div>
-              <div className="file-explorer-folders-list">
-                {directories.map((dir) => (
-                  <div key={dir} className="file-explorer-folder-item">
-                    <span className="file-explorer-folder-icon">📂</span>
-                    <span className="file-explorer-folder-path">
-                      {dir.split('/').pop() || dir}
-                    </span>
-                    <button
-                      className="file-explorer-folder-remove"
-                      onClick={(e) => handleRemoveFolder(dir, e)}
-                      title="Remove folder"
-                    >
-                      ×
-                    </button>
-                    <div className="file-explorer-folder-tooltip">
-                      <div className="file-explorer-folder-tooltip-label">Full Path</div>
-                      <div className="file-explorer-folder-tooltip-path">{dir}</div>
-                    </div>
-                  </div>
-                ))}
-                {isAddingFolder && (
-                  <div className="file-explorer-add-folder-input-wrapper">
-                    <input
-                      ref={addFolderInputRef}
-                      type="text"
-                      className="file-explorer-add-folder-input"
-                      placeholder="/path/to/folder"
-                      value={newFolderPath}
-                      onChange={(e) => setNewFolderPath(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleAddFolder();
-                        if (e.key === 'Escape') {
-                          setIsAddingFolder(false);
-                          setNewFolderPath('');
-                        }
-                      }}
-                      onBlur={() => {
-                        if (!newFolderPath.trim()) {
-                          setIsAddingFolder(false);
-                        }
-                      }}
-                    />
-                    <button
-                      className="file-explorer-add-folder-confirm"
-                      onClick={handleAddFolder}
-                    >
-                      ✓
-                    </button>
-                  </div>
-                )}
-                {directories.length === 0 && !isAddingFolder && (
-                  <div className="file-explorer-no-folders">No folders added</div>
-                )}
-              </div>
-            </div>
-          )}
 
           {/* Search Bar and Toolbar (only in files mode) */}
           {viewMode === 'files' && (
@@ -935,10 +814,10 @@ export function FileExplorerPanel({
                 )
               ) : (
                 <div className="file-tree">
-                  {tree.length === 0 ? (
+                  {enrichedTree.length === 0 ? (
                     <div className="tree-empty">No directories linked</div>
                   ) : (
-                    tree.map((node) => (
+                    enrichedTree.map((node) => (
                       <TreeNodeItem
                         key={node.path}
                         node={node}

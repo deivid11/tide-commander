@@ -36,7 +36,7 @@ export class DrawingManager {
   private onAreaCreated: ((area: DrawingArea) => void) | null = null;
 
   // Callback for when folder icon is clicked
-  private onFolderIconClick: ((areaId: string) => void) | null = null;
+  private onFolderIconClick: ((areaId: string, folderPath?: string) => void) | null = null;
 
   // Folder icon meshes for raycasting
   private folderIconMeshes: THREE.Mesh[] = [];
@@ -58,7 +58,7 @@ export class DrawingManager {
   /**
    * Set callback for folder icon clicks.
    */
-  setOnFolderIconClick(callback: (areaId: string) => void): void {
+  setOnFolderIconClick(callback: (areaId: string, folderPath?: string) => void): void {
     this.onFolderIconClick = callback;
   }
 
@@ -74,8 +74,9 @@ export class DrawingManager {
    */
   handleFolderIconClick(mesh: THREE.Mesh): void {
     const areaId = mesh.userData.areaId;
+    const folderPath = mesh.userData.folderPath as string | undefined;
     if (areaId && this.onFolderIconClick) {
-      this.onFolderIconClick(areaId);
+      this.onFolderIconClick(areaId, folderPath);
     }
   }
 
@@ -294,42 +295,54 @@ export class DrawingManager {
 
     // Add folder icon if area has directories
     if (area.directories && area.directories.length > 0) {
-      const folderIcon = this.createFolderIconSprite(area.color);
-      folderIcon.name = 'folderIcon';
-      folderIcon.userData.areaId = area.id;
-      folderIcon.userData.isFolderIcon = true;
+      const iconSize = 0.6;
+      const spacing = iconSize * 1.35;
+      let baseX = 0;
+      let baseZ = 0;
+      let maxCols = 3;
 
-      // Position at top-left corner of the area
       if (area.type === 'rectangle' && area.width && area.height) {
-        folderIcon.position.set(
-          -area.width / 2 + 0.4,
-          0.3 + zOffset,
-          -area.height / 2 + 0.4
-        );
+        baseX = -area.width / 2 + 0.4;
+        baseZ = -area.height / 2 + 0.4;
+        maxCols = Math.max(1, Math.floor((area.width - 0.6) / spacing));
       } else if (area.type === 'circle' && area.radius) {
         const offset = area.radius * 0.707;
-        folderIcon.position.set(
-          -offset + 0.3,
-          0.3 + zOffset,
-          -offset + 0.3
-        );
+        baseX = -offset + 0.3;
+        baseZ = -offset + 0.3;
+        maxCols = Math.max(1, Math.floor((area.radius * 1.414 - 0.5) / spacing));
       }
 
-      group.add(folderIcon);
+      area.directories.forEach((folderPath, idx) => {
+        const row = Math.floor(idx / maxCols);
+        const col = idx % maxCols;
 
-      // Create a clickable mesh (invisible sphere for raycasting)
-      const hitGeom = new THREE.SphereGeometry(0.3, 8, 8);
-      const hitMat = new THREE.MeshBasicMaterial({ visible: false });
-      const hitMesh = new THREE.Mesh(hitGeom, hitMat);
-      hitMesh.position.copy(folderIcon.position);
-      // Offset to world position
-      hitMesh.position.x += area.center.x;
-      hitMesh.position.z += area.center.z;
-      hitMesh.name = 'folderIconHit';
-      hitMesh.userData.areaId = area.id;
-      hitMesh.userData.isFolderIcon = true;
-      this.scene.add(hitMesh);
-      this.folderIconMeshes.push(hitMesh);
+        const folderIcon = this.createFolderIconSprite(area.color);
+        folderIcon.name = 'folderIcon';
+        folderIcon.userData.areaId = area.id;
+        folderIcon.userData.folderPath = folderPath;
+        folderIcon.userData.isFolderIcon = true;
+        folderIcon.position.set(
+          baseX + col * spacing,
+          0.3 + zOffset,
+          baseZ + row * spacing
+        );
+        group.add(folderIcon);
+
+        // Create a clickable mesh (invisible sphere for raycasting)
+        const hitGeom = new THREE.SphereGeometry(0.3, 8, 8);
+        const hitMat = new THREE.MeshBasicMaterial({ visible: false });
+        const hitMesh = new THREE.Mesh(hitGeom, hitMat);
+        hitMesh.position.copy(folderIcon.position);
+        // Offset to world position
+        hitMesh.position.x += area.center.x;
+        hitMesh.position.z += area.center.z;
+        hitMesh.name = 'folderIconHit';
+        hitMesh.userData.areaId = area.id;
+        hitMesh.userData.folderPath = folderPath;
+        hitMesh.userData.isFolderIcon = true;
+        this.scene.add(hitMesh);
+        this.folderIconMeshes.push(hitMesh);
+      });
     }
 
     group.position.set(area.center.x, 0, area.center.z);

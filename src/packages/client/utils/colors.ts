@@ -82,6 +82,14 @@ export const AREA_COLORS: string[] = [
   '#ff4a4a', // red
   '#4affff', // cyan
   '#ffff4a', // yellow
+  '#4ad7ff', // sky blue
+  '#00e6a8', // mint
+  '#ff6b4a', // coral
+  '#ff66cc', // hot pink
+  '#b84aff', // violet
+  '#ff4a7a', // rose
+  '#00d9ff', // aqua
+  '#e6ff4a', // lime
   // Dark colors
   '#1a3a6e', // dark blue
   '#1a5e3a', // dark green
@@ -91,6 +99,14 @@ export const AREA_COLORS: string[] = [
   '#6e1a1a', // dark red
   '#1a5e5e', // dark cyan/teal
   '#5e5e1a', // dark yellow/olive
+  '#1a4a6e', // dark sky blue
+  '#145a47', // dark mint
+  '#6e2c1a', // dark coral
+  '#6e1a5e', // dark hot pink
+  '#3b1a6e', // dark violet
+  '#6e1a33', // dark rose
+  '#14566e', // dark aqua
+  '#4f5e1a', // dark lime/olive
 ];
 
 /**
