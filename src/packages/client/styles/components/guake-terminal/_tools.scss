@@ -36,6 +36,17 @@
   white-space: nowrap;
 }
 
+.output-tool-file-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  vertical-align: middle;
+  margin-right: 4px;
+  display: inline-block;
+  position: relative;
+  top: -1px;
+}
+
 .output-tool-param {
   font-family: $font-mono;
   font-size: 11px;
@@ -48,7 +59,7 @@
   min-width: 0; // Allow shrinking in flex context
   flex: 1 1 auto;
 
-  // Add a subtle separator before the param
+  // Add a subtle separator before the param (but not when file icon is present)
   &::before {
     content: '›';
     margin-right: 6px;

@@ -10,6 +10,7 @@ import { store } from '../../store';
 import { BOSS_CONTEXT_START } from '../../../shared/types';
 import { filterCostText } from '../../utils/formatting';
 import { TOOL_ICONS, extractToolKeyParam, formatTimestamp, parseBashNotificationCommand, parseBashSearchCommand } from '../../utils/outputRendering';
+import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { createMarkdownComponents } from './MarkdownComponents';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions } from './BossContext';
 import { EditToolDiff, ReadToolInput, TodoWriteInput } from './ToolRenderers';
@@ -17,6 +18,14 @@ import { highlightText, renderContentWithImages, renderUserPromptContent } from 
 import { useTTS } from '../../hooks/useTTS';
 import { ansiToHtml } from '../../utils/ansiToHtml';
 import type { EnrichedHistoryMessage, EditData } from './types';
+
+/** Extract file extension (with dot) from a path, e.g. '/foo/bar.tsx' → '.tsx' */
+function getExtFromPath(filePath: string): string {
+  const basename = filePath.split('/').pop() || filePath;
+  const dotIdx = basename.lastIndexOf('.');
+  if (dotIdx <= 0) return '';
+  return basename.slice(dotIdx).toLowerCase();
+}
 
 interface HistoryLineProps {
   message: EnrichedHistoryMessage;
@@ -355,6 +364,11 @@ export const HistoryLine = memo(function HistoryLine({
                   title={clickTitle}
                   style={isFileClickable ? { cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' } : undefined}
                 >
+                  {isFileTool && isFilePath && (() => {
+                    const ext = getExtFromPath(keyParam);
+                    const iconPath = ext ? getIconForExtension(ext) : '';
+                    return iconPath ? <img className="output-tool-file-icon" src={iconPath} alt="" /> : null;
+                  })()}
                   {keyParam}
                 </span>
               )
@@ -525,7 +539,7 @@ export const HistoryLine = memo(function HistoryLine({
           {highlight ? (
             <div>{highlightText(displayMessage, highlight)}</div>
           ) : (
-            renderUserPromptContent(displayMessage, onImageClick)
+            renderUserPromptContent(displayMessage, onImageClick, onFileClick)
           )}
         </span>
       </div>
@@ -584,7 +598,7 @@ export const HistoryLine = memo(function HistoryLine({
       <span className={`history-role ${isUser ? 'history-role-chip' : ''}`}>{isUser ? 'You' : assistantOrSystemRoleLabel}</span>
       <span className={`history-content ${isUser ? 'user-prompt-text' : 'markdown-content'}`}>
         {highlight ? <div>{highlightText(content, highlight)}</div> : (
-          isUser ? renderUserPromptContent(content, onImageClick) : renderContentWithImages(content, onImageClick, onFileClick)
+          isUser ? renderUserPromptContent(content, onImageClick, onFileClick) : renderContentWithImages(content, onImageClick, onFileClick)
         )}
       </span>
       {!isUser && (

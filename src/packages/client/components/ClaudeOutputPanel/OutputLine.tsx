@@ -6,6 +6,7 @@ import React, { memo, useState, useRef, useCallback, useEffect } from 'react';
 import { useHideCost, useSettings, ClaudeOutput, store } from '../../store';
 import { filterCostText } from '../../utils/formatting';
 import { TOOL_ICONS, formatTimestamp, parseBashNotificationCommand, parseBashSearchCommand } from '../../utils/outputRendering';
+import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, DelegatedTaskHeader, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions } from './BossContext';
 import { EditToolDiff, ReadToolInput, TodoWriteInput } from './ToolRenderers';
 import { renderContentWithImages, renderUserPromptContent } from './contentRendering';
@@ -13,6 +14,14 @@ import { ansiToHtml } from '../../utils/ansiToHtml';
 import { useTTS } from '../../hooks/useTTS';
 import type { EditData } from './types';
 import type { ExecTask } from '../../../shared/types';
+
+/** Extract file extension (with dot) from a path, e.g. '/foo/bar.tsx' → '.tsx' */
+function getExtFromPath(filePath: string): string {
+  const basename = filePath.split('/').pop() || filePath;
+  const dotIdx = basename.lastIndexOf('.');
+  if (dotIdx <= 0) return '';
+  return basename.slice(dotIdx).toLowerCase();
+}
 
 interface OutputLineProps {
   output: ClaudeOutput & { _toolKeyParam?: string; _editData?: EditData; _todoInput?: string; _bashOutput?: string; _bashCommand?: string; _isRunning?: boolean };
@@ -280,7 +289,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
             {parsed.hasContext && parsed.context && (
               <BossContext key={`boss-stream-${text.slice(0, 50)}`} context={parsed.context} onFileClick={onFileClick} />
             )}
-            {renderUserPromptContent(parsedInjected.userMessage, onImageClick)}
+            {renderUserPromptContent(parsedInjected.userMessage, onImageClick, onFileClick)}
           </>
         )}
       </div>
@@ -460,7 +469,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
             )
           )}
 
-          {/* For file tools, show the file path */}
+          {/* For file tools, show the file path with SVG file icon */}
           {!isBashTool && toolKeyParamOrFallback && (
             <span
               className={`output-tool-param ${isFileClickable ? 'clickable-path' : ''}`}
@@ -468,6 +477,11 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
               title={isFileClickable ? (toolName === 'Edit' && (_editData || editDataFallback) ? 'Click to view diff' : 'Click to view file') : undefined}
               style={isFileClickable ? { cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' } : undefined}
             >
+              {isFileTool && isFilePath && (() => {
+                const ext = getExtFromPath(resolvedFilePathForClick!);
+                const iconPath = ext ? getIconForExtension(ext) : '';
+                return iconPath ? <img className="output-tool-file-icon" src={iconPath} alt="" /> : null;
+              })()}
               {toolKeyParamOrFallback}
             </span>
           )}

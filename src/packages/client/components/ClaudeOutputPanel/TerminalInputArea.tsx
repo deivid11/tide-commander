@@ -13,6 +13,88 @@ import { useSTT } from '../../hooks/useSTT';
 import type { Agent, PermissionRequest } from '../../../shared/types';
 import type { AttachedFile } from './types';
 
+/**
+ * Get VSCode icon SVG path for file type based on extension
+ */
+function getFileIcon(ext: string): string {
+  const iconMap: Record<string, string> = {
+    // Documents
+    pdf: 'file_type_pdf.svg',
+    doc: 'file_type_word.svg',
+    docx: 'file_type_word.svg',
+    xls: 'file_type_excel.svg',
+    xlsx: 'file_type_excel.svg',
+    ppt: 'file_type_powerpoint.svg',
+    pptx: 'file_type_powerpoint.svg',
+    txt: 'file_type_text.svg',
+    md: 'file_type_markdown.svg',
+    // Code
+    js: 'file_type_javascript_official.svg',
+    jsx: 'file_type_javascript_official.svg',
+    ts: 'file_type_typescript_official.svg',
+    tsx: 'file_type_typescript_official.svg',
+    py: 'file_type_python.svg',
+    java: 'file_type_java.svg',
+    cpp: 'file_type_cpp.svg',
+    c: 'file_type_cpp.svg',
+    h: 'file_type_cpp.svg',
+    hpp: 'file_type_cpp.svg',
+    cs: 'file_type_csharp.svg',
+    go: 'file_type_go.svg',
+    rs: 'file_type_rust.svg',
+    php: 'file_type_php.svg',
+    rb: 'file_type_ruby.svg',
+    swift: 'file_type_swift.svg',
+    kt: 'file_type_kotlin.svg',
+    scala: 'file_type_scala.svg',
+    r: 'file_type_r.svg',
+    // Web
+    html: 'file_type_html.svg',
+    htm: 'file_type_html.svg',
+    css: 'file_type_css.svg',
+    scss: 'file_type_scss.svg',
+    sass: 'file_type_sass.svg',
+    less: 'file_type_less.svg',
+    // Config/Data
+    json: 'file_type_json_official.svg',
+    yaml: 'file_type_yaml_official.svg',
+    yml: 'file_type_yaml_official.svg',
+    xml: 'file_type_xml.svg',
+    toml: 'file_type_toml.svg',
+    ini: 'file_type_ini.svg',
+    env: 'file_type_dotenv.svg',
+    sh: 'file_type_shell.svg',
+    bash: 'file_type_shell.svg',
+    zsh: 'file_type_shell.svg',
+    fish: 'file_type_shell.svg',
+    // Images (fallback, usually handled separately)
+    png: 'file_type_image.svg',
+    jpg: 'file_type_image.svg',
+    jpeg: 'file_type_image.svg',
+    gif: 'file_type_image.svg',
+    svg: 'file_type_image.svg',
+    webp: 'file_type_image.svg',
+    // Archives
+    zip: 'file_type_zip.svg',
+    tar: 'file_type_tar.svg',
+    gz: 'file_type_gzip.svg',
+    rar: 'file_type_rar.svg',
+    '7z': 'file_type_zip.svg',
+    // Audio/Video
+    mp3: 'file_type_audio.svg',
+    mp4: 'file_type_video.svg',
+    wav: 'file_type_audio.svg',
+    mov: 'file_type_video.svg',
+    mkv: 'file_type_video.svg',
+    flv: 'file_type_video.svg',
+    avi: 'file_type_video.svg',
+    // Default
+    default: 'default_file.svg',
+  };
+
+  return iconMap[ext.toLowerCase()] || iconMap.default;
+}
+
 export interface TerminalInputAreaProps {
   selectedAgent: Agent;
   selectedAgentId: string;
@@ -27,7 +109,7 @@ export interface TerminalInputAreaProps {
   attachedFiles: AttachedFile[];
   setAttachedFiles: React.Dispatch<React.SetStateAction<AttachedFile[]>>;
   removeAttachedFile: (id: number) => void;
-  uploadFile: (file: File) => Promise<AttachedFile | null>;
+  uploadFile: (file: File | Blob, filename?: string) => Promise<AttachedFile | null>;
   pastedTexts: Map<number, string>;
   expandPastedTexts: (text: string) => string;
   incrementPastedCount: () => number;
@@ -297,16 +379,48 @@ export function TerminalInputArea({
   };
 
   const handlePaste = async (e: React.ClipboardEvent) => {
+    console.log('[TerminalInputArea] Paste event detected');
     const items = e.clipboardData.items;
+    console.log('[TerminalInputArea] Clipboard items count:', items.length);
 
+    // Log all clipboard item types
+    for (let i = 0; i < items.length; i++) {
+      console.log(`[TerminalInputArea] Item ${i}: kind=${items[i].kind}, type=${items[i].type}`);
+    }
+
+    // Try to get files from clipboard items (works when copying files from file explorer)
     for (const item of items) {
+      console.log('[TerminalInputArea] Processing item:', { kind: item.kind, type: item.type });
+
       if (item.type.startsWith('image/')) {
+        console.log('[TerminalInputArea] Image detected');
         e.preventDefault();
         const blob = item.getAsFile();
         if (blob) {
+          console.log('[TerminalInputArea] Image blob obtained, uploading:', blob.name, blob.size);
           const attached = await uploadFile(blob);
           if (attached) {
+            console.log('[TerminalInputArea] Image attached successfully');
             setAttachedFiles((prev) => [...prev, attached]);
+          }
+        }
+        return;
+      }
+
+      // Handle any file type (not just images)
+      if (item.kind === 'file') {
+        console.log('[TerminalInputArea] File detected via clipboard');
+        e.preventDefault();
+        const file = item.getAsFile();
+        console.log('[TerminalInputArea] File object:', { name: file?.name, size: file?.size, type: file?.type });
+        if (file) {
+          console.log('[TerminalInputArea] Uploading file:', file.name, file.size);
+          const attached = await uploadFile(file);
+          if (attached) {
+            console.log('[TerminalInputArea] File attached successfully:', attached.name);
+            setAttachedFiles((prev) => [...prev, attached]);
+          } else {
+            console.error('[TerminalInputArea] File upload returned null');
           }
         }
         return;
@@ -314,11 +428,15 @@ export function TerminalInputArea({
     }
 
     const files = e.clipboardData.files;
+    console.log('[TerminalInputArea] Fallback check - e.clipboardData.files length:', files.length);
     if (files.length > 0) {
+      console.log('[TerminalInputArea] Files found in clipboardData.files');
       e.preventDefault();
       for (const file of files) {
+        console.log('[TerminalInputArea] Processing file from clipboardData:', { name: file.name, size: file.size });
         const attached = await uploadFile(file);
         if (attached) {
+          console.log('[TerminalInputArea] File attached:', attached.name);
           setAttachedFiles((prev) => [...prev, attached]);
         }
       }
@@ -326,6 +444,42 @@ export function TerminalInputArea({
     }
 
     const pastedText = e.clipboardData.getData('text');
+
+    // Check if pasted text is a file path (single line, looks like a file path, AND has a file extension)
+    const isSingleLine = !pastedText.includes('\n');
+    const looksLikeFilePath = /^[/~][^\s]*$|^[A-Za-z]:\\[^\s]*$/.test(pastedText.trim());
+    const hasFileExtension = /\.[a-zA-Z0-9]{1,5}$/.test(pastedText.trim());
+
+    if (isSingleLine && looksLikeFilePath && hasFileExtension) {
+      e.preventDefault();
+      console.log('[TerminalInputArea] Attempting to load file from path:', pastedText.trim());
+      try {
+        // Request the file from the server
+        const response = await fetch('/api/files/by-path', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: pastedText.trim() }),
+        });
+
+        if (response.ok) {
+          const blob = await response.blob();
+          const filename = pastedText.trim().split(/[/\\]/).pop() || 'file';
+          console.log('[TerminalInputArea] File loaded from path, uploading:', filename);
+          const attached = await uploadFile(blob, filename);
+          if (attached) {
+            console.log('[TerminalInputArea] File attached from path successfully');
+            setAttachedFiles((prev) => [...prev, attached]);
+          }
+          return;
+        } else {
+          console.warn('[TerminalInputArea] File not found at path, treating as text paste');
+        }
+      } catch (err) {
+        console.error('[TerminalInputArea] Failed to load file from path:', err);
+        // Fall through to text paste handling if file loading fails
+      }
+    }
+
     const lineCount = (pastedText.match(/\n/g) || []).length + 1;
 
     if (lineCount > 5) {
@@ -409,33 +563,58 @@ export function TerminalInputArea({
       {/* Attached files display */}
       {attachedFiles.length > 0 && (
         <div className="guake-attachments">
-          {attachedFiles.map((file) => (
-            <div
-              key={file.id}
-              className={`guake-attachment ${file.isImage ? 'is-image clickable' : ''}`}
-              onClick={() => {
-                if (file.isImage) {
-                  onImageClick(getImageWebUrl(file.path), file.name);
-                }
-              }}
-            >
-              <span className="guake-attachment-icon">{file.isImage ? '🖼️' : '📎'}</span>
-              <span className="guake-attachment-name" title={file.path}>
-                {file.name}
-              </span>
-              <span className="guake-attachment-size">({Math.round(file.size / 1024)}KB)</span>
-              <button
-                className="guake-attachment-remove"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  removeAttachedFile(file.id);
+          {attachedFiles.map((file) => {
+            const imageUrl = file.isImage ? getImageWebUrl(file.path) : null;
+            const fileExtension = file.name.split('.').pop()?.toLowerCase() || '';
+            const isDocument = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(fileExtension);
+
+            return (
+              <div
+                key={file.id}
+                className={`guake-attachment ${file.isImage ? 'is-image clickable' : ''} ${isDocument ? 'is-document' : ''}`}
+                onClick={() => {
+                  if (file.isImage) {
+                    onImageClick(imageUrl!, file.name);
+                  }
                 }}
-                title="Remove"
               >
-                ×
-              </button>
-            </div>
-          ))}
+                {file.isImage && imageUrl ? (
+                  <img src={imageUrl} alt={file.name} className="guake-attachment-thumb" />
+                ) : (
+                  <img
+                    src={`/assets/vscode-icons/${getFileIcon(fileExtension)}`}
+                    alt={file.name}
+                    className="guake-attachment-icon"
+                    style={{ width: '24px', height: '24px' }}
+                  />
+                )}
+                <div className="guake-attachment-info">
+                  <div className="guake-attachment-name-row">
+                    <img
+                      src={`/assets/vscode-icons/${getFileIcon(fileExtension)}`}
+                      alt={fileExtension}
+                      className="guake-attachment-type-icon"
+                      style={{ width: '11px', height: '11px' }}
+                    />
+                    <span className="guake-attachment-name" title={file.path}>
+                      {file.name}
+                    </span>
+                  </div>
+                  <span className="guake-attachment-size">({Math.round(file.size / 1024)}KB)</span>
+                </div>
+                <button
+                  className="guake-attachment-remove"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeAttachedFile(file.id);
+                  }}
+                  title="Remove"
+                >
+                  ×
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
 

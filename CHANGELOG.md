@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.59.1] - 2026-02-11
+
+### Added
+- **File path paste to attach** - Paste a file path (e.g. `/home/user/doc.pdf`) in the terminal input to auto-attach the file
+- **File-by-path API** - `POST /api/files/by-path` endpoint to retrieve files by absolute path for attachment
+- **File type icons in attachments** - Attached files show VSCode-style file type icons based on extension
+- **File type icons in tool output** - File references in tool output (Read, Write, Edit) show file type icons
+
+### Changed
+- **Terminal input attachments** - Enhanced attachment chip styling with file icons, image thumbnails, and better layout
+- **Content rendering** - Improved rendering of file references in tool output with clickable icons
+- **Tool output styling** - Refined tool output section styling for better readability
+
+### Fixed
+- **Lint warnings** - Fixed unused `filename` and `isImage` variables in files.ts
+
 ## [0.59.0] - 2026-02-11
 
 ### Added

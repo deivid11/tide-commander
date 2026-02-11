@@ -1750,12 +1750,114 @@ router.post('/open-in-editor', async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/files/by-path - Load and return a file by its path (for clipboard paste)
+router.post('/by-path', async (req: Request, res: Response) => {
+  try {
+    const { path: filePath } = req.body as { path?: string };
+
+    if (!filePath) {
+      res.status(400).json({ error: 'Missing path parameter' });
+      return;
+    }
+
+    // Expand ~ to home directory
+    let expandedPath = filePath;
+    if (filePath.startsWith('~')) {
+      expandedPath = path.join(os.homedir(), filePath.slice(1));
+    }
+
+    // Security: ensure path is absolute
+    if (!path.isAbsolute(expandedPath)) {
+      res.status(400).json({ error: 'Path must be absolute' });
+      return;
+    }
+
+    if (!fs.existsSync(expandedPath)) {
+      res.status(404).json({ error: 'File not found' });
+      return;
+    }
+
+    const stats = fs.statSync(expandedPath);
+
+    if (stats.isDirectory()) {
+      res.status(400).json({ error: 'Path is a directory' });
+      return;
+    }
+
+    // Limit file size to 50MB for binary files
+    if (stats.size > 50 * 1024 * 1024) {
+      res.status(400).json({ error: 'File too large (max 50MB)' });
+      return;
+    }
+
+    const extension = path.extname(expandedPath).toLowerCase();
+    const _filename = path.basename(expandedPath);
+
+    // Determine if it's an image
+    const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.ico', '.svg'];
+    const _isImage = imageExtensions.includes(extension);
+
+    // Set content type based on extension
+    const mimeTypes: Record<string, string> = {
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.gif': 'image/gif',
+      '.webp': 'image/webp',
+      '.bmp': 'image/bmp',
+      '.ico': 'image/x-icon',
+      '.svg': 'image/svg+xml',
+      '.pdf': 'application/pdf',
+      '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      '.xls': 'application/vnd.ms-excel',
+      '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      '.doc': 'application/msword',
+      '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      '.ppt': 'application/vnd.ms-powerpoint',
+      '.zip': 'application/zip',
+      '.tar': 'application/x-tar',
+      '.gz': 'application/gzip',
+      '.mp3': 'audio/mpeg',
+      '.mp4': 'video/mp4',
+      '.wav': 'audio/wav',
+    };
+
+    const contentType = mimeTypes[extension] || 'application/octet-stream';
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Length', stats.size);
+
+    // Stream the file
+    const stream = fs.createReadStream(expandedPath);
+    stream.pipe(res);
+
+    stream.on('error', (err) => {
+      log.error(' Failed to stream file:', err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Failed to read file' });
+      }
+    });
+  } catch (err: any) {
+    log.error(' Failed to load file by path:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/files/upload - Upload a file to temp directory
 router.post('/upload', async (req: Request, res: Response) => {
   try {
     const contentType = req.headers['content-type'] || '';
-    const filename = req.headers['x-filename'] as string;
+    let filename = req.headers['x-filename'] as string;
     const isImage = contentType.startsWith('image/');
+
+    // Decode filename if it's URL-encoded (handles special characters like –, é, etc.)
+    if (filename) {
+      try {
+        filename = decodeURIComponent(filename);
+      } catch {
+        // If decoding fails, use as-is
+      }
+    }
 
     // Generate unique filename
     const timestamp = Date.now();

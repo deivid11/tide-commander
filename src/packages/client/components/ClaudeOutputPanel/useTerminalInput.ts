@@ -174,11 +174,17 @@ export function useTerminalInput({ selectedAgentId }: UseTerminalInputOptions): 
   // Upload file to server
   const uploadFile = useCallback(async (file: File | Blob, filename?: string): Promise<AttachedFile | null> => {
     try {
+      const finalFilename = filename || (file instanceof File ? file.name : '');
+
+      // Encode filename for HTTP header (RFC 5987 encodes non-ASCII characters)
+      // This handles filenames with special characters like "–", "é", etc.
+      const encodedFilename = encodeURIComponent(finalFilename);
+
       const response = await authFetch(apiUrl('/api/files/upload'), {
         method: 'POST',
         headers: {
           'Content-Type': file.type || 'application/octet-stream',
-          'X-Filename': filename || (file instanceof File ? file.name : ''),
+          'X-Filename': encodedFilename,
         },
         body: file,
       });
