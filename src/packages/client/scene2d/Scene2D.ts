@@ -707,32 +707,27 @@ export class Scene2D {
         },
       };
     } else if (area.type === 'rectangle' && 'width' in area.size) {
-      const dx = pos.x - area.position.x;
-      const dz = pos.z - area.position.z;
+      // Use delta from drag start so each axis is independent
+      const deltaX = pos.x - this.resizeStartPos.x;
+      const deltaZ = pos.z - this.resizeStartPos.z;
+      const origWidth = area.size.width;
+      const origHeight = area.size.height;
 
       switch (this.resizeHandleType) {
         case 'se': {
-          const newWidth = Math.max(0.5, dx * 2);
-          const newHeight = Math.max(0.5, dz * 2);
-          updates = { width: newWidth, height: newHeight };
+          updates = { width: Math.max(0.5, origWidth + deltaX * 2), height: Math.max(0.5, origHeight + deltaZ * 2) };
           break;
         }
         case 'sw': {
-          const newWidth = Math.max(0.5, -dx * 2);
-          const newHeight = Math.max(0.5, dz * 2);
-          updates = { width: newWidth, height: newHeight };
+          updates = { width: Math.max(0.5, origWidth - deltaX * 2), height: Math.max(0.5, origHeight + deltaZ * 2) };
           break;
         }
         case 'ne': {
-          const newWidth = Math.max(0.5, dx * 2);
-          const newHeight = Math.max(0.5, -dz * 2);
-          updates = { width: newWidth, height: newHeight };
+          updates = { width: Math.max(0.5, origWidth + deltaX * 2), height: Math.max(0.5, origHeight - deltaZ * 2) };
           break;
         }
         case 'nw': {
-          const newWidth = Math.max(0.5, -dx * 2);
-          const newHeight = Math.max(0.5, -dz * 2);
-          updates = { width: newWidth, height: newHeight };
+          updates = { width: Math.max(0.5, origWidth - deltaX * 2), height: Math.max(0.5, origHeight - deltaZ * 2) };
           break;
         }
       }

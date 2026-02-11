@@ -23,6 +23,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
   const customClasses = useCustomAgentClassesArray();
 
   // Form state
+  const [agentName, setAgentName] = useState<string>(agent.name);
   const [selectedClass, setSelectedClass] = useState<AgentClass>(agent.class);
   const [permissionMode, setPermissionMode] = useState<PermissionMode>(agent.permissionMode);
   const [selectedProvider, setSelectedProvider] = useState<AgentProvider>(agent.provider || 'claude');
@@ -60,6 +61,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
   // Reset form when modal opens
   useEffect(() => {
     if (isOpen) {
+      setAgentName(agent.name);
       setSelectedClass(agent.class);
       setPermissionMode(agent.permissionMode);
       setSelectedProvider(agent.provider || 'claude');
@@ -151,6 +153,8 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
 
   // Check if there are any changes
   const hasChanges = useMemo(() => {
+    const trimmedName = agentName.trim();
+    if (trimmedName && trimmedName !== agent.name) return true;
     if (selectedClass !== agent.class) return true;
     if (permissionMode !== agent.permissionMode) return true;
     if (selectedProvider !== (agent.provider || 'claude')) return true;
@@ -170,10 +174,11 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
     if (currentDirectSkills !== newSkills) return true;
 
     return false;
-  }, [selectedClass, permissionMode, selectedProvider, selectedModel, selectedCodexModel, codexConfig, useChrome, workdir, selectedSkillIds, agent, allSkills]);
+  }, [agentName, selectedClass, permissionMode, selectedProvider, selectedModel, selectedCodexModel, codexConfig, useChrome, workdir, selectedSkillIds, agent, allSkills]);
 
   // Handle save
   const handleSave = () => {
+    const trimmedName = agentName.trim();
     const updates: {
       class?: AgentClass;
       permissionMode?: PermissionMode;
@@ -185,6 +190,10 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
       skillIds?: string[];
       cwd?: string;
     } = {};
+
+    if (trimmedName && trimmedName !== agent.name) {
+      store.renameAgent(agent.id, trimmedName);
+    }
 
     if (selectedClass !== agent.class) {
       updates.class = selectedClass;
@@ -244,7 +253,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
     <div className="modal-overlay visible" onMouseDown={handleBackdropMouseDown} onClick={handleBackdropClick}>
       <div className="modal agent-edit-modal">
         <div className="modal-header">
-          Edit Agent: {agent.name}
+          Edit Agent: {agentName.trim() || agent.name}
         </div>
 
         <div className="modal-body spawn-modal-body">
@@ -309,6 +318,20 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
             {/* Row 1: Runtime + Permission */}
             <div className="spawn-form-row">
               <div className="spawn-field">
+                <label className="spawn-label">Name</label>
+                <input
+                  type="text"
+                  className="spawn-input"
+                  value={agentName}
+                  onChange={(e) => setAgentName(e.target.value)}
+                  placeholder="Agent name"
+                />
+              </div>
+            </div>
+
+            {/* Row 2: Runtime + Permission */}
+            <div className="spawn-form-row">
+              <div className="spawn-field">
                 <label className="spawn-label">Runtime</label>
                 <div className="spawn-select-row">
                   <button
@@ -345,7 +368,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
               </div>
             </div>
 
-            {/* Row 2: Model */}
+            {/* Row 3: Model */}
             <div className="spawn-form-row">
               <div className="spawn-field">
                 <label className="spawn-label">Model</label>
@@ -446,7 +469,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
               </div>
             )}
 
-            {/* Row 3: Chrome toggle */}
+            {/* Row 4: Chrome toggle */}
             <div className="spawn-form-row spawn-options-row">
               <label className="spawn-checkbox">
                 <input
@@ -459,7 +482,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
               </label>
             </div>
 
-            {/* Row 4: Working Directory */}
+            {/* Row 5: Working Directory */}
             <div className="spawn-form-row">
               <div className="spawn-field">
                 <label className="spawn-label">Working Directory</label>

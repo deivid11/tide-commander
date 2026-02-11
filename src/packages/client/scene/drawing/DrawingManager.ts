@@ -507,36 +507,27 @@ export class DrawingManager {
         },
       };
     } else if (area.type === 'rectangle' && area.width && area.height) {
-      const dx = pos.x - area.center.x;
-      const dz = pos.z - area.center.z;
+      // Use delta from drag start so each axis is independent
+      const deltaX = pos.x - this.resizeStartPos.x;
+      const deltaZ = pos.z - this.resizeStartPos.z;
+      const origWidth = area.width;
+      const origHeight = area.height;
 
       switch (this.resizeHandleType) {
         case 'se': {
-          // Bottom-right corner
-          const newWidth = Math.max(0.5, dx * 2);
-          const newHeight = Math.max(0.5, dz * 2);
-          updates = { width: newWidth, height: newHeight };
+          updates = { width: Math.max(0.5, origWidth + deltaX * 2), height: Math.max(0.5, origHeight + deltaZ * 2) };
           break;
         }
         case 'sw': {
-          // Bottom-left corner
-          const newWidth = Math.max(0.5, -dx * 2);
-          const newHeight = Math.max(0.5, dz * 2);
-          updates = { width: newWidth, height: newHeight };
+          updates = { width: Math.max(0.5, origWidth - deltaX * 2), height: Math.max(0.5, origHeight + deltaZ * 2) };
           break;
         }
         case 'ne': {
-          // Top-right corner
-          const newWidth = Math.max(0.5, dx * 2);
-          const newHeight = Math.max(0.5, -dz * 2);
-          updates = { width: newWidth, height: newHeight };
+          updates = { width: Math.max(0.5, origWidth + deltaX * 2), height: Math.max(0.5, origHeight - deltaZ * 2) };
           break;
         }
         case 'nw': {
-          // Top-left corner
-          const newWidth = Math.max(0.5, -dx * 2);
-          const newHeight = Math.max(0.5, -dz * 2);
-          updates = { width: newWidth, height: newHeight };
+          updates = { width: Math.max(0.5, origWidth - deltaX * 2), height: Math.max(0.5, origHeight - deltaZ * 2) };
           break;
         }
       }
