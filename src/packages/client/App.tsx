@@ -538,6 +538,10 @@ function AppContent() {
                 store.selectAgent(null);
                 store.selectBuilding(null);
               }}
+              onAreaDoubleClick={(areaId) => {
+                store.selectArea(areaId);
+                toolboxModal.open();
+              }}
               onContextMenu={(screenPos, worldPos, target) => {
                 const menuTarget = target
                   ? { type: target.type as 'ground' | 'agent' | 'area' | 'building', id: target.id }

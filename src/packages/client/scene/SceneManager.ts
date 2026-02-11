@@ -225,6 +225,8 @@ export class SceneManager {
       onDrawMove: (pos: { x: number; z: number }) => this.drawingManager.updateDrawing(pos),
       onDrawEnd: (pos: { x: number; z: number }) => this.drawingManager.finishDrawing(pos),
       onAreaRightClick: (pos: { x: number; z: number }) => this.inputEventHandlers.handleAreaRightClick(pos),
+      onAreaClick: (areaId: string) => this.inputEventHandlers.handleAreaClick(areaId),
+      onAreaDoubleClick: (areaId: string) => this.inputEventHandlers.handleAreaDoubleClick(areaId),
       onResizeStart: (handle: THREE.Mesh, pos: { x: number; z: number }) => this.drawingManager.startResize(handle, pos),
       onResizeMove: (pos: { x: number; z: number }) => this.drawingManager.updateResize(pos),
       onResizeEnd: () => this.drawingManager.finishResize(),
@@ -501,6 +503,10 @@ export class SceneManager {
 
   setOnGroundClick(callback: () => void): void {
     this.callbackManager.setOnGroundClick(callback);
+  }
+
+  setOnAreaDoubleClick(callback: (areaId: string) => void): void {
+    this.callbackManager.setOnAreaDoubleClick(callback);
   }
 
   setOnFolderIconClick(callback: (areaId: string) => void): void {

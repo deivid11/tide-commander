@@ -16,6 +16,8 @@ export interface InputCallbacks {
   onDrawMove?: (pos: { x: number; z: number }) => void;
   onDrawEnd?: (pos: { x: number; z: number }) => void;
   onAreaRightClick?: (pos: { x: number; z: number }) => void;
+  onAreaClick?: (areaId: string) => void;
+  onAreaDoubleClick?: (areaId: string) => void;
   // Resize callbacks
   onResizeStart?: (handle: THREE.Mesh, pos: { x: number; z: number }) => void;
   onResizeMove?: (pos: { x: number; z: number }) => void;

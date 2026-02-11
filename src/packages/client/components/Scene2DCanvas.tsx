@@ -21,6 +21,7 @@ interface Scene2DCanvasProps {
   onContextMenu?: (screenPos: { x: number; y: number }, worldPos: { x: number; z: number }, target: { type: string; id?: string } | null) => void;
   onGroundClick?: (worldPos: { x: number; z: number }) => void;
   onMoveCommand?: (agentIds: string[], targetPos: { x: number; z: number }) => void;
+  onAreaDoubleClick?: (areaId: string) => void;
   indicatorScale?: number;
   showGrid?: boolean;
   fpsLimit?: number;
@@ -40,6 +41,7 @@ export function Scene2DCanvas({
   onContextMenu,
   onGroundClick,
   onMoveCommand,
+  onAreaDoubleClick,
   indicatorScale = 1.0,
   showGrid = true,
   fpsLimit = 0,
@@ -70,6 +72,7 @@ export function Scene2DCanvas({
     onContextMenu,
     onGroundClick,
     onMoveCommand,
+    onAreaDoubleClick,
   });
 
   // Expose setDrawingTool via global reference for App.tsx to call

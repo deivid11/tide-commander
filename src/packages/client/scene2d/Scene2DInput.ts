@@ -799,10 +799,22 @@ export class Scene2DInput {
       const worldPos = this.camera.screenToWorld(screenX, screenY);
 
       if (area) {
-        // Select the area
-        this.scene.selectArea(area.id);
-        this.lastClickTime = now;
-        this.lastClickTarget = `area:${area.id}`;
+        const areaClickTarget = `area:${area.id}`;
+        // Check for double-click
+        if (
+          this.lastClickTarget === areaClickTarget &&
+          now - this.lastClickTime < this.doubleClickDelay
+        ) {
+          this.scene.selectArea(area.id);
+          this.scene.handleAreaDoubleClick(area.id);
+          this.lastClickTime = 0;
+          this.lastClickTarget = null;
+        } else {
+          // Single click selects the area
+          this.scene.selectArea(area.id);
+          this.lastClickTime = now;
+          this.lastClickTarget = areaClickTarget;
+        }
       } else {
         // Ground click - deselect any selected area
         this.scene.selectArea(null);

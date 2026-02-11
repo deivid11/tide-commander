@@ -118,6 +118,15 @@ export class InputEventHandlers {
     this.deps.drawingManager.highlightArea(null);
   }
 
+  handleAreaClick(areaId: string): void {
+    store.selectArea(areaId);
+  }
+
+  handleAreaDoubleClick(areaId: string): void {
+    store.selectArea(areaId);
+    this.deps.callbackManager.triggerAreaDoubleClick(areaId);
+  }
+
   handleBuildingClick(buildingId: string, screenPos: { x: number; y: number } = { x: 0, y: 0 }): void {
     store.selectBuilding(buildingId);
     this.deps.buildingManager.highlightBuilding(buildingId);

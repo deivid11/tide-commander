@@ -243,6 +243,12 @@ export function useSceneSetup({
         setBuildingPopup(null);
       });
 
+      // Set up area double-click callback (open toolbox focused on area config)
+      sceneRef.current?.setOnAreaDoubleClick((areaId) => {
+        store.selectArea(areaId);
+        _toolboxModal.open();
+      });
+
       // Set up building double-click callback (open logs for server/boss buildings)
       sceneRef.current?.setOnBuildingDoubleClick((buildingId) => {
         // Cancel any pending popup from single click

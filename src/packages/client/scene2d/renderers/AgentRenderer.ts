@@ -102,16 +102,24 @@ export class AgentRenderer extends BaseRenderer {
     this.ctx.stroke();
 
     // ========== WATER WAVE RIPPLE EFFECT ==========
+    // Drawn without shadow and with 'lighter' blending to avoid displacing other elements
     if (isWorking) {
+      this.ctx.shadowColor = 'transparent';
+      this.ctx.shadowBlur = 0;
+      this.ctx.shadowOffsetX = 0;
+      this.ctx.shadowOffsetY = 0;
+      const prevComposite = this.ctx.globalCompositeOperation;
+      this.ctx.globalCompositeOperation = 'lighter';
+
       const waveCount = 3;
       const waveCycleDuration = 2;
-      const maxWaveRadius = screenRadius * 3;
-      const waveThickness = 3;
+      const maxWaveRadius = screenRadius * 2.2;
+      const waveThickness = 2;
 
       for (let i = 0; i < waveCount; i++) {
         const wavePhase = ((this.animationTime / waveCycleDuration) + (i / waveCount)) % 1;
         const waveRadius = screenRadius + (wavePhase * (maxWaveRadius - screenRadius));
-        const waveOpacity = Math.max(0, 1 - wavePhase) * 0.8;
+        const waveOpacity = Math.max(0, 1 - wavePhase) * 0.5;
 
         if (waveOpacity < 0.05) continue;
 
@@ -120,9 +128,9 @@ export class AgentRenderer extends BaseRenderer {
           screenPos.x, screenPos.y, waveRadius + waveThickness
         );
         waveGradient.addColorStop(0, 'transparent');
-        waveGradient.addColorStop(0.3, this.hexToRgba('#4a9eff', waveOpacity * 0.5));
-        waveGradient.addColorStop(0.5, this.hexToRgba('#bd93f9', waveOpacity));
-        waveGradient.addColorStop(0.7, this.hexToRgba('#ff79c6', waveOpacity * 0.5));
+        waveGradient.addColorStop(0.3, this.hexToRgba('#4a9eff', waveOpacity * 0.4));
+        waveGradient.addColorStop(0.5, this.hexToRgba('#bd93f9', waveOpacity * 0.7));
+        waveGradient.addColorStop(0.7, this.hexToRgba('#ff79c6', waveOpacity * 0.4));
         waveGradient.addColorStop(1, 'transparent');
 
         this.ctx.beginPath();
@@ -133,10 +141,17 @@ export class AgentRenderer extends BaseRenderer {
 
         this.ctx.beginPath();
         this.ctx.arc(screenPos.x, screenPos.y, waveRadius, 0, Math.PI * 2);
-        this.ctx.strokeStyle = this.hexToRgba('#bd93f9', waveOpacity * 0.6);
-        this.ctx.lineWidth = 1.5;
+        this.ctx.strokeStyle = this.hexToRgba('#bd93f9', waveOpacity * 0.4);
+        this.ctx.lineWidth = 1;
         this.ctx.stroke();
       }
+
+      this.ctx.globalCompositeOperation = prevComposite;
+      // Restore shadow for remaining elements in this save block
+      this.ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+      this.ctx.shadowBlur = 8;
+      this.ctx.shadowOffsetX = 3;
+      this.ctx.shadowOffsetY = 3;
     }
 
     // ========== SELECTION GLOW ==========

@@ -895,9 +895,15 @@ export class InputHandler {
         return;
       }
 
-      // Check for area tap - areas are edited via right-click context menu only
+      // Check for area tap (single tap selects, double tap opens area settings)
       const area = this.areaAtPositionGetter(groundPos);
       if (area) {
+        const clickType = this.areaClickDetector.handleClick(area.id);
+        if (clickType === 'double') {
+          this.callbacks.onAreaDoubleClick?.(area.id);
+        } else {
+          this.callbacks.onAreaClick?.(area.id);
+        }
         return;
       }
     }
@@ -999,11 +1005,17 @@ export class InputHandler {
     // Clicked on ground - reset state
     this.agentClickDetector.reset();
 
-    // Check for area click - areas are edited via right-click context menu only
+    // Check for area click (single click selects, double click opens area settings)
     const groundPos = this.raycaster.raycastGroundFromEvent(event);
     if (groundPos) {
       const area = this.areaAtPositionGetter(groundPos);
       if (area) {
+        const clickType = this.areaClickDetector.handleClick(area.id);
+        if (clickType === 'double') {
+          this.callbacks.onAreaDoubleClick?.(area.id);
+        } else {
+          this.callbacks.onAreaClick?.(area.id);
+        }
         return;
       }
     }

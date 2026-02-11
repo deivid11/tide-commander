@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.57.2] - 2026-02-11
+
+### Added
+- **Area double-click** - Double-clicking an area opens the toolbox/settings panel in both 3D and 2D scenes
+
+### Changed
+- **Agent wave ripple effects** - Subtler ripples using lighter blending mode, reduced radius and opacity to avoid displacing other elements
+- **Building emoji/label scaling** - Emoji and label sizes now scale relative to building size instead of using fixed ranges
+
 ## [0.57.1] - 2026-02-11
 
 ### Added

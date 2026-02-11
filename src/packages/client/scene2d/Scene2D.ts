@@ -83,6 +83,7 @@ export interface Scene2DCallbacks {
   onSelectionBox?: (start: { x: number; z: number }, end: { x: number; z: number }) => void;
   onMoveCommand?: (agentIds: string[], targetPos: { x: number; z: number }) => void;
   onAreaFolderClick?: (areaId: string) => void;
+  onAreaDoubleClick?: (areaId: string) => void;
 }
 
 /**
@@ -1077,6 +1078,10 @@ export class Scene2D {
   handleAreaFolderClick(areaId: string): void {
     store.openFileExplorerForArea(areaId);
     this.callbacks.onAreaFolderClick?.(areaId);
+  }
+
+  handleAreaDoubleClick(areaId: string): void {
+    this.callbacks.onAreaDoubleClick?.(areaId);
   }
 
   /**

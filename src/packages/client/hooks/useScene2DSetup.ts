@@ -22,6 +22,7 @@ interface UseScene2DSetupOptions {
   onContextMenu?: (screenPos: { x: number; y: number }, worldPos: { x: number; z: number }, target: { type: string; id?: string } | null) => void;
   onGroundClick?: (worldPos: { x: number; z: number }) => void;
   onMoveCommand?: (agentIds: string[], targetPos: { x: number; z: number }) => void;
+  onAreaDoubleClick?: (areaId: string) => void;
 }
 
 export function useScene2DSetup(
@@ -62,6 +63,7 @@ export function useScene2DSetup(
       onContextMenu: (screenPos, worldPos, target) => callbacksRef.current.onContextMenu?.(screenPos, worldPos, target),
       onGroundClick: (worldPos) => callbacksRef.current.onGroundClick?.(worldPos),
       onMoveCommand: (agentIds, targetPos) => callbacksRef.current.onMoveCommand?.(agentIds, targetPos),
+      onAreaDoubleClick: (areaId) => callbacksRef.current.onAreaDoubleClick?.(areaId),
       onSelectionBox: (start, end) => {
         // Find agents within selection box
         const minX = Math.min(start.x, end.x);

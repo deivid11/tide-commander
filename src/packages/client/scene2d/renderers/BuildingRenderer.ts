@@ -157,7 +157,8 @@ export class BuildingRenderer extends BaseRenderer {
     this.camera.restoreTransform(this.ctx);
 
     const screenPos = this.camera.worldToScreen(x, z);
-    const emojiSize = Math.max(20, Math.min(40, 28 * this.camera.getZoom() * building.scale));
+    const buildingScreenSize = baseSize * this.camera.getZoom();
+    const emojiSize = Math.max(8, buildingScreenSize * 0.55);
 
     this.ctx.font = `${emojiSize}px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", serif`;
     this.ctx.textAlign = 'center';
@@ -169,7 +170,7 @@ export class BuildingRenderer extends BaseRenderer {
     this.ctx.fillText(styleConfig.emoji, screenPos.x, screenPos.y);
 
     const labelScreenPos = this.camera.worldToScreen(x, z + baseSize / 2 + 0.25);
-    const fontSize = Math.max(10, Math.min(14, 12 * this.camera.getZoom()));
+    const fontSize = Math.max(6, buildingScreenSize * 0.22);
 
     this.ctx.font = `bold ${fontSize}px "Segoe UI", Arial, sans-serif`;
     const nameWidth = this.ctx.measureText(building.name).width;

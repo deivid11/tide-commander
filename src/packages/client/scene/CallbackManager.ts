@@ -19,6 +19,7 @@ export class CallbackManager {
     screenPos: { x: number; y: number } | null
   ) => void) | null = null;
   private onGroundClickCallback: (() => void) | null = null;
+  private onAreaDoubleClickCallback: ((areaId: string) => void) | null = null;
 
   // ============================================
   // Callback Setters
@@ -64,6 +65,10 @@ export class CallbackManager {
     this.onGroundClickCallback = callback;
   }
 
+  setOnAreaDoubleClick(callback: (areaId: string) => void): void {
+    this.onAreaDoubleClickCallback = callback;
+  }
+
   // ============================================
   // Callback Triggers
   // ============================================
@@ -100,5 +105,9 @@ export class CallbackManager {
 
   triggerGroundClick(): void {
     this.onGroundClickCallback?.();
+  }
+
+  triggerAreaDoubleClick(areaId: string): void {
+    this.onAreaDoubleClickCallback?.(areaId);
   }
 }
