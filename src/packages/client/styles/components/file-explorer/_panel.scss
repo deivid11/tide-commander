@@ -51,78 +51,6 @@
   flex-shrink: 0;
 }
 
-// Area selector
-.file-explorer-area-selector {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 8px;
-  margin: -4px -8px;
-  border-radius: $radius-sm;
-  transition: background $transition-fast;
-
-  &:hover {
-    background: rgba($accent-blue, 0.1);
-  }
-}
-
-.file-explorer-area-dropdown-icon {
-  font-size: 8px;
-  color: $text-muted;
-  margin-left: 4px;
-}
-
-.file-explorer-area-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  margin-top: 4px;
-  background: $bg-tertiary;
-  border: 1px solid $border-color;
-  border-radius: $radius-md;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-  min-width: 200px;
-  max-width: 300px;
-  z-index: 1000;
-  overflow: hidden;
-}
-
-.file-explorer-area-option {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  cursor: pointer;
-  transition: background $transition-fast;
-
-  &:hover {
-    background: rgba($accent-blue, 0.15);
-  }
-
-  &.active {
-    background: rgba($accent-blue, 0.2);
-  }
-}
-
-.file-explorer-area-option-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.file-explorer-area-option-name {
-  flex: 1;
-  font-size: 13px;
-  color: $text-primary;
-}
-
-.file-explorer-area-option-count {
-  font-size: 11px;
-  color: $text-muted;
-  font-family: $font-mono;
-}
-
 // Path separator in header
 .file-explorer-path-separator {
   color: $text-muted;
@@ -173,63 +101,71 @@
   border: 1px solid $border-color;
   border-radius: $radius-md;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-  min-width: 250px;
-  max-width: 400px;
-  max-height: 300px;
+  min-width: 220px;
+  max-width: 360px;
+  max-height: 280px;
   overflow-y: auto;
   z-index: 1001;
 }
 
 .file-explorer-folder-option {
   display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 10px 12px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 6px 10px;
   cursor: pointer;
   transition: background $transition-fast;
+  width: 100%;
 
   &:hover {
-    background: rgba($accent-blue, 0.15);
+    background: rgba($accent-blue, 0.12);
   }
 
   &.active {
-    background: rgba($accent-blue, 0.2);
+    background: rgba($accent-blue, 0.15);
   }
 }
 
 .file-explorer-folder-option-dot {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   flex-shrink: 0;
+  display: inline-block;
+  margin-right: 6px;
 }
 
 .file-explorer-folder-option-name {
-  flex: 1 1 auto;
-  font-size: 13px;
+  font-size: 12px;
   font-family: $font-mono;
   color: $text-primary;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
 }
 
 .file-explorer-folder-option-path {
-  width: 100%;
-  margin-left: 16px;
-  font-size: 11px;
+  font-size: 10px;
   color: $text-muted;
   font-family: $font-mono;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 100%;
+  padding-left: 12px;
 }
 
 .file-explorer-folder-option-area {
-  font-size: 11px;
+  font-size: 10px;
   color: $text-muted;
   flex-shrink: 0;
+  padding-left: 12px;
 }
 
 .file-explorer-panel-close {
@@ -284,34 +220,36 @@
 
 .file-explorer-tabs {
   display: flex;
-  gap: 4px;
-  padding: 8px 12px;
-  background: rgba(0, 0, 0, 0.2);
+  gap: 0;
+  padding: 0;
+  background: $bg-tertiary;
   border-bottom: 1px solid $border-color;
   overflow-x: auto;
+  align-items: center;
 }
 
 .file-explorer-tab {
-  padding: 4px 10px;
-  background: $bg-tertiary;
-  border: 1px solid $border-color;
-  border-radius: $radius-sm;
+  padding: 8px 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
   color: $text-secondary;
-  font-size: 11px;
+  font-size: 12px;
   font-family: $font-mono;
   cursor: pointer;
   white-space: nowrap;
   transition: all $transition-fast;
+  flex-shrink: 0;
 
   &:hover {
-    border-color: $accent-blue;
     color: $text-primary;
+    background: rgba($accent-blue, 0.05);
   }
 
   &.active {
-    background: rgba($accent-blue, 0.2);
-    border-color: $accent-blue;
     color: $accent-blue;
+    border-bottom-color: $accent-blue;
   }
 }
 
@@ -487,18 +425,18 @@
 .file-explorer-folders {
   flex-shrink: 0;
   border-bottom: 1px solid $border-color;
-  background: rgba(0, 0, 0, 0.15);
+  background: rgba(0, 0, 0, 0.08);
 }
 
 .file-explorer-folders-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 12px 4px;
+  padding: 6px 12px 2px;
 }
 
 .file-explorer-folders-title {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   color: $text-muted;
   text-transform: uppercase;

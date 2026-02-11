@@ -24,7 +24,7 @@ export interface InputCallbacks {
   onResizeEnd?: () => void;
   // Area callbacks
   onGroundClickOutsideArea?: () => void;
-  onFolderIconClick?: (areaId: string) => void;
+  onFolderIconClick?: (areaId: string, folderPath?: string) => void;
   // Building callbacks
   onBuildingClick?: (buildingId: string, screenPos: ScreenPosition) => void;
   onBuildingDoubleClick?: (buildingId: string) => void;

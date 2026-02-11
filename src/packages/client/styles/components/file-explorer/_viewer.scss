@@ -173,6 +173,27 @@
   }
 }
 
+.file-viewer-open-editor-btn {
+  background: transparent;
+  border: 1px solid $border-color;
+  color: $text-muted;
+  width: 28px;
+  height: 28px;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all $transition-fast;
+  margin-right: 4px;
+
+  &:hover {
+    background: $accent-blue;
+    border-color: $accent-blue;
+    color: white;
+  }
+}
+
 .file-viewer-locate-btn {
   background: transparent;
   border: 1px solid $border-color;

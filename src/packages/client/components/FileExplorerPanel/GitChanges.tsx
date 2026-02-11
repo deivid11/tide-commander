@@ -88,6 +88,7 @@ const GitFileItem = memo(function GitFileItem({
 
 interface GitTreeNodeItemProps {
   node: GitTreeNode;
+  depth: number;
   expandedDirs: Set<string>;
   onToggleDir: (path: string) => void;
   selectedPath: string | null;
@@ -97,8 +98,11 @@ interface GitTreeNodeItemProps {
   stagingPaths?: Set<string>;
 }
 
+const GIT_TREE_INDENT = 16; // px per depth level
+
 const GitTreeNodeItem = memo(function GitTreeNodeItem({
   node,
+  depth,
   expandedDirs,
   onToggleDir,
   selectedPath,
@@ -107,16 +111,41 @@ const GitTreeNodeItem = memo(function GitTreeNodeItem({
   onStage,
   stagingPaths,
 }: GitTreeNodeItemProps) {
+  const indent = depth * GIT_TREE_INDENT;
+
   if (!node.isDirectory) {
     return (
-      <GitFileItem
-        file={node.file!}
-        isSelected={selectedPath === node.path}
-        onSelect={onSelect}
-        status={status}
-        onStage={status === 'untracked' ? onStage : undefined}
-        isStaging={stagingPaths?.has(node.path)}
-      />
+      <div
+        className={`git-file-item ${selectedPath === node.path ? 'selected' : ''}`}
+        onClick={() => status !== 'deleted' && onSelect(node.file!.path, status)}
+        style={{ paddingLeft: `${indent + 4}px`, cursor: status === 'deleted' ? 'not-allowed' : 'pointer' }}
+        title={node.file!.path}
+      >
+        <span className="tree-arrow-spacer" />
+        <img className="tree-icon" src={getIconForExtension(node.file!.name.includes('.') ? '.' + node.file!.name.split('.').pop() : '')} alt="file" />
+        <span className="git-file-name">{node.file!.name}</span>
+        <span className="git-file-status" style={{ color: GIT_STATUS_CONFIG[status].color }}>
+          {GIT_STATUS_CONFIG[status].icon}
+        </span>
+        {node.file!.oldPath && (
+          <span className="git-file-renamed">
+            ← {node.file!.oldPath.split('/').pop()}
+          </span>
+        )}
+        {status === 'untracked' && onStage && (
+          <button
+            className={`git-stage-btn ${stagingPaths?.has(node.path) ? 'staging' : ''}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!stagingPaths?.has(node.path)) onStage(node.file!.path);
+            }}
+            title="Stage file (git add)"
+            disabled={stagingPaths?.has(node.path)}
+          >
+            {stagingPaths?.has(node.path) ? '...' : '+'}
+          </button>
+        )}
+      </div>
     );
   }
 
@@ -126,7 +155,7 @@ const GitTreeNodeItem = memo(function GitTreeNodeItem({
     <div className="tree-node-wrapper">
       <div
         className={`tree-node directory ${isExpanded ? 'expanded' : ''}`}
-        style={{ paddingLeft: '4px' }}
+        style={{ paddingLeft: `${indent + 4}px` }}
         onClick={() => onToggleDir(node.path)}
       >
         <span className={`tree-arrow ${isExpanded ? 'expanded' : ''}`}>▸</span>
@@ -146,6 +175,7 @@ const GitTreeNodeItem = memo(function GitTreeNodeItem({
             <GitTreeNodeItem
               key={child.path}
               node={child}
+              depth={depth + 1}
               expandedDirs={expandedDirs}
               onToggleDir={onToggleDir}
               selectedPath={selectedPath}
@@ -226,6 +256,7 @@ const GitStatusGroup = memo(function GitStatusGroup({
             <GitTreeNodeItem
               key={node.path}
               node={node}
+              depth={0}
               expandedDirs={expandedDirs}
               onToggleDir={onToggleDir}
               selectedPath={selectedPath}

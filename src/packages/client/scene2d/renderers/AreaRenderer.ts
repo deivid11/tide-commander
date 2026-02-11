@@ -29,7 +29,16 @@ export class AreaRenderer extends BaseRenderer {
 
       if (area.hasDirectories) {
         const iconSize = 0.5;
-        this.drawFolderIcon(left + iconSize * 0.8, top + iconSize * 0.8, iconSize, baseColor, zoom);
+        const spacing = iconSize * 1.35;
+        const maxCols = Math.max(1, Math.floor((width - iconSize * 1.2) / spacing));
+        const baseX = left + iconSize * 0.8;
+        const baseZ = top + iconSize * 0.8;
+
+        area.directories.forEach((_, idx) => {
+          const row = Math.floor(idx / maxCols);
+          const col = idx % maxCols;
+          this.drawFolderIcon(baseX + col * spacing, baseZ + row * spacing, iconSize, baseColor, zoom);
+        });
       }
 
       if (isSelected) {
@@ -47,7 +56,16 @@ export class AreaRenderer extends BaseRenderer {
       if (area.hasDirectories) {
         const iconSize = 0.5;
         const offset = radius * 0.707; // cos(45deg) for top-left of circle
-        this.drawFolderIcon(x - offset + iconSize * 0.5, z - offset + iconSize * 0.5, iconSize, baseColor, zoom);
+        const spacing = iconSize * 1.35;
+        const maxCols = Math.max(1, Math.floor((radius * 1.414 - iconSize) / spacing));
+        const baseX = x - offset + iconSize * 0.5;
+        const baseZ = z - offset + iconSize * 0.5;
+
+        area.directories.forEach((_, idx) => {
+          const row = Math.floor(idx / maxCols);
+          const col = idx % maxCols;
+          this.drawFolderIcon(baseX + col * spacing, baseZ + row * spacing, iconSize, baseColor, zoom);
+        });
       }
 
       if (isSelected) {

@@ -57,6 +57,11 @@ export class Scene2DInput {
   private draggingBuildingId: string | null = null;
   private buildingDragStartPos: { x: number; z: number } | null = null;
 
+  // Agent drag state
+  private isDraggingAgent = false;
+  private draggingAgentId: string | null = null;
+  private agentDragStartPos: { x: number; z: number } | null = null;
+
   constructor(canvas: HTMLCanvasElement, camera: Scene2DCamera, scene: Scene2D) {
     this.canvas = canvas;
     this.camera = camera;
@@ -147,6 +152,14 @@ export class Scene2DInput {
 
       const agent = this.scene.getAgentAtScreenPos(x, y);
       const building = this.scene.getBuildingAtScreenPos(x, y);
+
+      // Start tracking agent for potential drag
+      if (agent) {
+        this.draggingAgentId = agent.id;
+        this.agentDragStartPos = { ...worldPos };
+        this.isDraggingAgent = false;
+        return;
+      }
 
       // Start tracking building for potential drag
       if (building && !agent) {
@@ -244,6 +257,27 @@ export class Scene2DInput {
       return;
     }
 
+    // Handle agent drag
+    if (this.draggingAgentId && this.agentDragStartPos) {
+      const dx = worldPos.x - this.agentDragStartPos.x;
+      const dz = worldPos.z - this.agentDragStartPos.z;
+      const distance = Math.sqrt(dx * dx + dz * dz);
+
+      // Start dragging after moving a bit (threshold ~0.5 world units)
+      if (!this.isDraggingAgent && distance > 0.5) {
+        this.isDraggingAgent = true;
+        this.canvas.style.cursor = 'move';
+      }
+
+      if (this.isDraggingAgent) {
+        this.scene.handleAgentDragMove(this.draggingAgentId, worldPos);
+      }
+
+      this.lastMouseX = x;
+      this.lastMouseY = y;
+      return;
+    }
+
     // Handle building drag
     if (this.draggingBuildingId && this.buildingDragStartPos) {
       const dx = worldPos.x - this.buildingDragStartPos.x;
@@ -314,6 +348,25 @@ export class Scene2DInput {
       return;
     }
 
+    // Check for agent drag completion
+    if (this.draggingAgentId) {
+      if (this.isDraggingAgent) {
+        this.scene.handleAgentDragEnd(this.draggingAgentId, worldPos);
+        this.draggingAgentId = null;
+        this.agentDragStartPos = null;
+        this.isDraggingAgent = false;
+        this.canvas.style.cursor = '';
+        this.isMouseDown = false;
+        return;
+      } else {
+        // Was a click, not a drag - let handleClick process it
+        this.draggingAgentId = null;
+        this.agentDragStartPos = null;
+        this.isDraggingAgent = false;
+        // Fall through to handleClick below
+      }
+    }
+
     // Check for building drag completion
     if (this.draggingBuildingId) {
       if (this.isDraggingBuilding) {
@@ -378,6 +431,14 @@ export class Scene2DInput {
       this.isResizingArea = false;
       this.resizeHandleType = null;
     }
+
+    // Finish any in-progress agent drag (cancel on mouse leave)
+    if (this.isDraggingAgent && this.draggingAgentId) {
+      this.scene.handleAgentDragCancel(this.draggingAgentId);
+    }
+    this.draggingAgentId = null;
+    this.agentDragStartPos = null;
+    this.isDraggingAgent = false;
 
     // Finish any in-progress building drag
     if (this.isDraggingBuilding && this.draggingBuildingId) {
@@ -786,9 +847,9 @@ export class Scene2DInput {
       }
     } else {
       // Check if clicking on a folder icon first (takes priority over area selection)
-      const folderAreaId = this.scene.getAreaFolderIconAtScreenPos(screenX, screenY);
-      if (folderAreaId) {
-        this.scene.handleAreaFolderClick(folderAreaId);
+      const folderIconHit = this.scene.getAreaFolderIconAtScreenPos(screenX, screenY);
+      if (folderIconHit) {
+        this.scene.handleAreaFolderClick(folderIconHit.areaId, folderIconHit.folderPath);
         this.lastClickTime = 0;
         this.lastClickTarget = null;
         return;

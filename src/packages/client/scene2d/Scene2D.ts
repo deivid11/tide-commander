@@ -62,6 +62,7 @@ export interface Area2DData {
   color: string;
   label?: string;
   zIndex: number;
+  directories: string[];
   hasDirectories?: boolean;
 }
 
@@ -82,7 +83,7 @@ export interface Scene2DCallbacks {
   onGroundClick?: (worldPos: { x: number; z: number }) => void;
   onSelectionBox?: (start: { x: number; z: number }, end: { x: number; z: number }) => void;
   onMoveCommand?: (agentIds: string[], targetPos: { x: number; z: number }) => void;
-  onAreaFolderClick?: (areaId: string) => void;
+  onAreaFolderClick?: (areaId: string, folderPath?: string) => void;
   onAreaDoubleClick?: (areaId: string) => void;
 }
 
@@ -594,6 +595,7 @@ export class Scene2D {
           color: area.color,
           label: area.name,
           zIndex: area.zIndex ?? 0,
+          directories: [...area.directories],
           hasDirectories,
         });
       } else if (area.type === 'circle' && area.radius) {
@@ -605,6 +607,7 @@ export class Scene2D {
           color: area.color,
           label: area.name,
           zIndex: area.zIndex ?? 0,
+          directories: [...area.directories],
           hasDirectories,
         });
       }
@@ -1051,6 +1054,34 @@ export class Scene2D {
     // Store in a member variable if we want to render hover effects
   }
 
+  handleAgentDragMove(agentId: string, currentPos: { x: number; z: number }): void {
+    // Update agent position visually during drag (immediate, no animation)
+    const agent = this.agents.get(agentId);
+    if (agent) {
+      // Cancel any in-progress movement animation
+      this.movements.delete(agentId);
+      agent.position.x = currentPos.x;
+      agent.position.z = currentPos.z;
+    }
+  }
+
+  handleAgentDragEnd(agentId: string, endPos: { x: number; z: number }): void {
+    // Finalize the position via store (persists + sends to server)
+    store.moveAgent(agentId, { x: endPos.x, y: 0, z: endPos.z });
+    this.createMoveOrderEffect(endPos);
+  }
+
+  handleAgentDragCancel(agentId: string): void {
+    // Restore agent to its store position
+    const state = store.getState();
+    const storeAgent = state.agents.get(agentId);
+    const agent = this.agents.get(agentId);
+    if (agent && storeAgent) {
+      agent.position.x = storeAgent.position.x;
+      agent.position.z = storeAgent.position.z;
+    }
+  }
+
   handleBuildingDragStart(buildingId: string, startPos: { x: number; z: number }): void {
     this.callbacks.onBuildingDragStart?.(buildingId, startPos);
   }
@@ -1075,9 +1106,13 @@ export class Scene2D {
     this.callbacks.onGroundClick?.(worldPos);
   }
 
-  handleAreaFolderClick(areaId: string): void {
-    store.openFileExplorerForArea(areaId);
-    this.callbacks.onAreaFolderClick?.(areaId);
+  handleAreaFolderClick(areaId: string, folderPath?: string): void {
+    if (folderPath) {
+      store.openFileExplorerForAreaFolder(areaId, folderPath);
+    } else {
+      store.openFileExplorerForArea(areaId);
+    }
+    this.callbacks.onAreaFolderClick?.(areaId, folderPath);
   }
 
   handleAreaDoubleClick(areaId: string): void {
@@ -1086,9 +1121,9 @@ export class Scene2D {
 
   /**
    * Check if a screen position is on an area's folder icon.
-   * Returns the area ID if a folder icon was clicked, null otherwise.
+   * Returns area and folder path if an icon was clicked, null otherwise.
    */
-  getAreaFolderIconAtScreenPos(screenX: number, screenY: number): string | null {
+  getAreaFolderIconAtScreenPos(screenX: number, screenY: number): { areaId: string; folderPath?: string } | null {
     const worldPos = this.camera.screenToWorld(screenX, screenY);
     const _zoom = this.camera.getZoom();
 
@@ -1098,29 +1133,40 @@ export class Scene2D {
     for (const area of sortedAreas) {
       if (!area.hasDirectories) continue;
 
-      // Calculate folder icon position (top-left corner of the area)
       const iconSize = 0.5; // World units - same as in AreaRenderer
-      let iconX: number;
-      let iconZ: number;
+      const spacing = iconSize * 1.35;
+      const directories = area.directories || [];
+
+      let baseX: number;
+      let baseZ: number;
+      let maxCols = 3;
 
       if (area.type === 'rectangle' && 'width' in area.size) {
-        iconX = area.position.x - area.size.width / 2 + iconSize * 0.8;
-        iconZ = area.position.z - area.size.height / 2 + iconSize * 0.8;
+        baseX = area.position.x - area.size.width / 2 + iconSize * 0.8;
+        baseZ = area.position.z - area.size.height / 2 + iconSize * 0.8;
+        maxCols = Math.max(1, Math.floor((area.size.width - iconSize * 1.2) / spacing));
       } else if (area.type === 'circle' && 'radius' in area.size) {
-        // Top-left of bounding box
         const offset = area.size.radius * 0.707; // cos(45deg)
-        iconX = area.position.x - offset + iconSize * 0.5;
-        iconZ = area.position.z - offset + iconSize * 0.5;
+        baseX = area.position.x - offset + iconSize * 0.5;
+        baseZ = area.position.z - offset + iconSize * 0.5;
+        maxCols = Math.max(1, Math.floor((area.size.radius * 1.414 - iconSize) / spacing));
       } else {
         continue;
       }
 
-      // Check if click is within icon bounds
       const hitRadius = iconSize * 0.7;
-      const dx = worldPos.x - iconX;
-      const dz = worldPos.z - iconZ;
-      if (Math.sqrt(dx * dx + dz * dz) <= hitRadius) {
-        return area.id;
+
+      for (let i = 0; i < directories.length; i++) {
+        const row = Math.floor(i / maxCols);
+        const col = i % maxCols;
+        const iconX = baseX + col * spacing;
+        const iconZ = baseZ + row * spacing;
+
+        const dx = worldPos.x - iconX;
+        const dz = worldPos.z - iconZ;
+        if (Math.sqrt(dx * dx + dz * dz) <= hitRadius) {
+          return { areaId: area.id, folderPath: directories[i] };
+        }
       }
     }
 

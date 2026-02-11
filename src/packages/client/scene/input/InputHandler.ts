@@ -984,8 +984,9 @@ export class InputHandler {
     const folderIconMesh = this.raycaster.checkFolderIconClick(event);
     if (folderIconMesh) {
       const areaId = folderIconMesh.userData.areaId;
+      const folderPath = folderIconMesh.userData.folderPath as string | undefined;
       if (areaId) {
-        this.callbacks.onFolderIconClick?.(areaId);
+        this.callbacks.onFolderIconClick?.(areaId, folderPath);
         return;
       }
     }

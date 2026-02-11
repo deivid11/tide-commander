@@ -15,6 +15,7 @@ export interface TreeNode {
   size: number;
   extension: string;
   children?: TreeNode[];
+  gitStatus?: GitFileStatusType;
 }
 
 // ============================================================================
@@ -186,6 +187,44 @@ export interface UseGitStatusReturn {
   gitStatus: GitStatus | null;
   loading: boolean;
   loadGitStatus: () => Promise<void>;
+}
+
+// ============================================================================
+// GIT BRANCH TYPES
+// ============================================================================
+
+export interface GitBranch {
+  name: string;
+  isCurrent: boolean;
+  isRemote: boolean;
+  remote?: string;
+  lastCommit?: string;
+  lastMessage?: string;
+}
+
+export interface GitBranchListResponse {
+  branches: GitBranch[];
+  currentBranch: string;
+  remotes: string[];
+}
+
+export interface GitBranchOperationResult {
+  success: boolean;
+  error?: string;
+  branch?: string;
+  output?: string;
+}
+
+export interface UseGitBranchesReturn {
+  branches: GitBranch[];
+  loading: boolean;
+  error: string | null;
+  operationInProgress: string | null;
+  loadBranches: (directory: string) => Promise<void>;
+  checkoutBranch: (directory: string, branch: string) => Promise<GitBranchOperationResult>;
+  createBranch: (directory: string, name: string, startPoint?: string) => Promise<GitBranchOperationResult>;
+  pullFromRemote: (directory: string) => Promise<GitBranchOperationResult>;
+  pushToRemote: (directory: string) => Promise<GitBranchOperationResult>;
 }
 
 export interface UseFileContentReturn {

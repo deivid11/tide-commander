@@ -231,7 +231,14 @@ export class SceneManager {
       onResizeMove: (pos: { x: number; z: number }) => this.drawingManager.updateResize(pos),
       onResizeEnd: () => this.drawingManager.finishResize(),
       onGroundClickOutsideArea: () => this.inputEventHandlers.handleGroundClickOutsideArea(),
-      onFolderIconClick: (areaId: string) => { store.openFileExplorerForArea(areaId); this.onFolderIconClickCallback?.(areaId); },
+      onFolderIconClick: (areaId: string, folderPath?: string) => {
+        if (folderPath) {
+          store.openFileExplorerForAreaFolder(areaId, folderPath);
+        } else {
+          store.openFileExplorerForArea(areaId);
+        }
+        this.onFolderIconClickCallback?.(areaId);
+      },
       onBuildingClick: (id: string, screenPos: { x: number; y: number }) => this.inputEventHandlers.handleBuildingClick(id, screenPos),
       onBuildingDoubleClick: (id: string) => this.inputEventHandlers.handleBuildingDoubleClick(id),
       onBuildingHover: (id: string | null, pos: { x: number; y: number } | null) => this.inputEventHandlers.handleBuildingHover(id, pos),

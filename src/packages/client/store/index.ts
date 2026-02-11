@@ -535,6 +535,7 @@ class Store
 
   openFileExplorer(path: string): void {
     this.state.explorerFolderPath = path;
+    this.state.explorerAreaId = null;
     this.notify();
   }
 
@@ -545,7 +546,14 @@ class Store
   }
 
   openFileExplorerForArea(areaId: string): void {
+    this.state.explorerFolderPath = null;
     this.state.explorerAreaId = areaId;
+    this.notify();
+  }
+
+  openFileExplorerForAreaFolder(areaId: string, folderPath: string): void {
+    this.state.explorerAreaId = areaId;
+    this.state.explorerFolderPath = folderPath;
     this.notify();
   }
 

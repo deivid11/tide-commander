@@ -37,6 +37,41 @@ function sortChildren(children: TreeNode[]): TreeNode[] {
   });
 }
 
+interface CompactChain {
+  displayName: string;
+  terminalNode: TreeNode;
+  expansionPath: string;
+}
+
+function getCompactChain(node: TreeNode): CompactChain {
+  if (!node.isDirectory) {
+    return {
+      displayName: node.name,
+      terminalNode: node,
+      expansionPath: node.path,
+    };
+  }
+
+  const names = [node.name];
+  let terminalNode = node;
+
+  // IntelliJ-style compaction: collapse A/B/C when each directory has exactly one directory child.
+  while (
+    terminalNode.children &&
+    terminalNode.children.length === 1 &&
+    terminalNode.children[0]?.isDirectory
+  ) {
+    terminalNode = terminalNode.children[0];
+    names.push(terminalNode.name);
+  }
+
+  return {
+    displayName: names.join('/'),
+    terminalNode,
+    expansionPath: terminalNode.path,
+  };
+}
+
 // ============================================================================
 // HIGHLIGHT MATCH COMPONENT
 // ============================================================================
@@ -75,20 +110,21 @@ function TreeNodeItemComponent({
   onToggle,
   searchQuery,
 }: TreeNodeProps) {
-  const isExpanded = expandedPaths.has(node.path);
+  const compactChain = useMemo(() => getCompactChain(node), [node]);
+  const isExpanded = expandedPaths.has(compactChain.expansionPath);
   const isSelected = selectedPath === node.path;
   const gitStatusColor = getGitStatusColor(node.gitStatus);
 
   // Memoize sorted children to avoid re-sorting on every render
   const sortedChildren = useMemo(
-    () => (node.children ? sortChildren(node.children) : []),
-    [node.children]
+    () => (compactChain.terminalNode.children ? sortChildren(compactChain.terminalNode.children) : []),
+    [compactChain]
   );
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (node.isDirectory) {
-      onToggle(node.path);
+      onToggle(compactChain.expansionPath);
     } else {
       onSelect(node);
     }
@@ -122,7 +158,7 @@ function TreeNodeItemComponent({
           </>
         )}
         <span className="tree-name" style={gitStatusColor ? { color: gitStatusColor } : undefined}>
-          <HighlightMatch text={node.name} query={searchQuery} />
+          <HighlightMatch text={compactChain.displayName} query={searchQuery} />
         </span>
       </div>
 
@@ -169,8 +205,10 @@ export const TreeNodeItem = memo(TreeNodeItemComponent, (prev, next) => {
 
   // Check if this node's expansion changed (for directories)
   if (prev.node.isDirectory) {
-    const wasExpanded = prev.expandedPaths.has(prev.node.path);
-    const isExpanded = next.expandedPaths.has(next.node.path);
+    const prevExpansionPath = getCompactChain(prev.node).expansionPath;
+    const nextExpansionPath = getCompactChain(next.node).expansionPath;
+    const wasExpanded = prev.expandedPaths.has(prevExpansionPath);
+    const isExpanded = next.expandedPaths.has(nextExpansionPath);
     if (wasExpanded !== isExpanded) return false;
 
     // If this node is expanded, we need to re-render when expandedPaths changes
