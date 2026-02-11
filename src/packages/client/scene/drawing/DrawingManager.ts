@@ -5,10 +5,11 @@ import { store } from '../../store';
 /**
  * Handle types for different positions.
  * - nw, ne, sw, se: corner resize handles for rectangles
+ * - n, s, e, w: edge resize handles for rectangles (single-axis)
  * - radius: edge resize handle for circles
  * - move: center handle for moving the entire area
  */
-type HandleType = 'nw' | 'ne' | 'sw' | 'se' | 'radius' | 'move';
+type HandleType = 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w' | 'radius' | 'move';
 
 /**
  * Manages drawing areas on the battlefield.
@@ -574,6 +575,36 @@ export class DrawingManager {
         this.scene.add(handle);
         this.resizeHandles.push(handle);
       }
+
+      // Edge handles for rectangle (midpoints of each side)
+      const edgeHandleMat = new THREE.MeshBasicMaterial({
+        color: 0xaaddff, // Light blue for edge handles
+        transparent: true,
+        opacity: 0.9,
+      });
+      const edgeHandleGeom = new THREE.SphereGeometry(0.12, 16, 16);
+      const edges: { type: HandleType; x: number; z: number }[] = [
+        { type: 'n', x: 0, z: -area.height / 2 },
+        { type: 's', x: 0, z: area.height / 2 },
+        { type: 'e', x: area.width / 2, z: 0 },
+        { type: 'w', x: -area.width / 2, z: 0 },
+      ];
+
+      for (const edge of edges) {
+        const handle = new THREE.Mesh(edgeHandleGeom.clone(), edgeHandleMat.clone());
+        handle.position.set(
+          area.center.x + edge.x,
+          0.2 + zOffset,
+          area.center.z + edge.z
+        );
+        handle.name = 'resizeHandle';
+        handle.userData.handleType = edge.type;
+        handle.userData.areaId = area.id;
+        this.scene.add(handle);
+        this.resizeHandles.push(handle);
+      }
+      edgeHandleMat.dispose();
+      edgeHandleGeom.dispose();
     } else if (area.type === 'circle' && area.radius) {
       // Single handle on edge for circle
       const handle = new THREE.Mesh(handleGeom.clone(), resizeHandleMat.clone());
@@ -656,27 +687,75 @@ export class DrawingManager {
         },
       };
     } else if (area.type === 'rectangle' && area.width && area.height) {
-      // Use delta from drag start so each axis is independent
+      // Asymmetric resize: anchor the opposite side, only move the dragged side
       const deltaX = pos.x - this.resizeStartPos.x;
       const deltaZ = pos.z - this.resizeStartPos.z;
-      const origWidth = area.width;
-      const origHeight = area.height;
+      const origW = area.width;
+      const origH = area.height;
+      const origCX = area.center.x;
+      const origCZ = area.center.z;
+
+      // Helper: compute new width/center when moving one side
+      const moveRight = (dx: number) => {
+        const newW = Math.max(0.5, origW + dx);
+        return { width: newW, cx: origCX + (newW - origW) / 2 };
+      };
+      const moveLeft = (dx: number) => {
+        const newW = Math.max(0.5, origW - dx);
+        return { width: newW, cx: origCX + (origW - newW) / 2 };
+      };
+      const moveBottom = (dz: number) => {
+        const newH = Math.max(0.5, origH + dz);
+        return { height: newH, cz: origCZ + (newH - origH) / 2 };
+      };
+      const moveTop = (dz: number) => {
+        const newH = Math.max(0.5, origH - dz);
+        return { height: newH, cz: origCZ + (origH - newH) / 2 };
+      };
 
       switch (this.resizeHandleType) {
         case 'se': {
-          updates = { width: Math.max(0.5, origWidth + deltaX * 2), height: Math.max(0.5, origHeight + deltaZ * 2) };
+          const r = moveRight(deltaX);
+          const b = moveBottom(deltaZ);
+          updates = { width: r.width, height: b.height, center: { x: r.cx, z: b.cz } };
           break;
         }
         case 'sw': {
-          updates = { width: Math.max(0.5, origWidth - deltaX * 2), height: Math.max(0.5, origHeight + deltaZ * 2) };
+          const l = moveLeft(deltaX);
+          const b = moveBottom(deltaZ);
+          updates = { width: l.width, height: b.height, center: { x: l.cx, z: b.cz } };
           break;
         }
         case 'ne': {
-          updates = { width: Math.max(0.5, origWidth + deltaX * 2), height: Math.max(0.5, origHeight - deltaZ * 2) };
+          const r = moveRight(deltaX);
+          const t = moveTop(deltaZ);
+          updates = { width: r.width, height: t.height, center: { x: r.cx, z: t.cz } };
           break;
         }
         case 'nw': {
-          updates = { width: Math.max(0.5, origWidth - deltaX * 2), height: Math.max(0.5, origHeight - deltaZ * 2) };
+          const l = moveLeft(deltaX);
+          const t = moveTop(deltaZ);
+          updates = { width: l.width, height: t.height, center: { x: l.cx, z: t.cz } };
+          break;
+        }
+        case 'e': {
+          const r = moveRight(deltaX);
+          updates = { width: r.width, center: { x: r.cx, z: origCZ } };
+          break;
+        }
+        case 'w': {
+          const l = moveLeft(deltaX);
+          updates = { width: l.width, center: { x: l.cx, z: origCZ } };
+          break;
+        }
+        case 's': {
+          const b = moveBottom(deltaZ);
+          updates = { height: b.height, center: { x: origCX, z: b.cz } };
+          break;
+        }
+        case 'n': {
+          const t = moveTop(deltaZ);
+          updates = { height: t.height, center: { x: origCX, z: t.cz } };
           break;
         }
       }

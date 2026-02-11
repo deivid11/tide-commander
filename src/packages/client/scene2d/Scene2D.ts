@@ -139,7 +139,7 @@ export class Scene2D {
   // Area selection and resize state
   private selectedAreaId: string | null = null;
   private isResizingArea = false;
-  private resizeHandleType: 'move' | 'nw' | 'ne' | 'sw' | 'se' | 'radius' | null = null;
+  private resizeHandleType: 'move' | 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w' | 'radius' | null = null;
   private resizeStartPos: { x: number; z: number } | null = null;
   private resizeOriginalArea: Area2DData | null = null;
 
@@ -631,7 +631,7 @@ export class Scene2D {
    * Get the resize handle at a world position, if any.
    * Returns the handle type if within the handle hit area.
    */
-  getAreaHandleAtWorldPos(worldX: number, worldZ: number): { areaId: string; handleType: 'move' | 'nw' | 'ne' | 'sw' | 'se' | 'radius' } | null {
+  getAreaHandleAtWorldPos(worldX: number, worldZ: number): { areaId: string; handleType: 'move' | 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w' | 'radius' } | null {
     if (!this.selectedAreaId) return null;
 
     const area = this.areas.get(this.selectedAreaId);
@@ -650,6 +650,7 @@ export class Scene2D {
 
     if (area.type === 'rectangle' && 'width' in area.size) {
       const { width, height } = area.size;
+      // Check corner handles first (higher priority)
       const corners: { type: 'nw' | 'ne' | 'sw' | 'se'; x: number; z: number }[] = [
         { type: 'nw', x: area.position.x - width / 2, z: area.position.z - height / 2 },
         { type: 'ne', x: area.position.x + width / 2, z: area.position.z - height / 2 },
@@ -662,6 +663,22 @@ export class Scene2D {
         const dz = worldZ - corner.z;
         if (Math.sqrt(dx * dx + dz * dz) <= adaptiveRadius) {
           return { areaId: area.id, handleType: corner.type };
+        }
+      }
+
+      // Check edge handles (midpoints of each side)
+      const edges: { type: 'n' | 's' | 'e' | 'w'; x: number; z: number }[] = [
+        { type: 'n', x: area.position.x, z: area.position.z - height / 2 },
+        { type: 's', x: area.position.x, z: area.position.z + height / 2 },
+        { type: 'e', x: area.position.x + width / 2, z: area.position.z },
+        { type: 'w', x: area.position.x - width / 2, z: area.position.z },
+      ];
+
+      for (const edge of edges) {
+        const dx = worldX - edge.x;
+        const dz = worldZ - edge.z;
+        if (Math.sqrt(dx * dx + dz * dz) <= adaptiveRadius) {
+          return { areaId: area.id, handleType: edge.type };
         }
       }
     } else if (area.type === 'circle' && 'radius' in area.size) {
@@ -681,7 +698,7 @@ export class Scene2D {
   /**
    * Start resizing/moving an area.
    */
-  startAreaResize(handleType: 'move' | 'nw' | 'ne' | 'sw' | 'se' | 'radius', pos: { x: number; z: number }): void {
+  startAreaResize(handleType: 'move' | 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w' | 'radius', pos: { x: number; z: number }): void {
     if (!this.selectedAreaId) return;
 
     const area = this.areas.get(this.selectedAreaId);
@@ -712,27 +729,75 @@ export class Scene2D {
         },
       };
     } else if (area.type === 'rectangle' && 'width' in area.size) {
-      // Use delta from drag start so each axis is independent
+      // Asymmetric resize: anchor the opposite side, only move the dragged side
       const deltaX = pos.x - this.resizeStartPos.x;
       const deltaZ = pos.z - this.resizeStartPos.z;
-      const origWidth = area.size.width;
-      const origHeight = area.size.height;
+      const origW = area.size.width;
+      const origH = area.size.height;
+      const origCX = area.position.x;
+      const origCZ = area.position.z;
+
+      // Helper: compute new dimension/center when moving one side
+      const moveRight = (dx: number) => {
+        const newW = Math.max(0.5, origW + dx);
+        return { width: newW, cx: origCX + (newW - origW) / 2 };
+      };
+      const moveLeft = (dx: number) => {
+        const newW = Math.max(0.5, origW - dx);
+        return { width: newW, cx: origCX + (origW - newW) / 2 };
+      };
+      const moveBottom = (dz: number) => {
+        const newH = Math.max(0.5, origH + dz);
+        return { height: newH, cz: origCZ + (newH - origH) / 2 };
+      };
+      const moveTop = (dz: number) => {
+        const newH = Math.max(0.5, origH - dz);
+        return { height: newH, cz: origCZ + (origH - newH) / 2 };
+      };
 
       switch (this.resizeHandleType) {
         case 'se': {
-          updates = { width: Math.max(0.5, origWidth + deltaX * 2), height: Math.max(0.5, origHeight + deltaZ * 2) };
+          const r = moveRight(deltaX);
+          const b = moveBottom(deltaZ);
+          updates = { width: r.width, height: b.height, center: { x: r.cx, z: b.cz } };
           break;
         }
         case 'sw': {
-          updates = { width: Math.max(0.5, origWidth - deltaX * 2), height: Math.max(0.5, origHeight + deltaZ * 2) };
+          const l = moveLeft(deltaX);
+          const b = moveBottom(deltaZ);
+          updates = { width: l.width, height: b.height, center: { x: l.cx, z: b.cz } };
           break;
         }
         case 'ne': {
-          updates = { width: Math.max(0.5, origWidth + deltaX * 2), height: Math.max(0.5, origHeight - deltaZ * 2) };
+          const r = moveRight(deltaX);
+          const t = moveTop(deltaZ);
+          updates = { width: r.width, height: t.height, center: { x: r.cx, z: t.cz } };
           break;
         }
         case 'nw': {
-          updates = { width: Math.max(0.5, origWidth - deltaX * 2), height: Math.max(0.5, origHeight - deltaZ * 2) };
+          const l = moveLeft(deltaX);
+          const t = moveTop(deltaZ);
+          updates = { width: l.width, height: t.height, center: { x: l.cx, z: t.cz } };
+          break;
+        }
+        case 'e': {
+          const r = moveRight(deltaX);
+          updates = { width: r.width, center: { x: r.cx, z: origCZ } };
+          break;
+        }
+        case 'w': {
+          const l = moveLeft(deltaX);
+          updates = { width: l.width, center: { x: l.cx, z: origCZ } };
+          break;
+        }
+        case 's': {
+          const b = moveBottom(deltaZ);
+          updates = { height: b.height, center: { x: origCX, z: b.cz } };
+          break;
+        }
+        case 'n': {
+          const t = moveTop(deltaZ);
+          updates = { height: t.height, center: { x: origCX, z: t.cz } };
           break;
         }
       }

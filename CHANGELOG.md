@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.57.1] - 2026-02-11
+
+### Added
+- **Edge resize handles** - Rectangle areas now have N/S/E/W edge handles for single-axis resizing in both 3D and 2D scenes
+
+### Changed
+- **Asymmetric area resize** - Corner and edge handles now anchor the opposite side instead of resizing symmetrically from center
+- **Resize cursors** - Edge handles show directional cursors (ns-resize, ew-resize) matching their axis
+
 ## [0.57.0] - 2026-02-11
 
 ### Added

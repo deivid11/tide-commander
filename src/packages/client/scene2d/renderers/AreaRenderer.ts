@@ -372,6 +372,18 @@ export class AreaRenderer extends BaseRenderer {
       this.drawResizeHandle(corner.x, corner.z, handleRadius, '#ffffff', zoom, handlePulse);
     }
 
+    // Edge handles (midpoints of each side) - light blue, slightly smaller
+    const edges = [
+      { x: cx, z: cz - height / 2 }, // north
+      { x: cx, z: cz + height / 2 }, // south
+      { x: cx + width / 2, z: cz },  // east
+      { x: cx - width / 2, z: cz },  // west
+    ];
+
+    for (const edge of edges) {
+      this.drawResizeHandle(edge.x, edge.z, handleRadius * 0.8, '#aaddff', zoom, handlePulse);
+    }
+
     this.drawResizeHandle(cx, cz, handleRadius * 1.2, '#ffcc00', zoom, handlePulse, true);
   }
 

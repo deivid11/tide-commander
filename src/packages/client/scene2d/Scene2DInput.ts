@@ -50,7 +50,7 @@ export class Scene2DInput {
 
   // Area resize/move state
   private isResizingArea = false;
-  private resizeHandleType: 'move' | 'nw' | 'ne' | 'sw' | 'se' | 'radius' | null = null;
+  private resizeHandleType: 'move' | 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w' | 'radius' | null = null;
 
   // Building drag state
   private isDraggingBuilding = false;
@@ -136,7 +136,12 @@ export class Scene2DInput {
         this.isResizingArea = true;
         this.resizeHandleType = handle.handleType;
         this.scene.startAreaResize(handle.handleType, worldPos);
-        this.canvas.style.cursor = handle.handleType === 'move' ? 'move' : 'nwse-resize';
+        const ht = handle.handleType;
+        this.canvas.style.cursor = ht === 'move' ? 'move'
+          : (ht === 'n' || ht === 's') ? 'ns-resize'
+          : (ht === 'e' || ht === 'w' || ht === 'radius') ? 'ew-resize'
+          : (ht === 'ne' || ht === 'sw') ? 'nesw-resize'
+          : 'nwse-resize';
         return;
       }
 
@@ -203,7 +208,9 @@ export class Scene2DInput {
           this.canvas.style.cursor = 'nwse-resize';
         } else if (handle.handleType === 'ne' || handle.handleType === 'sw') {
           this.canvas.style.cursor = 'nesw-resize';
-        } else if (handle.handleType === 'radius') {
+        } else if (handle.handleType === 'n' || handle.handleType === 's') {
+          this.canvas.style.cursor = 'ns-resize';
+        } else if (handle.handleType === 'e' || handle.handleType === 'w' || handle.handleType === 'radius') {
           this.canvas.style.cursor = 'ew-resize';
         }
       } else {
