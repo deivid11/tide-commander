@@ -219,5 +219,6 @@ export function useFileContent(): UseFileContentReturn {
     error,
     loadFile,
     clearFile,
+    setFile,
   };
 }

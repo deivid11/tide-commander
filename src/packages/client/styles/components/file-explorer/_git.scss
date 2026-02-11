@@ -154,6 +154,11 @@
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.1);
 
+  &.conflict {
+    color: #ff5555;
+    background: rgba(#ff5555, 0.15);
+  }
+
   &.modified {
     color: $dracula-orange;
     background: rgba($dracula-orange, 0.15);
@@ -345,5 +350,303 @@
     color: $text-muted;
     border-color: $border-color;
     cursor: wait;
+  }
+}
+
+// =============================================================================
+// File checkbox for commit selection
+// =============================================================================
+
+.git-file-checkbox {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border: 1px solid $border-color;
+  border-radius: 2px;
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+  position: relative;
+  transition: all $transition-fast;
+
+  &:checked {
+    background: $accent-blue;
+    border-color: $accent-blue;
+
+    &::after {
+      content: '';
+      position: absolute;
+      left: 3px;
+      top: 1px;
+      width: 5px;
+      height: 8px;
+      border: solid white;
+      border-width: 0 1.5px 1.5px 0;
+      transform: rotate(45deg);
+    }
+  }
+
+  &:hover {
+    border-color: $accent-blue;
+  }
+}
+
+// =============================================================================
+// Commit Panel (bottom of git changes)
+// =============================================================================
+
+.git-commit-panel {
+  border-top: 1px solid $border-color;
+  background: $bg-tertiary;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.git-commit-options {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.git-commit-amend-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: $text-secondary;
+  cursor: pointer;
+  font-family: $font-mono;
+  font-size: 11px;
+
+  &:hover {
+    color: $text-primary;
+  }
+}
+
+.git-commit-amend-checkbox {
+  appearance: none;
+  width: 13px;
+  height: 13px;
+  border: 1px solid $border-color;
+  border-radius: 2px;
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+  transition: all $transition-fast;
+
+  &:checked {
+    background: $dracula-purple;
+    border-color: $dracula-purple;
+
+    &::after {
+      content: '';
+      position: absolute;
+      left: 3px;
+      top: 1px;
+      width: 4px;
+      height: 7px;
+      border: solid white;
+      border-width: 0 1.5px 1.5px 0;
+      transform: rotate(45deg);
+    }
+  }
+
+  &:hover {
+    border-color: $dracula-purple;
+  }
+}
+
+.git-commit-file-count {
+  font-family: $font-mono;
+  font-size: 10px;
+  color: $text-muted;
+  margin-left: auto;
+}
+
+.git-commit-select-toggle {
+  background: transparent;
+  border: none;
+  color: $accent-blue;
+  font-size: 10px;
+  cursor: pointer;
+  padding: 0;
+  font-family: $font-mono;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.git-commit-message {
+  width: 100%;
+  min-height: 54px;
+  max-height: 120px;
+  background: $dracula-bg;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  color: $dracula-fg;
+  font-family: $font-mono;
+  font-size: 12px;
+  padding: 8px;
+  resize: vertical;
+  outline: none;
+  transition: border-color $transition-fast;
+  box-sizing: border-box;
+
+  &::placeholder {
+    color: $text-muted;
+  }
+
+  &:focus {
+    border-color: $accent-blue;
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+.git-commit-status {
+  font-family: $font-mono;
+  font-size: 10px;
+  padding: 4px 8px;
+  border-radius: $radius-sm;
+
+  &.success {
+    color: $dracula-green;
+    background: rgba($dracula-green, 0.1);
+  }
+
+  &.error {
+    color: $dracula-red;
+    background: rgba($dracula-red, 0.1);
+  }
+}
+
+.git-commit-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.git-commit-btn {
+  flex: 1;
+  background: $dracula-green;
+  border: none;
+  color: $dracula-bg;
+  font-family: $font-mono;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover:not(:disabled) {
+    filter: brightness(1.15);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+.git-commit-push-btn {
+  flex: 1;
+  background: $accent-blue;
+  border: none;
+  color: white;
+  font-family: $font-mono;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover:not(:disabled) {
+    filter: brightness(1.15);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+// =============================================================================
+// Merge In-Progress Banner
+// =============================================================================
+
+.git-merge-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba($dracula-orange, 0.1);
+  border-bottom: 1px solid rgba($dracula-orange, 0.3);
+  flex-shrink: 0;
+}
+
+.git-merge-banner-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.git-merge-banner-text {
+  flex: 1;
+  font-family: $font-mono;
+  font-size: 11px;
+  color: $dracula-orange;
+  font-weight: 600;
+}
+
+.git-merge-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.git-merge-continue-btn {
+  background: $dracula-green;
+  border: none;
+  color: $dracula-bg;
+  font-family: $font-mono;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover:not(:disabled) {
+    filter: brightness(1.15);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+.git-merge-abort-btn {
+  background: transparent;
+  border: 1px solid rgba($dracula-red, 0.4);
+  color: $dracula-red;
+  font-family: $font-mono;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    background: rgba($dracula-red, 0.15);
+    border-color: $dracula-red;
   }
 }

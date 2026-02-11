@@ -16,6 +16,7 @@ export interface TreeNode {
   extension: string;
   children?: TreeNode[];
   gitStatus?: GitFileStatusType;
+  hasGitChanges?: boolean;           // For folders: true if any descendant has git changes
 }
 
 // ============================================================================
@@ -59,7 +60,7 @@ export interface FileTabsProps {
 // GIT TYPES
 // ============================================================================
 
-export type GitFileStatusType = 'modified' | 'added' | 'deleted' | 'untracked' | 'renamed';
+export type GitFileStatusType = 'modified' | 'added' | 'deleted' | 'untracked' | 'renamed' | 'conflict';
 
 export interface GitFileStatus {
   path: string;
@@ -74,6 +75,7 @@ export interface GitStatusCounts {
   deleted: number;
   untracked: number;
   renamed: number;
+  conflict: number;
 }
 
 export interface GitStatus {
@@ -81,13 +83,14 @@ export interface GitStatus {
   branch?: string;
   files: GitFileStatus[];
   counts?: GitStatusCounts;
+  mergeInProgress?: boolean;
 }
 
 // ============================================================================
 // VIEW TYPES
 // ============================================================================
 
-export type ViewMode = 'files' | 'git';
+export type ViewMode = 'files' | 'git' | 'compare';
 
 // ============================================================================
 // COMPONENT PROPS
@@ -149,6 +152,13 @@ export interface ContentSearchResultsProps {
   query: string;
 }
 
+export interface BranchCompareResult {
+  files: GitFileStatus[];
+  counts: GitStatusCounts;
+  baseBranch: string;
+  currentBranch: string;
+}
+
 export interface GitChangesProps {
   gitStatus: GitStatus | null;
   loading: boolean;
@@ -157,6 +167,13 @@ export interface GitChangesProps {
   onRefresh: () => void;
   onStageFiles: (paths: string[]) => Promise<void>;
   stagingPaths: Set<string>;
+  currentFolder: string | null;
+  onCommitComplete?: () => void;
+  mergeInProgress?: boolean;
+  mergingBranch?: string | null;
+  onMergeContinue?: () => void;
+  onMergeAbort?: () => void;
+  onConflictOpen?: (filePath: string) => void;
 }
 
 // ============================================================================
@@ -180,6 +197,7 @@ export interface UseFileTreeReturn {
   expandedPaths: Set<string>;
   loadTree: () => Promise<void>;
   togglePath: (path: string) => void | Promise<void>;
+  expandToPath: (path: string) => Promise<void>;
   setExpandedPaths: React.Dispatch<React.SetStateAction<Set<string>>>;
 }
 
@@ -215,6 +233,20 @@ export interface GitBranchOperationResult {
   output?: string;
 }
 
+export interface MergeResult {
+  success: boolean;
+  output?: string;
+  error?: string;
+  conflicts?: string[];
+}
+
+export interface ConflictVersions {
+  ours: string;
+  theirs: string;
+  merged: string;
+  filename: string;
+}
+
 export interface UseGitBranchesReturn {
   branches: GitBranch[];
   loading: boolean;
@@ -225,6 +257,9 @@ export interface UseGitBranchesReturn {
   createBranch: (directory: string, name: string, startPoint?: string) => Promise<GitBranchOperationResult>;
   pullFromRemote: (directory: string) => Promise<GitBranchOperationResult>;
   pushToRemote: (directory: string) => Promise<GitBranchOperationResult>;
+  mergeBranch: (directory: string, branch: string) => Promise<MergeResult>;
+  mergeAbort: (directory: string) => Promise<GitBranchOperationResult>;
+  mergeContinue: (directory: string) => Promise<GitBranchOperationResult>;
 }
 
 export interface UseFileContentReturn {
@@ -233,4 +268,5 @@ export interface UseFileContentReturn {
   error: string | null;
   loadFile: (filePath: string) => Promise<void>;
   clearFile: () => void;
+  setFile: (file: FileData | null) => void;
 }

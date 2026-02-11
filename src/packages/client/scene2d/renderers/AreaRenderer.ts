@@ -37,7 +37,8 @@ export class AreaRenderer extends BaseRenderer {
         area.directories.forEach((_, idx) => {
           const row = Math.floor(idx / maxCols);
           const col = idx % maxCols;
-          this.drawFolderIcon(baseX + col * spacing, baseZ + row * spacing, iconSize, baseColor, zoom);
+          const gitCount = area.directoryGitCounts?.[idx] ?? 0;
+          this.drawFolderIcon(baseX + col * spacing, baseZ + row * spacing, iconSize, baseColor, zoom, gitCount);
         });
       }
 
@@ -64,7 +65,8 @@ export class AreaRenderer extends BaseRenderer {
         area.directories.forEach((_, idx) => {
           const row = Math.floor(idx / maxCols);
           const col = idx % maxCols;
-          this.drawFolderIcon(baseX + col * spacing, baseZ + row * spacing, iconSize, baseColor, zoom);
+          const gitCount = area.directoryGitCounts?.[idx] ?? 0;
+          this.drawFolderIcon(baseX + col * spacing, baseZ + row * spacing, iconSize, baseColor, zoom, gitCount);
         });
       }
 
@@ -482,7 +484,8 @@ export class AreaRenderer extends BaseRenderer {
     cz: number,
     size: number,
     baseColor: string,
-    zoom: number
+    zoom: number,
+    gitCount: number = 0
   ): void {
     const ctx = this.ctx;
     const s = size * 0.45; // Scale factor for the icon
@@ -541,6 +544,35 @@ export class AreaRenderer extends BaseRenderer {
     ctx.moveTo(fx + r, fy + tabH + fh * 0.08);
     ctx.lineTo(fx + fw - r, fy + tabH + fh * 0.08);
     ctx.stroke();
+
+    // Git changes indicator badge (bottom-right of the circle)
+    if (gitCount > 0) {
+      const badgeRadius = s * 0.4;
+      const badgeX = cx + s * 0.7;
+      const badgeZ = cz + s * 0.7;
+
+      // Orange badge circle
+      ctx.fillStyle = '#e8943a';
+      ctx.beginPath();
+      ctx.arc(badgeX, badgeZ, badgeRadius, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Dark border for contrast
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
+      ctx.lineWidth = 1.5 / zoom;
+      ctx.beginPath();
+      ctx.arc(badgeX, badgeZ, badgeRadius, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Count text
+      const countText = gitCount > 99 ? '99+' : String(gitCount);
+      const fontSize = badgeRadius * 1.2;
+      ctx.font = `bold ${fontSize}px "Segoe UI", Arial, sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(countText, badgeX, badgeZ);
+    }
 
     ctx.restore();
   }

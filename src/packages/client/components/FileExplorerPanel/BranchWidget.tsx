@@ -11,17 +11,23 @@
 import React, { memo, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import type { GitStatus, GitBranch } from './types';
 import { useGitBranches } from './useGitBranches';
+import { ContextMenu } from '../ContextMenu';
+import type { ContextMenuAction } from '../ContextMenu';
 
 interface BranchWidgetProps {
   currentFolder: string | null;
   gitStatus: GitStatus | null;
   onBranchChanged: () => void;
+  onMerge?: (branch: string) => void;
+  onCompare?: (branch: string) => void;
 }
 
 export const BranchWidget = memo(function BranchWidget({
   currentFolder,
   gitStatus,
   onBranchChanged,
+  onMerge,
+  onCompare,
 }: BranchWidgetProps) {
   const [showDropdown, setShowDropdown] = useState(false);
   const [searchFilter, setSearchFilter] = useState('');
@@ -29,6 +35,7 @@ export const BranchWidget = memo(function BranchWidget({
   const [newBranchName, setNewBranchName] = useState('');
   const [showRemotes, setShowRemotes] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ isOpen: boolean; position: { x: number; y: number }; branch: string } | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const newBranchRef = useRef<HTMLInputElement>(null);
@@ -151,6 +158,60 @@ export const BranchWidget = memo(function BranchWidget({
     }
   }, [currentFolder, operationInProgress, pushToRemote]);
 
+  const branchName = gitStatus?.branch || 'unknown';
+  const isDisabled = !!operationInProgress;
+
+  const handleBranchContextMenu = useCallback((e: React.MouseEvent, branch: GitBranch) => {
+    if (branch.isCurrent) return; // No context menu for current branch
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({
+      isOpen: true,
+      position: { x: e.clientX, y: e.clientY },
+      branch: branch.name,
+    });
+  }, []);
+
+  const contextMenuActions = useMemo((): ContextMenuAction[] => {
+    if (!contextMenu) return [];
+    const mergeDisabled = !!operationInProgress || gitStatus?.mergeInProgress;
+    return [
+      {
+        id: 'compare',
+        label: `Show Diff with '${contextMenu.branch}'`,
+        icon: '⇄',
+        disabled: !!operationInProgress,
+        onClick: () => {
+          onCompare?.(contextMenu!.branch);
+          setShowDropdown(false);
+        },
+      },
+      {
+        id: 'merge',
+        label: `Merge '${contextMenu.branch}' into '${branchName}'`,
+        icon: '⤵',
+        disabled: !!mergeDisabled,
+        onClick: () => {
+          if (onMerge) {
+            onMerge(contextMenu.branch);
+          }
+          setShowDropdown(false);
+        },
+      },
+      { id: 'divider-1', label: '', divider: true, onClick: () => {} },
+      {
+        id: 'checkout',
+        label: `Checkout '${contextMenu.branch}'`,
+        icon: '⎇',
+        disabled: !!operationInProgress,
+        onClick: () => {
+          const branch = branches.find(b => b.name === contextMenu!.branch);
+          if (branch) handleCheckout(branch);
+        },
+      },
+    ];
+  }, [contextMenu, operationInProgress, gitStatus?.mergeInProgress, branchName, onMerge, onCompare, branches, handleCheckout]);
+
   // Filter branches
   const localBranches = useMemo(() => {
     const local = branches.filter(b => !b.isRemote);
@@ -165,9 +226,6 @@ export const BranchWidget = memo(function BranchWidget({
     const q = searchFilter.toLowerCase();
     return remote.filter(b => b.name.toLowerCase().includes(q));
   }, [branches, searchFilter]);
-
-  const branchName = gitStatus?.branch || 'unknown';
-  const isDisabled = !!operationInProgress;
 
   return (
     <div className="branch-widget" style={{ position: 'relative' }}>
@@ -297,6 +355,7 @@ export const BranchWidget = memo(function BranchWidget({
                 key={branch.name}
                 className={`branch-widget-branch-item ${branch.isCurrent ? 'current' : ''} ${isDisabled ? 'disabled' : ''}`}
                 onClick={() => handleCheckout(branch)}
+                onContextMenu={(e) => handleBranchContextMenu(e, branch)}
                 title={branch.lastMessage || branch.name}
               >
                 <span className="branch-widget-branch-name">
@@ -327,6 +386,7 @@ export const BranchWidget = memo(function BranchWidget({
                       key={branch.name}
                       className={`branch-widget-branch-item remote ${isDisabled ? 'disabled' : ''}`}
                       onClick={() => handleCheckout(branch)}
+                      onContextMenu={(e) => handleBranchContextMenu(e, branch)}
                       title={branch.lastMessage || branch.name}
                     >
                       <span className="branch-widget-branch-name">{branch.name}</span>
@@ -340,6 +400,17 @@ export const BranchWidget = memo(function BranchWidget({
             </>
           )}
         </div>
+      )}
+
+      {/* Branch Context Menu */}
+      {contextMenu && (
+        <ContextMenu
+          isOpen={contextMenu.isOpen}
+          position={contextMenu.position}
+          worldPosition={{ x: 0, z: 0 }}
+          actions={contextMenuActions}
+          onClose={() => setContextMenu(null)}
+        />
       )}
     </div>
   );

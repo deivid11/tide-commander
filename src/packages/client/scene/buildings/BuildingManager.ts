@@ -11,7 +11,7 @@ import { store } from '../../store';
 // Import from decomposed modules
 import type { BuildingMeshData } from './types';
 import { STATUS_COLORS } from './types';
-import { updateLabel } from './labelUtils';
+import { updateLabel, createGitBadge, updateGitBadge } from './labelUtils';
 import {
   createBuildingMesh,
   updateIdleAnimations,
@@ -188,6 +188,38 @@ export class BuildingManager {
     const canvas = (currentLabel.material as THREE.SpriteMaterial).map?.image as HTMLCanvasElement;
     if (canvas) {
       updateLabel(meshData, building.name);
+    }
+
+    // Update git indicator badge
+    const gitCount = building.gitChangesCount || 0;
+    const existingGit = meshData.group.getObjectByName('gitIndicator') as THREE.Sprite | undefined;
+
+    if (gitCount > 0) {
+      if (!existingGit) {
+        const badge = createGitBadge(gitCount);
+        // Position next to the label, offset to the right
+        const labelPos = meshData.label.position;
+        badge.position.set(labelPos.x + 0.6, labelPos.y + 0.15, labelPos.z);
+        meshData.group.add(badge);
+        meshData.gitIndicator = badge;
+      } else {
+        // Check if count changed by reading stored count
+        const storedCount = existingGit.userData.gitCount;
+        if (storedCount !== gitCount) {
+          updateGitBadge(existingGit, gitCount);
+          existingGit.userData.gitCount = gitCount;
+        }
+      }
+      // Store count for change detection
+      if (meshData.gitIndicator) {
+        meshData.gitIndicator.userData.gitCount = gitCount;
+      }
+    } else if (existingGit) {
+      meshData.group.remove(existingGit);
+      const mat = existingGit.material as THREE.SpriteMaterial;
+      if (mat.map) mat.map.dispose();
+      mat.dispose();
+      meshData.gitIndicator = undefined;
     }
   }
 

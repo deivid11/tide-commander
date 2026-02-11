@@ -82,16 +82,19 @@
   padding: 2px 4px;
   // padding-left is set inline by the component
   cursor: pointer;
-  transition: background $transition-fast;
+  transition: background 0.12s ease, border-color 0.12s ease;
   white-space: nowrap;
-  border-radius: 0;
-  margin: 0;
+  border-radius: 3px;
+  margin: 0 6px;
+  margin-left: 4px;
   position: relative;
   line-height: 1.6;
   height: 22px;
+  border-left: 2px solid transparent;
 
   &:hover {
     background: rgba($accent-blue, 0.08);
+    border-left-color: rgba($accent-blue, 0.2);
 
     .tree-arrow {
       color: $text-secondary;
@@ -104,6 +107,7 @@
 
   &.selected {
     background: rgba($accent-blue, 0.15);
+    border-left-color: $accent-blue;
 
     .tree-name {
       color: $text-primary;
@@ -123,12 +127,11 @@
     }
 
     .tree-folder-icon {
-      color: $accent-blue;
-      opacity: 0.9;
+      opacity: 0.85;
+      transition: opacity 0.1s ease;
     }
 
     &.expanded .tree-folder-icon {
-      color: $accent-blue;
       opacity: 1;
     }
 
@@ -143,12 +146,11 @@
     }
 
     .tree-icon {
-      color: $text-muted;
-      opacity: 0.8;
+      opacity: 0.75;
+      transition: opacity 0.1s ease;
     }
 
     &:hover .tree-icon {
-      color: $text-secondary;
       opacity: 1;
     }
   }
@@ -177,30 +179,72 @@
   flex-shrink: 0;
 }
 
+// Wrapper for folder icon + git dot overlay
+.tree-folder-icon-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  min-height: 16px;
+  flex-shrink: 0;
+  flex-grow: 0;
+  overflow: visible;
+}
+
+// SVG icons - proper rendering for img elements
 .tree-folder-icon {
   width: 16px;
   height: 16px;
+  min-width: 16px;
+  min-height: 16px;
   flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-grow: 0;
+  object-fit: contain;
   opacity: 0.9;
-  transition: opacity 0.1s;
+  transition: opacity 0.1s ease;
+  display: inline-block;
+  vertical-align: middle;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
 
   &:hover {
     opacity: 1;
   }
 }
 
+// Git change indicator dot on folder icons
+.tree-folder-git-dot {
+  position: absolute;
+  bottom: -1px;
+  right: -2px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1.5px solid $dracula-bg-darker;
+  pointer-events: none;
+  z-index: 10;
+  box-shadow: 0 0 3px rgba(200, 154, 90, 0.6);
+}
+
 .tree-icon {
   width: 16px;
   height: 16px;
+  min-width: 16px;
+  min-height: 16px;
   flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-grow: 0;
+  object-fit: contain;
   opacity: 0.8;
-  transition: opacity 0.1s;
+  transition: opacity 0.1s ease;
+  display: inline-block;
+  vertical-align: middle;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
 
   &:hover {
     opacity: 1;

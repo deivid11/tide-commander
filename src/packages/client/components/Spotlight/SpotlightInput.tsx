@@ -1,5 +1,6 @@
 /**
  * SpotlightInput - Search input component for the Spotlight modal
+ * Enhanced with better UX and visual feedback
  */
 
 import React, { forwardRef } from 'react';
@@ -17,12 +18,12 @@ export const SpotlightInput = forwardRef<HTMLInputElement, SpotlightInputProps>(
 ) {
   return (
     <div className="spotlight-input-wrapper">
-      <span className="spotlight-search-icon">🔍</span>
+      <span className="spotlight-search-icon">⌘</span>
       <input
         ref={ref}
         type="text"
         className="spotlight-input"
-        placeholder="Search agents, commands, activity..."
+        placeholder="Agent, command, file, task..."
         value={query}
         onChange={(e) => {
           onQueryChange(e.target.value);
@@ -30,8 +31,13 @@ export const SpotlightInput = forwardRef<HTMLInputElement, SpotlightInputProps>(
         }}
         onKeyDown={onKeyDown}
         autoFocus
+        spellCheck={false}
       />
-      <span className="spotlight-shortcut-hint">Alt+P</span>
+      <div className="spotlight-input-hints">
+        <span className="spotlight-shortcut-hint">↑↓</span>
+        <span className="spotlight-shortcut-hint">Enter</span>
+        <span className="spotlight-shortcut-hint">Esc</span>
+      </div>
     </div>
   );
 });

@@ -776,6 +776,7 @@ class Store
   selectArea(...args: Parameters<AreaActions['selectArea']>) { return this.areaActions.selectArea(...args); }
   addArea(...args: Parameters<AreaActions['addArea']>) { return this.areaActions.addArea(...args); }
   updateArea(...args: Parameters<AreaActions['updateArea']>) { return this.areaActions.updateArea(...args); }
+  updateAreaLocal(...args: Parameters<AreaActions['updateAreaLocal']>) { return this.areaActions.updateAreaLocal(...args); }
   deleteArea(...args: Parameters<AreaActions['deleteArea']>) { return this.areaActions.deleteArea(...args); }
   assignAgentToArea(...args: Parameters<AreaActions['assignAgentToArea']>) { return this.areaActions.assignAgentToArea(...args); }
   unassignAgentFromArea(...args: Parameters<AreaActions['unassignAgentFromArea']>) { return this.areaActions.unassignAgentFromArea(...args); }
@@ -809,6 +810,7 @@ class Store
   deleteSelectedBuildings() { return this.buildingActions.deleteSelectedBuildings(); }
   addBuilding(...args: Parameters<BuildingActions['addBuilding']>) { return this.buildingActions.addBuilding(...args); }
   updateBuilding(...args: Parameters<BuildingActions['updateBuilding']>) { return this.buildingActions.updateBuilding(...args); }
+  updateBuildingLocal(...args: Parameters<BuildingActions['updateBuildingLocal']>) { return this.buildingActions.updateBuildingLocal(...args); }
   deleteBuilding(...args: Parameters<BuildingActions['deleteBuilding']>) { return this.buildingActions.deleteBuilding(...args); }
   moveBuilding(...args: Parameters<BuildingActions['moveBuilding']>) { return this.buildingActions.moveBuilding(...args); }
   updateBuildingPosition(...args: Parameters<BuildingActions['updateBuildingPosition']>) { return this.buildingActions.updateBuildingPosition(...args); }

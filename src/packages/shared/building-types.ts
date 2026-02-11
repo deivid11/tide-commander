@@ -232,6 +232,9 @@ export interface Building {
   // Folder path (for folder type - opens file explorer when clicked)
   folderPath?: string;
 
+  // Git pending changes count (not persisted, populated at runtime)
+  gitChangesCount?: number;
+
   // Links (for link type, but can be used by any)
   urls?: { label: string; url: string }[];
 

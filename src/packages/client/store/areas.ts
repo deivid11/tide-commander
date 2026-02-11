@@ -12,6 +12,7 @@ export interface AreaActions {
   selectArea(areaId: string | null): void;
   addArea(area: DrawingArea): void;
   updateArea(areaId: string, updates: Partial<DrawingArea>): void;
+  updateAreaLocal(areaId: string, updates: Partial<DrawingArea>): void;
   deleteArea(areaId: string): void;
   assignAgentToArea(agentId: string, areaId: string): void;
   unassignAgentFromArea(agentId: string, areaId: string): void;
@@ -91,6 +92,18 @@ export function createAreaActions(
           Object.assign(s.areas.get(areaId)!, updates);
         });
         syncAreasToServer();
+        notify();
+      }
+    },
+
+    // Update area locally without syncing to server (for runtime-only fields like directoryGitCounts)
+    updateAreaLocal(areaId: string, updates: Partial<DrawingArea>): void {
+      const state = getState();
+      const area = state.areas.get(areaId);
+      if (area) {
+        setState((s) => {
+          Object.assign(s.areas.get(areaId)!, updates);
+        });
         notify();
       }
     },

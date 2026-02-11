@@ -618,7 +618,7 @@ router.get('/search-content', async (req: Request, res: Response) => {
 interface GitFileStatus {
   path: string;
   name: string;
-  status: 'modified' | 'added' | 'deleted' | 'untracked' | 'renamed';
+  status: 'modified' | 'added' | 'deleted' | 'untracked' | 'renamed' | 'conflict';
   oldPath?: string; // For renamed files
 }
 
@@ -654,6 +654,9 @@ router.get('/git-status', async (req: Request, res: Response) => {
       res.json({ isGitRepo: false, files: [] });
       return;
     }
+
+    // Check if a merge is in progress
+    const mergeInProgress = fs.existsSync(path.join(gitRoot, '.git', 'MERGE_HEAD'));
 
     // Get git status with porcelain format for easy parsing
     let statusOutput = '';
@@ -695,7 +698,13 @@ router.get('/git-status', async (req: Request, res: Response) => {
         filePath = path.join(gitRoot, filePart);
 
         // Determine status from XY codes
-        if (indexStatus === '?' || workTreeStatus === '?') {
+        // Check for conflicts first (both modified, both added, both deleted, etc.)
+        const conflictCodes = ['UU', 'AA', 'DD', 'AU', 'UA', 'DU', 'UD'];
+        const xyCode = indexStatus + workTreeStatus;
+
+        if (conflictCodes.includes(xyCode)) {
+          status = 'conflict';
+        } else if (indexStatus === '?' || workTreeStatus === '?') {
           status = 'untracked';
         } else if (indexStatus === 'A' || workTreeStatus === 'A') {
           status = 'added';
@@ -717,7 +726,7 @@ router.get('/git-status', async (req: Request, res: Response) => {
     }
 
     // Sort by status priority: modified > added > deleted > untracked
-    const statusOrder = { modified: 0, added: 1, deleted: 2, renamed: 3, untracked: 4 };
+    const statusOrder: Record<string, number> = { conflict: 0, modified: 1, added: 2, deleted: 3, renamed: 4, untracked: 5 };
     files.sort((a, b) => {
       const orderDiff = statusOrder[a.status] - statusOrder[b.status];
       if (orderDiff !== 0) return orderDiff;
@@ -739,7 +748,9 @@ router.get('/git-status', async (req: Request, res: Response) => {
       isGitRepo: true,
       branch,
       files,
+      mergeInProgress,
       counts: {
+        conflict: files.filter(f => f.status === 'conflict').length,
         modified: files.filter(f => f.status === 'modified').length,
         added: files.filter(f => f.status === 'added').length,
         deleted: files.filter(f => f.status === 'deleted').length,
@@ -1194,10 +1205,509 @@ router.post('/git-push', async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/files/open-in-editor - Open file in OS default editor
+// GET /api/files/git-log-message - Get last commit message (for amend)
+router.get('/git-log-message', async (req: Request, res: Response) => {
+  try {
+    const dirPath = req.query.path as string;
+    if (!dirPath) { res.status(400).json({ error: 'Missing path parameter' }); return; }
+    if (!path.isAbsolute(dirPath)) { res.status(400).json({ error: 'Path must be absolute' }); return; }
+
+    let gitRoot: string;
+    try {
+      gitRoot = execSync('git rev-parse --show-toplevel', { cwd: dirPath, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
+    } catch {
+      res.status(400).json({ error: 'Not in a git repository' });
+      return;
+    }
+
+    try {
+      const message = execSync('git log -1 --format=%B', { cwd: gitRoot, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
+      res.json({ message });
+    } catch {
+      res.json({ message: '' });
+    }
+  } catch (err: any) {
+    log.error(' Failed to get log message:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/files/git-commit - Commit staged changes
+router.post('/git-commit', async (req: Request, res: Response) => {
+  try {
+    const { directory, message, amend, paths } = req.body as {
+      directory?: string;
+      message?: string;
+      amend?: boolean;
+      paths?: string[];
+    };
+
+    if (!directory || typeof directory !== 'string') {
+      res.status(400).json({ error: 'Missing directory parameter' });
+      return;
+    }
+    if (!path.isAbsolute(directory)) {
+      res.status(400).json({ error: 'Directory must be absolute' });
+      return;
+    }
+    if (!message || !message.trim()) {
+      res.status(400).json({ error: 'Commit message cannot be empty' });
+      return;
+    }
+
+    let gitRoot: string;
+    try {
+      gitRoot = execSync('git rev-parse --show-toplevel', { cwd: directory, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
+    } catch {
+      res.status(400).json({ error: 'Not in a git repository' });
+      return;
+    }
+
+    // If specific paths are provided, stage them first
+    if (paths && Array.isArray(paths) && paths.length > 0) {
+      const relativePaths: string[] = [];
+      for (const p of paths) {
+        if (!path.isAbsolute(p)) {
+          res.status(400).json({ error: `Path must be absolute: ${p}` });
+          return;
+        }
+        const rel = path.relative(gitRoot, p);
+        if (rel.startsWith('..')) {
+          res.status(400).json({ error: `Path is outside the git repository: ${p}` });
+          return;
+        }
+        relativePaths.push(rel);
+      }
+      const quotedPaths = relativePaths.map(p => `"${p}"`).join(' ');
+      try {
+        execSync(`git add ${quotedPaths}`, { cwd: gitRoot, encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 });
+      } catch (err: any) {
+        res.status(500).json({ success: false, error: `Failed to stage files: ${err.message}` });
+        return;
+      }
+    }
+
+    // Build commit command - write message to a temp file to avoid shell escaping issues
+    const tmpFile = path.join(gitRoot, '.git', 'TIDE_COMMIT_MSG');
+    try {
+      fs.writeFileSync(tmpFile, message, 'utf-8');
+      let cmd = `git commit -F "${tmpFile}"`;
+      if (amend) cmd = `git commit --amend -F "${tmpFile}"`;
+
+      const output = execSync(cmd, { cwd: gitRoot, encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 });
+      res.json({ success: true, output: output.trim() });
+    } catch (err: any) {
+      const stderr = err.stderr?.toString() || err.stdout?.toString() || err.message || '';
+      if (stderr.includes('nothing to commit') || stderr.includes('nothing added to commit')) {
+        res.status(400).json({ success: false, error: 'Nothing to commit. Stage files first.' });
+      } else {
+        res.status(500).json({ success: false, error: stderr.trim() || err.message });
+      }
+    } finally {
+      // Clean up temp file
+      try { fs.unlinkSync(tmpFile); } catch { /* ignore */ }
+    }
+  } catch (err: any) {
+    log.error(' Failed to commit:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/files/git-merge - Merge a branch into the current branch
+router.post('/git-merge', async (req: Request, res: Response) => {
+  try {
+    const { directory, branch } = req.body as { directory?: string; branch?: string };
+    if (!directory) { res.status(400).json({ error: 'Missing directory parameter' }); return; }
+    if (!path.isAbsolute(directory)) { res.status(400).json({ error: 'Directory must be absolute' }); return; }
+    if (!branch) { res.status(400).json({ error: 'Missing branch parameter' }); return; }
+
+    let gitRoot: string;
+    try {
+      gitRoot = execSync('git rev-parse --show-toplevel', { cwd: directory, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
+    } catch {
+      res.status(400).json({ error: 'Not in a git repository' });
+      return;
+    }
+
+    try {
+      const output = execSync(`git merge "${branch}"`, { cwd: gitRoot, encoding: 'utf-8', timeout: 30000, maxBuffer: 10 * 1024 * 1024 });
+      res.json({ success: true, output: output.trim() });
+    } catch (err: any) {
+      const stderr = err.stderr?.toString() || '';
+      const stdout = err.stdout?.toString() || '';
+      const combined = stdout + '\n' + stderr;
+
+      if (combined.includes('CONFLICT') || combined.includes('Automatic merge failed')) {
+        // Parse conflict file paths from output
+        const conflicts: string[] = [];
+        const conflictRegex = /CONFLICT \([^)]+\): Merge conflict in (.+)/g;
+        let match;
+        while ((match = conflictRegex.exec(combined)) !== null) {
+          conflicts.push(path.join(gitRoot, match[1].trim()));
+        }
+        // Also check for "both modified" / "both added" patterns
+        const bothRegex = /CONFLICT \([^)]+\):.+?(?:both modified|both added):\s*(.+)/g;
+        while ((match = bothRegex.exec(combined)) !== null) {
+          const conflictPath = path.join(gitRoot, match[1].trim());
+          if (!conflicts.includes(conflictPath)) {
+            conflicts.push(conflictPath);
+          }
+        }
+        res.json({ success: false, output: combined.trim(), conflicts });
+      } else if (combined.includes('not something we can merge') || combined.includes('not a valid')) {
+        res.status(400).json({ success: false, error: `Branch '${branch}' not found` });
+      } else if (combined.includes('uncommitted changes') || combined.includes('not possible because you have unmerged')) {
+        res.status(409).json({ success: false, error: 'You have uncommitted changes. Commit or stash them first.' });
+      } else {
+        res.status(500).json({ success: false, error: (stderr || stdout).trim() || err.message });
+      }
+    }
+  } catch (err: any) {
+    log.error(' Failed to merge:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/files/git-conflict-file - Get ours/theirs/merged versions of a conflict file
+router.get('/git-conflict-file', async (req: Request, res: Response) => {
+  try {
+    const dirPath = req.query.path as string;
+    const filePath = req.query.file as string;
+    if (!dirPath || !filePath) { res.status(400).json({ error: 'Missing path or file parameter' }); return; }
+    if (!path.isAbsolute(dirPath)) { res.status(400).json({ error: 'Path must be absolute' }); return; }
+
+    let gitRoot: string;
+    try {
+      gitRoot = execSync('git rev-parse --show-toplevel', { cwd: dirPath, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
+    } catch {
+      res.status(400).json({ error: 'Not in a git repository' });
+      return;
+    }
+
+    // Get the relative path from git root
+    const absFilePath = path.isAbsolute(filePath) ? filePath : path.join(gitRoot, filePath);
+    const relPath = path.relative(gitRoot, absFilePath);
+
+    // Read the three versions
+    let ours = '';
+    let theirs = '';
+    let merged = '';
+
+    try {
+      ours = execSync(`git show ":2:${relPath}"`, { cwd: gitRoot, encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 });
+    } catch {
+      ours = ''; // File may not exist in ours (e.g., added by both)
+    }
+
+    try {
+      theirs = execSync(`git show ":3:${relPath}"`, { cwd: gitRoot, encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 });
+    } catch {
+      theirs = ''; // File may not exist in theirs
+    }
+
+    try {
+      merged = fs.readFileSync(absFilePath, 'utf-8');
+    } catch {
+      res.status(404).json({ error: 'Conflict file not found on disk' });
+      return;
+    }
+
+    res.json({ ours, theirs, merged, filename: path.basename(absFilePath) });
+  } catch (err: any) {
+    log.error(' Failed to get conflict file:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/files/git-resolve-conflict - Write resolved content and stage the file
+router.post('/git-resolve-conflict', async (req: Request, res: Response) => {
+  try {
+    const { directory, file, content } = req.body as { directory?: string; file?: string; content?: string };
+    if (!directory || !file) { res.status(400).json({ error: 'Missing directory or file parameter' }); return; }
+    if (!path.isAbsolute(directory)) { res.status(400).json({ error: 'Directory must be absolute' }); return; }
+    if (content === undefined || content === null) { res.status(400).json({ error: 'Missing content parameter' }); return; }
+
+    let gitRoot: string;
+    try {
+      gitRoot = execSync('git rev-parse --show-toplevel', { cwd: directory, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
+    } catch {
+      res.status(400).json({ error: 'Not in a git repository' });
+      return;
+    }
+
+    const absFilePath = path.isAbsolute(file) ? file : path.join(gitRoot, file);
+    const relPath = path.relative(gitRoot, absFilePath);
+
+    if (relPath.startsWith('..')) {
+      res.status(400).json({ error: 'File is outside the git repository' });
+      return;
+    }
+
+    // Write the resolved content
+    fs.writeFileSync(absFilePath, content, 'utf-8');
+
+    // Stage the resolved file
+    execSync(`git add "${relPath}"`, { cwd: gitRoot, encoding: 'utf-8' });
+
+    res.json({ success: true });
+  } catch (err: any) {
+    log.error(' Failed to resolve conflict:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/files/git-merge-continue - Complete the merge after all conflicts are resolved
+router.post('/git-merge-continue', async (req: Request, res: Response) => {
+  try {
+    const { directory } = req.body as { directory?: string };
+    if (!directory) { res.status(400).json({ error: 'Missing directory parameter' }); return; }
+    if (!path.isAbsolute(directory)) { res.status(400).json({ error: 'Directory must be absolute' }); return; }
+
+    let gitRoot: string;
+    try {
+      gitRoot = execSync('git rev-parse --show-toplevel', { cwd: directory, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
+    } catch {
+      res.status(400).json({ error: 'Not in a git repository' });
+      return;
+    }
+
+    try {
+      const output = execSync('git commit --no-edit', { cwd: gitRoot, encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 });
+      res.json({ success: true, output: output.trim() });
+    } catch (err: any) {
+      const stderr = err.stderr?.toString() || err.stdout?.toString() || err.message || '';
+      res.status(500).json({ success: false, error: stderr.trim() || err.message });
+    }
+  } catch (err: any) {
+    log.error(' Failed to continue merge:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/files/git-merge-abort - Abort an in-progress merge
+router.post('/git-merge-abort', async (req: Request, res: Response) => {
+  try {
+    const { directory } = req.body as { directory?: string };
+    if (!directory) { res.status(400).json({ error: 'Missing directory parameter' }); return; }
+    if (!path.isAbsolute(directory)) { res.status(400).json({ error: 'Directory must be absolute' }); return; }
+
+    let gitRoot: string;
+    try {
+      gitRoot = execSync('git rev-parse --show-toplevel', { cwd: directory, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
+    } catch {
+      res.status(400).json({ error: 'Not in a git repository' });
+      return;
+    }
+
+    try {
+      const output = execSync('git merge --abort', { cwd: gitRoot, encoding: 'utf-8' });
+      res.json({ success: true, output: (output || '').trim() });
+    } catch (err: any) {
+      const stderr = err.stderr?.toString() || err.message || '';
+      res.status(500).json({ success: false, error: stderr.trim() || err.message });
+    }
+  } catch (err: any) {
+    log.error(' Failed to abort merge:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/files/git-branch-compare - Compare two branches and return changed files
+router.get('/git-branch-compare', async (req: Request, res: Response) => {
+  try {
+    const directory = req.query.directory as string;
+    const branch = req.query.branch as string;
+
+    if (!directory) {
+      res.status(400).json({ error: 'Missing directory parameter' });
+      return;
+    }
+
+    if (!path.isAbsolute(directory)) {
+      res.status(400).json({ error: 'Directory must be absolute' });
+      return;
+    }
+
+    if (!branch) {
+      res.status(400).json({ error: 'Missing branch parameter' });
+      return;
+    }
+
+    // Find git root
+    let gitRoot: string;
+    try {
+      gitRoot = execSync('git rev-parse --show-toplevel', {
+        cwd: directory,
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      }).trim();
+    } catch {
+      res.status(400).json({ error: 'Not in a git repository' });
+      return;
+    }
+
+    // Get current branch
+    let currentBranch: string;
+    try {
+      currentBranch = execSync('git branch --show-current', {
+        cwd: gitRoot,
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      }).trim();
+    } catch {
+      currentBranch = 'HEAD';
+    }
+
+    // Get diff between branches (three-dot diff: changes since branches diverged)
+    let diffOutput: string;
+    try {
+      diffOutput = execSync(`git diff --name-status ${branch}...HEAD`, {
+        cwd: gitRoot,
+        encoding: 'utf-8',
+        maxBuffer: 10 * 1024 * 1024, // 10MB
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+    } catch (err: any) {
+      const stderr = err.stderr?.toString() || err.message || '';
+      res.status(400).json({ error: stderr.trim() || 'Failed to compare branches' });
+      return;
+    }
+
+    const counts = { modified: 0, added: 0, deleted: 0, untracked: 0, renamed: 0, conflict: 0 };
+    const files: Array<{ path: string; name: string; status: string; oldPath?: string }> = [];
+
+    const lines = diffOutput.trim().split('\n').filter((l: string) => l.trim());
+    for (const line of lines) {
+      const parts = line.split('\t');
+      if (parts.length < 2) continue;
+
+      const statusCode = parts[0].trim();
+      let status: string;
+      let filePath: string;
+      let oldPath: string | undefined;
+
+      if (statusCode === 'M') {
+        status = 'modified';
+        filePath = parts[1];
+      } else if (statusCode === 'A') {
+        status = 'added';
+        filePath = parts[1];
+      } else if (statusCode === 'D') {
+        status = 'deleted';
+        filePath = parts[1];
+      } else if (statusCode.startsWith('R')) {
+        status = 'renamed';
+        oldPath = path.join(gitRoot, parts[1]);
+        filePath = parts[2] || parts[1];
+      } else if (statusCode.startsWith('C')) {
+        status = 'modified';
+        filePath = parts[2] || parts[1];
+      } else {
+        status = 'modified';
+        filePath = parts[1];
+      }
+
+      const absolutePath = path.join(gitRoot, filePath);
+      const entry: { path: string; name: string; status: string; oldPath?: string } = {
+        path: absolutePath,
+        name: path.basename(absolutePath),
+        status,
+      };
+      if (oldPath) {
+        entry.oldPath = oldPath;
+      }
+      files.push(entry);
+
+      if (status === 'renamed') {
+        counts.renamed++;
+      } else if (status in counts) {
+        (counts as any)[status]++;
+      }
+    }
+
+    res.json({ files, counts, baseBranch: branch, currentBranch });
+  } catch (err: any) {
+    log.error(' Failed to compare branches:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/files/git-show - Get file content at a specific git ref
+router.get('/git-show', async (req: Request, res: Response) => {
+  try {
+    const filePath = req.query.path as string;
+    const ref = req.query.ref as string;
+
+    if (!filePath) {
+      res.status(400).json({ error: 'Missing path parameter' });
+      return;
+    }
+
+    if (!path.isAbsolute(filePath)) {
+      res.status(400).json({ error: 'Path must be absolute' });
+      return;
+    }
+
+    if (!ref) {
+      res.status(400).json({ error: 'Missing ref parameter' });
+      return;
+    }
+
+    // Find git root
+    let gitRoot: string;
+    try {
+      gitRoot = execSync('git rev-parse --show-toplevel', {
+        cwd: path.dirname(filePath),
+        encoding: 'utf-8',
+      }).trim();
+    } catch {
+      res.status(400).json({ error: 'Not in a git repository' });
+      return;
+    }
+
+    // Get relative path from git root
+    const relativePath = path.relative(gitRoot, filePath);
+
+    // Get file content at the specified ref
+    let content: string;
+    try {
+      content = execSync(`git show ${ref}:"${relativePath}"`, {
+        cwd: gitRoot,
+        encoding: 'utf-8',
+        maxBuffer: 10 * 1024 * 1024, // 10MB
+      });
+    } catch (err: any) {
+      // File doesn't exist at the given ref
+      if (err.message?.includes('does not exist') || err.message?.includes('fatal')) {
+        res.json({
+          path: filePath,
+          filename: path.basename(filePath),
+          extension: path.extname(filePath).toLowerCase(),
+          content: '',
+          notFound: true,
+        });
+        return;
+      }
+      throw err;
+    }
+
+    res.json({
+      path: filePath,
+      filename: path.basename(filePath),
+      extension: path.extname(filePath).toLowerCase(),
+      content,
+      notFound: false,
+    });
+  } catch (err: any) {
+    log.error(' Failed to get file at ref:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/files/open-in-editor - Open file in specified or default editor
 router.post('/open-in-editor', async (req: Request, res: Response) => {
   try {
-    const { path: filePath } = req.body as { path?: string };
+    const { path: filePath, editorCommand } = req.body as { path?: string; editorCommand?: string };
     if (!filePath) { res.status(400).json({ error: 'Missing path parameter' }); return; }
     if (!path.isAbsolute(filePath)) { res.status(400).json({ error: 'Path must be absolute' }); return; }
     if (filePath.includes('..')) { res.status(400).json({ error: 'Path traversal not allowed' }); return; }
@@ -1207,18 +1717,27 @@ router.post('/open-in-editor', async (req: Request, res: Response) => {
     let cmd: string;
     let args: string[];
 
-    if (platform === 'linux') {
-      cmd = 'xdg-open';
-      args = [filePath];
-    } else if (platform === 'darwin') {
-      cmd = 'open';
-      args = [filePath];
-    } else if (platform === 'win32') {
-      cmd = 'cmd';
-      args = ['/c', 'start', '', filePath];
+    // If custom editor command is provided, use it
+    if (editorCommand && editorCommand.trim()) {
+      // Parse the command string to separate command and arguments
+      const parts = editorCommand.trim().split(/\s+/);
+      cmd = parts[0];
+      args = [...parts.slice(1), filePath];
     } else {
-      res.status(500).json({ error: `Unsupported platform: ${platform}` });
-      return;
+      // Use platform default
+      if (platform === 'linux') {
+        cmd = 'xdg-open';
+        args = [filePath];
+      } else if (platform === 'darwin') {
+        cmd = 'open';
+        args = [filePath];
+      } else if (platform === 'win32') {
+        cmd = 'cmd';
+        args = ['/c', 'start', '', filePath];
+      } else {
+        res.status(500).json({ error: `Unsupported platform: ${platform}` });
+        return;
+      }
     }
 
     const child = spawn(cmd, args, { detached: true, stdio: 'ignore' });

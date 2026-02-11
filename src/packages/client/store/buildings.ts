@@ -16,6 +16,7 @@ export interface BuildingActions {
   deleteSelectedBuildings(): void;
   addBuilding(building: Building): void;
   updateBuilding(buildingId: string, updates: Partial<Building>): void;
+  updateBuildingLocal(buildingId: string, updates: Partial<Building>): void;
   deleteBuilding(buildingId: string): void;
   moveBuilding(buildingId: string, position: { x: number; z: number }): void;
   updateBuildingPosition(buildingId: string, position: { x: number; z: number }): void;
@@ -148,6 +149,20 @@ export function createBuildingActions(
           s.buildings = newBuildings;
         });
         syncBuildingsToServer();
+        notify();
+      }
+    },
+
+    // Update building locally without syncing to server (for runtime-only fields like gitChangesCount)
+    updateBuildingLocal(buildingId: string, updates: Partial<Building>): void {
+      const state = getState();
+      const building = state.buildings.get(buildingId);
+      if (building) {
+        setState((s) => {
+          const newBuildings = new Map(s.buildings);
+          newBuildings.set(buildingId, { ...building, ...updates });
+          s.buildings = newBuildings;
+        });
         notify();
       }
     },

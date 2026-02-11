@@ -313,6 +313,7 @@ export interface GitStatusConfig {
 }
 
 export const GIT_STATUS_CONFIG: Record<GitFileStatusType, GitStatusConfig> = {
+  conflict: { icon: 'C', color: '#ff5555', label: 'Conflicts' },
   modified: { icon: 'M', color: '#c89a5a', label: 'Modified' },
   added: { icon: 'A', color: '#5cb88a', label: 'Added' },
   deleted: { icon: 'D', color: '#c85a5a', label: 'Deleted' },

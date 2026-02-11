@@ -84,6 +84,12 @@ export function useAreaSync(sceneRef: React.RefObject<SceneManager | null>): voi
         for (let i = 0; i < area.color.length; i++) {
           areaHash += area.color.charCodeAt(i);
         }
+        // Include directory git counts in hash
+        if (area.directoryGitCounts) {
+          for (const c of area.directoryGitCounts) {
+            areaHash += (c + 1) * 7;
+          }
+        }
         hash ^= areaHash | 0;
       }
 
@@ -124,7 +130,7 @@ export function useBuildingSync(sceneRef: React.RefObject<SceneManager | null>):
         // Scale
         hash ^= ((building.scale || 1) * 10000) | 0;
         // Style and name (simple string hash)
-        const str = `${building.style || ''}${building.name}${building.status}`;
+        const str = `${building.style || ''}${building.name}${building.status}${building.gitChangesCount || 0}`;
         for (let i = 0; i < str.length; i++) {
           hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
         }

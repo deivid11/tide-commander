@@ -14,6 +14,7 @@ export interface BuildingMeshData {
   group: THREE.Group;
   statusLight: THREE.Mesh;
   label: THREE.Sprite;
+  gitIndicator?: THREE.Sprite;
 }
 
 /**

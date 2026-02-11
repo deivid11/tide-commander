@@ -1,0 +1,250 @@
+// =============================================================================
+// File Explorer - Conflict Resolver Styles
+// =============================================================================
+
+@use '../../variables' as *;
+
+.conflict-resolver {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: $bg-secondary;
+}
+
+.conflict-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: $bg-tertiary;
+  border-bottom: 1px solid $border-color;
+}
+
+.conflict-header-title {
+  font-family: $font-mono;
+  font-size: 12px;
+  font-weight: 600;
+  color: $dracula-orange;
+}
+
+.conflict-close-btn {
+  background: transparent;
+  border: none;
+  color: $text-muted;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: $radius-sm;
+  line-height: 1;
+
+  &:hover {
+    background: rgba($accent-red, 0.2);
+    color: $accent-red;
+  }
+}
+
+.conflict-loading {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: $text-muted;
+  font-size: 12px;
+}
+
+.conflict-pane-headers {
+  display: flex;
+  border-bottom: 1px solid $border-color;
+}
+
+.conflict-pane-header {
+  flex: 1;
+  padding: 6px 12px;
+  font-family: $font-mono;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+
+  &.current {
+    color: $dracula-cyan;
+    background: rgba($dracula-cyan, 0.05);
+    border-right: 1px solid $border-color;
+  }
+
+  &.incoming {
+    color: $dracula-purple;
+    background: rgba($dracula-purple, 0.05);
+  }
+}
+
+.conflict-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.conflict-section-unchanged {
+  pre {
+    margin: 0;
+    padding: 4px 12px;
+    font-family: $font-mono;
+    font-size: 12px;
+    line-height: 1.5;
+    color: $text-secondary;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+}
+
+.conflict-section-conflict {
+  border: 1px solid rgba($dracula-orange, 0.3);
+  border-left: 3px solid $dracula-orange;
+  margin: 4px 0;
+  background: rgba($dracula-orange, 0.03);
+
+  &.resolved {
+    border-color: rgba($dracula-green, 0.3);
+    border-left-color: $dracula-green;
+    background: rgba($dracula-green, 0.03);
+  }
+}
+
+.conflict-panes {
+  display: flex;
+}
+
+.conflict-pane {
+  flex: 1;
+  padding: 8px;
+  position: relative;
+
+  &.ours {
+    border-right: 1px solid $border-color;
+    background: rgba($dracula-cyan, 0.03);
+  }
+
+  &.theirs {
+    background: rgba($dracula-purple, 0.03);
+  }
+
+  &.accepted {
+    background: rgba($dracula-green, 0.08);
+  }
+
+  pre {
+    margin: 0;
+    font-family: $font-mono;
+    font-size: 12px;
+    line-height: 1.5;
+    color: $dracula-fg;
+    white-space: pre-wrap;
+    word-break: break-all;
+    min-height: 20px;
+  }
+}
+
+.conflict-accept-btn {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 4px 8px;
+  border-radius: $radius-sm;
+  font-family: $font-mono;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &.ours {
+    background: transparent;
+    border: 1px solid rgba($dracula-cyan, 0.4);
+    color: $dracula-cyan;
+
+    &:hover:not(:disabled) {
+      background: rgba($dracula-cyan, 0.15);
+      border-color: $dracula-cyan;
+    }
+
+    &:disabled {
+      background: rgba($dracula-green, 0.15);
+      border-color: $dracula-green;
+      color: $dracula-green;
+      cursor: default;
+    }
+  }
+
+  &.theirs {
+    background: transparent;
+    border: 1px solid rgba($dracula-purple, 0.4);
+    color: $dracula-purple;
+
+    &:hover:not(:disabled) {
+      background: rgba($dracula-purple, 0.15);
+      border-color: $dracula-purple;
+    }
+
+    &:disabled {
+      background: rgba($dracula-green, 0.15);
+      border-color: $dracula-green;
+      color: $dracula-green;
+      cursor: default;
+    }
+  }
+}
+
+.conflict-actions {
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  background: $bg-tertiary;
+  border-top: 1px solid $border-color;
+}
+
+.conflict-action-btn {
+  flex: 1;
+  padding: 6px 12px;
+  border-radius: $radius-sm;
+  font-family: $font-mono;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &.accept-all-current {
+    background: transparent;
+    border: 1px solid rgba($dracula-cyan, 0.4);
+    color: $dracula-cyan;
+
+    &:hover {
+      background: rgba($dracula-cyan, 0.15);
+      border-color: $dracula-cyan;
+    }
+  }
+
+  &.accept-all-incoming {
+    background: transparent;
+    border: 1px solid rgba($dracula-purple, 0.4);
+    color: $dracula-purple;
+
+    &:hover {
+      background: rgba($dracula-purple, 0.15);
+      border-color: $dracula-purple;
+    }
+  }
+
+  &.save-resolved {
+    background: $dracula-green;
+    border: none;
+    color: $dracula-bg;
+
+    &:hover:not(:disabled) {
+      filter: brightness(1.15);
+    }
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+  }
+}

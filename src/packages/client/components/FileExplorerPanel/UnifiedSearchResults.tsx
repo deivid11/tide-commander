@@ -71,20 +71,35 @@ const FilenameResultItem = memo(function FilenameResultItem({
   onSelect,
   lineNumber,
 }: FilenameResultItemProps) {
+  const iconPath = node.isDirectory ? null : getFileIcon(node);
+  // Extract directory and filename from path for better display
+  const pathParts = node.path.split('/');
+  const _filename = pathParts[pathParts.length - 1];
+  const directory = pathParts.slice(0, -1).join('/');
+
   return (
     <div
       className={`search-result-item ${isSelected ? 'selected' : ''}`}
       onClick={() => onSelect(node)}
     >
-      <span className="search-result-icon">
-        {node.isDirectory ? '📁' : getFileIcon(node)}
-      </span>
+      {node.isDirectory ? (
+        <span className="search-result-icon">📁</span>
+      ) : iconPath ? (
+        <span
+          className="search-result-icon"
+          style={{ backgroundImage: `url('${iconPath}')` }}
+          role="img"
+          aria-label="file icon"
+        />
+      ) : (
+        <span className="search-result-icon">📄</span>
+      )}
       <div className="search-result-info">
         <span className="search-result-name">
           <HighlightMatch text={node.name} query={query} />
           {lineNumber && <span className="search-result-line-badge">:{lineNumber}</span>}
         </span>
-        <span className="search-result-path">{node.path}</span>
+        <span className="search-result-path">{directory}</span>
       </div>
     </div>
   );
@@ -114,21 +129,38 @@ const ContentResultItem = memo(function ContentResultItem({
     size: 0,
     extension: match.extension,
   };
+  const iconPath = getFileIcon(iconNode);
+  // Extract directory for better display
+  const pathParts = match.path.split('/');
+  const filename = pathParts[pathParts.length - 1];
+  const directory = pathParts.slice(0, -1).join('/');
 
   return (
     <div className={`content-search-item ${isSelected ? 'selected' : ''}`}>
       <div
-        className="content-search-header"
+        className={`content-search-header ${isSelected ? 'selected' : ''}`}
         onClick={() => onSelect(match.path)}
       >
-        <span className="content-search-icon">{getFileIcon(iconNode)}</span>
-        <span className="content-search-name">{match.name}</span>
+        {iconPath ? (
+          <span
+            className="content-search-icon"
+            style={{ backgroundImage: `url('${iconPath}')` }}
+            role="img"
+            aria-label="file icon"
+          />
+        ) : (
+          <span className="content-search-icon">📄</span>
+        )}
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          <span className="content-search-name">{filename}</span>
+          <span className="search-result-path" style={{ fontSize: '10px' }}>{directory}</span>
+        </div>
         <span className="content-search-count">
-          {match.matches.length} match{match.matches.length > 1 ? 'es' : ''}
+          {match.matches.length}
         </span>
       </div>
       <div className="content-search-matches">
-        {match.matches.slice(0, 3).map((m, idx) => (
+        {match.matches.slice(0, 5).map((m, idx) => (
           <div
             key={`${match.path}-${m.line}-${idx}`}
             className="content-search-match"
@@ -136,10 +168,18 @@ const ContentResultItem = memo(function ContentResultItem({
           >
             <span className="content-search-line-num">{m.line}</span>
             <span className="content-search-line-content">
-              <HighlightMatch text={m.content} query={query} />
+              <HighlightMatch text={m.content.trim()} query={query} />
             </span>
           </div>
         ))}
+        {match.matches.length > 5 && (
+          <div className="content-search-match" style={{ opacity: 0.6, cursor: 'default' }}>
+            <span className="content-search-line-num">...</span>
+            <span className="content-search-line-content">
+              and {match.matches.length - 5} more matches
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

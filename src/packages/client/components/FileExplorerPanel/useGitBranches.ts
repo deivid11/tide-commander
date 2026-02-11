@@ -6,7 +6,7 @@
  */
 
 import { useState, useCallback } from 'react';
-import type { GitBranch, GitBranchOperationResult, UseGitBranchesReturn } from './types';
+import type { GitBranch, GitBranchOperationResult, MergeResult, UseGitBranchesReturn } from './types';
 import { apiUrl, authFetch } from '../../utils/storage';
 
 export function useGitBranches(): UseGitBranchesReturn {
@@ -134,6 +134,78 @@ export function useGitBranches(): UseGitBranchesReturn {
     }
   }, []);
 
+  const mergeBranch = useCallback(async (directory: string, branch: string): Promise<MergeResult> => {
+    setOperationInProgress('merge');
+    setError(null);
+    try {
+      const res = await authFetch(apiUrl('/api/files/git-merge'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ directory, branch }),
+      });
+      const data = await res.json();
+      if (!res.ok && !data.conflicts) {
+        setError(data.error || 'Merge failed');
+      }
+      return data;
+    } catch (err) {
+      console.error('[GitBranches] Merge failed:', err);
+      const result: MergeResult = { success: false, error: 'Merge failed' };
+      setError(result.error!);
+      return result;
+    } finally {
+      setOperationInProgress(null);
+    }
+  }, []);
+
+  const mergeAbort = useCallback(async (directory: string): Promise<GitBranchOperationResult> => {
+    setOperationInProgress('merge-abort');
+    setError(null);
+    try {
+      const res = await authFetch(apiUrl('/api/files/git-merge-abort'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ directory }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || 'Merge abort failed');
+      }
+      return data;
+    } catch (err) {
+      console.error('[GitBranches] Merge abort failed:', err);
+      const result = { success: false, error: 'Merge abort failed' };
+      setError(result.error);
+      return result;
+    } finally {
+      setOperationInProgress(null);
+    }
+  }, []);
+
+  const mergeContinue = useCallback(async (directory: string): Promise<GitBranchOperationResult> => {
+    setOperationInProgress('merge-continue');
+    setError(null);
+    try {
+      const res = await authFetch(apiUrl('/api/files/git-merge-continue'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ directory }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || 'Merge continue failed');
+      }
+      return data;
+    } catch (err) {
+      console.error('[GitBranches] Merge continue failed:', err);
+      const result = { success: false, error: 'Merge continue failed' };
+      setError(result.error);
+      return result;
+    } finally {
+      setOperationInProgress(null);
+    }
+  }, []);
+
   return {
     branches,
     loading,
@@ -144,5 +216,8 @@ export function useGitBranches(): UseGitBranchesReturn {
     createBranch,
     pullFromRemote,
     pushToRemote,
+    mergeBranch,
+    mergeAbort,
+    mergeContinue,
   };
 }

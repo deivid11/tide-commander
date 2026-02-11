@@ -20,6 +20,7 @@ export interface DrawingArea {
   zIndex: number;   // stacking order (higher = on top)
   assignedAgentIds: string[];
   directories: string[];  // Associated directory paths
+  directoryGitCounts?: number[];  // Git pending changes count per directory (runtime only)
   // Archive support
   archived?: boolean;              // True if area is hidden from view
   archivedAt?: number;             // Timestamp when archived

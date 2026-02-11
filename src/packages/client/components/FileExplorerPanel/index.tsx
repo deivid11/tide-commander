@@ -20,6 +20,8 @@ import type {
   FolderInfo,
   ContentMatch,
   FileTab,
+  ConflictVersions,
+  BranchCompareResult,
 } from './types';
 
 // Hooks
@@ -28,6 +30,8 @@ import { useGitStatus, loadGitOriginalContent } from './useGitStatus';
 import { useFileContent } from './useFileContent';
 import { useFileExplorerStorage } from './useFileExplorerStorage';
 import { useTreePanelResize } from './useTreePanelResize';
+import { useGitBranches } from './useGitBranches';
+import { useToast } from '../Toast';
 
 // Components
 import { TreeNodeItem } from './TreeNodeItem';
@@ -36,6 +40,8 @@ import { UnifiedSearchResults } from './UnifiedSearchResults';
 import { GitChanges } from './GitChanges';
 import { FileTabs } from './FileTabs';
 import { BranchWidget } from './BranchWidget';
+import { ConflictResolver } from './ConflictResolver';
+import { BranchComparison } from './BranchComparison';
 
 // Constants
 import { EXTENSION_TO_LANGUAGE } from './constants';
@@ -110,6 +116,7 @@ export function FileExplorerPanel({
     expandedPaths,
     loadTree,
     togglePath,
+    expandToPath,
     setExpandedPaths,
   } = useFileTree(currentFolder);
 
@@ -120,11 +127,20 @@ export function FileExplorerPanel({
   } = useGitStatus(currentFolder);
 
   const {
+    mergeBranch,
+    mergeAbort,
+    mergeContinue,
+  } = useGitBranches();
+
+  const { showToast } = useToast();
+
+  const {
     file: selectedFile,
     loading: fileLoading,
     error: fileError,
     loadFile,
     clearFile,
+    setFile: setSelectedFile,
   } = useFileContent();
 
   // Tree panel resize
@@ -160,6 +176,17 @@ export function FileExplorerPanel({
 
   // Line number to scroll to (from file:line search)
   const [scrollToLine, setScrollToLine] = useState<number | undefined>(undefined);
+
+  // Merge/conflict state
+  const [mergingBranch, setMergingBranch] = useState<string | null>(null);
+  const [conflictFile, setConflictFile] = useState<string | null>(null);
+  const [conflictVersions, setConflictVersions] = useState<ConflictVersions | null>(null);
+  const [conflictLoading, setConflictLoading] = useState(false);
+
+  // Branch comparison state
+  const [compareResult, setCompareResult] = useState<BranchCompareResult | null>(null);
+  const [compareLoading, setCompareLoading] = useState(false);
+  const [compareBranch, setCompareBranch] = useState<string | null>(null);
 
   // -------------------------------------------------------------------------
   // REFS
@@ -325,12 +352,8 @@ export function FileExplorerPanel({
     // Wait for storage restore to complete before deciding on view mode
     if (!hasRestoredState) return;
 
-    // Don't auto-switch if we restored state from storage (user's previous choice)
-    // viewMode was already set from stored state above
-    if (!hasInitializedView && viewMode === 'files' && gitStatus && gitStatus.isGitRepo && gitStatus.files.length > 0) {
-      setViewMode('git');
-      setHasInitializedView(true);
-    } else if (!hasInitializedView && gitStatus) {
+    // Respect the user's tab choice (default: 'files'); never auto-switch to git
+    if (!hasInitializedView && gitStatus) {
       setHasInitializedView(true);
     }
   }, [gitStatus, hasInitializedView, hasRestoredState, viewMode]);
@@ -431,15 +454,48 @@ export function FileExplorerPanel({
     return map;
   }, [gitStatus?.files]);
 
+  // Create a map of folder paths to aggregated git status (propagate up from changed files)
+  const folderGitStatusMap = useMemo(() => {
+    const map = new Map<string, GitFileStatusType>();
+    if (!gitStatus?.files) return map;
+
+    const STATUS_PRIORITY: Record<GitFileStatusType, number> = {
+      conflict: 0, modified: 1, added: 2, deleted: 3, untracked: 4, renamed: 5,
+    };
+
+    for (const file of gitStatus.files) {
+      // Walk up parent directories from each changed file
+      let dirPath = file.path;
+      while (true) {
+        const lastSlash = dirPath.lastIndexOf('/');
+        if (lastSlash <= 0) break;
+        dirPath = dirPath.substring(0, lastSlash);
+
+        const existing = map.get(dirPath);
+        if (!existing) {
+          map.set(dirPath, file.status);
+        } else if (STATUS_PRIORITY[file.status] < STATUS_PRIORITY[existing]) {
+          map.set(dirPath, file.status);
+        }
+      }
+    }
+    return map;
+  }, [gitStatus?.files]);
+
   // Enrich tree nodes with git status
   const enrichedTree = useMemo(() => {
     const enrichNode = (node: TreeNode): TreeNode => ({
       ...node,
-      gitStatus: gitStatusMap.get(node.path),
+      gitStatus: node.isDirectory
+        ? folderGitStatusMap.get(node.path)
+        : gitStatusMap.get(node.path),
+      hasGitChanges: node.isDirectory
+        ? folderGitStatusMap.has(node.path) || undefined
+        : undefined,
       children: node.children ? node.children.map(enrichNode) : undefined,
     });
     return tree.map(enrichNode);
-  }, [tree, gitStatusMap]);
+  }, [tree, gitStatusMap, folderGitStatusMap]);
 
   // -------------------------------------------------------------------------
   // HANDLERS
@@ -460,13 +516,38 @@ export function FileExplorerPanel({
     loadFile(filePath);
   };
 
-  const handleSelect = (node: TreeNode) => {
-    if (!node.isDirectory) {
-      setSelectedGitStatus(null);
-      setOriginalContent(null);
-      // If search has a :lineNumber suffix, pass it along
-      openFileInTab(node.path, node.name, node.extension, parsedSearch.lineNumber);
+  const handleSelect = async (node: TreeNode) => {
+    if (node.isDirectory) {
+      // Folder selected from search: switch back to tree and reveal the folder.
+      setViewMode('files');
+      setSearchQuery('');
+      await expandToPath(node.path);
+
+      setSelectedPath(node.path);
+
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          let pathToFind = node.path;
+          let folderElement = document.querySelector(`[data-path="${pathToFind}"]`);
+
+          // Handle compacted directory chains by falling back to closest visible ancestor.
+          while (!folderElement && pathToFind.includes('/')) {
+            pathToFind = pathToFind.substring(0, pathToFind.lastIndexOf('/'));
+            folderElement = document.querySelector(`[data-path="${pathToFind}"]`);
+          }
+
+          if (folderElement instanceof HTMLElement) {
+            folderElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        });
+      });
+      return;
     }
+
+    setSelectedGitStatus(null);
+    setOriginalContent(null);
+    // If search has a :lineNumber suffix, pass it along
+    openFileInTab(node.path, node.name, node.extension, parsedSearch.lineNumber);
   };
 
   const handleContentSearchSelect = (path: string, line?: number) => {
@@ -562,20 +643,23 @@ export function FileExplorerPanel({
     setViewMode('files');
     setSearchQuery('');
 
+    // Normalize: strip trailing slash to prevent double-slash paths
+    const rootFolder = currentFolder?.replace(/\/+$/, '') || null;
+
     // Build list of all parent paths to expand - start with root folder
     const pathsToExpand = new Set<string>();
-    if (currentFolder) {
-      pathsToExpand.add(currentFolder);
+    if (rootFolder) {
+      pathsToExpand.add(rootFolder);
     }
 
-    // Get all parent directories by building up the path from currentFolder
-    if (filePath.startsWith(currentFolder!)) {
-      // Get relative path from currentFolder
-      const relativePath = filePath.substring(currentFolder!.length);
+    // Get all parent directories by building up the path from rootFolder
+    if (rootFolder && filePath.startsWith(rootFolder)) {
+      // Get relative path from rootFolder
+      const relativePath = filePath.substring(rootFolder.length);
       const parts = relativePath.split('/').filter(p => p);
 
-      // Build each parent path relative to currentFolder
-      let currentPath = currentFolder!;
+      // Build each parent path relative to rootFolder
+      let currentPath = rootFolder;
       for (let i = 0; i < parts.length - 1; i++) {
         currentPath = currentPath + '/' + parts[i];
         pathsToExpand.add(currentPath);
@@ -633,6 +717,199 @@ export function FileExplorerPanel({
   }, [currentFolder, loadGitStatus]);
 
   // -------------------------------------------------------------------------
+  // MERGE / CONFLICT HANDLERS
+  // -------------------------------------------------------------------------
+
+  const handleMerge = useCallback(async (branch: string) => {
+    if (!currentFolder) return;
+    setMergingBranch(branch);
+    const result = await mergeBranch(currentFolder, branch);
+    await loadGitStatus();
+
+    if (result.success) {
+      setMergingBranch(null);
+      showToast('success', 'Merge Complete', `Merged '${branch}' successfully`);
+      loadTree();
+    } else if (result.conflicts && result.conflicts.length > 0) {
+      const n = result.conflicts.length;
+      showToast('warning', 'Merge Conflicts', `${n} conflict${n > 1 ? 's' : ''} found — resolve to continue`);
+      setViewMode('git');
+    } else {
+      setMergingBranch(null);
+      showToast('error', 'Merge Failed', result.error || 'Merge failed');
+    }
+  }, [currentFolder, mergeBranch, loadGitStatus, loadTree, showToast]);
+
+  const handleConflictOpen = useCallback(async (filePath: string) => {
+    if (!currentFolder) return;
+    setConflictFile(filePath);
+    setConflictLoading(true);
+    setConflictVersions(null);
+    try {
+      const res = await authFetch(
+        apiUrl(`/api/files/git-conflict-file?path=${encodeURIComponent(currentFolder)}&file=${encodeURIComponent(filePath)}`)
+      );
+      const data = await res.json();
+      if (res.ok) {
+        setConflictVersions(data);
+      } else {
+        console.error('[FileExplorer] Failed to load conflict file:', data.error);
+      }
+    } catch (err) {
+      console.error('[FileExplorer] Failed to load conflict file:', err);
+    } finally {
+      setConflictLoading(false);
+    }
+  }, [currentFolder]);
+
+  const handleConflictResolve = useCallback(async (content: string) => {
+    if (!currentFolder || !conflictFile) return;
+    try {
+      const res = await authFetch(apiUrl('/api/files/git-resolve-conflict'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ directory: currentFolder, file: conflictFile, content }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setConflictFile(null);
+        setConflictVersions(null);
+        await loadGitStatus();
+      } else {
+        console.error('[FileExplorer] Failed to resolve conflict:', data.error);
+      }
+    } catch (err) {
+      console.error('[FileExplorer] Failed to resolve conflict:', err);
+    }
+  }, [currentFolder, conflictFile, loadGitStatus]);
+
+  const handleMergeContinue = useCallback(async () => {
+    if (!currentFolder) return;
+    const result = await mergeContinue(currentFolder);
+    if (result.success) {
+      setMergingBranch(null);
+      setConflictFile(null);
+      setConflictVersions(null);
+      showToast('success', 'Merge Complete', 'Merge completed successfully');
+      await loadGitStatus();
+      loadTree();
+    } else {
+      showToast('error', 'Merge Failed', result.error || 'Merge continue failed');
+    }
+  }, [currentFolder, mergeContinue, loadGitStatus, loadTree, showToast]);
+
+  const handleMergeAbort = useCallback(async () => {
+    if (!currentFolder) return;
+    const result = await mergeAbort(currentFolder);
+    if (result.success) {
+      setMergingBranch(null);
+      setConflictFile(null);
+      setConflictVersions(null);
+      showToast('info', 'Merge Aborted', 'Merge has been aborted');
+      await loadGitStatus();
+      loadTree();
+    } else {
+      showToast('error', 'Abort Failed', result.error || 'Failed to abort merge');
+    }
+  }, [currentFolder, mergeAbort, loadGitStatus, loadTree, showToast]);
+
+  // -------------------------------------------------------------------------
+  // BRANCH COMPARISON HANDLERS
+  // -------------------------------------------------------------------------
+
+  const handleCompare = useCallback(async (branch: string) => {
+    if (!currentFolder) return;
+    setCompareBranch(branch);
+    setCompareLoading(true);
+    setCompareResult(null);
+    setViewMode('compare');
+
+    try {
+      const res = await authFetch(
+        apiUrl(`/api/files/git-branch-compare?directory=${encodeURIComponent(currentFolder)}&branch=${encodeURIComponent(branch)}`)
+      );
+      const data = await res.json();
+      if (res.ok) {
+        setCompareResult(data);
+      } else {
+        showToast('error', 'Compare Failed', data.error || 'Failed to compare branches');
+        setViewMode('files');
+        setCompareBranch(null);
+      }
+    } catch (err) {
+      console.error('[FileExplorer] Branch compare failed:', err);
+      showToast('error', 'Compare Failed', 'Network error during comparison');
+      setViewMode('files');
+      setCompareBranch(null);
+    } finally {
+      setCompareLoading(false);
+    }
+  }, [currentFolder, showToast]);
+
+  const handleCompareFileSelect = useCallback(async (filePath: string, status: GitFileStatusType) => {
+    if (!currentFolder || !compareBranch) return;
+
+    const filename = filePath.split('/').pop() || filePath;
+    const extension = filePath.substring(filePath.lastIndexOf('.')).toLowerCase();
+
+    // Set up tab without loading from disk
+    const existingTab = openTabs.find(t => t.path === filePath);
+    if (!existingTab) {
+      setOpenTabs(prev => [...prev, { path: filePath, filename, extension }]);
+    }
+    setActiveTabPath(filePath);
+    setSelectedPath(filePath);
+    setScrollToLine(undefined);
+
+    // Helper to fetch file content from a git ref
+    const fetchRef = async (ref: string): Promise<string> => {
+      try {
+        const res = await authFetch(
+          apiUrl(`/api/files/git-show?path=${encodeURIComponent(filePath)}&ref=${encodeURIComponent(ref)}`)
+        );
+        const data = await res.json();
+        return res.ok ? (data.content ?? '') : '';
+      } catch {
+        return '';
+      }
+    };
+
+    const makeFile = (content: string) => ({
+      path: filePath, filename, extension, content, fileType: 'text' as const, size: content.length, modified: '',
+    });
+
+    if (status === 'modified' || status === 'renamed') {
+      // Fetch both versions from git and show diff
+      const [original, current] = await Promise.all([
+        fetchRef(compareBranch),
+        fetchRef('HEAD'),
+      ]);
+      setOriginalContent(original);
+      setSelectedFile(makeFile(current));
+      setSelectedGitStatus('modified');
+    } else if (status === 'deleted') {
+      // File only exists in comparison branch — diff shows full removal
+      const original = await fetchRef(compareBranch);
+      setOriginalContent(original);
+      setSelectedFile(makeFile(''));
+      setSelectedGitStatus('modified');
+    } else if (status === 'added') {
+      // File only exists in current branch — diff shows full addition
+      const current = await fetchRef('HEAD');
+      setOriginalContent('');
+      setSelectedFile(makeFile(current));
+      setSelectedGitStatus('modified');
+    }
+  }, [currentFolder, compareBranch, openTabs]);
+
+  const handleCompareClose = useCallback(() => {
+    setViewMode('files');
+    setCompareResult(null);
+    setCompareBranch(null);
+    setCompareLoading(false);
+  }, []);
+
+  // -------------------------------------------------------------------------
   // RENDER
   // -------------------------------------------------------------------------
 
@@ -676,6 +953,8 @@ export function FileExplorerPanel({
                   loadGitStatus();
                   loadTree();
                 }}
+                onMerge={handleMerge}
+                onCompare={handleCompare}
               />
             </>
           )}
@@ -748,6 +1027,22 @@ export function FileExplorerPanel({
               Git
               {gitChangeCount > 0 && <span className="tab-badge">{gitChangeCount}</span>}
             </button>
+            {(compareResult || compareLoading) && (
+              <button
+                className={`file-explorer-tab ${viewMode === 'compare' ? 'active' : ''}`}
+                onClick={() => setViewMode('compare')}
+              >
+                <span className="tab-icon">⇄</span>
+                Diff
+                {compareResult && <span className="tab-badge">{compareResult.files.length}</span>}
+                <span
+                  className="tab-close-btn"
+                  onClick={(e) => { e.stopPropagation(); handleCompareClose(); }}
+                >
+                  ×
+                </span>
+              </button>
+            )}
           </div>
 
           {/* Search Bar and Toolbar (only in files mode) */}
@@ -795,7 +1090,15 @@ export function FileExplorerPanel({
 
           {/* Tree Content */}
           <div className="file-explorer-tree-content">
-            {viewMode === 'files' ? (
+            {viewMode === 'compare' ? (
+              <BranchComparison
+                compareResult={compareResult}
+                loading={compareLoading}
+                onFileSelect={handleCompareFileSelect}
+                selectedPath={selectedPath}
+                onClose={handleCompareClose}
+              />
+            ) : viewMode === 'files' ? (
               treeLoading ? (
                 <div className="tree-loading">Loading...</div>
               ) : parsedSearch.query ? (
@@ -841,6 +1144,16 @@ export function FileExplorerPanel({
                 onRefresh={loadGitStatus}
                 onStageFiles={handleStageFiles}
                 stagingPaths={stagingPaths}
+                currentFolder={currentFolder}
+                onCommitComplete={() => {
+                  loadGitStatus();
+                  loadTree();
+                }}
+                mergeInProgress={gitStatus?.mergeInProgress}
+                mergingBranch={mergingBranch}
+                onMergeContinue={handleMergeContinue}
+                onMergeAbort={handleMergeAbort}
+                onConflictOpen={handleConflictOpen}
               />
             )}
           </div>
@@ -854,24 +1167,42 @@ export function FileExplorerPanel({
 
         {/* File Viewer (Right) */}
         <div className="file-explorer-viewer-panel">
-          {/* File Tabs */}
-          <FileTabs
-            tabs={openTabs}
-            activeTabPath={activeTabPath}
-            onSelectTab={handleSelectTab}
-            onCloseTab={handleCloseTab}
-          />
-
-          {/* File Content */}
-          {selectedGitStatus === 'modified' && originalContent !== null && selectedFile ? (
-            <DiffViewer
-              originalContent={originalContent}
-              modifiedContent={selectedFile.content}
-              filename={selectedFile.filename}
-              language={EXTENSION_TO_LANGUAGE[selectedFile.extension] || 'plaintext'}
+          {conflictFile ? (
+            /* Conflict Resolver */
+            <ConflictResolver
+              file={conflictFile}
+              versions={conflictVersions}
+              loading={conflictLoading}
+              onResolve={handleConflictResolve}
+              onClose={() => {
+                setConflictFile(null);
+                setConflictVersions(null);
+              }}
+              currentBranch={gitStatus?.branch || 'HEAD'}
+              mergingBranch={mergingBranch || 'incoming'}
             />
           ) : (
-            <FileViewer file={selectedFile} loading={fileLoading} error={fileError} onRevealInTree={handleRevealInTree} scrollToLine={scrollToLine} />
+            <>
+              {/* File Tabs */}
+              <FileTabs
+                tabs={openTabs}
+                activeTabPath={activeTabPath}
+                onSelectTab={handleSelectTab}
+                onCloseTab={handleCloseTab}
+              />
+
+              {/* File Content */}
+              {selectedGitStatus === 'modified' && originalContent !== null && selectedFile ? (
+                <DiffViewer
+                  originalContent={originalContent}
+                  modifiedContent={selectedFile.content}
+                  filename={selectedFile.filename}
+                  language={EXTENSION_TO_LANGUAGE[selectedFile.extension] || 'plaintext'}
+                />
+              ) : (
+                <FileViewer file={selectedFile} loading={fileLoading} error={fileError} onRevealInTree={handleRevealInTree} scrollToLine={scrollToLine} />
+              )}
+            </>
           )}
         </div>
       </div>

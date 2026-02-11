@@ -87,6 +87,63 @@ export function createLabel(text: string): THREE.Sprite {
 }
 
 /**
+ * Create a git changes badge sprite (orange circle with count).
+ */
+export function createGitBadge(count: number): THREE.Sprite {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d')!;
+  canvas.width = 64;
+  canvas.height = 64;
+
+  // Draw circle background
+  ctx.fillStyle = '#c89a5a';
+  ctx.beginPath();
+  ctx.arc(32, 32, 28, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Draw dark border
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(32, 32, 28, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Draw count text
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 28px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(count > 99 ? '99+' : String(count), 32, 32);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthTest: false,
+  });
+
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(0.35, 0.35, 1);
+  sprite.name = 'gitIndicator';
+  return sprite;
+}
+
+/**
+ * Update git badge count (replace texture).
+ */
+export function updateGitBadge(sprite: THREE.Sprite, count: number): void {
+  const mat = sprite.material as THREE.SpriteMaterial;
+  if (mat.map) mat.map.dispose();
+  mat.dispose();
+
+  const newSprite = createGitBadge(count);
+  sprite.material = newSprite.material;
+}
+
+/**
  * Update label text on a building mesh.
  */
 export function updateLabel(meshData: BuildingMeshData, text: string): void {

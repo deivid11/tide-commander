@@ -35,6 +35,12 @@
 // Git changes view
 @forward 'git';
 
+// Git conflict resolver
+@forward 'conflict';
+
+// Branch comparison view
+@forward 'compare';
+
 // Git branch widget
 @forward 'branch';
 

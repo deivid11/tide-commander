@@ -5,11 +5,12 @@
  * Supports two view modes: flat list (grouped by status) and directory tree.
  */
 
-import React, { memo, useState, useMemo, useEffect, useCallback } from 'react';
+import React, { memo, useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import type { GitChangesProps, GitFileStatusType, GitFileStatus } from './types';
 import { GIT_STATUS_CONFIG } from './constants';
 import { buildGitTree, collectGitTreeDirPaths, getIconForExtension } from './fileUtils';
 import type { GitTreeNode } from './fileUtils';
+import { apiUrl, authFetch } from '../../utils/storage';
 
 type GitViewMode = 'flat' | 'tree';
 
@@ -25,6 +26,8 @@ interface GitFileItemProps {
   onStage?: (path: string) => void;
   isStaging?: boolean;
   showDirPath?: boolean;
+  isChecked?: boolean;
+  onToggleCheck?: (path: string) => void;
 }
 
 const GitFileItem = memo(function GitFileItem({
@@ -35,6 +38,8 @@ const GitFileItem = memo(function GitFileItem({
   onStage,
   isStaging,
   showDirPath,
+  isChecked,
+  onToggleCheck,
 }: GitFileItemProps) {
   const config = GIT_STATUS_CONFIG[status];
   const isDeleted = status === 'deleted';
@@ -51,6 +56,18 @@ const GitFileItem = memo(function GitFileItem({
       style={{ cursor: isDeleted ? 'not-allowed' : 'pointer' }}
       title={file.path}
     >
+      {onToggleCheck && (
+        <input
+          type="checkbox"
+          className="git-file-checkbox"
+          checked={isChecked || false}
+          onChange={(e) => {
+            e.stopPropagation();
+            onToggleCheck(file.path);
+          }}
+          onClick={(e) => e.stopPropagation()}
+        />
+      )}
       <span className="tree-arrow-spacer" />
       <img className="tree-icon" src={getIconForExtension(ext)} alt="file" />
       <span className="git-file-name">
@@ -96,6 +113,8 @@ interface GitTreeNodeItemProps {
   status: GitFileStatusType;
   onStage?: (path: string) => void;
   stagingPaths?: Set<string>;
+  checkedFiles?: Set<string>;
+  onToggleCheck?: (path: string) => void;
 }
 
 const GIT_TREE_INDENT = 16; // px per depth level
@@ -110,6 +129,8 @@ const GitTreeNodeItem = memo(function GitTreeNodeItem({
   status,
   onStage,
   stagingPaths,
+  checkedFiles,
+  onToggleCheck,
 }: GitTreeNodeItemProps) {
   const indent = depth * GIT_TREE_INDENT;
 
@@ -121,6 +142,18 @@ const GitTreeNodeItem = memo(function GitTreeNodeItem({
         style={{ paddingLeft: `${indent + 4}px`, cursor: status === 'deleted' ? 'not-allowed' : 'pointer' }}
         title={node.file!.path}
       >
+        {onToggleCheck && (
+          <input
+            type="checkbox"
+            className="git-file-checkbox"
+            checked={checkedFiles?.has(node.file!.path) || false}
+            onChange={(e) => {
+              e.stopPropagation();
+              onToggleCheck(node.file!.path);
+            }}
+            onClick={(e) => e.stopPropagation()}
+          />
+        )}
         <span className="tree-arrow-spacer" />
         <img className="tree-icon" src={getIconForExtension(node.file!.name.includes('.') ? '.' + node.file!.name.split('.').pop() : '')} alt="file" />
         <span className="git-file-name">{node.file!.name}</span>
@@ -183,6 +216,8 @@ const GitTreeNodeItem = memo(function GitTreeNodeItem({
               status={status}
               onStage={onStage}
               stagingPaths={stagingPaths}
+              checkedFiles={checkedFiles}
+              onToggleCheck={onToggleCheck}
             />
           ))}
         </div>
@@ -207,6 +242,8 @@ interface GitStatusGroupProps {
   onStageFile?: (path: string) => void;
   onStageAll?: () => void;
   stagingPaths?: Set<string>;
+  checkedFiles?: Set<string>;
+  onToggleCheck?: (path: string) => void;
 }
 
 const GitStatusGroup = memo(function GitStatusGroup({
@@ -221,6 +258,8 @@ const GitStatusGroup = memo(function GitStatusGroup({
   onStageFile,
   onStageAll,
   stagingPaths,
+  checkedFiles,
+  onToggleCheck,
 }: GitStatusGroupProps) {
   if (files.length === 0) return null;
 
@@ -264,6 +303,8 @@ const GitStatusGroup = memo(function GitStatusGroup({
               status={status}
               onStage={status === 'untracked' ? onStageFile : undefined}
               stagingPaths={status === 'untracked' ? stagingPaths : undefined}
+              checkedFiles={checkedFiles}
+              onToggleCheck={onToggleCheck}
             />
           ))}
         </div>
@@ -279,6 +320,8 @@ const GitStatusGroup = memo(function GitStatusGroup({
               onStage={status === 'untracked' ? onStageFile : undefined}
               isStaging={stagingPaths?.has(file.path)}
               showDirPath
+              isChecked={checkedFiles?.has(file.path)}
+              onToggleCheck={onToggleCheck}
             />
           ))}
         </div>
@@ -299,9 +342,25 @@ function GitChangesComponent({
   onRefresh,
   onStageFiles,
   stagingPaths,
+  currentFolder,
+  onCommitComplete,
+  mergeInProgress,
+  mergingBranch,
+  onMergeContinue,
+  onMergeAbort,
+  onConflictOpen,
 }: GitChangesProps) {
   const [gitViewMode, setGitViewMode] = useState<GitViewMode>('tree');
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
+
+  // Commit panel state
+  const [commitMessage, setCommitMessage] = useState('');
+  const [savedMessage, setSavedMessage] = useState(''); // saved user message when toggling amend
+  const [isAmend, setIsAmend] = useState(false);
+  const [checkedFiles, setCheckedFiles] = useState<Set<string>>(new Set());
+  const [isCommitting, setIsCommitting] = useState(false);
+  const [commitStatus, setCommitStatus] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const commitTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   const toggleDir = useCallback((dirPath: string) => {
     setExpandedDirs(prev => {
@@ -325,7 +384,7 @@ function GitChangesComponent({
       };
     }
 
-    const statuses: GitFileStatusType[] = ['modified', 'added', 'deleted', 'renamed', 'untracked'];
+    const statuses: GitFileStatusType[] = ['conflict', 'modified', 'added', 'deleted', 'renamed', 'untracked'];
     const grp: Record<string, GitFileStatus[]> = {};
     const trees: Record<string, GitTreeNode[]> = {};
     const dirs = new Set<string>();
@@ -348,6 +407,134 @@ function GitChangesComponent({
   useEffect(() => {
     setExpandedDirs(allDirPaths);
   }, [allDirPaths]);
+
+  // Select all files by default when git status changes
+  useEffect(() => {
+    if (gitStatus?.files) {
+      setCheckedFiles(new Set(gitStatus.files.map(f => f.path)));
+    }
+  }, [gitStatus?.files]);
+
+  const hasConflicts = gitStatus?.files.some(f => f.status === 'conflict') ?? false;
+
+  // Auto-clear commit status
+  useEffect(() => {
+    if (commitStatus) {
+      const timeout = commitStatus.type === 'error' ? 8000 : 4000;
+      const timer = setTimeout(() => setCommitStatus(null), timeout);
+      return () => clearTimeout(timer);
+    }
+  }, [commitStatus]);
+
+  // Toggle amend - fetch last commit message
+  const handleAmendToggle = useCallback(async () => {
+    const newAmend = !isAmend;
+    setIsAmend(newAmend);
+    if (newAmend && currentFolder) {
+      // Save current message and fetch last commit message
+      setSavedMessage(commitMessage);
+      try {
+        const res = await authFetch(apiUrl(`/api/files/git-log-message?path=${encodeURIComponent(currentFolder)}`));
+        const data = await res.json();
+        if (data.message) {
+          setCommitMessage(data.message);
+        }
+      } catch {
+        // ignore - keep current message
+      }
+    } else {
+      // Restore saved message
+      setCommitMessage(savedMessage);
+    }
+  }, [isAmend, currentFolder, commitMessage, savedMessage]);
+
+  // Toggle file check
+  const handleToggleCheck = useCallback((filePath: string) => {
+    setCheckedFiles(prev => {
+      const next = new Set(prev);
+      if (next.has(filePath)) {
+        next.delete(filePath);
+      } else {
+        next.add(filePath);
+      }
+      return next;
+    });
+  }, []);
+
+  // Toggle all checks
+  const handleToggleAllChecks = useCallback(() => {
+    if (!gitStatus?.files) return;
+    const allPaths = gitStatus.files.map(f => f.path);
+    const allChecked = allPaths.every(p => checkedFiles.has(p));
+    if (allChecked) {
+      setCheckedFiles(new Set());
+    } else {
+      setCheckedFiles(new Set(allPaths));
+    }
+  }, [gitStatus?.files, checkedFiles]);
+
+  // Commit
+  const handleCommit = useCallback(async (andPush: boolean) => {
+    if (!currentFolder || !commitMessage.trim() || checkedFiles.size === 0 || isCommitting) return;
+
+    setIsCommitting(true);
+    setCommitStatus(null);
+
+    try {
+      const res = await authFetch(apiUrl('/api/files/git-commit'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          directory: currentFolder,
+          message: commitMessage.trim(),
+          amend: isAmend,
+          paths: Array.from(checkedFiles),
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        setCommitStatus({ type: 'error', text: data.error || 'Commit failed' });
+        setIsCommitting(false);
+        return;
+      }
+
+      // Commit succeeded
+      if (andPush) {
+        // Now push
+        try {
+          const pushRes = await authFetch(apiUrl('/api/files/git-push'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ directory: currentFolder }),
+          });
+          const pushData = await pushRes.json();
+
+          if (pushRes.ok && pushData.success) {
+            setCommitStatus({ type: 'success', text: 'Committed and pushed' });
+          } else {
+            setCommitStatus({ type: 'error', text: `Committed, but push failed: ${pushData.error || 'Unknown error'}` });
+          }
+        } catch {
+          setCommitStatus({ type: 'error', text: 'Committed, but push failed: Network error' });
+        }
+      } else {
+        setCommitStatus({ type: 'success', text: 'Committed successfully' });
+      }
+
+      // Clear state after successful commit
+      setCommitMessage('');
+      setSavedMessage('');
+      setIsAmend(false);
+      onRefresh();
+      onCommitComplete?.();
+    } catch (err: any) {
+      setCommitStatus({ type: 'error', text: err.message || 'Commit failed' });
+    } finally {
+      setIsCommitting(false);
+    }
+  }, [currentFolder, commitMessage, isAmend, checkedFiles, isCommitting, onRefresh, onCommitComplete]);
 
   // Loading state
   if (loading) {
@@ -396,6 +583,9 @@ function GitChangesComponent({
         </span>
         {gitStatus.counts && (
           <div className="git-changes-summary">
+            {(gitStatus.counts.conflict ?? 0) > 0 && (
+              <span className="git-count conflict">{gitStatus.counts.conflict}C</span>
+            )}
             {gitStatus.counts.modified > 0 && (
               <span className="git-count modified">{gitStatus.counts.modified}M</span>
             )}
@@ -444,9 +634,36 @@ function GitChangesComponent({
         </button>
       </div>
 
+      {/* Merge in-progress banner */}
+      {mergeInProgress && (
+        <div className="git-merge-banner">
+          <span className="git-merge-banner-icon">&#9888;</span>
+          <span className="git-merge-banner-text">
+            Merge in progress{mergingBranch ? ` (${mergingBranch})` : ''}
+          </span>
+          <div className="git-merge-actions">
+            <button
+              className="git-merge-continue-btn"
+              onClick={onMergeContinue}
+              disabled={hasConflicts}
+              title={hasConflicts ? 'Resolve all conflicts first' : 'Continue merge'}
+            >
+              Continue
+            </button>
+            <button
+              className="git-merge-abort-btn"
+              onClick={onMergeAbort}
+              title="Abort merge"
+            >
+              Abort
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* File list grouped by status */}
       <div className="git-changes-list">
-        {(['modified', 'added', 'deleted', 'renamed', 'untracked'] as const).map(
+        {(['conflict', 'modified', 'added', 'deleted', 'renamed', 'untracked'] as const).map(
           (status) => (
             <GitStatusGroup
               key={status}
@@ -457,13 +674,95 @@ function GitChangesComponent({
               selectedPath={selectedPath}
               expandedDirs={expandedDirs}
               onToggleDir={toggleDir}
-              onFileSelect={onFileSelect}
+              onFileSelect={status === 'conflict' && onConflictOpen
+                ? (path: string, _status: GitFileStatusType) => onConflictOpen(path)
+                : onFileSelect
+              }
               onStageFile={status === 'untracked' ? handleStageFile : undefined}
               onStageAll={status === 'untracked' ? handleStageAllUntracked : undefined}
               stagingPaths={status === 'untracked' ? stagingPaths : undefined}
+              checkedFiles={checkedFiles}
+              onToggleCheck={handleToggleCheck}
             />
           )
         )}
+      </div>
+
+      {/* Commit Panel */}
+      <div className="git-commit-panel">
+        {/* Options row: Amend + file count + select toggle */}
+        <div className="git-commit-options">
+          <label className="git-commit-amend-label">
+            <input
+              type="checkbox"
+              className="git-commit-amend-checkbox"
+              checked={isAmend}
+              onChange={handleAmendToggle}
+            />
+            Amend
+          </label>
+          <span className="git-commit-file-count">
+            {checkedFiles.size} {checkedFiles.size === 1 ? 'file' : 'files'}
+          </span>
+          <button
+            className="git-commit-select-toggle"
+            onClick={handleToggleAllChecks}
+            title={checkedFiles.size === gitStatus.files.length ? 'Deselect all' : 'Select all'}
+          >
+            {checkedFiles.size === gitStatus.files.length ? 'Deselect All' : 'Select All'}
+          </button>
+        </div>
+
+        {/* Commit message */}
+        <textarea
+          ref={commitTextareaRef}
+          className="git-commit-message"
+          placeholder="Commit message..."
+          value={commitMessage}
+          onChange={(e) => setCommitMessage(e.target.value)}
+          onKeyDown={(e) => {
+            // Ctrl/Cmd+Enter to commit
+            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+              e.preventDefault();
+              handleCommit(false);
+            }
+            // Ctrl/Cmd+Shift+Enter to commit & push
+            if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'Enter') {
+              e.preventDefault();
+              handleCommit(true);
+            }
+            e.stopPropagation();
+          }}
+          rows={3}
+          disabled={isCommitting}
+        />
+
+        {/* Status message */}
+        {commitStatus && (
+          <div className={`git-commit-status ${commitStatus.type}`}>
+            {commitStatus.text}
+          </div>
+        )}
+
+        {/* Action buttons */}
+        <div className="git-commit-actions">
+          <button
+            className="git-commit-btn"
+            onClick={() => handleCommit(false)}
+            disabled={!commitMessage.trim() || checkedFiles.size === 0 || isCommitting}
+            title="Commit selected files (Ctrl+Enter)"
+          >
+            {isCommitting ? 'Committing...' : 'Commit'}
+          </button>
+          <button
+            className="git-commit-push-btn"
+            onClick={() => handleCommit(true)}
+            disabled={!commitMessage.trim() || checkedFiles.size === 0 || isCommitting}
+            title="Commit and push (Ctrl+Shift+Enter)"
+          >
+            {isCommitting ? '...' : 'Commit & Push'}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -476,13 +775,16 @@ export const GitChanges = memo(GitChangesComponent, (prev, next) => {
   if (prev.loading !== next.loading) return false;
   if (prev.selectedPath !== next.selectedPath) return false;
   if (prev.stagingPaths !== next.stagingPaths) return false;
-
+  if (prev.currentFolder !== next.currentFolder) return false;
+  if (prev.mergeInProgress !== next.mergeInProgress) return false;
+  if (prev.mergingBranch !== next.mergingBranch) return false;
   // Compare git status
   if (prev.gitStatus === null && next.gitStatus === null) return true;
   if (prev.gitStatus === null || next.gitStatus === null) return false;
   if (prev.gitStatus.isGitRepo !== next.gitStatus.isGitRepo) return false;
   if (prev.gitStatus.branch !== next.gitStatus.branch) return false;
   if (prev.gitStatus.files.length !== next.gitStatus.files.length) return false;
+  if (prev.gitStatus.mergeInProgress !== next.gitStatus.mergeInProgress) return false;
 
   return true;
 });

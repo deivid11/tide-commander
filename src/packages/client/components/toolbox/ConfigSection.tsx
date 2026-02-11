@@ -163,7 +163,7 @@ const SETTINGS_SECTIONS = [
   {
     id: 'general',
     title: 'General',
-    keywords: ['history', 'hide costs', 'grid', 'fps', 'power saving', 'performance', 'limit'],
+    keywords: ['history', 'hide costs', 'grid', 'fps', 'power saving', 'performance', 'limit', 'editor', 'external editor'],
   },
   {
     id: 'agentNames',
@@ -330,6 +330,7 @@ export function ConfigSection({ config, onChange, searchQuery = '' }: ConfigSect
       <CollapsibleSection
         title="General"
         storageKey="general"
+        defaultOpen={true}
         forceOpen={isSearching && shouldShowSection('general')}
       >
         <div className="config-row">
@@ -383,6 +384,16 @@ export function ConfigSection({ config, onChange, searchQuery = '' }: ConfigSect
           <Toggle
             checked={state.settings.powerSaving}
             onChange={(checked) => store.updateSettings({ powerSaving: checked })}
+          />
+        </div>
+        <div className="config-row">
+          <span className="config-label"><HighlightText text="External Editor" query={searchQuery} /></span>
+          <input
+            type="text"
+            className="config-input"
+            placeholder="e.g., subl, code, nvim (leave empty for system default)"
+            value={state.settings.externalEditorCommand || ''}
+            onChange={(e) => store.updateSettings({ externalEditorCommand: e.target.value })}
           />
         </div>
       </CollapsibleSection>

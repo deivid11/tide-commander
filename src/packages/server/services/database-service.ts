@@ -713,13 +713,16 @@ export async function executeQuery(
                      trimmedQuery.startsWith('describe') ||
                      trimmedQuery.startsWith('explain');
 
+    // SHOW statements are read-only but don't support LIMIT clause
+    const isShowStatement = trimmedQuery.startsWith('show');
+
     if (connection.engine === 'mysql') {
       const pool = await getMySQLPool(connection, database);
 
       if (isSelect) {
-        // Add LIMIT if not present
+        // Add LIMIT if not present (but not for SHOW statements)
         let limitedQuery = query;
-        if (!trimmedQuery.includes(' limit ')) {
+        if (!isShowStatement && !trimmedQuery.includes(' limit ')) {
           limitedQuery = `${query.trim().replace(/;$/, '')} LIMIT ${limit}`;
         }
 
@@ -741,9 +744,9 @@ export async function executeQuery(
       const pool = await getPgPool(connection, database);
 
       if (isSelect) {
-        // Add LIMIT if not present
+        // Add LIMIT if not present (but not for SHOW statements)
         let limitedQuery = query;
-        if (!trimmedQuery.includes(' limit ')) {
+        if (!isShowStatement && !trimmedQuery.includes(' limit ')) {
           limitedQuery = `${query.trim().replace(/;$/, '')} LIMIT ${limit}`;
         }
 
@@ -766,9 +769,9 @@ export async function executeQuery(
       const conn = await pool.getConnection();
       try {
         if (isSelect) {
-          // Add FETCH FIRST for Oracle 12c+ if no ROWNUM/FETCH present
+          // Add FETCH FIRST for Oracle 12c+ if no ROWNUM/FETCH present (but not for SHOW statements)
           let limitedQuery = query;
-          if (!trimmedQuery.includes('rownum') && !trimmedQuery.includes('fetch ')) {
+          if (!isShowStatement && !trimmedQuery.includes('rownum') && !trimmedQuery.includes('fetch ')) {
             limitedQuery = `${query.trim().replace(/;$/, '')} FETCH FIRST ${limit} ROWS ONLY`;
           }
 

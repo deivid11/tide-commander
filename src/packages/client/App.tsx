@@ -42,6 +42,7 @@ import {
   useKeyboardShortcuts,
   useBackNavigation,
   useDocumentPiP,
+  useBuildingGitStatus,
   useModalClose,
   subscribeToSceneRefresh,
 } from './hooks';
@@ -155,6 +156,7 @@ function AppContent() {
   useSelectionSync(sceneRef);
   useAreaSync(sceneRef);
   useBuildingSync(sceneRef);
+  useBuildingGitStatus();
   useAreaHighlight(sceneRef, state.selectedAreaId);
   usePowerSaving(sceneRef, state.settings.powerSaving);
 
@@ -876,7 +878,11 @@ function AppContent() {
         const building = state.buildings.get(databasePanelBuildingId);
         if (!building) return null;
         return (
-          <div className="modal-overlay visible" onMouseDown={handleDatabasePanelBackdropMouseDown} onClick={handleDatabasePanelBackdropClick}>
+          <div
+            className="modal-overlay visible"
+            onMouseDown={handleDatabasePanelBackdropMouseDown}
+            onClick={handleDatabasePanelBackdropClick}
+          >
             <div className="database-panel-modal">
               <DatabasePanel
                 building={building}

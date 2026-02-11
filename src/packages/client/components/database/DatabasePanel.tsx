@@ -59,6 +59,7 @@ export const DatabasePanel: React.FC<DatabasePanelProps> = ({ building, onClose 
 
   // Load stored state on mount
   const storedState = useRef(loadStoredState(building.id));
+  const panelRef = useRef<HTMLDivElement>(null);
 
   // Get current connection and database
   const connections = building.database?.connections ?? [];
@@ -209,6 +210,21 @@ export const DatabasePanel: React.FC<DatabasePanelProps> = ({ building, onClose 
     store.requestQueryHistory(building.id);
   }, [building.id]);
 
+  // Handle Escape key to close the panel (when focus is within the panel)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && panelRef.current && panelRef.current.contains(document.activeElement)) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
+  }, [onClose]);
+
   // Save connection/database, queries, and tabs to localStorage when they change
   useEffect(() => {
     if (initialized && activeConnectionId) {
@@ -262,7 +278,7 @@ export const DatabasePanel: React.FC<DatabasePanelProps> = ({ building, onClose 
   // If no connections configured, show setup message
   if (connections.length === 0) {
     return (
-      <div className="database-panel">
+      <div className="database-panel" ref={panelRef}>
         <div className="database-panel__header">
           <div className="database-panel__title">
             <span className="database-panel__icon">🗄️</span>
@@ -291,7 +307,7 @@ export const DatabasePanel: React.FC<DatabasePanelProps> = ({ building, onClose 
   }
 
   return (
-    <div className="database-panel">
+    <div className="database-panel" ref={panelRef}>
       <div className="database-panel__header">
         <div className="database-panel__title">
           <span className="database-panel__icon">

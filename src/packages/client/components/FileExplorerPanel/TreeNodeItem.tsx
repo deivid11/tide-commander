@@ -145,16 +145,34 @@ function TreeNodeItemComponent({
             <span className={`tree-arrow ${isExpanded ? 'expanded' : ''}`}>
               ▸
             </span>
-            <img
-              className="tree-folder-icon"
-              src={isExpanded ? '/assets/vscode-icons/default_folder_opened.svg' : '/assets/vscode-icons/default_folder.svg'}
-              alt="folder"
-            />
+            <span className="tree-folder-icon-wrapper">
+              <span
+                className="tree-folder-icon"
+                style={{
+                  backgroundImage: `url('${isExpanded ? '/assets/vscode-icons/default_folder_opened.svg' : '/assets/vscode-icons/default_folder.svg'}')`,
+                }}
+                role="img"
+                aria-label="folder"
+              />
+              {node.hasGitChanges && (
+                <span
+                  className="tree-folder-git-dot"
+                  style={{ backgroundColor: getGitStatusColor(node.gitStatus) || '#c89a5a' }}
+                />
+              )}
+            </span>
           </>
         ) : (
           <>
             <span className="tree-arrow-spacer" />
-            <img className="tree-icon" src={getFileIcon(node)} alt="file" />
+            <span
+              className="tree-icon"
+              style={{
+                backgroundImage: `url('${getFileIcon(node)}')`,
+              }}
+              role="img"
+              aria-label="file"
+            />
           </>
         )}
         <span className="tree-name" style={gitStatusColor ? { color: gitStatusColor } : undefined}>

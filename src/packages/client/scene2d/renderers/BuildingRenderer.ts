@@ -213,6 +213,37 @@ export class BuildingRenderer extends BaseRenderer {
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
     this.ctx.fillText(building.name, labelScreenPos.x, labelScreenPos.y);
+
+    // Draw git changes badge (bottom-left of building, in screen space)
+    if (building.gitChangesCount && building.gitChangesCount > 0) {
+      const gitBadgeScreenPos = this.camera.worldToScreen(
+        x - baseSize / 2 + 0.15,
+        z - baseSize / 2 + 0.15
+      );
+      const gitRadius = Math.max(5, buildingScreenSize * 0.1);
+      const countText = building.gitChangesCount > 99 ? '99+' : String(building.gitChangesCount);
+
+      // Badge background
+      this.ctx.fillStyle = '#c89a5a';
+      this.ctx.beginPath();
+      this.ctx.arc(gitBadgeScreenPos.x, gitBadgeScreenPos.y, gitRadius, 0, Math.PI * 2);
+      this.ctx.fill();
+
+      // Dark border
+      this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+      this.ctx.lineWidth = 1;
+      this.ctx.beginPath();
+      this.ctx.arc(gitBadgeScreenPos.x, gitBadgeScreenPos.y, gitRadius, 0, Math.PI * 2);
+      this.ctx.stroke();
+
+      // Count text
+      const gitFontSize = Math.max(6, gitRadius * 1.2);
+      this.ctx.font = `bold ${gitFontSize}px Arial`;
+      this.ctx.fillStyle = '#ffffff';
+      this.ctx.textAlign = 'center';
+      this.ctx.textBaseline = 'middle';
+      this.ctx.fillText(countText, gitBadgeScreenPos.x, gitBadgeScreenPos.y);
+    }
   }
 
   drawBossLine(from: { x: number; z: number }, to: { x: number; z: number }): void {

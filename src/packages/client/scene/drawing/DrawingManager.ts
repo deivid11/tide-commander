@@ -315,8 +315,9 @@ export class DrawingManager {
       area.directories.forEach((folderPath, idx) => {
         const row = Math.floor(idx / maxCols);
         const col = idx % maxCols;
+        const gitCount = area.directoryGitCounts?.[idx] ?? 0;
 
-        const folderIcon = this.createFolderIconSprite(area.color);
+        const folderIcon = this.createFolderIconSprite(area.color, gitCount);
         folderIcon.name = 'folderIcon';
         folderIcon.userData.areaId = area.id;
         folderIcon.userData.folderPath = folderPath;
@@ -409,7 +410,7 @@ export class DrawingManager {
   /**
    * Create a folder icon sprite using canvas.
    */
-  private createFolderIconSprite(color: string): THREE.Sprite {
+  private createFolderIconSprite(color: string, gitCount: number = 0): THREE.Sprite {
     const canvas = document.createElement('canvas');
     const size = 128;
     canvas.width = size;
@@ -459,6 +460,35 @@ export class DrawingManager {
     ctx.moveTo(fx + 4, fy + tabH + 3);
     ctx.lineTo(fx + fw - 4, fy + tabH + 3);
     ctx.stroke();
+
+    // Git changes indicator badge (bottom-right of the circle)
+    if (gitCount > 0) {
+      const badgeRadius = size * 0.16;
+      const badgeX = size * 0.78;
+      const badgeY = size * 0.78;
+
+      // Orange badge circle
+      ctx.fillStyle = '#e8943a';
+      ctx.beginPath();
+      ctx.arc(badgeX, badgeY, badgeRadius, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Dark border
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(badgeX, badgeY, badgeRadius, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Count text
+      const countText = gitCount > 99 ? '99+' : String(gitCount);
+      const fontSize = badgeRadius * 1.3;
+      ctx.font = `bold ${fontSize}px "Segoe UI", Arial, sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(countText, badgeX, badgeY);
+    }
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.needsUpdate = true;

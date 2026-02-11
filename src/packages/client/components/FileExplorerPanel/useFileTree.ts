@@ -177,12 +177,116 @@ export function useFileTree(currentFolder: string | null): UseFileTreeReturn {
     }
   }, [loadChildren]); // Only depends on loadChildren which is stable
 
+  /**
+   * Expand and lazy-load every segment to a target path.
+   * Used by search/reveal flows where the target might not be loaded yet.
+   *
+   * KEY INSIGHT: TreeNodeItem uses compaction chains — single-child directory
+   * chains are collapsed into one visual row (e.g., "src/packages/client").
+   * The expansion check is `expandedPaths.has(compactChain.expansionPath)`
+   * where expansionPath is the TERMINAL of the compacted chain.
+   *
+   * After lazy-loading children, compaction chains can extend further than
+   * before, shifting the terminal. We must account for this by:
+   * 1. Loading all needed children from root to target (top-down)
+   * 2. Computing the FINAL compaction terminals after all loads complete
+   * 3. Building the expandedPaths set using those final terminals
+   *
+   * Does NOT use togglePath to avoid double chain-walking and toggle-off.
+   */
+  const expandToPath = useCallback(async (targetPath: string) => {
+    if (!targetPath) return;
+
+    // Normalize: strip trailing slash from currentFolder to prevent double-slash paths.
+    // Tree node paths never have trailing slashes, but currentFolder sometimes does.
+    const rootFolder = currentFolder?.replace(/\/+$/, '') || null;
+
+    const waitForPaint = () => new Promise<void>((resolve) => {
+      requestAnimationFrame(() => resolve());
+    });
+    const waitForNode = async (path: string, maxFrames = 20): Promise<TreeNode | null> => {
+      for (let i = 0; i < maxFrames; i++) {
+        const node = findNodeByPath(treeRef.current, path);
+        if (node) return node;
+        await waitForPaint();
+      }
+      return null;
+    };
+
+    // Build the list of directory segments from root to target
+    const segments: string[] = [];
+    if (rootFolder && targetPath.startsWith(rootFolder)) {
+      segments.push(rootFolder);
+      const relativePath = targetPath.substring(rootFolder.length);
+      const parts = relativePath.split('/').filter(Boolean);
+      let currentPath = rootFolder;
+      for (const part of parts) {
+        currentPath = `${currentPath}/${part}`;
+        segments.push(currentPath);
+      }
+    } else {
+      segments.push(targetPath);
+    }
+
+    // PHASE 1: Ensure all ancestors have their children loaded.
+    for (const segPath of segments) {
+      const node = await waitForNode(segPath);
+      if (!node?.isDirectory) continue;
+
+      if (!loadedPathsRef.current.has(node.path)) {
+        await loadChildren(node.path);
+        await waitForPaint();
+      }
+    }
+
+    // PHASE 2: Compute the correct expandedPaths set.
+    // After all loads, tree structure is final. Walk from root to target,
+    // computing compaction chains as TreeNodeItem would, and add the
+    // terminal of each chain to expandedPaths.
+    const pathsToExpand = new Set<string>(expandedPathsRef.current);
+
+    let i = 0;
+    while (i < segments.length) {
+      const segPath = segments[i];
+      const node = findNodeByPath(treeRef.current, segPath);
+      if (!node?.isDirectory) {
+        i++;
+        continue;
+      }
+
+      // Walk the compaction chain (same logic as TreeNodeItem.getCompactChain)
+      let terminal = node;
+      while (
+        terminal.children &&
+        terminal.children.length === 1 &&
+        terminal.children[0]?.isDirectory
+      ) {
+        terminal = terminal.children[0];
+      }
+
+      pathsToExpand.add(terminal.path);
+
+      // Skip segments covered by this compaction chain
+      while (i < segments.length) {
+        if (segments[i] === terminal.path) {
+          i++;
+          break;
+        }
+        i++;
+      }
+    }
+
+    setExpandedPaths(pathsToExpand);
+    await waitForPaint();
+  }, [currentFolder, loadChildren]);
+
   return {
     tree,
     loading,
     expandedPaths,
     loadTree,
     togglePath,
+    expandToPath,
     setExpandedPaths,
   };
 }

@@ -49,6 +49,7 @@ export interface Building2DData {
   color?: string;
   scale: number;
   subordinateBuildingIds?: string[];  // For boss buildings
+  gitChangesCount?: number;           // Git pending changes count
 }
 
 /**
@@ -64,6 +65,7 @@ export interface Area2DData {
   zIndex: number;
   directories: string[];
   hasDirectories?: boolean;
+  directoryGitCounts?: number[];
 }
 
 /**
@@ -531,6 +533,7 @@ export class Scene2D {
       color: building.color,
       scale: building.scale || 1,
       subordinateBuildingIds: building.subordinateBuildingIds,
+      gitChangesCount: building.gitChangesCount,
     });
   }
 
@@ -554,6 +557,7 @@ export class Scene2D {
     existing.color = building.color;
     existing.scale = building.scale || 1;
     existing.subordinateBuildingIds = building.subordinateBuildingIds;
+    existing.gitChangesCount = building.gitChangesCount;
   }
 
   syncBuildings(): void {
@@ -597,6 +601,7 @@ export class Scene2D {
           zIndex: area.zIndex ?? 0,
           directories: [...area.directories],
           hasDirectories,
+          directoryGitCounts: area.directoryGitCounts ? [...area.directoryGitCounts] : undefined,
         });
       } else if (area.type === 'circle' && area.radius) {
         this.areas.set(area.id, {
@@ -609,6 +614,7 @@ export class Scene2D {
           zIndex: area.zIndex ?? 0,
           directories: [...area.directories],
           hasDirectories,
+          directoryGitCounts: area.directoryGitCounts ? [...area.directoryGitCounts] : undefined,
         });
       }
     }

@@ -5,13 +5,14 @@
 .spotlight-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.75);
+  background: rgba(0, 0, 0, 0.8);
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding-top: 15vh;
+  padding-top: 7vh;
   z-index: 2000;
   animation: spotlight-fade-in 0.15s ease-out;
+  backdrop-filter: blur(2px);
 }
 
 @keyframes spotlight-fade-in {
@@ -23,22 +24,25 @@
   }
 }
 
-// Main spotlight modal
+// Main spotlight modal - IntelliJ-inspired design
 .spotlight-modal {
-  width: 600px;
+  width: 660px;
   max-width: 90vw;
   background: $bg-secondary;
   border: 1px solid $border-color;
-  border-radius: $radius-xl;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  border-radius: 8px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 1px rgba(255, 255, 255, 0.1) inset;
   overflow: hidden;
-  animation: spotlight-slide-in 0.15s ease-out;
+  animation: spotlight-slide-in 0.2s ease-out;
+  display: flex;
+  flex-direction: column;
+  max-height: 84vh;
 }
 
 @keyframes spotlight-slide-in {
   from {
     opacity: 0;
-    transform: translateY(-10px) scale(0.98);
+    transform: translateY(-20px) scale(0.95);
   }
   to {
     opacity: 1;
@@ -46,18 +50,21 @@
   }
 }
 
-// Search input section
+// Search input section - IntelliJ style
 .spotlight-input-wrapper {
   display: flex;
   align-items: center;
-  padding: 16px 20px;
+  padding: 8px 12px;
   border-bottom: 1px solid $border-color;
-  gap: 12px;
+  gap: 6px;
+  background: linear-gradient(to bottom, $bg-secondary, rgba(0, 0, 0, 0.1));
+  flex-shrink: 0;
 }
 
 .spotlight-search-icon {
-  font-size: 18px;
-  opacity: 0.7;
+  font-size: 14px;
+  opacity: 0.6;
+  flex-shrink: 0;
 }
 
 .spotlight-input {
@@ -65,62 +72,134 @@
   background: transparent;
   border: none;
   outline: none;
-  font-size: 16px;
+  font-size: 13px;
   color: $text-primary;
   font-family: $font-family;
+  font-weight: 400;
 
   &::placeholder {
     color: $text-muted;
+    opacity: 0.8;
   }
+}
+
+.spotlight-input-hints {
+  display: flex;
+  gap: 3px;
+  flex-shrink: 0;
+  align-items: center;
 }
 
 .spotlight-shortcut-hint {
-  font-size: 11px;
+  font-size: 8px;
   color: $text-muted;
-  background: $bg-tertiary;
-  padding: 4px 8px;
-  border-radius: $radius-sm;
+  background: rgba($accent-blue, 0.1);
+  padding: 1px 5px;
+  border-radius: 3px;
   font-family: $font-mono;
+  letter-spacing: 0.3px;
+  flex-shrink: 0;
+  border: 1px solid rgba($accent-blue, 0.15);
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: rgba($accent-blue, 0.15);
+    border-color: rgba($accent-blue, 0.3);
+  }
 }
 
-// Results section
+// Results section with improved scrolling
 .spotlight-results {
-  max-height: 400px;
+  flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+
+  // Custom scrollbar styling
+  scrollbar-width: thin;
+  scrollbar-color: rgba($text-muted, 0.3) transparent;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: rgba($text-muted, 0.3);
+    border-radius: 3px;
+
+    &:hover {
+      background: rgba($text-muted, 0.5);
+    }
+  }
 }
 
 .spotlight-empty {
-  padding: 32px 20px;
+  padding: 48px 24px;
   text-align: center;
   color: $text-muted;
   font-size: 14px;
+  line-height: 1.6;
 }
 
-// Individual result item
+// Category/section header
+.spotlight-category-header {
+  padding: 5px 12px 3px;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: $text-muted;
+  background: rgba(0, 0, 0, 0.15);
+  border-top: 1px solid rgba($border-color, 0.5);
+
+  &:first-child {
+    border-top: none;
+    background: transparent;
+  }
+}
+
+// Individual result item - IntelliJ inspired
 .spotlight-item {
   display: flex;
-  align-items: center;
-  padding: 12px 20px;
-  gap: 12px;
+  align-items: flex-start;
+  padding: 5px 10px;
+  gap: 6px;
   cursor: pointer;
-  transition: background $transition-fast;
+  transition: background 0.12s ease, border-color 0.12s ease;
+  border-left: 2px solid transparent;
+  margin: 0 6px;
+  margin-left: 6px;
+  margin-right: 6px;
+  border-radius: 4px;
 
-  &:hover,
-  &.selected {
-    background: rgba($accent-blue, 0.15);
+  &:hover {
+    background: rgba($accent-blue, 0.08);
+    border-left-color: rgba($accent-blue, 0.3);
   }
 
   &.selected {
-    border-left: 3px solid $accent-blue;
-    padding-left: 17px;
+    background: rgba($accent-blue, 0.12);
+    border-left-color: $accent-blue;
+  }
+
+  &.has-activity {
+    .spotlight-item-title {
+      color: $accent-cyan;
+    }
   }
 }
 
 .spotlight-item-icon {
-  font-size: 20px;
-  width: 28px;
+  font-size: 15px;
+  width: 18px;
   text-align: center;
   flex-shrink: 0;
+  margin-top: 1px;
+  filter: drop-shadow(0 0 0.5px rgba(0, 0, 0, 0.2));
 }
 
 .spotlight-item-content {
@@ -128,26 +207,34 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .spotlight-item-header {
   display: flex;
   align-items: baseline;
-  gap: 12px;
+  gap: 5px;
   min-width: 0;
+  flex-wrap: wrap;
 }
 
 .spotlight-item-title {
-  font-size: 14px;
+  font-size: 11px;
   color: $text-primary;
   font-weight: 500;
   white-space: nowrap;
   flex-shrink: 0;
+  letter-spacing: 0.2px;
+
+  .spotlight-highlight {
+    background: rgba($accent-blue, 0.35);
+    color: color.adjust($accent-blue, $lightness: 15%);
+    font-weight: 600;
+  }
 }
 
 .spotlight-item-last-input {
-  font-size: 12px;
+  font-size: 9px;
   color: $text-muted;
   white-space: nowrap;
   overflow: hidden;
@@ -155,116 +242,157 @@
   flex: 1;
   min-width: 0;
   font-style: italic;
+  opacity: 0.85;
 
   .spotlight-highlight {
-    background: rgba($accent-purple, 0.25);
-    color: color.adjust($accent-purple, $lightness: 20%);
+    background: rgba($accent-purple, 0.3);
+    color: color.adjust($accent-purple, $lightness: 15%);
+    font-weight: 500;
   }
 }
 
 .spotlight-item-subtitle {
-  font-size: 12px;
+  font-size: 9px;
   color: $text-secondary;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  opacity: 0.8;
+
+  .spotlight-highlight {
+    background: rgba($accent-orange, 0.25);
+    color: color.adjust($accent-orange, $lightness: 10%);
+    font-weight: 500;
+  }
 }
 
 .spotlight-item-status {
-  font-size: 11px;
+  font-size: 9px;
   color: $accent-green;
   font-weight: 500;
-  margin-top: 4px;
   display: -webkit-box;
   -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  padding: 1px 4px;
+  background: rgba($accent-green, 0.1);
+  border-radius: 3px;
+  width: fit-content;
 
   .spotlight-highlight {
-    background: rgba($accent-green, 0.3);
+    background: rgba($accent-green, 0.35);
     color: color.adjust($accent-green, $lightness: 15%);
+    font-weight: 600;
   }
 }
 
 .spotlight-item-activity {
-  font-size: 11px;
+  font-size: 8px;
   color: $text-secondary;
-  line-height: 1.4;
+  line-height: 1.2;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  margin-top: 2px;
+  opacity: 0.85;
+  padding: 0 2px;
 
   .spotlight-highlight {
     background: rgba($accent-orange, 0.3);
-    color: $accent-orange;
+    color: color.adjust($accent-orange, $lightness: 10%);
+    font-weight: 500;
   }
 }
 
+// Details container for grouped secondary info
+.spotlight-item-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+}
+
 .spotlight-item-files {
-  font-size: 11px;
+  font-size: 8px;
   color: $accent-blue;
-  margin-top: 4px;
   display: flex;
   flex-wrap: wrap;
   gap: 2px;
   align-items: center;
 
+  .file-badge {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+
+    .file-separator {
+      opacity: 0.5;
+      margin: 0 2px;
+    }
+  }
+
   .spotlight-highlight {
     background: rgba($accent-blue, 0.3);
     color: color.adjust($accent-blue, $lightness: 15%);
+    font-weight: 500;
   }
 }
 
 .spotlight-item-query {
-  font-size: 11px;
+  font-size: 8px;
   color: $accent-purple;
-  margin-top: 4px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   font-style: italic;
+  opacity: 0.85;
+  padding: 0 2px;
 
   .spotlight-highlight {
     background: rgba($accent-purple, 0.3);
     color: color.adjust($accent-purple, $lightness: 15%);
+    font-weight: 500;
   }
 }
 
 .spotlight-item-history {
-  font-size: 11px;
+  font-size: 8px;
   color: $accent-cyan;
-  margin-top: 4px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  opacity: 0.85;
+  padding: 0;
 
   .spotlight-highlight {
     background: rgba($accent-cyan, 0.3);
     color: color.adjust($accent-cyan, $lightness: 15%);
+    font-weight: 500;
   }
 
   .spotlight-history-time {
     margin-left: 8px;
     color: $text-muted;
-    font-size: 10px;
+    font-size: 7px;
+    opacity: 0.7;
   }
 }
 
 .spotlight-item-time {
-  font-size: 10px;
+  font-size: 7px;
   color: $text-muted;
-  margin-top: 4px;
   display: flex;
-  gap: 12px;
+  gap: 6px;
   align-items: center;
+  opacity: 0.75;
+  padding-top: 2px;
 }
 
 .spotlight-time-away {
   color: $accent-purple;
+  font-weight: 500;
 }
 
 .spotlight-status-time {
@@ -272,76 +400,102 @@
 }
 
 .spotlight-item-type {
-  font-size: 10px;
+  font-size: 7px;
   color: $text-muted;
   text-transform: uppercase;
   font-weight: 600;
-  letter-spacing: 0.5px;
-  background: $bg-tertiary;
-  padding: 3px 8px;
-  border-radius: $radius-sm;
+  letter-spacing: 0.3px;
+  padding: 1px 4px;
+  border-radius: 3px;
   flex-shrink: 0;
+  border: 1px solid transparent;
+  transition: all 0.12s ease;
 
-  // Type-specific colors
+  // Type-specific colors with improved badges
   &.agent {
-    background: rgba($accent-blue, 0.2);
+    background: rgba($accent-blue, 0.15);
     color: $accent-blue;
+    border-color: rgba($accent-blue, 0.2);
   }
 
   &.command {
-    background: rgba($accent-purple, 0.2);
+    background: rgba($accent-purple, 0.15);
     color: $accent-purple;
+    border-color: rgba($accent-purple, 0.2);
   }
 
   &.area {
-    background: rgba($accent-green, 0.2);
+    background: rgba($accent-green, 0.15);
     color: $accent-green;
+    border-color: rgba($accent-green, 0.2);
   }
 
   &.activity {
-    background: rgba($accent-orange, 0.2);
+    background: rgba($accent-orange, 0.15);
     color: $accent-orange;
+    border-color: rgba($accent-orange, 0.2);
   }
 
   &.modified-file {
-    background: rgba($accent-orange, 0.2);
-    color: $accent-orange;
+    background: rgba($accent-cyan, 0.15);
+    color: $accent-cyan;
+    border-color: rgba($accent-cyan, 0.2);
+  }
+
+  &.building {
+    background: rgba($accent-red, 0.15);
+    color: $accent-red;
+    border-color: rgba($accent-red, 0.2);
   }
 }
 
-// Highlight matched text
+// Highlight matched text - improved visibility
 .spotlight-highlight {
-  background: rgba($accent-orange, 0.3);
-  color: $accent-orange;
+  background: rgba($accent-orange, 0.35);
+  color: inherit;
   border-radius: 2px;
   padding: 0 2px;
+  font-weight: 600;
 }
 
-// Footer with keyboard hints
+// Footer with keyboard hints - IntelliJ style
 .spotlight-footer {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 20px;
-  padding: 10px 20px;
+  justify-content: space-between;
+  padding: 5px 10px;
   border-top: 1px solid $border-color;
-  background: $bg-tertiary;
+  background: linear-gradient(to top, $bg-tertiary, rgba(0, 0, 0, 0.05));
+  flex-shrink: 0;
+  font-size: 9px;
+  gap: 8px;
+}
+
+.spotlight-footer-left,
+.spotlight-footer-right {
+  display: flex;
+  gap: 6px;
+  align-items: center;
 }
 
 .spotlight-footer-hint {
-  font-size: 11px;
+  font-size: 8px;
   color: $text-muted;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 2px;
+  white-space: nowrap;
 
   kbd {
-    background: $bg-secondary;
-    border: 1px solid $border-color;
-    border-radius: $radius-sm;
-    padding: 2px 6px;
+    background: rgba($accent-blue, 0.12);
+    border: 1px solid rgba($accent-blue, 0.25);
+    border-radius: 3px;
+    padding: 1px 3px;
     font-family: $font-mono;
-    font-size: 10px;
-    color: $text-secondary;
+    font-size: 7px;
+    color: $accent-blue;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
   }
 }

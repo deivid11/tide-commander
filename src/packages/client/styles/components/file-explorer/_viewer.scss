@@ -187,10 +187,40 @@
   transition: all $transition-fast;
   margin-right: 4px;
 
-  &:hover {
+  &:hover:not(:disabled) {
     background: $accent-blue;
     border-color: $accent-blue;
     color: white;
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  &.loading {
+    animation: spin 1s linear infinite;
+  }
+
+  &.success {
+    background: rgba($dracula-green, 0.15);
+    border-color: $dracula-green;
+    color: $dracula-green;
+  }
+
+  &.error {
+    background: rgba($dracula-red, 0.15);
+    border-color: $dracula-red;
+    color: $dracula-red;
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
   }
 }
 
@@ -317,6 +347,37 @@
   flex: 1;
   border: none;
   background: white;
+}
+
+// PlantUML diagram viewer
+.file-viewer-diagram-wrapper {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.file-viewer-diagram-image {
+  max-width: 100%;
+  height: auto;
+  background: white;
+  border-radius: $radius-sm;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+}
+
+.file-viewer-diagram-error {
+  width: min(680px, 100%);
+  border: 1px solid rgba($dracula-red, 0.4);
+  background: rgba($dracula-red, 0.12);
+  color: $dracula-red;
+  border-radius: $radius-md;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 // Binary file viewer (download only)

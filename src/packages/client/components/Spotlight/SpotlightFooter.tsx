@@ -1,5 +1,6 @@
 /**
  * SpotlightFooter - Footer with keyboard shortcuts for the Spotlight modal
+ * Provides visual hints about available keyboard commands
  */
 
 import React, { memo } from 'react';
@@ -7,15 +8,19 @@ import React, { memo } from 'react';
 export const SpotlightFooter = memo(function SpotlightFooter() {
   return (
     <div className="spotlight-footer">
-      <span className="spotlight-footer-hint">
-        <kbd>↑↓</kbd> or <kbd>Alt</kbd>+<kbd>P/N</kbd> Navigate
-      </span>
-      <span className="spotlight-footer-hint">
-        <kbd>Enter</kbd> Select
-      </span>
-      <span className="spotlight-footer-hint">
-        <kbd>Esc</kbd> Close
-      </span>
+      <div className="spotlight-footer-left">
+        <span className="spotlight-footer-hint">
+          <kbd>↑</kbd><kbd>↓</kbd> Navigate
+        </span>
+        <span className="spotlight-footer-hint">
+          <kbd>Enter</kbd> Select
+        </span>
+      </div>
+      <div className="spotlight-footer-right">
+        <span className="spotlight-footer-hint">
+          <kbd>Esc</kbd> Close
+        </span>
+      </div>
     </div>
   );
 });

@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.59.0] - 2026-02-11
+
+### Added
+- **Git merge and conflict resolution** - Merge branches, detect conflicts, view conflict versions (ours/theirs/merged), resolve and continue/abort merges
+- **Branch comparison** - Compare branches with commit diff and file change list
+- **Git commit from UI** - Stage and commit changes directly from the file explorer
+- **Git log messages** - View commit messages for files via git-log-message endpoint
+- **Git show endpoint** - View file contents at specific commits via git-show endpoint
+- **Conflict resolver component** - Side-by-side conflict resolution UI with section-based editing
+- **Branch comparison component** - Visual branch diff viewer with commit list and changed files
+- **Building git status** - Buildings can now show git status indicators via useBuildingGitStatus hook
+- **Spotlight improvements** - Enhanced spotlight search UI with better styling and result display
+
+### Changed
+- **Git status conflict detection** - Now detects merge conflicts (UU, AA, DD, AU, UA, DU, UD codes)
+- **File explorer git changes** - Enhanced with conflict file indicators, merge status, and action buttons
+- **File explorer search** - Improved search result styling and layout
+- **File explorer tree** - Better tree node rendering and interaction
+- **Branch widget** - Enhanced with merge capabilities and comparison triggers
+- **Database panel** - Minor UI improvements
+- **Building labels** - Added label utility functions, improved building type handling
+- **Area folder icons** - Refined positioning and sizing in 2D renderer
+- **Spotlight styles** - Major style overhaul for better readability
+
+### Fixed
+- **Lint warnings** - Fixed unused variables in ConflictResolver and UnifiedSearchResults
+
 ## [0.58.0] - 2026-02-11
 
 ### Added
