@@ -16,6 +16,7 @@ import { serverLogs } from './server-logs.js';
 import { streamingExec } from './streaming-exec.js';
 import { bitbucketPR } from './bitbucket-pr.js';
 import { pm2Logs } from './pm2-logs.js';
+import { createBuilding } from './create-building.js';
 
 // Re-export types
 export type { BuiltinSkillDefinition } from './types.js';
@@ -31,6 +32,7 @@ export const BUILTIN_SKILLS: BuiltinSkillDefinition[] = [
   streamingExec,
   bitbucketPR,
   pm2Logs,
+  createBuilding,
 ];
 
 /**
