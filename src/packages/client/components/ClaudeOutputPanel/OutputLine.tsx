@@ -696,7 +696,17 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       return (
         <div className={className}>
           <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
-          <span className="output-role">{assistantRoleLabel}</span>
+          <span className="output-role">
+            {provider && (
+              <img
+                src={provider === 'codex' ? '/assets/codex.ico' : '/assets/claude.ico'}
+                alt={provider}
+                className="output-role-icon"
+                title={provider === 'codex' ? 'Codex Agent' : 'Claude Agent'}
+              />
+            )}
+            {assistantRoleLabel}
+          </span>
           <div className="markdown-content">
             {renderContentWithImages(workPlanParsed.contentWithoutBlock, onImageClick, onFileClick)}
           </div>
@@ -736,7 +746,19 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
   return (
     <div className={className}>
       <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
-      {outputRoleLabel && <span className="output-role">{outputRoleLabel}</span>}
+      {outputRoleLabel && (
+        <span className="output-role">
+          {isClaudeMessage && provider && (
+            <img
+              src={provider === 'codex' ? '/assets/codex.ico' : '/assets/claude.ico'}
+              alt={provider}
+              className="output-role-icon"
+              title={provider === 'codex' ? 'Codex Agent' : 'Claude Agent'}
+            />
+          )}
+          {outputRoleLabel}
+        </span>
+      )}
       {useMarkdown ? (
         <div className="markdown-content">
           {renderContentWithImages(text, onImageClick, onFileClick)}

@@ -554,7 +554,17 @@ export const HistoryLine = memo(function HistoryLine({
     return (
       <div className={className}>
         {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
-        <span className="history-role">{assistantOrSystemRoleLabel}</span>
+        <span className="history-role">
+          {!isSystemMessage && provider && (
+            <img
+              src={provider === 'codex' ? '/assets/codex.ico' : '/assets/claude.ico'}
+              alt={provider}
+              className="history-role-icon"
+              title={provider === 'codex' ? 'Codex Agent' : 'Claude Agent'}
+            />
+          )}
+          {assistantOrSystemRoleLabel}
+        </span>
         <span className="history-content markdown-content">
           {highlight ? (
             <div>{highlightText(workPlanParsed.contentWithoutBlock, highlight)}</div>
@@ -595,7 +605,17 @@ export const HistoryLine = memo(function HistoryLine({
   return (
     <div className={className}>
       {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
-      <span className={`history-role ${isUser ? 'history-role-chip' : ''}`}>{isUser ? 'You' : assistantOrSystemRoleLabel}</span>
+      <span className={`history-role ${isUser ? 'history-role-chip' : ''}`}>
+        {!isUser && !isSystemMessage && provider && (
+          <img
+            src={provider === 'codex' ? '/assets/codex.ico' : '/assets/claude.ico'}
+            alt={provider}
+            className="history-role-icon"
+            title={provider === 'codex' ? 'Codex Agent' : 'Claude Agent'}
+          />
+        )}
+        {isUser ? 'You' : assistantOrSystemRoleLabel}
+      </span>
       <span className={`history-content ${isUser ? 'user-prompt-text' : 'markdown-content'}`}>
         {highlight ? <div>{highlightText(content, highlight)}</div> : (
           isUser ? renderUserPromptContent(content, onImageClick, onFileClick) : renderContentWithImages(content, onImageClick, onFileClick)

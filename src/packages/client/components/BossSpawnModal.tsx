@@ -440,7 +440,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                     onClick={() => setSelectedProvider('claude')}
                     title="Use Claude CLI"
                   >
-                    <span>🧠</span>
+                    <img src="/assets/claude.ico" alt="Claude" className="spawn-provider-icon" />
                     <span>Claude</span>
                   </button>
                   <button
@@ -448,7 +448,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                     onClick={() => setSelectedProvider('codex')}
                     title="Use Codex CLI"
                   >
-                    <span>⚙️</span>
+                    <img src="/assets/codex.ico" alt="Codex" className="spawn-provider-icon" />
                     <span>Codex</span>
                   </button>
                 </div>

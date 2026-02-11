@@ -118,6 +118,9 @@
     font-family: $font-mono;
     font-weight: 600;
     word-break: break-word;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
 
     &.ok {
       color: $dracula-green;
@@ -127,6 +130,16 @@
       color: $dracula-orange;
     }
   }
+}
+
+// Provider icon in agent info
+.agent-info-provider-icon {
+  width: 14px;
+  height: 14px;
+  display: inline-block;
+  object-fit: contain;
+  flex-shrink: 0;
+  filter: drop-shadow(0 0.5px 1px rgba(0, 0, 0, 0.2));
 }
 
 .agent-info-prompts {

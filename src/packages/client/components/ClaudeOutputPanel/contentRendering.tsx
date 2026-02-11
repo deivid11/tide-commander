@@ -161,7 +161,7 @@ export function renderContentWithImages(
     const resourceName = resourcePath.split('/').pop() || (isImage ? 'image' : 'file');
 
     if (isImage) {
-      // Add clickable image placeholder
+      // Add clickable image with thumbnail preview
       const imageUrl = getImageWebUrl(resourcePath);
       parts.push(
         <span
@@ -170,7 +170,7 @@ export function renderContentWithImages(
           onClick={() => onImageClick?.(imageUrl, resourceName)}
           title="Click to view image"
         >
-          <img src="/assets/vscode-icons/file_type_image.svg" alt="image" style={{ width: '12px', height: '12px', display: 'inline', marginRight: '4px' }} />
+          <img src={imageUrl} alt={resourceName} className="image-reference-thumb" />
           {resourceName}
         </span>
       );
@@ -261,7 +261,7 @@ export function renderUserPromptContent(
           onClick={() => onImageClick?.(imageUrl, resourceName)}
           title="Click to view image"
         >
-          <img src="/assets/vscode-icons/file_type_image.svg" alt="image" style={{ width: '12px', height: '12px', display: 'inline', marginRight: '4px' }} />
+          <img src={imageUrl} alt={resourceName} className="image-reference-thumb" />
           {resourceName}
         </span>
       );

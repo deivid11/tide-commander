@@ -339,6 +339,15 @@
   }
 }
 
+.image-reference-thumb {
+  width: 18px;
+  height: 18px;
+  object-fit: cover;
+  border-radius: 3px;
+  flex-shrink: 0;
+  border: 1px solid rgba($dracula-pink, 0.3);
+}
+
 // Clickable file reference in history/output
 .file-reference {
   display: inline-flex;

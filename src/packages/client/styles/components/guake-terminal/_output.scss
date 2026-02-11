@@ -237,7 +237,19 @@
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-right: 6px;
-  display: inline;  // Inline with timestamp
+  display: inline-flex;  // Changed to flex for icon support
+  align-items: center;
+  gap: 4px;
+}
+
+// Provider icon in output role label
+.output-role-icon {
+  width: 12px;
+  height: 12px;
+  display: inline-block;
+  object-fit: contain;
+  flex-shrink: 0;
+  filter: drop-shadow(0 0.5px 1px rgba(0, 0, 0, 0.2));
 }
 
 // Optional chip treatment for role labels where stronger separation is needed

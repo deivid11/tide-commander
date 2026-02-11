@@ -270,6 +270,15 @@
   }
 }
 
+// Provider icon in spawn button
+.spawn-provider-icon {
+  width: 16px;
+  height: 16px;
+  display: inline-block;
+  object-fit: contain;
+  filter: drop-shadow(0 0.5px 1px rgba(0, 0, 0, 0.2));
+}
+
 .spawn-select-row--codex-models {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

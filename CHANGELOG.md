@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.59.2] - 2026-02-11
+
+### Added
+- **Provider icons** - Claude and Codex agents now display their respective icons (claude.ico / codex.ico) throughout the UI
+  - Terminal header next to agent name
+  - Live output role labels
+  - Conversation history role labels
+  - Spawn modal provider selector buttons
+  - Agent info modal runtime section
+- **Image reference thumbnails** - Image file references in tool output now show inline thumbnail previews instead of generic icons
+
+### Changed
+- **Terminal header layout** - Improved flex layout with proper text truncation for title, supervisor badge, and last-input sections
+- **Output role labels** - Changed to inline-flex for icon support
+
 ## [0.59.1] - 2026-02-11
 
 ### Added

@@ -179,10 +179,24 @@ export function TerminalHeader({
             title="Show agent info"
           >
             <span className="guake-title">{agentEmoji} {selectedAgent.name}</span>
+            <img
+              src={selectedAgent.provider === 'codex' ? '/assets/codex.ico' : '/assets/claude.ico'}
+              alt={selectedAgent.provider}
+              className="guake-provider-icon"
+              title={selectedAgent.provider === 'codex' ? 'Codex Agent' : 'Claude Agent'}
+            />
             <span className="guake-title-info">ⓘ</span>
           </button>
         ) : (
-          <span className="guake-title">{agentEmoji} {selectedAgent.name}</span>
+          <div className="guake-title-with-provider">
+            <span className="guake-title">{agentEmoji} {selectedAgent.name}</span>
+            <img
+              src={selectedAgent.provider === 'codex' ? '/assets/codex.ico' : '/assets/claude.ico'}
+              alt={selectedAgent.provider}
+              className="guake-provider-icon"
+              title={selectedAgent.provider === 'codex' ? 'Codex Agent' : 'Claude Agent'}
+            />
+          </div>
         )}
         {(lastInput || agentAnalysis) && (
           <span

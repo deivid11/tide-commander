@@ -279,7 +279,18 @@ export function AgentInfoModal({ agent, isOpen, onClose }: AgentInfoModalProps) 
             <section className="agent-info-section">
               <h4>Runtime</h4>
               <div className="agent-info-grid">
-                <div className="agent-info-item"><span>Backend</span><strong>{agent.provider}</strong></div>
+                <div className="agent-info-item">
+                  <span>Backend</span>
+                  <strong>
+                    <img
+                      src={agent.provider === 'codex' ? '/assets/codex.ico' : '/assets/claude.ico'}
+                      alt={agent.provider}
+                      className="agent-info-provider-icon"
+                      title={agent.provider === 'codex' ? 'Codex Agent' : 'Claude Agent'}
+                    />
+                    {agent.provider === 'codex' ? 'Codex' : 'Claude'}
+                  </strong>
+                </div>
                 <div className="agent-info-item"><span>Model</span><strong>{model}</strong></div>
                 <div className="agent-info-item"><span>Status</span><strong>{agent.status}</strong></div>
                 <div className="agent-info-item"><span>Class</span><strong>{agent.class}</strong></div>
