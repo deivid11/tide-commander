@@ -22,6 +22,7 @@ export interface InputCallbacks {
   onResizeEnd?: () => void;
   // Area callbacks
   onGroundClickOutsideArea?: () => void;
+  onFolderIconClick?: (areaId: string) => void;
   // Building callbacks
   onBuildingClick?: (buildingId: string, screenPos: ScreenPosition) => void;
   onBuildingDoubleClick?: (buildingId: string) => void;
@@ -58,6 +59,11 @@ export type DrawingModeChecker = () => boolean;
  * Resize handles getter function type.
  */
 export type ResizeHandlesGetter = () => THREE.Mesh[];
+
+/**
+ * Folder icon meshes getter function type.
+ */
+export type FolderIconMeshesGetter = () => THREE.Mesh[];
 
 /**
  * Resize mode checker function type.

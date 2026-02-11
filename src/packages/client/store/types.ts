@@ -203,6 +203,8 @@ export interface StoreState {
   } | null;
   // File explorer folder path (to open file explorer from other components)
   explorerFolderPath: string | null;
+  // File explorer area ID (to open file explorer for an area from scene clicks)
+  explorerAreaId: string | null;
   // Context modal agent ID (to open context modal from other components)
   contextModalAgentId: string | null;
   // Supervisor state

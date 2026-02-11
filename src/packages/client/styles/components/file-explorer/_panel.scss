@@ -150,6 +150,15 @@
   color: $dracula-cyan;
 }
 
+.file-explorer-folder-path-hint {
+  max-width: 240px;
+  font-size: 11px;
+  color: $text-muted;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .file-explorer-folder-dropdown-icon {
   font-size: 8px;
   color: $text-muted;
@@ -174,6 +183,7 @@
 .file-explorer-folder-option {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   padding: 10px 12px;
   cursor: pointer;
@@ -196,10 +206,21 @@
 }
 
 .file-explorer-folder-option-name {
-  flex: 1;
+  flex: 1 1 auto;
   font-size: 13px;
   font-family: $font-mono;
   color: $text-primary;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-explorer-folder-option-path {
+  width: 100%;
+  margin-left: 16px;
+  font-size: 11px;
+  color: $text-muted;
+  font-family: $font-mono;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

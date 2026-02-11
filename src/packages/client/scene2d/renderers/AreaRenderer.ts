@@ -27,6 +27,11 @@ export class AreaRenderer extends BaseRenderer {
         this.drawAreaLabel(area.label, x, top, baseColor, zoom, 'top');
       }
 
+      if (area.hasDirectories) {
+        const iconSize = 0.5;
+        this.drawFolderIcon(left + iconSize * 0.8, top + iconSize * 0.8, iconSize, baseColor, zoom);
+      }
+
       if (isSelected) {
         this.drawRectangleResizeHandles(x, z, width, height, baseColor, zoom);
       }
@@ -37,6 +42,12 @@ export class AreaRenderer extends BaseRenderer {
 
       if (area.label) {
         this.drawAreaLabel(area.label, x, z - radius, baseColor, zoom, 'top');
+      }
+
+      if (area.hasDirectories) {
+        const iconSize = 0.5;
+        const offset = radius * 0.707; // cos(45deg) for top-left of circle
+        this.drawFolderIcon(x - offset + iconSize * 0.5, z - offset + iconSize * 0.5, iconSize, baseColor, zoom);
       }
 
       if (isSelected) {
@@ -432,6 +443,74 @@ export class AreaRenderer extends BaseRenderer {
       ctx.lineTo(x, z + iconSize);
       ctx.stroke();
     }
+
+    ctx.restore();
+  }
+
+  private drawFolderIcon(
+    cx: number,
+    cz: number,
+    size: number,
+    baseColor: string,
+    zoom: number
+  ): void {
+    const ctx = this.ctx;
+    const s = size * 0.45; // Scale factor for the icon
+
+    ctx.save();
+
+    // Background circle
+    ctx.fillStyle = this.hexToRgba(this.darkenColor(baseColor, 0.6), 0.85);
+    ctx.beginPath();
+    ctx.arc(cx, cz, s * 1.1, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Border
+    ctx.strokeStyle = this.hexToRgba(baseColor, 0.8);
+    ctx.lineWidth = 1.5 / zoom;
+    ctx.beginPath();
+    ctx.arc(cx, cz, s * 1.1, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Draw folder shape
+    const fw = s * 1.2; // folder width
+    const fh = s * 0.9; // folder height
+    const tabW = fw * 0.35;
+    const tabH = fh * 0.2;
+    const r = fh * 0.08; // corner radius
+
+    const fx = cx - fw / 2;
+    const fy = cz - fh / 2;
+
+    // Folder body
+    ctx.fillStyle = baseColor;
+    ctx.beginPath();
+    ctx.moveTo(fx + r, fy + tabH);
+    ctx.lineTo(fx + tabW, fy + tabH);
+    ctx.lineTo(fx + tabW + tabH * 0.6, fy);
+    ctx.lineTo(fx + tabW + tabW * 0.4, fy);
+    // Top-left of tab
+    ctx.lineTo(fx + r, fy);
+    ctx.arcTo(fx, fy, fx, fy + r, r);
+    // Left side to bottom
+    ctx.lineTo(fx, fy + fh - r);
+    ctx.arcTo(fx, fy + fh, fx + r, fy + fh, r);
+    // Bottom
+    ctx.lineTo(fx + fw - r, fy + fh);
+    ctx.arcTo(fx + fw, fy + fh, fx + fw, fy + fh - r, r);
+    // Right side to top
+    ctx.lineTo(fx + fw, fy + tabH + r);
+    ctx.arcTo(fx + fw, fy + tabH, fx + fw - r, fy + tabH, r);
+    ctx.closePath();
+    ctx.fill();
+
+    // Highlight line on folder body
+    ctx.strokeStyle = this.hexToRgba(this.lightenColor(baseColor, 0.3), 0.6);
+    ctx.lineWidth = 1 / zoom;
+    ctx.beginPath();
+    ctx.moveTo(fx + r, fy + tabH + fh * 0.08);
+    ctx.lineTo(fx + fw - r, fy + tabH + fh * 0.08);
+    ctx.stroke();
 
     ctx.restore();
   }

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { AgentMeshData } from '../characters/CharacterFactory';
-import type { GroundPosition, ResizeHandlesGetter } from './types';
+import type { GroundPosition, ResizeHandlesGetter, FolderIconMeshesGetter } from './types';
 
 /**
  * Handles all raycasting operations for scene interaction.
@@ -15,6 +15,7 @@ export class SceneRaycaster {
   private ground: THREE.Object3D | null = null;
   private agentMeshes: Map<string, AgentMeshData> = new Map();
   private resizeHandlesGetter: ResizeHandlesGetter = () => [];
+  private folderIconMeshesGetter: FolderIconMeshesGetter = () => [];
 
   constructor(camera: THREE.PerspectiveCamera, canvas: HTMLCanvasElement) {
     this.camera = camera;
@@ -34,6 +35,13 @@ export class SceneRaycaster {
    */
   setResizeHandlesGetter(getter: ResizeHandlesGetter): void {
     this.resizeHandlesGetter = getter;
+  }
+
+  /**
+   * Set the folder icon meshes getter.
+   */
+  setFolderIconMeshesGetter(getter: FolderIconMeshesGetter): void {
+    this.folderIconMeshesGetter = getter;
   }
 
   /**
@@ -88,6 +96,23 @@ export class SceneRaycaster {
     this.raycaster.setFromCamera(this.mouse, this.camera);
 
     const intersects = this.raycaster.intersectObjects(handles);
+    if (intersects.length > 0) {
+      return intersects[0].object as THREE.Mesh;
+    }
+    return null;
+  }
+
+  /**
+   * Check if clicking on a folder icon.
+   */
+  checkFolderIconClick(event: PointerEvent): THREE.Mesh | null {
+    const meshes = this.folderIconMeshesGetter();
+    if (meshes.length === 0) return null;
+
+    this.updateMouseFromEvent(event);
+    this.raycaster.setFromCamera(this.mouse, this.camera);
+
+    const intersects = this.raycaster.intersectObjects(meshes);
     if (intersects.length > 0) {
       return intersects[0].object as THREE.Mesh;
     }

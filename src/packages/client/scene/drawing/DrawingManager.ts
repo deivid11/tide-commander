@@ -34,6 +34,12 @@ export class DrawingManager {
   // Callback for when area is created
   private onAreaCreated: ((area: DrawingArea) => void) | null = null;
 
+  // Callback for when folder icon is clicked
+  private onFolderIconClick: ((areaId: string) => void) | null = null;
+
+  // Folder icon meshes for raycasting
+  private folderIconMeshes: THREE.Mesh[] = [];
+
   // Brightness multiplier for area materials (affects opacity/intensity)
   private brightness = 1;
 
@@ -46,6 +52,30 @@ export class DrawingManager {
    */
   setOnAreaCreated(callback: (area: DrawingArea) => void): void {
     this.onAreaCreated = callback;
+  }
+
+  /**
+   * Set callback for folder icon clicks.
+   */
+  setOnFolderIconClick(callback: (areaId: string) => void): void {
+    this.onFolderIconClick = callback;
+  }
+
+  /**
+   * Get folder icon meshes for raycasting.
+   */
+  getFolderIconMeshes(): THREE.Mesh[] {
+    return this.folderIconMeshes;
+  }
+
+  /**
+   * Handle a raycast hit on a folder icon.
+   */
+  handleFolderIconClick(mesh: THREE.Mesh): void {
+    const areaId = mesh.userData.areaId;
+    if (areaId && this.onFolderIconClick) {
+      this.onFolderIconClick(areaId);
+    }
   }
 
   /**
@@ -261,6 +291,46 @@ export class DrawingManager {
     label.name = 'areaLabel';
     group.add(label);
 
+    // Add folder icon if area has directories
+    if (area.directories && area.directories.length > 0) {
+      const folderIcon = this.createFolderIconSprite(area.color);
+      folderIcon.name = 'folderIcon';
+      folderIcon.userData.areaId = area.id;
+      folderIcon.userData.isFolderIcon = true;
+
+      // Position at top-left corner of the area
+      if (area.type === 'rectangle' && area.width && area.height) {
+        folderIcon.position.set(
+          -area.width / 2 + 0.4,
+          0.3 + zOffset,
+          -area.height / 2 + 0.4
+        );
+      } else if (area.type === 'circle' && area.radius) {
+        const offset = area.radius * 0.707;
+        folderIcon.position.set(
+          -offset + 0.3,
+          0.3 + zOffset,
+          -offset + 0.3
+        );
+      }
+
+      group.add(folderIcon);
+
+      // Create a clickable mesh (invisible sphere for raycasting)
+      const hitGeom = new THREE.SphereGeometry(0.3, 8, 8);
+      const hitMat = new THREE.MeshBasicMaterial({ visible: false });
+      const hitMesh = new THREE.Mesh(hitGeom, hitMat);
+      hitMesh.position.copy(folderIcon.position);
+      // Offset to world position
+      hitMesh.position.x += area.center.x;
+      hitMesh.position.z += area.center.z;
+      hitMesh.name = 'folderIconHit';
+      hitMesh.userData.areaId = area.id;
+      hitMesh.userData.isFolderIcon = true;
+      this.scene.add(hitMesh);
+      this.folderIconMeshes.push(hitMesh);
+    }
+
     group.position.set(area.center.x, 0, area.center.z);
     this.scene.add(group);
     this.areaMeshes.set(area.id, group);
@@ -323,6 +393,74 @@ export class DrawingManager {
   }
 
   /**
+   * Create a folder icon sprite using canvas.
+   */
+  private createFolderIconSprite(color: string): THREE.Sprite {
+    const canvas = document.createElement('canvas');
+    const size = 128;
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d')!;
+
+    // Background circle
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, size * 0.45, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Border circle
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, size * 0.45, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Folder shape
+    const fw = size * 0.5;
+    const fh = size * 0.35;
+    const fx = (size - fw) / 2;
+    const fy = (size - fh) / 2 + 2;
+    const tabW = fw * 0.35;
+    const tabH = fh * 0.22;
+
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    // Tab
+    ctx.moveTo(fx + 4, fy + tabH);
+    ctx.lineTo(fx + tabW, fy + tabH);
+    ctx.lineTo(fx + tabW + tabH, fy);
+    ctx.lineTo(fx + 4, fy);
+    // Body
+    ctx.moveTo(fx, fy + tabH);
+    ctx.lineTo(fx, fy + fh);
+    ctx.lineTo(fx + fw, fy + fh);
+    ctx.lineTo(fx + fw, fy + tabH);
+    ctx.closePath();
+    ctx.fill();
+
+    // Highlight line
+    ctx.strokeStyle = `rgba(255, 255, 255, 0.3)`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(fx + 4, fy + tabH + 3);
+    ctx.lineTo(fx + fw - 4, fy + tabH + 3);
+    ctx.stroke();
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.needsUpdate = true;
+
+    const spriteMaterial = new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      depthTest: false,
+    });
+
+    const sprite = new THREE.Sprite(spriteMaterial);
+    sprite.scale.set(0.6, 0.6, 1);
+    return sprite;
+  }
+
+  /**
    * Update area mesh (after editing).
    */
   updateAreaMesh(area: DrawingArea): void {
@@ -339,6 +477,17 @@ export class DrawingManager {
       this.disposeGroup(mesh);
       this.areaMeshes.delete(areaId);
     }
+
+    // Remove associated folder icon hit meshes
+    this.folderIconMeshes = this.folderIconMeshes.filter((m) => {
+      if (m.userData.areaId === areaId) {
+        this.scene.remove(m);
+        m.geometry.dispose();
+        (m.material as THREE.Material).dispose();
+        return false;
+      }
+      return true;
+    });
   }
 
   /**
@@ -804,5 +953,12 @@ export class DrawingManager {
     for (const areaId of this.areaMeshes.keys()) {
       this.removeAreaMesh(areaId);
     }
+    // Clean up any remaining folder icon meshes
+    for (const m of this.folderIconMeshes) {
+      this.scene.remove(m);
+      m.geometry.dispose();
+      (m.material as THREE.Material).dispose();
+    }
+    this.folderIconMeshes = [];
   }
 }

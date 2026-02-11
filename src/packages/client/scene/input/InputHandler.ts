@@ -22,6 +22,7 @@ import type {
   AreaAtPositionGetter,
   BuildingAtPositionGetter,
   BuildingPositionsGetter,
+  FolderIconMeshesGetter,
   GroundPosition,
 } from './types';
 
@@ -192,6 +193,13 @@ export class InputHandler {
   setResizeHandlers(getter: ResizeHandlesGetter, checker: ResizeModeChecker): void {
     this.raycaster.setResizeHandlesGetter(getter);
     this.resizeModeChecker = checker;
+  }
+
+  /**
+   * Set the folder icon meshes getter.
+   */
+  setFolderIconMeshesGetter(getter: FolderIconMeshesGetter): void {
+    this.raycaster.setFolderIconMeshesGetter(getter);
   }
 
   /**
@@ -966,6 +974,16 @@ export class InputHandler {
   // --- Click Handlers ---
 
   private handleSingleClick(event: PointerEvent): void {
+    // Check for folder icon click first (takes priority)
+    const folderIconMesh = this.raycaster.checkFolderIconClick(event);
+    if (folderIconMesh) {
+      const areaId = folderIconMesh.userData.areaId;
+      if (areaId) {
+        this.callbacks.onFolderIconClick?.(areaId);
+        return;
+      }
+    }
+
     const agentId = this.raycaster.findAgentAtPosition(event);
 
     if (agentId) {

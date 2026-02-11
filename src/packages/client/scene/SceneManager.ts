@@ -51,6 +51,7 @@ export class SceneManager {
   // State
   private resizeObserver: ResizeObserver | null = null;
   private isReattaching = false;
+  private onFolderIconClickCallback: ((areaId: string) => void) | null = null;
   private proceduralBodiesCache = new Map<string, THREE.Object3D>();
   private proceduralBodiesDirty = true;
   private lastTimeUpdate = 0;
@@ -228,6 +229,7 @@ export class SceneManager {
       onResizeMove: (pos: { x: number; z: number }) => this.drawingManager.updateResize(pos),
       onResizeEnd: () => this.drawingManager.finishResize(),
       onGroundClickOutsideArea: () => this.inputEventHandlers.handleGroundClickOutsideArea(),
+      onFolderIconClick: (areaId: string) => { store.openFileExplorerForArea(areaId); this.onFolderIconClickCallback?.(areaId); },
       onBuildingClick: (id: string, screenPos: { x: number; y: number }) => this.inputEventHandlers.handleBuildingClick(id, screenPos),
       onBuildingDoubleClick: (id: string) => this.inputEventHandlers.handleBuildingDoubleClick(id),
       onBuildingHover: (id: string | null, pos: { x: number; y: number } | null) => this.inputEventHandlers.handleBuildingHover(id, pos),
@@ -247,6 +249,7 @@ export class SceneManager {
       () => this.drawingManager.isCurrentlyResizing()
     );
     this.inputHandler.setAreaAtPositionGetter((pos) => this.drawingManager.getAreaAtPosition(pos));
+    this.inputHandler.setFolderIconMeshesGetter(() => this.drawingManager.getFolderIconMeshes());
     this.inputHandler.setBuildingAtPositionGetter((pos) => {
       const building = this.buildingManager.getBuildingAtPosition(pos);
       return building ? { id: building.id } : null;
@@ -498,6 +501,10 @@ export class SceneManager {
 
   setOnGroundClick(callback: () => void): void {
     this.callbackManager.setOnGroundClick(callback);
+  }
+
+  setOnFolderIconClick(callback: (areaId: string) => void): void {
+    this.onFolderIconClickCallback = callback;
   }
 
   setOnToast(callback: (type: 'error' | 'success' | 'warning' | 'info', title: string, message: string) => void): void {

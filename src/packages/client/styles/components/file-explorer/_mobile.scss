@@ -96,6 +96,10 @@ $breakpoint-small: 480px;
     text-overflow: ellipsis;
   }
 
+  .file-explorer-folder-path-hint {
+    display: none;
+  }
+
   .file-explorer-current-file {
     display: none;
   }
@@ -131,6 +135,11 @@ $breakpoint-small: 480px;
   .file-explorer-area-option-name,
   .file-explorer-folder-option-name {
     font-size: 14px;
+  }
+
+  .file-explorer-folder-option-path {
+    margin-left: 14px;
+    font-size: 10px;
   }
 
   // Main content - stack vertically on mobile

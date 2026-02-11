@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.57.0] - 2026-02-11
+
+### Added
+- **Folder icons on areas** - Areas with directories now display a clickable folder icon in both 3D and 2D scenes
+- **File explorer area integration** - Clicking a folder icon opens the file explorer directly for that area's directories
+- **Folder path hints** - File explorer folder selector now shows the full path as a hint below the folder name
+- **Cross-area folder navigation** - Folder dropdown in file explorer shows full paths and correctly navigates between areas
+
+### Fixed
+- **Lint warning** - Prefixed unused `zoom` variable in `Scene2D.getAreaFolderIconAtScreenPos`
+
 ## [0.56.1] - 2026-02-10
 
 ### Added

@@ -62,6 +62,7 @@ export interface Area2DData {
   color: string;
   label?: string;
   zIndex: number;
+  hasDirectories?: boolean;
 }
 
 /**
@@ -81,6 +82,7 @@ export interface Scene2DCallbacks {
   onGroundClick?: (worldPos: { x: number; z: number }) => void;
   onSelectionBox?: (start: { x: number; z: number }, end: { x: number; z: number }) => void;
   onMoveCommand?: (agentIds: string[], targetPos: { x: number; z: number }) => void;
+  onAreaFolderClick?: (areaId: string) => void;
 }
 
 /**
@@ -581,6 +583,7 @@ export class Scene2D {
       // Skip archived areas - they should not be rendered
       if (area.archived) continue;
 
+      const hasDirectories = area.directories && area.directories.length > 0;
       if (area.type === 'rectangle' && area.width && area.height) {
         this.areas.set(area.id, {
           id: area.id,
@@ -590,6 +593,7 @@ export class Scene2D {
           color: area.color,
           label: area.name,
           zIndex: area.zIndex ?? 0,
+          hasDirectories,
         });
       } else if (area.type === 'circle' && area.radius) {
         this.areas.set(area.id, {
@@ -600,6 +604,7 @@ export class Scene2D {
           color: area.color,
           label: area.name,
           zIndex: area.zIndex ?? 0,
+          hasDirectories,
         });
       }
     }
@@ -1002,6 +1007,54 @@ export class Scene2D {
 
   handleGroundClick(worldPos: { x: number; z: number }): void {
     this.callbacks.onGroundClick?.(worldPos);
+  }
+
+  handleAreaFolderClick(areaId: string): void {
+    store.openFileExplorerForArea(areaId);
+    this.callbacks.onAreaFolderClick?.(areaId);
+  }
+
+  /**
+   * Check if a screen position is on an area's folder icon.
+   * Returns the area ID if a folder icon was clicked, null otherwise.
+   */
+  getAreaFolderIconAtScreenPos(screenX: number, screenY: number): string | null {
+    const worldPos = this.camera.screenToWorld(screenX, screenY);
+    const _zoom = this.camera.getZoom();
+
+    // Check areas in reverse zIndex order (topmost first)
+    const sortedAreas = Array.from(this.areas.values()).sort((a, b) => b.zIndex - a.zIndex);
+
+    for (const area of sortedAreas) {
+      if (!area.hasDirectories) continue;
+
+      // Calculate folder icon position (top-left corner of the area)
+      const iconSize = 0.5; // World units - same as in AreaRenderer
+      let iconX: number;
+      let iconZ: number;
+
+      if (area.type === 'rectangle' && 'width' in area.size) {
+        iconX = area.position.x - area.size.width / 2 + iconSize * 0.8;
+        iconZ = area.position.z - area.size.height / 2 + iconSize * 0.8;
+      } else if (area.type === 'circle' && 'radius' in area.size) {
+        // Top-left of bounding box
+        const offset = area.size.radius * 0.707; // cos(45deg)
+        iconX = area.position.x - offset + iconSize * 0.5;
+        iconZ = area.position.z - offset + iconSize * 0.5;
+      } else {
+        continue;
+      }
+
+      // Check if click is within icon bounds
+      const hitRadius = iconSize * 0.7;
+      const dx = worldPos.x - iconX;
+      const dz = worldPos.z - iconZ;
+      if (Math.sqrt(dx * dx + dz * dz) <= hitRadius) {
+        return area.id;
+      }
+    }
+
+    return null;
   }
 
   handleSelectionBox(start: { x: number; z: number }, end: { x: number; z: number }): void {

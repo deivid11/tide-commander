@@ -282,9 +282,10 @@ export function AppModals({
 
       {/* File Explorer Panel (right side) */}
       <FileExplorerPanel
-        isOpen={explorerModal.isOpen || explorerFolderPath !== null}
-        areaId={explorerModal.id}
+        isOpen={explorerModal.isOpen || explorerFolderPath !== null || state.explorerAreaId !== null}
+        areaId={explorerModal.id || state.explorerAreaId || null}
         folderPath={explorerFolderPath}
+        onChangeArea={(newAreaId) => explorerModal.open(newAreaId)}
         onClose={() => {
           explorerModal.close();
           store.closeFileExplorer();

@@ -218,6 +218,7 @@ class Store
       fileViewerPath: null,
       fileViewerEditData: null,
       explorerFolderPath: null,
+      explorerAreaId: null as string | null,
       contextModalAgentId: null,
       supervisor: {
         enabled: true,
@@ -539,6 +540,12 @@ class Store
 
   closeFileExplorer(): void {
     this.state.explorerFolderPath = null;
+    this.state.explorerAreaId = null;
+    this.notify();
+  }
+
+  openFileExplorerForArea(areaId: string): void {
+    this.state.explorerAreaId = areaId;
     this.notify();
   }
 

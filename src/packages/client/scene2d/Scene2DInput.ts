@@ -778,6 +778,15 @@ export class Scene2DInput {
         this.lastClickTarget = building.id;
       }
     } else {
+      // Check if clicking on a folder icon first (takes priority over area selection)
+      const folderAreaId = this.scene.getAreaFolderIconAtScreenPos(screenX, screenY);
+      if (folderAreaId) {
+        this.scene.handleAreaFolderClick(folderAreaId);
+        this.lastClickTime = 0;
+        this.lastClickTarget = null;
+        return;
+      }
+
       // Check if clicking on an area (for selection)
       const area = this.scene.getAreaAtScreenPos(screenX, screenY);
       const worldPos = this.camera.screenToWorld(screenX, screenY);

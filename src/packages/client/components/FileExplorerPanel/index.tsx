@@ -70,6 +70,7 @@ export function FileExplorerPanel({
   const [showFolderSelector, setShowFolderSelector] = useState(false);
 
   const currentFolder = directories[selectedFolderIndex] || directories[0] || null;
+  const currentFolderName = currentFolder?.split('/').pop() || currentFolder || '';
 
   // Reset folder index when switching modes or folder path changes
   useEffect(() => {
@@ -173,10 +174,23 @@ export function FileExplorerPanel({
     const restoreState = async () => {
       const stored = await loadStoredState();
       if (stored) {
+        let nextFolderIndex = stored.selectedFolderIndex;
+
+        // If user selected a folder from another area, prioritize that explicit choice.
+        if (pendingFolderPath) {
+          const pendingIndex = directories.indexOf(pendingFolderPath);
+          nextFolderIndex = pendingIndex >= 0 ? pendingIndex : 0;
+          setPendingFolderPath(null);
+        } else {
+          // Clamp stale persisted index to current directories list.
+          const maxIndex = Math.max(0, directories.length - 1);
+          nextFolderIndex = Math.min(Math.max(0, nextFolderIndex), maxIndex);
+        }
+
         setOpenTabs(stored.tabs);
         setActiveTabPath(stored.activeTabPath);
         setViewMode(stored.viewMode);
-        setSelectedFolderIndex(stored.selectedFolderIndex);
+        setSelectedFolderIndex(nextFolderIndex);
         setExpandedPaths(stored.expandedPaths);
 
         // Load the active tab's file content
@@ -189,7 +203,7 @@ export function FileExplorerPanel({
     };
 
     restoreState();
-  }, [isOpen, hasRestoredState, loadStoredState, setExpandedPaths, loadFile]);
+  }, [isOpen, hasRestoredState, loadStoredState, setExpandedPaths, loadFile, pendingFolderPath, directories]);
 
   // Save state to localStorage when it changes
   useEffect(() => {
@@ -326,14 +340,12 @@ export function FileExplorerPanel({
       // Mark as not restored so the storage effect will run
       setHasRestoredState(false);
 
-      // Check if there's a pending folder to select (takes priority over storage)
+      // Keep pending folder path until storage restore runs to avoid race conditions.
       if (pendingFolderPath) {
         const newArea = state.areas.get(areaId);
-        if (newArea) {
-          const folderIndex = newArea.directories.indexOf(pendingFolderPath);
-          setSelectedFolderIndex(folderIndex >= 0 ? folderIndex : 0);
+        if (!newArea?.directories.includes(pendingFolderPath)) {
+          setPendingFolderPath(null);
         }
-        setPendingFolderPath(null);
       }
     }
   }, [areaId, pendingFolderPath, state.areas, clearFile]);
@@ -684,10 +696,12 @@ export function FileExplorerPanel({
                 className="file-explorer-folder-selector"
                 onClick={() => allFolders.length > 0 && setShowFolderSelector(!showFolderSelector)}
                 style={{ cursor: allFolders.length > 0 ? 'pointer' : 'default' }}
+                title={currentFolder}
               >
                 <span className="file-explorer-folder-name">
-                  {currentFolder.split('/').pop() || currentFolder}
+                  {currentFolderName}
                 </span>
+                <span className="file-explorer-folder-path-hint">{currentFolder}</span>
                 {allFolders.length > 1 && (
                   <span className="file-explorer-folder-dropdown-icon">▼</span>
                 )}
@@ -742,6 +756,7 @@ export function FileExplorerPanel({
                   <span className="file-explorer-folder-option-name">
                     {folder.path.split('/').pop() || folder.path}
                   </span>
+                  <span className="file-explorer-folder-option-path">{folder.path}</span>
                   <span className="file-explorer-folder-option-area">{folder.areaName}</span>
                 </div>
               ))}
