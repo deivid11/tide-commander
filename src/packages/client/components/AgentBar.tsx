@@ -30,7 +30,9 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
 
   // Refs for scrolling to selected agent
   const agentBarRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const agentItemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const scrollOffset = useRef(0);
 
   // Poll for pending HMR changes (only in dev mode and 3D view)
   useEffect(() => {
@@ -47,6 +49,32 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
     const interval = setInterval(checkPending, 500);
     return () => clearInterval(interval);
   }, [settings.experimental2DView]);
+
+  // Horizontal scroll via transform (since overflow-x:clip is used for Y-visible overflow)
+  const applyScroll = useCallback((offset: number) => {
+    const list = listRef.current;
+    const bar = agentBarRef.current;
+    if (!list || !bar) return;
+    const maxScroll = Math.max(0, list.scrollWidth - bar.clientWidth);
+    scrollOffset.current = Math.max(0, Math.min(offset, maxScroll));
+    list.style.transform = `translateX(-${scrollOffset.current}px)`;
+  }, []);
+
+  useEffect(() => {
+    const bar = agentBarRef.current;
+    if (!bar) return;
+    const onWheel = (e: WheelEvent) => {
+      const list = listRef.current;
+      if (!list) return;
+      const maxScroll = Math.max(0, list.scrollWidth - bar.clientWidth);
+      if (maxScroll <= 0) return; // No scrolling needed
+      e.preventDefault();
+      applyScroll(scrollOffset.current + e.deltaY);
+    };
+    bar.addEventListener('wheel', onWheel, { passive: false });
+    return () => bar.removeEventListener('wheel', onWheel);
+  }, [applyScroll]);
+
   const [hoveredAgent, setHoveredAgent] = useState<Agent | null>(null);
   // Track tool bubbles with animation state
   const [toolBubbles, setToolBubbles] = useState<Map<string, { tool: string; key: number }>>(new Map());
@@ -147,19 +175,23 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
     if (!selectedId) return;
 
     const agentElement = agentItemRefs.current.get(selectedId);
+    const bar = agentBarRef.current;
+    const list = listRef.current;
 
-    if (agentElement) {
-      // Use a small delay to allow the DOM to update after swipe animation
+    if (agentElement && bar && list) {
       requestAnimationFrame(() => {
-        // Use scrollIntoView with inline: 'center' to center the element horizontally
-        agentElement.scrollIntoView({
-          behavior: 'smooth',
-          block: 'nearest',
-          inline: 'center',
-        });
+        // Calculate the element's position relative to the list container
+        const elRect = agentElement.getBoundingClientRect();
+        const listRect = list.getBoundingClientRect();
+        const barWidth = bar.clientWidth;
+        // Element's offset within the un-scrolled list
+        const elOffsetInList = elRect.left - listRect.left + scrollOffset.current;
+        const elCenter = elOffsetInList + elRect.width / 2;
+        // Scroll so the element is centered in the bar
+        applyScroll(elCenter - barWidth / 2);
       });
     }
-  }, [state.lastSelectedAgentId]);
+  }, [state.lastSelectedAgentId, applyScroll]);
 
   const handleAgentClick = (agent: Agent, e: React.MouseEvent) => {
     // Mark that selection came from direct click (not swipe gesture)
@@ -335,7 +367,7 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
         )}
       </div>
 
-      <div className="agent-bar-list">
+      <div className="agent-bar-list" ref={listRef}>
         {/* New Agent button */}
         <button
           className="agent-bar-spawn-btn"
@@ -554,13 +586,31 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
           }
         };
 
+        // Position tooltip above the hovered agent element
+        const hoveredEl = agentItemRefs.current.get(hoveredAgent.id);
+        const tooltipStyle: React.CSSProperties = {};
+        if (hoveredEl) {
+          const rect = hoveredEl.getBoundingClientRect();
+          tooltipStyle.position = 'fixed';
+          tooltipStyle.left = rect.left + rect.width / 2;
+          tooltipStyle.bottom = window.innerHeight - rect.top + 12;
+        }
+
         return (
-          <div className="agent-bar-tooltip">
+          <div className="agent-bar-tooltip" style={tooltipStyle}>
             <div className="agent-bar-tooltip-header">
               <span className="agent-bar-tooltip-icon">
                 {config.icon}
               </span>
-              <span className="agent-bar-tooltip-name">{hoveredAgent.name}</span>
+              <span className="agent-bar-tooltip-name">
+                <img
+                  src={hoveredAgent.provider === 'codex' ? '/assets/codex.png' : '/assets/claude.png'}
+                  alt={hoveredAgent.provider}
+                  className="agent-bar-provider-icon"
+                  title={hoveredAgent.provider === 'codex' ? 'Codex Agent' : 'Claude Agent'}
+                />
+                {hoveredAgent.name}
+              </span>
               <span
                 className="agent-bar-tooltip-status"
                 style={{ color: getAgentStatusColor(hoveredAgent.status) }}

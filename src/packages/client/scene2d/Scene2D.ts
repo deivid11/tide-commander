@@ -35,6 +35,7 @@ export interface Agent2DData {
   contextUsed?: number;
   contextLimit?: number;
   contextStats?: ContextStats;
+  provider?: string;
 }
 
 /**
@@ -425,6 +426,7 @@ export class Scene2D {
       contextUsed: agent.contextUsed,
       contextLimit: agent.contextLimit,
       contextStats: agent.contextStats,
+      provider: agent.provider,
     });
   }
 
@@ -500,6 +502,7 @@ export class Scene2D {
     existing.contextUsed = agent.contextUsed;
     existing.contextLimit = agent.contextLimit;
     existing.contextStats = agent.contextStats;
+    existing.provider = agent.provider;
   }
 
   syncAgents(agents: Agent[]): void {

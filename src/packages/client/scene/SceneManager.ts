@@ -341,22 +341,37 @@ export class SceneManager {
       const nameLabelSprite = meshData.group.getObjectByName('nameLabelSprite') as THREE.Sprite;
 
       if (statusBar) {
-        const baseScale = isBoss ? 2.0 : 1.6;
-        const aspectRatio = 2560 / 4096; // canvas height / width (0.625)
+        const baseScale = typeof statusBar.userData.baseIndicatorScale === 'number'
+          ? statusBar.userData.baseIndicatorScale
+          : (isBoss ? 2.0 : 1.6);
+        const aspectRatio = typeof statusBar.userData.aspectRatio === 'number'
+          ? statusBar.userData.aspectRatio
+          : (2560 / 4096);
         statusBar.scale.set(baseScale * scale, baseScale * aspectRatio * scale, 1);
       }
 
       if (nameLabelSprite) {
-        const baseScale = isBoss ? 2.5 : 2.0;
-        const aspectRatio = 1024 / 8192; // canvas height / width (0.125)
+        const rawBaseScale = typeof nameLabelSprite.userData.baseIndicatorScale === 'number'
+          ? nameLabelSprite.userData.baseIndicatorScale
+          : (isBoss ? 1.5 : 1.25);
+        const maxBaseScale = isBoss ? 1.65 : 1.35;
+        const minBaseScale = isBoss ? 1.35 : 1.1;
+        const baseScale = Math.max(minBaseScale, Math.min(maxBaseScale, rawBaseScale));
+        const aspectRatio = typeof nameLabelSprite.userData.aspectRatio === 'number'
+          ? nameLabelSprite.userData.aspectRatio
+          : (1024 / 4096);
         nameLabelSprite.scale.set(baseScale * scale, baseScale * aspectRatio * scale, 1);
       }
 
       // Combined UI sprite (legacy - single sprite for all UI elements)
       const combinedUI = meshData.group.getObjectByName('combinedUI') as THREE.Sprite;
       if (combinedUI) {
-        const baseScale = isBoss ? 2.0 : 1.6;
-        const aspectRatio = 1024 / 2048; // canvas height / width (0.5)
+        const baseScale = typeof combinedUI.userData.baseIndicatorScale === 'number'
+          ? combinedUI.userData.baseIndicatorScale
+          : (isBoss ? 3.0 : 2.4);
+        const aspectRatio = typeof combinedUI.userData.aspectRatio === 'number'
+          ? combinedUI.userData.aspectRatio
+          : (1024 / 2048);
         combinedUI.scale.set(baseScale * scale, baseScale * aspectRatio * scale, 1);
       }
 

@@ -281,19 +281,25 @@ export class AgentRenderer extends BaseRenderer {
     const nameWidth = this.ctx.measureText(agent.name).width;
     const namePadding = 6 * zoomScaleFactor;
     const nameHeight = labelFontSize + 4 * zoomScaleFactor;
+    const hasProviderDot = agent.provider === 'claude' || agent.provider === 'codex';
+    const dotSize = hasProviderDot ? labelFontSize * 0.45 : 0;
+    const dotGap = hasProviderDot ? labelFontSize * 0.3 : 0;
+    const providerBlock = dotSize + dotGap;
+    const totalTagWidth = nameWidth + providerBlock + namePadding * 2;
+    const textX = screenPos.x + providerBlock / 2;
 
     const nameTagGradient = this.ctx.createLinearGradient(
-      screenPos.x - nameWidth / 2 - namePadding, labelY - nameHeight / 2,
-      screenPos.x - nameWidth / 2 - namePadding, labelY + nameHeight / 2
+      screenPos.x - totalTagWidth / 2, labelY - nameHeight / 2,
+      screenPos.x - totalTagWidth / 2, labelY + nameHeight / 2
     );
     nameTagGradient.addColorStop(0, 'rgba(30, 30, 40, 0.95)');
     nameTagGradient.addColorStop(1, 'rgba(20, 20, 30, 0.95)');
 
     this.ctx.beginPath();
     this.roundedRectScreen(
-      screenPos.x - nameWidth / 2 - namePadding,
+      screenPos.x - totalTagWidth / 2,
       labelY - nameHeight / 2,
-      nameWidth + namePadding * 2,
+      totalTagWidth,
       nameHeight,
       4
     );
@@ -304,10 +310,23 @@ export class AgentRenderer extends BaseRenderer {
     this.ctx.lineWidth = 1.5;
     this.ctx.stroke();
 
+    if (hasProviderDot) {
+      const dotX = screenPos.x - totalTagWidth / 2 + namePadding + dotSize / 2;
+      const dotY = labelY;
+      const providerColor = agent.provider === 'codex' ? '#4a9eff' : '#ff9e4a';
+      this.ctx.beginPath();
+      this.ctx.arc(dotX, dotY, dotSize / 2, 0, Math.PI * 2);
+      this.ctx.fillStyle = providerColor;
+      this.ctx.fill();
+      this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+      this.ctx.lineWidth = Math.max(1, dotSize * 0.12);
+      this.ctx.stroke();
+    }
+
     this.ctx.fillStyle = bodyColor;
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
-    this.ctx.fillText(agent.name, screenPos.x, labelY);
+    this.ctx.fillText(agent.name, textX, labelY);
 
     // ========== CONTEXT/MANA BAR ==========
     let contextPercent: number;

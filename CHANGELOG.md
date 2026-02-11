@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.59.3] - 2026-02-11
+
+### Added
+- **Provider dots on agent labels** - 3D and 2D agent name labels now show a colored provider dot (orange for Claude, blue for Codex)
+- **Agent bar horizontal scroll** - Agent bar now supports smooth horizontal scrolling via mouse wheel with transform-based approach
+
+### Changed
+- **3D name label rendering** - Reduced canvas width (8192 to 4096), adjusted scale and positioning for crisper labels
+- **3D indicator scale** - Store base scale and aspect ratio in userData for dynamic scaling support
+- **Agent bar layout** - Improved scroll-to-selected behavior using transform offset instead of scrollIntoView
+- **Agent bar styles** - Refined layout and spacing for agent items
+
 ## [0.59.2] - 2026-02-11
 
 ### Added

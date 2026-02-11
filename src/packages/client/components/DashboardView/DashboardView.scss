@@ -22,6 +22,8 @@
   align-items: center;
   gap: 12px;
   padding: 10px 16px;
+  // Leave room for the fixed view-mode-toggle in the top-left corner
+  padding-left: 280px;
   border-bottom: 1px solid $border-color;
   flex-shrink: 0;
 }

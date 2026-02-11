@@ -108,9 +108,12 @@ export class VisualConfig {
     const padding = isBoss ? 0.8 : 0.5;
     sprite.position.y = modelHeight + padding;
     const baseScale = isBoss ? 2.0 : 1.6;
-    sprite.scale.set(baseScale, baseScale * (canvas.height / canvas.width), 1);
+    const aspectRatio = canvas.height / canvas.width;
+    sprite.scale.set(baseScale, baseScale * aspectRatio, 1);
     sprite.name = 'statusBar';
     sprite.userData.modelHeight = modelHeight;
+    sprite.userData.baseIndicatorScale = baseScale;
+    sprite.userData.aspectRatio = aspectRatio;
 
     return sprite;
   }
@@ -118,14 +121,14 @@ export class VisualConfig {
   /**
    * Create a name label sprite. Positioned below the character.
    */
-  createNameLabelSprite(name: string, color: number, isBoss: boolean): THREE.Sprite {
+  createNameLabelSprite(name: string, color: number, isBoss: boolean, provider?: string): THREE.Sprite {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d')!;
 
-    canvas.width = 8192;
+    canvas.width = 4096;
     canvas.height = 1024;
 
-    this.drawNameLabel(ctx, canvas.width, canvas.height, name, color);
+    this.drawNameLabel(ctx, canvas.width, canvas.height, name, color, provider);
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.minFilter = THREE.LinearMipmapLinearFilter;
@@ -141,10 +144,13 @@ export class VisualConfig {
     });
 
     const sprite = new THREE.Sprite(material);
-    sprite.position.y = isBoss ? -0.8 : -0.6;
-    const baseScale = isBoss ? 2.5 : 2.0;
-    sprite.scale.set(baseScale, baseScale * (canvas.height / canvas.width), 1);
+    sprite.position.y = isBoss ? -0.74 : -0.56;
+    const baseScale = isBoss ? 1.5 : 1.25;
+    const aspectRatio = canvas.height / canvas.width;
+    sprite.scale.set(baseScale, baseScale * aspectRatio, 1);
     sprite.name = 'nameLabelSprite';
+    sprite.userData.baseIndicatorScale = baseScale;
+    sprite.userData.aspectRatio = aspectRatio;
 
     return sprite;
   }
@@ -157,7 +163,8 @@ export class VisualConfig {
     width: number,
     height: number,
     name: string,
-    color: number
+    color: number,
+    provider?: string
   ): void {
     ctx.clearRect(0, 0, width, height);
 
@@ -165,7 +172,10 @@ export class VisualConfig {
 
     let fontSize = 800;
     const minFontSize = 300;
-    const maxWidth = width - 400;
+    const hasProviderDot = provider === 'claude' || provider === 'codex';
+    const dotSize = hasProviderDot ? fontSize * 0.42 : 0;
+    const dotGap = hasProviderDot ? fontSize * 0.3 : 0;
+    const maxWidth = width - 400 - (hasProviderDot ? (dotSize + dotGap) : 0);
 
     ctx.font = `bold ${fontSize}px Arial`;
     let textWidth = ctx.measureText(name).width;
@@ -175,6 +185,12 @@ export class VisualConfig {
       ctx.font = `bold ${fontSize}px Arial`;
       textWidth = ctx.measureText(name).width;
     }
+
+    const dotDiameter = hasProviderDot ? fontSize * 0.42 : 0;
+    const dotSpacing = hasProviderDot ? fontSize * 0.3 : 0;
+    const providerBlock = dotDiameter + dotSpacing;
+    const totalContentWidth = textWidth + providerBlock;
+    const textX = width / 2 + providerBlock / 2;
 
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -187,15 +203,28 @@ export class VisualConfig {
     ctx.strokeStyle = '#000';
     ctx.lineWidth = fontSize * 0.14;
     ctx.lineJoin = 'round';
-    ctx.strokeText(name, width / 2, height / 2);
+    ctx.strokeText(name, textX, height / 2);
 
     ctx.shadowColor = 'transparent';
     ctx.shadowBlur = 0;
     ctx.shadowOffsetX = 0;
     ctx.shadowOffsetY = 0;
 
+    if (hasProviderDot) {
+      const dotX = width / 2 - totalContentWidth / 2 + dotDiameter / 2;
+      const dotY = height / 2;
+      const providerColor = provider === 'codex' ? '#4a9eff' : '#ff9e4a';
+      ctx.beginPath();
+      ctx.arc(dotX, dotY, dotDiameter / 2, 0, Math.PI * 2);
+      ctx.fillStyle = providerColor;
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+      ctx.lineWidth = Math.max(4, dotDiameter * 0.1);
+      ctx.stroke();
+    }
+
     ctx.fillStyle = colorHex;
-    ctx.fillText(name, width / 2, height / 2);
+    ctx.fillText(name, textX, height / 2);
   }
 
   /**
@@ -393,8 +422,11 @@ export class VisualConfig {
     const sprite = new THREE.Sprite(material);
     sprite.position.y = isBoss ? 3.2 : 2.2;
     const baseScale = isBoss ? 3.0 : 2.4;
-    sprite.scale.set(baseScale, baseScale * (canvas.height / canvas.width), 1);
+    const aspectRatio = canvas.height / canvas.width;
+    sprite.scale.set(baseScale, baseScale * aspectRatio, 1);
     sprite.name = 'combinedUI';
+    sprite.userData.baseIndicatorScale = baseScale;
+    sprite.userData.aspectRatio = aspectRatio;
 
     return sprite;
   }
@@ -949,7 +981,7 @@ export class VisualConfig {
   /**
    * Update the name label for an agent (legacy separate sprite).
    */
-  updateNameLabel(group: THREE.Group, name: string, agentClass: string): void {
+  updateNameLabel(group: THREE.Group, name: string, agentClass: string, provider?: string): void {
     const oldLabel = group.getObjectByName('nameLabel') as THREE.Sprite;
     if (oldLabel) {
       oldLabel.material.map?.dispose();
@@ -959,7 +991,8 @@ export class VisualConfig {
 
     const classConfig = AGENT_CLASS_CONFIG[agentClass as BuiltInAgentClass];
     const color = classConfig?.color ?? 0xffffff;
-    const newLabel = this.createNameLabel(name, color);
+    const isBoss = agentClass === 'boss' || group.userData.isBoss;
+    const newLabel = this.createNameLabelSprite(name, color, isBoss, provider);
     group.add(newLabel);
   }
 
@@ -1038,7 +1071,7 @@ export class VisualConfig {
     // Fallback for very old agents with completely separate sprites
     if (!statusBar && !combinedUI) {
       if (group.userData.agentName !== agent.name) {
-        this.updateNameLabel(group, agent.name, agent.class);
+        this.updateNameLabel(group, agent.name, agent.class, agent.provider);
         group.userData.agentName = agent.name;
       }
       this.updateManaBar(group, remainingPercent, agent.status);

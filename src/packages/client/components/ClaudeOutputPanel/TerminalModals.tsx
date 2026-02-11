@@ -283,7 +283,7 @@ export function AgentInfoModal({ agent, isOpen, onClose }: AgentInfoModalProps) 
                   <span>Backend</span>
                   <strong>
                     <img
-                      src={agent.provider === 'codex' ? '/assets/codex.ico' : '/assets/claude.ico'}
+                      src={agent.provider === 'codex' ? '/assets/codex.png' : '/assets/claude.png'}
                       alt={agent.provider}
                       className="agent-info-provider-icon"
                       title={agent.provider === 'codex' ? 'Codex Agent' : 'Claude Agent'}

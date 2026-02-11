@@ -64,7 +64,7 @@ export class CharacterFactory {
     group.add(statusBar);
 
     // Name label sprite - positioned below
-    const nameLabel = this.visualConfig.createNameLabelSprite(agent.name, classConfig.color, isBoss);
+    const nameLabel = this.visualConfig.createNameLabelSprite(agent.name, classConfig.color, isBoss, agent.provider);
     group.add(nameLabel);
 
     // Store agent metadata for updates

@@ -180,7 +180,7 @@ export function TerminalHeader({
           >
             <span className="guake-title">{agentEmoji} {selectedAgent.name}</span>
             <img
-              src={selectedAgent.provider === 'codex' ? '/assets/codex.ico' : '/assets/claude.ico'}
+              src={selectedAgent.provider === 'codex' ? '/assets/codex.png' : '/assets/claude.png'}
               alt={selectedAgent.provider}
               className="guake-provider-icon"
               title={selectedAgent.provider === 'codex' ? 'Codex Agent' : 'Claude Agent'}
@@ -191,7 +191,7 @@ export function TerminalHeader({
           <div className="guake-title-with-provider">
             <span className="guake-title">{agentEmoji} {selectedAgent.name}</span>
             <img
-              src={selectedAgent.provider === 'codex' ? '/assets/codex.ico' : '/assets/claude.ico'}
+              src={selectedAgent.provider === 'codex' ? '/assets/codex.png' : '/assets/claude.png'}
               alt={selectedAgent.provider}
               className="guake-provider-icon"
               title={selectedAgent.provider === 'codex' ? 'Codex Agent' : 'Claude Agent'}
