@@ -61,7 +61,7 @@ const TabItem = memo(function TabItem({
       onMouseDown={handleMiddleClick}
       title={tab.path}
     >
-      <span className="file-tab-icon">{getFileIcon(iconNode)}</span>
+      <img className="file-tab-icon" src={getFileIcon(iconNode)} alt="file" />
       <span className="file-tab-name">{tab.filename}</span>
       <button
         className="file-tab-close"
