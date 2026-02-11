@@ -6,8 +6,23 @@
  */
 
 import React, { memo, useMemo } from 'react';
-import type { TreeNode, TreeNodeProps } from './types';
+import type { TreeNode, TreeNodeProps, GitFileStatusType } from './types';
 import { getFileIcon, findMatchIndices } from './fileUtils';
+
+// ============================================================================
+// GIT STATUS COLOR MAPPING
+// ============================================================================
+
+function getGitStatusColor(status?: GitFileStatusType): string | undefined {
+  switch (status) {
+    case 'modified': return '#c89a5a';   // Muted orange
+    case 'added': return '#5cb88a';      // Muted green
+    case 'deleted': return '#c85a5a';    // Muted red
+    case 'untracked': return '#6ab8c8';  // Muted cyan
+    case 'renamed': return '#9a80c0';    // Muted purple
+    default: return undefined;
+  }
+}
 
 /**
  * Sort nodes: folders first, then files, both alphabetically (case-insensitive)
@@ -62,6 +77,7 @@ function TreeNodeItemComponent({
 }: TreeNodeProps) {
   const isExpanded = expandedPaths.has(node.path);
   const isSelected = selectedPath === node.path;
+  const gitStatusColor = getGitStatusColor(node.gitStatus);
 
   // Memoize sorted children to avoid re-sorting on every render
   const sortedChildren = useMemo(
@@ -84,7 +100,7 @@ function TreeNodeItemComponent({
         className={`tree-node ${isSelected ? 'selected' : ''} ${
           node.isDirectory ? 'directory' : 'file'
         } ${isExpanded ? 'expanded' : ''}`}
-        style={{ paddingLeft: '4px' }}
+        style={{ paddingLeft: `${depth * 16}px` }}
         onClick={handleClick}
         data-path={node.path}
       >
@@ -93,17 +109,19 @@ function TreeNodeItemComponent({
             <span className={`tree-arrow ${isExpanded ? 'expanded' : ''}`}>
               ▸
             </span>
-            <span className="tree-folder-icon">
-              {isExpanded ? '📂' : '📁'}
-            </span>
+            <img
+              className="tree-folder-icon"
+              src={isExpanded ? '/assets/vscode-icons/default_folder_opened.svg' : '/assets/vscode-icons/default_folder.svg'}
+              alt="folder"
+            />
           </>
         ) : (
           <>
             <span className="tree-arrow-spacer" />
-            <span className="tree-icon">{getFileIcon(node)}</span>
+            <img className="tree-icon" src={getFileIcon(node)} alt="file" />
           </>
         )}
-        <span className="tree-name">
+        <span className="tree-name" style={gitStatusColor ? { color: gitStatusColor } : undefined}>
           <HighlightMatch text={node.name} query={searchQuery} />
         </span>
       </div>

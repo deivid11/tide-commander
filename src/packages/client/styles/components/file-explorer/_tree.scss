@@ -1,7 +1,7 @@
 // =============================================================================
-// File Explorer - Tree Styles
+// File Explorer - Tree Styles (IntelliJ-inspired)
 // =============================================================================
-// File tree navigation, tree panel, and tree node styles
+// Clean, compact file tree with proper hierarchy and spacing
 // =============================================================================
 
 @use '../../variables' as *;
@@ -56,7 +56,7 @@
 }
 
 .file-tree {
-  padding: 2px 0;
+  padding: 0;
 }
 
 .tree-loading,
@@ -67,130 +67,158 @@
   font-size: 12px;
 }
 
-// Tree Node
+// Tree Node - IntelliJ style
 .tree-node-wrapper {
   user-select: none;
 }
 
 .tree-node {
-  // Indentation is now set inline via React (paddingLeft style)
-  // This allows for reliable cross-browser support including mobile
+  // IntelliJ-style tree node with proper spacing
+  // Indentation is set inline via React (paddingLeft style)
 
   display: flex;
   align-items: center;
-  gap: 2px;
-  padding-top: 1px;
-  padding-right: 4px;
-  padding-bottom: 1px;
+  gap: 6px;
+  padding: 2px 4px;
   // padding-left is set inline by the component
   cursor: pointer;
   transition: background $transition-fast;
   white-space: nowrap;
-  border-radius: 2px;
-  margin: 0 2px;
+  border-radius: 0;
+  margin: 0;
   position: relative;
-  line-height: 1.2;
+  line-height: 1.6;
+  height: 22px;
 
   &:hover {
-    background: rgba($accent-blue, 0.12);
+    background: rgba($accent-blue, 0.08);
 
     .tree-arrow {
-      color: $dracula-cyan;
+      color: $text-secondary;
+    }
+
+    .tree-name {
+      color: inherit;
     }
   }
 
   &.selected {
-    background: rgba($accent-blue, 0.2);
-
-    &::before {
-      content: '';
-      position: absolute;
-      left: 0;
-      top: 1px;
-      bottom: 1px;
-      width: 2px;
-      background: $accent-blue;
-      border-radius: 0 1px 1px 0;
-    }
+    background: rgba($accent-blue, 0.15);
 
     .tree-name {
       color: $text-primary;
+      font-weight: 500;
+    }
+
+    .tree-folder-icon,
+    .tree-icon {
+      opacity: 1;
     }
   }
 
   &.directory {
     .tree-name {
-      color: $dracula-cyan;
+      color: $accent-blue;
+      font-weight: 400;
     }
 
     .tree-folder-icon {
-      color: $dracula-yellow;
+      color: $accent-blue;
+      opacity: 0.9;
     }
 
     &.expanded .tree-folder-icon {
-      color: $dracula-orange;
+      color: $accent-blue;
+      opacity: 1;
+    }
+
+    &:hover .tree-folder-icon {
+      opacity: 1;
     }
   }
 
-  &.file .tree-name {
-    color: $dracula-fg;
+  &.file {
+    .tree-name {
+      color: $text-secondary;
+    }
+
+    .tree-icon {
+      color: $text-muted;
+      opacity: 0.8;
+    }
+
+    &:hover .tree-icon {
+      color: $text-secondary;
+      opacity: 1;
+    }
   }
 }
 
 .tree-arrow {
-  font-size: 7px;
-  color: rgba($text-muted, 0.5);
-  width: 8px;
+  font-size: 10px;
+  color: rgba($text-muted, 0.4);
+  width: 16px;
   text-align: center;
   transition: transform 0.15s ease, color 0.1s;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 
   &.expanded {
     transform: rotate(90deg);
-    color: $dracula-cyan;
+    color: $text-secondary;
   }
 }
 
 // Spacer for files to align with folder arrows
 .tree-arrow-spacer {
-  width: 8px;
+  width: 16px;
   flex-shrink: 0;
 }
 
 .tree-folder-icon {
-  font-size: 11px;
-  width: 12px;
-  text-align: center;
+  width: 16px;
+  height: 16px;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.9;
+  transition: opacity 0.1s;
+
+  &:hover {
+    opacity: 1;
+  }
 }
 
 .tree-icon {
-  font-size: 10px;
-  width: 12px;
-  text-align: center;
+  width: 16px;
+  height: 16px;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.8;
+  transition: opacity 0.1s;
+
+  &:hover {
+    opacity: 1;
+  }
 }
 
 .tree-name {
   font-family: $font-mono;
-  font-size: 10px;
+  font-size: 12px;
   overflow: hidden;
   text-overflow: ellipsis;
-  line-height: 1.2;
+  line-height: 1.6;
+  flex: 1;
 }
 
 .tree-children {
   position: relative;
-  margin-left: 24px;
+  margin-left: 0;
 
-  // Vertical guide line to show hierarchy
-  &::before {
-    content: '';
-    position: absolute;
-    left: 2px;
-    top: 0;
-    bottom: 0;
-    width: 1px;
-    background: rgba($text-muted, 0.15);
-  }
+  // No visual guide line - IntelliJ style is cleaner
 }

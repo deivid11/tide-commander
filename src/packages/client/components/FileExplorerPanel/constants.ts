@@ -108,91 +108,114 @@ export const EXTENSION_TO_LANGUAGE: Record<string, string> = {
 };
 
 // ============================================================================
-// FILE ICONS
+// FILE ICONS - VSCODE ICONS (SVG)
 // ============================================================================
+
+const ICON_BASE = '/assets/vscode-icons/';
 
 export const FILE_ICONS: Record<string, string> = {
   // Web languages
-  '.ts': '📘',
-  '.tsx': '⚛️',
-  '.js': '📒',
-  '.jsx': '⚛️',
-  '.css': '🎨',
-  '.scss': '🎨',
-  '.html': '🌐',
+  '.ts': `${ICON_BASE}file_type_typescript_official.svg`,
+  '.tsx': `${ICON_BASE}file_type_typescript_official.svg`,
+  '.js': `${ICON_BASE}file_type_js_official.svg`,
+  '.jsx': `${ICON_BASE}file_type_reactjs.svg`,
+  '.mjs': `${ICON_BASE}file_type_js_official.svg`,
+  '.cjs': `${ICON_BASE}file_type_js_official.svg`,
+  '.css': `${ICON_BASE}file_type_css.svg`,
+  '.scss': `${ICON_BASE}file_type_scss.svg`,
+  '.sass': `${ICON_BASE}file_type_scss.svg`,
+  '.less': `${ICON_BASE}file_type_less.svg`,
+  '.html': `${ICON_BASE}file_type_html.svg`,
+  '.xml': `${ICON_BASE}file_type_xml.svg`,
+  '.svg': `${ICON_BASE}file_type_svg.svg`,
+  '.graphql': `${ICON_BASE}file_type_graphql.svg`,
+  '.gql': `${ICON_BASE}file_type_graphql.svg`,
 
   // JVM languages
-  '.java': '☕',
-  '.kt': '🟣',
-  '.kts': '🟣',
-  '.scala': '🔴',
-  '.groovy': '🟢',
-  '.gradle': '🐘',
-  '.clj': '🟢',
+  '.java': `${ICON_BASE}file_type_java.svg`,
+  '.kt': `${ICON_BASE}file_type_kotlin.svg`,
+  '.kts': `${ICON_BASE}file_type_kotlin.svg`,
+  '.scala': `${ICON_BASE}file_type_scala.svg`,
+  '.groovy': `${ICON_BASE}file_type_groovy.svg`,
+  '.gradle': `${ICON_BASE}file_type_gradle.svg`,
+  '.clj': `${ICON_BASE}file_type_clojure.svg`,
+  '.cljs': `${ICON_BASE}file_type_clojure.svg`,
 
   // C family
-  '.c': '🔵',
-  '.h': '🔵',
-  '.cpp': '🔷',
-  '.cc': '🔷',
-  '.hpp': '🔷',
-  '.cs': '🟪',
+  '.c': `${ICON_BASE}file_type_c.svg`,
+  '.h': `${ICON_BASE}file_type_c.svg`,
+  '.cpp': `${ICON_BASE}file_type_cpp.svg`,
+  '.cc': `${ICON_BASE}file_type_cpp.svg`,
+  '.cxx': `${ICON_BASE}file_type_cpp.svg`,
+  '.hpp': `${ICON_BASE}file_type_cpp.svg`,
+  '.hxx': `${ICON_BASE}file_type_cpp.svg`,
+  '.cs': `${ICON_BASE}file_type_csharp.svg`,
 
   // Scripting
-  '.py': '🐍',
-  '.rb': '💎',
-  '.php': '🐘',
-  '.lua': '🌙',
-  '.pl': '🐪',
-  '.r': '📊',
-  '.R': '📊',
+  '.py': `${ICON_BASE}file_type_python.svg`,
+  '.rb': `${ICON_BASE}file_type_ruby.svg`,
+  '.php': `${ICON_BASE}file_type_php.svg`,
+  '.lua': `${ICON_BASE}file_type_lua.svg`,
+  '.pl': `${ICON_BASE}file_type_perl.svg`,
+  '.pm': `${ICON_BASE}file_type_perl.svg`,
+  '.r': `${ICON_BASE}file_type_r.svg`,
+  '.R': `${ICON_BASE}file_type_r.svg`,
 
   // Functional
-  '.hs': '🟣',
-  '.ex': '💜',
-  '.exs': '💜',
-  '.erl': '🔴',
+  '.hs': `${ICON_BASE}file_type_haskell.svg`,
+  '.lhs': `${ICON_BASE}file_type_haskell.svg`,
+  '.ex': `${ICON_BASE}file_type_elixir.svg`,
+  '.exs': `${ICON_BASE}file_type_elixir.svg`,
+  '.erl': `${ICON_BASE}file_type_erlang.svg`,
+  '.hrl': `${ICON_BASE}file_type_erlang.svg`,
 
   // Systems
-  '.rs': '🦀',
-  '.go': '🔷',
-  '.swift': '🍎',
+  '.rs': `${ICON_BASE}file_type_rust.svg`,
+  '.go': `${ICON_BASE}file_type_go.svg`,
+  '.swift': `${ICON_BASE}file_type_swift.svg`,
 
   // Shell
-  '.sh': '💻',
-  '.bash': '💻',
-  '.ps1': '💠',
+  '.sh': `${ICON_BASE}file_type_shell.svg`,
+  '.bash': `${ICON_BASE}file_type_shell.svg`,
+  '.zsh': `${ICON_BASE}file_type_shell.svg`,
+  '.fish': `${ICON_BASE}file_type_shell.svg`,
+  '.ps1': `${ICON_BASE}file_type_powershell.svg`,
+  '.psm1': `${ICON_BASE}file_type_powershell.svg`,
+  '.psd1': `${ICON_BASE}file_type_powershell.svg`,
 
   // Data formats
-  '.json': '📋',
-  '.yaml': '⚙️',
-  '.yml': '⚙️',
-  '.toml': '⚙️',
-  '.ini': '⚙️',
+  '.json': `${ICON_BASE}file_type_json_official.svg`,
+  '.yaml': `${ICON_BASE}file_type_yaml_official.svg`,
+  '.yml': `${ICON_BASE}file_type_yaml_official.svg`,
+  '.toml': `${ICON_BASE}file_type_toml.svg`,
+  '.ini': `${ICON_BASE}file_type_ini.svg`,
+  '.cfg': `${ICON_BASE}file_type_ini.svg`,
+  '.conf': `${ICON_BASE}file_type_ini.svg`,
 
   // Documentation
-  '.md': '📝',
-  '.mdx': '📝',
+  '.md': `${ICON_BASE}file_type_markdown.svg`,
+  '.mdx': `${ICON_BASE}file_type_markdown.svg`,
 
   // Database
-  '.sql': '🗃️',
+  '.sql': `${ICON_BASE}file_type_sql.svg`,
 
-  // Config/misc
-  '.env': '🔐',
-  '.lock': '🔒',
-  '.dockerfile': '🐳',
-  '.graphql': '💠',
-  '.gql': '💠',
+  // Build/config
+  '.dockerfile': `${ICON_BASE}file_type_docker.svg`,
+  'Dockerfile': `${ICON_BASE}file_type_docker.svg`,
+  '.env': `${ICON_BASE}file_type_dotenv.svg`,
+  'package.json': `${ICON_BASE}file_type_npm.svg`,
+  'package-lock.json': `${ICON_BASE}file_type_npm.svg`,
+  'tsconfig.json': `${ICON_BASE}file_type_tsconfig.svg`,
+  '.gitignore': `${ICON_BASE}file_type_git.svg`,
 
   // Images
-  '.png': '🖼️',
-  '.jpg': '🖼️',
-  '.jpeg': '🖼️',
-  '.svg': '🖼️',
-  '.gif': '🖼️',
-  '.webp': '🖼️',
+  '.png': `${ICON_BASE}file_type_image.svg`,
+  '.jpg': `${ICON_BASE}file_type_image.svg`,
+  '.jpeg': `${ICON_BASE}file_type_image.svg`,
+  '.gif': `${ICON_BASE}file_type_image.svg`,
+  '.webp': `${ICON_BASE}file_type_image.svg`,
 
-  default: '📄',
+  default: `${ICON_BASE}default_file.svg`,
 };
 
 // ============================================================================
@@ -206,11 +229,11 @@ export interface GitStatusConfig {
 }
 
 export const GIT_STATUS_CONFIG: Record<GitFileStatusType, GitStatusConfig> = {
-  modified: { icon: 'M', color: '#ffb86c', label: 'Modified' },
-  added: { icon: 'A', color: '#50fa7b', label: 'Added' },
-  deleted: { icon: 'D', color: '#ff5555', label: 'Deleted' },
-  untracked: { icon: 'U', color: '#8be9fd', label: 'Untracked' },
-  renamed: { icon: 'R', color: '#bd93f9', label: 'Renamed' },
+  modified: { icon: 'M', color: '#c89a5a', label: 'Modified' },
+  added: { icon: 'A', color: '#5cb88a', label: 'Added' },
+  deleted: { icon: 'D', color: '#c85a5a', label: 'Deleted' },
+  untracked: { icon: 'U', color: '#6ab8c8', label: 'Untracked' },
+  renamed: { icon: 'R', color: '#9a80c0', label: 'Renamed' },
 };
 
 // ============================================================================
