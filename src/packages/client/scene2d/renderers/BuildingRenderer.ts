@@ -3,12 +3,19 @@ import type { Scene2DCamera } from '../Scene2DCamera';
 import { BaseRenderer } from './BaseRenderer';
 
 const STATUS_COLORS: Record<string, { color: string; glow: string; darkColor: string }> = {
+  // Agent statuses
   idle: { color: '#4aff9e', glow: 'rgba(74, 255, 158, 0.6)', darkColor: '#2a9a5e' },
   working: { color: '#4a9eff', glow: 'rgba(74, 158, 255, 0.6)', darkColor: '#2a5e9a' },
   waiting: { color: '#ffcc00', glow: 'rgba(255, 204, 0, 0.6)', darkColor: '#9a7a00' },
   waiting_permission: { color: '#ffcc00', glow: 'rgba(255, 204, 0, 0.6)', darkColor: '#9a7a00' },
-  error: { color: '#ff4a4a', glow: 'rgba(255, 74, 74, 0.6)', darkColor: '#9a2a2a' },
   orphaned: { color: '#ff00ff', glow: 'rgba(255, 0, 255, 0.6)', darkColor: '#9a009a' },
+  // Building statuses
+  running: { color: '#4aff9e', glow: 'rgba(74, 255, 158, 0.6)', darkColor: '#2a9a5e' },
+  stopped: { color: '#8a8a8a', glow: 'rgba(138, 138, 138, 0.6)', darkColor: '#5a5a5a' },
+  starting: { color: '#4a9eff', glow: 'rgba(74, 158, 255, 0.6)', darkColor: '#2a5e9a' },
+  stopping: { color: '#ffaa00', glow: 'rgba(255, 170, 0, 0.6)', darkColor: '#9a6a00' },
+  unknown: { color: '#ffaa00', glow: 'rgba(255, 170, 0, 0.6)', darkColor: '#9a6a00' },
+  error: { color: '#ff4a4a', glow: 'rgba(255, 74, 74, 0.6)', darkColor: '#9a2a2a' },
 };
 
 const BUILDING_STYLES_CONFIG: Record<string, { color: string; darkColor: string; emoji: string }> = {
@@ -33,7 +40,7 @@ export class BuildingRenderer extends BaseRenderer {
     const { x, z } = building.position;
     const baseSize = 1.8 * building.scale;
     const styleConfig = BUILDING_STYLES_CONFIG[building.style] || BUILDING_STYLES_CONFIG['server-rack'];
-    const statusConfig = STATUS_COLORS[building.status] || STATUS_COLORS.idle;
+    const statusConfig = STATUS_COLORS[building.status] || STATUS_COLORS.stopped;
 
     let mainColor = styleConfig.color;
     let darkColor = styleConfig.darkColor;

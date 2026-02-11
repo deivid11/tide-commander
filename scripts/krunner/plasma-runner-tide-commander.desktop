@@ -1,0 +1,16 @@
+[Desktop Entry]
+Name=Tide Commander
+Comment=Find and focus Tide agents and areas
+Type=Service
+Icon=utilities-terminal
+X-KDE-ServiceTypes=Plasma/Runner
+X-KDE-PluginInfo-Name=tide-commander
+X-KDE-PluginInfo-Version=1.0
+X-KDE-PluginInfo-License=MIT
+X-KDE-PluginInfo-EnabledByDefault=true
+X-Plasma-API=DBus
+X-Plasma-DBusRunner-Service=org.riven.tide.krunner
+X-Plasma-DBusRunner-Path=/runner
+X-Plasma-Request-Actions-Once=true
+X-Plasma-Runner-Syntaxes=tc :q:,tide :q:
+X-Plasma-Runner-Syntax-Descriptions=Find Tide agents and areas by name,Find Tide agents and areas by name

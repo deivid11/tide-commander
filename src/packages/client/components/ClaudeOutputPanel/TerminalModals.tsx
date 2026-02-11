@@ -120,8 +120,8 @@ export function ContextConfirmModal({ action, selectedAgentId, subordinateCount,
 
   return (
     <ModalPortal>
-      <div className="modal-overlay visible" onMouseDown={handleBackdropMouseDown} onClick={handleBackdropClick}>
-        <div className="modal confirm-modal">
+      <div className="modal-overlay visible guake-context-confirm-overlay" onMouseDown={handleBackdropMouseDown} onClick={handleBackdropClick}>
+        <div className="modal confirm-modal guake-context-confirm-modal">
           <div className="modal-header">{getTitle()}</div>
           <div className="modal-body confirm-modal-body">
             {action === 'collapse' ? (

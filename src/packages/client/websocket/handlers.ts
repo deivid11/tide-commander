@@ -644,6 +644,30 @@ export function handleServerMessage(message: ServerMessage): void {
       break;
     }
 
+    case 'focus_agent': {
+      const { agentId, openTerminal } = message.payload as {
+        agentId: string;
+        openTerminal: boolean;
+      };
+      const agent = store.getState().agents.get(agentId);
+      if (!agent) {
+        console.warn(`[WebSocket] focus_agent ignored - agent not found: ${agentId}`);
+        break;
+      }
+      store.selectAgent(agentId);
+      if (openTerminal) {
+        store.setTerminalOpen(true);
+      }
+      // Best-effort browser-side activation to complement KWin focus calls.
+      const focusDelays = [0, 80, 220, 500, 1000];
+      for (const delay of focusDelays) {
+        window.setTimeout(() => {
+          window.focus();
+        }, delay);
+      }
+      break;
+    }
+
     // ========================================================================
     // Exec Task Messages (Streaming Command Execution)
     // ========================================================================

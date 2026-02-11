@@ -5,13 +5,14 @@
  */
 
 import React from 'react';
-import { store, useSupervisor, useSettings, useLastPrompts, useSubagentsForAgent } from '../../store';
+import { store, useSupervisor, useSettings, useLastPrompts, useSubagentsForAgent, useCustomAgentClass } from '../../store';
 import { filterCostText } from '../../utils/formatting';
 import { STORAGE_KEYS, setStorageString } from '../../utils/storage';
 import { agentDebugger } from '../../services/agentDebugger';
 import { Tooltip } from '../shared/Tooltip';
 import { WorkingIndicator } from '../shared/WorkingIndicator';
 import type { Agent, AgentAnalysis } from '../../../shared/types';
+import { BUILT_IN_AGENT_CLASSES } from '../../../shared/types';
 import type { ViewMode } from './types';
 import { VIEW_MODES } from './types';
 
@@ -132,6 +133,14 @@ export function TerminalHeader({
   // Check for active subagents (Claude Code Task tool subprocesses)
   const subagents = useSubagentsForAgent(selectedAgentId);
 
+  // Get agent class emoji
+  const customClass = useCustomAgentClass(
+    selectedAgent.class in BUILT_IN_AGENT_CLASSES ? null : selectedAgent.class
+  );
+  const agentEmoji = customClass?.icon
+    || (BUILT_IN_AGENT_CLASSES as Record<string, { icon: string }>)[selectedAgent.class]?.icon
+    || '🤖';
+
   return (
     <div
       className={`guake-header ${sortedAgents.length > 1 ? 'has-multiple-agents' : ''} ${swipeOffset > 0.1 ? 'swiping-right' : ''} ${swipeOffset < -0.1 ? 'swiping-left' : ''}`}
@@ -169,11 +178,11 @@ export function TerminalHeader({
             onClick={onToggleAgentInfo}
             title="Show agent info"
           >
-            <span className="guake-title">{selectedAgent.name}</span>
+            <span className="guake-title">{agentEmoji} {selectedAgent.name}</span>
             <span className="guake-title-info">ⓘ</span>
           </button>
         ) : (
-          <span className="guake-title">{selectedAgent.name}</span>
+          <span className="guake-title">{agentEmoji} {selectedAgent.name}</span>
         )}
         {(lastInput || agentAnalysis) && (
           <span

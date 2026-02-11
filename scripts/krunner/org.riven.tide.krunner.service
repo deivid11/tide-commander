@@ -1,0 +1,3 @@
+[D-BUS Service]
+Name=org.riven.tide.krunner
+Exec=${HOME}/.local/bin/tide-krunner-runner

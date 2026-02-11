@@ -639,6 +639,15 @@ export interface AgentNotificationMessage extends WSMessage {
   payload: AgentNotification;
 }
 
+// Focus agent request pushed by REST endpoint (Server -> Client)
+export interface FocusAgentMessage extends WSMessage {
+  type: 'focus_agent';
+  payload: {
+    agentId: string;
+    openTerminal: boolean;
+  };
+}
+
 // Send notification request (Client -> Server, from agent via skill)
 export interface SendNotificationMessage extends WSMessage {
   type: 'send_notification';
@@ -1347,6 +1356,7 @@ export type ServerMessage =
   | AnalysisRequestCompletedMessage
   | GlobalUsageMessage
   | AgentNotificationMessage
+  | FocusAgentMessage
   | ExecTaskStartedMessage
   | ExecTaskOutputMessage
   | ExecTaskCompletedMessage

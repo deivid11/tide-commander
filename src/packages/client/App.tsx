@@ -149,6 +149,7 @@ function AppContent() {
   });
 
   const state = useStore();
+  const deepLinkHandledRef = useRef(false);
 
   // Scene synchronization hooks
   useSelectionSync(sceneRef);
@@ -156,6 +157,56 @@ function AppContent() {
   useBuildingSync(sceneRef);
   useAreaHighlight(sceneRef, state.selectedAreaId);
   usePowerSaving(sceneRef, state.settings.powerSaving);
+
+  // POC: allow external launchers (e.g. KRunner) to deep-link into an agent terminal.
+  // Supported query params:
+  // - agentId=<id>
+  // - agentName=<name>
+  // - openTerminal=1|true|yes (defaults to true when agentId/agentName is present)
+  useEffect(() => {
+    if (deepLinkHandledRef.current) return;
+    if (typeof window === 'undefined') return;
+
+    const params = new URLSearchParams(window.location.search);
+    const rawAgentId = params.get('agentId')?.trim();
+    const rawAgentName = params.get('agentName')?.trim();
+    if (!rawAgentId && !rawAgentName) return;
+
+    // Wait until agents are available from initial websocket sync.
+    if (state.agents.size === 0) return;
+
+    const openTerminalParam = params.get('openTerminal');
+    const shouldOpenTerminal = openTerminalParam
+      ? ['1', 'true', 'yes'].includes(openTerminalParam.toLowerCase())
+      : true;
+
+    let targetAgent = rawAgentId ? state.agents.get(rawAgentId) : undefined;
+    if (!targetAgent && rawAgentName) {
+      const lowerName = rawAgentName.toLowerCase();
+      targetAgent = Array.from(state.agents.values()).find((agent) => agent.name.toLowerCase() === lowerName);
+    }
+
+    if (!targetAgent) {
+      console.warn('[DeepLink] No matching agent found for query params', { rawAgentId, rawAgentName });
+      deepLinkHandledRef.current = true;
+      return;
+    }
+
+    store.selectAgent(targetAgent.id);
+    if (shouldOpenTerminal) {
+      store.setTerminalOpen(true);
+    }
+
+    // Remove one-shot deep-link params from URL without reloading.
+    params.delete('agentId');
+    params.delete('agentName');
+    params.delete('openTerminal');
+    const nextQuery = params.toString();
+    const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ''}${window.location.hash}`;
+    window.history.replaceState({}, document.title, nextUrl);
+
+    deepLinkHandledRef.current = true;
+  }, [state.agents]);
 
   // Keyboard shortcuts
   useKeyboardShortcuts({
