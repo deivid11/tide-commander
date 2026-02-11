@@ -121,11 +121,13 @@ ${BT3}
 
 **Symfony-Specific Instructions:**
 - Script: "symfony" (requires Symfony CLI installed and in PATH)
-- Args: "server:start --allow-http --port=XXXX"
+- Args: "server:start --allow-http --port=XXXX --daemon"
 - --allow-http: Allows HTTP (use for dev). Remove for HTTPS
+- **IMPORTANT: Add --daemon flag** - Symfony runs as daemon by default, required for PM2 tracking
 - Port goes in args, not env vars
 - PM2 auto-detects port from startup output
 - Note: Symfony server opens an extra port (42421 in example) for the server monitor
+- Tip: Check status with: symfony server:status
 
 ### PHP Built-in Server (Wind Back - Port 7205)
 
@@ -233,6 +235,40 @@ jq '.buildings += [{
 ${BT3}
 
 Key: Full bun path, multiple env vars, uses concurrently internally.
+
+### Vite + Bun Frontend (Wind Front - Port 6205)
+
+${BT3}bash
+jq '.buildings += [{
+  "name": "Wind Front",
+  "type": "server",
+  "style": "desktop",
+  "color": "#4a3a2a",
+  "position": {"x": -3.5, "z": -8.0},
+  "cwd": "/home/riven/d/wind/front",
+  "pm2": {
+    "enabled": true,
+    "script": "/home/riven/.bun/bin/bun",
+    "args": "run dev",
+    "interpreter": "none",
+    "env": {"PORT": "6205"}
+  },
+  "scale": 0.75,
+  "id": "building_1707471234572_wind_front",
+  "status": "stopped",
+  "createdAt": 1707471234572
+}]' ~/.local/share/tide-commander/buildings.json > /tmp/b.json && mv /tmp/b.json ~/.local/share/tide-commander/buildings.json
+${BT3}
+
+**Vite Frontend Configuration:**
+- Script: Full path to bun binary (or "npm" if using npm)
+- Args: "run dev" (Vite dev server command)
+- **IMPORTANT: Update vite.config.mjs to read PORT env var:**
+  - Add to server config: ${BT}port: parseInt(process.env.PORT || "6205", 10)${BT}
+  - Add: ${BT}host: true${BT} to allow network access
+  - Set ${BT}open: false${BT} to prevent auto-opening browser
+- Port passed via env var, not args
+- Tip: Check config with: cat vite.config.mjs | grep -A 5 "server:"
 
 ### Boss Building (Navi - Manages Back & Front)
 
@@ -391,6 +427,32 @@ ${BT3}
 - Quick prototypes
 - Development only (not production-grade)
 
+## Lessons Learned from Real Deployments
+
+### Symfony Server with PM2
+- **Problem**: Symfony server runs as daemon and PM2 loses track (shows as "errored")
+- **Solution**: Add ${BT}--daemon${BT} flag explicitly to args
+- **Verification**: ${BT}symfony server:status${BT} shows running instance
+- **Port Monitoring**: Opens main port + monitor port (e.g., 7205 + 42421)
+
+### Vite Configuration for Environment Variables
+- **Problem**: PORT env var set in PM2 but Vite ignores it (uses hardcoded port)
+- **Solution**: Update vite.config.mjs to read PORT from process.env:
+  - ${BT3}javascript
+  - server: {
+  -   port: parseInt(process.env.PORT || "6205", 10),
+  -   open: false,
+  -   host: true,
+  - }
+  - ${BT3}
+- **Verification**: ${BT}ss -tlnp | grep PORT_NUMBER${BT} shows process listening
+- **Tip**: Set ${BT}open: false${BT} to prevent browser pop-ups in headless environments
+
+### Binary Corruption Issues
+- **Problem**: Bun binary shows "cannot execute binary file" errors
+- **Solution**: Reinstall with ${BT}curl -fsSL https://bun.sh/install | bash${BT}
+- **Verification**: ${BT}bun --version${BT} returns version number
+
 ## PM2 Configuration Rules
 
 1. **Always use PM2 mode** for server buildings (pm2.enabled: true)
@@ -406,6 +468,10 @@ ${BT3}
    - Vite/Node apps: set via env var (PORT)
    - PHP/Symfony/Java: set via args (--port=XXXX or -S ADDR:PORT)
    - PM2 auto-detects ports from console output
+5. **Special cases**:
+   - Symfony: Add --daemon flag for PM2 tracking
+   - Vite: Update vite.config.mjs to read PORT env var
+   - Full bun path: Use /home/riven/.bun/bin/bun (not just "bun")
 
 ## Important Notes
 
