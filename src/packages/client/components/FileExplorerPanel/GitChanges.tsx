@@ -52,7 +52,7 @@ const GitFileItem = memo(function GitFileItem({
       title={file.path}
     >
       <span className="tree-arrow-spacer" />
-      <span className="tree-icon">{getIconForExtension(ext)}</span>
+      <img className="tree-icon" src={getIconForExtension(ext)} alt="file" />
       <span className="git-file-name">
         {file.name}
         {dirPath && <span className="git-file-dir">{dirPath}</span>}
@@ -130,7 +130,11 @@ const GitTreeNodeItem = memo(function GitTreeNodeItem({
         onClick={() => onToggleDir(node.path)}
       >
         <span className={`tree-arrow ${isExpanded ? 'expanded' : ''}`}>▸</span>
-        <span className="tree-folder-icon">{isExpanded ? '📂' : '📁'}</span>
+        <img
+          className="tree-folder-icon"
+          src={isExpanded ? '/assets/vscode-icons/default_folder_opened.svg' : '/assets/vscode-icons/default_folder.svg'}
+          alt="folder"
+        />
         <span className="tree-name">{node.name}</span>
         <span className="git-tree-file-count">
           {node.fileCount} {node.fileCount === 1 ? 'file' : 'files'}
