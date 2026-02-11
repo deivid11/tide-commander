@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.56.0] - 2026-02-10
+
+### Added
+- **Deep linking** - Open agent terminals via URL query params (`?agentId=X` or `?agentName=Y&openTerminal=1`)
+- **Focus agent API** - New `POST /api/focus-agent` endpoint to focus an agent and open its terminal via WebSocket broadcast
+- **Areas API** - New `GET /api/areas` endpoint to list drawing areas
+- **KRunner integration** - KDE Plasma KRunner plugin for searching and focusing agents from desktop
+- **Building status colors** - Added status colors for building states (running, stopped, starting, stopping, unknown) in 2D renderer
+- **Agent class emoji** - Terminal header now shows agent class emoji/icon next to agent name
+
+### Changed
+- **Bitbucket PR skill** - Migrated from basic auth (`-u user:pass`) to Bearer token auth (`-H "Authorization: Bearer ..."`), reduced from 2 secrets to 1 (`BITBUCKET_TOKEN`), added variable management guide and PR ID extraction
+- **Terminal click-outside handling** - Refactored to `isWithinGuakeSurface()` helper; portal-rendered modals no longer close the terminal when clicked
+- **Modal stack registration** - Bash modal, response modal, context confirm, and agent info now register on the modal stack so Escape closes them before the terminal
+- **Context confirm modal** - Added dedicated CSS class names for styling
+- **Building default status** - Unknown building status now falls back to `stopped` instead of `idle`
+
 ## [0.55.0] - 2026-02-09
 
 ### Added

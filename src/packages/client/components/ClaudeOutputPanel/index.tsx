@@ -203,7 +203,13 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
   const [agentInfoOpen, setAgentInfoOpen] = useState(false);
 
   // Register terminal-local modals so global Escape can close the top-most one first.
+  // Without these, closeTopModal() in useKeyboardShortcuts would skip past the modal
+  // and close the terminal itself (since 'terminal' is also on the stack).
   useModalStackRegistration('guake-image-modal', imageModal !== null, () => setImageModal(null));
+  useModalStackRegistration('guake-bash-modal', bashModal !== null, () => setBashModal(null));
+  useModalStackRegistration('guake-response-modal', responseModalContent !== null, () => setResponseModalContent(null));
+  useModalStackRegistration('guake-context-confirm', contextConfirm !== null, () => setContextConfirm(null));
+  useModalStackRegistration('guake-agent-info', agentInfoOpen, () => setAgentInfoOpen(false));
 
   // Debug panel state
   const [debugPanelOpen, setDebugPanelOpen] = useState(false);
@@ -740,6 +746,20 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
     const isMobile = window.innerWidth <= 768;
     if (isMobile) return;
 
+    const isWithinGuakeSurface = (target: EventTarget | null): boolean => {
+      if (!(target instanceof Element)) return false;
+
+      const isInTerminal = terminalRef.current?.contains(target);
+      const isAgentBar = target.closest('.agent-bar');
+      // Modals are rendered through portals under document.body.
+      // Any modal interaction should never count as an outside click for Guake.
+      const isInModal = !!target.closest(
+        '.modal-overlay, .modal, .image-modal-overlay, .image-modal, .bash-modal-overlay, .bash-modal, .agent-info-modal-overlay, .agent-info-modal, .agent-response-modal, .pasted-text-modal-overlay, .pasted-text-modal, .file-viewer-overlay, .file-viewer-modal, .context-view-modal, .guake-context-confirm-overlay, .guake-context-confirm-modal'
+      );
+
+      return !!isInTerminal || !!isAgentBar || isInModal;
+    };
+
     const handleMouseDown = (e: MouseEvent) => {
       // Only track if terminal is currently open
       if (!isOpenRef.current) {
@@ -747,11 +767,7 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
         return;
       }
 
-      const target = e.target as HTMLElement;
-      const isInTerminal = terminalRef.current?.contains(target);
-      const isAgentBar = target.closest('.agent-bar');
-
-      isMouseDownOutsideRef.current = !isInTerminal && !isAgentBar;
+      isMouseDownOutsideRef.current = !isWithinGuakeSurface(e.target);
     };
 
     const handleMouseUp = (e: MouseEvent) => {
@@ -760,11 +776,7 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
         return;
       }
 
-      const target = e.target as HTMLElement;
-      const isInTerminal = terminalRef.current?.contains(target);
-      const isAgentBar = target.closest('.agent-bar');
-
-      if (!isInTerminal && !isAgentBar) {
+      if (!isWithinGuakeSurface(e.target)) {
         store.setTerminalOpen(false);
       }
       isMouseDownOutsideRef.current = false;
