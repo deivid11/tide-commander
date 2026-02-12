@@ -46,6 +46,14 @@
   min-height: 0;
 }
 
+.file-viewer-content-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  position: relative;
+}
+
 .file-viewer-header {
   display: flex;
   justify-content: space-between;
@@ -415,4 +423,185 @@
   font-size: 13px;
   color: $text-secondary;
   margin-top: 8px;
+}
+
+// Scroll position indicator (less-style navigation)
+.file-viewer-scroll-indicator {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba($dracula-bg-darker, 0.95);
+  border: 1px solid rgba($border-color, 0.6);
+  border-radius: $radius-sm;
+  padding: 4px 8px;
+  font-family: $font-mono;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  pointer-events: none;
+  user-select: none;
+  transition: all $transition-fast;
+  opacity: 0.75;
+  z-index: 10;
+  backdrop-filter: blur(4px);
+
+  &:hover {
+    opacity: 1;
+    background: rgba($dracula-bg-darker, 1);
+    border-color: $accent-cyan;
+  }
+
+  .indicator-position {
+    color: $accent-cyan;
+    font-weight: 600;
+  }
+
+  .indicator-separator {
+    color: $dracula-comment;
+  }
+
+  .indicator-percentage {
+    color: $dracula-yellow;
+    font-weight: 500;
+  }
+}
+
+// Search bar (less-style search)
+.file-viewer-search-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba($dracula-bg-darker, 0.98);
+  border-top: 1px solid $border-color;
+  padding: 8px 12px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  backdrop-filter: blur(8px);
+  z-index: 20;
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.file-viewer-search-input-wrapper {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  background: rgba($dracula-bg, 0.8);
+  border: 1px solid rgba($border-color, 0.8);
+  border-radius: $radius-sm;
+  overflow: hidden;
+  transition: all $transition-fast;
+
+  &:focus-within {
+    border-color: $accent-cyan;
+    background: $dracula-bg;
+    box-shadow: 0 0 0 2px rgba($accent-cyan, 0.2);
+  }
+}
+
+.file-viewer-search-prefix {
+  color: $dracula-comment;
+  font-family: $font-mono;
+  font-size: 12px;
+  padding: 0 8px;
+  flex-shrink: 0;
+}
+
+.file-viewer-search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: $dracula-fg;
+  padding: 6px 0 6px 0;
+  font-family: $font-mono;
+  font-size: 12px;
+  outline: none;
+
+  &::placeholder {
+    color: rgba($text-muted, 0.6);
+  }
+}
+
+.file-viewer-search-counter {
+  font-family: $font-mono;
+  font-size: 11px;
+  color: $dracula-comment;
+  padding: 0 6px;
+  white-space: nowrap;
+}
+
+.file-viewer-search-nav {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.file-viewer-search-btn {
+  background: transparent;
+  border: 1px solid $border-color;
+  color: $text-muted;
+  width: 24px;
+  height: 24px;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  transition: all $transition-fast;
+  padding: 0;
+
+  &:hover:not(:disabled) {
+    background: rgba($accent-cyan, 0.15);
+    border-color: $accent-cyan;
+    color: $accent-cyan;
+  }
+
+  &:active:not(:disabled) {
+    background: rgba($accent-cyan, 0.25);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+.file-viewer-search-close {
+  background: transparent;
+  border: 1px solid $border-color;
+  color: $text-muted;
+  width: 24px;
+  height: 24px;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  transition: all $transition-fast;
+  padding: 0;
+
+  &:hover {
+    background: rgba($dracula-red, 0.15);
+    border-color: $dracula-red;
+    color: $dracula-red;
+  }
+
+  &:active {
+    background: rgba($dracula-red, 0.25);
+  }
+}
+
+// Search match highlight
+.search-match {
+  background: rgba($dracula-yellow, 0.3);
+  border-radius: 2px;
+
+  &.current {
+    background: rgba($dracula-orange, 0.5);
+    outline: 1px solid $dracula-orange;
+  }
 }

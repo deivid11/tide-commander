@@ -14,6 +14,9 @@ import { formatFileSize } from './fileUtils';
 import { highlightElement, getLanguageForExtension } from './syntaxHighlighting';
 import { apiUrl, authFetch } from '../../utils/storage';
 import { useStore } from '../../store';
+import { useLessNavigation, type SearchMatch } from '../../hooks/useLessNavigation';
+import { SearchBar } from './SearchBar';
+import { KeybindingsHelp } from './KeybindingsHelp';
 
 // ============================================================================
 // CONSTANTS
@@ -202,16 +205,122 @@ function toSvgDataUrl(svg: string): string {
 
 /**
  * Text file viewer with syntax highlighting and line numbers
+ * Supports vim/less-style keyboard navigation via useLessNavigation hook
  */
 function TextFileViewer({ file, onRevealInTree, scrollToLine }: { file: FileData; onRevealInTree?: (path: string) => void; scrollToLine?: number }) {
   const codeRef = useRef<HTMLElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  // Setup less-style keyboard navigation with search
+  const navigation = useLessNavigation({
+    containerRef: contentRef as React.RefObject<HTMLDivElement>,
+    isEnabled: true,
+    content: file.content,
+  });
 
   useEffect(() => {
     if (codeRef.current) {
       highlightElement(codeRef.current);
     }
   }, [file]);
+
+  // Apply search highlights when matches change
+  useEffect(() => {
+    if (!codeRef.current) return;
+
+    const codeElement = codeRef.current;
+    const preElement = codeElement.parentElement;
+    if (!preElement) return;
+
+    // Clear previous highlights by removing mark elements
+    const existingMarks = preElement.querySelectorAll('mark');
+    existingMarks.forEach((mark) => {
+      const parent = mark.parentNode;
+      if (parent) {
+        while (mark.firstChild) {
+          parent.insertBefore(mark.firstChild, mark);
+        }
+        parent.removeChild(mark);
+      }
+    });
+
+    // If no matches, return
+    if (navigation.searchMatches.length === 0) return;
+
+    const matches = navigation.searchMatches;
+    const currentIndex = navigation.currentMatchIndex;
+
+    // Get the full text content of the code element
+    const fullText = codeElement.textContent || '';
+
+    // Walk through text nodes and apply highlights
+    const walker = document.createTreeWalker(
+      codeElement,
+      NodeFilter.SHOW_TEXT,
+      null
+    );
+
+    let currentOffset = 0;
+    let textNode: Node | null;
+    const nodesToProcess: Array<{ node: Text; startOffset: number; endOffset: number }> = [];
+
+    // First pass: collect text nodes and their character ranges
+    while ((textNode = walker.nextNode())) {
+      const text = textNode.textContent || '';
+      const endOffset = currentOffset + text.length;
+      nodesToProcess.push({
+        node: textNode as Text,
+        startOffset: currentOffset,
+        endOffset,
+      });
+      currentOffset = endOffset;
+    }
+
+    // Second pass: apply highlights to matching text
+    nodesToProcess.forEach(({ node, startOffset, endOffset }) => {
+      const fragment = document.createDocumentFragment();
+      const text = node.textContent || '';
+      let lastIndex = 0;
+
+      // Find all matches within this node's range
+      matches.forEach((match, idx) => {
+        const matchStart = match.charIndex;
+        const matchEnd = matchStart + match.length;
+
+        // Check if match overlaps with this node
+        if (matchEnd > startOffset && matchStart < endOffset) {
+          const nodeStart = Math.max(0, matchStart - startOffset);
+          const nodeEnd = Math.min(text.length, matchEnd - startOffset);
+
+          // Add text before match
+          if (nodeStart > lastIndex) {
+            fragment.appendChild(
+              document.createTextNode(text.substring(lastIndex, nodeStart))
+            );
+          }
+
+          // Add highlighted match
+          const mark = document.createElement('mark');
+          mark.textContent = text.substring(nodeStart, nodeEnd);
+          mark.className = idx === currentIndex ? 'search-match current' : 'search-match';
+          fragment.appendChild(mark);
+
+          lastIndex = nodeEnd;
+        }
+      });
+
+      // Add remaining text
+      if (lastIndex < text.length) {
+        fragment.appendChild(document.createTextNode(text.substring(lastIndex)));
+      }
+
+      // Replace node if we created highlights
+      if (lastIndex > 0) {
+        node.parentNode?.replaceChild(fragment, node);
+      }
+    });
+  }, [navigation.searchMatches, navigation.currentMatchIndex]);
 
   // Scroll to target line
   useEffect(() => {
@@ -233,24 +342,47 @@ function TextFileViewer({ file, onRevealInTree, scrollToLine }: { file: FileData
   return (
     <>
       <FileViewerHeader file={file} onRevealInTree={onRevealInTree} />
-      <div className="file-viewer-code-with-lines" ref={wrapperRef}>
-        <div className="file-viewer-line-gutter" aria-hidden="true">
-          {Array.from({ length: lineCount }, (_, i) => (
-            <div key={i + 1} className={`file-viewer-line-num${scrollToLine === i + 1 ? ' highlighted' : ''}`}>{i + 1}</div>
-          ))}
+      <div className="file-viewer-content-wrapper" ref={contentRef}>
+        <div className="file-viewer-code-with-lines" ref={wrapperRef}>
+          <div className="file-viewer-line-gutter" aria-hidden="true">
+            {Array.from({ length: lineCount }, (_, i) => (
+              <div key={i + 1} className={`file-viewer-line-num${scrollToLine === i + 1 ? ' highlighted' : ''}`}>{i + 1}</div>
+            ))}
+          </div>
+          <pre className="file-viewer-pre">
+            <code ref={codeRef} className={`language-${language}`}>
+              {file.content}
+            </code>
+          </pre>
         </div>
-        <pre className="file-viewer-pre">
-          <code ref={codeRef} className={`language-${language}`}>
-            {file.content}
-          </code>
-        </pre>
+        {/* Scroll position indicator with line:column */}
+        <div className="file-viewer-scroll-indicator" title={`Line ${navigation.currentLine} of ${navigation.totalLines} (${navigation.scrollPercentage}%)`}>
+          <span className="indicator-position">{navigation.currentLine}</span>
+          <span className="indicator-separator">:</span>
+          <span className="indicator-percentage">{navigation.scrollPercentage === 100 ? 'END' : navigation.scrollPercentage === 0 ? 'TOP' : `${navigation.scrollPercentage}%`}</span>
+        </div>
+        {/* Search bar */}
+        {navigation.searchActive && (
+          <SearchBar
+            query={navigation.searchQuery}
+            onQueryChange={navigation.setSearchQuery}
+            matchCount={navigation.searchMatches.length}
+            currentIndex={navigation.currentMatchIndex}
+            onNext={navigation.nextMatch}
+            onPrev={navigation.prevMatch}
+            onClose={navigation.clearSearch}
+          />
+        )}
       </div>
+      {/* Keybindings help overlay */}
+      {navigation.helpActive && <KeybindingsHelp onClose={navigation.toggleHelp} />}
     </>
   );
 }
 
 /**
  * Markdown file viewer with render toggle
+ * Supports vim/less-style keyboard navigation via useLessNavigation hook
  */
 function MarkdownFileViewer({
   file,
@@ -265,8 +397,16 @@ function MarkdownFileViewer({
 }) {
   const codeRef = useRef<HTMLElement>(null);
   const markdownContentRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const [copyRichTextStatus, setCopyRichTextStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [copyHtmlStatus, setCopyHtmlStatus] = useState<'idle' | 'copied' | 'error'>('idle');
+
+  // Setup less-style keyboard navigation
+  const navigation = useLessNavigation({
+    containerRef: contentRef as React.RefObject<HTMLDivElement>,
+    isEnabled: true,
+    content: file.content,
+  });
 
   useEffect(() => {
     // Apply syntax highlighting when showing source code
@@ -357,27 +497,48 @@ function MarkdownFileViewer({
   return (
     <>
       <FileViewerHeader file={file} onRevealInTree={onRevealInTree} rightContent={headerButtons} />
-      {renderMarkdown ? (
-        <div className="file-viewer-markdown-wrapper">
-          <div className="markdown-content" ref={markdownContentRef}>
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{file.content}</ReactMarkdown>
+      <div className="file-viewer-content-wrapper" ref={contentRef}>
+        {renderMarkdown ? (
+          <div className="file-viewer-markdown-wrapper">
+            <div className="markdown-content" ref={markdownContentRef}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{file.content}</ReactMarkdown>
+            </div>
           </div>
+        ) : (
+          <div className="file-viewer-code-wrapper">
+            <pre className="file-viewer-pre">
+              <code ref={codeRef} className="language-markdown">
+                {file.content}
+              </code>
+            </pre>
+          </div>
+        )}
+        {/* Scroll position indicator */}
+        <div className="file-viewer-scroll-indicator" title={`Line ${navigation.currentLine}/${navigation.totalLines}`}>
+          {navigation.scrollPercentage === 100 ? 'END' : navigation.scrollPercentage === 0 ? 'TOP' : `${navigation.scrollPercentage}%`}
         </div>
-      ) : (
-        <div className="file-viewer-code-wrapper">
-          <pre className="file-viewer-pre">
-            <code ref={codeRef} className="language-markdown">
-              {file.content}
-            </code>
-          </pre>
-        </div>
-      )}
+        {/* Search bar */}
+        {navigation.searchActive && (
+          <SearchBar
+            query={navigation.searchQuery}
+            onQueryChange={navigation.setSearchQuery}
+            matchCount={navigation.searchMatches.length}
+            currentIndex={navigation.currentMatchIndex}
+            onNext={navigation.nextMatch}
+            onPrev={navigation.prevMatch}
+            onClose={navigation.clearSearch}
+          />
+        )}
+      </div>
+      {/* Keybindings help overlay */}
+      {navigation.helpActive && <KeybindingsHelp onClose={navigation.toggleHelp} />}
     </>
   );
 }
 
 /**
  * PlantUML file viewer with diagram render toggle
+ * Supports vim/less-style keyboard navigation via useLessNavigation hook
  */
 function PlantUmlFileViewer({
   file,
@@ -391,9 +552,17 @@ function PlantUmlFileViewer({
   onToggleRender: () => void;
 }) {
   const codeRef = useRef<HTMLElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const [diagramDataUrl, setDiagramDataUrl] = useState<string | null>(null);
   const [isRendering, setIsRendering] = useState(false);
   const [renderError, setRenderError] = useState<string | null>(null);
+
+  // Setup less-style keyboard navigation
+  const navigation = useLessNavigation({
+    containerRef: contentRef as React.RefObject<HTMLDivElement>,
+    isEnabled: true,
+    content: file.content,
+  });
 
   useEffect(() => {
     if (!renderPlantUml && codeRef.current) {
@@ -467,34 +636,54 @@ function PlantUmlFileViewer({
   return (
     <>
       <FileViewerHeader file={file} onRevealInTree={onRevealInTree} rightContent={headerButtons} />
-      {renderPlantUml ? (
-        <div className="file-viewer-diagram-wrapper">
-          {isRendering && <div className="file-viewer-placeholder">Rendering diagram...</div>}
-          {!isRendering && diagramDataUrl && (
-            <img
-              src={diagramDataUrl}
-              alt={file.filename}
-              className="file-viewer-diagram-image"
-            />
-          )}
-          {!isRendering && renderError && (
-            <div className="file-viewer-diagram-error">
-              <div>Could not render diagram: {renderError}</div>
-              <button className="file-viewer-render-toggle" onClick={onToggleRender}>
-                Show source
-              </button>
-            </div>
-          )}
+      <div className="file-viewer-content-wrapper" ref={contentRef}>
+        {renderPlantUml ? (
+          <div className="file-viewer-diagram-wrapper">
+            {isRendering && <div className="file-viewer-placeholder">Rendering diagram...</div>}
+            {!isRendering && diagramDataUrl && (
+              <img
+                src={diagramDataUrl}
+                alt={file.filename}
+                className="file-viewer-diagram-image"
+              />
+            )}
+            {!isRendering && renderError && (
+              <div className="file-viewer-diagram-error">
+                <div>Could not render diagram: {renderError}</div>
+                <button className="file-viewer-render-toggle" onClick={onToggleRender}>
+                  Show source
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="file-viewer-code-wrapper">
+            <pre className="file-viewer-pre">
+              <code ref={codeRef} className="language-plaintext">
+                {file.content}
+              </code>
+            </pre>
+          </div>
+        )}
+        {/* Scroll position indicator */}
+        <div className="file-viewer-scroll-indicator" title={`Line ${navigation.currentLine}/${navigation.totalLines}`}>
+          {navigation.scrollPercentage === 100 ? 'END' : navigation.scrollPercentage === 0 ? 'TOP' : `${navigation.scrollPercentage}%`}
         </div>
-      ) : (
-        <div className="file-viewer-code-wrapper">
-          <pre className="file-viewer-pre">
-            <code ref={codeRef} className="language-plaintext">
-              {file.content}
-            </code>
-          </pre>
-        </div>
-      )}
+        {/* Search bar */}
+        {navigation.searchActive && (
+          <SearchBar
+            query={navigation.searchQuery}
+            onQueryChange={navigation.setSearchQuery}
+            matchCount={navigation.searchMatches.length}
+            currentIndex={navigation.currentMatchIndex}
+            onNext={navigation.nextMatch}
+            onPrev={navigation.prevMatch}
+            onClose={navigation.clearSearch}
+          />
+        )}
+      </div>
+      {/* Keybindings help overlay */}
+      {navigation.helpActive && <KeybindingsHelp onClose={navigation.toggleHelp} />}
     </>
   );
 }
