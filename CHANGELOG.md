@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.61.2] - 2026-02-13
+
+### Added
+- **Inline file inspection screenshot** - Added image to README showing clickable file edits in chat
+
+### Removed
+- **Article files** - Removed devto-article.md and medium-article.md
+
 ## [0.61.1] - 2026-02-13
 
 ### Added

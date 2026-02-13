@@ -159,6 +159,9 @@ AI coding orchestration and multi-agent management features:
 - 📺 **Commander View** - See all agent terminals at once in a grid, grouped by area
 - 📊 **Dashboard View** - Agent status cards, building overview, and metrics
 - 🖥️ **Guake Terminal** - Drop-down terminal overlay for agent conversations
+- 🔎 **Inline File Inspection** - Click on files added or edited by the agent directly in the chat to view diffs and contents — no need to leave Commander or open an IDE
+
+![Inline File Inspection](docs/img/edit_dtails_while_chatting.png)
 - 🌐 **Multiplayer** - WebSocket-based multi-user support
 - 📱 **Mobile Compatible** - Works on mobile devices and Android (optional APK)
 
