@@ -100,6 +100,8 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
   const [error, setError] = useState<string | null>(null);
   const [copyRichTextStatus, setCopyRichTextStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [copyHtmlStatus, setCopyHtmlStatus] = useState<'idle' | 'copied' | 'error'>('idle');
+  const [copyMarkdownStatus, setCopyMarkdownStatus] = useState<'idle' | 'copied' | 'error'>('idle');
+  const [copyOriginalStatus, setCopyOriginalStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const markdownContentRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -357,6 +359,40 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
     }
   }, []);
 
+  const handleCopyMarkdown = useCallback(async () => {
+    if (!fileData) {
+      setCopyMarkdownStatus('error');
+      setTimeout(() => setCopyMarkdownStatus('idle'), 2000);
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(fileData.content);
+      setCopyMarkdownStatus('copied');
+      setTimeout(() => setCopyMarkdownStatus('idle'), 2000);
+    } catch {
+      setCopyMarkdownStatus('error');
+      setTimeout(() => setCopyMarkdownStatus('idle'), 2000);
+    }
+  }, [fileData]);
+
+  const handleCopyOriginal = useCallback(async () => {
+    if (!fileData) {
+      setCopyOriginalStatus('error');
+      setTimeout(() => setCopyOriginalStatus('idle'), 2000);
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(fileData.content);
+      setCopyOriginalStatus('copied');
+      setTimeout(() => setCopyOriginalStatus('idle'), 2000);
+    } catch {
+      setCopyOriginalStatus('error');
+      setTimeout(() => setCopyOriginalStatus('idle'), 2000);
+    }
+  }, [fileData]);
+
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -405,6 +441,20 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
                   title="Copy as HTML tags (for Google Docs, HTML editors)"
                 >
                   {copyHtmlStatus === 'copied' ? '✓ Copied' : copyHtmlStatus === 'error' ? '✗ Error' : 'Copy HTML'}
+                </button>
+                <button
+                  className={`file-viewer-copy-html-btn ${copyMarkdownStatus}`}
+                  onClick={handleCopyMarkdown}
+                  title="Copy as markdown source"
+                >
+                  {copyMarkdownStatus === 'copied' ? '✓ Copied' : copyMarkdownStatus === 'error' ? '✗ Error' : 'Copy Markdown'}
+                </button>
+                <button
+                  className={`file-viewer-copy-html-btn ${copyOriginalStatus}`}
+                  onClick={handleCopyOriginal}
+                  title="Copy original file content"
+                >
+                  {copyOriginalStatus === 'copied' ? '✓ Copied' : copyOriginalStatus === 'error' ? '✗ Error' : 'Copy Original'}
                 </button>
               </>
             )}
