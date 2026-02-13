@@ -505,6 +505,8 @@ function MarkdownFileViewer({
   const contentRef = useRef<HTMLDivElement>(null);
   const [copyRichTextStatus, setCopyRichTextStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [copyHtmlStatus, setCopyHtmlStatus] = useState<'idle' | 'copied' | 'error'>('idle');
+  const [copyMarkdownStatus, setCopyMarkdownStatus] = useState<'idle' | 'copied' | 'error'>('idle');
+  const [copyOriginalStatus, setCopyOriginalStatus] = useState<'idle' | 'copied' | 'error'>('idle');
 
   // Setup less-style keyboard navigation
   const navigation = useLessNavigation({
@@ -569,6 +571,30 @@ function MarkdownFileViewer({
     }
   }, []);
 
+  // Copy as markdown source
+  const handleCopyMarkdown = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(file.content);
+      setCopyMarkdownStatus('copied');
+      setTimeout(() => setCopyMarkdownStatus('idle'), 2000);
+    } catch {
+      setCopyMarkdownStatus('error');
+      setTimeout(() => setCopyMarkdownStatus('idle'), 2000);
+    }
+  }, [file.content]);
+
+  // Copy original file content (plain text)
+  const handleCopyOriginal = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(file.content);
+      setCopyOriginalStatus('copied');
+      setTimeout(() => setCopyOriginalStatus('idle'), 2000);
+    } catch {
+      setCopyOriginalStatus('error');
+      setTimeout(() => setCopyOriginalStatus('idle'), 2000);
+    }
+  }, [file.content]);
+
   const headerButtons = (
     <div className="file-viewer-header-buttons">
       {renderMarkdown && (
@@ -586,6 +612,20 @@ function MarkdownFileViewer({
             title="Copy as HTML tags (for Google Docs, HTML editors)"
           >
             {copyHtmlStatus === 'copied' ? '✓ Copied' : copyHtmlStatus === 'error' ? '✗ Error' : 'Copy HTML'}
+          </button>
+          <button
+            className={`file-viewer-copy-html-btn ${copyMarkdownStatus}`}
+            onClick={handleCopyMarkdown}
+            title="Copy as markdown source"
+          >
+            {copyMarkdownStatus === 'copied' ? '✓ Copied' : copyMarkdownStatus === 'error' ? '✗ Error' : 'Copy Markdown'}
+          </button>
+          <button
+            className={`file-viewer-copy-html-btn ${copyOriginalStatus}`}
+            onClick={handleCopyOriginal}
+            title="Copy original file content"
+          >
+            {copyOriginalStatus === 'copied' ? '✓ Copied' : copyOriginalStatus === 'error' ? '✗ Error' : 'Copy Original'}
           </button>
         </>
       )}
