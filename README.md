@@ -4,8 +4,6 @@
 
 ![Tide Commander Preview](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/preview-3d.png)
 
-![2D View](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/preview-2d.png)
-
 [![Watch the demo](https://img.shields.io/badge/YouTube-Watch%20Demo-red?style=for-the-badge&logo=youtube)](https://www.youtube.com/watch?v=r1Op_xfhqOM)
 
 Tide Commander is a Claude Code and Codex orchestrator and manager that lets you deploy, control, and monitor multiple AI coding agents from a single visual interface. Spawn agents, assign tasks, and watch them work in real-time on an RTS-inspired 3D battlefield — or switch to a lightweight 2D canvas or a metrics dashboard.
@@ -126,7 +124,13 @@ Securely store API keys, tokens, and other credentials. Use `{{SECRET_NAME}}` pl
 ### View Modes
 Three ways to view the battlefield (cycle with Alt+2):
 - **3D View** - Full Three.js battlefield with character models and post-processing (default)
+
+![3D View](docs/example-battlefield.png)
+
 - **2D View** - Lightweight canvas-based rendering for better performance
+
+![2D View](docs/preview-2d.png)
+
 - **Dashboard** - Agent status cards, building overview, and metrics
 
 ![Dashboard View](docs/img/dashboard_view.png)

@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.61.3] - 2026-02-13
+
+### Changed
+- **README View Modes images** - Added 3D View (example-battlefield) and 2D View (preview-2d) screenshots to their respective View Modes sections; removed 2D preview from header area
+
 ## [0.61.2] - 2026-02-13
 
 ### Added
