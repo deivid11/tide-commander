@@ -133,18 +133,12 @@
     background 0.15s ease,
     color 0.15s ease,
     border-color 0.15s ease;
-  opacity: 0;
-
-  .right-panel:hover & {
-    opacity: 1;
-  }
+  opacity: 1;
 
   &:hover {
     background: $bg-secondary;
     color: #fff;
     border-color: rgba(255, 255, 255, 0.3);
-    width: 24px;
-    left: -14px;
   }
 
   &:active {
@@ -160,8 +154,6 @@
     background: rgba($bg-tertiary, 0.95);
 
     &:hover {
-      left: -28px;
-      width: 28px;
       background: rgba($accent-blue, 0.15);
       border-color: $accent-blue;
       color: $accent-blue;

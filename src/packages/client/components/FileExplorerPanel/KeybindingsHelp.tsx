@@ -14,32 +14,45 @@ export interface KeybindingsHelpProps {
 interface KeyBinding {
   keys: string[];
   description: string;
-  category: 'Navigation' | 'Search' | 'Help';
+  category: 'Navigation' | 'Word Motion' | 'Visual Mode' | 'Search' | 'Help';
 }
 
 const KEYBINDINGS: KeyBinding[] = [
   // Navigation - Vertical
-  { keys: ['j', '↓'], description: 'Scroll down one line', category: 'Navigation' },
-  { keys: ['k', '↑'], description: 'Scroll up one line', category: 'Navigation' },
-  { keys: ['d', 'Ctrl+D'], description: 'Scroll down half page', category: 'Navigation' },
-  { keys: ['u', 'Ctrl+U'], description: 'Scroll up half page', category: 'Navigation' },
-  { keys: ['f', 'Space', 'Page Down'], description: 'Scroll down full page', category: 'Navigation' },
-  { keys: ['b', 'Page Up'], description: 'Scroll up full page', category: 'Navigation' },
+  { keys: ['j', '↓'], description: 'Move cursor down one line', category: 'Navigation' },
+  { keys: ['k', '↑'], description: 'Move cursor up one line', category: 'Navigation' },
+  { keys: ['h', '←'], description: 'Move cursor left', category: 'Navigation' },
+  { keys: ['l', '→'], description: 'Move cursor right', category: 'Navigation' },
+  { keys: ['0'], description: 'Jump to start of line', category: 'Navigation' },
+  { keys: ['$'], description: 'Jump to end of line', category: 'Navigation' },
+  { keys: ['^'], description: 'First non-whitespace char', category: 'Navigation' },
+  { keys: ['d', 'Ctrl+D'], description: 'Half page down', category: 'Navigation' },
+  { keys: ['u', 'Ctrl+U'], description: 'Half page up', category: 'Navigation' },
+  { keys: ['f', 'Space'], description: 'Full page down', category: 'Navigation' },
+  { keys: ['b', 'Page Up'], description: 'Full page up', category: 'Navigation' },
   { keys: ['g', 'Home'], description: 'Jump to top of file', category: 'Navigation' },
   { keys: ['G', 'End'], description: 'Jump to bottom of file', category: 'Navigation' },
 
-  // Navigation - Horizontal
-  { keys: ['h', '←'], description: 'Scroll left (wide code)', category: 'Navigation' },
-  { keys: ['l', '→'], description: 'Scroll right (wide code)', category: 'Navigation' },
+  // Word motions
+  { keys: ['w'], description: 'Next word start', category: 'Word Motion' },
+  { keys: ['e'], description: 'Next word end', category: 'Word Motion' },
+  { keys: ['b'], description: 'Previous word start', category: 'Word Motion' },
+
+  // Visual mode
+  { keys: ['v'], description: 'Character visual mode', category: 'Visual Mode' },
+  { keys: ['V'], description: 'Line visual mode', category: 'Visual Mode' },
+  { keys: ['y'], description: 'Yank (copy) selection', category: 'Visual Mode' },
+  { keys: ['Escape'], description: 'Exit visual mode', category: 'Visual Mode' },
 
   // Search
   { keys: ['/'], description: 'Open search bar', category: 'Search' },
   { keys: ['n'], description: 'Next match', category: 'Search' },
-  { keys: ['N', 'Shift+N'], description: 'Previous match', category: 'Search' },
-  { keys: ['Escape'], description: 'Close search bar', category: 'Search' },
+  { keys: ['N'], description: 'Previous match', category: 'Search' },
 
   // Help
   { keys: ['?'], description: 'Toggle this help overlay', category: 'Help' },
+  { keys: ['Escape'], description: 'Exit cursor mode (or visual/search)', category: 'Help' },
+  { keys: ['Alt+E'], description: 'Close file viewer', category: 'Help' },
   { keys: ['q'], description: 'Close file viewer', category: 'Help' },
 ];
 
@@ -84,7 +97,7 @@ export const KeybindingsHelp: React.FC<KeybindingsHelpProps> = ({ onClose }) => 
         </button>
 
         <h2 className="keybindings-help-title">Keybindings Help</h2>
-        <p className="keybindings-help-subtitle">Less-style navigation for file viewer</p>
+        <p className="keybindings-help-subtitle">Vim-style navigation, selection, and copy</p>
 
         <div className="keybindings-help-categories">
           {Object.entries(categorized).map(([category, bindings]) => (

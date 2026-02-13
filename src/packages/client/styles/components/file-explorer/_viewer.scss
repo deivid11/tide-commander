@@ -265,6 +265,7 @@
   flex: 1;
   overflow: auto;
   min-height: 0;
+  position: relative;
 
   // Inner layout: gutter + code side by side
   // Using display:grid so both columns share the same row height (content-driven)
@@ -297,6 +298,49 @@
     color: $dracula-yellow;
     background: rgba($dracula-yellow, 0.1);
   }
+
+  &.cursor-line {
+    color: $dracula-fg;
+    background: rgba($dracula-current, 0.8);
+  }
+}
+
+// Terminal-style block cursor (vim style)
+.file-viewer-block-cursor {
+  position: absolute;
+  width: 1ch;
+  height: 1.5em; // matches line-height
+  background: rgba($dracula-fg, 0.7);
+  pointer-events: none;
+  z-index: 3;
+  animation: cursor-blink 1s step-end infinite;
+  mix-blend-mode: difference;
+
+  // In visual mode, cursor is solid (no blink) to show anchor clearly
+  &.visual-active {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+@keyframes cursor-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+// Visual selection highlight (vim visual mode)
+.file-viewer-visual-selection {
+  position: absolute;
+  height: 1.5em;
+  background: rgba($accent-purple, 0.3);
+  pointer-events: none;
+  z-index: 1;
+  min-width: 0.5ch;
 }
 
 .file-viewer-pre {
@@ -459,6 +503,13 @@
 
   .indicator-separator {
     color: $dracula-comment;
+  }
+
+  .indicator-mode {
+    color: $accent-purple;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
   }
 
   .indicator-percentage {

@@ -90,6 +90,18 @@ export function FileExplorerPanel({
     }
   }, [isDirectFolderMode, folderPath]);
 
+  // Persist last opened folder/area so re-opening without a target restores it
+  useEffect(() => {
+    if (!isOpen) return;
+    try {
+      if (isDirectFolderMode && folderPath) {
+        localStorage.setItem('file-explorer-last-opened', JSON.stringify({ type: 'folder', path: folderPath }));
+      } else if (areaId) {
+        localStorage.setItem('file-explorer-last-opened', JSON.stringify({ type: 'area', areaId }));
+      }
+    } catch { /* ignore */ }
+  }, [isOpen, isDirectFolderMode, folderPath, areaId]);
+
   // Get all folders from all areas for the folder selector
   const allFolders = useMemo<FolderInfo[]>(() => {
     const folders: FolderInfo[] = [];
@@ -169,6 +181,7 @@ export function FileExplorerPanel({
   const [hasRestoredState, setHasRestoredState] = useState(false);
   const [treePanelCollapsed, setTreePanelCollapsed] = useState(false);
   const [stagingPaths, setStagingPaths] = useState<Set<string>>(new Set());
+  const [isFileSearchActive, setIsFileSearchActive] = useState(false);
 
   // File tabs state
   const [openTabs, setOpenTabs] = useState<FileTab[]>([]);
@@ -198,6 +211,9 @@ export function FileExplorerPanel({
   // STORAGE PERSISTENCE
   // -------------------------------------------------------------------------
 
+  // Ref to hold expanded paths that should be applied after loadTree completes
+  const pendingExpandedPathsRef = useRef<Set<string> | null>(null);
+
   // Restore state from localStorage when panel opens
   useEffect(() => {
     if (!isOpen || hasRestoredState) return;
@@ -223,6 +239,8 @@ export function FileExplorerPanel({
         setViewMode(stored.viewMode);
         setSelectedFolderIndex(nextFolderIndex);
         setExpandedPaths(stored.expandedPaths);
+        // Store pending paths so they survive loadTree's reset
+        pendingExpandedPathsRef.current = stored.expandedPaths;
         // Mark view as initialized so auto-switch to git tab doesn't override restored preference
         setHasInitializedView(true);
 
@@ -237,6 +255,14 @@ export function FileExplorerPanel({
 
     restoreState();
   }, [isOpen, hasRestoredState, loadStoredState, setExpandedPaths, loadFile, pendingFolderPath, directories]);
+
+  // Re-apply stored expanded paths after tree loads (loadTree resets expandedPaths to root-only)
+  useEffect(() => {
+    if (pendingExpandedPathsRef.current && !treeLoading && tree.length > 0) {
+      setExpandedPaths(pendingExpandedPathsRef.current);
+      pendingExpandedPathsRef.current = null;
+    }
+  }, [treeLoading, tree, setExpandedPaths]);
 
   // Save state to localStorage when it changes
   useEffect(() => {
@@ -388,7 +414,21 @@ export function FileExplorerPanel({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!isOpen) return;
 
+      // Alt+E closes the file explorer panel
+      if (e.altKey && e.key === 'e') {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose();
+        return;
+      }
+
       if (e.key === 'Escape') {
+        // If search is active in the file viewer, don't close the panel
+        // The hook will handle closing the search bar instead
+        if (isFileSearchActive) {
+          return;
+        }
+
         if (showFolderSelector) {
           e.preventDefault();
           e.stopPropagation();
@@ -437,7 +477,7 @@ export function FileExplorerPanel({
       document.removeEventListener('keydown', handleKeyDown, true);
       document.removeEventListener('click', handleClickOutside);
     };
-  }, [isOpen, onClose, showFolderSelector, activeTabPath]);
+  }, [isOpen, onClose, showFolderSelector, activeTabPath, isFileSearchActive]);
 
   // -------------------------------------------------------------------------
   // GIT STATUS ENRICHMENT
@@ -1200,7 +1240,7 @@ export function FileExplorerPanel({
                   language={EXTENSION_TO_LANGUAGE[selectedFile.extension] || 'plaintext'}
                 />
               ) : (
-                <FileViewer file={selectedFile} loading={fileLoading} error={fileError} onRevealInTree={handleRevealInTree} scrollToLine={scrollToLine} />
+                <FileViewer file={selectedFile} loading={fileLoading} error={fileError} onRevealInTree={handleRevealInTree} scrollToLine={scrollToLine} onSearchStateChange={setIsFileSearchActive} />
               )}
             </>
           )}

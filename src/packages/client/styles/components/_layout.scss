@@ -77,20 +77,20 @@
 
 // Sidebar collapse button on left edge of sidebar
 .sidebar-collapse-edge-btn {
-  position: absolute;
-  left: -10px;
+  position: fixed;
+  left: 0;
   top: 50%;
   transform: translateY(-50%);
-  z-index: 10;
+  z-index: 151;
   width: 20px;
   height: 48px;
-  display: flex;
+  display: flex !important;
   align-items: center;
   justify-content: center;
   background: rgba($bg-secondary, 0.95);
-  border: 1px solid $border-color;
-  border-radius: 4px 0 0 4px;
-  color: rgba(255, 255, 255, 0.5);
+  border: 2px solid $border-color;
+  border-radius: 0 4px 4px 0;
+  color: rgba(255, 255, 255, 0.8);
   cursor: pointer;
   transition:
     opacity 0.2s ease,
@@ -99,22 +99,16 @@
     background 0.15s ease,
     color 0.15s ease,
     border-color 0.15s ease;
-  opacity: 0;
-
-  .sidebar:hover & {
-    opacity: 1;
-  }
+  opacity: 1 !important;
 
   &:hover {
     background: $bg-secondary;
     color: #fff;
     border-color: rgba(255, 255, 255, 0.3);
-    width: 24px;
-    left: -14px;
   }
 
   &:active {
-    left: -8px;
+    left: 8px;
   }
 
   // Pin mode - when sidebar is revealed by hover
@@ -128,50 +122,7 @@
   }
 }
 
-// Sidebar hover zone - invisible area on right edge to reveal collapsed sidebar
+// Sidebar hover zone - DISABLED (use button to open instead)
 .sidebar-hover-zone {
-  position: fixed;
-  right: 0;
-  top: 0;
-  width: 16px;
-  height: 100%;
-  z-index: 999;
-  cursor: pointer;
-
-  // Visual indicator - always slightly visible
-  &::after {
-    content: '';
-    position: absolute;
-    right: 0;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 3px;
-    height: 80px;
-    background: linear-gradient(
-      180deg,
-      transparent 0%,
-      rgba(255, 255, 255, 0.08) 20%,
-      rgba(255, 255, 255, 0.12) 50%,
-      rgba(255, 255, 255, 0.08) 80%,
-      transparent 100%
-    );
-    border-radius: 2px 0 0 2px;
-    transition:
-      width 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-      height 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-      background 0.25s ease;
-  }
-
-  &:hover::after {
-    width: 5px;
-    height: 120px;
-    background: linear-gradient(
-      180deg,
-      transparent 0%,
-      rgba(255, 255, 255, 0.2) 20%,
-      rgba(255, 255, 255, 0.35) 50%,
-      rgba(255, 255, 255, 0.2) 80%,
-      transparent 100%
-    );
-  }
+  display: none;
 }

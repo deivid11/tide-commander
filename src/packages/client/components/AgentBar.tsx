@@ -29,10 +29,10 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
   const [hasPendingHmrChanges, setHasPendingHmrChanges] = useState(false);
 
   // Refs for scrolling to selected agent
-  const agentBarRef = useRef<HTMLDivElement>(null);
+  const agentBarRef = useRef<HTMLDivElement>(null);       // outer container (no overflow clip)
+  const scrollRef = useRef<HTMLDivElement>(null);         // inner scrollable wrapper
   const listRef = useRef<HTMLDivElement>(null);
   const agentItemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-  const scrollOffset = useRef(0);
 
   // Poll for pending HMR changes (only in dev mode and 3D view)
   useEffect(() => {
@@ -50,30 +50,18 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
     return () => clearInterval(interval);
   }, [settings.experimental2DView]);
 
-  // Horizontal scroll via transform (since overflow-x:clip is used for Y-visible overflow)
-  const applyScroll = useCallback((offset: number) => {
-    const list = listRef.current;
-    const bar = agentBarRef.current;
-    if (!list || !bar) return;
-    const maxScroll = Math.max(0, list.scrollWidth - bar.clientWidth);
-    scrollOffset.current = Math.max(0, Math.min(offset, maxScroll));
-    list.style.transform = `translateX(-${scrollOffset.current}px)`;
-  }, []);
-
+  // Redirect vertical wheel events to horizontal scroll on the scroll wrapper
   useEffect(() => {
-    const bar = agentBarRef.current;
-    if (!bar) return;
+    const scroller = scrollRef.current;
+    if (!scroller) return;
     const onWheel = (e: WheelEvent) => {
-      const list = listRef.current;
-      if (!list) return;
-      const maxScroll = Math.max(0, list.scrollWidth - bar.clientWidth);
-      if (maxScroll <= 0) return; // No scrolling needed
+      if (scroller.scrollWidth <= scroller.clientWidth) return;
       e.preventDefault();
-      applyScroll(scrollOffset.current + e.deltaY);
+      scroller.scrollLeft += e.deltaY;
     };
-    bar.addEventListener('wheel', onWheel, { passive: false });
-    return () => bar.removeEventListener('wheel', onWheel);
-  }, [applyScroll]);
+    scroller.addEventListener('wheel', onWheel, { passive: false });
+    return () => scroller.removeEventListener('wheel', onWheel);
+  }, []);
 
   const [hoveredAgent, setHoveredAgent] = useState<Agent | null>(null);
   // Track tool bubbles with animation state
@@ -168,30 +156,27 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
     }
   }, [agents.map(a => a.currentTool).join(',')]);
 
-  // Scroll selected agent into view when selection changes
-  // Use lastSelectedAgentId which is more reliable than the Set for single selections
+  // Scroll selected agent into view (centered) when selection changes
   useEffect(() => {
     const selectedId = state.lastSelectedAgentId;
     if (!selectedId) return;
 
     const agentElement = agentItemRefs.current.get(selectedId);
-    const bar = agentBarRef.current;
-    const list = listRef.current;
+    const scroller = scrollRef.current;
 
-    if (agentElement && bar && list) {
+    if (agentElement && scroller) {
       requestAnimationFrame(() => {
-        // Calculate the element's position relative to the list container
+        // Element's position relative to the scroll container
         const elRect = agentElement.getBoundingClientRect();
-        const listRect = list.getBoundingClientRect();
-        const barWidth = bar.clientWidth;
-        // Element's offset within the un-scrolled list
-        const elOffsetInList = elRect.left - listRect.left + scrollOffset.current;
-        const elCenter = elOffsetInList + elRect.width / 2;
-        // Scroll so the element is centered in the bar
-        applyScroll(elCenter - barWidth / 2);
+        const scrollerRect = scroller.getBoundingClientRect();
+        const elOffsetInScroller = elRect.left - scrollerRect.left + scroller.scrollLeft;
+        const elCenter = elOffsetInScroller + elRect.width / 2;
+        const scrollerWidth = scroller.clientWidth;
+        // Scroll so the element is centered
+        scroller.scrollTo({ left: elCenter - scrollerWidth / 2, behavior: 'smooth' });
       });
     }
-  }, [state.lastSelectedAgentId, applyScroll]);
+  }, [state.lastSelectedAgentId]);
 
   const handleAgentClick = (agent: Agent, e: React.MouseEvent) => {
     // Mark that selection came from direct click (not swipe gesture)
@@ -334,6 +319,7 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
 
   return (
     <div className="agent-bar" ref={agentBarRef}>
+      <div className="agent-bar-scroll" ref={scrollRef}>
       {/* Version indicator */}
       <div className="agent-bar-version" title={`Tide Commander v${version}`}>
         <span>v{version}</span>
@@ -464,12 +450,12 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
                 const lastPrompt = state.lastPrompts.get(agent.id);
 
                 const toolBubble = toolBubbles.get(agent.id);
-                const toolIcon = toolBubble
+                const _toolIcon = toolBubble
                   ? TOOL_ICONS[toolBubble.tool] || TOOL_ICONS.default
                   : null;
 
                 // Truncate last query for display
-                const lastQueryShort = lastPrompt?.text
+                const _lastQueryShort = lastPrompt?.text
                   ? lastPrompt.text.length > 30
                     ? lastPrompt.text.substring(0, 30) + '...'
                     : lastPrompt.text
@@ -519,22 +505,6 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
                       )}
                     </div>
                     <span className="agent-bar-hotkey" title={`Ctrl+${currentIndex + 1}`}>^{currentIndex + 1}</span>
-                    {toolBubble && (
-                      <div
-                        key={toolBubble.key}
-                        className="agent-bar-tool-bubble"
-                        title={toolBubble.tool}
-                      >
-                        <span className="agent-bar-tool-icon">{toolIcon}</span>
-                        <span className="agent-bar-tool-name">{toolBubble.tool}</span>
-                      </div>
-                    )}
-                    {/* Last query preview */}
-                    {lastQueryShort && !toolBubble && (
-                      <div className="agent-bar-last-query" title={lastPrompt?.text}>
-                        {lastQueryShort}
-                      </div>
-                    )}
                   </div>
                 );
               })}
@@ -542,8 +512,32 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
           );
         })}
       </div>
+      </div>{/* end agent-bar-scroll */}
 
-      {/* Hover tooltip */}
+      {/* Tool bubbles — rendered outside scroll wrapper so they're not clipped */}
+      {Array.from(toolBubbles.entries()).map(([agentId, bubble]) => {
+        const el = agentItemRefs.current.get(agentId);
+        if (!el) return null;
+        const rect = el.getBoundingClientRect();
+        const icon = TOOL_ICONS[bubble.tool] || TOOL_ICONS.default;
+        return (
+          <div
+            key={`tool-${agentId}-${bubble.key}`}
+            className="agent-bar-tool-bubble"
+            title={bubble.tool}
+            style={{
+              position: 'fixed',
+              left: rect.left + rect.width / 2,
+              bottom: window.innerHeight - rect.top + 8,
+            }}
+          >
+            <span className="agent-bar-tool-icon">{icon}</span>
+            <span className="agent-bar-tool-name">{bubble.tool}</span>
+          </div>
+        );
+      })}
+
+      {/* Hover tooltip — rendered outside scroll wrapper so it's not clipped */}
       {hoveredAgent && (() => {
         const hoveredArea = store.getAreaForAgent(hoveredAgent.id);
         const hoveredLastPrompt = state.lastPrompts.get(hoveredAgent.id);

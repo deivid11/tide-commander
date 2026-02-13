@@ -14,7 +14,7 @@ import { formatFileSize } from './fileUtils';
 import { highlightElement, getLanguageForExtension } from './syntaxHighlighting';
 import { apiUrl, authFetch } from '../../utils/storage';
 import { useStore } from '../../store';
-import { useLessNavigation, type SearchMatch } from '../../hooks/useLessNavigation';
+import { useLessNavigation, type SelectionRange, type VisualMode } from '../../hooks/useLessNavigation';
 import { SearchBar } from './SearchBar';
 import { KeybindingsHelp } from './KeybindingsHelp';
 
@@ -204,10 +204,81 @@ function toSvgDataUrl(svg: string): string {
 }
 
 /**
+ * Visual selection overlay - renders highlighted regions for vim visual mode
+ * Positioned absolutely inside the <pre> element using em/ch units
+ */
+function VisualSelectionOverlay({
+  selection,
+  visualMode,
+  lines,
+}: {
+  selection: SelectionRange;
+  visualMode: VisualMode;
+  lines: string[];
+}) {
+  if (visualMode === 'none') return null;
+
+  const { anchorLine, anchorCol, headLine, headCol } = selection;
+
+  // Normalize: startLine/col is always the earlier position
+  let startLine: number, startCol: number, endLine: number, endCol: number;
+  if (anchorLine < headLine || (anchorLine === headLine && anchorCol <= headCol)) {
+    startLine = anchorLine; startCol = anchorCol;
+    endLine = headLine; endCol = headCol;
+  } else {
+    startLine = headLine; startCol = headCol;
+    endLine = anchorLine; endCol = anchorCol;
+  }
+
+  const overlays: React.ReactNode[] = [];
+
+  for (let l = startLine; l <= endLine; l++) {
+    const lineText = lines[l - 1] || '';
+    let colStart: number;
+    let colEnd: number;
+
+    if (visualMode === 'line') {
+      colStart = 0;
+      // Use line length or at least 1 char width so empty lines still show
+      colEnd = Math.max(lineText.length, 1);
+    } else {
+      // char mode
+      if (l === startLine && l === endLine) {
+        colStart = startCol;
+        colEnd = endCol + 1;
+      } else if (l === startLine) {
+        colStart = startCol;
+        colEnd = lineText.length;
+      } else if (l === endLine) {
+        colStart = 0;
+        colEnd = endCol + 1;
+      } else {
+        colStart = 0;
+        colEnd = lineText.length;
+      }
+    }
+
+    overlays.push(
+      <span
+        key={l}
+        className="file-viewer-visual-selection"
+        style={{
+          top: `${(l - 1) * 1.5}em`,
+          left: `${colStart}ch`,
+          width: `${Math.max(colEnd - colStart, 0.5)}ch`,
+        }}
+      />
+    );
+  }
+
+  return <>{overlays}</>;
+}
+
+/**
  * Text file viewer with syntax highlighting and line numbers
  * Supports vim/less-style keyboard navigation via useLessNavigation hook
  */
-function TextFileViewer({ file, onRevealInTree, scrollToLine }: { file: FileData; onRevealInTree?: (path: string) => void; scrollToLine?: number }) {
+function TextFileViewer({ file, onRevealInTree, scrollToLine, onSearchStateChange }: { file: FileData; onRevealInTree?: (path: string) => void; scrollToLine?: number; onSearchStateChange?: (isSearchActive: boolean) => void }) {
   const codeRef = useRef<HTMLElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -218,6 +289,11 @@ function TextFileViewer({ file, onRevealInTree, scrollToLine }: { file: FileData
     isEnabled: true,
     content: file.content,
   });
+
+  // Notify parent when search state changes
+  useEffect(() => {
+    onSearchStateChange?.(navigation.searchActive);
+  }, [navigation.searchActive, onSearchStateChange]);
 
   useEffect(() => {
     if (codeRef.current) {
@@ -252,7 +328,7 @@ function TextFileViewer({ file, onRevealInTree, scrollToLine }: { file: FileData
     const currentIndex = navigation.currentMatchIndex;
 
     // Get the full text content of the code element
-    const fullText = codeElement.textContent || '';
+    const _fullText = codeElement.textContent || '';
 
     // Walk through text nodes and apply highlights
     const walker = document.createTreeWalker(
@@ -337,7 +413,8 @@ function TextFileViewer({ file, onRevealInTree, scrollToLine }: { file: FileData
   }, [scrollToLine, file]);
 
   const language = getLanguageForExtension(file.extension);
-  const lineCount = file.content.split('\n').length;
+  const contentLines = file.content.split('\n');
+  const lineCount = contentLines.length;
 
   return (
     <>
@@ -346,19 +423,47 @@ function TextFileViewer({ file, onRevealInTree, scrollToLine }: { file: FileData
         <div className="file-viewer-code-with-lines" ref={wrapperRef}>
           <div className="file-viewer-line-gutter" aria-hidden="true">
             {Array.from({ length: lineCount }, (_, i) => (
-              <div key={i + 1} className={`file-viewer-line-num${scrollToLine === i + 1 ? ' highlighted' : ''}`}>{i + 1}</div>
+              <div key={i + 1} className={`file-viewer-line-num${scrollToLine === i + 1 ? ' highlighted' : ''}${navigation.cursorModeActive && navigation.cursorLine === i + 1 ? ' cursor-line' : ''}`}>{i + 1}</div>
             ))}
           </div>
-          <pre className="file-viewer-pre">
+          <pre className="file-viewer-pre" style={{ position: 'relative' }}>
             <code ref={codeRef} className={`language-${language}`}>
               {file.content}
             </code>
+            {/* Visual selection overlay */}
+            {navigation.visualMode !== 'none' && navigation.selection && (
+              <VisualSelectionOverlay
+                selection={navigation.selection}
+                visualMode={navigation.visualMode}
+                lines={contentLines}
+              />
+            )}
+            {/* Block cursor positioned at cursorLine:cursorCol (only visible in cursor mode) */}
+            {navigation.cursorModeActive && (
+              <span
+                className={`file-viewer-block-cursor${navigation.visualMode !== 'none' ? ' visual-active' : ''}`}
+                style={{
+                  top: `${(navigation.cursorLine - 1) * 1.5}em`,
+                  left: `${navigation.cursorCol}ch`,
+                }}
+              />
+            )}
           </pre>
         </div>
-        {/* Scroll position indicator with line:column */}
-        <div className="file-viewer-scroll-indicator" title={`Line ${navigation.currentLine} of ${navigation.totalLines} (${navigation.scrollPercentage}%)`}>
-          <span className="indicator-position">{navigation.currentLine}</span>
-          <span className="indicator-separator">:</span>
+        {/* Scroll position indicator with cursor line:col and mode */}
+        <div className="file-viewer-scroll-indicator" title={`Line ${navigation.cursorLine} Col ${navigation.cursorCol} of ${navigation.totalLines} (${navigation.scrollPercentage}%)`}>
+          {navigation.visualMode !== 'none' && (
+            <>
+              <span className="indicator-mode">{navigation.visualMode === 'line' ? 'V-LINE' : 'VISUAL'}</span>
+              <span className="indicator-separator">·</span>
+            </>
+          )}
+          {navigation.cursorModeActive && (
+            <>
+              <span className="indicator-position">{navigation.cursorLine}:{navigation.cursorCol + 1}</span>
+              <span className="indicator-separator">·</span>
+            </>
+          )}
           <span className="indicator-percentage">{navigation.scrollPercentage === 100 ? 'END' : navigation.scrollPercentage === 0 ? 'TOP' : `${navigation.scrollPercentage}%`}</span>
         </div>
         {/* Search bar */}
@@ -818,7 +923,7 @@ function BinaryFileViewer({ file, onRevealInTree }: { file: FileData; onRevealIn
 // FILE VIEWER COMPONENT
 // ============================================================================
 
-function FileViewerComponent({ file, loading, error, onRevealInTree, scrollToLine }: FileViewerProps) {
+function FileViewerComponent({ file, loading, error, onRevealInTree, scrollToLine, onSearchStateChange }: FileViewerProps) {
   // Global markdown render preference (persisted to localStorage)
   const [renderMarkdown, toggleRenderMarkdown] = useMarkdownRenderPreference();
   const [renderPlantUml, toggleRenderPlantUml] = usePlantUmlRenderPreference();
@@ -866,7 +971,7 @@ function FileViewerComponent({ file, loading, error, onRevealInTree, scrollToLin
           onToggleRender={toggleRenderPlantUml}
         />
       )}
-      {fileType === 'text' && !isMarkdown && !isPlantUml && <TextFileViewer file={file} onRevealInTree={onRevealInTree} scrollToLine={scrollToLine} />}
+      {fileType === 'text' && !isMarkdown && !isPlantUml && <TextFileViewer file={file} onRevealInTree={onRevealInTree} scrollToLine={scrollToLine} onSearchStateChange={onSearchStateChange} />}
       {fileType === 'image' && <ImageFileViewer file={file} onRevealInTree={onRevealInTree} />}
       {fileType === 'pdf' && <PdfFileViewer file={file} onRevealInTree={onRevealInTree} />}
       {fileType === 'binary' && <BinaryFileViewer file={file} onRevealInTree={onRevealInTree} />}

@@ -10,15 +10,41 @@
   border-top: 1px solid $dracula-current;
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 8px 20px 0;
   z-index: 100;
   backdrop-filter: blur(8px);
-  // clip on X axis for horizontal containment, visible on Y for tool bubbles/tooltips
-  // overflow-x: clip does NOT create a scroll container (unlike auto/scroll/hidden)
-  // so overflow-y: visible is respected
-  overflow-x: clip;
-  overflow-y: visible;
+  // No overflow clipping on outer container — tooltips/bubbles need to overflow Y
+  overflow: visible;
+}
+
+// Inner scrollable wrapper — scrolls the agent list horizontally
+.agent-bar-scroll {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 4px 20px 2px;
+  height: 100%;
+
+  // Thin custom scrollbar
+  &::-webkit-scrollbar {
+    height: 4px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: rgba($dracula-comment, 0.4);
+    border-radius: 2px;
+
+    &:hover {
+      background: rgba($dracula-comment, 0.7);
+    }
+  }
+  // Firefox
+  scrollbar-width: thin;
+  scrollbar-color: rgba($dracula-comment, 0.4) transparent;
 }
 
 .agent-bar-list {
@@ -29,19 +55,18 @@
   min-width: max-content; // Prevent wrapping, allow scroll
 }
 
-// Version indicator - positioned at left edge
+// Version indicator - inline flex item before the buttons list
 .agent-bar-version {
-  position: absolute;
-  left: 12px;
-  bottom: 8px;
   font-size: 10px;
   font-family: $font-mono;
-  color: rgba(255, 255, 255, 0.6);
+  color: rgba(255, 255, 255, 0.4);
   user-select: none;
   transition: color $transition-fast;
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-shrink: 0;
+  margin-right: 8px;
 
   &:hover {
     color: rgba(255, 255, 255, 0.85);
@@ -115,8 +140,8 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
   border-radius: $radius-lg;
   background: rgba($dracula-green, 0.15);
   border: 2px dashed $dracula-green;
@@ -138,20 +163,20 @@
 }
 
 .agent-bar-spawn-icon {
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 600;
   color: $dracula-green;
   line-height: 1;
 }
 
 .agent-bar-spawn-label {
-  font-size: 8px;
+  font-size: 7px;
   font-family: $font-mono;
   font-weight: 600;
   color: $dracula-green;
   text-transform: uppercase;
   letter-spacing: 0.3px;
-  margin-top: 2px;
+  margin-top: 1px;
 }
 
 // New Building button variant
@@ -190,18 +215,17 @@
 .agent-bar-group {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px 6px;
+  gap: 6px;
+  padding: 6px 8px 4px;
   border-radius: $radius-lg;
-  border: 2px solid;
+  border: 1px solid;
   position: relative;
   background: rgba($dracula-bg, 0.3);
   transition: all $transition-fast;
   margin-top: 4px;
 
   &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
   }
 
   &.unassigned {
@@ -296,16 +320,16 @@
 // Area label positioned at top of group border
 .agent-bar-area-label {
   position: absolute;
-  top: -10px;
-  left: 12px;
-  padding: 2px 8px;
+  top: -8px;
+  left: 8px;
+  padding: 1px 6px;
   border-radius: $radius-sm;
   background: $dracula-bg;
   z-index: 1;
 }
 
 .agent-bar-area-name {
-  font-size: 9px;
+  font-size: 8px;
   font-family: $font-mono;
   font-weight: 600;
   text-transform: uppercase;
@@ -315,8 +339,8 @@
 
 .agent-bar-item {
   position: relative;
-  width: 44px;
-  height: 44px;
+  width: 36px;
+  height: 36px;
   border-radius: $radius-lg;
   background: rgba($dracula-current, 0.5);
   border: 2px solid transparent;
@@ -338,22 +362,22 @@
 
   &.selected {
     border-color: $dracula-green;
-    border-width: 3px;
+    border-width: 2px;
     background: linear-gradient(135deg, rgba($dracula-green, 0.35) 0%, rgba($dracula-green, 0.15) 100%);
     box-shadow:
-      0 0 20px rgba($dracula-green, 0.6),
-      0 0 40px rgba($dracula-green, 0.3),
-      inset 0 0 12px rgba($dracula-green, 0.2);
-    transform: translateY(-4px) scale(1.08);
+      0 0 14px rgba($dracula-green, 0.6),
+      0 0 28px rgba($dracula-green, 0.3),
+      inset 0 0 8px rgba($dracula-green, 0.2);
+    transform: translateY(-2px) scale(1.05);
     z-index: 10;
 
     // Glowing ring effect
     &::after {
       content: '';
       position: absolute;
-      inset: -6px;
-      border-radius: calc($radius-lg + 4px);
-      border: 2px solid rgba($dracula-green, 0.5);
+      inset: -4px;
+      border-radius: calc($radius-lg + 3px);
+      border: 1px solid rgba($dracula-green, 0.5);
       animation: selected-ring-pulse 1.5s ease-in-out infinite;
       pointer-events: none;
     }
@@ -422,21 +446,21 @@
 
     &.selected {
       border-color: #ffd700;
-      border-width: 3px;
+      border-width: 2px;
       background: linear-gradient(135deg, rgba(#ffd700, 0.4) 0%, rgba(#ff8c00, 0.25) 100%);
       box-shadow:
-        0 0 24px rgba(#ffd700, 0.7),
-        0 0 48px rgba(#ffd700, 0.4),
-        inset 0 0 12px rgba(#ffd700, 0.2);
-      transform: translateY(-4px) scale(1.08);
+        0 0 14px rgba(#ffd700, 0.7),
+        0 0 28px rgba(#ffd700, 0.4),
+        inset 0 0 8px rgba(#ffd700, 0.2);
+      transform: translateY(-2px) scale(1.05);
       z-index: 10;
 
       &::after {
         content: '';
         position: absolute;
-        inset: -6px;
-        border-radius: calc($radius-lg + 4px);
-        border: 2px solid rgba(#ffd700, 0.6);
+        inset: -4px;
+        border-radius: calc($radius-lg + 3px);
+        border: 1px solid rgba(#ffd700, 0.6);
         animation: selected-ring-pulse-gold 1.5s ease-in-out infinite;
         pointer-events: none;
       }
@@ -563,7 +587,7 @@
 }
 
 .agent-bar-icon {
-  font-size: 20px;
+  font-size: 16px;
   line-height: 1;
 }
 
@@ -571,8 +595,8 @@
   position: absolute;
   bottom: -2px;
   right: -2px;
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   border: 2px solid $bg-primary;
 }
@@ -587,13 +611,13 @@
 
 .agent-bar-hotkey {
   position: absolute;
-  top: -6px;
-  right: -6px;
-  width: 16px;
-  height: 16px;
+  top: -5px;
+  right: -5px;
+  width: 14px;
+  height: 14px;
   background: $dracula-comment;
   border-radius: 50%;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 600;
   font-family: $font-mono;
   color: $dracula-bg;
@@ -722,23 +746,21 @@
 }
 
 // Tool bubble that appears above agent when using a tool
+// Rendered with position:fixed via inline style (outside scroll wrapper)
 .agent-bar-tool-bubble {
-  position: absolute;
-  bottom: 100%;
-  left: 50%;
   transform: translateX(-50%);
   background: rgba($dracula-bg, 0.95);
   border: 1px solid $dracula-pink;
   border-radius: $radius-md;
-  padding: 4px 8px;
+  padding: 3px 6px;
   display: flex;
   align-items: center;
   gap: 4px;
   white-space: nowrap;
-  margin-bottom: 8px;
   animation: tool-bubble-appear 0.3s ease-out;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 8px rgba($dracula-pink, 0.3);
   z-index: 201;
+  pointer-events: none;
 
   &::after {
     content: '';
@@ -746,7 +768,7 @@
     top: 100%;
     left: 50%;
     transform: translateX(-50%);
-    border: 6px solid transparent;
+    border: 5px solid transparent;
     border-top-color: $dracula-pink;
   }
 }

@@ -528,6 +528,16 @@ class Store
   // File Explorer
   // ============================================================================
 
+  getLastExplorerState(): { type: 'folder'; path: string } | { type: 'area'; areaId: string } | null {
+    try {
+      const stored = localStorage.getItem('file-explorer-last-opened');
+      if (!stored) return null;
+      return JSON.parse(stored);
+    } catch {
+      return null;
+    }
+  }
+
   setExplorerFolderPath(path: string | null): void {
     this.state.explorerFolderPath = path;
     this.notify();

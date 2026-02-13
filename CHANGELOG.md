@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.60.0] - 2026-02-12
+
+### Added
+- **Less/vim-style file viewer navigation** - Complete overhaul with j/k (line), d/u (half-page), f/b (full-page), g/G (top/bottom), h/l (horizontal), / (search), n/N (next/prev match), ? (help), visual mode selection
+- **Search bar with match counter** - Floating search UI in file viewer with match highlighting and navigation
+- **Keybindings help overlay** - Press ? in file viewer to see all available keyboard shortcuts
+- **Scroll position indicator** - Shows current line/position/percentage in file viewer
+- **bunx quick-start** - README now documents `bunx tide-commander` as the recommended way to run
+
+### Changed
+- **Agent bar redesign** - Overhauled layout and styling for agent bar items
+- **File explorer tree** - Improved tree node interaction and styling
+- **Layout styles** - Refined layout and spacing across components
+- **Right panel styles** - Updated base styles for right panel
+
+### Fixed
+- **Lint warnings** - Fixed 10 unused variable warnings across AgentBar, FileViewer, and useLessNavigation
+
 ## [0.59.3] - 2026-02-11
 
 ### Added

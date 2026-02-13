@@ -32,6 +32,12 @@
 // File viewer (code, images, PDF, binary)
 @forward 'viewer';
 
+// File viewer search bar (less-style search)
+@forward 'search-bar';
+
+// Keybindings help overlay
+@forward 'keybindings-help';
+
 // Git changes view
 @forward 'git';
 

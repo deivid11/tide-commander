@@ -229,10 +229,11 @@ export const TreeNodeItem = memo(TreeNodeItemComponent, (prev, next) => {
     const isExpanded = next.expandedPaths.has(nextExpansionPath);
     if (wasExpanded !== isExpanded) return false;
 
-    // If this node is expanded, we need to re-render when expandedPaths changes
-    // so children can receive the updated Set
-    if (isExpanded && prev.expandedPaths !== next.expandedPaths) {
-      return false;
+    // If this node is expanded, we need to re-render when expandedPaths or
+    // selectedPath changes so children can receive the updated values
+    if (isExpanded) {
+      if (prev.expandedPaths !== next.expandedPaths) return false;
+      if (prev.selectedPath !== next.selectedPath) return false;
     }
   }
 

@@ -1,0 +1,172 @@
+// =============================================================================
+// File Viewer - Search Bar Styles
+// =============================================================================
+// Floating search bar for less-style file viewer search (/ key)
+// =============================================================================
+
+@use '../../variables' as *;
+
+.file-viewer-search-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba($dracula-bg-darker, 0.95);
+  border-top: 1px solid $border-color;
+  padding: 8px 12px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  backdrop-filter: blur(8px);
+  z-index: 10;
+  animation: slideUp 0.15s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.file-viewer-search-input-wrapper {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  background: rgba($dracula-bg, 0.6);
+  border: 1px solid $dracula-current;
+  border-radius: $radius-sm;
+  padding: 0 8px;
+  transition: all $transition-fast;
+
+  &:focus-within {
+    border-color: $accent-purple;
+    background: rgba($dracula-bg, 0.8);
+    box-shadow: 0 0 0 2px rgba($accent-purple, 0.1);
+  }
+}
+
+.file-viewer-search-prefix {
+  color: $dracula-comment;
+  font-family: $font-mono;
+  font-size: 13px;
+  margin-right: 4px;
+  flex-shrink: 0;
+}
+
+.file-viewer-search-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  color: $dracula-fg;
+  font-family: $font-mono;
+  font-size: 12px;
+  padding: 6px 0;
+  outline: none;
+
+  &::placeholder {
+    color: $dracula-comment;
+  }
+}
+
+.file-viewer-search-counter {
+  color: $dracula-comment;
+  font-family: $font-mono;
+  font-size: 11px;
+  padding: 4px 8px;
+  background: rgba($dracula-bg, 0.6);
+  border-radius: $radius-sm;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.file-viewer-search-nav {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.file-viewer-search-btn {
+  background: transparent;
+  border: 1px solid $border-color;
+  color: $text-muted;
+  width: 28px;
+  height: 28px;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all $transition-fast;
+  font-family: $font-mono;
+  font-size: 12px;
+  font-weight: 600;
+
+  &:hover:not(:disabled) {
+    background: rgba($accent-purple, 0.15);
+    border-color: $accent-purple;
+    color: $accent-purple;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  &.file-viewer-search-prev {
+    &:hover:not(:disabled) {
+      border-color: $accent-yellow;
+      color: $accent-yellow;
+      background: rgba($accent-yellow, 0.15);
+    }
+  }
+
+  &.file-viewer-search-next {
+    &:hover:not(:disabled) {
+      border-color: $accent-cyan;
+      color: $accent-cyan;
+      background: rgba($accent-cyan, 0.15);
+    }
+  }
+}
+
+.file-viewer-search-close {
+  background: transparent;
+  border: 1px solid $border-color;
+  color: $text-muted;
+  width: 28px;
+  height: 28px;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all $transition-fast;
+  font-size: 12px;
+  flex-shrink: 0;
+
+  &:hover {
+    background: rgba($dracula-red, 0.15);
+    border-color: $dracula-red;
+    color: $dracula-red;
+  }
+}
+
+// Search highlight styles
+.search-match {
+  background: rgba($dracula-yellow, 0.3);
+  border-radius: 2px;
+  padding: 0 2px;
+  transition: all $transition-fast;
+
+  &.current {
+    background: rgba($dracula-orange, 0.5);
+    outline: 1px solid $dracula-orange;
+  }
+}

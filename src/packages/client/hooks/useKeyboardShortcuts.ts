@@ -111,13 +111,34 @@ export function useKeyboardShortcuts({
       const explorerShortcut = shortcuts.find(s => s.id === 'toggle-file-explorer');
       if (matchesShortcut(e, explorerShortcut)) {
         e.preventDefault();
-        if (explorerModal.isOpen) {
+        const storeState = store.getState();
+        const isExplorerOpen = explorerModal.isOpen || storeState.explorerFolderPath !== null || storeState.explorerAreaId !== null;
+        if (isExplorerOpen) {
           explorerModal.close();
+          store.closeFileExplorer();
         } else {
-          const areasWithDirs = Array.from(store.getState().areas.values())
-            .filter(a => a.directories && a.directories.length > 0);
-          if (areasWithDirs.length > 0) {
-            explorerModal.open(areasWithDirs[0].id);
+          // Try to restore last opened folder/area
+          const lastState = store.getLastExplorerState();
+          if (lastState?.type === 'folder') {
+            store.openFileExplorer(lastState.path);
+          } else if (lastState?.type === 'area') {
+            if (storeState.areas.has(lastState.areaId)) {
+              explorerModal.open(lastState.areaId);
+            } else {
+              // Area no longer exists, fall back to first area with dirs
+              const areasWithDirs = Array.from(storeState.areas.values())
+                .filter(a => a.directories && a.directories.length > 0);
+              if (areasWithDirs.length > 0) {
+                explorerModal.open(areasWithDirs[0].id);
+              }
+            }
+          } else {
+            // No saved state, fall back to first area with dirs
+            const areasWithDirs = Array.from(storeState.areas.values())
+              .filter(a => a.directories && a.directories.length > 0);
+            if (areasWithDirs.length > 0) {
+              explorerModal.open(areasWithDirs[0].id);
+            }
           }
         }
         return;

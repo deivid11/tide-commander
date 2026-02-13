@@ -39,10 +39,9 @@ export const SearchBar: React.FC<SearchBarProps> = ({
       // Stop propagation to prevent less-style navigation while searching
       e.stopPropagation();
 
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        onClose();
-      } else if (e.key === 'Enter') {
+      // Let the hook handle Escape (so it properly prevents modal close)
+      // Only handle other navigation keys here
+      if (e.key === 'Enter') {
         e.preventDefault();
         // Enter moves to next match
         onNext();
@@ -54,7 +53,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
         onPrev();
       }
     },
-    [onNext, onPrev, onClose]
+    [onNext, onPrev]
   );
 
   // Display match counter

@@ -20,7 +20,10 @@ Requirements:
 Install and run:
 
 ```bash
-# Always install/update to latest published release
+# Run directly without installing (recommended)
+bunx tide-commander
+
+# Or install globally
 npm i -g tide-commander@latest
 tide-commander start
 ```

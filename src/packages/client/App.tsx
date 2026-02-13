@@ -456,6 +456,28 @@ function AppContent() {
       {/* View Mode Toggle (3D / 2D / Dashboard) */}
       <ViewModeToggle className="app-view-mode-toggle" />
 
+      {/* Fixed sidebar toggle button (outside main-content so always visible) */}
+      <button
+        className={`sidebar-collapse-edge-btn ${sidebarRevealedByHover ? 'can-pin' : ''}`}
+        onClick={() => {
+          // Toggle sidebar collapsed state
+          const newCollapsedState = !sidebarCollapsed;
+          setSidebarCollapsed(newCollapsedState);
+          localStorage.setItem('tide-commander-sidebar-collapsed', String(newCollapsedState));
+        }}
+        title={sidebarCollapsed ? 'Open sidebar' : 'Close sidebar'}
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          {sidebarRevealedByHover ? (
+            // Pin icon
+            <><circle cx="12" cy="10" r="3" /><line x1="12" y1="13" x2="12" y2="21" /><line x1="8" y1="21" x2="16" y2="21" /></>
+          ) : (
+            // Chevron right icon
+            <polyline points="9 6 15 12 9 18" />
+          )}
+        </svg>
+      </button>
+
       <main className="main-content">
         <div className="battlefield-container">
           {state.viewMode === 'dashboard' ? (
@@ -642,8 +664,8 @@ function AppContent() {
           <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />
         )}
 
-        {/* Sidebar hover zone - shows when collapsed, reveals sidebar on hover */}
-        {sidebarCollapsed && (
+        {/* Sidebar hover zone - DISABLED (use button to open instead) */}
+        {false && (
           <div
             className="sidebar-hover-zone hide-on-mobile"
             onMouseEnter={() => {
@@ -655,40 +677,8 @@ function AppContent() {
 
         <aside
           className={`sidebar ${sidebarOpen ? 'sidebar-open' : ''} ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}
-          onMouseLeave={() => {
-            // Auto-hide if it was revealed by hover
-            if (sidebarRevealedByHover) {
-              setSidebarCollapsed(true);
-              setSidebarRevealedByHover(false);
-            }
-          }}
+          // Disabled: auto-hide on mouse leave removed - use button to close instead
         >
-          {/* Collapse/Pin button on left edge of sidebar (desktop only) */}
-          <button
-            className={`sidebar-collapse-edge-btn hide-on-mobile ${sidebarRevealedByHover ? 'can-pin' : ''}`}
-            onClick={() => {
-              if (sidebarRevealedByHover) {
-                // Pin the sidebar (disable auto-hide)
-                setSidebarRevealedByHover(false);
-                localStorage.setItem('tide-commander-sidebar-collapsed', 'false');
-              } else {
-                // Collapse the sidebar
-                setSidebarCollapsed(true);
-                localStorage.setItem('tide-commander-sidebar-collapsed', 'true');
-              }
-            }}
-            title={sidebarRevealedByHover ? 'Pin sidebar open' : 'Hide sidebar'}
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              {sidebarRevealedByHover ? (
-                // Pin icon
-                <><circle cx="12" cy="10" r="3" /><line x1="12" y1="13" x2="12" y2="21" /><line x1="8" y1="21" x2="16" y2="21" /></>
-              ) : (
-                // Chevron right icon
-                <polyline points="9 6 15 12 9 18" />
-              )}
-            </svg>
-          </button>
           <button
             className="sidebar-close-btn show-on-mobile"
             onClick={() => setSidebarOpen(false)}

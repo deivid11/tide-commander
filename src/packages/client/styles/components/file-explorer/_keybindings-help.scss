@@ -1,0 +1,166 @@
+// =============================================================================
+// Keybindings Help Overlay Styles
+// =============================================================================
+// Modal overlay showing less-style navigation keybindings for file viewer
+// =============================================================================
+
+@use '../../variables' as *;
+
+.keybindings-help-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  animation: fadeIn $transition-normal ease-out;
+  backdrop-filter: blur(4px);
+}
+
+.keybindings-help-content {
+  position: relative;
+  background: $dracula-bg;
+  border: 1px solid $dracula-current;
+  border-radius: $radius-lg;
+  padding: 32px;
+  max-width: 600px;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  animation: slideUp $transition-normal ease-out;
+}
+
+.keybindings-help-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: transparent;
+  border: 1px solid $border-color;
+  color: $text-muted;
+  width: 32px;
+  height: 32px;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all $transition-fast;
+  font-size: 18px;
+
+  &:hover {
+    background: rgba($dracula-red, 0.15);
+    border-color: $dracula-red;
+    color: $dracula-red;
+  }
+}
+
+.keybindings-help-title {
+  margin: 0 0 8px 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: $dracula-fg;
+  font-family: $font-mono;
+}
+
+.keybindings-help-subtitle {
+  margin: 0 0 24px 0;
+  font-size: 12px;
+  color: $dracula-comment;
+  font-family: $font-mono;
+}
+
+.keybindings-help-categories {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.keybindings-help-category {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.keybindings-help-category-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: $accent-purple;
+  font-family: $font-mono;
+}
+
+.keybindings-help-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.keybindings-help-item {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 8px;
+  border-radius: $radius-sm;
+  transition: background $transition-fast;
+
+  &:hover {
+    background: rgba($accent-purple, 0.08);
+  }
+}
+
+.keybindings-help-keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 100px;
+  flex-shrink: 0;
+}
+
+.keybindings-help-key {
+  background: rgba($dracula-current, 0.8);
+  border: 1px solid $dracula-comment;
+  color: $dracula-fg;
+  font-family: $font-mono;
+  font-size: 11px;
+  padding: 4px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+  display: inline-block;
+  font-weight: 500;
+
+  &:not(:last-child) {
+    margin-right: 2px;
+  }
+}
+
+.keybindings-help-description {
+  flex: 1;
+  font-size: 12px;
+  color: $text-secondary;
+  padding-top: 4px;
+}
+
+.keybindings-help-footer {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid $dracula-current;
+  font-size: 11px;
+  color: $dracula-comment;
+  text-align: center;
+  margin-bottom: 0;
+}
+
+// Mobile responsive
+@media (max-width: 768px) {
+  .keybindings-help-content {
+    max-width: 90vw;
+    padding: 20px;
+  }
+
+  .keybindings-help-keys {
+    min-width: 80px;
+  }
+}

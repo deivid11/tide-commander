@@ -121,6 +121,7 @@ export interface FileViewerProps {
   error: string | null;
   onRevealInTree?: (path: string) => void;
   scrollToLine?: number;
+  onSearchStateChange?: (isSearchActive: boolean) => void;
 }
 
 export interface SearchResultsProps {
@@ -143,6 +144,17 @@ export interface ContentMatch {
     content: string;
     context?: { before: string; after: string };
   }[];
+}
+
+/**
+ * Search match within a file (for less-style search)
+ */
+export interface SearchMatch {
+  index: number; // Match index (0-based)
+  line: number; // Line number (1-based)
+  column: number; // Column in line (0-based)
+  length: number; // Length of match
+  charIndex: number; // Character offset in entire content
 }
 
 export interface ContentSearchResultsProps {
