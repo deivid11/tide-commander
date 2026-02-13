@@ -104,7 +104,7 @@ Like COD or Minecraft classes, you assign a class to the agent character. It has
 
 Built-in classes include Scout, Builder, Debugger, Architect, Warrior, Support, and Boss. You can also create **custom classes** with your own 3D models, instructions, and default skills.
 
-![Create Agent Class](docs/img/create_agent_class.png)
+![Create Agent Class](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/img/create_agent_class.png)
 
 ### Custom 3D Models
 You can upload your own 3D character models in **GLB format**. Custom models support animation mapping for idle, walk, and working states. Models are uploaded through the class editor and stored locally. Scaling and position offsets are configurable per model.
@@ -125,15 +125,15 @@ Securely store API keys, tokens, and other credentials. Use `{{SECRET_NAME}}` pl
 Three ways to view the battlefield (cycle with Alt+2):
 - **3D View** - Full Three.js battlefield with character models and post-processing (default)
 
-![3D View](docs/example-battlefield.png)
+![3D View](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/example-battlefield.png)
 
 - **2D View** - Lightweight canvas-based rendering for better performance
 
-![2D View](docs/preview-2d.png)
+![2D View](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/preview-2d.png)
 
 - **Dashboard** - Agent status cards, building overview, and metrics
 
-![Dashboard View](docs/img/dashboard_view.png)
+![Dashboard View](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/img/dashboard_view.png)
 
 ### Spotlight Search
 Press **Ctrl+K** (or Alt+P) to open the command palette. Search for agents by name, class, or current task. Jump to areas, find modified files across all agents, or trigger quick actions.
@@ -150,7 +150,7 @@ AI coding orchestration and multi-agent management features:
 - 📊 **Context Tracking** - Mana bar visualization showing agent context usage
 - 📁 **File Explorer** - Built-in file browser with git diff viewer for uncommitted changes
 
-![File Explorer with Git Diffs](docs/img/diffs_view.png)
+![File Explorer with Git Diffs](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/img/diffs_view.png)
 - 📋 **Large Text & Screenshot Paste** - Compact and send large content easily
 - ⌨️ **Custom Hotkeys** - Configurable keyboard shortcuts
 - 🔐 **Permission Control** - Permissionless or permission-enabled per agent
@@ -165,7 +165,7 @@ AI coding orchestration and multi-agent management features:
 - 🖥️ **Guake Terminal** - Drop-down terminal overlay for agent conversations
 - 🔎 **Inline File Inspection** - Click on files added or edited by the agent directly in the chat to view diffs and contents — no need to leave Commander or open an IDE
 
-![Inline File Inspection](docs/img/edit_dtails_while_chatting.png)
+![Inline File Inspection](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/img/edit_dtails_while_chatting.png)
 - 🌐 **Multiplayer** - WebSocket-based multi-user support
 - 📱 **Mobile Compatible** - Works on mobile devices and Android (optional APK)
 
@@ -245,7 +245,7 @@ Tide Commander is a Claude Code and Codex-compatible orchestrator that provides 
 
 For Mermaid diagrams and deeper design notes, see [`docs/architecture.md`](docs/architecture.md).
 
-![System Architecture](docs/system-architecture.png)
+![System Architecture](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/system-architecture.png)
 
 ### Data Storage
 

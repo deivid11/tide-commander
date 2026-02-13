@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.61.4] - 2026-02-13
+
+### Fixed
+- **README images on npm** - Converted all relative image paths to absolute raw GitHub URLs so images render on npmjs and other platforms
+
 ## [0.61.3] - 2026-02-13
 
 ### Changed
