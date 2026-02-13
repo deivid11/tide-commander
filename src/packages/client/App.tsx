@@ -456,28 +456,6 @@ function AppContent() {
       {/* View Mode Toggle (3D / 2D / Dashboard) */}
       <ViewModeToggle className="app-view-mode-toggle" />
 
-      {/* Fixed sidebar toggle button (outside main-content so always visible) */}
-      <button
-        className={`sidebar-collapse-edge-btn ${sidebarRevealedByHover ? 'can-pin' : ''}`}
-        onClick={() => {
-          // Toggle sidebar collapsed state
-          const newCollapsedState = !sidebarCollapsed;
-          setSidebarCollapsed(newCollapsedState);
-          localStorage.setItem('tide-commander-sidebar-collapsed', String(newCollapsedState));
-        }}
-        title={sidebarCollapsed ? 'Open sidebar' : 'Close sidebar'}
-      >
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          {sidebarRevealedByHover ? (
-            // Pin icon
-            <><circle cx="12" cy="10" r="3" /><line x1="12" y1="13" x2="12" y2="21" /><line x1="8" y1="21" x2="16" y2="21" /></>
-          ) : (
-            // Chevron right icon
-            <polyline points="9 6 15 12 9 18" />
-          )}
-        </svg>
-      </button>
-
       <main className="main-content">
         <div className="battlefield-container">
           {state.viewMode === 'dashboard' ? (
@@ -674,6 +652,28 @@ function AppContent() {
             }}
           />
         )}
+
+        {/* Sidebar toggle button - always visible, positioned fixed */}
+        <button
+          className={`sidebar-collapse-edge-btn ${sidebarCollapsed ? 'is-collapsed' : ''} ${sidebarRevealedByHover ? 'can-pin' : ''}`}
+          onClick={() => {
+            // Toggle sidebar collapsed state
+            const newCollapsedState = !sidebarCollapsed;
+            setSidebarCollapsed(newCollapsedState);
+            localStorage.setItem('tide-commander-sidebar-collapsed', String(newCollapsedState));
+          }}
+          title={sidebarCollapsed ? 'Open sidebar' : 'Close sidebar'}
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            {sidebarRevealedByHover ? (
+              // Pin icon
+              <><circle cx="12" cy="10" r="3" /><line x1="12" y1="13" x2="12" y2="21" /><line x1="8" y1="21" x2="16" y2="21" /></>
+            ) : (
+              // Chevron points toward the action direction
+              <polyline points={sidebarCollapsed ? '15 18 9 12 15 6' : '9 18 15 12 9 6'} />
+            )}
+          </svg>
+        </button>
 
         <aside
           className={`sidebar ${sidebarOpen ? 'sidebar-open' : ''} ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}

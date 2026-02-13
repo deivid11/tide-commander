@@ -78,46 +78,63 @@
 // Sidebar collapse button on left edge of sidebar
 .sidebar-collapse-edge-btn {
   position: fixed;
-  left: 0;
+  // Keep the toggle flush with the sidebar's left edge
+  right: $sidebar-width;
   top: 50%;
   transform: translateY(-50%);
   z-index: 151;
-  width: 20px;
-  height: 48px;
+  width: 24px;
+  height: 52px;
   display: flex !important;
   align-items: center;
   justify-content: center;
-  background: rgba($bg-secondary, 0.95);
-  border: 2px solid $border-color;
-  border-radius: 0 4px 4px 0;
-  color: rgba(255, 255, 255, 0.8);
-  cursor: pointer;
+  background: $bg-tertiary;
+  border: 1px solid $border-color !important;
+  border-radius: 8px;
+  color: $text-secondary;
+  cursor: pointer !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  font: inherit;
+  appearance: none;
+  -webkit-appearance: none;
   transition:
     opacity 0.2s ease,
-    left 0.15s ease,
+    right 0.15s ease,
     width 0.15s ease,
     background 0.15s ease,
     color 0.15s ease,
     border-color 0.15s ease;
   opacity: 1 !important;
+  pointer-events: auto !important;
+  flex-shrink: 0;
 
   &:hover {
     background: $bg-secondary;
-    color: #fff;
-    border-color: rgba(255, 255, 255, 0.3);
+    color: $text-primary;
+    border-color: color-mix(in srgb, #{$border-color} 70%, #fff 30%);
   }
 
   &:active {
-    left: 8px;
+    right: calc(#{$sidebar-width} - 4px);
+  }
+
+  &.is-collapsed {
+    right: 0;
+    border-radius: 8px;
+
+    &:active {
+      right: 4px;
+    }
   }
 
   // Pin mode - when sidebar is revealed by hover
   &.can-pin {
-    color: rgba(100, 200, 255, 0.8);
+    color: $text-primary;
 
     &:hover {
-      color: rgb(100, 200, 255);
-      border-color: rgba(100, 200, 255, 0.4);
+      color: #fff;
+      border-color: color-mix(in srgb, #{$accent-blue} 40%, #{$border-color} 60%);
     }
   }
 }

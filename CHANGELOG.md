@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.60.1] - 2026-02-13
+
+### Fixed
+- **Sidebar toggle button** - Repositioned to stay flush with sidebar edge, added directional chevron that flips based on collapsed state, improved styling with proper border-radius and hover effects
+
 ## [0.60.0] - 2026-02-12
 
 ### Added
