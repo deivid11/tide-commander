@@ -12,9 +12,6 @@ It's a visual multi-agent orchestrator for **Claude Code** and **OpenAI Codex** 
 
 It looks like a game. But make no mistake — this is a serious developer tool.
 
-> **[IMAGE PLACEHOLDER: 3D battlefield overview — `docs/preview-3d.png`]**
-> *The 3D battlefield view. Each character represents an active Claude Code or Codex agent. The bottom bar shows the selected agent's terminal output.*
-
 ---
 
 ## Why Not Just Use Terminals?
@@ -26,9 +23,6 @@ The core problem is simple: **AI coding agents work best when you run several in
 - Where's the output from that database migration?
 
 Tide Commander replaces that chaos with a single visual interface where you can see every agent, their status, and their output at a glance. For many workflows, an IDE becomes almost unnecessary — the same interface has file diff viewers on agent conversations, a file explorer showing uncommitted changes, and a built-in terminal with full syntax highlighting.
-
-> **[IMAGE PLACEHOLDER: Guake terminal overlay showing agent conversation with tool output formatting]**
-> *The drop-down Guake terminal (toggled with backtick) shows the full agent conversation with formatted tool outputs, diff viewers, and real-time streaming.*
 
 ---
 
@@ -50,9 +44,6 @@ The **Supervisor** is like a god-mode observer. It sees everything on the field,
 
 Areas help you **organize agents by project**. Draw a rectangle on the battlefield, name it "Backend API" or "Mobile App," and drag agents into it. Areas can have assigned folders, which enables the built-in file explorer for those directories. Completed areas can be archived and restored later.
 
-> **[IMAGE PLACEHOLDER: Battlefield with multiple group areas containing agents, showing area labels and folder assignments]**
-> *Group areas organize agents visually on the battlefield. Each area can have assigned folders for the file explorer.*
-
 ### Classes
 
 Inspired by class systems in games like Call of Duty or Minecraft, **Classes** define an agent's role. Each class has a linked 3D model, a set of instructions (like a project-specific claude.md), and assigned skills.
@@ -70,9 +61,6 @@ This is still a work in progress, but the concept is powerful: **place functiona
 
 These aren't decorative. They're functional infrastructure widgets embedded in the battlefield.
 
-> **[IMAGE PLACEHOLDER: Building panel showing a server building with PM2 stats and real-time logs]**
-> *A Server building showing PM2 process management with CPU/memory stats and streaming logs.*
-
 ---
 
 ## The Commander View
@@ -80,9 +68,6 @@ These aren't decorative. They're functional infrastructure widgets embedded in t
 Sometimes you want to see everything at once. The **Commander View** displays all agent terminals in a grid layout, grouped by area. You can expand any panel to full size, or just monitor all agents simultaneously.
 
 Think of it as mission control for your coding team.
-
-> **[IMAGE PLACEHOLDER: Commander view showing grid of agent terminals grouped by project areas]**
-> *Commander View: all agent terminals at a glance, grouped by area.*
 
 ---
 
@@ -111,9 +96,6 @@ Press `Ctrl+K` to open a command palette. Search for agents by name, class, or c
 ### Paste Anything
 Paste file paths and they auto-attach as file references. Paste screenshots directly into the terminal. Paste large blocks of text and they get compacted automatically.
 
-> **[IMAGE PLACEHOLDER: File explorer panel showing git diff viewer with side-by-side uncommitted changes]**
-> *The built-in file explorer with git diff viewer showing uncommitted changes — no IDE needed.*
-
 ---
 
 ## Three Ways to View the Battlefield
@@ -125,9 +107,6 @@ Tide Commander offers three rendering modes, and you can cycle between them with
 2. **2D View** — A lightweight canvas-based rendering. Same functionality, lower resource usage. Great for laptops or when you need to save GPU cycles for the agents themselves.
 
 3. **Dashboard** — Agent status cards, building overview, and metrics in a traditional layout.
-
-> **[IMAGE PLACEHOLDER: 2D canvas view — `docs/preview-2d.png`]**
-> *The 2D view: lightweight but fully functional. Same controls, lower resource usage.*
 
 ---
 
@@ -152,9 +131,6 @@ Under the hood, Tide Commander is a **React + Three.js frontend** paired with a 
 Each agent you spawn is a real `claude` or `codex` CLI process. The backend manages process lifecycle, parses stdout for events (tool usage, text output, errors), and streams everything to the frontend in real-time.
 
 Sessions are persisted and resume across server restarts. Agent configurations, positions, token usage, and conversation history are all saved locally.
-
-> **[IMAGE PLACEHOLDER: System architecture diagram — `docs/system-architecture.png`]**
-> *The system architecture: React frontend, Node.js backend, WebSocket for real-time events, and CLI processes for each agent.*
 
 ---
 
@@ -191,9 +167,6 @@ Tide Commander is completely free under the **MIT license**. No paid tiers. No s
 - **npm**: `tide-commander`
 - **Discord**: [Join the community](https://discord.gg/MymXXDCvf)
 - **Demo**: [Watch on YouTube](https://www.youtube.com/watch?v=r1Op_xfhqOM)
-
-> **[IMAGE PLACEHOLDER: Hero/banner image — the 3D battlefield with multiple agents and buildings, showing the full UI with sidebar and terminal]**
-> *Deploy your AI coding army. Watch them work. Ship faster.*
 
 ---
 

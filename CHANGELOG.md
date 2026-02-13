@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.61.1] - 2026-02-13
+
+### Added
+- **README images** - Added screenshots for classes, dashboard view, and file explorer git diffs sections
+
+### Changed
+- **README cleanup** - Removed stray lines at bottom of README, deleted medium-article.md
+
+## [0.61.0] - 2026-02-13
+
+### Added
+- **Copy Markdown/Original buttons** - File viewer modal now has buttons to copy file content as markdown or original text
+- **Doc assets** - Moved example-battlefield.png to docs/ folder
+
 ## [0.60.1] - 2026-02-13
 
 ### Fixed
