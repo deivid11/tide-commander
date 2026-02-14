@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.61.5] - 2026-02-13
+
+### Added
+- **npm version badge** - Added npm version shield badge to README header
+
 ## [0.61.4] - 2026-02-13
 
 ### Fixed
