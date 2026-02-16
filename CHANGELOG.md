@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.63.1] - 2026-02-16
+
+### Changed
+- **Landing page redesign** - Major overhaul of landing page HTML and CSS
+- **Makefile updates** - Updated build targets
+- **.gitignore** - Added new ignore patterns
+
 ## [0.63.0] - 2026-02-16
 
 ### Added
