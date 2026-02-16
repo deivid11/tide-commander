@@ -13,7 +13,7 @@ export const SpotlightFooter = memo(function SpotlightFooter() {
     <div className="spotlight-footer">
       <div className="spotlight-footer-left">
         <span className="spotlight-footer-hint">
-          <kbd>↑</kbd><kbd>↓</kbd> {t('terminal:spotlight.navigate')}
+          <kbd>↑</kbd><kbd>↓</kbd> <kbd>Alt+N</kbd><kbd>Alt+P</kbd> {t('terminal:spotlight.navigate')}
         </span>
         <span className="spotlight-footer-hint">
           <kbd>Enter</kbd> {t('terminal:spotlight.select')}

@@ -437,7 +437,7 @@ function ConversationView({ agentId, onBack }: ConversationViewProps) {
     const mergedEditData = ref.line
       ? { ...(editData || {}), targetLine: ref.line }
       : editData;
-    store.setFileViewerPath(ref.path, mergedEditData);
+    store.setFileViewerPath(ref.path, mergedEditData, agent?.cwd);
   }, [agent?.cwd]);
 
   if (!agent) {

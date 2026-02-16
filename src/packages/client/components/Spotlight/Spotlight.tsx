@@ -30,6 +30,7 @@ export function Spotlight({
 }: SpotlightProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
+  const resultsLengthRef = useRef(0);
 
   const { query, setQuery, selectedIndex, setSelectedIndex, results, handleKeyDown, highlightMatch } =
     useSpotlightSearch({
@@ -44,6 +45,8 @@ export function Spotlight({
       onOpenBossLogsModal,
       onOpenDatabasePanel,
     });
+
+  resultsLengthRef.current = results.length;
 
   // Focus input when opening
   useEffect(() => {
@@ -69,11 +72,20 @@ export function Spotlight({
         return;
       }
 
-      // Capture Alt+N/P to prevent global shortcuts from firing
+      // Capture Alt+N/P to prevent global shortcuts from firing, and handle navigation here
+      // since stopImmediatePropagation prevents the input's onKeyDown from receiving the event
       if (e.altKey && !e.ctrlKey && !e.metaKey && (e.key === 'n' || e.key === 'p' || e.key === 'N' || e.key === 'P')) {
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
+        const keyLower = e.key.toLowerCase();
+        const len = resultsLengthRef.current;
+        if (keyLower === 'p') {
+          setSelectedIndex((i) => (i > 0 ? i - 1 : len - 1));
+        } else {
+          setSelectedIndex((i) => (i < len - 1 ? i + 1 : 0));
+        }
+        return;
       }
     };
 
@@ -104,7 +116,7 @@ export function Spotlight({
 
   return (
     <div className="spotlight-overlay" onClick={handleBackdropClick}>
-      <div className="spotlight-modal" onKeyDown={handleKeyDown}>
+      <div className="spotlight-modal">
         <SpotlightInput
           ref={inputRef}
           query={query}

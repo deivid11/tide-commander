@@ -11,6 +11,7 @@ import {
   useContextModalAgentId,
   useFileViewerPath,
   useFileViewerEditData,
+  useFileViewerSearchRoot,
   useAgents,
   useAgentSkills,
   useCustomAgentClass,
@@ -194,6 +195,7 @@ export function ContextModalFromGuake() {
 export function FileViewerFromGuake() {
   const fileViewerPath = useFileViewerPath();
   const editData = useFileViewerEditData();
+  const searchRoot = useFileViewerSearchRoot();
 
   if (!fileViewerPath) return null;
 
@@ -204,6 +206,7 @@ export function FileViewerFromGuake() {
       filePath={fileViewerPath}
       action={editData ? 'modified' : 'read'}
       editData={editData || undefined}
+      searchRoot={searchRoot || undefined}
     />
   );
 }

@@ -565,6 +565,13 @@ export function useFileViewerEditData(): {
 }
 
 /**
+ * Get file viewer search root (agent cwd for fallback file resolution).
+ */
+export function useFileViewerSearchRoot(): string | null {
+  return useSelector(useCallback((state: StoreState) => state.fileViewerSearchRoot, []));
+}
+
+/**
  * Get file explorer folder path. Only re-renders when it changes.
  */
 export function useExplorerFolderPath(): string | null {

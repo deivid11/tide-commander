@@ -1,0 +1,1131 @@
+openapi: 3.1.0
+info:
+  title: Tide Commander REST API
+  version: 1.0.0
+  description: |
+    HTTP API exposed by Tide Commander under `/api`.
+
+    Authentication is enforced only when `AUTH_TOKEN` is configured on the server.
+    Clients can authenticate with `Authorization: Bearer <token>`, `X-Auth-Token: <token>`,
+    or `?token=<token>`.
+servers:
+  - url: http://127.0.0.1:6200/api
+    description: Local development server
+tags:
+  - name: System
+  - name: Agents
+  - name: Areas
+  - name: Files
+  - name: Permissions
+  - name: Notifications
+  - name: Exec
+  - name: Focus
+  - name: Custom Models
+  - name: Config
+  - name: TTS
+  - name: STT
+  - name: Voice Assistant
+  - name: Snapshots
+security:
+  - BearerAuth: []
+  - XAuthToken: []
+  - QueryToken: []
+paths:
+  /health:
+    get:
+      tags: [System]
+      summary: Health check
+      description: This endpoint is always available without authentication.
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /agents:
+    get:
+      tags: [Agents]
+      summary: List agents
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+    post:
+      tags: [Agents]
+      summary: Create agent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAgentRequest'
+      responses:
+        '201':
+          $ref: '#/components/responses/JsonSuccess'
+
+  /agents/simple:
+    get:
+      tags: [Agents]
+      summary: List agent ids and names
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+
+  /agents/claude-sessions:
+    get:
+      tags: [Agents]
+      summary: List Claude Code sessions
+      parameters:
+        - in: query
+          name: cwd
+          schema:
+            type: string
+          description: Optional working directory filter
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+
+  /agents/tool-history:
+    get:
+      tags: [Agents]
+      summary: Get tool history for all agents
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 100
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+
+  /agents/status:
+    get:
+      tags: [Agents]
+      summary: Get lightweight runtime status for agents
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+
+  /agents/{id}:
+    parameters:
+      - $ref: '#/components/parameters/AgentId'
+    get:
+      tags: [Agents]
+      summary: Get agent by id
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+    patch:
+      tags: [Agents]
+      summary: Update agent
+      description: "`sessionId` updates are ignored by the server."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+    delete:
+      tags: [Agents]
+      summary: Delete agent
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /agents/{id}/process-output:
+    get:
+      tags: [Agents]
+      summary: "Get `witr --pid` output for an agent process"
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '501':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /agents/{id}/sessions:
+    get:
+      tags: [Agents]
+      summary: List sessions for an agent
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+
+  /agents/{id}/history:
+    get:
+      tags: [Agents]
+      summary: Get conversation history
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 50
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+
+  /agents/{id}/search:
+    get:
+      tags: [Agents]
+      summary: Search conversation history
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+        - in: query
+          name: q
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /agents/{id}/message:
+    post:
+      tags: [Agents]
+      summary: Send a command/message to an agent
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message:
+                  type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+
+  /areas:
+    get:
+      tags: [Areas]
+      summary: List drawing areas
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+
+  /notify:
+    post:
+      tags: [Notifications]
+      summary: Send agent notification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotifyRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /exec:
+    post:
+      tags: [Exec]
+      summary: Execute command with streamed WebSocket output
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /exec/tasks/{agentId}:
+    get:
+      tags: [Exec]
+      summary: List running exec tasks for an agent
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+
+  /exec/tasks/{taskId}:
+    delete:
+      tags: [Exec]
+      summary: Kill a running task
+      parameters:
+        - in: path
+          name: taskId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /exec/generate-curl:
+    post:
+      tags: [Exec]
+      summary: "Generate escaped curl command for `/api/exec`"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+
+  /focus-agent:
+    post:
+      tags: [Focus]
+      summary: Request UI clients to focus on an agent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [agentId]
+              properties:
+                agentId:
+                  type: string
+                openTerminal:
+                  type: boolean
+                  default: true
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+
+  /custom-models/upload/{classId}:
+    post:
+      tags: [Custom Models]
+      summary: Upload custom GLB model for a class
+      parameters:
+        - in: path
+          name: classId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+          model/gltf-binary:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+
+  /custom-models/{classId}:
+    parameters:
+      - in: path
+        name: classId
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [Custom Models]
+      summary: Download custom GLB model
+      responses:
+        '200':
+          description: GLB content
+          content:
+            model/gltf-binary:
+              schema:
+                type: string
+                format: binary
+    delete:
+      tags: [Custom Models]
+      summary: Delete custom model for class
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+
+  /custom-models/{classId}/exists:
+    get:
+      tags: [Custom Models]
+      summary: Check whether a custom model exists
+      parameters:
+        - in: path
+          name: classId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+
+  /tts/speak:
+    post:
+      tags: [TTS]
+      summary: Generate speech (WAV) from text
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text:
+                  type: string
+                voice:
+                  type: string
+                lang:
+                  type: string
+      responses:
+        '200':
+          description: WAV audio
+          content:
+            audio/wav:
+              schema:
+                type: string
+                format: binary
+
+  /stt/transcribe:
+    post:
+      tags: [STT]
+      summary: Transcribe base64-encoded audio using Whisper
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [audio]
+              properties:
+                audio:
+                  type: string
+                  description: Base64-encoded audio
+                language:
+                  type: string
+                  default: Spanish
+                model:
+                  type: string
+                  default: medium
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+
+  /voice-assistant/process:
+    post:
+      tags: [Voice Assistant]
+      summary: Route natural-language voice command to an agent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text:
+                  type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+
+  /voice-assistant/reset:
+    post:
+      tags: [Voice Assistant]
+      summary: Reset voice assistant session state
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+
+  /voice-assistant/status:
+    get:
+      tags: [Voice Assistant]
+      summary: Get voice assistant status
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+
+  /snapshots:
+    get:
+      tags: [Snapshots]
+      summary: List snapshots
+      parameters:
+        - in: query
+          name: agentId
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+    post:
+      tags: [Snapshots]
+      summary: Create snapshot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSnapshotRequest'
+      responses:
+        '201':
+          $ref: '#/components/responses/JsonSuccess'
+
+  /snapshots/{id}:
+    parameters:
+      - $ref: '#/components/parameters/SnapshotId'
+    get:
+      tags: [Snapshots]
+      summary: Get snapshot details
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+    delete:
+      tags: [Snapshots]
+      summary: Delete snapshot
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /snapshots/{id}/restore:
+    post:
+      tags: [Snapshots]
+      summary: Restore files from snapshot
+      parameters:
+        - $ref: '#/components/parameters/SnapshotId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                overwrite:
+                  type: boolean
+                  default: false
+                targetDir:
+                  type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+
+  /config/categories:
+    get:
+      tags: [Config]
+      summary: List import/export config categories
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+
+  /config/export:
+    get:
+      tags: [Config]
+      summary: Export config as ZIP
+      parameters:
+        - in: query
+          name: categories
+          schema:
+            type: string
+          description: Comma-separated category ids
+      responses:
+        '200':
+          description: ZIP archive
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+
+  /config/preview:
+    post:
+      tags: [Config]
+      summary: Preview categories contained in uploaded config ZIP
+      requestBody:
+        required: true
+        content:
+          application/zip:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+
+  /config/import:
+    post:
+      tags: [Config]
+      summary: Import selected categories from uploaded config ZIP
+      parameters:
+        - in: query
+          name: categories
+          required: true
+          schema:
+            type: string
+          description: Comma-separated category ids
+      requestBody:
+        required: true
+        content:
+          application/zip:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+
+  /permission-request:
+    post:
+      tags: [Permissions]
+      summary: Submit permission request from hook and await decision
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, sessionId, tool]
+              properties:
+                id:
+                  type: string
+                sessionId:
+                  type: string
+                tool:
+                  type: string
+                toolInput:
+                  type: object
+                  additionalProperties: true
+                toolUseId:
+                  type: string
+                timestamp:
+                  type: number
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+
+  /permission-requests:
+    get:
+      tags: [Permissions]
+      summary: List pending permission requests
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+
+  /permission-requests/{agentId}:
+    get:
+      tags: [Permissions]
+      summary: List pending permission requests for one agent
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+
+  /remembered-patterns:
+    get:
+      tags: [Permissions]
+      summary: List remembered permission patterns
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+    delete:
+      tags: [Permissions]
+      summary: Clear all remembered permission patterns
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+
+  /remembered-patterns/{tool}/{pattern}:
+    delete:
+      tags: [Permissions]
+      summary: Remove remembered pattern by tool and value
+      parameters:
+        - in: path
+          name: tool
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: pattern
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /files/read:
+    get: { $ref: '#/components/x-operations/FileRead' }
+  /files/exists:
+    get: { $ref: '#/components/x-operations/FileExists' }
+  /files/info:
+    get: { $ref: '#/components/x-operations/FileInfo' }
+  /files/binary:
+    get: { $ref: '#/components/x-operations/FileBinary' }
+  /files/list:
+    get: { $ref: '#/components/x-operations/FileList' }
+  /files/tree:
+    get: { $ref: '#/components/x-operations/FileTree' }
+  /files/search:
+    get: { $ref: '#/components/x-operations/FileSearch' }
+  /files/search-content:
+    get: { $ref: '#/components/x-operations/FileSearchContent' }
+  /files/git-status:
+    get: { $ref: '#/components/x-operations/FileGitStatus' }
+  /files/git-add:
+    post: { $ref: '#/components/x-operations/FileGitAdd' }
+  /files/git-original:
+    get: { $ref: '#/components/x-operations/FileGitOriginal' }
+  /files/git-diff:
+    get: { $ref: '#/components/x-operations/FileGitDiff' }
+  /files/git-branches:
+    get: { $ref: '#/components/x-operations/FileGitBranches' }
+  /files/git-checkout:
+    post: { $ref: '#/components/x-operations/FileGitCheckout' }
+  /files/git-branch-create:
+    post: { $ref: '#/components/x-operations/FileGitBranchCreate' }
+  /files/git-pull:
+    post: { $ref: '#/components/x-operations/FileGitPull' }
+  /files/git-push:
+    post: { $ref: '#/components/x-operations/FileGitPush' }
+  /files/git-log-message:
+    get: { $ref: '#/components/x-operations/FileGitLogMessage' }
+  /files/git-commit:
+    post: { $ref: '#/components/x-operations/FileGitCommit' }
+  /files/git-merge:
+    post: { $ref: '#/components/x-operations/FileGitMerge' }
+  /files/git-conflict-file:
+    get: { $ref: '#/components/x-operations/FileGitConflictFile' }
+  /files/git-resolve-conflict:
+    post: { $ref: '#/components/x-operations/FileGitResolveConflict' }
+  /files/git-merge-continue:
+    post: { $ref: '#/components/x-operations/FileGitMergeContinue' }
+  /files/git-merge-abort:
+    post: { $ref: '#/components/x-operations/FileGitMergeAbort' }
+  /files/git-branch-compare:
+    get: { $ref: '#/components/x-operations/FileGitBranchCompare' }
+  /files/git-show:
+    get: { $ref: '#/components/x-operations/FileGitShow' }
+  /files/open-in-editor:
+    post: { $ref: '#/components/x-operations/FileOpenInEditor' }
+  /files/by-path:
+    post: { $ref: '#/components/x-operations/FileByPath' }
+  /files/upload:
+    post: { $ref: '#/components/x-operations/FileUpload' }
+  /files/temp-dir:
+    get: { $ref: '#/components/x-operations/FileTempDir' }
+  /files/autocomplete:
+    get: { $ref: '#/components/x-operations/FileAutocomplete' }
+  /files/temp/{filename}:
+    delete: { $ref: '#/components/x-operations/FileTempDelete' }
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+    XAuthToken:
+      type: apiKey
+      in: header
+      name: X-Auth-Token
+    QueryToken:
+      type: apiKey
+      in: query
+      name: token
+
+  parameters:
+    AgentId:
+      in: path
+      name: id
+      required: true
+      schema:
+        type: string
+    SnapshotId:
+      in: path
+      name: id
+      required: true
+      schema:
+        type: string
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+      additionalProperties: true
+    GenericJson:
+      type: object
+      additionalProperties: true
+    CreateAgentRequest:
+      type: object
+      required: [name, class, cwd]
+      properties:
+        name:
+          type: string
+        class:
+          type: string
+        cwd:
+          type: string
+        position:
+          type: object
+          properties:
+            x: { type: number }
+            y: { type: number }
+            z: { type: number }
+    NotifyRequest:
+      type: object
+      required: [agentId, title, message]
+      properties:
+        agentId:
+          type: string
+        title:
+          type: string
+        message:
+          type: string
+    ExecRequest:
+      type: object
+      required: [agentId, command]
+      properties:
+        agentId:
+          type: string
+        command:
+          type: string
+        cwd:
+          type: string
+    CreateSnapshotRequest:
+      type: object
+      required: [agentId, title]
+      properties:
+        agentId:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+
+  responses:
+    JsonSuccess:
+      description: JSON response
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GenericJson'
+    ErrorResponse:
+      description: Error response
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  x-operations:
+    FileRead:
+      tags: [Files]
+      summary: Read text file content
+      parameters:
+        - in: query
+          name: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+    FileExists:
+      tags: [Files]
+      summary: Check file existence
+      parameters:
+        - in: query
+          name: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+    FileInfo:
+      tags: [Files]
+      summary: Get file metadata
+      parameters:
+        - in: query
+          name: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+    FileBinary:
+      tags: [Files]
+      summary: Read binary file
+      parameters:
+        - in: query
+          name: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Binary data
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+    FileList:
+      tags: [Files]
+      summary: List directory entries
+      parameters:
+        - in: query
+          name: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+    FileTree:
+      tags: [Files]
+      summary: List directory tree recursively
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+    FileSearch:
+      tags: [Files]
+      summary: Search for files by name
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+    FileSearchContent:
+      tags: [Files]
+      summary: Search file contents
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+    FileGitStatus:
+      tags: [Files]
+      summary: Get git status for repo path
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+    FileGitAdd:
+      tags: [Files]
+      summary: Stage files with git add
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+    FileGitOriginal:
+      tags: [Files]
+      summary: Read file content from HEAD
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+    FileGitDiff:
+      tags: [Files]
+      summary: Get unified diff for file
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+    FileGitBranches:
+      tags: [Files]
+      summary: List local and remote branches
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+    FileGitCheckout:
+      tags: [Files]
+      summary: Checkout branch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+    FileGitBranchCreate:
+      tags: [Files]
+      summary: Create and checkout new branch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+    FileGitPull:
+      tags: [Files]
+      summary: Pull from remote
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+    FileGitPush:
+      tags: [Files]
+      summary: Push to remote
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+    FileGitLogMessage:
+      tags: [Files]
+      summary: Get latest commit message
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+    FileGitCommit:
+      tags: [Files]
+      summary: Commit staged changes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+    FileGitMerge:
+      tags: [Files]
+      summary: Merge branch into current branch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+    FileGitConflictFile:
+      tags: [Files]
+      summary: Get conflict file versions (ours/theirs/merged)
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+    FileGitResolveConflict:
+      tags: [Files]
+      summary: Resolve conflict file
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+    FileGitMergeContinue:
+      tags: [Files]
+      summary: Continue merge after resolving conflicts
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+    FileGitMergeAbort:
+      tags: [Files]
+      summary: Abort in-progress merge
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+    FileGitBranchCompare:
+      tags: [Files]
+      summary: Compare two branches
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+    FileGitShow:
+      tags: [Files]
+      summary: Show git object content
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+    FileOpenInEditor:
+      tags: [Files]
+      summary: Open path in configured editor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+    FileByPath:
+      tags: [Files]
+      summary: Get file icon and metadata by path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+    FileUpload:
+      tags: [Files]
+      summary: Upload file to temporary storage
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+    FileTempDir:
+      tags: [Files]
+      summary: Get upload temp directory path
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+    FileAutocomplete:
+      tags: [Files]
+      summary: Filesystem path autocomplete
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+    FileTempDelete:
+      tags: [Files]
+      summary: Delete temp uploaded file
+      parameters:
+        - in: path
+          name: filename
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }

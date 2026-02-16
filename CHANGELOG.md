@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.63.0] - 2026-02-16
+
+### Added
+- **Server performance metrics** - FPSMeter now shows server-side metrics (heap, RSS, CPU, system load, agent process stats) via `/api/perf` endpoint
+- **File resolve API** - New `/api/files/resolve` endpoint to find files by name within a project directory
+- **Spotlight search improvements** - Results now sorted by category order for consistent navigation; category grouping matches visual rendering
+- **FileViewerModal enhancements** - Expanded file viewer with new features and improved styling
+- **Performance route** - New `src/packages/server/routes/perf.ts` server route for system metrics
+
+### Changed
+- **Spotlight results ordering** - Flat result arrays now sorted to match category display order (commands, agents, buildings, areas, files, activity)
+- **Store selectors** - New selectors for enhanced state access
+
 ## [0.62.1] - 2026-02-15
 
 ### Added

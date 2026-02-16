@@ -20,10 +20,20 @@ function getNodeText(node: React.ReactNode): string {
   return '';
 }
 
+// Common TLDs to distinguish URLs from file paths
+const URL_TLDS = /\.(com|org|net|io|dev|app|co|me|info|biz|us|uk|de|fr|jp|cn|ru|edu|gov|mil|int|xyz|tech|online|site|store|blog|cloud|ai|gg|tv|cc|sh|fm|to|ly|gl|so|is|it|at|nl|ch|se|no|fi|dk|be|cz|pl|pt|br|mx|ar|cl|in|au|nz|za|sg|hk|tw|kr|id|ph|th|vn|my)$/i;
+
+function looksLikeUrl(str: string): boolean {
+  // Strip trailing path/query if present, check base domain
+  const base = str.split('/')[0].split('?')[0].split('#')[0];
+  return URL_TLDS.test(base);
+}
+
 function isLikelyFileHref(href: string): boolean {
   if (!href) return false;
   if (href.startsWith('#')) return false;
   if (/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(href)) return false; // http:, https:, mailto:, etc
+  if (looksLikeUrl(href)) return false;
   return href.includes('.') || href.startsWith('/') || href.startsWith('./') || href.startsWith('../');
 }
 
@@ -33,6 +43,7 @@ function isLikelyFileText(value: string): boolean {
   const trimmed = value.trim();
   if (!trimmed) return false;
   if (/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(trimmed)) return false;
+  if (looksLikeUrl(trimmed)) return false;
   return trimmed.includes('.') && (trimmed.includes('/') || /^[A-Za-z0-9._-]+\.[A-Za-z0-9._-]+$/.test(trimmed));
 }
 
@@ -153,8 +164,12 @@ export const createMarkdownComponents = ({ onFileClick }: MarkdownComponentOptio
     if (!normalizedHref) {
       return <span>{children}</span>;
     }
+    // Ensure URLs have a protocol prefix for proper navigation
+    const linkHref = (!normalizedHref.includes('://') && looksLikeUrl(normalizedHref))
+      ? `https://${normalizedHref}`
+      : normalizedHref;
     return (
-      <a href={normalizedHref} style={{ color: 'var(--accent-cyan)', textDecoration: 'underline' }}>
+      <a href={linkHref} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-cyan)', textDecoration: 'underline' }}>
         {children}
       </a>
     );
