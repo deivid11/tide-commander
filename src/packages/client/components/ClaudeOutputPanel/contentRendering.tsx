@@ -8,6 +8,7 @@ import remarkGfm from 'remark-gfm';
 import { createMarkdownComponents } from './MarkdownComponents';
 import { getApiBaseUrl } from '../../utils/storage';
 import { linkifyFilePathsForMarkdown } from '../../utils/outputRendering';
+import i18n from '../../i18n';
 
 /**
  * Helper to highlight search terms in text
@@ -168,7 +169,7 @@ export function renderContentWithImages(
           key={`img-${match.index}`}
           className="image-reference clickable"
           onClick={() => onImageClick?.(imageUrl, resourceName)}
-          title="Click to view image"
+          title={i18n.t('terminal:content.clickToViewImage')}
         >
           <img src={imageUrl} alt={resourceName} className="image-reference-thumb" />
           {resourceName}
@@ -182,7 +183,7 @@ export function renderContentWithImages(
           key={`file-${match.index}`}
           className="file-reference clickable"
           onClick={() => onFileClick?.(resourcePath)}
-          title={`Click to view file: ${resourcePath}`}
+          title={i18n.t('terminal:content.clickToViewFile', { path: resourcePath })}
         >
           <img src={`/assets/vscode-icons/${iconPath}`} alt={resourceName} style={{ width: '12px', height: '12px', display: 'inline', marginRight: '4px' }} />
           {resourceName}
@@ -259,7 +260,7 @@ export function renderUserPromptContent(
           key={`img-${match.index}`}
           className="image-reference clickable"
           onClick={() => onImageClick?.(imageUrl, resourceName)}
-          title="Click to view image"
+          title={i18n.t('terminal:content.clickToViewImage')}
         >
           <img src={imageUrl} alt={resourceName} className="image-reference-thumb" />
           {resourceName}
@@ -272,7 +273,7 @@ export function renderUserPromptContent(
           key={`file-${match.index}`}
           className="file-reference clickable"
           onClick={() => onFileClick?.(resourcePath)}
-          title={`Click to view file: ${resourcePath}`}
+          title={i18n.t('terminal:content.clickToViewFile', { path: resourcePath })}
         >
           <img src={`/assets/vscode-icons/${iconPath}`} alt={resourceName} style={{ width: '12px', height: '12px', display: 'inline', marginRight: '4px' }} />
           {resourceName}

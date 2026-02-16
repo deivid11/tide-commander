@@ -1,0 +1,48 @@
+{
+  "agent": {
+    "clickToFocus": "点击聚焦",
+    "needsAttention": "需要关注",
+    "removed": "{{name}} 已从视图中移除",
+    "deployed": "{{name}} 部署成功",
+    "terminated": "{{name}} 已终止",
+    "started": "{{name}} 已启动",
+    "errored": "{{name}} 遇到错误"
+  },
+  "toast": {
+    "info": "提示",
+    "success": "成功",
+    "warning": "警告",
+    "agentsRemoved": "代理已移除",
+    "agentsRemovedMsg": "已从视图中移除 {{count}} 个代理",
+    "buildingsDeleted": "建筑已删除",
+    "buildingsDeletedMsg": "已删除 {{count}} 个建筑",
+    "buildingDeleted": "建筑已删除",
+    "buildingDeletedMsg": "\"{{name}}\" 已被删除",
+    "snapshotSaved": "快照已保存",
+    "snapshotSavedMsg": "快照保存成功",
+    "snapshotFailed": "快照失败",
+    "snapshotFailedMsg": "创建快照失败",
+    "copied": "已复制",
+    "resumeCopied": "恢复命令已复制到剪贴板",
+    "textCopied": "文本已复制到剪贴板",
+    "pathCopied": "路径已复制到剪贴板",
+    "mergeComplete": "合并完成",
+    "mergeCompleteMsg": "分支合并成功",
+    "mergeConflicts": "合并冲突",
+    "mergeConflictsMsg": "合并存在需要解决的冲突",
+    "mergeAborted": "合并已中止",
+    "mergeAbortedMsg": "合并操作已中止",
+    "branchCreated": "分支已创建",
+    "branchCreatedMsg": "分支 \"{{name}}\" 已创建",
+    "branchSwitched": "分支已切换",
+    "branchSwitchedMsg": "已切换到分支 \"{{name}}\"",
+    "filesSaved": "文件已保存",
+    "filesSavedMsg": "已保存 {{count}} 个文件"
+  },
+  "drawing": {
+    "rectangleTool": "矩形工具",
+    "circleTool": "圆形工具",
+    "toolName": "{{name}} 工具",
+    "clickAndDrag": "在战场上点击并拖动以绘制区域"
+  }
+}

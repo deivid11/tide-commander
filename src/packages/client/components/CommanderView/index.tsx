@@ -14,6 +14,7 @@
  */
 
 import React, { useEffect, useRef, useState, useMemo, useCallback, memo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAgents, useAreas, useAgentOutputs, store } from '../../store';
 import type { Agent } from '../../../shared/types';
 import { FileExplorerPanel } from '../FileExplorerPanel';
@@ -105,6 +106,7 @@ interface CommanderViewProps {
 }
 
 export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   // Use granular selectors to prevent re-renders from unrelated state changes
   const agents = useAgents();
   const areas = useAreas();
@@ -148,11 +150,11 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
     const areasArray = Array.from(areas.values()).sort((a, b) =>
       a.name.localeCompare(b.name)
     );
-    const tabList: TabConfig[] = [{ id: 'all', name: 'All' }];
+    const tabList: TabConfig[] = [{ id: 'all', name: t('common:labels.all') }];
     for (const area of areasArray) {
       tabList.push({ id: area.id, name: area.name, color: area.color });
     }
-    tabList.push({ id: 'unassigned', name: 'Unassigned' });
+    tabList.push({ id: 'unassigned', name: t('commander.unassigned') });
     return tabList;
   }, [areas]);
 
@@ -375,28 +377,28 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
       <div className="commander-view" onClick={e => e.stopPropagation()}>
         <div className="commander-header">
           <div className="commander-title-section">
-            <h2 className="commander-title">Commander View</h2>
+            <h2 className="commander-title">{t('commander.title')}</h2>
             <span className="commander-shortcuts">
-              Tab switch areas • ⌥H/J/K/L nav • ⌥O expand • ⌥N new
+              {t('commander.shortcuts')}
             </span>
           </div>
           <div className="commander-controls">
             <button
               className={`commander-view-toggle ${advancedView ? 'active' : ''}`}
               onClick={() => setAdvancedView(!advancedView)}
-              title={advancedView ? 'Show simple view' : 'Show advanced view'}
+              title={advancedView ? t('commander.simple') : t('commander.advanced')}
             >
-              {advancedView ? '◉ Advanced' : '○ Simple'}
+              {advancedView ? `◉ ${t('commander.advanced')}` : `○ ${t('commander.simple')}`}
             </button>
             <button
               className="commander-add-btn"
               onClick={() => setShowSpawnForm(true)}
-              title="Add Agent (⌥N)"
+              title={t('commander.addAgent')}
             >
-              + Add Agent
+              {t('commander.addAgent')}
             </button>
             <button className="commander-close" onClick={onClose}>
-              Close (Esc)
+              {t('commander.close')}
             </button>
           </div>
         </div>
@@ -443,7 +445,7 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
                       e.stopPropagation();
                       setFileExplorerAreaId(tab.id);
                     }}
-                    title="Open file explorer"
+                    title={t('commander.openFileExplorer')}
                   >
                     📁
                   </span>
@@ -456,38 +458,38 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
         {/* Filter Bar */}
         <div className="commander-filters">
           <div className="commander-filter-group">
-            <span className="commander-filter-label">Status</span>
+            <span className="commander-filter-label">{t('commander.filters.status')}</span>
             {(['all', 'working', 'idle', 'error', 'offline'] as AgentStatusFilter[]).map(s => (
               <button
                 key={s}
                 className={`commander-filter-btn ${filters.status === s ? 'active' : ''}`}
                 onClick={() => setFilters(f => ({ ...f, status: s }))}
               >
-                {s === 'all' ? 'All' : s === 'error' ? 'Needs Attn' : s.charAt(0).toUpperCase() + s.slice(1)}
+                {s === 'all' ? t('commander.filters.all') : s === 'error' ? t('commander.filters.needsAttn') : s.charAt(0).toUpperCase() + s.slice(1)}
               </button>
             ))}
           </div>
           <div className="commander-filter-group">
-            <span className="commander-filter-label">Active</span>
+            <span className="commander-filter-label">{t('commander.filters.active')}</span>
             {(['all', '1h', '6h', '24h'] as AgentActivityFilter[]).map(a => (
               <button
                 key={a}
                 className={`commander-filter-btn ${filters.activity === a ? 'active' : ''}`}
                 onClick={() => setFilters(f => ({ ...f, activity: a }))}
               >
-                {a === 'all' ? 'Any' : `< ${a}`}
+                {a === 'all' ? t('commander.filters.any') : `< ${a}`}
               </button>
             ))}
           </div>
           <div className="commander-filter-group">
-            <span className="commander-filter-label">Sort</span>
+            <span className="commander-filter-label">{t('commander.filters.sort')}</span>
             {(['activity', 'name', 'created', 'context'] as AgentSortOption[]).map(s => (
               <button
                 key={s}
                 className={`commander-filter-btn ${filters.sort === s ? 'active' : ''}`}
                 onClick={() => setFilters(f => ({ ...f, sort: s }))}
               >
-                {s === 'activity' ? 'Recent' : s === 'context' ? 'Context' : s.charAt(0).toUpperCase() + s.slice(1)}
+                {s === 'activity' ? t('commander.filters.recent') : s === 'context' ? t('commander.filters.context') : s.charAt(0).toUpperCase() + s.slice(1)}
               </button>
             ))}
           </div>
@@ -495,9 +497,9 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
             <button
               className="commander-filter-clear"
               onClick={() => setFilters(DEFAULT_FILTERS)}
-              title="Clear all filters"
+              title={t('commander.clearFilters')}
             >
-              Clear ({activeFilterCount})
+              {t('commander.filters.clearFilters', { count: activeFilterCount })}
             </button>
           )}
         </div>
@@ -510,17 +512,17 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
               onClick={() => setPage(p => Math.max(0, p - 1))}
               disabled={page === 0}
             >
-              ← Prev
+              ← {t('commander.prev')}
             </button>
             <span className="commander-page-info">
-              Page {page + 1} of {totalPages} ({filteredAgents.length} agents)
+              {t('commander.page', { current: page + 1, total: totalPages, count: filteredAgents.length })}
             </span>
             <button
               className="commander-page-btn"
               onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
               disabled={page === totalPages - 1}
             >
-              Next →
+              {t('commander.next')} →
             </button>
           </div>
         )}
@@ -532,10 +534,10 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
           {visibleAgents.length === 0 ? (
             <div className="commander-empty">
               {activeTab === 'all'
-                ? 'No agents deployed. Press ⌥N to add an agent.'
+                ? t('commander.noAgentsAll')
                 : activeTab === 'unassigned'
-                  ? 'No unassigned agents.'
-                  : `No agents in this area. Press ⌥N to add one.`}
+                  ? t('commander.noAgentsUnassigned')
+                  : t('commander.noAgentsArea')}
             </div>
           ) : expandedAgentId ? (
             // Show only expanded agent

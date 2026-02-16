@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Agent } from '@shared/types';
 import { getStatusColor, getAgentClassIcon, getContextPercent, getContextBarColor } from './utils';
 import { formatIdleTime, formatTimeAgo } from '../../utils/formatting';
@@ -27,6 +28,7 @@ export const AgentCard = React.memo(({
   onKill,
   onDragStart,
 }: AgentCardProps) => {
+  const { t } = useTranslation(['dashboard', 'common']);
   const statusColor = getStatusColor(agent.status);
   const icon = getAgentClassIcon(agent.class);
   const contextPercent = getContextPercent(agent);
@@ -55,7 +57,7 @@ export const AgentCard = React.memo(({
         e.dataTransfer.effectAllowed = 'move';
       }}
       draggable
-      title="Double-click to open terminal | Drag to move to another area"
+      title={t('cards.doubleClickHint')}
     >
       {/* Row 1: Status dot + name + class badge + provider */}
       <div className="dash-card__row1">
@@ -110,18 +112,18 @@ export const AgentCard = React.memo(({
           <button
             className="dash-card__action-btn dash-card__action-btn--chat"
             onClick={(e) => { e.stopPropagation(); onChat(); }}
-            title="Open terminal"
+            title={t('cards.openTerminal')}
           >
-            Chat
+            {t('cards.chat')}
           </button>
         )}
         {onKill && (
           <button
             className="dash-card__action-btn dash-card__action-btn--danger"
             onClick={(e) => { e.stopPropagation(); onKill(); }}
-            title="Kill agent"
+            title={t('cards.killAgent')}
           >
-            Stop
+            {t('cards.stop')}
           </button>
         )}
       </div>

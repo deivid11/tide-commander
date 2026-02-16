@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { RecentEvent } from './types';
 import { formatTime } from './utils';
 import styles from './dashboard-view.module.scss';
@@ -46,6 +47,7 @@ const TimelineEvent = React.memo(
     isLast: boolean;
     onClick?: () => void;
   }) => {
+    const { t } = useTranslation(['dashboard']);
     return (
       <div
         className={`${styles['timeline-event']} ${styles[`timeline-event--${event.severity}`]}`}
@@ -79,12 +81,12 @@ const TimelineEvent = React.memo(
 
             {event.agentName && (
               <p className={styles['timeline-event__meta']}>
-                Agent: <strong>{event.agentName}</strong>
+                {t('timeline.agent')}: <strong>{event.agentName}</strong>
               </p>
             )}
             {event.buildingName && (
               <p className={styles['timeline-event__meta']}>
-                Building: <strong>{event.buildingName}</strong>
+                {t('timeline.building')}: <strong>{event.buildingName}</strong>
               </p>
             )}
           </div>
@@ -104,21 +106,22 @@ export const EventsTimeline: React.FC<EventsTimelineProps> = ({
   maxVisible = 8,
   onEventClick,
 }) => {
+  const { t } = useTranslation(['dashboard']);
   const visibleEvents = events.slice(0, maxVisible);
   const hasMore = events.length > maxVisible;
 
   return (
     <div className={styles['events-timeline']}>
       <div className={styles['events-timeline__header']}>
-        <h2 className={styles['events-timeline__title']}>Recent Events</h2>
+        <h2 className={styles['events-timeline__title']}>{t('timeline.recentEvents')}</h2>
         <span className={styles['events-timeline__count']}>
-          {visibleEvents.length} {hasMore ? `of ${events.length}` : ''}
+          {visibleEvents.length} {hasMore ? t('timeline.ofTotal', { total: events.length }) : ''}
         </span>
       </div>
 
       {events.length === 0 ? (
         <div className={styles['events-timeline__empty']}>
-          <p>No recent events</p>
+          <p>{t('timeline.noRecentEvents')}</p>
         </div>
       ) : (
         <div className={styles['events-timeline__container']}>
@@ -135,7 +138,7 @@ export const EventsTimeline: React.FC<EventsTimelineProps> = ({
           {hasMore && (
             <div className={styles['events-timeline__more']}>
               <button className={styles['events-timeline__more-btn']}>
-                View {events.length - maxVisible} more events
+                {t('timeline.viewMore', { count: events.length - maxVisible })}
               </button>
             </div>
           )}

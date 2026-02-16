@@ -9,6 +9,7 @@
  */
 
 import React, { memo, useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { GitStatus, GitBranch } from './types';
 import { useGitBranches } from './useGitBranches';
 import { ContextMenu } from '../ContextMenu';
@@ -29,6 +30,7 @@ export const BranchWidget = memo(function BranchWidget({
   onMerge,
   onCompare,
 }: BranchWidgetProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const [showDropdown, setShowDropdown] = useState(false);
   const [searchFilter, setSearchFilter] = useState('');
   const [showNewBranch, setShowNewBranch] = useState(false);
@@ -114,11 +116,11 @@ export const BranchWidget = memo(function BranchWidget({
     if (branch.isCurrent) return;
     const result = await checkoutBranch(currentFolder, branch.name);
     if (result.success) {
-      setStatusMessage({ type: 'success', text: `Switched to ${result.branch || branch.name}` });
+      setStatusMessage({ type: 'success', text: t('terminal:fileExplorer.switchedToBranch', { branch: result.branch || branch.name }) });
       onBranchChanged();
       loadBranches(currentFolder);
     } else {
-      setStatusMessage({ type: 'error', text: result.error || 'Checkout failed' });
+      setStatusMessage({ type: 'error', text: result.error || t('terminal:fileExplorer.checkoutFailed') });
     }
   }, [currentFolder, operationInProgress, checkoutBranch, onBranchChanged, loadBranches]);
 
@@ -126,13 +128,13 @@ export const BranchWidget = memo(function BranchWidget({
     if (!currentFolder || !newBranchName.trim() || operationInProgress) return;
     const result = await createBranch(currentFolder, newBranchName.trim());
     if (result.success) {
-      setStatusMessage({ type: 'success', text: `Created branch ${result.branch}` });
+      setStatusMessage({ type: 'success', text: t('terminal:fileExplorer.createdBranch', { branch: result.branch }) });
       setShowNewBranch(false);
       setNewBranchName('');
       onBranchChanged();
       loadBranches(currentFolder);
     } else {
-      setStatusMessage({ type: 'error', text: result.error || 'Failed to create branch' });
+      setStatusMessage({ type: 'error', text: result.error || t('terminal:fileExplorer.createBranchFailed') });
     }
   }, [currentFolder, newBranchName, operationInProgress, createBranch, onBranchChanged, loadBranches]);
 
@@ -140,11 +142,11 @@ export const BranchWidget = memo(function BranchWidget({
     if (!currentFolder || operationInProgress) return;
     const result = await pullFromRemote(currentFolder);
     if (result.success) {
-      setStatusMessage({ type: 'success', text: 'Pull complete' });
+      setStatusMessage({ type: 'success', text: t('terminal:fileExplorer.pullComplete') });
       onBranchChanged();
       loadBranches(currentFolder);
     } else {
-      setStatusMessage({ type: 'error', text: result.error || 'Pull failed' });
+      setStatusMessage({ type: 'error', text: result.error || t('terminal:fileExplorer.pullFailed') });
     }
   }, [currentFolder, operationInProgress, pullFromRemote, onBranchChanged, loadBranches]);
 
@@ -152,9 +154,9 @@ export const BranchWidget = memo(function BranchWidget({
     if (!currentFolder || operationInProgress) return;
     const result = await pushToRemote(currentFolder);
     if (result.success) {
-      setStatusMessage({ type: 'success', text: 'Push complete' });
+      setStatusMessage({ type: 'success', text: t('terminal:fileExplorer.pushComplete') });
     } else {
-      setStatusMessage({ type: 'error', text: result.error || 'Push failed' });
+      setStatusMessage({ type: 'error', text: result.error || t('terminal:fileExplorer.pushFailed') });
     }
   }, [currentFolder, operationInProgress, pushToRemote]);
 
@@ -178,7 +180,7 @@ export const BranchWidget = memo(function BranchWidget({
     return [
       {
         id: 'compare',
-        label: `Show Diff with '${contextMenu.branch}'`,
+        label: t('terminal:fileExplorer.showDiffWith', { branch: contextMenu.branch }),
         icon: '⇄',
         disabled: !!operationInProgress,
         onClick: () => {
@@ -188,7 +190,7 @@ export const BranchWidget = memo(function BranchWidget({
       },
       {
         id: 'merge',
-        label: `Merge '${contextMenu.branch}' into '${branchName}'`,
+        label: t('terminal:fileExplorer.mergeInto', { source: contextMenu.branch, target: branchName }),
         icon: '⤵',
         disabled: !!mergeDisabled,
         onClick: () => {
@@ -201,7 +203,7 @@ export const BranchWidget = memo(function BranchWidget({
       { id: 'divider-1', label: '', divider: true, onClick: () => {} },
       {
         id: 'checkout',
-        label: `Checkout '${contextMenu.branch}'`,
+        label: t('terminal:fileExplorer.checkoutBranch', { branch: contextMenu.branch }),
         icon: '⎇',
         disabled: !!operationInProgress,
         onClick: () => {
@@ -254,7 +256,7 @@ export const BranchWidget = memo(function BranchWidget({
               ref={searchRef}
               type="text"
               className="branch-widget-search-input"
-              placeholder="Search branches..."
+              placeholder={t('terminal:fileExplorer.searchBranches')}
               value={searchFilter}
               onChange={(e) => setSearchFilter(e.target.value)}
               onKeyDown={(e) => e.stopPropagation()}
@@ -269,7 +271,7 @@ export const BranchWidget = memo(function BranchWidget({
           )}
 
           {/* Quick Actions */}
-          <div className="branch-widget-section-header">Actions</div>
+          <div className="branch-widget-section-header">{t('terminal:fileExplorer.actions')}</div>
           <div className="branch-widget-actions">
             <div
               className={`branch-widget-action-item ${isDisabled ? 'disabled' : ''}`}
@@ -281,7 +283,7 @@ export const BranchWidget = memo(function BranchWidget({
                 </svg>
               </span>
               <span className="branch-widget-action-label">
-                {operationInProgress === 'pull' ? 'Pulling...' : 'Pull'}
+                {operationInProgress === 'pull' ? t('terminal:fileExplorer.pulling') : t('terminal:fileExplorer.pull')}
               </span>
             </div>
             <div
@@ -294,7 +296,7 @@ export const BranchWidget = memo(function BranchWidget({
                 </svg>
               </span>
               <span className="branch-widget-action-label">
-                {operationInProgress === 'push' ? 'Pushing...' : 'Push'}
+                {operationInProgress === 'push' ? t('terminal:fileExplorer.pushing') : t('terminal:fileExplorer.push')}
               </span>
             </div>
             <div
@@ -308,7 +310,7 @@ export const BranchWidget = memo(function BranchWidget({
                   <path d="M8 2v5H3v2h5v5h2V9h5V7H10V2H8z" />
                 </svg>
               </span>
-              <span className="branch-widget-action-label">New Branch</span>
+              <span className="branch-widget-action-label">{t('terminal:fileExplorer.newBranch')}</span>
             </div>
           </div>
 
@@ -319,7 +321,7 @@ export const BranchWidget = memo(function BranchWidget({
                 ref={newBranchRef}
                 type="text"
                 className="branch-widget-new-branch-input"
-                placeholder="Branch name..."
+                placeholder={t('terminal:fileExplorer.branchNamePlaceholder')}
                 value={newBranchName}
                 onChange={(e) => setNewBranchName(e.target.value)}
                 onKeyDown={(e) => {
@@ -336,19 +338,19 @@ export const BranchWidget = memo(function BranchWidget({
                 onClick={handleCreateBranch}
                 disabled={!newBranchName.trim() || isDisabled}
               >
-                {operationInProgress === 'create' ? '...' : 'Create'}
+                {operationInProgress === 'create' ? '...' : t('common:buttons.create')}
               </button>
             </div>
           )}
 
           {/* Local Branches */}
           <div className="branch-widget-section-header">
-            Local Branches
-            {loading && <span className="branch-widget-loading-hint"> loading...</span>}
+            {t('terminal:fileExplorer.localBranches')}
+            {loading && <span className="branch-widget-loading-hint"> {t('terminal:fileExplorer.loading')}</span>}
           </div>
           <div className="branch-widget-branch-list">
             {localBranches.length === 0 && !loading && (
-              <div className="branch-widget-empty">No branches found</div>
+              <div className="branch-widget-empty">{t('terminal:fileExplorer.noBranchesFound')}</div>
             )}
             {localBranches.map((branch) => (
               <div
@@ -377,7 +379,7 @@ export const BranchWidget = memo(function BranchWidget({
                 onClick={() => setShowRemotes(!showRemotes)}
               >
                 <span className="branch-widget-section-toggle">{showRemotes ? '\u25BE' : '\u25B8'}</span>
-                Remote Branches ({remoteBranches.length})
+                {t('terminal:fileExplorer.remoteBranches', { count: remoteBranches.length })}
               </div>
               {showRemotes && (
                 <div className="branch-widget-branch-list">

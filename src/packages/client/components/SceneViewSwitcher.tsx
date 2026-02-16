@@ -6,6 +6,7 @@
  */
 
 import { useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { STORAGE_KEYS, getStorageString, setStorageString } from '../utils/storage';
 import './SceneViewSwitcher.scss';
 
@@ -18,19 +19,20 @@ interface SceneViewSwitcherProps {
 }
 
 export function SceneViewSwitcher({ mode, onModeChange, className = '' }: SceneViewSwitcherProps) {
+  const { t } = useTranslation(['terminal']);
   return (
     <div className={`scene-view-switcher ${className}`}>
       <button
         className={`switcher-btn ${mode === '2d' ? 'active' : ''}`}
         onClick={() => onModeChange('2d')}
-        title="2D View (Lightweight)"
+        title={t('terminal:sceneView.view2d')}
       >
         <span className="icon">2D</span>
       </button>
       <button
         className={`switcher-btn ${mode === '3d' ? 'active' : ''}`}
         onClick={() => onModeChange('3d')}
-        title="3D View"
+        title={t('terminal:sceneView.view3d')}
       >
         <span className="icon">3D</span>
       </button>

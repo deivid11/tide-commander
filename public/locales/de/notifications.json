@@ -1,0 +1,48 @@
+{
+  "agent": {
+    "clickToFocus": "Klicken zum Fokussieren",
+    "needsAttention": "benötigt Aufmerksamkeit",
+    "removed": "{{name}} aus der Ansicht entfernt",
+    "deployed": "{{name}} erfolgreich bereitgestellt",
+    "terminated": "{{name}} beendet",
+    "started": "{{name}} gestartet",
+    "errored": "{{name}} hat einen Fehler festgestellt"
+  },
+  "toast": {
+    "info": "Info",
+    "success": "Erfolg",
+    "warning": "Warnung",
+    "agentsRemoved": "Agenten entfernt",
+    "agentsRemovedMsg": "{{count}} Agent(en) aus der Ansicht entfernt",
+    "buildingsDeleted": "Gebäude gelöscht",
+    "buildingsDeletedMsg": "{{count}} Gebäude gelöscht",
+    "buildingDeleted": "Gebäude gelöscht",
+    "buildingDeletedMsg": "\"{{name}}\" wurde gelöscht",
+    "snapshotSaved": "Snapshot gespeichert",
+    "snapshotSavedMsg": "Snapshot erfolgreich gespeichert",
+    "snapshotFailed": "Snapshot fehlgeschlagen",
+    "snapshotFailedMsg": "Snapshot konnte nicht erstellt werden",
+    "copied": "Kopiert",
+    "resumeCopied": "Fortsetzungsbefehl in Zwischenablage kopiert",
+    "textCopied": "Text in Zwischenablage kopiert",
+    "pathCopied": "Pfad in Zwischenablage kopiert",
+    "mergeComplete": "Merge abgeschlossen",
+    "mergeCompleteMsg": "Branch erfolgreich zusammengeführt",
+    "mergeConflicts": "Merge-Konflikte",
+    "mergeConflictsMsg": "Der Merge hat Konflikte die gelöst werden müssen",
+    "mergeAborted": "Merge abgebrochen",
+    "mergeAbortedMsg": "Merge-Vorgang abgebrochen",
+    "branchCreated": "Branch erstellt",
+    "branchCreatedMsg": "Branch \"{{name}}\" erstellt",
+    "branchSwitched": "Branch gewechselt",
+    "branchSwitchedMsg": "Zu Branch \"{{name}}\" gewechselt",
+    "filesSaved": "Dateien gespeichert",
+    "filesSavedMsg": "{{count}} Datei(en) gespeichert"
+  },
+  "drawing": {
+    "rectangleTool": "Rechteck-Werkzeug",
+    "circleTool": "Kreis-Werkzeug",
+    "toolName": "{{name}}-Werkzeug",
+    "clickAndDrag": "Klicken und ziehen auf dem Schlachtfeld um einen Bereich zu zeichnen"
+  }
+}

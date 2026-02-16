@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useStore, store, useCustomAgentClassesArray, useSettings } from '../store';
 import type { Agent, DrawingArea, AgentSupervisorHistoryEntry } from '../../shared/types';
 import { formatIdleTime } from '../utils/formatting';
@@ -23,6 +24,7 @@ interface AgentGroup {
 }
 
 export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBuildingClick, onNewAreaClick }: AgentBarProps) {
+  const { t } = useTranslation(['common']);
   const state = useStore();
   const settings = useSettings();
   const customClasses = useCustomAgentClassesArray();
@@ -300,14 +302,8 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
   // Use getAgentStatusColor from utils/colors.ts
 
   const getStatusLabel = (status: Agent['status']) => {
-    switch (status) {
-      case 'idle': return 'Idle';
-      case 'working': return 'Working';
-      case 'waiting': return 'Waiting';
-      case 'error': return 'Error';
-      case 'offline': return 'Offline';
-      default: return 'Unknown';
-    }
+    const key = `common:status.${status}`;
+    return t(key, { defaultValue: t('common:status.unknown') });
   };
 
   // Get app version and update info
@@ -338,7 +334,7 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
             rel="noopener noreferrer"
             className="agent-bar-version-status"
           >
-            (updated)
+            {t('common:agentBar.updated')}
           </a>
         )}
         {/* HMR Refresh button - only shows when there are pending 3D scene changes */}
@@ -358,40 +354,40 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
         <button
           className="agent-bar-spawn-btn"
           onClick={onSpawnClick}
-          title="Spawn New Agent (Alt+N)"
+          title={t('common:agentBar.spawnNewAgent')}
         >
           <span className="agent-bar-spawn-icon">+</span>
-          <span className="agent-bar-spawn-label">New Agent</span>
+          <span className="agent-bar-spawn-label">{t('common:agentBar.newAgent')}</span>
         </button>
 
         {/* New Boss button */}
         <button
           className="agent-bar-spawn-btn agent-bar-boss-btn"
           onClick={onSpawnBossClick}
-          title="Spawn Boss Agent"
+          title={t('common:agentBar.spawnBoss')}
         >
           <span className="agent-bar-spawn-icon">👑</span>
-          <span className="agent-bar-spawn-label">New Boss</span>
+          <span className="agent-bar-spawn-label">{t('common:agentBar.newBoss')}</span>
         </button>
 
         {/* New Building button */}
         <button
           className="agent-bar-spawn-btn agent-bar-building-btn"
           onClick={onNewBuildingClick}
-          title="Add New Building"
+          title={t('common:agentBar.addNewBuilding')}
         >
           <span className="agent-bar-spawn-icon">🏢</span>
-          <span className="agent-bar-spawn-label">New Building</span>
+          <span className="agent-bar-spawn-label">{t('common:agentBar.newBuilding')}</span>
         </button>
 
         {/* New Area button */}
         <button
           className="agent-bar-spawn-btn agent-bar-area-btn"
           onClick={onNewAreaClick}
-          title="Draw New Area"
+          title={t('common:agentBar.drawNewArea')}
         >
           <span className="agent-bar-spawn-icon">▢</span>
-          <span className="agent-bar-spawn-label">New Area</span>
+          <span className="agent-bar-spawn-label">{t('common:agentBar.newArea')}</span>
         </button>
         {/* Agents grouped by area */}
         {agentGroups.map((group) => {
@@ -415,7 +411,7 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
                   className="agent-bar-area-name"
                   style={{ color: group.area?.color || '#888' }}
                 >
-                  {group.area?.name || 'Unassigned'}
+                  {group.area?.name || t('common:agentBar.unassigned')}
                 </span>
               </div>
 
@@ -434,7 +430,7 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
                       <span className="agent-bar-folder-icon">📁</span>
                       <div className="agent-bar-folder-tooltip">
                         <div className="agent-bar-folder-tooltip-path">{dir}</div>
-                        <div className="agent-bar-folder-tooltip-hint">Click to open</div>
+                        <div className="agent-bar-folder-tooltip-hint">{t('common:agentBar.clickToOpen')}</div>
                       </div>
                     </div>
                   ))}
@@ -614,14 +610,14 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
             </div>
             <div className="agent-bar-tooltip-info">
               <div className="agent-bar-tooltip-row">
-                <span className="agent-bar-tooltip-label">Class:</span>
+                <span className="agent-bar-tooltip-label">{t('common:labels.class')}:</span>
                 <span className="agent-bar-tooltip-value">
                   {hoveredAgent.class} — {config.description}
                 </span>
               </div>
               {hoveredArea && (
                 <div className="agent-bar-tooltip-row">
-                  <span className="agent-bar-tooltip-label">Area:</span>
+                  <span className="agent-bar-tooltip-label">{t('common:agentPopup.area')}:</span>
                   <span
                     className="agent-bar-tooltip-value agent-bar-tooltip-area"
                     style={{ color: hoveredArea.color }}
@@ -631,23 +627,23 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
                 </div>
               )}
               <div className="agent-bar-tooltip-row">
-                <span className="agent-bar-tooltip-label">Directory:</span>
+                <span className="agent-bar-tooltip-label">{t('common:agentPopup.directory')}:</span>
                 <span className="agent-bar-tooltip-value agent-bar-tooltip-path">
                   {hoveredAgent.cwd}
                 </span>
               </div>
               <div className="agent-bar-tooltip-row">
-                <span className="agent-bar-tooltip-label">Uptime:</span>
+                <span className="agent-bar-tooltip-label">{t('common:labels.uptime')}:</span>
                 <span className="agent-bar-tooltip-value">{uptimeStr}</span>
               </div>
               <div className="agent-bar-tooltip-row">
-                <span className="agent-bar-tooltip-label">Tokens:</span>
+                <span className="agent-bar-tooltip-label">{t('common:labels.tokens')}:</span>
                 <span className="agent-bar-tooltip-value">
-                  {formatTokens(hoveredAgent.tokensUsed)} used
+                  {formatTokens(hoveredAgent.tokensUsed)} {t('common:agentPopup.used')}
                 </span>
               </div>
               <div className="agent-bar-tooltip-row">
-                <span className="agent-bar-tooltip-label">Context:</span>
+                <span className="agent-bar-tooltip-label">{t('common:labels.context')}:</span>
                 <span className="agent-bar-tooltip-value" style={{
                   color: contextPercent > 80 ? '#ff4a4a' : contextPercent > 60 ? '#ff9e4a' : undefined
                 }}>
@@ -656,7 +652,7 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
               </div>
               {hoveredAgent.currentTool && (
                 <div className="agent-bar-tooltip-row">
-                  <span className="agent-bar-tooltip-label">Tool:</span>
+                  <span className="agent-bar-tooltip-label">{t('common:agentPopup.tool')}:</span>
                   <span className="agent-bar-tooltip-value agent-bar-tooltip-tool">
                     {TOOL_ICONS[hoveredAgent.currentTool] || TOOL_ICONS.default} {hoveredAgent.currentTool}
                   </span>
@@ -664,7 +660,7 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
               )}
               {hoveredAgent.currentTask && (
                 <div className="agent-bar-tooltip-row">
-                  <span className="agent-bar-tooltip-label">Task:</span>
+                  <span className="agent-bar-tooltip-label">{t('common:labels.task')}:</span>
                   <span className="agent-bar-tooltip-value">
                     {hoveredAgent.currentTask.substring(0, 150)}
                     {hoveredAgent.currentTask.length > 150 ? '...' : ''}
@@ -673,7 +669,7 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
               )}
               {hoveredAgent.lastAssignedTask && !hoveredAgent.currentTask && (
                 <div className="agent-bar-tooltip-row">
-                  <span className="agent-bar-tooltip-label">Assigned Task:</span>
+                  <span className="agent-bar-tooltip-label">{t('common:agentPopup.assignedTask')}:</span>
                   <span className="agent-bar-tooltip-value agent-bar-tooltip-query">
                     {hoveredAgent.lastAssignedTask.substring(0, 200)}
                     {hoveredAgent.lastAssignedTask.length > 200 ? '...' : ''}
@@ -682,7 +678,7 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
               )}
               {hoveredLastPrompt && (
                 <div className="agent-bar-tooltip-row">
-                  <span className="agent-bar-tooltip-label">Last Query:</span>
+                  <span className="agent-bar-tooltip-label">{t('common:agentPopup.lastQuery')}:</span>
                   <span className="agent-bar-tooltip-value agent-bar-tooltip-query">
                     {hoveredLastPrompt.text.substring(0, 300)}
                     {hoveredLastPrompt.text.length > 300 ? '...' : ''}
@@ -694,7 +690,7 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
                 <>
                   <div className="agent-bar-tooltip-divider" />
                   <div className="agent-bar-tooltip-row">
-                    <span className="agent-bar-tooltip-label">Supervisor:</span>
+                    <span className="agent-bar-tooltip-label">{t('common:agentPopup.supervisor')}:</span>
                     <span
                       className="agent-bar-tooltip-value"
                       style={{ color: getProgressColor(lastSupervisorEntry.analysis.progress) }}
@@ -703,14 +699,14 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
                     </span>
                   </div>
                   <div className="agent-bar-tooltip-row">
-                    <span className="agent-bar-tooltip-label">Status:</span>
+                    <span className="agent-bar-tooltip-label">{t('common:labels.status')}:</span>
                     <span className="agent-bar-tooltip-value agent-bar-tooltip-supervisor">
                       {lastSupervisorEntry.analysis.statusDescription}
                     </span>
                   </div>
                   {lastSupervisorEntry.analysis.recentWorkSummary && (
                     <div className="agent-bar-tooltip-row">
-                      <span className="agent-bar-tooltip-label">Summary:</span>
+                      <span className="agent-bar-tooltip-label">{t('common:labels.summary')}:</span>
                       <span className="agent-bar-tooltip-value agent-bar-tooltip-supervisor">
                         {lastSupervisorEntry.analysis.recentWorkSummary.substring(0, 300)}
                         {lastSupervisorEntry.analysis.recentWorkSummary.length > 300 ? '...' : ''}
@@ -719,7 +715,7 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
                   )}
                   {lastSupervisorEntry.analysis.concerns && lastSupervisorEntry.analysis.concerns.length > 0 && (
                     <div className="agent-bar-tooltip-row">
-                      <span className="agent-bar-tooltip-label">Concerns:</span>
+                      <span className="agent-bar-tooltip-label">{t('common:labels.concerns')}:</span>
                       <span className="agent-bar-tooltip-value agent-bar-tooltip-concerns">
                         {lastSupervisorEntry.analysis.concerns.join('; ')}
                       </span>

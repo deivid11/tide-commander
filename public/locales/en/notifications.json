@@ -1,0 +1,48 @@
+{
+  "agent": {
+    "clickToFocus": "Click to focus",
+    "needsAttention": "needs attention",
+    "removed": "{{name}} removed from view",
+    "deployed": "{{name}} deployed successfully",
+    "terminated": "{{name}} terminated",
+    "started": "{{name}} started",
+    "errored": "{{name}} encountered an error"
+  },
+  "toast": {
+    "info": "Info",
+    "success": "Success",
+    "warning": "Warning",
+    "agentsRemoved": "Agents Removed",
+    "agentsRemovedMsg": "{{count}} agent(s) removed from view",
+    "buildingsDeleted": "Buildings Deleted",
+    "buildingsDeletedMsg": "{{count}} building(s) deleted",
+    "buildingDeleted": "Building Deleted",
+    "buildingDeletedMsg": "\"{{name}}\" has been deleted",
+    "snapshotSaved": "Snapshot Saved",
+    "snapshotSavedMsg": "Snapshot saved successfully",
+    "snapshotFailed": "Snapshot Failed",
+    "snapshotFailedMsg": "Failed to create snapshot",
+    "copied": "Copied",
+    "resumeCopied": "Resume command copied to clipboard",
+    "textCopied": "Text copied to clipboard",
+    "pathCopied": "Path copied to clipboard",
+    "mergeComplete": "Merge Complete",
+    "mergeCompleteMsg": "Branch merged successfully",
+    "mergeConflicts": "Merge Conflicts",
+    "mergeConflictsMsg": "Merge has conflicts that need resolution",
+    "mergeAborted": "Merge Aborted",
+    "mergeAbortedMsg": "Merge operation aborted",
+    "branchCreated": "Branch Created",
+    "branchCreatedMsg": "Branch \"{{name}}\" created",
+    "branchSwitched": "Branch Switched",
+    "branchSwitchedMsg": "Switched to branch \"{{name}}\"",
+    "filesSaved": "Files Saved",
+    "filesSavedMsg": "{{count}} file(s) saved"
+  },
+  "drawing": {
+    "rectangleTool": "Rectangle Tool",
+    "circleTool": "Circle Tool",
+    "toolName": "{{name}} Tool",
+    "clickAndDrag": "Click and drag on the battlefield to draw an area"
+  }
+}

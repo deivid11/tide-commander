@@ -3,13 +3,14 @@
  */
 
 import React, { memo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useHideCost, useSettings } from '../../store';
 import { store } from '../../store';
 import { BOSS_CONTEXT_START } from '../../../shared/types';
 import { filterCostText } from '../../utils/formatting';
-import { TOOL_ICONS, extractToolKeyParam, formatTimestamp, parseBashNotificationCommand, parseBashSearchCommand } from '../../utils/outputRendering';
+import { TOOL_ICONS, extractToolKeyParam, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand } from '../../utils/outputRendering';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { createMarkdownComponents } from './MarkdownComponents';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions } from './BossContext';
@@ -61,6 +62,7 @@ export const HistoryLine = memo(function HistoryLine({
   onBashClick,
   onViewMarkdown,
 }: HistoryLineProps) {
+  const { t } = useTranslation(['tools', 'common', 'terminal']);
   const [expandedExecTasks, setExpandedExecTasks] = useState<Set<string>>(new Set());
   const hideCost = useHideCost();
   const settings = useSettings();
@@ -102,11 +104,11 @@ export const HistoryLine = memo(function HistoryLine({
       <div
         className={`output-line output-session-continuation ${sessionExpanded ? 'expanded' : ''}`}
         onClick={() => setSessionExpanded(!sessionExpanded)}
-        title="Click to expand/collapse"
+        title={t('terminal:history.clickToExpandCollapse')}
       >
         {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr}</span>}
         <span className="session-continuation-icon">🔗</span>
-        <span className="session-continuation-label">Session continued from previous context</span>
+        <span className="session-continuation-label">{t('tools:display.sessionContinued')}</span>
         <span className="session-continuation-toggle">{sessionExpanded ? '▼' : '▶'}</span>
         {sessionExpanded && (
           <div className="session-continuation-content">
@@ -169,11 +171,11 @@ export const HistoryLine = memo(function HistoryLine({
           cursor: agentId ? 'pointer' : 'default',
         }}
         onClick={handleContextClick}
-        title={agentId ? 'Click to view detailed context stats' : undefined}
+        title={agentId ? t('terminal:history.clickForContextStats') : undefined}
       >
         {timeStr && <span className="output-timestamp context-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span className="context-debug-hash">[{debugHash}]</span></span>}
         <span className="context-icon">📊</span>
-        <span className="context-label">Context:</span>
+        <span className="context-label">{t('terminal:history.contextLabel')}</span>
         <div className="context-bar">
           <div
             className="context-bar-fill"
@@ -185,9 +187,9 @@ export const HistoryLine = memo(function HistoryLine({
         <span className="context-tokens">
           {tokensMatch ? `${tokensMatch[1]}k/${tokensMatch[2]}k` : '?'}
         </span>
-        <span className="context-free">({freePercent.toFixed(0)}% free)</span>
+        <span className="context-free">({t('terminal:history.percentFree', { percent: freePercent.toFixed(0) })})</span>
         {messages && (
-          <span className="context-msgs">msgs: {messages.tokens}</span>
+          <span className="context-msgs">{t('terminal:history.msgsLabel', { tokens: messages.tokens })}</span>
         )}
       </div>
     );
@@ -238,6 +240,7 @@ export const HistoryLine = memo(function HistoryLine({
 
   if (type === 'tool_use') {
     const icon = TOOL_ICONS[toolName || ''] || TOOL_ICONS.default;
+    const displayToolName = toolName ? getLocalizedToolName(toolName, t) : '';
 
     // Simple view: show icon, tool name, and key parameter
     if (simpleView) {
@@ -292,13 +295,13 @@ export const HistoryLine = memo(function HistoryLine({
 
       const handleBashClick = () => {
         if (isBashTool && bashCommand) {
-          onBashClick(bashCommand, _bashOutput || '(No output available)');
+          onBashClick(bashCommand, _bashOutput || t('tools:display.noOutputAvailable'));
         }
       };
 
       const clickTitle = isBashTool
-        ? 'Click to view output'
-        : (isFileClickable ? 'Click to view file' : undefined);
+        ? t('tools:display.clickToViewOutput')
+        : (isFileClickable ? t('tools:display.clickToViewFile') : undefined);
 
       // Check if this is a curl exec command and try to parse the exec output
       const isCurlExecCommand = /\bcurl\b[\s\S]*\/api\/exec\b/.test(bashCommand);
@@ -319,12 +322,12 @@ export const HistoryLine = memo(function HistoryLine({
             className={`output-line output-tool-use output-tool-simple ${isBashTool ? 'clickable-bash' : ''} ${bashNotificationCommand ? 'bash-notify-use' : ''}`}
             onClick={isBashTool ? handleBashClick : undefined}
             style={isBashTool ? { cursor: 'pointer' } : undefined}
-            title={isBashTool ? 'Click to view output' : undefined}
+            title={isBashTool ? t('tools:display.clickToViewOutput') : undefined}
           >
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
             <span className="output-tool-icon">{icon}</span>
-            <span className="output-tool-name">{toolName}</span>
+            <span className="output-tool-name">{displayToolName}</span>
             {isBashTool && bashNotificationCommand ? (
               <span
                 className="output-tool-param bash-command bash-notify-param"
@@ -405,7 +408,7 @@ export const HistoryLine = memo(function HistoryLine({
                         >
                           <span className="exec-task-toggle-arrow">{isExpanded ? '▼' : '▶'}</span>
                           <span className="exec-task-toggle-text">
-                            {isExpanded ? 'Hide' : `Show all (${execTaskOutput.output.length} lines)`}
+                            {isExpanded ? t('tools:skills.hide') : t('tools:skills.showAll', { count: execTaskOutput.output.length })}
                           </span>
                         </div>
                       )}
@@ -441,7 +444,7 @@ export const HistoryLine = memo(function HistoryLine({
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
             <span className="output-tool-icon">{icon}</span>
-            <span className="output-tool-name">{toolName}</span>
+            <span className="output-tool-name">{displayToolName}</span>
           </div>
           <div className="output-line output-tool-input">
             <EditToolDiff content={content} onFileClick={onFileClick} />
@@ -458,7 +461,7 @@ export const HistoryLine = memo(function HistoryLine({
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
             <span className="output-tool-icon">{icon}</span>
-            <span className="output-tool-name">{toolName}</span>
+            <span className="output-tool-name">{displayToolName}</span>
           </div>
           <div className="output-line output-tool-input">
             <ReadToolInput content={content} onFileClick={onFileClick} />
@@ -475,7 +478,7 @@ export const HistoryLine = memo(function HistoryLine({
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
             <span className="output-tool-icon">{icon}</span>
-            <span className="output-tool-name">{toolName}</span>
+            <span className="output-tool-name">{displayToolName}</span>
           </div>
           <div className="output-line output-tool-input">
             <TodoWriteInput content={content} />
@@ -491,7 +494,7 @@ export const HistoryLine = memo(function HistoryLine({
           {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
           {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
           <span className="output-tool-icon">{icon}</span>
-          <span className="output-tool-name">{toolName}</span>
+          <span className="output-tool-name">{displayToolName}</span>
         </div>
         {content && (
           <div className="output-line output-tool-input">
@@ -521,7 +524,7 @@ export const HistoryLine = memo(function HistoryLine({
   const isUser = type === 'user';
   const isSystemMessage = !isUser && /^\s*(?:[\u{1F300}-\u{1FAFF}\u2600-\u27BF]\s*)?\[System\]/u.test(content);
   const className = isUser ? 'history-line history-user' : (isSystemMessage ? 'history-line history-system' : 'history-line history-assistant');
-  const assistantOrSystemRoleLabel = isSystemMessage ? 'System' : assistantRoleLabel;
+  const assistantOrSystemRoleLabel = isSystemMessage ? t('tools:display.system') : assistantRoleLabel;
 
   // For user messages, check for boss context
   if (isUser && parsedBoss) {
@@ -531,7 +534,7 @@ export const HistoryLine = memo(function HistoryLine({
     return (
       <div className={className}>
         {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
-        <span className="history-role history-role-chip">You</span>
+        <span className="history-role history-role-chip">{t('common:labels.you')}</span>
         <span className="history-content user-prompt-text">
           {parsedBoss.hasContext && parsedBoss.context && (
             <BossContext key={`boss-${timestamp || content.slice(0, 50)}`} context={parsedBoss.context} onFileClick={onFileClick ? (path) => onFileClick(path) : undefined} />
@@ -560,7 +563,7 @@ export const HistoryLine = memo(function HistoryLine({
               src={provider === 'codex' ? '/assets/codex.png' : '/assets/claude.png'}
               alt={provider}
               className="history-role-icon"
-              title={provider === 'codex' ? 'Codex Agent' : 'Claude Agent'}
+              title={provider === 'codex' ? t('terminal:history.codexAgent') : t('terminal:history.claudeAgent')}
             />
           )}
           {assistantOrSystemRoleLabel}
@@ -583,7 +586,7 @@ export const HistoryLine = memo(function HistoryLine({
             <button
               className="history-speak-btn"
               onClick={(e) => { e.stopPropagation(); toggleTTS(content); }}
-              title={speaking ? 'Stop speaking' : 'Speak (Spanish)'}
+              title={speaking ? t('terminal:history.stopSpeaking') : t('terminal:history.speakSpanish')}
             >
               {speaking ? '🔊' : '🔈'}
             </button>
@@ -592,7 +595,7 @@ export const HistoryLine = memo(function HistoryLine({
             <button
               className="history-view-md-btn"
               onClick={(e) => { e.stopPropagation(); onViewMarkdown(content); }}
-              title="View as Markdown"
+              title={t('terminal:history.viewAsMarkdown')}
             >
               📄
             </button>
@@ -611,10 +614,10 @@ export const HistoryLine = memo(function HistoryLine({
             src={provider === 'codex' ? '/assets/codex.png' : '/assets/claude.png'}
             alt={provider}
             className="history-role-icon"
-            title={provider === 'codex' ? 'Codex Agent' : 'Claude Agent'}
+            title={provider === 'codex' ? t('terminal:history.codexAgent') : t('terminal:history.claudeAgent')}
           />
         )}
-        {isUser ? 'You' : assistantOrSystemRoleLabel}
+        {isUser ? t('common:labels.you') : assistantOrSystemRoleLabel}
       </span>
       <span className={`history-content ${isUser ? 'user-prompt-text' : 'markdown-content'}`}>
         {highlight ? <div>{highlightText(content, highlight)}</div> : (
@@ -627,7 +630,7 @@ export const HistoryLine = memo(function HistoryLine({
             <button
               className="history-speak-btn"
               onClick={(e) => { e.stopPropagation(); toggleTTS(content); }}
-              title={speaking ? 'Stop speaking' : 'Speak (Spanish)'}
+              title={speaking ? t('terminal:history.stopSpeaking') : t('terminal:history.speakSpanish')}
             >
               {speaking ? '🔊' : '🔈'}
             </button>
@@ -636,7 +639,7 @@ export const HistoryLine = memo(function HistoryLine({
             <button
               className="history-view-md-btn"
               onClick={(e) => { e.stopPropagation(); onViewMarkdown(content); }}
-              title="View as Markdown"
+              title={t('terminal:history.viewAsMarkdown')}
             >
               📄
             </button>

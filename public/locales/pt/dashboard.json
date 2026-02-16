@@ -1,0 +1,76 @@
+{
+  "title": "Painel",
+  "searchPlaceholder": "Pesquisar agentes...",
+  "grouping": {
+    "byZone": "Por Zona",
+    "byStatus": "Por Status",
+    "byActivity": "Por Atividade"
+  },
+  "agentCount": "{{count}} agente",
+  "agentCount_plural": "{{count}} agentes",
+  "working": "trabalhando",
+  "focusZone": "Zona de Foco",
+  "noAgentsMatching": "Nenhum agente correspondente a \"{{search}}\"",
+  "noAgentsSpawned": "Nenhum agente criado ainda",
+  "cards": {
+    "doubleClickHint": "Duplo clique para abrir terminal | Arraste para mover para outra area",
+    "openTerminal": "Abrir terminal",
+    "killAgent": "Encerrar agente",
+    "chat": "Chat",
+    "stop": "Parar"
+  },
+  "metrics": {
+    "totalAgents": "Total de Agentes",
+    "activeAgents": "Agentes Ativos",
+    "idleAgents": "Agentes Ociosos",
+    "errorAgents": "Agentes com Erro",
+    "totalTokens": "Total de Tokens",
+    "totalCost": "Custo Total",
+    "avgResponseTime": "Tempo Medio de Resposta",
+    "uptime": "Tempo Ativo",
+    "tokensIn": "Tokens de Entrada",
+    "tokensOut": "Tokens de Saida"
+  },
+  "statusCards": {
+    "title": "Status dos Agentes",
+    "noAgents": "Nenhum agente em execucao",
+    "viewAll": "Ver Todos",
+    "lastActivity": "Ultima atividade",
+    "currentTask": "Tarefa atual"
+  },
+  "timeline": {
+    "title": "Linha do Tempo de Eventos",
+    "noEvents": "Nenhum evento ainda",
+    "recentEvents": "Eventos Recentes",
+    "noRecentEvents": "Nenhum evento recente",
+    "viewMore": "Ver mais {{count}} eventos",
+    "agent": "Agente",
+    "building": "Edificio",
+    "agentSpawned": "Agente criado",
+    "agentTerminated": "Agente encerrado",
+    "taskCompleted": "Tarefa concluida",
+    "taskFailed": "Tarefa falhou",
+    "errorOccurred": "Erro ocorrido",
+    "sessionStarted": "Sessao iniciada",
+    "sessionEnded": "Sessao encerrada"
+  },
+  "buildings": {
+    "title": "Status dos Edificios",
+    "noBuildings": "Nenhum edificio configurado",
+    "healthy": "Saudavel",
+    "warning": "Alerta",
+    "critical": "Critico"
+  },
+  "metricsDisplay": {
+    "title": "Metricas em Tempo Real",
+    "activeAgents": "Agentes Ativos",
+    "healthyAgents": "Agentes Saudaveis",
+    "agentErrors": "Erros de Agentes",
+    "healthyBuildings": "Edificios Saudaveis",
+    "performanceRates": "Taxas de Desempenho",
+    "taskCompletion": "Conclusao de Tarefas",
+    "errorRate": "Taxa de Erros",
+    "buildingHealth": "Saude dos Edificios",
+    "recentErrors": "Erros Recentes"
+  }
+}

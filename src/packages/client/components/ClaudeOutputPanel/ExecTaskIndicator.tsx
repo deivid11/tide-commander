@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { ExecTask } from '../../../shared/types';
 import { ansiToHtml } from '../../utils/ansiToHtml';
 import { store } from '../../store';
@@ -21,6 +22,7 @@ export function ExecTaskIndicator({
   onClose,
   onStop,
 }: ExecTaskIndicatorProps) {
+  const { t } = useTranslation(['tools']);
   // Track user-initiated collapse state
   const [userCollapsed, setUserCollapsed] = useState<boolean | null>(null);
   const [stopping, setStopping] = useState(false);
@@ -106,13 +108,13 @@ export function ExecTaskIndicator({
           <button
             className="exec-task-stop"
             onClick={handleStop}
-            title="Stop task"
+            title={t('tools:exec.stopTask')}
             disabled={stopping}
           >
             {stopping ? '...' : '■'}
           </button>
         ) : (
-          <button className="exec-task-close" onClick={handleClose} title="Dismiss">
+          <button className="exec-task-close" onClick={handleClose} title={t('tools:exec.dismiss')}>
             ×
           </button>
         )}
@@ -124,7 +126,7 @@ export function ExecTaskIndicator({
             className="exec-task-output"
           >
             {task.output.length === 0 ? (
-              <div className="exec-task-output-empty">Running...</div>
+              <div className="exec-task-output-empty">{t('tools:display.running')}</div>
             ) : (
               task.output.map((line, index) => {
                 const isStderr = line.startsWith('[stderr]');
@@ -141,7 +143,7 @@ export function ExecTaskIndicator({
           </div>
           {task.status !== 'running' && task.exitCode !== null && (
             <div className={`exec-task-exit-code ${task.exitCode === 0 ? 'success' : 'error'}`}>
-              Exit code: {task.exitCode}
+              {t('tools:display.exitCode', { code: task.exitCode })}
             </div>
           )}
         </div>
@@ -164,24 +166,25 @@ export function ExecTasksContainer({
   onClearCompleted,
   onDismiss,
 }: ExecTasksContainerProps) {
+  const { t } = useTranslation(['tools']);
   if (tasks.length === 0) {
     return null;
   }
 
-  const runningCount = tasks.filter(t => t.status === 'running').length;
-  const completedCount = tasks.filter(t => t.status !== 'running').length;
+  const runningCount = tasks.filter(tk => tk.status === 'running').length;
+  const completedCount = tasks.filter(tk => tk.status !== 'running').length;
 
   return (
     <div className="exec-tasks-container">
       <div className="exec-tasks-header">
         <span className="exec-tasks-icon">🖥️</span>
-        <span className="exec-tasks-title">Running Tasks</span>
+        <span className="exec-tasks-title">{t('tools:exec.runningTasks')}</span>
         {runningCount > 0 && (
-          <span className="exec-tasks-count running">({runningCount} running)</span>
+          <span className="exec-tasks-count running">({runningCount} {t('tools:exec.running')})</span>
         )}
         {completedCount > 0 && onClearCompleted && (
           <button className="exec-tasks-clear" onClick={onClearCompleted}>
-            Clear completed
+            {t('tools:exec.clearCompleted')}
           </button>
         )}
       </div>

@@ -6,6 +6,7 @@
  */
 
 import React, { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { SnapshotListItem } from '../../shared/types/snapshot';
 import { BUILT_IN_AGENT_CLASSES, type BuiltInAgentClass } from '../../shared/types';
 
@@ -41,6 +42,7 @@ export function SnapshotManager({
   selectedSnapshotId,
   onClose,
 }: SnapshotManagerProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState<SortField>('createdAt');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -133,16 +135,16 @@ export function SnapshotManager({
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
     if (diffDays === 0) {
-      return date.toLocaleTimeString('en-US', {
+      return date.toLocaleTimeString(undefined, {
         hour: '2-digit',
         minute: '2-digit',
       });
     } else if (diffDays === 1) {
-      return 'Yesterday';
+      return t('common:time.daysAgo', { count: 1 });
     } else if (diffDays < 7) {
-      return `${diffDays} days ago`;
+      return t('common:time.daysAgo', { count: diffDays });
     } else {
-      return date.toLocaleDateString('en-US', {
+      return date.toLocaleDateString(undefined, {
         month: 'short',
         day: 'numeric',
         year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
@@ -155,7 +157,7 @@ export function SnapshotManager({
       <div className="snapshot-manager-header">
         <div className="snapshot-manager-title">
           <span className="snapshot-manager-icon">📸</span>
-          Snapshots
+          {t('terminal:snapshot.title')}
           <span className="snapshot-manager-count">{snapshots.length}</span>
         </div>
         <button className="snapshot-manager-close" onClick={onClose} title="Close">
@@ -170,7 +172,7 @@ export function SnapshotManager({
           <input
             type="text"
             className="snapshot-search-input"
-            placeholder="Search snapshots..."
+            placeholder={t('terminal:snapshot.searchPlaceholder')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -190,19 +192,19 @@ export function SnapshotManager({
             className={`snapshot-sort-btn ${sortField === 'createdAt' ? 'active' : ''}`}
             onClick={() => handleSort('createdAt')}
           >
-            Date {sortField === 'createdAt' && (sortDirection === 'desc' ? '↓' : '↑')}
+            {t('terminal:snapshot.sortDate')} {sortField === 'createdAt' && (sortDirection === 'desc' ? '↓' : '↑')}
           </button>
           <button
             className={`snapshot-sort-btn ${sortField === 'title' ? 'active' : ''}`}
             onClick={() => handleSort('title')}
           >
-            Title {sortField === 'title' && (sortDirection === 'desc' ? '↓' : '↑')}
+            {t('terminal:snapshot.sortTitle')} {sortField === 'title' && (sortDirection === 'desc' ? '↓' : '↑')}
           </button>
           <button
             className={`snapshot-sort-btn ${sortField === 'agentName' ? 'active' : ''}`}
             onClick={() => handleSort('agentName')}
           >
-            Agent {sortField === 'agentName' && (sortDirection === 'desc' ? '↓' : '↑')}
+            {t('terminal:snapshot.sortAgent')} {sortField === 'agentName' && (sortDirection === 'desc' ? '↓' : '↑')}
           </button>
         </div>
       </div>
@@ -212,7 +214,7 @@ export function SnapshotManager({
         {isLoading && (
           <div className="snapshot-loading">
             <div className="snapshot-loading-spinner"></div>
-            Loading snapshots...
+            {t('terminal:snapshot.loadingSnapshots')}
           </div>
         )}
 
@@ -221,14 +223,14 @@ export function SnapshotManager({
             {searchQuery ? (
               <>
                 <span className="snapshot-empty-icon">🔍</span>
-                <span className="snapshot-empty-text">No snapshots match your search</span>
+                <span className="snapshot-empty-text">{t('terminal:snapshot.noSnapshotsMatch')}</span>
               </>
             ) : (
               <>
                 <span className="snapshot-empty-icon">📸</span>
-                <span className="snapshot-empty-text">No snapshots yet</span>
+                <span className="snapshot-empty-text">{t('terminal:snapshot.noSnapshotsYet')}</span>
                 <span className="snapshot-empty-hint">
-                  Click the ⭐ button in the terminal header to save a snapshot
+                  {t('terminal:snapshot.snapshotHint')}
                 </span>
               </>
             )}
@@ -287,20 +289,20 @@ export function SnapshotManager({
                   >
                     {isDeleting ? (
                       <div className="snapshot-delete-confirm">
-                        <span>Delete?</span>
+                        <span>{t('terminal:snapshot.deleteConfirm')}</span>
                         <button
                           className="btn btn-sm btn-danger"
                           onClick={() => handleDelete(snapshot.id)}
                           disabled={isActionLoading}
                         >
-                          {isActionLoading ? '...' : 'Yes'}
+                          {isActionLoading ? '...' : t('common:buttons.yes')}
                         </button>
                         <button
                           className="btn btn-sm btn-secondary"
                           onClick={() => setDeleteConfirmId(null)}
                           disabled={isActionLoading}
                         >
-                          No
+                          {t('common:buttons.no')}
                         </button>
                       </div>
                     ) : (
@@ -308,7 +310,7 @@ export function SnapshotManager({
                         <button
                           className="snapshot-action-btn"
                           onClick={() => handleRestore(snapshot.id)}
-                          title="Restore files"
+                          title={t('terminal:snapshot.restoreFiles')}
                           disabled={isActionLoading}
                         >
                           🔄
@@ -316,7 +318,7 @@ export function SnapshotManager({
                         <button
                           className="snapshot-action-btn"
                           onClick={() => handleExport(snapshot.id)}
-                          title="Export snapshot"
+                          title={t('terminal:snapshot.exportSnapshot')}
                           disabled={isActionLoading}
                         >
                           📤
@@ -324,7 +326,7 @@ export function SnapshotManager({
                         <button
                           className="snapshot-action-btn danger"
                           onClick={() => setDeleteConfirmId(snapshot.id)}
-                          title="Delete snapshot"
+                          title={t('terminal:snapshot.deleteSnapshot')}
                           disabled={isActionLoading}
                         >
                           🗑️

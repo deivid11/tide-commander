@@ -5,6 +5,7 @@
  */
 
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useModalClose } from '../../hooks';
 
 interface PastedTextChipProps {
@@ -15,6 +16,7 @@ interface PastedTextChipProps {
 }
 
 export function PastedTextChip({ id, lineCount, fullText, onRemove }: PastedTextChipProps) {
+  const { t } = useTranslation(['tools', 'common']);
   const [showModal, setShowModal] = useState(false);
 
   const handleClick = (e: React.MouseEvent) => {
@@ -27,18 +29,18 @@ export function PastedTextChip({ id, lineCount, fullText, onRemove }: PastedText
       <span
         className="pasted-text-chip"
         onClick={handleClick}
-        title="Click to view full content"
+        title={t('tools:pastedText.clickToView')}
       >
         <span className="pasted-text-chip-icon">📋</span>
-        <span className="pasted-text-chip-label">Pasted #{id}</span>
-        <span className="pasted-text-chip-count">+{lineCount} lines</span>
+        <span className="pasted-text-chip-label">{t('tools:pastedText.pastedNumber', { id })}</span>
+        <span className="pasted-text-chip-count">{t('tools:pastedText.lineCount', { count: lineCount })}</span>
         <button
           className="pasted-text-chip-remove"
           onClick={(e) => {
             e.stopPropagation();
             onRemove();
           }}
-          title="Remove"
+          title={t('common:buttons.remove')}
         >
           ×
         </button>
@@ -64,6 +66,7 @@ interface PastedTextModalProps {
 }
 
 function PastedTextModal({ id, lineCount, content, onClose }: PastedTextModalProps) {
+  const { t } = useTranslation(['tools', 'common']);
   const { handleMouseDown: handleBackdropMouseDown, handleClick: handleBackdropClick } = useModalClose(onClose);
   const [copied, setCopied] = useState(false);
 
@@ -87,15 +90,15 @@ function PastedTextModal({ id, lineCount, content, onClose }: PastedTextModalPro
         <div className="pasted-text-modal-header">
           <div className="pasted-text-modal-title">
             <span className="pasted-text-modal-icon">📋</span>
-            <span>Pasted Text #{id}</span>
-            <span className="pasted-text-modal-count">{lineCount} lines</span>
+            <span>{t('tools:pastedText.pastedTextTitle', { id })}</span>
+            <span className="pasted-text-modal-count">{t('tools:pastedText.lineCountFull', { count: lineCount })}</span>
           </div>
           <div className="pasted-text-modal-actions">
             <button
               className="btn btn-secondary btn-sm"
               onClick={handleCopy}
             >
-              {copied ? '✓ Copied' : 'Copy'}
+              {copied ? `✓ ${t('common:toast.copied')}` : t('common:buttons.copy')}
             </button>
             <button className="pasted-text-modal-close" onClick={onClose}>
               ×

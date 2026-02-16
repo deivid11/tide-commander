@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useMemo, memo, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { store, useStore } from '../store';
 import type { Building } from '../../shared/types';
 import { BUILDING_STATUS_COLORS } from '../utils/colors';
@@ -32,6 +33,7 @@ function formatUptime(startTime: number): string {
 }
 
 export const BossBuildingActionPopup = memo(function BossBuildingActionPopup({ building, screenPos, onClose, onOpenSettings, onOpenLogsModal, onOpenUrlInModal }: BossBuildingActionPopupProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const dragStartRef = useRef<{ mouseX: number; mouseY: number; popupX: number; popupY: number } | null>(null);
@@ -164,7 +166,7 @@ export const BossBuildingActionPopup = memo(function BossBuildingActionPopup({ b
       >
         <span className="boss-icon">👑</span>
         <span className="building-popup-name">{building.name}</span>
-        <span className="subordinate-count">{subordinates.length} units</span>
+        <span className="subordinate-count">{t('terminal:building.unitsCount', { count: subordinates.length })}</span>
         <button className="building-popup-close" onClick={onClose}>x</button>
       </div>
 
@@ -180,7 +182,7 @@ export const BossBuildingActionPopup = memo(function BossBuildingActionPopup({ b
           </span>
         ))}
         {subordinates.length === 0 && (
-          <span className="no-subordinates">No subordinates assigned</span>
+          <span className="no-subordinates">{t('terminal:building.noSubordinates')}</span>
         )}
       </div>
 
@@ -232,44 +234,44 @@ export const BossBuildingActionPopup = memo(function BossBuildingActionPopup({ b
           className="action-btn start"
           onClick={() => handleBossCommand('start_all')}
           disabled={subordinates.length === 0}
-          title="Start all subordinates"
+          title={t('terminal:building.startAllSubs')}
         >
           <span className="icon">&#9654;</span>
-          Start All
+          {t('terminal:building.startAll')}
         </button>
         <button
           className="action-btn stop"
           onClick={() => handleBossCommand('stop_all')}
           disabled={subordinates.length === 0}
-          title="Stop all subordinates"
+          title={t('terminal:building.stopAllSubs')}
         >
           <span className="icon">&#9632;</span>
-          Stop All
+          {t('terminal:building.stopAll')}
         </button>
         <button
           className="action-btn restart"
           onClick={() => handleBossCommand('restart_all')}
           disabled={subordinates.length === 0}
-          title="Restart all subordinates"
+          title={t('terminal:building.restartAllSubs')}
         >
           <span className="icon">&#8634;</span>
-          Restart All
+          {t('terminal:building.restartAll')}
         </button>
         {hasPM2Subordinates && (
           <button
             className="action-btn logs"
             onClick={onOpenLogsModal}
-            title="View unified logs"
+            title={t('terminal:building.viewUnifiedLogs')}
           >
             <span className="icon">&#128196;</span>
-            Logs
+            {t('terminal:building.logs')}
           </button>
         )}
       </div>
 
       {/* Settings link */}
       <button className="building-popup-settings" onClick={onOpenSettings}>
-        Full Settings
+        {t('terminal:building.fullSettings')}
       </button>
     </div>
   );

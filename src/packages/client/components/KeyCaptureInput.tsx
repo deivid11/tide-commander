@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ShortcutConfig, ShortcutModifiers, formatShortcut, findConflictingShortcuts } from '../store/shortcuts';
 import { useShortcuts } from '../store';
 
@@ -8,6 +9,7 @@ interface KeyCaptureInputProps {
 }
 
 export function KeyCaptureInput({ shortcut, onUpdate }: KeyCaptureInputProps) {
+  const { t } = useTranslation(['config', 'terminal']);
   const shortcuts = useShortcuts();
   const [isCapturing, setIsCapturing] = useState(false);
   const [pendingKey, setPendingKey] = useState<{ key: string; modifiers: ShortcutModifiers } | null>(null);
@@ -116,10 +118,10 @@ export function KeyCaptureInput({ shortcut, onUpdate }: KeyCaptureInputProps) {
     if (pendingKey) {
       displayValue = formatShortcut({ ...shortcut, ...pendingKey });
     } else {
-      displayValue = 'Press keys...';
+      displayValue = t('config:shortcuts.pressKeys');
     }
   } else if (!shortcut.key) {
-    displayValue = 'Not set';
+    displayValue = t('config:shortcuts.notSet');
   } else {
     displayValue = formatShortcut(shortcut);
   }
@@ -130,7 +132,7 @@ export function KeyCaptureInput({ shortcut, onUpdate }: KeyCaptureInputProps) {
         ref={inputRef}
         className={`key-capture-input ${isCapturing ? 'capturing' : ''} ${conflicts.length > 0 ? 'conflict' : ''} ${!shortcut.enabled ? 'disabled' : ''}`}
         onClick={handleClick}
-        title={isCapturing ? 'Press keys or click to confirm' : 'Click to change shortcut'}
+        title={isCapturing ? t('config:shortcuts.pressKeysOrClick') : t('config:shortcuts.clickToChange')}
       >
         <span className="key-capture-value">{displayValue}</span>
       </button>
@@ -138,14 +140,18 @@ export function KeyCaptureInput({ shortcut, onUpdate }: KeyCaptureInputProps) {
         <button
           className="key-capture-clear"
           onClick={handleClear}
-          title="Clear shortcut"
+          title={t('config:shortcuts.clearShortcut')}
         >
           &times;
         </button>
       )}
       {conflicts.length > 0 && (
         <div className="key-capture-conflict">
-          Conflicts with: {conflicts.map(c => c.name).join(', ')}
+          {t('config:shortcuts.conflictsWith', {
+            names: conflicts
+              .map((c) => t(`terminal:controls.shortcuts.${c.id}.name`, { defaultValue: c.name }))
+              .join(', ')
+          })}
         </div>
       )}
     </div>

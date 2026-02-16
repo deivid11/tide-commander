@@ -10,6 +10,7 @@
  */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useRightPanelResize } from './useRightPanelResize';
 import { TabContent } from './TabContent';
 import type { RightPanelTab } from './types';
@@ -68,6 +69,7 @@ export function RightPanel({
   activeTab: controlledTab,
   collapsed: controlledCollapsed,
 }: RightPanelProps) {
+  const { t } = useTranslation(['common']);
   const { panelWidth, panelRef, handleResizeStart, isResizing } = useRightPanelResize();
 
   // Collapse state
@@ -80,7 +82,7 @@ export function RightPanel({
 
   // Filter tabs
   const tabs = visibleTabs
-    ? RIGHT_PANEL_TABS.filter(t => visibleTabs.includes(t.id))
+    ? RIGHT_PANEL_TABS.filter(tab => visibleTabs.includes(tab.id))
     : RIGHT_PANEL_TABS;
 
   const handleToggleCollapse = useCallback(() => {
@@ -175,7 +177,7 @@ export function RightPanel({
           <div
             className="right-panel__resize-handle"
             onMouseDown={handleResizeStart}
-            title="Drag to resize"
+            title={t('rightPanel.dragToResize')}
           />
         )}
 
@@ -183,7 +185,7 @@ export function RightPanel({
         <button
           className={`right-panel__collapse-btn ${isCollapsed ? 'right-panel__collapse-btn--collapsed' : ''}`}
           onClick={handleToggleCollapse}
-          title={isCollapsed ? 'Expand panel (Ctrl+\\)' : 'Collapse panel (Ctrl+\\)'}
+          title={isCollapsed ? t('rightPanel.expandPanel') : t('rightPanel.collapsePanel')}
         >
           <span className="right-panel__collapse-icon">
             {isCollapsed ? '◀' : '▶'}
@@ -198,7 +200,7 @@ export function RightPanel({
             <button
               className="right-panel__mobile-close"
               onClick={handleToggleCollapse}
-              title="Close panel"
+              title={t('rightPanel.closePanel')}
             >
               ✕
             </button>
@@ -212,7 +214,7 @@ export function RightPanel({
                 className={`right-panel__tab ${currentTab === tab.id ? 'right-panel__tab--active' : ''}`}
                 onClick={() => handleTabChange(tab.id)}
               >
-                {tab.label}
+                {t(`rightPanel.tabs.${tab.id}`)}
               </button>
             ))}
           </div>

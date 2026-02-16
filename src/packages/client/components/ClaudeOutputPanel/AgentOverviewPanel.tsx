@@ -7,6 +7,7 @@
  */
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   useAgentsArray,
   useToolExecutions,
@@ -45,13 +46,13 @@ const STATUS_ICONS: Record<string, string> = {
   stopped: '⚫',
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  working: 'Working',
-  idle: 'Idle',
-  waiting_input: 'Waiting Input',
-  waiting_permission: 'Permission',
-  error: 'Error',
-  stopped: 'Stopped',
+const STATUS_LABEL_KEYS: Record<string, string> = {
+  working: 'overview.statusLabels.working',
+  idle: 'overview.statusLabels.idle',
+  waiting_input: 'overview.statusLabels.waitingInput',
+  waiting_permission: 'overview.statusLabels.waitingPermission',
+  error: 'overview.statusLabels.error',
+  stopped: 'overview.statusLabels.stopped',
 };
 
 /** Get the last non-streaming, non-tool output for an agent (the last "real" message) */
@@ -98,6 +99,7 @@ interface AreaGroup {
 }
 
 export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent }: AgentOverviewPanelProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const agents = useAgentsArray();
   const toolExecutions = useToolExecutions();
   const subagents = useSubagents();
@@ -261,20 +263,20 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent }: Ag
       <div className="aop-header">
         <div className="aop-title">
           <span className="icon">📊</span>
-          Agent Overview
+          {t('terminal:overview.title')}
         </div>
-        <button className="close-btn" onClick={onClose} title="Close panel">
+        <button className="close-btn" onClick={onClose} title={t('common:buttons.close')}>
           ✕
         </button>
       </div>
 
       {/* Stats Bar */}
       <div className="aop-stats">
-        <span className="stat">{statusSummary.total} agents</span>
+        <span className="stat">{t('terminal:overview.agents', { count: statusSummary.total })}</span>
         {statusSummary.working > 0 && <span className="stat stat-working">🟢 {statusSummary.working}</span>}
         {statusSummary.idle > 0 && <span className="stat stat-idle">💤 {statusSummary.idle}</span>}
         {statusSummary.error > 0 && <span className="stat stat-error">🔴 {statusSummary.error}</span>}
-        <span className="stat">{toolExecutions.length} tools</span>
+        <span className="stat">{t('terminal:overview.tools', { count: toolExecutions.length })}</span>
       </div>
 
       {/* Controls */}
@@ -284,23 +286,23 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent }: Ag
           onChange={e => setFilterMode(e.target.value as FilterMode)}
           className="filter-select"
         >
-          <option value="all">All Status</option>
-          <option value="working">Working</option>
-          <option value="idle">Idle</option>
-          <option value="error">Error</option>
+          <option value="all">{t('terminal:overview.allStatus')}</option>
+          <option value="working">{t('terminal:overview.statusLabels.working')}</option>
+          <option value="idle">{t('terminal:overview.statusLabels.idle')}</option>
+          <option value="error">{t('terminal:overview.statusLabels.error')}</option>
         </select>
         <select
           value={sortMode}
           onChange={e => setSortMode(e.target.value as SortMode)}
           className="filter-select"
         >
-          <option value="recent">Most Recent</option>
-          <option value="status">By Status</option>
-          <option value="name">By Name</option>
+          <option value="recent">{t('terminal:overview.mostRecent')}</option>
+          <option value="status">{t('terminal:overview.byStatus')}</option>
+          <option value="name">{t('terminal:overview.byName')}</option>
         </select>
         <input
           type="text"
-          placeholder="Search agents..."
+          placeholder={t('terminal:overview.searchAgents')}
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
           className="search-input"
@@ -309,20 +311,20 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent }: Ag
 
       {/* Actions */}
       <div className="aop-actions">
-        <button onClick={expandAll} className="action-btn" title="Expand all agents">
-          Expand All
+        <button onClick={expandAll} className="action-btn" title={t('common:buttons.expand')}>
+          {t('common:buttons.expand')}
         </button>
-        <button onClick={collapseAll} className="action-btn" title="Collapse all agents">
-          Collapse All
+        <button onClick={collapseAll} className="action-btn" title={t('common:buttons.collapse')}>
+          {t('common:buttons.collapse')}
         </button>
-        <label className="aop-group-toggle" title="Group agents by area">
+        <label className="aop-group-toggle" title={t('terminal:overview.areas')}>
           <input
             type="checkbox"
             checked={groupByArea}
             onChange={e => setGroupByArea(e.target.checked)}
           />
           <span className="toggle-switch" />
-          <span className="toggle-label">Areas</span>
+          <span className="toggle-label">{t('terminal:overview.areas')}</span>
         </label>
       </div>
 
@@ -330,12 +332,12 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent }: Ag
       <div className="aop-agent-list">
         {areaGroups.length === 0 ? (
           <div className="aop-empty">
-            {agents.length === 0 ? 'No agents deployed' : 'No agents match filters'}
+            {agents.length === 0 ? t('terminal:overview.noAgentsDeployed') : t('terminal:overview.noAgentsMatch')}
           </div>
         ) : (
           areaGroups.map(group => {
             const areaKey = group.area?.id || '__unassigned__';
-            const areaName = group.area?.name || (groupByArea ? 'Unassigned' : '');
+            const areaName = group.area?.name || (groupByArea ? t('terminal:overview.unassigned') : '');
             const areaColor = group.area?.color || '#6272a4';
             const isCollapsed = collapsedAreas.has(areaKey);
 
@@ -402,8 +404,9 @@ interface SubagentEntry {
 }
 
 function AgentCard({ agent, isActive, isExpanded, toolExecs, subagents, areaInfo, onToggle, onSelect }: AgentCardProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const statusIcon = STATUS_ICONS[agent.status] || '❓';
-  const statusLabel = STATUS_LABELS[agent.status] || agent.status;
+  const statusLabel = STATUS_LABEL_KEYS[agent.status] ? t(`terminal:${STATUS_LABEL_KEYS[agent.status]}`) : agent.status;
   const recentTools = toolExecs.slice(0, 8);
   const lastMsg = getLastMessage(agent.id);
   const msgCount = getMessageCount(agent.id);
@@ -459,7 +462,7 @@ function AgentCard({ agent, isActive, isExpanded, toolExecs, subagents, areaInfo
         <span
           className="aop-agent-name"
           onClick={e => { e.stopPropagation(); onSelect(); }}
-          title="Click to switch to this agent"
+          title={t('terminal:overview.clickToSwitch')}
           style={areaInfo ? { background: `${areaInfo.color}22`, borderColor: `${areaInfo.color}44` } : undefined}
         >
           {agent.name}
@@ -473,7 +476,7 @@ function AgentCard({ agent, isActive, isExpanded, toolExecs, subagents, areaInfo
           </span>
         )}
         {msgCount > 0 && (
-          <span className="aop-msg-count" title={`${msgCount} messages`}>
+          <span className="aop-msg-count" title={t('terminal:overview.messages', { count: msgCount })}>
             {msgCount}
           </span>
         )}
@@ -484,7 +487,7 @@ function AgentCard({ agent, isActive, isExpanded, toolExecs, subagents, areaInfo
           </span>
         )}
         {allSubagentEntries.length > 0 && activeSubagents.length === 0 && (
-          <span className="aop-subagent-count" title={`${allSubagentEntries.length} subagents (all completed)`} style={{ opacity: 0.5 }}>
+          <span className="aop-subagent-count" title={t('terminal:overview.subagentsCompleted', { count: allSubagentEntries.length })} style={{ opacity: 0.5 }}>
             ⑂{allSubagentEntries.length}
           </span>
         )}
@@ -508,7 +511,7 @@ function AgentCard({ agent, isActive, isExpanded, toolExecs, subagents, areaInfo
           {/* Subagents (live + historical from tool execs) */}
           {allSubagentEntries.length > 0 && (
             <div className="aop-subagents">
-              <div className="aop-section-label">Subagents ({allSubagentEntries.length})</div>
+              <div className="aop-section-label">{t('terminal:overview.subagents', { count: allSubagentEntries.length })}</div>
               {allSubagentEntries.map(sub => (
                 <div key={sub.id} className={`aop-subagent-item ${sub.status}`}>
                   <span className="sub-icon">
@@ -527,7 +530,7 @@ function AgentCard({ agent, isActive, isExpanded, toolExecs, subagents, areaInfo
           {/* Recent tool activity timeline */}
           {recentTools.length > 0 && (
             <div className="aop-tool-timeline">
-              <div className="aop-section-label">Recent Activity</div>
+              <div className="aop-section-label">{t('terminal:overview.recentActivity')}</div>
               {recentTools.map((exec, i) => {
                 const param = exec.toolInput
                   ? (exec.toolInput.file_path as string)
@@ -550,7 +553,7 @@ function AgentCard({ agent, isActive, isExpanded, toolExecs, subagents, areaInfo
           )}
 
           {toolExecs.length === 0 && subagents.length === 0 && (
-            <div className="aop-no-activity">No tool activity yet</div>
+            <div className="aop-no-activity">{t('terminal:overview.noToolActivity')}</div>
           )}
         </div>
       )}

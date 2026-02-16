@@ -32,6 +32,38 @@ export function getToolIcon(toolName: string): string {
   return TOOL_ICONS[toolName] || TOOL_ICONS.default;
 }
 
+const TOOL_NAME_TRANSLATION_KEYS: Record<string, string> = {
+  Read: 'tools:display.toolNames.read',
+  Write: 'tools:display.toolNames.write',
+  Edit: 'tools:display.toolNames.edit',
+  Bash: 'tools:display.toolNames.bash',
+  Glob: 'tools:display.toolNames.glob',
+  Grep: 'tools:display.toolNames.grep',
+  Task: 'tools:display.toolNames.task',
+  WebFetch: 'tools:display.toolNames.webFetch',
+  WebSearch: 'tools:display.toolNames.webSearch',
+  TodoWrite: 'tools:display.toolNames.todoWrite',
+  NotebookEdit: 'tools:display.toolNames.notebookEdit',
+  AskFollowupQuestion: 'tools:display.toolNames.askFollowupQuestion',
+  AskUserQuestion: 'tools:display.toolNames.askUserQuestion',
+  AttemptCompletion: 'tools:display.toolNames.attemptCompletion',
+  ListFiles: 'tools:display.toolNames.listFiles',
+  SearchFiles: 'tools:display.toolNames.searchFiles',
+  ExecuteCommand: 'tools:display.toolNames.executeCommand',
+};
+
+/**
+ * Resolve a localized tool label with fallback to the raw tool name.
+ */
+export function getLocalizedToolName(
+  toolName: string,
+  t: (key: string, options?: Record<string, unknown>) => string
+): string {
+  const key = TOOL_NAME_TRANSLATION_KEYS[toolName];
+  if (!key) return toolName;
+  return t(key, { defaultValue: toolName }) || toolName;
+}
+
 /**
  * Status icons for todo items
  */

@@ -6,6 +6,7 @@
  */
 
 import React, { useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 
 export interface KeybindingsHelpProps {
   onClose: () => void;
@@ -57,6 +58,8 @@ const KEYBINDINGS: KeyBinding[] = [
 ];
 
 export const KeybindingsHelp: React.FC<KeybindingsHelpProps> = ({ onClose }) => {
+  const { t } = useTranslation(['terminal']);
+
   const handleOverlayClick = useCallback(
     (e: React.MouseEvent) => {
       // Close only if clicking the overlay itself, not the content
@@ -90,14 +93,14 @@ export const KeybindingsHelp: React.FC<KeybindingsHelpProps> = ({ onClose }) => 
   );
 
   return (
-    <div className="keybindings-help-overlay" onClick={handleOverlayClick} onKeyDown={handleKeyDown} tabIndex={0} role="dialog" aria-label="Keybindings help">
+    <div className="keybindings-help-overlay" onClick={handleOverlayClick} onKeyDown={handleKeyDown} tabIndex={0} role="dialog" aria-label={t('terminal:fileExplorer.keybindingsHelp')}>
       <div className="keybindings-help-content">
-        <button className="keybindings-help-close" onClick={onClose} aria-label="Close help" title="Press Escape to close">
+        <button className="keybindings-help-close" onClick={onClose} aria-label={t('terminal:fileExplorer.closeHelp')} title={t('terminal:fileExplorer.pressEscapeToClose')}>
           ✕
         </button>
 
-        <h2 className="keybindings-help-title">Keybindings Help</h2>
-        <p className="keybindings-help-subtitle">Vim-style navigation, selection, and copy</p>
+        <h2 className="keybindings-help-title">{t('terminal:fileExplorer.keybindingsHelp')}</h2>
+        <p className="keybindings-help-subtitle">{t('terminal:fileExplorer.keybindingsSubtitle')}</p>
 
         <div className="keybindings-help-categories">
           {Object.entries(categorized).map(([category, bindings]) => (
@@ -121,7 +124,7 @@ export const KeybindingsHelp: React.FC<KeybindingsHelpProps> = ({ onClose }) => 
           ))}
         </div>
 
-        <p className="keybindings-help-footer">Press ? or Escape to close this help overlay</p>
+        <p className="keybindings-help-footer">{t('terminal:fileExplorer.keybindingsFooter')}</p>
       </div>
     </div>
   );

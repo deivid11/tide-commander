@@ -6,6 +6,7 @@
  */
 
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useStore, store } from '../../store';
 import { matchesShortcut } from '../../store/shortcuts';
 import { DiffViewer } from '../DiffViewer';
@@ -57,6 +58,7 @@ export function FileExplorerPanel({
   onChangeArea,
   folderPath,
 }: FileExplorerPanelProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const state = useStore();
 
   // -------------------------------------------------------------------------
@@ -1048,7 +1050,7 @@ export function FileExplorerPanel({
             <button
               className="file-explorer-tree-toggle"
               onClick={() => setTreePanelCollapsed(!treePanelCollapsed)}
-              title={treePanelCollapsed ? 'Expand tree' : 'Collapse tree'}
+              title={treePanelCollapsed ? t('terminal:fileExplorer.expandTree') : t('terminal:fileExplorer.collapseTree')}
             >
               {treePanelCollapsed ? '▼' : '▲'}
             </button>
@@ -1057,14 +1059,14 @@ export function FileExplorerPanel({
               onClick={() => setViewMode('files')}
             >
               <span className="tab-icon">📁</span>
-              Files
+              {t('terminal:spotlight.files')}
             </button>
             <button
               className={`file-explorer-tab ${viewMode === 'git' ? 'active' : ''}`}
               onClick={() => setViewMode('git')}
             >
               <span className="tab-icon">⎇</span>
-              Git
+              {t('terminal:fileExplorer.gitChanges')}
               {gitChangeCount > 0 && <span className="tab-badge">{gitChangeCount}</span>}
             </button>
             {(compareResult || compareLoading) && (
@@ -1073,7 +1075,7 @@ export function FileExplorerPanel({
                 onClick={() => setViewMode('compare')}
               >
                 <span className="tab-icon">⇄</span>
-                Diff
+                {t('terminal:fileExplorer.diffView')}
                 {compareResult && <span className="tab-badge">{compareResult.files.length}</span>}
                 <span
                   className="tab-close-btn"
@@ -1094,7 +1096,7 @@ export function FileExplorerPanel({
                   ref={searchInputRef}
                   type="text"
                   className="file-explorer-search-input"
-                  placeholder="Search files... (file:line) (Cmd+P)"
+                  placeholder={t('terminal:fileExplorer.searchPlaceholder')}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
@@ -1111,7 +1113,7 @@ export function FileExplorerPanel({
                 <button
                   className="file-explorer-toolbar-btn"
                   onClick={() => setExpandedPaths(new Set())}
-                  title="Collapse all folders"
+                  title={t('terminal:fileExplorer.collapseAll')}
                 >
                   ⊟
                 </button>
@@ -1119,7 +1121,7 @@ export function FileExplorerPanel({
                   <button
                     className="file-explorer-toolbar-btn"
                     onClick={() => handleRevealInTree(activeTabPath)}
-                    title="Reveal active file in tree"
+                    title={t('terminal:fileExplorer.revealInTree')}
                   >
                     ◎
                   </button>
@@ -1140,10 +1142,10 @@ export function FileExplorerPanel({
               />
             ) : viewMode === 'files' ? (
               treeLoading ? (
-                <div className="tree-loading">Loading...</div>
+                <div className="tree-loading">{t('common:status.loading')}</div>
               ) : parsedSearch.query ? (
                 isSearching ? (
-                  <div className="tree-loading">Searching...</div>
+                  <div className="tree-loading">{t('terminal:fileExplorer.searching')}</div>
                 ) : (
                   <UnifiedSearchResults
                     filenameResults={searchResults}
@@ -1158,7 +1160,7 @@ export function FileExplorerPanel({
               ) : (
                 <div className="file-tree">
                   {enrichedTree.length === 0 ? (
-                    <div className="tree-empty">No directories linked</div>
+                    <div className="tree-empty">{t('terminal:fileExplorer.noDirectoriesLinked')}</div>
                   ) : (
                     enrichedTree.map((node) => (
                       <TreeNodeItem

@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { store, useStore } from '../store';
 import { LogViewerModal } from './LogViewerModal';
 import type { LogLine } from './LogViewerModal';
@@ -30,6 +31,7 @@ function getSourceColor(name: string): string {
 }
 
 export function BossLogsModal({ building, isOpen, onClose }: BossLogsModalProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const { bossStreamingLogs, buildings } = useStore();
   const logs = bossStreamingLogs.get(building.id) || [];
   const [selectedSource, setSelectedSource] = useState<string | null>(null);
@@ -81,7 +83,7 @@ export function BossLogsModal({ building, isOpen, onClose }: BossLogsModalProps)
       value={selectedSource || ''}
       onChange={e => setSelectedSource(e.target.value || null)}
     >
-      <option value="">All Sources</option>
+      <option value="">{t('terminal:logs.allSources')}</option>
       {sourceNames.map(name => (
         <option key={name} value={name}>{name}</option>
       ))}
@@ -90,7 +92,7 @@ export function BossLogsModal({ building, isOpen, onClose }: BossLogsModalProps)
 
   const extraFooter = selectedSource ? (
     <div className="shortcut" style={{ marginLeft: 'auto' }}>
-      <span>Filtered: {selectedSource}</span>
+      <span>{t('terminal:logs.filtered')}: {selectedSource}</span>
       <button
         style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', marginLeft: '0.5rem' }}
         onClick={() => setSelectedSource(null)}
@@ -104,18 +106,18 @@ export function BossLogsModal({ building, isOpen, onClose }: BossLogsModalProps)
     <LogViewerModal
       isOpen={isOpen}
       onClose={onClose}
-      title={`${building.name} - Unified Logs`}
+      title={`${building.name} - ${t('terminal:logs.bossLogs')}`}
       icon="&#128081;"
       lines={lines}
       isStreaming={subordinateIds.length > 0}
-      streamingIndicatorLabel={`${subordinates.length} units`}
+      streamingIndicatorLabel={`${subordinates.length} ${t('terminal:logs.units')}`}
       onClear={() => store.clearBossStreamingLogs(building.id)}
       emptyMessage={
         !hasPM2Subordinates
-          ? 'No PM2-enabled subordinates. Add subordinate buildings with PM2 enabled to see unified logs.'
+          ? t('terminal:logs.noPM2Subordinates')
           : logs.length === 0
-            ? 'Waiting for logs...'
-            : 'No matching logs found'
+            ? t('terminal:logs.waitingForLogs')
+            : t('terminal:logs.noMatchingLogs')
       }
       extraToolbar={sourceFilter}
       extraFooter={extraFooter}

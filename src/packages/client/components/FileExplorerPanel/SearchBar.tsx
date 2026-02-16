@@ -6,6 +6,7 @@
  */
 
 import React, { useEffect, useRef, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 
 export interface SearchBarProps {
   query: string;
@@ -26,6 +27,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   onPrev,
   onClose,
 }) => {
+  const { t } = useTranslation(['terminal']);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Focus input on mount
@@ -58,7 +60,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
 
   // Display match counter
   const matchText =
-    matchCount === 0 && query ? 'No matches' : matchCount > 0 ? `${currentIndex + 1}/${matchCount}` : '';
+    matchCount === 0 && query ? t('terminal:fileExplorer.noMatches') : matchCount > 0 ? `${currentIndex + 1}/${matchCount}` : '';
 
   return (
     <div className="file-viewer-search-bar">
@@ -68,7 +70,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
           ref={inputRef}
           type="text"
           className="file-viewer-search-input"
-          placeholder="Search in file..."
+          placeholder={t('terminal:fileExplorer.searchInFile')}
           value={query}
           onChange={(e) => onQueryChange(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -86,8 +88,8 @@ export const SearchBar: React.FC<SearchBarProps> = ({
               className="file-viewer-search-btn file-viewer-search-prev"
               onClick={onPrev}
               disabled={matchCount === 0}
-              title="Previous match (Shift+N or ↑)"
-              aria-label="Previous match"
+              title={t('terminal:fileExplorer.previousMatch')}
+              aria-label={t('terminal:fileExplorer.previousMatch')}
             >
               ↑
             </button>
@@ -95,8 +97,8 @@ export const SearchBar: React.FC<SearchBarProps> = ({
               className="file-viewer-search-btn file-viewer-search-next"
               onClick={onNext}
               disabled={matchCount === 0}
-              title="Next match (N or ↓)"
-              aria-label="Next match"
+              title={t('terminal:fileExplorer.nextMatch')}
+              aria-label={t('terminal:fileExplorer.nextMatch')}
             >
               ↓
             </button>
@@ -107,8 +109,8 @@ export const SearchBar: React.FC<SearchBarProps> = ({
       <button
         className="file-viewer-search-close"
         onClick={onClose}
-        title="Close search (Escape)"
-        aria-label="Close search"
+        title={t('terminal:fileExplorer.closeSearch')}
+        aria-label={t('terminal:fileExplorer.closeSearch')}
       >
         ✕
       </button>

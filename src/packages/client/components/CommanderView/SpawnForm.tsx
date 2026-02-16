@@ -3,6 +3,7 @@
  */
 
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { DrawingArea, AgentClass, AgentProvider } from '../../../shared/types';
 import { AGENT_CLASS_CONFIG, DEFAULT_NAMES, CHARACTER_MODELS } from '../../scene/config';
 import { store } from '../../store';
@@ -15,6 +16,7 @@ interface SpawnFormProps {
 }
 
 export function SpawnForm({ currentArea, onClose }: SpawnFormProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const [name, setName] = useState(() => {
     const usedNames = new Set(Array.from(store.getState().agents.values()).map(a => a.name));
     return DEFAULT_NAMES.find(n => !usedNames.has(n)) || `Agent-${Date.now().toString(36)}`;
@@ -72,7 +74,7 @@ export function SpawnForm({ currentArea, onClose }: SpawnFormProps) {
     <div className="commander-spawn-overlay" onClick={onClose}>
       <div className="commander-spawn-form" onClick={e => e.stopPropagation()}>
         <div className="commander-spawn-header">
-          <h3>Add New Agent</h3>
+          <h3>{t('spawn.addNewAgent')}</h3>
           {currentArea && (
             <span className="commander-spawn-area">
               <span className="commander-spawn-area-dot" style={{ background: currentArea.color }} />
@@ -83,7 +85,7 @@ export function SpawnForm({ currentArea, onClose }: SpawnFormProps) {
 
         <div className="commander-spawn-body">
           <div className="commander-spawn-field">
-            <label>Name</label>
+            <label>{t('common:labels.name')}</label>
             <input
               type="text"
               value={name}
@@ -94,18 +96,18 @@ export function SpawnForm({ currentArea, onClose }: SpawnFormProps) {
           </div>
 
           <div className="commander-spawn-field">
-            <label>Working Directory</label>
+            <label>{t('common:labels.workingDirectory')}</label>
             <FolderInput
               value={cwd}
               onChange={setCwd}
               onSubmit={handleSpawn}
-              placeholder="/path/to/project"
+              placeholder={t('spawn.workingDirPlaceholder')}
               directoriesOnly={true}
             />
           </div>
 
           <div className="commander-spawn-field">
-            <label>Class</label>
+            <label>{t('common:labels.class')}</label>
             <div className="commander-spawn-classes">
               {CHARACTER_MODELS.map(char => {
                 const config = AGENT_CLASS_CONFIG[char.id];
@@ -124,7 +126,7 @@ export function SpawnForm({ currentArea, onClose }: SpawnFormProps) {
           </div>
 
           <div className="commander-spawn-field">
-            <label>Runtime</label>
+            <label>{t('common:labels.runtime')}</label>
             <div className="commander-spawn-classes">
               <button
                 className={`commander-spawn-class ${selectedProvider === 'claude' ? 'selected' : ''}`}
@@ -146,14 +148,14 @@ export function SpawnForm({ currentArea, onClose }: SpawnFormProps) {
 
         <div className="commander-spawn-footer">
           <button className="commander-spawn-cancel" onClick={onClose}>
-            Cancel
+            {t('common:buttons.cancel')}
           </button>
           <button
             className="commander-spawn-submit"
             onClick={handleSpawn}
             disabled={!name.trim() || !cwd.trim() || isSpawning}
           >
-            {isSpawning ? 'Deploying...' : 'Deploy Agent'}
+            {isSpawning ? t('common:buttons.deploying') : t('common:buttons.deploy')}
           </button>
         </div>
       </div>

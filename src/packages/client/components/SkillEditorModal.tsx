@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { store, useSkill, useAgentsArray } from '../store';
 import type { Skill, AgentClass } from '../../shared/types';
 import { useModalClose } from '../hooks';
@@ -9,31 +10,31 @@ interface SkillEditorModalProps {
   skillId?: string | null; // If provided, edit mode; otherwise create mode
 }
 
-// Available agent classes for assignment
-const AGENT_CLASSES: { value: AgentClass; label: string; description: string }[] = [
-  { value: 'scout', label: 'Scout', description: 'Codebase exploration' },
-  { value: 'builder', label: 'Builder', description: 'Feature implementation' },
-  { value: 'debugger', label: 'Debugger', description: 'Bug hunting & fixing' },
-  { value: 'architect', label: 'Architect', description: 'Planning & design' },
-  { value: 'warrior', label: 'Warrior', description: 'Refactoring & migrations' },
-  { value: 'support', label: 'Support', description: 'Docs & tests' },
-  { value: 'boss', label: 'Boss', description: 'Team coordination' },
+// Available agent classes for assignment (labels resolved via i18n at render time)
+const AGENT_CLASSES: { value: AgentClass; labelKey: string; descriptionKey: string }[] = [
+  { value: 'scout', labelKey: 'tools:skills.classScout', descriptionKey: 'tools:skills.classScoutDesc' },
+  { value: 'builder', labelKey: 'tools:skills.classBuilder', descriptionKey: 'tools:skills.classBuilderDesc' },
+  { value: 'debugger', labelKey: 'tools:skills.classDebugger', descriptionKey: 'tools:skills.classDebuggerDesc' },
+  { value: 'architect', labelKey: 'tools:skills.classArchitect', descriptionKey: 'tools:skills.classArchitectDesc' },
+  { value: 'warrior', labelKey: 'tools:skills.classWarrior', descriptionKey: 'tools:skills.classWarriorDesc' },
+  { value: 'support', labelKey: 'tools:skills.classSupport', descriptionKey: 'tools:skills.classSupportDesc' },
+  { value: 'boss', labelKey: 'tools:skills.classBoss', descriptionKey: 'tools:skills.classBossDesc' },
 ];
 
-// Common tool permissions
+// Common tool permissions (labels resolved via i18n at render time)
 const TOOL_PRESETS = [
-  { label: 'Read Files', value: 'Read' },
-  { label: 'Write Files', value: 'Write' },
-  { label: 'Edit Files', value: 'Edit' },
-  { label: 'Run Bash', value: 'Bash' },
-  { label: 'Git Commands', value: 'Bash(git:*)' },
-  { label: 'NPM Commands', value: 'Bash(npm:*)' },
-  { label: 'Docker Commands', value: 'Bash(docker:*)' },
-  { label: 'Kubectl Commands', value: 'Bash(kubectl:*)' },
-  { label: 'Search Files', value: 'Grep' },
-  { label: 'Glob Files', value: 'Glob' },
-  { label: 'Web Fetch', value: 'WebFetch' },
-  { label: 'Web Search', value: 'WebSearch' },
+  { labelKey: 'tools:skills.toolReadFiles', value: 'Read' },
+  { labelKey: 'tools:skills.toolWriteFiles', value: 'Write' },
+  { labelKey: 'tools:skills.toolEditFiles', value: 'Edit' },
+  { labelKey: 'tools:skills.toolRunBash', value: 'Bash' },
+  { labelKey: 'tools:skills.toolGitCommands', value: 'Bash(git:*)' },
+  { labelKey: 'tools:skills.toolNpmCommands', value: 'Bash(npm:*)' },
+  { labelKey: 'tools:skills.toolDockerCommands', value: 'Bash(docker:*)' },
+  { labelKey: 'tools:skills.toolKubectlCommands', value: 'Bash(kubectl:*)' },
+  { labelKey: 'tools:skills.toolSearchFiles', value: 'Grep' },
+  { labelKey: 'tools:skills.toolGlobFiles', value: 'Glob' },
+  { labelKey: 'tools:skills.toolWebFetch', value: 'WebFetch' },
+  { labelKey: 'tools:skills.toolWebSearch', value: 'WebSearch' },
 ];
 
 // Default skill template
@@ -65,6 +66,7 @@ export function SkillEditorModal({
   onClose,
   skillId,
 }: SkillEditorModalProps) {
+  const { t } = useTranslation(['tools', 'common']);
   const skill = useSkill(skillId ?? null);
   const agents = useAgentsArray();
   const isEditMode = !!skill;
@@ -100,7 +102,7 @@ export function SkillEditorModal({
         setEnabled(skill.enabled);
       } else {
         // Create mode - reset
-        setName('New Skill');
+        setName(t('tools:skills.newSkillDefault'));
         setSlug('');
         setDescription('');
         setContent(DEFAULT_SKILL_CONTENT);
@@ -168,11 +170,7 @@ export function SkillEditorModal({
       );
 
       if (contentChanged) {
-        const confirmed = confirm(
-          'Updating this skill will restart all agents using it.\n\n' +
-          'You will need to manually resume any agents that were working.\n\n' +
-          'Continue?'
-        );
+        const confirmed = confirm(t('tools:skills.updateSkillConfirm'));
         if (!confirmed) return;
       }
 
@@ -185,7 +183,7 @@ export function SkillEditorModal({
   };
 
   const handleDelete = () => {
-    if (skillId && confirm('Delete this skill? This cannot be undone.')) {
+    if (skillId && confirm(t('tools:skills.deleteSkillConfirm'))) {
       store.deleteSkill(skillId);
       onClose();
     }
@@ -237,7 +235,7 @@ export function SkillEditorModal({
       >
         <div className="modal-header">
           <span>
-            {isEditMode ? (isBuiltinSkill ? 'View Built-in Skill' : 'Edit Skill') : 'Create Skill'}
+            {isEditMode ? (isBuiltinSkill ? t('tools:skills.viewBuiltInSkill') : t('tools:skills.editSkill')) : t('tools:skills.createSkill')}
             {isBuiltinSkill && (
               <span
                 style={{
@@ -250,7 +248,7 @@ export function SkillEditorModal({
                   marginLeft: '8px',
                 }}
               >
-                Built-in
+                {t('tools:skills.builtIn')}
               </span>
             )}
           </span>
@@ -261,7 +259,7 @@ export function SkillEditorModal({
               onClick={handleDelete}
               style={{ marginLeft: 'auto', marginRight: '12px' }}
             >
-              Delete
+              {t('common:buttons.delete')}
             </button>
           )}
         </div>
@@ -281,20 +279,20 @@ export function SkillEditorModal({
                   color: 'var(--accent-cyan)',
                 }}
               >
-                This is a built-in Tide Commander skill. Content cannot be modified, but you can change which agents and classes it's assigned to.
+                {t('tools:skills.builtInNotice')}
               </div>
             )}
 
             {/* Basic Info */}
             <div className="form-section">
-              <label className="form-label">Name *</label>
+              <label className="form-label">{t('tools:skills.nameRequired')}</label>
               <input
                 ref={nameInputRef}
                 type="text"
                 className="form-input"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="e.g., Git Push, Deploy to Production"
+                placeholder={t('tools:skills.skillNamePlaceholder')}
                 required
                 disabled={isBuiltinSkill}
                 style={isBuiltinSkill ? { opacity: 0.7, cursor: 'not-allowed' } : undefined}
@@ -302,44 +300,44 @@ export function SkillEditorModal({
             </div>
 
             <div className="form-section">
-              <label className="form-label">Slug</label>
+              <label className="form-label">{t('tools:skills.slugLabel')}</label>
               <input
                 type="text"
                 className="form-input"
                 value={slug}
                 onChange={(e) => setSlug(e.target.value)}
-                placeholder="auto-generated from name"
+                placeholder={t('tools:skills.slugPlaceholder')}
                 style={{ fontFamily: 'monospace', fontSize: '12px', ...(isBuiltinSkill ? { opacity: 0.7, cursor: 'not-allowed' } : {}) }}
                 disabled={isBuiltinSkill}
               />
-              <small className="form-hint">URL-safe identifier (auto-generated)</small>
+              <small className="form-hint">{t('tools:skills.slugHint')}</small>
             </div>
 
             <div className="form-section">
-              <label className="form-label">Description *</label>
+              <label className="form-label">{t('tools:skills.descriptionRequired')}</label>
               <textarea
                 className="form-input"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Describe when this skill should be used. Include trigger phrases like 'push code', 'deploy', etc."
+                placeholder={t('tools:skills.skillDescPlaceholder')}
                 rows={3}
                 required
                 style={{ resize: 'vertical', ...(isBuiltinSkill ? { opacity: 0.7, cursor: 'not-allowed' } : {}) }}
                 disabled={isBuiltinSkill}
               />
               <small className="form-hint">
-                Claude uses this to decide when to activate the skill
+                {t('tools:skills.descriptionHint')}
               </small>
             </div>
 
             <div className="form-section">
-              <label className="form-label">Instructions (Markdown)</label>
+              <label className="form-label">{t('tools:skills.instructionsMarkdown')}</label>
               <textarea
                 ref={contentRef}
                 className="form-input"
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
-                placeholder="Step-by-step instructions for performing this skill..."
+                placeholder={t('tools:skills.skillContentPlaceholder')}
                 rows={12}
                 style={{
                   fontFamily: 'monospace',
@@ -354,7 +352,7 @@ export function SkillEditorModal({
 
             {/* Tool Permissions */}
             <div className="form-section">
-              <label className="form-label">Allowed Tools</label>
+              <label className="form-label">{t('tools:skills.allowedTools')}</label>
               {!isBuiltinSkill ? (
                 <>
                   <div className="tool-presets" style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
@@ -366,7 +364,7 @@ export function SkillEditorModal({
                         onClick={() => toggleTool(preset.value)}
                         style={{ fontSize: '11px', padding: '4px 8px' }}
                       >
-                        {preset.label}
+                        {t(preset.labelKey)}
                       </button>
                     ))}
                   </div>
@@ -376,7 +374,7 @@ export function SkillEditorModal({
                       className="form-input"
                       value={customTool}
                       onChange={(e) => setCustomTool(e.target.value)}
-                      placeholder="Custom tool (e.g., Bash(make:*))"
+                      placeholder={t('tools:skills.customToolPlaceholder')}
                       style={{ flex: 1, fontSize: '12px' }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
@@ -390,7 +388,7 @@ export function SkillEditorModal({
                       className="btn btn-secondary btn-sm"
                       onClick={addCustomTool}
                     >
-                      Add
+                      {t('common:buttons.add')}
                     </button>
                   </div>
                   {allowedTools.length > 0 && (
@@ -407,7 +405,7 @@ export function SkillEditorModal({
                             cursor: 'pointer',
                           }}
                           onClick={() => toggleTool(tool)}
-                          title="Click to remove"
+                          title={t('tools:skills.clickToRemove')}
                         >
                           {tool} ×
                         </span>
@@ -433,7 +431,7 @@ export function SkillEditorModal({
                       </span>
                     ))
                   ) : (
-                    <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>No specific tools</span>
+                    <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('tools:skills.noSpecificTools')}</span>
                   )}
                 </div>
               )}
@@ -441,9 +439,9 @@ export function SkillEditorModal({
 
             {/* Agent Class Assignment */}
             <div className="form-section">
-              <label className="form-label">Assign to Agent Classes</label>
+              <label className="form-label">{t('tools:skills.assignToClasses')}</label>
               <small className="form-hint" style={{ display: 'block', marginBottom: '8px' }}>
-                All agents of selected classes will have this skill
+                {t('tools:skills.allAgentsOfClasses')}
               </small>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px' }}>
                 {AGENT_CLASSES.map((ac) => (
@@ -454,8 +452,8 @@ export function SkillEditorModal({
                     onClick={() => toggleAgentClass(ac.value)}
                     style={{ fontSize: '11px', padding: '6px 8px', textAlign: 'left' }}
                   >
-                    <strong>{ac.label}</strong>
-                    <span style={{ opacity: 0.7, marginLeft: '4px' }}>- {ac.description}</span>
+                    <strong>{t(ac.labelKey)}</strong>
+                    <span style={{ opacity: 0.7, marginLeft: '4px' }}>- {t(ac.descriptionKey)}</span>
                   </button>
                 ))}
               </div>
@@ -464,7 +462,7 @@ export function SkillEditorModal({
             {/* Individual Agent Assignment */}
             {assignableAgents.length > 0 && (
               <div className="form-section">
-                <label className="form-label">Assign to Specific Agents</label>
+                <label className="form-label">{t('tools:skills.assignToAgents')}</label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                   {assignableAgents.map((agent) => (
                     <button
@@ -490,7 +488,7 @@ export function SkillEditorModal({
                 onClick={() => setShowAdvanced(!showAdvanced)}
                 style={{ marginBottom: '8px' }}
               >
-                {showAdvanced ? 'Hide' : 'Show'} Advanced Options
+                {showAdvanced ? t('common:buttons2.hide') : t('common:buttons2.show')} {t('tools:skills.advancedOptions')}
               </button>
 
               {showAdvanced && (
@@ -501,10 +499,10 @@ export function SkillEditorModal({
                       checked={enabled}
                       onChange={(e) => setEnabled(e.target.checked)}
                     />
-                    Skill Enabled
+                    {t('tools:skills.skillEnabled')}
                   </label>
                   <small className="form-hint">
-                    Disabled skills won't be available to agents
+                    {t('tools:skills.disabledSkillsHint')}
                   </small>
                 </div>
               )}
@@ -513,16 +511,16 @@ export function SkillEditorModal({
 
           <div className="modal-footer">
             <button type="button" className="btn btn-secondary" onClick={onClose}>
-              {isBuiltinSkill ? 'Close' : 'Cancel'}
+              {isBuiltinSkill ? t('common:buttons.close') : t('common:buttons.cancel')}
             </button>
             {!isBuiltinSkill && (
               <button type="submit" className="btn btn-primary">
-                {isEditMode ? 'Save Changes' : 'Create Skill'}
+                {isEditMode ? t('common:buttons2.saveChanges') : t('tools:skills.createSkill')}
               </button>
             )}
             {isBuiltinSkill && (
               <button type="submit" className="btn btn-primary">
-                Save Assignments
+                {t('tools:skills.saveAssignments')}
               </button>
             )}
           </div>

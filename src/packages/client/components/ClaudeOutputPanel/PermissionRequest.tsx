@@ -3,6 +3,7 @@
  */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { PermissionRequest } from '../../../shared/types';
 import { TOOL_ICONS } from '../../utils/outputRendering';
 
@@ -17,6 +18,7 @@ interface PermissionRequestCardProps {
 }
 
 export function PermissionRequestCard({ request, onApprove, onDeny }: PermissionRequestCardProps) {
+  const { t } = useTranslation(['tools']);
   const toolIcon = TOOL_ICONS[request.tool] || TOOL_ICONS.default;
 
   // Format tool input for display - NO TRUNCATION
@@ -44,9 +46,9 @@ export function PermissionRequestCard({ request, onApprove, onDeny }: Permission
       <div className="permission-request-header">
         <span className="permission-request-icon">{toolIcon}</span>
         <span className="permission-request-tool">{request.tool}</span>
-        {isPending && <span className="permission-request-badge">Waiting for approval</span>}
-        {isApproved && <span className="permission-request-badge approved">Approved</span>}
-        {isDenied && <span className="permission-request-badge denied">Denied</span>}
+        {isPending && <span className="permission-request-badge">{t('tools:permission.waitingForApproval')}</span>}
+        {isApproved && <span className="permission-request-badge approved">{t('tools:permission.approved')}</span>}
+        {isDenied && <span className="permission-request-badge denied">{t('tools:permission.denied')}</span>}
       </div>
       <div className="permission-request-details">
         <code>{formatToolInput(request.toolInput)}</code>
@@ -54,10 +56,10 @@ export function PermissionRequestCard({ request, onApprove, onDeny }: Permission
       {isPending && (
         <div className="permission-request-actions">
           <button className="permission-btn permission-btn-approve" onClick={onApprove}>
-            ✓ Approve
+            ✓ {t('tools:permission.allow')}
           </button>
           <button className="permission-btn permission-btn-deny" onClick={onDeny}>
-            ✕ Deny
+            ✕ {t('tools:permission.deny')}
           </button>
         </div>
       )}
@@ -76,6 +78,7 @@ interface PermissionRequestInlineProps {
 }
 
 export function PermissionRequestInline({ request, onApprove, onDeny }: PermissionRequestInlineProps) {
+  const { t } = useTranslation(['tools']);
   const toolIcon = TOOL_ICONS[request.tool] || TOOL_ICONS.default;
 
   // Format tool input for display - NO TRUNCATION
@@ -97,14 +100,14 @@ export function PermissionRequestInline({ request, onApprove, onDeny }: Permissi
     if (request.tool === 'Write' || request.tool === 'Edit') {
       const filePath = String(request.toolInput.file_path || '');
       const dir = filePath.split('/').slice(0, -1).join('/');
-      return `Remember: Allow all files in ${dir}/`;
+      return t('tools:permission.rememberAllowDir', { dir });
     }
     if (request.tool === 'Bash') {
       const cmd = String(request.toolInput.command || '');
       const firstWord = cmd.split(/\s+/)[0];
-      return `Remember: Allow "${firstWord}" commands`;
+      return t('tools:permission.rememberAllowCmd', { cmd: firstWord });
     }
-    return `Remember: Allow all ${request.tool} operations`;
+    return t('tools:permission.rememberAllowTool', { tool: request.tool });
   };
 
   if (request.status !== 'pending') return null;
@@ -121,10 +124,10 @@ export function PermissionRequestInline({ request, onApprove, onDeny }: Permissi
       >
         ✓+
       </button>
-      <button className="permission-inline-btn approve" onClick={() => onApprove(false)} title="Approve once">
+      <button className="permission-inline-btn approve" onClick={() => onApprove(false)} title={t('tools:permission.approveOnce')}>
         ✓
       </button>
-      <button className="permission-inline-btn deny" onClick={onDeny} title="Deny">
+      <button className="permission-inline-btn deny" onClick={onDeny} title={t('tools:permission.deny')}>
         ✕
       </button>
     </div>

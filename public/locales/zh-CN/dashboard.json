@@ -1,0 +1,76 @@
+{
+  "title": "仪表盘",
+  "searchPlaceholder": "搜索代理...",
+  "grouping": {
+    "byZone": "按区域",
+    "byStatus": "按状态",
+    "byActivity": "按活动"
+  },
+  "agentCount": "{{count}} 个代理",
+  "agentCount_plural": "{{count}} 个代理",
+  "working": "工作中",
+  "focusZone": "聚焦区域",
+  "noAgentsMatching": "没有匹配 \"{{search}}\" 的代理",
+  "noAgentsSpawned": "尚未创建代理",
+  "cards": {
+    "doubleClickHint": "双击打开终端 | 拖拽移动到其他区域",
+    "openTerminal": "打开终端",
+    "killAgent": "终止代理",
+    "chat": "聊天",
+    "stop": "停止"
+  },
+  "metrics": {
+    "totalAgents": "代理总数",
+    "activeAgents": "活跃代理",
+    "idleAgents": "空闲代理",
+    "errorAgents": "错误代理",
+    "totalTokens": "总令牌数",
+    "totalCost": "总费用",
+    "avgResponseTime": "平均响应时间",
+    "uptime": "运行时间",
+    "tokensIn": "输入令牌",
+    "tokensOut": "输出令牌"
+  },
+  "statusCards": {
+    "title": "代理状态",
+    "noAgents": "没有运行中的代理",
+    "viewAll": "查看全部",
+    "lastActivity": "最近活动",
+    "currentTask": "当前任务"
+  },
+  "timeline": {
+    "title": "事件时间线",
+    "noEvents": "暂无事件",
+    "recentEvents": "最近事件",
+    "noRecentEvents": "暂无最近事件",
+    "viewMore": "查看更多 {{count}} 条事件",
+    "agent": "代理",
+    "building": "建筑",
+    "agentSpawned": "代理已创建",
+    "agentTerminated": "代理已终止",
+    "taskCompleted": "任务完成",
+    "taskFailed": "任务失败",
+    "errorOccurred": "发生错误",
+    "sessionStarted": "会话已启动",
+    "sessionEnded": "会话已结束"
+  },
+  "buildings": {
+    "title": "建筑状态",
+    "noBuildings": "未配置建筑",
+    "healthy": "健康",
+    "warning": "警告",
+    "critical": "严重"
+  },
+  "metricsDisplay": {
+    "title": "实时指标",
+    "activeAgents": "活跃代理",
+    "healthyAgents": "健康代理",
+    "agentErrors": "代理错误",
+    "healthyBuildings": "健康建筑",
+    "performanceRates": "性能指标",
+    "taskCompletion": "任务完成率",
+    "errorRate": "错误率",
+    "buildingHealth": "建筑健康度",
+    "recentErrors": "最近错误"
+  }
+}

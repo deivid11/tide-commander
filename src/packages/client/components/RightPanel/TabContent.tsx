@@ -6,6 +6,7 @@
  */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { RightPanelTab } from './types';
 import type { Agent } from '../../../shared/types';
 
@@ -40,11 +41,13 @@ export const TabContent = React.memo(function TabContent({
 // --- Details Tab ---
 
 const DetailsTab = React.memo(function DetailsTab({ agent }: { agent: Agent | null }) {
+  const { t } = useTranslation(['common']);
+
   if (!agent) {
     return (
       <div className="right-panel-empty">
         <span className="empty-icon">📋</span>
-        <span>Select an agent to view details</span>
+        <span>{t('rightPanel.selectAgentDetails')}</span>
       </div>
     );
   }
@@ -61,66 +64,66 @@ const DetailsTab = React.memo(function DetailsTab({ agent }: { agent: Agent | nu
   return (
     <div className="right-panel-details">
       <div className="details-section">
-        <div className="details-header">Agent Info</div>
+        <div className="details-header">{t('rightPanel.agentInfo')}</div>
         <div className="details-row">
-          <span className="details-label">Name</span>
+          <span className="details-label">{t('labels.name')}</span>
           <span className="details-value">{agent.name}</span>
         </div>
         <div className="details-row">
-          <span className="details-label">Class</span>
+          <span className="details-label">{t('labels.class')}</span>
           <span className="details-value details-class">{agent.class}</span>
         </div>
         <div className="details-row">
-          <span className="details-label">Status</span>
+          <span className="details-label">{t('labels.status')}</span>
           <span className="details-value" style={{ color: statusColor }}>{agent.status}</span>
         </div>
         {agent.cwd && (
           <div className="details-row">
-            <span className="details-label">CWD</span>
+            <span className="details-label">{t('labels.cwd')}</span>
             <span className="details-value details-mono">{agent.cwd}</span>
           </div>
         )}
       </div>
 
       <div className="details-section">
-        <div className="details-header">Context</div>
+        <div className="details-header">{t('labels.context')}</div>
         <div className="details-context-bar">
           <div className="details-context-fill" style={{ width: `${Math.min(100, contextPercent)}%` }} />
         </div>
         <div className="details-row">
-          <span className="details-label">Usage</span>
+          <span className="details-label">{t('labels.usage')}</span>
           <span className="details-value">{(contextUsed / 1000).toFixed(1)}k / {(contextLimit / 1000).toFixed(1)}k ({contextPercent}%)</span>
         </div>
         <div className="details-row">
-          <span className="details-label">Tasks</span>
+          <span className="details-label">{t('labels.tasks')}</span>
           <span className="details-value">{agent.taskCount || 0}</span>
         </div>
         <div className="details-row">
-          <span className="details-label">Tokens</span>
+          <span className="details-label">{t('labels.tokens')}</span>
           <span className="details-value">{(agent.tokensUsed || 0).toLocaleString()}</span>
         </div>
       </div>
 
       {agent.permissionMode && (
         <div className="details-section">
-          <div className="details-header">Configuration</div>
+          <div className="details-header">{t('labels.configuration')}</div>
           <div className="details-row">
-            <span className="details-label">Runtime</span>
+            <span className="details-label">{t('labels.runtime')}</span>
             <span className="details-value details-mono">{agent.provider}</span>
           </div>
           <div className="details-row">
-            <span className="details-label">Permission</span>
+            <span className="details-label">{t('labels.permission')}</span>
             <span className="details-value">{agent.permissionMode}</span>
           </div>
           {agent.provider === 'claude' && agent.model && (
             <div className="details-row">
-              <span className="details-label">Model</span>
+              <span className="details-label">{t('labels.model')}</span>
               <span className="details-value details-mono">{agent.model}</span>
             </div>
           )}
           {agent.provider === 'codex' && agent.codexModel && (
             <div className="details-row">
-              <span className="details-label">Model</span>
+              <span className="details-label">{t('labels.model')}</span>
               <span className="details-value details-mono">{agent.codexModel}</span>
             </div>
           )}
@@ -133,11 +136,13 @@ const DetailsTab = React.memo(function DetailsTab({ agent }: { agent: Agent | nu
 // --- Logs Tab ---
 
 const LogsTab = React.memo(function LogsTab({ agent, agentId: _agentId }: { agent: Agent | null; agentId: string | null }) {
+  const { t } = useTranslation(['common']);
+
   if (!agent) {
     return (
       <div className="right-panel-empty">
         <span className="empty-icon">📜</span>
-        <span>Select an agent to view logs</span>
+        <span>{t('rightPanel.selectAgentLogs')}</span>
       </div>
     );
   }
@@ -145,8 +150,8 @@ const LogsTab = React.memo(function LogsTab({ agent, agentId: _agentId }: { agen
   return (
     <div className="right-panel-empty">
       <span className="empty-icon">📜</span>
-      <span>Agent logs will appear here</span>
-      <span className="empty-hint">Use the debug panel (🐛) for detailed message logs</span>
+      <span>{t('rightPanel.logsWillAppear')}</span>
+      <span className="empty-hint">{t('rightPanel.logsHint')}</span>
     </div>
   );
 });
@@ -154,11 +159,13 @@ const LogsTab = React.memo(function LogsTab({ agent, agentId: _agentId }: { agen
 // --- Snapshot Tab ---
 
 const SnapshotTab = React.memo(function SnapshotTab({ agent, agentId: _agentId }: { agent: Agent | null; agentId: string | null }) {
+  const { t } = useTranslation(['common']);
+
   if (!agent) {
     return (
       <div className="right-panel-empty">
         <span className="empty-icon">📸</span>
-        <span>Select an agent to view snapshots</span>
+        <span>{t('rightPanel.selectAgentSnapshots')}</span>
       </div>
     );
   }
@@ -166,8 +173,8 @@ const SnapshotTab = React.memo(function SnapshotTab({ agent, agentId: _agentId }
   return (
     <div className="right-panel-empty">
       <span className="empty-icon">📸</span>
-      <span>Snapshots for {agent.name}</span>
-      <span className="empty-hint">Save snapshots using the star button (⭐) in the terminal header</span>
+      <span>{t('rightPanel.snapshotsFor', { name: agent.name })}</span>
+      <span className="empty-hint">{t('rightPanel.snapshotsHint')}</span>
     </div>
   );
 });

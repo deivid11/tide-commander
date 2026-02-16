@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useToolExecutions, useFileChanges, ToolExecution, FileChange } from '../store';
 import { FileViewerModal } from './FileViewerModal';
 import { STORAGE_KEYS, getStorageBoolean, setStorageBoolean } from '../utils/storage';
@@ -8,6 +9,7 @@ interface ToolHistoryProps {
 }
 
 export function ToolHistory({ agentIds }: ToolHistoryProps) {
+  const { t } = useTranslation(['terminal']);
   const allToolExecutions = useToolExecutions();
   const allFileChanges = useFileChanges();
   const [selectedFile, setSelectedFile] = useState<{ path: string; action: FileChange['action'] } | null>(null);
@@ -104,12 +106,12 @@ export function ToolHistory({ agentIds }: ToolHistoryProps) {
             onClick={handleToolsToggle}
           >
             <span className="tool-history-panel-toggle">{toolsCollapsed ? '▶' : '▼'}</span>
-            Tools ({toolExecutions.length})
+            {t('terminal:toolHistory.tools')} ({toolExecutions.length})
           </div>
           {!toolsCollapsed && (
             <div className="tool-history-panel-content">
               {toolExecutions.length === 0 ? (
-                <div className="tool-history-empty">No tools executed yet</div>
+                <div className="tool-history-empty">{t('terminal:toolHistory.noToolsYet')}</div>
               ) : (
                 <div className="tool-history-list">
                   {toolExecutions.slice(0, 50).map((exec, index) => (
@@ -138,12 +140,12 @@ export function ToolHistory({ agentIds }: ToolHistoryProps) {
             onClick={handleFilesToggle}
           >
             <span className="tool-history-panel-toggle">{filesCollapsed ? '▶' : '▼'}</span>
-            Files ({fileChanges.length})
+            {t('terminal:toolHistory.filesSection')} ({fileChanges.length})
           </div>
           {!filesCollapsed && (
             <div className="tool-history-panel-content">
               {fileChanges.length === 0 ? (
-                <div className="tool-history-empty">No file changes yet</div>
+                <div className="tool-history-empty">{t('terminal:toolHistory.noFileChangesYet')}</div>
               ) : (
                 <div className="tool-history-list">
                   {fileChanges.slice(0, 50).map((change, index) => (
@@ -235,6 +237,7 @@ function formatToolInput(toolName: string, input?: Record<string, unknown>): str
 }
 
 function ToolExecutionItem({ execution, formatTime, formatPath: _formatPath, getToolIcon, showAgentName, isExpanded, onToggle, onViewFile }: ToolExecutionItemProps) {
+  const { t } = useTranslation(['terminal']);
   const inputDisplay = formatToolInput(execution.toolName, execution.toolInput);
   const hasDetails = execution.toolInput && Object.keys(execution.toolInput).length > 0;
 
@@ -267,7 +270,7 @@ function ToolExecutionItem({ execution, formatTime, formatPath: _formatPath, get
                   onViewFile(filePath!);
                 }}
               >
-                View File
+                {t('terminal:toolHistory.viewFile')}
               </button>
             )}
           </div>

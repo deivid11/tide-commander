@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { store } from '../../store';
 import type { DrawingArea } from '../../../shared/types';
 import { AREA_COLORS } from '../../utils/colors';
@@ -11,6 +12,7 @@ interface AreaEditorProps {
 }
 
 export function AreaEditor({ area, onClose, onOpenFolder }: AreaEditorProps) {
+  const { t } = useTranslation(['config', 'common']);
   const [name, setName] = useState(area.name);
   const [isAddingFolder, setIsAddingFolder] = useState(false);
   const [newFolderPath, setNewFolderPath] = useState('');
@@ -53,21 +55,21 @@ export function AreaEditor({ area, onClose, onOpenFolder }: AreaEditorProps) {
   return (
     <div className="area-editor">
       <div className="area-editor-header">
-        <span className="area-editor-title">Edit Area</span>
+        <span className="area-editor-title">{t('config:areas.editArea')}</span>
         <button className="area-editor-close" onClick={onClose}>&times;</button>
       </div>
       <div className="area-editor-row">
-        <div className="area-editor-label">Name</div>
+        <div className="area-editor-label">{t('common:labels.name')}</div>
         <input
           type="text"
           className="area-editor-input"
           value={name}
           onChange={handleNameChange}
-          placeholder="Area name"
+          placeholder={t('config:areas.areaName')}
         />
       </div>
       <div className="area-editor-row">
-        <div className="area-editor-label">Color</div>
+        <div className="area-editor-label">{t('config:areas.color')}</div>
         <div className="color-picker-row">
           {AREA_COLORS.map((color) => (
             <div
@@ -82,21 +84,21 @@ export function AreaEditor({ area, onClose, onOpenFolder }: AreaEditorProps) {
 
       {/* Z-Index Controls */}
       <div className="area-editor-row">
-        <div className="area-editor-label">Layer</div>
+        <div className="area-editor-label">{t('config:areas.layer')}</div>
         <div className="area-layer-buttons">
           <button
             className="area-layer-btn"
             onClick={handleBringToFront}
-            title="Bring to front (place on top of other areas)"
+            title={t('config:areas.bringToFront')}
           >
-            ↑ Front
+            ↑ {t('config:areas.front')}
           </button>
           <button
             className="area-layer-btn"
             onClick={handleSendToBack}
-            title="Send to back (place behind other areas)"
+            title={t('config:areas.sendToBack')}
           >
-            ↓ Back
+            ↓ {t('config:areas.back')}
           </button>
         </div>
       </div>
@@ -104,7 +106,7 @@ export function AreaEditor({ area, onClose, onOpenFolder }: AreaEditorProps) {
       {/* Folders Configuration */}
       <div className="area-editor-row" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
         <div className="area-editor-label" style={{ marginBottom: 6 }}>
-          Folders ({area.directories.length})
+          {t('config:areas.folders', { count: area.directories.length })}
         </div>
         <div className="area-folders-list">
           {area.directories.map((dir) => (
@@ -112,7 +114,7 @@ export function AreaEditor({ area, onClose, onOpenFolder }: AreaEditorProps) {
               <span
                 className="area-folder-icon clickable"
                 onClick={() => onOpenFolder?.(area.id)}
-                title="Open folder in explorer"
+                title={t('config:areas.openFolder')}
               >
                 📁
               </span>
@@ -120,7 +122,7 @@ export function AreaEditor({ area, onClose, onOpenFolder }: AreaEditorProps) {
               <button
                 className="area-folder-remove"
                 onClick={(e) => handleRemoveFolder(dir, e)}
-                title="Remove folder"
+                title={t('config:areas.removeFolder')}
               >
                 ×
               </button>
@@ -132,7 +134,7 @@ export function AreaEditor({ area, onClose, onOpenFolder }: AreaEditorProps) {
                 value={newFolderPath}
                 onChange={setNewFolderPath}
                 onSubmit={handleAddFolder}
-                placeholder="/path/to/folder"
+                placeholder={t('config:areas.folderPlaceholder')}
                 className="area-add-folder-input"
                 directoriesOnly={true}
                 autoFocus
@@ -146,7 +148,7 @@ export function AreaEditor({ area, onClose, onOpenFolder }: AreaEditorProps) {
               className="area-add-folder-btn"
               onClick={() => setIsAddingFolder(true)}
             >
-              + Add Folder
+              {t('config:areas.addFolder')}
             </button>
           )}
         </div>
@@ -154,9 +156,9 @@ export function AreaEditor({ area, onClose, onOpenFolder }: AreaEditorProps) {
 
       {area.assignedAgentIds.length > 0 && (
         <div className="area-editor-row">
-          <div className="area-editor-label">Assigned Agents ({area.assignedAgentIds.length})</div>
+          <div className="area-editor-label">{t('config:areas.assignedAgents', { count: area.assignedAgentIds.length })}</div>
           <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-            Right-click to unassign
+            {t('config:areas.rightClickUnassign')}
           </div>
         </div>
       )}

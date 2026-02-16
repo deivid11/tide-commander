@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { store, useSkillsArray, useCustomAgentClassesArray } from '../store';
 import { ModelPreview } from './ModelPreview';
 import { FolderInput } from './shared/FolderInput';
@@ -19,6 +20,7 @@ interface AgentEditModalProps {
 }
 
 export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) {
+  const { t } = useTranslation(['terminal', 'common', 'tools']);
   const allSkills = useSkillsArray();
   const customClasses = useCustomAgentClassesArray();
 
@@ -253,7 +255,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
     <div className="modal-overlay visible" onMouseDown={handleBackdropMouseDown} onClick={handleBackdropClick}>
       <div className="modal agent-edit-modal">
         <div className="modal-header">
-          Edit Agent: {agentName.trim() || agent.name}
+          {t('terminal:spawn.editAgentTitle')}: {agentName.trim() || agent.name}
         </div>
 
         <div className="modal-body spawn-modal-body">
@@ -270,7 +272,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
               />
             </div>
             <div className="spawn-class-section">
-              <div className="spawn-class-label">Agent Class</div>
+              <div className="spawn-class-label">{t('terminal:spawn.agentClass')}</div>
               <div className="class-selector-inline">
                 {customClasses.map((customClass) => (
                   <button
@@ -305,10 +307,10 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
             <div className="custom-class-notice">
               <div className="custom-class-notice-header">
                 <span>📋</span>
-                <span>This class has custom instructions</span>
+                <span>{t('terminal:spawn.hasCustomInstructions')}</span>
               </div>
               <div className="custom-class-notice-info">
-                {selectedCustomClass.instructions.length} characters of CLAUDE.md instructions will be injected as system prompt
+                {t('terminal:spawn.instructionsInjected', { count: selectedCustomClass.instructions.length })}
               </div>
             </div>
           )}
@@ -318,13 +320,13 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
             {/* Row 1: Runtime + Permission */}
             <div className="spawn-form-row">
               <div className="spawn-field">
-                <label className="spawn-label">Name</label>
+                <label className="spawn-label">{t('common:labels.name')}</label>
                 <input
                   type="text"
                   className="spawn-input"
                   value={agentName}
                   onChange={(e) => setAgentName(e.target.value)}
-                  placeholder="Agent name"
+                  placeholder={t('terminal:spawn.agentNamePlaceholder')}
                 />
               </div>
             </div>
@@ -332,7 +334,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
             {/* Row 2: Runtime + Permission */}
             <div className="spawn-form-row">
               <div className="spawn-field">
-                <label className="spawn-label">Runtime</label>
+                <label className="spawn-label">{t('common:labels.runtime')}</label>
                 <div className="spawn-select-row">
                   <button
                     className={`spawn-select-btn ${selectedProvider === 'claude' ? 'selected' : ''}`}
@@ -351,7 +353,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                 </div>
               </div>
               <div className="spawn-field">
-                <label className="spawn-label">Permissions</label>
+                <label className="spawn-label">{t('common:labels.permissions')}</label>
                 <div className="spawn-select-row">
                   {(Object.keys(PERMISSION_MODES) as PermissionMode[]).map((mode) => (
                     <button
@@ -371,7 +373,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
             {/* Row 3: Model */}
             <div className="spawn-form-row">
               <div className="spawn-field">
-                <label className="spawn-label">Model</label>
+                <label className="spawn-label">{t('common:labels.model')}</label>
                 {selectedProvider === 'claude' ? (
                   <div className="spawn-select-row">
                     {(Object.keys(CLAUDE_MODELS) as ClaudeModel[]).map((model) => (
@@ -401,7 +403,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                     ))}
                   </div>
                 ) : (
-                  <div className="spawn-inline-hint">Choose the Codex model for this agent.</div>
+                  <div className="spawn-inline-hint">{t('terminal:spawn.codex.configuration')}</div>
                 )}
               </div>
             </div>
@@ -409,7 +411,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
             {selectedProvider === 'codex' && (
               <div className="spawn-form-row">
                 <div className="spawn-field">
-                  <label className="spawn-label">Codex Config</label>
+                  <label className="spawn-label">{t('terminal:spawn.codex.config')}</label>
                   <div className="spawn-options-row" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     <label className="spawn-checkbox">
                       <input
@@ -417,7 +419,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                         checked={codexConfig.fullAuto !== false}
                         onChange={(e) => setCodexConfig((prev) => ({ ...prev, fullAuto: e.target.checked }))}
                       />
-                      <span>Use `--full-auto`</span>
+                      <span>{t('terminal:spawn.codex.useFullAuto')}</span>
                     </label>
                     <label className="spawn-checkbox">
                       <input
@@ -425,7 +427,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                         checked={!!codexConfig.search}
                         onChange={(e) => setCodexConfig((prev) => ({ ...prev, search: e.target.checked }))}
                       />
-                      <span>Enable live web search (`--search`)</span>
+                      <span>{t('terminal:spawn.codex.enableSearch')}</span>
                     </label>
                     {codexConfig.fullAuto === false && (
                       <>
@@ -434,26 +436,26 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                           value={codexConfig.sandbox || 'workspace-write'}
                           onChange={(e) => setCodexConfig((prev) => ({ ...prev, sandbox: e.target.value as CodexConfig['sandbox'] }))}
                         >
-                          <option value="read-only">Sandbox: read-only</option>
-                          <option value="workspace-write">Sandbox: workspace-write</option>
-                          <option value="danger-full-access">Sandbox: danger-full-access</option>
+                          <option value="read-only">{t('terminal:spawn.codex.sandboxReadOnly')}</option>
+                          <option value="workspace-write">{t('terminal:spawn.codex.sandboxWorkspaceWrite')}</option>
+                          <option value="danger-full-access">{t('terminal:spawn.codex.sandboxDangerFullAccess')}</option>
                         </select>
                         <select
                           className="spawn-input"
                           value={codexConfig.approvalMode || 'on-request'}
                           onChange={(e) => setCodexConfig((prev) => ({ ...prev, approvalMode: e.target.value as CodexConfig['approvalMode'] }))}
                         >
-                          <option value="untrusted">Approvals: untrusted</option>
-                          <option value="on-failure">Approvals: on-failure</option>
-                          <option value="on-request">Approvals: on-request</option>
-                          <option value="never">Approvals: never</option>
+                          <option value="untrusted">{t('terminal:spawn.codex.approvalsUntrusted')}</option>
+                          <option value="on-failure">{t('terminal:spawn.codex.approvalsOnFailure')}</option>
+                          <option value="on-request">{t('terminal:spawn.codex.approvalsOnRequest')}</option>
+                          <option value="never">{t('terminal:spawn.codex.approvalsNever')}</option>
                         </select>
                       </>
                     )}
                     <input
                       type="text"
                       className="spawn-input"
-                      placeholder="Profile (optional)"
+                      placeholder={t('terminal:spawn.codex.profileOptional')}
                       value={codexConfig.profile || ''}
                       onChange={(e) => setCodexConfig((prev) => ({ ...prev, profile: e.target.value || undefined }))}
                     />
@@ -465,7 +467,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
             {/* Model change notice */}
             {selectedProvider === 'claude' && selectedModel !== (agent.model || 'sonnet') && (
               <div className="model-change-notice">
-                Context preserved - will resume with new model
+                {t('terminal:spawn.contextPreserved')}
               </div>
             )}
 
@@ -478,18 +480,18 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                   onChange={(e) => setUseChrome(e.target.checked)}
                   disabled={selectedProvider !== 'claude'}
                 />
-                <span>🌐 Chrome Browser</span>
+                <span>{t('terminal:spawn.chromeBrowser')}</span>
               </label>
             </div>
 
             {/* Row 5: Working Directory */}
             <div className="spawn-form-row">
               <div className="spawn-field">
-                <label className="spawn-label">Working Directory</label>
+                <label className="spawn-label">{t('terminal:spawn.workingDir')}</label>
                 <FolderInput
                   value={workdir}
                   onChange={setWorkdir}
-                  placeholder="/path/to/directory"
+                  placeholder={t('terminal:spawn.workingDirPlaceholder')}
                   className="spawn-input"
                   directoriesOnly={true}
                 />
@@ -499,29 +501,29 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
             {/* Workdir change notice */}
             {workdir !== agent.cwd && (
               <div className="model-change-notice warning">
-                New session will start - context cannot be preserved across directory changes
+                {t('terminal:spawn.newSessionWarning')}
               </div>
             )}
 
             {/* Skills section */}
             <div className="spawn-skills-section">
               <label className="spawn-label">
-                Skills <span className="spawn-label-hint">(click to toggle)</span>
+                {t('terminal:spawn.skills')} <span className="spawn-label-hint">({t('terminal:spawn.clickToToggle')})</span>
               </label>
               {availableSkills.length > 6 && (
                 <input
                   type="text"
                   className="spawn-input skill-search-input"
-                  placeholder="Filter skills..."
+                  placeholder={t('terminal:spawn.filterSkills')}
                   value={skillSearch}
                   onChange={(e) => setSkillSearch(e.target.value)}
                 />
               )}
               <div className="skills-chips-compact">
                 {availableSkills.length === 0 ? (
-                  <div className="skills-empty">No enabled skills available</div>
+                  <div className="skills-empty">{t('terminal:spawn.noEnabledSkills')}</div>
                 ) : filteredSkills.length === 0 ? (
-                  <div className="skills-empty">No skills match "{skillSearch}"</div>
+                  <div className="skills-empty">{t('terminal:spawn.noSkillsMatch', { query: skillSearch })}</div>
                 ) : (
                   filteredSkills.map(skill => {
                     const isClassBased = classBasedSkills.includes(skill);
@@ -533,7 +535,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                         key={skill.id}
                         className={`skill-chip ${isActive ? 'selected' : ''} ${isClassBased ? 'class-based' : ''}`}
                         onClick={() => !isClassBased && toggleSkill(skill.id)}
-                        title={isClassBased ? 'Assigned via class' : skill.name}
+                        title={isClassBased ? t('terminal:spawn.assignedViaClass') : skill.name}
                       >
                         {isActive && <span className="skill-check">✓</span>}
                         <span className="skill-chip-name">{skill.name}</span>
@@ -550,14 +552,14 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
 
         <div className="modal-footer">
           <button className="btn btn-secondary" onClick={onClose}>
-            Cancel
+            {t('common:buttons.cancel')}
           </button>
           <button
             className="btn btn-primary"
             onClick={handleSave}
             disabled={!hasChanges}
           >
-            Save Changes
+            {t('common:buttons2.saveChanges')}
           </button>
         </div>
       </div>

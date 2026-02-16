@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useStore, store } from '../../store';
 import type { DrawingTool } from '../../../shared/types';
 import type { ToolboxProps } from './types';
@@ -10,6 +11,7 @@ import { AreaEditor } from './AreaEditor';
 import { ConfigSection } from './ConfigSection';
 
 export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose, onOpenBuildingModal, onOpenAreaExplorer }: ToolboxProps) {
+  const { t } = useTranslation(['config', 'common']);
   const state = useStore();
   const areasArray = Array.from(state.areas.values());
   const buildingsArray = Array.from(state.buildings.values());
@@ -65,8 +67,8 @@ export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose,
       <aside className="toolbox">
         {/* Header with close button */}
         <div className="toolbox-header">
-          <span>Tools & Settings</span>
-          <button className="toolbox-close-btn" onClick={onClose} title="Close">
+          <span>{t('config:title')}</span>
+          <button className="toolbox-close-btn" onClick={onClose} title={t('common:buttons.close')}>
             &times;
           </button>
         </div>
@@ -80,7 +82,7 @@ export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose,
           <input
             ref={searchInputRef}
             type="text"
-            placeholder="Search settings..."
+            placeholder={t('config:searchPlaceholder')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="toolbox-search-input"
@@ -97,7 +99,7 @@ export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose,
           {/* Areas Section (includes Drawing Tools) */}
           <div className="toolbox-section toolbox-section-collapsible">
             <CollapsibleSection
-              title={`Areas (${areasArray.length})`}
+              title={t('config:areas.title', { count: areasArray.length })}
               storageKey="areas"
             >
               {/* Drawing Tools */}
@@ -105,7 +107,7 @@ export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose,
                 <button
                   className={`tool-btn ${state.activeTool === 'select' ? 'active' : ''}`}
                   onClick={() => handleToolSelect('select')}
-                  title="Select"
+                  title={t('config:tools.select')}
                 >
                   <span>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -116,7 +118,7 @@ export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose,
                 <button
                   className={`tool-btn ${state.activeTool === 'rectangle' ? 'active' : ''}`}
                   onClick={() => handleToolSelect('rectangle')}
-                  title="Rectangle"
+                  title={t('config:tools.rectangle')}
                 >
                   <span>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -127,7 +129,7 @@ export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose,
                 <button
                   className={`tool-btn ${state.activeTool === 'circle' ? 'active' : ''}`}
                   onClick={() => handleToolSelect('circle')}
-                  title="Circle"
+                  title={t('config:tools.circle')}
                 >
                   <span>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -141,7 +143,7 @@ export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose,
               <div className="areas-list">
                 {areasArray.length === 0 ? (
                   <div className="areas-empty">
-                    Draw on the battlefield to create areas
+                    {t('config:areas.drawToCreate')}
                   </div>
                 ) : (
                   areasArray.map((area) => (
@@ -170,7 +172,7 @@ export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose,
           {/* Buildings Section */}
           <div className="toolbox-section toolbox-section-collapsible">
             <CollapsibleSection
-              title={`Buildings (${buildingsArray.length})`}
+              title={t('config:buildings.title', { count: buildingsArray.length })}
               storageKey="buildings"
               headerExtra={
                 <button
@@ -179,7 +181,7 @@ export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose,
                     e.stopPropagation();
                     onOpenBuildingModal?.();
                   }}
-                  title="Add Building"
+                  title={t('config:buildings.addBuilding')}
                 >
                   +
                 </button>
@@ -188,7 +190,7 @@ export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose,
               <div className="buildings-list">
                 {buildingsArray.length === 0 ? (
                   <div className="buildings-empty">
-                    Click + to add a building
+                    {t('config:buildings.clickToAdd')}
                   </div>
                 ) : (
                   buildingsArray.map((building) => (

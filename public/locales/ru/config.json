@@ -1,0 +1,304 @@
+{
+  "title": "Инструменты и настройки",
+  "searchPlaceholder": "Поиск настроек...",
+  "noResults": "Настройки не найдены для \"{{query}}\"",
+  "sections": {
+    "general": "Общие",
+    "agentNames": "Имена агентов",
+    "appearance": "Внешний вид",
+    "connection": "Подключение",
+    "scene": "Сцена",
+    "terrain": "Ландшафт",
+    "modelStyle": "Стиль модели агента",
+    "animations": "Анимации",
+    "secrets": "Секреты",
+    "data": "Данные",
+    "experimental": "Экспериментальные",
+    "about": "О программе",
+    "sky": "Цвет неба"
+  },
+  "general": {
+    "history": "История",
+    "hideCosts": "Скрыть стоимость",
+    "grid": "Сетка",
+    "showFPS": "Показать FPS",
+    "fpsLimit": "Ограничение FPS",
+    "powerSaving": "Энергосбережение",
+    "tts": "Синтез речи",
+    "stt": "Распознавание речи",
+    "externalEditor": "Внешний редактор",
+    "externalEditorPlaceholder": "напр., subl, code, nvim (оставьте пустым для системного по умолчанию)",
+    "language": "Язык",
+    "compactView": "Компактный вид",
+    "autoScroll": "Автопрокрутка",
+    "notifications": "Уведомления",
+    "soundEffects": "Звуковые эффекты"
+  },
+  "agentNames": {
+    "customConfigured": "{{count}} пользовательских имён настроено",
+    "usingDefaults": "Используются имена по умолчанию. Добавьте свои для настройки.",
+    "addPlaceholder": "Добавить имя...",
+    "addName": "Добавить имя"
+  },
+  "connection": {
+    "serverUrl": "URL сервера",
+    "port": "Порт",
+    "autoReconnect": "Автоматическое переподключение",
+    "reconnectInterval": "Интервал переподключения",
+    "backendUrl": "URL бэкенда",
+    "authToken": "Токен авторизации",
+    "autoDetectHint": "Оставьте пустым для автоопределения",
+    "tokenPlaceholder": "Введите токен, если требуется",
+    "tokenRequired": "Требуется, если на сервере установлен AUTH_TOKEN",
+    "saveAndReconnect": "Сохранить и переподключиться",
+    "showToken": "Показать токен",
+    "hideToken": "Скрыть токен"
+  },
+  "scene": {
+    "characterSize": "Размер персонажа",
+    "indicatorScale": "Масштаб индикатора",
+    "time": "Время"
+  },
+  "time": {
+    "auto": "Авто",
+    "dawn": "Рассвет",
+    "day": "День",
+    "dusk": "Сумерки",
+    "night": "Ночь"
+  },
+  "floor": {
+    "grass": "Трава",
+    "concrete": "Бетон",
+    "galactic": "Галактика",
+    "metal": "Металл",
+    "hex": "Шестиугольники",
+    "circuit": "Микросхема",
+    "pokemon": "Pokemon"
+  },
+  "terrain": {
+    "trees": "Деревья",
+    "bushes": "Кусты",
+    "house": "Дом",
+    "lamps": "Фонари",
+    "grass": "Трава",
+    "clouds": "Облака"
+  },
+  "terrainSettings": {
+    "fog": "Туман",
+    "brightness": "Яркость",
+    "floor": "Пол",
+    "sky": "Небо"
+  },
+  "fogValues": {
+    "off": "Выкл",
+    "low": "Низ",
+    "high": "Выс"
+  },
+  "brightnessValues": {
+    "dark": "Тёмная",
+    "normal": "Нормальная",
+    "bright": "Яркая"
+  },
+  "animation": {
+    "static": "Статика",
+    "idle": "Ожидание",
+    "walk": "Ходьба",
+    "sprint": "Бег",
+    "jump": "Прыжок",
+    "fall": "Падение",
+    "crouch": "Присед",
+    "sit": "Сидение",
+    "die": "Смерть",
+    "yes": "Да",
+    "no": "Нет"
+  },
+  "animationSettings": {
+    "idle": "Анимация ожидания",
+    "working": "Анимация работы"
+  },
+  "colorMode": {
+    "normal": "Обычный",
+    "bw": "Ч/Б",
+    "sepia": "Сепия",
+    "cool": "Холодный",
+    "warm": "Тёплый",
+    "neon": "Неон"
+  },
+  "sky": {
+    "auto": "Авто",
+    "dayBlue": "Дневное голубое",
+    "night": "Ночь",
+    "sunset": "Закат",
+    "purple": "Фиолетовое",
+    "matrix": "Матрица",
+    "blood": "Кровавое",
+    "void": "Пустота"
+  },
+  "modelStyle": {
+    "scale": "Масштаб",
+    "colorMode": "Цветовой режим",
+    "animation": "Анимация",
+    "speed": "Скорость"
+  },
+  "modelStyleSettings": {
+    "saturation": "Насыщенность",
+    "roughness": "Шероховатость",
+    "metalness": "Металличность",
+    "glow": "Свечение",
+    "reflections": "Отражения",
+    "wireframe": "Каркас",
+    "colorMode": "Цветовой режим"
+  },
+  "saturationValues": {
+    "gray": "Серый",
+    "normal": "Нормальный",
+    "vivid": "Яркий"
+  },
+  "roughnessValues": {
+    "auto": "Авто",
+    "glossy": "Глянцевый",
+    "normal": "Нормальный",
+    "matte": "Матовый"
+  },
+  "metalnessValues": {
+    "auto": "Авто",
+    "plastic": "Пластик",
+    "mixed": "Смешанный",
+    "metal": "Металл"
+  },
+  "glowValues": {
+    "off": "Выкл",
+    "low": "Низ",
+    "med": "Сред",
+    "high": "Выс"
+  },
+  "reflectionValues": {
+    "auto": "Авто",
+    "low": "Низ",
+    "normal": "Норм",
+    "high": "Выс"
+  },
+  "experimental": {
+    "2dView": "Режим 2D-вида",
+    "voiceAssistant": "Голосовой помощник",
+    "tts": "Синтез речи",
+    "hint": "Эти функции экспериментальные и могут измениться"
+  },
+  "areas": {
+    "title": "Зоны ({{count}})",
+    "editArea": "Редактировать зону",
+    "color": "Цвет",
+    "areaName": "Название зоны",
+    "layer": "Слой",
+    "front": "Вперёд",
+    "back": "Назад",
+    "bringToFront": "На передний план (поверх других зон)",
+    "sendToBack": "На задний план (за другие зоны)",
+    "folders": "Папки ({{count}})",
+    "openFolder": "Открыть папку в проводнике",
+    "removeFolder": "Удалить папку",
+    "folderPlaceholder": "/путь/к/папке",
+    "addFolder": "+ Добавить папку",
+    "assignedAgents": "Назначенные агенты ({{count}})",
+    "rightClickUnassign": "Правый клик для отмены назначения",
+    "drawToCreate": "Нарисуйте на поле боя для создания зон",
+    "rect": "Прямоугольник",
+    "circle": "Круг",
+    "deleteArea": "Удалить зону"
+  },
+  "buildings": {
+    "title": "Здания ({{count}})",
+    "addBuilding": "Добавить здание",
+    "editBuilding": "Редактировать здание",
+    "style": "Стиль",
+    "directory": "Директория",
+    "actions": "Действия",
+    "links": "Ссылки",
+    "recentLogs": "Последние логи",
+    "fullSettings": "Полные настройки",
+    "noStartCommand": "Нет команды запуска",
+    "noStopCommand": "Нет команды остановки",
+    "noRestartCommand": "Нет команды перезапуска",
+    "noHealthCheck": "Нет проверки состояния",
+    "clickToAdd": "Нажмите + для добавления здания",
+    "namePlaceholder": "Мой сервер",
+    "folderPath": "Путь к папке",
+    "dockerConfig": "Конфигурация Docker"
+  },
+  "tools": {
+    "select": "Выбор",
+    "rectangle": "Прямоугольник",
+    "circle": "Круг"
+  },
+  "secrets": {
+    "title": "API-ключи и секреты",
+    "addSecret": "+ Добавить секрет",
+    "secretName": "Название секрета",
+    "secretValue": "Значение секрета",
+    "noSecrets": "Секреты не настроены",
+    "deleteConfirm": "Удалить этот секрет?",
+    "description": "Храните секреты, которые можно использовать в промптах с помощью плейсхолдеров {{placeholder}}.",
+    "copyPlaceholder": "Нажмите для копирования плейсхолдера",
+    "namePlaceholder": "Мой API-ключ",
+    "keyPlaceholder": "MY_API_KEY",
+    "valuePlaceholder": "секретное значение...",
+    "descriptionPlaceholder": "Необязательное описание",
+    "usedAs": "Используется как {{placeholder}}",
+    "update": "Обновить"
+  },
+  "data": {
+    "title": "Управление данными",
+    "exportData": "Экспорт",
+    "importData": "Импорт",
+    "clearData": "Очистить данные",
+    "archive": "Архивировать",
+    "restore": "Восстановить",
+    "backupCreated": "Резервная копия создана",
+    "importSuccess": "Конфигурация успешно импортирована!",
+    "exportSuccess": "Конфигурация успешно экспортирована!",
+    "selectFile": "Выберите ZIP-файл конфигурации...",
+    "exported": "Экспортировано",
+    "selectToImport": "Выберите, что импортировать:",
+    "exporting": "Экспорт...",
+    "exportCount": "Экспорт ({{count}})",
+    "importing": "Импорт...",
+    "importCount": "Импорт ({{count}})",
+    "readingFile": "Чтение файла...",
+    "files": "файлов"
+  },
+  "about": {
+    "title": "О Tide Commander",
+    "version": "Версия",
+    "theme": "Тема",
+    "builtWith": "Построено с помощью",
+    "repository": "Репозиторий GitHub",
+    "documentation": "Документация",
+    "updated": "обновлено",
+    "updateAvailable": "Доступно обновление",
+    "sizeLabel": "Размер",
+    "changelog": "Журнал изменений",
+    "downloadAPK": "Скачать APK",
+    "viewRelease": "Просмотр релиза",
+    "checkingUpdates": "Проверка обновлений...",
+    "upToDate": "У вас последняя версия",
+    "check": "Проверить",
+    "recentReleases": "Последние релизы",
+    "tagline": "Визуальная мультиагентная оркестрация для Claude Code",
+    "corePrinciples": "Ключевые принципы",
+    "principle1": "Визуальное управление агентами",
+    "principle2": "Совместная работа и делегирование в реальном времени",
+    "principle3": "Пространственная организация с зонами и зданиями",
+    "principle4": "Прозрачная коммуникация агентов",
+    "specialThanks": "Особая благодарность",
+    "kenneyCredit": "за модели персонажей-агентов",
+    "claudeCodeCredit": "от Anthropic, ИИ-основа"
+  },
+  "shortcuts": {
+    "pressKeys": "Нажмите клавиши...",
+    "notSet": "Не задано",
+    "pressKeysOrClick": "Нажмите клавиши или кликните для подтверждения",
+    "clickToChange": "Нажмите для изменения сочетания",
+    "clearShortcut": "Очистить сочетание",
+    "conflictsWith": "Конфликтует с: {{names}}"
+  }
+}

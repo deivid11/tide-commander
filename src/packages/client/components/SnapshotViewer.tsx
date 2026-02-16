@@ -7,6 +7,7 @@
  */
 
 import React, { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { ConversationSnapshot, SnapshotFile } from '../../shared/types/snapshot';
 import { BUILT_IN_AGENT_CLASSES, type BuiltInAgentClass } from '../../shared/types';
 import { OutputLine } from './ClaudeOutputPanel/OutputLine';
@@ -36,6 +37,7 @@ export function SnapshotViewer({
   onExport,
   isActionLoading = false,
 }: SnapshotViewerProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const [activeTab, setActiveTab] = useState<ViewTab>('conversation');
   const [selectedFile, setSelectedFile] = useState<SnapshotFile | null>(null);
   const [selectedFilePaths, setSelectedFilePaths] = useState<Set<string>>(new Set());
@@ -50,7 +52,7 @@ export function SnapshotViewer({
 
   // Format timestamp
   const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleString('en-US', {
+    return new Date(timestamp).toLocaleString(undefined, {
       weekday: 'short',
       month: 'short',
       day: 'numeric',
@@ -159,7 +161,7 @@ export function SnapshotViewer({
       <div className="snapshot-viewer">
         <div className="snapshot-viewer-loading">
           <div className="snapshot-loading-spinner"></div>
-          Loading snapshot...
+          {t('terminal:snapshot.loadingSnapshots')}
         </div>
       </div>
     );
@@ -170,8 +172,8 @@ export function SnapshotViewer({
       {/* Header */}
       <div className="snapshot-viewer-header">
         <div className="snapshot-viewer-header-left">
-          <button className="snapshot-viewer-back" onClick={onBack} title="Back to snapshots">
-            ← Back
+          <button className="snapshot-viewer-back" onClick={onBack} title={t('terminal:snapshot.backToSnapshots')}>
+            ← {t('common:buttons.back')}
           </button>
           <div className="snapshot-viewer-info">
             <div className="snapshot-viewer-title">
@@ -200,17 +202,17 @@ export function SnapshotViewer({
             className="btn btn-secondary"
             onClick={onExport}
             disabled={isActionLoading}
-            title="Export snapshot"
+            title={t('terminal:snapshot.exportSnapshot')}
           >
-            📤 Export
+            📤 {t('terminal:snapshot.exportSnapshot')}
           </button>
           <button
             className="btn btn-primary"
             onClick={() => onRestore()}
             disabled={isActionLoading}
-            title="Restore all files"
+            title={t('terminal:snapshot.restoreAll')}
           >
-            🔄 Restore All
+            🔄 {t('terminal:snapshot.restoreAll')}
           </button>
         </div>
       </div>
@@ -226,14 +228,14 @@ export function SnapshotViewer({
           className={`snapshot-viewer-tab ${activeTab === 'conversation' ? 'active' : ''}`}
           onClick={() => setActiveTab('conversation')}
         >
-          💬 Conversation
+          💬 {t('terminal:snapshot.conversationMessages', { count: snapshot.outputs.length })}
           <span className="snapshot-viewer-tab-count">{snapshot.outputs.length}</span>
         </button>
         <button
           className={`snapshot-viewer-tab ${activeTab === 'files' ? 'active' : ''}`}
           onClick={() => setActiveTab('files')}
         >
-          📄 Files
+          📄 {t('terminal:snapshot.fileChanges')}
           <span className="snapshot-viewer-tab-count">{snapshot.files.length}</span>
         </button>
       </div>
@@ -244,7 +246,7 @@ export function SnapshotViewer({
           <div className="snapshot-conversation">
             {snapshot.outputs.length === 0 ? (
               <div className="snapshot-conversation-empty">
-                No conversation outputs captured
+                {t('terminal:snapshot.noConversation')}
               </div>
             ) : (
               <div className="snapshot-conversation-messages">
@@ -281,18 +283,18 @@ export function SnapshotViewer({
                   onClick={selectAllFiles}
                   disabled={snapshot.files.length === 0}
                 >
-                  Select All
+                  {t('common:buttons.selectAll')}
                 </button>
                 <button
                   className="btn btn-sm"
                   onClick={clearSelection}
                   disabled={selectedFilePaths.size === 0}
                 >
-                  Clear
+                  {t('common:buttons.clear')}
                 </button>
                 {selectedFilePaths.size > 0 && (
                   <span className="snapshot-files-selected-count">
-                    {selectedFilePaths.size} selected
+                    {selectedFilePaths.size} {t('common:labels.selected')}
                   </span>
                 )}
               </div>
@@ -302,7 +304,7 @@ export function SnapshotViewer({
                   onClick={handleRestoreSelected}
                   disabled={isActionLoading}
                 >
-                  🔄 Restore Selected
+                  🔄 {t('terminal:snapshot.restoreSelected')}
                 </button>
               )}
             </div>
@@ -312,14 +314,14 @@ export function SnapshotViewer({
               {/* File tree */}
               <div className="snapshot-files-list">
                 {snapshot.files.length === 0 ? (
-                  <div className="snapshot-files-empty">No files captured</div>
+                  <div className="snapshot-files-empty">{t('terminal:snapshot.noFileChanges')}</div>
                 ) : (
                   <>
                     {createdFiles.length > 0 && (
                       <div className="snapshot-files-group">
                         <div className="snapshot-files-group-header">
                           <span className="snapshot-file-type-badge created">+</span>
-                          Created ({createdFiles.length})
+                          {t('terminal:snapshot.createdFiles', { count: createdFiles.length })}
                         </div>
                         {createdFiles.map((file) => (
                           <div
@@ -349,7 +351,7 @@ export function SnapshotViewer({
                       <div className="snapshot-files-group">
                         <div className="snapshot-files-group-header">
                           <span className="snapshot-file-type-badge modified">~</span>
-                          Modified ({modifiedFiles.length})
+                          {t('terminal:snapshot.modifiedFiles', { count: modifiedFiles.length })}
                         </div>
                         {modifiedFiles.map((file) => (
                           <div
@@ -392,7 +394,7 @@ export function SnapshotViewer({
                   </>
                 ) : (
                   <div className="snapshot-file-preview-empty">
-                    Select a file to preview its content
+                    {t('terminal:snapshot.selectFileToPreview')}
                   </div>
                 )}
               </div>

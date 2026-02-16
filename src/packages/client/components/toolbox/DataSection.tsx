@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { apiUrl, authFetch } from '../../utils/storage';
 
 // Config category for export/import
@@ -10,6 +11,7 @@ interface ConfigCategory {
 }
 
 export function DataSection() {
+  const { t } = useTranslation(['config', 'common']);
   const [categories, setCategories] = useState<ConfigCategory[]>([]);
   const [selectedExport, setSelectedExport] = useState<Set<string>>(new Set());
   const [selectedImport, setSelectedImport] = useState<Set<string>>(new Set());
@@ -85,7 +87,7 @@ export function DataSection() {
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
 
-      setMessage({ type: 'success', text: 'Config exported successfully!' });
+      setMessage({ type: 'success', text: t('config:data.exportSuccess') });
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || 'Export failed' });
     } finally {
@@ -143,7 +145,7 @@ export function DataSection() {
         throw new Error(result.error || 'Import failed');
       }
 
-      setMessage({ type: 'success', text: result.message || 'Config imported successfully!' });
+      setMessage({ type: 'success', text: result.message || t('config:data.importSuccess') });
       setImportFile(null);
       setImportPreview(null);
       setSelectedImport(new Set());
@@ -172,10 +174,10 @@ export function DataSection() {
       {/* Export Section */}
       <div className="data-subsection">
         <div className="data-subsection-header">
-          <span className="data-subsection-title">Export</span>
+          <span className="data-subsection-title">{t('config:data.exportData')}</span>
           <div className="data-select-controls">
-            <button className="data-select-btn" onClick={selectAllExport}>All</button>
-            <button className="data-select-btn" onClick={selectNoneExport}>None</button>
+            <button className="data-select-btn" onClick={selectAllExport}>{t('common:labels.all')}</button>
+            <button className="data-select-btn" onClick={selectNoneExport}>{t('common:labels.none')}</button>
           </div>
         </div>
         <div className="data-category-list">
@@ -195,14 +197,14 @@ export function DataSection() {
           onClick={handleExport}
           disabled={isExporting || selectedExport.size === 0}
         >
-          {isExporting ? 'Exporting...' : `Export (${selectedExport.size})`}
+          {isExporting ? t('config:data.exporting') : t('config:data.exportCount', { count: selectedExport.size })}
         </button>
       </div>
 
       {/* Import Section */}
       <div className="data-subsection">
         <div className="data-subsection-header">
-          <span className="data-subsection-title">Import</span>
+          <span className="data-subsection-title">{t('config:data.importData')}</span>
         </div>
 
         {!importFile ? (
@@ -213,21 +215,21 @@ export function DataSection() {
               onChange={handleFileSelect}
               style={{ display: 'none' }}
             />
-            <span className="data-file-input-label">Select config ZIP file...</span>
+            <span className="data-file-input-label">{t('config:data.selectFile')}</span>
           </label>
         ) : importPreview ? (
           <>
             <div className="data-import-info">
               <div className="data-import-file">{importFile.name}</div>
               <div className="data-import-date">
-                Exported: {new Date(importPreview.exportedAt).toLocaleDateString()}
+                {t('config:data.exported')}: {new Date(importPreview.exportedAt).toLocaleDateString()}
               </div>
             </div>
             <div className="data-subsection-header">
-              <span className="data-subsection-subtitle">Select what to import:</span>
+              <span className="data-subsection-subtitle">{t('config:data.selectToImport')}</span>
               <div className="data-select-controls">
-                <button className="data-select-btn" onClick={selectAllImport}>All</button>
-                <button className="data-select-btn" onClick={selectNoneImport}>None</button>
+                <button className="data-select-btn" onClick={selectAllImport}>{t('common:labels.all')}</button>
+                <button className="data-select-btn" onClick={selectNoneImport}>{t('common:labels.none')}</button>
               </div>
             </div>
             <div className="data-category-list">
@@ -240,26 +242,26 @@ export function DataSection() {
                   />
                   <span className="data-category-name">{cat.name}</span>
                   {cat.fileCount && (
-                    <span className="data-category-count">({cat.fileCount} files)</span>
+                    <span className="data-category-count">({cat.fileCount} {t('config:data.files')})</span>
                   )}
                 </label>
               ))}
             </div>
             <div className="data-import-actions">
               <button className="data-action-btn cancel" onClick={cancelImport}>
-                Cancel
+                {t('common:buttons.cancel')}
               </button>
               <button
                 className="data-action-btn import"
                 onClick={handleImport}
                 disabled={isImporting || selectedImport.size === 0}
               >
-                {isImporting ? 'Importing...' : `Import (${selectedImport.size})`}
+                {isImporting ? t('config:data.importing') : t('config:data.importCount', { count: selectedImport.size })}
               </button>
             </div>
           </>
         ) : (
-          <div className="data-loading">Reading file...</div>
+          <div className="data-loading">{t('config:data.readingFile')}</div>
         )}
       </div>
     </div>

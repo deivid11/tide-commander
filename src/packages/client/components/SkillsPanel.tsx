@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { store, useSkillsArray, useAgents, useCustomAgentClassesArray } from '../store';
 import { SkillEditorModal } from './SkillEditorModal';
 import { ModelPreview } from './ModelPreview';
@@ -28,6 +29,7 @@ interface SkillsPanelProps {
 }
 
 export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
+  const { t } = useTranslation(['tools', 'common']);
   const skills = useSkillsArray();
   const agents = useAgents();
   const customClasses = useCustomAgentClassesArray();
@@ -130,15 +132,15 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
     const parts: string[] = [];
 
     if (skill.assignedAgentClasses.length > 0) {
-      parts.push(`${skill.assignedAgentClasses.length} class${skill.assignedAgentClasses.length > 1 ? 'es' : ''}`);
+      parts.push(t('tools:skills.classCount', { count: skill.assignedAgentClasses.length }));
     }
 
     if (skill.assignedAgentIds.length > 0) {
-      parts.push(`${skill.assignedAgentIds.length} agent${skill.assignedAgentIds.length > 1 ? 's' : ''}`);
+      parts.push(t('tools:skills.agentCount', { count: skill.assignedAgentIds.length }));
     }
 
     if (parts.length === 0) {
-      return 'Not assigned';
+      return t('tools:skills.notAssigned');
     }
 
     return parts.join(', ');
@@ -287,7 +289,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || 'Upload failed');
+        throw new Error(error.error || t('tools:skills.uploadFailed'));
       }
 
       // Update class with animation info
@@ -297,7 +299,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
         modelScale: modelScale !== 1.0 ? modelScale : undefined,
       });
     } catch (err: any) {
-      setModelUploadError(err.message || 'Failed to upload model');
+      setModelUploadError(err.message || t('tools:skills.failedToUploadModel'));
       console.error('Model upload error:', err);
     } finally {
       setIsUploadingModel(false);
@@ -314,13 +316,13 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
     // Validate file
     const isValid = await isValidGlbFile(file);
     if (!isValid) {
-      setModelUploadError('Invalid file: Please select a valid .glb file');
+      setModelUploadError(t('tools:skills.invalidGlbFile'));
       return;
     }
 
     // Check file size (50MB max)
     if (file.size > 50 * 1024 * 1024) {
-      setModelUploadError('File too large: Maximum size is 50MB');
+      setModelUploadError(t('tools:skills.fileTooLarge'));
       return;
     }
 
@@ -352,7 +354,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
 
       setAnimationMapping(autoMapping);
     } catch (_err: any) {
-      setModelUploadError(_err.message || 'Failed to parse model');
+      setModelUploadError(_err.message || t('tools:skills.failedToParseModel'));
       console.error('Model parse error:', _err);
     }
 
@@ -380,7 +382,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
   };
 
   const handleDeleteClass = (classId: string) => {
-    if (window.confirm('Are you sure you want to delete this custom agent class?')) {
+    if (window.confirm(t('tools:skills.deleteClassConfirm'))) {
       store.deleteCustomAgentClass(classId);
     }
   };
@@ -400,14 +402,14 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
       <div className="panel-overlay" onClick={onClose} />
       <div className="skills-panel side-panel">
         <div className="panel-header">
-          <h3>{activeTab === 'skills' ? 'Skills' : 'Agent Classes'}</h3>
+          <h3>{activeTab === 'skills' ? t('tools:skills.title') : t('tools:skills.agentClasses')}</h3>
           {activeTab === 'skills' ? (
             <button className="btn btn-sm btn-primary" onClick={handleCreate}>
-              + New Skill
+              {t('tools:skills.newSkill')}
             </button>
           ) : (
             <button className="btn btn-sm btn-primary" onClick={handleCreateClass}>
-              + New Class
+              {t('tools:skills.newClass')}
             </button>
           )}
           <button className="panel-close" onClick={onClose}>
@@ -430,7 +432,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
               fontWeight: activeTab === 'skills' ? 600 : 400,
             }}
           >
-            Skills ({skills.length})
+            {t('tools:skills.title')} ({skills.length})
           </button>
           <button
             className={`panel-tab ${activeTab === 'classes' ? 'active' : ''}`}
@@ -445,7 +447,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
               fontWeight: activeTab === 'classes' ? 600 : 400,
             }}
           >
-            Classes ({customClasses.length})
+            {t('tools:skills.agentClasses')} ({customClasses.length})
           </button>
         </div>
 
@@ -454,7 +456,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
             <input
               type="text"
               className="form-input"
-              placeholder="Search skills..."
+              placeholder={t('tools:skills.searchSkills')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{ width: '100%' }}
@@ -467,7 +469,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
             <input
               type="text"
               className="form-input"
-              placeholder="Search classes..."
+              placeholder={t('tools:skills.searchClasses')}
               value={classSearchQuery}
               onChange={(e) => setClassSearchQuery(e.target.value)}
               style={{ width: '100%' }}
@@ -481,12 +483,12 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
             sortedSkills.length === 0 ? (
               <div className="empty-state" style={{ textAlign: 'center', padding: '40px 20px', opacity: 0.6 }}>
                 {searchQuery ? (
-                  <p>No skills match "{searchQuery}"</p>
+                  <p>{t('tools:skills.noClassesMatch', { query: searchQuery })}</p>
                 ) : (
                   <>
-                    <p>No skills defined yet</p>
+                    <p>{t('tools:skills.noSkillsDefined')}</p>
                     <p style={{ fontSize: '12px', marginTop: '8px' }}>
-                      Create skills to teach agents specific capabilities
+                      {t('tools:skills.createSkillsHint')}
                     </p>
                   </>
                 )}
@@ -525,7 +527,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
                                 boxShadow: '0 2px 4px rgba(139, 233, 253, 0.3)',
                               }}
                             >
-                              Built-in
+                              {t('tools:skills.builtIn')}
                             </span>
                           )}
                           {!skill.enabled && (
@@ -537,7 +539,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
                                 borderRadius: '3px',
                               }}
                             >
-                              Disabled
+                              {t('tools:skills.disabled')}
                             </span>
                           )}
                         </div>
@@ -560,7 +562,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
                         }}
                         style={{ fontSize: '10px', padding: '4px 8px' }}
                       >
-                        {skill.enabled ? 'Disable' : 'Enable'}
+                        {skill.enabled ? t('tools:skills.disable') : t('tools:skills.enable')}
                       </button>
                     </div>
 
@@ -581,21 +583,21 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
 
                     <div style={{ display: 'flex', gap: '12px', fontSize: '11px', color: 'var(--text-secondary)' }}>
                       {skill.builtin && (
-                        <span style={{ color: 'var(--accent-cyan)' }} title="Built-in Tide Commander skill">
+                        <span style={{ color: 'var(--accent-cyan)' }} title={t('tools:skills.builtInTideCommander')}>
                           Tide Commander
                         </span>
                       )}
-                      <span title="Assigned to">
+                      <span title={t('tools:skills.assignedTo')}>
                         {getAssignmentSummary(skill)}
                       </span>
                       {skill.allowedTools.length > 0 && (
-                        <span title="Allowed tools">
-                          {skill.allowedTools.length} tool{skill.allowedTools.length !== 1 ? 's' : ''}
+                        <span title={t('tools:skills.allowedToolsTitle')}>
+                          {t('tools:skills.toolCount', { count: skill.allowedTools.length })}
                         </span>
                       )}
                       {skill.enabled && getActiveAgentCount(skill) > 0 && (
                         <span style={{ color: 'var(--accent-green)' }}>
-                          Active on {getActiveAgentCount(skill)} agent{getActiveAgentCount(skill) !== 1 ? 's' : ''}
+                          {t('tools:skills.activeOnAgents', { count: getActiveAgentCount(skill) })}
                         </span>
                       )}
                     </div>
@@ -607,14 +609,14 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
             // Custom Classes List
             customClasses.length === 0 ? (
               <div className="empty-state" style={{ textAlign: 'center', padding: '40px 20px', opacity: 0.6 }}>
-                <p>No custom agent classes yet</p>
+                <p>{t('tools:skills.noCustomClasses')}</p>
                 <p style={{ fontSize: '12px', marginTop: '8px' }}>
-                  Create custom classes with default skills attached
+                  {t('tools:skills.createClassesHint')}
                 </p>
               </div>
             ) : filteredClasses.length === 0 ? (
               <div className="empty-state" style={{ textAlign: 'center', padding: '40px 20px', opacity: 0.6 }}>
-                <p>No classes match "{classSearchQuery}"</p>
+                <p>{t('tools:skills.noClassesMatch', { query: classSearchQuery })}</p>
               </div>
             ) : (
               <div className="classes-list" style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '12px' }}>
@@ -650,7 +652,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
                         <div>
                           <div style={{ fontWeight: 600, fontSize: '14px' }}>{customClass.name}</div>
                           <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                            Model: {ALL_CHARACTER_MODELS.find(m => m.file === customClass.model)?.name || customClass.model || 'Male A'}
+                            {t('tools:skills.model')}: {ALL_CHARACTER_MODELS.find(m => m.file === customClass.model)?.name || customClass.model || 'Male A'}
                           </div>
                         </div>
                       </div>
@@ -663,7 +665,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
                         }}
                         style={{ fontSize: '10px', padding: '4px 8px', color: 'var(--accent-red)' }}
                       >
-                        Delete
+                        {t('common:buttons.delete')}
                       </button>
                     </div>
 
@@ -675,15 +677,15 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
                         lineHeight: 1.4,
                       }}
                     >
-                      {customClass.description || 'No description'}
+                      {customClass.description || t('tools:skills.noDescription')}
                     </p>
 
                     <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--text-secondary)', display: 'flex', gap: '12px' }}>
                       {customClass.defaultSkillIds.length > 0 && (
-                        <span>{customClass.defaultSkillIds.length} default skill{customClass.defaultSkillIds.length !== 1 ? 's' : ''}</span>
+                        <span>{t('tools:skills.defaultSkillCount', { count: customClass.defaultSkillIds.length })}</span>
                       )}
                       {customClass.instructions && (
-                        <span style={{ color: 'var(--accent-cyan)' }}>Has instructions</span>
+                        <span style={{ color: 'var(--accent-cyan)' }}>{t('tools:skills.hasInstructions')}</span>
                       )}
                     </div>
                   </div>
@@ -697,14 +699,14 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
           <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
             {activeTab === 'skills' ? (
               <>
-                {skills.length} skill{skills.length !== 1 ? 's' : ''} total
+                {t('tools:skills.total', { count: skills.length })}
                 {skills.filter(s => s.enabled).length !== skills.length && (
-                  <span> ({skills.filter(s => s.enabled).length} enabled)</span>
+                  <span> ({t('tools:skills.enabled', { enabledCount: skills.filter(s => s.enabled).length })})</span>
                 )}
               </>
             ) : (
               <>
-                {customClasses.length} custom class{customClasses.length !== 1 ? 'es' : ''}
+                {t('tools:skills.customClassesCount', { count: customClasses.length })}
               </>
             )}
           </div>
@@ -723,23 +725,23 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
         <div className="modal-overlay visible" onMouseDown={handleClassEditorBackdropMouseDown} onClick={handleClassEditorBackdropClick}>
           <div className="modal skill-editor-modal">
             <div className="modal-header">
-              {editingClassId ? 'Edit Agent Class' : 'Create Agent Class'}
+              {editingClassId ? t('tools:skills.editAgentClass') : t('tools:skills.createAgentClass')}
             </div>
             <div className="modal-body" style={{ padding: '16px' }}>
               <div className="form-section" style={{ marginBottom: '12px' }}>
-                <label className="form-label">Name</label>
+                <label className="form-label">{t('common:labels.name')}</label>
                 <input
                   type="text"
                   className="form-input"
                   value={className}
                   onChange={(e) => setClassName(e.target.value)}
-                  placeholder="e.g., Deployer"
+                  placeholder={t('tools:skills.classNamePlaceholder')}
                 />
               </div>
 
               {/* Model selector with 3D preview */}
               <div className="form-section" style={{ marginBottom: '16px' }}>
-                <label className="form-label">Character Model</label>
+                <label className="form-label">{t('tools:skills.characterModel')}</label>
 
                 {/* Hidden file input */}
                 <input
@@ -837,7 +839,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
                         fontSize: '12px',
                       }}
                     >
-                      Upload Custom Model (.glb)
+                      {t('tools:skills.uploadCustomModel')}
                     </button>
                   </>
                 ) : (
@@ -865,10 +867,10 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
                         <div>
                           <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--accent-cyan)' }}>
-                            Custom Model
+                            {t('tools:skills.customModel')}
                           </div>
                           <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                            {customModelFile ? `${customModelFile.name} (${formatFileSize(customModelFile.size)})` : 'Uploaded'}
+                            {customModelFile ? `${customModelFile.name} (${formatFileSize(customModelFile.size)})` : t('tools:skills.uploaded')}
                           </div>
                         </div>
                         <button
@@ -884,14 +886,14 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
                             fontSize: '10px',
                           }}
                         >
-                          Remove
+                          {t('tools:skills.removeModel')}
                         </button>
                       </div>
 
                       {/* Model Scale slider (exponential for better range control) */}
                       <div style={{ marginBottom: '12px' }}>
                         <label style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
-                          Model Scale: {modelScale.toFixed(3)}x
+                          {t('tools:skills.modelScale')}: {modelScale.toFixed(3)}x
                         </label>
                         <input
                           type="range"
@@ -918,7 +920,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
                       {/* Model Position Offset sliders */}
                       <div style={{ marginBottom: '12px' }}>
                         <label style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
-                          Position Offset X: {modelOffsetX.toFixed(2)}
+                          {t('tools:skills.positionOffsetX')}: {modelOffsetX.toFixed(2)}
                         </label>
                         <input
                           type="range"
@@ -933,7 +935,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
 
                       <div style={{ marginBottom: '12px' }}>
                         <label style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
-                          Position Offset Y: {modelOffsetY.toFixed(2)}
+                          {t('tools:skills.positionOffsetY')}: {modelOffsetY.toFixed(2)}
                         </label>
                         <input
                           type="range"
@@ -948,7 +950,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
 
                       <div style={{ marginBottom: '12px' }}>
                         <label style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
-                          Position Offset Z (Height): {modelOffsetZ.toFixed(2)}
+                          {t('tools:skills.positionOffsetZ')}: {modelOffsetZ.toFixed(2)}
                         </label>
                         <input
                           type="range"
@@ -965,12 +967,12 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
                       {customModelAnimations.length > 0 && (
                         <div>
                           <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                            Animation Mapping ({customModelAnimations.length} detected)
+                            {t('tools:skills.animationMapping')} ({t('tools:skills.detected', { count: customModelAnimations.length })})
                           </div>
 
                           {/* Idle animation */}
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                            <span style={{ fontSize: '11px', color: 'var(--text-primary)', width: '60px' }}>Idle:</span>
+                            <span style={{ fontSize: '11px', color: 'var(--text-primary)', width: '60px' }}>{t('tools:skills.idle')}:</span>
                             <select
                               value={animationMapping.idle || ''}
                               onChange={(e) => setAnimationMapping(prev => ({ ...prev, idle: e.target.value || undefined }))}
@@ -984,7 +986,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
                                 fontSize: '11px',
                               }}
                             >
-                              <option value="">None</option>
+                              <option value="">{t('tools:skills.none')}</option>
                               {customModelAnimations.map(anim => (
                                 <option key={anim} value={anim}>{anim}</option>
                               ))}
@@ -993,7 +995,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
 
                           {/* Walk animation */}
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                            <span style={{ fontSize: '11px', color: 'var(--text-primary)', width: '60px' }}>Walk:</span>
+                            <span style={{ fontSize: '11px', color: 'var(--text-primary)', width: '60px' }}>{t('tools:skills.walk')}:</span>
                             <select
                               value={animationMapping.walk || ''}
                               onChange={(e) => setAnimationMapping(prev => ({ ...prev, walk: e.target.value || undefined }))}
@@ -1007,7 +1009,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
                                 fontSize: '11px',
                               }}
                             >
-                              <option value="">None</option>
+                              <option value="">{t('tools:skills.none')}</option>
                               {customModelAnimations.map(anim => (
                                 <option key={anim} value={anim}>{anim}</option>
                               ))}
@@ -1016,7 +1018,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
 
                           {/* Working animation */}
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ fontSize: '11px', color: 'var(--text-primary)', width: '60px' }}>Working:</span>
+                            <span style={{ fontSize: '11px', color: 'var(--text-primary)', width: '60px' }}>{t('tools:skills.working')}:</span>
                             <select
                               value={animationMapping.working || ''}
                               onChange={(e) => setAnimationMapping(prev => ({ ...prev, working: e.target.value || undefined }))}
@@ -1030,7 +1032,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
                                 fontSize: '11px',
                               }}
                             >
-                              <option value="">None (bounce)</option>
+                              <option value="">{t('tools:skills.noneBounce')}</option>
                               {customModelAnimations.map(anim => (
                                 <option key={anim} value={anim}>{anim}</option>
                               ))}
@@ -1041,7 +1043,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
 
                       {customModelAnimations.length === 0 && (
                         <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                          No animations detected in this model
+                          {t('tools:skills.noAnimations')}
                         </div>
                       )}
                     </div>
@@ -1062,7 +1064,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
                         fontSize: '11px',
                       }}
                     >
-                      Replace with Different Model
+                      {t('tools:skills.replaceModel')}
                     </button>
                   </>
                 )}
@@ -1085,11 +1087,11 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
 
               <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
                 <div className="form-section" style={{ flex: '0 0 80px' }}>
-                  <label className="form-label">Icon</label>
+                  <label className="form-label">{t('tools:skills.icon')}</label>
                   <EmojiPicker value={classIcon} onChange={setClassIcon} />
                 </div>
                 <div className="form-section" style={{ flex: 1 }}>
-                  <label className="form-label">Color</label>
+                  <label className="form-label">{t('tools:skills.color')}</label>
                   <input
                     type="color"
                     value={classColor}
@@ -1100,25 +1102,25 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
               </div>
 
               <div className="form-section" style={{ marginBottom: '12px' }}>
-                <label className="form-label">Description</label>
+                <label className="form-label">{t('common:labels.description')}</label>
                 <input
                   type="text"
                   className="form-input"
                   value={classDescription}
                   onChange={(e) => setClassDescription(e.target.value)}
-                  placeholder="What this agent class specializes in..."
+                  placeholder={t('tools:skills.classDescriptionPlaceholder')}
                 />
               </div>
 
               <div className="form-section" style={{ marginBottom: '12px' }}>
-                <label className="form-label">Default Skills</label>
+                <label className="form-label">{t('tools:skills.defaultSkillsLabel')}</label>
                 <p className="form-hint" style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                  Skills automatically assigned to agents of this class
+                  {t('tools:skills.defaultSkillsHint')}
                 </p>
                 <div style={{ maxHeight: '120px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '8px' }}>
                   {skills.filter(s => s.enabled).length === 0 ? (
                     <div style={{ color: 'var(--text-muted)', fontSize: '12px', textAlign: 'center', padding: '12px' }}>
-                      No enabled skills available
+                      {t('tools:skills.noEnabledSkills')}
                     </div>
                   ) : (
                     skills.filter(s => s.enabled).map(skill => (
@@ -1146,9 +1148,9 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
               </div>
 
               <div className="form-section">
-                <label className="form-label">Instructions (CLAUDE.md)</label>
+                <label className="form-label">{t('tools:skills.instructionsLabel')}</label>
                 <p className="form-hint" style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                  Markdown instructions injected as system prompt when spawning agents of this class
+                  {t('tools:skills.instructionsHint')}
                 </p>
                 <textarea
                   className="form-input"
@@ -1167,14 +1169,14 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
             </div>
             <div className="modal-footer" style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', padding: '12px 16px', borderTop: '1px solid var(--border-color)' }}>
               <button className="btn btn-secondary" onClick={() => setShowClassEditor(false)} disabled={isUploadingModel}>
-                Cancel
+                {t('common:buttons.cancel')}
               </button>
               <button
                 className="btn btn-primary"
                 onClick={handleSaveClass}
                 disabled={!className.trim() || isUploadingModel}
               >
-                {isUploadingModel ? 'Uploading...' : (editingClassId ? 'Save Changes' : 'Create Class')}
+                {isUploadingModel ? t('tools:skills.uploading') : (editingClassId ? t('common:buttons2.saveChanges') : t('tools:skills.createClass'))}
               </button>
             </div>
           </div>

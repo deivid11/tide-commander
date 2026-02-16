@@ -3,6 +3,7 @@
  */
 
 import React, { memo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { formatTokens, formatTimeAgo, formatIdleTime } from '../../utils/formatting';
 import { getIdleTimerColor } from '../../utils/colors';
 import { getContextBarColor } from './agentUtils';
@@ -21,14 +22,15 @@ export const AgentStatsGrid = memo(function AgentStatsGrid({
   tokensUsed,
   createdAt,
 }: AgentStatsGridProps) {
+  const { t } = useTranslation(['common']);
   return (
     <div className="unit-stats">
       <div className="unit-stat">
-        <div className="unit-stat-label">Tokens</div>
+        <div className="unit-stat-label">{t('labels.tokens')}</div>
         <div className="unit-stat-value">{formatTokens(tokensUsed)}</div>
       </div>
       <div className="unit-stat">
-        <div className="unit-stat-label">Uptime</div>
+        <div className="unit-stat-label">{t('labels.uptime')}</div>
         <div className="unit-stat-value">{formatTimeAgo(createdAt)}</div>
       </div>
     </div>
@@ -48,21 +50,22 @@ export const ContextBar = memo(function ContextBar({
   contextInfo,
   onClick,
 }: ContextBarProps) {
+  const { t } = useTranslation(['common']);
   const { remainingPercent, hasData } = contextInfo;
 
   return (
     <div
       className="unit-context unit-context-clickable"
       onClick={onClick}
-      title={hasData ? "Click for detailed context breakdown" : "Click to fetch context stats"}
+      title={hasData ? t('unitPanel.remainingContext') : t('unitPanel.notRetrievedYet')}
       style={{ cursor: 'pointer' }}
     >
       <div className="unit-stat-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-        <span>Remaining Context</span>
+        <span>{t('unitPanel.remainingContext')}</span>
         {hasData ? (
           <span style={{ fontSize: '10px', opacity: 0.6 }}>📊</span>
         ) : (
-          <span style={{ fontSize: '9px', color: '#ff9e4a', opacity: 0.8 }} title="Click to fetch accurate stats">⚠️</span>
+          <span style={{ fontSize: '9px', color: '#ff9e4a', opacity: 0.8 }} title={t('unitPanel.notRetrievedYet')}>⚠️</span>
         )}
       </div>
       {hasData ? (
@@ -80,7 +83,7 @@ export const ContextBar = memo(function ContextBar({
         </>
       ) : (
         <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-          Not retrieved yet
+          {t('unitPanel.notRetrievedYet')}
         </div>
       )}
     </div>
@@ -96,10 +99,11 @@ interface IdleTimerProps {
 }
 
 export const IdleTimer = memo(function IdleTimer({ lastActivity }: IdleTimerProps) {
+  const { t } = useTranslation(['common']);
   return (
     <div
       className="unit-idle-timer"
-      title="Time since last activity"
+      title={t('unitPanel.timeSinceActivity')}
       style={{ color: getIdleTimerColor(lastActivity) }}
     >
       ⏱ {formatIdleTime(lastActivity)}
@@ -116,9 +120,10 @@ interface CurrentToolProps {
 }
 
 export const CurrentTool = memo(function CurrentTool({ toolName }: CurrentToolProps) {
+  const { t } = useTranslation(['common']);
   return (
     <div className="unit-current-tool">
-      <span className="unit-stat-label">Using:</span>
+      <span className="unit-stat-label">{t('unitPanel.using')}</span>
       <span className="unit-tool-name">{toolName}</span>
     </div>
   );
@@ -133,9 +138,10 @@ interface CurrentTaskProps {
 }
 
 export const CurrentTask = memo(function CurrentTask({ task }: CurrentTaskProps) {
+  const { t } = useTranslation(['common']);
   return (
     <div className="unit-task">
-      <div className="unit-stat-label">Task</div>
+      <div className="unit-stat-label">{t('labels.task')}</div>
       <div className="unit-task-text">{task}</div>
     </div>
   );
@@ -150,9 +156,10 @@ interface WorkingDirectoryProps {
 }
 
 export const WorkingDirectory = memo(function WorkingDirectory({ cwd }: WorkingDirectoryProps) {
+  const { t } = useTranslation(['common']);
   return (
     <div className="unit-cwd">
-      <div className="unit-stat-label">CWD</div>
+      <div className="unit-stat-label">{t('labels.cwd')}</div>
       <div className="unit-cwd-path" title={cwd}>{cwd}</div>
     </div>
   );
@@ -168,9 +175,10 @@ interface LastPromptProps {
 }
 
 export const LastPrompt = memo(function LastPrompt({ text, maxLength = 150 }: LastPromptProps) {
+  const { t } = useTranslation(['common']);
   return (
     <div className="unit-last-prompt">
-      <div className="unit-stat-label">Last Prompt</div>
+      <div className="unit-stat-label">{t('unitPanel.lastPrompt')}</div>
       <div className="unit-last-prompt-text">
         {text.length > maxLength ? text.slice(0, maxLength) + '...' : text}
       </div>
@@ -188,9 +196,10 @@ interface LastResponseProps {
 }
 
 export const LastResponse = memo(function LastResponse({ text, maxLength = 200 }: LastResponseProps) {
+  const { t } = useTranslation(['common']);
   return (
     <div className="unit-last-message">
-      <div className="unit-stat-label">Last Response</div>
+      <div className="unit-stat-label">{t('unitPanel.lastResponse')}</div>
       <div className="unit-last-message-text">
         {text.length > maxLength ? text.slice(0, maxLength) + '...' : text}
       </div>

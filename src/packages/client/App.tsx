@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo, Profiler } from 'react';
+import { useTranslation } from 'react-i18next';
 import { store, useStore, useMobileView, useExplorerFolderPath, useFileViewerPath, useContextModalAgentId, useTerminalOpen } from './store';
 import { ToastProvider, useToast } from './components/Toast';
 import { AgentNotificationProvider, useAgentNotification } from './components/AgentNotificationToast';
@@ -53,6 +54,7 @@ import { buildContextMenuActions } from './app/contextMenuActions';
 import './app/sceneLifecycle';
 
 function AppContent() {
+  const { t } = useTranslation(['common', 'notifications']);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const selectionBoxRef = useRef<HTMLDivElement>(null);
 
@@ -307,8 +309,8 @@ function AppContent() {
       (window as any).__tideScene2D_setDrawingTool(tool);
     }
     if (tool === 'rectangle' || tool === 'circle') {
-      const toolName = tool === 'rectangle' ? 'Rectangle' : 'Circle';
-      showToast('info', `${toolName} Tool`, 'Click and drag on the battlefield to draw an area', 3000);
+      const toolName = tool === 'rectangle' ? t('notifications:drawing.rectangleTool') : t('notifications:drawing.circleTool');
+      showToast('info', toolName, t('notifications:drawing.clickAndDrag'), 3000);
     }
   }, [sceneRef, showToast]);
 
@@ -345,7 +347,7 @@ function AppContent() {
     if (typeof window !== 'undefined' && (window as any).__tideScene2D_setDrawingTool) {
       (window as any).__tideScene2D_setDrawingTool('rectangle');
     }
-    showToast('info', 'Rectangle Tool', 'Click and drag on the battlefield to draw an area', 3000);
+    showToast('info', t('notifications:drawing.rectangleTool'), t('notifications:drawing.clickAndDrag'), 3000);
   }, [sceneRef, showToast]);
 
   // Handle opening URL in iframe modal
@@ -366,7 +368,7 @@ function AppContent() {
       sceneRef.current?.removeAgent(id);
     });
     deleteConfirmModal.close();
-    showToast('info', 'Agents Removed', `${selectedIds.length} agent(s) removed from view`);
+    showToast('info', t('notifications:toast.agentsRemoved'), t('notifications:toast.agentsRemovedMsg', { count: selectedIds.length }));
   }, [state.selectedAgentIds, showToast, deleteConfirmModal, sceneRef]);
 
   // Building delete confirmation handler
@@ -376,13 +378,13 @@ function AppContent() {
       const count = state.selectedBuildingIds.size;
       store.deleteSelectedBuildings();
       sceneRef.current?.syncBuildings();
-      showToast('info', 'Buildings Deleted', `${count} building(s) deleted`);
+      showToast('info', t('notifications:toast.buildingsDeleted'), t('notifications:toast.buildingsDeletedMsg', { count }));
     } else if (pendingBuildingDelete) {
       // Delete single building
       const building = state.buildings.get(pendingBuildingDelete);
       store.deleteBuilding(pendingBuildingDelete);
       sceneRef.current?.syncBuildings();
-      showToast('info', 'Building Deleted', `"${building?.name || 'Building'}" has been deleted`);
+      showToast('info', t('notifications:toast.buildingDeleted'), t('notifications:toast.buildingDeletedMsg', { name: building?.name || 'Building' }));
     }
     setPendingBuildingDelete(null);
   }, [pendingBuildingDelete, state.buildings, state.selectedBuildingIds.size, showToast, sceneRef]);
@@ -929,10 +931,10 @@ function AppContent() {
 
                 // Close modal and show success
                 saveSnapshotModal.close();
-                showToast('success', 'Snapshot Saved', `Saved snapshot: ${request.title}`);
+                showToast('success', t('notifications:toast.snapshotSaved'), t('notifications:toast.snapshotSavedMsg'));
               } catch (error) {
-                const message = error instanceof Error ? error.message : 'Failed to create snapshot';
-                showToast('error', 'Snapshot Failed', message);
+                const message = error instanceof Error ? error.message : t('notifications:toast.snapshotFailedMsg');
+                showToast('error', t('notifications:toast.snapshotFailed'), message);
               }
             }}
             isSaving={state.snapshotsLoading}

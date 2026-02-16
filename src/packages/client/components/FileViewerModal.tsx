@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import Prism from 'prismjs';
@@ -95,6 +96,7 @@ const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.ic
 const PDF_EXTENSIONS = ['.pdf'];
 
 export function FileViewerModal({ isOpen, onClose, filePath, action, editData }: FileViewerModalProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const [fileData, setFileData] = useState<FileData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -275,7 +277,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || 'Failed to load file');
+        setError(data.error || t('terminal:fileExplorer.failedToLoad'));
         return;
       }
 
@@ -286,7 +288,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
 
       setFileData(data);
     } catch (err: any) {
-      setError(err.message || 'Failed to load file');
+      setError(err.message || t('terminal:fileExplorer.failedToLoad'));
     } finally {
       setLoading(false);
     }
@@ -296,10 +298,10 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
 
   const getActionLabel = () => {
     switch (action) {
-      case 'created': return 'Created';
-      case 'modified': return 'Modified';
-      case 'deleted': return 'Deleted';
-      case 'read': return 'Read';
+      case 'created': return t('common:status.created');
+      case 'modified': return t('common:status.modified');
+      case 'deleted': return t('common:status.deleted');
+      case 'read': return t('common:status.read');
     }
   };
 
@@ -431,30 +433,30 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
                 <button
                   className={`file-viewer-copy-html-btn ${copyRichTextStatus}`}
                   onClick={handleCopyAsRichText}
-                  title="Copy as rich text (paste into Word, Docs, etc.)"
+                  title={t('terminal:fileExplorer.copyRichTextTitle')}
                 >
-                  {copyRichTextStatus === 'copied' ? '✓ Copied' : copyRichTextStatus === 'error' ? '✗ Error' : 'Copy Rich Text'}
+                  {copyRichTextStatus === 'copied' ? t('common:status.copied') : copyRichTextStatus === 'error' ? t('common:status.error') : t('terminal:fileExplorer.copyRichText')}
                 </button>
                 <button
                   className={`file-viewer-copy-html-btn ${copyHtmlStatus}`}
                   onClick={handleCopyAsHtml}
-                  title="Copy as HTML tags (for Google Docs, HTML editors)"
+                  title={t('terminal:fileExplorer.copyHtmlTitle')}
                 >
-                  {copyHtmlStatus === 'copied' ? '✓ Copied' : copyHtmlStatus === 'error' ? '✗ Error' : 'Copy HTML'}
+                  {copyHtmlStatus === 'copied' ? t('common:status.copied') : copyHtmlStatus === 'error' ? t('common:status.error') : t('terminal:fileExplorer.copyHtml')}
                 </button>
                 <button
                   className={`file-viewer-copy-html-btn ${copyMarkdownStatus}`}
                   onClick={handleCopyMarkdown}
-                  title="Copy as markdown source"
+                  title={t('terminal:fileExplorer.copyMarkdownTitle')}
                 >
-                  {copyMarkdownStatus === 'copied' ? '✓ Copied' : copyMarkdownStatus === 'error' ? '✗ Error' : 'Copy Markdown'}
+                  {copyMarkdownStatus === 'copied' ? t('common:status.copied') : copyMarkdownStatus === 'error' ? t('common:status.error') : t('terminal:fileExplorer.copyMarkdown')}
                 </button>
                 <button
                   className={`file-viewer-copy-html-btn ${copyOriginalStatus}`}
                   onClick={handleCopyOriginal}
-                  title="Copy original file content"
+                  title={t('terminal:fileExplorer.copyOriginalTitle')}
                 >
-                  {copyOriginalStatus === 'copied' ? '✓ Copied' : copyOriginalStatus === 'error' ? '✗ Error' : 'Copy Original'}
+                  {copyOriginalStatus === 'copied' ? t('common:status.copied') : copyOriginalStatus === 'error' ? t('common:status.error') : t('terminal:fileExplorer.copyOriginal')}
                 </button>
               </>
             )}
@@ -463,9 +465,9 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
                 className="file-viewer-copy-html-btn"
                 href={`${isImage ? imageUrl : pdfUrl}&download=true`}
                 download={fileData?.filename}
-                title={isImage ? 'Download image' : 'Download PDF'}
+                title={isImage ? t('terminal:fileExplorer.downloadImage') : t('terminal:fileExplorer.downloadPdf')}
               >
-                Download
+                {t('common:buttons.download')}
               </a>
             ) : null}
             <button className="file-viewer-close" onClick={onClose}>×</button>
@@ -484,7 +486,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
             {fileData.content && !isImage && !isPdf && (
               <>
                 <span>•</span>
-                <span>{fileData.content.split('\n').length} lines</span>
+                <span>{t('terminal:fileViewer.lineCount', { count: fileData.content.split('\n').length })}</span>
               </>
             )}
           </div>
@@ -492,7 +494,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
 
         <div className="file-viewer-content" ref={contentRef}>
           {loading && (
-            <div className="file-viewer-loading">Loading file...</div>
+            <div className="file-viewer-loading">{t('terminal:fileExplorer.loadingFile')}</div>
           )}
 
           {error && (

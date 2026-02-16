@@ -1,0 +1,304 @@
+{
+  "title": "Strumenti e impostazioni",
+  "searchPlaceholder": "Cerca impostazioni...",
+  "noResults": "Nessuna impostazione trovata per \"{{query}}\"",
+  "sections": {
+    "general": "Generali",
+    "agentNames": "Nomi agenti",
+    "appearance": "Aspetto",
+    "connection": "Connessione",
+    "scene": "Scena",
+    "terrain": "Terreno",
+    "modelStyle": "Stile modello agente",
+    "animations": "Animazioni",
+    "secrets": "Segreti",
+    "data": "Dati",
+    "experimental": "Sperimentale",
+    "about": "Informazioni",
+    "sky": "Colore cielo"
+  },
+  "general": {
+    "history": "Cronologia",
+    "hideCosts": "Nascondi costi",
+    "grid": "Griglia",
+    "showFPS": "Mostra FPS",
+    "fpsLimit": "Limite FPS",
+    "powerSaving": "Risparmio energetico",
+    "tts": "Sintesi vocale",
+    "stt": "Riconoscimento vocale",
+    "externalEditor": "Editor esterno",
+    "externalEditorPlaceholder": "es. subl, code, nvim (lascia vuoto per il predefinito di sistema)",
+    "language": "Lingua",
+    "compactView": "Vista compatta",
+    "autoScroll": "Scorrimento automatico",
+    "notifications": "Notifiche",
+    "soundEffects": "Effetti sonori"
+  },
+  "agentNames": {
+    "customConfigured": "{{count}} nomi personalizzati configurati",
+    "usingDefaults": "Nomi predefiniti in uso. Aggiungi i tuoi per personalizzare.",
+    "addPlaceholder": "Aggiungi un nome...",
+    "addName": "Aggiungi nome"
+  },
+  "connection": {
+    "serverUrl": "URL del server",
+    "port": "Porta",
+    "autoReconnect": "Riconnessione automatica",
+    "reconnectInterval": "Intervallo di riconnessione",
+    "backendUrl": "URL del backend",
+    "authToken": "Token di autenticazione",
+    "autoDetectHint": "Lascia vuoto per il rilevamento automatico",
+    "tokenPlaceholder": "Inserisci il token se richiesto",
+    "tokenRequired": "Richiesto se il server ha AUTH_TOKEN impostato",
+    "saveAndReconnect": "Salva e riconnetti",
+    "showToken": "Mostra token",
+    "hideToken": "Nascondi token"
+  },
+  "scene": {
+    "characterSize": "Dimensione personaggio",
+    "indicatorScale": "Scala indicatore",
+    "time": "Ora"
+  },
+  "time": {
+    "auto": "Automatico",
+    "dawn": "Alba",
+    "day": "Giorno",
+    "dusk": "Crepuscolo",
+    "night": "Notte"
+  },
+  "floor": {
+    "grass": "Erba",
+    "concrete": "Cemento",
+    "galactic": "Galattico",
+    "metal": "Metallo",
+    "hex": "Esagonale",
+    "circuit": "Circuito",
+    "pokemon": "Pokemon"
+  },
+  "terrain": {
+    "trees": "Alberi",
+    "bushes": "Cespugli",
+    "house": "Casa",
+    "lamps": "Lampioni",
+    "grass": "Erba",
+    "clouds": "Nuvole"
+  },
+  "terrainSettings": {
+    "fog": "Nebbia",
+    "brightness": "Luminosit\u00e0",
+    "floor": "Pavimento",
+    "sky": "Cielo"
+  },
+  "fogValues": {
+    "off": "Off",
+    "low": "Bassa",
+    "high": "Alta"
+  },
+  "brightnessValues": {
+    "dark": "Scuro",
+    "normal": "Normale",
+    "bright": "Luminoso"
+  },
+  "animation": {
+    "static": "Statico",
+    "idle": "Inattivo",
+    "walk": "Cammina",
+    "sprint": "Corsa",
+    "jump": "Salto",
+    "fall": "Caduta",
+    "crouch": "Accovacciato",
+    "sit": "Seduto",
+    "die": "Morire",
+    "yes": "S\u00ec",
+    "no": "No"
+  },
+  "animationSettings": {
+    "idle": "Animazione inattivit\u00e0",
+    "working": "Animazione lavoro"
+  },
+  "colorMode": {
+    "normal": "Normale",
+    "bw": "B/N",
+    "sepia": "Seppia",
+    "cool": "Freddo",
+    "warm": "Caldo",
+    "neon": "Neon"
+  },
+  "sky": {
+    "auto": "Automatico",
+    "dayBlue": "Blu diurno",
+    "night": "Notte",
+    "sunset": "Tramonto",
+    "purple": "Viola",
+    "matrix": "Matrix",
+    "blood": "Sangue",
+    "void": "Vuoto"
+  },
+  "modelStyle": {
+    "scale": "Scala",
+    "colorMode": "Modalit\u00e0 colore",
+    "animation": "Animazione",
+    "speed": "Velocit\u00e0"
+  },
+  "modelStyleSettings": {
+    "saturation": "Saturazione",
+    "roughness": "Rugosit\u00e0",
+    "metalness": "Metallicit\u00e0",
+    "glow": "Bagliore",
+    "reflections": "Riflessi",
+    "wireframe": "Wireframe",
+    "colorMode": "Modalit\u00e0 colore"
+  },
+  "saturationValues": {
+    "gray": "Grigio",
+    "normal": "Normale",
+    "vivid": "Vivace"
+  },
+  "roughnessValues": {
+    "auto": "Automatico",
+    "glossy": "Lucido",
+    "normal": "Normale",
+    "matte": "Opaco"
+  },
+  "metalnessValues": {
+    "auto": "Automatico",
+    "plastic": "Plastica",
+    "mixed": "Misto",
+    "metal": "Metallo"
+  },
+  "glowValues": {
+    "off": "Off",
+    "low": "Basso",
+    "med": "Medio",
+    "high": "Alto"
+  },
+  "reflectionValues": {
+    "auto": "Automatico",
+    "low": "Basso",
+    "normal": "Normale",
+    "high": "Alto"
+  },
+  "experimental": {
+    "2dView": "Modalit\u00e0 vista 2D",
+    "voiceAssistant": "Assistente vocale",
+    "tts": "Sintesi vocale",
+    "hint": "Queste funzionalit\u00e0 sono sperimentali e potrebbero cambiare"
+  },
+  "areas": {
+    "title": "Aree ({{count}})",
+    "editArea": "Modifica area",
+    "color": "Colore",
+    "areaName": "Nome area",
+    "layer": "Livello",
+    "front": "Davanti",
+    "back": "Dietro",
+    "bringToFront": "Porta in primo piano (posiziona sopra le altre aree)",
+    "sendToBack": "Porta in fondo (posiziona dietro le altre aree)",
+    "folders": "Cartelle ({{count}})",
+    "openFolder": "Apri cartella nell'esplora risorse",
+    "removeFolder": "Rimuovi cartella",
+    "folderPlaceholder": "/percorso/della/cartella",
+    "addFolder": "+ Aggiungi cartella",
+    "assignedAgents": "Agenti assegnati ({{count}})",
+    "rightClickUnassign": "Clic destro per rimuovere l'assegnazione",
+    "drawToCreate": "Disegna sul campo di battaglia per creare aree",
+    "rect": "Rettangolo",
+    "circle": "Cerchio",
+    "deleteArea": "Elimina area"
+  },
+  "buildings": {
+    "title": "Edifici ({{count}})",
+    "addBuilding": "Aggiungi edificio",
+    "editBuilding": "Modifica edificio",
+    "style": "Stile",
+    "directory": "Directory",
+    "actions": "Azioni",
+    "links": "Link",
+    "recentLogs": "Log recenti",
+    "fullSettings": "Impostazioni complete",
+    "noStartCommand": "Nessun comando di avvio",
+    "noStopCommand": "Nessun comando di arresto",
+    "noRestartCommand": "Nessun comando di riavvio",
+    "noHealthCheck": "Nessun controllo di salute",
+    "clickToAdd": "Clicca + per aggiungere un edificio",
+    "namePlaceholder": "Il mio server",
+    "folderPath": "Percorso cartella",
+    "dockerConfig": "Configurazione Docker"
+  },
+  "tools": {
+    "select": "Seleziona",
+    "rectangle": "Rettangolo",
+    "circle": "Cerchio"
+  },
+  "secrets": {
+    "title": "Chiavi API e segreti",
+    "addSecret": "+ Aggiungi segreto",
+    "secretName": "Nome segreto",
+    "secretValue": "Valore segreto",
+    "noSecrets": "Nessun segreto configurato",
+    "deleteConfirm": "Eliminare questo segreto?",
+    "description": "Memorizza segreti che possono essere referenziati nei prompt usando segnaposto {{placeholder}}.",
+    "copyPlaceholder": "Clicca per copiare il segnaposto",
+    "namePlaceholder": "La mia chiave API",
+    "keyPlaceholder": "MY_API_KEY",
+    "valuePlaceholder": "valore segreto...",
+    "descriptionPlaceholder": "Descrizione opzionale",
+    "usedAs": "Usato come {{placeholder}}",
+    "update": "Aggiorna"
+  },
+  "data": {
+    "title": "Gestione dati",
+    "exportData": "Esporta",
+    "importData": "Importa",
+    "clearData": "Cancella dati",
+    "archive": "Archivia",
+    "restore": "Ripristina",
+    "backupCreated": "Backup creato",
+    "importSuccess": "Configurazione importata con successo!",
+    "exportSuccess": "Configurazione esportata con successo!",
+    "selectFile": "Seleziona file ZIP di configurazione...",
+    "exported": "Esportato",
+    "selectToImport": "Seleziona cosa importare:",
+    "exporting": "Esportazione...",
+    "exportCount": "Esporta ({{count}})",
+    "importing": "Importazione...",
+    "importCount": "Importa ({{count}})",
+    "readingFile": "Lettura file...",
+    "files": "file"
+  },
+  "about": {
+    "title": "Informazioni su Tide Commander",
+    "version": "Versione",
+    "theme": "Tema",
+    "builtWith": "Realizzato con",
+    "repository": "Repository GitHub",
+    "documentation": "Documentazione",
+    "updated": "aggiornato",
+    "updateAvailable": "Aggiornamento disponibile",
+    "sizeLabel": "Dimensione",
+    "changelog": "Registro modifiche",
+    "downloadAPK": "Scarica APK",
+    "viewRelease": "Visualizza release",
+    "checkingUpdates": "Verifica aggiornamenti...",
+    "upToDate": "Sei aggiornato",
+    "check": "Verifica",
+    "recentReleases": "Release recenti",
+    "tagline": "Orchestrazione visuale multi-agente per Claude Code",
+    "corePrinciples": "Principi fondamentali",
+    "principle1": "Gestione agenti visual-first",
+    "principle2": "Collaborazione e delega in tempo reale",
+    "principle3": "Organizzazione spaziale con aree ed edifici",
+    "principle4": "Comunicazione trasparente tra agenti",
+    "specialThanks": "Ringraziamenti speciali",
+    "kenneyCredit": "per i modelli dei personaggi agente",
+    "claudeCodeCredit": "di Anthropic, il motore IA"
+  },
+  "shortcuts": {
+    "pressKeys": "Premi i tasti...",
+    "notSet": "Non impostato",
+    "pressKeysOrClick": "Premi i tasti o clicca per confermare",
+    "clickToChange": "Clicca per cambiare la scorciatoia",
+    "clearShortcut": "Cancella scorciatoia",
+    "conflictsWith": "In conflitto con: {{names}}"
+  }
+}

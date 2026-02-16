@@ -4,6 +4,7 @@
  */
 
 import React, { useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { store, useStore } from '../store';
 import { LogViewerModal } from './LogViewerModal';
 import type { LogLine } from './LogViewerModal';
@@ -16,6 +17,7 @@ interface DockerLogsModalProps {
 }
 
 export function DockerLogsModal({ building, isOpen, onClose }: DockerLogsModalProps) {
+  const { t } = useTranslation(['terminal']);
   const { streamingBuildingLogs, streamingBuildingIds } = useStore();
   const logs = streamingBuildingLogs.get(building.id) || '';
   const isStreaming = streamingBuildingIds.has(building.id);
@@ -44,7 +46,7 @@ export function DockerLogsModal({ building, isOpen, onClose }: DockerLogsModalPr
     <LogViewerModal
       isOpen={isOpen}
       onClose={onClose}
-      title={`${building.name} - Docker Logs`}
+      title={`${building.name} - ${t('terminal:logs.dockerLogs')}`}
       icon="&#128051;" // whale emoji
       lines={lines}
       isStreaming={isStreaming}

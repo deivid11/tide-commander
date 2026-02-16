@@ -7,6 +7,7 @@
  */
 
 import React, { useEffect, useRef, memo, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { FileViewerProps, FileData } from './types';
@@ -44,6 +45,7 @@ function FileViewerHeader({
   rightContent?: React.ReactNode;
   onRevealInTree?: (path: string) => void;
 }) {
+  const { t } = useTranslation(['terminal', 'common']);
   const [openEditorStatus, setOpenEditorStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const language = file.fileType === 'text' ? getLanguageForExtension(file.extension) : file.extension.slice(1).toUpperCase();
 
@@ -92,7 +94,7 @@ function FileViewerHeader({
           className={`file-viewer-open-editor-btn ${openEditorStatus}`}
           onClick={handleOpenInEditor}
           disabled={openEditorStatus === 'loading'}
-          title={openEditorStatus === 'error' ? 'Failed to open in editor' : openEditorStatus === 'success' ? 'Opening in editor...' : 'Open in default editor'}
+          title={openEditorStatus === 'error' ? t('terminal:fileExplorer.failedToOpenEditor') : openEditorStatus === 'success' ? t('terminal:fileExplorer.openingInEditor') : t('terminal:fileExplorer.openInEditor')}
         >
           {openEditorStatus === 'success' ? (
             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
@@ -112,7 +114,7 @@ function FileViewerHeader({
           <button
             className="file-viewer-locate-btn"
             onClick={() => onRevealInTree(file.path)}
-            title="Locate in file tree"
+            title={t('terminal:fileExplorer.locateInTree')}
           >
             ◎
           </button>
@@ -503,6 +505,7 @@ function MarkdownFileViewer({
   const codeRef = useRef<HTMLElement>(null);
   const markdownContentRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const { t } = useTranslation(['terminal', 'common']);
   const [copyRichTextStatus, setCopyRichTextStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [copyHtmlStatus, setCopyHtmlStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [copyMarkdownStatus, setCopyMarkdownStatus] = useState<'idle' | 'copied' | 'error'>('idle');
@@ -602,37 +605,37 @@ function MarkdownFileViewer({
           <button
             className={`file-viewer-copy-html-btn ${copyRichTextStatus}`}
             onClick={handleCopyRichText}
-            title="Copy as rich text (paste into Word, Docs, etc.)"
+            title={t('terminal:fileExplorer.copyRichTextTitle')}
           >
-            {copyRichTextStatus === 'copied' ? '✓ Copied' : copyRichTextStatus === 'error' ? '✗ Error' : 'Copy Rich Text'}
+            {copyRichTextStatus === 'copied' ? t('terminal:fileExplorer.copied') : copyRichTextStatus === 'error' ? t('terminal:fileExplorer.copyError') : t('terminal:fileExplorer.copyRichText')}
           </button>
           <button
             className={`file-viewer-copy-html-btn ${copyHtmlStatus}`}
             onClick={handleCopyHtml}
-            title="Copy as HTML tags (for Google Docs, HTML editors)"
+            title={t('terminal:fileExplorer.copyHtmlTitle')}
           >
-            {copyHtmlStatus === 'copied' ? '✓ Copied' : copyHtmlStatus === 'error' ? '✗ Error' : 'Copy HTML'}
+            {copyHtmlStatus === 'copied' ? t('terminal:fileExplorer.copied') : copyHtmlStatus === 'error' ? t('terminal:fileExplorer.copyError') : t('terminal:fileExplorer.copyHtml')}
           </button>
           <button
             className={`file-viewer-copy-html-btn ${copyMarkdownStatus}`}
             onClick={handleCopyMarkdown}
-            title="Copy as markdown source"
+            title={t('terminal:fileExplorer.copyMarkdownTitle')}
           >
-            {copyMarkdownStatus === 'copied' ? '✓ Copied' : copyMarkdownStatus === 'error' ? '✗ Error' : 'Copy Markdown'}
+            {copyMarkdownStatus === 'copied' ? t('terminal:fileExplorer.copied') : copyMarkdownStatus === 'error' ? t('terminal:fileExplorer.copyError') : t('terminal:fileExplorer.copyMarkdown')}
           </button>
           <button
             className={`file-viewer-copy-html-btn ${copyOriginalStatus}`}
             onClick={handleCopyOriginal}
-            title="Copy original file content"
+            title={t('terminal:fileExplorer.copyOriginalTitle')}
           >
-            {copyOriginalStatus === 'copied' ? '✓ Copied' : copyOriginalStatus === 'error' ? '✗ Error' : 'Copy Original'}
+            {copyOriginalStatus === 'copied' ? t('terminal:fileExplorer.copied') : copyOriginalStatus === 'error' ? t('terminal:fileExplorer.copyError') : t('terminal:fileExplorer.copyOriginal')}
           </button>
         </>
       )}
       <button
         className={`file-viewer-render-toggle ${renderMarkdown ? 'active' : ''}`}
         onClick={onToggleRender}
-        title={renderMarkdown ? 'Show source code' : 'Render markdown'}
+        title={renderMarkdown ? t('terminal:fileExplorer.showSource') : t('terminal:fileExplorer.renderMarkdown')}
       >
         {renderMarkdown ? '</>' : 'Aa'}
       </button>
@@ -696,6 +699,7 @@ function PlantUmlFileViewer({
   renderPlantUml: boolean;
   onToggleRender: () => void;
 }) {
+  const { t } = useTranslation(['terminal']);
   const codeRef = useRef<HTMLElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [diagramDataUrl, setDiagramDataUrl] = useState<string | null>(null);
@@ -771,9 +775,9 @@ function PlantUmlFileViewer({
       <button
         className={`file-viewer-render-toggle ${renderPlantUml ? 'active' : ''}`}
         onClick={onToggleRender}
-        title={renderPlantUml ? 'Show source code' : 'Render PlantUML diagram'}
+        title={renderPlantUml ? t('terminal:fileExplorer.showSource') : t('terminal:fileExplorer.renderDiagram')}
       >
-        {renderPlantUml ? '</>' : 'Diagram'}
+        {renderPlantUml ? '</>' : t('terminal:fileExplorer.diagram')}
       </button>
     </div>
   );
@@ -784,7 +788,7 @@ function PlantUmlFileViewer({
       <div className="file-viewer-content-wrapper" ref={contentRef}>
         {renderPlantUml ? (
           <div className="file-viewer-diagram-wrapper">
-            {isRendering && <div className="file-viewer-placeholder">Rendering diagram...</div>}
+            {isRendering && <div className="file-viewer-placeholder">{t('terminal:fileExplorer.renderingDiagram')}</div>}
             {!isRendering && diagramDataUrl && (
               <img
                 src={diagramDataUrl}
@@ -794,9 +798,9 @@ function PlantUmlFileViewer({
             )}
             {!isRendering && renderError && (
               <div className="file-viewer-diagram-error">
-                <div>Could not render diagram: {renderError}</div>
+                <div>{t('terminal:fileExplorer.couldNotRender')}: {renderError}</div>
                 <button className="file-viewer-render-toggle" onClick={onToggleRender}>
-                  Show source
+                  {t('terminal:fileExplorer.showSource')}
                 </button>
               </div>
             )}
@@ -837,6 +841,7 @@ function PlantUmlFileViewer({
  * Image file viewer
  */
 function ImageFileViewer({ file, onRevealInTree }: { file: FileData; onRevealInTree?: (path: string) => void }) {
+  const { t } = useTranslation(['common', 'terminal']);
   const handleDownload = () => {
     if (file.dataUrl) {
       const link = document.createElement('a');
@@ -852,8 +857,8 @@ function ImageFileViewer({ file, onRevealInTree }: { file: FileData; onRevealInT
         file={file}
         onRevealInTree={onRevealInTree}
         rightContent={
-          <button className="file-viewer-download-btn" onClick={handleDownload} title="Download">
-            ⬇️ Download
+          <button className="file-viewer-download-btn" onClick={handleDownload} title={t('common:buttons.download')}>
+            {t('common:buttons.download')}
           </button>
         }
       />
@@ -865,7 +870,7 @@ function ImageFileViewer({ file, onRevealInTree }: { file: FileData; onRevealInT
             className="file-viewer-image"
           />
         ) : (
-          <div className="file-viewer-placeholder">Failed to load image</div>
+          <div className="file-viewer-placeholder">{t('terminal:fileExplorer.failedToLoadImage')}</div>
         )}
       </div>
     </>
@@ -876,6 +881,7 @@ function ImageFileViewer({ file, onRevealInTree }: { file: FileData; onRevealInT
  * PDF file viewer
  */
 function PdfFileViewer({ file, onRevealInTree }: { file: FileData; onRevealInTree?: (path: string) => void }) {
+  const { t } = useTranslation(['common', 'terminal']);
   const handleDownload = () => {
     if (file.dataUrl) {
       const link = document.createElement('a');
@@ -891,8 +897,8 @@ function PdfFileViewer({ file, onRevealInTree }: { file: FileData; onRevealInTre
         file={file}
         onRevealInTree={onRevealInTree}
         rightContent={
-          <button className="file-viewer-download-btn" onClick={handleDownload} title="Download">
-            ⬇️ Download
+          <button className="file-viewer-download-btn" onClick={handleDownload} title={t('common:buttons.download')}>
+            {t('common:buttons.download')}
           </button>
         }
       />
@@ -904,7 +910,7 @@ function PdfFileViewer({ file, onRevealInTree }: { file: FileData; onRevealInTre
             className="file-viewer-pdf"
           />
         ) : (
-          <div className="file-viewer-placeholder">Failed to load PDF</div>
+          <div className="file-viewer-placeholder">{t('terminal:fileExplorer.failedToLoadPdf')}</div>
         )}
       </div>
     </>
@@ -915,6 +921,7 @@ function PdfFileViewer({ file, onRevealInTree }: { file: FileData; onRevealInTre
  * Binary file viewer (download only)
  */
 function BinaryFileViewer({ file, onRevealInTree }: { file: FileData; onRevealInTree?: (path: string) => void }) {
+  const { t } = useTranslation(['terminal', 'common']);
   const handleDownload = () => {
     if (file.dataUrl) {
       const link = document.createElement('a');
@@ -949,10 +956,10 @@ function BinaryFileViewer({ file, onRevealInTree }: { file: FileData; onRevealIn
         <div className="file-viewer-binary-name">{file.filename}</div>
         <div className="file-viewer-binary-size">{formatFileSize(file.size)}</div>
         <div className="file-viewer-binary-message">
-          This file type cannot be previewed
+          {t('terminal:fileExplorer.cannotPreview')}
         </div>
         <button className="file-viewer-download-btn large" onClick={handleDownload}>
-          ⬇️ Download File
+          {t('terminal:fileExplorer.downloadFile')}
         </button>
       </div>
     </>
@@ -964,13 +971,14 @@ function BinaryFileViewer({ file, onRevealInTree }: { file: FileData; onRevealIn
 // ============================================================================
 
 function FileViewerComponent({ file, loading, error, onRevealInTree, scrollToLine, onSearchStateChange }: FileViewerProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   // Global markdown render preference (persisted to localStorage)
   const [renderMarkdown, toggleRenderMarkdown] = useMarkdownRenderPreference();
   const [renderPlantUml, toggleRenderPlantUml] = usePlantUmlRenderPreference();
 
   // Loading state
   if (loading) {
-    return <div className="file-viewer-placeholder">Loading...</div>;
+    return <div className="file-viewer-placeholder">{t('common:status.loading')}</div>;
   }
 
   // Error state
@@ -983,7 +991,7 @@ function FileViewerComponent({ file, loading, error, onRevealInTree, scrollToLin
     return (
       <div className="file-viewer-placeholder">
         <div className="placeholder-icon">📂</div>
-        <div className="placeholder-text">Select a file to view</div>
+        <div className="placeholder-text">{t('terminal:fileExplorer.selectFileToView')}</div>
       </div>
     );
   }

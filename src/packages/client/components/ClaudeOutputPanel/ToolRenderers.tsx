@@ -3,6 +3,7 @@
  */
 
 import React, { useRef, useCallback, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { DiffLine, EditData, TodoItem } from './types';
 
 // ============================================================================
@@ -97,6 +98,7 @@ interface EditToolDiffProps {
 }
 
 export function EditToolDiff({ content, onFileClick }: EditToolDiffProps) {
+  const { t } = useTranslation(['tools', 'common', 'terminal']);
   const leftRef = useRef<HTMLDivElement>(null);
   const rightRef = useRef<HTMLDivElement>(null);
   const isScrollingRef = useRef<'left' | 'right' | null>(null);
@@ -159,7 +161,7 @@ export function EditToolDiff({ content, onFileClick }: EditToolDiffProps) {
           <span
             className="edit-tool-file clickable"
             onClick={() => onFileClick?.(file_path, { oldString: old_string || '', newString: new_string || '' })}
-            title={`Open ${file_path} with diff view`}
+            title={t('terminal:history.openFileWithDiff', { path: file_path })}
           >
             📄 {fileName}
           </span>
@@ -168,13 +170,13 @@ export function EditToolDiff({ content, onFileClick }: EditToolDiffProps) {
             {stats.added > 0 && <span className="edit-stat added">+{stats.added}</span>}
             {stats.removed > 0 && <span className="edit-stat removed">-{stats.removed}</span>}
           </div>
-          {replace_all && <span className="edit-tool-badge">Replace All</span>}
+          {replace_all && <span className="edit-tool-badge">{t('tools:diff.replaceAll')}</span>}
         </div>
         <div className="edit-tool-panels">
           {/* Original (Left) */}
           <div className="edit-panel edit-panel-original">
             <div className="edit-panel-header">
-              <span className="edit-panel-label">Original</span>
+              <span className="edit-panel-label">{t('tools:diff.original')}</span>
             </div>
             <div className="edit-panel-content" ref={leftRef}>
               {leftLines.map((line, idx) => (
@@ -186,7 +188,7 @@ export function EditToolDiff({ content, onFileClick }: EditToolDiffProps) {
               {leftLines.length === 0 && (
                 <div className="edit-line edit-line-empty">
                   <span className="edit-line-num">-</span>
-                  <span className="edit-line-content edit-empty-text">(empty)</span>
+                  <span className="edit-line-content edit-empty-text">{t('common:status.empty')}</span>
                 </div>
               )}
             </div>
@@ -195,7 +197,7 @@ export function EditToolDiff({ content, onFileClick }: EditToolDiffProps) {
           {/* Modified (Right) */}
           <div className="edit-panel edit-panel-modified">
             <div className="edit-panel-header">
-              <span className="edit-panel-label">Modified</span>
+              <span className="edit-panel-label">{t('tools:diff.modified')}</span>
             </div>
             <div className="edit-panel-content" ref={rightRef}>
               {rightLines.map((line, idx) => (
@@ -207,7 +209,7 @@ export function EditToolDiff({ content, onFileClick }: EditToolDiffProps) {
               {rightLines.length === 0 && (
                 <div className="edit-line edit-line-empty">
                   <span className="edit-line-num">-</span>
-                  <span className="edit-line-content edit-empty-text">(empty)</span>
+                  <span className="edit-line-content edit-empty-text">{t('common:status.empty')}</span>
                 </div>
               )}
             </div>
@@ -279,6 +281,7 @@ interface TodoWriteInputProps {
 }
 
 export function TodoWriteInput({ content }: TodoWriteInputProps) {
+  const { t } = useTranslation(['tools']);
   try {
     const input = JSON.parse(content);
     const todos: TodoItem[] = input.todos;
@@ -297,7 +300,7 @@ export function TodoWriteInput({ content }: TodoWriteInputProps) {
     return (
       <div className="todo-tool-input">
         <div className="todo-tool-header">
-          <span className="todo-tool-title">📋 Task List</span>
+          <span className="todo-tool-title">📋 {t('tools:todoList.title')}</span>
           <div className="todo-tool-stats">
             {counts.completed > 0 && <span className="todo-stat completed">✓ {counts.completed}</span>}
             {counts.in_progress > 0 && <span className="todo-stat in-progress">► {counts.in_progress}</span>}

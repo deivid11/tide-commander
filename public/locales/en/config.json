@@ -1,0 +1,304 @@
+{
+  "title": "Tools & Settings",
+  "searchPlaceholder": "Search settings...",
+  "noResults": "No settings found for \"{{query}}\"",
+  "sections": {
+    "general": "General",
+    "agentNames": "Agent Names",
+    "appearance": "Appearance",
+    "connection": "Connection",
+    "scene": "Scene",
+    "terrain": "Terrain",
+    "modelStyle": "Agent Model Style",
+    "animations": "Animations",
+    "secrets": "Secrets",
+    "data": "Data",
+    "experimental": "Experimental",
+    "about": "About",
+    "sky": "Sky Color"
+  },
+  "general": {
+    "history": "History",
+    "hideCosts": "Hide Costs",
+    "grid": "Grid",
+    "showFPS": "Show FPS",
+    "fpsLimit": "FPS Limit",
+    "powerSaving": "Power Saving",
+    "tts": "Text-to-Speech",
+    "stt": "Speech-to-Text",
+    "externalEditor": "External Editor",
+    "externalEditorPlaceholder": "e.g., subl, code, nvim (leave empty for system default)",
+    "language": "Language",
+    "compactView": "Compact View",
+    "autoScroll": "Auto Scroll",
+    "notifications": "Notifications",
+    "soundEffects": "Sound Effects"
+  },
+  "agentNames": {
+    "customConfigured": "{{count}} custom names configured",
+    "usingDefaults": "Using default names. Add your own to customize.",
+    "addPlaceholder": "Add a name...",
+    "addName": "Add name"
+  },
+  "connection": {
+    "serverUrl": "Server URL",
+    "port": "Port",
+    "autoReconnect": "Auto Reconnect",
+    "reconnectInterval": "Reconnect Interval",
+    "backendUrl": "Backend URL",
+    "authToken": "Auth Token",
+    "autoDetectHint": "Leave empty for auto-detect",
+    "tokenPlaceholder": "Enter token if required",
+    "tokenRequired": "Required if server has AUTH_TOKEN set",
+    "saveAndReconnect": "Save and reconnect",
+    "showToken": "Show token",
+    "hideToken": "Hide token"
+  },
+  "scene": {
+    "characterSize": "Character Size",
+    "indicatorScale": "Indicator Scale",
+    "time": "Time"
+  },
+  "time": {
+    "auto": "Auto",
+    "dawn": "Dawn",
+    "day": "Day",
+    "dusk": "Dusk",
+    "night": "Night"
+  },
+  "floor": {
+    "grass": "Grass",
+    "concrete": "Concrete",
+    "galactic": "Galactic",
+    "metal": "Metal",
+    "hex": "Hex",
+    "circuit": "Circuit",
+    "pokemon": "Pokemon"
+  },
+  "terrain": {
+    "trees": "Trees",
+    "bushes": "Bushes",
+    "house": "House",
+    "lamps": "Lamps",
+    "grass": "Grass",
+    "clouds": "Clouds"
+  },
+  "terrainSettings": {
+    "fog": "Fog",
+    "brightness": "Brightness",
+    "floor": "Floor",
+    "sky": "Sky"
+  },
+  "fogValues": {
+    "off": "Off",
+    "low": "Low",
+    "high": "Hi"
+  },
+  "brightnessValues": {
+    "dark": "Dark",
+    "normal": "Normal",
+    "bright": "Bright"
+  },
+  "animation": {
+    "static": "Static",
+    "idle": "Idle",
+    "walk": "Walk",
+    "sprint": "Sprint",
+    "jump": "Jump",
+    "fall": "Fall",
+    "crouch": "Crouch",
+    "sit": "Sit",
+    "die": "Die",
+    "yes": "Yes",
+    "no": "No"
+  },
+  "animationSettings": {
+    "idle": "Idle Animation",
+    "working": "Working Animation"
+  },
+  "colorMode": {
+    "normal": "Normal",
+    "bw": "B&W",
+    "sepia": "Sepia",
+    "cool": "Cool",
+    "warm": "Warm",
+    "neon": "Neon"
+  },
+  "sky": {
+    "auto": "Auto",
+    "dayBlue": "Day Blue",
+    "night": "Night",
+    "sunset": "Sunset",
+    "purple": "Purple",
+    "matrix": "Matrix",
+    "blood": "Blood",
+    "void": "Void"
+  },
+  "modelStyle": {
+    "scale": "Scale",
+    "colorMode": "Color Mode",
+    "animation": "Animation",
+    "speed": "Speed"
+  },
+  "modelStyleSettings": {
+    "saturation": "Saturation",
+    "roughness": "Roughness",
+    "metalness": "Metalness",
+    "glow": "Glow",
+    "reflections": "Reflections",
+    "wireframe": "Wireframe",
+    "colorMode": "Color Mode"
+  },
+  "saturationValues": {
+    "gray": "Gray",
+    "normal": "Normal",
+    "vivid": "Vivid"
+  },
+  "roughnessValues": {
+    "auto": "Auto",
+    "glossy": "Glossy",
+    "normal": "Normal",
+    "matte": "Matte"
+  },
+  "metalnessValues": {
+    "auto": "Auto",
+    "plastic": "Plastic",
+    "mixed": "Mixed",
+    "metal": "Metal"
+  },
+  "glowValues": {
+    "off": "Off",
+    "low": "Low",
+    "med": "Med",
+    "high": "High"
+  },
+  "reflectionValues": {
+    "auto": "Auto",
+    "low": "Low",
+    "normal": "Normal",
+    "high": "High"
+  },
+  "experimental": {
+    "2dView": "2D View Mode",
+    "voiceAssistant": "Voice Assistant",
+    "tts": "Text to Speech",
+    "hint": "These features are experimental and may change"
+  },
+  "areas": {
+    "title": "Areas ({{count}})",
+    "editArea": "Edit Area",
+    "color": "Color",
+    "areaName": "Area name",
+    "layer": "Layer",
+    "front": "Front",
+    "back": "Back",
+    "bringToFront": "Bring to front (place on top of other areas)",
+    "sendToBack": "Send to back (place behind other areas)",
+    "folders": "Folders ({{count}})",
+    "openFolder": "Open folder in explorer",
+    "removeFolder": "Remove folder",
+    "folderPlaceholder": "/path/to/folder",
+    "addFolder": "+ Add Folder",
+    "assignedAgents": "Assigned Agents ({{count}})",
+    "rightClickUnassign": "Right-click to unassign",
+    "drawToCreate": "Draw on the battlefield to create areas",
+    "rect": "Rect",
+    "circle": "Circle",
+    "deleteArea": "Delete area"
+  },
+  "buildings": {
+    "title": "Buildings ({{count}})",
+    "addBuilding": "Add Building",
+    "editBuilding": "Edit building",
+    "style": "Style",
+    "directory": "Directory",
+    "actions": "Actions",
+    "links": "Links",
+    "recentLogs": "Recent Logs",
+    "fullSettings": "Full Settings",
+    "noStartCommand": "No start command",
+    "noStopCommand": "No stop command",
+    "noRestartCommand": "No restart command",
+    "noHealthCheck": "No health check",
+    "clickToAdd": "Click + to add a building",
+    "namePlaceholder": "My Server",
+    "folderPath": "Folder Path",
+    "dockerConfig": "Docker Configuration"
+  },
+  "tools": {
+    "select": "Select",
+    "rectangle": "Rectangle",
+    "circle": "Circle"
+  },
+  "secrets": {
+    "title": "API Keys & Secrets",
+    "addSecret": "+ Add Secret",
+    "secretName": "Secret Name",
+    "secretValue": "Secret Value",
+    "noSecrets": "No secrets configured",
+    "deleteConfirm": "Delete this secret?",
+    "description": "Store secrets that can be referenced in prompts using {{placeholder}} placeholders.",
+    "copyPlaceholder": "Click to copy placeholder",
+    "namePlaceholder": "My API Key",
+    "keyPlaceholder": "MY_API_KEY",
+    "valuePlaceholder": "secret value...",
+    "descriptionPlaceholder": "Optional description",
+    "usedAs": "Used as {{placeholder}}",
+    "update": "Update"
+  },
+  "data": {
+    "title": "Data Management",
+    "exportData": "Export",
+    "importData": "Import",
+    "clearData": "Clear Data",
+    "archive": "Archive",
+    "restore": "Restore",
+    "backupCreated": "Backup created",
+    "importSuccess": "Config imported successfully!",
+    "exportSuccess": "Config exported successfully!",
+    "selectFile": "Select config ZIP file...",
+    "exported": "Exported",
+    "selectToImport": "Select what to import:",
+    "exporting": "Exporting...",
+    "exportCount": "Export ({{count}})",
+    "importing": "Importing...",
+    "importCount": "Import ({{count}})",
+    "readingFile": "Reading file...",
+    "files": "files"
+  },
+  "about": {
+    "title": "About Tide Commander",
+    "version": "Version",
+    "theme": "Theme",
+    "builtWith": "Built with",
+    "repository": "GitHub Repository",
+    "documentation": "Documentation",
+    "updated": "updated",
+    "updateAvailable": "Update Available",
+    "sizeLabel": "Size",
+    "changelog": "Changelog",
+    "downloadAPK": "Download APK",
+    "viewRelease": "View Release",
+    "checkingUpdates": "Checking for updates...",
+    "upToDate": "You are up to date",
+    "check": "Check",
+    "recentReleases": "Recent Releases",
+    "tagline": "Visual multi-agent orchestration for Claude Code",
+    "corePrinciples": "Core Principles",
+    "principle1": "Visual-first agent management",
+    "principle2": "Real-time collaboration & delegation",
+    "principle3": "Spatial organization with areas & buildings",
+    "principle4": "Transparent agent communication",
+    "specialThanks": "Special Thanks",
+    "kenneyCredit": "for the agent character models",
+    "claudeCodeCredit": "by Anthropic, the AI backbone"
+  },
+  "shortcuts": {
+    "pressKeys": "Press keys...",
+    "notSet": "Not set",
+    "pressKeysOrClick": "Press keys or click to confirm",
+    "clickToChange": "Click to change shortcut",
+    "clearShortcut": "Clear shortcut",
+    "conflictsWith": "Conflicts with: {{names}}"
+  }
+}

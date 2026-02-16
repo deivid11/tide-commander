@@ -1,0 +1,48 @@
+{
+  "agent": {
+    "clickToFocus": "Clicca per inquadrare",
+    "needsAttention": "richiede attenzione",
+    "removed": "{{name}} rimosso dalla vista",
+    "deployed": "{{name}} distribuito con successo",
+    "terminated": "{{name}} terminato",
+    "started": "{{name}} avviato",
+    "errored": "{{name}} ha riscontrato un errore"
+  },
+  "toast": {
+    "info": "Info",
+    "success": "Successo",
+    "warning": "Attenzione",
+    "agentsRemoved": "Agenti rimossi",
+    "agentsRemovedMsg": "{{count}} agente/i rimosso/i dalla vista",
+    "buildingsDeleted": "Edifici eliminati",
+    "buildingsDeletedMsg": "{{count}} edificio/i eliminato/i",
+    "buildingDeleted": "Edificio eliminato",
+    "buildingDeletedMsg": "\"{{name}}\" \u00e8 stato eliminato",
+    "snapshotSaved": "Snapshot salvato",
+    "snapshotSavedMsg": "Snapshot salvato con successo",
+    "snapshotFailed": "Snapshot fallito",
+    "snapshotFailedMsg": "Impossibile creare lo snapshot",
+    "copied": "Copiato",
+    "resumeCopied": "Comando di ripresa copiato negli appunti",
+    "textCopied": "Testo copiato negli appunti",
+    "pathCopied": "Percorso copiato negli appunti",
+    "mergeComplete": "Merge completato",
+    "mergeCompleteMsg": "Branch unito con successo",
+    "mergeConflicts": "Conflitti di merge",
+    "mergeConflictsMsg": "Il merge ha conflitti che necessitano risoluzione",
+    "mergeAborted": "Merge annullato",
+    "mergeAbortedMsg": "Operazione di merge annullata",
+    "branchCreated": "Branch creato",
+    "branchCreatedMsg": "Branch \"{{name}}\" creato",
+    "branchSwitched": "Branch cambiato",
+    "branchSwitchedMsg": "Passato al branch \"{{name}}\"",
+    "filesSaved": "File salvati",
+    "filesSavedMsg": "{{count}} file salvato/i"
+  },
+  "drawing": {
+    "rectangleTool": "Strumento rettangolo",
+    "circleTool": "Strumento cerchio",
+    "toolName": "Strumento {{name}}",
+    "clickAndDrag": "Clicca e trascina sul campo di battaglia per disegnare un'area"
+  }
+}

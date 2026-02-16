@@ -1,0 +1,48 @@
+{
+  "agent": {
+    "clickToFocus": "Clic para enfocar",
+    "needsAttention": "necesita atencion",
+    "removed": "{{name}} eliminado de la vista",
+    "deployed": "{{name}} desplegado exitosamente",
+    "terminated": "{{name}} terminado",
+    "started": "{{name}} iniciado",
+    "errored": "{{name}} encontro un error"
+  },
+  "toast": {
+    "info": "Info",
+    "success": "Exito",
+    "warning": "Advertencia",
+    "agentsRemoved": "Agentes eliminados",
+    "agentsRemovedMsg": "{{count}} agente(s) eliminados de la vista",
+    "buildingsDeleted": "Edificios eliminados",
+    "buildingsDeletedMsg": "{{count}} edificio(s) eliminados",
+    "buildingDeleted": "Edificio eliminado",
+    "buildingDeletedMsg": "\"{{name}}\" ha sido eliminado",
+    "snapshotSaved": "Instantanea guardada",
+    "snapshotSavedMsg": "Instantanea guardada exitosamente",
+    "snapshotFailed": "Instantanea fallida",
+    "snapshotFailedMsg": "No se pudo crear la instantanea",
+    "copied": "Copiado",
+    "resumeCopied": "Comando de reanudacion copiado al portapapeles",
+    "textCopied": "Texto copiado al portapapeles",
+    "pathCopied": "Ruta copiada al portapapeles",
+    "mergeComplete": "Fusion completa",
+    "mergeCompleteMsg": "Rama fusionada exitosamente",
+    "mergeConflicts": "Conflictos de fusion",
+    "mergeConflictsMsg": "La fusion tiene conflictos que necesitan resolucion",
+    "mergeAborted": "Fusion abortada",
+    "mergeAbortedMsg": "Operacion de fusion abortada",
+    "branchCreated": "Rama creada",
+    "branchCreatedMsg": "Rama \"{{name}}\" creada",
+    "branchSwitched": "Rama cambiada",
+    "branchSwitchedMsg": "Cambiado a rama \"{{name}}\"",
+    "filesSaved": "Archivos guardados",
+    "filesSavedMsg": "{{count}} archivo(s) guardados"
+  },
+  "drawing": {
+    "rectangleTool": "Herramienta rectangulo",
+    "circleTool": "Herramienta circulo",
+    "toolName": "Herramienta {{name}}",
+    "clickAndDrag": "Clic y arrastre en el campo de batalla para dibujar un area"
+  }
+}

@@ -1,0 +1,304 @@
+{
+  "title": "ツールと設定",
+  "searchPlaceholder": "設定を検索...",
+  "noResults": "「{{query}}」に一致する設定が見つかりません",
+  "sections": {
+    "general": "一般",
+    "agentNames": "エージェント名",
+    "appearance": "外観",
+    "connection": "接続",
+    "scene": "シーン",
+    "terrain": "地形",
+    "modelStyle": "エージェントモデルスタイル",
+    "animations": "アニメーション",
+    "secrets": "シークレット",
+    "data": "データ",
+    "experimental": "実験的機能",
+    "about": "このアプリについて",
+    "sky": "空の色"
+  },
+  "general": {
+    "history": "履歴",
+    "hideCosts": "コストを非表示",
+    "grid": "グリッド",
+    "showFPS": "FPSを表示",
+    "fpsLimit": "FPS制限",
+    "powerSaving": "省電力モード",
+    "tts": "テキスト読み上げ",
+    "stt": "音声認識",
+    "externalEditor": "外部エディタ",
+    "externalEditorPlaceholder": "例: subl, code, nvim (空欄でシステムデフォルト)",
+    "language": "言語",
+    "compactView": "コンパクト表示",
+    "autoScroll": "自動スクロール",
+    "notifications": "通知",
+    "soundEffects": "効果音"
+  },
+  "agentNames": {
+    "customConfigured": "{{count}}個のカスタム名が設定済み",
+    "usingDefaults": "デフォルト名を使用中。カスタム名を追加できます。",
+    "addPlaceholder": "名前を追加...",
+    "addName": "名前を追加"
+  },
+  "connection": {
+    "serverUrl": "サーバーURL",
+    "port": "ポート",
+    "autoReconnect": "自動再接続",
+    "reconnectInterval": "再接続間隔",
+    "backendUrl": "バックエンドURL",
+    "authToken": "認証トークン",
+    "autoDetectHint": "空欄で自動検出",
+    "tokenPlaceholder": "必要な場合はトークンを入力",
+    "tokenRequired": "サーバーにAUTH_TOKENが設定されている場合は必須",
+    "saveAndReconnect": "保存して再接続",
+    "showToken": "トークンを表示",
+    "hideToken": "トークンを非表示"
+  },
+  "scene": {
+    "characterSize": "キャラクターサイズ",
+    "indicatorScale": "インジケータースケール",
+    "time": "時間"
+  },
+  "time": {
+    "auto": "自動",
+    "dawn": "夜明け",
+    "day": "昼",
+    "dusk": "夕暮れ",
+    "night": "夜"
+  },
+  "floor": {
+    "grass": "芝生",
+    "concrete": "コンクリート",
+    "galactic": "銀河",
+    "metal": "メタル",
+    "hex": "ヘックス",
+    "circuit": "回路",
+    "pokemon": "Pokemon"
+  },
+  "terrain": {
+    "trees": "木",
+    "bushes": "茂み",
+    "house": "家",
+    "lamps": "街灯",
+    "grass": "草",
+    "clouds": "雲"
+  },
+  "terrainSettings": {
+    "fog": "霧",
+    "brightness": "明るさ",
+    "floor": "フロア",
+    "sky": "空"
+  },
+  "fogValues": {
+    "off": "オフ",
+    "low": "低",
+    "high": "高"
+  },
+  "brightnessValues": {
+    "dark": "暗い",
+    "normal": "普通",
+    "bright": "明るい"
+  },
+  "animation": {
+    "static": "静止",
+    "idle": "待機",
+    "walk": "歩行",
+    "sprint": "ダッシュ",
+    "jump": "ジャンプ",
+    "fall": "落下",
+    "crouch": "しゃがむ",
+    "sit": "座る",
+    "die": "倒れる",
+    "yes": "はい",
+    "no": "いいえ"
+  },
+  "animationSettings": {
+    "idle": "待機アニメーション",
+    "working": "作業アニメーション"
+  },
+  "colorMode": {
+    "normal": "通常",
+    "bw": "白黒",
+    "sepia": "セピア",
+    "cool": "クール",
+    "warm": "ウォーム",
+    "neon": "ネオン"
+  },
+  "sky": {
+    "auto": "自動",
+    "dayBlue": "昼の青空",
+    "night": "夜空",
+    "sunset": "夕焼け",
+    "purple": "パープル",
+    "matrix": "マトリックス",
+    "blood": "ブラッド",
+    "void": "虚空"
+  },
+  "modelStyle": {
+    "scale": "スケール",
+    "colorMode": "カラーモード",
+    "animation": "アニメーション",
+    "speed": "速度"
+  },
+  "modelStyleSettings": {
+    "saturation": "彩度",
+    "roughness": "粗さ",
+    "metalness": "金属感",
+    "glow": "グロー",
+    "reflections": "反射",
+    "wireframe": "ワイヤーフレーム",
+    "colorMode": "カラーモード"
+  },
+  "saturationValues": {
+    "gray": "グレー",
+    "normal": "通常",
+    "vivid": "鮮やか"
+  },
+  "roughnessValues": {
+    "auto": "自動",
+    "glossy": "光沢",
+    "normal": "通常",
+    "matte": "マット"
+  },
+  "metalnessValues": {
+    "auto": "自動",
+    "plastic": "プラスチック",
+    "mixed": "ミックス",
+    "metal": "メタル"
+  },
+  "glowValues": {
+    "off": "オフ",
+    "low": "低",
+    "med": "中",
+    "high": "高"
+  },
+  "reflectionValues": {
+    "auto": "自動",
+    "low": "低",
+    "normal": "通常",
+    "high": "高"
+  },
+  "experimental": {
+    "2dView": "2Dビューモード",
+    "voiceAssistant": "音声アシスタント",
+    "tts": "テキスト読み上げ",
+    "hint": "これらの機能は実験的であり、変更される可能性があります"
+  },
+  "areas": {
+    "title": "エリア ({{count}})",
+    "editArea": "エリアを編集",
+    "color": "カラー",
+    "areaName": "エリア名",
+    "layer": "レイヤー",
+    "front": "前面",
+    "back": "背面",
+    "bringToFront": "前面に移動 (他のエリアの上に配置)",
+    "sendToBack": "背面に移動 (他のエリアの後ろに配置)",
+    "folders": "フォルダ ({{count}})",
+    "openFolder": "エクスプローラーでフォルダを開く",
+    "removeFolder": "フォルダを削除",
+    "folderPlaceholder": "/path/to/folder",
+    "addFolder": "+ フォルダを追加",
+    "assignedAgents": "割り当て済みエージェント ({{count}})",
+    "rightClickUnassign": "右クリックで割り当て解除",
+    "drawToCreate": "フィールド上に描画してエリアを作成",
+    "rect": "四角形",
+    "circle": "円",
+    "deleteArea": "エリアを削除"
+  },
+  "buildings": {
+    "title": "ビルディング ({{count}})",
+    "addBuilding": "ビルディングを追加",
+    "editBuilding": "ビルディングを編集",
+    "style": "スタイル",
+    "directory": "ディレクトリ",
+    "actions": "アクション",
+    "links": "リンク",
+    "recentLogs": "最近のログ",
+    "fullSettings": "全設定",
+    "noStartCommand": "起動コマンドなし",
+    "noStopCommand": "停止コマンドなし",
+    "noRestartCommand": "再起動コマンドなし",
+    "noHealthCheck": "ヘルスチェックなし",
+    "clickToAdd": "+をクリックしてビルディングを追加",
+    "namePlaceholder": "マイサーバー",
+    "folderPath": "フォルダパス",
+    "dockerConfig": "Docker設定"
+  },
+  "tools": {
+    "select": "選択",
+    "rectangle": "四角形",
+    "circle": "円"
+  },
+  "secrets": {
+    "title": "APIキーとシークレット",
+    "addSecret": "+ シークレットを追加",
+    "secretName": "シークレット名",
+    "secretValue": "シークレット値",
+    "noSecrets": "シークレットが設定されていません",
+    "deleteConfirm": "このシークレットを削除しますか?",
+    "description": "プロンプトで{{placeholder}}プレースホルダーとして参照できるシークレットを保存します。",
+    "copyPlaceholder": "クリックしてプレースホルダーをコピー",
+    "namePlaceholder": "マイAPIキー",
+    "keyPlaceholder": "MY_API_KEY",
+    "valuePlaceholder": "シークレット値...",
+    "descriptionPlaceholder": "任意の説明",
+    "usedAs": "{{placeholder}}として使用",
+    "update": "更新"
+  },
+  "data": {
+    "title": "データ管理",
+    "exportData": "エクスポート",
+    "importData": "インポート",
+    "clearData": "データをクリア",
+    "archive": "アーカイブ",
+    "restore": "復元",
+    "backupCreated": "バックアップを作成しました",
+    "importSuccess": "設定のインポートに成功しました!",
+    "exportSuccess": "設定のエクスポートに成功しました!",
+    "selectFile": "設定ZIPファイルを選択...",
+    "exported": "エクスポート済み",
+    "selectToImport": "インポートする項目を選択:",
+    "exporting": "エクスポート中...",
+    "exportCount": "エクスポート ({{count}})",
+    "importing": "インポート中...",
+    "importCount": "インポート ({{count}})",
+    "readingFile": "ファイルを読み込み中...",
+    "files": "ファイル"
+  },
+  "about": {
+    "title": "Tide Commanderについて",
+    "version": "バージョン",
+    "theme": "テーマ",
+    "builtWith": "使用技術",
+    "repository": "GitHubリポジトリ",
+    "documentation": "ドキュメント",
+    "updated": "更新済み",
+    "updateAvailable": "アップデートあり",
+    "sizeLabel": "サイズ",
+    "changelog": "変更履歴",
+    "downloadAPK": "APKをダウンロード",
+    "viewRelease": "リリースを表示",
+    "checkingUpdates": "アップデートを確認中...",
+    "upToDate": "最新版です",
+    "check": "確認",
+    "recentReleases": "最近のリリース",
+    "tagline": "Claude Codeのためのビジュアルマルチエージェントオーケストレーション",
+    "corePrinciples": "基本理念",
+    "principle1": "ビジュアルファーストのエージェント管理",
+    "principle2": "リアルタイムコラボレーションと委任",
+    "principle3": "エリアとビルディングによる空間整理",
+    "principle4": "透明なエージェントコミュニケーション",
+    "specialThanks": "スペシャルサンクス",
+    "kenneyCredit": "エージェントキャラクターモデル提供",
+    "claudeCodeCredit": "Anthropic提供、AIバックボーン"
+  },
+  "shortcuts": {
+    "pressKeys": "キーを押してください...",
+    "notSet": "未設定",
+    "pressKeysOrClick": "キーを押すかクリックして確定",
+    "clickToChange": "クリックしてショートカットを変更",
+    "clearShortcut": "ショートカットをクリア",
+    "conflictsWith": "競合: {{names}}"
+  }
+}

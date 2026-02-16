@@ -5,6 +5,7 @@
  */
 
 import React, { useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { store, useSettings } from '../../store';
 import { PermissionRequestInline } from './PermissionRequest';
 import { getImageWebUrl } from './contentRendering';
@@ -161,6 +162,8 @@ export function TerminalInputArea({
   isSnapshotView = false,
   onClearHistory,
 }: TerminalInputAreaProps) {
+  const { t } = useTranslation(['terminal', 'common']);
+
   // Use external refs if provided, otherwise create internal ones
   const internalInputRef = useRef<HTMLInputElement>(null);
   const internalTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -608,7 +611,7 @@ export function TerminalInputArea({
                     e.stopPropagation();
                     removeAttachedFile(file.id);
                   }}
-                  title="Remove"
+                  title={t('terminal:input.removeAttachment')}
                 >
                   ×
                 </button>
@@ -625,10 +628,10 @@ export function TerminalInputArea({
             <button
               className="guake-stop-btn"
               onClick={() => store.stopAgent(selectedAgent.id)}
-              title="Stop current operation (Esc)"
+              title={t('terminal:input.stopOperation')}
             >
               <span className="stop-icon">■</span>
-              <span className="stop-label">Stop</span>
+              <span className="stop-label">{t('terminal:input.stop')}</span>
             </button>
           </div>
         )}
@@ -646,7 +649,7 @@ export function TerminalInputArea({
             <button
               className="guake-attach-btn"
               onClick={() => fileInputRef.current?.click()}
-              title="Attach file (or paste image)"
+              title={t('terminal:input.attachOrPaste')}
             >
               📎
             </button>
@@ -654,7 +657,7 @@ export function TerminalInputArea({
               <button
                 className={`guake-mic-btn ${recording ? 'recording' : ''} ${transcribing ? 'transcribing' : ''}`}
                 onClick={toggleRecording}
-                title={recording ? 'Stop recording' : transcribing ? 'Transcribing...' : 'Voice input (Whisper)'}
+                title={recording ? t('terminal:input.stopRecording') : transcribing ? t('terminal:input.transcribing') : t('terminal:input.voiceInput')}
                 disabled={transcribing}
               >
                 {transcribing ? '⏳' : recording ? '🔴' : '🎤'}
@@ -663,7 +666,7 @@ export function TerminalInputArea({
             {useTextarea ? (
               <textarea
                 ref={textareaRef}
-                placeholder={`Message ${selectedAgent.name}...`}
+                placeholder={t('terminal:input.placeholder', { agent: selectedAgent.name })}
                 value={command}
                 onChange={handleChange}
                 onKeyDown={handleKeyDown}
@@ -676,7 +679,7 @@ export function TerminalInputArea({
               <input
                 ref={inputRef}
                 type="text"
-                placeholder={`Message ${selectedAgent.name}...`}
+                placeholder={t('terminal:input.placeholder', { agent: selectedAgent.name })}
                 value={command}
                 onChange={handleChange}
                 onKeyDown={handleKeyDown}
@@ -686,7 +689,7 @@ export function TerminalInputArea({
                 onBlur={handleInputBlur}
               />
             )}
-            <button onClick={handleSendCommand} disabled={!command.trim() && attachedFiles.length === 0} title="Send">
+            <button onClick={handleSendCommand} disabled={!command.trim() && attachedFiles.length === 0} title={t('terminal:input.send')}>
               ➤
             </button>
           </div>

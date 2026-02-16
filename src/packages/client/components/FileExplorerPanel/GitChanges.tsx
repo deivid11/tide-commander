@@ -6,6 +6,7 @@
  */
 
 import React, { memo, useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { GitChangesProps, GitFileStatusType, GitFileStatus } from './types';
 import { GIT_STATUS_CONFIG } from './constants';
 import { buildGitTree, collectGitTreeDirPaths, getIconForExtension } from './fileUtils';
@@ -41,6 +42,7 @@ const GitFileItem = memo(function GitFileItem({
   isChecked,
   onToggleCheck,
 }: GitFileItemProps) {
+  const { t } = useTranslation(['terminal']);
   const config = GIT_STATUS_CONFIG[status];
   const isDeleted = status === 'deleted';
   const showStageBtn = status === 'untracked' && onStage;
@@ -89,7 +91,7 @@ const GitFileItem = memo(function GitFileItem({
             e.stopPropagation();
             if (!isStaging) onStage(file.path);
           }}
-          title="Stage file (git add)"
+          title={t('terminal:fileExplorer.stageFile')}
           disabled={isStaging}
         >
           {isStaging ? '...' : '+'}
@@ -132,6 +134,7 @@ const GitTreeNodeItem = memo(function GitTreeNodeItem({
   checkedFiles,
   onToggleCheck,
 }: GitTreeNodeItemProps) {
+  const { t } = useTranslation(['terminal']);
   const indent = depth * GIT_TREE_INDENT;
 
   if (!node.isDirectory) {
@@ -172,7 +175,7 @@ const GitTreeNodeItem = memo(function GitTreeNodeItem({
               e.stopPropagation();
               if (!stagingPaths?.has(node.path)) onStage(node.file!.path);
             }}
-            title="Stage file (git add)"
+            title={t('terminal:fileExplorer.stageFile')}
             disabled={stagingPaths?.has(node.path)}
           >
             {stagingPaths?.has(node.path) ? '...' : '+'}
@@ -199,7 +202,7 @@ const GitTreeNodeItem = memo(function GitTreeNodeItem({
         />
         <span className="tree-name">{node.name}</span>
         <span className="git-tree-file-count">
-          {node.fileCount} {node.fileCount === 1 ? 'file' : 'files'}
+          {t('terminal:fileExplorer.fileCount', { count: node.fileCount })}
         </span>
       </div>
       {isExpanded && (
@@ -261,6 +264,7 @@ const GitStatusGroup = memo(function GitStatusGroup({
   checkedFiles,
   onToggleCheck,
 }: GitStatusGroupProps) {
+  const { t } = useTranslation(['terminal']);
   if (files.length === 0) return null;
 
   const config = GIT_STATUS_CONFIG[status];
@@ -281,10 +285,10 @@ const GitStatusGroup = memo(function GitStatusGroup({
               e.stopPropagation();
               if (!isStagingAll) onStageAll();
             }}
-            title="Stage all untracked files"
+            title={t('terminal:fileExplorer.stageAllUntracked')}
             disabled={isStagingAll}
           >
-            {isStagingAll ? '...' : 'Stage All'}
+            {isStagingAll ? '...' : t('terminal:fileExplorer.stageAll')}
           </button>
         )}
       </div>
@@ -350,6 +354,7 @@ function GitChangesComponent({
   onMergeAbort,
   onConflictOpen,
 }: GitChangesProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const [gitViewMode, setGitViewMode] = useState<GitViewMode>('tree');
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
 
@@ -512,15 +517,15 @@ function GitChangesComponent({
           const pushData = await pushRes.json();
 
           if (pushRes.ok && pushData.success) {
-            setCommitStatus({ type: 'success', text: 'Committed and pushed' });
+            setCommitStatus({ type: 'success', text: t('terminal:fileExplorer.committedAndPushed') });
           } else {
-            setCommitStatus({ type: 'error', text: `Committed, but push failed: ${pushData.error || 'Unknown error'}` });
+            setCommitStatus({ type: 'error', text: t('terminal:fileExplorer.committedButPushFailed', { error: pushData.error || 'Unknown error' }) });
           }
         } catch {
-          setCommitStatus({ type: 'error', text: 'Committed, but push failed: Network error' });
+          setCommitStatus({ type: 'error', text: t('terminal:fileExplorer.committedButPushFailed', { error: 'Network error' }) });
         }
       } else {
-        setCommitStatus({ type: 'success', text: 'Committed successfully' });
+        setCommitStatus({ type: 'success', text: t('terminal:fileExplorer.committedSuccessfully') });
       }
 
       // Clear state after successful commit
@@ -538,7 +543,7 @@ function GitChangesComponent({
 
   // Loading state
   if (loading) {
-    return <div className="git-changes-loading">Loading git status...</div>;
+    return <div className="git-changes-loading">{t('terminal:fileExplorer.loadingGitStatus')}</div>;
   }
 
   // Not a git repo
@@ -546,7 +551,7 @@ function GitChangesComponent({
     return (
       <div className="git-changes-empty">
         <div className="git-empty-icon">📦</div>
-        <div className="git-empty-text">Not a git repository</div>
+        <div className="git-empty-text">{t('terminal:fileExplorer.notGitRepo')}</div>
       </div>
     );
   }
@@ -556,8 +561,8 @@ function GitChangesComponent({
     return (
       <div className="git-changes-empty">
         <div className="git-empty-icon">✨</div>
-        <div className="git-empty-text">Working tree clean</div>
-        <div className="git-empty-branch">On branch {gitStatus.branch}</div>
+        <div className="git-empty-text">{t('terminal:fileExplorer.workingTreeClean')}</div>
+        <div className="git-empty-branch">{t('terminal:fileExplorer.onBranch', { branch: gitStatus.branch })}</div>
       </div>
     );
   }
@@ -604,7 +609,7 @@ function GitChangesComponent({
           <button
             className={`git-view-toggle-btn ${gitViewMode === 'flat' ? 'active' : ''}`}
             onClick={() => setGitViewMode('flat')}
-            title="Flat list"
+            title={t('terminal:fileExplorer.flatList')}
           >
             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
               <rect x="2" y="3" width="12" height="1.5" rx="0.5" />
@@ -615,7 +620,7 @@ function GitChangesComponent({
           <button
             className={`git-view-toggle-btn ${gitViewMode === 'tree' ? 'active' : ''}`}
             onClick={() => setGitViewMode('tree')}
-            title="Directory tree"
+            title={t('terminal:fileExplorer.directoryTree')}
           >
             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
               <rect x="1" y="2" width="6" height="1.5" rx="0.5" />
@@ -628,7 +633,7 @@ function GitChangesComponent({
         <button
           className="git-refresh-btn"
           onClick={onRefresh}
-          title="Refresh"
+          title={t('common:buttons.refresh')}
         >
           ↻
         </button>
@@ -639,23 +644,23 @@ function GitChangesComponent({
         <div className="git-merge-banner">
           <span className="git-merge-banner-icon">&#9888;</span>
           <span className="git-merge-banner-text">
-            Merge in progress{mergingBranch ? ` (${mergingBranch})` : ''}
+            {t('terminal:fileExplorer.mergeInProgress', { branch: mergingBranch ? ` (${mergingBranch})` : '' })}
           </span>
           <div className="git-merge-actions">
             <button
               className="git-merge-continue-btn"
               onClick={onMergeContinue}
               disabled={hasConflicts}
-              title={hasConflicts ? 'Resolve all conflicts first' : 'Continue merge'}
+              title={hasConflicts ? t('terminal:fileExplorer.resolveAllConflictsFirst') : t('terminal:fileExplorer.continueMerge')}
             >
-              Continue
+              {t('terminal:fileExplorer.continue')}
             </button>
             <button
               className="git-merge-abort-btn"
               onClick={onMergeAbort}
-              title="Abort merge"
+              title={t('terminal:fileExplorer.abortMerge')}
             >
-              Abort
+              {t('terminal:fileExplorer.abort')}
             </button>
           </div>
         </div>
@@ -699,17 +704,17 @@ function GitChangesComponent({
               checked={isAmend}
               onChange={handleAmendToggle}
             />
-            Amend
+            {t('terminal:fileExplorer.amend')}
           </label>
           <span className="git-commit-file-count">
-            {checkedFiles.size} {checkedFiles.size === 1 ? 'file' : 'files'}
+            {t('terminal:fileExplorer.fileCount', { count: checkedFiles.size })}
           </span>
           <button
             className="git-commit-select-toggle"
             onClick={handleToggleAllChecks}
-            title={checkedFiles.size === gitStatus.files.length ? 'Deselect all' : 'Select all'}
+            title={checkedFiles.size === gitStatus.files.length ? t('terminal:fileExplorer.deselectAll') : t('terminal:fileExplorer.selectAll')}
           >
-            {checkedFiles.size === gitStatus.files.length ? 'Deselect All' : 'Select All'}
+            {checkedFiles.size === gitStatus.files.length ? t('terminal:fileExplorer.deselectAll') : t('terminal:fileExplorer.selectAll')}
           </button>
         </div>
 
@@ -717,7 +722,7 @@ function GitChangesComponent({
         <textarea
           ref={commitTextareaRef}
           className="git-commit-message"
-          placeholder="Commit message..."
+          placeholder={t('terminal:fileExplorer.commitMessagePlaceholder')}
           value={commitMessage}
           onChange={(e) => setCommitMessage(e.target.value)}
           onKeyDown={(e) => {
@@ -750,17 +755,17 @@ function GitChangesComponent({
             className="git-commit-btn"
             onClick={() => handleCommit(false)}
             disabled={!commitMessage.trim() || checkedFiles.size === 0 || isCommitting}
-            title="Commit selected files (Ctrl+Enter)"
+            title={t('terminal:fileExplorer.commitCtrlEnter')}
           >
-            {isCommitting ? 'Committing...' : 'Commit'}
+            {isCommitting ? t('terminal:fileExplorer.committing') : t('terminal:fileExplorer.commitAction')}
           </button>
           <button
             className="git-commit-push-btn"
             onClick={() => handleCommit(true)}
             disabled={!commitMessage.trim() || checkedFiles.size === 0 || isCommitting}
-            title="Commit and push (Ctrl+Shift+Enter)"
+            title={t('terminal:fileExplorer.commitAndPushCtrlShiftEnter')}
           >
-            {isCommitting ? '...' : 'Commit & Push'}
+            {isCommitting ? '...' : t('terminal:fileExplorer.commitAndPush')}
           </button>
         </div>
       </div>

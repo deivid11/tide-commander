@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { DashboardMetrics } from './types';
 import styles from './dashboard-view.module.scss';
 
@@ -77,6 +78,7 @@ ProgressBar.displayName = 'ProgressBar';
  * Main Metrics Display component
  */
 export const MetricsDisplay: React.FC<MetricsDisplayProps> = ({ metrics }) => {
+  const { t } = useTranslation(['dashboard']);
   const agentHealthy = metrics.totalAgents > 0
     ? Math.round(((metrics.totalAgents - metrics.errorAgents) / metrics.totalAgents) * 100)
     : 0;
@@ -88,13 +90,13 @@ export const MetricsDisplay: React.FC<MetricsDisplayProps> = ({ metrics }) => {
   return (
     <div className={styles['metrics-display']}>
       <div className={styles['metrics-display__header']}>
-        <h2 className={styles['metrics-display__title']}>Live Metrics</h2>
+        <h2 className={styles['metrics-display__title']}>{t('metricsDisplay.title')}</h2>
       </div>
 
       {/* Key Metrics Grid */}
       <div className={styles['metrics-display__grid']}>
         <MetricCard
-          label="Active Agents"
+          label={t('metricsDisplay.activeAgents')}
           value={metrics.activeAgents}
           unit={`/ ${metrics.totalAgents}`}
           icon="🤖"
@@ -102,21 +104,21 @@ export const MetricsDisplay: React.FC<MetricsDisplayProps> = ({ metrics }) => {
           trend={metrics.activeAgents > 0 ? 'up' : 'stable'}
         />
         <MetricCard
-          label="Healthy Agents"
+          label={t('metricsDisplay.healthyAgents')}
           value={metrics.totalAgents - metrics.errorAgents}
           unit={`/ ${metrics.totalAgents}`}
           icon="✓"
           color={agentHealthy >= 80 ? 'healthy' : agentHealthy >= 50 ? 'working' : 'error'}
         />
         <MetricCard
-          label="Agent Errors"
+          label={t('metricsDisplay.agentErrors')}
           value={metrics.errorAgents}
           icon="⚠️"
           color={metrics.errorAgents === 0 ? 'healthy' : metrics.errorAgents <= 2 ? 'working' : 'error'}
           trend={metrics.errorAgents === 0 ? 'down' : 'stable'}
         />
         <MetricCard
-          label="Healthy Buildings"
+          label={t('metricsDisplay.healthyBuildings')}
           value={metrics.healthyBuildings}
           unit={`/ ${metrics.totalBuildings}`}
           icon="🏢"
@@ -126,20 +128,20 @@ export const MetricsDisplay: React.FC<MetricsDisplayProps> = ({ metrics }) => {
 
       {/* Rates Section */}
       <div className={styles['metrics-display__section']}>
-        <h3 className={styles['metrics-display__section-title']}>Performance Rates</h3>
+        <h3 className={styles['metrics-display__section-title']}>{t('metricsDisplay.performanceRates')}</h3>
         <div className={styles['metrics-display__rates']}>
           <ProgressBar
-            label="Task Completion"
+            label={t('metricsDisplay.taskCompletion')}
             value={metrics.taskCompletionRate}
             color={metrics.taskCompletionRate >= 70 ? 'healthy' : 'working'}
           />
           <ProgressBar
-            label="Error Rate"
+            label={t('metricsDisplay.errorRate')}
             value={metrics.errorRate}
             color={metrics.errorRate <= 20 ? 'healthy' : metrics.errorRate <= 50 ? 'working' : 'error'}
           />
           <ProgressBar
-            label="Building Health"
+            label={t('metricsDisplay.buildingHealth')}
             value={buildingHealthy}
             color={buildingHealthy >= 80 ? 'healthy' : buildingHealthy >= 50 ? 'working' : 'error'}
           />
@@ -150,7 +152,7 @@ export const MetricsDisplay: React.FC<MetricsDisplayProps> = ({ metrics }) => {
       {metrics.recentErrors.length > 0 && (
         <div className={styles['metrics-display__section']}>
           <h3 className={styles['metrics-display__section-title']}>
-            Recent Errors ({metrics.recentErrors.length})
+            {t('metricsDisplay.recentErrors')} ({metrics.recentErrors.length})
           </h3>
           <div className={styles['metrics-display__errors']}>
             {metrics.recentErrors.map((error) => (

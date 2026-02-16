@@ -7,6 +7,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSTT } from '../hooks/useSTT';
 import { useTTS } from '../hooks/useTTS';
 import { apiUrl, authFetch } from '../utils/storage';
@@ -16,6 +17,7 @@ interface VoiceAssistantProps {
 }
 
 export function VoiceAssistant({ className }: VoiceAssistantProps) {
+  const { t } = useTranslation(['terminal']);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,14 +45,14 @@ export function VoiceAssistant({ className }: VoiceAssistantProps) {
         // Auto-play the response
         tts.speak(data.response);
       } else {
-        const errorMsg = data.error || 'Failed to process voice command';
+        const errorMsg = data.error || t('terminal:voiceAssistant.failedToProcess');
         console.error('[VoiceAssistant] Error:', errorMsg);
         setError(errorMsg);
         tts.speak(errorMsg);
       }
     } catch (err) {
       console.error('[VoiceAssistant] Request failed:', err);
-      const errorMsg = 'Voice assistant unavailable';
+      const errorMsg = t('terminal:voiceAssistant.unavailable');
       setError(errorMsg);
       tts.speak(errorMsg);
     } finally {
@@ -67,13 +69,13 @@ export function VoiceAssistant({ className }: VoiceAssistantProps) {
   const isActive = stt.recording || stt.transcribing || processing || tts.speaking;
 
   const getButtonTitle = () => {
-    if (stt.error) return `Error: ${stt.error}`;
-    if (error) return `Error: ${error}`;
-    if (stt.recording) return 'Recording... (click to stop)';
-    if (stt.transcribing) return 'Transcribing...';
-    if (processing) return 'Processing...';
-    if (tts.speaking) return 'Speaking...';
-    return 'Voice Assistant (click to speak)';
+    if (stt.error) return `${t('terminal:voiceAssistant.error')}: ${stt.error}`;
+    if (error) return `${t('terminal:voiceAssistant.error')}: ${error}`;
+    if (stt.recording) return t('terminal:voiceAssistant.recording');
+    if (stt.transcribing) return t('terminal:voiceAssistant.transcribing');
+    if (processing) return t('terminal:voiceAssistant.processing');
+    if (tts.speaking) return t('terminal:voiceAssistant.speaking');
+    return t('terminal:voiceAssistant.title');
   };
 
   const getButtonClass = () => {
@@ -105,7 +107,7 @@ export function VoiceAssistant({ className }: VoiceAssistantProps) {
     <button
       className={getButtonClass()}
       onClick={handleClick}
-      title={!stt.supported ? 'Voice not supported in this browser' : getButtonTitle()}
+      title={!stt.supported ? t('terminal:voiceAssistant.notSupported') : getButtonTitle()}
       disabled={!stt.supported || stt.transcribing || processing}
     >
       {stt.recording ? (

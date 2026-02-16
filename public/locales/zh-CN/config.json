@@ -1,0 +1,304 @@
+{
+  "title": "工具与设置",
+  "searchPlaceholder": "搜索设置...",
+  "noResults": "未找到与 '{{query}}' 相关的设置",
+  "sections": {
+    "general": "通用",
+    "agentNames": "代理名称",
+    "appearance": "外观",
+    "connection": "连接",
+    "scene": "场景",
+    "terrain": "地形",
+    "modelStyle": "代理模型样式",
+    "animations": "动画",
+    "secrets": "密钥",
+    "data": "数据",
+    "experimental": "实验性",
+    "about": "关于",
+    "sky": "天空颜色"
+  },
+  "general": {
+    "history": "历史记录",
+    "hideCosts": "隐藏费用",
+    "grid": "网格",
+    "showFPS": "显示帧率",
+    "fpsLimit": "帧率限制",
+    "powerSaving": "省电模式",
+    "tts": "文字转语音",
+    "stt": "语音转文字",
+    "externalEditor": "外部编辑器",
+    "externalEditorPlaceholder": "例如：subl, code, nvim（留空使用系统默认）",
+    "language": "语言",
+    "compactView": "紧凑视图",
+    "autoScroll": "自动滚动",
+    "notifications": "通知",
+    "soundEffects": "音效"
+  },
+  "agentNames": {
+    "customConfigured": "已配置 {{count}} 个自定义名称",
+    "usingDefaults": "使用默认名称。添加自定义名称来个性化。",
+    "addPlaceholder": "添加名称...",
+    "addName": "添加名称"
+  },
+  "connection": {
+    "serverUrl": "服务器地址",
+    "port": "端口",
+    "autoReconnect": "自动重连",
+    "reconnectInterval": "重连间隔",
+    "backendUrl": "后端地址",
+    "authToken": "认证令牌",
+    "autoDetectHint": "留空自动检测",
+    "tokenPlaceholder": "如需要请输入令牌",
+    "tokenRequired": "如果服务器设置了 AUTH_TOKEN 则必填",
+    "saveAndReconnect": "保存并重新连接",
+    "showToken": "显示令牌",
+    "hideToken": "隐藏令牌"
+  },
+  "scene": {
+    "characterSize": "角色大小",
+    "indicatorScale": "指示器缩放",
+    "time": "时间"
+  },
+  "time": {
+    "auto": "自动",
+    "dawn": "黎明",
+    "day": "白天",
+    "dusk": "黄昏",
+    "night": "夜晚"
+  },
+  "floor": {
+    "grass": "草地",
+    "concrete": "混凝土",
+    "galactic": "银河",
+    "metal": "金属",
+    "hex": "六角",
+    "circuit": "电路",
+    "pokemon": "宝可梦"
+  },
+  "terrain": {
+    "trees": "树木",
+    "bushes": "灌木",
+    "house": "房屋",
+    "lamps": "灯光",
+    "grass": "草地",
+    "clouds": "云朵"
+  },
+  "terrainSettings": {
+    "fog": "雾",
+    "brightness": "亮度",
+    "floor": "地面",
+    "sky": "天空"
+  },
+  "fogValues": {
+    "off": "关",
+    "low": "低",
+    "high": "高"
+  },
+  "brightnessValues": {
+    "dark": "暗",
+    "normal": "正常",
+    "bright": "亮"
+  },
+  "animation": {
+    "static": "静止",
+    "idle": "待机",
+    "walk": "行走",
+    "sprint": "奔跑",
+    "jump": "跳跃",
+    "fall": "坠落",
+    "crouch": "蹲下",
+    "sit": "坐下",
+    "die": "倒下",
+    "yes": "点头",
+    "no": "摇头"
+  },
+  "animationSettings": {
+    "idle": "待机动画",
+    "working": "工作动画"
+  },
+  "colorMode": {
+    "normal": "正常",
+    "bw": "黑白",
+    "sepia": "复古",
+    "cool": "冷色",
+    "warm": "暖色",
+    "neon": "霓虹"
+  },
+  "sky": {
+    "auto": "自动",
+    "dayBlue": "蓝天",
+    "night": "夜空",
+    "sunset": "日落",
+    "purple": "紫色",
+    "matrix": "矩阵",
+    "blood": "血红",
+    "void": "虚空"
+  },
+  "modelStyle": {
+    "scale": "缩放",
+    "colorMode": "颜色模式",
+    "animation": "动画",
+    "speed": "速度"
+  },
+  "modelStyleSettings": {
+    "saturation": "饱和度",
+    "roughness": "粗糙度",
+    "metalness": "金属度",
+    "glow": "发光",
+    "reflections": "反射",
+    "wireframe": "线框",
+    "colorMode": "颜色模式"
+  },
+  "saturationValues": {
+    "gray": "灰色",
+    "normal": "正常",
+    "vivid": "鲜艳"
+  },
+  "roughnessValues": {
+    "auto": "自动",
+    "glossy": "光滑",
+    "normal": "正常",
+    "matte": "哑光"
+  },
+  "metalnessValues": {
+    "auto": "自动",
+    "plastic": "塑料",
+    "mixed": "混合",
+    "metal": "金属"
+  },
+  "glowValues": {
+    "off": "关",
+    "low": "低",
+    "med": "中",
+    "high": "高"
+  },
+  "reflectionValues": {
+    "auto": "自动",
+    "low": "低",
+    "normal": "正常",
+    "high": "高"
+  },
+  "experimental": {
+    "2dView": "2D 视图模式",
+    "voiceAssistant": "语音助手",
+    "tts": "文字转语音",
+    "hint": "这些功能是实验性的，可能会发生变化"
+  },
+  "areas": {
+    "title": "区域 ({{count}})",
+    "editArea": "编辑区域",
+    "color": "颜色",
+    "areaName": "区域名称",
+    "layer": "层级",
+    "front": "前置",
+    "back": "后置",
+    "bringToFront": "移到最前（放在其他区域上方）",
+    "sendToBack": "移到最后（放在其他区域下方）",
+    "folders": "文件夹 ({{count}})",
+    "openFolder": "在资源管理器中打开文件夹",
+    "removeFolder": "移除文件夹",
+    "folderPlaceholder": "/路径/到/文件夹",
+    "addFolder": "+ 添加文件夹",
+    "assignedAgents": "已分配代理 ({{count}})",
+    "rightClickUnassign": "右键取消分配",
+    "drawToCreate": "在战场上绘制以创建区域",
+    "rect": "矩形",
+    "circle": "圆形",
+    "deleteArea": "删除区域"
+  },
+  "buildings": {
+    "title": "建筑 ({{count}})",
+    "addBuilding": "添加建筑",
+    "editBuilding": "编辑建筑",
+    "style": "样式",
+    "directory": "目录",
+    "actions": "操作",
+    "links": "链接",
+    "recentLogs": "最近日志",
+    "fullSettings": "完整设置",
+    "noStartCommand": "无启动命令",
+    "noStopCommand": "无停止命令",
+    "noRestartCommand": "无重启命令",
+    "noHealthCheck": "无健康检查",
+    "clickToAdd": "点击 + 添加建筑",
+    "namePlaceholder": "我的服务器",
+    "folderPath": "文件夹路径",
+    "dockerConfig": "Docker 配置"
+  },
+  "tools": {
+    "select": "选择",
+    "rectangle": "矩形",
+    "circle": "圆形"
+  },
+  "secrets": {
+    "title": "API 密钥与密钥",
+    "addSecret": "+ 添加密钥",
+    "secretName": "密钥名称",
+    "secretValue": "密钥值",
+    "noSecrets": "未配置密钥",
+    "deleteConfirm": "删除此密钥？",
+    "description": "存储可在提示中使用 {{placeholder}} 占位符引用的密钥。",
+    "copyPlaceholder": "点击复制占位符",
+    "namePlaceholder": "我的 API 密钥",
+    "keyPlaceholder": "MY_API_KEY",
+    "valuePlaceholder": "密钥值...",
+    "descriptionPlaceholder": "可选描述",
+    "usedAs": "使用为 {{placeholder}}",
+    "update": "更新"
+  },
+  "data": {
+    "title": "数据管理",
+    "exportData": "导出",
+    "importData": "导入",
+    "clearData": "清除数据",
+    "archive": "归档",
+    "restore": "恢复",
+    "backupCreated": "备份已创建",
+    "importSuccess": "配置导入成功！",
+    "exportSuccess": "配置导出成功！",
+    "selectFile": "选择配置 ZIP 文件...",
+    "exported": "导出时间",
+    "selectToImport": "选择要导入的内容：",
+    "exporting": "导出中...",
+    "exportCount": "导出 ({{count}})",
+    "importing": "导入中...",
+    "importCount": "导入 ({{count}})",
+    "readingFile": "读取文件中...",
+    "files": "个文件"
+  },
+  "about": {
+    "title": "关于 Tide Commander",
+    "version": "版本",
+    "theme": "主题",
+    "builtWith": "技术栈",
+    "repository": "GitHub 仓库",
+    "documentation": "文档",
+    "updated": "已更新",
+    "updateAvailable": "有可用更新",
+    "sizeLabel": "大小",
+    "changelog": "更新日志",
+    "downloadAPK": "下载 APK",
+    "viewRelease": "查看版本",
+    "checkingUpdates": "检查更新中...",
+    "upToDate": "已是最新版本",
+    "check": "检查",
+    "recentReleases": "最近版本",
+    "tagline": "Claude Code 的可视化多代理编排工具",
+    "corePrinciples": "核心理念",
+    "principle1": "可视化优先的代理管理",
+    "principle2": "实时协作与任务委派",
+    "principle3": "使用区域和建筑进行空间组织",
+    "principle4": "透明的代理通信",
+    "specialThanks": "特别感谢",
+    "kenneyCredit": "提供代理角色模型",
+    "claudeCodeCredit": "Anthropic 出品，AI 核心引擎"
+  },
+  "shortcuts": {
+    "pressKeys": "按下按键...",
+    "notSet": "未设置",
+    "pressKeysOrClick": "按下按键或点击确认",
+    "clickToChange": "点击更改快捷键",
+    "clearShortcut": "清除快捷键",
+    "conflictsWith": "与以下冲突：{{names}}"
+  }
+}

@@ -6,6 +6,7 @@
  */
 
 import React, { memo, useState, useMemo, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 
 // ============================================================================
 // TYPES
@@ -85,6 +86,7 @@ export const ConflictResolver = memo(function ConflictResolver({
   currentBranch,
   mergingBranch,
 }: ConflictResolverProps) {
+  const { t } = useTranslation(['terminal']);
   const initialSections = useMemo(() => {
     if (!versions?.merged) return [];
     return parseConflicts(versions.merged);
@@ -152,19 +154,19 @@ export const ConflictResolver = memo(function ConflictResolver({
       {/* Header */}
       <div className="conflict-header">
         <span className="conflict-header-title">
-          Resolve: {versions?.filename}
+          {t('terminal:fileExplorer.resolveFile', { filename: versions?.filename })}
         </span>
         <button className="conflict-close-btn" onClick={onClose}>×</button>
       </div>
 
       {loading || !versions ? (
-        <div className="conflict-loading">Loading conflict data...</div>
+        <div className="conflict-loading">{t('terminal:fileExplorer.loadingConflictData')}</div>
       ) : (
         <>
           {/* Column Headers */}
           <div className="conflict-pane-headers">
-            <div className="conflict-pane-header current">Current ({currentBranch})</div>
-            <div className="conflict-pane-header incoming">Incoming ({mergingBranch})</div>
+            <div className="conflict-pane-header current">{t('terminal:fileExplorer.currentBranchLabel', { branch: currentBranch })}</div>
+            <div className="conflict-pane-header incoming">{t('terminal:fileExplorer.incomingBranchLabel', { branch: mergingBranch })}</div>
           </div>
 
           {/* Content */}
@@ -188,7 +190,7 @@ export const ConflictResolver = memo(function ConflictResolver({
                         onClick={() => handleResolveSection(idx, 'ours')}
                         disabled={section.resolved === 'ours'}
                       >
-                        {section.resolved === 'ours' ? 'Accepted' : 'Accept Current'}
+                        {section.resolved === 'ours' ? t('terminal:fileExplorer.accepted') : t('terminal:fileExplorer.acceptCurrent')}
                       </button>
                     </div>
                     <div className={`conflict-pane theirs ${section.resolved === 'theirs' ? 'accepted' : ''}`}>
@@ -198,7 +200,7 @@ export const ConflictResolver = memo(function ConflictResolver({
                         onClick={() => handleResolveSection(idx, 'theirs')}
                         disabled={section.resolved === 'theirs'}
                       >
-                        {section.resolved === 'theirs' ? 'Accepted' : 'Accept Incoming'}
+                        {section.resolved === 'theirs' ? t('terminal:fileExplorer.accepted') : t('terminal:fileExplorer.acceptIncoming')}
                       </button>
                     </div>
                   </div>
@@ -210,17 +212,17 @@ export const ConflictResolver = memo(function ConflictResolver({
           {/* Actions */}
           <div className="conflict-actions">
             <button className="conflict-action-btn accept-all-current" onClick={() => handleAcceptAll('ours')}>
-              Accept All Current
+              {t('terminal:fileExplorer.acceptAllCurrent')}
             </button>
             <button className="conflict-action-btn accept-all-incoming" onClick={() => handleAcceptAll('theirs')}>
-              Accept All Incoming
+              {t('terminal:fileExplorer.acceptAllIncoming')}
             </button>
             <button
               className="conflict-action-btn save-resolved"
               onClick={handleSave}
               disabled={!allResolved || isSaving}
             >
-              {isSaving ? 'Saving...' : 'Save & Mark Resolved'}
+              {isSaving ? t('terminal:fileExplorer.saving') : t('terminal:fileExplorer.saveAndResolve')}
             </button>
           </div>
         </>
