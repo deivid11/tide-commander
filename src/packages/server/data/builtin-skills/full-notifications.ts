@@ -45,6 +45,11 @@ curl -s -X POST http://localhost:5174/api/notify -H "Content-Type: application/j
 - Replace \`YOUR_AGENT_ID\` with your actual agent ID from the system prompt
 - Keep messages under 50 characters
 - **IMPORTANT: Do NOT use exclamation marks (!) in messages** - they cause bash history expansion errors
+- **CRITICAL: Send notification ONLY when YOUR task is 100% done**
+  - If you delegated work to another agent, wait for their response/completion BEFORE notifying
+  - If you used a tool or spawned a subagent, verify output before notifying
+  - If task involves waiting for other agents to finish, do NOT notify until they confirm completion
+  - Only notify when YOU have nothing more to do on this task
 - Send notification as your FINAL action after completing work
 - Do NOT skip this step - the user relies on notifications
 - The \`&\` runs both commands in parallel (curl for mobile/browser, gdbus for Linux desktop)`,
