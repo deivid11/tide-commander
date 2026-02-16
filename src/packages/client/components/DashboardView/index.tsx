@@ -6,6 +6,7 @@
  */
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { store } from '../../store';
 import { useAgents, useBuildings, useSelectedAgentIds, useAreas } from '../../store/selectors';
 import { matchesShortcut } from '../../store/shortcuts';
@@ -31,6 +32,7 @@ export function DashboardView({
   onOpenTerminal,
   onFocusZone,
 }: DashboardViewProps) {
+  const { t } = useTranslation(['dashboard', 'common']);
   const agents = useAgents();
   const buildings = useBuildings();
   const areas = useAreas();
@@ -411,35 +413,35 @@ export function DashboardView({
             onClick={() => setStatusFilter('all')}
           >
             <span className="dashboard-view__metric-value">{metrics.total}</span>
-            <span className="dashboard-view__metric-label">Agents</span>
+            <span className="dashboard-view__metric-label">{t('common:labels.agents')}</span>
           </button>
           <button
             className={`dashboard-view__metric-btn dashboard-view__metric-btn--working ${statusFilter === 'working' ? 'dashboard-view__metric-btn--active' : ''}`}
             onClick={() => setStatusFilter('working')}
           >
             <span className="dashboard-view__metric-value">{metrics.working}</span>
-            <span className="dashboard-view__metric-label">Working</span>
+            <span className="dashboard-view__metric-label">{t('common:status.working')}</span>
           </button>
           <button
             className={`dashboard-view__metric-btn dashboard-view__metric-btn--idle ${statusFilter === 'all' ? '' : ''}`}
             onClick={() => setStatusFilter('all')}
           >
             <span className="dashboard-view__metric-value">{metrics.idle}</span>
-            <span className="dashboard-view__metric-label">Idle</span>
+            <span className="dashboard-view__metric-label">{t('common:status.idle')}</span>
           </button>
           <button
             className={`dashboard-view__metric-btn dashboard-view__metric-btn--error ${statusFilter === 'error' ? 'dashboard-view__metric-btn--active' : ''}`}
             onClick={() => setStatusFilter('error')}
           >
             <span className="dashboard-view__metric-value">{metrics.error}</span>
-            <span className="dashboard-view__metric-label">Errors</span>
+            <span className="dashboard-view__metric-label">{t('common:status.error')}</span>
           </button>
         </div>
 
         <input
           className="dashboard-view__search"
           type="text"
-          placeholder="Search agents..."
+          placeholder={t('searchPlaceholder')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -451,19 +453,19 @@ export function DashboardView({
           className={`dashboard-view__grouping-btn ${grouping === 'zone' ? 'dashboard-view__grouping-btn--active' : ''}`}
           onClick={() => setGrouping('zone')}
         >
-          By Zone
+          {t('grouping.byZone')}
         </button>
         <button
           className={`dashboard-view__grouping-btn ${grouping === 'status' ? 'dashboard-view__grouping-btn--active' : ''}`}
           onClick={() => setGrouping('status')}
         >
-          By Status
+          {t('grouping.byStatus')}
         </button>
         <button
           className={`dashboard-view__grouping-btn ${grouping === 'activity' ? 'dashboard-view__grouping-btn--active' : ''}`}
           onClick={() => setGrouping('activity')}
         >
-          By Activity
+          {t('grouping.byActivity')}
         </button>
       </div>
 
@@ -500,8 +502,8 @@ export function DashboardView({
                   />
                   <span className="dashboard-view__zone-name">{group.label}</span>
                   <span className="dashboard-view__zone-count">
-                    {group.agents.length} agent{group.agents.length !== 1 ? 's' : ''}
-                    {workingCount > 0 && <span className="dashboard-view__zone-working"> · {workingCount} working</span>}
+                    {t('agentCount', { count: group.agents.length })}
+                    {workingCount > 0 && <span className="dashboard-view__zone-working"> · {workingCount} {t('working')}</span>}
                   </span>
                 </div>
                 {group.area && onFocusZone && (
@@ -511,9 +513,9 @@ export function DashboardView({
                       e.stopPropagation();
                       onFocusZone(group.area!.id);
                     }}
-                    title="Focus zone in 3D view"
+                    title={t('focusZone')}
                   >
-                    Focus Zone
+                    {t('focusZone')}
                   </button>
                 )}
               </div>
@@ -546,7 +548,7 @@ export function DashboardView({
 
         {groups.length === 0 && (
           <div className="dashboard-view__empty">
-            {search ? `No agents matching "${search}"` : 'No agents spawned yet'}
+            {search ? t('noAgentsMatching', { search }) : t('noAgentsSpawned')}
           </div>
         )}
 

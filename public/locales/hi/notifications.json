@@ -1,0 +1,48 @@
+{
+  "agent": {
+    "clickToFocus": "फ़ोकस करने के लिए क्लिक करें",
+    "needsAttention": "ध्यान चाहिए",
+    "removed": "{{name}} दृश्य से हटाया गया",
+    "deployed": "{{name}} सफलतापूर्वक तैनात हुआ",
+    "terminated": "{{name}} समाप्त किया गया",
+    "started": "{{name}} शुरू हुआ",
+    "errored": "{{name}} में त्रुटि आई"
+  },
+  "toast": {
+    "info": "जानकारी",
+    "success": "सफल",
+    "warning": "चेतावनी",
+    "agentsRemoved": "एजेंट हटाए गए",
+    "agentsRemovedMsg": "{{count}} एजेंट दृश्य से हटाए गए",
+    "buildingsDeleted": "बिल्डिंग्स हटाई गईं",
+    "buildingsDeletedMsg": "{{count}} बिल्डिंग्स हटाई गईं",
+    "buildingDeleted": "बिल्डिंग हटाई गई",
+    "buildingDeletedMsg": "\"{{name}}\" हटा दी गई है",
+    "snapshotSaved": "स्नैपशॉट सहेजा गया",
+    "snapshotSavedMsg": "स्नैपशॉट सफलतापूर्वक सहेजा गया",
+    "snapshotFailed": "स्नैपशॉट विफल",
+    "snapshotFailedMsg": "स्नैपशॉट बनाने में विफल",
+    "copied": "कॉपी हो गया",
+    "resumeCopied": "रिज्यूम कमांड क्लिपबोर्ड पर कॉपी हो गया",
+    "textCopied": "टेक्स्ट क्लिपबोर्ड पर कॉपी हो गया",
+    "pathCopied": "पथ क्लिपबोर्ड पर कॉपी हो गया",
+    "mergeComplete": "मर्ज पूर्ण",
+    "mergeCompleteMsg": "ब्रांच सफलतापूर्वक मर्ज हो गई",
+    "mergeConflicts": "मर्ज कॉन्फ्लिक्ट",
+    "mergeConflictsMsg": "मर्ज में कॉन्फ्लिक्ट हैं जिन्हें हल करना आवश्यक है",
+    "mergeAborted": "मर्ज रद्द किया गया",
+    "mergeAbortedMsg": "मर्ज ऑपरेशन रद्द किया गया",
+    "branchCreated": "ब्रांच बनाई गई",
+    "branchCreatedMsg": "ब्रांच \"{{name}}\" बनाई गई",
+    "branchSwitched": "ब्रांच बदली गई",
+    "branchSwitchedMsg": "ब्रांच \"{{name}}\" पर स्विच किया गया",
+    "filesSaved": "फ़ाइलें सहेजी गईं",
+    "filesSavedMsg": "{{count}} फ़ाइलें सहेजी गईं"
+  },
+  "drawing": {
+    "rectangleTool": "आयत टूल",
+    "circleTool": "वृत्त टूल",
+    "toolName": "{{name}} टूल",
+    "clickAndDrag": "क्षेत्र बनाने के लिए रणभूमि पर क्लिक करके खींचें"
+  }
+}

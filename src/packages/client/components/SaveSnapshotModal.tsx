@@ -6,6 +6,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Agent } from '../../shared/types';
 import type { TrackedFiles, CreateSnapshotRequest } from '../../shared/types/snapshot';
 
@@ -38,6 +39,8 @@ export function SaveSnapshotModal({
   isSaving = false,
   error,
 }: SaveSnapshotModalProps) {
+  const { t } = useTranslation(['terminal', 'common']);
+
   // Generate default title with agent name and timestamp
   const generateDefaultTitle = useCallback(() => {
     const date = new Date();
@@ -89,7 +92,7 @@ export function SaveSnapshotModal({
       <div className="modal snapshot-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <span className="snapshot-modal-icon">⭐</span>
-          Save Snapshot
+          {t('terminal:snapshot.save')}
         </div>
 
         <form onSubmit={handleSubmit}>
@@ -97,14 +100,14 @@ export function SaveSnapshotModal({
             {/* Title input */}
             <div className="snapshot-field">
               <label className="snapshot-label">
-                Title <span className="snapshot-required">*</span>
+                {t('common:labels.title')} <span className="snapshot-required">*</span>
               </label>
               <input
                 type="text"
                 className="snapshot-input"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="Enter a title for this snapshot"
+                placeholder={t('terminal:snapshot.enterTitle')}
                 autoFocus
                 disabled={isSaving}
               />
@@ -113,13 +116,13 @@ export function SaveSnapshotModal({
             {/* Description input */}
             <div className="snapshot-field">
               <label className="snapshot-label">
-                Description <span className="snapshot-optional">(optional)</span>
+                {t('common:labels.description')} <span className="snapshot-optional">{t('common:labels.optional')}</span>
               </label>
               <textarea
                 className="snapshot-textarea"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="What was accomplished in this conversation?"
+                placeholder={t('terminal:snapshot.whatWasAccomplished')}
                 rows={3}
                 disabled={isSaving}
               />
@@ -127,18 +130,18 @@ export function SaveSnapshotModal({
 
             {/* Preview section */}
             <div className="snapshot-preview">
-              <div className="snapshot-preview-header">What will be captured</div>
+              <div className="snapshot-preview-header">{t('terminal:snapshot.whatWillBeCaptured')}</div>
 
               <div className="snapshot-preview-stats">
                 <div className="snapshot-stat">
                   <span className="snapshot-stat-icon">💬</span>
                   <span className="snapshot-stat-value">{outputCount}</span>
-                  <span className="snapshot-stat-label">messages</span>
+                  <span className="snapshot-stat-label">{t('terminal:snapshot.messages')}</span>
                 </div>
                 <div className="snapshot-stat">
                   <span className="snapshot-stat-icon">📄</span>
                   <span className="snapshot-stat-value">{files.length}</span>
-                  <span className="snapshot-stat-label">files</span>
+                  <span className="snapshot-stat-label">{t('terminal:snapshot.files')}</span>
                 </div>
               </div>
 
@@ -149,7 +152,7 @@ export function SaveSnapshotModal({
                     <div className="snapshot-file-group">
                       <div className="snapshot-file-group-label">
                         <span className="snapshot-file-type created">+</span>
-                        Created ({createdFiles.length})
+                        {t('terminal:snapshot.createdFiles', { count: createdFiles.length })}
                       </div>
                       <div className="snapshot-file-list">
                         {createdFiles.slice(0, 5).map((file) => (
@@ -164,7 +167,7 @@ export function SaveSnapshotModal({
                         ))}
                         {createdFiles.length > 5 && (
                           <div className="snapshot-file-more">
-                            +{createdFiles.length - 5} more
+                            {t('terminal:snapshot.more', { count: createdFiles.length - 5 })}
                           </div>
                         )}
                       </div>
@@ -175,7 +178,7 @@ export function SaveSnapshotModal({
                     <div className="snapshot-file-group">
                       <div className="snapshot-file-group-label">
                         <span className="snapshot-file-type modified">~</span>
-                        Modified ({modifiedFiles.length})
+                        {t('terminal:snapshot.modifiedFiles', { count: modifiedFiles.length })}
                       </div>
                       <div className="snapshot-file-list">
                         {modifiedFiles.slice(0, 5).map((file) => (
@@ -190,7 +193,7 @@ export function SaveSnapshotModal({
                         ))}
                         {modifiedFiles.length > 5 && (
                           <div className="snapshot-file-more">
-                            +{modifiedFiles.length - 5} more
+                            {t('terminal:snapshot.more', { count: modifiedFiles.length - 5 })}
                           </div>
                         )}
                       </div>
@@ -201,7 +204,7 @@ export function SaveSnapshotModal({
 
               {files.length === 0 && (
                 <div className="snapshot-no-files">
-                  No files created or modified in this conversation
+                  {t('terminal:snapshot.noFilesChanged')}
                 </div>
               )}
             </div>
@@ -217,14 +220,14 @@ export function SaveSnapshotModal({
               onClick={onClose}
               disabled={isSaving}
             >
-              Cancel
+              {t('common:buttons.cancel')}
             </button>
             <button
               type="submit"
               className="btn btn-primary"
               disabled={!title.trim() || isSaving}
             >
-              {isSaving ? 'Saving...' : '⭐ Save Snapshot'}
+              {isSaving ? t('terminal:snapshot.saving') : `⭐ ${t('terminal:snapshot.save')}`}
             </button>
           </div>
         </form>

@@ -223,7 +223,10 @@ export const ACTION_NAMES: Record<MouseAction, string> = {
 };
 
 // Format mouse binding for display
-export function formatMouseBinding(binding: MouseControlConfig): string {
+export function formatMouseBinding(
+  binding: MouseControlConfig,
+  resolveButtonLabel?: (button: MouseButton) => string
+): string {
   const parts: string[] = [];
 
   if (binding.modifiers.ctrl) {
@@ -238,7 +241,7 @@ export function formatMouseBinding(binding: MouseControlConfig): string {
     parts.push('Shift');
   }
 
-  parts.push(BUTTON_NAMES[binding.button]);
+  parts.push(resolveButtonLabel ? resolveButtonLabel(binding.button) : BUTTON_NAMES[binding.button]);
 
   return parts.join('+');
 }

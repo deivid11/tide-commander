@@ -4,6 +4,7 @@
  */
 
 import React, { forwardRef, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { SearchResult } from './types';
 import { SpotlightItem } from './SpotlightItem';
 
@@ -15,22 +16,23 @@ interface SpotlightResultsProps {
   onSelectIndex: (index: number) => void;
 }
 
-// Category labels and grouping
-const categoryLabels: Record<string, string> = {
-  command: '🎮 Commands',
-  agent: '👤 Agents',
-  building: '🏗️ Infrastructure',
-  area: '🗺️ Areas',
-  'modified-file': '📁 Modified Files',
-  activity: '📊 Recent Activity',
-};
-
 const categoryOrder = ['command', 'agent', 'building', 'area', 'modified-file', 'activity'];
 
 export const SpotlightResults = forwardRef<HTMLDivElement, SpotlightResultsProps>(function SpotlightResults(
   { results, selectedIndex, query, highlightMatch, onSelectIndex },
   ref
 ) {
+  const { t } = useTranslation(['terminal']);
+
+  // Category labels and grouping
+  const categoryLabels: Record<string, string> = {
+    command: t('terminal:spotlight.categories.commands'),
+    agent: t('terminal:spotlight.categories.agents'),
+    building: t('terminal:spotlight.categories.infrastructure'),
+    area: t('terminal:spotlight.categories.areas'),
+    'modified-file': t('terminal:spotlight.categories.modifiedFiles'),
+    activity: t('terminal:spotlight.categories.recentActivity'),
+  };
   // Group results by category
   const groupedResults = useMemo(() => {
     const grouped: Record<string, { result: SearchResult; index: number }[]> = {};
@@ -74,7 +76,7 @@ export const SpotlightResults = forwardRef<HTMLDivElement, SpotlightResultsProps
   if (results.length === 0) {
     return (
       <div className="spotlight-results" ref={ref}>
-        <div className="spotlight-empty">No results found</div>
+        <div className="spotlight-empty">{t('terminal:spotlight.noResults')}</div>
       </div>
     );
   }

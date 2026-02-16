@@ -3,9 +3,11 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { themes, getTheme, applyTheme, getSavedTheme, type ThemeId } from '../../utils/themes';
 
 export function ThemeSelector() {
+  const { t } = useTranslation(['terminal']);
   const [isOpen, setIsOpen] = useState(false);
   const [currentTheme, setCurrentTheme] = useState<ThemeId>(() => getSavedTheme());
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
@@ -103,7 +105,7 @@ export function ThemeSelector() {
         className="theme-selector-trigger"
         onClick={() => setIsOpen(!isOpen)}
         onKeyDown={handleTriggerKeyDown}
-        title={`Theme: ${currentThemeData.name} (Use arrows to cycle)`}
+        title={t('terminal:themeSelector.themeTitle', { name: currentThemeData.name })}
       >
         <span className="theme-selector-icon">🎨</span>
         <span className="theme-selector-name">{currentThemeData.name}</span>
@@ -116,7 +118,7 @@ export function ThemeSelector() {
           onMouseDown={(e) => e.stopPropagation()} // Prevent terminal close-on-click-outside
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="theme-selector-header">Select Theme</div>
+          <div className="theme-selector-header">{t('terminal:themeSelector.selectTheme')}</div>
           <div className="theme-selector-list">
             {themes.map((theme, index) => (
               <button

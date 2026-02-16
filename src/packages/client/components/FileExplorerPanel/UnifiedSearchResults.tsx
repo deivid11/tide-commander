@@ -5,6 +5,7 @@
  */
 
 import React, { memo } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { TreeNode, ContentMatch } from './types';
 import { getFileIcon, findMatchIndices } from './fileUtils';
 
@@ -122,6 +123,7 @@ const ContentResultItem = memo(function ContentResultItem({
   isSelected,
   onSelect,
 }: ContentResultItemProps) {
+  const { t } = useTranslation(['terminal']);
   const iconNode = {
     name: match.name,
     path: match.path,
@@ -176,7 +178,7 @@ const ContentResultItem = memo(function ContentResultItem({
           <div className="content-search-match" style={{ opacity: 0.6, cursor: 'default' }}>
             <span className="content-search-line-num">...</span>
             <span className="content-search-line-content">
-              and {match.matches.length - 5} more matches
+              {t('terminal:fileExplorer.moreMatches', { count: match.matches.length - 5 })}
             </span>
           </div>
         )}
@@ -208,11 +210,12 @@ function UnifiedSearchResultsComponent({
   query,
   lineNumber,
 }: UnifiedSearchResultsProps) {
+  const { t } = useTranslation(['terminal']);
   const hasFilenameResults = filenameResults.length > 0;
   const hasContentResults = contentResults.length > 0;
 
   if (!hasFilenameResults && !hasContentResults) {
-    return <div className="search-no-results">No matches found</div>;
+    return <div className="search-no-results">{t('terminal:fileExplorer.noMatchesFound')}</div>;
   }
 
   return (
@@ -222,7 +225,7 @@ function UnifiedSearchResultsComponent({
         <div className="unified-search-section">
           <div className="unified-search-section-header">
             <span className="unified-search-section-icon">📄</span>
-            <span className="unified-search-section-title">Files</span>
+            <span className="unified-search-section-title">{t('terminal:fileExplorer.files')}</span>
             <span className="unified-search-section-count">{filenameResults.length}</span>
           </div>
           <div className="unified-search-section-content">
@@ -245,9 +248,9 @@ function UnifiedSearchResultsComponent({
         <div className="unified-search-section">
           <div className="unified-search-section-header">
             <span className="unified-search-section-icon">📝</span>
-            <span className="unified-search-section-title">Content</span>
+            <span className="unified-search-section-title">{t('terminal:fileExplorer.content')}</span>
             <span className="unified-search-section-count">
-              {contentResults.reduce((sum, r) => sum + r.matches.length, 0)} in {contentResults.length} files
+              {t('terminal:fileExplorer.matchesInFiles', { matches: contentResults.reduce((sum, r) => sum + r.matches.length, 0), files: contentResults.length })}
             </span>
           </div>
           <div className="unified-search-section-content">

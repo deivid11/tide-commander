@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useStore, store, useGlobalUsage, useRefreshingUsage } from '../store';
 import type { AgentAnalysis, SupervisorReport, GlobalUsageStats } from '../../shared/types';
 
@@ -17,6 +18,7 @@ function formatTimeAgo(timestamp: number): string {
 }
 
 export function SupervisorPanel({ isOpen, onClose }: SupervisorPanelProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const state = useStore();
   const { lastReport, enabled, lastReportTime, generatingReport, autoReportOnComplete } = state.supervisor;
   const globalUsage = useGlobalUsage();
@@ -46,7 +48,7 @@ export function SupervisorPanel({ isOpen, onClose }: SupervisorPanelProps) {
         <div className="supervisor-header">
           <h2 className="supervisor-title">
             <span className="supervisor-icon">🎖️</span>
-            Supervisor Overview
+            {t('terminal:supervisor.overview')}
           </h2>
           <div className="supervisor-controls">
             <button
@@ -54,21 +56,21 @@ export function SupervisorPanel({ isOpen, onClose }: SupervisorPanelProps) {
               onClick={handleToggle}
               title={enabled ? 'Disable supervisor' : 'Enable supervisor'}
             >
-              {enabled ? '● Active' : '○ Paused'}
+              {enabled ? `● ${t('terminal:supervisor.active')}` : `○ ${t('terminal:supervisor.paused')}`}
             </button>
             <button
               className={`supervisor-toggle auto-report ${autoReportOnComplete ? 'active' : ''}`}
               onClick={handleAutoReportToggle}
               title={autoReportOnComplete ? 'Disable auto-report on task complete' : 'Enable auto-report on task complete'}
             >
-              {autoReportOnComplete ? '⚡ Auto' : '◇ Manual'}
+              {autoReportOnComplete ? `⚡ ${t('terminal:supervisor.auto')}` : `◇ ${t('terminal:supervisor.manual')}`}
             </button>
             <button
               className="supervisor-refresh"
               onClick={handleRefresh}
               disabled={generatingReport}
             >
-              {generatingReport ? 'Generating...' : '↻ Refresh'}
+              {generatingReport ? t('terminal:supervisor.generating') : `↻ ${t('common:buttons.refresh')}`}
             </button>
             <button className="supervisor-close" onClick={onClose}>
               ×
@@ -86,23 +88,23 @@ export function SupervisorPanel({ isOpen, onClose }: SupervisorPanelProps) {
         {generatingReport ? (
           <div className="supervisor-loading">
             <div className="supervisor-loading-spinner"></div>
-            <p>Generating supervisor report...</p>
+            <p>{t('terminal:supervisor.generatingReport')}</p>
           </div>
         ) : lastReport ? (
           <SupervisorReportView report={lastReport} />
         ) : (
           <div className="supervisor-empty">
-            <p>No supervisor report available yet.</p>
+            <p>{t('terminal:supervisor.noReportYet')}</p>
             <button onClick={handleRefresh}>
-              Generate First Report
+              {t('terminal:supervisor.generateFirstReport')}
             </button>
           </div>
         )}
 
         <div className="supervisor-footer">
-          {lastReportTime && <span>Last report: {formatTimeAgo(lastReportTime)}</span>}
-          {enabled && autoReportOnComplete && <span>Auto-updates on task complete</span>}
-          {enabled && !autoReportOnComplete && <span>Manual updates only</span>}
+          {lastReportTime && <span>{t('terminal:supervisor.lastReport', { time: formatTimeAgo(lastReportTime) })}</span>}
+          {enabled && autoReportOnComplete && <span>{t('terminal:supervisor.autoUpdatesOnComplete')}</span>}
+          {enabled && !autoReportOnComplete && <span>{t('terminal:supervisor.manualUpdatesOnly')}</span>}
         </div>
       </div>
     </div>
@@ -110,6 +112,7 @@ export function SupervisorPanel({ isOpen, onClose }: SupervisorPanelProps) {
 }
 
 function SupervisorReportView({ report }: { report: SupervisorReport }) {
+  const { t } = useTranslation(['terminal']);
   return (
     <div className="supervisor-report">
       {/* Overall Status Banner */}
@@ -123,17 +126,17 @@ function SupervisorReportView({ report }: { report: SupervisorReport }) {
         </span>
         <span className="status-text">
           {report.overallStatus === 'healthy'
-            ? 'All Systems Healthy'
+            ? t('terminal:supervisor.allSystemsHealthy')
             : report.overallStatus === 'attention_needed'
-              ? 'Attention Needed'
-              : 'Critical Issues Detected'}
+              ? t('terminal:supervisor.attentionNeeded')
+              : t('terminal:supervisor.criticalIssues')}
         </span>
       </div>
 
       {/* Insights Section */}
       {report.insights.length > 0 && (
         <div className="supervisor-section">
-          <h3>Key Insights</h3>
+          <h3>{t('terminal:supervisor.keyInsights')}</h3>
           <ul className="supervisor-insights">
             {report.insights.map((insight, i) => (
               <li key={i}>{insight}</li>
@@ -144,7 +147,7 @@ function SupervisorReportView({ report }: { report: SupervisorReport }) {
 
       {/* Agent Summaries */}
       <div className="supervisor-section">
-        <h3>Agent Status</h3>
+        <h3>{t('terminal:supervisor.agentStatus')}</h3>
         <div className="supervisor-agents">
           {report.agentSummaries.map((agent) => (
             <AgentSummaryCard key={agent.agentId} agent={agent} />
@@ -155,7 +158,7 @@ function SupervisorReportView({ report }: { report: SupervisorReport }) {
       {/* Recommendations */}
       {report.recommendations.length > 0 && (
         <div className="supervisor-section">
-          <h3>Recommendations</h3>
+          <h3>{t('terminal:supervisor.recommendations')}</h3>
           <ul className="supervisor-recommendations">
             {report.recommendations.map((rec, i) => (
               <li key={i}>{rec}</li>
@@ -215,10 +218,11 @@ function getUsageColor(percent: number): string {
 }
 
 function GlobalUsageSection({ usage, refreshing, onRefresh }: GlobalUsageSectionProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   return (
     <div className="supervisor-section usage-section">
       <div className="usage-header">
-        <h3>Claude API Usage</h3>
+        <h3>{t('terminal:supervisor.claudeApiUsage')}</h3>
         <button
           className="usage-refresh-btn"
           onClick={onRefresh}
@@ -231,17 +235,17 @@ function GlobalUsageSection({ usage, refreshing, onRefresh }: GlobalUsageSection
       {usage ? (
         <div className="usage-grid">
           <UsageBar
-            label="Session"
+            label={t('terminal:supervisor.session')}
             percent={usage.session.percentUsed}
             resetTime={usage.session.resetTime}
           />
           <UsageBar
-            label="Weekly (All)"
+            label={t('terminal:supervisor.weeklyAll')}
             percent={usage.weeklyAllModels.percentUsed}
             resetTime={usage.weeklyAllModels.resetTime}
           />
           <UsageBar
-            label="Weekly (Sonnet)"
+            label={t('terminal:supervisor.weeklySonnet')}
             percent={usage.weeklySonnet.percentUsed}
             resetTime={usage.weeklySonnet.resetTime}
           />
@@ -251,9 +255,9 @@ function GlobalUsageSection({ usage, refreshing, onRefresh }: GlobalUsageSection
         </div>
       ) : (
         <div className="usage-empty">
-          <p>No usage data yet</p>
+          <p>{t('terminal:supervisor.noUsageData')}</p>
           <button onClick={onRefresh} disabled={refreshing}>
-            {refreshing ? 'Fetching...' : 'Fetch Usage'}
+            {refreshing ? t('terminal:supervisor.fetching') : t('common:buttons2.fetchUsage')}
           </button>
         </div>
       )}
@@ -268,6 +272,7 @@ interface UsageBarProps {
 }
 
 function UsageBar({ label, percent, resetTime }: UsageBarProps) {
+  const { t } = useTranslation(['terminal']);
   const color = getUsageColor(percent);
   const displayPercent = Math.min(percent, 100);
 
@@ -283,7 +288,7 @@ function UsageBar({ label, percent, resetTime }: UsageBarProps) {
           style={{ width: `${displayPercent}%`, backgroundColor: color }}
         />
       </div>
-      <div className="usage-bar-reset">Resets {resetTime}</div>
+      <div className="usage-bar-reset">{t('terminal:supervisor.resets', { time: resetTime })}</div>
     </div>
   );
 }

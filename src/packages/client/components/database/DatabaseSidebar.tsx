@@ -5,6 +5,7 @@
  */
 
 import React, { useEffect, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Building, DatabaseConnection } from '../../../shared/types';
 import { store, useDatabaseState } from '../../store';
 import './DatabaseSidebar.scss';
@@ -32,6 +33,7 @@ export const DatabaseSidebar: React.FC<DatabaseSidebarProps> = ({
   onDatabaseChange,
   onInsertTable,
 }) => {
+  const { t } = useTranslation(['terminal']);
   const dbState = useDatabaseState(building.id);
   const [expandedTables, setExpandedTables] = useState<Set<string>>(new Set());
 
@@ -105,7 +107,7 @@ export const DatabaseSidebar: React.FC<DatabaseSidebarProps> = ({
         <button
           className="database-sidebar__toggle"
           onClick={onToggleCollapse}
-          title="Expand sidebar"
+          title={t('terminal:database.expandSidebar')}
         >
           &raquo;
         </button>
@@ -116,11 +118,11 @@ export const DatabaseSidebar: React.FC<DatabaseSidebarProps> = ({
   return (
     <div className="database-sidebar">
       <div className="database-sidebar__header">
-        <span>Explorer</span>
+        <span>{t('terminal:database.explorer')}</span>
         <button
           className="database-sidebar__toggle"
           onClick={onToggleCollapse}
-          title="Collapse sidebar"
+          title={t('terminal:database.collapseSidebar')}
         >
           &laquo;
         </button>
@@ -128,14 +130,14 @@ export const DatabaseSidebar: React.FC<DatabaseSidebarProps> = ({
 
       {/* Connection Selector */}
       <div className="database-sidebar__section">
-        <div className="database-sidebar__section-title">Connection</div>
+        <div className="database-sidebar__section-title">{t('terminal:database.connection')}</div>
         <select
           className="database-sidebar__select"
           value={activeConnectionId || ''}
           onChange={(e) => onConnectionChange(e.target.value)}
         >
           {connections.length === 0 ? (
-            <option value="">No connections configured</option>
+            <option value="">{t('terminal:database.noConnections')}</option>
           ) : (
             connections.map(conn => (
               <option key={conn.id} value={conn.id}>
@@ -151,7 +153,7 @@ export const DatabaseSidebar: React.FC<DatabaseSidebarProps> = ({
             {connectionStatus.connected ? (
               <>
                 <span className="database-sidebar__status-icon">&#10003;</span>
-                Connected
+                {t('terminal:database.connected')}
                 {connectionStatus.serverVersion && (
                   <span className="database-sidebar__version">
                     ({connectionStatus.serverVersion})
@@ -161,7 +163,7 @@ export const DatabaseSidebar: React.FC<DatabaseSidebarProps> = ({
             ) : (
               <>
                 <span className="database-sidebar__status-icon">&#10007;</span>
-                {connectionStatus.error || 'Disconnected'}
+                {connectionStatus.error || t('terminal:database.disconnected')}
               </>
             )}
           </div>
@@ -171,13 +173,13 @@ export const DatabaseSidebar: React.FC<DatabaseSidebarProps> = ({
       {/* Database Selector */}
       {databases.length > 0 && (
         <div className="database-sidebar__section">
-          <div className="database-sidebar__section-title">Database</div>
+          <div className="database-sidebar__section-title">{t('terminal:database.databaseTitle')}</div>
           <select
             className="database-sidebar__select"
             value={activeDatabase || ''}
             onChange={(e) => onDatabaseChange(e.target.value)}
           >
-            <option value="">Select a database...</option>
+            <option value="">{t('terminal:database.selectDatabase')}</option>
             {databases.map(db => (
               <option key={db} value={db}>{db}</option>
             ))}
@@ -189,7 +191,7 @@ export const DatabaseSidebar: React.FC<DatabaseSidebarProps> = ({
       {tables.length > 0 && (
         <div className="database-sidebar__section database-sidebar__section--tables">
           <div className="database-sidebar__section-title">
-            Tables ({tables.length})
+            {t('terminal:database.tablesCount', { count: tables.length })}
           </div>
           <div className="database-sidebar__tables">
             {tables.map(table => {
@@ -217,7 +219,7 @@ export const DatabaseSidebar: React.FC<DatabaseSidebarProps> = ({
                         e.stopPropagation();
                         onInsertTable(table.name);
                       }}
-                      title="Insert table name"
+                      title={t('terminal:database.insertTableName')}
                     >
                       +
                     </button>

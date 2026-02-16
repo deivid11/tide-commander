@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { store, useStore, useCustomAgentClassesArray, useSkillsArray } from '../store';
 import { AGENT_CLASS_CONFIG, DEFAULT_NAMES, CHARACTER_MODELS } from '../scene/config';
 import type { AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, CodexModel, AgentProvider, CodexConfig } from '../../shared/types';
@@ -29,6 +30,7 @@ function getRandomBossName(usedNames: Set<string>): string {
 }
 
 export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPosition }: BossSpawnModalProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const { agents } = useStore();
   const customClasses = useCustomAgentClassesArray();
   const skills = useSkillsArray();
@@ -328,7 +330,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
       <div className="modal boss-spawn-modal">
         <div className="modal-header">
           <span className="boss-header-icon">{bossConfig.icon}</span>
-          Deploy Boss Agent
+          {t('terminal:spawn.deployBossTitle')}
         </div>
 
         <div className="modal-body spawn-modal-body">
@@ -345,12 +347,12 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
               />
             </div>
             <div className="spawn-class-section">
-              <div className="spawn-class-label">Boss Class</div>
+              <div className="spawn-class-label">{t('terminal:spawn.bossClass')}</div>
               {(customClasses.length + CHARACTER_MODELS.length + 1) > 6 && (
                 <input
                   type="text"
                   className="spawn-input class-search-input"
-                  placeholder="Filter classes..."
+                  placeholder={t('terminal:spawn.filterClasses')}
                   value={classSearch}
                   onChange={(e) => setClassSearch(e.target.value)}
                 />
@@ -374,7 +376,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                     title={bossConfig.description}
                   >
                     <span className="class-chip-icon">{bossConfig.icon}</span>
-                    <span className="class-chip-name">Boss</span>
+                    <span className="class-chip-name">{t('terminal:spawn.bossClassName')}</span>
                   </button>
                 )}
                 {filteredBuiltInClasses.map((char) => {
@@ -393,7 +395,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                   );
                 })}
                 {classSearch && filteredCustomClasses.length === 0 && !showBossClass && filteredBuiltInClasses.length === 0 && (
-                  <div className="class-search-empty">No classes match "{classSearch}"</div>
+                  <div className="class-search-empty">{t('terminal:spawn.noClassesMatch', { query: classSearch })}</div>
                 )}
               </div>
             </div>
@@ -404,25 +406,25 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
             {/* Row 1: Name + CWD */}
             <div className="spawn-form-row">
               <div className="spawn-field">
-                <label className="spawn-label">Name</label>
+                <label className="spawn-label">{t('common:labels.name')}</label>
                 <input
                   ref={nameInputRef}
                   type="text"
                   className="spawn-input"
-                  placeholder="Boss name"
+                  placeholder={t('terminal:spawn.bossNamePlaceholder')}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                 />
               </div>
               <div className="spawn-field spawn-field-wide">
-                <label className="spawn-label">Working Directory</label>
+                <label className="spawn-label">{t('terminal:spawn.workingDir')}</label>
                 <FolderInput
                   value={cwd}
                   onChange={(value) => {
                     setCwd(value);
                     setHasError(false);
                   }}
-                  placeholder="/path/to/project"
+                  placeholder={t('terminal:spawn.workingDirPlaceholder')}
                   className="spawn-input"
                   hasError={hasError}
                   directoriesOnly={true}
@@ -433,12 +435,12 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
             {/* Row 2: Runtime + Permission */}
             <div className="spawn-form-row">
               <div className="spawn-field">
-                <label className="spawn-label">Runtime</label>
+                <label className="spawn-label">{t('common:labels.runtime')}</label>
                 <div className="spawn-select-row">
                   <button
                     className={`spawn-select-btn ${selectedProvider === 'claude' ? 'selected' : ''}`}
                     onClick={() => setSelectedProvider('claude')}
-                    title="Use Claude CLI"
+                    title={t('terminal:spawn.useClaudeCli')}
                   >
                     <img src="/assets/claude.ico" alt="Claude" className="spawn-provider-icon" />
                     <span>Claude</span>
@@ -446,7 +448,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                   <button
                     className={`spawn-select-btn ${selectedProvider === 'codex' ? 'selected' : ''}`}
                     onClick={() => setSelectedProvider('codex')}
-                    title="Use Codex CLI"
+                    title={t('terminal:spawn.useCodexCli')}
                   >
                     <img src="/assets/codex.ico" alt="Codex" className="spawn-provider-icon" />
                     <span>Codex</span>
@@ -454,7 +456,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                 </div>
               </div>
               <div className="spawn-field">
-                <label className="spawn-label">Permissions</label>
+                <label className="spawn-label">{t('common:labels.permissions')}</label>
                 <div className="spawn-select-row">
                   {(Object.keys(PERMISSION_MODES) as PermissionMode[]).map((mode) => (
                     <button
@@ -474,7 +476,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
             {/* Row 3: Model + Chrome */}
             <div className="spawn-form-row">
               <div className="spawn-field">
-                <label className="spawn-label">Model</label>
+                <label className="spawn-label">{t('common:labels.model')}</label>
                 {selectedProvider === 'claude' ? (
                   <div className="spawn-select-row">
                     {(Object.keys(CLAUDE_MODELS) as ClaudeModel[]).map((model) => (
@@ -504,11 +506,11 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                     ))}
                   </div>
                 ) : (
-                  <div className="spawn-inline-hint">Choose the Codex model for this boss agent.</div>
+                  <div className="spawn-inline-hint">{t('terminal:spawn.codex.configuration')}</div>
                 )}
               </div>
               <div className="spawn-field">
-                <label className="spawn-label">Browser</label>
+                <label className="spawn-label">{t('common:labels.browser')}</label>
                 <div className="spawn-form-row spawn-options-row">
                   <label className="spawn-checkbox">
                     <input
@@ -517,7 +519,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                       onChange={(e) => setUseChrome(e.target.checked)}
                       disabled={selectedProvider !== 'claude'}
                     />
-                    <span>🌐 Chrome Browser</span>
+                    <span>{t('terminal:spawn.chromeBrowser')}</span>
                   </label>
                 </div>
               </div>
@@ -526,7 +528,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
             {selectedProvider === 'codex' && (
               <div className="spawn-form-row">
                 <div className="spawn-field">
-                  <label className="spawn-label">Codex Config</label>
+                  <label className="spawn-label">{t('terminal:spawn.codex.config')}</label>
                   <div className="spawn-options-row" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     <label className="spawn-checkbox">
                       <input
@@ -534,7 +536,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                         checked={codexConfig.fullAuto !== false}
                         onChange={(e) => setCodexConfig((prev) => ({ ...prev, fullAuto: e.target.checked }))}
                       />
-                      <span>Use `--full-auto`</span>
+                      <span>{t('terminal:spawn.codex.useFullAuto')}</span>
                     </label>
                     <label className="spawn-checkbox">
                       <input
@@ -542,7 +544,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                         checked={!!codexConfig.search}
                         onChange={(e) => setCodexConfig((prev) => ({ ...prev, search: e.target.checked }))}
                       />
-                      <span>Enable live web search (`--search`)</span>
+                      <span>{t('terminal:spawn.codex.enableSearch')}</span>
                     </label>
                     {codexConfig.fullAuto === false && (
                       <>
@@ -551,26 +553,26 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                           value={codexConfig.sandbox || 'workspace-write'}
                           onChange={(e) => setCodexConfig((prev) => ({ ...prev, sandbox: e.target.value as CodexConfig['sandbox'] }))}
                         >
-                          <option value="read-only">Sandbox: read-only</option>
-                          <option value="workspace-write">Sandbox: workspace-write</option>
-                          <option value="danger-full-access">Sandbox: danger-full-access</option>
+                          <option value="read-only">{t('terminal:spawn.codex.sandboxReadOnly')}</option>
+                          <option value="workspace-write">{t('terminal:spawn.codex.sandboxWorkspaceWrite')}</option>
+                          <option value="danger-full-access">{t('terminal:spawn.codex.sandboxDangerFullAccess')}</option>
                         </select>
                         <select
                           className="spawn-input"
                           value={codexConfig.approvalMode || 'on-request'}
                           onChange={(e) => setCodexConfig((prev) => ({ ...prev, approvalMode: e.target.value as CodexConfig['approvalMode'] }))}
                         >
-                          <option value="untrusted">Approvals: untrusted</option>
-                          <option value="on-failure">Approvals: on-failure</option>
-                          <option value="on-request">Approvals: on-request</option>
-                          <option value="never">Approvals: never</option>
+                          <option value="untrusted">{t('terminal:spawn.codex.approvalsUntrusted')}</option>
+                          <option value="on-failure">{t('terminal:spawn.codex.approvalsOnFailure')}</option>
+                          <option value="on-request">{t('terminal:spawn.codex.approvalsOnRequest')}</option>
+                          <option value="never">{t('terminal:spawn.codex.approvalsNever')}</option>
                         </select>
                       </>
                     )}
                     <input
                       type="text"
                       className="spawn-input"
-                      placeholder="Profile (optional)"
+                      placeholder={t('terminal:spawn.codex.profileOptional')}
                       value={codexConfig.profile || ''}
                       onChange={(e) => setCodexConfig((prev) => ({ ...prev, profile: e.target.value || undefined }))}
                     />
@@ -582,12 +584,12 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
             {/* Skills section */}
             {availableSkills.length > 0 && (
               <div className="spawn-skills-section">
-                <label className="spawn-label">Skills <span className="spawn-label-hint">(optional)</span></label>
+                <label className="spawn-label">{t('terminal:spawn.skills')} <span className="spawn-label-hint">({t('common:labels.optional')})</span></label>
                 {availableSkills.length > 6 && (
                   <input
                     type="text"
                     className="spawn-input skill-search-input"
-                    placeholder="Filter skills..."
+                    placeholder={t('terminal:spawn.filterSkills')}
                     value={skillSearch}
                     onChange={(e) => setSkillSearch(e.target.value)}
                   />
@@ -611,7 +613,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                     );
                   })}
                   {skillSearch && filteredSkills.length === 0 && (
-                    <div className="skill-search-empty">No skills match "{skillSearch}"</div>
+                    <div className="skill-search-empty">{t('terminal:spawn.noSkillsMatch', { query: skillSearch })}</div>
                   )}
                 </div>
               </div>
@@ -620,11 +622,11 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
             {/* Custom Instructions */}
             <div className="spawn-custom-instructions-section">
               <label className="spawn-label">
-                Custom Instructions <span className="spawn-label-hint">(optional)</span>
+                {t('terminal:spawn.customInstructions')} <span className="spawn-label-hint">({t('common:labels.optional')})</span>
               </label>
               <textarea
                 className="spawn-input spawn-textarea"
-                placeholder="Add custom instructions that will be appended to this boss's system prompt..."
+                placeholder={t('terminal:spawn.customInstructionsBossPlaceholder')}
                 value={customInstructions}
                 onChange={(e) => setCustomInstructions(e.target.value)}
                 rows={3}
@@ -634,11 +636,11 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
             {/* Subordinates section */}
             <div className="spawn-subordinates-section">
               <label className="spawn-label">
-                Initial Subordinates <span className="spawn-label-hint">(optional)</span>
+                {t('terminal:spawn.initialSubordinates')} <span className="spawn-label-hint">({t('common:labels.optional')})</span>
               </label>
               <div className="subordinates-selector-compact">
                 {availableSubordinates.length === 0 ? (
-                  <div className="subordinates-empty">No available agents</div>
+                  <div className="subordinates-empty">{t('terminal:spawn.noAvailableAgents')}</div>
                 ) : (
                   availableSubordinates.map((agent) => {
                     const isSelected = selectedSubordinates.has(agent.id);
@@ -663,7 +665,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
               </div>
               {selectedSubordinates.size > 0 && (
                 <div className="subordinates-count">
-                  {selectedSubordinates.size} selected
+                  {selectedSubordinates.size} {t('common:labels.selected').toLowerCase()}
                 </div>
               )}
             </div>
@@ -672,14 +674,14 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
 
         <div className="modal-footer">
           <button className="btn btn-secondary" onClick={onClose}>
-            Cancel
+            {t('common:buttons.cancel')}
           </button>
           <button
             className="btn btn-boss"
             onClick={handleSpawn}
             disabled={isSpawning}
           >
-            {isSpawning ? 'Deploying...' : 'Deploy Boss'}
+            {isSpawning ? t('common:buttons.deploying') : t('common:buttons2.deployBoss')}
           </button>
         </div>
       </div>

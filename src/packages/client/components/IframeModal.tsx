@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import './IframeModal.scss';
 
 interface IframeModalProps {
@@ -28,6 +29,7 @@ export function IframeModal({
   minWidth = 320,
   minHeight = 240,
 }: IframeModalProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [size, setSize] = useState({ width: initialWidth, height: initialHeight });
@@ -209,7 +211,7 @@ export function IframeModal({
           <button
             className="iframe-modal-btn"
             onClick={handleZoomOut}
-            title="Zoom out"
+            title={t('terminal:iframeModal.zoomOut')}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="11" cy="11" r="8" />
@@ -219,14 +221,14 @@ export function IframeModal({
           <button
             className="iframe-modal-btn iframe-modal-zoom-label"
             onClick={handleZoomReset}
-            title="Reset zoom"
+            title={t('terminal:iframeModal.resetZoom')}
           >
             {Math.round(zoom * 100)}%
           </button>
           <button
             className="iframe-modal-btn"
             onClick={handleZoomIn}
-            title="Zoom in"
+            title={t('terminal:iframeModal.zoomIn')}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="11" cy="11" r="8" />
@@ -238,7 +240,7 @@ export function IframeModal({
           <button
             className="iframe-modal-btn"
             onClick={handleRefresh}
-            title="Refresh"
+            title={t('terminal:iframeModal.refresh')}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M23 4v6h-6M1 20v-6h6" />
@@ -248,7 +250,7 @@ export function IframeModal({
           <button
             className="iframe-modal-btn"
             onClick={handleOpenExternal}
-            title="Open in browser"
+            title={t('terminal:iframeModal.openInBrowser')}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />
@@ -259,7 +261,7 @@ export function IframeModal({
           <button
             className="iframe-modal-btn iframe-modal-close"
             onClick={onClose}
-            title="Close"
+            title={t('common:buttons.close')}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="18" y1="6" x2="6" y2="18" />
@@ -274,13 +276,13 @@ export function IframeModal({
         {isLoading && (
           <div className="iframe-modal-loading">
             <div className="iframe-modal-spinner" />
-            <span>Loading...</span>
+            <span>{t('common:status.loading')}</span>
           </div>
         )}
         {hasError && (
           <div className="iframe-modal-error">
-            <span>Failed to load page</span>
-            <button onClick={handleRefresh}>Retry</button>
+            <span>{t('terminal:iframeModal.failedToLoad')}</span>
+            <button onClick={handleRefresh}>{t('terminal:iframeModal.retry')}</button>
           </div>
         )}
         <iframe

@@ -1,0 +1,76 @@
+{
+  "title": "Tableau de bord",
+  "searchPlaceholder": "Rechercher des agents...",
+  "grouping": {
+    "byZone": "Par zone",
+    "byStatus": "Par statut",
+    "byActivity": "Par activité"
+  },
+  "agentCount": "{{count}} agent",
+  "agentCount_plural": "{{count}} agents",
+  "working": "en cours",
+  "focusZone": "Zone de focus",
+  "noAgentsMatching": "Aucun agent correspondant à « {{search}} »",
+  "noAgentsSpawned": "Aucun agent créé pour le moment",
+  "cards": {
+    "doubleClickHint": "Double-cliquez pour ouvrir le terminal | Glissez pour déplacer vers une autre zone",
+    "openTerminal": "Ouvrir le terminal",
+    "killAgent": "Tuer l'agent",
+    "chat": "Chat",
+    "stop": "Arrêter"
+  },
+  "metrics": {
+    "totalAgents": "Total des agents",
+    "activeAgents": "Agents actifs",
+    "idleAgents": "Agents inactifs",
+    "errorAgents": "Agents en erreur",
+    "totalTokens": "Tokens totaux",
+    "totalCost": "Coût total",
+    "avgResponseTime": "Temps de réponse moyen",
+    "uptime": "Temps d'activité",
+    "tokensIn": "Tokens entrants",
+    "tokensOut": "Tokens sortants"
+  },
+  "statusCards": {
+    "title": "Statut des agents",
+    "noAgents": "Aucun agent en cours d'exécution",
+    "viewAll": "Voir tout",
+    "lastActivity": "Dernière activité",
+    "currentTask": "Tâche en cours"
+  },
+  "timeline": {
+    "title": "Chronologie des événements",
+    "noEvents": "Aucun événement pour le moment",
+    "recentEvents": "Événements récents",
+    "noRecentEvents": "Aucun événement récent",
+    "viewMore": "Voir {{count}} événements supplémentaires",
+    "agent": "Agent",
+    "building": "Bâtiment",
+    "agentSpawned": "Agent créé",
+    "agentTerminated": "Agent terminé",
+    "taskCompleted": "Tâche terminée",
+    "taskFailed": "Tâche échouée",
+    "errorOccurred": "Erreur survenue",
+    "sessionStarted": "Session démarrée",
+    "sessionEnded": "Session terminée"
+  },
+  "buildings": {
+    "title": "Statut des bâtiments",
+    "noBuildings": "Aucun bâtiment configuré",
+    "healthy": "Sain",
+    "warning": "Avertissement",
+    "critical": "Critique"
+  },
+  "metricsDisplay": {
+    "title": "Métriques en direct",
+    "activeAgents": "Agents actifs",
+    "healthyAgents": "Agents sains",
+    "agentErrors": "Erreurs d'agents",
+    "healthyBuildings": "Bâtiments sains",
+    "performanceRates": "Taux de performance",
+    "taskCompletion": "Complétion des tâches",
+    "errorRate": "Taux d'erreur",
+    "buildingHealth": "Santé des bâtiments",
+    "recentErrors": "Erreurs récentes"
+  }
+}

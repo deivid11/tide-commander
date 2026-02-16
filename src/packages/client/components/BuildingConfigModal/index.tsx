@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { store, useStore, useDockerContainersList } from '../../store';
 import {
   BUILDING_TYPES,
@@ -15,7 +16,7 @@ import { BUILDING_STATUS_COLORS } from '../../utils/colors';
 import { STORAGE_KEYS, getStorageString } from '../../utils/storage';
 import { FolderInput } from '../shared/FolderInput';
 import { useModalClose } from '../../hooks';
-import { BUILDING_COLORS, DeleteConfirmModal } from './utils';
+import { BUILDING_COLORS, getColorLabel, DeleteConfirmModal } from './utils';
 import { PM2ToggleSection, PM2ConfigPanel } from './PM2ConfigPanel';
 import { DockerConfigPanel } from './DockerConfigPanel';
 import { DatabaseConfigPanel } from './DatabaseConfigPanel';
@@ -36,6 +37,7 @@ export function BuildingConfigModal({
   buildingId,
   initialPosition,
 }: BuildingConfigModalProps) {
+  const { t } = useTranslation(['config', 'common']);
   const { buildings, buildingLogs, bossStreamingLogs } = useStore();
   const dockerContainersList = useDockerContainersList();
   const building = buildingId ? buildings.get(buildingId) : null;
@@ -318,7 +320,7 @@ export function BuildingConfigModal({
     <div className="modal-overlay visible" onMouseDown={handleBackdropMouseDown} onClick={handleBackdropClick}>
       <div className="modal building-config-modal">
         <div className="modal-header">
-          <span>{isEditMode ? 'Edit Building' : 'Create Building'}</span>
+          <span>{isEditMode ? t('config:buildings.editBuilding') : t('config:buildings.addBuilding')}</span>
           {isEditMode && building && (
             <span
               className="building-status-badge"
@@ -333,38 +335,38 @@ export function BuildingConfigModal({
           <div className="modal-body">
             {/* Basic Info */}
             <div className="form-section">
-              <label className="form-label">Name</label>
+              <label className="form-label">{t('common:labels.name')}</label>
               <input
                 ref={nameInputRef}
                 type="text"
                 className="form-input"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="My Server"
+                placeholder={t('config:buildings.namePlaceholder')}
                 required
               />
             </div>
 
             <div className="form-section">
-              <label className="form-label">Type</label>
+              <label className="form-label">{t('common:labels.type')}</label>
               <div className="building-type-selector">
-                {(Object.keys(BUILDING_TYPES) as BuildingType[]).map((t) => (
+                {(Object.keys(BUILDING_TYPES) as BuildingType[]).map((bt) => (
                   <button
-                    key={t}
+                    key={bt}
                     type="button"
-                    className={`building-type-btn ${type === t ? 'active' : ''}`}
-                    onClick={() => setType(t)}
-                    title={BUILDING_TYPES[t].description}
+                    className={`building-type-btn ${type === bt ? 'active' : ''}`}
+                    onClick={() => setType(bt)}
+                    title={BUILDING_TYPES[bt].description}
                   >
-                    <span className="building-type-icon">{BUILDING_TYPES[t].icon}</span>
-                    <span className="building-type-name">{t}</span>
+                    <span className="building-type-icon">{BUILDING_TYPES[bt].icon}</span>
+                    <span className="building-type-name">{bt}</span>
                   </button>
                 ))}
               </div>
             </div>
 
             <div className="form-section">
-              <label className="form-label">Visual Style</label>
+              <label className="form-label">{t('config:buildings.style')}</label>
               <div className="building-style-selector">
                 {(Object.keys(BUILDING_STYLES) as BuildingStyle[]).map((s) => (
                   <button
@@ -382,7 +384,7 @@ export function BuildingConfigModal({
             </div>
 
             <div className="form-section">
-              <label className="form-label">Color</label>
+              <label className="form-label">{t('common:labels.color')}</label>
               <div className="building-color-selector">
                 {BUILDING_COLORS.map((c) => (
                   <button
@@ -390,7 +392,7 @@ export function BuildingConfigModal({
                     type="button"
                     className={`building-color-btn ${color === c.value ? 'active' : ''}`}
                     onClick={() => setColor(c.value)}
-                    title={c.label}
+                    title={getColorLabel(c.labelKey)}
                     style={c.value ? { backgroundColor: c.value } : undefined}
                   >
                     {!c.value && <span className="color-default-icon">⚙</span>}
@@ -407,7 +409,7 @@ export function BuildingConfigModal({
             </div>
 
             <div className="form-section">
-              <label className="form-label">Size</label>
+              <label className="form-label">{t('common:labels.size')}</label>
               <div className="building-size-control">
                 <div className="size-slider-row">
                   <input
@@ -441,7 +443,7 @@ export function BuildingConfigModal({
             </div>
 
             <div className="form-section">
-              <label className="form-label">Working Directory</label>
+              <label className="form-label">{t('config:buildings.directory')}</label>
               <FolderInput
                 value={cwd}
                 onChange={setCwd}
@@ -454,7 +456,7 @@ export function BuildingConfigModal({
             {/* Folder Path Section (for folder type) */}
             {type === 'folder' && (
               <div className="form-section">
-                <label className="form-label">Folder Path</label>
+                <label className="form-label">{t('config:buildings.folderPath')}</label>
                 <FolderInput
                   value={folderPath}
                   onChange={setFolderPath}
@@ -577,9 +579,9 @@ export function BuildingConfigModal({
             {/* URLs Section */}
             <div className="form-section">
               <label className="form-label">
-                Links
+                {t('config:buildings.links')}
                 <button type="button" className="btn btn-sm btn-add" onClick={addUrl}>
-                  + Add
+                  + {t('common:buttons.add')}
                 </button>
               </label>
               {urls.map((url, index) => (
@@ -622,15 +624,15 @@ export function BuildingConfigModal({
           <div className="modal-footer">
             {isEditMode && (
               <button type="button" className="btn btn-danger" onClick={handleDelete}>
-                Delete
+                {t('common:buttons.delete')}
               </button>
             )}
             <div className="footer-spacer" />
             <button type="button" className="btn btn-secondary" onClick={onClose}>
-              Cancel
+              {t('common:buttons.cancel')}
             </button>
             <button type="submit" className="btn btn-primary">
-              {isEditMode ? 'Save' : 'Create'}
+              {isEditMode ? t('common:buttons.save') : t('common:buttons.create')}
             </button>
           </div>
         </form>

@@ -1,0 +1,76 @@
+{
+  "title": "Дашборд",
+  "searchPlaceholder": "Поиск агентов...",
+  "grouping": {
+    "byZone": "По зонам",
+    "byStatus": "По статусу",
+    "byActivity": "По активности"
+  },
+  "agentCount": "{{count}} агент",
+  "agentCount_plural": "{{count}} агентов",
+  "working": "работает",
+  "focusZone": "Зона фокуса",
+  "noAgentsMatching": "Нет агентов по запросу \"{{search}}\"",
+  "noAgentsSpawned": "Агенты ещё не запущены",
+  "cards": {
+    "doubleClickHint": "Двойной клик для открытия терминала | Перетащите в другую зону",
+    "openTerminal": "Открыть терминал",
+    "killAgent": "Убить агента",
+    "chat": "Чат",
+    "stop": "Стоп"
+  },
+  "metrics": {
+    "totalAgents": "Всего агентов",
+    "activeAgents": "Активные агенты",
+    "idleAgents": "Ожидающие агенты",
+    "errorAgents": "Агенты с ошибками",
+    "totalTokens": "Всего токенов",
+    "totalCost": "Общая стоимость",
+    "avgResponseTime": "Среднее время ответа",
+    "uptime": "Время работы",
+    "tokensIn": "Входящие токены",
+    "tokensOut": "Исходящие токены"
+  },
+  "statusCards": {
+    "title": "Статус агентов",
+    "noAgents": "Нет запущенных агентов",
+    "viewAll": "Показать все",
+    "lastActivity": "Последняя активность",
+    "currentTask": "Текущая задача"
+  },
+  "timeline": {
+    "title": "Хронология событий",
+    "noEvents": "Событий пока нет",
+    "recentEvents": "Последние события",
+    "noRecentEvents": "Нет последних событий",
+    "viewMore": "Показать ещё {{count}} событий",
+    "agent": "Агент",
+    "building": "Здание",
+    "agentSpawned": "Агент запущен",
+    "agentTerminated": "Агент завершён",
+    "taskCompleted": "Задача выполнена",
+    "taskFailed": "Задача провалена",
+    "errorOccurred": "Произошла ошибка",
+    "sessionStarted": "Сессия начата",
+    "sessionEnded": "Сессия завершена"
+  },
+  "buildings": {
+    "title": "Статус зданий",
+    "noBuildings": "Здания не настроены",
+    "healthy": "Исправно",
+    "warning": "Предупреждение",
+    "critical": "Критическое"
+  },
+  "metricsDisplay": {
+    "title": "Метрики в реальном времени",
+    "activeAgents": "Активные агенты",
+    "healthyAgents": "Исправные агенты",
+    "agentErrors": "Ошибки агентов",
+    "healthyBuildings": "Исправные здания",
+    "performanceRates": "Показатели производительности",
+    "taskCompletion": "Выполнение задач",
+    "errorRate": "Частота ошибок",
+    "buildingHealth": "Состояние зданий",
+    "recentErrors": "Последние ошибки"
+  }
+}

@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Building } from '@shared/types';
 import { getStatusColor, getBuildingTypeIcon } from './utils';
 
@@ -11,6 +12,7 @@ export const BuildingPills: React.FC<BuildingPillsProps> = ({
   buildings,
   onSelectBuilding,
 }) => {
+  const { t } = useTranslation(['dashboard']);
   const buildingArray = useMemo(
     () => Array.from(buildings.values()).sort((a, b) => a.name.localeCompare(b.name)),
     [buildings],
@@ -19,7 +21,7 @@ export const BuildingPills: React.FC<BuildingPillsProps> = ({
   return (
     <div className="dashboard-view__buildings">
       <div className="dashboard-view__buildings-header">
-        <span className="dashboard-view__buildings-title">Buildings</span>
+        <span className="dashboard-view__buildings-title">{t('buildings.title')}</span>
         <span className="dashboard-view__buildings-count">{buildingArray.length}</span>
       </div>
       <div className="dashboard-view__buildings-row">

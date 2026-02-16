@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useMemo, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { QueryHistoryEntry } from '../../../shared/types';
 import { store } from '../../store';
 import './QueryHistoryPanel.scss';
@@ -20,6 +21,7 @@ export const QueryHistoryPanel: React.FC<QueryHistoryPanelProps> = ({
   history,
   onLoadQuery,
 }) => {
+  const { t } = useTranslation(['terminal']);
   const [search, setSearch] = useState('');
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
 
@@ -77,16 +79,16 @@ export const QueryHistoryPanel: React.FC<QueryHistoryPanelProps> = ({
 
   // Clear all history
   const handleClearAll = useCallback(() => {
-    if (confirm('Are you sure you want to clear all query history?')) {
+    if (confirm(t('terminal:database.confirmClearHistory'))) {
       store.clearQueryHistory(buildingId);
     }
-  }, [buildingId]);
+  }, [buildingId, t]);
 
   if (history.length === 0) {
     return (
       <div className="query-history query-history--empty">
-        <p>No query history yet.</p>
-        <p>Executed queries will appear here.</p>
+        <p>{t('terminal:database.noHistory')}</p>
+        <p>{t('terminal:database.queriesAppearHere')}</p>
       </div>
     );
   }
@@ -98,7 +100,7 @@ export const QueryHistoryPanel: React.FC<QueryHistoryPanelProps> = ({
         <input
           type="text"
           className="query-history__search"
-          placeholder="Search queries..."
+          placeholder={t('terminal:database.searchQueries')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -109,15 +111,15 @@ export const QueryHistoryPanel: React.FC<QueryHistoryPanelProps> = ({
             checked={showFavoritesOnly}
             onChange={(e) => setShowFavoritesOnly(e.target.checked)}
           />
-          Favorites only
+          {t('terminal:database.favoritesOnly')}
         </label>
 
         <button
           className="query-history__clear"
           onClick={handleClearAll}
-          title="Clear all history"
+          title={t('terminal:database.clearAll')}
         >
-          Clear All
+          {t('terminal:database.clearAll')}
         </button>
       </div>
 
@@ -144,7 +146,7 @@ export const QueryHistoryPanel: React.FC<QueryHistoryPanelProps> = ({
               </span>
               {entry.rowCount !== undefined && (
                 <span className="query-history__row-count">
-                  {entry.rowCount} rows
+                  {t('terminal:database.rowCount', { count: entry.rowCount })}
                 </span>
               )}
             </div>
@@ -163,14 +165,14 @@ export const QueryHistoryPanel: React.FC<QueryHistoryPanelProps> = ({
               <button
                 className={`query-history__favorite ${entry.favorite ? 'query-history__favorite--active' : ''}`}
                 onClick={(e) => handleToggleFavorite(entry.id, e)}
-                title={entry.favorite ? 'Remove from favorites' : 'Add to favorites'}
+                title={entry.favorite ? t('terminal:database.removeFromFavorites') : t('terminal:database.addToFavorites')}
               >
                 {entry.favorite ? '★' : '☆'}
               </button>
               <button
                 className="query-history__delete"
                 onClick={(e) => handleDelete(entry.id, e)}
-                title="Delete from history"
+                title={t('terminal:database.deleteFromHistory')}
               >
                 🗑
               </button>
@@ -180,7 +182,7 @@ export const QueryHistoryPanel: React.FC<QueryHistoryPanelProps> = ({
 
         {filteredHistory.length === 0 && (
           <div className="query-history__no-results">
-            No queries match your search.
+            {t('terminal:database.noQueriesMatch')}
           </div>
         )}
       </div>

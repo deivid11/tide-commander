@@ -5,6 +5,7 @@
  */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { store, useSupervisor, useSettings, useLastPrompts, useSubagentsForAgent, useCustomAgentClass } from '../../store';
 import { filterCostText } from '../../utils/formatting';
 import { STORAGE_KEYS, setStorageString } from '../../utils/storage';
@@ -70,6 +71,7 @@ export function TerminalHeader({
   agentInfoOpen = false,
   onToggleAgentInfo,
 }: TerminalHeaderProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const supervisor = useSupervisor();
   const settings = useSettings();
   const lastPrompts = useLastPrompts();
@@ -99,7 +101,7 @@ export function TerminalHeader({
   };
 
   const handleRemoveAgent = () => {
-    const confirmed = window.confirm(`Remove ${selectedAgent.name} from view?`);
+    const confirmed = window.confirm(t('common:confirm.removeAgent', { name: selectedAgent.name }));
     if (!confirmed) return;
     store.removeAgentFromServer(selectedAgentId);
   };
@@ -176,7 +178,7 @@ export function TerminalHeader({
           <button
             className={`guake-title-btn ${agentInfoOpen ? 'active' : ''}`}
             onClick={onToggleAgentInfo}
-            title="Show agent info"
+            title={t('terminal:header.showAgentInfo')}
           >
             <span className="guake-title">{agentEmoji} {selectedAgent.name}</span>
             <img
@@ -236,9 +238,9 @@ export function TerminalHeader({
           <Tooltip
             content={
               <>
-                <div className="tide-tooltip__title">Save Snapshot</div>
+                <div className="tide-tooltip__title">{t('terminal:header.saveSnapshot')}</div>
                 <div className="tide-tooltip__text">
-                  Capture this conversation and all files created/modified by this agent
+                  {t('terminal:header.saveSnapshotDesc')}
                 </div>
               </>
             }
@@ -247,7 +249,7 @@ export function TerminalHeader({
             <button
               className="guake-snapshot-btn hide-on-mobile"
               onClick={onSaveSnapshot}
-              title="Save Snapshot"
+              title={t('terminal:header.saveSnapshot')}
             >
               ⭐
             </button>
@@ -257,7 +259,7 @@ export function TerminalHeader({
           <button
             className={`guake-overview-toggle hide-on-mobile ${overviewPanelOpen ? 'active' : ''}`}
             onClick={() => setOverviewPanelOpen(!overviewPanelOpen)}
-            title={overviewPanelOpen ? 'Hide Agent Overview' : 'Show Agent Overview'}
+            title={overviewPanelOpen ? t('terminal:header.hideOverview') : t('terminal:header.showOverview')}
           >
             📊
           </button>
@@ -266,7 +268,7 @@ export function TerminalHeader({
           <button
             className={`guake-debug-toggle hide-on-mobile ${debugPanelOpen ? 'active' : ''}`}
             onClick={handleDebugToggle}
-            title={debugPanelOpen ? 'Hide Debug Panel' : 'Show Debug Panel'}
+            title={debugPanelOpen ? t('terminal:header.hideDebug') : t('terminal:header.showDebug')}
           >
             🐛
           </button>
@@ -274,7 +276,7 @@ export function TerminalHeader({
         <button
           className={`guake-search-toggle hide-on-mobile ${searchMode ? 'active' : ''}`}
           onClick={handleSearchToggle}
-          title="Search (Ctrl+F)"
+          title={t('terminal:header.search')}
         >
           🔍
         </button>
@@ -283,19 +285,19 @@ export function TerminalHeader({
           onClick={handleViewModeToggle}
           title={
             viewMode === 'simple'
-              ? 'Simple: Shows tools and responses'
+              ? t('terminal:header.simpleViewDesc')
               : viewMode === 'chat'
-                ? 'Chat: Shows only user messages and final responses'
-                : 'Advanced: Shows all details including tool inputs/outputs'
+                ? t('terminal:header.chatViewDesc')
+                : t('terminal:header.advancedViewDesc')
           }
         >
-          {viewMode === 'simple' ? '○ Simple' : viewMode === 'chat' ? '◐ Chat' : '◉ Advanced'}
+          {viewMode === 'simple' ? `○ ${t('terminal:header.simpleView')}` : viewMode === 'chat' ? `◐ ${t('terminal:header.chatView')}` : `◉ ${t('terminal:header.advancedView')}`}
         </button>
         {/* Mobile view mode toggle - compact icon button */}
         <button
           className={`guake-mode-btn show-on-mobile view-mode-${viewMode}`}
           onClick={handleViewModeToggle}
-          title={`View: ${viewMode}`}
+          title={t('terminal:header.viewMode', { mode: viewMode })}
         >
           {viewMode === 'simple' ? '○' : viewMode === 'chat' ? '◐' : '◉'}
         </button>
@@ -305,7 +307,7 @@ export function TerminalHeader({
               <button
                 className="guake-clear"
                 onClick={() => store.clearOutputs(selectedAgentId)}
-                title="Clear output"
+                title={t('terminal:header.clearOutput')}
               >
                 🗑
               </button>
@@ -313,33 +315,33 @@ export function TerminalHeader({
             <button
               className="guake-context-btn hide-on-mobile"
               onClick={() => setContextConfirm('collapse')}
-              title="Collapse context - summarize conversation to save tokens"
+              title={t('terminal:header.collapseContextDesc')}
               disabled={selectedAgent.status !== 'idle'}
             >
-              📦 Collapse
+              📦 {t('terminal:header.collapseContext')}
             </button>
             <button
               className="guake-context-btn danger hide-on-mobile"
               onClick={() => setContextConfirm('clear')}
-              title="Clear context - start fresh session"
+              title={t('terminal:header.clearContextDesc')}
             >
-              🗑️ Clear Context
+              🗑️ {t('terminal:header.clearContext')}
             </button>
             <button
               className="guake-remove-agent-btn hide-on-mobile"
               onClick={handleRemoveAgent}
-              title="Remove this agent from view"
+              title={t('terminal:header.removeAgentDesc')}
             >
-              🗑️ Remove Agent
+              🗑️ {t('terminal:header.removeAgent')}
             </button>
             {/* Boss-only: Clear all subordinates' context */}
             {hasSubordinates && (
               <button
                 className="guake-context-btn danger hide-on-mobile"
                 onClick={() => setContextConfirm('clear-subordinates')}
-                title="Clear context for all subordinate agents"
+                title={t('terminal:header.clearAllSubordinatesDesc')}
               >
-                👑🗑️ Clear All Subordinates
+                👑🗑️ {t('terminal:header.clearAllSubordinates')}
               </button>
             )}
           </>
@@ -348,7 +350,7 @@ export function TerminalHeader({
         <button
           className="guake-close-btn show-on-mobile"
           onClick={() => store.setMobileView('3d')}
-          title="Close terminal"
+          title={t('terminal:header.closeTerminal')}
         >
           ✕
         </button>
@@ -377,12 +379,13 @@ export function SearchBar({
   searchLoading,
   searchResultsCount,
 }: SearchBarProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   return (
     <div className="guake-search">
       <input
         ref={searchInputRef}
         type="text"
-        placeholder="Search conversation... (Esc to close)"
+        placeholder={t('terminal:header.searchPlaceholder')}
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
         onKeyDown={(e) => {
@@ -391,9 +394,9 @@ export function SearchBar({
         }}
       />
       <button onClick={handleSearch} disabled={searchLoading}>
-        {searchLoading ? '...' : 'Search'}
+        {searchLoading ? '...' : t('common:buttons.search')}
       </button>
-      {searchResultsCount > 0 && <span className="guake-search-count">{searchResultsCount} results</span>}
+      {searchResultsCount > 0 && <span className="guake-search-count">{t('terminal:header.searchResultsCount', { count: searchResultsCount })}</span>}
     </div>
   );
 }

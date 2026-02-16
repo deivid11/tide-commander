@@ -1,0 +1,76 @@
+{
+  "title": "Dashboard",
+  "searchPlaceholder": "Search agents...",
+  "grouping": {
+    "byZone": "By Zone",
+    "byStatus": "By Status",
+    "byActivity": "By Activity"
+  },
+  "agentCount": "{{count}} agent",
+  "agentCount_plural": "{{count}} agents",
+  "working": "working",
+  "focusZone": "Focus Zone",
+  "noAgentsMatching": "No agents matching \"{{search}}\"",
+  "noAgentsSpawned": "No agents spawned yet",
+  "cards": {
+    "doubleClickHint": "Double-click to open terminal | Drag to move to another area",
+    "openTerminal": "Open terminal",
+    "killAgent": "Kill agent",
+    "chat": "Chat",
+    "stop": "Stop"
+  },
+  "metrics": {
+    "totalAgents": "Total Agents",
+    "activeAgents": "Active Agents",
+    "idleAgents": "Idle Agents",
+    "errorAgents": "Error Agents",
+    "totalTokens": "Total Tokens",
+    "totalCost": "Total Cost",
+    "avgResponseTime": "Avg Response Time",
+    "uptime": "Uptime",
+    "tokensIn": "Tokens In",
+    "tokensOut": "Tokens Out"
+  },
+  "statusCards": {
+    "title": "Agent Status",
+    "noAgents": "No agents running",
+    "viewAll": "View All",
+    "lastActivity": "Last activity",
+    "currentTask": "Current task"
+  },
+  "timeline": {
+    "title": "Events Timeline",
+    "noEvents": "No events yet",
+    "recentEvents": "Recent Events",
+    "noRecentEvents": "No recent events",
+    "viewMore": "View {{count}} more events",
+    "agent": "Agent",
+    "building": "Building",
+    "agentSpawned": "Agent spawned",
+    "agentTerminated": "Agent terminated",
+    "taskCompleted": "Task completed",
+    "taskFailed": "Task failed",
+    "errorOccurred": "Error occurred",
+    "sessionStarted": "Session started",
+    "sessionEnded": "Session ended"
+  },
+  "buildings": {
+    "title": "Building Status",
+    "noBuildings": "No buildings configured",
+    "healthy": "Healthy",
+    "warning": "Warning",
+    "critical": "Critical"
+  },
+  "metricsDisplay": {
+    "title": "Live Metrics",
+    "activeAgents": "Active Agents",
+    "healthyAgents": "Healthy Agents",
+    "agentErrors": "Agent Errors",
+    "healthyBuildings": "Healthy Buildings",
+    "performanceRates": "Performance Rates",
+    "taskCompletion": "Task Completion",
+    "errorRate": "Error Rate",
+    "buildingHealth": "Building Health",
+    "recentErrors": "Recent Errors"
+  }
+}

@@ -9,6 +9,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ansiToHtml } from '../utils/ansiToHtml';
 import { useModalClose } from '../hooks';
 
@@ -49,6 +50,7 @@ export function LogViewerModal({
   extraFooter,
   modalClassName,
 }: LogViewerModalProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const [showGoToLine, setShowGoToLine] = useState(false);
@@ -325,13 +327,13 @@ export function LogViewerModal({
             {isStreaming && (
               <span className="streaming-indicator" title="Live streaming">
                 <span className="pulse"></span>
-                {streamingIndicatorLabel || 'LIVE'}
+                {streamingIndicatorLabel || t('terminal:logs.live')}
               </span>
             )}
           </div>
           <div className="header-right">
-            <span className="line-count">{lines.length} lines</span>
-            <button className="modal-close" onClick={onClose} title="Close (Esc)">
+            <span className="line-count">{t('terminal:logs.lines', { count: lines.length })}</span>
+            <button className="modal-close" onClick={onClose} title={t('terminal:logs.closeEsc')}>
               &times;
             </button>
           </div>
@@ -343,40 +345,40 @@ export function LogViewerModal({
             <button
               className={`toolbar-btn ${showSearch ? 'active' : ''}`}
               onClick={() => setShowSearch(!showSearch)}
-              title="Search (/)"
+              title={t('terminal:logs.searchShortcut')}
             >
-              &#128269; Search
+              &#128269; {t('terminal:logs.search')}
             </button>
             <button
               className="toolbar-btn"
               onClick={() => setShowGoToLine(true)}
-              title="Go to line (Ctrl+G)"
+              title={t('terminal:logs.goToLineShortcut')}
             >
-              &#9196; Go to Line
+              &#9196; {t('terminal:logs.goToLine')}
             </button>
             {extraToolbar}
             <button
               className={`toolbar-btn ${lineWrap ? 'active' : ''}`}
               onClick={() => setLineWrap(!lineWrap)}
-              title="Toggle line wrap"
+              title={t('terminal:logs.toggleWrap')}
             >
-              &#8617; Wrap
+              &#8617; {t('terminal:logs.wrap')}
             </button>
             <button
               className={`toolbar-btn ${autoScroll ? 'active' : ''}`}
               onClick={() => setAutoScroll(!autoScroll)}
-              title="Auto-scroll to bottom"
+              title={t('terminal:logs.autoScrollToBottom')}
             >
-              &#8595; Auto
+              &#8595; {t('terminal:logs.auto')}
             </button>
           </div>
           <div className="toolbar-right">
             <button
               className="toolbar-btn danger"
               onClick={onClear}
-              title="Clear logs"
+              title={t('terminal:logs.clear')}
             >
-              &#128465; Clear
+              &#128465; {t('terminal:logs.clear')}
             </button>
           </div>
         </div>
@@ -387,7 +389,7 @@ export function LogViewerModal({
             <input
               ref={searchInputRef}
               type="text"
-              placeholder={useRegex ? "Regex pattern... (e.g. ERROR|TIMEOUT)" : "Search logs... (Enter for next, Esc to close)"}
+              placeholder={useRegex ? t('terminal:logs.regexPlaceholder') : t('terminal:logs.searchPlaceholder')}
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
@@ -455,10 +457,10 @@ export function LogViewerModal({
             {searchQuery && (
               <span className="match-count">
                 {regexError
-                  ? <span className="regex-error" title={regexError}>Invalid regex</span>
+                  ? <span className="regex-error" title={regexError}>{t('terminal:logs.invalidRegex')}</span>
                   : searchMatches.length > 0
                     ? `${currentMatchIndex + 1}/${searchMatches.length}`
-                    : 'No matches'}
+                    : t('terminal:logs.noMatches')}
               </span>
             )}
             <button
@@ -477,7 +479,7 @@ export function LogViewerModal({
         {/* Go To Line Dialog */}
         {showGoToLine && (
           <div className="pm2-logs-goto-line">
-            <label>Go to line:</label>
+            <label>{t('terminal:logs.goToLineLabel')}:</label>
             <input
               ref={goToLineInputRef}
               type="number"
@@ -495,8 +497,8 @@ export function LogViewerModal({
                 }
               }}
             />
-            <button onClick={handleGoToLine}>Go</button>
-            <button onClick={() => setShowGoToLine(false)}>Cancel</button>
+            <button onClick={handleGoToLine}>{t('terminal:logs.go')}</button>
+            <button onClick={() => setShowGoToLine(false)}>{t('common:buttons.cancel')}</button>
           </div>
         )}
 
@@ -508,7 +510,7 @@ export function LogViewerModal({
         >
           {lines.length === 0 ? (
             <div className="logs-empty">
-              {emptyMessage || (isStreaming ? 'Waiting for logs...' : 'No logs available')}
+              {emptyMessage || (isStreaming ? t('terminal:logs.waitingForLogs') : t('terminal:logs.noLogs'))}
             </div>
           ) : (
             <div className="logs-lines">

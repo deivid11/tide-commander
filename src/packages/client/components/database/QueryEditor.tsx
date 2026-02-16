@@ -5,6 +5,7 @@
  */
 
 import React, { useRef, useCallback, KeyboardEvent, useMemo, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import Prism from 'prismjs';
 import 'prismjs/components/prism-sql';
 import './QueryEditor.scss';
@@ -26,6 +27,7 @@ export const QueryEditor: React.FC<QueryEditorProps> = ({
   disabled,
   autoFocus = true,
 }) => {
+  const { t } = useTranslation(['terminal']);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const highlightRef = useRef<HTMLPreElement>(null);
 
@@ -97,23 +99,23 @@ export const QueryEditor: React.FC<QueryEditorProps> = ({
           className="query-editor__execute"
           onClick={onExecute}
           disabled={disabled || isExecuting || !query.trim()}
-          title="Execute query (Ctrl+Enter)"
+          title={t('terminal:database.executeShortcut')}
         >
           {isExecuting ? (
             <>
               <span className="query-editor__spinner" />
-              Running...
+              {t('common:status.running')}
             </>
           ) : (
             <>
               <span className="query-editor__play-icon">▶</span>
-              Run Query
+              {t('terminal:database.runQuery')}
             </>
           )}
         </button>
 
         <div className="query-editor__hint">
-          Press <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to execute
+          {t('terminal:database.pressCtrlEnter')}
         </div>
       </div>
 
@@ -143,7 +145,7 @@ export const QueryEditor: React.FC<QueryEditorProps> = ({
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={handleKeyDown}
             onScroll={handleScroll}
-            placeholder={disabled ? 'Select a database to start querying...' : 'Enter your SQL query here...'}
+            placeholder={disabled ? t('terminal:database.selectDbPlaceholder') : t('terminal:database.enterQueryPlaceholder')}
             disabled={disabled}
             spellCheck={false}
             autoComplete="off"

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { store, useAgents, useAgent } from '../store';
 import { AGENT_CLASSES } from '../../shared/types';
 
@@ -9,6 +10,7 @@ interface SubordinateAssignmentModalProps {
 }
 
 export function SubordinateAssignmentModal({ isOpen, bossId, onClose }: SubordinateAssignmentModalProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const agents = useAgents();
   const boss = useAgent(bossId);
   const [selectedSubordinates, setSelectedSubordinates] = useState<Set<string>>(new Set());
@@ -86,18 +88,18 @@ export function SubordinateAssignmentModal({ isOpen, bossId, onClose }: Subordin
           <span className="boss-header-icon" style={{ color: bossConfig.color }}>
             {bossConfig.icon}
           </span>
-          Manage Team: {boss.name}
+          {t('terminal:supervisor.manageTeam')}: {boss.name}
         </div>
 
         <div className="modal-body subordinate-assignment-body">
           <div className="subordinate-assignment-info">
-            <p>Select which agents should report to this boss.</p>
+            <p>{t('terminal:supervisor.selectAgents')}</p>
             <div className="subordinate-assignment-actions">
               <button className="btn btn-small" onClick={selectAll}>
-                Select All
+                {t('common:buttons.selectAll')}
               </button>
               <button className="btn btn-small" onClick={deselectAll}>
-                Clear All
+                {t('common:buttons.clearAll')}
               </button>
             </div>
           </div>
@@ -105,7 +107,7 @@ export function SubordinateAssignmentModal({ isOpen, bossId, onClose }: Subordin
           <div className="subordinates-list">
             {availableAgents.length === 0 ? (
               <div className="subordinates-empty">
-                No available agents. Deploy regular agents first.
+                {t('terminal:supervisor.noAgentsAvailable')}
               </div>
             ) : (
               availableAgents.map((agent) => {
@@ -136,7 +138,7 @@ export function SubordinateAssignmentModal({ isOpen, bossId, onClose }: Subordin
                       {agent.status}
                     </div>
                     {isCurrentlyAssigned && (
-                      <div className="subordinate-badge">current</div>
+                      <div className="subordinate-badge">{t('common:status.current')}</div>
                     )}
                   </div>
                 );
@@ -147,11 +149,11 @@ export function SubordinateAssignmentModal({ isOpen, bossId, onClose }: Subordin
           <div className="subordinate-assignment-summary">
             {hasChanges ? (
               <span className="summary-changed">
-                {currentSubCount} → {newSubCount} subordinates
+                {currentSubCount} → {newSubCount} {t('terminal:supervisor.subordinates').toLowerCase()}
               </span>
             ) : (
               <span className="summary-unchanged">
-                {currentSubCount} subordinate{currentSubCount !== 1 ? 's' : ''}
+                {currentSubCount} {t('terminal:supervisor.subordinates').toLowerCase()}
               </span>
             )}
           </div>
@@ -159,14 +161,14 @@ export function SubordinateAssignmentModal({ isOpen, bossId, onClose }: Subordin
 
         <div className="modal-footer">
           <button className="btn btn-secondary" onClick={onClose}>
-            Cancel
+            {t('common:buttons.cancel')}
           </button>
           <button
             className="btn btn-boss"
             onClick={handleSave}
             disabled={isSaving || !hasChanges}
           >
-            {isSaving ? 'Saving...' : 'Save Team'}
+            {isSaving ? t('common:status.saving') : t('terminal:supervisor.saveTeam')}
           </button>
         </div>
       </div>

@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSecretsArray, store } from '../../store';
 import type { Secret } from '../../../shared/types';
 
 export function SecretsSection() {
+  const { t } = useTranslation(['config', 'common']);
   const secrets = useSecretsArray();
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -53,7 +55,7 @@ export function SecretsSection() {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm('Delete this secret?')) {
+    if (confirm(t('config:secrets.deleteConfirm'))) {
       store.deleteSecret(id);
       if (editingId === id) handleCancel();
     }
@@ -66,13 +68,13 @@ export function SecretsSection() {
   return (
     <div className="secrets-section">
       <div className="secrets-description">
-        Store secrets that can be referenced in prompts using <code>{`{{KEY}}`}</code> placeholders.
+        {t('config:secrets.description', { placeholder: '{{KEY}}' })}
       </div>
 
       {/* Secrets List */}
       <div className="secrets-list">
         {secrets.length === 0 && !isAdding ? (
-          <div className="secrets-empty">No secrets configured</div>
+          <div className="secrets-empty">{t('config:secrets.noSecrets')}</div>
         ) : (
           secrets.map((secret) => (
             <div
@@ -85,7 +87,7 @@ export function SecretsSection() {
                   <code
                     className="secret-item-key"
                     onClick={() => copyPlaceholder(secret.key)}
-                    title="Click to copy placeholder"
+                    title={t('config:secrets.copyPlaceholder')}
                   >
                     {`{{${secret.key}}}`}
                   </code>
@@ -94,14 +96,14 @@ export function SecretsSection() {
                   <button
                     className="secret-item-btn edit"
                     onClick={() => handleEdit(secret)}
-                    title="Edit"
+                    title={t('common:buttons.edit')}
                   >
                     ✎
                   </button>
                   <button
                     className="secret-item-btn delete"
                     onClick={() => handleDelete(secret.id)}
-                    title="Delete"
+                    title={t('common:buttons.delete')}
                   >
                     ×
                   </button>
@@ -119,11 +121,11 @@ export function SecretsSection() {
       {(isAdding || editingId) && (
         <div className="secret-form">
           <div className="secret-form-row">
-            <label className="secret-form-label">Name</label>
+            <label className="secret-form-label">{t('common:labels.name')}</label>
             <input
               type="text"
               className="secret-form-input"
-              placeholder="My API Key"
+              placeholder={t('config:secrets.namePlaceholder')}
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               autoFocus
@@ -134,42 +136,42 @@ export function SecretsSection() {
             <input
               type="text"
               className="secret-form-input"
-              placeholder="MY_API_KEY"
+              placeholder={t('config:secrets.keyPlaceholder')}
               value={formData.key}
               onChange={(e) => setFormData({ ...formData, key: e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, '') })}
             />
-            <span className="secret-form-hint">Used as {`{{${formData.key || 'KEY'}}}`}</span>
+            <span className="secret-form-hint">{t('config:secrets.usedAs', { placeholder: `{{${formData.key || 'KEY'}}}` })}</span>
           </div>
           <div className="secret-form-row">
-            <label className="secret-form-label">Value</label>
+            <label className="secret-form-label">{t('config:secrets.secretValue')}</label>
             <input
               type="password"
               className="secret-form-input"
-              placeholder="secret value..."
+              placeholder={t('config:secrets.valuePlaceholder')}
               value={formData.value}
               onChange={(e) => setFormData({ ...formData, value: e.target.value })}
             />
           </div>
           <div className="secret-form-row">
-            <label className="secret-form-label">Description</label>
+            <label className="secret-form-label">{t('common:labels.description')}</label>
             <input
               type="text"
               className="secret-form-input"
-              placeholder="Optional description"
+              placeholder={t('config:secrets.descriptionPlaceholder')}
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
             />
           </div>
           <div className="secret-form-actions">
             <button className="secret-form-btn cancel" onClick={handleCancel}>
-              Cancel
+              {t('common:buttons.cancel')}
             </button>
             <button
               className="secret-form-btn save"
               onClick={handleSave}
               disabled={!formData.name.trim() || !formData.key.trim()}
             >
-              {editingId ? 'Update' : 'Add'}
+              {editingId ? t('config:secrets.update') : t('common:buttons.add')}
             </button>
           </div>
         </div>
@@ -178,7 +180,7 @@ export function SecretsSection() {
       {/* Add Button */}
       {!isAdding && !editingId && (
         <button className="secrets-add-btn" onClick={handleAdd}>
-          + Add Secret
+          {t('config:secrets.addSecret')}
         </button>
       )}
     </div>

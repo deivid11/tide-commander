@@ -1,4 +1,5 @@
 import React, { memo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSettings } from '../store';
 import { VoiceAssistant } from './VoiceAssistant';
 import type { DocumentPiPState } from '../hooks/useDocumentPiP';
@@ -24,6 +25,7 @@ export const FloatingActionButtons = memo(function FloatingActionButtons({
   isGeneratingReport,
   pip,
 }: FloatingActionButtonsProps) {
+  const { t } = useTranslation(['common', 'terminal']);
   const settings = useSettings();
 
   return (
@@ -35,7 +37,7 @@ export const FloatingActionButtons = memo(function FloatingActionButtons({
       <button
         className="floating-settings-btn"
         onClick={onOpenToolbox}
-        title="Settings & Tools"
+        title={t('common:floatingButtons.settingsAndTools')}
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
@@ -47,7 +49,7 @@ export const FloatingActionButtons = memo(function FloatingActionButtons({
       <button
         className="commander-toggle-btn"
         onClick={onOpenCommander}
-        title="Commander View (⌘K)"
+        title={t('common:floatingButtons.commanderView')}
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <rect x="3" y="3" width="7" height="7" />
@@ -61,7 +63,7 @@ export const FloatingActionButtons = memo(function FloatingActionButtons({
       <button
         className="snapshots-toggle-btn"
         onClick={onOpenSnapshots}
-        title="View Snapshots"
+        title={t('common:floatingButtons.viewSnapshots')}
       >
         📸
       </button>
@@ -70,7 +72,7 @@ export const FloatingActionButtons = memo(function FloatingActionButtons({
       <button
         className={`supervisor-toggle-btn ${isGeneratingReport ? 'generating' : ''}`}
         onClick={onOpenSupervisor}
-        title={isGeneratingReport ? 'Generating report...' : 'Supervisor Overview'}
+        title={isGeneratingReport ? t('terminal:supervisor.generating') : t('common:floatingButtons.supervisorOverview')}
       >
         🎖️
         {isGeneratingReport && <span className="supervisor-generating-indicator" />}
@@ -80,7 +82,7 @@ export const FloatingActionButtons = memo(function FloatingActionButtons({
       <button
         className="shortcuts-toggle-btn"
         onClick={onOpenControls}
-        title="Controls (Keyboard & Mouse)"
+        title={t('common:floatingButtons.controls')}
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <line x1="4" y1="21" x2="4" y2="14" />
@@ -99,7 +101,7 @@ export const FloatingActionButtons = memo(function FloatingActionButtons({
       <button
         className="skills-toggle-btn"
         onClick={onOpenSkills}
-        title="Manage Skills"
+        title={t('common:floatingButtons.manageSkills')}
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
@@ -110,7 +112,7 @@ export const FloatingActionButtons = memo(function FloatingActionButtons({
       <button
         className={`pip-toggle-btn ${pip.isOpen ? 'active' : ''}`}
         onClick={() => pip.isSupported && pip.toggle({ width: 320, height: 400 })}
-        title={!pip.isSupported ? 'PiP not supported in this browser' : pip.isOpen ? 'Close Agents in PiP Mode' : 'Open Agents in PiP Mode'}
+        title={!pip.isSupported ? t('common:floatingButtons.pipNotSupported') : pip.isOpen ? t('common:floatingButtons.closePip') : t('common:floatingButtons.openPip')}
         disabled={!pip.isSupported}
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

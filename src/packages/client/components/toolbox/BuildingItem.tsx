@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Building } from '../../../shared/types';
 import { BUILDING_TYPES } from '../../../shared/types';
 import { BUILDING_STATUS_COLORS } from '../../utils/colors';
@@ -11,6 +12,7 @@ interface BuildingItemProps {
 }
 
 export function BuildingItem({ building, isSelected, onClick, onEdit }: BuildingItemProps) {
+  const { t } = useTranslation(['config']);
   const typeInfo = BUILDING_TYPES[building.type];
 
   // Get auto-detected ports from PM2 status polling
@@ -56,7 +58,7 @@ export function BuildingItem({ building, isSelected, onClick, onEdit }: Building
           e.stopPropagation();
           onEdit();
         }}
-        title="Edit building"
+        title={t('config:buildings.editBuilding')}
       >
         ⚙
       </button>

@@ -1,4 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
+import i18next from 'i18next';
 
 interface Props {
   children: ReactNode;
@@ -61,7 +62,7 @@ export class ErrorBoundary extends Component<Props, State> {
               gap: '12px',
             }}>
               <span style={{ fontSize: '32px' }}>💥</span>
-              Tide Commander Crashed
+              {i18next.t('errors:crash.title')}
             </h1>
 
             <div style={{
@@ -82,7 +83,7 @@ export class ErrorBoundary extends Component<Props, State> {
               marginBottom: '16px',
             }}>
               <div style={{ color: '#888', marginBottom: '8px', fontSize: '12px' }}>
-                STACK TRACE
+                {i18next.t('errors:crash.stackTrace')}
               </div>
               <pre style={{
                 color: '#ccc',
@@ -104,7 +105,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 marginBottom: '16px',
               }}>
                 <div style={{ color: '#888', marginBottom: '8px', fontSize: '12px' }}>
-                  COMPONENT STACK
+                  {i18next.t('errors:crash.componentStack')}
                 </div>
                 <pre style={{
                   color: '#ccc',
@@ -132,7 +133,7 @@ export class ErrorBoundary extends Component<Props, State> {
                   cursor: 'pointer',
                 }}
               >
-                Reload Page
+                {i18next.t('common:buttons.reloadPage')}
               </button>
               <button
                 onClick={this.handleDismiss}
@@ -146,7 +147,7 @@ export class ErrorBoundary extends Component<Props, State> {
                   cursor: 'pointer',
                 }}
               >
-                Try to Continue
+                {i18next.t('common:buttons.tryToContinue')}
               </button>
             </div>
 
@@ -155,7 +156,7 @@ export class ErrorBoundary extends Component<Props, State> {
               color: '#666',
               fontSize: '12px',
             }}>
-              Check the browser console for more details.
+              {i18next.t('errors:crash.checkConsole')}
             </div>
           </div>
         </div>

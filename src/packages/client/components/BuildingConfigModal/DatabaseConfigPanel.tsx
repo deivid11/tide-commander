@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   DATABASE_ENGINES,
   type DatabaseEngine,
@@ -19,13 +20,14 @@ export function DatabaseConfigPanel({
   activeDbConnectionId,
   setActiveDbConnectionId,
 }: DatabaseConfigPanelProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   return (
     <div className="form-section database-config-section">
       <label className="form-label">
-        Database Connections
+        {t('terminal:building.dbConnections')}
         <HelpTooltip
-          text="Configure connections to MySQL or PostgreSQL databases. You can add multiple connections and switch between them."
-          title="Database Connections"
+          text={t('terminal:building.helpDbConnections')}
+          title={t('terminal:building.dbConnections')}
           position="top"
           size="sm"
         />
@@ -47,13 +49,13 @@ export function DatabaseConfigPanel({
             }
           }}
         >
-          + Add Connection
+          {t('terminal:database.addConnection')}
         </button>
       </label>
 
       {dbConnections.length === 0 && (
         <div className="form-hint">
-          Add a database connection to get started. You can connect to MySQL or PostgreSQL databases.
+          {t('terminal:building.dbGetStarted')}
         </div>
       )}
 
@@ -67,9 +69,9 @@ export function DatabaseConfigPanel({
                 checked={activeDbConnectionId === conn.id}
                 onChange={() => setActiveDbConnectionId(conn.id)}
               />
-              Default
+              {t('common:labels.default')}
               <HelpTooltip
-                text="The default connection is used when opening the database panel."
+                text={t('terminal:building.helpDbDefault')}
                 position="top"
                 size="sm"
               />
@@ -87,13 +89,13 @@ export function DatabaseConfigPanel({
                 }
               }}
             >
-              Remove
+              {t('common:buttons.remove')}
             </button>
           </div>
 
           <div className="db-connection-row">
             <div className="db-field">
-              <label>Name</label>
+              <label>{t('common:labels.name')}</label>
               <input
                 type="text"
                 className="form-input"
@@ -107,7 +109,7 @@ export function DatabaseConfigPanel({
               />
             </div>
             <div className="db-field db-field--small">
-              <label>Engine</label>
+              <label>{t('terminal:building.dbEngine')}</label>
               <select
                 className="form-input form-select"
                 value={conn.engine}
@@ -133,7 +135,7 @@ export function DatabaseConfigPanel({
 
           <div className="db-connection-row">
             <div className="db-field db-field--grow">
-              <label>Host</label>
+              <label>{t('terminal:building.dbHost')}</label>
               <input
                 type="text"
                 className="form-input"
@@ -147,7 +149,7 @@ export function DatabaseConfigPanel({
               />
             </div>
             <div className="db-field db-field--small">
-              <label>Port</label>
+              <label>{t('terminal:building.dbPort')}</label>
               <input
                 type="number"
                 className="form-input"
@@ -163,7 +165,7 @@ export function DatabaseConfigPanel({
 
           <div className="db-connection-row">
             <div className="db-field">
-              <label>Username</label>
+              <label>{t('terminal:building.dbUsername')}</label>
               <input
                 type="text"
                 className="form-input"
@@ -177,7 +179,7 @@ export function DatabaseConfigPanel({
               />
             </div>
             <div className="db-field">
-              <label>Password</label>
+              <label>{t('terminal:building.dbPassword')}</label>
               <input
                 type="password"
                 className="form-input"
@@ -194,7 +196,7 @@ export function DatabaseConfigPanel({
 
           <div className="db-connection-row">
             <div className="db-field db-field--grow">
-              <label>Default Database</label>
+              <label>{t('terminal:building.dbDefaultDatabase')}</label>
               <input
                 type="text"
                 className="form-input"
@@ -211,7 +213,7 @@ export function DatabaseConfigPanel({
               <label>
                 SSL
                 <HelpTooltip
-                  text="Enable encrypted SSL/TLS connection. Required for most cloud-hosted databases and recommended for production."
+                  text={t('terminal:building.helpDbSsl')}
                   position="top"
                   size="sm"
                 />
@@ -237,7 +239,7 @@ export function DatabaseConfigPanel({
 
       {dbConnections.length > 0 && (
         <div className="form-hint">
-          After saving, open the database panel to run queries and explore your data.
+          {t('terminal:building.dbAfterSaving')}
         </div>
       )}
     </div>

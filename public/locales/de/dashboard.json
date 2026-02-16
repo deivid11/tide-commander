@@ -1,0 +1,76 @@
+{
+  "title": "Dashboard",
+  "searchPlaceholder": "Agenten suchen...",
+  "grouping": {
+    "byZone": "Nach Zone",
+    "byStatus": "Nach Status",
+    "byActivity": "Nach Aktivität"
+  },
+  "agentCount": "{{count}} Agent",
+  "agentCount_plural": "{{count}} Agenten",
+  "working": "arbeitet",
+  "focusZone": "Fokuszone",
+  "noAgentsMatching": "Keine Agenten passend zu \"{{search}}\"",
+  "noAgentsSpawned": "Noch keine Agenten erzeugt",
+  "cards": {
+    "doubleClickHint": "Doppelklick zum Öffnen des Terminals | Ziehen um in anderen Bereich zu verschieben",
+    "openTerminal": "Terminal öffnen",
+    "killAgent": "Agent beenden",
+    "chat": "Chat",
+    "stop": "Stoppen"
+  },
+  "metrics": {
+    "totalAgents": "Agenten gesamt",
+    "activeAgents": "Aktive Agenten",
+    "idleAgents": "Inaktive Agenten",
+    "errorAgents": "Fehlerhafte Agenten",
+    "totalTokens": "Tokens gesamt",
+    "totalCost": "Gesamtkosten",
+    "avgResponseTime": "Durchschn. Antwortzeit",
+    "uptime": "Laufzeit",
+    "tokensIn": "Tokens rein",
+    "tokensOut": "Tokens raus"
+  },
+  "statusCards": {
+    "title": "Agenten-Status",
+    "noAgents": "Keine laufenden Agenten",
+    "viewAll": "Alle anzeigen",
+    "lastActivity": "Letzte Aktivität",
+    "currentTask": "Aktuelle Aufgabe"
+  },
+  "timeline": {
+    "title": "Ereignis-Zeitleiste",
+    "noEvents": "Noch keine Ereignisse",
+    "recentEvents": "Aktuelle Ereignisse",
+    "noRecentEvents": "Keine aktuellen Ereignisse",
+    "viewMore": "{{count}} weitere Ereignisse anzeigen",
+    "agent": "Agent",
+    "building": "Gebäude",
+    "agentSpawned": "Agent erzeugt",
+    "agentTerminated": "Agent beendet",
+    "taskCompleted": "Aufgabe abgeschlossen",
+    "taskFailed": "Aufgabe fehlgeschlagen",
+    "errorOccurred": "Fehler aufgetreten",
+    "sessionStarted": "Sitzung gestartet",
+    "sessionEnded": "Sitzung beendet"
+  },
+  "buildings": {
+    "title": "Gebäude-Status",
+    "noBuildings": "Keine Gebäude konfiguriert",
+    "healthy": "Gesund",
+    "warning": "Warnung",
+    "critical": "Kritisch"
+  },
+  "metricsDisplay": {
+    "title": "Live-Metriken",
+    "activeAgents": "Aktive Agenten",
+    "healthyAgents": "Gesunde Agenten",
+    "agentErrors": "Agenten-Fehler",
+    "healthyBuildings": "Gesunde Gebäude",
+    "performanceRates": "Leistungsraten",
+    "taskCompletion": "Aufgabenabschluss",
+    "errorRate": "Fehlerrate",
+    "buildingHealth": "Gebäude-Gesundheit",
+    "recentErrors": "Aktuelle Fehler"
+  }
+}

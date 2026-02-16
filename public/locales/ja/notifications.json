@@ -1,0 +1,48 @@
+{
+  "agent": {
+    "clickToFocus": "クリックしてフォーカス",
+    "needsAttention": "対応が必要です",
+    "removed": "{{name}}をビューから削除しました",
+    "deployed": "{{name}}の配置に成功しました",
+    "terminated": "{{name}}を終了しました",
+    "started": "{{name}}を開始しました",
+    "errored": "{{name}}でエラーが発生しました"
+  },
+  "toast": {
+    "info": "情報",
+    "success": "成功",
+    "warning": "警告",
+    "agentsRemoved": "エージェント削除",
+    "agentsRemovedMsg": "{{count}}個のエージェントをビューから削除しました",
+    "buildingsDeleted": "ビルディング削除",
+    "buildingsDeletedMsg": "{{count}}個のビルディングを削除しました",
+    "buildingDeleted": "ビルディング削除",
+    "buildingDeletedMsg": "「{{name}}」を削除しました",
+    "snapshotSaved": "スナップショット保存",
+    "snapshotSavedMsg": "スナップショットを正常に保存しました",
+    "snapshotFailed": "スナップショット失敗",
+    "snapshotFailedMsg": "スナップショットの作成に失敗しました",
+    "copied": "コピー済み",
+    "resumeCopied": "再開コマンドをクリップボードにコピーしました",
+    "textCopied": "テキストをクリップボードにコピーしました",
+    "pathCopied": "パスをクリップボードにコピーしました",
+    "mergeComplete": "マージ完了",
+    "mergeCompleteMsg": "ブランチのマージに成功しました",
+    "mergeConflicts": "マージコンフリクト",
+    "mergeConflictsMsg": "解決が必要なコンフリクトがあります",
+    "mergeAborted": "マージ中止",
+    "mergeAbortedMsg": "マージ操作を中止しました",
+    "branchCreated": "ブランチ作成",
+    "branchCreatedMsg": "ブランチ「{{name}}」を作成しました",
+    "branchSwitched": "ブランチ切り替え",
+    "branchSwitchedMsg": "ブランチ「{{name}}」に切り替えました",
+    "filesSaved": "ファイル保存",
+    "filesSavedMsg": "{{count}}個のファイルを保存しました"
+  },
+  "drawing": {
+    "rectangleTool": "四角形ツール",
+    "circleTool": "円ツール",
+    "toolName": "{{name}}ツール",
+    "clickAndDrag": "フィールド上でクリック&ドラッグしてエリアを描画"
+  }
+}

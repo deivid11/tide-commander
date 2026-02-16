@@ -1,0 +1,48 @@
+{
+  "agent": {
+    "clickToFocus": "Clique para focar",
+    "needsAttention": "precisa de atencao",
+    "removed": "{{name}} removido da visualizacao",
+    "deployed": "{{name}} implantado com sucesso",
+    "terminated": "{{name}} encerrado",
+    "started": "{{name}} iniciado",
+    "errored": "{{name}} encontrou um erro"
+  },
+  "toast": {
+    "info": "Info",
+    "success": "Sucesso",
+    "warning": "Aviso",
+    "agentsRemoved": "Agentes Removidos",
+    "agentsRemovedMsg": "{{count}} agente(s) removido(s) da visualizacao",
+    "buildingsDeleted": "Edificios Excluidos",
+    "buildingsDeletedMsg": "{{count}} edificio(s) excluido(s)",
+    "buildingDeleted": "Edificio Excluido",
+    "buildingDeletedMsg": "\"{{name}}\" foi excluido",
+    "snapshotSaved": "Snapshot Salvo",
+    "snapshotSavedMsg": "Snapshot salvo com sucesso",
+    "snapshotFailed": "Snapshot Falhou",
+    "snapshotFailedMsg": "Falha ao criar snapshot",
+    "copied": "Copiado",
+    "resumeCopied": "Comando de retomada copiado para a area de transferencia",
+    "textCopied": "Texto copiado para a area de transferencia",
+    "pathCopied": "Caminho copiado para a area de transferencia",
+    "mergeComplete": "Merge Concluido",
+    "mergeCompleteMsg": "Branch mesclada com sucesso",
+    "mergeConflicts": "Conflitos de Merge",
+    "mergeConflictsMsg": "O merge possui conflitos que precisam ser resolvidos",
+    "mergeAborted": "Merge Cancelado",
+    "mergeAbortedMsg": "Operacao de merge cancelada",
+    "branchCreated": "Branch Criada",
+    "branchCreatedMsg": "Branch \"{{name}}\" criada",
+    "branchSwitched": "Branch Alterada",
+    "branchSwitchedMsg": "Alternado para a branch \"{{name}}\"",
+    "filesSaved": "Arquivos Salvos",
+    "filesSavedMsg": "{{count}} arquivo(s) salvo(s)"
+  },
+  "drawing": {
+    "rectangleTool": "Ferramenta Retangulo",
+    "circleTool": "Ferramenta Circulo",
+    "toolName": "Ferramenta {{name}}",
+    "clickAndDrag": "Clique e arraste no campo de batalha para desenhar uma area"
+  }
+}

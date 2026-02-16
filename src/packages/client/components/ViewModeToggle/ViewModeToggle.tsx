@@ -6,8 +6,9 @@
  */
 
 import { memo, useCallback, useRef, useState, useLayoutEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useViewMode } from '../../hooks/useViewMode';
-import { VIEW_MODES, VIEW_MODE_LABELS, VIEW_MODE_DESCRIPTIONS } from '../../types/viewModes';
+import { VIEW_MODES } from '../../types/viewModes';
 import type { ViewMode } from '../../types/viewModes';
 import './ViewModeToggle.scss';
 
@@ -16,6 +17,7 @@ interface ViewModeToggleProps {
 }
 
 export const ViewModeToggle = memo(function ViewModeToggle({ className = '' }: ViewModeToggleProps) {
+  const { t } = useTranslation(['common']);
   const [viewMode, setViewMode] = useViewMode();
   const containerRef = useRef<HTMLDivElement>(null);
   const [indicatorStyle, setIndicatorStyle] = useState<{ left: number; width: number } | null>(null);
@@ -54,7 +56,7 @@ export const ViewModeToggle = memo(function ViewModeToggle({ className = '' }: V
           key={mode}
           className={`view-mode-toggle__btn ${viewMode === mode ? 'view-mode-toggle__btn--active' : ''}`}
           onClick={() => handleModeChange(mode)}
-          title={VIEW_MODE_DESCRIPTIONS[mode]}
+          title={t(`common:viewMode.descriptions.${mode}`)}
         >
           <span className="view-mode-toggle__icon">
             {mode === '2d' && (
@@ -80,7 +82,7 @@ export const ViewModeToggle = memo(function ViewModeToggle({ className = '' }: V
               </svg>
             )}
           </span>
-          <span className="view-mode-toggle__label">{VIEW_MODE_LABELS[mode]}</span>
+          <span className="view-mode-toggle__label">{t(`common:viewMode.labels.${mode}`)}</span>
         </button>
       ))}
     </div>

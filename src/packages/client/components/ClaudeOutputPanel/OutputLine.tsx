@@ -3,9 +3,10 @@
  */
 
 import React, { memo, useState, useRef, useCallback, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useHideCost, useSettings, ClaudeOutput, store } from '../../store';
 import { filterCostText } from '../../utils/formatting';
-import { TOOL_ICONS, formatTimestamp, parseBashNotificationCommand, parseBashSearchCommand } from '../../utils/outputRendering';
+import { TOOL_ICONS, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand } from '../../utils/outputRendering';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, DelegatedTaskHeader, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions } from './BossContext';
 import { EditToolDiff, ReadToolInput, TodoWriteInput } from './ToolRenderers';
@@ -48,6 +49,7 @@ function getDebugHash(output: ClaudeOutput): string {
 
 // Metadata tooltip that appears on timestamp click
 function MessageMetadataTooltip({ output, debugHash, agentId, onClose }: { output: ClaudeOutput; debugHash: string; agentId: string | null; onClose: () => void }) {
+  const { t } = useTranslation(['tools', 'common']);
   const tooltipRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -132,9 +134,9 @@ function MessageMetadataTooltip({ output, debugHash, agentId, onClose }: { outpu
   return (
     <div className="msg-meta-tooltip" ref={tooltipRef}>
       <div className="msg-meta-tooltip__header">
-        <span>Message Info</span>
+        <span>{t('tools:metadata.messageInfo')}</span>
         <div className="msg-meta-tooltip__actions">
-          <button className="msg-meta-tooltip__copy-all" onClick={copyAll} title="Copy all as JSON">JSON</button>
+          <button className="msg-meta-tooltip__copy-all" onClick={copyAll} title={t('tools:metadata.copyAllAsJSON')}>JSON</button>
           <button className="msg-meta-tooltip__close" onClick={onClose}>&times;</button>
         </div>
       </div>
@@ -145,7 +147,7 @@ function MessageMetadataTooltip({ output, debugHash, agentId, onClose }: { outpu
             <span
               className={`msg-meta-tooltip__value ${mono ? 'mono' : ''}`}
               onClick={() => copyField(value)}
-              title="Click to copy"
+              title={t('tools:metadata.clickToCopy')}
             >
               {value}
             </span>
@@ -158,6 +160,7 @@ function MessageMetadataTooltip({ output, debugHash, agentId, onClose }: { outpu
 
 // Timestamp that opens metadata tooltip on click
 function TimestampWithMeta({ output, timeStr, debugHash, agentId }: { output: ClaudeOutput; timeStr: string; debugHash: string; agentId?: string | null }) {
+  const { t } = useTranslation(['tools']);
   const [showMeta, setShowMeta] = useState(false);
   const handleClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -170,7 +173,7 @@ function TimestampWithMeta({ output, timeStr, debugHash, agentId }: { output: Cl
       <span
         className="output-timestamp output-timestamp--clickable"
         onClick={handleClick}
-        title="Click for message info"
+        title={t('tools:metadata.clickForMessageInfo')}
       >
         {timeStr}
       </span>
@@ -180,6 +183,7 @@ function TimestampWithMeta({ output, timeStr, debugHash, agentId }: { output: Cl
 }
 
 export const OutputLine = memo(function OutputLine({ output, agentId, execTasks = [], onImageClick, onFileClick, onBashClick, onViewMarkdown }: OutputLineProps) {
+  const { t } = useTranslation(['tools', 'common']);
   const hideCost = useHideCost();
   const settings = useSettings();
   const [expandedExecTasks, setExpandedExecTasks] = useState<Set<string>>(new Set());
@@ -227,7 +231,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       <div className="output-line output-skill-update">
         <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
         <span className="skill-update-icon">🔄</span>
-        <span className="skill-update-label">Skills updated:</span>
+        <span className="skill-update-label">{t('tools:skills.skillsUpdated')}</span>
         <span className="skill-update-list">
           {skillUpdate.skills.map((skill, i) => (
             <span key={skill.name} className="skill-update-item" title={skill.description}>
@@ -250,7 +254,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       >
         <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
         <span className="session-continuation-icon">🔗</span>
-        <span className="session-continuation-label">Session continued from previous context</span>
+        <span className="session-continuation-label">{t('tools:display.sessionContinued')}</span>
         <span className="session-continuation-toggle">{sessionExpanded ? '▼' : '▶'}</span>
         {sessionExpanded && (
           <div className="session-continuation-content">
@@ -285,7 +289,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
           <DelegatedTaskHeader bossName={delegation.bossName} taskCommand={delegation.taskCommand} />
         ) : (
           <>
-            <span className="output-role output-role-chip output-role-user-chip">You</span>
+            <span className="output-role output-role-chip output-role-user-chip">{t('common:labels.you')}</span>
             {parsed.hasContext && parsed.context && (
               <BossContext key={`boss-stream-${text.slice(0, 50)}`} context={parsed.context} onFileClick={onFileClick} />
             )}
@@ -299,6 +303,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
   // Handle tool usage with nice formatting
   if (text.startsWith('Using tool:')) {
     const toolName = text.replace('Using tool:', '').trim();
+    const displayToolName = getLocalizedToolName(toolName, t);
     const icon = TOOL_ICONS[toolName] || TOOL_ICONS.default;
 
     // Special case: TodoWrite shows the task list inline in simple view
@@ -406,8 +411,8 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       if (isBashTool && bashCommand) {
         // If command is still running (no output yet), show loading message
         const outputMessage = _isRunning
-          ? 'Running...'
-          : (_bashOutput || '(No output captured)');
+          ? t('tools:display.running')
+          : (_bashOutput || t('tools:display.noOutputCaptured'));
         onBashClick(bashCommand, outputMessage);
       }
     };
@@ -417,12 +422,12 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         <div
           className={`output-line output-tool-use ${isStreaming ? 'output-streaming' : ''} ${isBashTool ? 'bash-clickable' : ''} ${bashNotificationCommand ? 'bash-notify-use' : ''}`}
           onClick={isBashTool ? handleBashClick : undefined}
-          title={isBashTool ? 'Click to view output' : undefined}
+          title={isBashTool ? t('tools:display.clickToViewOutput') : undefined}
         >
           <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
           {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
           <span className="output-tool-icon">{icon}</span>
-          <span className="output-tool-name">{toolName}</span>
+          <span className="output-tool-name">{displayToolName}</span>
 
           {/* For Bash tools, show the command inline (more useful than file paths) */}
           {isBashTool && bashCommand && (
@@ -461,7 +466,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
               <span
                 className="output-tool-param bash-command"
                 onClick={handleBashClick}
-                title="Click to view full output"
+                title={t('tools:display.clickToViewOutput')}
                 style={{ cursor: 'pointer', fontFamily: 'monospace', fontSize: '0.9em', color: '#888' }}
               >
                 {displayCommand}
@@ -474,7 +479,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
             <span
               className={`output-tool-param ${isFileClickable ? 'clickable-path' : ''}`}
               onClick={isFileClickable ? handleParamClick : undefined}
-              title={isFileClickable ? (toolName === 'Edit' && (_editData || editDataFallback) ? 'Click to view diff' : 'Click to view file') : undefined}
+              title={isFileClickable ? (toolName === 'Edit' && (_editData || editDataFallback) ? t('tools:display.clickToViewDiff') : t('tools:display.clickToViewFile')) : undefined}
               style={isFileClickable ? { cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' } : undefined}
             >
               {isFileTool && isFilePath && (() => {
@@ -523,7 +528,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
                     >
                       <span className="exec-task-toggle-arrow">{isExpanded ? '▼' : '▶'}</span>
                       <span className="exec-task-toggle-text">
-                        {isExpanded ? 'Hide' : `Show all (${task.output.length} lines)`}
+                        {isExpanded ? t('tools:skills.hide') : t('tools:skills.showAll', { count: task.output.length })}
                       </span>
                     </div>
                   )}
@@ -621,8 +626,8 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         <div className="bash-output-container">
           <div className="bash-output-header">
             <span className="bash-output-icon">$</span>
-            <span className="bash-output-label">Terminal Output</span>
-            {isTruncated && <span className="bash-output-truncated">truncated</span>}
+            <span className="bash-output-label">{t('tools:display.terminalOutput')}</span>
+            {isTruncated && <span className="bash-output-truncated">{t('tools:display.truncated')}</span>}
           </div>
           <pre className="bash-output-content" dangerouslySetInnerHTML={{ __html: ansiToHtml(bashOutput) }} />
         </div>
@@ -741,7 +746,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     }
   }
 
-  const outputRoleLabel = isClaudeMessage ? assistantRoleLabel : (isSystemMessage ? 'System' : null);
+  const outputRoleLabel = isClaudeMessage ? assistantRoleLabel : (isSystemMessage ? t('tools:display.system') : null);
 
   return (
     <div className={className}>
@@ -767,7 +772,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         <>
           {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
           <span className="output-tool-name output-thinking-label">
-            {provider === 'codex' ? 'Codex Thinking' : 'Thinking'}
+            {provider === 'codex' ? t('tools:display.codexThinking') : t('tools:display.thinking')}
           </span>
           <span className="output-tool-param output-thinking-content" title={thinkingInlineText}>
             {thinkingInlineText}

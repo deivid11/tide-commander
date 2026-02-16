@@ -7,6 +7,7 @@
  */
 
 import React, { memo, useState, useMemo, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { GitFileStatusType, GitFileStatus, GitStatusCounts } from './types';
 import { GIT_STATUS_CONFIG } from './constants';
 import { buildGitTree, collectGitTreeDirPaths, getIconForExtension } from './fileUtils';
@@ -54,6 +55,7 @@ const CompareTreeNodeItem = memo(function CompareTreeNodeItem({
   selectedPath,
   onSelect,
 }: CompareTreeNodeItemProps) {
+  const { t } = useTranslation(['terminal']);
   const indent = depth * COMPARE_TREE_INDENT;
 
   // File leaf node
@@ -103,7 +105,7 @@ const CompareTreeNodeItem = memo(function CompareTreeNodeItem({
         />
         <span className="tree-name">{node.name}</span>
         <span className="git-tree-file-count">
-          {node.fileCount} {node.fileCount === 1 ? 'file' : 'files'}
+          {t('terminal:fileExplorer.fileCount', { count: node.fileCount })}
         </span>
       </div>
       {isExpanded && (
@@ -183,6 +185,7 @@ function BranchComparisonComponent({
   selectedPath,
   onClose,
 }: BranchComparisonProps) {
+  const { t } = useTranslation(['terminal']);
   const [viewMode, setViewMode] = useState<CompareViewMode>('tree');
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
 
@@ -230,13 +233,13 @@ function BranchComparisonComponent({
     return (
       <div className="branch-comparison">
         <div className="branch-comparison-header">
-          <span className="branch-comparison-title">Comparing branches...</span>
-          <button className="branch-comparison-close" onClick={onClose} title="Close comparison">
+          <span className="branch-comparison-title">{t('terminal:fileExplorer.comparingBranches')}</span>
+          <button className="branch-comparison-close" onClick={onClose} title={t('terminal:fileExplorer.closeComparison')}>
             &times;
           </button>
         </div>
         <div className="branch-comparison-empty">
-          <div className="branch-comparison-empty-text">Comparing branches...</div>
+          <div className="branch-comparison-empty-text">{t('terminal:fileExplorer.comparingBranches')}</div>
         </div>
       </div>
     );
@@ -256,13 +259,13 @@ function BranchComparisonComponent({
           <span className="branch-comparison-title">
             {currentBranch} vs {baseBranch}
           </span>
-          <button className="branch-comparison-close" onClick={onClose} title="Close comparison">
+          <button className="branch-comparison-close" onClick={onClose} title={t('terminal:fileExplorer.closeComparison')}>
             &times;
           </button>
         </div>
         <div className="branch-comparison-empty">
           <div className="branch-comparison-empty-icon">&#10024;</div>
-          <div className="branch-comparison-empty-text">No differences between branches</div>
+          <div className="branch-comparison-empty-text">{t('terminal:fileExplorer.noDifferences')}</div>
         </div>
       </div>
     );
@@ -276,7 +279,7 @@ function BranchComparisonComponent({
           &#8660; {currentBranch} vs {baseBranch}
         </span>
         <span className="branch-comparison-file-count">
-          {totalFiles} {totalFiles === 1 ? 'file' : 'files'}
+          {t('terminal:fileExplorer.fileCount', { count: totalFiles })}
         </span>
         <div className="git-changes-summary">
           {counts.modified > 0 && (
@@ -299,7 +302,7 @@ function BranchComparisonComponent({
           <button
             className={`git-view-toggle-btn ${viewMode === 'flat' ? 'active' : ''}`}
             onClick={() => setViewMode('flat')}
-            title="Flat list"
+            title={t('terminal:fileExplorer.flatList')}
           >
             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
               <rect x="2" y="3" width="12" height="1.5" rx="0.5" />
@@ -310,7 +313,7 @@ function BranchComparisonComponent({
           <button
             className={`git-view-toggle-btn ${viewMode === 'tree' ? 'active' : ''}`}
             onClick={() => setViewMode('tree')}
-            title="Directory tree"
+            title={t('terminal:fileExplorer.directoryTree')}
           >
             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
               <rect x="1" y="2" width="6" height="1.5" rx="0.5" />
@@ -320,7 +323,7 @@ function BranchComparisonComponent({
             </svg>
           </button>
         </div>
-        <button className="branch-comparison-close" onClick={onClose} title="Close comparison">
+        <button className="branch-comparison-close" onClick={onClose} title={t('terminal:fileExplorer.closeComparison')}>
           &times;
         </button>
       </div>

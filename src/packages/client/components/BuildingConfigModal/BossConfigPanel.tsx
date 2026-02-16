@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   BUILDING_TYPES,
   type Building,
@@ -31,19 +32,20 @@ export function BossConfigPanel({
   currentBossLogs,
   bossLogsContainerRef,
 }: BossConfigPanelProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   return (
     <div className="form-section boss-building-section">
       <label className="form-label">
-        Managed Buildings
+        {t('terminal:building.managedBuildings')}
         <HelpTooltip
-          text="Boss buildings can control multiple subordinate buildings. Use this to group related services and manage them together."
-          title="Managed Buildings"
+          text={t('terminal:building.helpManagedBuildings')}
+          title={t('terminal:building.managedBuildings')}
           position="top"
           size="sm"
         />
       </label>
       <div className="form-hint">
-        Select buildings this boss will control. You can start, stop, or restart all managed buildings at once.
+        {t('terminal:building.managedBuildingsHint')}
       </div>
       <div className="subordinate-buildings-list">
         {Array.from(buildings.values())
@@ -71,7 +73,7 @@ export function BossConfigPanel({
           ))}
         {Array.from(buildings.values()).filter(b => b.id !== buildingId && b.type !== 'boss' && b.type !== 'link' && b.type !== 'folder').length === 0 && (
           <div className="form-hint no-buildings-hint">
-            No manageable buildings available. Create server, database, docker, or monitor buildings first.
+            {t('terminal:building.noManageableBuildings')}
           </div>
         )}
       </div>
@@ -80,9 +82,9 @@ export function BossConfigPanel({
       {isEditMode && subordinateBuildingIds.length > 0 && (
         <div className="boss-building-actions">
           <div className="boss-actions-header">
-            Bulk Actions
+            {t('terminal:building.bulkActions')}
             <HelpTooltip
-              text="Execute commands on all managed buildings simultaneously. Useful for starting or restarting your entire stack."
+              text={t('terminal:building.helpBulkActions')}
               position="top"
               size="sm"
             />
@@ -93,21 +95,21 @@ export function BossConfigPanel({
               className="btn btn-sm btn-success"
               onClick={() => store.sendBossBuildingCommand(buildingId!, 'start_all')}
             >
-              Start All
+              {t('terminal:building.startAll')}
             </button>
             <button
               type="button"
               className="btn btn-sm btn-danger"
               onClick={() => store.sendBossBuildingCommand(buildingId!, 'stop_all')}
             >
-              Stop All
+              {t('terminal:building.stopAll')}
             </button>
             <button
               type="button"
               className="btn btn-sm btn-warning"
               onClick={() => store.sendBossBuildingCommand(buildingId!, 'restart_all')}
             >
-              Restart All
+              {t('terminal:building.restartAll')}
             </button>
             <button
               type="button"
@@ -122,13 +124,13 @@ export function BossConfigPanel({
                 }
               }}
             >
-              {showBossLogs ? 'Hide Logs' : 'Unified Logs'}
+              {showBossLogs ? t('terminal:building.hideLogs') : t('terminal:building.unifiedLogs')}
             </button>
           </div>
 
           {/* Status overview of managed buildings */}
           <div className="boss-subordinates-status">
-            <div className="boss-status-header">Status Overview</div>
+            <div className="boss-status-header">{t('terminal:building.statusOverview')}</div>
             <div className="boss-status-grid">
               {subordinateBuildingIds.map(id => {
                 const sub = buildings.get(id);
@@ -153,9 +155,9 @@ export function BossConfigPanel({
       {isEditMode && showBossLogs && (
         <div className="form-section boss-logs-section">
           <label className="form-label">
-            Unified Logs
+            {t('terminal:building.unifiedLogs')}
             <HelpTooltip
-              text="Aggregated real-time logs from all managed buildings. Each line shows which building the log came from."
+              text={t('terminal:building.helpUnifiedLogs')}
               position="top"
               size="sm"
             />
@@ -164,7 +166,7 @@ export function BossConfigPanel({
               className="btn btn-sm"
               onClick={() => store.clearBossStreamingLogs(buildingId!)}
             >
-              Clear
+              {t('common:buttons.clear')}
             </button>
           </label>
           <div className="boss-logs-container" ref={bossLogsContainerRef}>
@@ -175,7 +177,7 @@ export function BossConfigPanel({
               </div>
             ))}
             {currentBossLogs.length === 0 && (
-              <div className="boss-logs-empty">Waiting for logs...</div>
+              <div className="boss-logs-empty">{t('terminal:building.waitingForLogs')}</div>
             )}
           </div>
         </div>

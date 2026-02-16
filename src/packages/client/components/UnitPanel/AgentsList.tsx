@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useRef, useEffect, useMemo, memo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useStore, store, useCustomAgentClassesArray } from '../../store';
 import { getClassConfig } from '../../utils/classConfig';
 import { PROGRESS_COLORS } from '../../utils/colors';
@@ -18,6 +19,7 @@ import type { AgentsListProps, AgentListItemProps, GlobalSupervisorStatusProps, 
 // ============================================================================
 
 export function AgentsList({ onOpenAreaExplorer }: AgentsListProps) {
+  const { t } = useTranslation(['common']);
   const state = useStore();
   const agentsArray = Array.from(state.agents.values());
   const areasArray = Array.from(state.areas.values());
@@ -63,15 +65,15 @@ export function AgentsList({ onOpenAreaExplorer }: AgentsListProps) {
     return (
       <div className="empty-state">
         <div className="empty-state-icon">⚔️</div>
-        <div className="empty-state-title">No Agents Deployed</div>
-        <div className="empty-state-desc">Click "+ New Agent" to deploy your first agent</div>
+        <div className="empty-state-title">{t('agentsList.noAgentsDeployed')}</div>
+        <div className="empty-state-desc">{t('agentsList.clickNewAgent')}</div>
       </div>
     );
   }
 
   return (
     <div className="agents-list">
-      <div className="agents-list-header">Areas & Agents</div>
+      <div className="agents-list-header">{t('agentsList.areasAndAgents')}</div>
       {sortedAreaIds.map((areaId) => {
         const agents = agentsByArea.get(areaId)!;
         const area = areaId ? state.areas.get(areaId) : null;
@@ -93,14 +95,14 @@ export function AgentsList({ onOpenAreaExplorer }: AgentsListProps) {
                     <button
                       className="area-browse-btn"
                       onClick={() => onOpenAreaExplorer?.(area.id)}
-                      title="Browse files"
+                      title={t('agentsList.browseFiles')}
                     >
                       📂
                     </button>
                   )}
                 </>
               ) : (
-                <span className="agents-group-name unassigned">Unassigned</span>
+                <span className="agents-group-name unassigned">{t('agentsList.unassigned')}</span>
               )}
               <span className="agents-group-count">{agents.length}</span>
             </div>
@@ -183,6 +185,7 @@ const AgentListItem = memo(function AgentListItem({ agent, area: _area }: AgentL
 // ============================================================================
 
 const GlobalSupervisorStatus = memo(function GlobalSupervisorStatus({ agents }: GlobalSupervisorStatusProps) {
+  const { t } = useTranslation(['common']);
   const state = useStore();
   const customClasses = useCustomAgentClassesArray();
   const hideCost = state.settings.hideCost;
@@ -221,7 +224,7 @@ const GlobalSupervisorStatus = memo(function GlobalSupervisorStatus({ agents }: 
     <div className="global-supervisor-status">
       <div className="global-supervisor-header" onClick={handleToggle}>
         <span className="global-supervisor-toggle">{collapsed ? '▶' : '▼'}</span>
-        <span className="global-supervisor-title">Supervisor Status</span>
+        <span className="global-supervisor-title">{t('agentsList.supervisorStatus')}</span>
         <span className="global-supervisor-time">{formatRelativeTime(mostRecentTimestamp)}</span>
       </div>
       {!collapsed && (

@@ -5,6 +5,7 @@
  */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   store,
   useContextModalAgentId,
@@ -63,6 +64,7 @@ export interface BashModalProps {
 }
 
 export function BashModal({ state, onClose }: BashModalProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const { handleMouseDown: handleBackdropMouseDown, handleClick: handleBackdropClick } = useModalClose(onClose);
   return (
     <ModalPortal>
@@ -70,7 +72,7 @@ export function BashModal({ state, onClose }: BashModalProps) {
         <div className="bash-modal">
           <div className="bash-modal-header">
             <span className="bash-modal-icon">$</span>
-            <span className="bash-modal-title">Terminal Output</span>
+            <span className="bash-modal-title">{t('terminal:modals.terminalOutput')}</span>
             <button className="bash-modal-close" onClick={onClose}>
               ×
             </button>
@@ -97,6 +99,7 @@ export interface ContextConfirmModalProps {
 }
 
 export function ContextConfirmModal({ action, selectedAgentId, subordinateCount, onClose, onClearHistory }: ContextConfirmModalProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const { handleMouseDown: handleBackdropMouseDown, handleClick: handleBackdropClick } = useModalClose(onClose);
   const handleConfirm = () => {
     if (selectedAgentId) {
@@ -113,9 +116,9 @@ export function ContextConfirmModal({ action, selectedAgentId, subordinateCount,
   };
 
   const getTitle = () => {
-    if (action === 'collapse') return 'Collapse Context';
-    if (action === 'clear-subordinates') return 'Clear All Subordinates Context';
-    return 'Clear Context';
+    if (action === 'collapse') return t('terminal:modals.collapseContext');
+    if (action === 'clear-subordinates') return t('terminal:modals.clearAllSubordinatesContext');
+    return t('terminal:modals.clearContext');
   };
 
   return (
@@ -126,37 +129,37 @@ export function ContextConfirmModal({ action, selectedAgentId, subordinateCount,
           <div className="modal-body confirm-modal-body">
             {action === 'collapse' ? (
               <>
-                <p>Collapse the conversation context?</p>
+                <p>{t('terminal:modals.collapseConfirm')}</p>
                 <p className="confirm-modal-note">
-                  This will summarize the conversation to save tokens while preserving important information.
+                  {t('terminal:modals.collapseNote')}
                 </p>
               </>
             ) : action === 'clear-subordinates' ? (
               <>
-                <p>Clear context for all {subordinateCount} subordinate agent{subordinateCount !== 1 ? 's' : ''}?</p>
+                <p>{t('terminal:modals.clearSubordinatesConfirm', { count: subordinateCount })}</p>
                 <p className="confirm-modal-note">
-                  This will start fresh sessions for all subordinate agents. All their conversation history will be lost.
+                  {t('terminal:modals.clearSubordinatesNote')}
                 </p>
               </>
             ) : (
               <>
-                <p>Clear all context for this agent?</p>
+                <p>{t('terminal:modals.clearConfirm')}</p>
                 <p className="confirm-modal-note">
-                  This will start a fresh session on the next command. All conversation history will be lost.
+                  {t('terminal:modals.clearNote')}
                 </p>
               </>
             )}
           </div>
           <div className="modal-footer">
             <button className="btn btn-secondary" onClick={onClose}>
-              Cancel
+              {t('common:buttons.cancel')}
             </button>
             <button
               className={`btn ${action === 'clear' || action === 'clear-subordinates' ? 'btn-danger' : 'btn-primary'}`}
               onClick={handleConfirm}
               autoFocus
             >
-              {action === 'collapse' ? 'Collapse' : action === 'clear-subordinates' ? 'Clear All' : 'Clear Context'}
+              {action === 'collapse' ? t('common:buttons.collapse') : action === 'clear-subordinates' ? t('terminal:modals.clearAll') : t('terminal:modals.clearContext')}
             </button>
           </div>
         </div>
@@ -241,6 +244,7 @@ function formatDateTime(timestamp?: number): string {
 }
 
 export function AgentInfoModal({ agent, isOpen, onClose }: AgentInfoModalProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const { handleMouseDown: handleBackdropMouseDown, handleClick: handleBackdropClick } = useModalClose(onClose);
   const skills = useAgentSkills(agent?.id || null);
   const customClass = useCustomAgentClass(agent?.class || null);
@@ -270,17 +274,17 @@ export function AgentInfoModal({ agent, isOpen, onClose }: AgentInfoModalProps) 
           <div className="agent-info-modal-header">
             <div className="agent-info-modal-title">
               <span className="icon">ℹ️</span>
-              <span>{agent.name} Agent Info</span>
+              <span>{t('terminal:agentInfo.title', { name: agent.name })}</span>
             </div>
             <button className="agent-info-modal-close" onClick={onClose}>×</button>
           </div>
 
           <div className="agent-info-modal-body">
             <section className="agent-info-section">
-              <h4>Runtime</h4>
+              <h4>{t('terminal:agentInfo.runtime')}</h4>
               <div className="agent-info-grid">
                 <div className="agent-info-item">
-                  <span>Backend</span>
+                  <span>{t('terminal:agentInfo.backend')}</span>
                   <strong>
                     <img
                       src={agent.provider === 'codex' ? '/assets/codex.png' : '/assets/claude.png'}
@@ -291,52 +295,52 @@ export function AgentInfoModal({ agent, isOpen, onClose }: AgentInfoModalProps) 
                     {agent.provider === 'codex' ? 'Codex' : 'Claude'}
                   </strong>
                 </div>
-                <div className="agent-info-item"><span>Model</span><strong>{model}</strong></div>
-                <div className="agent-info-item"><span>Status</span><strong>{agent.status}</strong></div>
-                <div className="agent-info-item"><span>Class</span><strong>{agent.class}</strong></div>
-                <div className="agent-info-item"><span>Permission</span><strong>{agent.permissionMode}</strong></div>
-                <div className="agent-info-item"><span>Session</span><strong>{agent.sessionId || 'Not started'}</strong></div>
+                <div className="agent-info-item"><span>{t('terminal:agentInfo.model')}</span><strong>{model}</strong></div>
+                <div className="agent-info-item"><span>{t('terminal:agentInfo.status')}</span><strong>{agent.status}</strong></div>
+                <div className="agent-info-item"><span>{t('terminal:agentInfo.class')}</span><strong>{agent.class}</strong></div>
+                <div className="agent-info-item"><span>{t('terminal:agentInfo.permission')}</span><strong>{agent.permissionMode}</strong></div>
+                <div className="agent-info-item"><span>{t('terminal:agentInfo.session')}</span><strong>{agent.sessionId || t('terminal:agentInfo.notStarted')}</strong></div>
               </div>
             </section>
 
             <section className="agent-info-section">
-              <h4>Prompt and Instructions</h4>
+              <h4>{t('terminal:agentInfo.promptAndInstructions')}</h4>
               <div className="agent-info-prompts">
                 {showCombinedPrompt && (
                   <div className="agent-info-prompt-block">
-                    <span>Custom prompt</span>
+                    <span>{t('terminal:agentInfo.customPrompt')}</span>
                     <pre>{combinedPrompt}</pre>
                   </div>
                 )}
                 {!hasCustomPrompt && (
                   <div className="agent-info-prompt-block">
-                    <span>Custom prompt</span>
-                    <strong className="warn">Not configured</strong>
+                    <span>{t('terminal:agentInfo.customPrompt')}</span>
+                    <strong className="warn">{t('terminal:agentInfo.notConfigured')}</strong>
                   </div>
                 )}
                 <div className="agent-info-prompt-block">
-                  <span>Class prompt</span>
+                  <span>{t('terminal:agentInfo.classPrompt')}</span>
                   {hasClassInstructions ? (
                     <pre>{classInstructions}</pre>
                   ) : (
-                    <strong>None</strong>
+                    <strong>{t('terminal:agentInfo.none')}</strong>
                   )}
                 </div>
                 <div className="agent-info-prompt-block">
-                  <span>Agent prompt</span>
+                  <span>{t('terminal:agentInfo.agentPrompt')}</span>
                   {hasAgentInstructions ? (
                     <pre>{agentInstructions}</pre>
                   ) : (
-                    <strong>None</strong>
+                    <strong>{t('terminal:agentInfo.none')}</strong>
                   )}
                 </div>
               </div>
             </section>
 
             <section className="agent-info-section">
-              <h4>Skills ({skills.length})</h4>
+              <h4>{t('terminal:agentInfo.skills', { count: skills.length })}</h4>
               {skills.length === 0 ? (
-                <div className="agent-info-empty">No enabled skills assigned</div>
+                <div className="agent-info-empty">{t('terminal:agentInfo.noSkills')}</div>
               ) : (
                 <div className="agent-info-skills">
                   {skills.map((skill) => (
@@ -350,14 +354,14 @@ export function AgentInfoModal({ agent, isOpen, onClose }: AgentInfoModalProps) 
             </section>
 
             <section className="agent-info-section">
-              <h4>Diagnostics</h4>
+              <h4>{t('terminal:agentInfo.diagnostics')}</h4>
               <div className="agent-info-grid">
-                <div className="agent-info-item"><span>Context</span><strong>{usedTokens.toLocaleString()} / {contextWindow.toLocaleString()} ({usedPercent}%)</strong></div>
-                <div className="agent-info-item"><span>Tasks sent</span><strong>{agent.taskCount}</strong></div>
-                <div className="agent-info-item"><span>Working dir</span><strong>{agent.cwd}</strong></div>
-                <div className="agent-info-item"><span>Last activity</span><strong>{formatDateTime(agent.lastActivity)}</strong></div>
-                <div className="agent-info-item"><span>Created</span><strong>{formatDateTime(agent.createdAt)}</strong></div>
-                <div className="agent-info-item"><span>Detached</span><strong>{agent.isDetached ? 'Yes' : 'No'}</strong></div>
+                <div className="agent-info-item"><span>{t('terminal:agentInfo.context')}</span><strong>{usedTokens.toLocaleString()} / {contextWindow.toLocaleString()} ({usedPercent}%)</strong></div>
+                <div className="agent-info-item"><span>{t('terminal:agentInfo.tasksSent')}</span><strong>{agent.taskCount}</strong></div>
+                <div className="agent-info-item"><span>{t('terminal:agentInfo.workingDir')}</span><strong>{agent.cwd}</strong></div>
+                <div className="agent-info-item"><span>{t('terminal:agentInfo.lastActivity')}</span><strong>{formatDateTime(agent.lastActivity)}</strong></div>
+                <div className="agent-info-item"><span>{t('terminal:agentInfo.created')}</span><strong>{formatDateTime(agent.createdAt)}</strong></div>
+                <div className="agent-info-item"><span>{t('terminal:agentInfo.detached')}</span><strong>{agent.isDetached ? t('terminal:agentInfo.yes') : t('terminal:agentInfo.no')}</strong></div>
               </div>
             </section>
           </div>

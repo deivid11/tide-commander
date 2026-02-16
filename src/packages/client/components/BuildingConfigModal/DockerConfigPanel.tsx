@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   DOCKER_RESTART_POLICIES,
   DOCKER_PULL_POLICIES,
@@ -81,9 +82,10 @@ export function DockerConfigPanel({
   building,
   handleCommand,
 }: DockerConfigPanelProps) {
+  const { t } = useTranslation(['config', 'common']);
   return (
     <div className="form-section docker-config-section">
-      <label className="form-label">Docker Configuration</label>
+      <label className="form-label">{t('config:buildings.dockerConfig')}</label>
 
       {/* Mode selector */}
       <div className="docker-mode-selector">

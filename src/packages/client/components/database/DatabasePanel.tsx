@@ -6,6 +6,7 @@
  */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Building } from '../../../shared/types';
 import { store, useDatabaseState, useQueryResults, useQueryHistory, useExecutingQuery } from '../../store';
 import { DatabaseSidebar } from './DatabaseSidebar';
@@ -52,6 +53,7 @@ function saveStoredState(buildingId: string, state: StoredDbState): void {
 }
 
 export const DatabasePanel: React.FC<DatabasePanelProps> = ({ building, onClose }) => {
+  const { t } = useTranslation(['terminal', 'common']);
   const dbState = useDatabaseState(building.id);
   const queryResults = useQueryResults(building.id);
   const queryHistory = useQueryHistory(building.id);
@@ -291,14 +293,14 @@ export const DatabasePanel: React.FC<DatabasePanelProps> = ({ building, onClose 
         <div className="database-panel__body">
           <div className="database-panel__no-connections">
             <div className="database-panel__no-connections-icon">🔌</div>
-            <h3>No Database Connections</h3>
-            <p>This building doesn't have any database connections configured yet.</p>
-            <p>To get started:</p>
+            <h3>{t('terminal:database.noConnections')}</h3>
+            <p>{t('terminal:database.noConnectionsDesc')}</p>
+            <p>{t('terminal:database.toGetStarted')}</p>
             <ol>
-              <li>Close this panel</li>
-              <li>Click on the building and select <strong>Settings</strong></li>
-              <li>Add a database connection (MySQL or PostgreSQL)</li>
-              <li>Save and open this panel again</li>
+              <li>{t('terminal:database.step1Close')}</li>
+              <li>{t('terminal:database.step2Settings')}</li>
+              <li>{t('terminal:database.step3AddConnection')}</li>
+              <li>{t('terminal:database.step4Reopen')}</li>
             </ol>
           </div>
         </div>
@@ -316,7 +318,7 @@ export const DatabasePanel: React.FC<DatabasePanelProps> = ({ building, onClose 
           <span className="database-panel__name">{building.name}</span>
           {activeConnection && (
             <span className="database-panel__connection-info">
-              {activeConnection.name} / {activeDatabase || 'No database selected'}
+              {activeConnection.name} / {activeDatabase || t('terminal:database.noDatabaseSelected')}
             </span>
           )}
         </div>
@@ -366,7 +368,7 @@ export const DatabasePanel: React.FC<DatabasePanelProps> = ({ building, onClose 
               className={`database-panel__tab ${activeTab === 'results' ? 'database-panel__tab--active' : ''}`}
               onClick={() => setActiveTab('results')}
             >
-              Results
+              {t('terminal:database.results')}
               {queryResults.length > 0 && (
                 <span className="database-panel__tab-badge">{queryResults.length}</span>
               )}
@@ -375,7 +377,7 @@ export const DatabasePanel: React.FC<DatabasePanelProps> = ({ building, onClose 
               className={`database-panel__tab ${activeTab === 'history' ? 'database-panel__tab--active' : ''}`}
               onClick={() => setActiveTab('history')}
             >
-              History
+              {t('terminal:database.history')}
               {queryHistory.length > 0 && (
                 <span className="database-panel__tab-badge">{queryHistory.length}</span>
               )}
@@ -388,7 +390,7 @@ export const DatabasePanel: React.FC<DatabasePanelProps> = ({ building, onClose 
                   disabled={selectedResultIndex >= queryResults.length - 1}
                   onClick={() => setSelectedResultIndex(i => i + 1)}
                 >
-                  &larr; Older
+                  &larr; {t('terminal:database.older')}
                 </button>
                 <span>
                   {selectedResultIndex + 1} / {queryResults.length}
@@ -397,7 +399,7 @@ export const DatabasePanel: React.FC<DatabasePanelProps> = ({ building, onClose 
                   disabled={selectedResultIndex <= 0}
                   onClick={() => setSelectedResultIndex(i => i - 1)}
                 >
-                  Newer &rarr;
+                  {t('terminal:database.newer')} &rarr;
                 </button>
               </div>
             )}
@@ -413,8 +415,8 @@ export const DatabasePanel: React.FC<DatabasePanelProps> = ({ building, onClose 
                 />
               ) : (
                 <div className="database-panel__empty">
-                  <p>No query results yet.</p>
-                  <p>Select a database and run a query to see results.</p>
+                  <p>{t('terminal:database.noResultsYet')}</p>
+                  <p>{t('terminal:database.selectDbAndRun')}</p>
                 </div>
               )
             ) : (

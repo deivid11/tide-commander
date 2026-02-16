@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { store, useAreas } from '../store';
 import type { DrawingArea } from '../../shared/types';
 
@@ -29,6 +30,7 @@ export function RestoreArchivedAreaModal({
   onClose,
   onRestored,
 }: RestoreArchivedAreaModalProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const areas = useAreas();
   const archivedAreas = Array.from(areas.values()).filter((a) => a.archived === true);
 
@@ -70,17 +72,16 @@ export function RestoreArchivedAreaModal({
       <div className="modal restore-archived-modal">
         <div className="modal-header">
           <span className="header-icon">📦</span>
-          Restore Archived Zone
+          {t('terminal:areas.restoreArchivedZone')}
         </div>
 
         <div className="modal-body restore-archived-body">
           {archivedAreas.length === 0 ? (
-            <div className="archived-empty">No archived zones to restore.</div>
+            <div className="archived-empty">{t('terminal:areas.noArchivedZones')}</div>
           ) : (
             <>
               <p className="restore-info">
-                Select a zone to restore. You can place it at the clicked position or its original
-                location.
+                {t('terminal:areas.restoreInfo')}
               </p>
               <div className="archived-list">
                 {archivedAreas.map((area) => (
@@ -96,7 +97,7 @@ export function RestoreArchivedAreaModal({
               {archivedAreas.length > 1 && (
                 <div className="restore-all-section">
                   <button className="btn btn-secondary" onClick={handleRestoreAll}>
-                    Restore All to Original Positions
+                    {t('terminal:areas.restoreAllOriginal')}
                   </button>
                 </div>
               )}
@@ -106,7 +107,7 @@ export function RestoreArchivedAreaModal({
 
         <div className="modal-footer">
           <button className="btn btn-secondary" onClick={onClose}>
-            Cancel
+            {t('common:buttons.cancel')}
           </button>
         </div>
       </div>
@@ -127,6 +128,7 @@ function ArchivedAreaItem({
   onRestoreOriginal,
   hasRestorePosition,
 }: ArchivedAreaItemProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const agentCount = area.assignedAgentIds.length;
   const dirCount = area.directories.length;
 
@@ -139,12 +141,12 @@ function ArchivedAreaItem({
           <span className="archived-item-type">{area.type}</span>
           {agentCount > 0 && (
             <span className="archived-item-agents">
-              {agentCount} agent{agentCount > 1 ? 's' : ''}
+              {t('terminal:areas.agentCount', { count: agentCount })}
             </span>
           )}
           {dirCount > 0 && (
             <span className="archived-item-dirs">
-              {dirCount} folder{dirCount > 1 ? 's' : ''}
+              {t('terminal:areas.folderCount', { count: dirCount })}
             </span>
           )}
           {area.archivedAt && (
@@ -154,12 +156,12 @@ function ArchivedAreaItem({
       </div>
       <div className="archived-item-actions">
         {hasRestorePosition && (
-          <button className="btn btn-small btn-primary" onClick={onRestoreHere} title="Place zone at clicked position">
-            Restore Here
+          <button className="btn btn-small btn-primary" onClick={onRestoreHere} title={t('terminal:areas.placeAtClickedPosition')}>
+            {t('terminal:areas.restoreHere')}
           </button>
         )}
-        <button className="btn btn-small" onClick={onRestoreOriginal} title="Restore to original position">
-          {hasRestorePosition ? 'Original' : 'Restore'}
+        <button className="btn btn-small" onClick={onRestoreOriginal} title={t('terminal:areas.restoreToOriginal')}>
+          {hasRestorePosition ? t('terminal:areas.original') : t('terminal:areas.restore')}
         </button>
       </div>
     </div>

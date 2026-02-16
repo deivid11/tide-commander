@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useMemo, memo, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { store, useDatabaseState } from '../store';
 import type { Building } from '../../shared/types';
 
@@ -17,6 +18,7 @@ export const DatabaseBuildingActionPopup = memo(function DatabaseBuildingActionP
   onOpenSettings,
   onOpenDatabasePanel,
 }: DatabaseBuildingActionPopupProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const dragStartRef = useRef<{ mouseX: number; mouseY: number; popupX: number; popupY: number } | null>(null);
@@ -132,7 +134,7 @@ export const DatabaseBuildingActionPopup = memo(function DatabaseBuildingActionP
       >
         <span className="database-icon">🗄️</span>
         <span className="building-popup-name">{building.name}</span>
-        <span className="connection-count">{connections.length} conn</span>
+        <span className="connection-count">{t('terminal:building.connCount', { count: connections.length })}</span>
         <button className="building-popup-close" onClick={onClose}>x</button>
       </div>
 
@@ -156,7 +158,7 @@ export const DatabaseBuildingActionPopup = memo(function DatabaseBuildingActionP
                 <button
                   className="conn-test-btn"
                   onClick={() => handleTestConnection(conn.id)}
-                  title="Test connection"
+                  title={t('terminal:building.testConnection')}
                 >
                   ↻
                 </button>
@@ -166,8 +168,8 @@ export const DatabaseBuildingActionPopup = memo(function DatabaseBuildingActionP
         </div>
       ) : (
         <div className="database-no-connections">
-          <p>No connections configured</p>
-          <p className="hint">Click Settings to add a database connection</p>
+          <p>{t('terminal:building.noConnections')}</p>
+          <p className="hint">{t('terminal:building.clickSettingsToAdd')}</p>
         </div>
       )}
 
@@ -177,25 +179,25 @@ export const DatabaseBuildingActionPopup = memo(function DatabaseBuildingActionP
           className="action-btn query"
           onClick={onOpenDatabasePanel}
           disabled={connections.length === 0}
-          title="Open database explorer"
+          title={t('terminal:building.openDbExplorer')}
         >
           <span className="icon">⌨</span>
-          Query
+          {t('terminal:building.query')}
         </button>
         <button
           className="action-btn test-all"
           onClick={() => connections.forEach(c => handleTestConnection(c.id))}
           disabled={connections.length === 0}
-          title="Test all connections"
+          title={t('terminal:building.testAllConnections')}
         >
           <span className="icon">↻</span>
-          Test All
+          {t('terminal:building.testAll')}
         </button>
       </div>
 
       {/* Settings link */}
       <button className="building-popup-settings" onClick={onOpenSettings}>
-        Settings
+        {t('common:buttons.settings')}
       </button>
     </div>
   );

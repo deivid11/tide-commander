@@ -6,6 +6,7 @@
  */
 
 import React, { memo, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { FileTabsProps, FileTab } from './types';
 import { getFileIcon } from './fileUtils';
 
@@ -26,6 +27,7 @@ const TabItem = memo(function TabItem({
   onSelect,
   onClose,
 }: TabItemProps) {
+  const { t } = useTranslation(['terminal']);
   // Create a fake TreeNode for the icon helper
   const iconNode = {
     name: tab.filename,
@@ -66,7 +68,7 @@ const TabItem = memo(function TabItem({
       <button
         className="file-tab-close"
         onClick={handleCloseClick}
-        title="Close (Middle-click)"
+        title={t('terminal:fileExplorer.closeMiddleClick')}
       >
         ×
       </button>

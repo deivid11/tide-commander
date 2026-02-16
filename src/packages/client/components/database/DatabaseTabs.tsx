@@ -6,6 +6,7 @@
  */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import './DatabaseTabs.scss';
 
 export interface DatabaseTab {
@@ -28,6 +29,7 @@ export const DatabaseTabs: React.FC<DatabaseTabsProps> = ({
   onTabClick,
   onTabClose,
 }) => {
+  const { t } = useTranslation(['terminal']);
   return (
     <div className="database-tabs">
       {tabs.map((tab) => (
@@ -48,7 +50,7 @@ export const DatabaseTabs: React.FC<DatabaseTabsProps> = ({
           <button
             className="database-tabs__tab-close"
             onClick={() => onTabClose(tab.id)}
-            title="Close tab"
+            title={t('terminal:database.closeTab')}
             aria-label={`Close ${tab.database} tab`}
           >
             &times;

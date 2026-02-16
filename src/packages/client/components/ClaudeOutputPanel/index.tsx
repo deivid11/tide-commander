@@ -14,6 +14,7 @@
  */
 
 import React, { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   useAgents,
   useAgent,
@@ -111,6 +112,7 @@ export interface GuakeOutputPanelProps {
 }
 
 export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {}) {
+  const { t } = useTranslation(['terminal', 'common']);
   // Store selectors
   const agents = useAgents();
   const selectedAgentIds = useSelectedAgentIds();
@@ -812,8 +814,8 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
             <div className="guake-output" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6272a4' }}>
               <div style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: '48px', marginBottom: '16px' }}>👆</div>
-                <div style={{ fontSize: '16px' }}>Tap an agent on the battlefield to view their terminal</div>
-                <div style={{ fontSize: '14px', marginTop: '8px', opacity: 0.7 }}>Switch to 3D view using the menu button (☰)</div>
+                <div style={{ fontSize: '16px' }}>{t('terminal:empty.tapAgent')}</div>
+                <div style={{ fontSize: '14px', marginTop: '8px', opacity: 0.7 }}>{t('terminal:empty.switchTo3D')}</div>
               </div>
             </div>
           </div>
@@ -825,7 +827,7 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
         <div ref={terminalRef} className="guake-terminal open" style={{ '--terminal-height': `${terminalHeight}%` } as React.CSSProperties}>
           <div className="guake-content">
             <div className="guake-output" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6272a4' }}>
-              <div className="guake-empty loading">Loading terminal<span className="loading-dots"><span></span><span></span><span></span></span></div>
+              <div className="guake-empty loading">{t('terminal:empty.loadingTerminal')}<span className="loading-dots"><span></span><span></span><span></span></span></div>
             </div>
           </div>
         </div>
@@ -929,7 +931,7 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
           <div className="guake-output" ref={outputScrollRef} onScroll={handleScroll}>
             {search.searchMode && search.searchResults.length > 0 ? (
               <>
-                <div className="guake-search-header">Search Results:</div>
+                <div className="guake-search-header">{t('terminal:header.searchResultsTitle')}</div>
                 {search.searchResults.map((msg, index) => (
                   <HistoryLine
                     key={`s-${index}`}
@@ -946,18 +948,18 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
             ) : (
               <div className={`guake-history-content ${historyFadeIn ? 'fade-in' : ''}`}>
                 {historyLoader.loadingHistory && historyLoader.history.length === 0 && outputs.length === 0 && (
-                  <div className="guake-empty loading">Loading conversation<span className="loading-dots"><span></span><span></span><span></span></span></div>
+                  <div className="guake-empty loading">{t('terminal:empty.loadingConversation')}<span className="loading-dots"><span></span><span></span><span></span></span></div>
                 )}
                 {!historyLoader.loadingHistory && historyLoader.history.length === 0 && displayOutputs.length === 0 && activeAgent.status !== 'working' && (
-                  <div className="guake-empty">No output yet. Send a command to this agent.</div>
+                  <div className="guake-empty">{t('terminal:empty.noOutput')}</div>
                 )}
                 {historyLoader.hasMore && !search.searchMode && (
                   <div className="guake-load-more">
                     {historyLoader.loadingMore ? (
-                      <span>Loading older messages...</span>
+                      <span>{t('terminal:empty.loadingOlder')}</span>
                     ) : (
                       <button onClick={historyLoader.loadMoreHistory}>
-                        Load more ({historyLoader.totalCount - historyLoader.history.length} older messages)
+                        {t('terminal:empty.loadMore', { count: historyLoader.totalCount - historyLoader.history.length })}
                       </button>
                     )}
                   </div>
@@ -992,8 +994,8 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
                   <div className="agent-progress-container">
                     <div className="agent-progress-container-header">
                       <span className="progress-crown">👑</span>
-                      <span>Subordinate Progress</span>
-                      <span className="progress-count">({agentTaskProgress.size} active)</span>
+                      <span>{t('terminal:empty.subordinateProgress')}</span>
+                      <span className="progress-count">{t('terminal:empty.activeCount', { count: agentTaskProgress.size })}</span>
                     </div>
                     {Array.from(agentTaskProgress.values()).map((progress) => (
                       <AgentProgressIndicator
@@ -1045,21 +1047,19 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
             <Tooltip
               content={
                 <>
-                  <div className="tide-tooltip__title">🔄 Reattaching Session...</div>
+                  <div className="tide-tooltip__title">🔄 {t('terminal:empty.reattachingSessionTitle')}</div>
                   <div className="tide-tooltip__text">
-                    This agent's Claude process is running independently. Tide Commander is automatically
-                    attempting to reattach to the existing session. If reattachment fails, send a new message
-                    to manually resume the session.
+                    {t('terminal:empty.reattachingSessionDesc')}
                     <br /><br />
-                    <strong>Status:</strong> Recovering session context and output history...
+                    <strong>{t('common:labels.status')}:</strong> {t('terminal:empty.reattachingSessionStatus')}
                   </div>
                 </>
               }
               position="top"
               className="tide-tooltip--detached"
             >
-              <span className="guake-detached-badge" title="Agent is detached - reattaching...">
-                <span className="guake-detached-spinner">🔄</span> Reattaching...
+              <span className="guake-detached-badge" title={t('terminal:empty.reattachingBadge')}>
+                <span className="guake-detached-spinner">🔄</span> {t('terminal:empty.reattaching')}
               </span>
             </Tooltip>
           )}
@@ -1083,10 +1083,10 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
               <span
                 className="guake-agent-context"
                 onClick={() => store.setContextModalAgentId(activeAgentId)}
-                title={hasData ? "Click to view detailed context stats" : "Click to fetch context stats"}
+                title={hasData ? t('terminal:context.clickToViewStats') : t('terminal:context.clickToFetchStats')}
               >
                 <span className="context-icon">📊</span>
-                <span className="context-label">Context:</span>
+                <span className="context-label">{t('terminal:agentInfo.context')}:</span>
                 <span className="context-bar-mini">
                   <span
                     className="context-bar-mini-fill"
@@ -1099,9 +1099,9 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
                 <span className="context-tokens" style={{ color: percentColor }}>
                   {usedK}k/{limitK}k
                 </span>
-                <span className="context-free">({freePercent}% free)</span>
+                <span className="context-free">({t('terminal:context.percentFree', { percent: freePercent })})</span>
                 {!hasData && (
-                  <span className="context-warning" title="Click to fetch accurate stats">⚠️</span>
+                  <span className="context-warning" title={t('terminal:context.clickToFetchStats')}>⚠️</span>
                 )}
               </span>
             );
@@ -1111,7 +1111,7 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
       </div>
 
       {/* Resize handle */}
-      {isOpen && <div className="guake-resize-handle" onMouseDown={handleResizeStart} title="Drag to resize" />}
+      {isOpen && <div className="guake-resize-handle" onMouseDown={handleResizeStart} title={t('common:rightPanel.dragToResize')} />}
 
       {/* Terminal handle */}
       <div

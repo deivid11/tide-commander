@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAppUpdate } from '../../hooks/useAppUpdate';
 import { themes, getTheme, applyTheme, getSavedTheme, type ThemeId } from '../../utils/themes';
 
@@ -46,6 +47,7 @@ export function ThemeSelector() {
 }
 
 export function AboutSection() {
+  const { t } = useTranslation(['config']);
   const {
     updateAvailable,
     updateInfo,
@@ -82,7 +84,7 @@ export function AboutSection() {
       </div>
 
       <div className="about-version">
-        <span className="about-version-label">Version</span>
+        <span className="about-version-label">{t('config:about.version')}</span>
         <div className="about-version-info">
           <span className="about-version-value">{currentVersion}</span>
           {updateAvailable && updateInfo ? (
@@ -100,7 +102,7 @@ export function AboutSection() {
               rel="noopener noreferrer"
               className="about-version-status"
             >
-              (updated)
+              ({t('config:about.updated')})
             </a>
           )}
         </div>
@@ -111,24 +113,24 @@ export function AboutSection() {
         {updateAvailable && updateInfo ? (
           <div className="about-update-available">
             <div className="about-update-header">
-              <span className="about-update-badge">Update Available</span>
+              <span className="about-update-badge">{t('config:about.updateAvailable')}</span>
               <span className="about-update-version">{updateInfo.version}</span>
             </div>
             {updateInfo.apkSize && (
-              <div className="about-update-size">Size: {formatSize(updateInfo.apkSize)}</div>
+              <div className="about-update-size">{t('config:about.sizeLabel')}: {formatSize(updateInfo.apkSize)}</div>
             )}
             {error && <div className="about-update-error">{error}</div>}
             <div className="about-update-actions">
               <button className="about-update-btn changelog" onClick={openReleasePage}>
-                Changelog
+                {t('config:about.changelog')}
               </button>
               {isAndroid && updateInfo.apkUrl ? (
                 <button className="about-update-btn download" onClick={downloadAndInstall}>
-                  Download APK
+                  {t('config:about.downloadAPK')}
                 </button>
               ) : (
                 <button className="about-update-btn download" onClick={openReleasePage}>
-                  View Release
+                  {t('config:about.viewRelease')}
                 </button>
               )}
             </div>
@@ -136,14 +138,14 @@ export function AboutSection() {
         ) : (
           <div className="about-update-check">
             <span className="about-update-status">
-              {isChecking ? 'Checking for updates...' : 'You are up to date'}
+              {isChecking ? t('config:about.checkingUpdates') : t('config:about.upToDate')}
             </span>
             <button
               className="about-update-btn check"
               onClick={() => checkForUpdate(true)}
               disabled={isChecking}
             >
-              {isChecking ? '...' : 'Check'}
+              {isChecking ? '...' : t('config:about.check')}
             </button>
           </div>
         )}
@@ -151,7 +153,7 @@ export function AboutSection() {
         {/* Recent Releases */}
         {recentReleases.length > 0 && (
           <div className="about-releases">
-            <div className="about-releases-title">Recent Releases</div>
+            <div className="about-releases-title">{t('config:about.recentReleases')}</div>
             <div className="about-releases-list">
               {recentReleases.map((release) => (
                 <a
@@ -171,16 +173,16 @@ export function AboutSection() {
       </div>
 
       <div className="about-description">
-        Visual multi-agent orchestration for Claude Code
+        {t('config:about.tagline')}
       </div>
 
       <div className="about-principles">
-        <div className="about-principles-title">Core Principles</div>
+        <div className="about-principles-title">{t('config:about.corePrinciples')}</div>
         <ul className="about-principles-list">
-          <li>Visual-first agent management</li>
-          <li>Real-time collaboration & delegation</li>
-          <li>Spatial organization with areas & buildings</li>
-          <li>Transparent agent communication</li>
+          <li>{t('config:about.principle1')}</li>
+          <li>{t('config:about.principle2')}</li>
+          <li>{t('config:about.principle3')}</li>
+          <li>{t('config:about.principle4')}</li>
         </ul>
       </div>
 
@@ -192,12 +194,12 @@ export function AboutSection() {
           className="about-link"
         >
           <span className="about-link-icon">📦</span>
-          <span>GitHub Repository</span>
+          <span>{t('config:about.repository')}</span>
         </a>
       </div>
 
       <div className="about-credits">
-        <div className="about-credits-title">Special Thanks</div>
+        <div className="about-credits-title">{t('config:about.specialThanks')}</div>
         <div className="about-credit-item">
           <a
             href="https://kenney.nl"
@@ -207,7 +209,7 @@ export function AboutSection() {
           >
             Kenney.nl
           </a>
-          <span className="about-credit-desc">for the agent character models</span>
+          <span className="about-credit-desc">{t('config:about.kenneyCredit')}</span>
         </div>
         <div className="about-credit-item">
           <a
@@ -218,7 +220,7 @@ export function AboutSection() {
           >
             Claude Code
           </a>
-          <span className="about-credit-desc">by Anthropic, the AI backbone</span>
+          <span className="about-credit-desc">{t('config:about.claudeCodeCredit')}</span>
         </div>
       </div>
     </div>

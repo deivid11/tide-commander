@@ -1,0 +1,304 @@
+{
+  "title": "टूल्स और सेटिंग्स",
+  "searchPlaceholder": "सेटिंग्स खोजें...",
+  "noResults": "\"{{query}}\" के लिए कोई सेटिंग नहीं मिली",
+  "sections": {
+    "general": "सामान्य",
+    "agentNames": "एजेंट नाम",
+    "appearance": "दिखावट",
+    "connection": "कनेक्शन",
+    "scene": "सीन",
+    "terrain": "भूभाग",
+    "modelStyle": "एजेंट मॉडल शैली",
+    "animations": "एनिमेशन",
+    "secrets": "सीक्रेट्स",
+    "data": "डेटा",
+    "experimental": "प्रायोगिक",
+    "about": "परिचय",
+    "sky": "आकाश रंग"
+  },
+  "general": {
+    "history": "इतिहास",
+    "hideCosts": "लागत छुपाएं",
+    "grid": "ग्रिड",
+    "showFPS": "FPS दिखाएं",
+    "fpsLimit": "FPS सीमा",
+    "powerSaving": "बिजली बचत",
+    "tts": "टेक्स्ट-टू-स्पीच",
+    "stt": "स्पीच-टू-टेक्स्ट",
+    "externalEditor": "बाहरी संपादक",
+    "externalEditorPlaceholder": "जैसे, subl, code, nvim (सिस्टम डिफ़ॉल्ट के लिए खाली छोड़ें)",
+    "language": "भाषा",
+    "compactView": "कॉम्पैक्ट दृश्य",
+    "autoScroll": "ऑटो स्क्रॉल",
+    "notifications": "सूचनाएं",
+    "soundEffects": "ध्वनि प्रभाव"
+  },
+  "agentNames": {
+    "customConfigured": "{{count}} कस्टम नाम कॉन्फ़िगर किए गए",
+    "usingDefaults": "डिफ़ॉल्ट नाम उपयोग में। कस्टमाइज़ करने के लिए अपने नाम जोड़ें।",
+    "addPlaceholder": "नाम जोड़ें...",
+    "addName": "नाम जोड़ें"
+  },
+  "connection": {
+    "serverUrl": "सर्वर URL",
+    "port": "पोर्ट",
+    "autoReconnect": "ऑटो रिकनेक्ट",
+    "reconnectInterval": "रिकनेक्ट अंतराल",
+    "backendUrl": "बैकएंड URL",
+    "authToken": "Auth टोकन",
+    "autoDetectHint": "ऑटो-डिटेक्ट के लिए खाली छोड़ें",
+    "tokenPlaceholder": "आवश्यक हो तो टोकन दर्ज करें",
+    "tokenRequired": "यदि सर्वर पर AUTH_TOKEN सेट है तो आवश्यक",
+    "saveAndReconnect": "सहेजें और पुनः कनेक्ट करें",
+    "showToken": "टोकन दिखाएं",
+    "hideToken": "टोकन छुपाएं"
+  },
+  "scene": {
+    "characterSize": "कैरेक्टर आकार",
+    "indicatorScale": "इंडिकेटर स्केल",
+    "time": "समय"
+  },
+  "time": {
+    "auto": "ऑटो",
+    "dawn": "भोर",
+    "day": "दिन",
+    "dusk": "संध्या",
+    "night": "रात"
+  },
+  "floor": {
+    "grass": "घास",
+    "concrete": "कंक्रीट",
+    "galactic": "गैलेक्टिक",
+    "metal": "धातु",
+    "hex": "हेक्स",
+    "circuit": "सर्किट",
+    "pokemon": "Pokemon"
+  },
+  "terrain": {
+    "trees": "पेड़",
+    "bushes": "झाड़ियां",
+    "house": "घर",
+    "lamps": "लैंप",
+    "grass": "घास",
+    "clouds": "बादल"
+  },
+  "terrainSettings": {
+    "fog": "कोहरा",
+    "brightness": "चमक",
+    "floor": "फ़र्श",
+    "sky": "आकाश"
+  },
+  "fogValues": {
+    "off": "बंद",
+    "low": "कम",
+    "high": "अधिक"
+  },
+  "brightnessValues": {
+    "dark": "अंधेरा",
+    "normal": "सामान्य",
+    "bright": "उज्ज्वल"
+  },
+  "animation": {
+    "static": "स्थिर",
+    "idle": "निष्क्रिय",
+    "walk": "चलना",
+    "sprint": "दौड़ना",
+    "jump": "कूदना",
+    "fall": "गिरना",
+    "crouch": "झुकना",
+    "sit": "बैठना",
+    "die": "मरना",
+    "yes": "हां",
+    "no": "नहीं"
+  },
+  "animationSettings": {
+    "idle": "निष्क्रिय एनिमेशन",
+    "working": "कार्यरत एनिमेशन"
+  },
+  "colorMode": {
+    "normal": "सामान्य",
+    "bw": "श्वेत-श्याम",
+    "sepia": "सेपिया",
+    "cool": "शीतल",
+    "warm": "उष्ण",
+    "neon": "नीऑन"
+  },
+  "sky": {
+    "auto": "ऑटो",
+    "dayBlue": "दिन का नीला",
+    "night": "रात",
+    "sunset": "सूर्यास्त",
+    "purple": "बैंगनी",
+    "matrix": "मैट्रिक्स",
+    "blood": "रक्त",
+    "void": "शून्य"
+  },
+  "modelStyle": {
+    "scale": "स्केल",
+    "colorMode": "रंग मोड",
+    "animation": "एनिमेशन",
+    "speed": "गति"
+  },
+  "modelStyleSettings": {
+    "saturation": "संतृप्ति",
+    "roughness": "खुरदरापन",
+    "metalness": "धातुत्व",
+    "glow": "चमक",
+    "reflections": "परावर्तन",
+    "wireframe": "वायरफ्रेम",
+    "colorMode": "रंग मोड"
+  },
+  "saturationValues": {
+    "gray": "धूसर",
+    "normal": "सामान्य",
+    "vivid": "जीवंत"
+  },
+  "roughnessValues": {
+    "auto": "ऑटो",
+    "glossy": "चमकदार",
+    "normal": "सामान्य",
+    "matte": "मैट"
+  },
+  "metalnessValues": {
+    "auto": "ऑटो",
+    "plastic": "प्लास्टिक",
+    "mixed": "मिश्रित",
+    "metal": "धातु"
+  },
+  "glowValues": {
+    "off": "बंद",
+    "low": "कम",
+    "med": "मध्यम",
+    "high": "अधिक"
+  },
+  "reflectionValues": {
+    "auto": "ऑटो",
+    "low": "कम",
+    "normal": "सामान्य",
+    "high": "अधिक"
+  },
+  "experimental": {
+    "2dView": "2D दृश्य मोड",
+    "voiceAssistant": "वॉइस असिस्टेंट",
+    "tts": "टेक्स्ट टू स्पीच",
+    "hint": "ये सुविधाएं प्रायोगिक हैं और बदल सकती हैं"
+  },
+  "areas": {
+    "title": "क्षेत्र ({{count}})",
+    "editArea": "क्षेत्र संपादित करें",
+    "color": "रंग",
+    "areaName": "क्षेत्र का नाम",
+    "layer": "परत",
+    "front": "आगे",
+    "back": "पीछे",
+    "bringToFront": "आगे लाएं (अन्य क्षेत्रों के ऊपर रखें)",
+    "sendToBack": "पीछे भेजें (अन्य क्षेत्रों के पीछे रखें)",
+    "folders": "फ़ोल्डर ({{count}})",
+    "openFolder": "एक्सप्लोरर में फ़ोल्डर खोलें",
+    "removeFolder": "फ़ोल्डर हटाएं",
+    "folderPlaceholder": "/path/to/folder",
+    "addFolder": "+ फ़ोल्डर जोड़ें",
+    "assignedAgents": "नियुक्त एजेंट ({{count}})",
+    "rightClickUnassign": "अनियुक्त करने के लिए राइट-क्लिक करें",
+    "drawToCreate": "क्षेत्र बनाने के लिए रणभूमि पर ड्रॉ करें",
+    "rect": "आयत",
+    "circle": "वृत्त",
+    "deleteArea": "क्षेत्र हटाएं"
+  },
+  "buildings": {
+    "title": "बिल्डिंग्स ({{count}})",
+    "addBuilding": "बिल्डिंग जोड़ें",
+    "editBuilding": "बिल्डिंग संपादित करें",
+    "style": "शैली",
+    "directory": "निर्देशिका",
+    "actions": "क्रियाएं",
+    "links": "लिंक",
+    "recentLogs": "हालिया लॉग",
+    "fullSettings": "पूर्ण सेटिंग्स",
+    "noStartCommand": "स्टार्ट कमांड नहीं",
+    "noStopCommand": "स्टॉप कमांड नहीं",
+    "noRestartCommand": "रीस्टार्ट कमांड नहीं",
+    "noHealthCheck": "हेल्थ चेक नहीं",
+    "clickToAdd": "बिल्डिंग जोड़ने के लिए + पर क्लिक करें",
+    "namePlaceholder": "मेरा सर्वर",
+    "folderPath": "फ़ोल्डर पथ",
+    "dockerConfig": "Docker कॉन्फ़िगरेशन"
+  },
+  "tools": {
+    "select": "चयन",
+    "rectangle": "आयत",
+    "circle": "वृत्त"
+  },
+  "secrets": {
+    "title": "API कुंजियां और सीक्रेट्स",
+    "addSecret": "+ सीक्रेट जोड़ें",
+    "secretName": "सीक्रेट नाम",
+    "secretValue": "सीक्रेट मान",
+    "noSecrets": "कोई सीक्रेट कॉन्फ़िगर नहीं",
+    "deleteConfirm": "यह सीक्रेट हटाएं?",
+    "description": "सीक्रेट्स स्टोर करें जिन्हें {{placeholder}} प्लेसहोल्डर्स का उपयोग करके प्रॉम्प्ट में संदर्भित किया जा सकता है।",
+    "copyPlaceholder": "प्लेसहोल्डर कॉपी करने के लिए क्लिक करें",
+    "namePlaceholder": "मेरी API कुंजी",
+    "keyPlaceholder": "MY_API_KEY",
+    "valuePlaceholder": "गोपनीय मान...",
+    "descriptionPlaceholder": "वैकल्पिक विवरण",
+    "usedAs": "{{placeholder}} के रूप में उपयोग किया जाता है",
+    "update": "अपडेट करें"
+  },
+  "data": {
+    "title": "डेटा प्रबंधन",
+    "exportData": "निर्यात",
+    "importData": "आयात",
+    "clearData": "डेटा साफ करें",
+    "archive": "आर्काइव",
+    "restore": "पुनर्स्थापित करें",
+    "backupCreated": "बैकअप बनाया गया",
+    "importSuccess": "कॉन्फ़िग सफलतापूर्वक आयात हुआ!",
+    "exportSuccess": "कॉन्फ़िग सफलतापूर्वक निर्यात हुआ!",
+    "selectFile": "कॉन्फ़िग ZIP फ़ाइल चुनें...",
+    "exported": "निर्यात किया गया",
+    "selectToImport": "आयात करने के लिए चुनें:",
+    "exporting": "निर्यात हो रहा है...",
+    "exportCount": "निर्यात ({{count}})",
+    "importing": "आयात हो रहा है...",
+    "importCount": "आयात ({{count}})",
+    "readingFile": "फ़ाइल पढ़ी जा रही है...",
+    "files": "फ़ाइलें"
+  },
+  "about": {
+    "title": "Tide Commander के बारे में",
+    "version": "संस्करण",
+    "theme": "थीम",
+    "builtWith": "इसके साथ बना",
+    "repository": "GitHub रिपॉज़िटरी",
+    "documentation": "दस्तावेज़ीकरण",
+    "updated": "अपडेटेड",
+    "updateAvailable": "अपडेट उपलब्ध",
+    "sizeLabel": "आकार",
+    "changelog": "बदलाव लॉग",
+    "downloadAPK": "APK डाउनलोड करें",
+    "viewRelease": "रिलीज़ देखें",
+    "checkingUpdates": "अपडेट की जांच हो रही है...",
+    "upToDate": "आप अप टू डेट हैं",
+    "check": "जांचें",
+    "recentReleases": "हालिया रिलीज़",
+    "tagline": "Claude Code के लिए विज़ुअल मल्टी-एजेंट ऑर्केस्ट्रेशन",
+    "corePrinciples": "मूल सिद्धांत",
+    "principle1": "विज़ुअल-फर्स्ट एजेंट प्रबंधन",
+    "principle2": "रियल-टाइम सहयोग और प्रतिनिधित्व",
+    "principle3": "क्षेत्रों और बिल्डिंग्स के साथ स्थानिक संगठन",
+    "principle4": "पारदर्शी एजेंट संवाद",
+    "specialThanks": "विशेष धन्यवाद",
+    "kenneyCredit": "एजेंट कैरेक्टर मॉडल के लिए",
+    "claudeCodeCredit": "Anthropic द्वारा, AI बैकबोन"
+  },
+  "shortcuts": {
+    "pressKeys": "कुंजी दबाएं...",
+    "notSet": "सेट नहीं",
+    "pressKeysOrClick": "कुंजी दबाएं या पुष्टि के लिए क्लिक करें",
+    "clickToChange": "शॉर्टकट बदलने के लिए क्लिक करें",
+    "clearShortcut": "शॉर्टकट साफ करें",
+    "conflictsWith": "इनसे टकराव: {{names}}"
+  }
+}

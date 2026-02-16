@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useMemo, useCallback, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import Prism from 'prismjs';
@@ -280,6 +281,7 @@ function calculateTargetScroll(
 const MARKDOWN_EXTENSIONS = ['.md', '.mdx', '.markdown'];
 
 export function DiffViewer({ originalContent, modifiedContent, filename, language }: DiffViewerProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const leftRef = useRef<HTMLDivElement>(null);
   const rightRef = useRef<HTMLDivElement>(null);
   const markdownContentRef = useRef<HTMLDivElement>(null);
@@ -686,14 +688,14 @@ export function DiffViewer({ originalContent, modifiedContent, filename, languag
             onClick={() => setViewOnlyModified(!viewOnlyModified)}
             title={viewOnlyModified ? 'Show diff view' : 'View only modified'}
           >
-            {viewOnlyModified ? 'Show Diff' : 'Modified Only'}
+            {viewOnlyModified ? t('terminal:diffViewer.showDiff') : t('terminal:diffViewer.modifiedOnly')}
           </button>
           <button
             className={`diff-copy-btn ${copyStatus}`}
             onClick={handleCopyModified}
             title={isMarkdown && viewOnlyModified ? 'Copy as rich text' : 'Copy modified content'}
           >
-            {copyStatus === 'copied' ? '✓ Copied' : copyStatus === 'error' ? '✗ Error' : (isMarkdown && viewOnlyModified ? 'Copy Rich Text' : 'Copy')}
+            {copyStatus === 'copied' ? `✓ ${t('terminal:diffViewer.copied')}` : copyStatus === 'error' ? `✗ ${t('terminal:diffViewer.errorCopy')}` : (isMarkdown && viewOnlyModified ? t('terminal:diffViewer.copyRichText') : t('common:buttons.copy'))}
           </button>
           {isMarkdown && viewOnlyModified && (
             <button
@@ -701,7 +703,7 @@ export function DiffViewer({ originalContent, modifiedContent, filename, languag
               onClick={handleCopyAsHtml}
               title="Copy as HTML tags (for Google Docs, HTML editors)"
             >
-              {copyHtmlStatus === 'copied' ? '✓ Copied' : copyHtmlStatus === 'error' ? '✗ Error' : 'Copy HTML'}
+              {copyHtmlStatus === 'copied' ? `✓ ${t('terminal:diffViewer.copied')}` : copyHtmlStatus === 'error' ? `✗ ${t('terminal:diffViewer.errorCopy')}` : t('terminal:diffViewer.copyHtml')}
             </button>
           )}
         </div>
@@ -712,7 +714,7 @@ export function DiffViewer({ originalContent, modifiedContent, filename, languag
         {!viewOnlyModified && (
           <div className="diff-panel diff-panel-original">
             <div className="diff-panel-header">
-              <span className="diff-panel-label">Original (HEAD)</span>
+              <span className="diff-panel-label">{t('terminal:diffViewer.originalHead')}</span>
             </div>
             <div className="diff-panel-content" ref={leftRef}>
               {leftLines.map((line, idx) => {
@@ -744,7 +746,7 @@ export function DiffViewer({ originalContent, modifiedContent, filename, languag
         {/* Modified (Right) */}
         <div className="diff-panel diff-panel-modified">
           <div className="diff-panel-header">
-            <span className="diff-panel-label">{viewOnlyModified ? 'Modified Content' : 'Modified (Working)'}</span>
+            <span className="diff-panel-label">{viewOnlyModified ? t('terminal:diffViewer.modifiedContent') : t('terminal:diffViewer.modifiedWorking')}</span>
           </div>
           {viewOnlyModified && isMarkdown ? (
             // Render markdown when in modified-only view

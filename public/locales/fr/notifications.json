@@ -1,0 +1,48 @@
+{
+  "agent": {
+    "clickToFocus": "Cliquer pour centrer",
+    "needsAttention": "nécessite votre attention",
+    "removed": "{{name}} retiré de la vue",
+    "deployed": "{{name}} déployé avec succès",
+    "terminated": "{{name}} terminé",
+    "started": "{{name}} démarré",
+    "errored": "{{name}} a rencontré une erreur"
+  },
+  "toast": {
+    "info": "Info",
+    "success": "Succès",
+    "warning": "Avertissement",
+    "agentsRemoved": "Agents retirés",
+    "agentsRemovedMsg": "{{count}} agent(s) retiré(s) de la vue",
+    "buildingsDeleted": "Bâtiments supprimés",
+    "buildingsDeletedMsg": "{{count}} bâtiment(s) supprimé(s)",
+    "buildingDeleted": "Bâtiment supprimé",
+    "buildingDeletedMsg": "« {{name}} » a été supprimé",
+    "snapshotSaved": "Instantané enregistré",
+    "snapshotSavedMsg": "Instantané enregistré avec succès",
+    "snapshotFailed": "Échec de l'instantané",
+    "snapshotFailedMsg": "Impossible de créer l'instantané",
+    "copied": "Copié",
+    "resumeCopied": "Commande de reprise copiée dans le presse-papiers",
+    "textCopied": "Texte copié dans le presse-papiers",
+    "pathCopied": "Chemin copié dans le presse-papiers",
+    "mergeComplete": "Fusion terminée",
+    "mergeCompleteMsg": "Branche fusionnée avec succès",
+    "mergeConflicts": "Conflits de fusion",
+    "mergeConflictsMsg": "La fusion comporte des conflits à résoudre",
+    "mergeAborted": "Fusion annulée",
+    "mergeAbortedMsg": "Opération de fusion annulée",
+    "branchCreated": "Branche créée",
+    "branchCreatedMsg": "Branche « {{name}} » créée",
+    "branchSwitched": "Branche changée",
+    "branchSwitchedMsg": "Basculé sur la branche « {{name}} »",
+    "filesSaved": "Fichiers enregistrés",
+    "filesSavedMsg": "{{count}} fichier(s) enregistré(s)"
+  },
+  "drawing": {
+    "rectangleTool": "Outil rectangle",
+    "circleTool": "Outil cercle",
+    "toolName": "Outil {{name}}",
+    "clickAndDrag": "Cliquez et glissez sur le champ de bataille pour dessiner une zone"
+  }
+}

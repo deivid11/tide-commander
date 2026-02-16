@@ -1,18 +1,25 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
+import i18n from '../../i18n';
 
-// Preset colors for building customization
+// Preset colors for building customization - uses i18n keys for labels
 export const BUILDING_COLORS = [
-  { value: '', label: 'Default' },
-  { value: '#2a2a3a', label: 'Dark Gray' },
-  { value: '#3a2a2a', label: 'Dark Red' },
-  { value: '#2a3a2a', label: 'Dark Green' },
-  { value: '#2a2a4a', label: 'Dark Blue' },
-  { value: '#3a3a2a', label: 'Dark Yellow' },
-  { value: '#3a2a3a', label: 'Dark Purple' },
-  { value: '#2a3a3a', label: 'Dark Cyan' },
-  { value: '#4a3a3a', label: 'Warm Brown' },
-  { value: '#3a4a4a', label: 'Cool Steel' },
+  { value: '', labelKey: 'terminal:building.colorDefault' },
+  { value: '#2a2a3a', labelKey: 'terminal:building.colorDarkGray' },
+  { value: '#3a2a2a', labelKey: 'terminal:building.colorDarkRed' },
+  { value: '#2a3a2a', labelKey: 'terminal:building.colorDarkGreen' },
+  { value: '#2a2a4a', labelKey: 'terminal:building.colorDarkBlue' },
+  { value: '#3a3a2a', labelKey: 'terminal:building.colorDarkYellow' },
+  { value: '#3a2a3a', labelKey: 'terminal:building.colorDarkPurple' },
+  { value: '#2a3a3a', labelKey: 'terminal:building.colorDarkCyan' },
+  { value: '#4a3a3a', labelKey: 'terminal:building.colorWarmBrown' },
+  { value: '#3a4a4a', labelKey: 'terminal:building.colorCoolSteel' },
 ];
+
+// Helper to get translated label for a color
+export function getColorLabel(labelKey: string): string {
+  return i18n.t(labelKey);
+}
 
 // Format bytes to human readable
 export function formatBytes(bytes: number): string {
@@ -85,24 +92,25 @@ interface DeleteConfirmModalProps {
 }
 
 export function DeleteConfirmModal({ buildingName, onClose, onConfirm }: DeleteConfirmModalProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   return (
     <div className="modal-overlay visible" onClick={onClose}>
       <div className="modal confirm-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">Delete Building</div>
+        <div className="modal-header">{t('terminal:building.deleteBuilding')}</div>
         <div className="modal-body confirm-modal-body">
           <p>
-            Delete <strong>{buildingName}</strong>?
+            {t('terminal:building.deleteConfirm', { name: buildingName })}
           </p>
           <p className="confirm-modal-note">
-            This will permanently remove the building and its configuration.
+            {t('terminal:building.deleteNote')}
           </p>
         </div>
         <div className="modal-footer">
           <button className="btn btn-secondary" onClick={onClose}>
-            Cancel
+            {t('common:buttons.cancel')}
           </button>
           <button className="btn btn-danger" onClick={onConfirm} autoFocus>
-            Delete
+            {t('common:buttons.delete')}
           </button>
         </div>
       </div>

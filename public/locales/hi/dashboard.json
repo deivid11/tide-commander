@@ -1,0 +1,76 @@
+{
+  "title": "डैशबोर्ड",
+  "searchPlaceholder": "एजेंट खोजें...",
+  "grouping": {
+    "byZone": "ज़ोन के अनुसार",
+    "byStatus": "स्थिति के अनुसार",
+    "byActivity": "गतिविधि के अनुसार"
+  },
+  "agentCount": "{{count}} एजेंट",
+  "agentCount_plural": "{{count}} एजेंट",
+  "working": "कार्यरत",
+  "focusZone": "फ़ोकस ज़ोन",
+  "noAgentsMatching": "\"{{search}}\" से मेल खाने वाला कोई एजेंट नहीं",
+  "noAgentsSpawned": "अभी तक कोई एजेंट स्पॉन नहीं हुआ",
+  "cards": {
+    "doubleClickHint": "टर्मिनल खोलने के लिए डबल-क्लिक करें | दूसरे क्षेत्र में ले जाने के लिए खींचें",
+    "openTerminal": "टर्मिनल खोलें",
+    "killAgent": "एजेंट समाप्त करें",
+    "chat": "चैट",
+    "stop": "रोकें"
+  },
+  "metrics": {
+    "totalAgents": "कुल एजेंट",
+    "activeAgents": "सक्रिय एजेंट",
+    "idleAgents": "निष्क्रिय एजेंट",
+    "errorAgents": "त्रुटि वाले एजेंट",
+    "totalTokens": "कुल टोकन",
+    "totalCost": "कुल लागत",
+    "avgResponseTime": "औसत प्रतिक्रिया समय",
+    "uptime": "अपटाइम",
+    "tokensIn": "इनपुट टोकन",
+    "tokensOut": "आउटपुट टोकन"
+  },
+  "statusCards": {
+    "title": "एजेंट स्थिति",
+    "noAgents": "कोई एजेंट नहीं चल रहा",
+    "viewAll": "सभी देखें",
+    "lastActivity": "अंतिम गतिविधि",
+    "currentTask": "वर्तमान कार्य"
+  },
+  "timeline": {
+    "title": "इवेंट टाइमलाइन",
+    "noEvents": "अभी तक कोई इवेंट नहीं",
+    "recentEvents": "हालिया इवेंट",
+    "noRecentEvents": "कोई हालिया इवेंट नहीं",
+    "viewMore": "{{count}} और इवेंट देखें",
+    "agent": "एजेंट",
+    "building": "बिल्डिंग",
+    "agentSpawned": "एजेंट स्पॉन हुआ",
+    "agentTerminated": "एजेंट समाप्त हुआ",
+    "taskCompleted": "कार्य पूर्ण हुआ",
+    "taskFailed": "कार्य विफल हुआ",
+    "errorOccurred": "त्रुटि हुई",
+    "sessionStarted": "सत्र शुरू हुआ",
+    "sessionEnded": "सत्र समाप्त हुआ"
+  },
+  "buildings": {
+    "title": "बिल्डिंग स्थिति",
+    "noBuildings": "कोई बिल्डिंग कॉन्फ़िगर नहीं",
+    "healthy": "स्वस्थ",
+    "warning": "चेतावनी",
+    "critical": "गंभीर"
+  },
+  "metricsDisplay": {
+    "title": "लाइव मेट्रिक्स",
+    "activeAgents": "सक्रिय एजेंट",
+    "healthyAgents": "स्वस्थ एजेंट",
+    "agentErrors": "एजेंट त्रुटियां",
+    "healthyBuildings": "स्वस्थ बिल्डिंग्स",
+    "performanceRates": "प्रदर्शन दरें",
+    "taskCompletion": "कार्य पूर्णता",
+    "errorRate": "त्रुटि दर",
+    "buildingHealth": "बिल्डिंग स्वास्थ्य",
+    "recentErrors": "हालिया त्रुटियां"
+  }
+}

@@ -3,6 +3,7 @@
  */
 
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { BOSS_CONTEXT_START, BOSS_CONTEXT_END } from '../../../shared/types';
@@ -220,6 +221,7 @@ interface BossContextProps {
 }
 
 export function BossContext({ context, defaultCollapsed = true, onFileClick }: BossContextProps) {
+  const { t } = useTranslation(['tools']);
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const markdownComponents = createMarkdownComponents({ onFileClick });
 
@@ -232,7 +234,7 @@ export function BossContext({ context, defaultCollapsed = true, onFileClick }: B
       <div className="boss-context-header" onClick={() => setCollapsed(!collapsed)}>
         <span className="boss-context-icon">👑</span>
         <span className="boss-context-label">
-          Team Context ({agentCount} agent{agentCount !== 1 ? 's' : ''})
+          {t('tools:bossContext.teamContext', { count: agentCount })}
         </span>
         <span className="boss-context-toggle">{collapsed ? '▶' : '▼'}</span>
       </div>
@@ -254,6 +256,7 @@ interface InjectedInstructionsBlockProps {
 }
 
 export function InjectedInstructionsBlock({ content, defaultCollapsed = true, onFileClick }: InjectedInstructionsBlockProps) {
+  const { t } = useTranslation(['tools']);
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const markdownComponents = createMarkdownComponents({ onFileClick });
 
@@ -261,7 +264,7 @@ export function InjectedInstructionsBlock({ content, defaultCollapsed = true, on
     <div className={`injected-instructions ${collapsed ? 'collapsed' : 'expanded'}`}>
       <div className="injected-instructions-header" onClick={() => setCollapsed(!collapsed)}>
         <span className="injected-instructions-icon">⚙️</span>
-        <span className="injected-instructions-label">Injected Agent Instructions</span>
+        <span className="injected-instructions-label">{t('tools:bossContext.injectedInstructions')}</span>
         <span className="injected-instructions-toggle">{collapsed ? '▶' : '▼'}</span>
       </div>
       {!collapsed && (
@@ -284,6 +287,7 @@ interface DelegationBlockProps {
 }
 
 export function DelegationBlock({ delegation }: DelegationBlockProps) {
+  const { t } = useTranslation(['tools']);
   const confidenceColors: Record<string, string> = {
     high: '#22c55e', // green
     medium: '#f59e0b', // amber
@@ -300,31 +304,31 @@ export function DelegationBlock({ delegation }: DelegationBlockProps) {
     <div className="delegation-block">
       <div className="delegation-header">
         <span className="delegation-icon">📨</span>
-        <span className="delegation-title">Task Delegated</span>
+        <span className="delegation-title">{t('tools:delegation.taskDelegated')}</span>
         <span className="delegation-confidence" style={{ color: confidenceColors[delegation.confidence] }}>
           {confidenceEmoji[delegation.confidence]} {delegation.confidence}
         </span>
       </div>
       <div className="delegation-details">
         <div className="delegation-target">
-          <span className="delegation-label">To:</span>
+          <span className="delegation-label">{t('tools:delegation.to')}</span>
           <span className="delegation-agent-name">{delegation.selectedAgentName}</span>
         </div>
         {delegation.taskCommand && (
           <div className="delegation-task-command">
-            <span className="delegation-label">Task:</span>
+            <span className="delegation-label">{t('tools:delegation.task')}</span>
             <span className="delegation-command-text">{delegation.taskCommand}</span>
           </div>
         )}
         {delegation.reasoning && (
           <div className="delegation-reasoning">
-            <span className="delegation-label">Why:</span>
+            <span className="delegation-label">{t('tools:delegation.why')}</span>
             <span className="delegation-reason-text">{delegation.reasoning}</span>
           </div>
         )}
         {delegation.alternativeAgents.length > 0 && (
           <div className="delegation-alternatives">
-            <span className="delegation-label">Alternatives:</span>
+            <span className="delegation-label">{t('tools:delegation.alternatives')}</span>
             <span className="delegation-alt-list">
               {delegation.alternativeAgents.map((alt, i) => (
                 <span key={alt.id || i} className="delegation-alt-agent">
@@ -337,7 +341,7 @@ export function DelegationBlock({ delegation }: DelegationBlockProps) {
         )}
       </div>
       <div className="delegation-footer">
-        <span className="delegation-auto-forward">↗️ Auto-forwarding to {delegation.selectedAgentName}...</span>
+        <span className="delegation-auto-forward">↗️ {t('tools:delegation.autoForwarding', { name: delegation.selectedAgentName })}</span>
       </div>
     </div>
   );
@@ -353,6 +357,7 @@ interface DelegatedTaskHeaderProps {
 }
 
 export function DelegatedTaskHeader({ bossName, taskCommand }: DelegatedTaskHeaderProps) {
+  const { t } = useTranslation(['tools']);
   const [isExpanded, setIsExpanded] = useState(false);
 
   // Truncate long task commands for compact view
@@ -363,7 +368,7 @@ export function DelegatedTaskHeader({ bossName, taskCommand }: DelegatedTaskHead
       <div className="delegated-task-badge" onClick={() => setIsExpanded(!isExpanded)}>
         <span className="delegated-task-icon">👑</span>
         <span className="delegated-task-label">
-          via <strong>{bossName}</strong>
+          {t('tools:delegation.via')} <strong>{bossName}</strong>
         </span>
         <span className="delegated-task-toggle">{isExpanded ? '▼' : '▶'}</span>
       </div>
@@ -403,6 +408,7 @@ const classEmoji: Record<string, string> = {
 };
 
 export function WorkPlanBlock({ workPlan }: WorkPlanBlockProps) {
+  const { t } = useTranslation(['tools']);
   const [expandedPhases, setExpandedPhases] = useState<Set<string>>(new Set(workPlan.phases.map(p => p.id)));
 
   const togglePhase = (phaseId: string) => {
@@ -425,7 +431,7 @@ export function WorkPlanBlock({ workPlan }: WorkPlanBlockProps) {
         <span className="work-plan-icon">📋</span>
         <span className="work-plan-title">{workPlan.name}</span>
         <span className="work-plan-stats">
-          {workPlan.phases.length} phases · {totalTasks} tasks
+          {t('tools:workPlan.phases', { count: workPlan.phases.length })} · {t('tools:workPlan.tasks', { count: totalTasks })}
         </span>
       </div>
 
@@ -440,11 +446,11 @@ export function WorkPlanBlock({ workPlan }: WorkPlanBlockProps) {
               <span className="work-plan-phase-number">{phaseIndex + 1}</span>
               <span className="work-plan-phase-name">{phase.name}</span>
               <span className={`work-plan-phase-execution ${phase.execution}`}>
-                {phase.execution === 'parallel' ? '⚡ parallel' : '→ sequential'}
+                {phase.execution === 'parallel' ? `⚡ ${t('tools:workPlan.parallel')}` : `→ ${t('tools:workPlan.sequential')}`}
               </span>
               {phase.dependsOn.length > 0 && (
                 <span className="work-plan-phase-depends">
-                  depends on: {phase.dependsOn.join(', ')}
+                  {t('tools:workPlan.dependsOn')} {phase.dependsOn.join(', ')}
                 </span>
               )}
               <span className="work-plan-phase-toggle">
@@ -467,14 +473,14 @@ export function WorkPlanBlock({ workPlan }: WorkPlanBlockProps) {
                     </div>
                     <div className="work-plan-task-description">{task.description}</div>
                     <div className="work-plan-task-assignment">
-                      <span className="work-plan-task-assignment-label">Assigned to:</span>
+                      <span className="work-plan-task-assignment-label">{t('tools:workPlan.assignedTo')}</span>
                       <span className={`work-plan-task-agent ${task.assignToAgentName ? 'assigned' : 'auto'}`}>
-                        {task.assignToAgentName || 'auto-assign (best available)'}
+                        {task.assignToAgentName || t('tools:workPlan.autoAssign')}
                       </span>
                     </div>
                     {task.blockedBy.length > 0 && (
                       <div className="work-plan-task-blocked">
-                        ⏳ blocked by: {task.blockedBy.join(', ')}
+                        ⏳ {t('tools:workPlan.blockedBy')} {task.blockedBy.join(', ')}
                       </div>
                     )}
                   </div>
@@ -487,7 +493,7 @@ export function WorkPlanBlock({ workPlan }: WorkPlanBlockProps) {
 
       <div className="work-plan-footer">
         <span className="work-plan-approval-hint">
-          💡 Review this plan and reply to approve or request changes
+          💡 {t('tools:workPlan.reviewHint')}
         </span>
       </div>
     </div>

@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { AgentTaskProgress } from '../../store/types';
 import type { ClaudeOutput } from '../../store';
 import { useFilteredOutputs } from '../shared/useFilteredOutputs';
@@ -53,10 +54,11 @@ export function AgentProgressIndicator({
     failed: '❌',
   };
 
+  const { t } = useTranslation(['tools']);
   const statusText: Record<string, string> = {
-    working: 'working on...',
-    completed: 'Task finished',
-    failed: 'Task failed',
+    working: t('tools:progress.workingOn'),
+    completed: t('tools:progress.taskFinished'),
+    failed: t('tools:progress.taskFailed'),
   };
 
   // Truncate task description for compact view

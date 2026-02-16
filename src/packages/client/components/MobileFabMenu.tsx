@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSettings } from '../store';
 import { VoiceAssistant } from './VoiceAssistant';
 
@@ -33,6 +34,7 @@ export function MobileFabMenu({
   canTakeSnapshot,
   mobileView,
 }: MobileFabMenuProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const settings = useSettings();
 
   const handleAction = (action: () => void) => {
@@ -53,7 +55,7 @@ export function MobileFabMenu({
           className={`mobile-fab-toggle ${isOpen ? 'open' : ''}`}
           onClick={onToggle}
           onTouchStart={(e) => e.stopPropagation()}
-          title={isOpen ? 'Close menu' : 'Open menu'}
+          title={isOpen ? t('terminal:mobileFab.closeMenu') : t('terminal:mobileFab.openMenu')}
         >
           {isOpen ? '✕' : '☰'}
         </button>
@@ -69,7 +71,7 @@ export function MobileFabMenu({
               e.preventDefault();
               handleAction(onShowTerminal);
             }}
-            title="Show Terminal"
+            title={t('terminal:mobileFab.showTerminal')}
           >
             💬
           </button>
@@ -80,7 +82,7 @@ export function MobileFabMenu({
               e.preventDefault();
               handleAction(onOpenSidebar);
             }}
-            title="Open sidebar"
+            title={t('terminal:header.openSidebar')}
           >
             📋
           </button>
@@ -93,7 +95,7 @@ export function MobileFabMenu({
                 e.preventDefault();
                 handleAction(onTakeSnapshot);
               }}
-              title="Take Snapshot"
+              title={t('terminal:mobileFab.takeSnapshot')}
             >
               ⭐
             </button>
@@ -105,7 +107,7 @@ export function MobileFabMenu({
               e.preventDefault();
               handleAction(onOpenToolbox);
             }}
-            title="Settings & Tools"
+            title={t('common:floatingButtons.settingsAndTools')}
           >
             ⚙️
           </button>
@@ -116,7 +118,7 @@ export function MobileFabMenu({
               e.preventDefault();
               handleAction(onOpenCommander);
             }}
-            title="Commander View"
+            title={t('common:floatingButtons.commanderView')}
           >
             📊
           </button>
@@ -127,7 +129,7 @@ export function MobileFabMenu({
               e.preventDefault();
               handleAction(onOpenSupervisor);
             }}
-            title="Supervisor Overview"
+            title={t('common:floatingButtons.supervisorOverview')}
           >
             🎖️
           </button>
@@ -138,7 +140,7 @@ export function MobileFabMenu({
               e.preventDefault();
               handleAction(onOpenControls);
             }}
-            title="Controls"
+            title={t('common:floatingButtons.controls')}
           >
             ⌨️
           </button>
@@ -149,7 +151,7 @@ export function MobileFabMenu({
               e.preventDefault();
               handleAction(onOpenSkills);
             }}
-            title="Manage Skills"
+            title={t('common:floatingButtons.manageSkills')}
           >
             ⭐
           </button>
@@ -160,7 +162,7 @@ export function MobileFabMenu({
               e.preventDefault();
               handleAction(onOpenSnapshots);
             }}
-            title="View Snapshots"
+            title={t('common:floatingButtons.viewSnapshots')}
           >
             📸
           </button>

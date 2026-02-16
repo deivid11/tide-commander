@@ -7,6 +7,7 @@
  */
 
 import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Agent } from '../../../shared/types';
 import { useSupervisor, store, ClaudeOutput } from '../../store';
 import { formatTokens } from '../../utils/formatting';
@@ -47,6 +48,7 @@ export function AgentPanel({
   inputRef,
   onLoadMore,
 }: AgentPanelProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const supervisor = useSupervisor();
   const outputRef = useRef<HTMLDivElement>(null);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -305,7 +307,7 @@ export function AgentPanel({
               e.stopPropagation();
               onExpand();
             }}
-            title={isExpanded ? 'Collapse (Esc)' : 'Expand'}
+            title={isExpanded ? t('commander.collapsePanel') : t('commander.expandPanel')}
           >
             {isExpanded ? (
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -334,16 +336,16 @@ export function AgentPanel({
       {/* Output Content */}
       <div className="agent-panel-content" ref={outputRef} onScroll={handleScroll}>
         {history?.loading ? (
-          <div className="agent-panel-loading">Loading...</div>
+          <div className="agent-panel-loading">{t('common:status.loading')}</div>
         ) : (
           <>
             {history?.hasMore && (
               <div className="agent-panel-load-more">
                 {loadingMore ? (
-                  <span>Loading...</span>
+                  <span>{t('common:status.loading')}</span>
                 ) : (
                   <button onClick={onLoadMore}>
-                    Load more ({(history?.totalCount || 0) - (history?.messages.length || 0)})
+                    {t('commander.loadMore', { count: (history?.totalCount || 0) - (history?.messages.length || 0) })}
                   </button>
                 )}
               </div>
@@ -373,9 +375,9 @@ export function AgentPanel({
             ))}
             {!messages.length && !filteredOutputs.length && (
               <div className="agent-panel-empty">
-                No messages yet
+                {t('commander.noMessages')}
                 {!agent.sessionId && (
-                  <div style={{ fontSize: '10px', color: '#666' }}>No session ID</div>
+                  <div style={{ fontSize: '10px', color: '#666' }}>{t('commander.noSessionId')}</div>
                 )}
               </div>
             )}
@@ -388,9 +390,9 @@ export function AgentPanel({
                     e.stopPropagation();
                     store.stopAgent(agent.id);
                   }}
-                  title="Stop current operation"
+                  title={t('input.stopOperation')}
                 >
-                  Stop
+                  {t('common:buttons.stop')}
                 </button>
               </div>
             )}
@@ -413,7 +415,7 @@ export function AgentPanel({
           onRemoveFile={removeAttachedFile}
           uploadFile={uploadFile}
           onAddPastedText={handleAddPastedText}
-          placeholder={`Command ${agent.name}...`}
+          placeholder={t('commander.command', { name: agent.name })}
           compact={false}
           inputRef={inputRef}
         />

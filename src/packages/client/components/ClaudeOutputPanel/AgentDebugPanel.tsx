@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   agentDebugger,
   type AgentDebugMessage,
@@ -223,6 +224,7 @@ export const AgentDebugPanel: React.FC<AgentDebugPanelProps> = ({
   agentId,
   onClose,
 }) => {
+  const { t } = useTranslation(['terminal', 'common', 'tools']);
   const [activeTab, setActiveTab] = useState<'messages' | 'logs' | 'process'>('messages');
   const [messages, setMessages] = useState<AgentDebugMessage[]>([]);
   const [logs, setLogs] = useState<DebugLog[]>([]);
@@ -496,9 +498,9 @@ export const AgentDebugPanel: React.FC<AgentDebugPanelProps> = ({
       <div className="agent-debug-header">
         <div className="agent-debug-title">
           <span className="icon">🐛</span>
-          Agent Debugger
+          {t('terminal:debug.title')}
         </div>
-        <button className="close-btn" onClick={onClose} title="Close debugger">
+        <button className="close-btn" onClick={onClose} title={t('common:buttons.close')}>
           ✕
         </button>
       </div>
@@ -509,19 +511,19 @@ export const AgentDebugPanel: React.FC<AgentDebugPanelProps> = ({
           className={`tab ${activeTab === 'messages' ? 'active' : ''}`}
           onClick={() => setActiveTab('messages')}
         >
-          📨 Messages ({stats.total})
+          📨 {t('terminal:debug.messages')} ({stats.total})
         </button>
         <button
           className={`tab ${activeTab === 'logs' ? 'active' : ''}`}
           onClick={() => setActiveTab('logs')}
         >
-          📋 Logs ({logs.length})
+          📋 {t('terminal:debug.logs')} ({logs.length})
         </button>
         <button
           className={`tab ${activeTab === 'process' ? 'active' : ''}`}
           onClick={() => setActiveTab('process')}
         >
-          🧪 Process Output
+          🧪 {t('terminal:debug.processOutput')}
         </button>
       </div>
 
@@ -535,9 +537,9 @@ export const AgentDebugPanel: React.FC<AgentDebugPanelProps> = ({
             <button
               className={`text-only-toggle ${textOnlyMode ? 'active' : ''}`}
               onClick={() => setTextOnlyMode(!textOnlyMode)}
-              title={textOnlyMode ? 'Show all messages' : 'Show only text messages'}
+              title={textOnlyMode ? t('terminal:debug.allMessages') : t('terminal:debug.textOnly')}
             >
-              💬 {textOnlyMode ? 'Text Only' : 'All'}
+              💬 {textOnlyMode ? t('terminal:debug.textOnly') : t('terminal:debug.allMessages')}
             </button>
           </div>
 
@@ -551,9 +553,9 @@ export const AgentDebugPanel: React.FC<AgentDebugPanelProps> = ({
           }
           className="filter-select"
         >
-          <option value="all">All Directions</option>
-          <option value="sent">Sent Only</option>
-          <option value="received">Received Only</option>
+          <option value="all">{t('terminal:debug.allDirections')}</option>
+          <option value="sent">{t('terminal:debug.sentOnly')}</option>
+          <option value="received">{t('terminal:debug.receivedOnly')}</option>
         </select>
 
         {/* Type filter */}
@@ -562,7 +564,7 @@ export const AgentDebugPanel: React.FC<AgentDebugPanelProps> = ({
           onChange={(e) => setTypeFilter(e.target.value)}
           className="filter-select"
         >
-          <option value="all">All Types</option>
+          <option value="all">{t('terminal:debug.allTypes')}</option>
           {stats.messageTypes.map((type) => (
             <option key={type} value={type}>
               {type}
@@ -573,7 +575,7 @@ export const AgentDebugPanel: React.FC<AgentDebugPanelProps> = ({
         {/* Search */}
         <input
           type="text"
-          placeholder="Search..."
+          placeholder={t('terminal:debug.search')}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="search-input"
@@ -582,17 +584,17 @@ export const AgentDebugPanel: React.FC<AgentDebugPanelProps> = ({
 
       {/* Action buttons */}
       <div className="agent-debug-actions">
-        <button onClick={expandAll} className="action-btn" title="Expand all messages">
-          Expand All
+        <button onClick={expandAll} className="action-btn" title={t('tools:display.expandAll')}>
+          {t('tools:display.expandAll')}
         </button>
-        <button onClick={collapseAll} className="action-btn" title="Collapse all messages">
-          Collapse All
+        <button onClick={collapseAll} className="action-btn" title={t('tools:display.collapseAll')}>
+          {t('tools:display.collapseAll')}
         </button>
-        <button onClick={copyAllMessages} className="action-btn" title="Copy all filtered messages">
-          Copy All
+        <button onClick={copyAllMessages} className="action-btn" title={t('terminal:debug.copyAll')}>
+          {t('terminal:debug.copyAll')}
         </button>
-        <button onClick={clearMessages} className="action-btn clear-btn" title="Clear all messages">
-          Clear
+        <button onClick={clearMessages} className="action-btn clear-btn" title={t('common:buttons.clear')}>
+          {t('common:buttons.clear')}
         </button>
         <label className="auto-scroll-label">
           <input
@@ -601,7 +603,7 @@ export const AgentDebugPanel: React.FC<AgentDebugPanelProps> = ({
             onChange={(e) => setAutoScroll(e.target.checked)}
           />
           <span className="toggle-switch" />
-          Auto-scroll
+          {t('terminal:debug.autoScroll')}
         </label>
       </div>
 
@@ -610,8 +612,8 @@ export const AgentDebugPanel: React.FC<AgentDebugPanelProps> = ({
             {filteredMessages.length === 0 ? (
               <div className="no-messages">
                 {messages.length === 0
-                  ? 'No messages captured yet'
-                  : 'No messages match filters'}
+                  ? t('terminal:debug.noMessagesCaptured')
+                  : t('terminal:debug.noMessagesMatch')}
               </div>
             ) : (
               filteredMessages.map((msg) => {
@@ -853,16 +855,16 @@ export const AgentDebugPanel: React.FC<AgentDebugPanelProps> = ({
               onChange={(e) => setLogLevelFilter(e.target.value as typeof logLevelFilter)}
               className="filter-select"
             >
-              <option value="all">All Levels</option>
-              <option value="debug">Debug</option>
-              <option value="info">Info</option>
-              <option value="warn">Warning</option>
-              <option value="error">Error</option>
+              <option value="all">{t('terminal:debug.allLevels')}</option>
+              <option value="debug">{t('terminal:debug.debug')}</option>
+              <option value="info">{t('terminal:debug.info')}</option>
+              <option value="warn">{t('terminal:debug.warning')}</option>
+              <option value="error">{t('terminal:debug.error')}</option>
             </select>
 
             <input
               type="text"
-              placeholder="Search logs..."
+              placeholder={t('terminal:debug.searchLogs')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="search-input"
@@ -871,8 +873,8 @@ export const AgentDebugPanel: React.FC<AgentDebugPanelProps> = ({
 
           {/* Log Actions */}
           <div className="agent-debug-actions">
-            <button onClick={clearLogs} className="action-btn clear-btn" title="Clear all logs">
-              Clear Logs
+            <button onClick={clearLogs} className="action-btn clear-btn" title={t('terminal:debug.clearLogs')}>
+              {t('terminal:debug.clearLogs')}
             </button>
             <label className="auto-scroll-label">
               <input
@@ -881,7 +883,7 @@ export const AgentDebugPanel: React.FC<AgentDebugPanelProps> = ({
                 onChange={(e) => setAutoScroll(e.target.checked)}
               />
               <span className="toggle-switch" />
-              Auto-scroll
+              {t('terminal:debug.autoScroll')}
             </label>
           </div>
 
@@ -890,8 +892,8 @@ export const AgentDebugPanel: React.FC<AgentDebugPanelProps> = ({
             {filteredLogs.length === 0 ? (
               <div className="no-messages">
                 {logs.length === 0
-                  ? 'No logs yet. Use debugLog.info(), debugLog.warn(), etc.'
-                  : 'No logs match filters'}
+                  ? t('terminal:debug.noLogsYet')
+                  : t('terminal:debug.noLogsMatch')}
               </div>
             ) : (
               filteredLogs.map((log) => {
@@ -948,7 +950,7 @@ export const AgentDebugPanel: React.FC<AgentDebugPanelProps> = ({
               title="Refresh process output"
               disabled={processLoading}
             >
-              {processLoading ? 'Loading...' : 'Refresh'}
+              {processLoading ? t('common:status.loading') : t('common:buttons.refresh')}
             </button>
             <button
               onClick={copyProcessOutput}
@@ -956,7 +958,7 @@ export const AgentDebugPanel: React.FC<AgentDebugPanelProps> = ({
               title="Copy process output"
               disabled={!processOutput}
             >
-              Copy Output
+              {t('terminal:debug.copyOutput')}
             </button>
           </div>
 
@@ -967,24 +969,24 @@ export const AgentDebugPanel: React.FC<AgentDebugPanelProps> = ({
               <div className="process-output-block">
                 <div className="process-meta-grid">
                   <div className="meta-item">
-                    <span className="meta-label">PID</span>
+                    <span className="meta-label">{t('terminal:debug.pid')}</span>
                     <span className="meta-value">{processOutput.pid}</span>
                   </div>
                   <div className="meta-item">
-                    <span className="meta-label">Source</span>
+                    <span className="meta-label">{t('tools:metadata.source')}</span>
                     <span className="meta-value">{processOutput.source}</span>
                   </div>
                   <div className="meta-item">
-                    <span className="meta-label">Exit</span>
+                    <span className="meta-label">{t('terminal:debug.exit')}</span>
                     <span className="meta-value">{processOutput.exitCode ?? 'null'}</span>
                   </div>
                   <div className="meta-item">
-                    <span className="meta-label">Fetched</span>
+                    <span className="meta-label">{t('terminal:debug.fetched')}</span>
                     <span className="meta-value">{new Date(processOutput.fetchedAt).toLocaleString('en-US', { hour12: false })}</span>
                   </div>
                 </div>
                 <div className="process-command">
-                  <span className="meta-label">Command</span>
+                  <span className="meta-label">{t('terminal:debug.command')}</span>
                   <code>{processOutput.command}</code>
                 </div>
                 <div className="process-stream-label">stdout</div>
@@ -994,7 +996,7 @@ export const AgentDebugPanel: React.FC<AgentDebugPanelProps> = ({
               </div>
             ) : (
               <div className="no-messages">
-                {processLoading ? 'Loading process output...' : 'No process output loaded'}
+                {processLoading ? t('terminal:debug.loadingProcessOutput') : t('terminal:debug.noProcessOutput')}
               </div>
             )}
           </div>

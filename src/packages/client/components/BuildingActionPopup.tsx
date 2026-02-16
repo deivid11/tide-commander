@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useMemo, memo, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { store, useStore } from '../store';
 import type { Building } from '../../shared/types';
 import { BUILDING_STATUS_COLORS } from '../utils/colors';
@@ -97,6 +98,7 @@ function ansiToHtml(text: string): React.ReactNode[] {
 }
 
 export const BuildingActionPopup = memo(function BuildingActionPopup({ building, screenPos, onClose, onOpenSettings, onOpenLogsModal, onOpenUrlInModal }: BuildingActionPopupProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const [showLogs, setShowLogs] = useState(false);
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -357,12 +359,12 @@ export const BuildingActionPopup = memo(function BuildingActionPopup({ building,
       {/* Error display */}
       {(building.lastError || (isPM2 && building.pm2Status?.status === 'errored') || (isDocker && building.dockerStatus?.status === 'dead')) && (
         <div className="building-popup-error">
-          {building.lastError || 'Process failed to start'}
+          {building.lastError || t('terminal:building.processFailedToStart')}
           {isPM2 && building.pm2Status?.restarts && building.pm2Status.restarts > 5 && (
-            <span className="error-hint"> - Check logs or configuration</span>
+            <span className="error-hint"> - {t('terminal:building.checkLogsOrConfig')}</span>
           )}
           {isDocker && building.dockerStatus?.health === 'unhealthy' && (
-            <span className="error-hint"> - Container health check failing</span>
+            <span className="error-hint"> - {t('terminal:building.healthCheckFailing')}</span>
           )}
         </div>
       )}
@@ -373,36 +375,36 @@ export const BuildingActionPopup = memo(function BuildingActionPopup({ building,
           className="action-btn start"
           onClick={() => handleCommand('start')}
           disabled={!canStart || building.status === 'running' || building.status === 'starting'}
-          title={canStart ? 'Start' : 'No start command configured'}
+          title={canStart ? t('terminal:buildingAction.start') : t('terminal:buildingAction.noStartCommand')}
         >
           <span className="icon">&#9654;</span>
-          Start
+          {t('terminal:buildingAction.start')}
         </button>
         <button
           className="action-btn stop"
           onClick={() => handleCommand('stop')}
           disabled={!canStop || building.status === 'stopped' || building.status === 'stopping'}
-          title={canStop ? 'Stop' : 'No stop command configured'}
+          title={canStop ? t('terminal:buildingAction.stop') : t('terminal:buildingAction.noStopCommand')}
         >
           <span className="icon">&#9632;</span>
-          Stop
+          {t('terminal:buildingAction.stop')}
         </button>
         <button
           className="action-btn restart"
           onClick={() => handleCommand('restart')}
           disabled={!canRestart}
-          title={canRestart ? 'Restart' : 'No restart command configured'}
+          title={canRestart ? t('terminal:buildingAction.restart') : t('terminal:buildingAction.noRestartCommand')}
         >
           <span className="icon">&#8634;</span>
-          Restart
+          {t('terminal:buildingAction.restart')}
         </button>
         <button
           className="action-btn logs"
           onClick={() => handleCommand('logs')}
-          title="View logs"
+          title={t('terminal:buildingAction.viewLogs')}
         >
           <span className="icon">&#128196;</span>
-          Logs
+          {t('terminal:logs.title')}
         </button>
         {allPorts.length === 1 && (
           <button
@@ -411,12 +413,12 @@ export const BuildingActionPopup = memo(function BuildingActionPopup({ building,
             title={`Open http://localhost:${allPorts[0]} (Alt+Click for modal)`}
           >
             <span className="icon">&#128279;</span>
-            Open
+            {t('terminal:buildingAction.openInBrowser')}
           </button>
         )}
         {allPorts.length > 1 && (
           <div className="action-btn-group">
-            <span className="action-btn-label">Open:</span>
+            <span className="action-btn-label">{t('terminal:buildingAction.openInBrowser')}:</span>
             {allPorts.map(port => (
               <button
                 key={port}
@@ -435,8 +437,8 @@ export const BuildingActionPopup = memo(function BuildingActionPopup({ building,
       {showLogs && logs.length > 0 && (
         <div className="building-popup-logs">
           <div className="logs-header">
-            <span>Logs</span>
-            <button onClick={() => store.clearBuildingLogs(building.id)}>Clear</button>
+            <span>{t('terminal:logs.title')}</span>
+            <button onClick={() => store.clearBuildingLogs(building.id)}>{t('terminal:logs.clear')}</button>
           </div>
           <div className="logs-content">
             {logs.slice(-50).map((log, i) => (
@@ -448,7 +450,7 @@ export const BuildingActionPopup = memo(function BuildingActionPopup({ building,
 
       {/* Settings link */}
       <button className="building-popup-settings" onClick={onOpenSettings}>
-        Full Settings
+        {t('terminal:buildingAction.fullSettings')}
       </button>
     </div>
   );

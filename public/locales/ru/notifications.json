@@ -1,0 +1,48 @@
+{
+  "agent": {
+    "clickToFocus": "Нажмите для фокуса",
+    "needsAttention": "требует внимания",
+    "removed": "{{name}} убран из вида",
+    "deployed": "{{name}} успешно развёрнут",
+    "terminated": "{{name}} завершён",
+    "started": "{{name}} запущен",
+    "errored": "{{name}} столкнулся с ошибкой"
+  },
+  "toast": {
+    "info": "Информация",
+    "success": "Успех",
+    "warning": "Предупреждение",
+    "agentsRemoved": "Агенты убраны",
+    "agentsRemovedMsg": "{{count}} агент(ов) убрано из вида",
+    "buildingsDeleted": "Здания удалены",
+    "buildingsDeletedMsg": "{{count}} здание(й) удалено",
+    "buildingDeleted": "Здание удалено",
+    "buildingDeletedMsg": "\"{{name}}\" было удалено",
+    "snapshotSaved": "Снимок сохранён",
+    "snapshotSavedMsg": "Снимок успешно сохранён",
+    "snapshotFailed": "Ошибка снимка",
+    "snapshotFailedMsg": "Не удалось создать снимок",
+    "copied": "Скопировано",
+    "resumeCopied": "Команда возобновления скопирована в буфер обмена",
+    "textCopied": "Текст скопирован в буфер обмена",
+    "pathCopied": "Путь скопирован в буфер обмена",
+    "mergeComplete": "Слияние завершено",
+    "mergeCompleteMsg": "Ветка успешно объединена",
+    "mergeConflicts": "Конфликты слияния",
+    "mergeConflictsMsg": "При слиянии возникли конфликты, требующие разрешения",
+    "mergeAborted": "Слияние отменено",
+    "mergeAbortedMsg": "Операция слияния отменена",
+    "branchCreated": "Ветка создана",
+    "branchCreatedMsg": "Ветка \"{{name}}\" создана",
+    "branchSwitched": "Ветка переключена",
+    "branchSwitchedMsg": "Переключено на ветку \"{{name}}\"",
+    "filesSaved": "Файлы сохранены",
+    "filesSavedMsg": "{{count}} файл(ов) сохранено"
+  },
+  "drawing": {
+    "rectangleTool": "Инструмент \"Прямоугольник\"",
+    "circleTool": "Инструмент \"Круг\"",
+    "toolName": "Инструмент \"{{name}}\"",
+    "clickAndDrag": "Нажмите и перетащите на поле боя для рисования зоны"
+  }
+}

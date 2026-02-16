@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { HelpTooltip } from '../shared/Tooltip';
 
 interface ServerCommandsPanelProps {
@@ -30,13 +31,14 @@ export function ServerCommandsPanel({
   isEditMode,
   handleCommand,
 }: ServerCommandsPanelProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   return (
     <div className="form-section commands-section">
       <label className="form-label">
-        Commands
+        {t('terminal:building.commands')}
         <HelpTooltip
-          text="Shell commands to control this server. Commands run in the working directory. Leave empty if not needed."
-          title="Server Commands"
+          text={t('terminal:building.helpCommands')}
+          title={t('terminal:building.commands')}
           position="top"
           size="sm"
         />
@@ -44,9 +46,9 @@ export function ServerCommandsPanel({
       <div className="command-inputs">
         <div className="command-row">
           <span className="command-label">
-            Start:
+            {t('terminal:building.cmdStart')}
             <HelpTooltip
-              text="Command to start the server process. The process runs in the background."
+              text={t('terminal:building.helpCmdStart')}
               position="top"
               size="sm"
             />
@@ -65,15 +67,15 @@ export function ServerCommandsPanel({
               onClick={() => handleCommand('start')}
               disabled={!startCmd}
             >
-              Run
+              {t('common:buttons2.run')}
             </button>
           )}
         </div>
         <div className="command-row">
           <span className="command-label">
-            Stop:
+            {t('terminal:building.cmdStop')}
             <HelpTooltip
-              text="Command to stop the server. Use pkill, kill, or a graceful shutdown command."
+              text={t('terminal:building.helpCmdStop')}
               position="top"
               size="sm"
             />
@@ -92,15 +94,15 @@ export function ServerCommandsPanel({
               onClick={() => handleCommand('stop')}
               disabled={!stopCmd}
             >
-              Run
+              {t('common:buttons2.run')}
             </button>
           )}
         </div>
         <div className="command-row">
           <span className="command-label">
-            Restart:
+            {t('terminal:building.cmdRestart')}
             <HelpTooltip
-              text="Command to restart the server. Can be a dedicated restart command or a stop-then-start sequence."
+              text={t('terminal:building.helpCmdRestart')}
               position="top"
               size="sm"
             />
@@ -119,15 +121,15 @@ export function ServerCommandsPanel({
               onClick={() => handleCommand('restart')}
               disabled={!restartCmd}
             >
-              Run
+              {t('common:buttons2.run')}
             </button>
           )}
         </div>
         <div className="command-row">
           <span className="command-label">
-            Health Check:
+            {t('terminal:building.cmdHealthCheck')}
             <HelpTooltip
-              text="Command to verify the server is running. Returns exit code 0 if healthy. Used for status monitoring."
+              text={t('terminal:building.helpCmdHealthCheck')}
               position="top"
               size="sm"
             />
@@ -146,15 +148,15 @@ export function ServerCommandsPanel({
               onClick={() => handleCommand('healthCheck')}
               disabled={!healthCheckCmd}
             >
-              Check
+              {t('terminal:building.check')}
             </button>
           )}
         </div>
         <div className="command-row">
           <span className="command-label">
-            Logs:
+            {t('terminal:building.cmdLogs')}
             <HelpTooltip
-              text="Command to fetch recent logs. Output appears in the logs section below."
+              text={t('terminal:building.helpCmdLogs')}
               position="top"
               size="sm"
             />
@@ -172,7 +174,7 @@ export function ServerCommandsPanel({
               className="btn btn-sm"
               onClick={() => handleCommand('logs')}
             >
-              Fetch
+              {t('terminal:building.fetch')}
             </button>
           )}
         </div>

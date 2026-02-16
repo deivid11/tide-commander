@@ -168,6 +168,7 @@ AI coding orchestration and multi-agent management features:
 
 ![Inline File Inspection](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/img/edit_dtails_while_chatting.png)
 - 🌐 **Multiplayer** - WebSocket-based multi-user support
+- 🌍 **Multilingual** - Full i18n support with 10 languages: English, Spanish, French, German, Italian, Portuguese, Russian, Chinese, Japanese, and Hindi
 - 📱 **Mobile Compatible** - Works on mobile devices and Android (optional APK)
 
 ## 📚 Documentation
@@ -386,7 +387,7 @@ Join the Discord to chat, share feedback, report bugs, or request features:
 Planned features and improvements — contributions and feedback welcome:
 
 - [ ] **Test Coverage** — Unit, integration, and E2E tests (currently minimal)
-- [ ] **Multilingual Support** — i18n with translations for Chinese, French, Spanish, and more
+- [x] **Multilingual Support** — i18n with 10 languages (EN, ES, FR, DE, IT, PT, RU, ZH, JA, HI)
 - [x] **Codex Integration** — Compatible with OpenAI Codex CLI alongside Claude Code
 - [ ] **Buildings Plugin System** — External plugin API for community-built building types
 - [ ] **API Documentation** — OpenAPI/Swagger spec for the REST and WebSocket APIs

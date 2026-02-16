@@ -4,6 +4,7 @@
  */
 
 import React, { forwardRef } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface SpotlightInputProps {
   query: string;
@@ -16,6 +17,7 @@ export const SpotlightInput = forwardRef<HTMLInputElement, SpotlightInputProps>(
   { query, onQueryChange, onKeyDown, onResetSelection },
   ref
 ) {
+  const { t } = useTranslation(['common']);
   return (
     <div className="spotlight-input-wrapper">
       <span className="spotlight-search-icon">⌘</span>
@@ -23,7 +25,7 @@ export const SpotlightInput = forwardRef<HTMLInputElement, SpotlightInputProps>(
         ref={ref}
         type="text"
         className="spotlight-input"
-        placeholder="Agent, command, file, task..."
+        placeholder={t('common:search.spotlightPlaceholder')}
         value={query}
         onChange={(e) => {
           onQueryChange(e.target.value);

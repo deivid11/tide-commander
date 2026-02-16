@@ -1,0 +1,76 @@
+{
+  "title": "ダッシュボード",
+  "searchPlaceholder": "エージェントを検索...",
+  "grouping": {
+    "byZone": "ゾーン別",
+    "byStatus": "ステータス別",
+    "byActivity": "アクティビティ別"
+  },
+  "agentCount": "{{count}}エージェント",
+  "agentCount_plural": "{{count}}エージェント",
+  "working": "作業中",
+  "focusZone": "フォーカスゾーン",
+  "noAgentsMatching": "「{{search}}」に一致するエージェントがありません",
+  "noAgentsSpawned": "エージェントがまだスポーンされていません",
+  "cards": {
+    "doubleClickHint": "ダブルクリックでターミナルを開く | ドラッグで別のエリアに移動",
+    "openTerminal": "ターミナルを開く",
+    "killAgent": "エージェントを強制終了",
+    "chat": "チャット",
+    "stop": "停止"
+  },
+  "metrics": {
+    "totalAgents": "総エージェント数",
+    "activeAgents": "アクティブエージェント",
+    "idleAgents": "待機中エージェント",
+    "errorAgents": "エラーエージェント",
+    "totalTokens": "総トークン数",
+    "totalCost": "総コスト",
+    "avgResponseTime": "平均レスポンス時間",
+    "uptime": "稼働時間",
+    "tokensIn": "入力トークン",
+    "tokensOut": "出力トークン"
+  },
+  "statusCards": {
+    "title": "エージェントステータス",
+    "noAgents": "実行中のエージェントなし",
+    "viewAll": "すべて表示",
+    "lastActivity": "最終アクティビティ",
+    "currentTask": "現在のタスク"
+  },
+  "timeline": {
+    "title": "イベントタイムライン",
+    "noEvents": "イベントはまだありません",
+    "recentEvents": "最近のイベント",
+    "noRecentEvents": "最近のイベントはありません",
+    "viewMore": "さらに{{count}}件のイベントを表示",
+    "agent": "エージェント",
+    "building": "ビルディング",
+    "agentSpawned": "エージェントがスポーンされました",
+    "agentTerminated": "エージェントが終了されました",
+    "taskCompleted": "タスクが完了しました",
+    "taskFailed": "タスクが失敗しました",
+    "errorOccurred": "エラーが発生しました",
+    "sessionStarted": "セッションが開始されました",
+    "sessionEnded": "セッションが終了されました"
+  },
+  "buildings": {
+    "title": "ビルディングステータス",
+    "noBuildings": "ビルディングが設定されていません",
+    "healthy": "正常",
+    "warning": "警告",
+    "critical": "重大"
+  },
+  "metricsDisplay": {
+    "title": "ライブメトリクス",
+    "activeAgents": "アクティブエージェント",
+    "healthyAgents": "正常なエージェント",
+    "agentErrors": "エージェントエラー",
+    "healthyBuildings": "正常なビルディング",
+    "performanceRates": "パフォーマンスレート",
+    "taskCompletion": "タスク完了率",
+    "errorRate": "エラー率",
+    "buildingHealth": "ビルディング健全性",
+    "recentErrors": "最近のエラー"
+  }
+}

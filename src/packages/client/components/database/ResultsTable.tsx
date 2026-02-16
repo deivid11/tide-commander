@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { QueryResult } from '../../../shared/types';
 import './ResultsTable.scss';
 
@@ -25,6 +26,7 @@ const getRawValue = (value: unknown): string => {
 };
 
 export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId: _buildingId }) => {
+  const { t } = useTranslation(['terminal']);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [sortColumn, setSortColumn] = useState<string | null>(null);
@@ -236,14 +238,14 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId: 
         <div className="results-table__error">
           <div className="results-table__error-header">
             <span className="results-table__error-icon">&#10007;</span>
-            Query Error
+            {t('terminal:database.queryError')}
           </div>
           <div className="results-table__error-message">
             {result.error}
           </div>
           {result.errorCode && (
             <div className="results-table__error-code">
-              Error Code: {result.errorCode}
+              {t('terminal:database.errorCode', { code: result.errorCode })}
             </div>
           )}
           <div className="results-table__error-query">
@@ -259,10 +261,10 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId: 
       <div className="results-table results-table--success">
         <div className="results-table__success">
           <span className="results-table__success-icon">&#10003;</span>
-          Query executed successfully
+          {t('terminal:database.querySuccess')}
           {result.affectedRows !== undefined && (
             <span className="results-table__affected">
-              {result.affectedRows} row(s) affected
+              {t('terminal:database.rowsAffected', { count: result.affectedRows })}
             </span>
           )}
           <span className="results-table__duration">
@@ -279,7 +281,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId: 
       <div className="results-table__status-bar">
         <div className="results-table__status-info">
           <span className="results-table__row-count">
-            {result.rowCount?.toLocaleString()} row(s)
+            {t('terminal:database.rowCount', { count: result.rowCount })}
           </span>
           <span className="results-table__duration">
             {result.duration}ms
@@ -287,9 +289,9 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId: 
           <button
             className={`results-table__copy-btn ${copyFeedback ? 'results-table__copy-btn--success' : ''}`}
             onClick={handleCopyAll}
-            title="Copy all results as table"
+            title={t('terminal:database.copyAllResults')}
           >
-            {copyFeedback ? '✓ Copied' : '⧉ Copy All'}
+            {copyFeedback ? t('terminal:database.copied') : t('terminal:database.copyAll')}
           </button>
         </div>
 
@@ -304,7 +306,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId: 
             }}
           >
             {PAGE_SIZE_OPTIONS.map(size => (
-              <option key={size} value={size}>{size} rows</option>
+              <option key={size} value={size}>{t('terminal:database.rowsPerPage', { count: size })}</option>
             ))}
           </select>
 
@@ -312,7 +314,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId: 
             className="results-table__page-btn"
             disabled={page === 0}
             onClick={() => setPage(0)}
-            title="First page"
+            title={t('terminal:database.firstPage')}
           >
             &laquo;
           </button>
@@ -320,18 +322,18 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId: 
             className="results-table__page-btn"
             disabled={page === 0}
             onClick={() => setPage(p => p - 1)}
-            title="Previous page"
+            title={t('terminal:database.previousPage')}
           >
             &lsaquo;
           </button>
           <span className="results-table__page-info">
-            Page {page + 1} of {totalPages}
+            {t('terminal:database.pageInfo', { current: page + 1, total: totalPages })}
           </span>
           <button
             className="results-table__page-btn"
             disabled={page >= totalPages - 1}
             onClick={() => setPage(p => p + 1)}
-            title="Next page"
+            title={t('terminal:database.nextPage')}
           >
             &rsaquo;
           </button>
@@ -339,7 +341,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId: 
             className="results-table__page-btn"
             disabled={page >= totalPages - 1}
             onClick={() => setPage(totalPages - 1)}
-            title="Last page"
+            title={t('terminal:database.lastPage')}
           >
             &raquo;
           </button>

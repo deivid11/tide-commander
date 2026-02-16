@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { store, useAgents, useSkillsArray, useCustomAgentClassesArray, useCustomAgentNames } from '../store';
 import { AGENT_CLASS_CONFIG, BUILTIN_AGENT_NAMES, CHARACTER_MODELS } from '../scene/config';
 import type { AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, CodexModel, AgentProvider, CodexConfig } from '../../shared/types';
@@ -40,6 +41,7 @@ function getRandomAgentName(usedNames: Set<string>, namesList: string[]): string
 }
 
 export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPosition }: SpawnModalProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const agents = useAgents();
   const skills = useSkillsArray();
   const customClasses = useCustomAgentClassesArray();
@@ -425,18 +427,18 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
         }}
       >
         <div className="modal confirm-modal" onClick={(e) => e.stopPropagation()}>
-          <div className="modal-header">Directory Not Found</div>
+          <div className="modal-header">{t('terminal:spawn.directoryNotFound')}</div>
           <div className="modal-body confirm-modal-body">
-            <p>The directory does not exist:</p>
+            <p>{t('terminal:spawn.directoryNotExist')}</p>
             <code className="confirm-modal-path">{missingDirPath}</code>
-            <p>Would you like to create it?</p>
+            <p>{t('terminal:spawn.wouldYouCreate')}</p>
           </div>
           <div className="modal-footer">
             <button className="btn btn-secondary" onClick={handleCancelCreateDir}>
-              Cancel
+              {t('common:buttons.cancel')}
             </button>
             <button className="btn btn-primary" onClick={handleCreateDirectory} autoFocus>
-              Create Directory
+              {t('terminal:spawn.createDirectory')}
             </button>
           </div>
         </div>
@@ -452,7 +454,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
       onKeyDown={handleKeyDown}
     >
       <div className="modal spawn-modal">
-        <div className="modal-header">Deploy New Agent</div>
+        <div className="modal-header">{t('terminal:spawn.deployTitle')}</div>
 
         <div className="modal-body spawn-modal-body">
           {/* Top: Preview + Class Selection */}
@@ -468,12 +470,12 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
               />
             </div>
             <div className="spawn-class-section">
-              <div className="spawn-class-label">Agent Class</div>
+              <div className="spawn-class-label">{t('terminal:spawn.agentClass')}</div>
               {(customClasses.length + CHARACTER_MODELS.length) > 6 && (
                 <input
                   type="text"
                   className="spawn-input class-search-input"
-                  placeholder="Filter classes..."
+                  placeholder={t('terminal:spawn.filterClasses')}
                   value={classSearch}
                   onChange={(e) => setClassSearch(e.target.value)}
                 />
@@ -505,7 +507,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                   );
                 })}
                 {classSearch && filteredCustomClasses.length === 0 && filteredBuiltInClasses.length === 0 && (
-                  <div className="class-search-empty">No classes match "{classSearch}"</div>
+                  <div className="class-search-empty">{t('terminal:spawn.noClassesMatch', { query: classSearch })}</div>
                 )}
               </div>
             </div>
@@ -516,22 +518,22 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
             {/* Row 1: Name + CWD */}
             <div className="spawn-form-row">
               <div className="spawn-field">
-                <label className="spawn-label">Name</label>
+                <label className="spawn-label">{t('common:labels.name')}</label>
                 <input
                   ref={nameInputRef}
                   type="text"
                   className="spawn-input"
-                  placeholder="Agent name"
+                  placeholder={t('terminal:spawn.agentNamePlaceholder')}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                 />
               </div>
               <div className="spawn-field spawn-field-wide">
                 <label className="spawn-label">
-                  Working Directory
+                  {t('terminal:spawn.workingDir')}
                   <HelpTooltip
-                    text="The directory where the agent will operate. All file operations and commands run relative to this path."
-                    title="Working Directory"
+                    text={t('terminal:spawn.helpWorkingDir')}
+                    title={t('terminal:spawn.workingDir')}
                     position="top"
                     size="sm"
                   />
@@ -542,7 +544,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                     setCwd(val);
                     setHasError(false);
                   }}
-                  placeholder="/path/to/project"
+                  placeholder={t('terminal:spawn.workingDirPlaceholder')}
                   className={`spawn-input ${hasError ? 'error' : ''}`}
                   directoriesOnly={true}
                 />
@@ -553,13 +555,10 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
             <div className="spawn-form-row">
               <div className="spawn-field">
                 <label className="spawn-label">
-                  Runtime
+                  {t('terminal:spawn.selectRuntime')}
                   <HelpTooltip
-                    text={<>
-                      <strong>Claude:</strong> Uses Claude CLI runtime<br/>
-                      <strong>Codex:</strong> Uses Codex CLI runtime with JSON events
-                    </>}
-                    title="Agent Runtime"
+                    text={t('terminal:spawn.helpRuntime')}
+                    title={t('terminal:spawn.runtimeTitle')}
                     position="top"
                     size="sm"
                   />
@@ -568,7 +567,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                   <button
                     className={`spawn-select-btn ${selectedProvider === 'claude' ? 'selected' : ''}`}
                     onClick={() => setSelectedProvider('claude')}
-                    title="Use Claude CLI"
+                    title={t('terminal:spawn.useClaudeCli')}
                   >
                     <img src="/assets/claude.ico" alt="Claude" className="spawn-provider-icon" />
                     <span>Claude</span>
@@ -576,7 +575,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                   <button
                     className={`spawn-select-btn ${selectedProvider === 'codex' ? 'selected' : ''}`}
                     onClick={() => setSelectedProvider('codex')}
-                    title="Use Codex CLI"
+                    title={t('terminal:spawn.useCodexCli')}
                   >
                     <img src="/assets/codex.ico" alt="Codex" className="spawn-provider-icon" />
                     <span>Codex</span>
@@ -585,13 +584,10 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
               </div>
               <div className="spawn-field">
                 <label className="spawn-label">
-                  Permissions
+                  {t('common:labels.permissions')}
                   <HelpTooltip
-                    text={<>
-                      <strong>Bypass:</strong> Agent runs without permission prompts. Faster but less controlled.<br/>
-                      <strong>Default:</strong> Agent asks for confirmation before risky actions like file writes.
-                    </>}
-                    title="Permission Mode"
+                    text={t('terminal:spawn.helpPermission')}
+                    title={t('terminal:spawn.permissionMode')}
                     position="top"
                     size="sm"
                   />
@@ -616,14 +612,10 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
             <div className="spawn-form-row">
               <div className="spawn-field">
                 <label className="spawn-label">
-                  Model
+                  {t('common:labels.model')}
                   <HelpTooltip
-                    text={<>
-                      <strong>Opus:</strong> Most capable, best for complex tasks<br/>
-                      <strong>Sonnet:</strong> Balanced speed and capability<br/>
-                      <strong>Haiku:</strong> Fastest, good for simple tasks
-                    </>}
-                    title="Claude Model"
+                    text={t('terminal:spawn.helpModel')}
+                    title={t('terminal:spawn.modelTitle')}
                     position="top"
                     size="sm"
                   />
@@ -657,11 +649,11 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                     ))}
                   </div>
                 ) : (
-                  <div className="spawn-inline-hint">Choose the Codex model for this agent.</div>
+                  <div className="spawn-inline-hint">{t('terminal:spawn.chooseCodexModel')}</div>
                 )}
               </div>
               <div className="spawn-field">
-                <label className="spawn-label">Browser</label>
+                <label className="spawn-label">{t('terminal:spawn.browser')}</label>
                 <div className="spawn-form-row spawn-options-row">
                   <label className="spawn-checkbox">
                     <input
@@ -670,13 +662,13 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                       onChange={(e) => setUseChrome(e.target.checked)}
                       disabled={selectedProvider !== 'claude'}
                     />
-                    <span>🌐 Chrome Browser</span>
+                    <span>🌐 {t('terminal:spawn.chromeBrowser')}</span>
                     <HelpTooltip
                       text={selectedProvider === 'claude'
-                        ? 'Enable Chrome browser automation. The agent can navigate web pages, fill forms, and interact with web applications. Requires Claude in Chrome extension.'
-                        : 'Chrome automation is currently available only with Claude runtime.'
+                        ? t('terminal:spawn.helpChrome')
+                        : t('terminal:spawn.helpChromeDisabled')
                       }
-                      title="Chrome Browser"
+                      title={t('terminal:spawn.chromeBrowser')}
                       position="top"
                       size="sm"
                     />
@@ -687,7 +679,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
 
             {selectedProvider === 'codex' && (
               <div className="codex-config-section">
-                <div className="codex-config-title">Configuration</div>
+                <div className="codex-config-title">{t('terminal:spawn.codex.configuration')}</div>
                 <div className="codex-config-options">
                   {/* Flags section */}
                   <div className="codex-option-group">
@@ -702,10 +694,10 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                           }))
                         }
                       />
-                      <span>`--full-auto` mode</span>
+                      <span>{t('terminal:spawn.codex.fullAuto')}</span>
                       <HelpTooltip
-                        text="Enable full autonomous mode. Agent operates without approval gates."
-                        title="Full Auto Mode"
+                        text={t('terminal:spawn.helpFullAuto')}
+                        title={t('terminal:spawn.fullAutoTitle')}
                         position="top"
                         size="sm"
                       />
@@ -721,10 +713,10 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                           }))
                         }
                       />
-                      <span>`--search` live web search</span>
+                      <span>{t('terminal:spawn.codex.search')}</span>
                       <HelpTooltip
-                        text="Enable real-time internet search for current information."
-                        title="Live Web Search"
+                        text={t('terminal:spawn.helpSearch')}
+                        title={t('terminal:spawn.searchTitle')}
                         position="top"
                         size="sm"
                       />
@@ -734,7 +726,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                   {/* Conditional options when not full-auto */}
                   {codexConfig.fullAuto === false && (
                     <div className="codex-option-group">
-                      <div className="codex-option-header">Restrictions</div>
+                      <div className="codex-option-header">{t('terminal:spawn.codex.restrictions')}</div>
                       <select
                         className="spawn-input codex-select"
                         value={codexConfig.sandbox || 'workspace-write'}
@@ -745,9 +737,9 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                           }))
                         }
                       >
-                        <option value="read-only">📖 Sandbox: read-only</option>
-                        <option value="workspace-write">✏️  Sandbox: workspace-write</option>
-                        <option value="danger-full-access">⚡ Sandbox: danger-full-access</option>
+                        <option value="read-only">📖 {t('terminal:spawn.codex.sandboxReadOnly')}</option>
+                        <option value="workspace-write">✏️  {t('terminal:spawn.codex.sandboxWorkspaceWrite')}</option>
+                        <option value="danger-full-access">⚡ {t('terminal:spawn.codex.sandboxDangerFullAccess')}</option>
                       </select>
                       <select
                         className="spawn-input codex-select"
@@ -759,21 +751,21 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                           }))
                         }
                       >
-                        <option value="untrusted">🔒 Approvals: untrusted</option>
-                        <option value="on-failure">⚠️  Approvals: on-failure</option>
-                        <option value="on-request">🤔 Approvals: on-request</option>
-                        <option value="never">✅ Approvals: never</option>
+                        <option value="untrusted">🔒 {t('terminal:spawn.codex.approvalsUntrusted')}</option>
+                        <option value="on-failure">⚠️  {t('terminal:spawn.codex.approvalsOnFailure')}</option>
+                        <option value="on-request">🤔 {t('terminal:spawn.codex.approvalsOnRequest')}</option>
+                        <option value="never">✅ {t('terminal:spawn.codex.approvalsNever')}</option>
                       </select>
                     </div>
                   )}
 
                   {/* Profile option */}
                   <div className="codex-option-group">
-                    <div className="codex-option-header">Profile</div>
+                    <div className="codex-option-header">{t('terminal:spawn.codex.profile')}</div>
                     <input
                       type="text"
                       className="spawn-input codex-profile-input"
-                      placeholder="Optional profile name"
+                      placeholder={t('terminal:spawn.codex.profilePlaceholder')}
                       value={codexConfig.profile || ''}
                       onChange={(e) =>
                         setCodexConfig((prev) => ({
@@ -791,10 +783,10 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
             {availableSkills.length > 0 && (
               <div className="spawn-skills-section">
                 <label className="spawn-label">
-                  Skills <span className="spawn-label-hint">(optional)</span>
+                  {t('terminal:spawn.skills')} <span className="spawn-label-hint">({t('common:labels.optional')})</span>
                   <HelpTooltip
-                    text="Skills add specialized capabilities to your agent. Select skills this agent should have access to. Class-default skills are automatically included."
-                    title="Agent Skills"
+                    text={t('terminal:spawn.helpSkills')}
+                    title={t('terminal:spawn.skillsTitle')}
                     position="top"
                     size="sm"
                   />
@@ -803,7 +795,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                   <input
                     type="text"
                     className="spawn-input skill-search-input"
-                    placeholder="Filter skills..."
+                    placeholder={t('terminal:spawn.filterSkills')}
                     value={skillSearch}
                     onChange={(e) => setSkillSearch(e.target.value)}
                   />
@@ -827,7 +819,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                     );
                   })}
                   {skillSearch && filteredSkills.length === 0 && (
-                    <div className="skill-search-empty">No skills match "{skillSearch}"</div>
+                    <div className="skill-search-empty">{t('terminal:spawn.noSkillsMatch', { query: skillSearch })}</div>
                   )}
                 </div>
               </div>
@@ -836,17 +828,17 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
             {/* Custom Instructions */}
             <div className="spawn-custom-instructions-section">
               <label className="spawn-label">
-                Custom Instructions <span className="spawn-label-hint">(optional)</span>
+                {t('terminal:spawn.customInstructions')} <span className="spawn-label-hint">({t('common:labels.optional')})</span>
                 <HelpTooltip
-                  text="Additional instructions appended to this agent's system prompt. Use this to customize behavior, provide context, or set specific guidelines."
-                  title="Custom Instructions"
+                  text={t('terminal:spawn.helpCustomInstructions')}
+                  title={t('terminal:spawn.customInstructions')}
                   position="top"
                   size="sm"
                 />
               </label>
               <textarea
                 className="spawn-input spawn-textarea"
-                placeholder="Add custom instructions that will be appended to this agent's system prompt..."
+                placeholder={t('terminal:spawn.customInstructionsPlaceholder')}
                 value={customInstructions}
                 onChange={(e) => setCustomInstructions(e.target.value)}
                 rows={3}
@@ -856,10 +848,10 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
             {/* Sessions */}
             <div className="spawn-sessions-section">
               <label className="spawn-label">
-                Link Session <span className="spawn-label-hint">(optional)</span>
+                {t('terminal:spawn.linkSession')} <span className="spawn-label-hint">({t('common:labels.optional')})</span>
                 <HelpTooltip
-                  text="Link this agent to an existing Claude Code session. The agent will resume from that session's conversation history, preserving context and previous work."
-                  title="Session Linking"
+                  text={t('terminal:spawn.helpLinkSession')}
+                  title={t('terminal:spawn.linkSessionTitle')}
                   position="top"
                   size="sm"
                 />
@@ -868,26 +860,26 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                 <input
                   type="text"
                   className="spawn-input session-search-input"
-                  placeholder="Search sessions..."
+                  placeholder={t('terminal:spawn.searchSessions')}
                   value={sessionSearch}
                   onChange={(e) => setSessionSearch(e.target.value)}
                 />
               )}
               <div className="sessions-list">
                 {loadingSessions ? (
-                  <div className="sessions-loading">Loading sessions...</div>
+                  <div className="sessions-loading">{t('terminal:spawn.loadingSessions')}</div>
                 ) : sessions.length === 0 ? (
-                  <div className="sessions-empty">No Claude sessions found</div>
+                  <div className="sessions-empty">{t('terminal:spawn.noSessions')}</div>
                 ) : filteredSessions.length === 0 ? (
-                  <div className="sessions-empty">No sessions match "{sessionSearch}"</div>
+                  <div className="sessions-empty">{t('terminal:spawn.noSessionsMatch', { query: sessionSearch })}</div>
                 ) : (
                   filteredSessions.map((session) => {
                     const isSelected = selectedSessionId === session.sessionId;
                     const age = Date.now() - new Date(session.lastModified).getTime();
-                    const ageStr = age < 60000 ? 'just now'
-                      : age < 3600000 ? `${Math.floor(age / 60000)}m ago`
-                      : age < 86400000 ? `${Math.floor(age / 3600000)}h ago`
-                      : `${Math.floor(age / 86400000)}d ago`;
+                    const ageStr = age < 60000 ? t('common:time.justNow')
+                      : age < 3600000 ? t('common:time.minutesAgo', { count: Math.floor(age / 60000) })
+                      : age < 86400000 ? t('common:time.hoursAgo', { count: Math.floor(age / 3600000) })
+                      : t('common:time.daysAgo', { count: Math.floor(age / 86400000) });
 
                     return (
                       <div
@@ -907,7 +899,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                           <span className="session-item-age">{ageStr}</span>
                         </div>
                         <div className="session-item-preview">
-                          {session.firstMessage || `${session.messageCount} messages`}
+                          {session.firstMessage || t('terminal:spawn.messagesCount', { count: session.messageCount })}
                         </div>
                       </div>
                     );
@@ -920,10 +912,10 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
 
         <div className="modal-footer">
           <button className="btn btn-secondary" onClick={onClose}>
-            Cancel
+            {t('common:buttons.cancel')}
           </button>
           <button className="btn btn-primary" onClick={handleSpawn} disabled={isSpawning}>
-            {isSpawning ? 'Deploying...' : 'Deploy'}
+            {isSpawning ? t('common:buttons.deploying') : t('common:buttons2.deploy')}
           </button>
         </div>
       </div>

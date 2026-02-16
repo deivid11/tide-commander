@@ -4,6 +4,7 @@
  */
 
 import React, { useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { store, useStore } from '../store';
 import { LogViewerModal } from './LogViewerModal';
 import type { LogLine } from './LogViewerModal';
@@ -16,6 +17,7 @@ interface PM2LogsModalProps {
 }
 
 export function PM2LogsModal({ building, isOpen, onClose }: PM2LogsModalProps) {
+  const { t } = useTranslation(['terminal']);
   const { streamingBuildingLogs, streamingBuildingIds } = useStore();
   const logs = streamingBuildingLogs.get(building.id) || '';
   const isStreaming = streamingBuildingIds.has(building.id);
@@ -45,7 +47,7 @@ export function PM2LogsModal({ building, isOpen, onClose }: PM2LogsModalProps) {
     <LogViewerModal
       isOpen={isOpen}
       onClose={onClose}
-      title={`${building.name} - Logs`}
+      title={`${building.name} - ${t('terminal:logs.pm2Logs')}`}
       icon="&#128196;"
       lines={lines}
       isStreaming={isStreaming}

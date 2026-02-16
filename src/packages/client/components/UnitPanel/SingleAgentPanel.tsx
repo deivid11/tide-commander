@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useRef, useEffect, useMemo, memo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useStore, store, useCustomAgentClassesArray } from '../../store';
 import { filterCostText } from '../../utils/formatting';
 import { getClassConfig } from '../../utils/classConfig';
@@ -50,6 +51,7 @@ export function SingleAgentPanel({
   onCallSubordinates,
   onOpenAreaExplorer: _onOpenAreaExplorer,
 }: SingleAgentPanelProps) {
+  const { t } = useTranslation(['common']);
   const state = useStore();
   const customClasses = useCustomAgentClassesArray();
   const { showToast } = useToast();
@@ -155,7 +157,7 @@ export function SingleAgentPanel({
   };
 
   const handleClearAllPatterns = async () => {
-    if (!confirm('Clear all remembered permission patterns?')) return;
+    if (!confirm(t('confirm.clearPatterns'))) return;
     try {
       const res = await authFetch(apiUrl('/api/remembered-patterns'), { method: 'DELETE' });
       if (res.ok) {
@@ -167,7 +169,7 @@ export function SingleAgentPanel({
   };
 
   const handleKill = () => {
-    if (confirm('Are you sure you want to terminate this agent?')) {
+    if (confirm(t('confirm.terminateAgent'))) {
       onKillAgent(agent.id);
     }
   };
@@ -226,7 +228,7 @@ export function SingleAgentPanel({
             <div
               className="unit-name unit-name-editable"
               onClick={() => setIsEditingName(true)}
-              title="Click to rename"
+              title={t('unitPanel.clickToRename')}
             >
               {agent.name}
             </div>
@@ -243,13 +245,13 @@ export function SingleAgentPanel({
           )}
         </div>
         <div className="unit-header-actions">
-          <button className="unit-action-icon" onClick={() => onFocusAgent(agent.id)} title="Focus on agent">
+          <button className="unit-action-icon" onClick={() => onFocusAgent(agent.id)} title={t('unitPanel.focusOnAgent')}>
             🎯
           </button>
           <button
             className="unit-action-icon"
             onClick={() => setShowEditModal(true)}
-            title="Edit agent properties"
+            title={t('unitPanel.editProperties')}
           >
             ✏️
           </button>
@@ -259,7 +261,7 @@ export function SingleAgentPanel({
               <button
                 className="unit-action-icon"
                 onClick={() => onCallSubordinates?.(agent.id)}
-                title="Call subordinates"
+                title={t('unitPanel.callSubordinates')}
               >
                 📢
               </button>
@@ -267,7 +269,7 @@ export function SingleAgentPanel({
           <button
             className="unit-action-icon"
             onClick={() => setContextConfirm('collapse')}
-            title="Collapse context"
+            title={t('unitPanel.collapseContext')}
             disabled={agent.status !== 'idle'}
           >
             📦
@@ -275,11 +277,11 @@ export function SingleAgentPanel({
           <button
             className="unit-action-icon warning"
             onClick={() => setContextConfirm('clear')}
-            title="Clear context"
+            title={t('unitPanel.clearContext')}
           >
             🗑️
           </button>
-          <button className="unit-action-icon danger" onClick={handleKill} title="Kill agent">
+          <button className="unit-action-icon danger" onClick={handleKill} title={t('unitPanel.killAgent')}>
             ☠️
           </button>
         </div>
@@ -316,7 +318,7 @@ export function SingleAgentPanel({
 
       {/* Permission Mode */}
       <div className="unit-permission-mode">
-        <div className="unit-stat-label">Permissions</div>
+        <div className="unit-stat-label">{t('unitPanel.permissions')}</div>
         <div className="unit-permission-mode-value" title={PERMISSION_MODES[agent.permissionMode]?.description}>
           <span className="unit-permission-mode-icon">{agent.permissionMode === 'bypass' ? '⚡' : '🔐'}</span>
           <span className="unit-permission-mode-label">
@@ -339,16 +341,16 @@ export function SingleAgentPanel({
       {/* Resume Session Command */}
       {agent.sessionId ? (
         <div className="unit-resume-cmd">
-          <div className="unit-stat-label">Resume Session</div>
+          <div className="unit-stat-label">{t('unitPanel.resumeSession')}</div>
           <div
             className="unit-resume-cmd-text"
-            title="Click to copy"
+            title={t('unitPanel.clickToCopy')}
             onClick={async () => {
               try {
                 await navigator.clipboard.writeText(`codex resume ${agent.sessionId}`);
-                showToast('success', 'Copied!', 'Resume command copied to clipboard', 2000);
+                showToast('success', t('toast.copied'), t('toast.resumeCommandCopied'), 2000);
               } catch {
-                showToast('error', 'Error', 'Failed to copy to clipboard', 3000);
+                showToast('error', t('toast.errorTitle'), t('toast.failedToCopy'), 3000);
               }
             }}
           >
@@ -357,15 +359,15 @@ export function SingleAgentPanel({
         </div>
       ) : (
         <div className="unit-resume-cmd">
-          <div className="unit-stat-label">Session</div>
-          <div className="unit-new-session-indicator">New agent, new session</div>
+          <div className="unit-stat-label">{t('unitPanel.session')}</div>
+          <div className="unit-new-session-indicator">{t('unitPanel.newSession')}</div>
         </div>
       )}
 
       {/* Supervisor History */}
       <div className="unit-supervisor-history">
         <div className="unit-supervisor-history-header" onClick={() => setShowHistory(!showHistory)}>
-          <div className="unit-stat-label">Supervisor History</div>
+          <div className="unit-stat-label">{t('unitPanel.supervisorHistory')}</div>
           <span className="unit-supervisor-history-toggle">
             {supervisorHistory.length > 0 && (
               <span className="unit-supervisor-history-count">{supervisorHistory.length}</span>
@@ -376,9 +378,9 @@ export function SingleAgentPanel({
         {showHistory && (
           <div className="unit-supervisor-history-list">
             {isLoadingHistory ? (
-              <div className="unit-supervisor-history-loading">Loading...</div>
+              <div className="unit-supervisor-history-loading">{t('status.loading')}</div>
             ) : supervisorHistory.length === 0 ? (
-              <div className="unit-supervisor-history-empty">No supervisor reports yet</div>
+              <div className="unit-supervisor-history-empty">{t('unitPanel.noSupervisorReports')}</div>
             ) : (
               supervisorHistory
                 .slice(0, 10)
@@ -451,10 +453,11 @@ const RememberedPatternsSection = memo(function RememberedPatternsSection({
   onRemovePattern,
   onClearAll,
 }: RememberedPatternsSectionProps) {
+  const { t } = useTranslation(['common']);
   return (
     <div className="unit-remembered-patterns">
       <div className="unit-remembered-patterns-header" onClick={onToggle}>
-        <div className="unit-stat-label">Allowed Patterns</div>
+        <div className="unit-stat-label">{t('unitPanel.allowedPatterns')}</div>
         <span className="unit-remembered-patterns-toggle">
           {patterns.length > 0 && <span className="unit-remembered-patterns-count">{patterns.length}</span>}
           {showPatterns ? '▼' : '▶'}
@@ -464,7 +467,7 @@ const RememberedPatternsSection = memo(function RememberedPatternsSection({
         <div className="unit-remembered-patterns-list">
           {patterns.length === 0 ? (
             <div className="unit-remembered-patterns-empty">
-              No patterns remembered yet. Click ✓+ when approving to remember.
+              {t('unitPanel.noPatterns')}
             </div>
           ) : (
             <>
@@ -477,14 +480,14 @@ const RememberedPatternsSection = memo(function RememberedPatternsSection({
                   <button
                     className="unit-pattern-remove"
                     onClick={() => onRemovePattern(p.tool, p.pattern)}
-                    title="Remove this pattern"
+                    title={t('unitPanel.removePattern')}
                   >
                     ×
                   </button>
                 </div>
               ))}
               <button className="unit-patterns-clear-all" onClick={onClearAll}>
-                Clear All
+                {t('buttons.clearAll')}
               </button>
             </>
           )}
@@ -511,42 +514,39 @@ const ContextConfirmModal = memo(function ContextConfirmModal({
   onClose,
   onConfirm,
 }: ContextConfirmModalProps) {
+  const { t } = useTranslation(['common']);
   const { handleMouseDown: handleBackdropMouseDown, handleClick: handleBackdropClick } = useModalClose(onClose);
   return (
     <div className="modal-overlay visible" onMouseDown={handleBackdropMouseDown} onClick={handleBackdropClick}>
       <div className="modal confirm-modal">
-        <div className="modal-header">{action === 'collapse' ? 'Collapse Context' : 'Clear Context'}</div>
+        <div className="modal-header">{action === 'collapse' ? t('unitPanel.collapseContextTitle') : t('unitPanel.clearContextTitle')}</div>
         <div className="modal-body confirm-modal-body">
           {action === 'collapse' ? (
             <>
-              <p>
-                Collapse the conversation context for <strong>{agentName}</strong>?
-              </p>
+              <p dangerouslySetInnerHTML={{ __html: t('unitPanel.collapseContextMsg', { name: agentName }) }} />
               <p className="confirm-modal-note">
-                This will summarize the conversation to save tokens while preserving important information.
+                {t('unitPanel.collapseContextNote')}
               </p>
             </>
           ) : (
             <>
-              <p>
-                Clear all context for <strong>{agentName}</strong>?
-              </p>
+              <p dangerouslySetInnerHTML={{ __html: t('unitPanel.clearContextMsg', { name: agentName }) }} />
               <p className="confirm-modal-note">
-                This will start a fresh session on the next command. All conversation history will be lost.
+                {t('unitPanel.clearContextNote')}
               </p>
             </>
           )}
         </div>
         <div className="modal-footer">
           <button className="btn btn-secondary" onClick={onClose}>
-            Cancel
+            {t('buttons.cancel')}
           </button>
           <button
             className={`btn ${action === 'clear' ? 'btn-danger' : 'btn-primary'}`}
             onClick={onConfirm}
             autoFocus
           >
-            {action === 'collapse' ? 'Collapse' : 'Clear Context'}
+            {action === 'collapse' ? t('unitPanel.collapseBtn') : t('unitPanel.clearContextBtn')}
           </button>
         </div>
       </div>
@@ -562,6 +562,7 @@ const SupervisorHistoryItem = memo(function SupervisorHistoryItem({
   entry,
   defaultExpanded = false,
 }: SupervisorHistoryItemProps) {
+  const { t } = useTranslation(['common']);
   const [expanded, setExpanded] = useState(defaultExpanded);
   const state = useStore();
   const { analysis } = entry;
@@ -585,11 +586,11 @@ const SupervisorHistoryItem = memo(function SupervisorHistoryItem({
       {expanded && (
         <div className="supervisor-history-item-details">
           <div className="supervisor-history-summary">
-            <strong>Summary:</strong> {recentWorkSummary}
+            <strong>{t('labels.summary')}:</strong> {recentWorkSummary}
           </div>
           {concerns && concerns.length > 0 && (
             <div className="supervisor-history-concerns">
-              <strong>Concerns:</strong>
+              <strong>{t('labels.concerns')}:</strong>
               <ul>
                 {concerns.map((concern, i) => (
                   <li key={i}>{concern}</li>
@@ -608,6 +609,7 @@ const SupervisorHistoryItem = memo(function SupervisorHistoryItem({
 // ============================================================================
 
 const BossAgentSection = memo(function BossAgentSection({ agent }: BossAgentSectionProps) {
+  const { t } = useTranslation(['common']);
   const state = useStore();
   const customClasses = useCustomAgentClassesArray();
   const [showSubordinates, setShowSubordinates] = useState(true);
@@ -642,20 +644,20 @@ const BossAgentSection = memo(function BossAgentSection({ agent }: BossAgentSect
         <span className="boss-crown-icon" style={{ color: bossConfig.color }}>
           {bossConfig.icon}
         </span>
-        <span className="boss-title">Boss Agent</span>
+        <span className="boss-title">{t('unitPanel.bossAgent')}</span>
       </div>
 
       {/* Subordinates List */}
       <div className="boss-subordinates">
         <div className="boss-subordinates-header" onClick={() => setShowSubordinates(!showSubordinates)}>
-          <div className="unit-stat-label">Team ({subordinates.length})</div>
+          <div className="unit-stat-label">{t('labels.team')} ({subordinates.length})</div>
           <span className="boss-toggle">{showSubordinates ? '▼' : '▶'}</span>
         </div>
         {showSubordinates && (
           <div className="boss-subordinates-list">
             {subordinates.length === 0 ? (
               <div className="boss-subordinates-empty">
-                No subordinates assigned. Use "Manage Team" to add agents.
+                {t('unitPanel.noSubordinates')}
               </div>
             ) : (
               subordinates.map((sub) => {
@@ -673,7 +675,7 @@ const BossAgentSection = memo(function BossAgentSection({ agent }: BossAgentSect
                         e.stopPropagation();
                         store.removeSubordinate(agent.id, sub.id);
                       }}
-                      title="Unlink subordinate"
+                      title={t('unitPanel.unlinkSubordinate')}
                     >
                       ✕
                     </button>
@@ -691,7 +693,7 @@ const BossAgentSection = memo(function BossAgentSection({ agent }: BossAgentSect
           className="boss-delegation-history-header"
           onClick={() => setShowDelegationHistory(!showDelegationHistory)}
         >
-          <div className="unit-stat-label">Delegation History ({delegationHistory.length})</div>
+          <div className="unit-stat-label">{t('unitPanel.delegationHistory')} ({delegationHistory.length})</div>
           <span className="boss-toggle">{showDelegationHistory ? '▼' : '▶'}</span>
         </div>
         {showDelegationHistory && (
@@ -699,12 +701,12 @@ const BossAgentSection = memo(function BossAgentSection({ agent }: BossAgentSect
             {isPendingForThisBoss && (
               <div className="boss-delegation-pending">
                 <span className="delegation-spinner">⏳</span>
-                Analyzing request...
+                {t('unitPanel.analyzingRequest')}
               </div>
             )}
             {delegationHistory.length === 0 && !isPendingForThisBoss ? (
               <div className="boss-delegation-empty">
-                No delegation history yet. Send commands to this boss to delegate tasks.
+                {t('unitPanel.noDelegationHistory')}
               </div>
             ) : (
               delegationHistory.slice(0, 10).map((decision) => <DelegationDecisionItem key={decision.id} decision={decision} />)
@@ -721,6 +723,7 @@ const BossAgentSection = memo(function BossAgentSection({ agent }: BossAgentSect
 // ============================================================================
 
 const DelegationDecisionItem = memo(function DelegationDecisionItem({ decision }: DelegationDecisionItemProps) {
+  const { t } = useTranslation(['common']);
   const [expanded, setExpanded] = useState(false);
   const state = useStore();
 
@@ -746,7 +749,7 @@ const DelegationDecisionItem = memo(function DelegationDecisionItem({ decision }
         <span
           className="delegation-decision-confidence"
           style={{ color: confidenceColors[decision.confidence] }}
-          title={`Confidence: ${decision.confidence}`}
+          title={t('unitPanel.confidence', { level: decision.confidence })}
         >
           {decision.confidence === 'high' ? '●●●' : decision.confidence === 'medium' ? '●●○' : '●○○'}
         </span>
@@ -755,17 +758,17 @@ const DelegationDecisionItem = memo(function DelegationDecisionItem({ decision }
       {expanded && (
         <div className="delegation-decision-details">
           <div className="delegation-decision-command">
-            <strong>Command:</strong>
+            <strong>{t('labels.command')}:</strong>
             <div className="delegation-command-text">
               {decision.userCommand.length > 200 ? decision.userCommand.slice(0, 200) + '...' : decision.userCommand}
             </div>
           </div>
           <div className="delegation-decision-reasoning">
-            <strong>Reasoning:</strong> {decision.reasoning}
+            <strong>{t('labels.reasoning')}:</strong> {decision.reasoning}
           </div>
           {decision.alternativeAgents.length > 0 && (
             <div className="delegation-decision-alternatives">
-              <strong>Alternatives:</strong> {decision.alternativeAgents.join(', ')}
+              <strong>{t('labels.alternatives')}:</strong> {decision.alternativeAgents.join(', ')}
             </div>
           )}
         </div>
@@ -779,6 +782,7 @@ const DelegationDecisionItem = memo(function DelegationDecisionItem({ decision }
 // ============================================================================
 
 const SubordinateBadge = memo(function SubordinateBadge({ agentId, bossId }: SubordinateBadgeProps) {
+  const { t } = useTranslation(['common']);
   const state = useStore();
   const boss = state.agents.get(bossId);
 
@@ -797,12 +801,12 @@ const SubordinateBadge = memo(function SubordinateBadge({ agentId, bossId }: Sub
         {bossConfig.icon}
       </span>
       <span className="subordinate-badge-text">
-        Reports to: <strong>{boss.name}</strong>
+        {t('labels.reportsTo')}: <strong>{boss.name}</strong>
       </span>
-      <button className="subordinate-badge-goto" onClick={() => store.selectAgent(bossId)} title="Go to boss">
+      <button className="subordinate-badge-goto" onClick={() => store.selectAgent(bossId)} title={t('unitPanel.goToBoss')}>
         →
       </button>
-      <button className="subordinate-badge-unlink" onClick={handleUnlink} title="Unlink from boss">
+      <button className="subordinate-badge-unlink" onClick={handleUnlink} title={t('unitPanel.unlinkFromBoss')}>
         ✕
       </button>
     </div>
@@ -814,6 +818,7 @@ const SubordinateBadge = memo(function SubordinateBadge({ agentId, bossId }: Sub
 // ============================================================================
 
 const LinkToBossSection = memo(function LinkToBossSection({ agentId }: LinkToBossSectionProps) {
+  const { t } = useTranslation(['common']);
   const state = useStore();
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -843,12 +848,12 @@ const LinkToBossSection = memo(function LinkToBossSection({ agentId }: LinkToBos
           <span className="link-to-boss-icon" style={{ color: bossConfig.color }}>
             {bossConfig.icon}
           </span>
-          <span>Link to Boss</span>
+          <span>{t('unitPanel.linkToBoss')}</span>
         </button>
       ) : (
         <div className="link-to-boss-dropdown">
           <div className="link-to-boss-header">
-            <span>Select a Boss</span>
+            <span>{t('unitPanel.selectBoss')}</span>
             <button className="link-to-boss-close" onClick={() => setIsExpanded(false)}>
               ✕
             </button>
@@ -860,7 +865,7 @@ const LinkToBossSection = memo(function LinkToBossSection({ agentId }: LinkToBos
                   {bossConfig.icon}
                 </span>
                 <span className="link-to-boss-item-name">{boss.name}</span>
-                <span className="link-to-boss-item-count">{boss.subordinateIds?.length || 0} agents</span>
+                <span className="link-to-boss-item-count">{t('unitPanel.agentsCount', { count: boss.subordinateIds?.length || 0 })}</span>
               </div>
             ))}
           </div>

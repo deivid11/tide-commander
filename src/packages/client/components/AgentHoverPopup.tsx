@@ -1,4 +1,5 @@
 import React, { useMemo, memo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { store, useCustomAgentClassesArray } from '../store';
 import type { Agent, AgentSupervisorHistoryEntry } from '../../shared/types';
 import { getClassConfig } from '../utils/classConfig';
@@ -11,15 +12,12 @@ interface AgentHoverPopupProps {
   onClose: () => void;
 }
 
-const getStatusLabel = (status: Agent['status']) => {
-  switch (status) {
-    case 'idle': return 'Idle';
-    case 'working': return 'Working';
-    case 'waiting': return 'Waiting';
-    case 'error': return 'Error';
-    case 'offline': return 'Offline';
-    default: return 'Unknown';
-  }
+const STATUS_KEYS: Record<string, string> = {
+  idle: 'common:status.idle',
+  working: 'common:status.working',
+  waiting: 'common:status.waiting',
+  error: 'common:status.error',
+  offline: 'common:status.offline',
 };
 
 const formatTokens = (n: number) => {
@@ -40,6 +38,7 @@ const getProgressColor = (progress: string) => {
 };
 
 export const AgentHoverPopup = memo(function AgentHoverPopup({ agent, screenPos, onClose }: AgentHoverPopupProps) {
+  const { t } = useTranslation(['common']);
   const customClasses = useCustomAgentClassesArray();
   const area = store.getAreaForAgent(agent.id);
   const lastPrompt = store.getState().lastPrompts.get(agent.id);
@@ -110,19 +109,19 @@ export const AgentHoverPopup = memo(function AgentHoverPopup({ agent, screenPos,
           className="agent-bar-tooltip-status"
           style={{ color: getAgentStatusColor(agent.status) }}
         >
-          {getStatusLabel(agent.status)}
+          {t(STATUS_KEYS[agent.status] || 'common:status.unknown')}
         </span>
       </div>
       <div className="agent-bar-tooltip-info">
         <div className="agent-bar-tooltip-row">
-          <span className="agent-bar-tooltip-label">Class:</span>
+          <span className="agent-bar-tooltip-label">{t('common:labels.class')}:</span>
           <span className="agent-bar-tooltip-value">
             {agent.class} — {config.description}
           </span>
         </div>
         {area && (
           <div className="agent-bar-tooltip-row">
-            <span className="agent-bar-tooltip-label">Area:</span>
+            <span className="agent-bar-tooltip-label">{t('common:agentPopup.area')}:</span>
             <span
               className="agent-bar-tooltip-value agent-bar-tooltip-area"
               style={{ color: area.color }}
@@ -132,23 +131,23 @@ export const AgentHoverPopup = memo(function AgentHoverPopup({ agent, screenPos,
           </div>
         )}
         <div className="agent-bar-tooltip-row">
-          <span className="agent-bar-tooltip-label">Directory:</span>
+          <span className="agent-bar-tooltip-label">{t('common:agentPopup.directory')}:</span>
           <span className="agent-bar-tooltip-value agent-bar-tooltip-path">
             {agent.cwd}
           </span>
         </div>
         <div className="agent-bar-tooltip-row">
-          <span className="agent-bar-tooltip-label">Uptime:</span>
+          <span className="agent-bar-tooltip-label">{t('common:labels.uptime')}:</span>
           <span className="agent-bar-tooltip-value">{uptimeStr}</span>
         </div>
         <div className="agent-bar-tooltip-row">
-          <span className="agent-bar-tooltip-label">Tokens:</span>
+          <span className="agent-bar-tooltip-label">{t('common:labels.tokens')}:</span>
           <span className="agent-bar-tooltip-value">
-            {formatTokens(agent.tokensUsed)} used
+            {formatTokens(agent.tokensUsed)} {t('common:agentPopup.used')}
           </span>
         </div>
         <div className="agent-bar-tooltip-row">
-          <span className="agent-bar-tooltip-label">Context:</span>
+          <span className="agent-bar-tooltip-label">{t('common:labels.context')}:</span>
           <span className="agent-bar-tooltip-value" style={{
             color: contextPercent > 80 ? '#ff4a4a' : contextPercent > 60 ? '#ff9e4a' : undefined
           }}>
@@ -157,7 +156,7 @@ export const AgentHoverPopup = memo(function AgentHoverPopup({ agent, screenPos,
         </div>
         {agent.currentTool && (
           <div className="agent-bar-tooltip-row">
-            <span className="agent-bar-tooltip-label">Tool:</span>
+            <span className="agent-bar-tooltip-label">{t('common:agentPopup.tool')}:</span>
             <span className="agent-bar-tooltip-value agent-bar-tooltip-tool">
               {TOOL_ICONS[agent.currentTool] || TOOL_ICONS.default} {agent.currentTool}
             </span>
@@ -165,7 +164,7 @@ export const AgentHoverPopup = memo(function AgentHoverPopup({ agent, screenPos,
         )}
         {agent.currentTask && (
           <div className="agent-bar-tooltip-row">
-            <span className="agent-bar-tooltip-label">Task:</span>
+            <span className="agent-bar-tooltip-label">{t('common:labels.task')}:</span>
             <span className="agent-bar-tooltip-value">
               {agent.currentTask.substring(0, 150)}
               {agent.currentTask.length > 150 ? '...' : ''}
@@ -174,7 +173,7 @@ export const AgentHoverPopup = memo(function AgentHoverPopup({ agent, screenPos,
         )}
         {agent.lastAssignedTask && !agent.currentTask && (
           <div className="agent-bar-tooltip-row">
-            <span className="agent-bar-tooltip-label">Assigned Task:</span>
+            <span className="agent-bar-tooltip-label">{t('common:agentPopup.assignedTask')}:</span>
             <span className="agent-bar-tooltip-value agent-bar-tooltip-query">
               {agent.lastAssignedTask.substring(0, 200)}
               {agent.lastAssignedTask.length > 200 ? '...' : ''}
@@ -183,7 +182,7 @@ export const AgentHoverPopup = memo(function AgentHoverPopup({ agent, screenPos,
         )}
         {lastPrompt && (
           <div className="agent-bar-tooltip-row">
-            <span className="agent-bar-tooltip-label">Last Query:</span>
+            <span className="agent-bar-tooltip-label">{t('common:agentPopup.lastQuery')}:</span>
             <span className="agent-bar-tooltip-value agent-bar-tooltip-query">
               {lastPrompt.text.substring(0, 300)}
               {lastPrompt.text.length > 300 ? '...' : ''}
@@ -195,7 +194,7 @@ export const AgentHoverPopup = memo(function AgentHoverPopup({ agent, screenPos,
           <>
             <div className="agent-bar-tooltip-divider" />
             <div className="agent-bar-tooltip-row">
-              <span className="agent-bar-tooltip-label">Supervisor:</span>
+              <span className="agent-bar-tooltip-label">{t('common:agentPopup.supervisor')}:</span>
               <span
                 className="agent-bar-tooltip-value"
                 style={{ color: getProgressColor(lastSupervisorEntry.analysis.progress) }}
@@ -204,14 +203,14 @@ export const AgentHoverPopup = memo(function AgentHoverPopup({ agent, screenPos,
               </span>
             </div>
             <div className="agent-bar-tooltip-row">
-              <span className="agent-bar-tooltip-label">Status:</span>
+              <span className="agent-bar-tooltip-label">{t('common:labels.status')}:</span>
               <span className="agent-bar-tooltip-value agent-bar-tooltip-supervisor">
                 {lastSupervisorEntry.analysis.statusDescription}
               </span>
             </div>
             {lastSupervisorEntry.analysis.recentWorkSummary && (
               <div className="agent-bar-tooltip-row">
-                <span className="agent-bar-tooltip-label">Summary:</span>
+                <span className="agent-bar-tooltip-label">{t('common:labels.summary')}:</span>
                 <span className="agent-bar-tooltip-value agent-bar-tooltip-supervisor">
                   {lastSupervisorEntry.analysis.recentWorkSummary.substring(0, 300)}
                   {lastSupervisorEntry.analysis.recentWorkSummary.length > 300 ? '...' : ''}
@@ -220,7 +219,7 @@ export const AgentHoverPopup = memo(function AgentHoverPopup({ agent, screenPos,
             )}
             {lastSupervisorEntry.analysis.concerns && lastSupervisorEntry.analysis.concerns.length > 0 && (
               <div className="agent-bar-tooltip-row">
-                <span className="agent-bar-tooltip-label">Concerns:</span>
+                <span className="agent-bar-tooltip-label">{t('common:labels.concerns')}:</span>
                 <span className="agent-bar-tooltip-value agent-bar-tooltip-concerns">
                   {lastSupervisorEntry.analysis.concerns.join('; ')}
                 </span>

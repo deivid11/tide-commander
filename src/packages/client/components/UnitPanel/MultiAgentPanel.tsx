@@ -4,6 +4,7 @@
  */
 
 import React, { memo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { store, useCustomAgentClassesArray } from '../../store';
 import { formatNumber } from '../../utils/formatting';
 import { getClassConfig } from '../../utils/classConfig';
@@ -15,6 +16,7 @@ import type { MultiAgentPanelProps } from './types';
 // ============================================================================
 
 export const MultiAgentPanel = memo(function MultiAgentPanel({ agents }: MultiAgentPanelProps) {
+  const { t } = useTranslation(['common']);
   const customClasses = useCustomAgentClassesArray();
   const totalTokens = agents.reduce((sum, a) => sum + a.tokensUsed, 0);
   const workingCount = agents.filter((a) => a.status === 'working').length;
@@ -26,18 +28,18 @@ export const MultiAgentPanel = memo(function MultiAgentPanel({ agents }: MultiAg
           👥
         </div>
         <div>
-          <div className="unit-name">{agents.length} Agents Selected</div>
-          <div className="unit-status">Group selection</div>
+          <div className="unit-name">{t('multiAgent.agentsSelected', { count: agents.length })}</div>
+          <div className="unit-status">{t('multiAgent.groupSelection')}</div>
         </div>
       </div>
 
       <div className="unit-stats">
         <div className="unit-stat">
-          <div className="unit-stat-label">Total Tokens</div>
+          <div className="unit-stat-label">{t('multiAgent.totalTokens')}</div>
           <div className="unit-stat-value">{formatNumber(totalTokens)}</div>
         </div>
         <div className="unit-stat">
-          <div className="unit-stat-label">Working</div>
+          <div className="unit-stat-label">{t('multiAgent.working')}</div>
           <div className="unit-stat-value">{workingCount}</div>
         </div>
       </div>
@@ -50,7 +52,7 @@ export const MultiAgentPanel = memo(function MultiAgentPanel({ agents }: MultiAg
 
       <div className="unit-actions">
         <button className="unit-action-btn" onClick={() => store.deselectAll()}>
-          Deselect All
+          {t('buttons.deselectAll')}
         </button>
       </div>
     </div>

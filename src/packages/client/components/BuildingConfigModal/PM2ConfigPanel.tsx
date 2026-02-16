@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   PM2_INTERPRETERS,
   type PM2Interpreter,
@@ -25,6 +26,7 @@ interface PM2ConfigPanelProps {
 }
 
 export function PM2ToggleSection({ usePM2, setUsePM2 }: { usePM2: boolean; setUsePM2: (v: boolean) => void }) {
+  const { t } = useTranslation(['terminal']);
   return (
     <div className="form-section pm2-toggle-section">
       <label className="toggle-switch">
@@ -39,11 +41,11 @@ export function PM2ToggleSection({ usePM2, setUsePM2 }: { usePM2: boolean; setUs
         </span>
         <span className="toggle-label">
           <span className="pm2-badge">PM2</span>
-          Use PM2 Process Manager
+          {t('terminal:building.usePM2')}
         </span>
       </label>
       <div className="form-hint">
-        PM2 keeps processes running after commander closes. Requires PM2 installed globally (npm i -g pm2).
+        {t('terminal:building.pm2Hint')}
       </div>
     </div>
   );
@@ -65,18 +67,19 @@ export function PM2ConfigPanel({
   building,
   handleCommand,
 }: PM2ConfigPanelProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   if (!usePM2) return null;
 
   return (
     <div className="form-section pm2-config-section">
-      <label className="form-label">PM2 Configuration</label>
+      <label className="form-label">{t('terminal:building.pm2Configuration')}</label>
 
       <div className="command-row">
         <span className="command-label">
-          Script:
+          {t('terminal:building.pm2Script')}
           <HelpTooltip
-            text="The application or command PM2 should run. Can be an executable (npm, java, python), a script file (app.js), or a binary."
-            title="Script"
+            text={t('terminal:building.helpPm2Script')}
+            title={t('terminal:building.pm2Script')}
             position="top"
             size="sm"
           />
@@ -93,10 +96,10 @@ export function PM2ConfigPanel({
 
       <div className="command-row">
         <span className="command-label">
-          Arguments:
+          {t('terminal:building.pm2Arguments')}
           <HelpTooltip
-            text="Command-line arguments passed to the script. For npm use 'run dev', for Java JARs the args come after the JAR file."
-            title="Arguments"
+            text={t('terminal:building.helpPm2Arguments')}
+            title={t('terminal:building.pm2Arguments')}
             position="top"
             size="sm"
           />
@@ -112,10 +115,10 @@ export function PM2ConfigPanel({
 
       <div className="command-row">
         <span className="command-label">
-          Interpreter:
+          {t('terminal:building.pm2Interpreter')}
           <HelpTooltip
-            text="The runtime used to execute the script. Leave as 'Auto-detect' for most cases. Use 'None' when script is a direct executable."
-            title="Interpreter"
+            text={t('terminal:building.helpPm2Interpreter')}
+            title={t('terminal:building.pm2Interpreter')}
             position="top"
             size="sm"
           />
@@ -135,10 +138,10 @@ export function PM2ConfigPanel({
 
       <div className="command-row">
         <span className="command-label">
-          Interp. Args:
+          {t('terminal:building.pm2InterpArgs')}
           <HelpTooltip
-            text="Arguments passed to the interpreter itself, not the script. For Java use '-jar' to run JAR files. For Node use '--inspect' for debugging."
-            title="Interpreter Arguments"
+            text={t('terminal:building.helpPm2InterpArgs')}
+            title={t('terminal:building.pm2InterpArgs')}
             position="top"
             size="sm"
           />
@@ -154,10 +157,10 @@ export function PM2ConfigPanel({
 
       <div className="command-row env-row">
         <span className="command-label">
-          Environment:
+          {t('terminal:building.pm2Environment')}
           <HelpTooltip
-            text="Environment variables in KEY=value format, one per line. These are passed to the process on startup."
-            title="Environment Variables"
+            text={t('terminal:building.helpPm2Environment')}
+            title={t('terminal:building.pm2Environment')}
             position="top"
             size="sm"
           />
@@ -173,7 +176,7 @@ export function PM2ConfigPanel({
 
       <div className="pm2-examples">
         <details>
-          <summary>Configuration Examples</summary>
+          <summary>{t('terminal:building.pm2Examples')}</summary>
           <div className="pm2-examples-content">
             <div className="pm2-example">
               <strong>Node.js:</strong> Script: <code>npm</code>, Args: <code>run dev</code>
@@ -229,28 +232,28 @@ export function PM2ConfigPanel({
             className="btn btn-sm btn-success"
             onClick={() => handleCommand('start')}
           >
-            Start
+            {t('common:buttons.start')}
           </button>
           <button
             type="button"
             className="btn btn-sm btn-danger"
             onClick={() => handleCommand('stop')}
           >
-            Stop
+            {t('common:buttons.stop')}
           </button>
           <button
             type="button"
             className="btn btn-sm btn-warning"
             onClick={() => handleCommand('restart')}
           >
-            Restart
+            {t('terminal:buildingAction.restart')}
           </button>
           <button
             type="button"
             className="btn btn-sm"
             onClick={() => handleCommand('logs')}
           >
-            Logs
+            {t('terminal:logs.title')}
           </button>
         </div>
       )}

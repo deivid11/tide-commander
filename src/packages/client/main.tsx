@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
+import './i18n';
 import { App } from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { initializeTheme } from './utils/themes';
@@ -16,9 +17,11 @@ if (!container) {
 const root = createRoot(container);
 root.render(
   <React.StrictMode>
-    <ErrorBoundary>
-      <App />
-    </ErrorBoundary>
+    <Suspense fallback={<div style={{ background: '#0a0a0a', height: '100vh' }} />}>
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
+    </Suspense>
   </React.StrictMode>
 );
 

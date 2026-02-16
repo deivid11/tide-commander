@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { store } from '../store';
 import type { AgentNotification, AgentClass } from '../../shared/types';
 import { BUILT_IN_AGENT_CLASSES } from '../../shared/types';
@@ -35,6 +36,7 @@ function getClassColor(agentClass: AgentClass): string {
 const MAX_VISIBLE_NOTIFICATIONS = 3;
 
 export function AgentNotificationProvider({ children }: { children: React.ReactNode }) {
+  const { t } = useTranslation(['notifications']);
   const [notifications, setNotifications] = useState<AgentNotification[]>([]);
   const timeoutRefs = useRef<Map<string, number>>(new Map());
 
@@ -118,7 +120,7 @@ export function AgentNotificationProvider({ children }: { children: React.ReactN
               <div className="agent-notification-content">
                 <div className="agent-notification-header">
                   <span className="agent-notification-name">{notification.agentName}</span>
-                  <span className="agent-notification-hint">Click to focus</span>
+                  <span className="agent-notification-hint">{t('notifications:agent.clickToFocus')}</span>
                 </div>
                 <div className="agent-notification-title">{notification.title}</div>
                 <div className="agent-notification-message">{notification.message}</div>

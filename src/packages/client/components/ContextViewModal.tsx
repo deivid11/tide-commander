@@ -4,6 +4,7 @@
  */
 
 import React, { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Agent, ContextStats } from '../../shared/types';
 import { useModalClose } from '../hooks';
 import { ModalPortal } from './shared/ModalPortal';
@@ -48,23 +49,24 @@ const CATEGORY_COLORS = {
   autocompactBuffer: '#ff9e4a', // Orange
 };
 
-const CATEGORY_LABELS = {
-  systemPrompt: 'System Prompt',
-  systemTools: 'System Tools',
-  messages: 'Messages',
-  freeSpace: 'Free Space',
-  autocompactBuffer: 'Autocompact Buffer',
+const CATEGORY_LABEL_KEYS = {
+  systemPrompt: 'terminal:context.systemPrompt',
+  systemTools: 'terminal:context.systemTools',
+  messages: 'terminal:context.messagesCategory',
+  freeSpace: 'terminal:context.freeSpace',
+  autocompactBuffer: 'terminal:context.autocompactBuffer',
 };
 
-const CATEGORY_DESCRIPTIONS = {
-  systemPrompt: 'Base instructions and persona for the agent',
-  systemTools: 'Tool definitions and capabilities available',
-  messages: 'Conversation history and user messages',
-  freeSpace: 'Available space for more conversation',
-  autocompactBuffer: 'Reserved for automatic context compaction',
+const CATEGORY_DESCRIPTION_KEYS = {
+  systemPrompt: 'terminal:context.systemPromptDesc',
+  systemTools: 'terminal:context.systemToolsDesc',
+  messages: 'terminal:context.messagesDesc',
+  freeSpace: 'terminal:context.freeSpaceDesc',
+  autocompactBuffer: 'terminal:context.autocompactBufferDesc',
 };
 
 export function ContextViewModal({ agent, isOpen, onClose, onRefresh }: ContextViewModalProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const stats = agent.contextStats;
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -92,8 +94,8 @@ export function ContextViewModal({ agent, isOpen, onClose, onRefresh }: ContextV
     return categoryOrder.map(key => ({
       key,
       ...stats.categories[key],
-      label: CATEGORY_LABELS[key],
-      description: CATEGORY_DESCRIPTIONS[key],
+      label: t(CATEGORY_LABEL_KEYS[key]),
+      description: t(CATEGORY_DESCRIPTION_KEYS[key]),
       color: CATEGORY_COLORS[key],
     }));
   }, [stats]);
@@ -112,7 +114,7 @@ export function ContextViewModal({ agent, isOpen, onClose, onRefresh }: ContextV
       <div className="modal-overlay visible" onMouseDown={handleBackdropMouseDown} onClick={handleBackdropClick}>
         <div className="modal context-view-modal" style={{ maxWidth: '520px' }}>
         <div className="modal-header" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <span style={{ flex: 1 }}>Context Window: {agent.name}</span>
+          <span style={{ flex: 1 }}>{t('terminal:context.contextWindow', { name: agent.name })}</span>
           {onRefresh && (
             <button
               className="btn btn-primary"
@@ -125,7 +127,7 @@ export function ContextViewModal({ agent, isOpen, onClose, onRefresh }: ContextV
                 alignItems: 'center',
                 gap: '6px',
               }}
-              title={agent.status !== 'idle' ? 'Agent must be idle to refresh' : 'Fetch context stats via /context command'}
+              title={agent.status !== 'idle' ? t('terminal:context.agentMustBeIdle') : t('terminal:context.fetchContextStats')}
             >
               <span style={{
                 display: 'inline-block',
@@ -133,7 +135,7 @@ export function ContextViewModal({ agent, isOpen, onClose, onRefresh }: ContextV
               }}>
                 {isRefreshing ? '⟳' : '↻'}
               </span>
-              {isRefreshing ? 'Loading...' : 'Refresh'}
+              {isRefreshing ? t('common:status.loading') : t('common:buttons.refresh')}
             </button>
           )}
         </div>
@@ -146,9 +148,9 @@ export function ContextViewModal({ agent, isOpen, onClose, onRefresh }: ContextV
               padding: '32px',
             }}>
               <div style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.5 }}>📊</div>
-              <div style={{ fontSize: '14px', marginBottom: '8px' }}>No context data available yet</div>
+              <div style={{ fontSize: '14px', marginBottom: '8px' }}>{t('terminal:context.noContextData')}</div>
               <div style={{ fontSize: '12px', marginBottom: '20px', opacity: 0.7 }}>
-                Click the Refresh button above to fetch detailed stats
+                {t('terminal:context.clickRefresh')}
               </div>
               {onRefresh && (
                 <button
@@ -169,12 +171,12 @@ export function ContextViewModal({ agent, isOpen, onClose, onRefresh }: ContextV
                   }}>
                     {isRefreshing ? '⟳' : '↻'}
                   </span>
-                  {isRefreshing ? 'Fetching Stats...' : 'Fetch Context Stats'}
+                  {isRefreshing ? t('terminal:context.fetchingStats') : t('terminal:context.fetchContextStats')}
                 </button>
               )}
               {agent.status !== 'idle' && (
                 <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '12px' }}>
-                  Agent must be idle to fetch stats
+                  {t('terminal:context.agentMustBeIdle')}
                 </div>
               )}
             </div>
@@ -191,11 +193,11 @@ export function ContextViewModal({ agent, isOpen, onClose, onRefresh }: ContextV
                 borderRadius: '6px',
               }}>
                 <div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Model</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{t('terminal:context.model')}</div>
                   <div style={{ fontSize: '13px', fontWeight: 500 }}>{stats.model}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Context Window</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{t('terminal:context.contextWindowLabel')}</div>
                   <div style={{ fontSize: '13px', fontWeight: 500 }}>{formatTokens(stats.contextWindow)}</div>
                 </div>
               </div>
@@ -208,7 +210,7 @@ export function ContextViewModal({ agent, isOpen, onClose, onRefresh }: ContextV
                   marginBottom: '8px',
                   fontSize: '13px',
                 }}>
-                  <span>Context Usage</span>
+                  <span>{t('terminal:context.contextUsage')}</span>
                   <span style={{ color: getUsedPercentColor(stats.usedPercent) }}>
                     {formatTokens(stats.totalTokens)} / {formatTokens(stats.contextWindow)} ({stats.usedPercent}%)
                   </span>
@@ -249,7 +251,7 @@ export function ContextViewModal({ agent, isOpen, onClose, onRefresh }: ContextV
                   textTransform: 'uppercase',
                   letterSpacing: '0.5px',
                 }}>
-                  Token Breakdown
+                  {t('terminal:context.tokenBreakdown')}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   {orderedCategories.map((category) => (
@@ -299,7 +301,7 @@ export function ContextViewModal({ agent, isOpen, onClose, onRefresh }: ContextV
                 color: 'var(--text-muted)',
                 textAlign: 'center',
               }}>
-                Last updated: {new Date(stats.lastUpdated).toLocaleTimeString()}
+                {t('terminal:context.lastUpdated', { time: new Date(stats.lastUpdated).toLocaleTimeString() })}
               </div>
             </>
           )}
@@ -312,7 +314,7 @@ export function ContextViewModal({ agent, isOpen, onClose, onRefresh }: ContextV
           borderTop: '1px solid var(--border-color)',
         }}>
           <button className="btn btn-secondary" onClick={onClose}>
-            Close
+            {t('common:buttons.close')}
           </button>
         </div>
         </div>

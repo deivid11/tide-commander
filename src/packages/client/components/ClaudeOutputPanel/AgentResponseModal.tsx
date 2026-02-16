@@ -6,6 +6,7 @@
  */
 
 import React, { useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Agent } from '../../../shared/types';
 import { useModalClose } from '../../hooks';
 import { ModalPortal } from '../shared/ModalPortal';
@@ -23,6 +24,7 @@ export function AgentResponseModal({
   isOpen,
   onClose,
 }: AgentResponseModalProps) {
+  const { t } = useTranslation(['tools', 'common', 'terminal']);
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(content);
   }, [content]);
@@ -38,12 +40,12 @@ export function AgentResponseModal({
         <div className="modal-header agent-response-modal-header">
           <div className="agent-response-modal-title">
             <span className="agent-response-modal-icon">📝</span>
-            <span>{agent.name} - Raw Markdown</span>
+            <span>{agent.name} - {t('terminal:modals.rawOutput')}</span>
           </div>
           <button
             className="agent-response-modal-close"
             onClick={onClose}
-            title="Close (Esc)"
+            title={t('common:buttons.close')}
           >
             &times;
           </button>
@@ -55,17 +57,17 @@ export function AgentResponseModal({
           ) : (
             <div className="agent-response-empty">
               <span className="agent-response-empty-icon">📭</span>
-              <span>No response content available.</span>
+              <span>{t('tools:response.noContent')}</span>
             </div>
           )}
         </div>
 
         <div className="modal-footer agent-response-modal-footer">
           <button className="btn btn-primary" onClick={handleCopy}>
-            Copy
+            {t('common:buttons.copy')}
           </button>
           <button className="btn btn-secondary" onClick={onClose}>
-            Close
+            {t('common:buttons.close')}
           </button>
         </div>
         </div>
