@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.63.2] - 2026-02-16
+
+### Changed
+- **CLI startup banner** - Improved startup messages for both "already running" and "started" states with colored command reference help
+- Removed old "Logs: tail -f logs/server.log" line in favor of command help display
+
 ## [0.63.1] - 2026-02-16
 
 ### Changed

@@ -540,8 +540,24 @@ async function main(): Promise<void> {
     const port = meta?.port ?? process.env.PORT ?? '6200';
     const host = meta?.host ?? process.env.HOST ?? 'localhost';
     const url = `http://${host}:${port}`;
-    console.log(`\n🌊 Tide Commander is already running (PID: ${existingPid})`);
-    console.log(`🚀 Open: ${url}\n`);
+    const dim = '\x1b[2m';
+    const yellow = '\x1b[33m';
+    const cyan = '\x1b[36m';
+    const bright = '\x1b[1m';
+    const reset = '\x1b[0m';
+    const blue = '\x1b[34m';
+    const _green = '\x1b[32m';
+
+    console.log(`\n${cyan}${bright}🌊 Tide Commander${reset} ${dim}(already running, PID: ${existingPid})${reset}`);
+    console.log(`${cyan}${'═'.repeat(60)}${reset}`);
+    console.log(`${blue}${bright}🚀 Open: ${url}${reset}`);
+    console.log(`${cyan}${'─'.repeat(60)}${reset}`);
+    console.log(`${dim}Commands:${reset}`);
+    console.log(`  ${yellow}tide-commander status${reset}    ${dim}Show server status & uptime${reset}`);
+    console.log(`  ${yellow}tide-commander stop${reset}      ${dim}Stop the server${reset}`);
+    console.log(`  ${yellow}tide-commander logs -f${reset}   ${dim}Follow live server logs${reset}`);
+    console.log(`  ${yellow}tide-commander --help${reset}    ${dim}Show all options${reset}`);
+    console.log(`${cyan}${'═'.repeat(60)}${reset}\n`);
     return;
     }
   }
@@ -591,12 +607,20 @@ async function main(): Promise<void> {
     const reset = '\x1b[0m';
     const blue = '\x1b[34m';
 
+    const dim = '\x1b[2m';
+    const yellow = '\x1b[33m';
+
     console.log(`\n${cyan}${bright}🌊 Tide Commander${reset}`);
     console.log(`${cyan}${'═'.repeat(60)}${reset}`);
     console.log(`${green}✓${reset} Started in background (PID: ${child.pid ?? 'unknown'})`);
     console.log(`${blue}${bright}🚀 Open: ${url}${reset}`);
     console.log(`   Version: ${getPackageVersion()}`);
-    console.log(`${green}📝 Logs${reset}: tail -f logs/server.log`);
+    console.log(`${cyan}${'─'.repeat(60)}${reset}`);
+    console.log(`${dim}Commands:${reset}`);
+    console.log(`  ${yellow}tide-commander status${reset}    ${dim}Show server status & uptime${reset}`);
+    console.log(`  ${yellow}tide-commander stop${reset}      ${dim}Stop the server${reset}`);
+    console.log(`  ${yellow}tide-commander logs -f${reset}   ${dim}Follow live server logs${reset}`);
+    console.log(`  ${yellow}tide-commander --help${reset}    ${dim}Show all options${reset}`);
     console.log(`${cyan}${'═'.repeat(60)}${reset}\n`);
     return;
   }
