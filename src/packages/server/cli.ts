@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
 import { fileURLToPath } from 'node:url';
+import { checkNpmVersion } from '../shared/version.js';
 
 type CliCommand = 'start' | 'stop' | 'status' | 'logs' | 'version';
 type ServerLaunchConfig = {
@@ -28,6 +29,7 @@ const PID_DIR = path.join(os.homedir(), '.local', 'share', 'tide-commander');
 const PID_FILE = path.join(PID_DIR, 'server.pid');
 const META_FILE = path.join(PID_DIR, 'server-meta.json');
 const LOG_FILE = path.join(process.cwd(), 'logs', 'server.log');
+const PACKAGE_NAME = 'tide-commander';
 
 type ServerMeta = {
   pid: number;
@@ -333,9 +335,9 @@ async function statusCommand(): Promise<number> {
   console.log(`${green}✓ Running${reset} (PID: ${pid})`);
   console.log(`${blue}${bright}🚀 Access: ${url}${reset}`);
   console.log(`   Version: ${version}`);
-  const latestVer = await checkForUpdates(version);
-  if (latestVer) {
-    printUpdateNotice(latestVer);
+  const npmVersion = await checkNpmVersion(PACKAGE_NAME, version);
+  if (npmVersion.relation === 'behind' && npmVersion.latestVersion) {
+    printUpdateNotice(npmVersion.latestVersion);
   }
   if (uptime) {
     console.log(`   Uptime: ${uptime}`);
@@ -467,27 +469,6 @@ function getProcessUptime(pid: number): string | null {
   return null;
 }
 
-async function checkForUpdates(currentVersion: string): Promise<string | null> {
-  if (currentVersion === 'unknown') return null;
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 3000);
-    const res = await fetch('https://registry.npmjs.org/tide-commander/latest', {
-      signal: controller.signal,
-      headers: { 'Accept': 'application/json' },
-    });
-    clearTimeout(timeout);
-    if (!res.ok) return null;
-    const data = await res.json() as { version?: string };
-    if (data.version && data.version !== currentVersion) {
-      return data.version;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
 function printUpdateNotice(latestVersion: string): void {
   const yellow = '\x1b[33m';
   const bright = '\x1b[1m';
@@ -586,9 +567,9 @@ async function main(): Promise<void> {
     console.log(`${cyan}${'═'.repeat(60)}${reset}`);
     console.log(`${blue}${bright}🚀 Open: ${url}${reset}`);
     console.log(`   Version: ${currentVer}`);
-    const latest = await checkForUpdates(currentVer);
-    if (latest) {
-      printUpdateNotice(latest);
+    const npmVersion = await checkNpmVersion(PACKAGE_NAME, currentVer);
+    if (npmVersion.relation === 'behind' && npmVersion.latestVersion) {
+      printUpdateNotice(npmVersion.latestVersion);
     }
     console.log(`${cyan}${'─'.repeat(60)}${reset}`);
     console.log(`${dim}Commands:${reset}`);
@@ -655,9 +636,9 @@ async function main(): Promise<void> {
     console.log(`${green}✓${reset} Started in background (PID: ${child.pid ?? 'unknown'})`);
     console.log(`${blue}${bright}🚀 Open: ${url}${reset}`);
     console.log(`   Version: ${currentVersion}`);
-    const latestVersion = await checkForUpdates(currentVersion);
-    if (latestVersion) {
-      printUpdateNotice(latestVersion);
+    const npmVersion = await checkNpmVersion(PACKAGE_NAME, currentVersion);
+    if (npmVersion.relation === 'behind' && npmVersion.latestVersion) {
+      printUpdateNotice(npmVersion.latestVersion);
     }
     console.log(`${cyan}${'─'.repeat(60)}${reset}`);
     console.log(`${dim}Commands:${reset}`);

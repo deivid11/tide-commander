@@ -42,6 +42,7 @@ export interface AgentActions {
   createDirectoryAndSpawn(path: string, name: string, agentClass: AgentClass): void;
   sendCommand(agentId: string, command: string): void;
   refreshAgentContext(agentId: string): void;
+  moveAgentLocal(agentId: string, position: { x: number; y: number; z: number }): void;
   moveAgent(agentId: string, position: { x: number; y: number; z: number }): void;
   killAgent(agentId: string): void;
   stopAgent(agentId: string): void;
@@ -296,6 +297,20 @@ export function createAgentActions(
         type: 'request_context_stats',
         payload: { agentId },
       });
+    },
+
+    moveAgentLocal(agentId: string, position: { x: number; y: number; z: number }): void {
+      const state = getState();
+      const agent = state.agents.get(agentId);
+      if (agent) {
+        setState((s) => {
+          const updatedAgent = { ...agent, position };
+          const newAgents = new Map(s.agents);
+          newAgents.set(agentId, updatedAgent);
+          s.agents = newAgents;
+        });
+        notify();
+      }
     },
 
     moveAgent(agentId: string, position: { x: number; y: number; z: number }): void {

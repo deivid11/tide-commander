@@ -94,6 +94,15 @@
   }
 }
 
+.agent-bar-version-badge-behind {
+  background: $accent-orange;
+}
+
+.agent-bar-version-badge-ahead {
+  background: $accent-blue;
+  color: #fff;
+}
+
 .agent-bar-version-status {
   font-size: 9px;
   color: rgba(255, 255, 255, 0.4);
@@ -104,6 +113,14 @@
   &:hover {
     color: $accent-blue;
   }
+}
+
+.agent-bar-version-status-behind {
+  color: $accent-orange;
+}
+
+.agent-bar-version-status-ahead {
+  color: $accent-blue;
 }
 
 // HMR refresh button - shows when 3D scene changes are pending

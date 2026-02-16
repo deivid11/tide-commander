@@ -31,6 +31,8 @@ export class DrawingManager {
   private resizeHandleType: HandleType | null = null;
   private resizeStartPos: { x: number; z: number } | null = null;
   private resizeOriginalArea: DrawingArea | null = null;
+  private areaDragAgentStartPositions = new Map<string, { x: number; y: number; z: number }>();
+  private areaDragBuildingStartPositions = new Map<string, { x: number; z: number }>();
 
   // Callback for when area is created
   private onAreaCreated: ((area: DrawingArea) => void) | null = null;
@@ -708,6 +710,25 @@ export class DrawingManager {
     this.resizeHandleType = handleType;
     this.resizeStartPos = pos;
     this.resizeOriginalArea = { ...area };
+
+    this.areaDragAgentStartPositions.clear();
+    this.areaDragBuildingStartPositions.clear();
+
+    if (handleType === 'move') {
+      const state = store.getState();
+
+      for (const agent of state.agents.values()) {
+        if (this.isPointInsideArea(agent.position.x, agent.position.z, area)) {
+          this.areaDragAgentStartPositions.set(agent.id, { ...agent.position });
+        }
+      }
+
+      for (const building of state.buildings.values()) {
+        if (this.isPointInsideArea(building.position.x, building.position.z, area)) {
+          this.areaDragBuildingStartPositions.set(building.id, { ...building.position });
+        }
+      }
+    }
   }
 
   /**
@@ -729,6 +750,23 @@ export class DrawingManager {
           z: area.center.z + deltaZ,
         },
       };
+
+      for (const [agentId, startPos] of this.areaDragAgentStartPositions) {
+        store.moveAgentLocal(agentId, {
+          x: startPos.x + deltaX,
+          y: startPos.y,
+          z: startPos.z + deltaZ,
+        });
+      }
+
+      for (const [buildingId, startPos] of this.areaDragBuildingStartPositions) {
+        store.updateBuildingLocal(buildingId, {
+          position: {
+            x: startPos.x + deltaX,
+            z: startPos.z + deltaZ,
+          },
+        });
+      }
     } else if (area.type === 'rectangle' && area.width && area.height) {
       // Asymmetric resize: anchor the opposite side, only move the dragged side
       const deltaX = pos.x - this.resizeStartPos.x;
@@ -819,10 +857,38 @@ export class DrawingManager {
    * Finish resizing.
    */
   finishResize(): void {
+    if (this.resizeHandleType === 'move' && this.resizeOriginalArea && this.resizeStartPos) {
+      const state = store.getState();
+      const currentArea = state.areas.get(this.resizeOriginalArea.id);
+      if (currentArea) {
+        const deltaX = currentArea.center.x - this.resizeOriginalArea.center.x;
+        const deltaZ = currentArea.center.z - this.resizeOriginalArea.center.z;
+
+        if (deltaX !== 0 || deltaZ !== 0) {
+          for (const [agentId, startPos] of this.areaDragAgentStartPositions) {
+            store.moveAgent(agentId, {
+              x: startPos.x + deltaX,
+              y: startPos.y,
+              z: startPos.z + deltaZ,
+            });
+          }
+
+          for (const [buildingId, startPos] of this.areaDragBuildingStartPositions) {
+            store.moveBuilding(buildingId, {
+              x: startPos.x + deltaX,
+              z: startPos.z + deltaZ,
+            });
+          }
+        }
+      }
+    }
+
     this.isResizing = false;
     this.resizeHandleType = null;
     this.resizeStartPos = null;
     this.resizeOriginalArea = null;
+    this.areaDragAgentStartPositions.clear();
+    this.areaDragBuildingStartPositions.clear();
 
     // Refresh handles for the selected area
     if (this.selectedAreaId) {
@@ -832,6 +898,27 @@ export class DrawingManager {
         this.createResizeHandles(area);
       }
     }
+  }
+
+  private isPointInsideArea(x: number, z: number, area: DrawingArea): boolean {
+    if (area.type === 'rectangle' && area.width && area.height) {
+      const halfW = area.width / 2;
+      const halfH = area.height / 2;
+      return (
+        x >= area.center.x - halfW &&
+        x <= area.center.x + halfW &&
+        z >= area.center.z - halfH &&
+        z <= area.center.z + halfH
+      );
+    }
+
+    if (area.type === 'circle' && area.radius) {
+      const dx = x - area.center.x;
+      const dz = z - area.center.z;
+      return dx * dx + dz * dz <= area.radius * area.radius;
+    }
+
+    return false;
   }
 
   /**

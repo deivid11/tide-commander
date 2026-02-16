@@ -121,6 +121,7 @@ function parseEnvelope(value: unknown): CodexEventEnvelope | undefined {
  */
 export class CodexJsonEventParser {
   private activeToolByItemId = new Map<string, string>();
+  private lastAgentMessageText: string | undefined;
 
   parseLine(line: string): RuntimeEvent[] {
     const trimmed = line.trim();
@@ -142,6 +143,10 @@ export class CodexJsonEventParser {
       return this.parseItemStarted(event.item);
     }
     if (event.type === 'item.completed') {
+      // Capture agent message text for later use in step_complete
+      if (event.item?.type === 'agent_message' && event.item?.text) {
+        this.lastAgentMessageText = event.item.text;
+      }
       return this.parseItemCompleted(event.item);
     }
     if (event.type === 'turn.completed') {
@@ -242,16 +247,22 @@ export class CodexJsonEventParser {
   private parseTurnCompleted(usage?: CodexUsage): RuntimeEvent[] {
     if (!usage) return [];
 
-    return [
-      {
-        type: 'step_complete',
-        tokens: {
-          input: usage.input_tokens ?? 0,
-          output: usage.output_tokens ?? 0,
-          cacheRead: usage.cached_input_tokens,
-        },
+    const event: any = {
+      type: 'step_complete',
+      tokens: {
+        input: usage.input_tokens ?? 0,
+        output: usage.output_tokens ?? 0,
+        cacheRead: usage.cached_input_tokens,
       },
-    ];
+    };
+
+    // Include the last agent message as resultText for boss delegation processing
+    if (this.lastAgentMessageText) {
+      event.resultText = this.lastAgentMessageText;
+      this.lastAgentMessageText = undefined; // Reset for next turn
+    }
+
+    return [event];
   }
 
   private buildWebSearchToolInput(item: CodexItem): Record<string, unknown> {

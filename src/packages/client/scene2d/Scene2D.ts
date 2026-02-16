@@ -147,6 +147,8 @@ export class Scene2D {
   private resizeHandleType: 'move' | 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w' | 'radius' | null = null;
   private resizeStartPos: { x: number; z: number } | null = null;
   private resizeOriginalArea: Area2DData | null = null;
+  private areaDragAgentStartPositions = new Map<string, { x: number; y: number; z: number }>();
+  private areaDragBuildingStartPositions = new Map<string, { x: number; z: number }>();
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -721,6 +723,25 @@ export class Scene2D {
     this.resizeHandleType = handleType;
     this.resizeStartPos = { ...pos };
     this.resizeOriginalArea = { ...area, size: { ...area.size } };
+
+    this.areaDragAgentStartPositions.clear();
+    this.areaDragBuildingStartPositions.clear();
+
+    if (handleType === 'move') {
+      const state = store.getState();
+
+      for (const agent of state.agents.values()) {
+        if (this.isPointInsideArea(agent.position.x, agent.position.z, area)) {
+          this.areaDragAgentStartPositions.set(agent.id, { ...agent.position });
+        }
+      }
+
+      for (const building of state.buildings.values()) {
+        if (this.isPointInsideArea(building.position.x, building.position.z, area)) {
+          this.areaDragBuildingStartPositions.set(building.id, { ...building.position });
+        }
+      }
+    }
   }
 
   /**
@@ -741,6 +762,23 @@ export class Scene2D {
           z: area.position.z + deltaZ,
         },
       };
+
+      for (const [agentId, startPos] of this.areaDragAgentStartPositions) {
+        store.moveAgentLocal(agentId, {
+          x: startPos.x + deltaX,
+          y: startPos.y,
+          z: startPos.z + deltaZ,
+        });
+      }
+
+      for (const [buildingId, startPos] of this.areaDragBuildingStartPositions) {
+        store.updateBuildingLocal(buildingId, {
+          position: {
+            x: startPos.x + deltaX,
+            z: startPos.z + deltaZ,
+          },
+        });
+      }
     } else if (area.type === 'rectangle' && 'width' in area.size) {
       // Asymmetric resize: anchor the opposite side, only move the dragged side
       const deltaX = pos.x - this.resizeStartPos.x;
@@ -832,10 +870,59 @@ export class Scene2D {
    * Finish resize/move operation.
    */
   finishAreaResize(): void {
+    if (this.resizeHandleType === 'move' && this.resizeOriginalArea && this.resizeStartPos) {
+      const state = store.getState();
+      const currentArea = this.selectedAreaId ? state.areas.get(this.selectedAreaId) : null;
+      if (currentArea) {
+        const deltaX = currentArea.center.x - this.resizeOriginalArea.position.x;
+        const deltaZ = currentArea.center.z - this.resizeOriginalArea.position.z;
+
+        if (deltaX !== 0 || deltaZ !== 0) {
+          for (const [agentId, startPos] of this.areaDragAgentStartPositions) {
+            store.moveAgent(agentId, {
+              x: startPos.x + deltaX,
+              y: startPos.y,
+              z: startPos.z + deltaZ,
+            });
+          }
+
+          for (const [buildingId, startPos] of this.areaDragBuildingStartPositions) {
+            store.moveBuilding(buildingId, {
+              x: startPos.x + deltaX,
+              z: startPos.z + deltaZ,
+            });
+          }
+        }
+      }
+    }
+
     this.isResizingArea = false;
     this.resizeHandleType = null;
     this.resizeStartPos = null;
     this.resizeOriginalArea = null;
+    this.areaDragAgentStartPositions.clear();
+    this.areaDragBuildingStartPositions.clear();
+  }
+
+  private isPointInsideArea(x: number, z: number, area: Area2DData): boolean {
+    if (area.type === 'rectangle' && 'width' in area.size) {
+      const halfW = area.size.width / 2;
+      const halfH = area.size.height / 2;
+      return (
+        x >= area.position.x - halfW &&
+        x <= area.position.x + halfW &&
+        z >= area.position.z - halfH &&
+        z <= area.position.z + halfH
+      );
+    }
+
+    if (area.type === 'circle' && 'radius' in area.size) {
+      const dx = x - area.position.x;
+      const dz = z - area.position.z;
+      return dx * dx + dz * dz <= area.size.radius * area.size.radius;
+    }
+
+    return false;
   }
 
   /**

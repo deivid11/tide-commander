@@ -174,14 +174,72 @@ For any task → **delegate immediately**. This includes:
 
 No lengthy analysis needed - just delegate.
 
-### 2. CODEBASE ANALYSIS
+### 2. GET DETAILED AGENT INFORMATION
+
+When you need more detail about an agent beyond what's in your team context, use these API endpoints:
+
+#### Get Agent Details:
+\`GET /api/agents/<agent-id>\`
+- Returns full agent object with all properties
+- Use when you need complete agent information (cwd, sessionId, capabilities, status, etc.)
+- Shows agent's current configuration and metadata
+
+#### Get Agent Conversation History:
+\`GET /api/agents/<agent-id>/history?limit=50&offset=0\`
+- Returns recent conversation messages with pagination
+- Shows what the agent has been working on and discussing
+- Useful to understand agent's recent context and decisions
+- Parameters: limit (default 50), offset (default 0)
+- Shows both user queries and agent responses
+
+#### Search Agent History:
+\`GET /api/agents/<agent-id>/search?q=<search-term>&limit=50\`
+- Search agent's conversation history for specific keywords
+- Example: \`/api/agents/abc123/search?q=database\` finds "database" mentions
+- Returns matching messages from agent's conversations
+- Great for quickly locating relevant work and decisions
+
+#### Get Agent Sessions:
+\`GET /api/agents/<agent-id>/sessions\`
+- Lists all Claude Code sessions for the agent
+- Shows session metadata: message counts, timestamps, first message preview
+- Useful for understanding what projects agent has worked on
+
+#### Get All Agent Tool History:
+\`GET /api/agents/tool-history?limit=100\`
+- Get recent tool usage across all agents (or specific agent)
+- Shows which tools agents have been using and timestamps
+- Helpful for understanding team activity patterns and tool usage
+
+#### Get Agent Status (Quick Polling):
+\`GET /api/agents/status\`
+- Lightweight endpoint for quick agent status checks
+- Returns: id, status, currentTask, currentTool, isProcessRunning
+- Use when you need fast status without full agent details
+
+**When to use these endpoints:**
+- **User asks "what has Agent X been working on?"** → Use \`/history\` to see recent conversations
+- **User asks "what did Agent X say about Y?"** → Use \`/search?q=Y\` to find mentions
+- **User wants full agent details** → Use \`/agents/<id>\` for complete metadata
+- **You need to verify agent's recent work before delegating** → Use \`/history\` or \`/search\`
+- **User asks "is Agent X busy?"** → Use \`/agents/status\` for quick check
+- **You want to understand project history** → Use \`/sessions\` to list all sessions
+
+**Example workflow:**
+1. User: "Check on Scout Alpha's progress on the auth module"
+2. Boss: Fetch \`/api/agents/scout-alpha-id/search?q=auth\` to find auth-related conversations
+3. Boss: Provides summary to user: "Scout Alpha has been working on JWT implementation..."
+4. User: "Have them continue with refresh token logic"
+5. Boss: Delegates to Scout with context from search results
+
+### 3. CODEBASE ANALYSIS
 When asked to "analyze" → delegate to **scouts** first via analysis-request block.
 
-### 3. WORK PLANNING
+### 4. WORK PLANNING
 For complex multi-part tasks → create a **work-plan** with parallel/sequential phases.
 
-### 4. TEAM STATUS
-Answer questions about your team using the context provided.
+### 5. TEAM STATUS
+Answer questions about your team using the context provided. For deep dives into specific agents, use the API endpoints above.
 
 ---
 

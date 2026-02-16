@@ -735,6 +735,7 @@ class Store
   createDirectoryAndSpawn(...args: Parameters<AgentActions['createDirectoryAndSpawn']>) { return this.agentActions.createDirectoryAndSpawn(...args); }
   sendCommand(...args: Parameters<AgentActions['sendCommand']>) { return this.agentActions.sendCommand(...args); }
   refreshAgentContext(...args: Parameters<AgentActions['refreshAgentContext']>) { return this.agentActions.refreshAgentContext(...args); }
+  moveAgentLocal(...args: Parameters<AgentActions['moveAgentLocal']>) { return this.agentActions.moveAgentLocal(...args); }
   moveAgent(...args: Parameters<AgentActions['moveAgent']>) { return this.agentActions.moveAgent(...args); }
   killAgent(...args: Parameters<AgentActions['killAgent']>) { return this.agentActions.killAgent(...args); }
   stopAgent(...args: Parameters<AgentActions['stopAgent']>) { return this.agentActions.stopAgent(...args); }

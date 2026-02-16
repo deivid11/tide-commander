@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.64.0] - 2026-02-16
+
+### Added
+- **Area drag moves contained agents and buildings** - Dragging an area in 3D or 2D view now moves all agents and buildings inside it together
+- **npm version status in Agent Bar** - Shows current version vs npm latest with behind/ahead/equal indicators and color-coded badges
+- **Shared version checking module** - New `src/packages/shared/version.ts` with `checkNpmVersion()` used by both CLI and client
+- **Boss agent API instructions** - Boss agents now have detailed instructions for querying agent history, search, sessions, tool history, and status endpoints
+- **Codex boss delegation support** - Codex agents now properly emit `resultText` in `step_complete` events, enabling boss delegation parsing
+- **Local agent move** - New `moveAgentLocal()` store action for immediate UI position updates without server round-trip
+
+### Changed
+- **CLI version check refactored** - Extracted inline `checkForUpdates()` to shared `checkNpmVersion()` module for code reuse
+- **Agent Bar version display** - Replaced `useAppUpdate` hook with `useNpmVersionStatus` for consistent npm-based version checking
+
 ## [0.63.4] - 2026-02-16
 
 ### Changed

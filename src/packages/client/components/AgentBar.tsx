@@ -7,7 +7,7 @@ import { getClassConfig } from '../utils/classConfig';
 import { getIdleTimerColor, getAgentStatusColor } from '../utils/colors';
 import { TOOL_ICONS } from '../utils/outputRendering';
 import { useAgentOrder } from '../hooks';
-import { useAppUpdate } from '../hooks/useAppUpdate';
+import { useNpmVersionStatus } from '../hooks/useNpmVersionStatus';
 import { hasPendingSceneChanges, refreshScene } from '../hooks/useSceneSetup';
 
 interface AgentBarProps {
@@ -306,8 +306,8 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
     return t(key, { defaultValue: t('common:status.unknown') });
   };
 
-  // Get app version and update info
-  const { updateAvailable, updateInfo, openReleasePage, currentVersion } = useAppUpdate();
+  // Show current version against npm latest (same source as CLI update checks)
+  const { currentVersion, latestVersion, relation, isChecking } = useNpmVersionStatus();
   const version = currentVersion;
 
   // Calculate global index for hotkeys (needs to be tracked across groups)
@@ -317,17 +317,44 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
     <div className="agent-bar" ref={agentBarRef}>
       <div className="agent-bar-scroll" ref={scrollRef}>
       {/* Version indicator */}
-      <div className="agent-bar-version" title={`Tide Commander v${version}`}>
+      <div
+        className="agent-bar-version"
+        title={latestVersion ? `Tide Commander v${version} (npm: v${latestVersion})` : `Tide Commander v${version}`}
+      >
         <span>v{version}</span>
-        {updateAvailable && updateInfo ? (
+        {relation === 'behind' && latestVersion ? (
           <span
-            className="agent-bar-version-badge"
-            onClick={openReleasePage}
-            title={`Update available: ${updateInfo.version}`}
+            className="agent-bar-version-badge agent-bar-version-badge-behind"
+            title={`Behind npm latest v${latestVersion}`}
           >
-            {updateInfo.version}
+            npm v{latestVersion}
           </span>
-        ) : (
+        ) : relation === 'ahead' && latestVersion ? (
+          <span
+            className="agent-bar-version-badge agent-bar-version-badge-ahead"
+            title={`Ahead of npm latest v${latestVersion}`}
+          >
+            npm v{latestVersion}
+          </span>
+        ) : null}
+        {relation === 'behind' ? (
+          <a
+            href="https://github.com/deivid11/tide-commander/releases"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="agent-bar-version-status agent-bar-version-status-behind"
+            title={t('common:agentBar.behindNpmTooltip', { defaultValue: 'Current version is behind npm latest' })}
+          >
+            {t('common:agentBar.behindNpm', { defaultValue: '(behind npm)' })}
+          </a>
+        ) : relation === 'ahead' ? (
+          <span
+            className="agent-bar-version-status agent-bar-version-status-ahead"
+            title={t('common:agentBar.aheadNpmTooltip', { defaultValue: 'Current version is newer than npm latest' })}
+          >
+            {t('common:agentBar.aheadNpm', { defaultValue: '(ahead of npm)' })}
+          </span>
+        ) : relation === 'equal' ? (
           <a
             href="https://github.com/deivid11/tide-commander/releases"
             target="_blank"
@@ -336,6 +363,14 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
           >
             {t('common:agentBar.updated')}
           </a>
+        ) : isChecking ? (
+          <span className="agent-bar-version-status">
+            {t('common:agentBar.checkingNpm', { defaultValue: '(checking npm)' })}
+          </span>
+        ) : (
+          <span className="agent-bar-version-status">
+            {t('common:agentBar.unknownNpm', { defaultValue: '(npm unknown)' })}
+          </span>
         )}
         {/* HMR Refresh button - only shows when there are pending 3D scene changes */}
         {hasPendingHmrChanges && (
