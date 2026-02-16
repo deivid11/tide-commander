@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.62.1] - 2026-02-15
+
+### Added
+- **API Documentation links** - Added OpenAPI 3.1 (REST) and AsyncAPI 2.6 (WebSocket) spec links to README documentation table
+- Marked API Documentation as complete in roadmap
+
 ## [0.62.0] - 2026-02-15
 
 ### Added

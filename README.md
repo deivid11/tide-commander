@@ -183,6 +183,8 @@ Detailed guides for each feature are available in the [`docs/`](docs/) folder:
 | [Snapshots](docs/snapshots.md) | Save and restore conversation history and file artifacts |
 | [Secrets](docs/secrets.md) | Secure credential storage with placeholder injection |
 | [Architecture](docs/architecture.md) | Runtime architecture, command flow, and incremental improvements |
+| [REST API (OpenAPI)](docs/openapi.yaml) | Machine-readable OpenAPI 3.1 spec for `/api` HTTP routes |
+| [WebSocket API (AsyncAPI)](docs/asyncapi.yaml) | Machine-readable AsyncAPI 2.6 spec for `/ws` message contracts |
 | [Views & UI](docs/views.md) | 3D, 2D, Dashboard, Commander View, Guake terminal, and Spotlight |
 | [Android APK](docs/android.md) | Build and install the optional mobile companion app |
 | [Docker Deployment](docs/docker.md) | Run Tide Commander in a Docker container |
@@ -390,7 +392,7 @@ Planned features and improvements — contributions and feedback welcome:
 - [x] **Multilingual Support** — i18n with 10 languages (EN, ES, FR, DE, IT, PT, RU, ZH, JA, HI)
 - [x] **Codex Integration** — Compatible with OpenAI Codex CLI alongside Claude Code
 - [ ] **Buildings Plugin System** — External plugin API for community-built building types
-- [ ] **API Documentation** — OpenAPI/Swagger spec for the REST and WebSocket APIs
+- [x] **API Documentation** — OpenAPI/Swagger spec for the REST and WebSocket APIs
 - [ ] **Observability** — Error tracking, logging aggregation, and performance monitoring
 
 Have a feature idea or found a bug? Open an [issue](https://github.com/your-repo/tide-commander/issues) or drop it in the [Discord](https://discord.gg/MymXXDCvf).
