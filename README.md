@@ -151,7 +151,7 @@ AI coding orchestration and multi-agent management features:
 - 📊 **Context Tracking** - Mana bar visualization showing agent context usage
 - 📁 **File Explorer** - Built-in file browser with git diff viewer for uncommitted changes
 
-![File Explorer with Git Diffs](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/img/diffs_view.png)
+![File Explorer with Git Diffs](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/img/diffs_view_2.png)
 - 📋 **Large Text & Screenshot Paste** - Compact and send large content easily
 - ⌨️ **Custom Hotkeys** - Configurable keyboard shortcuts
 - 🔐 **Permission Control** - Permissionless or permission-enabled per agent

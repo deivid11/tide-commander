@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.63.4] - 2026-02-16
+
+### Changed
+- **Renamed diffs_view image** - Renamed `diffs_view.png` to `diffs_view_2.png` across docs, landing page, and README
+
 ## [0.63.3] - 2026-02-16
 
 ### Added
