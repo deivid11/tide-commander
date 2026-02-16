@@ -505,7 +505,7 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
     const mergedEditData = ref.line
       ? { ...(editData || {}), targetLine: ref.line }
       : editData;
-    store.setFileViewerPath(ref.path, mergedEditData);
+    store.setFileViewerPath(ref.path, mergedEditData, activeAgent?.cwd);
   }, [activeAgent?.cwd]);
 
   const handleBashClick = useCallback((command: string, output: string) => {

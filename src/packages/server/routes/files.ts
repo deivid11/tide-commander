@@ -93,6 +93,65 @@ router.get('/read', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/files/resolve - Find a file by name/partial path within a project directory
+router.get('/resolve', async (req: Request, res: Response) => {
+  try {
+    const filename = req.query.name as string;
+    const searchRoot = req.query.root as string;
+
+    if (!filename) {
+      res.status(400).json({ error: 'Missing name parameter' });
+      return;
+    }
+
+    if (!searchRoot || !path.isAbsolute(searchRoot)) {
+      res.status(400).json({ error: 'Missing or invalid root parameter (must be absolute)' });
+      return;
+    }
+
+    if (!fs.existsSync(searchRoot)) {
+      res.status(404).json({ error: 'Root directory not found' });
+      return;
+    }
+
+    const results: TreeNode[] = [];
+    const basename = path.basename(filename);
+    const hasPathSeparator = filename.includes('/');
+
+    // Search for files matching the basename
+    searchFiles(searchRoot, basename, results, 20);
+
+    // If the query had path segments (e.g. "components/App.tsx"), rank results
+    // that contain the full partial path higher
+    if (hasPathSeparator) {
+      const normalizedQuery = filename.replace(/^\.\//, '');
+      results.sort((a, b) => {
+        const aContains = a.path.includes(normalizedQuery) ? 1 : 0;
+        const bContains = b.path.includes(normalizedQuery) ? 1 : 0;
+        if (aContains !== bContains) return bContains - aContains;
+        // Prefer files over directories
+        if (a.isDirectory !== b.isDirectory) return a.isDirectory ? 1 : -1;
+        // Shorter paths first (closer to project root = more likely the right file)
+        return a.path.length - b.path.length;
+      });
+    } else {
+      // Sort: exact basename match first, then files before dirs, then shorter paths
+      results.sort((a, b) => {
+        const aExact = a.name === basename ? 1 : 0;
+        const bExact = b.name === basename ? 1 : 0;
+        if (aExact !== bExact) return bExact - aExact;
+        if (a.isDirectory !== b.isDirectory) return a.isDirectory ? 1 : -1;
+        return a.path.length - b.path.length;
+      });
+    }
+
+    res.json({ results });
+  } catch (err: any) {
+    log.error(' Failed to resolve file:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/files/exists - Check if a file exists
 router.get('/exists', async (req: Request, res: Response) => {
   try {

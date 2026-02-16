@@ -235,7 +235,7 @@ export function AgentPanel({
     const mergedEditData = ref.line
       ? { ...(editData || {}), targetLine: ref.line }
       : editData;
-    store.setFileViewerPath(ref.path, mergedEditData);
+    store.setFileViewerPath(ref.path, mergedEditData, agent.cwd);
   }, [agent.cwd]);
 
   const handleBashClick = useCallback((commandText: string, output: string) => {

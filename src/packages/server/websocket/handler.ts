@@ -18,6 +18,7 @@ import { loadAreas, loadBuildings } from '../data/index.js';
 import { logger } from '../utils/index.js';
 import { setNotificationBroadcast, setExecBroadcast, setFocusAgentBroadcast } from '../routes/index.js';
 import { validateWebSocketAuth, isAuthEnabled } from '../auth/index.js';
+import { incrementWsSent, incrementWsReceived, setWsClientsCount } from '../routes/perf.js';
 import type { HandlerContext, MessageHandler } from './handlers/types.js';
 import {
   handleSpawnAgent,
@@ -168,6 +169,8 @@ export function broadcast(message: ServerMessage): void {
       }
     }
 
+    incrementWsSent();
+
     if (errorCount > 0) {
       log.log(`[BROADCAST] type=${message.type} sentTo=${sentCount}/${clients.size} errors=${errorCount}`);
     }
@@ -296,6 +299,7 @@ const messageHandlers = {
 } satisfies MessageHandlerMap;
 
 function handleClientMessage(ws: WebSocket, message: ClientMessage): void {
+  incrementWsReceived();
   const ctx = createHandlerContext(ws);
   const handler = messageHandlers[message.type] as MessageHandler<typeof message.payload>;
 
@@ -332,6 +336,7 @@ export function init(server: HttpServer): WebSocketServer {
 
   wss.on('connection', async (ws) => {
     clients.add(ws);
+    setWsClientsCount(clients.size);
     log.log(`Client connected (total: ${clients.size})`);
 
     await runtimeService.syncAllAgentStatus();
@@ -379,6 +384,7 @@ export function init(server: HttpServer): WebSocketServer {
 
     ws.on('close', () => {
       clients.delete(ws);
+      setWsClientsCount(clients.size);
       log.log(`Client disconnected (remaining: ${clients.size})`);
     });
   });

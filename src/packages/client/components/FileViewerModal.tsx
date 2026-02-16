@@ -43,6 +43,16 @@ interface FileViewerModalProps {
     // For direct file references like path/to/file.ts:16
     targetLine?: number;
   };
+  // Optional: project root for fallback file search when file not found
+  searchRoot?: string;
+}
+
+interface ResolveResult {
+  name: string;
+  path: string;
+  isDirectory: boolean;
+  size: number;
+  extension: string;
 }
 
 interface FileData {
@@ -95,11 +105,13 @@ const MARKDOWN_EXTENSIONS = ['.md', '.mdx', '.markdown'];
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.ico', '.svg'];
 const PDF_EXTENSIONS = ['.pdf'];
 
-export function FileViewerModal({ isOpen, onClose, filePath, action, editData }: FileViewerModalProps) {
+export function FileViewerModal({ isOpen, onClose, filePath, action, editData, searchRoot }: FileViewerModalProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const [fileData, setFileData] = useState<FileData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resolvedCandidates, setResolvedCandidates] = useState<ResolveResult[]>([]);
+  const [directoryEntries, setDirectoryEntries] = useState<ResolveResult[]>([]);
   const [copyRichTextStatus, setCopyRichTextStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [copyHtmlStatus, setCopyHtmlStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [copyMarkdownStatus, setCopyMarkdownStatus] = useState<'idle' | 'copied' | 'error'>('idle');
@@ -115,10 +127,14 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
 
   useEffect(() => {
     if (isOpen && effectivePath) {
+      setResolvedCandidates([]);
+      setDirectoryEntries([]);
       loadFile();
     } else {
       setFileData(null);
       setError(null);
+      setResolvedCandidates([]);
+      setDirectoryEntries([]);
     }
   }, [isOpen, effectivePath]);
 
@@ -259,34 +275,147 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
     return () => window.clearTimeout(id);
   }, [isOpen, fileData, showHighlightView, effectiveHighlightRange?.offset, targetLine]);
 
+  const loadFileByPath = async (filePath: string): Promise<{ ok: boolean; data?: any; error?: string; isDirectory?: boolean }> => {
+    const ext = filePath.substring(filePath.lastIndexOf('.')).toLowerCase();
+    const isPdfFile = PDF_EXTENSIONS.includes(ext);
+    const isImageFile = IMAGE_EXTENSIONS.includes(ext);
+
+    const endpoint = (isPdfFile || isImageFile)
+      ? `/api/files/info?path=${encodeURIComponent(filePath)}`
+      : `/api/files/read?path=${encodeURIComponent(filePath)}`;
+
+    const res = await authFetch(apiUrl(endpoint));
+    const data = await res.json();
+
+    if (!res.ok) {
+      const isDir = data.error === 'Path is a directory';
+      return { ok: false, error: data.error, isDirectory: isDir };
+    }
+
+    if (isPdfFile || isImageFile) {
+      data.content = '';
+    }
+
+    return { ok: true, data };
+  };
+
+  const tryResolveFile = async (filename: string, root: string): Promise<ResolveResult[]> => {
+    try {
+      const res = await authFetch(apiUrl(`/api/files/resolve?name=${encodeURIComponent(filename)}&root=${encodeURIComponent(root)}`));
+      const data = await res.json();
+      if (res.ok && data.results?.length > 0) {
+        return data.results;
+      }
+    } catch { /* ignore */ }
+    return [];
+  };
+
+  const loadDirectoryContents = async (dirPath: string): Promise<ResolveResult[]> => {
+    try {
+      const res = await authFetch(apiUrl(`/api/files/list?path=${encodeURIComponent(dirPath)}`));
+      const data = await res.json();
+      if (res.ok && data.files?.length > 0) {
+        return data.files.slice(0, 20).map((f: any) => ({
+          name: f.name,
+          path: f.path,
+          isDirectory: f.isDirectory,
+          size: f.size || 0,
+          extension: f.extension || '',
+        }));
+      }
+    } catch { /* ignore */ }
+    return [];
+  };
+
   const loadFile = async () => {
     setLoading(true);
     setError(null);
+    setResolvedCandidates([]);
+    setDirectoryEntries([]);
 
     try {
-      const ext = effectivePath.substring(effectivePath.lastIndexOf('.')).toLowerCase();
-      const isPdfFile = PDF_EXTENSIONS.includes(ext);
-      const isImageFile = IMAGE_EXTENSIONS.includes(ext);
+      // First, try loading the file directly
+      const result = await loadFileByPath(effectivePath);
 
-      // For binary-rendered media, only fetch metadata (content is loaded via binary endpoint)
-      const endpoint = (isPdfFile || isImageFile)
-        ? `/api/files/info?path=${encodeURIComponent(effectivePath)}`
-        : `/api/files/read?path=${encodeURIComponent(effectivePath)}`;
-
-      const res = await authFetch(apiUrl(endpoint));
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || t('terminal:fileExplorer.failedToLoad'));
+      if (result.ok) {
+        setFileData(result.data);
         return;
       }
 
-      // Info endpoint doesn't return content - set empty string for media files
-      if (isPdfFile || isImageFile) {
-        data.content = '';
+      // If it's a directory, load its contents
+      if (result.isDirectory) {
+        const entries = await loadDirectoryContents(effectivePath);
+        if (entries.length > 0) {
+          setDirectoryEntries(entries);
+          return;
+        }
+        setError(result.error || t('terminal:fileExplorer.failedToLoad'));
+        return;
       }
 
-      setFileData(data);
+      // File not found (or path not absolute) — try fallback search
+      const filename = effectivePath.split('/').pop() || effectivePath;
+      const root = searchRoot || (effectivePath.startsWith('/') ? effectivePath.split('/').slice(0, -1).join('/') : '');
+
+      if (root && filename) {
+        const candidates = await tryResolveFile(filename, root);
+
+        if (candidates.length === 1 && !candidates[0].isDirectory) {
+          // Exactly one match — load it directly
+          const resolved = await loadFileByPath(candidates[0].path);
+          if (resolved.ok) {
+            setFileData(resolved.data);
+            return;
+          }
+        } else if (candidates.length > 0) {
+          // Multiple matches — show candidates
+          setResolvedCandidates(candidates);
+          return;
+        }
+      }
+
+      // No fallback worked
+      setError(result.error || t('terminal:fileExplorer.failedToLoad'));
+    } catch (err: any) {
+      setError(err.message || t('terminal:fileExplorer.failedToLoad'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCandidateClick = async (candidate: ResolveResult) => {
+    if (candidate.isDirectory) {
+      // Load directory contents
+      setLoading(true);
+      setResolvedCandidates([]);
+      setDirectoryEntries([]);
+      setError(null);
+      try {
+        const entries = await loadDirectoryContents(candidate.path);
+        if (entries.length > 0) {
+          setDirectoryEntries(entries);
+        } else {
+          setError('Empty directory');
+        }
+      } catch {
+        setError('Failed to load directory');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+    // Load the file
+    setLoading(true);
+    setResolvedCandidates([]);
+    setDirectoryEntries([]);
+    setError(null);
+    try {
+      const result = await loadFileByPath(candidate.path);
+      if (result.ok) {
+        setFileData(result.data);
+      } else {
+        setError(result.error || t('terminal:fileExplorer.failedToLoad'));
+      }
     } catch (err: any) {
       setError(err.message || t('terminal:fileExplorer.failedToLoad'));
     } finally {
@@ -475,7 +604,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
         </div>
 
         <div className="file-viewer-path">
-          {effectivePath}
+          {fileData?.path || effectivePath}
         </div>
 
         {fileData && (
@@ -497,8 +626,60 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData }:
             <div className="file-viewer-loading">{t('terminal:fileExplorer.loadingFile')}</div>
           )}
 
-          {error && (
+          {error && !resolvedCandidates.length && !directoryEntries.length && (
             <div className="file-viewer-error">{error}</div>
+          )}
+
+          {resolvedCandidates.length > 0 && (
+            <div className="file-viewer-resolve-results">
+              <div className="file-viewer-resolve-header">
+                Found {resolvedCandidates.length} matching file{resolvedCandidates.length > 1 ? 's' : ''} in project:
+              </div>
+              <div className="file-viewer-resolve-list">
+                {resolvedCandidates.map((candidate) => (
+                  <button
+                    key={candidate.path}
+                    className="file-viewer-resolve-item"
+                    onClick={() => handleCandidateClick(candidate)}
+                  >
+                    <span className="file-viewer-resolve-icon">{candidate.isDirectory ? '\uD83D\uDCC1' : '\uD83D\uDCC4'}</span>
+                    <span className="file-viewer-resolve-info">
+                      <span className="file-viewer-resolve-name">{candidate.name}</span>
+                      <span className="file-viewer-resolve-path">{candidate.path}</span>
+                    </span>
+                    {!candidate.isDirectory && candidate.size > 0 && (
+                      <span className="file-viewer-resolve-size">{formatFileSize(candidate.size)}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {directoryEntries.length > 0 && (
+            <div className="file-viewer-resolve-results">
+              <div className="file-viewer-resolve-header">
+                Directory contents ({directoryEntries.length} items):
+              </div>
+              <div className="file-viewer-resolve-list">
+                {directoryEntries.map((entry) => (
+                  <button
+                    key={entry.path}
+                    className="file-viewer-resolve-item"
+                    onClick={() => handleCandidateClick(entry)}
+                  >
+                    <span className="file-viewer-resolve-icon">{entry.isDirectory ? '\uD83D\uDCC1' : '\uD83D\uDCC4'}</span>
+                    <span className="file-viewer-resolve-info">
+                      <span className="file-viewer-resolve-name">{entry.name}</span>
+                      <span className="file-viewer-resolve-path">{entry.path}</span>
+                    </span>
+                    {!entry.isDirectory && entry.size > 0 && (
+                      <span className="file-viewer-resolve-size">{formatFileSize(entry.size)}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
 
           {fileData && !loading && !error && (

@@ -3,7 +3,7 @@
  * Groups results by type with category headers (IntelliJ-inspired)
  */
 
-import React, { forwardRef, useEffect, useMemo } from 'react';
+import React, { forwardRef, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { SearchResult } from './types';
 import { SpotlightItem } from './SpotlightItem';
@@ -16,13 +16,35 @@ interface SpotlightResultsProps {
   onSelectIndex: (index: number) => void;
 }
 
-const categoryOrder = ['command', 'agent', 'building', 'area', 'modified-file', 'activity'];
-
 export const SpotlightResults = forwardRef<HTMLDivElement, SpotlightResultsProps>(function SpotlightResults(
   { results, selectedIndex, query, highlightMatch, onSelectIndex },
   ref
 ) {
   const { t } = useTranslation(['terminal']);
+
+  // Track whether the mouse has intentionally moved since results appeared.
+  // This prevents the cursor's resting position from stealing selection on open.
+  const mouseHasMoved = useRef(false);
+
+  // Reset the flag whenever results change (new search or spotlight re-open)
+  useEffect(() => {
+    mouseHasMoved.current = false;
+  }, [results]);
+
+  // Listen for any mousemove on the results container to flip the flag
+  useEffect(() => {
+    const resolvedRef = typeof ref === 'function' ? null : ref?.current;
+    if (!resolvedRef) return;
+
+    const handleMouseMove = () => {
+      mouseHasMoved.current = true;
+    };
+
+    resolvedRef.addEventListener('mousemove', handleMouseMove);
+    return () => {
+      resolvedRef.removeEventListener('mousemove', handleMouseMove);
+    };
+  }, [ref, results]);
 
   // Category labels and grouping
   const categoryLabels: Record<string, string> = {
@@ -33,32 +55,31 @@ export const SpotlightResults = forwardRef<HTMLDivElement, SpotlightResultsProps
     'modified-file': t('terminal:spotlight.categories.modifiedFiles'),
     activity: t('terminal:spotlight.categories.recentActivity'),
   };
-  // Group results by category
+
+  // Group results by category, preserving the order from the results array.
+  // Results are already sorted by category order from useSpotlightSearch,
+  // so we just need to detect group boundaries for rendering headers.
   const groupedResults = useMemo(() => {
-    const grouped: Record<string, { result: SearchResult; index: number }[]> = {};
+    const groups: [string, { result: SearchResult; index: number }[]][] = [];
+    let currentCategory: string | null = null;
+    let currentItems: { result: SearchResult; index: number }[] = [];
 
     results.forEach((result, index) => {
-      if (!grouped[result.type]) {
-        grouped[result.type] = [];
+      if (result.type !== currentCategory) {
+        if (currentCategory !== null && currentItems.length > 0) {
+          groups.push([currentCategory, currentItems]);
+        }
+        currentCategory = result.type;
+        currentItems = [];
       }
-      grouped[result.type].push({ result, index });
+      currentItems.push({ result, index });
     });
 
-    // Sort groups by category order
-    const sorted: [string, { result: SearchResult; index: number }[]][] = [];
-    for (const category of categoryOrder) {
-      if (grouped[category]) {
-        sorted.push([category, grouped[category]]);
-      }
-    }
-    // Add any remaining categories not in the order
-    for (const category of Object.keys(grouped)) {
-      if (!categoryOrder.includes(category)) {
-        sorted.push([category, grouped[category]]);
-      }
+    if (currentCategory !== null && currentItems.length > 0) {
+      groups.push([currentCategory, currentItems]);
     }
 
-    return sorted;
+    return groups;
   }, [results]);
 
   // Scroll selected item into view
@@ -94,7 +115,7 @@ export const SpotlightResults = forwardRef<HTMLDivElement, SpotlightResultsProps
               query={query}
               highlightMatch={highlightMatch}
               onClick={() => result.action()}
-              onMouseEnter={() => onSelectIndex(index)}
+              onMouseEnter={() => { if (mouseHasMoved.current) onSelectIndex(index); }}
             />
           ))}
         </div>

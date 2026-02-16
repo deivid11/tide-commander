@@ -1,0 +1,223 @@
+asyncapi: 2.6.0
+info:
+  title: Tide Commander WebSocket API
+  version: 1.0.0
+  description: |
+    Real-time API exposed over WebSocket at `/ws`.
+
+    Authentication is required only when `AUTH_TOKEN` is set on server.
+    Supported authentication methods:
+    - Query: `ws://host:port/ws?token=...`
+    - Subprotocol: `Sec-WebSocket-Protocol: tide-auth, auth-<token>`
+
+    Message envelope for both directions:
+    - `type`: discriminator string
+    - `payload`: message-specific object
+servers:
+  local:
+    url: 127.0.0.1:6200
+    protocol: ws
+    description: Local development server
+    security:
+      - wsQueryToken: []
+channels:
+  /ws:
+    description: Bidirectional command/event stream
+    publish:
+      summary: Client to server messages
+      operationId: sendClientMessage
+      message:
+        $ref: '#/components/messages/ClientEnvelope'
+    subscribe:
+      summary: Server to client messages
+      operationId: receiveServerMessage
+      message:
+        $ref: '#/components/messages/ServerEnvelope'
+
+components:
+  securitySchemes:
+    wsQueryToken:
+      type: apiKey
+      in: query
+      name: token
+
+  messages:
+    ClientEnvelope:
+      name: ClientEnvelope
+      title: Client Message
+      contentType: application/json
+      payload:
+        type: object
+        required: [type]
+        properties:
+          type:
+            type: string
+            enum:
+              - spawn_agent
+              - send_command
+              - reattach_agent
+              - move_agent
+              - kill_agent
+              - stop_agent
+              - clear_context
+              - collapse_context
+              - create_directory
+              - remove_agent
+              - rename_agent
+              - update_agent_properties
+              - set_supervisor_config
+              - request_supervisor_report
+              - request_agent_supervisor_history
+              - sync_areas
+              - sync_buildings
+              - create_building
+              - update_building
+              - delete_building
+              - building_command
+              - pm2_logs_start
+              - pm2_logs_stop
+              - docker_logs_start
+              - docker_logs_stop
+              - docker_list_containers
+              - permission_response
+              - spawn_boss_agent
+              - assign_subordinates
+              - remove_subordinate
+              - send_boss_command
+              - request_delegation_history
+              - create_skill
+              - update_skill
+              - delete_skill
+              - assign_skill
+              - unassign_skill
+              - request_agent_skills
+              - create_custom_agent_class
+              - update_custom_agent_class
+              - delete_custom_agent_class
+              - request_context_stats
+              - approve_work_plan
+              - execute_work_plan
+              - pause_work_plan
+              - cancel_work_plan
+              - request_work_plans
+              - request_global_usage
+              - send_notification
+              - create_secret
+              - update_secret
+              - delete_secret
+              - boss_building_command
+              - assign_buildings
+              - boss_building_logs_start
+              - boss_building_logs_stop
+              - test_database_connection
+              - list_databases
+              - execute_query
+              - request_query_history
+              - toggle_query_favorite
+              - delete_query_history
+              - clear_query_history
+              - get_table_schema
+              - list_tables
+              - request_snapshots
+              - request_snapshot_details
+              - create_snapshot
+              - delete_snapshot
+              - restore_snapshot
+          payload:
+            type: object
+            additionalProperties: true
+            description: Message-type specific payload as defined in src/packages/shared/websocket-messages.ts
+
+    ServerEnvelope:
+      name: ServerEnvelope
+      title: Server Message
+      contentType: application/json
+      payload:
+        type: object
+        required: [type]
+        properties:
+          type:
+            type: string
+            enum:
+              - agents_update
+              - agent_created
+              - agent_updated
+              - agent_deleted
+              - event
+              - activity
+              - output
+              - error
+              - directory_not_found
+              - command_started
+              - session_updated
+              - supervisor_report
+              - supervisor_status
+              - narrative_update
+              - agent_supervisor_history
+              - agent_analysis
+              - areas_update
+              - buildings_update
+              - building_created
+              - building_updated
+              - building_deleted
+              - building_logs
+              - permission_request
+              - permission_resolved
+              - delegation_decision
+              - boss_subordinates_updated
+              - delegation_history
+              - boss_spawned_agent
+              - agent_task_started
+              - agent_task_output
+              - agent_task_completed
+              - skills_update
+              - skill_created
+              - skill_updated
+              - skill_deleted
+              - agent_skills
+              - custom_agent_classes_update
+              - custom_agent_class_created
+              - custom_agent_class_updated
+              - custom_agent_class_deleted
+              - context_stats
+              - work_plan_created
+              - work_plan_updated
+              - work_plan_deleted
+              - work_plans_update
+              - analysis_request_created
+              - analysis_request_completed
+              - global_usage
+              - agent_notification
+              - focus_agent
+              - exec_task_started
+              - exec_task_output
+              - exec_task_completed
+              - secrets_update
+              - secret_created
+              - secret_updated
+              - secret_deleted
+              - pm2_logs_chunk
+              - pm2_logs_streaming
+              - docker_logs_chunk
+              - docker_logs_streaming
+              - docker_containers_list
+              - boss_building_logs_chunk
+              - boss_building_subordinates_updated
+              - database_connection_result
+              - databases_list
+              - query_result
+              - query_history_update
+              - table_schema
+              - tables_list
+              - snapshots_update
+              - snapshot_created
+              - snapshot_deleted
+              - snapshot_details
+              - snapshot_restored
+              - subagent_started
+              - subagent_output
+              - subagent_completed
+          payload:
+            type: object
+            additionalProperties: true
+            description: Message-type specific payload as defined in src/packages/shared/websocket-messages.ts

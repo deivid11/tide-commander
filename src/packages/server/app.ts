@@ -12,6 +12,7 @@ import { fileURLToPath } from 'url';
 import routes from './routes/index.js';
 import { logger } from './utils/logger.js';
 import { authMiddleware, isAuthEnabled, getAuthTokenPreview } from './auth/index.js';
+import { recordRequestTiming } from './routes/perf.js';
 
 // Temp directory for uploads (same as in files.ts)
 const UPLOADS_DIR = path.join(os.tmpdir(), 'tide-commander-uploads');
@@ -39,9 +40,13 @@ export function createApp(): Express {
   app.use(cors());
   app.use(express.json({ limit: '50mb' })); // Increased for audio uploads (STT)
 
-  // Request logging
-  app.use((req: Request, _res: Response, next: NextFunction) => {
+  // Request logging & timing
+  app.use((req: Request, res: Response, next: NextFunction) => {
     logger.http.log(`${req.method} ${req.path}`);
+    const start = Date.now();
+    res.on('finish', () => {
+      recordRequestTiming(req.method, req.path, Date.now() - start);
+    });
     next();
   });
 

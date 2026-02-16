@@ -12,6 +12,7 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { fpsTracker, memory, perf } from '../utils/profiling';
 import { useAgentsArray } from '../store';
+import { apiUrl, authFetch } from '../utils/storage';
 
 interface FPSMeterProps {
   visible?: boolean;
@@ -44,8 +45,48 @@ interface MemoryHistory {
   textures: number;
 }
 
-// Only show in development
-const isDev = import.meta.env.DEV;
+interface ServerMetrics {
+  uptime: number;
+  process: {
+    heapUsedMB: number;
+    heapTotalMB: number;
+    rssMB: number;
+    externalMB: number;
+    cpuUser: number;
+    cpuSystem: number;
+  };
+  system: {
+    loadAvg: number[];
+    totalMemMB: number;
+    freeMemMB: number;
+    cpuCount: number;
+  };
+  agents: {
+    total: number;
+    working: number;
+    idle: number;
+    processes: Array<{
+      id: string;
+      name: string;
+      status: string;
+      memoryMB?: number;
+      pid?: number;
+    }>;
+  };
+  websocket: {
+    clients: number;
+    messagesSent: number;
+    messagesReceived: number;
+  };
+  http: {
+    recentRequests: number;
+    avgLatencyMs: number;
+    maxLatencyMs: number;
+    reqPerSec: number;
+  };
+}
+
+type PerfTab = 'fps' | 'memory' | 'threejs' | 'dom' | 'server' | 'http';
 
 export function FPSMeter({ visible = true, position = 'top-right' }: FPSMeterProps) {
   const [fps, setFps] = useState(0);
@@ -55,8 +96,9 @@ export function FPSMeter({ visible = true, position = 'top-right' }: FPSMeterPro
   const [threeJsStats, setThreeJsStats] = useState<ThreeJsStats | null>(null);
   const [growthRate, setGrowthRate] = useState<number | null>(null);
   const [expanded, setExpanded] = useState(false);
-  const [activeTab, setActiveTab] = useState<'fps' | 'memory' | 'threejs' | 'dom'>('fps');
+  const [activeTab, setActiveTab] = useState<PerfTab>('fps');
   const [domStats, setDomStats] = useState<DomStats | null>(null);
+  const [serverMetrics, setServerMetrics] = useState<ServerMetrics | null>(null);
   const [textureMemory, setTextureMemory] = useState<TextureMemoryEstimate | null>(null);
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
   const [baselineMemory, setBaselineMemory] = useState<number | null>(null);
@@ -99,8 +141,29 @@ export function FPSMeter({ visible = true, position = 'top-right' }: FPSMeterPro
     threeJsStatsRef.current = threeJsStats;
   }, [threeJsStats]);
 
+  // Poll server metrics (slower when collapsed, faster when expanded)
   useEffect(() => {
-    if (!isDev || !visible) return;
+    if (!visible) return;
+
+    const fetchServerMetrics = async () => {
+      try {
+        const res = await authFetch(apiUrl('/api/perf'));
+        if (res.ok) {
+          const data = await res.json();
+          setServerMetrics(data);
+        }
+      } catch {
+        // Server may be unreachable
+      }
+    };
+
+    fetchServerMetrics();
+    const intervalId = setInterval(fetchServerMetrics, expanded ? 3000 : 10000);
+    return () => clearInterval(intervalId);
+  }, [visible, expanded]);
+
+  useEffect(() => {
+    if (!visible) return;
 
     // Set baseline on mount
     const mem = memory.getUsage();
@@ -201,7 +264,16 @@ export function FPSMeter({ visible = true, position = 'top-right' }: FPSMeterPro
     };
   }, [visible, baselineMemory]);
 
-  if (!isDev || !visible) return null;
+  if (!visible) return null;
+
+  const formatUptime = (seconds: number) => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    if (h > 0) return `${h}h ${m}m`;
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
+  };
 
   const getFpsColor = (fps: number) => {
     if (fps >= 55) return '#4aff9e';
@@ -262,7 +334,10 @@ export function FPSMeter({ visible = true, position = 'top-right' }: FPSMeterPro
         padding: '6px 10px',
         color: '#fff',
         userSelect: 'none',
-        minWidth: expanded ? '220px' : '120px',
+        minWidth: expanded ? '260px' : '120px',
+        maxWidth: 'calc(100vw - 20px)',
+        maxHeight: expanded ? 'calc(100vh - 100px)' : 'auto',
+        overflowY: expanded ? 'auto' : 'visible',
         transition: 'all 0.2s ease',
       }}
     >
@@ -296,6 +371,16 @@ export function FPSMeter({ visible = true, position = 'top-right' }: FPSMeterPro
           </span>
         )}
 
+        {serverMetrics && (
+          <>
+            <span style={{ color: '#444' }}>|</span>
+            <span style={{ color: '#ff9e4a', fontWeight: 'bold' }}>
+              {serverMetrics.process.rssMB}
+            </span>
+            <span style={{ color: '#666', fontSize: '10px' }}>SRV</span>
+          </>
+        )}
+
         <span style={{ color: '#444', marginLeft: 'auto', fontSize: '10px' }}>
           {expanded ? '▼' : '▶'}
         </span>
@@ -305,11 +390,13 @@ export function FPSMeter({ visible = true, position = 'top-right' }: FPSMeterPro
       {expanded && (
         <div style={{ marginTop: '8px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '8px' }}>
           {/* Tab buttons */}
-          <div style={{ display: 'flex', gap: '4px', marginBottom: '8px' }}>
+          <div style={{ display: 'flex', gap: '4px', marginBottom: '8px', flexWrap: 'wrap' }}>
             <button style={tabStyle('fps')} onClick={() => setActiveTab('fps')}>FPS</button>
             <button style={tabStyle('memory')} onClick={() => setActiveTab('memory')}>Memory</button>
             <button style={tabStyle('threejs')} onClick={() => setActiveTab('threejs')}>3D</button>
             <button style={tabStyle('dom')} onClick={() => setActiveTab('dom')}>DOM</button>
+            <button style={tabStyle('server')} onClick={() => setActiveTab('server')}>Server</button>
+            <button style={tabStyle('http')} onClick={() => setActiveTab('http')}>HTTP</button>
           </div>
 
           {/* FPS Tab */}
@@ -579,6 +666,148 @@ export function FPSMeter({ visible = true, position = 'top-right' }: FPSMeterPro
             </div>
           )}
 
+          {/* Server Tab */}
+          {activeTab === 'server' && (
+            <div>
+              {serverMetrics ? (
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 10px', fontSize: '10px', marginBottom: '8px' }}>
+                    <span style={{ color: '#888' }}>Uptime:</span>
+                    <span style={{ color: '#4aff9e' }}>{formatUptime(serverMetrics.uptime)}</span>
+                    <span style={{ color: '#888' }}>Heap Used:</span>
+                    <span style={{ color: serverMetrics.process.heapUsedMB > 500 ? '#ff4a4a' : '#4aff9e' }}>
+                      {serverMetrics.process.heapUsedMB} MB
+                    </span>
+                    <span style={{ color: '#888' }}>Heap Total:</span>
+                    <span>{serverMetrics.process.heapTotalMB} MB</span>
+                    <span style={{ color: '#888' }}>RSS:</span>
+                    <span style={{ color: '#4a9eff' }}>{serverMetrics.process.rssMB} MB</span>
+                    <span style={{ color: '#888' }}>External:</span>
+                    <span>{serverMetrics.process.externalMB} MB</span>
+                  </div>
+
+                  {/* System stats */}
+                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '6px', marginBottom: '8px' }}>
+                    <div style={{ color: '#666', fontSize: '9px', marginBottom: '4px' }}>System:</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 10px', fontSize: '10px' }}>
+                      <span style={{ color: '#888' }}>Load Avg:</span>
+                      <span style={{ color: serverMetrics.system.loadAvg[0] > serverMetrics.system.cpuCount ? '#ff4a4a' : '#4aff9e' }}>
+                        {serverMetrics.system.loadAvg.join(' ')}
+                      </span>
+                      <span style={{ color: '#888' }}>CPUs:</span>
+                      <span>{serverMetrics.system.cpuCount}</span>
+                      <span style={{ color: '#888' }}>Sys Memory:</span>
+                      <span>
+                        {serverMetrics.system.totalMemMB - serverMetrics.system.freeMemMB} / {serverMetrics.system.totalMemMB} MB
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* WebSocket stats */}
+                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '6px', marginBottom: '8px' }}>
+                    <div style={{ color: '#666', fontSize: '9px', marginBottom: '4px' }}>WebSocket:</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 10px', fontSize: '10px' }}>
+                      <span style={{ color: '#888' }}>Clients:</span>
+                      <span style={{ color: '#4a9eff' }}>{serverMetrics.websocket.clients}</span>
+                      <span style={{ color: '#888' }}>Sent:</span>
+                      <span>{serverMetrics.websocket.messagesSent.toLocaleString()}</span>
+                      <span style={{ color: '#888' }}>Received:</span>
+                      <span>{serverMetrics.websocket.messagesReceived.toLocaleString()}</span>
+                    </div>
+                  </div>
+
+                  {/* Agent processes */}
+                  {serverMetrics.agents.total > 0 && (
+                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '6px' }}>
+                      <div style={{ color: '#666', fontSize: '9px', marginBottom: '4px' }}>
+                        Agents ({serverMetrics.agents.working}w / {serverMetrics.agents.idle}i / {serverMetrics.agents.total}t):
+                      </div>
+                      <div style={{ maxHeight: '80px', overflowY: 'auto', fontSize: '10px' }}>
+                        {serverMetrics.agents.processes.map((proc) => (
+                          <div key={proc.id} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1px' }}>
+                            <span style={{
+                              color: proc.status === 'working' ? '#4aff9e' : proc.status === 'idle' ? '#888' : '#ff4a4a',
+                              maxWidth: '100px',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}>
+                              {proc.name}
+                            </span>
+                            <span style={{ color: '#4a9eff' }}>
+                              {proc.memoryMB != null ? `${proc.memoryMB}MB` : '—'}
+                              {proc.pid ? ` (${proc.pid})` : ''}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div style={{ color: '#666', fontSize: '10px' }}>Loading server metrics...</div>
+              )}
+            </div>
+          )}
+
+          {/* HTTP Tab */}
+          {activeTab === 'http' && (
+            <div>
+              {serverMetrics ? (
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 10px', fontSize: '10px', marginBottom: '8px' }}>
+                    <span style={{ color: '#888' }}>Req/sec (30s):</span>
+                    <span style={{ color: '#4aff9e' }}>{serverMetrics.http.reqPerSec}</span>
+                    <span style={{ color: '#888' }}>Avg Latency:</span>
+                    <span style={{ color: serverMetrics.http.avgLatencyMs > 100 ? '#ff4a4a' : serverMetrics.http.avgLatencyMs > 50 ? '#ffcc00' : '#4aff9e' }}>
+                      {serverMetrics.http.avgLatencyMs} ms
+                    </span>
+                    <span style={{ color: '#888' }}>Max Latency:</span>
+                    <span style={{ color: serverMetrics.http.maxLatencyMs > 500 ? '#ff4a4a' : serverMetrics.http.maxLatencyMs > 200 ? '#ffcc00' : '#4aff9e' }}>
+                      {serverMetrics.http.maxLatencyMs} ms
+                    </span>
+                    <span style={{ color: '#888' }}>Recent Reqs:</span>
+                    <span>{serverMetrics.http.recentRequests}</span>
+                  </div>
+
+                  {/* Latency bar visualization */}
+                  <div style={{ marginBottom: '8px' }}>
+                    <div style={{ color: '#666', fontSize: '9px', marginBottom: '4px' }}>Avg Latency:</div>
+                    <div style={{ height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          height: '100%',
+                          width: `${Math.min(100, (serverMetrics.http.avgLatencyMs / 500) * 100)}%`,
+                          background: serverMetrics.http.avgLatencyMs > 100 ? '#ff4a4a' : serverMetrics.http.avgLatencyMs > 50 ? '#ffcc00' : '#4aff9e',
+                          transition: 'width 0.3s ease',
+                        }}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '8px', color: '#444', marginTop: '2px' }}>
+                      <span>0ms</span>
+                      <span>500ms</span>
+                    </div>
+                  </div>
+
+                  {/* Server process summary */}
+                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '6px' }}>
+                    <div style={{ color: '#666', fontSize: '9px', marginBottom: '4px' }}>Server Process:</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 10px', fontSize: '10px' }}>
+                      <span style={{ color: '#888' }}>CPU (user):</span>
+                      <span style={{ color: '#4a9eff' }}>{serverMetrics.process.cpuUser} ms</span>
+                      <span style={{ color: '#888' }}>CPU (system):</span>
+                      <span style={{ color: '#ff9e4a' }}>{serverMetrics.process.cpuSystem} ms</span>
+                      <span style={{ color: '#888' }}>WS Clients:</span>
+                      <span style={{ color: '#4aff9e' }}>{serverMetrics.websocket.clients}</span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div style={{ color: '#666', fontSize: '10px' }}>Loading HTTP metrics...</div>
+              )}
+            </div>
+          )}
+
           {/* Actions */}
           <div style={{ display: 'flex', gap: '4px', marginTop: '8px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '8px', flexWrap: 'wrap' }}>
             <button
@@ -651,6 +880,38 @@ export function FPSMeter({ visible = true, position = 'top-right' }: FPSMeterPro
                     `Est. DOM: ~${Math.round((domStats?.nodeCount ?? 0) * 0.5 / 1024)} MB`,
                     `Est. Total: ~${(memoryUsage?.usedMB ?? 0) + textureMemory.estimatedMB + Math.round((domStats?.nodeCount ?? 0) * 0.5 / 1024)} MB`,
                   );
+                }
+
+                if (serverMetrics) {
+                  lines.push(
+                    '',
+                    '--- Server ---',
+                    `Uptime: ${formatUptime(serverMetrics.uptime)}`,
+                    `Heap: ${serverMetrics.process.heapUsedMB}/${serverMetrics.process.heapTotalMB} MB`,
+                    `RSS: ${serverMetrics.process.rssMB} MB`,
+                    `Load Avg: ${serverMetrics.system.loadAvg.join(' ')}`,
+                    `System Memory: ${serverMetrics.system.totalMemMB - serverMetrics.system.freeMemMB}/${serverMetrics.system.totalMemMB} MB`,
+                    '',
+                    '--- WebSocket ---',
+                    `Clients: ${serverMetrics.websocket.clients}`,
+                    `Sent: ${serverMetrics.websocket.messagesSent}`,
+                    `Received: ${serverMetrics.websocket.messagesReceived}`,
+                    '',
+                    '--- HTTP ---',
+                    `Req/sec: ${serverMetrics.http.reqPerSec}`,
+                    `Avg Latency: ${serverMetrics.http.avgLatencyMs} ms`,
+                    `Max Latency: ${serverMetrics.http.maxLatencyMs} ms`,
+                  );
+                  if (serverMetrics.agents.processes.length > 0) {
+                    lines.push(
+                      '',
+                      '--- Agent Processes ---',
+                      `Total: ${serverMetrics.agents.total} (${serverMetrics.agents.working} working, ${serverMetrics.agents.idle} idle)`,
+                    );
+                    serverMetrics.agents.processes.forEach(p => {
+                      lines.push(`  ${p.name}: ${p.memoryMB != null ? `${p.memoryMB}MB` : 'N/A'} (${p.status})${p.pid ? ` PID:${p.pid}` : ''}`);
+                    });
+                  }
                 }
 
                 const statsText = lines.join('\n');

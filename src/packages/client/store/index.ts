@@ -111,6 +111,7 @@ export {
   useMobileView,
   useFileViewerPath,
   useFileViewerEditData,
+  useFileViewerSearchRoot,
   useExplorerFolderPath,
   useContextModalAgentId,
   useToolExecutions,
@@ -216,6 +217,7 @@ class Store
       shortcuts: this.loadShortcuts(),
       mouseControls: this.loadMouseControls(),
       fileViewerPath: null,
+      fileViewerSearchRoot: null,
       fileViewerEditData: null,
       explorerFolderPath: null,
       explorerAreaId: null as string | null,
@@ -511,16 +513,19 @@ class Store
 
   setFileViewerPath(
     path: string | null,
-    editData?: { oldString?: string; newString?: string; operation?: string; highlightRange?: { offset: number; limit: number }; targetLine?: number }
+    editData?: { oldString?: string; newString?: string; operation?: string; highlightRange?: { offset: number; limit: number }; targetLine?: number },
+    searchRoot?: string | null
   ): void {
     this.state.fileViewerPath = path;
     this.state.fileViewerEditData = editData || null;
+    this.state.fileViewerSearchRoot = searchRoot || null;
     this.notify();
   }
 
   clearFileViewerPath(): void {
     this.state.fileViewerPath = null;
     this.state.fileViewerEditData = null;
+    this.state.fileViewerSearchRoot = null;
     this.notify();
   }
 

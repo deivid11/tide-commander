@@ -17,6 +17,7 @@ import sttRouter from './stt.js';
 import voiceAssistantRouter from './voice-assistant.js';
 import snapshotsRouter from './snapshots.js';
 import areasRouter from './areas.js';
+import perfRouter from './perf.js';
 
 const router = Router();
 
@@ -37,6 +38,7 @@ router.use('/stt', sttRouter);
 router.use('/voice-assistant', voiceAssistantRouter);
 router.use('/snapshots', snapshotsRouter);
 router.use('/areas', areasRouter);
+router.use('/perf', perfRouter);
 // Config import/export routes - use raw body parser for ZIP file uploads
 router.use('/config', raw({ type: 'application/zip', limit: '100mb' }), configRouter);
 // Permission routes are mounted at root level since they're called as /api/permission-request

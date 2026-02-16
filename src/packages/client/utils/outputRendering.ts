@@ -324,11 +324,17 @@ const TIDE_FILE_LINK_SCHEME = 'tide-file://';
 const FILE_PATH_TOKEN_REGEX = /(^|[\s(>])((?:\.\.?\/|\/)?(?:[A-Za-z0-9._-]+\/)*[A-Za-z0-9._-]+(?:\.[A-Za-z0-9._-]+)+(?:#L\d+(?:C\d+)?)?(?::\d+(?::\d+)?)?)(?=$|[\s),.;])/g;
 const INLINE_CODE_FILE_PATH_REGEX = /`((?:\.\.?\/|\/)?(?:[A-Za-z0-9._-]+\/)*[A-Za-z0-9._-]+(?:\.[A-Za-z0-9._-]+)+(?:#L\d+(?:C\d+)?)?(?::\d+(?::\d+)?)?)`/g;
 
+// Common TLDs to distinguish URLs from file paths
+const URL_TLDS = /\.(com|org|net|io|dev|app|co|me|info|biz|us|uk|de|fr|jp|cn|ru|edu|gov|mil|int|xyz|tech|online|site|store|blog|cloud|ai|gg|tv|cc|sh|fm|to|ly|gl|so|is|it|at|nl|ch|se|no|fi|dk|be|cz|pl|pt|br|mx|ar|cl|in|au|nz|za|sg|hk|tw|kr|id|ph|th|vn|my)(?:[:/\s#?]|$)/i;
+
 function isLikelyFilePathToken(token: string): boolean {
   if (!token) return false;
   if (token.includes('://')) return false;
   if (token.startsWith('www.')) return false;
   if (token.includes('@')) return false;
+  // Exclude domain-like tokens (e.g. npmmirror.com, github.io/path)
+  const base = token.split('/')[0];
+  if (URL_TLDS.test(base)) return false;
   return token.includes('.') && !token.endsWith('.');
 }
 

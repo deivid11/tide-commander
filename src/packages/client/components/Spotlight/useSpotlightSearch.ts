@@ -14,6 +14,9 @@ import type { Agent, DrawingArea } from '../../../shared/types';
 import type { SearchResult, UseSpotlightSearchOptions, SpotlightSearchState } from './types';
 import { getFileIconFromPath, getAgentIcon } from './utils';
 
+// Category display order - must match SpotlightResults rendering
+const categoryOrder = ['command', 'agent', 'building', 'area', 'modified-file', 'activity'];
+
 export function useSpotlightSearch({
   isOpen,
   onClose,
@@ -446,6 +449,11 @@ export function useSpotlightSearch({
       // Show first few areas
       suggested.push(...areaResults.slice(0, 2));
 
+      // Sort by categoryOrder so the flat array index matches the visual render order.
+      const categoryIndex: Record<string, number> = {};
+      categoryOrder.forEach((cat, i) => { categoryIndex[cat] = i; });
+      suggested.sort((a, b) => (categoryIndex[a.type] ?? 999) - (categoryIndex[b.type] ?? 999));
+
       return suggested;
     }
 
@@ -576,6 +584,12 @@ export function useSpotlightSearch({
         finalResults.push(r.item);
       }
     }
+
+    // Sort by categoryOrder so the flat array index matches the visual render order.
+    // Stable sort preserves the relative order within each category.
+    const categoryIndex: Record<string, number> = {};
+    categoryOrder.forEach((cat, i) => { categoryIndex[cat] = i; });
+    finalResults.sort((a, b) => (categoryIndex[a.type] ?? 999) - (categoryIndex[b.type] ?? 999));
 
     return finalResults;
   }, [query, agentFuse, commandFuse, areaFuse, modifiedFileFuse, activityFuse, commands, agentResults, areaResults]);
