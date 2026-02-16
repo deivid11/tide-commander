@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.63.3] - 2026-02-16
+
+### Added
+- **CLI update check** - On start, status, and "already running" messages, the CLI checks npm registry for newer versions and notifies the user with upgrade instructions
+
 ## [0.63.2] - 2026-02-16
 
 ### Changed

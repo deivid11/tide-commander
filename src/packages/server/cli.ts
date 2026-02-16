@@ -298,7 +298,7 @@ function stopCommand(): number {
   return 0;
 }
 
-function statusCommand(): number {
+async function statusCommand(): Promise<number> {
   // ANSI color codes
   const cyan = '\x1b[36m';
   const green = '\x1b[32m';
@@ -333,6 +333,10 @@ function statusCommand(): number {
   console.log(`${green}✓ Running${reset} (PID: ${pid})`);
   console.log(`${blue}${bright}🚀 Access: ${url}${reset}`);
   console.log(`   Version: ${version}`);
+  const latestVer = await checkForUpdates(version);
+  if (latestVer) {
+    printUpdateNotice(latestVer);
+  }
   if (uptime) {
     console.log(`   Uptime: ${uptime}`);
   }
@@ -463,6 +467,35 @@ function getProcessUptime(pid: number): string | null {
   return null;
 }
 
+async function checkForUpdates(currentVersion: string): Promise<string | null> {
+  if (currentVersion === 'unknown') return null;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+    const res = await fetch('https://registry.npmjs.org/tide-commander/latest', {
+      signal: controller.signal,
+      headers: { 'Accept': 'application/json' },
+    });
+    clearTimeout(timeout);
+    if (!res.ok) return null;
+    const data = await res.json() as { version?: string };
+    if (data.version && data.version !== currentVersion) {
+      return data.version;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function printUpdateNotice(latestVersion: string): void {
+  const yellow = '\x1b[33m';
+  const bright = '\x1b[1m';
+  const reset = '\x1b[0m';
+  const dim = '\x1b[2m';
+  console.log(`${yellow}${bright}⬆  Update available: v${latestVersion}${reset} ${dim}(run: bunx tide-commander@latest)${reset}`);
+}
+
 function versionCommand(): void {
   try {
     const version = getPackageVersion();
@@ -490,7 +523,7 @@ async function main(): Promise<void> {
   }
 
   if (options.command === 'status') {
-    process.exit(statusCommand());
+    process.exit(await statusCommand());
   }
 
   if (options.command === 'logs') {
@@ -548,9 +581,15 @@ async function main(): Promise<void> {
     const blue = '\x1b[34m';
     const _green = '\x1b[32m';
 
+    const currentVer = getPackageVersion();
     console.log(`\n${cyan}${bright}🌊 Tide Commander${reset} ${dim}(already running, PID: ${existingPid})${reset}`);
     console.log(`${cyan}${'═'.repeat(60)}${reset}`);
     console.log(`${blue}${bright}🚀 Open: ${url}${reset}`);
+    console.log(`   Version: ${currentVer}`);
+    const latest = await checkForUpdates(currentVer);
+    if (latest) {
+      printUpdateNotice(latest);
+    }
     console.log(`${cyan}${'─'.repeat(60)}${reset}`);
     console.log(`${dim}Commands:${reset}`);
     console.log(`  ${yellow}tide-commander status${reset}    ${dim}Show server status & uptime${reset}`);
@@ -612,9 +651,14 @@ async function main(): Promise<void> {
 
     console.log(`\n${cyan}${bright}🌊 Tide Commander${reset}`);
     console.log(`${cyan}${'═'.repeat(60)}${reset}`);
+    const currentVersion = getPackageVersion();
     console.log(`${green}✓${reset} Started in background (PID: ${child.pid ?? 'unknown'})`);
     console.log(`${blue}${bright}🚀 Open: ${url}${reset}`);
-    console.log(`   Version: ${getPackageVersion()}`);
+    console.log(`   Version: ${currentVersion}`);
+    const latestVersion = await checkForUpdates(currentVersion);
+    if (latestVersion) {
+      printUpdateNotice(latestVersion);
+    }
     console.log(`${cyan}${'─'.repeat(60)}${reset}`);
     console.log(`${dim}Commands:${reset}`);
     console.log(`  ${yellow}tide-commander status${reset}    ${dim}Show server status & uptime${reset}`);
