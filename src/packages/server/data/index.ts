@@ -329,17 +329,31 @@ export function deleteSupervisorHistory(
 // Building Persistence
 // ============================================================================
 
+// Buildings cache to avoid reading from disk on every call
+let buildingsCache: Building[] | null = null;
+let buildingsCacheMtime: number = 0;
+
 /**
- * Load buildings from disk
+ * Load buildings from disk (cached, invalidated by file mtime)
  */
 export function loadBuildings(): Building[] {
   ensureDataDir();
 
   try {
     if (fs.existsSync(BUILDINGS_FILE)) {
+      const stat = fs.statSync(BUILDINGS_FILE);
+      const mtime = stat.mtimeMs;
+
+      // Return cached data if file hasn't changed
+      if (buildingsCache !== null && mtime === buildingsCacheMtime) {
+        return buildingsCache;
+      }
+
       const data = JSON.parse(fs.readFileSync(BUILDINGS_FILE, 'utf-8'));
-      log.log(` Loaded ${data.buildings?.length || 0} buildings from ${BUILDINGS_FILE}`);
-      return data.buildings || [];
+      buildingsCache = data.buildings || [];
+      buildingsCacheMtime = mtime;
+      log.log(` Loaded ${buildingsCache!.length} buildings from ${BUILDINGS_FILE}`);
+      return buildingsCache!;
     }
   } catch (err) {
     log.error(' Failed to load buildings:', err);
@@ -361,6 +375,9 @@ export function saveBuildings(buildings: Building[]): void {
       version: '1.0.0',
     };
     fs.writeFileSync(BUILDINGS_FILE, JSON.stringify(data, null, 2));
+    // Invalidate cache so next load picks up the new data
+    buildingsCache = buildings;
+    buildingsCacheMtime = fs.statSync(BUILDINGS_FILE).mtimeMs;
   } catch (err) {
     log.error(' Failed to save buildings:', err);
   }

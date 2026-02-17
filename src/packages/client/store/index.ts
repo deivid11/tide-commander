@@ -968,6 +968,8 @@ class Store
   getTableSchema(...args: Parameters<DatabaseActions['getTableSchema']>) { return this.databaseActions.getTableSchema(...args); }
   setTableSchema(...args: Parameters<DatabaseActions['setTableSchema']>) { return this.databaseActions.setTableSchema(...args); }
   executeQuery(...args: Parameters<DatabaseActions['executeQuery']>) { return this.databaseActions.executeQuery(...args); }
+  executeSilentQuery(...args: Parameters<DatabaseActions['executeSilentQuery']>) { return this.databaseActions.executeSilentQuery(...args); }
+  setSilentQueryResult(...args: Parameters<DatabaseActions['setSilentQueryResult']>) { return this.databaseActions.setSilentQueryResult(...args); }
   setQueryResult(...args: Parameters<DatabaseActions['setQueryResult']>) { return this.databaseActions.setQueryResult(...args); }
   setExecutingQuery(...args: Parameters<DatabaseActions['setExecutingQuery']>) { return this.databaseActions.setExecutingQuery(...args); }
   requestQueryHistory(...args: Parameters<DatabaseActions['requestQueryHistory']>) { return this.databaseActions.requestQueryHistory(...args); }

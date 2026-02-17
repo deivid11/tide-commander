@@ -870,6 +870,20 @@ export function handleServerMessage(message: ServerMessage): void {
       break;
     }
 
+    case 'silent_query_result': {
+      const { buildingId, query, requestId, success, affectedRows, error } = message.payload as {
+        buildingId: string;
+        query: string;
+        requestId?: string;
+        success: boolean;
+        affectedRows?: number;
+        error?: string;
+      };
+      store.setSilentQueryResult(buildingId, { query, requestId, success, affectedRows, error });
+      console.log(`[WebSocket] Silent query ${success ? 'succeeded' : 'failed'}: ${affectedRows ?? 0} affected rows`);
+      break;
+    }
+
     case 'query_history_update': {
       const { buildingId, history } = message.payload as {
         buildingId: string;

@@ -212,19 +212,18 @@ export const DatabasePanel: React.FC<DatabasePanelProps> = ({ building, onClose 
     store.requestQueryHistory(building.id);
   }, [building.id]);
 
-  // Handle Escape key to close the panel (when focus is within the panel)
+  // Handle Escape key to close the panel
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && panelRef.current && panelRef.current.contains(document.activeElement)) {
+      if (e.key === 'Escape') {
         e.preventDefault();
         e.stopPropagation();
-        e.stopImmediatePropagation();
         onClose();
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown, { capture: true });
-    return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
   // Save connection/database, queries, and tabs to localStorage when they change
@@ -339,6 +338,13 @@ export const DatabasePanel: React.FC<DatabasePanelProps> = ({ building, onClose 
           onConnectionChange={handleConnectionChange}
           onDatabaseChange={handleDatabaseChange}
           onInsertTable={(tableName) => setQuery(prev => prev + ` ${tableName}`)}
+          onSelectTableQuery={(tableName) => {
+            const sql = `SELECT * FROM ${tableName}`;
+            setQuery(sql);
+            if (activeConnectionId && activeDatabase) {
+              store.executeQuery(building.id, activeConnectionId, activeDatabase, sql);
+            }
+          }}
         />
 
         {/* Main Content */}
@@ -412,6 +418,7 @@ export const DatabasePanel: React.FC<DatabasePanelProps> = ({ building, onClose 
                 <ResultsTable
                   result={currentResult}
                   buildingId={building.id}
+                  building={building}
                 />
               ) : (
                 <div className="database-panel__empty">

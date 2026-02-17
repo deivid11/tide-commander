@@ -192,7 +192,6 @@
     align-items: center;
     gap: 4px;
     padding: 2px 6px;
-    cursor: pointer;
     line-height: 1.2;
 
     &:hover {
@@ -201,10 +200,19 @@
   }
 
   &__table-expand {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
     font-size: 0.6em;
     color: $text-secondary;
     width: 8px;
     flex-shrink: 0;
+    cursor: pointer;
+
+    &:hover {
+      color: $text-primary;
+    }
   }
 
   &__table-icon {
@@ -219,6 +227,12 @@
     overflow: hidden;
     text-overflow: ellipsis;
     line-height: 1.2;
+    cursor: pointer;
+
+    &--selected {
+      color: $accent-blue;
+      font-weight: 600;
+    }
   }
 
   &__table-insert {

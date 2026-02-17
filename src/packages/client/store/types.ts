@@ -276,6 +276,15 @@ export interface DatabaseBuildingState {
   // Active connection and database
   activeConnectionId: string | null;
   activeDatabase: string | null;
+  // Result of most recent silent query execution (for cell updates)
+  lastSilentQueryResult: {
+    query: string;
+    requestId?: string;
+    success: boolean;
+    affectedRows?: number;
+    error?: string;
+    timestamp: number;
+  } | null;
 }
 
 // Store listener type
