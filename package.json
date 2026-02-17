@@ -1,7 +1,11 @@
 {
   "name": "tide-commander",
-  "version": "0.65.5",
+  "version": "0.65.6",
   "description": "Visual multi-agent orchestrator and manager for Claude Code with 3D/2D interface",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/deivid11/tide-commander"
+  },
   "type": "module",
   "bin": {
     "tide-commander": "./dist/src/packages/server/cli.js"
