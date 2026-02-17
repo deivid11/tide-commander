@@ -302,6 +302,15 @@ export function encodeProjectPath(cwd: string): string {
   // Normalize: remove trailing slashes, then replace / and _ with -
   // Claude Code encodes both forward slashes and underscores as hyphens
   const normalized = cwd.replace(/\/+$/, '');
+
+  // On Windows, convert backslashes to forward slashes before encoding
+  // This ensures E:\Projects\tide-commander becomes E:/Projects/tide-commander
+  // which then encodes to E--Projects-tide-commander
+  if (process.platform === 'win32') {
+    const windowsNormalized = normalized.replace(/\\/g, '/');
+    return windowsNormalized.replace(/[/:_]/g, '-');
+  }
+
   return normalized.replace(/[/_]/g, '-');
 }
 
