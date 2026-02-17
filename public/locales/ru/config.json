@@ -15,7 +15,8 @@
     "data": "Данные",
     "experimental": "Экспериментальные",
     "about": "О программе",
-    "sky": "Цвет неба"
+    "sky": "Цвет неба",
+    "systemPrompt": "System Prompt"
   },
   "general": {
     "history": "История",
@@ -300,5 +301,19 @@
     "clickToChange": "Нажмите для изменения сочетания",
     "clearShortcut": "Очистить сочетание",
     "conflictsWith": "Конфликтует с: {{names}}"
+  },
+  "systemPrompt": {
+    "title": "Global System Prompt",
+    "description": "Add global instructions that apply to all agents. This appears after Tide Commander base rules but before agent-specific instructions.",
+    "editPrompt": "Edit System Prompt",
+    "save": "Save Prompt",
+    "reset": "Reset Changes",
+    "clear": "Clear Prompt",
+    "characters": "characters",
+    "saved": "System prompt saved successfully. It will apply to all new agent sessions.",
+    "cleared": "System prompt cleared successfully.",
+    "hint": "This prompt will be inserted into the system instructions for all agents.",
+    "placeholder": "Enter your global system prompt here...\n\nExamples:\n- Coding style guidelines\n- Team communication rules\n- Project-wide conventions\n- Security best practices",
+    "confirmClear": "Are you sure you want to clear the system prompt?"
   }
 }

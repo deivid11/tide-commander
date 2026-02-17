@@ -8,6 +8,7 @@ import { CollapsibleSection } from './CollapsibleSection';
 import { SecretsSection } from './SecretsSection';
 import { DataSection } from './DataSection';
 import { AboutSection, ThemeSelector } from './AboutSection';
+import { SystemPromptModal } from '../SystemPromptModal';
 import { BUILTIN_AGENT_NAMES } from '../../scene/config';
 import type {
   SceneConfig,
@@ -183,6 +184,7 @@ const SETTINGS_SECTIONS = [
   { id: 'modelStyle', title: 'Agent Model Style', keywords: ['saturation', 'roughness', 'metalness', 'glow', 'emissive', 'reflections', 'wireframe', 'color mode', 'material', 'shader'] },
   { id: 'animations', title: 'Animations', keywords: ['idle', 'working', 'animation', 'walk', 'run', 'sprint', 'jump', 'sit', 'crouch'] },
   { id: 'secrets', title: 'Secrets', keywords: ['secrets', 'api', 'key', 'password', 'credentials', 'env', 'environment'] },
+  { id: 'systemPrompt', title: 'System Prompt', keywords: ['system', 'prompt', 'global', 'instructions', 'ai', 'agent', 'rules', 'guidelines'] },
   { id: 'data', title: 'Data', keywords: ['export', 'import', 'backup', 'restore', 'save', 'load', 'json'] },
   { id: 'experimental', title: 'Experimental', keywords: ['experimental', '2d', 'view', 'voice', 'assistant', 'speech', 'tts', 'text to speech'] },
   { id: 'about', title: 'About', keywords: ['about', 'version', 'update', 'credits', 'github', 'releases'] },
@@ -212,6 +214,7 @@ export function ConfigSection({ config, onChange, searchQuery = '' }: ConfigSect
   const [authTokenDirty, setAuthTokenDirty] = useState(false);
   const [showToken, setShowToken] = useState(false);
   const [newAgentName, setNewAgentName] = useState('');
+  const [isSystemPromptModalOpen, setIsSystemPromptModalOpen] = useState(false);
 
   // Translate option arrays at render time
   const tTimeOpts = TIME_MODE_OPTIONS.map(opt => ({ ...opt, label: t(`config:time.${opt.value}`) }));
@@ -305,6 +308,7 @@ export function ConfigSection({ config, onChange, searchQuery = '' }: ConfigSect
   const isSearching = searchQuery.trim().length > 0;
 
   return (
+    <>
     <div className="config-section">
       {matchingSections && matchingSections.length === 0 && (
         <div className="config-no-results">
@@ -537,6 +541,20 @@ export function ConfigSection({ config, onChange, searchQuery = '' }: ConfigSect
       </CollapsibleSection>
       )}
 
+      {shouldShowSection('systemPrompt') && (
+      <CollapsibleSection title={t('config:sections.systemPrompt')} storageKey="systemPrompt" defaultOpen={false} forceOpen={isSearching && shouldShowSection('systemPrompt')}>
+        <div className="config-row">
+          <span className="config-label"><HighlightText text={t('config:systemPrompt.title')} query={searchQuery} /></span>
+          <button
+            className="config-button"
+            onClick={() => setIsSystemPromptModalOpen(true)}
+          >
+            {t('config:systemPrompt.editPrompt')}
+          </button>
+        </div>
+      </CollapsibleSection>
+      )}
+
       {shouldShowSection('data') && (
       <CollapsibleSection title={t('config:sections.data')} storageKey="data" defaultOpen={false} forceOpen={isSearching && shouldShowSection('data')}>
         <DataSection />
@@ -567,5 +585,11 @@ export function ConfigSection({ config, onChange, searchQuery = '' }: ConfigSect
       </CollapsibleSection>
       )}
     </div>
+
+    <SystemPromptModal
+      isOpen={isSystemPromptModalOpen}
+      onClose={() => setIsSystemPromptModalOpen(false)}
+    />
+    </>
   );
 }

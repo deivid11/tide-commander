@@ -15,7 +15,8 @@
     "data": "Dati",
     "experimental": "Sperimentale",
     "about": "Informazioni",
-    "sky": "Colore cielo"
+    "sky": "Colore cielo",
+    "systemPrompt": "System Prompt"
   },
   "general": {
     "history": "Cronologia",
@@ -85,7 +86,7 @@
   },
   "terrainSettings": {
     "fog": "Nebbia",
-    "brightness": "Luminosit\u00e0",
+    "brightness": "Luminosità",
     "floor": "Pavimento",
     "sky": "Cielo"
   },
@@ -109,11 +110,11 @@
     "crouch": "Accovacciato",
     "sit": "Seduto",
     "die": "Morire",
-    "yes": "S\u00ec",
+    "yes": "Sì",
     "no": "No"
   },
   "animationSettings": {
-    "idle": "Animazione inattivit\u00e0",
+    "idle": "Animazione inattività",
     "working": "Animazione lavoro"
   },
   "colorMode": {
@@ -136,18 +137,18 @@
   },
   "modelStyle": {
     "scale": "Scala",
-    "colorMode": "Modalit\u00e0 colore",
+    "colorMode": "Modalità colore",
     "animation": "Animazione",
-    "speed": "Velocit\u00e0"
+    "speed": "Velocità"
   },
   "modelStyleSettings": {
     "saturation": "Saturazione",
-    "roughness": "Rugosit\u00e0",
-    "metalness": "Metallicit\u00e0",
+    "roughness": "Rugosità",
+    "metalness": "Metallicità",
     "glow": "Bagliore",
     "reflections": "Riflessi",
     "wireframe": "Wireframe",
-    "colorMode": "Modalit\u00e0 colore"
+    "colorMode": "Modalità colore"
   },
   "saturationValues": {
     "gray": "Grigio",
@@ -179,10 +180,10 @@
     "high": "Alto"
   },
   "experimental": {
-    "2dView": "Modalit\u00e0 vista 2D",
+    "2dView": "Modalità vista 2D",
     "voiceAssistant": "Assistente vocale",
     "tts": "Sintesi vocale",
-    "hint": "Queste funzionalit\u00e0 sono sperimentali e potrebbero cambiare"
+    "hint": "Queste funzionalità sono sperimentali e potrebbero cambiare"
   },
   "areas": {
     "title": "Aree ({{count}})",
@@ -300,5 +301,19 @@
     "clickToChange": "Clicca per cambiare la scorciatoia",
     "clearShortcut": "Cancella scorciatoia",
     "conflictsWith": "In conflitto con: {{names}}"
+  },
+  "systemPrompt": {
+    "title": "Global System Prompt",
+    "description": "Add global instructions that apply to all agents. This appears after Tide Commander base rules but before agent-specific instructions.",
+    "editPrompt": "Edit System Prompt",
+    "save": "Save Prompt",
+    "reset": "Reset Changes",
+    "clear": "Clear Prompt",
+    "characters": "characters",
+    "saved": "System prompt saved successfully. It will apply to all new agent sessions.",
+    "cleared": "System prompt cleared successfully.",
+    "hint": "This prompt will be inserted into the system instructions for all agents.",
+    "placeholder": "Enter your global system prompt here...\n\nExamples:\n- Coding style guidelines\n- Team communication rules\n- Project-wide conventions\n- Security best practices",
+    "confirmClear": "Are you sure you want to clear the system prompt?"
   }
 }

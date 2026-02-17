@@ -569,6 +569,22 @@
 }
 
 // =============================================================================
+// TodoWrite Tool Input - Inline on "Using tool:" line
+// =============================================================================
+
+.output-todo-inline {
+  flex-wrap: wrap;
+
+  .todo-tool-input {
+    flex-basis: 100%;
+    margin-top: 4px;
+    border: 1px solid rgba($border-color, 0.5);
+    border-radius: $radius-sm;
+    overflow: hidden;
+  }
+}
+
+// =============================================================================
 // TodoWrite Tool Input - Checklist View
 // =============================================================================
 

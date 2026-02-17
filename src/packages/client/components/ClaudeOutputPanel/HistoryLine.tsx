@@ -316,6 +316,19 @@ export const HistoryLine = memo(function HistoryLine({
         }
       }
 
+      // Special case: TodoWrite renders the formatted checklist inline
+      if (toolName === 'TodoWrite' && content) {
+        return (
+          <div className={`output-line output-tool-use output-tool-simple output-todo-inline`}>
+            {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+            {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+            <span className="output-tool-icon">{icon}</span>
+            <span className="output-tool-name">{displayToolName}</span>
+            <TodoWriteInput content={content} />
+          </div>
+        );
+      }
+
       return (
         <>
           <div

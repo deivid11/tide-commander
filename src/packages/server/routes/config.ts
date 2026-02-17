@@ -106,6 +106,13 @@ const CONFIG_CATEGORIES: ConfigCategory[] = [
     files: ['secrets.json'],
     sourceDir: 'data',
   },
+  {
+    id: 'system-settings',
+    name: 'System Settings',
+    description: 'Global system prompt and settings',
+    files: ['system-prompt.json'],
+    sourceDir: 'data',
+  },
 ];
 
 /**
