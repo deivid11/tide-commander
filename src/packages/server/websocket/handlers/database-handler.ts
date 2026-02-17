@@ -186,6 +186,7 @@ export async function handleExecuteQuery(
     const result = await databaseService.executeQuery(connection, database, query, limit);
     const metric = result.affectedRows ?? result.rowCount ?? 0;
     const metricLabel = result.affectedRows !== undefined ? 'affectedRows' : 'rowCount';
+    const isSuccess = result.status === 'success';
     log.log(
       `Query execution complete status=${result.status} duration=${result.duration}ms ${metricLabel}=${metric}${isSilent ? ' (result not sent to UI)' : ''}`
     );
@@ -195,17 +196,21 @@ export async function handleExecuteQuery(
 
     // If silent mode, don't send result back to UI
     if (isSilent) {
+      if (!isSuccess) {
+        log.warn(`Silent execution failed: ${result.error ?? 'Unknown error'}`);
+      }
       ctx.sendToClient({
         type: 'silent_query_result',
         payload: {
           buildingId,
           query,
           requestId,
-          success: true,
-          affectedRows: result.affectedRows,
+          success: isSuccess,
+          affectedRows: isSuccess ? result.affectedRows : undefined,
+          error: !isSuccess ? (result.error ?? 'Unknown error') : undefined,
         },
       });
-      log.log('Silent execution completed - sent silent_query_result');
+      log.log(`Silent execution completed - sent silent_query_result status=${isSuccess ? 'success' : 'error'}`);
       return;
     }
 

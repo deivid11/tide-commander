@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.65.1] - 2026-02-17
+
+### Fixed
+- **Silent query error handling** - Silent query results now correctly report failure status instead of always returning `success: true`, with proper error messages and conditional `affectedRows`
+
 ## [0.65.0] - 2026-02-17
 
 ### Added
