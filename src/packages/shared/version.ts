@@ -83,7 +83,7 @@ export function getVersionRelation(currentVersion: string, latestVersion: string
 }
 
 export async function fetchLatestNpmVersion(packageName: string, options: CheckOptions = {}): Promise<string | null> {
-  const { timeoutMs = 3000, fetchImpl = fetch } = options;
+  const { timeoutMs = 5000, fetchImpl = fetch } = options;
 
   try {
     const controller = new AbortController();
@@ -104,7 +104,8 @@ export async function fetchLatestNpmVersion(packageName: string, options: CheckO
 
     const data = await response.json() as { version?: unknown };
     return typeof data.version === 'string' ? data.version : null;
-  } catch {
+  } catch (error) {
+    // Silently fail - npm version check is not critical
     return null;
   }
 }
