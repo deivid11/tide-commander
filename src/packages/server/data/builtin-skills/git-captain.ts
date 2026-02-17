@@ -16,6 +16,7 @@ A comprehensive Git workflow skill for version management, changelogs, tagging, 
 3. **Always verify** the current branch before operations
 4. **Always show diffs** before committing
 5. **Keep changelogs organized** and human-readable
+6. **NEVER add Co-Authored-By trailers** to commits - commits are purely yours, no AI attribution
 
 ---
 
@@ -131,9 +132,7 @@ git add -A  # or specific files
 git commit -m "chore(release): v<VERSION>
 
 - Summary of main changes
-- Another change
-
-Co-Authored-By: Claude <noreply@anthropic.com>"
+- Another change"
 \`\`\`
 
 ### Step 8: Create Tag

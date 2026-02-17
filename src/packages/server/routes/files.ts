@@ -118,8 +118,32 @@ router.get('/resolve', async (req: Request, res: Response) => {
     const basename = path.basename(filename);
     const hasPathSeparator = filename.includes('/');
 
-    // Search for files matching the basename
-    searchFiles(searchRoot, basename, results, 20);
+    // Check well-known locations first (e.g., .claude/ directory for config files)
+    const wellKnownPaths = [
+      path.join(searchRoot, '.claude', basename),
+    ];
+    for (const wkPath of wellKnownPaths) {
+      try {
+        if (fs.existsSync(wkPath)) {
+          const stats = fs.statSync(wkPath);
+          results.push({
+            name: path.basename(wkPath),
+            path: wkPath,
+            isDirectory: stats.isDirectory(),
+            size: stats.size,
+            extension: stats.isDirectory() ? '' : path.extname(wkPath).toLowerCase(),
+          });
+        }
+      } catch { /* skip */ }
+    }
+
+    // Search for files matching the basename (searchFiles may re-find .claude/ files)
+    const existingPaths = new Set(results.map(r => r.path));
+    const searchResults: TreeNode[] = [];
+    searchFiles(searchRoot, basename, searchResults, 20);
+    for (const r of searchResults) {
+      if (!existingPaths.has(r.path)) results.push(r);
+    }
 
     // If the query had path segments (e.g. "components/App.tsx"), rank results
     // that contain the full partial path higher
@@ -609,8 +633,8 @@ function searchFiles(dirPath: string, query: string, results: TreeNode[], maxRes
     for (const entry of entries) {
       if (results.length >= maxResults) break;
 
-      // Skip hidden and common non-essential
-      if (entry.name.startsWith('.')) continue;
+      // Skip hidden directories (except .claude which is a config location) and common non-essential
+      if (entry.name.startsWith('.') && entry.name !== '.claude') continue;
       if (['node_modules', 'dist', '.git', '__pycache__', 'venv', '.venv'].includes(entry.name)) continue;
 
       const fullPath = path.join(dirPath, entry.name);

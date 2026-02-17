@@ -209,8 +209,29 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       if (Array.isArray(questions) && questions[0]?.question) {
         toolKeyParamOrFallback = questions[0].question;
       }
+    } else if (payloadToolName === 'Task' && typeof input.description === 'string') {
+      const desc = input.description as string;
+      const agentType = input.subagent_type as string | undefined;
+      toolKeyParamOrFallback = agentType ? `[${agentType}] ${desc}` : desc;
+    } else if (payloadToolName === 'ExitPlanMode' || payloadToolName === 'EnterPlanMode') {
+      const prompts = input.allowedPrompts as Array<{ tool?: string; prompt?: string }> | undefined;
+      if (Array.isArray(prompts) && prompts.length > 0) {
+        toolKeyParamOrFallback = prompts.map(p => p.prompt || p.tool || '').filter(Boolean).join(', ');
+      } else {
+        toolKeyParamOrFallback = payloadToolName === 'ExitPlanMode' ? 'Plan ready' : 'Entering plan mode';
+      }
+    } else if (payloadToolName === 'TodoWrite' && Array.isArray(input.todos)) {
+      const todos = input.todos as Array<{ status?: string }>;
+      const done = todos.filter(t => t.status === 'completed').length;
+      const active = todos.filter(t => t.status === 'in_progress').length;
+      const pending = todos.filter(t => t.status === 'pending').length;
+      const parts: string[] = [];
+      if (done > 0) parts.push(`${done} done`);
+      if (active > 0) parts.push(`${active} active`);
+      if (pending > 0) parts.push(`${pending} pending`);
+      toolKeyParamOrFallback = `${todos.length} items (${parts.join(', ')})`;
     } else {
-      toolKeyParamOrFallback = (input.file_path || input.path || input.notebook_path || input.command || input.pattern || input.url || input.query) as string;
+      toolKeyParamOrFallback = (input.file_path || input.path || input.notebook_path || input.command || input.pattern || input.url || input.query || input.description) as string;
       // Fallback: JSON serialize for any unrecognized tool inputs
       if (!toolKeyParamOrFallback) {
         try {
@@ -320,11 +341,21 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     const displayToolName = getLocalizedToolName(toolName, t);
     const icon = TOOL_ICONS[toolName] || TOOL_ICONS.default;
 
-    // Special case: TodoWrite shows the task list inline in simple view
-    if (toolName === 'TodoWrite' && _todoInput) {
+    // Special case: TodoWrite shows the task list inline
+    // Try _todoInput (look-ahead), then payloadToolInput (real-time WebSocket payload)
+    const todoContent = _todoInput || (
+      toolName === 'TodoWrite' && payloadToolInput && typeof payloadToolInput === 'object' && Array.isArray((payloadToolInput as Record<string, unknown>).todos)
+        ? JSON.stringify(payloadToolInput)
+        : undefined
+    );
+    if (toolName === 'TodoWrite' && todoContent) {
       return (
         <div className={`output-line output-tool-use output-todo-inline ${isStreaming ? 'output-streaming' : ''}`}>
-          <TodoWriteInput content={_todoInput} />
+          <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
+          {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+          <span className="output-tool-icon">{icon}</span>
+          <span className="output-tool-name">{displayToolName}</span>
+          <TodoWriteInput content={todoContent} />
         </div>
       );
     }

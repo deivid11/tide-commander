@@ -13,6 +13,7 @@ import { getClaudeProjectDir } from '../data/index.js';
 // Session listing is done inline for performance
 import { createLogger } from '../utils/logger.js';
 import { buildCustomAgentConfig } from '../websocket/handlers/command-handler.js';
+import { getSystemPrompt, setSystemPrompt, clearSystemPrompt } from '../services/system-prompt-service.js';
 
 const log = createLogger('Routes');
 
@@ -478,6 +479,63 @@ router.post('/:id/message', async (req: Request<{ id: string }>, res: Response) 
     });
   } catch (err: any) {
     log.error(' Failed to send message to agent:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================================
+// System Settings Routes
+// ============================================================================
+
+// GET /api/system-settings/prompt - Get the current system prompt
+router.get('/system-settings/prompt', (_req: Request, res: Response) => {
+  try {
+    const prompt = getSystemPrompt();
+    res.json({ prompt });
+  } catch (err: any) {
+    log.error(' Failed to get system prompt:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/system-settings/prompt - Update the system prompt
+router.post('/system-settings/prompt', (req: Request, res: Response) => {
+  try {
+    const { prompt } = req.body;
+
+    if (typeof prompt !== 'string') {
+      res.status(400).json({ error: 'Prompt must be a string' });
+      return;
+    }
+
+    setSystemPrompt(prompt);
+
+    log.log(` System prompt updated (${prompt.length} chars)`);
+
+    res.json({
+      success: true,
+      message: 'System prompt updated successfully',
+      length: prompt.length
+    });
+  } catch (err: any) {
+    log.error(' Failed to set system prompt:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/system-settings/prompt - Clear the system prompt
+router.delete('/system-settings/prompt', (_req: Request, res: Response) => {
+  try {
+    clearSystemPrompt();
+
+    log.log(` System prompt cleared`);
+
+    res.json({
+      success: true,
+      message: 'System prompt cleared successfully'
+    });
+  } catch (err: any) {
+    log.error(' Failed to clear system prompt:', err);
     res.status(500).json({ error: err.message });
   }
 });

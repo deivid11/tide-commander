@@ -188,20 +188,36 @@ export function extractToolKeyParam(toolName: string, inputJson: string): string
         break;
       }
       case 'Task': {
-        const desc = input.description || input.prompt;
+        const desc = input.description;
+        const agentType = input.subagent_type;
         if (desc) {
-          return desc; // Full description
+          return agentType ? `[${agentType}] ${desc}` : desc;
+        }
+        if (input.prompt) {
+          return input.prompt;
         }
         break;
+      }
+      case 'ExitPlanMode':
+      case 'EnterPlanMode': {
+        const prompts = input.allowedPrompts;
+        if (Array.isArray(prompts) && prompts.length > 0) {
+          return prompts.map((p: { tool?: string; prompt?: string }) => p.prompt || p.tool || '').filter(Boolean).join(', ');
+        }
+        return toolName === 'ExitPlanMode' ? 'Plan ready' : 'Entering plan mode';
       }
       case 'TodoWrite': {
         const todos = input.todos;
         if (Array.isArray(todos) && todos.length > 0) {
-          // Show ALL task titles with status indicators - no truncation
-          const previews = todos.map((t: { content?: string; status?: string }) =>
-            `${getTodoStatusIcon(t.status || 'pending')} ${t.content || ''}`
-          );
-          return previews.join('\n');
+          // Return summary for text fallback (component rendering preferred)
+          const done = todos.filter((t: { status?: string }) => t.status === 'completed').length;
+          const active = todos.filter((t: { status?: string }) => t.status === 'in_progress').length;
+          const pending = todos.filter((t: { status?: string }) => t.status === 'pending').length;
+          const parts: string[] = [];
+          if (done > 0) parts.push(`${done} done`);
+          if (active > 0) parts.push(`${active} active`);
+          if (pending > 0) parts.push(`${pending} pending`);
+          return `${todos.length} items (${parts.join(', ')})`;
         }
         break;
       }

@@ -786,3 +786,24 @@
     color: $text-secondary;
   }
 }
+
+.config-button {
+  background: rgba($dracula-purple, 0.2);
+  border: 1px solid rgba($dracula-purple, 0.4);
+  color: $dracula-purple;
+  padding: 4px 12px;
+  font-size: 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all $transition-fast;
+  flex-shrink: 0;
+
+  &:hover {
+    background: rgba($dracula-purple, 0.3);
+    border-color: rgba($dracula-purple, 0.6);
+  }
+
+  &:active {
+    transform: scale(0.98);
+  }
+}

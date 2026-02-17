@@ -14,6 +14,7 @@ import type {
 } from './types.js';
 import { createLogger, sanitizeUnicode } from '../utils/index.js';
 import { TIDE_COMMANDER_APPENDED_PROMPT } from '../prompts/tide-commander.js';
+import { getSystemPrompt } from '../services/system-prompt-service.js';
 
 const log = createLogger('Backend');
 
@@ -42,6 +43,14 @@ function buildAppendedProjectInstructions(config: BackendConfig): string {
     '## CLAUDE.md / Project instructions — Tide Commander-specific rules',
     TIDE_COMMANDER_APPENDED_PROMPT,
   ];
+
+  const systemLevelPrompt = getSystemPrompt().trim();
+  if (systemLevelPrompt) {
+    sections.push(
+      '## System-Level Custom Prompt',
+      systemLevelPrompt
+    );
+  }
 
   const customPrompt = config.customAgent?.definition?.prompt?.trim();
   if (customPrompt) {
