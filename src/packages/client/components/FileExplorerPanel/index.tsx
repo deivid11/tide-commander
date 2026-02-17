@@ -43,9 +43,18 @@ import { FileTabs } from './FileTabs';
 import { BranchWidget } from './BranchWidget';
 import { ConflictResolver } from './ConflictResolver';
 import { BranchComparison } from './BranchComparison';
+import { ContextMenu } from '../ContextMenu';
+import type { ContextMenuAction } from '../ContextMenu';
 
 // Constants
 import { EXTENSION_TO_LANGUAGE } from './constants';
+
+interface RenameDialogState {
+  isOpen: boolean;
+  node: TreeNode | null;
+  value: string;
+  submitting: boolean;
+}
 
 // ============================================================================
 // MAIN COMPONENT
@@ -129,6 +138,8 @@ export function FileExplorerPanel({
     loading: treeLoading,
     expandedPaths,
     loadTree,
+    reloadDirectory,
+    renamePathInTree,
     togglePath,
     expandToPath,
     setExpandedPaths,
@@ -184,6 +195,22 @@ export function FileExplorerPanel({
   const [treePanelCollapsed, setTreePanelCollapsed] = useState(false);
   const [stagingPaths, setStagingPaths] = useState<Set<string>>(new Set());
   const [isFileSearchActive, setIsFileSearchActive] = useState(false);
+  const [fileTreeContextMenu, setFileTreeContextMenu] = useState<{
+    isOpen: boolean;
+    position: { x: number; y: number };
+    node: TreeNode;
+  } | null>(null);
+  const [fileClipboard, setFileClipboard] = useState<{
+    sourcePath: string;
+    isDirectory: boolean;
+    name: string;
+  } | null>(null);
+  const [renameDialog, setRenameDialog] = useState<RenameDialogState>({
+    isOpen: false,
+    node: null,
+    value: '',
+    submitting: false,
+  });
 
   // File tabs state
   const [openTabs, setOpenTabs] = useState<FileTab[]>([]);
@@ -208,6 +235,7 @@ export function FileExplorerPanel({
   // -------------------------------------------------------------------------
 
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const renameInputRef = useRef<HTMLInputElement>(null);
 
   // -------------------------------------------------------------------------
   // STORAGE PERSISTENCE
@@ -288,6 +316,15 @@ export function FileExplorerPanel({
   useEffect(() => {
     setHasRestoredState(false);
   }, [areaId, folderPath]);
+
+  useEffect(() => {
+    if (!renameDialog.isOpen) return;
+    const timer = window.setTimeout(() => {
+      renameInputRef.current?.focus();
+      renameInputRef.current?.select();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [renameDialog.isOpen]);
 
   // -------------------------------------------------------------------------
   // SEARCH
@@ -425,6 +462,15 @@ export function FileExplorerPanel({
       }
 
       if (e.key === 'Escape') {
+        if (renameDialog.isOpen) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (!renameDialog.submitting) {
+            setRenameDialog({ isOpen: false, node: null, value: '', submitting: false });
+          }
+          return;
+        }
+
         // If search is active in the file viewer, don't close the panel
         // The hook will handle closing the search bar instead
         if (isFileSearchActive) {
@@ -479,7 +525,7 @@ export function FileExplorerPanel({
       document.removeEventListener('keydown', handleKeyDown, true);
       document.removeEventListener('click', handleClickOutside);
     };
-  }, [isOpen, onClose, showFolderSelector, activeTabPath, isFileSearchActive]);
+  }, [isOpen, onClose, showFolderSelector, activeTabPath, isFileSearchActive, renameDialog]);
 
   // -------------------------------------------------------------------------
   // GIT STATUS ENRICHMENT
@@ -678,6 +724,222 @@ export function FileExplorerPanel({
       setSelectedFolderIndex(folderIndex >= 0 ? folderIndex : 0);
     }
   };
+
+  const getParentDir = useCallback((targetPath: string): string => {
+    const idx = targetPath.lastIndexOf('/');
+    if (idx <= 0) return '/';
+    return targetPath.slice(0, idx);
+  }, []);
+
+  const remapPathPrefix = useCallback((value: string, oldPrefix: string, newPrefix: string): string => {
+    if (value === oldPrefix) return newPrefix;
+    if (value.startsWith(`${oldPrefix}/`)) {
+      return `${newPrefix}${value.slice(oldPrefix.length)}`;
+    }
+    return value;
+  }, []);
+
+  const handleTreeNodeContextMenu = useCallback((event: React.MouseEvent, node: TreeNode) => {
+    setSelectedPath(node.path);
+    setFileTreeContextMenu({
+      isOpen: true,
+      position: { x: event.clientX, y: event.clientY },
+      node,
+    });
+  }, []);
+
+  const handleOpenRenameDialog = useCallback((node: TreeNode) => {
+    setRenameDialog({
+      isOpen: true,
+      node,
+      value: node.name,
+      submitting: false,
+    });
+  }, []);
+
+  const handleCloseRenameDialog = useCallback(() => {
+    setRenameDialog({ isOpen: false, node: null, value: '', submitting: false });
+  }, []);
+
+  const handleRenamePath = useCallback(async () => {
+    const node = renameDialog.node;
+    if (!node) return;
+
+    const nextName = renameDialog.value.trim();
+    if (!nextName || nextName === node.name) {
+      handleCloseRenameDialog();
+      return;
+    }
+
+    setRenameDialog((prev) => ({ ...prev, submitting: true }));
+
+    try {
+      const res = await authFetch(apiUrl('/api/files/rename'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: node.path, newName: nextName }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        showToast('error', 'Rename Failed', data.error || 'Unable to rename item');
+        setRenameDialog((prev) => ({ ...prev, submitting: false }));
+        return;
+      }
+
+      const newPath = data.newPath as string;
+      const oldPath = node.path;
+      const remappedExpandedPaths = new Set(
+        Array.from(expandedPaths).map((p) => remapPathPrefix(p, oldPath, newPath))
+      );
+      const oldParentDir = getParentDir(oldPath);
+      const newParentDir = getParentDir(newPath);
+
+      setOpenTabs((prev) => prev.map((tab) => {
+        if (!tab.path.startsWith(oldPath)) return tab;
+        const mappedPath = remapPathPrefix(tab.path, oldPath, newPath);
+        const mappedName = mappedPath.split('/').pop() || mappedPath;
+        const mappedExt = mappedName.includes('.') ? `.${mappedName.split('.').pop()}` : '';
+        return {
+          ...tab,
+          path: mappedPath,
+          filename: mappedName,
+          extension: mappedExt.toLowerCase(),
+          data: tab.data
+            ? {
+                ...tab.data,
+                path: mappedPath,
+                filename: mappedName,
+                extension: mappedExt.toLowerCase(),
+              }
+            : tab.data,
+        };
+      }));
+
+      if (activeTabPath) {
+        setActiveTabPath(remapPathPrefix(activeTabPath, oldPath, newPath));
+      }
+      if (selectedPath) {
+        setSelectedPath(remapPathPrefix(selectedPath, oldPath, newPath));
+      }
+      if (selectedFile?.path) {
+        const mapped = remapPathPrefix(selectedFile.path, oldPath, newPath);
+        if (mapped !== selectedFile.path) {
+          const mappedName = mapped.split('/').pop() || mapped;
+          const mappedExt = mappedName.includes('.') ? `.${mappedName.split('.').pop()}` : '';
+          setSelectedFile({
+            ...selectedFile,
+            path: mapped,
+            filename: mappedName,
+            extension: mappedExt.toLowerCase(),
+          });
+        }
+      }
+
+      renamePathInTree(oldPath, newPath);
+      setExpandedPaths(remappedExpandedPaths);
+      await reloadDirectory(oldParentDir);
+      if (newParentDir !== oldParentDir) {
+        await reloadDirectory(newParentDir);
+      }
+      await loadGitStatus();
+      showToast('success', 'Renamed', `${node.name} renamed`);
+      handleCloseRenameDialog();
+    } catch (err) {
+      console.error('[FileExplorer] Rename failed:', err);
+      showToast('error', 'Rename Failed', 'Unable to rename item');
+      setRenameDialog((prev) => ({ ...prev, submitting: false }));
+    }
+  }, [renameDialog, handleCloseRenameDialog, activeTabPath, selectedPath, selectedFile, expandedPaths, remapPathPrefix, getParentDir, renamePathInTree, setExpandedPaths, reloadDirectory, loadGitStatus, showToast, setSelectedFile]);
+
+  const handleCopyNode = useCallback((node: TreeNode) => {
+    setFileClipboard({
+      sourcePath: node.path,
+      isDirectory: node.isDirectory,
+      name: node.name,
+    });
+    showToast('info', 'Copied', `${node.name} ready to paste`);
+  }, [showToast]);
+
+  const handlePasteNode = useCallback(async (node: TreeNode) => {
+    if (!fileClipboard) return;
+
+    const targetDir = node.isDirectory ? node.path : getParentDir(node.path);
+    const nextExpandedPaths = new Set(expandedPaths);
+    nextExpandedPaths.add(targetDir);
+
+    try {
+      const res = await authFetch(apiUrl('/api/files/paste'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sourcePath: fileClipboard.sourcePath,
+          targetDir,
+        }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        showToast('error', 'Paste Failed', data.error || 'Unable to paste item');
+        return;
+      }
+
+      await reloadDirectory(targetDir);
+      setExpandedPaths(nextExpandedPaths);
+      await loadGitStatus();
+      if (data.destinationPath) {
+        setSelectedPath(data.destinationPath);
+      }
+      showToast('success', 'Pasted', `${fileClipboard.name} pasted`);
+    } catch (err) {
+      console.error('[FileExplorer] Paste failed:', err);
+      showToast('error', 'Paste Failed', 'Unable to paste item');
+    }
+  }, [fileClipboard, getParentDir, expandedPaths, reloadDirectory, setExpandedPaths, loadGitStatus, showToast]);
+
+  const handleCopyPath = useCallback(async (node: TreeNode) => {
+    try {
+      await navigator.clipboard.writeText(node.path);
+      showToast('success', 'Copied', 'Full path copied');
+    } catch (err) {
+      console.error('[FileExplorer] Copy path failed:', err);
+      showToast('error', 'Copy Failed', 'Could not copy path');
+    }
+  }, [showToast]);
+
+  const fileTreeContextActions = useMemo((): ContextMenuAction[] => {
+    if (!fileTreeContextMenu) return [];
+    const node = fileTreeContextMenu.node;
+
+    return [
+      {
+        id: 'rename',
+        label: node.isDirectory ? 'Rename Folder' : 'Rename File',
+        icon: '✏️',
+        onClick: () => handleOpenRenameDialog(node),
+      },
+      {
+        id: 'copy',
+        label: node.isDirectory ? 'Copy Folder' : 'Copy File',
+        icon: '📄',
+        onClick: () => handleCopyNode(node),
+      },
+      {
+        id: 'paste',
+        label: node.isDirectory ? 'Paste Into Folder' : 'Paste Here',
+        icon: '📋',
+        disabled: !fileClipboard,
+        onClick: () => { void handlePasteNode(node); },
+      },
+      { id: 'divider-1', label: '', divider: true, onClick: () => {} },
+      {
+        id: 'copy-full-path',
+        label: 'Copy Full Path',
+        icon: '🧷',
+        onClick: () => { void handleCopyPath(node); },
+      },
+    ];
+  }, [fileTreeContextMenu, fileClipboard, handleOpenRenameDialog, handleCopyNode, handlePasteNode, handleCopyPath]);
 
   // Reveal a file in the tree by expanding all parent directories
   const handleRevealInTree = useCallback((filePath: string) => {
@@ -1171,6 +1433,7 @@ export function FileExplorerPanel({
                         expandedPaths={expandedPaths}
                         onSelect={handleSelect}
                         onToggle={togglePath}
+                        onContextMenu={handleTreeNodeContextMenu}
                         searchQuery=""
                       />
                     ))
@@ -1248,6 +1511,62 @@ export function FileExplorerPanel({
           )}
         </div>
       </div>
+
+      {renameDialog.isOpen && renameDialog.node && (
+        <div className="file-explorer-rename-overlay" onClick={handleCloseRenameDialog}>
+          <div className="file-explorer-rename-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="file-explorer-rename-title">
+              Rename {renameDialog.node.isDirectory ? 'Folder' : 'File'}
+            </div>
+            <div className="file-explorer-rename-path" title={renameDialog.node.path}>
+              {renameDialog.node.path}
+            </div>
+            <input
+              ref={renameInputRef}
+              type="text"
+              className="file-explorer-rename-input"
+              value={renameDialog.value}
+              onChange={(e) => setRenameDialog((prev) => ({ ...prev, value: e.target.value }))}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  void handleRenamePath();
+                } else if (e.key === 'Escape') {
+                  e.preventDefault();
+                  handleCloseRenameDialog();
+                }
+              }}
+              disabled={renameDialog.submitting}
+            />
+            <div className="file-explorer-rename-actions">
+              <button
+                className="file-explorer-rename-btn"
+                onClick={handleCloseRenameDialog}
+                disabled={renameDialog.submitting}
+              >
+                Cancel
+              </button>
+              <button
+                className="file-explorer-rename-btn primary"
+                onClick={() => { void handleRenamePath(); }}
+                disabled={renameDialog.submitting || !renameDialog.value.trim()}
+              >
+                {renameDialog.submitting ? 'Renaming...' : 'Rename'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {fileTreeContextMenu && (
+        <ContextMenu
+          isOpen={fileTreeContextMenu.isOpen}
+          position={fileTreeContextMenu.position}
+          worldPosition={{ x: 0, z: 0 }}
+          actions={fileTreeContextActions}
+          onClose={() => setFileTreeContextMenu(null)}
+        />
+      )}
     </div>
   );
 }

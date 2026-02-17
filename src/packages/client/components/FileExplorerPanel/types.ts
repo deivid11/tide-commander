@@ -112,6 +112,7 @@ export interface TreeNodeProps {
   expandedPaths: Set<string>;
   onSelect: (node: TreeNode) => void;
   onToggle: (path: string) => void | Promise<void>;
+  onContextMenu?: (event: React.MouseEvent, node: TreeNode) => void;
   searchQuery: string;
 }
 
@@ -208,6 +209,8 @@ export interface UseFileTreeReturn {
   loading: boolean;
   expandedPaths: Set<string>;
   loadTree: () => Promise<void>;
+  reloadDirectory: (dirPath: string) => Promise<void>;
+  renamePathInTree: (oldPath: string, newPath: string) => void;
   togglePath: (path: string) => void | Promise<void>;
   expandToPath: (path: string) => Promise<void>;
   setExpandedPaths: React.Dispatch<React.SetStateAction<Set<string>>>;

@@ -204,8 +204,22 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       toolKeyParamOrFallback = input.path ? `${input.pattern} in ${input.path}` : input.pattern as string;
     } else if (payloadToolName === 'Grep' && input.pattern) {
       toolKeyParamOrFallback = input.path ? `"${input.pattern}" in ${input.path}` : `"${input.pattern}"` as string;
+    } else if ((payloadToolName === 'AskUserQuestion' || payloadToolName === 'AskFollowupQuestion') && input.questions) {
+      const questions = input.questions as Array<{ question?: string }>;
+      if (Array.isArray(questions) && questions[0]?.question) {
+        toolKeyParamOrFallback = questions[0].question;
+      }
     } else {
       toolKeyParamOrFallback = (input.file_path || input.path || input.notebook_path || input.command || input.pattern || input.url || input.query) as string;
+      // Fallback: JSON serialize for any unrecognized tool inputs
+      if (!toolKeyParamOrFallback) {
+        try {
+          const serialized = JSON.stringify(input);
+          if (serialized && serialized !== '{}') {
+            toolKeyParamOrFallback = serialized.length > 200 ? serialized.slice(0, 197) + '...' : serialized;
+          }
+        } catch { /* ignore */ }
+      }
     }
   }
 

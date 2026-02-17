@@ -273,6 +273,79 @@
     &:hover {
       background: rgba($accent-blue, 0.06);
     }
+
+    &--editable:hover {
+      background: rgba($accent-blue, 0.12);
+      cursor: cell;
+    }
+
+    &--editing {
+      padding: 2px;
+      background: rgba($accent-blue, 0.15);
+      overflow: visible;
+    }
+  }
+
+  &__cell-input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 100%;
+  }
+
+  &__cell-input {
+    flex: 1;
+    min-width: 0;
+    padding: 4px 6px;
+    background: $bg-primary;
+    border: 2px solid $accent-blue;
+    border-radius: 3px;
+    color: $text-primary;
+    font-family: $font-mono;
+    font-size: 0.9em;
+    outline: none;
+
+    &:focus {
+      border-color: $accent-blue;
+      box-shadow: 0 0 0 3px rgba($accent-blue, 0.2);
+    }
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  }
+
+  &__cell-feedback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    font-size: 1.1em;
+    flex-shrink: 0;
+
+    &--loading {
+      animation: spin 1s linear infinite;
+    }
+
+    &--error {
+      color: $accent-red;
+    }
+
+    &--success {
+      color: $accent-green;
+    }
+  }
+
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
+
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   // Value formatting

@@ -4,7 +4,7 @@
  * Sidebar component for database panel - shows connections, databases, and tables.
  */
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Building, DatabaseConnection } from '../../../shared/types';
 import { store, useDatabaseState } from '../../store';
@@ -36,6 +36,10 @@ export const DatabaseSidebar: React.FC<DatabaseSidebarProps> = ({
   const { t } = useTranslation(['terminal']);
   const dbState = useDatabaseState(building.id);
   const [expandedTables, setExpandedTables] = useState<Set<string>>(new Set());
+  const [dbSearch, setDbSearch] = useState('');
+  const [dbDropdownOpen, setDbDropdownOpen] = useState(false);
+  const dbSearchRef = useRef<HTMLInputElement>(null);
+  const dbDropdownRef = useRef<HTMLDivElement>(null);
 
   // Get databases for active connection
   const databases = activeConnectionId
@@ -52,6 +56,26 @@ export const DatabaseSidebar: React.FC<DatabaseSidebarProps> = ({
   const connectionStatus = activeConnectionId
     ? dbState.connectionStatus.get(activeConnectionId)
     : undefined;
+
+  // Filter databases by search text
+  const filteredDatabases = useMemo(() => {
+    if (!dbSearch.trim()) return databases;
+    const q = dbSearch.toLowerCase();
+    return databases.filter(db => db.toLowerCase().includes(q));
+  }, [databases, dbSearch]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dbDropdownRef.current && !dbDropdownRef.current.contains(e.target as Node)) {
+        setDbDropdownOpen(false);
+      }
+    };
+    if (dbDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [dbDropdownOpen]);
 
   // Test connection on first load
   useEffect(() => {
@@ -170,20 +194,61 @@ export const DatabaseSidebar: React.FC<DatabaseSidebarProps> = ({
         )}
       </div>
 
-      {/* Database Selector */}
+      {/* Database Selector - Searchable */}
       {databases.length > 0 && (
         <div className="database-sidebar__section">
           <div className="database-sidebar__section-title">{t('terminal:database.databaseTitle')}</div>
-          <select
-            className="database-sidebar__select"
-            value={activeDatabase || ''}
-            onChange={(e) => onDatabaseChange(e.target.value)}
-          >
-            <option value="">{t('terminal:database.selectDatabase')}</option>
-            {databases.map(db => (
-              <option key={db} value={db}>{db}</option>
-            ))}
-          </select>
+          <div className="database-sidebar__searchable-select" ref={dbDropdownRef}>
+            <input
+              ref={dbSearchRef}
+              className="database-sidebar__search-input"
+              type="text"
+              value={dbDropdownOpen ? dbSearch : (activeDatabase || '')}
+              placeholder={t('terminal:database.selectDatabase')}
+              onChange={(e) => {
+                setDbSearch(e.target.value);
+                if (!dbDropdownOpen) setDbDropdownOpen(true);
+              }}
+              onFocus={() => {
+                setDbDropdownOpen(true);
+                setDbSearch('');
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setDbDropdownOpen(false);
+                  setDbSearch('');
+                  dbSearchRef.current?.blur();
+                } else if (e.key === 'Enter' && filteredDatabases.length === 1) {
+                  onDatabaseChange(filteredDatabases[0]);
+                  setDbDropdownOpen(false);
+                  setDbSearch('');
+                  dbSearchRef.current?.blur();
+                }
+              }}
+            />
+            {dbDropdownOpen && (
+              <div className="database-sidebar__dropdown">
+                {filteredDatabases.length === 0 ? (
+                  <div className="database-sidebar__dropdown-empty">No matches</div>
+                ) : (
+                  filteredDatabases.map(db => (
+                    <div
+                      key={db}
+                      className={`database-sidebar__dropdown-item ${db === activeDatabase ? 'database-sidebar__dropdown-item--active' : ''}`}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        onDatabaseChange(db);
+                        setDbDropdownOpen(false);
+                        setDbSearch('');
+                      }}
+                    >
+                      {db}
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

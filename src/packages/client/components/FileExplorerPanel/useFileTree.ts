@@ -125,6 +125,53 @@ export function useFileTree(currentFolder: string | null): UseFileTreeReturn {
   }, []);
 
   /**
+   * Reload a single directory's children without resetting the entire tree.
+   * Used to avoid full-tree flicker after targeted operations (paste/create/etc).
+   */
+  const reloadDirectory = useCallback(async (dirPath: string): Promise<void> => {
+    await loadChildren(dirPath);
+  }, [loadChildren]);
+
+  /**
+   * Rename a path in the current in-memory tree (and all descendants by prefix).
+   * Keeps UI stable without forcing a full-tree reload.
+   */
+  const renamePathInTree = useCallback((oldPath: string, newPath: string): void => {
+    if (!oldPath || !newPath || oldPath === newPath) return;
+
+    const mapPath = (value: string): string => {
+      if (value === oldPath) return newPath;
+      if (value.startsWith(`${oldPath}/`)) {
+        return `${newPath}${value.slice(oldPath.length)}`;
+      }
+      return value;
+    };
+
+    const updateNodes = (nodes: TreeNode[]): TreeNode[] => {
+      const updated = nodes.map((node) => {
+        const mappedPath = mapPath(node.path);
+        const mappedChildren = node.children ? updateNodes(node.children) : undefined;
+        return {
+          ...node,
+          path: mappedPath,
+          name: mappedPath.split('/').pop() || node.name,
+          extension: node.isDirectory ? '' : pathExt(mappedPath),
+          children: mappedChildren,
+        };
+      });
+      return sortTree(updated);
+    };
+
+    setTree((prevTree) => updateNodes(prevTree));
+
+    setLoadedPaths((prev) => {
+      const next = new Set<string>();
+      for (const p of prev) next.add(mapPath(p));
+      return next;
+    });
+  }, []);
+
+  /**
    * Toggle expansion state of a path - loads children if needed
    * Uses refs to avoid stale closures and keep the function stable
    */
@@ -285,10 +332,18 @@ export function useFileTree(currentFolder: string | null): UseFileTreeReturn {
     loading,
     expandedPaths,
     loadTree,
+    reloadDirectory,
+    renamePathInTree,
     togglePath,
     expandToPath,
     setExpandedPaths,
   };
+}
+
+function pathExt(filePath: string): string {
+  const idx = filePath.lastIndexOf('.');
+  if (idx === -1) return '';
+  return filePath.slice(idx).toLowerCase();
 }
 
 /**

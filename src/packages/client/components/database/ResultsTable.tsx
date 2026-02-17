@@ -6,12 +6,28 @@
 
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { QueryResult } from '../../../shared/types';
+import type { QueryResult, TableColumn, TableIndex } from '../../../shared/types';
+import { store, useDatabaseState } from '../../store';
 import './ResultsTable.scss';
 
 interface ResultsTableProps {
   result: QueryResult;
   buildingId: string;
+}
+
+interface TableSchema {
+  columns: TableColumn[];
+  indexes: TableIndex[];
+  foreignKeys: Array<{ name: string; columns: string[]; referencedTable: string; referencedColumns: string[] }>;
+}
+
+interface EditingCell {
+  rowIndex: number;
+  columnName: string;
+  originalValue: unknown;
+  currentValue: unknown;
+  isUpdating: boolean;
+  error?: string;
 }
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100, 250];
@@ -25,8 +41,68 @@ const getRawValue = (value: unknown): string => {
   return String(value);
 };
 
-export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId: _buildingId }) => {
+/** Extract table name from SELECT query */
+const extractTableName = (query: string): string | null => {
+  // Match: FROM `table_name`, FROM table_name, FROM schema.table_name
+  const match = query.match(/FROM\s+(?:(?:`?[\w]+`?\.)?`?([\w]+)`?|\([\s\S]*?\))\s+(?:AS\s+)?(?:\w+)?/i);
+  if (match?.[1]) {
+    return match[1];
+  }
+  return null;
+};
+
+/** Get primary key columns from schema */
+const getPrimaryKeyColumns = (schema: TableSchema | null): string[] => {
+  if (!schema || !schema.columns) return [];
+  return schema.columns
+    .filter(col => col.primaryKey)
+    .map(col => col.name);
+};
+
+/** Build UPDATE SQL statement with proper escaping for each database engine */
+const buildUpdateSql = (
+  engine: string,
+  tableName: string,
+  columnName: string,
+  primaryKeys: Record<string, unknown>,
+  originalValue: unknown,
+  newValue: unknown
+): string => {
+  const escapeId = (id: string) => {
+    if (engine === 'mysql') return `\`${id}\``;
+    if (engine === 'postgres') return `"${id}"`;
+    return id; // Oracle
+  };
+
+  const escapeValue = (val: unknown): string => {
+    if (val === null) return 'NULL';
+    if (typeof val === 'boolean') return val ? '1' : '0';
+    if (typeof val === 'number') return String(val);
+    // Escape single quotes by doubling them
+    return `'${String(val).replace(/'/g, "''")}'`;
+  };
+
+  const setPart = `${escapeId(columnName)} = ${escapeValue(newValue)}`;
+
+  const whereParts: string[] = [];
+  for (const [pkCol, pkVal] of Object.entries(primaryKeys)) {
+    whereParts.push(`${escapeId(pkCol)} = ${escapeValue(pkVal)}`);
+  }
+
+  // Add optimistic lock: check original value to detect concurrent modifications
+  if (originalValue === null) {
+    whereParts.push(`${escapeId(columnName)} IS NULL`);
+  } else {
+    whereParts.push(`${escapeId(columnName)} = ${escapeValue(originalValue)}`);
+  }
+
+  const whereClause = whereParts.join(' AND ');
+  return `UPDATE ${escapeId(tableName)} SET ${setPart} WHERE ${whereClause}`;
+};
+
+export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId }) => {
   const { t } = useTranslation(['terminal']);
+  const dbState = useDatabaseState(buildingId);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [sortColumn, setSortColumn] = useState<string | null>(null);
@@ -34,12 +110,39 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId: 
   const [cellDetail, setCellDetail] = useState<{ column: string; value: unknown } | null>(null);
   const [copyFeedback, setCopyFeedback] = useState(false);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+  const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
+  const [tableName, setTableName] = useState<string | null>(null);
+  const [tableSchema, setTableSchema] = useState<TableSchema | null>(null);
+  const [canEdit, setCanEdit] = useState(false);
   const detailRef = useRef<HTMLDivElement>(null);
+  const editInputRef = useRef<HTMLInputElement>(null);
   const resizingRef = useRef<{ column: string; startX: number; startWidth: number } | null>(null);
   const didResizeRef = useRef(false);
 
   const isError = result.status === 'error';
   const isEmpty = !result.rows || result.rows.length === 0;
+
+  // Initialize table name and schema when query changes
+  useEffect(() => {
+    const newTableName = extractTableName(result.query || '');
+    setTableName(newTableName);
+    setCanEdit(false);
+    setTableSchema(null);
+
+    if (newTableName && dbState.activeConnectionId && dbState.activeDatabase) {
+      // Request table schema from server
+      store.getTableSchema(buildingId, dbState.activeConnectionId, dbState.activeDatabase, newTableName);
+
+      // Check if schema is already in store (it might be cached)
+      const schemaKey = `${dbState.activeConnectionId}:${dbState.activeDatabase}:${newTableName}`;
+      const cachedSchema = dbState.tableSchemas?.get?.(schemaKey);
+      if (cachedSchema) {
+        setTableSchema(cachedSchema);
+        const pkCols = getPrimaryKeyColumns(cachedSchema);
+        setCanEdit(pkCols.length > 0);
+      }
+    }
+  }, [result.query, buildingId, dbState.activeConnectionId, dbState.activeDatabase, dbState.tableSchemas]);
 
   // Sort rows (hooks must always be called in the same order)
   const sortedRows = useMemo(() => {
@@ -98,6 +201,79 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId: 
     setCellDetail({ column, value });
   }, []);
 
+  // Handle cell double-click to enter edit mode
+  const handleCellDoubleClick = useCallback((rowIndex: number, column: string, value: unknown) => {
+    if (!canEdit) return;
+    setCellDetail(null); // Close detail modal if open
+    setEditingCell({
+      rowIndex,
+      columnName: column,
+      originalValue: value,
+      currentValue: value,
+      isUpdating: false,
+    });
+  }, [canEdit]);
+
+  // Save cell edit and execute UPDATE
+  const handleSaveCell = useCallback(() => {
+    if (!editingCell || !tableName || !tableSchema || !dbState.activeConnectionId || !dbState.activeDatabase) return;
+
+    const { rowIndex, columnName, originalValue, currentValue } = editingCell;
+
+    // Don't update if value hasn't changed
+    if (currentValue === originalValue) {
+      setEditingCell(null);
+      return;
+    }
+
+    // Get the actual row from sorted and paginated data
+    const actualRowIndex = page * pageSize + rowIndex;
+    const row = sortedRows?.[actualRowIndex];
+    if (!row) return;
+
+    // Get primary key values from row
+    const pkCols = getPrimaryKeyColumns(tableSchema);
+    if (pkCols.length === 0) {
+      setEditingCell(prev => prev ? { ...prev, error: 'No primary key found' } : null);
+      return;
+    }
+
+    const primaryKeys: Record<string, unknown> = {};
+    for (const pkCol of pkCols) {
+      primaryKeys[pkCol] = row[pkCol];
+    }
+
+    setEditingCell(prev => prev ? { ...prev, isUpdating: true } : null);
+
+    // Generate UPDATE SQL
+    const engine = dbState.activeConnectionId ? 'mysql' : 'mysql';
+    const updateSql = buildUpdateSql(
+      engine,
+      tableName,
+      columnName,
+      primaryKeys,
+      originalValue,
+      currentValue
+    );
+
+    // Execute the UPDATE query
+    store.executeQuery(buildingId, dbState.activeConnectionId, dbState.activeDatabase, updateSql);
+
+    // Clear edit state after a brief delay to show feedback
+    setTimeout(() => setEditingCell(null), 500);
+  }, [editingCell, tableName, tableSchema, page, pageSize, sortedRows, buildingId, dbState.activeConnectionId, dbState.activeDatabase]);
+
+  // Handle keyboard in edit mode
+  const handleCellKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleSaveCell();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setEditingCell(null);
+    }
+  }, [handleSaveCell]);
+
   // Column resize handlers - no state deps to avoid re-renders during drag
   const handleResizeStart = useCallback((e: React.MouseEvent, column: string) => {
     e.preventDefault();
@@ -147,6 +323,14 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId: 
       document.removeEventListener('mousedown', handleClick);
     };
   }, [cellDetail]);
+
+  // Focus and select input when editing starts
+  useEffect(() => {
+    if (editInputRef.current && editingCell) {
+      editInputRef.current.focus();
+      editInputRef.current.select();
+    }
+  }, [editingCell]);
 
   // Copy all results as enriched HTML table
   const handleCopyAll = useCallback(async () => {
@@ -389,15 +573,44 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId: 
                 <td className="results-table__row-num">
                   {page * pageSize + rowIndex + 1}
                 </td>
-                {columns.map(col => (
-                  <td
-                    key={col}
-                    className="results-table__cell"
-                    onClick={() => handleCellClick(col, row[col])}
-                  >
-                    {formatValue(row[col])}
-                  </td>
-                ))}
+                {columns.map(col => {
+                  const isEditing = editingCell?.rowIndex === rowIndex && editingCell?.columnName === col;
+
+                  return (
+                    <td
+                      key={col}
+                      className={`results-table__cell ${isEditing ? 'results-table__cell--editing' : ''} ${canEdit ? 'results-table__cell--editable' : ''}`}
+                      onClick={() => handleCellClick(col, row[col])}
+                      onDoubleClick={() => handleCellDoubleClick(rowIndex, col, row[col])}
+                    >
+                      {isEditing ? (
+                        <div className="results-table__cell-input-wrapper">
+                          <input
+                            ref={editInputRef}
+                            type="text"
+                            className="results-table__cell-input"
+                            value={String(editingCell.currentValue ?? '')}
+                            onChange={(e) => setEditingCell(prev =>
+                              prev ? { ...prev, currentValue: e.target.value } : null
+                            )}
+                            onBlur={handleSaveCell}
+                            onKeyDown={handleCellKeyDown}
+                            disabled={editingCell.isUpdating}
+                            autoFocus
+                          />
+                          {editingCell.isUpdating && (
+                            <span className="results-table__cell-feedback results-table__cell-feedback--loading">⏳</span>
+                          )}
+                          {editingCell.error && (
+                            <span className="results-table__cell-feedback results-table__cell-feedback--error" title={editingCell.error}>✕</span>
+                          )}
+                        </div>
+                      ) : (
+                        formatValue(row[col])
+                      )}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>
