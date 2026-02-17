@@ -204,7 +204,10 @@ export function buildContextMenuActions(
             folderPath: building.folderPath,
             commands: building.commands,
             pm2: building.pm2,
+            docker: building.docker,
+            database: building.database,
             urls: building.urls,
+            subordinateBuildingIds: building.subordinateBuildingIds,
           };
           store.createBuilding(cloneData);
           callbacks.showToast('success', 'Building Cloned', `Created "${cloneData.name}"`);
