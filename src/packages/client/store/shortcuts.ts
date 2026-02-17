@@ -60,7 +60,7 @@ export const DEFAULT_SHORTCUTS: ShortcutConfig[] = [
   shortcut('prev-working-agent', 'Previous Working Agent', 'Select previous working agent on battlefield', 'h', { alt: true, shift: true }),
   shortcut('next-message', 'Next Message', 'Navigate to next message in terminal', 'j', { alt: true }),
   shortcut('prev-message', 'Previous Message', 'Navigate to previous message in terminal', 'k', { alt: true }),
-  shortcut('page-down-messages', 'Page Down Messages', 'Jump down 10 messages in terminal', 'd', { alt: true }),
+  shortcut('page-down-messages', 'Page Down Messages', 'Jump down 10 messages in terminal', 'd', { alt: true, shift: true }),
   shortcut('page-up-messages', 'Page Up Messages', 'Jump up 10 messages in terminal', 'u', { alt: true }),
   shortcut('next-agent-terminal', 'Next Agent (Terminal)', 'Switch to next agent in terminal', 'l', { alt: true }),
   shortcut('prev-agent-terminal', 'Previous Agent (Terminal)', 'Switch to previous agent in terminal', 'h', { alt: true }),
@@ -68,6 +68,7 @@ export const DEFAULT_SHORTCUTS: ShortcutConfig[] = [
   shortcut('toggle-file-explorer', 'Toggle File Explorer', 'Open/close file explorer', 'e', { alt: true }),
   shortcut('file-explorer-close-tab', 'Close File Tab', 'Close active file tab in explorer', 'w', { alt: true }),
   shortcut('toggle-spotlight', 'Toggle Spotlight', 'Open/close global search', 'p', { alt: true }),
+  shortcut('open-database', 'Open Database', 'Open last used database query builder', 'd', { alt: true }),
   shortcut('toggle-2d-view', 'Cycle View Mode', 'Cycle between 3D, 2D, and Dashboard views', '2', { alt: true }),
 
   // Commander context shortcuts

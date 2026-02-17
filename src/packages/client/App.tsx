@@ -94,8 +94,14 @@ function AppContent() {
   } | null>(null);
   const [pm2LogsModalBuildingId, setPm2LogsModalBuildingId] = useState<string | null>(null);
   const [bossLogsModalBuildingId, setBossLogsModalBuildingId] = useState<string | null>(null);
-  const [databasePanelBuildingId, setDatabasePanelBuildingId] = useState<string | null>(null);
-  const closeDatabasePanel = useCallback(() => setDatabasePanelBuildingId(null), []);
+  const [databasePanelBuildingId, _setDatabasePanelBuildingId] = useState<string | null>(null);
+  const setDatabasePanelBuildingId = useCallback((id: string | null) => {
+    _setDatabasePanelBuildingId(id);
+    if (id) {
+      localStorage.setItem('tide-commander-last-database-building', id);
+    }
+  }, []);
+  const closeDatabasePanel = useCallback(() => setDatabasePanelBuildingId(null), [setDatabasePanelBuildingId]);
   const { handleMouseDown: handleDatabasePanelBackdropMouseDown, handleClick: handleDatabasePanelBackdropClick } = useModalClose(closeDatabasePanel);
   // Ref to access current popup state in callbacks
   const buildingPopupRef = useRef(buildingPopup);
@@ -221,6 +227,9 @@ function AppContent() {
     spotlightModal,
     deleteConfirmModal,
     onRequestBuildingDelete: () => setPendingBuildingDelete('selected'),
+    onOpenDatabasePanel: setDatabasePanelBuildingId,
+    onCloseDatabasePanel: closeDatabasePanel,
+    databasePanelOpen: databasePanelBuildingId !== null,
   });
 
   // Register modals on the stack for mobile back gesture handling

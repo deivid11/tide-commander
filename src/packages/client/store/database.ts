@@ -19,6 +19,7 @@ function createEmptyDatabaseState(): DatabaseBuildingState {
     executingQuery: false,
     activeConnectionId: null,
     activeDatabase: null,
+    lastSilentQueryResult: null,
   };
 }
 
@@ -39,6 +40,8 @@ export interface DatabaseActions {
 
   // Query execution
   executeQuery(buildingId: string, connectionId: string, database: string, query: string, limit?: number): void;
+  executeSilentQuery(buildingId: string, connectionId: string, database: string, query: string, requestId?: string): void;
+  setSilentQueryResult(buildingId: string, result: { query: string; requestId?: string; success: boolean; affectedRows?: number; error?: string }): void;
   setQueryResult(buildingId: string, result: QueryResult): void;
   setExecutingQuery(buildingId: string, executing: boolean): void;
 
@@ -204,6 +207,34 @@ export function createDatabaseActions(
         type: 'execute_query',
         payload: { buildingId, connectionId, database, query, limit },
       });
+    },
+
+    executeSilentQuery(buildingId: string, connectionId: string, database: string, query: string, requestId?: string): void {
+      // Execute query without updating UI - no query result shown
+      getSendMessage()?.({
+        type: 'execute_query',
+        payload: { buildingId, connectionId, database, query, limit: 0, silent: true, requestId },
+      });
+    },
+
+    setSilentQueryResult(buildingId: string, result: { query: string; requestId?: string; success: boolean; affectedRows?: number; error?: string }): void {
+      ensureDatabaseState(buildingId);
+      setState((state) => {
+        const dbState = state.databaseState.get(buildingId);
+        if (dbState) {
+          const newDbState = {
+            ...dbState,
+            lastSilentQueryResult: {
+              ...result,
+              timestamp: Date.now(),
+            },
+          };
+          const newDatabaseState = new Map(state.databaseState);
+          newDatabaseState.set(buildingId, newDbState);
+          state.databaseState = newDatabaseState;
+        }
+      });
+      notify();
     },
 
     setQueryResult(buildingId: string, result: QueryResult): void {

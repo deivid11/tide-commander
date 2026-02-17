@@ -6,13 +6,17 @@
 
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { QueryResult, TableColumn, TableIndex } from '../../../shared/types';
+import DatePicker from 'react-datepicker';
+import type { QueryResult, TableColumn, TableIndex, Building } from '../../../shared/types';
 import { store, useDatabaseState } from '../../store';
+import { ContextMenu, type ContextMenuAction } from '../ContextMenu';
+import 'react-datepicker/dist/react-datepicker.css';
 import './ResultsTable.scss';
 
 interface ResultsTableProps {
   result: QueryResult;
   buildingId: string;
+  building: Building;
 }
 
 interface TableSchema {
@@ -23,6 +27,7 @@ interface TableSchema {
 
 interface EditingCell {
   rowIndex: number;
+  rowKey: string;
   columnName: string;
   originalValue: unknown;
   currentValue: unknown;
@@ -30,8 +35,61 @@ interface EditingCell {
   error?: string;
 }
 
+interface CellContextMenuState {
+  position: { x: number; y: number };
+  rowIndex: number;
+  rowKey: string;
+  columnName: string;
+  value: unknown;
+}
+
+interface PendingUpdateState {
+  requestId: string;
+  query: string;
+  rowKey: string;
+  columnName: string;
+  parsedValue: unknown;
+  startedAt: number;
+  originalQuery: string;
+}
+
 const PAGE_SIZE_OPTIONS = [25, 50, 100, 250];
 const DEFAULT_PAGE_SIZE = 50;
+
+const pad2 = (value: number): string => String(value).padStart(2, '0');
+
+const isDateTimeType = (fieldType?: string): boolean => {
+  if (!fieldType) return false;
+  return /(datetime|timestamp|timestamptz|datetime2|smalldatetime)/i.test(fieldType);
+};
+
+const formatDateTimeForSql = (date: Date): string => {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())} ${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`;
+};
+
+const parseDateTimeValue = (value: unknown): Date | null => {
+  if (value === null || value === undefined) return null;
+  if (value instanceof Date) {
+    return value;
+  }
+
+  const raw = String(value).trim();
+  if (!raw) return null;
+
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?(\.\d+)?$/.test(raw)) {
+    const normalized = raw.replace(' ', 'T');
+    const parsed = new Date(normalized);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}T/.test(raw)) {
+    const parsed = new Date(raw.replace(/Z$/, ''));
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
 
 /** Get raw string representation of a cell value */
 const getRawValue = (value: unknown): string => {
@@ -41,10 +99,18 @@ const getRawValue = (value: unknown): string => {
   return String(value);
 };
 
+/** Convert a cell value into editable text shown in the input */
+const getEditableValue = (value: unknown): string => {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+};
+
 /** Extract table name from SELECT query */
 const extractTableName = (query: string): string | null => {
   // Match: FROM `table_name`, FROM table_name, FROM schema.table_name
-  const match = query.match(/FROM\s+(?:(?:`?[\w]+`?\.)?`?([\w]+)`?|\([\s\S]*?\))\s+(?:AS\s+)?(?:\w+)?/i);
+  // Accept aliases, trailing semicolon, or end-of-query after table name.
+  const match = query.match(/FROM\s+(?:`?[\w]+`?\.)?`?([\w]+)`?(?:\s+(?:AS\s+)?\w+)?(?=\s|;|$)/i);
   if (match?.[1]) {
     return match[1];
   }
@@ -66,7 +132,8 @@ const buildUpdateSql = (
   columnName: string,
   primaryKeys: Record<string, unknown>,
   originalValue: unknown,
-  newValue: unknown
+  newValue: unknown,
+  includeOriginalValueCheck: boolean = true
 ): string => {
   const escapeId = (id: string) => {
     if (engine === 'mysql') return `\`${id}\``;
@@ -78,6 +145,9 @@ const buildUpdateSql = (
     if (val === null) return 'NULL';
     if (typeof val === 'boolean') return val ? '1' : '0';
     if (typeof val === 'number') return String(val);
+    if (typeof val === 'object') {
+      return `'${JSON.stringify(val).replace(/'/g, "''")}'`;
+    }
     // Escape single quotes by doubling them
     return `'${String(val).replace(/'/g, "''")}'`;
   };
@@ -89,9 +159,14 @@ const buildUpdateSql = (
     whereParts.push(`${escapeId(pkCol)} = ${escapeValue(pkVal)}`);
   }
 
-  // Add optimistic lock: check original value to detect concurrent modifications
-  if (originalValue === null) {
+  // Add optimistic lock for scalar values. JSON/object comparisons can be non-portable
+  // across engines and may cause 0-row updates even when PK matches.
+  if (!includeOriginalValueCheck) {
+    // Skip optimistic value equality check when comparisons are unreliable (e.g., datetime precision)
+  } else if (originalValue === null) {
     whereParts.push(`${escapeId(columnName)} IS NULL`);
+  } else if (typeof originalValue === 'object') {
+    // Skip object equality guard; rely on primary key match for JSON/object edits.
   } else {
     whereParts.push(`${escapeId(columnName)} = ${escapeValue(originalValue)}`);
   }
@@ -100,7 +175,7 @@ const buildUpdateSql = (
   return `UPDATE ${escapeId(tableName)} SET ${setPart} WHERE ${whereClause}`;
 };
 
-export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId }) => {
+export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId, building }) => {
   const { t } = useTranslation(['terminal']);
   const dbState = useDatabaseState(buildingId);
   const [page, setPage] = useState(0);
@@ -114,6 +189,11 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId }
   const [tableName, setTableName] = useState<string | null>(null);
   const [tableSchema, setTableSchema] = useState<TableSchema | null>(null);
   const [canEdit, setCanEdit] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [executedQuery, setExecutedQuery] = useState<string | null>(null);
+  const [updatedRows, setUpdatedRows] = useState<Map<string, Record<string, unknown>>>(new Map());
+  const [cellContextMenu, setCellContextMenu] = useState<CellContextMenuState | null>(null);
+  const [pendingUpdate, setPendingUpdate] = useState<PendingUpdateState | null>(null);
   const detailRef = useRef<HTMLDivElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
   const resizingRef = useRef<{ column: string; startX: number; startWidth: number } | null>(null);
@@ -122,27 +202,46 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId }
   const isError = result.status === 'error';
   const isEmpty = !result.rows || result.rows.length === 0;
 
-  // Initialize table name and schema when query changes
+  // Initialize table name and fetch schema when query changes
   useEffect(() => {
     const newTableName = extractTableName(result.query || '');
     setTableName(newTableName);
     setCanEdit(false);
     setTableSchema(null);
+    // Clear updated rows when a new query result arrives
+    setUpdatedRows(new Map());
 
     if (newTableName && dbState.activeConnectionId && dbState.activeDatabase) {
-      // Request table schema from server
-      store.getTableSchema(buildingId, dbState.activeConnectionId, dbState.activeDatabase, newTableName);
-
-      // Check if schema is already in store (it might be cached)
+      // Check if schema is already cached in store before requesting
       const schemaKey = `${dbState.activeConnectionId}:${dbState.activeDatabase}:${newTableName}`;
       const cachedSchema = dbState.tableSchemas?.get?.(schemaKey);
       if (cachedSchema) {
         setTableSchema(cachedSchema);
         const pkCols = getPrimaryKeyColumns(cachedSchema);
         setCanEdit(pkCols.length > 0);
+      } else {
+        // Only request from server if not already cached
+        store.getTableSchema(buildingId, dbState.activeConnectionId, dbState.activeDatabase, newTableName);
       }
     }
-  }, [result.query, buildingId, dbState.activeConnectionId, dbState.activeDatabase, dbState.tableSchemas]);
+    // NOTE: dbState.tableSchemas intentionally excluded - schema arrival is handled by the effect below
+  }, [result.query, result.rows, buildingId, dbState.activeConnectionId, dbState.activeDatabase]);
+
+  // Update local schema state when schema data arrives in store
+  useEffect(() => {
+    if (tableName && dbState.activeConnectionId && dbState.activeDatabase) {
+      const schemaKey = `${dbState.activeConnectionId}:${dbState.activeDatabase}:${tableName}`;
+      const cachedSchema = dbState.tableSchemas?.get?.(schemaKey);
+      if (cachedSchema) {
+        setTableSchema(prev => {
+          if (prev === cachedSchema) return prev; // No change
+          return cachedSchema;
+        });
+        const pkCols = getPrimaryKeyColumns(cachedSchema);
+        setCanEdit(pkCols.length > 0);
+      }
+    }
+  }, [dbState.tableSchemas, tableName, dbState.activeConnectionId, dbState.activeDatabase]);
 
   // Sort rows (hooks must always be called in the same order)
   const sortedRows = useMemo(() => {
@@ -181,6 +280,39 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId }
 
   // Get column names
   const columns = result.fields?.map(f => f.name) ?? Object.keys(result.rows?.[0] || {});
+  const columnTypeMap = useMemo(() => {
+    const map = new Map<string, string>();
+    (result.fields ?? []).forEach(field => {
+      if (field?.name) map.set(field.name, String(field.type ?? ''));
+    });
+    return map;
+  }, [result.fields]);
+  const primaryKeyColumns = useMemo(() => getPrimaryKeyColumns(tableSchema), [tableSchema]);
+  const getEditorValue = useCallback((columnName: string, value: unknown): string => {
+    const columnType = columnTypeMap.get(columnName);
+    if (isDateTimeType(columnType)) {
+      const parsed = parseDateTimeValue(value);
+      return parsed ? formatDateTimeForSql(parsed) : '';
+    }
+    return getEditableValue(value);
+  }, [columnTypeMap]);
+
+  const editStatusText = useMemo(() => {
+    if (canEdit) return 'Editable';
+    if (!dbState.activeConnectionId || !dbState.activeDatabase) {
+      return 'Read-only: no active connection or database';
+    }
+    if (!tableName) {
+      return 'Read-only: query is not a single-table SELECT';
+    }
+    if (!tableSchema) {
+      return 'Read-only: loading table schema';
+    }
+    if (primaryKeyColumns.length === 0) {
+      return 'Read-only: table has no primary key';
+    }
+    return 'Read-only: editing unavailable';
+  }, [canEdit, dbState.activeConnectionId, dbState.activeDatabase, tableName, tableSchema, primaryKeyColumns.length]);
 
   // Handle sort (skip if resize just finished)
   const handleSort = useCallback((column: string) => {
@@ -196,19 +328,32 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId }
     }
   }, [sortColumn]);
 
-  // Handle cell click to show detail overlay
-  const handleCellClick = useCallback((column: string, value: unknown) => {
+  // Handle cell click to start editing (single click)
+  const handleCellClick = useCallback((column: string, value: unknown, rowIndex: number, rowKey: string) => {
+    if (!canEdit || editingCell || pendingUpdate) return; // Don't start editing if already editing/updating
+    setEditingCell({
+      rowIndex,
+      rowKey,
+      columnName: column,
+      originalValue: value,
+      currentValue: getEditorValue(column, value),
+      isUpdating: false,
+    });
+  }, [canEdit, editingCell, pendingUpdate, getEditorValue]);
+
+  // Handle double click to show detail overlay (double click)
+  const handleCellDoubleClick = useCallback((column: string, value: unknown) => {
     setCellDetail({ column, value });
   }, []);
 
-  // Save cell edit and execute UPDATE
-  const handleSaveCell = useCallback(() => {
-    if (!editingCell || !tableName || !tableSchema || !dbState.activeConnectionId || !dbState.activeDatabase) return;
+  const executeCellUpdate = useCallback((cell: EditingCell) => {
+    if (!tableName || !tableSchema || !dbState.activeConnectionId || !dbState.activeDatabase) return;
 
-    const { rowIndex, columnName, originalValue, currentValue } = editingCell;
+    const { rowIndex, columnName, originalValue, currentValue } = cell;
+    const currentValueText = String(currentValue ?? '');
 
     // Don't update if value hasn't changed
-    if (currentValue === originalValue) {
+    if (currentValue !== null && currentValueText === getEditorValue(columnName, originalValue)) {
       setEditingCell(null);
       return;
     }
@@ -219,7 +364,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId }
     if (!row) return;
 
     // Get primary key values from row
-    const pkCols = getPrimaryKeyColumns(tableSchema);
+    const pkCols = primaryKeyColumns;
     if (pkCols.length === 0) {
       setEditingCell(prev => prev ? { ...prev, error: 'No primary key found' } : null);
       return;
@@ -230,25 +375,211 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId }
       primaryKeys[pkCol] = row[pkCol];
     }
 
+    let parsedValue: unknown = currentValueText;
+    const columnType = columnTypeMap.get(columnName);
+    if (currentValue === null) {
+      parsedValue = null;
+    } else if (isDateTimeType(columnType)) {
+      parsedValue = currentValueText.trim() === '' ? null : currentValueText.trim();
+    } else if (typeof originalValue === 'number') {
+      if (currentValueText.trim() === '') {
+        parsedValue = null;
+      } else {
+        const parsedNumber = Number(currentValueText);
+        if (Number.isNaN(parsedNumber)) {
+          setEditingCell(prev => prev ? { ...prev, isUpdating: false, error: 'Invalid number value' } : null);
+          return;
+        }
+        parsedValue = parsedNumber;
+      }
+    } else if (typeof originalValue === 'boolean') {
+      const normalized = currentValueText.trim().toLowerCase();
+      if (normalized === 'true' || normalized === '1') {
+        parsedValue = true;
+      } else if (normalized === 'false' || normalized === '0') {
+        parsedValue = false;
+      } else {
+        setEditingCell(prev => prev ? { ...prev, isUpdating: false, error: 'Invalid boolean value' } : null);
+        return;
+      }
+    } else if (originalValue !== null && typeof originalValue === 'object') {
+      try {
+        parsedValue = JSON.parse(currentValueText);
+      } catch {
+        setEditingCell(prev => prev ? { ...prev, isUpdating: false, error: 'Invalid JSON value' } : null);
+        return;
+      }
+    }
+
     setEditingCell(prev => prev ? { ...prev, isUpdating: true } : null);
 
-    // Generate UPDATE SQL
-    const engine = dbState.activeConnectionId ? 'mysql' : 'mysql';
+    // Get the database engine from the connection
+    const connection = building.database?.connections.find((c) => c.id === dbState.activeConnectionId);
+    const engine = (connection?.engine as string) || 'mysql';
+
     const updateSql = buildUpdateSql(
       engine,
       tableName,
       columnName,
       primaryKeys,
       originalValue,
-      currentValue
+      parsedValue,
+      !isDateTimeType(columnType)
     );
 
-    // Execute the UPDATE query
-    store.executeQuery(buildingId, dbState.activeConnectionId, dbState.activeDatabase, updateSql);
+    // Store the executed query for display
+    setExecutedQuery(updateSql);
+    const rowKey = JSON.stringify(primaryKeys);
+    const originalQuery = result.query?.trim() || '';
+    const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    setPendingUpdate({
+      requestId,
+      query: updateSql,
+      rowKey,
+      columnName,
+      parsedValue,
+      startedAt: Date.now(),
+      originalQuery,
+    });
 
-    // Clear edit state after a brief delay to show feedback
-    setTimeout(() => setEditingCell(null), 500);
-  }, [editingCell, tableName, tableSchema, page, pageSize, sortedRows, buildingId, dbState.activeConnectionId, dbState.activeDatabase]);
+    // Execute the UPDATE query silently and wait for backend acknowledgement
+    store.executeSilentQuery(buildingId, dbState.activeConnectionId, dbState.activeDatabase, updateSql, requestId);
+  }, [tableName, tableSchema, page, pageSize, sortedRows, primaryKeyColumns, buildingId, dbState.activeConnectionId, dbState.activeDatabase, result.query, getEditorValue, columnTypeMap]);
+
+  // Handle backend acknowledgement for silent UPDATE queries
+  useEffect(() => {
+    const silentResult = dbState.lastSilentQueryResult;
+    if (!pendingUpdate || !silentResult) return;
+    if (silentResult.requestId && silentResult.requestId !== pendingUpdate.requestId) return;
+    // Fallback for older servers that don't send requestId
+    if (silentResult.timestamp < pendingUpdate.startedAt) return;
+
+    if (!silentResult.success) {
+      setToast({ message: silentResult.error || 'Update failed on backend', type: 'error' });
+      setTimeout(() => setToast(null), 5000);
+      setEditingCell(prev => (prev ? { ...prev, isUpdating: false, error: silentResult.error || 'Update failed on backend' } : prev));
+      setPendingUpdate(null);
+      return;
+    }
+
+    if (silentResult.affectedRows === 0) {
+      setToast({ message: 'No rows were updated', type: 'error' });
+      setTimeout(() => setToast(null), 5000);
+      setEditingCell(prev => (prev ? { ...prev, isUpdating: false, error: 'No rows were updated' } : prev));
+      setPendingUpdate(null);
+      return;
+    }
+
+    setUpdatedRows(prev => {
+      const newMap = new Map(prev);
+      const updatedRow = newMap.get(pendingUpdate.rowKey) || {};
+      updatedRow[pendingUpdate.columnName] = pendingUpdate.parsedValue;
+      newMap.set(pendingUpdate.rowKey, updatedRow);
+      return newMap;
+    });
+
+    setEditingCell(null);
+    setToast({ message: 'Row updated successfully', type: 'success' });
+    setTimeout(() => setToast(null), 3000);
+
+    if (pendingUpdate.originalQuery && dbState.activeConnectionId && dbState.activeDatabase) {
+      setTimeout(() => {
+        store.executeQuery(buildingId, dbState.activeConnectionId!, dbState.activeDatabase!, pendingUpdate.originalQuery);
+      }, 200);
+    }
+
+    setPendingUpdate(null);
+  }, [pendingUpdate, dbState.lastSilentQueryResult, dbState.activeConnectionId, dbState.activeDatabase, buildingId]);
+
+  // Safety timeout to avoid indefinite waiting if ack is lost or delayed
+  useEffect(() => {
+    if (!pendingUpdate) return;
+    const timeoutId = window.setTimeout(() => {
+      setToast({ message: 'Update timed out waiting for backend', type: 'error' });
+      setTimeout(() => setToast(null), 5000);
+      setEditingCell(prev => (prev ? { ...prev, isUpdating: false, error: 'Update timed out waiting for backend' } : prev));
+      setPendingUpdate(null);
+    }, 10000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [pendingUpdate]);
+
+  // Save cell edit and execute UPDATE
+  const handleSaveCell = useCallback(() => {
+    if (!editingCell) return;
+    executeCellUpdate(editingCell);
+  }, [editingCell, executeCellUpdate]);
+
+  const handleCellContextMenu = useCallback((
+    e: React.MouseEvent<HTMLTableCellElement>,
+    columnName: string,
+    value: unknown,
+    rowIndex: number,
+    rowKey: string
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCellContextMenu({
+      position: { x: e.clientX, y: e.clientY },
+      rowIndex,
+      rowKey,
+      columnName,
+      value,
+    });
+  }, [editingCell, tableName, tableSchema, page, pageSize, sortedRows, primaryKeyColumns, buildingId, dbState.activeConnectionId, dbState.activeDatabase]);
+
+  const cellContextMenuActions = useMemo<ContextMenuAction[]>(() => {
+    if (!cellContextMenu) return [];
+    const actionsDisabled = !canEdit || !!editingCell || !!pendingUpdate || !tableName || !tableSchema || !dbState.activeConnectionId || !dbState.activeDatabase;
+
+    return [
+      {
+        id: 'editability',
+        label: canEdit ? 'Cell actions' : editStatusText,
+        icon: canEdit ? '▣' : 'ℹ',
+        disabled: true,
+        onClick: () => {},
+      },
+      {
+        id: 'divider-1',
+        label: '',
+        divider: true,
+        onClick: () => {},
+      },
+      {
+        id: 'edit-cell',
+        label: 'Edit Cell',
+        icon: '✏️',
+        disabled: actionsDisabled,
+        onClick: () => {
+          setEditingCell({
+            rowIndex: cellContextMenu.rowIndex,
+            rowKey: cellContextMenu.rowKey,
+            columnName: cellContextMenu.columnName,
+            originalValue: cellContextMenu.value,
+            currentValue: getEditorValue(cellContextMenu.columnName, cellContextMenu.value),
+            isUpdating: false,
+          });
+        },
+      },
+      {
+        id: 'set-null',
+        label: 'Set NULL',
+        icon: '∅',
+        disabled: actionsDisabled || cellContextMenu.value === null,
+        onClick: () => {
+          executeCellUpdate({
+            rowIndex: cellContextMenu.rowIndex,
+            rowKey: cellContextMenu.rowKey,
+            columnName: cellContextMenu.columnName,
+            originalValue: cellContextMenu.value,
+            currentValue: null,
+            isUpdating: false,
+          });
+        },
+      },
+    ];
+  }, [cellContextMenu, canEdit, editingCell, pendingUpdate, tableName, tableSchema, dbState.activeConnectionId, dbState.activeDatabase, editStatusText, executeCellUpdate, getEditorValue]);
 
   // Handle keyboard in edit mode
   const handleCellKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -257,6 +588,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId }
       handleSaveCell();
     } else if (e.key === 'Escape') {
       e.preventDefault();
+      e.stopPropagation();
       setEditingCell(null);
     }
   }, [handleSaveCell]);
@@ -296,7 +628,10 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId }
   useEffect(() => {
     if (!cellDetail) return;
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setCellDetail(null);
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        setCellDetail(null);
+      }
     };
     const handleClick = (e: MouseEvent) => {
       if (detailRef.current && !detailRef.current.contains(e.target as Node)) {
@@ -311,13 +646,15 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId }
     };
   }, [cellDetail]);
 
-  // Focus and select input when editing starts
+  const editingCellIdentity = editingCell ? `${editingCell.rowKey}:${editingCell.columnName}` : null;
+
+  // Focus and select input only when a new cell enters edit mode
   useEffect(() => {
-    if (editInputRef.current && editingCell) {
+    if (editInputRef.current && editingCellIdentity) {
       editInputRef.current.focus();
       editInputRef.current.select();
     }
-  }, [editingCell]);
+  }, [editingCellIdentity]);
 
   // Copy all results as enriched HTML table
   const handleCopyAll = useCallback(async () => {
@@ -457,6 +794,12 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId }
           <span className="results-table__duration">
             {result.duration}ms
           </span>
+          <span
+            className={`results-table__edit-status ${canEdit ? 'results-table__edit-status--editable' : 'results-table__edit-status--readonly'}`}
+            title={editStatusText}
+          >
+            {editStatusText}
+          </span>
           <button
             className={`results-table__copy-btn ${copyFeedback ? 'results-table__copy-btn--success' : ''}`}
             onClick={handleCopyAll}
@@ -561,29 +904,61 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId }
                   {page * pageSize + rowIndex + 1}
                 </td>
                 {columns.map(col => {
-                  const isEditing = editingCell?.rowIndex === rowIndex && editingCell?.columnName === col;
+                  // Check if this cell was updated
+                  const rowKey = JSON.stringify(Object.fromEntries(
+                    primaryKeyColumns.map(pkCol => [pkCol, row[pkCol]])
+                  ));
+                  const isEditing = editingCell?.rowKey === rowKey && editingCell?.columnName === col;
+                  const updatedRowData = updatedRows.get(rowKey);
+                  const displayValue = updatedRowData ? updatedRowData[col] : row[col];
 
                   return (
                     <td
                       key={col}
-                      className={`results-table__cell ${isEditing ? 'results-table__cell--editing' : ''} ${canEdit ? 'results-table__cell--editable' : ''}`}
-                      onClick={() => handleCellClick(col, row[col])}
+                      className={`results-table__cell ${isEditing ? 'results-table__cell--editing' : ''} ${canEdit ? 'results-table__cell--editable' : ''} ${updatedRowData && updatedRowData[col] !== row[col] ? 'results-table__cell--updated' : ''}`}
+                      onClick={() => handleCellClick(col, displayValue, rowIndex, rowKey)}
+                      onDoubleClick={() => handleCellDoubleClick(col, displayValue)}
+                      onContextMenu={(e) => handleCellContextMenu(e, col, displayValue, rowIndex, rowKey)}
                     >
                       {isEditing ? (
                         <div className="results-table__cell-input-wrapper">
-                          <input
-                            ref={editInputRef}
-                            type="text"
-                            className="results-table__cell-input"
-                            value={String(editingCell.currentValue ?? '')}
-                            onChange={(e) => setEditingCell(prev =>
-                              prev ? { ...prev, currentValue: e.target.value } : null
-                            )}
-                            onBlur={handleSaveCell}
-                            onKeyDown={handleCellKeyDown}
-                            disabled={editingCell.isUpdating}
-                            autoFocus
-                          />
+                          {isDateTimeType(columnTypeMap.get(editingCell.columnName)) ? (
+                            <DatePicker
+                              selected={parseDateTimeValue(editingCell.currentValue)}
+                              onChange={(date: Date | null | [Date | null, Date | null]) => {
+                                const selectedDate = Array.isArray(date) ? date[0] : date;
+                                setEditingCell(prev =>
+                                  prev
+                                    ? { ...prev, currentValue: selectedDate ? formatDateTimeForSql(selectedDate) : '' }
+                                    : null
+                                );
+                              }}
+                              onCalendarClose={handleSaveCell}
+                              showTimeSelect
+                              showTimeInput
+                              timeIntervals={1}
+                              timeFormat="HH:mm:ss"
+                              dateFormat="yyyy-MM-dd HH:mm:ss"
+                              className="results-table__cell-input results-table__cell-input--datetime"
+                              disabled={editingCell.isUpdating}
+                              placeholderText="Select date and time"
+                              autoFocus
+                            />
+                          ) : (
+                            <input
+                              ref={editInputRef}
+                              type="text"
+                              className="results-table__cell-input"
+                              value={String(editingCell.currentValue ?? '')}
+                              onChange={(e) => setEditingCell(prev =>
+                                prev ? { ...prev, currentValue: e.target.value } : null
+                              )}
+                              onBlur={handleSaveCell}
+                              onKeyDown={handleCellKeyDown}
+                              disabled={editingCell.isUpdating}
+                              autoFocus
+                            />
+                          )}
                           {editingCell.isUpdating && (
                             <span className="results-table__cell-feedback results-table__cell-feedback--loading">⏳</span>
                           )}
@@ -592,7 +967,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId }
                           )}
                         </div>
                       ) : (
-                        formatValue(row[col])
+                        formatValue(displayValue)
                       )}
                     </td>
                   );
@@ -621,11 +996,15 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId }
                       );
                       if (row) {
                         const rowIndex = paginatedRows.indexOf(row);
+                        const rowKey = JSON.stringify(Object.fromEntries(
+                          primaryKeyColumns.map(pkCol => [pkCol, row[pkCol]])
+                        ));
                         setEditingCell({
                           rowIndex,
+                          rowKey,
                           columnName: cellDetail.column,
                           originalValue: cellDetail.value,
-                          currentValue: cellDetail.value,
+                          currentValue: getEditorValue(cellDetail.column, cellDetail.value),
                           isUpdating: false,
                         });
                       }
@@ -652,6 +1031,29 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId }
           </div>
         </div>
       )}
+
+      {/* Toast notification */}
+      {toast && (
+        <div className={`results-table__toast results-table__toast--${toast.type}`}>
+          {toast.message}
+        </div>
+      )}
+
+      {/* Executed query log */}
+      {executedQuery && (
+        <div className="results-table__query-log">
+          <div className="results-table__query-log-label">Executed Query:</div>
+          <code className="results-table__query-log-code">{executedQuery}</code>
+        </div>
+      )}
+
+      <ContextMenu
+        isOpen={cellContextMenu !== null}
+        position={cellContextMenu?.position ?? { x: 0, y: 0 }}
+        worldPosition={{ x: 0, z: 0 }}
+        actions={cellContextMenuActions}
+        onClose={() => setCellContextMenu(null)}
+      />
     </div>
   );
 };

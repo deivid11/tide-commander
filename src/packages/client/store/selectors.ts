@@ -850,6 +850,7 @@ const emptyDatabaseState: DatabaseBuildingState = {
   executingQuery: false,
   activeConnectionId: null,
   activeDatabase: null,
+  lastSilentQueryResult: null,
 };
 
 /**

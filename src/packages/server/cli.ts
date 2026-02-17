@@ -577,7 +577,9 @@ async function main(): Promise<void> {
     console.log(`  ${yellow}tide-commander stop${reset}      ${dim}Stop the server${reset}`);
     console.log(`  ${yellow}tide-commander logs -f${reset}   ${dim}Follow live server logs${reset}`);
     console.log(`  ${yellow}tide-commander --help${reset}    ${dim}Show all options${reset}`);
-    console.log(`${cyan}${'═'.repeat(60)}${reset}\n`);
+    console.log(`${cyan}${'═'.repeat(60)}${reset}`);
+    console.log(`${dim}⭐ If you find Tide Commander useful, please give it a star:${reset}`);
+    console.log(`${yellow}https://github.com/deivid11/tide-commander${reset}\n`);
     return;
     }
   }
@@ -646,7 +648,9 @@ async function main(): Promise<void> {
     console.log(`  ${yellow}tide-commander stop${reset}      ${dim}Stop the server${reset}`);
     console.log(`  ${yellow}tide-commander logs -f${reset}   ${dim}Follow live server logs${reset}`);
     console.log(`  ${yellow}tide-commander --help${reset}    ${dim}Show all options${reset}`);
-    console.log(`${cyan}${'═'.repeat(60)}${reset}\n`);
+    console.log(`${cyan}${'═'.repeat(60)}${reset}`);
+    console.log(`${dim}⭐ If you find Tide Commander useful, please give it a star:${reset}`);
+    console.log(`${yellow}https://github.com/deivid11/tide-commander${reset}\n`);
     return;
   }
 

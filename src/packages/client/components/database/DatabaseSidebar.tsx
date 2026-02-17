@@ -20,6 +20,7 @@ interface DatabaseSidebarProps {
   onConnectionChange: (connectionId: string) => void;
   onDatabaseChange: (database: string) => void;
   onInsertTable: (tableName: string) => void;
+  onSelectTableQuery: (tableName: string) => void;
 }
 
 export const DatabaseSidebar: React.FC<DatabaseSidebarProps> = ({
@@ -32,12 +33,14 @@ export const DatabaseSidebar: React.FC<DatabaseSidebarProps> = ({
   onConnectionChange,
   onDatabaseChange,
   onInsertTable,
+  onSelectTableQuery,
 }) => {
   const { t } = useTranslation(['terminal']);
   const dbState = useDatabaseState(building.id);
   const [expandedTables, setExpandedTables] = useState<Set<string>>(new Set());
   const [dbSearch, setDbSearch] = useState('');
   const [dbDropdownOpen, setDbDropdownOpen] = useState(false);
+  const [selectedTableName, setSelectedTableName] = useState<string | null>(null);
   const dbSearchRef = useRef<HTMLInputElement>(null);
   const dbDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -97,6 +100,11 @@ export const DatabaseSidebar: React.FC<DatabaseSidebarProps> = ({
       store.listTables(building.id, activeConnectionId, activeDatabase);
     }
   }, [building.id, activeConnectionId, activeDatabase, tables.length]);
+
+  // Reset selected table when context changes
+  useEffect(() => {
+    setSelectedTableName(null);
+  }, [activeConnectionId, activeDatabase]);
 
   // Toggle table expansion
   const toggleTableExpand = useCallback((tableName: string) => {
@@ -265,17 +273,25 @@ export const DatabaseSidebar: React.FC<DatabaseSidebarProps> = ({
 
               return (
                 <div key={table.name} className="database-sidebar__table">
-                  <div
-                    className="database-sidebar__table-header"
-                    onClick={() => toggleTableExpand(table.name)}
-                  >
-                    <span className="database-sidebar__table-expand">
+                  <div className="database-sidebar__table-header">
+                    <button
+                      className="database-sidebar__table-expand"
+                      onClick={() => toggleTableExpand(table.name)}
+                      title={isExpanded ? 'Collapse table schema' : 'Expand table schema'}
+                    >
                       {isExpanded ? '▼' : '▶'}
-                    </span>
+                    </button>
                     <span className="database-sidebar__table-icon">
                       {table.type === 'view' ? '👁' : '📋'}
                     </span>
-                    <span className="database-sidebar__table-name">
+                    <span
+                      className={`database-sidebar__table-name ${selectedTableName === table.name ? 'database-sidebar__table-name--selected' : ''}`}
+                      onClick={() => setSelectedTableName(table.name)}
+                      onDoubleClick={() => {
+                        setSelectedTableName(table.name);
+                        onSelectTableQuery(table.name);
+                      }}
+                    >
                       {table.name}
                     </span>
                     <button

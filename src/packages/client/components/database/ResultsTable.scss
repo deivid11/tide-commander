@@ -124,6 +124,27 @@
     color: $text-primary;
   }
 
+  &__edit-status {
+    padding: 1px 6px;
+    border: 1px solid $border-color;
+    border-radius: 999px;
+    font-size: 0.72em;
+    line-height: 1.4;
+    white-space: nowrap;
+
+    &--editable {
+      color: $accent-green;
+      background: rgba($accent-green, 0.12);
+      border-color: rgba($accent-green, 0.35);
+    }
+
+    &--readonly {
+      color: $accent-orange;
+      background: rgba($accent-orange, 0.12);
+      border-color: rgba($accent-orange, 0.35);
+    }
+  }
+
   // Pagination
   &__pagination {
     display: flex;
@@ -291,11 +312,15 @@
     align-items: center;
     gap: 4px;
     height: 100%;
+    width: 100%;
+    min-width: 0;
   }
 
   &__cell-input {
     flex: 1;
-    min-width: 0;
+    min-width: 80px;
+    max-width: none;
+    width: 100%;
     padding: 4px 6px;
     background: $bg-primary;
     border: 2px solid $accent-blue;
@@ -304,6 +329,7 @@
     font-family: $font-mono;
     font-size: 0.9em;
     outline: none;
+    box-sizing: border-box;
 
     &:focus {
       border-color: $accent-blue;
@@ -518,4 +544,121 @@
       box-shadow: inset 0 0 0 1px rgba($accent-blue, 0.3);
     }
   }
+
+  &__toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    padding: 12px 20px;
+    border-radius: 6px;
+    font-size: 0.9em;
+    font-weight: 500;
+    animation: slideIn 0.3s ease-out;
+    z-index: 2000;
+    max-width: 300px;
+    word-break: break-word;
+
+    &--success {
+      background: rgba($accent-green, 0.9);
+      color: white;
+      border: 1px solid rgba($accent-green, 1);
+    }
+
+    &--error {
+      background: rgba($accent-red, 0.9);
+      color: white;
+      border: 1px solid rgba($accent-red, 1);
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateX(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+  }
+
+  &__query-log {
+    padding: 12px;
+    background: $bg-tertiary;
+    border-top: 1px solid rgba($accent-blue, 0.2);
+    font-size: 0.85em;
+    max-height: 120px;
+    overflow: auto;
+  }
+
+  &__query-log-label {
+    color: $text-secondary;
+    font-weight: 500;
+    margin-bottom: 6px;
+  }
+
+  &__query-log-code {
+    display: block;
+    color: $accent-blue;
+    font-family: $font-mono;
+    font-size: 0.8em;
+    word-break: break-all;
+    white-space: pre-wrap;
+    line-height: 1.4;
+  }
+
+  &__cell--updated {
+    background: rgba($accent-green, 0.1) !important;
+  }
+}
+
+.results-table .react-datepicker {
+  background: $bg-secondary;
+  border: 1px solid $border-color;
+  color: $text-primary;
+  font-family: $font-mono;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+}
+
+.results-table .react-datepicker__header {
+  background: $bg-tertiary;
+  border-bottom: 1px solid $border-color;
+}
+
+.results-table .react-datepicker__current-month,
+.results-table .react-datepicker-time__header,
+.results-table .react-datepicker-year-header,
+.results-table .react-datepicker__day-name,
+.results-table .react-datepicker__day,
+.results-table .react-datepicker__time-name {
+  color: $text-primary;
+}
+
+.results-table .react-datepicker__day:hover,
+.results-table .react-datepicker__time-list-item:hover {
+  background: rgba($accent-blue, 0.2);
+}
+
+.results-table .react-datepicker__day--selected,
+.results-table .react-datepicker__day--keyboard-selected,
+.results-table .react-datepicker__time-list-item--selected {
+  background: rgba($accent-blue, 0.7);
+  color: #fff;
+}
+
+.results-table .react-datepicker__time-container {
+  border-left: 1px solid $border-color;
+}
+
+.results-table .react-datepicker__time {
+  background: $bg-secondary;
+}
+
+.results-table .react-datepicker__time-box,
+.results-table .react-datepicker__time-list {
+  background: $bg-secondary;
+}
+
+.results-table .react-datepicker__triangle {
+  display: none;
 }

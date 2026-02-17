@@ -1200,6 +1200,8 @@ export interface ExecuteQueryMessage extends WSMessage {
     database: string;
     query: string;
     limit?: number;              // Max rows to return (default: 1000)
+    silent?: boolean;            // If true, don't send result back to UI
+    requestId?: string;          // Optional correlation ID for silent query acknowledgements
   };
 }
 
@@ -1209,6 +1211,19 @@ export interface QueryResultMessage extends WSMessage {
   payload: {
     buildingId: string;
     result: QueryResult;
+  };
+}
+
+// Silent query execution result (Server -> Client)
+export interface SilentQueryResultMessage extends WSMessage {
+  type: 'silent_query_result';
+  payload: {
+    buildingId: string;
+    query: string;
+    requestId?: string;
+    success: boolean;
+    affectedRows?: number;
+    error?: string;
   };
 }
 
@@ -1374,6 +1389,7 @@ export type ServerMessage =
   | DatabaseConnectionResultMessage
   | DatabasesListMessage
   | QueryResultMessage
+  | SilentQueryResultMessage
   | QueryHistoryUpdateMessage
   | TableSchemaMessage
   | TablesListMessage

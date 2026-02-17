@@ -13,6 +13,9 @@ interface UseKeyboardShortcutsOptions {
   spotlightModal: UseModalState;
   deleteConfirmModal: UseModalState;
   onRequestBuildingDelete: () => void;
+  onOpenDatabasePanel: (buildingId: string) => void;
+  onCloseDatabasePanel: () => void;
+  databasePanelOpen: boolean;
 }
 
 /**
@@ -26,6 +29,9 @@ export function useKeyboardShortcuts({
   spotlightModal,
   deleteConfirmModal,
   onRequestBuildingDelete,
+  onOpenDatabasePanel,
+  onCloseDatabasePanel,
+  databasePanelOpen,
 }: UseKeyboardShortcutsOptions): void {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -144,6 +150,34 @@ export function useKeyboardShortcuts({
         return;
       }
 
+      // Toggle Database Panel (Alt+D)
+      if (e.altKey && !e.ctrlKey && !e.shiftKey && !e.metaKey && e.code === 'KeyD') {
+        e.preventDefault();
+        e.stopPropagation();
+        // If already open, close it
+        if (databasePanelOpen) {
+          onCloseDatabasePanel();
+          return;
+        }
+        const lastBuildingId = localStorage.getItem('tide-commander-last-database-building');
+        const currentState = store.getState();
+        if (lastBuildingId) {
+          const building = currentState.buildings.get(lastBuildingId);
+          if (building?.type === 'database') {
+            onOpenDatabasePanel(lastBuildingId);
+            return;
+          }
+        }
+        // Fallback: open the first database building found
+        for (const [id, building] of currentState.buildings) {
+          if (building.type === 'database') {
+            onOpenDatabasePanel(id);
+            return;
+          }
+        }
+        return;
+      }
+
       // Toggle Spotlight (Alt+P)
       const spotlightShortcut = shortcuts.find(s => s.id === 'toggle-spotlight');
       if (matchesShortcut(e, spotlightShortcut) || (e.altKey && !e.ctrlKey && !e.metaKey && e.code === 'KeyP')) {
@@ -218,5 +252,5 @@ export function useKeyboardShortcuts({
     // This is necessary because the canvas doesn't naturally receive keyboard events
     document.addEventListener('keydown', handleKeyDown, true);
     return () => document.removeEventListener('keydown', handleKeyDown, true);
-  }, [sceneRef, spawnModal, commanderModal, explorerModal, spotlightModal, deleteConfirmModal, onRequestBuildingDelete]);
+  }, [sceneRef, spawnModal, commanderModal, explorerModal, spotlightModal, deleteConfirmModal, onRequestBuildingDelete, onOpenDatabasePanel, onCloseDatabasePanel, databasePanelOpen]);
 }

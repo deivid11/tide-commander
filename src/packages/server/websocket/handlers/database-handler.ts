@@ -169,9 +169,9 @@ export async function handleGetTableSchema(
  */
 export async function handleExecuteQuery(
   ctx: HandlerContext,
-  payload: { buildingId: string; connectionId: string; database: string; query: string; limit?: number }
+  payload: { buildingId: string; connectionId: string; database: string; query: string; limit?: number; silent?: boolean; requestId?: string }
 ): Promise<void> {
-  const { buildingId, connectionId, database, query, limit = 1000 } = payload;
+  const { buildingId, connectionId, database, query, limit = 1000, silent = false, requestId } = payload;
 
   const connection = getConnection(buildingId, connectionId);
   if (!connection) {
@@ -179,31 +179,71 @@ export async function handleExecuteQuery(
     return;
   }
 
-  log.log(`Executing query on ${connection.name}/${database}: ${query.substring(0, 100)}...`);
+  const isSilent = silent === true;
+  log.log(`Executing query on ${connection.name}/${database}: ${query.substring(0, 100)}...${isSilent ? ' (SILENT MODE)' : ''}`);
 
-  const result = await databaseService.executeQuery(connection, database, query, limit);
+  try {
+    const result = await databaseService.executeQuery(connection, database, query, limit);
+    const metric = result.affectedRows ?? result.rowCount ?? 0;
+    const metricLabel = result.affectedRows !== undefined ? 'affectedRows' : 'rowCount';
+    log.log(
+      `Query execution complete status=${result.status} duration=${result.duration}ms ${metricLabel}=${metric}${isSilent ? ' (result not sent to UI)' : ''}`
+    );
 
-  // Add to history
-  databaseService.addToHistory(buildingId, result);
+    // Always add to history (even for silent queries)
+    databaseService.addToHistory(buildingId, result);
 
-  // Send result
-  ctx.sendToClient({
-    type: 'query_result',
-    payload: {
-      buildingId,
-      result,
-    },
-  });
+    // If silent mode, don't send result back to UI
+    if (isSilent) {
+      ctx.sendToClient({
+        type: 'silent_query_result',
+        payload: {
+          buildingId,
+          query,
+          requestId,
+          success: true,
+          affectedRows: result.affectedRows,
+        },
+      });
+      log.log('Silent execution completed - sent silent_query_result');
+      return;
+    }
 
-  // Send updated history
-  const history = databaseService.getHistory(buildingId);
-  ctx.sendToClient({
-    type: 'query_history_update',
-    payload: {
-      buildingId,
-      history,
-    },
-  });
+    // Send result
+    ctx.sendToClient({
+      type: 'query_result',
+      payload: {
+        buildingId,
+        result,
+      },
+    });
+
+    // Send updated history
+    const history = databaseService.getHistory(buildingId);
+    ctx.sendToClient({
+      type: 'query_history_update',
+      payload: {
+        buildingId,
+        history,
+      },
+    });
+  } catch (error) {
+    log.error(`Query execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    if (isSilent) {
+      ctx.sendToClient({
+        type: 'silent_query_result',
+        payload: {
+          buildingId,
+          query,
+          requestId,
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        },
+      });
+    } else {
+      ctx.sendError(`Query execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
 }
 
 /**

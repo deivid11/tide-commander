@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.65.0] - 2026-02-17
+
+### Added
+- **Enhanced database inline cell editing** - Context menu on cells with Edit/Copy/Set NULL actions, date/time picker for datetime columns, and improved value parsing for JSON and boolean types
+- **Silent query execution** - New `silent` mode for database queries that execute UPDATE statements without replacing the current result set, with `silent_query_result` WebSocket message for acknowledgement
+- **Database panel keyboard shortcut** - Alt+D toggles the database panel, remembers last-used database building via localStorage
+- **Database sidebar table selection** - Click to select a table, double-click to run SELECT query; expand/collapse is now a separate button
+- **Buildings file cache** - Server-side mtime-based cache for `loadBuildings()` avoids redundant disk reads
+- **CLI star prompt** - Startup banner now includes a link to star the GitHub repository
+
+### Changed
+- **Page Down Messages shortcut** - Changed from Alt+D to Alt+Shift+D to free Alt+D for database panel
+- **Database query handler** - Improved error handling with try-catch, detailed logging with duration and affected rows
+- **ResultsTable** - Enhanced with react-datepicker dependency, context menus, pending update state tracking, and improved SQL generation for object/JSON values
+
 ## [0.64.0] - 2026-02-16
 
 ### Added
