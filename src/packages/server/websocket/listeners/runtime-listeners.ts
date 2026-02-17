@@ -1,3 +1,6 @@
+import { execFileSync } from 'child_process';
+import * as fs from 'fs';
+import * as path from 'path';
 import type { ServerMessage, Subagent } from '../../../shared/types.js';
 import { parseContextOutput } from '../../claude/backend.js';
 import { agentService, runtimeService } from '../../services/index.js';
@@ -5,6 +8,14 @@ import { logger, formatToolActivity } from '../../utils/index.js';
 import { parseBossDelegation, parseBossSpawn, getBossForSubordinate, clearDelegation } from '../handlers/boss-response-handler.js';
 
 const log = logger.ws;
+const MAX_SYNTHETIC_DIFF_FILE_BYTES = 256 * 1024;
+
+interface InferredEditInput extends Record<string, unknown> {
+  file_path: string;
+  old_string: string;
+  new_string: string;
+  operation: 'append' | 'in_place_edit' | 'overwrite';
+}
 
 interface RuntimeListenerContext {
   broadcast: (message: ServerMessage) => void;
@@ -12,6 +23,8 @@ interface RuntimeListenerContext {
 }
 
 export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
+  const pendingBashCommands = new Map<string, string>();
+
   runtimeService.on('event', (agentId, event) => {
     if (event.type === 'init') {
       ctx.sendActivity(agentId, `Session initialized (${event.model})`);
@@ -87,6 +100,40 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
       log.log(`[Subagent] Broadcast subagent_completed for toolUseId=${event.toolUseId}, name=${event.subagentName || 'unknown'}`);
     } else if (event.type === 'error') {
       ctx.sendActivity(agentId, `Error: ${event.errorMessage}`);
+    } else if (event.type === 'tool_result' && event.toolName === 'Bash') {
+      const command = pendingBashCommands.get(agentId);
+      pendingBashCommands.delete(agentId);
+      if (!command) {
+        return;
+      }
+
+      const agent = agentService.getAgent(agentId);
+      const inferredEdits = inferEditInputsFromBash(command, agent?.cwd || process.cwd());
+      for (const inferredEdit of inferredEdits) {
+        const now = Date.now();
+        ctx.broadcast({
+          type: 'output',
+          payload: {
+            agentId,
+            text: 'Using tool: Edit',
+            isStreaming: false,
+            timestamp: now,
+            toolName: 'Edit',
+            toolInput: inferredEdit,
+          },
+        } as ServerMessage);
+        ctx.broadcast({
+          type: 'output',
+          payload: {
+            agentId,
+            text: `Tool input: ${JSON.stringify(inferredEdit)}`,
+            isStreaming: false,
+            timestamp: now + 1,
+            toolName: 'Edit',
+            toolInput: inferredEdit,
+          },
+        } as ServerMessage);
+      }
     }
 
     if (event.type === 'step_complete' && event.resultText) {
@@ -172,6 +219,14 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
         payload,
       } as ServerMessage);
 
+      if (typeof payload.toolName === 'string' && payload.toolName === 'Bash') {
+        const toolInput = payload.toolInput as Record<string, unknown> | undefined;
+        const command = typeof toolInput?.command === 'string' ? toolInput.command : undefined;
+        if (command && text.startsWith('Using tool:')) {
+          pendingBashCommands.set(agentId, command);
+        }
+      }
+
       const delegation = getBossForSubordinate(agentId);
       if (delegation) {
         ctx.broadcast({
@@ -187,6 +242,7 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
   );
 
   runtimeService.on('complete', (agentId, success) => {
+    pendingBashCommands.delete(agentId);
     ctx.sendActivity(agentId, success ? 'Task completed' : 'Task failed');
 
     const delegation = getBossForSubordinate(agentId);
@@ -207,6 +263,7 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
   });
 
   runtimeService.on('error', (agentId, error) => {
+    pendingBashCommands.delete(agentId);
     ctx.sendActivity(agentId, `Error: ${error}`);
   });
 
@@ -223,4 +280,184 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
       payload: { agentId },
     });
   });
+}
+
+function inferEditInputsFromBash(command: string, cwd: string): InferredEditInput[] {
+  const shell = extractShellCommand(command);
+  const candidates = new Map<string, InferredEditInput['operation']>();
+
+  for (const regex of [
+    /\b(?:printf|echo)\s+(['"])([\s\S]*?)\1\s*>>\s*([^\s;|&]+)/g,
+  ]) {
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(shell)) !== null) {
+      const filePath = normalizeCandidatePath(match[3]);
+      if (!filePath) continue;
+      candidates.set(filePath, 'append');
+    }
+  }
+
+  for (const segment of shell.split(/&&|\|\||;|\|/).map((s) => s.trim()).filter(Boolean)) {
+    if ((/\bsed\s+-i\b/.test(segment) || /\bperl\s+-pi\b/.test(segment))) {
+      const filePath = extractLastLikelyFilePath(segment);
+      if (filePath) {
+        candidates.set(filePath, 'in_place_edit');
+      }
+    }
+  }
+
+  const overwriteRegex = /(?<![0-9>])>(?!>)\s*([^\s;|&]+)/g;
+  let overwriteMatch: RegExpExecArray | null;
+  while ((overwriteMatch = overwriteRegex.exec(shell)) !== null) {
+    const filePath = normalizeCandidatePath(overwriteMatch[1]);
+    if (!filePath || filePath === '/dev/null') continue;
+    if (!candidates.has(filePath)) {
+      candidates.set(filePath, 'overwrite');
+    }
+  }
+
+  const edits: InferredEditInput[] = [];
+  for (const [filePath, operation] of candidates.entries()) {
+    const snapshot = buildFileSnapshot(filePath, cwd);
+    if (!snapshot) continue;
+    if (snapshot.old_string === snapshot.new_string) continue;
+    edits.push({
+      file_path: normalizePathForUi(filePath),
+      old_string: snapshot.old_string,
+      new_string: snapshot.new_string,
+      operation,
+    });
+  }
+
+  return edits;
+}
+
+function extractShellCommand(command: string): string {
+  const doubleQuoted = command.match(/-lc\s+"([\s\S]*)"$/);
+  if (doubleQuoted) {
+    return doubleQuoted[1]
+      .replace(/\\"/g, '"')
+      .replace(/\\`/g, '`')
+      .replace(/\\\$/g, '$')
+      .replace(/\\\\/g, '\\');
+  }
+  const singleQuoted = command.match(/-lc\s+'([\s\S]*)'$/);
+  if (singleQuoted) {
+    return singleQuoted[1];
+  }
+  return command;
+}
+
+function normalizeCandidatePath(value: string): string | undefined {
+  const candidate = value.trim().replace(/^['"]|['"]$/g, '');
+  if (!candidate) return undefined;
+  if (candidate === '/') return undefined;
+  if (candidate.startsWith('&') || candidate.startsWith('(')) return undefined;
+  if (candidate.startsWith('-')) return undefined;
+  if (/^[><|&]+$/.test(candidate)) return undefined;
+  if (/^\d+$/.test(candidate)) return undefined;
+  if (!/[/.~]/.test(candidate) && !/^[A-Z][A-Za-z0-9_-]*$/.test(candidate)) return undefined;
+  if (/^(one|two|three|four|five|six|seven|eight|nine|ten)$/i.test(candidate)) return undefined;
+  return candidate;
+}
+
+function extractLastLikelyFilePath(segment: string): string | undefined {
+  const tokens = segment.match(/'[^']*'|"[^"]*"|\S+/g) || [];
+  for (let i = tokens.length - 1; i >= 0; i -= 1) {
+    const candidate = normalizeCandidatePath(tokens[i]);
+    if (candidate) return candidate;
+  }
+  return undefined;
+}
+
+function normalizePathForUi(filePath: string): string {
+  if (filePath.startsWith('/') || filePath.startsWith('./') || filePath.startsWith('../') || filePath.startsWith('~')) {
+    return filePath;
+  }
+  return `./${filePath}`;
+}
+
+function buildFileSnapshot(filePath: string, cwd: string): { old_string: string; new_string: string } | null {
+  const absolutePath = resolveAbsolutePath(filePath, cwd);
+  if (!absolutePath) return null;
+
+  const newContent = readTextFileIfSmall(absolutePath);
+  if (newContent === null) return null;
+
+  const gitRoot = findGitRoot(path.dirname(absolutePath));
+  if (!gitRoot) {
+    return { old_string: '', new_string: newContent };
+  }
+
+  const relativePath = path.relative(gitRoot, absolutePath);
+  if (!relativePath || relativePath.startsWith('..')) {
+    return null;
+  }
+
+  const oldContent = readHeadFileIfSmall(gitRoot, relativePath);
+  if (oldContent === null) return null;
+
+  return { old_string: oldContent, new_string: newContent };
+}
+
+function resolveAbsolutePath(filePath: string, cwd: string): string | null {
+  if (!filePath) return null;
+  if (filePath.startsWith('~')) {
+    const homeDir = process.env.HOME || process.env.USERPROFILE;
+    if (!homeDir) return null;
+    return path.resolve(homeDir, filePath.slice(1));
+  }
+  if (path.isAbsolute(filePath)) return filePath;
+  return path.resolve(cwd, filePath);
+}
+
+function readTextFileIfSmall(absolutePath: string): string | null {
+  if (!fs.existsSync(absolutePath)) return '';
+
+  let stat: fs.Stats;
+  try {
+    stat = fs.statSync(absolutePath);
+  } catch {
+    return null;
+  }
+  if (!stat.isFile()) return null;
+  if (stat.size > MAX_SYNTHETIC_DIFF_FILE_BYTES) return null;
+
+  let buffer: Buffer;
+  try {
+    buffer = fs.readFileSync(absolutePath);
+  } catch {
+    return null;
+  }
+  if (buffer.includes(0x00)) return null;
+  return buffer.toString('utf8');
+}
+
+function findGitRoot(startDir: string): string | null {
+  try {
+    return execFileSync('git', ['rev-parse', '--show-toplevel'], {
+      cwd: startDir,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    return null;
+  }
+}
+
+function readHeadFileIfSmall(gitRoot: string, relativePath: string): string | null {
+  const gitPath = relativePath.split(path.sep).join(path.posix.sep);
+  try {
+    const output = execFileSync('git', ['show', `HEAD:${gitPath}`], {
+      cwd: gitRoot,
+      encoding: 'utf8',
+      maxBuffer: MAX_SYNTHETIC_DIFF_FILE_BYTES + 4096,
+    });
+    if (Buffer.byteLength(output, 'utf8') > MAX_SYNTHETIC_DIFF_FILE_BYTES) {
+      return null;
+    }
+    return output;
+  } catch {
+    return '';
+  }
 }

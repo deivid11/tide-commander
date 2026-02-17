@@ -1,3 +1,7 @@
+import { execFileSync } from 'child_process';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { describe, expect, it } from 'vitest';
 import { CodexJsonEventParser } from './json-event-parser.js';
 
@@ -189,5 +193,51 @@ describe('CodexJsonEventParser', () => {
     const parser = new CodexJsonEventParser();
     const events = parser.parseLine('{invalid');
     expect(events).toEqual([]);
+  });
+
+  it('enriches inferred shell edits with git-backed old/new content', () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-parser-'));
+    try {
+      execFileSync('git', ['init'], { cwd: tempDir, stdio: 'ignore' });
+      execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: tempDir, stdio: 'ignore' });
+      execFileSync('git', ['config', 'user.name', 'Codex Parser Test'], { cwd: tempDir, stdio: 'ignore' });
+
+      const readmePath = path.join(tempDir, 'README.md');
+      fs.writeFileSync(readmePath, 'MIT\n', 'utf8');
+      execFileSync('git', ['add', 'README.md'], { cwd: tempDir, stdio: 'ignore' });
+      execFileSync('git', ['commit', '-m', 'init'], { cwd: tempDir, stdio: 'ignore' });
+
+      fs.writeFileSync(readmePath, 'MIT\nLine added.\n', 'utf8');
+
+      const parser = new CodexJsonEventParser({
+        enableFileDiffEnrichment: true,
+        workingDirectory: tempDir,
+      });
+
+      const events = parser.parseEvent({
+        type: 'item.completed',
+        item: {
+          id: 'cmd_789',
+          type: 'command_execution',
+          command: '/usr/bin/zsh -lc "printf \'Line added.\\n\' >> README.md"',
+          aggregated_output: '',
+          exit_code: 0,
+          status: 'completed',
+        },
+      });
+
+      const editStart = events.find((event) => event.type === 'tool_start' && event.toolName === 'Edit');
+      expect(editStart).toMatchObject({
+        type: 'tool_start',
+        toolName: 'Edit',
+        toolInput: {
+          file_path: './README.md',
+          old_string: 'MIT\n',
+          new_string: 'MIT\nLine added.\n',
+        },
+      });
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 });

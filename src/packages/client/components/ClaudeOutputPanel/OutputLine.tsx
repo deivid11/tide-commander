@@ -6,7 +6,8 @@ import React, { memo, useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useHideCost, useSettings, ClaudeOutput, store } from '../../store';
 import { filterCostText } from '../../utils/formatting';
-import { TOOL_ICONS, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand } from '../../utils/outputRendering';
+import { TOOL_ICONS, extractExecWrappedCommand, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand, splitCommandForFileLinks } from '../../utils/outputRendering';
+import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, DelegatedTaskHeader, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions } from './BossContext';
 import { EditToolDiff, ReadToolInput, TodoWriteInput } from './ToolRenderers';
@@ -392,28 +393,11 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       ? { highlightRange: { offset: payloadInputRecord.offset, limit: payloadInputRecord.limit } }
       : undefined;
 
-    // Helper to extract actual command from curl /api/exec payloads
-    const extractActualCommand = (cmd: string): string => {
-      if (!cmd.includes('curl') || !cmd.includes('/api/exec')) return cmd;
-      try {
-        // Extract JSON payload from curl command
-        // Pattern: -d '{"agentId":"...","command":"...","cwd":"..."}'
-        const jsonMatch = cmd.match(/-d\s+'({[^}]+})'/);
-        if (jsonMatch) {
-          const payload = JSON.parse(jsonMatch[1]);
-          if (payload.command) return payload.command;
-        }
-      } catch {
-        // If extraction fails, return the original
-      }
-      return cmd;
-    };
-
     // Check if this is a Bash tool that should be clickable (with command or output)
     const isBashTool = toolName === 'Bash' && onBashClick;
     const hasBashOutput = !!_bashOutput || !!payloadToolOutput;
     const bashCommand = _bashCommand || _toolKeyParam || toolKeyParamOrFallback || '';
-    const displayCommand = extractActualCommand(bashCommand);
+    const displayCommand = extractExecWrappedCommand(bashCommand);
     const isCurlExecCommand = /\bcurl\b[\s\S]*\/api\/exec\b/.test(bashCommand);
     // Show only the MOST RECENT exec task that started shortly after this bash command
     const bashTimestampMs = timestamp ? new Date(timestamp).getTime() : 0;
@@ -460,6 +444,33 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
           : (_bashOutput || t('tools:display.noOutputCaptured'));
         onBashClick(bashCommand, outputMessage);
       }
+    };
+
+    const renderBashCommandWithFileLinks = () => {
+      if (!displayCommand) return null;
+      if (!onFileClick) return displayCommand;
+
+      const agentCwd = agentId ? store.getState().agents.get(agentId)?.cwd : undefined;
+      const segments = splitCommandForFileLinks(displayCommand);
+
+      return segments.map((segment, idx) => {
+        if (!segment.fileRef) return <React.Fragment key={`cmd-${idx}`}>{segment.text}</React.Fragment>;
+        const resolved = resolveAgentFileReference(segment.fileRef, agentCwd);
+        return (
+          <span
+            key={`cmd-file-${idx}`}
+            className="clickable-path"
+            onClick={(e) => {
+              e.stopPropagation();
+              onFileClick(resolved.path);
+            }}
+            title={t('tools:display.clickToViewFile')}
+            style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' }}
+          >
+            {segment.text}
+          </span>
+        );
+      });
     };
 
     return (
@@ -514,7 +525,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
                 title={t('tools:display.clickToViewOutput')}
                 style={{ cursor: 'pointer', fontFamily: 'monospace', fontSize: '0.9em', color: '#888' }}
               >
-                {displayCommand}
+                {renderBashCommandWithFileLinks()}
               </span>
             )
           )}

@@ -10,7 +10,8 @@ import { useHideCost, useSettings } from '../../store';
 import { store } from '../../store';
 import { BOSS_CONTEXT_START } from '../../../shared/types';
 import { filterCostText } from '../../utils/formatting';
-import { TOOL_ICONS, extractToolKeyParam, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand } from '../../utils/outputRendering';
+import { TOOL_ICONS, extractToolKeyParam, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand, splitCommandForFileLinks } from '../../utils/outputRendering';
+import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { createMarkdownComponents } from './MarkdownComponents';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions } from './BossContext';
@@ -299,6 +300,33 @@ export const HistoryLine = memo(function HistoryLine({
         }
       };
 
+      const renderBashCommandWithFileLinks = () => {
+        if (!keyParam) return null;
+        if (!onFileClick) return keyParam;
+
+        const agentCwd = agentId ? store.getState().agents.get(agentId)?.cwd : undefined;
+        const segments = splitCommandForFileLinks(keyParam);
+
+        return segments.map((segment, idx) => {
+          if (!segment.fileRef) return <React.Fragment key={`cmd-${idx}`}>{segment.text}</React.Fragment>;
+          const resolved = resolveAgentFileReference(segment.fileRef, agentCwd);
+          return (
+            <span
+              key={`cmd-file-${idx}`}
+              className="clickable-path"
+              onClick={(e) => {
+                e.stopPropagation();
+                onFileClick(resolved.path);
+              }}
+              title={t('tools:display.clickToViewFile')}
+              style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' }}
+            >
+              {segment.text}
+            </span>
+          );
+        });
+      };
+
       const clickTitle = isBashTool
         ? t('tools:display.clickToViewOutput')
         : (isFileClickable ? t('tools:display.clickToViewFile') : undefined);
@@ -385,7 +413,7 @@ export const HistoryLine = memo(function HistoryLine({
                     const iconPath = ext ? getIconForExtension(ext) : '';
                     return iconPath ? <img className="output-tool-file-icon" src={iconPath} alt="" /> : null;
                   })()}
-                  {keyParam}
+                  {isBashTool ? renderBashCommandWithFileLinks() : keyParam}
                 </span>
               )
             )}

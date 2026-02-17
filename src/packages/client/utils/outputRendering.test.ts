@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeTideFileHref, linkifyFilePathsForMarkdown, parseBashNotificationCommand, parseBashSearchCommand } from './outputRendering';
+import { decodeTideFileHref, extractExecWrappedCommand, linkifyFilePathsForMarkdown, parseBashNotificationCommand, parseBashSearchCommand } from './outputRendering';
 
 describe('parseBashSearchCommand', () => {
   it('parses zsh -lc rg search command', () => {
@@ -92,5 +92,17 @@ describe('decodeTideFileHref', () => {
 
   it('returns null for non file hrefs', () => {
     expect(decodeTideFileHref('https://example.com')).toBeNull();
+  });
+});
+
+describe('extractExecWrappedCommand', () => {
+  it('unwraps curl /api/exec payload command with escaped JSON', () => {
+    const cmd = `/usr/bin/zsh -lc "curl -s -X POST http://localhost:5174/api/exec -H \\"Content-Type: application/json\\" -d '{\\"agentId\\":\\"g3d1jvlr\\",\\"command\\":\\"npm test -- src/packages/client/utils/outputRendering.test.ts src/packages/client/utils/filePaths.test.ts\\",\\"cwd\\":\\"/home/riven/d/tide-commander\\"}'"`;
+    expect(extractExecWrappedCommand(cmd)).toBe('npm test -- src/packages/client/utils/outputRendering.test.ts src/packages/client/utils/filePaths.test.ts');
+  });
+
+  it('returns original command when not wrapped', () => {
+    const cmd = '/usr/bin/zsh -lc "npm run build"';
+    expect(extractExecWrappedCommand(cmd)).toBe(cmd);
   });
 });

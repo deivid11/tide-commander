@@ -48,9 +48,10 @@ function buildCodexPrompt(config: BackendConfig): string {
 
 export class CodexBackend implements CLIBackend {
   readonly name = 'codex';
-  private parser = new CodexJsonEventParser();
+  private parser = new CodexJsonEventParser({ enableFileDiffEnrichment: true });
 
   buildArgs(config: BackendConfig): string[] {
+    this.parser.setWorkingDirectory(config.workingDir);
     const prompt = buildCodexPrompt(config);
     const args: string[] = ['exec', '--json'];
     const codexConfig = config.codexConfig;

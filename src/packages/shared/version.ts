@@ -104,7 +104,7 @@ export async function fetchLatestNpmVersion(packageName: string, options: CheckO
 
     const data = await response.json() as { version?: unknown };
     return typeof data.version === 'string' ? data.version : null;
-  } catch (error) {
+  } catch {
     // Silently fail - npm version check is not critical
     return null;
   }
