@@ -623,3 +623,93 @@
   font-size: 11px;
   font-style: italic;
 }
+
+.file-explorer-rename-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 11000;
+}
+
+.file-explorer-rename-dialog {
+  width: min(520px, calc(100vw - 32px));
+  background: $bg-tertiary;
+  border: 1px solid $border-color;
+  border-radius: $radius-md;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+  padding: 14px;
+}
+
+.file-explorer-rename-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: $text-primary;
+  margin-bottom: 6px;
+}
+
+.file-explorer-rename-path {
+  font-family: $font-mono;
+  font-size: 11px;
+  color: $text-muted;
+  margin-bottom: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-explorer-rename-input {
+  width: 100%;
+  background: $bg-secondary;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  color: $text-primary;
+  font-family: $font-mono;
+  font-size: 12px;
+  padding: 8px 10px;
+
+  &:focus {
+    outline: none;
+    border-color: $accent-blue;
+    box-shadow: 0 0 0 2px rgba($accent-blue, 0.2);
+  }
+}
+
+.file-explorer-rename-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.file-explorer-rename-btn {
+  background: transparent;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  color: $text-secondary;
+  font-size: 12px;
+  font-family: $font-mono;
+  padding: 7px 12px;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover:not(:disabled) {
+    background: rgba($accent-blue, 0.1);
+    border-color: rgba($accent-blue, 0.4);
+    color: $text-primary;
+  }
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  &.primary {
+    background: rgba($accent-blue, 0.18);
+    border-color: rgba($accent-blue, 0.55);
+    color: $accent-blue;
+  }
+}

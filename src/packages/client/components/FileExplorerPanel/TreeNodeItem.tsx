@@ -108,11 +108,12 @@ function TreeNodeItemComponent({
   expandedPaths,
   onSelect,
   onToggle,
+  onContextMenu,
   searchQuery,
 }: TreeNodeProps) {
   const compactChain = useMemo(() => getCompactChain(node), [node]);
   const isExpanded = expandedPaths.has(compactChain.expansionPath);
-  const isSelected = selectedPath === node.path;
+  const isSelected = selectedPath === node.path || selectedPath === compactChain.expansionPath;
   const gitStatusColor = getGitStatusColor(node.gitStatus);
 
   // Memoize sorted children to avoid re-sorting on every render
@@ -130,6 +131,13 @@ function TreeNodeItemComponent({
     }
   };
 
+  const handleContextMenu = (e: React.MouseEvent) => {
+    if (!onContextMenu) return;
+    e.preventDefault();
+    e.stopPropagation();
+    onContextMenu(e, compactChain.terminalNode);
+  };
+
   return (
     <div className="tree-node-wrapper">
       <div
@@ -138,6 +146,7 @@ function TreeNodeItemComponent({
         } ${isExpanded ? 'expanded' : ''}`}
         style={{ paddingLeft: `${depth * 16}px` }}
         onClick={handleClick}
+        onContextMenu={handleContextMenu}
         data-path={node.path}
       >
         {node.isDirectory ? (
@@ -191,6 +200,7 @@ function TreeNodeItemComponent({
               expandedPaths={expandedPaths}
               onSelect={onSelect}
               onToggle={onToggle}
+              onContextMenu={onContextMenu}
               searchQuery={searchQuery}
             />
           ))}
@@ -215,16 +225,17 @@ export const TreeNodeItem = memo(TreeNodeItemComponent, (prev, next) => {
   if (prev.node !== next.node) return false;
   if (prev.depth !== next.depth) return false;
   if (prev.searchQuery !== next.searchQuery) return false;
+  if (prev.onContextMenu !== next.onContextMenu) return false;
 
   // Check if this node's selection changed
-  const wasSelected = prev.selectedPath === prev.node.path;
-  const isSelected = next.selectedPath === next.node.path;
+  const prevExpansionPath = getCompactChain(prev.node).expansionPath;
+  const nextExpansionPath = getCompactChain(next.node).expansionPath;
+  const wasSelected = prev.selectedPath === prev.node.path || prev.selectedPath === prevExpansionPath;
+  const isSelected = next.selectedPath === next.node.path || next.selectedPath === nextExpansionPath;
   if (wasSelected !== isSelected) return false;
 
   // Check if this node's expansion changed (for directories)
   if (prev.node.isDirectory) {
-    const prevExpansionPath = getCompactChain(prev.node).expansionPath;
-    const nextExpansionPath = getCompactChain(next.node).expansionPath;
     const wasExpanded = prev.expandedPaths.has(prevExpansionPath);
     const isExpanded = next.expandedPaths.has(nextExpansionPath);
     if (wasExpanded !== isExpanded) return false;

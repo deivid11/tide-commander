@@ -418,6 +418,47 @@ function buildTree(dirPath: string, depth: number, maxDepth: number): TreeNode[]
   return nodes;
 }
 
+function ensureAbsoluteExistingPath(targetPath: string): string | null {
+  if (!targetPath || !path.isAbsolute(targetPath)) return null;
+  return fs.existsSync(targetPath) ? targetPath : null;
+}
+
+function resolveUniqueCopyPath(targetDir: string, sourceName: string): string {
+  const extension = path.extname(sourceName);
+  const baseName = extension ? sourceName.slice(0, -extension.length) : sourceName;
+
+  let attempt = 0;
+  while (true) {
+    const suffix = attempt === 0 ? ' copy' : ` copy ${attempt + 1}`;
+    const candidateName = `${baseName}${suffix}${extension}`;
+    const candidatePath = path.join(targetDir, candidateName);
+    if (!fs.existsSync(candidatePath)) return candidatePath;
+    attempt++;
+  }
+}
+
+function copyPathToDirectory(sourcePath: string, targetDir: string): string {
+  const sourceName = path.basename(sourcePath);
+  const directTarget = path.join(targetDir, sourceName);
+  const destinationPath = fs.existsSync(directTarget)
+    ? resolveUniqueCopyPath(targetDir, sourceName)
+    : directTarget;
+
+  const sourceStats = fs.statSync(sourcePath);
+  if (sourceStats.isDirectory()) {
+    const rel = path.relative(sourcePath, targetDir);
+    const targetInsideSource = rel && !rel.startsWith('..') && !path.isAbsolute(rel);
+    if (targetInsideSource) {
+      throw new Error('Cannot copy a folder into itself');
+    }
+    fs.cpSync(sourcePath, destinationPath, { recursive: true, force: false, errorOnExist: true });
+  } else {
+    fs.copyFileSync(sourcePath, destinationPath);
+  }
+
+  return destinationPath;
+}
+
 // GET /api/files/tree - Get recursive directory tree
 router.get('/tree', async (req: Request, res: Response) => {
   try {
@@ -454,6 +495,106 @@ router.get('/tree', async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     log.error(' Failed to build tree:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/files/rename - Rename file or folder in place
+router.post('/rename', (req: Request, res: Response) => {
+  try {
+    const { path: sourcePath, newName } = req.body as { path?: string; newName?: string };
+
+    const validatedSource = sourcePath && ensureAbsoluteExistingPath(sourcePath);
+    if (!validatedSource) {
+      res.status(400).json({ error: 'Invalid or missing source path' });
+      return;
+    }
+
+    const nextName = (newName || '').trim();
+    if (!nextName || nextName === '.' || nextName === '..') {
+      res.status(400).json({ error: 'Invalid new name' });
+      return;
+    }
+    if (nextName.includes('/') || nextName.includes('\\')) {
+      res.status(400).json({ error: 'Name must not contain path separators' });
+      return;
+    }
+
+    const destinationPath = path.join(path.dirname(validatedSource), nextName);
+    if (validatedSource === destinationPath) {
+      res.json({ success: true, newPath: destinationPath });
+      return;
+    }
+
+    if (fs.existsSync(destinationPath)) {
+      res.status(409).json({ error: 'Target already exists' });
+      return;
+    }
+
+    fs.renameSync(validatedSource, destinationPath);
+    res.json({ success: true, oldPath: validatedSource, newPath: destinationPath });
+  } catch (err: any) {
+    log.error(' Failed to rename path:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/files/copy - Copy file/folder into target directory
+router.post('/copy', (req: Request, res: Response) => {
+  try {
+    const { sourcePath, targetDir } = req.body as { sourcePath?: string; targetDir?: string };
+
+    const validatedSource = sourcePath && ensureAbsoluteExistingPath(sourcePath);
+    if (!validatedSource) {
+      res.status(400).json({ error: 'Invalid or missing source path' });
+      return;
+    }
+    const validatedTargetDir = targetDir && ensureAbsoluteExistingPath(targetDir);
+    if (!validatedTargetDir) {
+      res.status(400).json({ error: 'Invalid or missing target directory' });
+      return;
+    }
+
+    const targetStats = fs.statSync(validatedTargetDir);
+    if (!targetStats.isDirectory()) {
+      res.status(400).json({ error: 'Target must be a directory' });
+      return;
+    }
+
+    const destinationPath = copyPathToDirectory(validatedSource, validatedTargetDir);
+    res.json({ success: true, sourcePath: validatedSource, destinationPath });
+  } catch (err: any) {
+    log.error(' Failed to copy path:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/files/paste - Alias for copy operation from clipboard source
+router.post('/paste', (req: Request, res: Response) => {
+  try {
+    const { sourcePath, targetDir } = req.body as { sourcePath?: string; targetDir?: string };
+
+    const validatedSource = sourcePath && ensureAbsoluteExistingPath(sourcePath);
+    if (!validatedSource) {
+      res.status(400).json({ error: 'Invalid or missing source path' });
+      return;
+    }
+    const validatedTargetDir = targetDir && ensureAbsoluteExistingPath(targetDir);
+    if (!validatedTargetDir) {
+      res.status(400).json({ error: 'Invalid or missing target directory' });
+      return;
+    }
+
+    const targetStats = fs.statSync(validatedTargetDir);
+    if (!targetStats.isDirectory()) {
+      res.status(400).json({ error: 'Target must be a directory' });
+      return;
+    }
+
+    const destinationPath = copyPathToDirectory(validatedSource, validatedTargetDir);
+    res.json({ success: true, sourcePath: validatedSource, destinationPath });
+  } catch (err: any) {
+    log.error(' Failed to paste path:', err);
     res.status(500).json({ error: err.message });
   }
 });

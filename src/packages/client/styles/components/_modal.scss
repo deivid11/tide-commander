@@ -1142,12 +1142,11 @@
   background: $bg-secondary;
 }
 
-// Database Panel Modal
+// Database Panel Modal - sized to match commander-view
 .database-panel-modal {
-  width: 95vw;
-  max-width: 1400px;
-  height: 90vh;
-  max-height: 900px;
+  width: 100%;
+  max-width: calc(100vw - 28px); // Match commander-overlay padding (14px each side)
+  height: min(94vh, 1200px);
   background: $bg-primary;
   border: 1px solid $border-color;
   border-radius: $radius-xl;

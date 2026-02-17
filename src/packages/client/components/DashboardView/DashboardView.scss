@@ -177,7 +177,8 @@
   border: 1px solid $border-color;
   border-radius: $radius-md;
   background: $bg-secondary;
-  overflow: hidden;
+  overflow: visible;
+  min-height: 0;
   transition: all $transition-fast ease;
 
   &--drag-over {
@@ -272,9 +273,12 @@
 .dashboard-view__zone-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-auto-rows: auto;
+  align-items: start;
   gap: 6px;
   padding: 0 8px 8px;
   min-width: 0; // Prevent grid from overflowing
+  min-height: 0;
 }
 
 // ============================================================================
@@ -292,7 +296,9 @@
   flex-direction: column;
   gap: 4px;
   min-width: 0; // Critical: allow card to shrink and prevent overflow
-  overflow: hidden; // Clip any overflowing content
+  min-height: 0;
+  height: auto;
+  overflow: visible;
 
   &:hover {
     border-color: rgba(255, 255, 255, 0.15);
@@ -321,6 +327,8 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  min-height: 0;
+  flex-shrink: 0;
 }
 
 .dash-card__status-dot {
@@ -395,6 +403,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  min-height: 0;
+  flex-shrink: 0;
 }
 
 .dash-card__status {
@@ -456,6 +466,8 @@
   gap: 8px;
   margin-top: 1px;
   min-width: 0;
+  min-height: 0;
+  flex-shrink: 0;
 }
 
 .dash-card__workdir {
@@ -474,6 +486,8 @@
 // Row 4: task preview
 .dash-card__row4 {
   margin-top: 1px;
+  min-height: 0;
+  flex-shrink: 0;
 }
 
 .dash-card__task {
@@ -491,6 +505,8 @@
   display: flex;
   gap: 4px;
   margin-top: 2px;
+  min-height: 0;
+  flex-shrink: 0;
 }
 
 .dash-card__action-btn {
@@ -913,7 +929,7 @@
     border-radius: 3px;
     flex-shrink: 0;
     min-width: 0; // Prevent zone from overflowing
-    overflow: hidden; // Clip any overflow
+    overflow: visible;
   }
 
   .dashboard-view__zone-header {
