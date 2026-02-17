@@ -201,19 +201,6 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId }
     setCellDetail({ column, value });
   }, []);
 
-  // Handle cell double-click to enter edit mode
-  const handleCellDoubleClick = useCallback((rowIndex: number, column: string, value: unknown) => {
-    if (!canEdit) return;
-    setCellDetail(null); // Close detail modal if open
-    setEditingCell({
-      rowIndex,
-      columnName: column,
-      originalValue: value,
-      currentValue: value,
-      isUpdating: false,
-    });
-  }, [canEdit]);
-
   // Save cell edit and execute UPDATE
   const handleSaveCell = useCallback(() => {
     if (!editingCell || !tableName || !tableSchema || !dbState.activeConnectionId || !dbState.activeDatabase) return;
@@ -581,7 +568,6 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId }
                       key={col}
                       className={`results-table__cell ${isEditing ? 'results-table__cell--editing' : ''} ${canEdit ? 'results-table__cell--editable' : ''}`}
                       onClick={() => handleCellClick(col, row[col])}
-                      onDoubleClick={() => handleCellDoubleClick(rowIndex, col, row[col])}
                     >
                       {isEditing ? (
                         <div className="results-table__cell-input-wrapper">
@@ -623,12 +609,39 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId }
           <div className="results-table__detail" ref={detailRef}>
             <div className="results-table__detail-header">
               <span className="results-table__detail-column">{cellDetail.column}</span>
-              <button
-                className="results-table__detail-close"
-                onClick={() => setCellDetail(null)}
-              >
-                ✕
-              </button>
+              <div className="results-table__detail-actions">
+                {canEdit && (
+                  <button
+                    className="results-table__detail-edit-btn"
+                    onClick={() => {
+                      setCellDetail(null);
+                      // Find the current row and column in paginated view
+                      const row = paginatedRows.find(r =>
+                        columns.some(col => r[col] === cellDetail.value && col === cellDetail.column)
+                      );
+                      if (row) {
+                        const rowIndex = paginatedRows.indexOf(row);
+                        setEditingCell({
+                          rowIndex,
+                          columnName: cellDetail.column,
+                          originalValue: cellDetail.value,
+                          currentValue: cellDetail.value,
+                          isUpdating: false,
+                        });
+                      }
+                    }}
+                    title="Edit this cell"
+                  >
+                    ✏️
+                  </button>
+                )}
+                <button
+                  className="results-table__detail-close"
+                  onClick={() => setCellDetail(null)}
+                >
+                  ✕
+                </button>
+              </div>
             </div>
             <textarea
               className="results-table__detail-textarea"

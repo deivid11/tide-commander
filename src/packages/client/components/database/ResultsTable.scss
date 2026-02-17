@@ -453,6 +453,32 @@
     font-family: $font-mono;
   }
 
+  &__detail-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  &__detail-edit-btn {
+    background: none;
+    border: none;
+    color: $text-secondary;
+    font-size: 1em;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: $radius-sm;
+    transition: all $transition-fast;
+
+    &:hover {
+      color: $accent-blue;
+      background: rgba($accent-blue, 0.12);
+    }
+
+    &:active {
+      transform: scale(0.95);
+    }
+  }
+
   &__detail-close {
     background: none;
     border: none;
@@ -461,10 +487,15 @@
     cursor: pointer;
     padding: 2px 6px;
     border-radius: $radius-sm;
+    transition: all $transition-fast;
 
     &:hover {
       color: $text-primary;
       background: rgba($text-primary, 0.08);
+    }
+
+    &:active {
+      transform: scale(0.95);
     }
   }
 
