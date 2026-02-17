@@ -89,9 +89,15 @@ export async function fetchLatestNpmVersion(packageName: string, options: CheckO
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
-    const response = await fetchImpl(`https://registry.npmjs.org/${encodeURIComponent(packageName)}/latest`, {
+    // Add cache-busting query parameter to ensure fresh data from npm registry
+    const timestamp = Date.now();
+    const response = await fetchImpl(`https://registry.npmjs.org/${encodeURIComponent(packageName)}/latest?t=${timestamp}`, {
       signal: controller.signal,
-      headers: { Accept: 'application/json' },
+      headers: {
+        Accept: 'application/json',
+        'Cache-Control': 'no-cache',
+        Pragma: 'no-cache',
+      },
     });
 
     clearTimeout(timeout);
