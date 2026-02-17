@@ -129,25 +129,7 @@ export function extractToolKeyParam(toolName: string, inputJson: string): string
       case 'Bash': {
         const cmd = input.command;
         if (cmd) {
-          // Extract inner command from curl /api/exec payloads
-          if (cmd.includes('curl') && cmd.includes('/api/exec')) {
-            try {
-              // Extract JSON payload from curl command
-              // Pattern: -d '{"agentId":"...","command":"...","cwd":"..."}'
-              const jsonMatch = cmd.match(/-d\s+'({[^}]+})'/);
-              if (jsonMatch) {
-                const payload = JSON.parse(jsonMatch[1]);
-                if (payload.command) {
-                  // Show the actual command being executed
-                  return payload.command;
-                }
-              }
-            } catch {
-              // If extraction fails, show the full command
-              return cmd;
-            }
-          }
-          return cmd; // Full command, no truncation
+          return extractExecWrappedCommand(cmd);
         }
         break;
       }
@@ -248,6 +230,54 @@ export function extractToolKeyParam(toolName: string, inputJson: string): string
   return null;
 }
 
+function extractExecPayloadCommand(cmd: string): string | null {
+  if (!cmd.includes('curl') || !cmd.includes('/api/exec')) return null;
+
+  const candidates: string[] = [];
+  const patterns = [
+    /(?:-d|--data|--data-raw)\s+'((?:\\'|[^'])*)'/g,
+    /(?:-d|--data|--data-raw)\s+"((?:\\"|[^"])*)"/g,
+  ];
+
+  for (const regex of patterns) {
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(cmd)) !== null) {
+      if (match[1]) candidates.push(match[1]);
+    }
+  }
+
+  for (const raw of candidates) {
+    const attempts = [
+      raw,
+      raw.replace(/\\"/g, '"'),
+      raw.replace(/\\'/g, '\''),
+      raw.replace(/\\"/g, '"').replace(/\\\\/g, '\\'),
+    ];
+    for (const attempt of attempts) {
+      const trimmed = attempt.trim();
+      if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) continue;
+      try {
+        const parsed = JSON.parse(trimmed) as { command?: unknown };
+        if (typeof parsed.command === 'string' && parsed.command.length > 0) {
+          return parsed.command;
+        }
+      } catch {
+        // Keep trying with the next variant.
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * If this is a curl /api/exec wrapper command, return the wrapped inner command.
+ * Otherwise returns the original command.
+ */
+export function extractExecWrappedCommand(cmd: string): string {
+  return extractExecPayloadCommand(cmd) || cmd;
+}
+
 /**
  * Determine if output text should be shown in simple/chat view
  * Filters out technical details like tool inputs, tokens, costs
@@ -266,6 +296,62 @@ export function isSimpleViewOutput(text: string): boolean {
 
   // SHOW everything else (actual content)
   return true;
+}
+
+export interface CommandTextSegment {
+  text: string;
+  fileRef?: string;
+}
+
+const COMMAND_FILE_REF_REGEX = /(^|[\s("'`])((?:\.{1,2}\/|~\/|\/)?[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*\.[A-Za-z0-9._-]+(?::\d+(?::\d+)?)?)/g;
+
+function isLikelyCommandFileRef(value: string): boolean {
+  if (!value) return false;
+  if (value.startsWith('-')) return false;
+  if (value.includes('://')) return false;
+  if (value.includes('*')) return false;
+  // Keep command linking focused on local-ish paths and filenames with extension.
+  return value.includes('.') && !value.endsWith('.');
+}
+
+/**
+ * Split a shell command into text/file segments so file refs can be rendered as clickable links.
+ */
+export function splitCommandForFileLinks(command: string): CommandTextSegment[] {
+  if (!command) return [{ text: '' }];
+
+  const segments: CommandTextSegment[] = [];
+  let lastIndex = 0;
+  COMMAND_FILE_REF_REGEX.lastIndex = 0;
+
+  let match: RegExpExecArray | null;
+  while ((match = COMMAND_FILE_REF_REGEX.exec(command)) !== null) {
+    const full = match[0];
+    const prefix = match[1] || '';
+    const candidate = match[2] || '';
+    const start = match.index;
+
+    if (start > lastIndex) {
+      segments.push({ text: command.slice(lastIndex, start) });
+    }
+    if (prefix) {
+      segments.push({ text: prefix });
+    }
+
+    if (isLikelyCommandFileRef(candidate)) {
+      segments.push({ text: candidate, fileRef: candidate });
+    } else {
+      segments.push({ text: candidate });
+    }
+
+    lastIndex = start + full.length;
+  }
+
+  if (lastIndex < command.length) {
+    segments.push({ text: command.slice(lastIndex) });
+  }
+
+  return segments.length > 0 ? segments : [{ text: command }];
 }
 
 /**

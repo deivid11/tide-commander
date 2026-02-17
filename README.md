@@ -123,26 +123,27 @@ Save the full conversation history and any created/modified files from an agent'
 Securely store API keys, tokens, and other credentials. Use `{{SECRET_NAME}}` placeholders in your prompts, and the server injects the real values before sending to Claude. Secrets never leave the server.
 
 ### System Prompts & Prompt Stacking
-Define global instructions that apply to all agents, then layer them with agent-specific customizations for fine-grained control.
+Define global instructions that apply to all agents, then layer them with class-specific and individual agent customizations for fine-grained control.
 
 **Prompt Hierarchy** (stacked in order):
 1. **Tide Commander Base Rules** — Core framework instructions from `CLAUDE.md` and `TIDE_COMMANDER_APPENDED_PROMPT`
 2. **Global System Prompt** — User-defined global instructions (set in Settings > System Prompt) applied to **all agents automatically**
 3. **Agent Class Instructions** — Custom class-specific rules (if agent has a custom class assigned)
-4. **Runtime System Context** — Temporary/contextual instructions (task-specific, boss delegation context, etc.)
+4. **Individual Agent Instructions** — Agent-specific overrides (set per-agent in agent configuration)
 5. **Skills & Agent Identity** — Skill definitions, notifications setup, inter-agent messaging
 
 **How to Use:**
 - Set a global system prompt in **Settings > System Prompt** to define coding standards, communication rules, or project conventions that all agents should follow
-- Custom agent classes inherit the global prompt plus their own class-specific instructions
+- Assign custom agent classes to inherit group-level instructions on top of the global prompt
+- Add individual agent instructions to override or specialize behavior for a specific agent
 - Global prompts persist across agent restarts and server restarts
 - Export/import global prompts with your agent configurations
 
 **Example Use Cases:**
-- Define team coding style guidelines once, apply to all agents
-- Set security best practices for all agents automatically
-- Ensure consistent code formatting rules across the team
-- Layer agent-specific expertise on top of shared guidelines
+- Define team coding style guidelines once, apply to all agents via global prompt
+- Create "Backend Developer" and "Frontend Developer" classes with specialized instructions
+- Override an agent's behavior for specific projects or tasks with individual instructions
+- Set security best practices globally, then customize per-agent as needed
 
 ### View Modes
 Three ways to view the battlefield (cycle with Alt+2):

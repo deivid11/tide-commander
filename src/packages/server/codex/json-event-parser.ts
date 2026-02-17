@@ -1,3 +1,6 @@
+import { execFileSync } from 'child_process';
+import * as fs from 'fs';
+import * as path from 'path';
 import type { RuntimeEvent } from '../runtime/types.js';
 import { createLogger } from '../utils/logger.js';
 
@@ -40,8 +43,19 @@ interface InferredToolCall {
   toolOutput?: string;
 }
 
+interface CodexJsonEventParserOptions {
+  enableFileDiffEnrichment?: boolean;
+  workingDirectory?: string;
+}
+
+interface FileSnapshot {
+  oldContent: string;
+  newContent: string;
+}
+
 const log = createLogger('CodexParser');
 let hasLoggedTurnAbortedLiveWarning = false;
+const MAX_DIFF_FILE_BYTES = 256 * 1024;
 
 function sanitizeCodexMessageText(text: string): { text: string; hadTurnAborted: boolean } {
   const hadTurnAborted = /<turn_aborted>[\s\S]*?<\/turn_aborted>/.test(text);
@@ -122,6 +136,19 @@ function parseEnvelope(value: unknown): CodexEventEnvelope | undefined {
 export class CodexJsonEventParser {
   private activeToolByItemId = new Map<string, string>();
   private lastAgentMessageText: string | undefined;
+  private enableFileDiffEnrichment: boolean;
+  private workingDirectory: string;
+  private gitRootCache = new Map<string, string | null>();
+
+  constructor(options: CodexJsonEventParserOptions = {}) {
+    this.enableFileDiffEnrichment = options.enableFileDiffEnrichment === true;
+    this.workingDirectory = options.workingDirectory || process.cwd();
+  }
+
+  setWorkingDirectory(workingDirectory: string): void {
+    if (!workingDirectory) return;
+    this.workingDirectory = workingDirectory;
+  }
 
   parseLine(line: string): RuntimeEvent[] {
     const trimmed = line.trim();
@@ -385,6 +412,12 @@ export class CodexJsonEventParser {
           toolName: 'Edit',
           toolInput: { file_path: path },
         });
+      }
+    }
+
+    if (this.enableFileDiffEnrichment) {
+      for (const call of calls) {
+        this.enrichWithFileSnapshot(call);
       }
     }
 
@@ -698,5 +731,116 @@ export class CodexJsonEventParser {
       .replace(/\\s\*/g, '')
       .replace(/\\n/g, '\n')
       .trim();
+  }
+
+  private enrichWithFileSnapshot(call: InferredToolCall): void {
+    if (call.toolName !== 'Edit' && call.toolName !== 'Write') return;
+    const filePath = this.stringField(call.toolInput.file_path);
+    if (!filePath) return;
+
+    const snapshot = this.getFileSnapshot(filePath);
+    if (!snapshot) return;
+    if (snapshot.oldContent === snapshot.newContent) return;
+
+    call.toolName = 'Edit';
+    call.toolInput = {
+      ...call.toolInput,
+      file_path: filePath,
+      old_string: snapshot.oldContent,
+      new_string: snapshot.newContent,
+    };
+  }
+
+  private getFileSnapshot(filePath: string): FileSnapshot | null {
+    const absolutePath = this.resolveAbsolutePath(filePath);
+    if (!absolutePath) return null;
+
+    const newContent = this.readTextFileIfSmall(absolutePath);
+    if (newContent === null) return null;
+
+    const gitRoot = this.findGitRoot(path.dirname(absolutePath));
+    if (!gitRoot) {
+      return { oldContent: '', newContent };
+    }
+
+    const relativePath = path.relative(gitRoot, absolutePath);
+    if (!relativePath || relativePath.startsWith('..')) {
+      return null;
+    }
+
+    const oldContent = this.readHeadFileIfSmall(gitRoot, relativePath);
+    if (oldContent === null) return null;
+
+    return { oldContent, newContent };
+  }
+
+  private resolveAbsolutePath(filePath: string): string | null {
+    if (!filePath) return null;
+    if (filePath.startsWith('~')) {
+      const homeDir = process.env.HOME || process.env.USERPROFILE;
+      if (!homeDir) return null;
+      return path.resolve(homeDir, filePath.slice(1));
+    }
+    if (path.isAbsolute(filePath)) return filePath;
+    return path.resolve(this.workingDirectory, filePath);
+  }
+
+  private readTextFileIfSmall(absolutePath: string): string | null {
+    if (!fs.existsSync(absolutePath)) return '';
+
+    let stat: fs.Stats;
+    try {
+      stat = fs.statSync(absolutePath);
+    } catch {
+      return null;
+    }
+    if (!stat.isFile()) return null;
+    if (stat.size > MAX_DIFF_FILE_BYTES) return null;
+
+    let buffer: Buffer;
+    try {
+      buffer = fs.readFileSync(absolutePath);
+    } catch {
+      return null;
+    }
+    if (buffer.includes(0x00)) return null;
+    return buffer.toString('utf8');
+  }
+
+  private readHeadFileIfSmall(gitRoot: string, relativePath: string): string | null {
+    const gitPath = relativePath.split(path.sep).join(path.posix.sep);
+
+    try {
+      const output = execFileSync('git', ['show', `HEAD:${gitPath}`], {
+        cwd: gitRoot,
+        encoding: 'utf8',
+        maxBuffer: MAX_DIFF_FILE_BYTES + 4096,
+      });
+      if (Buffer.byteLength(output, 'utf8') > MAX_DIFF_FILE_BYTES) {
+        return null;
+      }
+      return output;
+    } catch {
+      // File may not exist at HEAD (new file) or command failed; treat as empty base.
+      return '';
+    }
+  }
+
+  private findGitRoot(startDir: string): string | null {
+    const cached = this.gitRootCache.get(startDir);
+    if (cached !== undefined) return cached;
+
+    try {
+      const gitRoot = execFileSync('git', ['rev-parse', '--show-toplevel'], {
+        cwd: startDir,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      }).trim();
+      this.gitRootCache.set(startDir, gitRoot);
+      return gitRoot;
+    } catch {
+      this.gitRootCache.set(startDir, null);
+      return null;
+    }
   }
 }

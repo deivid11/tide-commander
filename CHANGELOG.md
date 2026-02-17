@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.66.0] - 2026-02-17
+
+### Added
+- **Codex file diff enrichment** - Codex agents now generate real Edit tool events with git-backed old/new content diffs for shell-based file edits
+- **Clickable file paths in bash commands** - File references in bash command displays are now clickable links that open in the file explorer
+- **Bash edit inference from runtime** - Runtime listeners detect file edits from bash commands (sed, echo >>, tee, etc.) and emit synthetic Edit tool events with git diffs
+- **New tests** - Added tests for exec command extraction and Codex file diff enrichment
+
+### Changed
+- **Improved exec command extraction** - Refactored `extractExecWrappedCommand()` with robust multi-pattern JSON payload parsing for curl /api/exec commands
+- **README system prompt docs** - Updated prompt stacking documentation to include individual agent instructions layer
+- **Output rendering refactored** - Extracted `extractExecPayloadCommand()` and `splitCommandForFileLinks()` as shared utilities
+
+### Fixed
+- **Lint warning** - Removed unused `error` variable in `src/packages/shared/version.ts`
+
 ## [0.65.1] - 2026-02-17
 
 ### Fixed
