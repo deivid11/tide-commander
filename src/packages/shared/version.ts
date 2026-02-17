@@ -90,13 +90,12 @@ export async function fetchLatestNpmVersion(packageName: string, options: CheckO
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
     // Add cache-busting query parameter to ensure fresh data from npm registry
+    // Use timestamp to force unique URL on each call, preventing browser caching
     const timestamp = Date.now();
     const response = await fetchImpl(`https://registry.npmjs.org/${encodeURIComponent(packageName)}/latest?t=${timestamp}`, {
       signal: controller.signal,
       headers: {
         Accept: 'application/json',
-        'Cache-Control': 'no-cache',
-        Pragma: 'no-cache',
       },
     });
 
