@@ -1,6 +1,6 @@
 {
   "name": "tide-commander",
-  "version": "0.65.7",
+  "version": "0.65.8",
   "description": "Visual multi-agent orchestrator and manager for Claude Code with 3D/2D interface",
   "repository": {
     "type": "git",
@@ -87,5 +87,14 @@
     "vite": "^6.0.0",
     "vitest": "^4.0.17"
   },
-  "homepage": "https://tidecommander.com/"
+  "homepage": "https://tidecommander.com/",
+  "keywords": [
+    "ai",
+    "developer-tools",
+    "codex",
+    "orchestrator",
+    "vibe-coding",
+    "claude-code",
+    "tide-commander"
+  ]
 }
