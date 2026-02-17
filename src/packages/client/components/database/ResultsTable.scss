@@ -364,6 +364,13 @@
     }
   }
 
+  &__cell-feedback-btn {
+    border: 0;
+    background: transparent;
+    padding: 0;
+    cursor: pointer;
+  }
+
   @keyframes spin {
     from {
       transform: rotate(0deg);

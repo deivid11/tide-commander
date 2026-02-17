@@ -963,7 +963,23 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId, 
                             <span className="results-table__cell-feedback results-table__cell-feedback--loading">⏳</span>
                           )}
                           {editingCell.error && (
-                            <span className="results-table__cell-feedback results-table__cell-feedback--error" title={editingCell.error}>✕</span>
+                            <button
+                              type="button"
+                              className="results-table__cell-feedback results-table__cell-feedback--error results-table__cell-feedback-btn"
+                              title={`${editingCell.error}. Click to cancel editing.`}
+                              onMouseDown={(e) => {
+                                // Prevent input blur from re-triggering save while cancelling.
+                                e.preventDefault();
+                                e.stopPropagation();
+                              }}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setEditingCell(null);
+                              }}
+                            >
+                              ✕
+                            </button>
                           )}
                         </div>
                       ) : (
