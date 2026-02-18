@@ -8,7 +8,7 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { store } from '../../store';
-import { useAgents, useBuildings, useSelectedAgentIds, useAreas } from '../../store/selectors';
+import { useAgents, useBuildings, useSelectedAgentIds, useAreas, useAgentsWithUnseenOutput } from '../../store/selectors';
 import { matchesShortcut } from '../../store/shortcuts';
 import type { Agent } from '@shared/types';
 import { AgentCard } from './AgentStatusCards';
@@ -37,6 +37,7 @@ export function DashboardView({
   const buildings = useBuildings();
   const areas = useAreas();
   const selectedAgentIds = useSelectedAgentIds();
+  const agentsWithUnseenOutput = useAgentsWithUnseenOutput();
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -479,6 +480,7 @@ export function DashboardView({
             ? sortAgentsInGroupWithOptions(group.agents, { prioritizeRecentlyIdle: true })
             : sortAgentsInGroup(group.agents);
           const workingCount = group.agents.filter(a => a.status === 'working' || a.status === 'waiting' || a.status === 'waiting_permission').length;
+          const unseenCount = group.agents.filter(a => agentsWithUnseenOutput.has(a.id)).length;
 
           return (
             <div
@@ -504,6 +506,7 @@ export function DashboardView({
                   <span className="dashboard-view__zone-count">
                     {t('agentCount', { count: group.agents.length })}
                     {workingCount > 0 && <span className="dashboard-view__zone-working"> · {workingCount} {t('working')}</span>}
+                    {unseenCount > 0 && <span className="dashboard-view__zone-unseen"> · {unseenCount} Unseen</span>}
                   </span>
                 </div>
                 {group.area && onFocusZone && (
