@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.67.2] - 2026-02-18
+
+### Fixed
+- **3D scene performance optimization** - Disabled shadow casting on street lamp point lights (~30fps improvement) and reduced bulb geometry segments from 16x16 to 8x8
+
 ## [0.67.1] - 2026-02-18
 
 ### Fixed
