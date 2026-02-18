@@ -14,7 +14,7 @@ import type {
 } from './types.js';
 import { createLogger, sanitizeUnicode } from '../utils/index.js';
 import { TIDE_COMMANDER_APPENDED_PROMPT } from '../prompts/tide-commander.js';
-import { getSystemPrompt } from '../services/system-prompt-service.js';
+import { getSystemPrompt, isEchoPromptEnabled } from '../services/system-prompt-service.js';
 
 const log = createLogger('Backend');
 
@@ -535,7 +535,15 @@ export class ClaudeBackend implements CLIBackend {
    */
   formatStdinInput(prompt: string): string {
     // Sanitize prompt to remove invalid Unicode surrogates that break JSON
-    const sanitizedPrompt = sanitizeUnicode(prompt);
+    let sanitizedPrompt = sanitizeUnicode(prompt);
+
+    // Echo Prompt: duplicate the user message for improved attention coverage.
+    // On the second pass every token can attend to every other token.
+    if (isEchoPromptEnabled()) {
+      log.log(` Echo prompt enabled - duplicating user message (${sanitizedPrompt.length} chars)`);
+      sanitizedPrompt = sanitizedPrompt + '\n\n---\n\n' + sanitizedPrompt;
+    }
+
     return JSON.stringify({
       type: 'user',
       message: {

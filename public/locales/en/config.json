@@ -183,6 +183,7 @@
     "2dView": "2D View Mode",
     "voiceAssistant": "Voice Assistant",
     "tts": "Text to Speech",
+    "echoPrompt": "Echo Prompt",
     "hint": "These features are experimental and may change"
   },
   "areas": {

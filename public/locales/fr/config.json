@@ -183,6 +183,7 @@
     "2dView": "Mode vue 2D",
     "voiceAssistant": "Assistant vocal",
     "tts": "Synthèse vocale",
+    "echoPrompt": "Echo Prompt",
     "hint": "Ces fonctionnalités sont expérimentales et peuvent changer"
   },
   "areas": {

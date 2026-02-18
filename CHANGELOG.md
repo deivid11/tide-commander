@@ -2,17 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.67.0] - 2026-02-17
+## [0.67.0] - 2026-02-18
 
 ### Added
 - **Static app build for web deployment** - New `vite.app-static.config.ts` builds the app for hosting at `/app/` path without a backend server (e.g., tidecommander.com/app)
-- **Not Connected overlay** - When the app loads without a backend connection, a polished overlay shows setup instructions, a backend URL input, and an "Explore" option to browse the UI
+- **Not Connected overlay** - When the app loads without a backend connection, a polished overlay shows setup instructions, a backend URL input, and an "Explore" option to browse the UI with 3s grace period
 - **Asset path utility** - New `assetPath.ts` helper for resolving asset paths with correct base URL prefix
+- **Echo Prompt experimental feature** - Duplicates user messages for improved LLM attention coverage, configurable in Settings > Experimental
+- **Custom favicons and app icons** - Replaced emoji favicons with proper PNG icons (favicon.ico, 16x16, 32x32, apple-touch-icon, 192x192, 512x512)
+- **Project logo** - New Tide Commander logo in README header and landing page navigation/footer
+- **Try Demo badge** - README now includes a "Try Demo" badge linking to tidecommander.com/app
 
 ### Changed
 - **BASE_URL-aware asset paths** - All hardcoded `/assets/` references across 15+ client files replaced with `import.meta.env.BASE_URL` for correct sub-path deployments
-- **Landing page demo link** - "Watch Demo" button changed to "Try Demo" linking to the static app at `/app`
-- **Makefile landing build** - `make landing` now also builds the static app and copies it into `dist-landing/app/`
+- **Landing page branding** - Replaced emoji logo with custom icon image in nav and footer
+- **Landing page build** - Now copies favicon/icon assets to dist-landing
+- **Config export** - Minor route path fix in config export
 
 ## [0.66.2] - 2026-02-17
 

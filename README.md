@@ -1,9 +1,12 @@
-# 🌊 Tide Commander
+<p align="center">
+  <img src="https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/tide-commander-logo.png" alt="Tide Commander" width="400" />
+</p>
 
-**A visual multi-agent orchestrator for Claude Code and Codex**
+<p align="center"><strong>A visual multi-agent orchestrator for Claude Code and Codex</strong></p>
 
 ![Tide Commander Preview](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/preview-3d.png)
 
+[![Try Demo](https://img.shields.io/badge/Try%20Demo-tidecommander.com-blue?style=for-the-badge&logo=globe)](https://tidecommander.com/app)
 [![Watch the demo](https://img.shields.io/badge/YouTube-Watch%20Demo-red?style=for-the-badge&logo=youtube)](https://www.youtube.com/watch?v=r1Op_xfhqOM)
 [![npm version](https://img.shields.io/npm/v/tide-commander?style=for-the-badge&logo=npm)](https://www.npmjs.com/package/tide-commander)
 
