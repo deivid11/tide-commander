@@ -74,7 +74,9 @@ export const AgentCard = React.memo(({
           <span
             className="dash-card__unseen-badge"
             title="New output available - click to view"
-          />
+          >
+            !
+          </span>
         )}
       </div>
 

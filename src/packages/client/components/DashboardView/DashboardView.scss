@@ -534,14 +534,22 @@
 
 // Unseen output notification badge
 .dash-card__unseen-badge {
-  width: 6px;
-  height: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  min-width: 14px;
+  min-height: 14px;
   border-radius: 50%;
   background: #4a9eff; // blue
-  border: 1px solid $bg-primary;
+  color: #ffffff;
+  font-size: 9px;
+  font-weight: 700;
   flex-shrink: 0;
-  box-shadow: 0 0 4px rgba(74, 158, 255, 0.6);
+  box-shadow: 0 0 6px rgba(74, 158, 255, 0.8);
   animation: dash-badge-pulse 1.5s ease-in-out infinite;
+  line-height: 1;
 }
 
 @keyframes dash-badge-pulse {
@@ -551,7 +559,7 @@
   }
   50% {
     opacity: 0.7;
-    transform: scale(1.2);
+    transform: scale(1.15);
   }
 }
 
