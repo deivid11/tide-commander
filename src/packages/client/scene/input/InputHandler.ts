@@ -641,7 +641,6 @@ export class InputHandler {
 
     // Allow global shortcuts to pass through (let other handlers deal with them)
     if (matchesShortcut(event, spotlightShortcut)) {
-      console.log('[InputHandler] Spotlight shortcut detected, passing through');
       return; // Let useKeyboardShortcuts handle spotlight
     }
 
@@ -691,22 +690,13 @@ export class InputHandler {
       const terminalDom = document.querySelector('.guake-terminal');
       const isDomCollapsed = terminalDom?.classList.contains('collapsed');
 
-      console.log('[InputHandler] ► Space pressed', {
-        state_terminalOpen: state.terminalOpen,
-        freshState_terminalOpen: freshState.terminalOpen,
-        dom_isCollapsed: isDomCollapsed,
-        dom_hasOpen: terminalDom?.classList.contains('open'),
-      });
-
       // Don't trigger if inside an open terminal
       if (guakeTerminal && !isCollapsedTerminal) {
-        console.log('[InputHandler] Space: blocked - inside open terminal');
         return;
       }
 
       // Don't trigger if any interactive element has focus (buttons, links, etc.)
       if (target.tagName === 'BUTTON' || target.tagName === 'A') {
-        console.log('[InputHandler] Space: blocked - button/link focused');
         return;
       }
 
@@ -715,11 +705,9 @@ export class InputHandler {
       if (state.terminalOpen) {
         // Safeguard: if terminal is marked open but visually collapsed, reset the state
         if (guakeTerminal && isCollapsedTerminal) {
-          console.log('[InputHandler] Space: terminal state was stuck open but visually collapsed - resetting and opening');
           store.setTerminalOpen(false);
           // Don't return - let it fall through to reopen
         } else {
-          console.log('[InputHandler] Space: blocked - terminal already open');
           return;
         }
       }
@@ -727,27 +715,21 @@ export class InputHandler {
       // Additional safety: if terminal says it's open but isn't actually on screen, force reset
       const terminalElement = document.querySelector('.guake-terminal');
       if (terminalElement && terminalElement.classList.contains('collapsed') && state.terminalOpen) {
-        console.log('[InputHandler] Space: detected stuck state (open in state, collapsed visually) - fixing');
         store.setTerminalOpen(false);
       }
 
       // Don't trigger if a building or area is focused (let other handlers deal with it)
       if (state.selectedBuildingIds.size > 0 || state.selectedAreaId !== null) {
-        console.log('[InputHandler] Space: blocked - building or area focused');
         return;
       }
 
       // If no agent selected, select the last active agent
       if (state.selectedAgentIds.size === 0) {
         const lastAgentId = state.lastSelectedAgentId;
-        console.log('[InputHandler] Space: no agent selected, trying lastAgentId:', lastAgentId);
         if (lastAgentId && state.agents.has(lastAgentId)) {
           event.preventDefault();
           store.selectAgent(lastAgentId);
           store.setTerminalOpen(true);
-          console.log('[InputHandler] Space: opened terminal for last agent:', lastAgentId);
-        } else {
-          console.log('[InputHandler] Space: no valid last agent to open');
         }
         return;
       }
@@ -756,7 +738,6 @@ export class InputHandler {
       event.preventDefault();
 
       // Open terminal
-      console.log('[InputHandler] Space: opening terminal for selected agent');
       store.setTerminalOpen(true);
     }
   };
@@ -867,19 +848,14 @@ export class InputHandler {
   // --- Touch Callbacks ---
 
   private handleTouchTap = (clientX: number, clientY: number): void => {
-    console.log('[InputHandler] handleTouchTap called at:', clientX, clientY);
     // Check for agent tap
     const agentId = this.raycaster.findAgentAtPoint(clientX, clientY);
-    console.log('[InputHandler] Agent at tap position:', agentId);
 
     if (agentId) {
       const clickType = this.agentTapDetector.handleClick(agentId);
-      console.log('[InputHandler] clickType from detector:', clickType);
       if (clickType === 'double') {
-        console.log('[Touch] >>> DOUBLE-TAP detected on agent:', agentId);
         this.callbacks.onAgentDoubleClick(agentId);
       } else {
-        console.log('[Touch] >>> SINGLE tap on agent:', agentId);
         this.callbacks.onAgentClick(agentId, false);
       }
       return;
