@@ -14,6 +14,7 @@ export class SceneRaycaster {
   // Scene references
   private ground: THREE.Object3D | null = null;
   private agentMeshes: Map<string, AgentMeshData> = new Map();
+  private agentHitboxes: THREE.Object3D[] = [];
   private resizeHandlesGetter: ResizeHandlesGetter = () => [];
   private folderIconMeshesGetter: FolderIconMeshesGetter = () => [];
 
@@ -28,6 +29,12 @@ export class SceneRaycaster {
   setReferences(ground: THREE.Object3D | null, agentMeshes: Map<string, AgentMeshData>): void {
     this.ground = ground;
     this.agentMeshes = agentMeshes;
+    this.agentHitboxes = [];
+
+    for (const data of agentMeshes.values()) {
+      const hitbox = data.group.getObjectByName('clickHitbox');
+      this.agentHitboxes.push(hitbox ?? data.group);
+    }
   }
 
   /**
@@ -127,8 +134,8 @@ export class SceneRaycaster {
     this.updateMouseFromEvent(event);
     this.raycaster.setFromCamera(this.mouse, this.camera);
 
-    const meshArray = Array.from(this.agentMeshes.values()).map((d) => d.group);
-    const intersects = this.raycaster.intersectObjects(meshArray, true);
+    if (this.agentHitboxes.length === 0) return null;
+    const intersects = this.raycaster.intersectObjects(this.agentHitboxes, false);
 
     if (intersects.length > 0) {
       let obj: THREE.Object3D | null = intersects[0].object;
@@ -149,8 +156,8 @@ export class SceneRaycaster {
     this.updateMouseFromPoint(clientX, clientY);
     this.raycaster.setFromCamera(this.mouse, this.camera);
 
-    const meshArray = Array.from(this.agentMeshes.values()).map((d) => d.group);
-    const intersects = this.raycaster.intersectObjects(meshArray, true);
+    if (this.agentHitboxes.length === 0) return null;
+    const intersects = this.raycaster.intersectObjects(this.agentHitboxes, false);
 
     if (intersects.length > 0) {
       let obj: THREE.Object3D | null = intersects[0].object;

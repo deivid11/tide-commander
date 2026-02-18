@@ -75,16 +75,17 @@ export class CharacterFactory {
     // Set initial position
     group.position.set(agent.position.x, agent.position.y, agent.position.z);
 
-    // Add invisible hitbox for easier clicking
-    const hitboxRadius = isBoss ? 0.9 : 0.65;
-    const hitboxGeometry = new THREE.SphereGeometry(hitboxRadius, 8, 6);
+    // Add invisible hitbox cylinder for easier clicking (covers body + UI above)
+    const hitboxRadius = isBoss ? 1.0 : 0.75;
+    const hitboxHeight = isBoss ? 3.5 : 2.5;
+    const hitboxGeometry = new THREE.CylinderGeometry(hitboxRadius, hitboxRadius, hitboxHeight, 8);
     const hitboxMaterial = new THREE.MeshBasicMaterial({
       visible: false,
       transparent: true,
       opacity: 0,
     });
     const hitbox = new THREE.Mesh(hitboxGeometry, hitboxMaterial);
-    hitbox.position.y = hitboxRadius;
+    hitbox.position.y = hitboxHeight / 2;
     hitbox.name = 'clickHitbox';
     group.add(hitbox);
 

@@ -685,11 +685,6 @@ export class InputHandler {
 
     // Open terminal
     if (matchesShortcut(event, openTerminalShortcut)) {
-      // Get fresh state and DOM element
-      const freshState = store.getState();
-      const terminalDom = document.querySelector('.guake-terminal');
-      const isDomCollapsed = terminalDom?.classList.contains('collapsed');
-
       // Don't trigger if inside an open terminal
       if (guakeTerminal && !isCollapsedTerminal) {
         return;
