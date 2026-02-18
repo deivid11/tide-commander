@@ -100,7 +100,7 @@ const CompareTreeNodeItem = memo(function CompareTreeNodeItem({
         <span className={`tree-arrow ${isExpanded ? 'expanded' : ''}`}>&#9658;</span>
         <img
           className="tree-folder-icon"
-          src={isExpanded ? '/assets/vscode-icons/default_folder_opened.svg' : '/assets/vscode-icons/default_folder.svg'}
+          src={isExpanded ? `${import.meta.env.BASE_URL}assets/vscode-icons/default_folder_opened.svg` : `${import.meta.env.BASE_URL}assets/vscode-icons/default_folder.svg`}
           alt="folder"
         />
         <span className="tree-name">{node.name}</span>

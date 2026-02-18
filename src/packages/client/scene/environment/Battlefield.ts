@@ -512,7 +512,7 @@ export class Battlefield {
 
   private createLogo(): void {
     const textureLoader = new THREE.TextureLoader();
-    const logoTexture = textureLoader.load('/assets/textures/logo-blanco.png');
+    const logoTexture = textureLoader.load(`${import.meta.env.BASE_URL}assets/textures/logo-blanco.png`);
 
     // Use aspect ratio close to the actual logo (it's wider than tall)
     const logoWidth = 10;

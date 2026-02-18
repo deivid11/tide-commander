@@ -1,0 +1,179 @@
+@use '../variables' as *;
+@use 'sass:color';
+
+.not-connected-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  animation: not-connected-fade-in 0.4s ease-out;
+}
+
+@keyframes not-connected-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes not-connected-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.not-connected-panel {
+  max-width: 520px;
+  width: 90%;
+  padding: 40px 36px;
+  text-align: center;
+  animation: not-connected-slide-up 0.5s ease-out 0.1s both;
+}
+
+.not-connected-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: $text-primary;
+  margin: 0 0 16px;
+  letter-spacing: -0.02em;
+}
+
+.not-connected-description {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: $text-secondary;
+  margin: 0 0 12px;
+}
+
+.not-connected-privacy {
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: $text-muted;
+  margin: 0 0 28px;
+}
+
+.not-connected-setup {
+  margin: 0 0 28px;
+}
+
+.not-connected-setup-label {
+  font-size: 0.85rem;
+  color: $text-secondary;
+  margin: 0 0 10px;
+  font-weight: 500;
+}
+
+.not-connected-code {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  background: $bg-tertiary;
+  border: 1px solid $border-color;
+  border-radius: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.95rem;
+  color: $accent-cyan;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  user-select: all;
+
+  &:hover {
+    border-color: $accent-cyan;
+    background: rgba($accent-cyan, 0.08);
+  }
+}
+
+.not-connected-copy-icon {
+  font-size: 0.85rem;
+  color: $text-muted;
+  transition: color 0.2s;
+
+  .not-connected-code:hover & {
+    color: $accent-cyan;
+  }
+}
+
+.not-connected-url-section {
+  margin: 0 0 24px;
+}
+
+.not-connected-url-label {
+  display: block;
+  font-size: 0.8rem;
+  color: $text-muted;
+  margin: 0 0 8px;
+  font-weight: 500;
+}
+
+.not-connected-url-input {
+  width: 100%;
+  padding: 10px 14px;
+  background: $bg-tertiary;
+  border: 1px solid $border-color;
+  border-radius: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.85rem;
+  color: $text-primary;
+  outline: none;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+
+  &::placeholder {
+    color: $text-muted;
+  }
+
+  &:focus {
+    border-color: $accent-blue;
+  }
+}
+
+.not-connected-url-row {
+  display: flex;
+  gap: 8px;
+}
+
+.not-connected-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.not-connected-btn {
+  padding: 10px 24px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid transparent;
+  font-family: inherit;
+}
+
+.not-connected-btn-retry {
+  background: transparent;
+  border-color: $border-color;
+  color: $text-secondary;
+
+  &:hover {
+    border-color: $text-muted;
+    color: $text-primary;
+    background: rgba(255, 255, 255, 0.04);
+  }
+}
+
+.not-connected-btn-explore {
+  background: $accent-blue;
+  color: #fff;
+
+  &:hover {
+    background: color.adjust($accent-blue, $lightness: 8%);
+  }
+}

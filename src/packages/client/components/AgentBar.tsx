@@ -639,7 +639,7 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
               </span>
               <span className="agent-bar-tooltip-name">
                 <img
-                  src={hoveredAgent.provider === 'codex' ? '/assets/codex.png' : '/assets/claude.png'}
+                  src={hoveredAgent.provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
                   alt={hoveredAgent.provider}
                   className="agent-bar-provider-icon"
                   title={hoveredAgent.provider === 'codex' ? 'Codex Agent' : 'Claude Agent'}

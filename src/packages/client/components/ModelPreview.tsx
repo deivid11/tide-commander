@@ -422,7 +422,7 @@ export function ModelPreview({ agentClass, modelFile, customModelFile, customMod
       // Fallback to default model if agent class isn't in the map (e.g., custom classes)
       const resolvedModelFile = modelFile || (agentClass ? AGENT_CLASS_MODELS[agentClass] : undefined) || 'character-male-a.glb';
       loader.load(
-        `/assets/characters/${resolvedModelFile}`,
+        `${import.meta.env.BASE_URL}assets/characters/${resolvedModelFile}`,
         processModel,
         undefined,
         (error) => {

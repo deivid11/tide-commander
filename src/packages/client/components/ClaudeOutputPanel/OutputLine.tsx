@@ -760,7 +760,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
           <span className="output-role">
             {provider && (
               <img
-                src={provider === 'codex' ? '/assets/codex.png' : '/assets/claude.png'}
+                src={provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
                 alt={provider}
                 className="output-role-icon"
                 title={provider === 'codex' ? 'Codex Agent' : 'Claude Agent'}
@@ -811,7 +811,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         <span className="output-role">
           {isClaudeMessage && provider && (
             <img
-              src={provider === 'codex' ? '/assets/codex.png' : '/assets/claude.png'}
+              src={provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
               alt={provider}
               className="output-role-icon"
               title={provider === 'codex' ? 'Codex Agent' : 'Claude Agent'}

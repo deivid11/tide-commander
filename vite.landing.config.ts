@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
-import { cpSync, copyFileSync } from 'fs';
+import { cpSync, copyFileSync, existsSync } from 'fs';
 
 export default defineConfig({
   root: resolve(__dirname, 'src/packages/landing'),
@@ -27,6 +27,12 @@ export default defineConfig({
           resolve(__dirname, 'public/assets/landing/sitemap.xml'),
           resolve(__dirname, 'dist-landing/sitemap.xml'),
         );
+        // Copy the static app build into dist-landing/app/ (built by vite.app-static.config.ts)
+        const appDist = resolve(__dirname, 'dist-app');
+        if (existsSync(appDist)) {
+          cpSync(appDist, resolve(__dirname, 'dist-landing/app'), { recursive: true });
+          console.log('Copied app build to dist-landing/app/');
+        }
       },
     },
   ],

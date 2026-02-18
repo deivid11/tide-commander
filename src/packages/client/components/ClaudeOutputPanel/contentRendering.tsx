@@ -185,7 +185,7 @@ export function renderContentWithImages(
           onClick={() => onFileClick?.(resourcePath)}
           title={i18n.t('terminal:content.clickToViewFile', { path: resourcePath })}
         >
-          <img src={`/assets/vscode-icons/${iconPath}`} alt={resourceName} style={{ width: '12px', height: '12px', display: 'inline', marginRight: '4px' }} />
+          <img src={`${import.meta.env.BASE_URL}assets/vscode-icons/${iconPath}`} alt={resourceName} style={{ width: '12px', height: '12px', display: 'inline', marginRight: '4px' }} />
           {resourceName}
         </span>
       );
@@ -275,7 +275,7 @@ export function renderUserPromptContent(
           onClick={() => onFileClick?.(resourcePath)}
           title={i18n.t('terminal:content.clickToViewFile', { path: resourcePath })}
         >
-          <img src={`/assets/vscode-icons/${iconPath}`} alt={resourceName} style={{ width: '12px', height: '12px', display: 'inline', marginRight: '4px' }} />
+          <img src={`${import.meta.env.BASE_URL}assets/vscode-icons/${iconPath}`} alt={resourceName} style={{ width: '12px', height: '12px', display: 'inline', marginRight: '4px' }} />
           {resourceName}
         </span>
       );

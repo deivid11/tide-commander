@@ -601,7 +601,7 @@ export const HistoryLine = memo(function HistoryLine({
         <span className="history-role">
           {!isSystemMessage && provider && (
             <img
-              src={provider === 'codex' ? '/assets/codex.png' : '/assets/claude.png'}
+              src={provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
               alt={provider}
               className="history-role-icon"
               title={provider === 'codex' ? t('terminal:history.codexAgent') : t('terminal:history.claudeAgent')}
@@ -652,7 +652,7 @@ export const HistoryLine = memo(function HistoryLine({
       <span className={`history-role ${isUser ? 'history-role-chip' : ''}`}>
         {!isUser && !isSystemMessage && provider && (
           <img
-            src={provider === 'codex' ? '/assets/codex.png' : '/assets/claude.png'}
+            src={provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
             alt={provider}
             className="history-role-icon"
             title={provider === 'codex' ? t('terminal:history.codexAgent') : t('terminal:history.claudeAgent')}

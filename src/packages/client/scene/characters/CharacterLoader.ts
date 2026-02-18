@@ -81,7 +81,7 @@ export class CharacterLoader {
    */
   private loadModel(modelName: string): Promise<void> {
     return new Promise((resolve) => {
-      const assetUrl = `/assets/characters/${modelName}`;
+      const assetUrl = `${import.meta.env.BASE_URL}assets/characters/${modelName}`;
       console.log(`[CharacterLoader] Loading model: ${assetUrl}`);
       this.loader.load(
         assetUrl,

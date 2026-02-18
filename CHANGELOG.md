@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.67.0] - 2026-02-17
+
+### Added
+- **Static app build for web deployment** - New `vite.app-static.config.ts` builds the app for hosting at `/app/` path without a backend server (e.g., tidecommander.com/app)
+- **Not Connected overlay** - When the app loads without a backend connection, a polished overlay shows setup instructions, a backend URL input, and an "Explore" option to browse the UI
+- **Asset path utility** - New `assetPath.ts` helper for resolving asset paths with correct base URL prefix
+
+### Changed
+- **BASE_URL-aware asset paths** - All hardcoded `/assets/` references across 15+ client files replaced with `import.meta.env.BASE_URL` for correct sub-path deployments
+- **Landing page demo link** - "Watch Demo" button changed to "Try Demo" linking to the static app at `/app`
+- **Makefile landing build** - `make landing` now also builds the static app and copies it into `dist-landing/app/`
+
 ## [0.66.2] - 2026-02-17
 
 ### Added
