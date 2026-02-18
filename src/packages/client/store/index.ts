@@ -426,13 +426,20 @@ class Store
       }
 
       // NEW: Clear unseen output badges for all selected agents when terminal opens
+      let unseenChanged = false;
       for (const agentId of this.state.selectedAgentIds) {
         if (this.state.agentsWithUnseenOutput.has(agentId)) {
+          if (!unseenChanged) {
+            this.state.agentsWithUnseenOutput = new Set(this.state.agentsWithUnseenOutput);
+            unseenChanged = true;
+          }
           this.state.agentsWithUnseenOutput.delete(agentId);
           console.log(`[Store] Cleared unseen badge for agent ${agentId}`);
         }
       }
-      this.saveUnseenAgents();
+      if (unseenChanged) {
+        this.saveUnseenAgents();
+      }
     }
     this.notify();
     console.log('[Store] After notify, terminalOpen:', this.state.terminalOpen);
@@ -485,11 +492,22 @@ class Store
 
     // NEW: Clear unseen badge for this agent
     if (this.state.agentsWithUnseenOutput.has(agentId)) {
+      this.state.agentsWithUnseenOutput = new Set(this.state.agentsWithUnseenOutput);
       this.state.agentsWithUnseenOutput.delete(agentId);
       console.log(`[Store] Cleared unseen badge for agent ${agentId}`);
+      this.saveUnseenAgents();
     }
 
     this.notify();
+  }
+
+  clearUnseenForAgent(agentId: string): void {
+    if (this.state.agentsWithUnseenOutput.has(agentId)) {
+      this.state.agentsWithUnseenOutput = new Set(this.state.agentsWithUnseenOutput);
+      this.state.agentsWithUnseenOutput.delete(agentId);
+      this.saveUnseenAgents();
+      this.notify();
+    }
   }
 
   setTerminalResizing(resizing: boolean): void {

@@ -139,6 +139,7 @@ export function createAgentActions(
           // Only mark if user isn't currently viewing this agent
           const isViewing = s.terminalOpen && s.selectedAgentIds.has(agent.id);
           if (!isViewing) {
+            s.agentsWithUnseenOutput = new Set(s.agentsWithUnseenOutput);
             s.agentsWithUnseenOutput.add(agent.id);
             console.log(`[Store] Agent ${agent.name} completed work - marked as unseen`);
             unseenChanged = true;
@@ -182,7 +183,10 @@ export function createAgentActions(
         // Clean up agent outputs to prevent memory leak
         state.agentOutputs.delete(agentId);
         // NEW: Clean up unseen badge
-        state.agentsWithUnseenOutput.delete(agentId);
+        if (state.agentsWithUnseenOutput.has(agentId)) {
+          state.agentsWithUnseenOutput = new Set(state.agentsWithUnseenOutput);
+          state.agentsWithUnseenOutput.delete(agentId);
+        }
       });
       if (hadUnseen && saveUnseenAgents) {
         saveUnseenAgents();
@@ -200,6 +204,7 @@ export function createAgentActions(
 
           // NEW: Clear unseen badge when agent is selected
           if (state.agentsWithUnseenOutput.has(agentId)) {
+            state.agentsWithUnseenOutput = new Set(state.agentsWithUnseenOutput);
             state.agentsWithUnseenOutput.delete(agentId);
             console.log(`[Store] Cleared unseen badge for selected agent ${agentId}`);
             unseenChanged = true;
@@ -224,6 +229,7 @@ export function createAgentActions(
 
           // NEW: Clear unseen badge when agent is added to selection
           if (state.agentsWithUnseenOutput.has(agentId)) {
+            state.agentsWithUnseenOutput = new Set(state.agentsWithUnseenOutput);
             state.agentsWithUnseenOutput.delete(agentId);
             console.log(`[Store] Cleared unseen badge for multi-selected agent ${agentId}`);
             unseenChanged = true;

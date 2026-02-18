@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.66.2] - 2026-02-17
+
+### Added
+- **Unseen badges on dashboard cards** - Dashboard agent cards now show unseen notification indicators
+- **Unseen count in dashboard zone headers** - Zone group headers display count of unseen agents
+- **Dashboard "Working & Unseen" group** - Status grouping now combines working and unseen idle agents into one group
+
+### Fixed
+- **Unseen badge reactivity** - Fixed Set mutation to create new Set instances for proper React re-renders
+- **Terminal unseen clearing** - Viewing an agent in the terminal now properly clears its unseen badge
+- **Unseen persistence efficiency** - Only saves to localStorage when unseen set actually changes
+
 ## [0.66.1] - 2026-02-17
 
 ### Added

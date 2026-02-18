@@ -495,16 +495,19 @@ export function groupAgentsByZone(
 /**
  * Group agents by status category
  */
-export function groupAgentsByStatus(agents: Map<string, Agent>): ZoneGroup[] {
-  const working: Agent[] = [];
+export function groupAgentsByStatus(agents: Map<string, Agent>, unseenAgentIds?: Set<string>): ZoneGroup[] {
+  const workingAndUnseen: Agent[] = [];
   const idle: Agent[] = [];
   const errored: Agent[] = [];
 
   for (const agent of agents.values()) {
     if (agent.status === 'working' || agent.status === 'waiting' || agent.status === 'waiting_permission') {
-      working.push(agent);
+      workingAndUnseen.push(agent);
     } else if (agent.status === 'error' || agent.status === 'offline' || agent.status === 'orphaned') {
       errored.push(agent);
+    } else if (unseenAgentIds && unseenAgentIds.has(agent.id)) {
+      // Unseen idle agents go into Working & Unseen group
+      workingAndUnseen.push(agent);
     } else {
       idle.push(agent);
     }
@@ -512,7 +515,7 @@ export function groupAgentsByStatus(agents: Map<string, Agent>): ZoneGroup[] {
 
   const groups: ZoneGroup[] = [];
   if (errored.length > 0) groups.push({ area: null, agents: errored, label: 'Errors', color: '#d64545' });
-  if (working.length > 0) groups.push({ area: null, agents: working, label: 'Working', color: '#f5d76e' });
+  if (workingAndUnseen.length > 0) groups.push({ area: null, agents: workingAndUnseen, label: 'Working & Unseen', color: '#f5d76e' });
   if (idle.length > 0) groups.push({ area: null, agents: idle, label: 'Idle', color: '#5cb88a' });
   return groups;
 }

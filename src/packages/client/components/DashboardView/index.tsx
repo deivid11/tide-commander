@@ -64,10 +64,10 @@ export function DashboardView({
     if (grouping === 'zone') {
       return groupAgentsByZone(agents, areas);
     } else if (grouping === 'status') {
-      return groupAgentsByStatus(agents);
+      return groupAgentsByStatus(agents, agentsWithUnseenOutput);
     }
     return groupAgentsByActivity(agents);
-  }, [agents, areas, grouping]);
+  }, [agents, areas, grouping, agentsWithUnseenOutput]);
 
   // Then filter agents within each group by search and status
   // For 'zone' grouping, show all zones (even if filtered agents list becomes empty)

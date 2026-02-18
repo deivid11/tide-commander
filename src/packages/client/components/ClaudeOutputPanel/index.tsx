@@ -593,6 +593,13 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
   // Track when we need to scroll and fade in (to avoid stale closure issues)
   const pendingFadeInRef = useRef(false);
 
+  // Clear unseen badge when terminal is open and agent is visible
+  useEffect(() => {
+    if (isOpen && selectedAgentId) {
+      store.clearUnseenForAgent(selectedAgentId);
+    }
+  }, [isOpen, selectedAgentId]);
+
   // Mark pending fade-in when agent changes
   useEffect(() => {
     pendingFadeInRef.current = true;
