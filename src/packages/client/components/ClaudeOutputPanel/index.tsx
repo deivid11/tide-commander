@@ -223,6 +223,7 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
 
   // Completion indicator state
   const [showCompletion, setShowCompletion] = useState(false);
+  const [completionElapsed, setCompletionElapsed] = useState<number | null>(null);
   const prevStatusRef = useRef<string | null>(null);
   const completionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -295,17 +296,22 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
 
     if (prevStatus === 'working' && currentStatus === 'idle') {
       if (completionTimerRef.current) clearTimeout(completionTimerRef.current);
+      // Capture elapsed time from last prompt
+      const prompt = activeAgentId ? lastPrompts.get(activeAgentId) : undefined;
+      setCompletionElapsed(prompt?.timestamp ? Date.now() - prompt.timestamp : null);
       setShowCompletion(true);
       completionTimerRef.current = setTimeout(() => {
         setShowCompletion(false);
+        setCompletionElapsed(null);
         completionTimerRef.current = null;
-      }, 1000);
+      }, 4000);
     } else if (currentStatus === 'working') {
       if (completionTimerRef.current) {
         clearTimeout(completionTimerRef.current);
         completionTimerRef.current = null;
       }
       setShowCompletion(false);
+      setCompletionElapsed(null);
     }
 
     prevStatusRef.current = currentStatus || null;
@@ -1041,6 +1047,7 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
           handleInputBlur={keyboard.handleInputBlur}
           pendingPermissions={pendingPermissions}
           showCompletion={showCompletion}
+          completionElapsed={completionElapsed}
           onImageClick={handleImageClick}
           inputRef={terminalInputRef}
           textareaRef={terminalTextareaRef}

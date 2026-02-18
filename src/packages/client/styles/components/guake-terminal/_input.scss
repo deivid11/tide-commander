@@ -444,6 +444,53 @@
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+// Live elapsed timer shown while agent is working
+.guake-elapsed-timer {
+  font-family: $font-mono;
+  font-size: 11px;
+  font-weight: 600;
+  color: $dracula-cyan;
+  background: $dracula-bg-darker;
+  padding: 0 8px;
+  height: 24px;
+  line-height: 24px;
+  border-radius: 4px;
+  border: 1px solid rgba($dracula-cyan, 0.3);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+// Completion elapsed time badge shown briefly when agent finishes
+.guake-completion-time {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  font-family: $font-mono;
+  font-size: 11px;
+  color: $dracula-green;
+  background: $dracula-bg-darker;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba($dracula-green, 0.5);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  animation: elapsed-fade 4s ease-out forwards;
+}
+
+@keyframes elapsed-fade {
+  0%, 70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
 }
 
 .guake-stop-btn {
