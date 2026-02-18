@@ -20,11 +20,6 @@ export class DoubleClickDetector<T = string> {
     const now = performance.now();
     const timeSinceLast = now - this.lastClickTime;
 
-    console.log('[DoubleClickDetector] handleClick - entityId:', entityId,
-      'lastId:', this.lastClickId,
-      'timeSinceLast:', timeSinceLast.toFixed(0),
-      'threshold:', this.threshold);
-
     // Check for double-click
     if (
       this.lastClickTime > 0 &&
@@ -32,7 +27,6 @@ export class DoubleClickDetector<T = string> {
       timeSinceLast < this.threshold
     ) {
       // Double-click detected
-      console.log('[DoubleClickDetector] DOUBLE detected!');
       this.clearTimer();
       this.reset();
       return 'double';
