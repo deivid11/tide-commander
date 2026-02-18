@@ -1007,75 +1007,97 @@ export class VisualConfig {
     classColor: number
   ): void {
     const isBoss = agent.isBoss === true || agent.class === 'boss';
-    const remainingPercent = getContextRemainingPercent(agent);
+    const remainingPercent = Math.round(getContextRemainingPercent(agent));
 
-    // Update status bar sprite (new style)
-    const statusBar = group.getObjectByName('statusBar') as THREE.Sprite;
-    if (statusBar) {
-      const material = statusBar.material as THREE.SpriteMaterial;
-      if (material.map) {
-        const canvas = material.map.image as HTMLCanvasElement;
-        if (canvas instanceof HTMLCanvasElement) {
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            this.drawStatusBar(ctx, canvas.width, canvas.height, remainingPercent, agent.status, agent.lastActivity, isBoss);
-            material.map.needsUpdate = true;
+    // Dirty-check: skip expensive canvas redraws if nothing changed
+    const ud = group.userData;
+    const statusDirty = ud._cachedStatus !== agent.status
+      || ud._cachedPercent !== remainingPercent
+      || ud._cachedIsBoss !== isBoss
+      || (agent.status === 'idle' && ud._cachedIdleBucket !== Math.floor((Date.now() - agent.lastActivity) / 60000));
+
+    if (statusDirty) {
+      ud._cachedStatus = agent.status;
+      ud._cachedPercent = remainingPercent;
+      ud._cachedIsBoss = isBoss;
+      ud._cachedIdleBucket = agent.status === 'idle' ? Math.floor((Date.now() - agent.lastActivity) / 60000) : 0;
+
+      // Update status bar sprite (new style)
+      const statusBar = group.getObjectByName('statusBar') as THREE.Sprite;
+      if (statusBar) {
+        const material = statusBar.material as THREE.SpriteMaterial;
+        if (material.map) {
+          const canvas = material.map.image as HTMLCanvasElement;
+          if (canvas instanceof HTMLCanvasElement) {
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              this.drawStatusBar(ctx, canvas.width, canvas.height, remainingPercent, agent.status, agent.lastActivity, isBoss);
+              material.map.needsUpdate = true;
+            }
           }
         }
       }
-    }
 
-    // Update name label sprite if name changed (new style)
-    const nameLabelSprite = group.getObjectByName('nameLabelSprite') as THREE.Sprite;
-    if (nameLabelSprite && group.userData.agentName !== agent.name) {
-      const material = nameLabelSprite.material as THREE.SpriteMaterial;
-      if (material.map) {
-        const canvas = material.map.image as HTMLCanvasElement;
-        if (canvas instanceof HTMLCanvasElement) {
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            this.drawNameLabel(ctx, canvas.width, canvas.height, agent.name, classColor);
-            material.map.needsUpdate = true;
-            group.userData.agentName = agent.name;
+      // Fallback: Update combined UI sprite (legacy style)
+      const combinedUI = group.getObjectByName('combinedUI') as THREE.Sprite;
+      if (combinedUI) {
+        const material = combinedUI.material as THREE.SpriteMaterial;
+        if (material.map) {
+          const canvas = material.map.image as HTMLCanvasElement;
+          if (canvas instanceof HTMLCanvasElement) {
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              this.drawCombinedUI(
+                ctx,
+                canvas.width,
+                canvas.height,
+                agent.name,
+                classColor,
+                remainingPercent,
+                agent.status,
+                agent.lastActivity,
+                isBoss
+              );
+              material.map.needsUpdate = true;
+            }
           }
         }
       }
-    }
 
-    // Fallback: Update combined UI sprite (legacy style)
-    const combinedUI = group.getObjectByName('combinedUI') as THREE.Sprite;
-    if (combinedUI) {
-      const material = combinedUI.material as THREE.SpriteMaterial;
-      if (material.map) {
-        const canvas = material.map.image as HTMLCanvasElement;
-        if (canvas instanceof HTMLCanvasElement) {
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            this.drawCombinedUI(
-              ctx,
-              canvas.width,
-              canvas.height,
-              agent.name,
-              classColor,
-              remainingPercent,
-              agent.status,
-              agent.lastActivity,
-              isBoss
-            );
-            material.map.needsUpdate = true;
-          }
-        }
+      // Fallback for very old agents with completely separate sprites
+      const statusBarExists = !!group.getObjectByName('statusBar');
+      const combinedUIExists = !!group.getObjectByName('combinedUI');
+      if (!statusBarExists && !combinedUIExists) {
+        this.updateManaBar(group, remainingPercent, agent.status);
+        this.updateIdleTimer(group, agent.status, agent.lastActivity);
       }
     }
 
-    // Fallback for very old agents with completely separate sprites
-    if (!statusBar && !combinedUI) {
-      if (group.userData.agentName !== agent.name) {
+    // Name label: only redraw if name actually changed (already guarded)
+    if (ud.agentName !== agent.name) {
+      const nameLabelSprite = group.getObjectByName('nameLabelSprite') as THREE.Sprite;
+      if (nameLabelSprite) {
+        const material = nameLabelSprite.material as THREE.SpriteMaterial;
+        if (material.map) {
+          const canvas = material.map.image as HTMLCanvasElement;
+          if (canvas instanceof HTMLCanvasElement) {
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              this.drawNameLabel(ctx, canvas.width, canvas.height, agent.name, classColor);
+              material.map.needsUpdate = true;
+              ud.agentName = agent.name;
+            }
+          }
+        }
+      }
+
+      // Legacy fallback name update
+      const statusBarExists = !!group.getObjectByName('statusBar');
+      const combinedUIExists = !!group.getObjectByName('combinedUI');
+      if (!statusBarExists && !combinedUIExists) {
         this.updateNameLabel(group, agent.name, agent.class, agent.provider);
-        group.userData.agentName = agent.name;
+        ud.agentName = agent.name;
       }
-      this.updateManaBar(group, remainingPercent, agent.status);
-      this.updateIdleTimer(group, agent.status, agent.lastActivity);
     }
 
     // Update selection ring visibility and color

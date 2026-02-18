@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.67.3] - 2026-02-18
+
+### Changed
+- **3D scene dirty-checking for canvas redraws** - Status bar and name label sprites only redraw when agent status, context percent, or idle bucket changes, avoiding per-frame canvas operations
+- **Raycaster hitbox caching** - Pre-computed hitbox array avoids rebuilding `Array.from()` on every raycast; uses `recursive: false` for faster intersection tests
+- **Cylinder hitboxes for agents** - Replaced sphere hitboxes with taller cylinder hitboxes covering body and UI elements for more accurate click detection
+- **Default scene config** - Changed default floor style to `metal` and disabled grid by default
+
+### Fixed
+- **Lint warnings** - Removed unused `freshState` and `isDomCollapsed` variables in InputHandler.ts
+- **Debug console logging** - Removed debug logging from input handlers and DoubleClickDetector to eliminate Firefox click throttling
+- **CharacterFactory test mock** - Added missing `CylinderGeometry` to THREE mock
+
 ## [0.67.2] - 2026-02-18
 
 ### Fixed

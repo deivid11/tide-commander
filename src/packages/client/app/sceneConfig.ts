@@ -10,7 +10,7 @@ export const DEFAULT_TERRAIN = {
   showGrass: true,
   showClouds: true,
   fogDensity: 1,
-  floorStyle: 'concrete' as const,
+  floorStyle: 'metal' as const,
   brightness: 1, // 0.2 = dark, 1 = normal, 2 = bright
   skyColor: null as string | null, // null = auto (based on time mode)
 };
@@ -42,7 +42,7 @@ export function loadConfig(): SceneConfig {
   const defaultConfig: SceneConfig = {
     characterScale: 2.0,
     indicatorScale: 1,
-    gridVisible: true,
+    gridVisible: false,
     timeMode: 'day',
     terrain: DEFAULT_TERRAIN,
     modelStyle: DEFAULT_MODEL_STYLE,

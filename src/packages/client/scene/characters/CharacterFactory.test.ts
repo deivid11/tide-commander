@@ -60,6 +60,7 @@ vi.mock('three', () => {
     Sprite: MockSprite,
     CapsuleGeometry: vi.fn(),
     SphereGeometry: vi.fn(),
+    CylinderGeometry: vi.fn(),
     RingGeometry: vi.fn(),
     MeshStandardMaterial: function (this: any) { Object.assign(this, createMockMaterial()); },
     MeshBasicMaterial: function (this: any) { Object.assign(this, createMockMaterial()); },
