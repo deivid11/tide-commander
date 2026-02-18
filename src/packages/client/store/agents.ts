@@ -82,7 +82,8 @@ export function createAgentActions(
   getState: () => StoreState,
   setState: (updater: (state: StoreState) => void) => void,
   notify: () => void,
-  getSendMessage: () => ((msg: ClientMessage) => void) | null
+  getSendMessage: () => ((msg: ClientMessage) => void) | null,
+  saveUnseenAgents?: () => void
 ): AgentActions {
   return {
     setAgents(agentList: Agent[]): void {
@@ -127,11 +128,26 @@ export function createAgentActions(
       if (statusChanged) {
         console.log(`[Store] Agent ${agent.name} status update: ${oldAgent?.status} → ${agent.status}`);
       }
+      let unseenChanged = false;
       setState((s) => {
         const newAgents = new Map(s.agents);
         newAgents.set(agent.id, agent);
         s.agents = newAgents;
+
+        // NEW: Mark agent as having unseen output when completing work
+        if (statusChanged && oldAgent?.status === 'working' && agent.status === 'idle') {
+          // Only mark if user isn't currently viewing this agent
+          const isViewing = s.terminalOpen && s.selectedAgentIds.has(agent.id);
+          if (!isViewing) {
+            s.agentsWithUnseenOutput.add(agent.id);
+            console.log(`[Store] Agent ${agent.name} completed work - marked as unseen`);
+            unseenChanged = true;
+          }
+        }
       });
+      if (unseenChanged && saveUnseenAgents) {
+        saveUnseenAgents();
+      }
       notify();
       if (statusChanged) {
         console.log(`[Store] Agent ${agent.name} status now in store: ${getState().agents.get(agent.id)?.status}`);
@@ -157,6 +173,7 @@ export function createAgentActions(
     },
 
     removeAgent(agentId: string): void {
+      const hadUnseen = getState().agentsWithUnseenOutput.has(agentId);
       setState((state) => {
         const newAgents = new Map(state.agents);
         newAgents.delete(agentId);
@@ -164,31 +181,58 @@ export function createAgentActions(
         state.selectedAgentIds.delete(agentId);
         // Clean up agent outputs to prevent memory leak
         state.agentOutputs.delete(agentId);
+        // NEW: Clean up unseen badge
+        state.agentsWithUnseenOutput.delete(agentId);
       });
+      if (hadUnseen && saveUnseenAgents) {
+        saveUnseenAgents();
+      }
       notify();
     },
 
     selectAgent(agentId: string | null): void {
+      let unseenChanged = false;
       setState((state) => {
         state.selectedAgentIds.clear();
         if (agentId) {
           state.selectedAgentIds.add(agentId);
           state.lastSelectedAgentId = agentId;
+
+          // NEW: Clear unseen badge when agent is selected
+          if (state.agentsWithUnseenOutput.has(agentId)) {
+            state.agentsWithUnseenOutput.delete(agentId);
+            console.log(`[Store] Cleared unseen badge for selected agent ${agentId}`);
+            unseenChanged = true;
+          }
         }
         // Clear snapshot view when selecting a different agent
         state.currentSnapshot = null;
       });
+      if (unseenChanged && saveUnseenAgents) {
+        saveUnseenAgents();
+      }
       notify();
     },
 
     addToSelection(agentId: string): void {
+      let unseenChanged = false;
       setState((state) => {
         if (state.selectedAgentIds.has(agentId)) {
           state.selectedAgentIds.delete(agentId);
         } else {
           state.selectedAgentIds.add(agentId);
+
+          // NEW: Clear unseen badge when agent is added to selection
+          if (state.agentsWithUnseenOutput.has(agentId)) {
+            state.agentsWithUnseenOutput.delete(agentId);
+            console.log(`[Store] Cleared unseen badge for multi-selected agent ${agentId}`);
+            unseenChanged = true;
+          }
         }
       });
+      if (unseenChanged && saveUnseenAgents) {
+        saveUnseenAgents();
+      }
       notify();
     },
 

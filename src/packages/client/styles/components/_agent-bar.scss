@@ -626,6 +626,45 @@
   line-height: 1;
 }
 
+// Unseen output notification badge (triangle with exclamation mark)
+.agent-bar-notification-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 14px solid #4a9eff;
+  z-index: 3;
+  animation: notification-pulse 1.5s ease-in-out infinite;
+  filter: drop-shadow(0 0 6px rgba(74, 158, 255, 0.8));
+  pointer-events: none;
+
+  // Exclamation mark using pseudo-element
+  &::after {
+    content: '!';
+    position: absolute;
+    left: -6px;
+    top: -10px;
+    color: #ffffff;
+    font-weight: bold;
+    font-size: 10px;
+    line-height: 1;
+  }
+}
+
+@keyframes notification-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.15);
+  }
+}
+
 .agent-bar-hotkey {
   position: absolute;
   top: -5px;

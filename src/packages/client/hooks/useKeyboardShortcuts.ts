@@ -197,7 +197,7 @@ export function useKeyboardShortcuts({
         return;
       }
 
-      // Navigate between working agents (Alt+Shift+H / Alt+Shift+L)
+      // Navigate between agents with unseen output OR working agents (Alt+Shift+H / Alt+Shift+L)
       const nextWorkingShortcut = shortcuts.find(s => s.id === 'next-working-agent');
       const prevWorkingShortcut = shortcuts.find(s => s.id === 'prev-working-agent');
       if ((matchesShortcut(e, nextWorkingShortcut) || matchesShortcut(e, prevWorkingShortcut)) && !isInputFocused) {
@@ -205,26 +205,31 @@ export function useKeyboardShortcuts({
         if (currentState.terminalOpen) return; // Let terminal handle its own navigation
 
         const agents = Array.from(currentState.agents.values());
-        const workingAgents = agents.filter(a => a.status === 'working');
-        if (workingAgents.length === 0) return;
+
+        // NEW: Prioritize agents with unseen output, fall back to working agents
+        let targetAgents = agents.filter(a => currentState.agentsWithUnseenOutput.has(a.id));
+        if (targetAgents.length === 0) {
+          targetAgents = agents.filter(a => a.status === 'working');
+        }
+        if (targetAgents.length === 0) return;
 
         e.preventDefault();
 
         const selectedId = currentState.selectedAgentIds.size === 1
           ? Array.from(currentState.selectedAgentIds)[0]
           : null;
-        const currentIndex = selectedId ? workingAgents.findIndex(a => a.id === selectedId) : -1;
+        const currentIndex = selectedId ? targetAgents.findIndex(a => a.id === selectedId) : -1;
 
         let nextIndex: number;
         if (matchesShortcut(e, nextWorkingShortcut)) {
-          // Alt+Shift+L → next working agent
-          nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % workingAgents.length;
+          // Alt+Shift+L → next agent
+          nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % targetAgents.length;
         } else {
-          // Alt+Shift+H → previous working agent
-          nextIndex = currentIndex === -1 ? workingAgents.length - 1 : (currentIndex - 1 + workingAgents.length) % workingAgents.length;
+          // Alt+Shift+H → previous agent
+          nextIndex = currentIndex === -1 ? targetAgents.length - 1 : (currentIndex - 1 + targetAgents.length) % targetAgents.length;
         }
 
-        store.selectAgent(workingAgents[nextIndex].id);
+        store.selectAgent(targetAgents[nextIndex].id);
         sceneRef.current?.refreshSelectionVisuals();
         return;
       }

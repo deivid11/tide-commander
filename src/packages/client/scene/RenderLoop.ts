@@ -25,6 +25,7 @@ export interface RenderLoopCallbacks {
   onUpdateIdleTimers: () => void;
   onUpdateBossSubordinateLines: () => void;
   onUpdateIndicatorScales: (camera: THREE.PerspectiveCamera, agentMeshes: Map<string, AgentMeshData>, indicatorScale: number) => void;
+  onUpdateNotificationBadges?: () => void; // Update visual badges for unseen agents
 }
 
 /**
@@ -244,6 +245,9 @@ export class RenderLoop {
       this.callbacks.onUpdateIdleTimers();
       this.lastIdleTimerUpdate = now;
     }
+
+    // Update notification badges
+    this.callbacks.onUpdateNotificationBadges?.();
 
     // Update boss-subordinate lines
     this.callbacks.onUpdateBossSubordinateLines();
