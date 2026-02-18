@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.66.1] - 2026-02-17
+
+### Added
+- **Persistent unseen agent notifications** - Unseen agent badges now persist across page refreshes via localStorage, so users don't lose track of agents that completed work
+- **3D/2D notification badges on agents** - Unseen notification indicators render directly on agent models in both 3D and 2D views
+
 ## [0.66.0] - 2026-02-17
 
 ### Added
