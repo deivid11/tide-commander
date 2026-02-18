@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.67.1] - 2026-02-18
+
+### Fixed
+- **Version bump for npm publish** - Re-release of v0.67.0 content due to npm version conflict
+
 ## [0.67.0] - 2026-02-18
 
 ### Added
