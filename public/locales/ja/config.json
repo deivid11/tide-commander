@@ -183,6 +183,7 @@
     "2dView": "2Dビューモード",
     "voiceAssistant": "音声アシスタント",
     "tts": "テキスト読み上げ",
+    "echoPrompt": "Echo Prompt",
     "hint": "これらの機能は実験的であり、変更される可能性があります"
   },
   "areas": {

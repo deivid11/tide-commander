@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useIsConnected } from '../store/selectors';
 import { reconnect } from '../websocket/connection';
 import { STORAGE_KEYS, getStorageString, setStorageString } from '../utils/storage';
@@ -7,7 +7,13 @@ export function NotConnectedOverlay() {
   const isConnected = useIsConnected();
   const [dismissed, setDismissed] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [gracePeriod, setGracePeriod] = useState(true);
   const [backendUrl, setBackendUrl] = useState(() => getStorageString(STORAGE_KEYS.BACKEND_URL, ''));
+
+  useEffect(() => {
+    const timer = setTimeout(() => setGracePeriod(false), 3000);
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText('bunx tide-commander').then(() => {
@@ -32,7 +38,7 @@ export function NotConnectedOverlay() {
     }
   }, [backendUrl]);
 
-  if (isConnected || dismissed) return null;
+  if (isConnected || dismissed || gracePeriod) return null;
 
   return (
     <div className="not-connected-overlay">

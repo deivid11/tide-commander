@@ -9,6 +9,7 @@ import { SecretsSection } from './SecretsSection';
 import { DataSection } from './DataSection';
 import { AboutSection, ThemeSelector } from './AboutSection';
 import { SystemPromptModal } from '../SystemPromptModal';
+import { fetchEchoPromptSetting, updateEchoPromptSetting } from '../../api/system-settings';
 import { BUILTIN_AGENT_NAMES } from '../../scene/config';
 import type {
   SceneConfig,
@@ -186,7 +187,7 @@ const SETTINGS_SECTIONS = [
   { id: 'secrets', title: 'Secrets', keywords: ['secrets', 'api', 'key', 'password', 'credentials', 'env', 'environment'] },
   { id: 'systemPrompt', title: 'System Prompt', keywords: ['system', 'prompt', 'global', 'instructions', 'ai', 'agent', 'rules', 'guidelines'] },
   { id: 'data', title: 'Data', keywords: ['export', 'import', 'backup', 'restore', 'save', 'load', 'json'] },
-  { id: 'experimental', title: 'Experimental', keywords: ['experimental', '2d', 'view', 'voice', 'assistant', 'speech', 'tts', 'text to speech'] },
+  { id: 'experimental', title: 'Experimental', keywords: ['experimental', '2d', 'view', 'voice', 'assistant', 'speech', 'tts', 'text to speech', 'echo', 'prompt', 'duplicate'] },
   { id: 'about', title: 'About', keywords: ['about', 'version', 'update', 'credits', 'github', 'releases'] },
 ];
 
@@ -215,6 +216,15 @@ export function ConfigSection({ config, onChange, searchQuery = '' }: ConfigSect
   const [showToken, setShowToken] = useState(false);
   const [newAgentName, setNewAgentName] = useState('');
   const [isSystemPromptModalOpen, setIsSystemPromptModalOpen] = useState(false);
+
+  // Sync echo prompt setting from server on mount
+  React.useEffect(() => {
+    fetchEchoPromptSetting().then((enabled) => {
+      if (enabled !== state.settings.experimentalEchoPrompt) {
+        store.updateSettings({ experimentalEchoPrompt: enabled });
+      }
+    }).catch(() => { /* ignore fetch errors on mount */ });
+  }, []);
 
   // Translate option arrays at render time
   const tTimeOpts = TIME_MODE_OPTIONS.map(opt => ({ ...opt, label: t(`config:time.${opt.value}`) }));
@@ -574,6 +584,17 @@ export function ConfigSection({ config, onChange, searchQuery = '' }: ConfigSect
         <div className="config-row">
           <span className="config-label" title="Text-to-speech for reading agent responses"><HighlightText text={t('config:experimental.tts')} query={searchQuery} /> 🔊</span>
           <Toggle checked={state.settings.experimentalTTS} onChange={(checked) => store.updateSettings({ experimentalTTS: checked })} />
+        </div>
+        <div className="config-row">
+          <span className="config-label" title="Duplicate system prompt for improved LLM attention coverage. Increases input token usage."><HighlightText text={t('config:experimental.echoPrompt')} query={searchQuery} /></span>
+          <Toggle checked={state.settings.experimentalEchoPrompt} onChange={async (checked) => {
+            store.updateSettings({ experimentalEchoPrompt: checked });
+            try {
+              await updateEchoPromptSetting(checked);
+            } catch (err) {
+              console.error('Failed to sync echo prompt setting to server:', err);
+            }
+          }} />
         </div>
         <span className="config-hint">{t('config:experimental.hint')}</span>
       </CollapsibleSection>

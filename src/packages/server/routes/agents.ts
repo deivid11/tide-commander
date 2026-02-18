@@ -13,7 +13,7 @@ import { getClaudeProjectDir } from '../data/index.js';
 // Session listing is done inline for performance
 import { createLogger } from '../utils/logger.js';
 import { buildCustomAgentConfig } from '../websocket/handlers/command-handler.js';
-import { getSystemPrompt, setSystemPrompt, clearSystemPrompt } from '../services/system-prompt-service.js';
+import { getSystemPrompt, setSystemPrompt, clearSystemPrompt, isEchoPromptEnabled, setEchoPromptEnabled } from '../services/system-prompt-service.js';
 
 const log = createLogger('Routes');
 
@@ -536,6 +536,34 @@ router.delete('/system-settings/prompt', (_req: Request, res: Response) => {
     });
   } catch (err: any) {
     log.error(' Failed to clear system prompt:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/system-settings/echo-prompt - Get echo prompt setting
+router.get('/system-settings/echo-prompt', (_req: Request, res: Response) => {
+  try {
+    const enabled = isEchoPromptEnabled();
+    res.json({ enabled });
+  } catch (err: any) {
+    log.error(' Failed to get echo prompt setting:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/system-settings/echo-prompt - Update echo prompt setting
+router.post('/system-settings/echo-prompt', (req: Request, res: Response) => {
+  try {
+    const { enabled } = req.body;
+    if (typeof enabled !== 'boolean') {
+      res.status(400).json({ error: 'enabled must be a boolean' });
+      return;
+    }
+    setEchoPromptEnabled(enabled);
+    log.log(` Echo prompt setting updated: enabled=${enabled}`);
+    res.json({ success: true, enabled });
+  } catch (err: any) {
+    log.error(' Failed to set echo prompt setting:', err);
     res.status(500).json({ error: err.message });
   }
 });

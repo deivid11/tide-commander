@@ -183,6 +183,7 @@
     "2dView": "2D 视图模式",
     "voiceAssistant": "语音助手",
     "tts": "文字转语音",
+    "echoPrompt": "Echo Prompt",
     "hint": "这些功能是实验性的，可能会发生变化"
   },
   "areas": {

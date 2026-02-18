@@ -97,3 +97,48 @@ export function clearSystemPrompt(): void {
 export function hasSystemPrompt(): boolean {
   return fs.existsSync(SYSTEM_PROMPT_FILE);
 }
+
+// ============================================================================
+// Echo Prompt Setting
+// ============================================================================
+
+const ECHO_PROMPT_FILE = path.join(DATA_DIR, 'echo-prompt-setting.json');
+
+interface EchoPromptSetting {
+  enabled: boolean;
+  updatedAt: number;
+}
+
+/**
+ * Check if echo prompt is enabled
+ */
+export function isEchoPromptEnabled(): boolean {
+  ensureDataDir();
+  try {
+    if (fs.existsSync(ECHO_PROMPT_FILE)) {
+      const data: EchoPromptSetting = JSON.parse(fs.readFileSync(ECHO_PROMPT_FILE, 'utf-8'));
+      return data.enabled;
+    }
+  } catch (error: any) {
+    log.error(` Failed to load echo prompt setting: ${error.message}`);
+  }
+  return false;
+}
+
+/**
+ * Set echo prompt enabled/disabled
+ */
+export function setEchoPromptEnabled(enabled: boolean): void {
+  ensureDataDir();
+  const data: EchoPromptSetting = {
+    enabled,
+    updatedAt: Date.now(),
+  };
+  try {
+    fs.writeFileSync(ECHO_PROMPT_FILE, JSON.stringify(data, null, 2), 'utf-8');
+    log.log(` Echo prompt setting updated: enabled=${enabled}`);
+  } catch (error: any) {
+    log.error(` Failed to save echo prompt setting: ${error.message}`);
+    throw error;
+  }
+}

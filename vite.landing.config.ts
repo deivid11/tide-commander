@@ -18,6 +18,11 @@ export default defineConfig({
           resolve(__dirname, 'dist-landing/assets/landing'),
           { recursive: true },
         );
+        cpSync(
+          resolve(__dirname, 'public/assets/icons'),
+          resolve(__dirname, 'dist-landing/assets/icons'),
+          { recursive: true },
+        );
         // Copy robots.txt and sitemap.xml to root
         copyFileSync(
           resolve(__dirname, 'public/assets/landing/robots.txt'),

@@ -4,6 +4,7 @@ import * as path from 'path';
 import type { CLIBackend, BackendConfig, StandardEvent } from '../claude/types.js';
 import { CodexJsonEventParser } from './json-event-parser.js';
 import { TIDE_COMMANDER_APPENDED_PROMPT } from '../prompts/tide-commander.js';
+import { isEchoPromptEnabled } from '../services/system-prompt-service.js';
 
 interface CodexRawEvent {
   type?: string;
@@ -35,14 +36,19 @@ function buildCodexPrompt(config: BackendConfig): string {
   injectedSections.push(TIDE_COMMANDER_APPENDED_PROMPT);
 
   if (injectedSections.length === 0) {
-    return userPrompt;
+    return isEchoPromptEnabled() ? userPrompt + '\n\n---\n\n' + userPrompt : userPrompt;
   }
+
+  // Echo Prompt: duplicate the user message for improved attention coverage
+  const echoedUserPrompt = isEchoPromptEnabled()
+    ? userPrompt + '\n\n---\n\n' + userPrompt
+    : userPrompt;
 
   return [
     'Follow all instructions below for this task.',
     ...injectedSections,
     '## User Request',
-    userPrompt,
+    echoedUserPrompt,
   ].join('\n\n');
 }
 

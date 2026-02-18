@@ -110,7 +110,7 @@ const CONFIG_CATEGORIES: ConfigCategory[] = [
     id: 'system-settings',
     name: 'System Settings',
     description: 'Global system prompt and settings',
-    files: ['system-prompt.json'],
+    files: ['system-prompt.json', 'echo-prompt-setting.json'],
     sourceDir: 'data',
   },
 ];
