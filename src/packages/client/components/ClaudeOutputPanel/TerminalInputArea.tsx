@@ -4,9 +4,9 @@
  * Handles text input, file attachments, paste handling, and send functionality.
  */
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { store, useSettings } from '../../store';
+import { store, useSettings, useLastPrompt } from '../../store';
 import { PermissionRequestInline } from './PermissionRequest';
 import { getImageWebUrl } from './contentRendering';
 import { PastedTextChip } from './PastedTextChip';
@@ -96,6 +96,13 @@ function getFileIcon(ext: string): string {
   return iconMap[ext.toLowerCase()] || iconMap.default;
 }
 
+function formatElapsed(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
 export interface TerminalInputAreaProps {
   selectedAgent: Agent;
   selectedAgentId: string;
@@ -123,6 +130,8 @@ export interface TerminalInputAreaProps {
   pendingPermissions: PermissionRequest[];
   // Completion indicator
   showCompletion: boolean;
+  // Elapsed time at completion (ms)
+  completionElapsed: number | null;
   // Image modal handler
   onImageClick: (url: string, name: string) => void;
   // External refs for input elements (for keyboard navigation focus)
@@ -156,6 +165,7 @@ export function TerminalInputArea({
   handleInputBlur,
   pendingPermissions,
   showCompletion,
+  completionElapsed,
   onImageClick,
   inputRef: externalInputRef,
   textareaRef: externalTextareaRef,
@@ -175,6 +185,23 @@ export function TerminalInputArea({
 
   // Get settings to check if TTS feature is enabled
   const settings = useSettings();
+
+  // Live elapsed timer while agent is working
+  const lastPrompt = useLastPrompt(selectedAgentId);
+  const isWorking = selectedAgent.status === 'working';
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    if (!isWorking || !lastPrompt?.timestamp) {
+      setElapsed(0);
+      return;
+    }
+    setElapsed(Date.now() - lastPrompt.timestamp);
+    const interval = setInterval(() => {
+      setElapsed(Date.now() - lastPrompt.timestamp);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isWorking, lastPrompt?.timestamp]);
 
   // Speech-to-text hook - automatically send transcribed text to agent
   const { recording, transcribing, toggleRecording } = useSTT({
@@ -622,9 +649,10 @@ export function TerminalInputArea({
       )}
 
       <div className={`guake-input-wrapper ${selectedAgent.status === 'working' ? 'has-stop-btn is-working' : ''} ${showCompletion ? 'is-completed' : ''} ${isSnapshotView ? 'is-snapshot-view' : ''}`}>
-        {/* Floating stop button - shown when agent is working */}
+        {/* Floating stop button + elapsed timer - shown when agent is working */}
         {selectedAgent.status === 'working' && (
           <div className="guake-stop-bar">
+            <span className="guake-elapsed-timer">{formatElapsed(elapsed)}</span>
             <button
               className="guake-stop-btn"
               onClick={() => store.stopAgent(selectedAgent.id)}
@@ -634,6 +662,10 @@ export function TerminalInputArea({
               <span className="stop-label">{t('terminal:input.stop')}</span>
             </button>
           </div>
+        )}
+        {/* Completion elapsed time - shown briefly when agent finishes */}
+        {showCompletion && completionElapsed !== null && (
+          <div className="guake-completion-time">{formatElapsed(completionElapsed)}</div>
         )}
 
         <div className={`guake-input ${useTextarea ? 'guake-input-expanded' : ''}`}>

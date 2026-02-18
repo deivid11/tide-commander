@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.68.0] - 2026-02-18
+
+### Added
+- **Live elapsed timer in Guake terminal** - Shows a live `m:ss` countdown while agents are working, displayed next to the stop button
+- **Completion time badge** - Brief green badge showing total elapsed time when an agent finishes a task (fades out after 4 seconds)
+- **Google Analytics on landing page** - Added gtag.js tracking to the public landing page
+
 ## [0.67.3] - 2026-02-18
 
 ### Changed
