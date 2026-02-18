@@ -158,7 +158,7 @@ function TreeNodeItemComponent({
               <span
                 className="tree-folder-icon"
                 style={{
-                  backgroundImage: `url('${isExpanded ? '/assets/vscode-icons/default_folder_opened.svg' : '/assets/vscode-icons/default_folder.svg'}')`,
+                  backgroundImage: `url('${isExpanded ? `${import.meta.env.BASE_URL}assets/vscode-icons/default_folder_opened.svg` : `${import.meta.env.BASE_URL}assets/vscode-icons/default_folder.svg`}')`,
                 }}
                 role="img"
                 aria-label="folder"

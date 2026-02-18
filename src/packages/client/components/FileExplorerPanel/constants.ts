@@ -113,7 +113,7 @@ export const EXTENSION_TO_LANGUAGE: Record<string, string> = {
 // Comprehensive mapping covering 190+ file types and extensions
 // ============================================================================
 
-const ICON_BASE = '/assets/vscode-icons/';
+const ICON_BASE = `${import.meta.env.BASE_URL}assets/vscode-icons/`;
 
 export const FILE_ICONS: Record<string, string> = {
   '.7z': `${ICON_BASE}file_type_zip.svg`,

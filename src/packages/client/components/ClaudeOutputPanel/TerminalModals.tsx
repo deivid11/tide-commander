@@ -290,7 +290,7 @@ export function AgentInfoModal({ agent, isOpen, onClose }: AgentInfoModalProps) 
                   <span>{t('terminal:agentInfo.backend')}</span>
                   <strong>
                     <img
-                      src={agent.provider === 'codex' ? '/assets/codex.png' : '/assets/claude.png'}
+                      src={agent.provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
                       alt={agent.provider}
                       className="agent-info-provider-icon"
                       title={agent.provider === 'codex' ? 'Codex Agent' : 'Claude Agent'}

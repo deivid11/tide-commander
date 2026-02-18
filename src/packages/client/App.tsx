@@ -27,6 +27,7 @@ import { AppModals } from './components/AppModals';
 import { PiPWindow, AgentsPiPView } from './components/PiPWindow';
 import { IframeModal } from './components/IframeModal';
 import { SaveSnapshotModal } from './components/SaveSnapshotModal';
+import { NotConnectedOverlay } from './components/NotConnectedOverlay';
 import { profileRender } from './utils/profiling';
 import {
   useModalState,
@@ -461,6 +462,9 @@ function AppContent() {
 
   return (
     <div className={`app ${state.terminalOpen ? 'terminal-open' : ''} ${isDrawingMode ? 'drawing-mode' : ''} ${sidebarCollapsed ? 'sidebar-collapsed' : ''} mobile-view-${mobileView}`}>
+      {/* Not Connected Overlay */}
+      <NotConnectedOverlay />
+
       {/* FPS Meter */}
       <FPSMeter visible={state.settings.showFPS} position="bottom-right" />
 

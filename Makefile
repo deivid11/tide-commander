@@ -45,9 +45,11 @@ build:
 	npm run build
 
 landing:
+	npx vite build --config vite.app-static.config.ts
 	npx vite build --config vite.landing.config.ts
 	@echo ""
 	@echo "Landing page built to dist-landing/"
+	@echo "App included at dist-landing/app/"
 	@echo "Ready to upload to S3"
 
 dev-landing:
@@ -55,6 +57,7 @@ dev-landing:
 
 clean:
 	rm -rf dist
+	rm -rf dist-app
 	rm -rf dist-landing
 	rm -rf android/app/build
 	rm -rf node_modules/.vite

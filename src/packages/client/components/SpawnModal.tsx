@@ -569,7 +569,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                     onClick={() => setSelectedProvider('claude')}
                     title={t('terminal:spawn.useClaudeCli')}
                   >
-                    <img src="/assets/claude.ico" alt="Claude" className="spawn-provider-icon" />
+                    <img src={`${import.meta.env.BASE_URL}assets/claude.ico`} alt="Claude" className="spawn-provider-icon" />
                     <span>Claude</span>
                   </button>
                   <button
@@ -577,7 +577,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                     onClick={() => setSelectedProvider('codex')}
                     title={t('terminal:spawn.useCodexCli')}
                   >
-                    <img src="/assets/codex.ico" alt="Codex" className="spawn-provider-icon" />
+                    <img src={`${import.meta.env.BASE_URL}assets/codex.ico`} alt="Codex" className="spawn-provider-icon" />
                     <span>Codex</span>
                   </button>
                 </div>

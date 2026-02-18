@@ -585,7 +585,7 @@ export function TerminalInputArea({
                   <img src={imageUrl} alt={file.name} className="guake-attachment-thumb" />
                 ) : (
                   <img
-                    src={`/assets/vscode-icons/${getFileIcon(fileExtension)}`}
+                    src={`${import.meta.env.BASE_URL}assets/vscode-icons/${getFileIcon(fileExtension)}`}
                     alt={file.name}
                     className="guake-attachment-icon"
                     style={{ width: '24px', height: '24px' }}
@@ -594,7 +594,7 @@ export function TerminalInputArea({
                 <div className="guake-attachment-info">
                   <div className="guake-attachment-name-row">
                     <img
-                      src={`/assets/vscode-icons/${getFileIcon(fileExtension)}`}
+                      src={`${import.meta.env.BASE_URL}assets/vscode-icons/${getFileIcon(fileExtension)}`}
                       alt={fileExtension}
                       className="guake-attachment-type-icon"
                       style={{ width: '11px', height: '11px' }}
