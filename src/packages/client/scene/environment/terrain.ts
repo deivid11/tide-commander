@@ -339,7 +339,7 @@ function createInstancedStreetLamps(scene: THREE.Scene): { lamps: THREE.Group; l
   const poleGeometry = new THREE.CylinderGeometry(0.1, 0.15, 5, 8);
   const armGeometry = new THREE.CylinderGeometry(0.05, 0.05, 1, 8);
   const housingGeometry = new THREE.CylinderGeometry(0.4, 0.3, 0.6, 8);
-  const bulbGeometry = new THREE.SphereGeometry(0.25, 16, 16);
+  const bulbGeometry = new THREE.SphereGeometry(0.25, 8, 8);
 
   // Create instanced meshes
   const poleInstanced = new THREE.InstancedMesh(poleGeometry, poleMaterial, numLamps);
@@ -382,12 +382,9 @@ function createInstancedStreetLamps(scene: THREE.Scene): { lamps: THREE.Group; l
     matrix.compose(position, rotation, scale);
     bulbInstanced.setMatrixAt(i, matrix);
 
-    // Point light for each lamp
+    // Point light for each lamp (no shadow casting - saves ~30fps)
     const light = new THREE.PointLight(0xffaa55, 1.5, 15);
     light.position.set(pos.x, 5, pos.z);
-    light.castShadow = true;
-    light.shadow.mapSize.width = 512;
-    light.shadow.mapSize.height = 512;
     lampLights.push(light);
     scene.add(light);
   });
