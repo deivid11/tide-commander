@@ -1017,3 +1017,14 @@ export function useViewMode(): StoreState['viewMode'] {
 export function useOverviewPanelOpen(): boolean {
   return useSelector(useCallback((state: StoreState) => state.overviewPanelOpen, []));
 }
+
+// ============================================================================
+// UNSEEN OUTPUT SELECTORS
+// ============================================================================
+
+/**
+ * Get set of agents with unseen output (completed but not viewed by user)
+ */
+export function useAgentsWithUnseenOutput(): Set<string> {
+  return useSelector(useCallback((state: StoreState) => state.agentsWithUnseenOutput, []));
+}

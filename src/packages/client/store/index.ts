@@ -149,6 +149,7 @@ export {
   useSubagentsForAgent,
   useViewMode,
   useOverviewPanelOpen,
+  useAgentsWithUnseenOutput,
 } from './selectors';
 
 // ============================================================================
@@ -261,6 +262,7 @@ class Store
         return (saved === '2d' || saved === '3d' || saved === 'dashboard') ? saved as StoreState['viewMode'] : '3d';
       })(),
       overviewPanelOpen: false,
+      agentsWithUnseenOutput: this.loadUnseenAgents(),
     };
 
     // Helper functions for domain modules
@@ -273,7 +275,7 @@ class Store
     const getListenerCount = () => this.listeners.size;
 
     // Create domain actions
-    this.agentActions = createAgentActions(getState, setState, notify, getSendMessage);
+    this.agentActions = createAgentActions(getState, setState, notify, getSendMessage, () => this.saveUnseenAgents());
     this.outputActions = createOutputActions(getState, setState, notify, getListenerCount);
     this.supervisorActions = createSupervisorActions(getState, setState, notify, getSendMessage);
     this.areaActions = createAreaActions(getState, setState, notify, getSendMessage);
@@ -346,6 +348,16 @@ class Store
     return isMobile ? '3d' : 'terminal';
   }
 
+  private loadUnseenAgents(): Set<string> {
+    const stored = getStorage<string[]>(STORAGE_KEYS.UNSEEN_AGENTS, []);
+    return new Set(stored);
+  }
+
+  private saveUnseenAgents(): void {
+    const array = Array.from(this.state.agentsWithUnseenOutput);
+    setStorage(STORAGE_KEYS.UNSEEN_AGENTS, array);
+  }
+
   // ============================================================================
   // Core Store Methods
   // ============================================================================
@@ -412,6 +424,15 @@ class Store
         console.log('[Store] Auto-selecting first agent for terminal open:', firstAgentId);
         this.state.selectedAgentIds = new Set([firstAgentId]);
       }
+
+      // NEW: Clear unseen output badges for all selected agents when terminal opens
+      for (const agentId of this.state.selectedAgentIds) {
+        if (this.state.agentsWithUnseenOutput.has(agentId)) {
+          this.state.agentsWithUnseenOutput.delete(agentId);
+          console.log(`[Store] Cleared unseen badge for agent ${agentId}`);
+        }
+      }
+      this.saveUnseenAgents();
     }
     this.notify();
     console.log('[Store] After notify, terminalOpen:', this.state.terminalOpen);
@@ -461,6 +482,13 @@ class Store
     this.state.terminalOpen = true;
     // Switch to terminal view
     this.state.mobileView = 'terminal';
+
+    // NEW: Clear unseen badge for this agent
+    if (this.state.agentsWithUnseenOutput.has(agentId)) {
+      this.state.agentsWithUnseenOutput.delete(agentId);
+      console.log(`[Store] Cleared unseen badge for agent ${agentId}`);
+    }
+
     this.notify();
   }
 

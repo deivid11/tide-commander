@@ -118,6 +118,7 @@ export class SceneManager {
         onUpdateProceduralAnimations: (deltaTime) => this.updateProceduralAnimations(deltaTime),
         onHandleMovementCompletions: (ids) => this.agentManager.handleMovementCompletions(ids),
         onUpdateIdleTimers: () => this.agentManager.updateIdleTimers(),
+        onUpdateNotificationBadges: () => this.agentManager.updateNotificationBadges(),
         onUpdateBossSubordinateLines: () => this.selectionManager.updateBossSubordinateLines(this.movementAnimator.hasActiveMovements()),
         onUpdateIndicatorScales: (camera, meshes, scale) => this.updateIndicatorScales(camera, meshes, scale),
       }

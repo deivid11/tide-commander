@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useStore, store, useCustomAgentClassesArray, useSettings } from '../store';
+import { useStore, store, useCustomAgentClassesArray, useSettings, useAgentsWithUnseenOutput } from '../store';
 import type { Agent, DrawingArea, AgentSupervisorHistoryEntry } from '../../shared/types';
 import { formatIdleTime } from '../utils/formatting';
 import { getClassConfig } from '../utils/classConfig';
@@ -28,6 +28,7 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
   const state = useStore();
   const settings = useSettings();
   const customClasses = useCustomAgentClassesArray();
+  const agentsWithUnseenOutput = useAgentsWithUnseenOutput();
   const [hasPendingHmrChanges, setHasPendingHmrChanges] = useState(false);
 
   // Refs for scrolling to selected agent
@@ -525,6 +526,15 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
                         className="agent-bar-status"
                         style={{ backgroundColor: getAgentStatusColor(agent.status) }}
                       />
+
+                      {/* Unseen output notification badge */}
+                      {agentsWithUnseenOutput.has(agent.id) && (
+                        <span
+                          className="agent-bar-notification-badge"
+                          title="New output available - click to view"
+                        />
+                      )}
+
                       {agent.status === 'idle' && agent.lastActivity > 0 && (
                         <span
                           className="agent-bar-idle-clock"

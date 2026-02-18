@@ -216,24 +216,38 @@ export function useSwipeNavigation({
       const prevAgentShortcut = shortcuts.find(s => s.id === 'prev-agent-terminal');
       const nextAgentShortcut = shortcuts.find(s => s.id === 'next-agent-terminal');
 
-      // Previous working agent
+      // Previous working/unseen agent
       if (matchesShortcut(e, prevWorkingShortcut)) {
         e.preventDefault();
-        const workingAgents = sortedAgents.filter(a => a.status === 'working');
-        if (workingAgents.length === 0) return;
-        const currentIndex = selectedAgentId ? workingAgents.findIndex(a => a.id === selectedAgentId) : -1;
-        const nextIndex = currentIndex === -1 ? workingAgents.length - 1 : (currentIndex - 1 + workingAgents.length) % workingAgents.length;
-        store.selectAgent(workingAgents[nextIndex].id);
+        const currentState = store.getState();
+
+        // NEW: Prioritize unseen, fall back to working
+        let targetAgents = sortedAgents.filter(a => currentState.agentsWithUnseenOutput.has(a.id));
+        if (targetAgents.length === 0) {
+          targetAgents = sortedAgents.filter(a => a.status === 'working');
+        }
+        if (targetAgents.length === 0) return;
+
+        const currentIndex = selectedAgentId ? targetAgents.findIndex(a => a.id === selectedAgentId) : -1;
+        const nextIndex = currentIndex === -1 ? targetAgents.length - 1 : (currentIndex - 1 + targetAgents.length) % targetAgents.length;
+        store.selectAgent(targetAgents[nextIndex].id);
         return;
       }
-      // Next working agent
+      // Next working/unseen agent
       if (matchesShortcut(e, nextWorkingShortcut)) {
         e.preventDefault();
-        const workingAgents = sortedAgents.filter(a => a.status === 'working');
-        if (workingAgents.length === 0) return;
-        const currentIndex = selectedAgentId ? workingAgents.findIndex(a => a.id === selectedAgentId) : -1;
-        const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % workingAgents.length;
-        store.selectAgent(workingAgents[nextIndex].id);
+        const currentState = store.getState();
+
+        // NEW: Prioritize unseen, fall back to working
+        let targetAgents = sortedAgents.filter(a => currentState.agentsWithUnseenOutput.has(a.id));
+        if (targetAgents.length === 0) {
+          targetAgents = sortedAgents.filter(a => a.status === 'working');
+        }
+        if (targetAgents.length === 0) return;
+
+        const currentIndex = selectedAgentId ? targetAgents.findIndex(a => a.id === selectedAgentId) : -1;
+        const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % targetAgents.length;
+        store.selectAgent(targetAgents[nextIndex].id);
         return;
       }
       // Previous agent

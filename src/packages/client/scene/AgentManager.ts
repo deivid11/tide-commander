@@ -643,6 +643,9 @@ export class AgentManager {
     }
 
     this.characterFactory.updateVisuals(meshData.group, agent, isSelected);
+
+    // Update notification badges
+    this.updateNotificationBadges();
   }
 
   syncAgents(agents: Agent[]): void {
@@ -676,6 +679,9 @@ export class AgentManager {
     for (const agent of visibleAgents) {
       this.addAgent(agent);
     }
+
+    // Update notification badges after sync
+    this.updateNotificationBadges();
 
     console.log(`[AgentManager] syncAgents complete: disposed ${previousCount} agents, added ${visibleAgents.length} visible agents`);
   }
@@ -749,6 +755,90 @@ export class AgentManager {
     }
 
     return defaultAnimation;
+  }
+
+  private createNotificationBadge(): THREE.Sprite {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d')!;
+
+    // Draw triangle background
+    const triangleSize = 28;
+    const centerX = 32;
+    const centerY = 32;
+
+    // Triangle points (equilateral)
+    const angle1 = -Math.PI / 2; // top
+    const angle2 = angle1 + (2 * Math.PI / 3); // bottom left
+    const angle3 = angle1 + (4 * Math.PI / 3); // bottom right
+
+    const x1 = centerX + triangleSize * Math.cos(angle1);
+    const y1 = centerY + triangleSize * Math.sin(angle1);
+    const x2 = centerX + triangleSize * Math.cos(angle2);
+    const y2 = centerY + triangleSize * Math.sin(angle2);
+    const x3 = centerX + triangleSize * Math.cos(angle3);
+    const y3 = centerY + triangleSize * Math.sin(angle3);
+
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.lineTo(x3, y3);
+    ctx.closePath();
+    ctx.fillStyle = '#4a9eff';
+    ctx.fill();
+
+    // Triangle border
+    ctx.strokeStyle = '#282a36';
+    ctx.lineWidth = 4;
+    ctx.stroke();
+
+    // Draw exclamation mark
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 32px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('!', centerX, centerY + 2);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    const material = new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      depthTest: false,
+    });
+    const sprite = new THREE.Sprite(material);
+    sprite.scale.set(0.5, 0.5, 1);
+    sprite.userData.isNotificationBadge = true;
+
+    return sprite;
+  }
+
+  updateNotificationBadges(): void {
+    const state = store.getState();
+
+    for (const [agentId, meshData] of this.agentMeshes.entries()) {
+      const hasUnseen = state.agentsWithUnseenOutput.has(agentId);
+
+      // Find existing badge
+      let existingBadge: THREE.Sprite | undefined;
+      meshData.group.children.forEach((child) => {
+        if (child instanceof THREE.Sprite && child.userData.isNotificationBadge) {
+          existingBadge = child;
+        }
+      });
+
+      if (hasUnseen && !existingBadge) {
+        // Create new badge
+        const badge = this.createNotificationBadge();
+        badge.position.set(0.3, 2.0, 0);
+        meshData.group.add(badge);
+      } else if (!hasUnseen && existingBadge) {
+        // Remove badge
+        meshData.group.remove(existingBadge);
+        existingBadge.geometry.dispose();
+        (existingBadge.material as THREE.Material).dispose();
+      }
+    }
   }
 
   updateStatusAnimation(agent: Agent, meshData: AgentMeshData): void {

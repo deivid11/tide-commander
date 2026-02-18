@@ -480,6 +480,60 @@ export class AgentRenderer extends BaseRenderer {
       this.ctx.textBaseline = 'middle';
       this.ctx.fillText(toolContent, screenPos.x, animatedToolY);
     }
+
+    // ========== UNSEEN OUTPUT NOTIFICATION BADGE ==========
+    const state = store.getState();
+    if (state.agentsWithUnseenOutput.has(agent.id)) {
+      const badgeRadius = 10 * zoomScaleFactor;
+      const badgeX = screenPos.x + screenRadius * 0.7;
+      const badgeY = screenPos.y - screenRadius * 0.7;
+
+      // Badge glow
+      const badgeGlow = this.ctx.createRadialGradient(
+        badgeX, badgeY, 0,
+        badgeX, badgeY, badgeRadius * 1.5
+      );
+      badgeGlow.addColorStop(0, 'rgba(74, 158, 255, 0.8)');
+      badgeGlow.addColorStop(1, 'rgba(74, 158, 255, 0)');
+
+      this.ctx.beginPath();
+      this.ctx.arc(badgeX, badgeY, badgeRadius * 1.5, 0, Math.PI * 2);
+      this.ctx.fillStyle = badgeGlow;
+      this.ctx.fill();
+
+      // Draw triangle
+      const triangleSize = badgeRadius * 0.9;
+      const angle1 = -Math.PI / 2;
+      const angle2 = angle1 + (2 * Math.PI / 3);
+      const angle3 = angle1 + (4 * Math.PI / 3);
+
+      const x1 = badgeX + triangleSize * Math.cos(angle1);
+      const y1 = badgeY + triangleSize * Math.sin(angle1);
+      const x2 = badgeX + triangleSize * Math.cos(angle2);
+      const y2 = badgeY + triangleSize * Math.sin(angle2);
+      const x3 = badgeX + triangleSize * Math.cos(angle3);
+      const y3 = badgeY + triangleSize * Math.sin(angle3);
+
+      this.ctx.beginPath();
+      this.ctx.moveTo(x1, y1);
+      this.ctx.lineTo(x2, y2);
+      this.ctx.lineTo(x3, y3);
+      this.ctx.closePath();
+      this.ctx.fillStyle = '#4a9eff';
+      this.ctx.fill();
+
+      // Triangle border
+      this.ctx.strokeStyle = '#282a36';
+      this.ctx.lineWidth = 2;
+      this.ctx.stroke();
+
+      // Draw exclamation mark
+      this.ctx.fillStyle = '#ffffff';
+      this.ctx.font = `bold ${Math.max(8, badgeRadius * 1.2)}px Arial`;
+      this.ctx.textAlign = 'center';
+      this.ctx.textBaseline = 'middle';
+      this.ctx.fillText('!', badgeX, badgeY + 1);
+    }
   }
 
   drawSelectionBox(start: { x: number; z: number }, end: { x: number; z: number }): void {

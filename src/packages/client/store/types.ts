@@ -255,6 +255,8 @@ export interface StoreState {
   viewMode: '2d' | '3d' | 'dashboard';
   // Agent overview panel open state (persists across agent switches)
   overviewPanelOpen: boolean;
+  // Agents with unseen output (completed work but user hasn't viewed)
+  agentsWithUnseenOutput: Set<string>;
 }
 
 // Database building state
