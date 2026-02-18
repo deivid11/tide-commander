@@ -4,6 +4,7 @@ import type { Agent } from '@shared/types';
 import { getStatusColor, getAgentClassIcon, getContextPercent, getContextBarColor } from './utils';
 import { formatIdleTime, formatTimeAgo } from '../../utils/formatting';
 import { getIdleTimerColor } from '../../utils/colors';
+import { useAgentsWithUnseenOutput } from '../../store';
 
 interface AgentCardProps {
   agent: Agent;
@@ -29,6 +30,8 @@ export const AgentCard = React.memo(({
   onDragStart,
 }: AgentCardProps) => {
   const { t } = useTranslation(['dashboard', 'common']);
+  const agentsWithUnseenOutput = useAgentsWithUnseenOutput();
+  const hasUnseen = agentsWithUnseenOutput.has(agent.id);
   const statusColor = getStatusColor(agent.status);
   const icon = getAgentClassIcon(agent.class);
   const contextPercent = getContextPercent(agent);
@@ -59,7 +62,7 @@ export const AgentCard = React.memo(({
       draggable
       title={t('cards.doubleClickHint')}
     >
-      {/* Row 1: Status dot + name + class badge + provider */}
+      {/* Row 1: Status dot + name + class badge + provider + unseen badge */}
       <div className="dash-card__row1">
         <span className={`dash-card__status-dot dash-card__status-dot--${statusColor}`} />
         <span className="dash-card__name">{agent.name}</span>
@@ -67,11 +70,19 @@ export const AgentCard = React.memo(({
         <span className={`dash-card__provider dash-card__provider--${agent.provider}`}>
           {agent.provider === 'codex' ? '🔸' : '🤖'} {agent.provider}
         </span>
+        {hasUnseen && (
+          <span
+            className="dash-card__unseen-badge"
+            title="New output available - click to view"
+          />
+        )}
       </div>
 
       {/* Row 2: Status + context bar + percentage */}
       <div className="dash-card__row2">
-        <span className={`dash-card__status dash-card__status--${statusColor}`}>{agent.status}</span>
+        <span className={`dash-card__status dash-card__status--${statusColor}`}>
+          {hasUnseen ? 'Unseen' : agent.status}
+        </span>
         <div className="dash-card__context">
           <div className="dash-card__context-bar">
             <div

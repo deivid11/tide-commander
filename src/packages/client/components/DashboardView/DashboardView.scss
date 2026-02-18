@@ -178,7 +178,7 @@
   border-radius: $radius-md;
   background: $bg-secondary;
   overflow: visible;
-  min-height: 0;
+  flex-shrink: 0;
   transition: all $transition-fast ease;
 
   &--drag-over {
@@ -278,7 +278,6 @@
   gap: 6px;
   padding: 0 8px 8px;
   min-width: 0; // Prevent grid from overflowing
-  min-height: 0;
 }
 
 // ============================================================================
@@ -296,7 +295,6 @@
   flex-direction: column;
   gap: 4px;
   min-width: 0; // Critical: allow card to shrink and prevent overflow
-  min-height: 0;
   height: auto;
   overflow: visible;
 
@@ -327,7 +325,6 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  min-height: 0;
   flex-shrink: 0;
 }
 
@@ -403,7 +400,6 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 0;
   flex-shrink: 0;
 }
 
@@ -466,7 +462,6 @@
   gap: 8px;
   margin-top: 1px;
   min-width: 0;
-  min-height: 0;
   flex-shrink: 0;
 }
 
@@ -486,7 +481,6 @@
 // Row 4: task preview
 .dash-card__row4 {
   margin-top: 1px;
-  min-height: 0;
   flex-shrink: 0;
 }
 
@@ -505,7 +499,6 @@
   display: flex;
   gap: 4px;
   margin-top: 2px;
-  min-height: 0;
   flex-shrink: 0;
 }
 
@@ -536,6 +529,29 @@
     background: rgba($accent-red, 0.12);
     border-color: rgba($accent-red, 0.4);
     color: $accent-red;
+  }
+}
+
+// Unseen output notification badge
+.dash-card__unseen-badge {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #4a9eff; // blue
+  border: 1px solid $bg-primary;
+  flex-shrink: 0;
+  box-shadow: 0 0 4px rgba(74, 158, 255, 0.6);
+  animation: dash-badge-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes dash-badge-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.2);
   }
 }
 
