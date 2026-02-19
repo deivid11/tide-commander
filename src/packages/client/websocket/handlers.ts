@@ -792,9 +792,8 @@ export function handleServerMessage(message: ServerMessage): void {
       const statsStr = durationMs
         ? ` (${(durationMs / 1000).toFixed(0)}s · ${((tokensUsed || 0) / 1000).toFixed(1)}K tokens · ${toolUseCount || 0} tools)`
         : '';
-      const preview = resultPreview ? `: ${resultPreview.slice(0, 100)}` : '';
       store.addOutput(parentAgentId, {
-        text: `${statusEmoji} Subagent ${subName} ${success ? 'completed' : 'failed'}${statsStr}${preview}`,
+        text: `${statusEmoji} Subagent ${subName} ${success ? 'completed' : 'failed'}${statsStr}`,
         isStreaming: false,
         timestamp: Date.now(),
         subagentName: subName,

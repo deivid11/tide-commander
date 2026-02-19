@@ -151,24 +151,6 @@ function emit<K extends keyof RuntimeServiceEvents>(
   }
 }
 
-function scheduleSilentContextRefresh(agentId: string, reason: 'step_complete' | 'handle_complete'): void {
-  setTimeout(() => {
-    if (reason === 'step_complete') {
-      log.log(`[step_complete] Sending silent /context for agent ${agentId}`);
-    }
-    if (reason === 'handle_complete') {
-      log.log(`[handleComplete] Triggering fallback /context refresh for agent ${agentId}`);
-    }
-    sendSilentCommand(agentId, '/context').catch((err) => {
-      if (reason === 'step_complete') {
-        log.log(`[step_complete] Silent /context failed for ${agentId}: ${err}`);
-      } else {
-        log.log(`[handleComplete] Fallback /context failed for ${agentId}: ${err}`);
-      }
-    });
-  }, 300);
-}
-
 const commandExecution = createRuntimeCommandExecution({
   log,
   getRunner,
@@ -191,7 +173,6 @@ const runtimeEvents = createRuntimeEventHandlers({
   parseUsageOutput: (raw) => parseUsageOutput(raw),
   executeCommand: (agentId, command, systemPrompt, forceNewSession) =>
     commandExecution.executeCommand(agentId, command, systemPrompt, forceNewSession),
-  scheduleSilentContextRefresh,
 });
 
 const statusSync = createRuntimeStatusSync({

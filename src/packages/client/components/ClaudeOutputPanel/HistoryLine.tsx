@@ -561,6 +561,8 @@ export const HistoryLine = memo(function HistoryLine({
   }
 
   if (type === 'tool_result') {
+    // Hide tool results in simple view (matches live output filtering)
+    if (simpleView) return null;
 
     const isError = content.toLowerCase().includes('error') || content.toLowerCase().includes('failed');
     return (
