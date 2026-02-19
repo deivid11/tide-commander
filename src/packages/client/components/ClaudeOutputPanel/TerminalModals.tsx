@@ -184,7 +184,7 @@ export function ContextModalFromGuake() {
       onClose={() => store.closeContextModal()}
       onRefresh={() => {
         if (contextModalAgentId) {
-          store.sendCommand(contextModalAgentId, '/context');
+          store.refreshAgentContext(contextModalAgentId);
         }
       }}
     />

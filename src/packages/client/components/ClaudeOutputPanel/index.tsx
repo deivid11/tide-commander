@@ -27,6 +27,7 @@ import {
   useReconnectCount,
   useAgentTaskProgress,
   useExecTasks,
+  useSubagents,
   useFileViewerPath,
   useContextModalAgentId,
   useCurrentSnapshot,
@@ -274,6 +275,9 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
 
   // Get exec tasks for the selected agent
   const execTasks = useExecTasks(!isSnapshotView ? activeAgentId : null);
+
+  // Get subagents for inline activity display
+  const subagents = useSubagents();
 
   // Auto-enable debugger when panel opens
   useEffect(() => {
@@ -983,6 +987,7 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
                   liveOutputs={dedupedOutputs}
                   agentId={activeAgentId}
                   execTasks={execTasks}
+                  subagents={subagents}
                   viewMode={viewMode}
                   selectedMessageIndex={messageNav.selectedIndex}
                   isMessageSelected={messageNav.isSelected}

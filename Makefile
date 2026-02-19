@@ -1,7 +1,7 @@
 # Tide Commander Makefile
 # Common commands for development and builds
 
-.PHONY: dev build clean install lint test apk apk-release sync help landing dev-landing
+.PHONY: dev build clean install lint test apk apk-release sync help landing dev-landing deploy-landing tc
 
 # Default target
 help:
@@ -16,6 +16,7 @@ help:
 	@echo "    make build        - Build the web application"
 	@echo "    make landing      - Build landing page for S3 deploy"
 	@echo "    make dev-landing  - Start landing page dev server"
+	@echo "    make deploy-landing - Run landing deploy script"
 	@echo "    make clean        - Clean build artifacts"
 	@echo "    make lint         - Run TypeScript type checking"
 	@echo "    make test         - Run tests"
@@ -25,6 +26,9 @@ help:
 	@echo "    make apk-release  - Build release APK"
 	@echo "    make sync         - Sync web assets to Android"
 	@echo "    make android      - Full build + open Android Studio"
+	@echo ""
+	@echo "  CLI:"
+	@echo "    make tc           - Run CLI client (use ARGS= for arguments)"
 	@echo ""
 	@echo "  Setup:"
 	@echo "    make install      - Install dependencies"
@@ -54,6 +58,9 @@ landing:
 
 dev-landing:
 	npx vite --config vite.landing.config.ts
+
+deploy-landing:
+	./deploy-landing.sh
 
 clean:
 	rm -rf dist
@@ -87,6 +94,10 @@ apk-release: sync
 
 android:
 	npm run android
+
+# CLI client
+tc:
+	@npx tsx tools/tc.ts $(ARGS)
 
 # Setup
 install:

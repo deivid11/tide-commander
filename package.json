@@ -1,6 +1,6 @@
 {
   "name": "tide-commander",
-  "version": "0.68.0",
+  "version": "0.69.0",
   "description": "Visual multi-agent orchestrator and manager for Claude Code with 3D/2D interface",
   "repository": {
     "type": "git",
@@ -32,7 +32,8 @@
     "test:ci": "vitest run --exclude src/packages/client/hooks/__tests__/useSnapshots.test.ts --exclude src/packages/client/hooks/__tests__/useKeyboardShortcuts.test.ts",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "prepack": "npm run build"
+    "prepack": "npm run build",
+    "tc": "tsx tools/tc.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",

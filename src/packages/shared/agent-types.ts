@@ -251,6 +251,20 @@ export interface Subagent {
   completedAt?: number;
   // Position near parent agent
   position?: { x: number; y: number; z: number };
+  // Real-time activity tracking
+  activities?: SubagentActivity[];
+  // Completion stats
+  stats?: {
+    durationMs: number;
+    tokensUsed: number;
+    toolUseCount: number;
+  };
+}
+
+export interface SubagentActivity {
+  toolName: string;
+  description: string;
+  timestamp: number;
 }
 
 // ============================================================================
@@ -412,6 +426,7 @@ export interface AgentStatusSummary {
   recentNarratives: ActivityNarrative[];
   tokensUsed: number;
   contextUsed: number;
+  contextLimit: number;
   lastActivityTime: number;
 }
 

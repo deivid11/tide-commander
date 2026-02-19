@@ -76,13 +76,12 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
             cleanPreview = parsed
               .filter((b: any) => b.type === 'text' && b.text)
               .map((b: any) => b.text)
-              .join(' ')
-              .slice(0, 200);
+              .join(' ');
           } else {
-            cleanPreview = event.toolOutput.slice(0, 200);
+            cleanPreview = event.toolOutput;
           }
         } catch {
-          cleanPreview = event.toolOutput.slice(0, 200);
+          cleanPreview = event.toolOutput;
         }
       }
 
@@ -94,11 +93,32 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
           success: true,
           resultPreview: cleanPreview,
           subagentName: event.subagentName,
+          // Completion stats from Task tool metadata
+          durationMs: event.subagentStats?.durationMs,
+          tokensUsed: event.subagentStats?.tokensUsed,
+          toolUseCount: event.subagentStats?.toolUseCount,
         },
       } as any);
 
-      log.log(`[Subagent] Broadcast subagent_completed for toolUseId=${event.toolUseId}, name=${event.subagentName || 'unknown'}`);
-    } else if (event.type === 'error') {
+      log.log(`[Subagent] Broadcast subagent_completed for toolUseId=${event.toolUseId}, name=${event.subagentName || 'unknown'}, stats=${event.subagentStats ? `${event.subagentStats.durationMs}ms/${event.subagentStats.tokensUsed}tok/${event.subagentStats.toolUseCount}tools` : 'none'}`);
+    }
+
+    // Forward subagent internal tool activity to client (events with parentToolUseId)
+    if (event.parentToolUseId && event.type === 'tool_start' && event.toolName !== 'Task') {
+      const toolDesc = formatToolActivity(event.toolName, event.toolInput);
+      ctx.broadcast({
+        type: 'subagent_output',
+        payload: {
+          subagentId: event.parentToolUseId,
+          parentAgentId: agentId,
+          text: toolDesc,
+          isStreaming: false,
+          timestamp: Date.now(),
+        },
+      } as any);
+    }
+
+    if (event.type === 'error') {
       ctx.sendActivity(agentId, `Error: ${event.errorMessage}`);
     } else if (event.type === 'tool_result' && event.toolName === 'Bash') {
       const command = pendingBashCommands.get(agentId);
@@ -144,6 +164,21 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
       }
     }
 
+    // Real-time context tracking: broadcast lightweight context_update on usage_snapshot and step_complete
+    if ((event.type === 'usage_snapshot' && event.tokens) || event.type === 'step_complete') {
+      const agent = agentService.getAgent(agentId);
+      if (agent) {
+        ctx.broadcast({
+          type: 'context_update',
+          payload: {
+            agentId,
+            contextUsed: agent.contextUsed,
+            contextLimit: agent.contextLimit,
+          },
+        } as any);
+      }
+    }
+
     if (event.type === 'context_stats' && event.contextStatsRaw) {
       log.log(`[context_stats] Received for agent ${agentId}, raw length: ${event.contextStatsRaw.length}`);
       const stats = parseContextOutput(event.contextStatsRaw);
@@ -159,6 +194,15 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
           type: 'context_stats',
           payload: { agentId, stats },
         });
+        // Also send lightweight context_update so the context bar updates immediately
+        ctx.broadcast({
+          type: 'context_update',
+          payload: {
+            agentId,
+            contextUsed: stats.totalTokens,
+            contextLimit: stats.contextWindow,
+          },
+        } as any);
       } else {
         log.log(`[context_stats] Failed to parse context output for agent ${agentId}`);
       }

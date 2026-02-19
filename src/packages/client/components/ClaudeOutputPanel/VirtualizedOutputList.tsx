@@ -11,7 +11,7 @@ import { HistoryLine } from './HistoryLine';
 import { OutputLine } from './OutputLine';
 import type { EnrichedHistoryMessage, EditData } from './types';
 import type { ClaudeOutput } from '../../store';
-import type { ExecTask } from '../../../shared/types';
+import type { ExecTask, Subagent } from '../../../shared/types';
 
 // Enriched output type from useFilteredOutputs
 type EnrichedOutput = ClaudeOutput & {
@@ -29,6 +29,7 @@ interface VirtualizedOutputListProps {
   liveOutputs: EnrichedOutput[];
   agentId: string;
   execTasks?: ExecTask[];
+  subagents?: Map<string, Subagent>;
 
   // UI state
   viewMode: 'simple' | 'chat' | 'advanced';
@@ -93,6 +94,7 @@ const VirtualRow = memo(function VirtualRow({
   isHistory,
   agentId,
   execTasks,
+  subagents,
   simpleView,
   isSelected,
   messageIndex,
@@ -106,6 +108,7 @@ const VirtualRow = memo(function VirtualRow({
   isHistory: boolean;
   agentId: string;
   execTasks: ExecTask[];
+  subagents?: Map<string, Subagent>;
   simpleView: boolean;
   isSelected: boolean;
   messageIndex: number;
@@ -136,6 +139,7 @@ const VirtualRow = memo(function VirtualRow({
           output={item as EnrichedOutput}
           agentId={agentId}
           execTasks={execTasks}
+          subagents={subagents}
           onImageClick={onImageClick}
           onFileClick={onFileClick}
           onBashClick={onBashClick}
@@ -151,6 +155,7 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   liveOutputs,
   agentId,
   execTasks = [],
+  subagents,
   viewMode,
   searchHighlight,
   selectedMessageIndex,
@@ -316,6 +321,7 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
               isHistory={isHistory}
               agentId={agentId}
               execTasks={execTasks}
+              subagents={subagents}
               simpleView={simpleView}
               isSelected={isMessageSelected(virtualRow.index)}
               messageIndex={virtualRow.index}

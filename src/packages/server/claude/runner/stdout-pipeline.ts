@@ -126,6 +126,10 @@ export class RunnerStdoutPipeline {
         if (event.toolName === 'Task' && event.subagentName) {
           this.activeSubagentName.set(agentId, event.subagentName);
         }
+        // Skip output for subagent internal tools (shown in inline activity panel instead)
+        if (event.parentToolUseId) {
+          break;
+        }
         const toolStartSubName = event.subagentName || this.activeSubagentName.get(agentId);
         this.callbacks.onOutput(agentId, `Using tool: ${event.toolName}`, false, toolStartSubName, event.uuid, {
           toolName: event.toolName,
@@ -138,9 +142,12 @@ export class RunnerStdoutPipeline {
       }
 
       case 'tool_result': {
-        const toolResultSubName = this.activeSubagentName.get(agentId);
-        if (event.toolName === 'Bash' && event.toolOutput) {
-          this.callbacks.onOutput(agentId, `Bash output:\n${event.toolOutput}`, false, toolResultSubName, event.uuid);
+        // Skip output for subagent internal tools (shown in inline activity panel)
+        if (!event.parentToolUseId) {
+          const toolResultSubName = this.activeSubagentName.get(agentId);
+          if (event.toolName === 'Bash' && event.toolOutput) {
+            this.callbacks.onOutput(agentId, `Bash output:\n${event.toolOutput}`, false, toolResultSubName, event.uuid);
+          }
         }
         if (event.toolName === 'Task') {
           this.activeSubagentName.delete(agentId);
@@ -167,6 +174,10 @@ export class RunnerStdoutPipeline {
 
       case 'error':
         this.callbacks.onError(agentId, event.errorMessage || 'Unknown error');
+        break;
+
+      case 'usage_snapshot':
+        // Silently pass through to onEvent (already called above) - no output needed
         break;
 
       case 'context_stats':

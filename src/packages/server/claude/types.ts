@@ -13,6 +13,7 @@ export interface StandardEvent {
     | 'thinking'
     | 'tool_start'
     | 'tool_result'
+    | 'usage_snapshot'
     | 'step_complete'
     | 'error'
     | 'block_start'
@@ -61,6 +62,14 @@ export interface StandardEvent {
   subagentModel?: string;      // Task input.model
   toolUseId?: string;          // tool_use block ID (for correlating subagent results)
   uuid?: string;               // Unique message UUID from Claude session for deduplication
+  parentToolUseId?: string;     // Parent Task tool_use_id (for subagent internal events)
+  // Subagent completion stats (from tool_use_result)
+  subagentStats?: {
+    durationMs: number;
+    tokensUsed: number;
+    toolUseCount: number;
+  };
+  taskId?: string;              // Short task ID from task_started system event
 }
 
 // Custom agent definition for --agents flag
@@ -103,6 +112,12 @@ export interface ClaudeRawEvent {
       id?: string;  // tool_use block ID for matching with tool_result
       input?: Record<string, unknown>;
     }>;
+    usage?: {
+      input_tokens: number;
+      output_tokens: number;
+      cache_creation_input_tokens?: number;
+      cache_read_input_tokens?: number;
+    };
   };
   tool_name?: string;
   input?: Record<string, unknown>;
@@ -148,7 +163,19 @@ export interface ClaudeRawEvent {
     stderr?: string;
     interrupted?: boolean;
     isImage?: boolean;
+    // Task tool completion metadata
+    totalDurationMs?: number;
+    totalTokens?: number;
+    totalToolUseCount?: number;
+    status?: string;
+    content?: unknown;
+    agentId?: string;
   };
+  // Links subagent events to parent Task invocation
+  parent_tool_use_id?: string;
+  // From system/task_started events
+  task_id?: string;
+  task_type?: string;
 }
 
 // Backend interface (allows for multiple CLI backends)

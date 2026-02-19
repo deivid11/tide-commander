@@ -772,6 +772,7 @@ class Store
   addAgent(...args: Parameters<AgentActions['addAgent']>) { return this.agentActions.addAgent(...args); }
   updateAgent(...args: Parameters<AgentActions['updateAgent']>) { return this.agentActions.updateAgent(...args); }
   updateAgentContextStats(...args: Parameters<AgentActions['updateAgentContextStats']>) { return this.agentActions.updateAgentContextStats(...args); }
+  updateAgentContext(...args: Parameters<AgentActions['updateAgentContext']>) { return this.agentActions.updateAgentContext(...args); }
   removeAgent(...args: Parameters<AgentActions['removeAgent']>) { return this.agentActions.removeAgent(...args); }
   selectAgent(...args: Parameters<AgentActions['selectAgent']>) { return this.agentActions.selectAgent(...args); }
   addToSelection(...args: Parameters<AgentActions['addToSelection']>) { return this.agentActions.addToSelection(...args); }
@@ -1054,6 +1055,8 @@ class Store
   getSubagent(...args: Parameters<SubagentActions['getSubagent']>) { return this.subagentActions.getSubagent(...args); }
   removeSubagent(...args: Parameters<SubagentActions['removeSubagent']>) { return this.subagentActions.removeSubagent(...args); }
   getSubagentByToolUseId(...args: Parameters<SubagentActions['getSubagentByToolUseId']>) { return this.subagentActions.getSubagentByToolUseId(...args); }
+  addSubagentActivity(...args: Parameters<SubagentActions['addSubagentActivity']>) { return this.subagentActions.addSubagentActivity(...args); }
+  updateSubagentStats(...args: Parameters<SubagentActions['updateSubagentStats']>) { return this.subagentActions.updateSubagentStats(...args); }
 }
 
 // Extend Window interface for HMR persistence

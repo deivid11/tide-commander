@@ -97,6 +97,26 @@ export const HistoryLine = memo(function HistoryLine({
     }
   }
 
+  // Empty assistant message placeholder
+  if (type === 'assistant' && !content.trim()) {
+    return (
+      <div className="output-line output-empty-message">
+        {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr}</span>}
+        <span className="history-role">
+          {provider && (
+            <img
+              src={provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
+              alt={provider}
+              className="history-role-icon"
+            />
+          )}
+          {assistantRoleLabel}
+        </span>
+        <span className="empty-message-label">{t('terminal:history.emptyMessage', 'empty message')}</span>
+      </div>
+    );
+  }
+
   // Handle session continuation message with special rendering
   const isSessionContinuation = content.includes('This session is being continued from a previous conversation that ran out of context');
   const [sessionExpanded, setSessionExpanded] = useState(false);
