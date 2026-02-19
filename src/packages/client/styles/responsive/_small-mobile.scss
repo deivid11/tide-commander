@@ -238,8 +238,29 @@
     padding: 8px;
   }
 
+  // Sidebar close button — slightly smaller on tiny screens
+  .sidebar-close-btn {
+    height: 40px;
+    min-height: 40px;
+    font-size: 15px;
+    padding: 0 10px;
+  }
+
+  // Unit panel actions — allow wrapping on tiny screens
+  .unit-header-actions {
+    gap: 1px;
+    flex-wrap: wrap;
+    max-width: 100px;
+  }
+
+  .unit-action-icon {
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
+  }
+
   .unit-stat {
-    padding: 6px;
+    padding: 4px 6px;
   }
 
   .unit-stat-label {
@@ -247,7 +268,19 @@
   }
 
   .unit-stat-value {
-    font-size: 12px;
+    font-size: 11px;
+  }
+
+  // Agent list items — slightly smaller on tiny screens
+  .agent-item {
+    padding: 8px 6px;
+    min-height: 40px;
+  }
+
+  .agent-item-icon {
+    width: 24px;
+    height: 24px;
+    font-size: 14px;
   }
 
   // Attachments

@@ -166,7 +166,8 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
     }
 
     // Real-time context tracking: broadcast lightweight context_update on usage_snapshot and step_complete
-    if ((event.type === 'usage_snapshot' && event.tokens) || event.type === 'step_complete') {
+    // Skip subagent events — their token counts reflect the subagent's own context, not the parent's.
+    if (!event.parentToolUseId && ((event.type === 'usage_snapshot' && event.tokens) || event.type === 'step_complete')) {
       const agent = agentService.getAgent(agentId);
       if (agent) {
         ctx.broadcast({
