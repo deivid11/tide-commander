@@ -585,6 +585,43 @@ describe('parseContextOutput', () => {
     expect(parseContextOutput('random text')).toBeNull();
     expect(parseContextOutput('')).toBeNull();
   });
+
+  it('parses comma-separated token counts with decimal percent', () => {
+    const content = `## Context Usage
+**Model:** claude-opus-4-6
+**Tokens:** 46,123 / 200,000 (23.1%)
+
+### Categories
+| Category | Tokens | Percentage |
+|----------|--------|------------|
+| System prompt | 6,700 | 3.4% |
+| System tools | 12,479 | 6.2% |
+| Messages | 26,944 | 13.5% |
+| Free space | 153,877 | 76.9% |
+| Autocompact buffer | 0 | 0.0% |`;
+
+    const result = parseContextOutput(content);
+    expect(result).not.toBeNull();
+    expect(result!.totalTokens).toBe(46123);
+    expect(result!.contextWindow).toBe(200000);
+    expect(result!.usedPercent).toBe(23.1);
+    expect(result!.categories.systemPrompt.tokens).toBe(6700);
+  });
+
+  it('parses visual context format', () => {
+    const content = `claude-opus-4-6 · 377.3k/1.0m tokens (37.7%)
+⛁ System prompt: 6.7k tokens (0.7%)
+⛁ System tools: 10.0k tokens (1.0%)
+⛁ Messages: 360.6k tokens (36.0%)
+⛁ Free space: 622.7k tokens (62.3%)
+⛁ Autocompact buffer: 0 tokens (0.0%)`;
+
+    const result = parseContextOutput(content);
+    expect(result).not.toBeNull();
+    expect(result!.contextWindow).toBe(1000000);
+    expect(result!.totalTokens).toBe(377300);
+    expect(result!.usedPercent).toBe(37.7);
+  });
 });
 
 describe('parseUsageOutput', () => {

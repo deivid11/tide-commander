@@ -350,18 +350,7 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
       });
     };
 
-    if (viewMode === 'advanced') return enrichHistory(history);
-    if (viewMode === 'chat') {
-      return enrichHistory(history.filter((msg, index, arr) => {
-        if (msg.type === 'user') return true;
-        if (msg.type === 'assistant') {
-          const nextMsg = arr[index + 1];
-          return !nextMsg || nextMsg.type === 'user';
-        }
-        return false;
-      }));
-    }
-    return enrichHistory(history.filter((msg) => msg.type === 'user' || msg.type === 'assistant' || msg.type === 'tool_use'));
+    return enrichHistory(history);
   }, [historyLoader.history, viewMode]);
 
   // Filtered outputs

@@ -179,12 +179,24 @@ export function createAgentActions(
       const state = getState();
       const agent = state.agents.get(agentId);
       if (agent) {
+        const safeLimit = Math.max(1, contextLimit || 200000);
+        const usedPercent = Math.max(0, Math.min(100, Number(((contextUsed / safeLimit) * 100).toFixed(1))));
         setState((s) => {
           const newAgents = new Map(s.agents);
+          const nextContextStats = agent.contextStats
+            ? {
+                ...agent.contextStats,
+                totalTokens: contextUsed,
+                contextWindow: safeLimit,
+                usedPercent,
+                lastUpdated: Date.now(),
+              }
+            : undefined;
           newAgents.set(agentId, {
             ...agent,
             contextUsed,
-            contextLimit,
+            contextLimit: safeLimit,
+            contextStats: nextContextStats,
           });
           s.agents = newAgents;
         });

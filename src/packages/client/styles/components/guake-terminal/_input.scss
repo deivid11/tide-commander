@@ -447,6 +447,11 @@
   display: flex;
   align-items: center;
   gap: 6px;
+
+  // On mobile, move up slightly to clear the context bar
+  @media (max-width: 768px) {
+    top: -20px;
+  }
 }
 
 // Live elapsed timer shown while agent is working
@@ -550,4 +555,53 @@
     color: $dracula-bg;
     box-shadow: 0 0 12px rgba($dracula-red, 0.4);
   }
+}
+
+// =============================================================================
+// Mobile Context Bar - compact context stats above input
+// =============================================================================
+
+.mobile-context-bar {
+  // Hidden by default on desktop (show-on-mobile utility class handles display)
+  display: none !important;
+  position: relative;
+  height: 18px;
+  background: rgba($dracula-bg-darker, 0.95);
+  border-bottom: 1px solid rgba($dracula-current, 0.4);
+  cursor: pointer;
+  overflow: hidden;
+  flex-shrink: 0;
+
+  @media (max-width: 768px) {
+    &.show-on-mobile {
+      display: flex !important;
+      align-items: center;
+      justify-content: center;
+    }
+  }
+}
+
+.mobile-context-bar-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  opacity: 0.12;
+  transition: width 0.3s ease, background-color 0.3s ease;
+}
+
+.mobile-context-bar-text {
+  position: relative;
+  z-index: 1;
+  font-size: 9px;
+  font-family: $font-mono;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.mobile-context-bar-pct {
+  color: $dracula-comment;
+  font-weight: 400;
 }

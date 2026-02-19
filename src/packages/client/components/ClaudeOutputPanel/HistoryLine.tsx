@@ -65,6 +65,7 @@ export const HistoryLine = memo(function HistoryLine({
 }: HistoryLineProps) {
   const { t } = useTranslation(['tools', 'common', 'terminal']);
   const [expandedExecTasks, setExpandedExecTasks] = useState<Set<string>>(new Set());
+  const [sessionExpanded, setSessionExpanded] = useState(false);
   const hideCost = useHideCost();
   const settings = useSettings();
   const { type, content: rawContent, toolName, timestamp, _bashOutput, _bashCommand } = message;
@@ -89,13 +90,7 @@ export const HistoryLine = memo(function HistoryLine({
   // Debug hash for identifying duplicates
   const debugHash = getHistoryDebugHash(message);
 
-  // Hide utility slash commands like /context, /cost, /compact
-  if (type === 'user') {
-    const trimmedContent = content.trim();
-    if (trimmedContent === '/context' || trimmedContent === '/cost' || trimmedContent === '/compact') {
-      return null;
-    }
-  }
+  // Show all messages including utility slash commands
 
   // Empty assistant message placeholder
   if (type === 'assistant' && !content.trim()) {
@@ -119,7 +114,6 @@ export const HistoryLine = memo(function HistoryLine({
 
   // Handle session continuation message with special rendering
   const isSessionContinuation = content.includes('This session is being continued from a previous conversation that ran out of context');
-  const [sessionExpanded, setSessionExpanded] = useState(false);
   if (isSessionContinuation) {
     return (
       <div
@@ -567,10 +561,6 @@ export const HistoryLine = memo(function HistoryLine({
   }
 
   if (type === 'tool_result') {
-    // Simple view: hide tool results entirely (tool_use already shows the action)
-    if (simpleView) {
-      return null;
-    }
 
     const isError = content.toLowerCase().includes('error') || content.toLowerCase().includes('failed');
     return (

@@ -628,39 +628,64 @@ export class ClaudeBackend implements CLIBackend {
  */
 export function parseContextOutput(content: string): import('../../shared/types.js').ContextStats | null {
   try {
+    const parseTokenValue = (raw: string): number => {
+      const normalized = raw.trim().replace(/,/g, '');
+      const suffix = normalized.slice(-1).toLowerCase();
+      const numericPart = suffix === 'k' || suffix === 'm'
+        ? normalized.slice(0, -1)
+        : normalized;
+      const value = parseFloat(numericPart);
+      if (!Number.isFinite(value)) return NaN;
+      if (suffix === 'k') return value * 1000;
+      if (suffix === 'm') return value * 1000000;
+      return value;
+    };
+
     // Extract model name
-    const modelMatch = content.match(/\*\*Model:\*\*\s*(.+)/);
-    const model = modelMatch ? modelMatch[1].trim() : 'unknown';
+    const modelMatch = content.match(/(?:\*\*)?Model:(?:\*\*)?\s*(.+)/i);
+    let model = modelMatch ? modelMatch[1].trim() : 'unknown';
 
     // Extract total tokens and context window
-    // Format: **Tokens:** 19.6k / 200.0k (10%)  or  **Tokens:** 377.3k / 1000.0k (38%)
-    const tokensMatch = content.match(/\*\*Tokens:\*\*\s*([\d.]+k?)\s*\/\s*([\d.]+k?)\s*\((\d+)%\)/);
-    if (!tokensMatch) {
+    // Format examples:
+    // **Tokens:** 19.6k / 200.0k (10%)
+    // **Tokens:** 46,123 / 200,000 (23.4%)
+    // claude-opus-4-6 · 46k/200k tokens (23%)
+    const tokensMatch = content.match(/(?:\*\*)?Tokens:(?:\*\*)?\s*([\d.,]+(?:[kKmM])?)\s*\/\s*([\d.,]+(?:[kKmM])?)\s*\(([\d.]+)%\)/i);
+    const visualMatch = content.match(/([^\n]+?)\s*[·•]\s*([\d.,]+(?:[kKmM])?)\s*\/\s*([\d.,]+(?:[kKmM])?)\s*tokens?\s*\(([\d.]+)%\)/i);
+    if (!tokensMatch && !visualMatch) {
       log.log('parseContextOutput: Could not parse tokens line');
       return null;
     }
 
-    const parseTokens = (str: string): number => {
-      // The k suffix is now included in the capture group
-      if (str.endsWith('k') || str.endsWith('K')) {
-        return parseFloat(str) * 1000;
-      }
-      return parseFloat(str);
-    };
+    let totalTokenRaw = '';
+    let contextWindowRaw = '';
+    let usedPercentRaw = '';
+    if (visualMatch) {
+      model = visualMatch[1].trim();
+      totalTokenRaw = visualMatch[2];
+      contextWindowRaw = visualMatch[3];
+      usedPercentRaw = visualMatch[4];
+    } else if (tokensMatch) {
+      totalTokenRaw = tokensMatch[1];
+      contextWindowRaw = tokensMatch[2];
+      usedPercentRaw = tokensMatch[3];
+    }
 
-    const totalTokens = parseTokens(tokensMatch[1]);
-    const contextWindow = parseTokens(tokensMatch[2]);
-    const usedPercent = parseInt(tokensMatch[3], 10);
+    const totalTokens = parseTokenValue(totalTokenRaw);
+    const contextWindow = parseTokenValue(contextWindowRaw);
+    const usedPercent = parseFloat(usedPercentRaw);
+    if (!Number.isFinite(totalTokens) || !Number.isFinite(contextWindow) || !Number.isFinite(usedPercent)) {
+      log.log('parseContextOutput: Parsed non-finite token values');
+      return null;
+    }
 
     // Parse category table
     const parseCategory = (name: string): { tokens: number; percent: number } => {
       // Match: | Category Name | 3.1k | 1.6% |
-      const regex = new RegExp(`\\|\\s*${name}\\s*\\|\\s*([\\d.]+k?)\\s*\\|\\s*([\\d.]+)%\\s*\\|`, 'i');
+      const regex = new RegExp(`\\|\\s*${name}\\s*\\|\\s*([\\d.,]+(?:[kKmM])?)\\s*\\|\\s*([\\d.]+)%\\s*\\|`, 'i');
       const match = content.match(regex);
       if (match) {
-        const tokens = match[1].endsWith('k') || match[1].endsWith('K')
-          ? parseFloat(match[1]) * 1000
-          : parseFloat(match[1]);
+        const tokens = parseTokenValue(match[1]);
         return { tokens, percent: parseFloat(match[2]) };
       }
       return { tokens: 0, percent: 0 };

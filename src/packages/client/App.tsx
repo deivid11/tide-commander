@@ -672,10 +672,16 @@ function AppContent() {
         <button
           className={`sidebar-collapse-edge-btn ${sidebarCollapsed ? 'is-collapsed' : ''} ${sidebarRevealedByHover ? 'can-pin' : ''}`}
           onClick={() => {
-            // Toggle sidebar collapsed state
-            const newCollapsedState = !sidebarCollapsed;
-            setSidebarCollapsed(newCollapsedState);
-            localStorage.setItem('tide-commander-sidebar-collapsed', String(newCollapsedState));
+            const isMobile = window.innerWidth <= 768;
+            if (isMobile) {
+              // On mobile, toggle slide-in sidebar
+              setSidebarOpen(!sidebarOpen);
+            } else {
+              // On desktop, toggle sidebar collapsed state
+              const newCollapsedState = !sidebarCollapsed;
+              setSidebarCollapsed(newCollapsedState);
+              localStorage.setItem('tide-commander-sidebar-collapsed', String(newCollapsedState));
+            }
           }}
           title={sidebarCollapsed ? 'Open sidebar' : 'Close sidebar'}
         >

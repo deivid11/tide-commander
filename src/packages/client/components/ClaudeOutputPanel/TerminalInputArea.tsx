@@ -651,6 +651,29 @@ export function TerminalInputArea({
       )}
 
       <div className={`guake-input-wrapper ${selectedAgent.status === 'working' ? 'has-stop-btn is-working' : ''} ${showCompletion ? 'is-completed' : ''} ${isSnapshotView ? 'is-snapshot-view' : ''}`}>
+        {/* Mobile context bar - compact context stats above input */}
+        {!isSnapshotView && (() => {
+          const stats = selectedAgent.contextStats;
+          const totalTokens = stats ? stats.totalTokens : (selectedAgent.contextUsed || 0);
+          const contextWindow = stats ? stats.contextWindow : (selectedAgent.contextLimit || 200000);
+          const usedPercent = stats ? stats.usedPercent : Math.round((totalTokens / contextWindow) * 100);
+          const freePercent = Math.round(100 - usedPercent);
+          const percentColor = usedPercent >= 80 ? '#ff4a4a' : usedPercent >= 60 ? '#ff9e4a' : usedPercent >= 40 ? '#ffd700' : '#4aff9e';
+          const usedK = (totalTokens / 1000).toFixed(1);
+          const limitK = (contextWindow / 1000).toFixed(1);
+          return (
+            <div
+              className="mobile-context-bar show-on-mobile"
+              onClick={() => store.setContextModalAgentId(selectedAgentId)}
+            >
+              <span className="mobile-context-bar-fill" style={{ width: `${Math.min(100, usedPercent)}%`, backgroundColor: percentColor }} />
+              <span className="mobile-context-bar-text">
+                <span style={{ color: percentColor }}>{usedK}k/{limitK}k</span>
+                <span className="mobile-context-bar-pct">({freePercent}% free)</span>
+              </span>
+            </div>
+          );
+        })()}
         {/* Floating stop button + elapsed timer - shown when agent is working */}
         {selectedAgent.status === 'working' && (
           <div className="guake-stop-bar">
