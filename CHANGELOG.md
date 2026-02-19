@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.69.2] - 2026-02-19
+
+### Changed
+- **Simplified Claude context tracking** - `step_complete` for Claude agents now preserves the authoritative `usage_snapshot` value instead of re-deriving context from potentially cumulative modelUsage/token sums; eliminates inflated context bar readings
+- **Subagent event isolation** - `usage_snapshot` and `step_complete` events with `parentToolUseId` are now skipped for context tracking, preventing subagent token counts from corrupting the parent agent's context bar; subagent cost is still accumulated into `tokensUsed`
+- **Subagent context_update broadcast filter** - `runtime-listeners` skips broadcasting `context_update` for subagent events to prevent UI flicker
+- **Mobile sidebar close button** - Redesigned as a sticky header bar pinned to the top of the sidebar instead of a small floating circle
+- **Mobile sidebar backdrop** - Darker overlay (0.7 opacity) with stronger blur (4px) and `touch-action: none` to prevent scroll-through
+- **Mobile agent list** - Touch-friendly sizing with 44px min-height tap targets, larger icons, and active-state feedback
+- **Mobile tool history** - Added dedicated mobile styles for tool history panel (compact headers, items, and expandable details)
+- **Mobile unit panel** - Horizontal stat rows, compact secondary info sections, hidden 3D model preview to save vertical space
+- **Small mobile refinements** - Tighter sidebar close button, wrapping action icons, smaller agent list items for screens under 380px
+
+### Fixed
+- **Unit panel button tap delay** - Added `touch-action: manipulation` and `-webkit-tap-highlight-color: transparent` to eliminate 300ms tap delay on mobile
+
 ## [0.69.1] - 2026-02-18
 
 ### Added

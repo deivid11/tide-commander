@@ -355,9 +355,10 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.6);
+    background: rgba(0, 0, 0, 0.7);
     z-index: 180;
-    backdrop-filter: blur(2px);
+    backdrop-filter: blur(4px);
+    touch-action: none;
   }
 
   // Hide sidebar toggle button when terminal is open (we use FAB menu instead)
@@ -395,30 +396,35 @@
     }
   }
 
-  // Mobile sidebar close button
+  // Mobile sidebar close button — sticky header bar pinned to top
   .sidebar-close-btn {
-    position: absolute;
-    top: 12px;
-    right: 12px;
+    position: sticky;
+    top: 0;
     z-index: 10;
-    width: 32px;
-    height: 32px;
-    min-width: 32px;
+    width: 100%;
+    height: 44px;
+    min-height: 44px;
+    flex-shrink: 0;
     display: flex;
     align-items: center;
-    justify-content: center;
-    background: rgba($dracula-red, 0.15);
-    border: 1px solid rgba($dracula-red, 0.4);
-    border-radius: 50%;
+    justify-content: flex-end;
+    padding: 0 12px;
+    background: rgba($bg-secondary, 0.98);
+    backdrop-filter: blur(8px);
+    border: none;
+    border-bottom: 1px solid $border-color;
+    border-radius: 0;
     color: $dracula-red;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.15s ease;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    transition: background $transition-fast;
 
     &:active {
-      background: rgba($dracula-red, 0.3);
-      transform: scale(0.9);
+      background: rgba($dracula-red, 0.15);
     }
   }
 
@@ -1299,29 +1305,114 @@
 
   // Sidebar content on mobile
   .unit-panel {
-    padding: 12px;
+    padding: 8px 12px 12px;
   }
 
-  // Agent items in sidebar
+  // Hide 3D model preview on mobile — saves ~90px vertical space
+  .unit-model-preview {
+    display: none;
+  }
+
+  // Agent header action icons — touch-friendly sizing
+  .unit-header-actions {
+    gap: 2px;
+  }
+
+  .unit-action-icon {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  // Agent items in sidebar — touch-friendly
   .agent-item {
-    padding: 8px;
-    gap: 8px;
+    padding: 10px 8px;
+    gap: 10px;
+    min-height: 44px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+
+    &:active {
+      background: rgba($accent-blue, 0.08);
+    }
   }
 
   .agent-item-icon {
-    width: 24px;
-    height: 24px;
-    font-size: 14px;
+    width: 28px;
+    height: 28px;
+    font-size: 16px;
   }
 
   .agent-item-name {
-    font-size: 13px;
+    font-size: 14px;
   }
 
-  // Unit panel stats
+  // Unit panel stats — horizontal row layout
   .unit-stats {
     grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .unit-stat {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 5px 8px;
+  }
+
+  .unit-stat-label {
+    margin-bottom: 0;
+    font-size: 10px;
+  }
+
+  .unit-stat-value {
+    font-size: 12px;
+  }
+
+  // Compact secondary info sections
+  .unit-cwd,
+  .unit-permission-mode,
+  .unit-resume-cmd {
+    margin-bottom: 6px;
+    padding: 6px;
+  }
+
+  // Tool history — mobile styles (none existed before)
+  .tool-history-panel-header {
+    padding: 6px 10px;
+    min-height: 36px;
+    font-size: 10px;
+  }
+
+  .tool-history-item {
+    padding: 5px 8px;
+    min-height: 36px;
     gap: 6px;
+  }
+
+  .tool-input-inline,
+  .file-path {
+    font-size: 10px;
+  }
+
+  .tool-name {
+    font-size: 10px;
+  }
+
+  .tool-time {
+    font-size: 9px;
+  }
+
+  .tool-expanded-details {
+    padding: 4px 6px 4px 16px;
+  }
+
+  .tool-input-json {
+    max-height: 180px;
+    font-size: 9px;
+    padding: 6px;
   }
 
   // File viewer/explorer

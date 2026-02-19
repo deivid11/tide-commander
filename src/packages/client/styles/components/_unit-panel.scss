@@ -53,6 +53,8 @@
   font-size: 12px;
   transition: all $transition-fast;
   padding: 0;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 
   &:hover:not(:disabled) {
     background: rgba($accent-blue, 0.2);

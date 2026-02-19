@@ -185,6 +185,11 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
         break;
 
       case 'usage_snapshot': {
+        // Skip subagent events — their token counts reflect the subagent's context,
+        // not the parent's. Updating the parent's contextUsed here would corrupt it.
+        if (event.parentToolUseId) {
+          break;
+        }
         // Real-time context tracking from streaming usage data.
         // Context window usage = input tokens only (output tokens don't count toward the limit).
         // total_input = cache_read + cache_creation + input_tokens (the full prompt size).
@@ -224,6 +229,20 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
       }
 
       case 'step_complete': {
+        // For subagent events, only accumulate cost (tokensUsed) but don't touch
+        // contextUsed/contextLimit/status — those belong to the subagent's context
+        // window, not the parent's.
+        if (event.parentToolUseId) {
+          const subTokensUsed = (event.tokens?.input || 0) + (event.tokens?.output || 0);
+          if (subTokensUsed > 0) {
+            agentService.updateAgent(agentId, {
+              tokensUsed: (agent.tokensUsed || 0) + subTokensUsed,
+            }, false);
+          }
+          log.log(`[step_complete] Subagent event for ${agentId} (parentToolUseId=${event.parentToolUseId}); skipping context update, added ${subTokensUsed} to tokensUsed`);
+          break;
+        }
+
         markStepCompleteReceived(agentId);
 
         const isClaudeProvider = (agent.provider ?? 'claude') === 'claude';
@@ -238,59 +257,39 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
         // We must check that it has actual data before using it, otherwise we'd
         // zero out contextUsed (since all fields would be undefined → 0).
         const hasModelUsageData = event.modelUsage && Object.keys(event.modelUsage).length > 0;
-        if (hasModelUsageData && event.modelUsage) {
-          const cacheRead = event.modelUsage.cacheReadInputTokens || 0;
-          const cacheCreation = event.modelUsage.cacheCreationInputTokens || 0;
+
+        // For CLAUDE agents: the usage_snapshot handler (from the streaming assistant
+        // event) already set the authoritative per-turn contextUsed value. The
+        // step_complete's modelUsage/tokens may contain CUMULATIVE session-wide totals
+        // which would inflate the tracked context. Only extract contextLimit (window
+        // size) from modelUsage — never override contextUsed for Claude agents.
+        //
+        // For CODEX agents: there's no usage_snapshot, so step_complete is the only
+        // source of context estimation.
+        if (isClaudeProvider) {
+          // Extract contextLimit from modelUsage if available
+          if (hasModelUsageData && event.modelUsage?.contextWindow) {
+            contextLimit = event.modelUsage.contextWindow;
+          }
+          // Preserve contextUsed from usage_snapshot (set during streaming)
+          contextUsed = agent.contextUsed || 0;
+          log.log(`[step_complete] Claude agent ${agentId}: preserving usage_snapshot contextUsed=${contextUsed}, contextLimit=${contextLimit}`);
+        } else if (hasModelUsageData && event.modelUsage) {
           const inputTokens = event.modelUsage.inputTokens || 0;
           const outputTokens = event.modelUsage.outputTokens || 0;
-          // Only update contextLimit if the event actually carries contextWindow.
-          // If undefined, keep the existing agent.contextLimit (which may have been
-          // bumped by usage_snapshot or a previous step_complete).
           if (event.modelUsage.contextWindow) {
             contextLimit = event.modelUsage.contextWindow;
           }
-          if (isCodexProvider) {
-            const turnGrowthEstimate = estimateTokensFromText(agent.lastAssignedTask) + outputTokens;
-            const rollingEstimate = updateCodexRollingContextEstimate(agentId, turnGrowthEstimate);
-            const plausibleSnapshotLimit = contextLimit * CODEX_PLAUSIBLE_USAGE_MULTIPLIER;
-            const hasPlausibleSnapshot = inputTokens > 0 && inputTokens <= plausibleSnapshotLimit;
-            contextUsed = hasPlausibleSnapshot
-              ? Math.max(rollingEstimate, inputTokens + outputTokens)
-              : rollingEstimate;
-          } else {
-            // Context window = input side only (output tokens don't count toward the limit).
-            // IMPORTANT: modelUsage token sums in result events are CUMULATIVE session-wide
-            // totals, not per-request context fill. If the sum exceeds contextLimit, it's
-            // clearly cumulative — preserve the usage_snapshot value which IS per-request.
-            const modelUsageSum = cacheRead + cacheCreation + inputTokens;
-            if (modelUsageSum > contextLimit) {
-              // Cumulative session total detected. Prefer existing usage_snapshot value,
-              // but if that's ALSO stale (exceeds limit), fall back to 0 rather than
-              // propagating a bad value.
-              const existing = agent.contextUsed || 0;
-              contextUsed = existing <= contextLimit ? existing : 0;
-              log.log(`[step_complete] modelUsage sum ${modelUsageSum} exceeds contextLimit ${contextLimit} for ${agentId} (cumulative); using contextUsed=${contextUsed}`);
-            } else {
-              contextUsed = modelUsageSum;
-            }
-          }
-          log.log(`[step_complete] modelUsage data for ${agentId}: cacheRead=${cacheRead}, cacheCreation=${cacheCreation}, input=${inputTokens}, contextWindow=${event.modelUsage.contextWindow || 'none'}`);
+          const turnGrowthEstimate = estimateTokensFromText(agent.lastAssignedTask) + outputTokens;
+          const rollingEstimate = updateCodexRollingContextEstimate(agentId, turnGrowthEstimate);
+          const plausibleSnapshotLimit = contextLimit * CODEX_PLAUSIBLE_USAGE_MULTIPLIER;
+          const hasPlausibleSnapshot = inputTokens > 0 && inputTokens <= plausibleSnapshotLimit;
+          contextUsed = hasPlausibleSnapshot
+            ? Math.max(rollingEstimate, inputTokens + outputTokens)
+            : rollingEstimate;
+          log.log(`[step_complete] Codex modelUsage for ${agentId}: input=${inputTokens}, contextWindow=${event.modelUsage.contextWindow || 'none'}`);
         } else if (event.tokens) {
-          if (isClaudeProvider) {
-            const cacheRead = event.tokens.cacheRead || 0;
-            const cacheCreation = event.tokens.cacheCreation || 0;
-            const inputTokens = event.tokens.input || 0;
-            // Context window = input side only.
-            // Same cumulative guard as modelUsage path above.
-            const tokenSum = cacheRead + cacheCreation + inputTokens;
-            if (tokenSum > contextLimit) {
-              const existing = agent.contextUsed || 0;
-              contextUsed = existing <= contextLimit ? existing : 0;
-              log.log(`[step_complete] tokens sum ${tokenSum} exceeds contextLimit ${contextLimit} for ${agentId} (cumulative); using contextUsed=${contextUsed}`);
-            } else {
-              contextUsed = tokenSum;
-            }
-          } else {
+          if (isCodexProvider) {
             const inputTokens = event.tokens.input || 0;
             const outputTokens = event.tokens.output || 0;
             const turnGrowthEstimate = estimateTokensFromText(agent.lastAssignedTask) + outputTokens;
@@ -302,15 +301,8 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
               : rollingEstimate;
             contextLimit = agent.contextLimit || DEFAULT_CODEX_CONTEXT_WINDOW;
           }
+          // For Claude with tokens but no modelUsage — usage_snapshot already handled it
         }
-
-        const hasZeroTokenUsage = !!event.tokens
-          && (event.tokens.input || 0) === 0
-          && (event.tokens.output || 0) === 0
-          && (event.tokens.cacheRead || 0) === 0
-          && (event.tokens.cacheCreation || 0) === 0;
-        // Treat empty objects {} as "no model usage" (they have no meaningful data)
-        const hasNoModelUsage = !hasModelUsageData;
 
         // For /context, /cost, /compact: the context_stats event already set the
         // authoritative contextUsed/contextLimit values. Don't overwrite them with
@@ -326,19 +318,6 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
             contextLimit = agent.contextLimit || 200000;
             log.log(`[step_complete] Context command for ${agentId}; preserving context values from tracked fields`);
           }
-        } else if (isClaudeProvider && hasZeroTokenUsage && hasNoModelUsage) {
-          contextUsed = agent.contextUsed || 0;
-          contextLimit = agent.contextLimit || 200000;
-          log.log(`[step_complete] Claude empty usage detected for ${agentId}; preserving previous context`);
-        } else if (isClaudeProvider && !hasModelUsageData && event.tokens) {
-          // modelUsage was {} (empty) but we DO have event.tokens.
-          // The usage_snapshot handler already set the correct contextUsed value
-          // from the assistant event's usage data. Don't overwrite it.
-          // The event.tokens here come from the result event, which for Claude
-          // in --print mode may have different semantics. Prefer the last
-          // usage_snapshot value which is the most accurate real-time reading.
-          log.log(`[step_complete] Claude empty modelUsage but has tokens for ${agentId}; preserving usage_snapshot contextUsed=${agent.contextUsed}`);
-          contextUsed = agent.contextUsed || 0;
         }
 
         // Don't clamp contextUsed to contextLimit - models can have up to 1M context.
