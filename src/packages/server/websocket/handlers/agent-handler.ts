@@ -4,12 +4,15 @@
  */
 
 import * as fs from 'fs';
-import type { Agent, AgentProvider, CodexConfig } from '../../../shared/types.js';
+import { spawn } from 'child_process';
+import type { Agent, AgentProvider, CodexConfig, ContextStats } from '../../../shared/types.js';
 import { agentService, runtimeService, skillService, customClassService, bossService, permissionService } from '../../services/index.js';
 import { createLogger } from '../../utils/index.js';
+import { ClaudeBackend, parseContextOutput } from '../../claude/backend.js';
 import type { HandlerContext } from './types.js';
 
 const log = createLogger('AgentHandler');
+const claudeBackend = new ClaudeBackend();
 
 // Test change: Server restart validation - if you see this log, the server restarted successfully
 log.log('🔄 AgentHandler loaded - server restart test');
@@ -248,40 +251,330 @@ export async function handleCollapseContext(
 }
 
 /**
- * Handle request_context_stats message - requests detailed context breakdown
+ * Parse the visual terminal format from /context command output.
+ * Example: "claude-opus-4-6 · 46k/200k tokens (23%)"
+ *          "⛁ System prompt: 6.7k tokens (3.4%)"
+ */
+function parseVisualContextOutput(content: string): ContextStats | null {
+  try {
+    // Match: model-name · 46k/200k tokens (23%)
+    const headerMatch = content.match(/([\w.-]+)\s*[·•]\s*([\d.]+k?)\s*\/\s*([\d.]+k?)\s*tokens\s*\((\d+)%\)/);
+    if (!headerMatch) {
+      return null;
+    }
+
+    const parseTokenVal = (str: string): number => {
+      if (str.endsWith('k') || str.endsWith('K')) {
+        return parseFloat(str) * 1000;
+      }
+      return parseFloat(str);
+    };
+
+    const model = headerMatch[1];
+    const totalTokens = parseTokenVal(headerMatch[2]);
+    const contextWindow = parseTokenVal(headerMatch[3]);
+    const usedPercent = parseInt(headerMatch[4], 10);
+
+    // Parse categories from visual format: "⛁ Category Name: 6.7k tokens (3.4%)" or "⛁ Category Name: 479 tokens (0.2%)"
+    const parseVisualCategory = (name: string): { tokens: number; percent: number } => {
+      const regex = new RegExp(`${name}:\\s*([\\.\\d]+k?)\\s*(?:tokens)?\\s*\\(([\\.\\d]+)%\\)`, 'i');
+      const match = content.match(regex);
+      if (match) {
+        return { tokens: parseTokenVal(match[1]), percent: parseFloat(match[2]) };
+      }
+      return { tokens: 0, percent: 0 };
+    };
+
+    return {
+      model,
+      contextWindow,
+      totalTokens,
+      usedPercent,
+      categories: {
+        systemPrompt: parseVisualCategory('System prompt'),
+        systemTools: parseVisualCategory('System tools'),
+        messages: parseVisualCategory('Messages'),
+        freeSpace: parseVisualCategory('Free space'),
+        autocompactBuffer: parseVisualCategory('Autocompact buffer'),
+      },
+      lastUpdated: Date.now(),
+    };
+  } catch (err) {
+    log.error('parseVisualContextOutput error:', err);
+    return null;
+  }
+}
+
+/**
+ * Spawn a short-lived Claude CLI process to fetch real context stats for a session.
+ *
+ * Strategy: Two attempts.
+ *   1. stream-json mode (--print --input/output-format stream-json)
+ *      The /context slash command IS recognised (0 tokens, no API call) but
+ *      its output may come as a `user` event with <local-command-stdout> tags
+ *      or may be completely absent from the JSON stream.
+ *   2. Plain pipe mode (no --print, no format flags)
+ *      Pipe `/context\n` as plain text. The CLI should run the local command
+ *      and write the visual bar-chart output to stdout/stderr.
+ */
+function fetchContextFromCLI(sessionId: string, cwd: string): Promise<ContextStats | null> {
+  return new Promise((resolve) => {
+    // Attempt 1: stream-json mode (fast, preferred if output is available)
+    tryStreamJson(sessionId, cwd).then((stats) => {
+      if (stats) {
+        resolve(stats);
+        return;
+      }
+      // Attempt 2: plain pipe mode (interactive-like, captures visual output)
+      tryPlainPipe(sessionId, cwd).then((stats2) => {
+        resolve(stats2);
+      });
+    });
+  });
+}
+
+function tryStreamJson(sessionId: string, cwd: string): Promise<ContextStats | null> {
+  return new Promise((resolve) => {
+    const executable = claudeBackend.getExecutablePath();
+    const args = [
+      '--resume', sessionId,
+      '--print',
+      '--output-format', 'stream-json',
+      '--input-format', 'stream-json',
+    ];
+
+    log.log(`[fetchContext:stream-json] Spawning: ${executable} ${args.join(' ')}`);
+
+    const child = spawn(executable, args, {
+      cwd,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout.on('data', (data: Buffer) => { stdout += data.toString(); });
+    child.stderr.on('data', (data: Buffer) => { stderr += data.toString(); });
+
+    const input = JSON.stringify({
+      type: 'user',
+      message: { role: 'user', content: '/context' },
+    });
+    child.stdin.write(input + '\n');
+    child.stdin.end();
+
+    const timer = setTimeout(() => {
+      log.warn('[fetchContext:stream-json] Timed out');
+      child.kill();
+      resolve(null);
+    }, 10000);
+
+    child.on('close', () => {
+      clearTimeout(timer);
+      log.log(`[fetchContext:stream-json] exited, stdout=${stdout.length}, stderr=${stderr.length}`);
+      const combined = stdout + '\n' + stderr;
+
+      // Look for <local-command-stdout> in raw text or inside JSON user events
+      const localCmdMatch = combined.match(/<local-command-stdout>([\s\S]*?)<\/local-command-stdout>/);
+      if (localCmdMatch) {
+        const stats = parseContextOutput(localCmdMatch[1]);
+        if (stats) {
+          log.log(`[fetchContext:stream-json] Parsed from tags: ${stats.totalTokens}/${stats.contextWindow}`);
+          resolve(stats);
+          return;
+        }
+      }
+
+      for (const line of combined.split('\n')) {
+        if (!line.trim()) continue;
+        try {
+          const event = JSON.parse(line);
+          if (event.type === 'user' && typeof event.message?.content === 'string') {
+            const tagMatch = event.message.content.match(/<local-command-stdout>([\s\S]*?)<\/local-command-stdout>/);
+            if (tagMatch) {
+              const stats = parseContextOutput(tagMatch[1]);
+              if (stats) {
+                log.log(`[fetchContext:stream-json] Parsed from user event: ${stats.totalTokens}/${stats.contextWindow}`);
+                resolve(stats);
+                return;
+              }
+            }
+          }
+        } catch { /* not JSON */ }
+      }
+
+      log.log('[fetchContext:stream-json] No context data found, will try plain pipe');
+      resolve(null);
+    });
+
+    child.on('error', () => { clearTimeout(timer); resolve(null); });
+  });
+}
+
+function tryPlainPipe(sessionId: string, cwd: string): Promise<ContextStats | null> {
+  return new Promise((resolve) => {
+    const executable = claudeBackend.getExecutablePath();
+    // No --print, no format flags. Pipe /context as plain text.
+    // The CLI should recognise it as a slash command in interactive-like mode.
+    const args = ['--resume', sessionId];
+
+    log.log(`[fetchContext:plain] Spawning: ${executable} ${args.join(' ')}`);
+
+    const child = spawn(executable, args, {
+      cwd,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: { ...process.env, NO_COLOR: '1', TERM: 'dumb' }, // suppress ANSI codes
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout.on('data', (data: Buffer) => { stdout += data.toString(); });
+    child.stderr.on('data', (data: Buffer) => { stderr += data.toString(); });
+
+    // Send the slash command and close stdin so CLI exits
+    child.stdin.write('/context\n');
+    child.stdin.end();
+
+    const timer = setTimeout(() => {
+      log.warn('[fetchContext:plain] Timed out');
+      child.kill('SIGTERM');
+      // Even on timeout, try to parse what we have
+      const stats = parseAllFormats(stdout + '\n' + stderr);
+      resolve(stats);
+    }, 10000);
+
+    child.on('close', () => {
+      clearTimeout(timer);
+      log.log(`[fetchContext:plain] exited, stdout=${stdout.length}, stderr=${stderr.length}`);
+      const stats = parseAllFormats(stdout + '\n' + stderr);
+      if (stats) {
+        log.log(`[fetchContext:plain] Parsed: ${stats.totalTokens}/${stats.contextWindow} (${stats.model})`);
+      } else {
+        log.warn('[fetchContext:plain] Could not parse context');
+        if (stdout.length < 2000) log.log(`[fetchContext:plain] stdout: ${stdout}`);
+        if (stderr.length < 2000) log.log(`[fetchContext:plain] stderr: ${stderr}`);
+      }
+      resolve(stats);
+    });
+
+    child.on('error', (err) => {
+      clearTimeout(timer);
+      log.error(`[fetchContext:plain] error: ${err}`);
+      resolve(null);
+    });
+  });
+}
+
+/** Try every known format parser on the combined output. */
+function parseAllFormats(raw: string): ContextStats | null {
+  // Strip ANSI escape codes
+  const stripped = raw.replace(/\x1B\[[0-9;]*[A-Za-z]/g, '');
+
+  // 1. Markdown table format (from <local-command-stdout> or raw)
+  const localCmd = stripped.match(/<local-command-stdout>([\s\S]*?)<\/local-command-stdout>/);
+  if (localCmd) {
+    const stats = parseContextOutput(localCmd[1]);
+    if (stats) return stats;
+  }
+  const mdStats = parseContextOutput(stripped);
+  if (mdStats) return mdStats;
+
+  // 2. Visual terminal format (⛁ bar chart)
+  const vizStats = parseVisualContextOutput(stripped);
+  if (vizStats) return vizStats;
+
+  return null;
+}
+
+/**
+ * Build context stats from tracked agent data (fallback when CLI fetch isn't possible).
+ */
+function buildStatsFromTrackedData(agent: Agent): ContextStats {
+  const contextUsed = Math.max(0, Math.round(agent.contextUsed || 0));
+  const contextLimit = Math.max(1, Math.round(agent.contextLimit || 200000));
+  const usedPercent = Math.min(100, Math.round((contextUsed / contextLimit) * 100));
+  const freeTokens = Math.max(0, contextLimit - contextUsed);
+  const model = agent.model || agent.codexModel || 'unknown';
+
+  return {
+    model,
+    contextWindow: contextLimit,
+    totalTokens: contextUsed,
+    usedPercent,
+    categories: {
+      systemPrompt: { tokens: 0, percent: 0 },
+      systemTools: { tokens: 0, percent: 0 },
+      messages: { tokens: contextUsed, percent: Number(((contextUsed / contextLimit) * 100).toFixed(1)) },
+      freeSpace: { tokens: freeTokens, percent: Number(((freeTokens / contextLimit) * 100).toFixed(1)) },
+      autocompactBuffer: { tokens: 0, percent: 0 },
+    },
+    lastUpdated: Date.now(),
+  };
+}
+
+/**
+ * Broadcast context stats to UI (both the modal and the context bar).
+ */
+function broadcastContextStats(ctx: HandlerContext, agentId: string, stats: ContextStats, label: string): void {
+  const freePercent = stats.categories?.freeSpace?.percent ?? (100 - stats.usedPercent);
+
+  agentService.updateAgent(agentId, {
+    contextStats: stats,
+    contextUsed: stats.totalTokens,
+    contextLimit: stats.contextWindow,
+  }, false);
+
+  ctx.broadcast({ type: 'context_stats', payload: { agentId, stats } } as any);
+  ctx.broadcast({ type: 'context_update', payload: { agentId, contextUsed: stats.totalTokens, contextLimit: stats.contextWindow } } as any);
+  ctx.broadcast({
+    type: 'output',
+    payload: {
+      agentId,
+      text: `Context (${label}): ${(stats.totalTokens / 1000).toFixed(1)}k/${(stats.contextWindow / 1000).toFixed(1)}k (${freePercent}% free)`,
+      isStreaming: false,
+      timestamp: Date.now(),
+    },
+  });
+}
+
+/**
+ * Handle request_context_stats message.
+ * For Claude agents with a session, fetches REAL context stats from the CLI.
+ * Falls back to tracked data if CLI fetch fails or agent has no session.
  */
 export async function handleRequestContextStats(
   ctx: HandlerContext,
   payload: { agentId: string }
 ): Promise<void> {
   const agent = agentService.getAgent(payload.agentId);
-  if (agent?.provider === 'codex') {
-    const contextUsed = Math.max(0, Math.round(agent.contextUsed || 0));
-    const contextLimit = Math.max(1, Math.round(agent.contextLimit || 200000));
-    const usedPercent = Math.min(100, Math.round((contextUsed / contextLimit) * 100));
-    const freePercent = 100 - usedPercent;
-
-    ctx.broadcast({
-      type: 'output',
-      payload: {
-        agentId: payload.agentId,
-        text: `Context (estimated from Codex turn usage): ${(contextUsed / 1000).toFixed(1)}k/${(contextLimit / 1000).toFixed(1)}k (${freePercent}% free)`,
-        isStreaming: false,
-        timestamp: Date.now(),
-      },
-    });
+  if (!agent) {
+    log.error(` Agent not found for context stats: ${payload.agentId}`);
     return;
   }
 
-  if (agent && agent.status === 'idle') {
+  const isClaudeProvider = (agent.provider ?? 'claude') === 'claude';
+
+  // For Claude agents with an active session, fetch real context stats from the CLI
+  if (isClaudeProvider && agent.sessionId) {
+    log.log(`[contextStats] Fetching real context from CLI for ${agent.name} (session=${agent.sessionId})`);
     try {
-      await runtimeService.sendCommand(payload.agentId, '/context');
+      const stats = await fetchContextFromCLI(agent.sessionId, agent.cwd || process.cwd());
+      if (stats) {
+        log.log(`[contextStats] Got real stats: ${stats.totalTokens}/${stats.contextWindow} (${stats.model})`);
+        broadcastContextStats(ctx, payload.agentId, stats, 'from CLI');
+        return;
+      }
+      log.warn(`[contextStats] CLI fetch returned null, falling back to tracked data`);
     } catch (err) {
-      log.error(` Failed to request context stats: ${err}`);
+      log.error(`[contextStats] CLI fetch failed: ${err}`);
     }
-  } else {
-    log.log(` Cannot request context stats while agent ${payload.agentId} is busy`);
   }
+
+  // Fallback: generate from tracked data
+  const stats = buildStatsFromTrackedData(agent);
+  const label = agent.provider === 'codex' ? 'estimated from turn usage' : 'tracked from token usage';
+  broadcastContextStats(ctx, payload.agentId, stats, label);
 }
 
 /**

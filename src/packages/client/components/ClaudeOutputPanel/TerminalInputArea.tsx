@@ -502,12 +502,14 @@ export function TerminalInputArea({
           }
           return;
         } else {
-          console.warn('[TerminalInputArea] File not found at path, treating as text paste');
+          console.warn('[TerminalInputArea] File not found at path, inserting as text');
         }
       } catch (err) {
         console.error('[TerminalInputArea] Failed to load file from path:', err);
-        // Fall through to text paste handling if file loading fails
       }
+      // File not found or fetch failed - insert the path as plain text
+      setCommand(command + pastedText);
+      return;
     }
 
     const lineCount = (pastedText.match(/\n/g) || []).length + 1;

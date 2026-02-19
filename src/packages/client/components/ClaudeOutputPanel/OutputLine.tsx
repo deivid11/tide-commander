@@ -15,7 +15,7 @@ import { renderContentWithImages, renderUserPromptContent } from './contentRende
 import { ansiToHtml } from '../../utils/ansiToHtml';
 import { useTTS } from '../../hooks/useTTS';
 import type { EditData } from './types';
-import type { ExecTask } from '../../../shared/types';
+import type { ExecTask, Subagent } from '../../../shared/types';
 
 /** Extract file extension (with dot) from a path, e.g. '/foo/bar.tsx' → '.tsx' */
 function getExtFromPath(filePath: string): string {
@@ -29,6 +29,7 @@ interface OutputLineProps {
   output: ClaudeOutput & { _toolKeyParam?: string; _editData?: EditData; _todoInput?: string; _bashOutput?: string; _bashCommand?: string; _isRunning?: boolean };
   agentId: string | null;
   execTasks?: ExecTask[];
+  subagents?: Map<string, Subagent>;
   onImageClick?: (url: string, name: string) => void;
   onFileClick?: (path: string, editData?: EditData | { highlightRange: { offset: number; limit: number } }) => void;
   onBashClick?: (command: string, output: string) => void;
@@ -183,7 +184,7 @@ function TimestampWithMeta({ output, timeStr, debugHash, agentId }: { output: Cl
   );
 }
 
-export const OutputLine = memo(function OutputLine({ output, agentId, execTasks = [], onImageClick, onFileClick, onBashClick, onViewMarkdown }: OutputLineProps) {
+export const OutputLine = memo(function OutputLine({ output, agentId, execTasks = [], subagents, onImageClick, onFileClick, onBashClick, onViewMarkdown }: OutputLineProps) {
   const { t } = useTranslation(['tools', 'common']);
   const hideCost = useHideCost();
   const settings = useSettings();
@@ -419,6 +420,16 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       : [];
     const showInlineRunningTasks = Boolean(isBashTool && isCurlExecCommand && matchingExecTasks.length > 0);
     const _truncatedTaskCommand = (value: string) => (value.length > 52 ? `${value.slice(0, 52)}...` : value);
+
+    // Match Task tool line to its subagent via uuid (which equals toolUseId)
+    const matchingSubagent = toolName === 'Task' && subagents && output.uuid
+      ? (() => {
+          for (const [, sub] of subagents) {
+            if (sub.toolUseId === output.uuid) return sub;
+          }
+          return undefined;
+        })()
+      : undefined;
     const bashSearchCommand = isBashTool && bashCommand ? parseBashSearchCommand(bashCommand) : null;
     const bashNotificationCommand = isBashTool && bashCommand ? parseBashNotificationCommand(bashCommand) : null;
 
@@ -608,6 +619,48 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
             })}
           </div>
         )}
+
+        {/* Inline subagent activity panel below Task tool line */}
+        {matchingSubagent && (matchingSubagent.status === 'working' || (matchingSubagent.activities && matchingSubagent.activities.length > 0) || matchingSubagent.stats) && (
+          <div className="subagent-activity-container">
+            <div className={`subagent-activity-inline status-${matchingSubagent.status}`}>
+              {/* Header with type badge and elapsed time */}
+              <div className="subagent-activity-header">
+                <span className="subagent-type-badge">{matchingSubagent.subagentType}</span>
+                <span className="subagent-elapsed">
+                  {matchingSubagent.completedAt
+                    ? `${((matchingSubagent.completedAt - matchingSubagent.startedAt) / 1000).toFixed(0)}s`
+                    : `${((Date.now() - matchingSubagent.startedAt) / 1000).toFixed(0)}s`}
+                </span>
+              </div>
+
+              {/* Tool activity timeline */}
+              {matchingSubagent.activities && matchingSubagent.activities.length > 0 && (
+                <div className="subagent-activity-list">
+                  {matchingSubagent.activities.slice(-8).map((activity, i) => (
+                    <div key={i} className="subagent-activity-item">
+                      <span className="activity-icon">{TOOL_ICONS[activity.toolName] || TOOL_ICONS.default}</span>
+                      <span className="activity-tool">{activity.toolName}</span>
+                      <span className="activity-desc">{activity.description.length > 80 ? activity.description.slice(0, 77) + '...' : activity.description}</span>
+                    </div>
+                  ))}
+                  {matchingSubagent.status === 'working' && (
+                    <span className="subagent-cursor">▌</span>
+                  )}
+                </div>
+              )}
+
+              {/* Completion stats bar */}
+              {matchingSubagent.stats && (
+                <div className="subagent-stats-bar">
+                  <span>{(matchingSubagent.stats.durationMs / 1000).toFixed(0)}s</span>
+                  <span>{(matchingSubagent.stats.tokensUsed / 1000).toFixed(1)}K tokens</span>
+                  <span>{matchingSubagent.stats.toolUseCount} tools</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </>
     );
   }
@@ -790,7 +843,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
             {onViewMarkdown && (
               <button
                 className="history-view-md-btn"
-                onClick={(e) => { e.stopPropagation(); onViewMarkdown(text); }}
+                onClick={(e) => { e.stopPropagation(); onViewMarkdown(payloadToolOutput || text); }}
                 title="View as Markdown"
               >
                 📄
@@ -851,7 +904,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
           {onViewMarkdown && (
             <button
               className="history-view-md-btn"
-              onClick={(e) => { e.stopPropagation(); onViewMarkdown(text); }}
+              onClick={(e) => { e.stopPropagation(); onViewMarkdown(payloadToolOutput || text); }}
               title="View as Markdown"
             >
               📄

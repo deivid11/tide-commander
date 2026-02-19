@@ -202,6 +202,16 @@ export function handleServerMessage(message: ServerMessage): void {
       break;
     }
 
+    case 'context_update': {
+      const { agentId, contextUsed, contextLimit } = message.payload as {
+        agentId: string;
+        contextUsed: number;
+        contextLimit: number;
+      };
+      store.updateAgentContext(agentId, contextUsed, contextLimit);
+      break;
+    }
+
     case 'error': {
       const errorPayload = message.payload as { message: string };
       console.error('[WebSocket] Error from server:', errorPayload.message);
@@ -717,58 +727,78 @@ export function handleServerMessage(message: ServerMessage): void {
       console.log(`[WebSocket] Subagent started: ${subagent.name} (${subagent.id}) for agent ${subagent.parentAgentId}`);
       store.addSubagent(subagent);
       cb.onSubagentStarted?.(subagent);
-      // Also add an output line to the parent agent's terminal
-      store.addOutput(subagent.parentAgentId, {
-        text: `🔀 Spawned subagent: ${subagent.name} (${subagent.subagentType})`,
-        isStreaming: false,
-        timestamp: subagent.startedAt,
-        subagentName: subagent.name,
-      });
+      // Activity is shown inline in the Task tool-use line via the subagent activity panel
       break;
     }
 
     case 'subagent_output': {
-      const { subagentId, parentAgentId, text, isStreaming, timestamp } = message.payload as {
+      const { subagentId, parentAgentId, text, timestamp } = message.payload as {
         subagentId: string;
         parentAgentId: string;
         text: string;
         isStreaming: boolean;
         timestamp: number;
       };
-      // Resolve subagent name for badge display
-      const subForOutput = store.getSubagent(subagentId) || store.getSubagentByToolUseId(subagentId);
-      const subOutputName = subForOutput?.name || subagentId;
-      // Route subagent output to the parent agent's terminal with a prefix
-      store.addOutput(parentAgentId, {
-        text: `[${subagentId}] ${text}`,
-        isStreaming,
-        timestamp,
-        subagentName: subOutputName,
-      });
+
+      // Parse tool activity from text (format: "ToolName: description" or "Using ToolName")
+      const colonIdx = text.indexOf(':');
+      if (colonIdx > 0) {
+        const toolName = text.slice(0, colonIdx).trim();
+        const description = text.slice(colonIdx + 1).trim();
+        store.addSubagentActivity(subagentId, parentAgentId, {
+          toolName,
+          description,
+          timestamp,
+        });
+      } else if (text.startsWith('Using ')) {
+        store.addSubagentActivity(subagentId, parentAgentId, {
+          toolName: text.slice(6).trim(),
+          description: '',
+          timestamp,
+        });
+      }
+      // Activity is shown inline in the subagent activity panel - no separate output line needed
       break;
     }
 
     case 'subagent_completed': {
-      const { subagentId, parentAgentId, success, resultPreview, subagentName: completedSubName } = message.payload as {
+      const { subagentId, parentAgentId, success, resultPreview, subagentName: completedSubName, durationMs, tokensUsed, toolUseCount } = message.payload as {
         subagentId: string;
         parentAgentId: string;
         success: boolean;
         resultPreview?: string;
         subagentName?: string;
+        durationMs?: number;
+        tokensUsed?: number;
+        toolUseCount?: number;
       };
       console.log(`[WebSocket] Subagent completed: ${subagentId} for agent ${parentAgentId}, success: ${success}`);
+
+      // Update stats before completing (so the subagent has stats when rendered)
+      if (durationMs || tokensUsed || toolUseCount) {
+        store.updateSubagentStats(subagentId, parentAgentId, {
+          durationMs: durationMs || 0,
+          tokensUsed: tokensUsed || 0,
+          toolUseCount: toolUseCount || 0,
+        });
+      }
+
       store.completeSubagent(subagentId, parentAgentId, success);
       cb.onSubagentCompleted?.(subagentId);
       // Resolve name: prefer server-provided name, then store lookup, then ID
       const sub = store.getSubagent(subagentId) || store.getSubagentByToolUseId(subagentId);
       const subName = completedSubName || sub?.name || subagentId;
       const statusEmoji = success ? '✅' : '❌';
+      const statsStr = durationMs
+        ? ` (${(durationMs / 1000).toFixed(0)}s · ${((tokensUsed || 0) / 1000).toFixed(1)}K tokens · ${toolUseCount || 0} tools)`
+        : '';
       const preview = resultPreview ? `: ${resultPreview.slice(0, 100)}` : '';
       store.addOutput(parentAgentId, {
-        text: `${statusEmoji} Subagent ${subName} ${success ? 'completed' : 'failed'}${preview}`,
+        text: `${statusEmoji} Subagent ${subName} ${success ? 'completed' : 'failed'}${statsStr}${preview}`,
         isStreaming: false,
         timestamp: Date.now(),
         subagentName: subName,
+        toolOutput: resultPreview,
       });
       break;
     }

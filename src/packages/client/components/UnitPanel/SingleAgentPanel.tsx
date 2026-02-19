@@ -346,15 +346,18 @@ export function SingleAgentPanel({
             className="unit-resume-cmd-text"
             title={t('unitPanel.clickToCopy')}
             onClick={async () => {
+              const resumeCmd = agent.provider === 'codex'
+                ? `codex resume ${agent.sessionId}`
+                : `claude --resume ${agent.sessionId}`;
               try {
-                await navigator.clipboard.writeText(`codex resume ${agent.sessionId}`);
+                await navigator.clipboard.writeText(resumeCmd);
                 showToast('success', t('toast.copied'), t('toast.resumeCommandCopied'), 2000);
               } catch {
                 showToast('error', t('toast.errorTitle'), t('toast.failedToCopy'), 3000);
               }
             }}
           >
-            codex resume {agent.sessionId}
+            {agent.provider === 'codex' ? 'codex resume' : 'claude --resume'} {agent.sessionId}
           </div>
         </div>
       ) : (

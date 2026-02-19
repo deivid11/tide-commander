@@ -15,6 +15,7 @@ export interface AgentActions {
   addAgent(agent: Agent): void;
   updateAgent(agent: Agent): void;
   updateAgentContextStats(agentId: string, stats: ContextStats): void;
+  updateAgentContext(agentId: string, contextUsed: number, contextLimit: number): void;
   removeAgent(agentId: string): void;
 
   // Selection
@@ -166,6 +167,24 @@ export function createAgentActions(
             contextStats: stats,
             contextUsed: stats.totalTokens,
             contextLimit: stats.contextWindow,
+          });
+          s.agents = newAgents;
+        });
+        notify();
+      }
+    },
+
+    // Lightweight real-time context update (from usage_snapshot events during streaming)
+    updateAgentContext(agentId: string, contextUsed: number, contextLimit: number): void {
+      const state = getState();
+      const agent = state.agents.get(agentId);
+      if (agent) {
+        setState((s) => {
+          const newAgents = new Map(s.agents);
+          newAgents.set(agentId, {
+            ...agent,
+            contextUsed,
+            contextLimit,
           });
           s.agents = newAgents;
         });

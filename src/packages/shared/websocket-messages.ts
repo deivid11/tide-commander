@@ -95,6 +95,16 @@ export interface ContextStatsMessage extends WSMessage {
   };
 }
 
+// Lightweight real-time context update (from usage_snapshot events during streaming)
+export interface ContextUpdateMessage extends WSMessage {
+  type: 'context_update';
+  payload: {
+    agentId: string;
+    contextUsed: number;
+    contextLimit: number;
+  };
+}
+
 export interface ErrorMessage extends WSMessage {
   type: 'error';
   payload: { message: string };
@@ -286,6 +296,11 @@ export interface SubagentCompletedMessage extends WSMessage {
     parentAgentId: string;
     success: boolean;
     resultPreview?: string;           // First 500 chars of result
+    subagentName?: string;            // Name of the subagent
+    // Completion stats
+    durationMs?: number;
+    tokensUsed?: number;
+    toolUseCount?: number;
   };
 }
 
@@ -1363,6 +1378,7 @@ export type ServerMessage =
   | CustomAgentClassUpdatedMessage
   | CustomAgentClassDeletedMessage
   | ContextStatsMessage
+  | ContextUpdateMessage
   | WorkPlanCreatedMessage
   | WorkPlanUpdatedMessage
   | WorkPlanDeletedMessage

@@ -617,6 +617,15 @@
   }
 }
 
+// Empty assistant message placeholder
+.output-empty-message {
+  .empty-message-label {
+    font-style: italic;
+    opacity: 0.35;
+    font-size: 0.85em;
+  }
+}
+
 // Session continuation notification styling
 .output-session-continuation {
   display: flex;

@@ -6,6 +6,7 @@
 import { agentService, runtimeService, skillService, customClassService } from '../../services/index.js';
 import { createLogger } from '../../utils/index.js';
 import { getAuthToken } from '../../auth/index.js';
+import { handleRequestContextStats } from './agent-handler.js';
 import type { HandlerContext } from './types.js';
 
 const log = createLogger('CommandHandler');
@@ -117,8 +118,19 @@ export async function handleSendCommand(
     return;
   }
 
+  const trimmedCmd = command.trim();
+
+  // Intercept /context and /cost for ALL agents (boss or regular) BEFORE routing.
+  // The CLI /context slash command does NOT work via stdin in --print mode
+  // (it gets treated as a user message). We generate stats from tracked data instead.
+  if (trimmedCmd === '/context' || trimmedCmd === '/cost') {
+    log.log(`Agent ${agent.name}: Intercepting ${trimmedCmd} - generating stats from tracked data`);
+    await handleRequestContextStats(ctx, { agentId });
+    return;
+  }
+
   // Handle /clear command - clear session and start fresh
-  if (command.trim() === '/clear') {
+  if (trimmedCmd === '/clear') {
     log.log(`Agent ${agent.name}: /clear command - clearing session`);
     await runtimeService.stopAgent(agentId);
     agentService.updateAgent(agentId, {
@@ -190,24 +202,8 @@ async function handleRegularAgentCommand(
   command: string,
   agent: { id: string; name: string; class: string; provider?: 'claude' | 'codex'; contextUsed?: number; contextLimit?: number }
 ): Promise<void> {
-  const trimmedCommand = command.trim();
-  if (agent.provider === 'codex' && (trimmedCommand === '/context' || trimmedCommand === '/cost' || trimmedCommand === '/compact')) {
-    const contextUsed = Math.max(0, Math.round(agent.contextUsed || 0));
-    const contextLimit = Math.max(1, Math.round(agent.contextLimit || 200000));
-    const usedPercent = Math.min(100, Math.round((contextUsed / contextLimit) * 100));
-    const freePercent = 100 - usedPercent;
-
-    ctx.broadcast({
-      type: 'output',
-      payload: {
-        agentId,
-        text: `Context (estimated from Codex turn usage): ${(contextUsed / 1000).toFixed(1)}k/${(contextLimit / 1000).toFixed(1)}k (${freePercent}% free)`,
-        isStreaming: false,
-        timestamp: Date.now(),
-      },
-    });
-    return;
-  }
+  // Note: /context, /cost, /compact are intercepted at the handleSendCommand level
+  // so they never reach here. This function only handles actual commands to send to the agent.
 
   const customAgentConfig = buildCustomAgentConfig(agentId, agent.class);
 

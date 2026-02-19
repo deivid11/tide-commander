@@ -7,7 +7,6 @@ import * as supervisorService from './supervisor-service.js';
 import {
   clearPendingSilentContextRefresh,
   consumeStepCompleteReceived,
-  hasPendingSilentContextRefresh,
   markStepCompleteReceived,
 } from './runtime-watchdog.js';
 import { handleTaskToolResult, handleTaskToolStart } from './runtime-subagents.js';
@@ -49,7 +48,9 @@ interface RuntimeEventsDeps {
     systemPrompt?: string,
     forceNewSession?: boolean
   ) => Promise<void>;
-  scheduleSilentContextRefresh: (agentId: string, reason: 'step_complete' | 'handle_complete') => void;
+  // Kept for backwards compatibility but no longer auto-triggered.
+  // Real-time context tracking uses usage_snapshot events instead.
+  scheduleSilentContextRefresh?: (agentId: string, reason: 'step_complete' | 'handle_complete') => void;
 }
 
 export interface RuntimeRunnerCallbacks {
@@ -152,7 +153,6 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
     emitError,
     parseUsageOutput,
     executeCommand,
-    scheduleSilentContextRefresh,
   } = deps;
 
   function handleEvent(agentId: string, event: RuntimeEvent): void {
@@ -184,6 +184,32 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
         agentService.updateAgent(agentId, { currentTool: undefined });
         break;
 
+      case 'usage_snapshot': {
+        // Real-time context tracking from streaming usage data.
+        // Context window usage = input tokens only (output tokens don't count toward the limit).
+        // total_input = cache_read + cache_creation + input_tokens (the full prompt size).
+        if (event.tokens) {
+          const isClaudeProvider = (agent.provider ?? 'claude') === 'claude';
+          if (isClaudeProvider) {
+            const cacheRead = event.tokens.cacheRead || 0;
+            const cacheCreation = event.tokens.cacheCreation || 0;
+            const inputTokens = event.tokens.input || 0;
+            // Context window = input side only (system prompt + tools + messages).
+            // Output tokens are the model's response and don't count toward the limit.
+            const snapshotContextUsed = cacheRead + cacheCreation + inputTokens;
+
+            if (snapshotContextUsed > 0) {
+              const updates: Record<string, unknown> = {
+                contextUsed: Math.max(0, snapshotContextUsed),
+              };
+              agentService.updateAgent(agentId, updates, false);
+              log.log(`[usage_snapshot] ${agentId}: input=${inputTokens} + cacheRead=${cacheRead} + cacheCreation=${cacheCreation} = ${snapshotContextUsed} (output=${event.tokens.output || 0}) limit=${agent.contextLimit || '?'}`);
+            }
+          }
+        }
+        break;
+      }
+
       case 'step_complete': {
         markStepCompleteReceived(agentId);
 
@@ -195,12 +221,21 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
         let contextUsed = agent.contextUsed || 0;
         let contextLimit = agent.contextLimit || 200000;
 
-        if (event.modelUsage) {
+        // IMPORTANT: event.modelUsage is often {} (empty object) which is truthy.
+        // We must check that it has actual data before using it, otherwise we'd
+        // zero out contextUsed (since all fields would be undefined → 0).
+        const hasModelUsageData = event.modelUsage && Object.keys(event.modelUsage).length > 0;
+        if (hasModelUsageData && event.modelUsage) {
           const cacheRead = event.modelUsage.cacheReadInputTokens || 0;
           const cacheCreation = event.modelUsage.cacheCreationInputTokens || 0;
           const inputTokens = event.modelUsage.inputTokens || 0;
           const outputTokens = event.modelUsage.outputTokens || 0;
-          contextLimit = event.modelUsage.contextWindow || 200000;
+          // Only update contextLimit if the event actually carries contextWindow.
+          // If undefined, keep the existing agent.contextLimit (which may have been
+          // bumped by usage_snapshot or a previous step_complete).
+          if (event.modelUsage.contextWindow) {
+            contextLimit = event.modelUsage.contextWindow;
+          }
           if (isCodexProvider) {
             const turnGrowthEstimate = estimateTokensFromText(agent.lastAssignedTask) + outputTokens;
             const rollingEstimate = updateCodexRollingContextEstimate(agentId, turnGrowthEstimate);
@@ -210,15 +245,17 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
               ? Math.max(rollingEstimate, inputTokens + outputTokens)
               : rollingEstimate;
           } else {
-            contextUsed = cacheRead + cacheCreation + inputTokens + outputTokens;
+            // Context window = input side only (output tokens don't count toward the limit)
+            contextUsed = cacheRead + cacheCreation + inputTokens;
           }
+          log.log(`[step_complete] modelUsage data for ${agentId}: cacheRead=${cacheRead}, cacheCreation=${cacheCreation}, input=${inputTokens}, contextWindow=${event.modelUsage.contextWindow || 'none'}`);
         } else if (event.tokens) {
           if (isClaudeProvider) {
             const cacheRead = event.tokens.cacheRead || 0;
             const cacheCreation = event.tokens.cacheCreation || 0;
             const inputTokens = event.tokens.input || 0;
-            const outputTokens = event.tokens.output || 0;
-            contextUsed = cacheRead + cacheCreation + inputTokens + outputTokens;
+            // Context window = input side only
+            contextUsed = cacheRead + cacheCreation + inputTokens;
           } else {
             const inputTokens = event.tokens.input || 0;
             const outputTokens = event.tokens.output || 0;
@@ -238,14 +275,36 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
           && (event.tokens.output || 0) === 0
           && (event.tokens.cacheRead || 0) === 0
           && (event.tokens.cacheCreation || 0) === 0;
-        const hasNoModelUsage = !event.modelUsage;
-        if (isClaudeProvider && hasZeroTokenUsage && hasNoModelUsage && !isContextCommand) {
+        // Treat empty objects {} as "no model usage" (they have no meaningful data)
+        const hasNoModelUsage = !hasModelUsageData;
+
+        // For /context, /cost, /compact: the context_stats event already set the
+        // authoritative contextUsed/contextLimit values. Don't overwrite them with
+        // zero-token step_complete data from the local command.
+        if (isContextCommand) {
+          contextUsed = agent.contextUsed || 0;
+          contextLimit = agent.contextLimit || 200000;
+          log.log(`[step_complete] Context command for ${agentId}; preserving context values from context_stats`);
+        } else if (isClaudeProvider && hasZeroTokenUsage && hasNoModelUsage) {
           contextUsed = agent.contextUsed || 0;
           contextLimit = agent.contextLimit || 200000;
           log.log(`[step_complete] Claude empty usage detected for ${agentId}; preserving previous context`);
+        } else if (isClaudeProvider && !hasModelUsageData && event.tokens) {
+          // modelUsage was {} (empty) but we DO have event.tokens.
+          // The usage_snapshot handler already set the correct contextUsed value
+          // from the assistant event's usage data. Don't overwrite it.
+          // The event.tokens here come from the result event, which for Claude
+          // in --print mode may have different semantics. Prefer the last
+          // usage_snapshot value which is the most accurate real-time reading.
+          log.log(`[step_complete] Claude empty modelUsage but has tokens for ${agentId}; preserving usage_snapshot contextUsed=${agent.contextUsed}`);
+          contextUsed = agent.contextUsed || 0;
         }
 
-        contextUsed = Math.max(0, Math.min(contextUsed, contextLimit));
+        // Don't clamp contextUsed to contextLimit - models can have up to 1M context.
+        // The contextLimit comes from modelUsage.contextWindow which is authoritative.
+        contextUsed = Math.max(0, contextUsed);
+
+        log.log(`[step_complete] Final for ${agentId}: contextUsed=${contextUsed}, contextLimit=${contextLimit}, hasModelUsageData=${hasModelUsageData}, tokens=${JSON.stringify(event.tokens)}`);
 
         const newTokensUsed = (agent.tokensUsed || 0) + (event.tokens?.input || 0) + (event.tokens?.output || 0);
         const updates: Record<string, unknown> = {
@@ -275,21 +334,9 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
           log.log(`[step_complete] Codex agent ${agentId} will be set idle on process completion`);
         }
 
-        const hasPendingSilentRefresh = hasPendingSilentContextRefresh(agentId);
-
-        log.log(`[step_complete] Auto-refresh check: agentId=${agentId}, lastTask="${lastTask}", isContextCmd=${isContextCommand}, hasPending=${hasPendingSilentRefresh}`);
-
+        // Real-time context tracking via usage_snapshot events replaces automatic /context refresh.
+        // The /context command is now only triggered manually via the UI refresh button.
         clearPendingSilentContextRefresh(agentId);
-
-        const currentAgent = agentService.getAgent(agentId);
-        const hasSession = !!currentAgent?.sessionId;
-        const shouldRefresh = isClaudeProvider && hasSession && !isContextCommand && !hasPendingSilentRefresh;
-
-        log.log(`[step_complete] sessionId=${currentAgent?.sessionId}, shouldRefresh=${shouldRefresh}`);
-
-        if (shouldRefresh) {
-          scheduleSilentContextRefresh(agentId, 'step_complete');
-        }
         break;
       }
 
@@ -354,20 +401,10 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
     });
     emitComplete(agentId, success);
 
+    // Real-time context tracking via usage_snapshot events replaces automatic /context refresh.
+    // The /context command is now only triggered manually via the UI refresh button.
     if (!receivedStepComplete && success) {
-      const agent = agentService.getAgent(agentId);
-      const lastTask = agent?.lastAssignedTask?.trim() || '';
-      const isContextCommand = lastTask === '/context' || lastTask === '/cost' || lastTask === '/compact';
-      const hasSession = !!agent?.sessionId;
-      const hasPendingSilentRefresh = hasPendingSilentContextRefresh(agentId);
-
-      log.log(`[handleComplete] Fallback /context check: agentId=${agentId}, receivedStepComplete=${receivedStepComplete}, lastTask="${lastTask}", isContextCmd=${isContextCommand}, hasSession=${hasSession}, hasPending=${hasPendingSilentRefresh}`);
-
-      const isClaudeProvider = (agent?.provider ?? 'claude') === 'claude';
-      if (isClaudeProvider && hasSession && !isContextCommand && !hasPendingSilentRefresh) {
-        log.log(`[handleComplete] Triggering fallback /context refresh for agent ${agentId}`);
-        scheduleSilentContextRefresh(agentId, 'handle_complete');
-      }
+      clearPendingSilentContextRefresh(agentId);
     }
   }
 

@@ -85,7 +85,9 @@ export function initAgents(): void {
       const persistedContextUsed = typeof stored.contextUsed === 'number'
         ? stored.contextUsed
         : tokensUsed;
-      const contextUsed = Math.max(0, Math.min(persistedContextUsed, contextLimit));
+      // Don't clamp to contextLimit - contextUsed can legitimately exceed the default
+      // 200k limit for models with larger context windows (up to 1M).
+      const contextUsed = Math.max(0, persistedContextUsed);
 
       // Track agents that were working before restart
       // Use lastAssignedTask (which persists) instead of currentTask (which gets cleared)

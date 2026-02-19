@@ -6,17 +6,35 @@
  * ephemeral Task tool subprocesses running inside a Claude Code process.
  */
 
-import type { Subagent } from '../../shared/types';
+import type { Subagent, SubagentActivity } from '../../shared/types';
 import type { StoreState } from './types';
+
+const MAX_ACTIVITIES = 50;
 
 export interface SubagentActions {
   addSubagent(subagent: Subagent): void;
   completeSubagent(subagentId: string, parentAgentId: string, success: boolean): void;
+  addSubagentActivity(subagentId: string, parentAgentId: string, activity: SubagentActivity): void;
+  updateSubagentStats(subagentId: string, parentAgentId: string, stats: { durationMs: number; tokensUsed: number; toolUseCount: number }): void;
   getSubagentsForAgent(parentAgentId: string): Subagent[];
   getSubagent(subagentId: string): Subagent | undefined;
   removeSubagent(subagentId: string): void;
   /** Find subagent by toolUseId (used for correlating completion events) */
   getSubagentByToolUseId(toolUseId: string): Subagent | undefined;
+}
+
+/** Find a subagent by ID or toolUseId within a given parent agent */
+function findSubagent(subagents: Map<string, Subagent>, subagentId: string, parentAgentId: string): Subagent | undefined {
+  let sub = subagents.get(subagentId);
+  if (!sub) {
+    for (const [, candidate] of subagents) {
+      if (candidate.toolUseId === subagentId && candidate.parentAgentId === parentAgentId) {
+        sub = candidate;
+        break;
+      }
+    }
+  }
+  return sub;
 }
 
 export function createSubagentActions(
@@ -37,17 +55,7 @@ export function createSubagentActions(
 
     completeSubagent(subagentId: string, parentAgentId: string, success: boolean): void {
       setState((s) => {
-        // Try finding by ID first, then by toolUseId
-        let sub = s.subagents.get(subagentId);
-        if (!sub) {
-          // subagentId might actually be a toolUseId from the completion event
-          for (const [, candidate] of s.subagents) {
-            if (candidate.toolUseId === subagentId && candidate.parentAgentId === parentAgentId) {
-              sub = candidate;
-              break;
-            }
-          }
-        }
+        const sub = findSubagent(s.subagents, subagentId, parentAgentId);
         if (sub) {
           const newSubagents = new Map(s.subagents);
           newSubagents.set(sub.id, {
@@ -70,6 +78,31 @@ export function createSubagentActions(
             });
             notify();
           }, 30000);
+        }
+      });
+      notify();
+    },
+
+    addSubagentActivity(subagentId: string, parentAgentId: string, activity: SubagentActivity): void {
+      setState((s) => {
+        const sub = findSubagent(s.subagents, subagentId, parentAgentId);
+        if (sub) {
+          const activities = [...(sub.activities || []), activity].slice(-MAX_ACTIVITIES);
+          const newSubagents = new Map(s.subagents);
+          newSubagents.set(sub.id, { ...sub, activities });
+          s.subagents = newSubagents;
+        }
+      });
+      notify();
+    },
+
+    updateSubagentStats(subagentId: string, parentAgentId: string, stats: { durationMs: number; tokensUsed: number; toolUseCount: number }): void {
+      setState((s) => {
+        const sub = findSubagent(s.subagents, subagentId, parentAgentId);
+        if (sub) {
+          const newSubagents = new Map(s.subagents);
+          newSubagents.set(sub.id, { ...sub, stats });
+          s.subagents = newSubagents;
         }
       });
       notify();

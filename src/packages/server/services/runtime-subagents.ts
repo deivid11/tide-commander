@@ -9,6 +9,12 @@ export interface ActiveSubagent {
   subagentType: string;
   model?: string;
   startedAt: number;
+  // Completion stats (populated when task completes)
+  stats?: {
+    durationMs: number;
+    tokensUsed: number;
+    toolUseCount: number;
+  };
 }
 
 let subagentCounter = 0;
@@ -62,6 +68,10 @@ export function handleTaskToolResult(
 
   log.log(`[Subagent] Completed: ${subagent.name} (${subagent.id}) for agent ${agentId}`);
   event.subagentName = subagent.name;
+  // Store completion stats from event onto the subagent before removal
+  if (event.subagentStats) {
+    subagent.stats = event.subagentStats;
+  }
   activeSubagents.delete(event.toolUseId);
   subagentIdToToolUseId.delete(subagent.id);
 }

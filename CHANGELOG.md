@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.69.0] - 2026-02-18
+
+### Added
+- **Subagent observability** - Inline activity panels below Task tool lines show real-time tool usage, elapsed time, and completion stats for subagents
+- **Real-time context tracking** - Context bar updates live during streaming via `usage_snapshot` events instead of waiting for step completion or `/context` command
+- **Lightweight `context_update` WebSocket message** - New message type for efficient real-time context bar updates
+- **Subagent activity tracking** - New `addSubagentActivity` and `updateSubagentStats` store actions with tool activity timeline UI
+- **CLI context fetch** - Context stats modal now spawns a short-lived CLI process to get real `/context` data instead of sending commands to busy agents
+- **Visual context format parser** - New `parseVisualContextOutput` function handles the bar-chart terminal format from newer Claude CLI versions
+- **Empty assistant message placeholder** - History view shows italic "empty message" label for blank assistant responses
+- **Makefile additions** - `make deploy-landing` and `make tc` commands, CLI section in help
+
+### Changed
+- **Context calculation** - Context window usage now counts input tokens only (cache_read + cache_creation + input_tokens); output tokens no longer inflated the context bar
+- **Context token parsing** - Fixed regex to capture `k` suffix in token values (e.g., `377.3k`) instead of relying on magnitude heuristics
+- **Subagent internal tool output** - Subagent tool_start and tool_result events with `parentToolUseId` are now shown in the inline activity panel instead of cluttering the parent terminal
+- **Subagent completion events** - Now include duration, token usage, and tool count stats from Task tool metadata
+- **Step complete handling** - Empty `modelUsage` objects (`{}`) no longer zero out context values; preserves usage_snapshot data
+- **Context commands** - `/context`, `/cost`, `/compact` step_complete events preserve authoritative context_stats values instead of overwriting with zeros
+- **Resume command** - Correctly shows `claude --resume` for Claude agents and `codex resume` for Codex agents
+- **Markdown viewer** - "View as Markdown" button now passes full tool output instead of truncated display text
+- **File path paste fallback** - When pasted path is not found, inserts it as plain text instead of silently dropping it
+- **Subagent result preview** - No longer truncated to 200 chars; full preview passed to client
+
+### Fixed
+- **Unused import** - Removed unused `hasPendingSilentContextRefresh` import in runtime-events.ts
+
 ## [0.68.0] - 2026-02-18
 
 ### Added

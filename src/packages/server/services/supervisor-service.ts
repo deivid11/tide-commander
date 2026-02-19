@@ -340,6 +340,7 @@ export async function generateReport(): Promise<SupervisorReport> {
           recentNarratives: allNarratives,
           tokensUsed: agent.tokensUsed,
           contextUsed: agent.contextUsed,
+          contextLimit: agent.contextLimit,
           lastActivityTime: agent.lastActivity,
         };
       })
@@ -470,6 +471,7 @@ async function buildAgentSummary(agent: Agent): Promise<AgentStatusSummary> {
     recentNarratives: allNarratives,
     tokensUsed: agent.tokensUsed,
     contextUsed: agent.contextUsed,
+    contextLimit: agent.contextLimit,
     lastActivityTime: agent.lastActivity,
   };
 }
@@ -494,7 +496,7 @@ function buildSingleAgentPrompt(summary: AgentStatusSummary): string {
       : 'No task assigned yet',
     taskAssignedSecondsAgo,
     tokensUsed: summary.tokensUsed,
-    contextPercent: Math.round((summary.contextUsed / 200000) * 100),
+    contextPercent: Math.round((summary.contextUsed / (summary.contextLimit || 200000)) * 100),
     timeSinceActivity: Math.round((Date.now() - summary.lastActivityTime) / 1000),
     recentActivities: summary.recentNarratives.map((n) => sanitizeUnicode(n.narrative)).slice(0, 5),
   };
@@ -572,7 +574,7 @@ function buildSupervisorPrompt(summaries: AgentStatusSummary[]): string {
         : 'No task assigned yet',
       taskAssignedSecondsAgo,
       tokensUsed: s.tokensUsed,
-      contextPercent: Math.round((s.contextUsed / 200000) * 100),
+      contextPercent: Math.round((s.contextUsed / (s.contextLimit || 200000)) * 100),
       timeSinceActivity: Math.round((Date.now() - s.lastActivityTime) / 1000),
       recentActivities: s.recentNarratives.map((n) => sanitizeUnicode(n.narrative)).slice(0, 5),
     };

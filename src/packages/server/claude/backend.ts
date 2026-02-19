@@ -161,6 +161,9 @@ export class ClaudeBackend implements CLIBackend {
       }
     }
 
+    // Capture parent_tool_use_id from the raw event for propagation
+    const parentToolUseId = event.parent_tool_use_id;
+
     let result: StandardEvent | StandardEvent[] | null = null;
 
     switch (event.type) {
@@ -198,6 +201,17 @@ export class ClaudeBackend implements CLIBackend {
       log.log(`parseEvent: returned NULL for type=${event.type}, subtype=${event.subtype || 'none'}`);
     }
 
+    // Propagate parent_tool_use_id onto all returned events (links subagent internal events to parent)
+    if (result && parentToolUseId) {
+      if (Array.isArray(result)) {
+        for (const r of result) {
+          if (!r.parentToolUseId) r.parentToolUseId = parentToolUseId;
+        }
+      } else {
+        if (!result.parentToolUseId) result.parentToolUseId = parentToolUseId;
+      }
+    }
+
     return result;
   }
 
@@ -225,12 +239,29 @@ export class ClaudeBackend implements CLIBackend {
           // Look up the tool name from the tool_use_id mapping
           const toolName = toolUseIdToName.get(block.tool_use_id) || 'unknown';
           log.log(`parseUserEvent: Found tool_result for tool_use_id=${block.tool_use_id}, toolName=${toolName}, content length=${content?.length || 0}, hasToolUseResult=${!!event.tool_use_result}`);
-          toolResults.push({
+          const toolResult: StandardEvent = {
             type: 'tool_result',
             toolName,
             toolOutput: content,
             toolUseId: block.tool_use_id, // Preserve for subagent correlation
-          });
+          };
+          // Extract subagent stats from Task tool completion metadata
+          if (toolName === 'Task' && event.tool_use_result) {
+            const tur = event.tool_use_result;
+            if (tur.totalDurationMs || tur.totalTokens || tur.totalToolUseCount) {
+              toolResult.subagentStats = {
+                durationMs: tur.totalDurationMs || 0,
+                tokensUsed: tur.totalTokens || 0,
+                toolUseCount: tur.totalToolUseCount || 0,
+              };
+              log.log(`parseUserEvent: Task tool stats - duration=${tur.totalDurationMs}ms, tokens=${tur.totalTokens}, tools=${tur.totalToolUseCount}`);
+            }
+          }
+          // Propagate parent_tool_use_id if present
+          if (event.parent_tool_use_id) {
+            toolResult.parentToolUseId = event.parent_tool_use_id;
+          }
+          toolResults.push(toolResult);
           // Clean up the mapping after use (tool_use_id is unique per invocation)
           toolUseIdToName.delete(block.tool_use_id);
         }
@@ -284,6 +315,10 @@ export class ClaudeBackend implements CLIBackend {
         errorMessage: event.error,
       };
     }
+    // Capture task_started events (links task_id to tool_use_id)
+    if (event.subtype === 'task_started' && event.task_id) {
+      log.log(`parseSystemEvent: task_started - task_id=${event.task_id}, tool_use_id=${(event as any).tool_use_id}`);
+    }
     return null;
   }
 
@@ -294,6 +329,7 @@ export class ClaudeBackend implements CLIBackend {
       const events: StandardEvent[] = [];
       // Use event UUID if available (unique identifier from Claude)
       const uuid = event.uuid;
+      const usage = event.message.usage;
 
       // Extract text blocks - emit as non-streaming final text
       // This ensures text is captured even if streaming deltas were missed
@@ -325,6 +361,10 @@ export class ClaudeBackend implements CLIBackend {
           toolUseId: block.id,
           uuid: block.id, // tool_use block has unique ID for deduplication
         };
+        // Propagate parent_tool_use_id if present (links subagent events to parent Task invocation)
+        if ((event as any).parent_tool_use_id) {
+          toolEvent.parentToolUseId = (event as any).parent_tool_use_id;
+        }
         // Extract subagent metadata from Task tool inputs
         if (toolName === 'Task' && block.input) {
           const input = block.input as Record<string, unknown>;
@@ -337,8 +377,24 @@ export class ClaudeBackend implements CLIBackend {
         events.push(toolEvent);
       }
 
+      // Assistant messages include usage snapshots that reflect current context
+      // occupancy during the turn. Emit a lightweight event so runtime state can
+      // update in near real-time instead of waiting for step_complete or /context.
+      if (usage) {
+        events.push({
+          type: 'usage_snapshot',
+          tokens: {
+            input: usage.input_tokens || 0,
+            output: usage.output_tokens || 0,
+            cacheCreation: usage.cache_creation_input_tokens || 0,
+            cacheRead: usage.cache_read_input_tokens || 0,
+          },
+          uuid,
+        });
+      }
+
       if (events.length > 0) {
-        log.log(`parseAssistantEvent: extracted ${textBlocks.length} text block(s) and ${toolUseBlocks.length} tool_use block(s), uuid=${uuid}`);
+        log.log(`parseAssistantEvent: extracted ${textBlocks.length} text block(s), ${toolUseBlocks.length} tool_use block(s), usage=${usage ? 'yes' : 'no'}, uuid=${uuid}`);
         return events.length === 1 ? events[0] : events;
       }
     }
@@ -577,17 +633,19 @@ export function parseContextOutput(content: string): import('../../shared/types.
     const model = modelMatch ? modelMatch[1].trim() : 'unknown';
 
     // Extract total tokens and context window
-    // Format: **Tokens:** 19.6k / 200.0k (10%)
-    const tokensMatch = content.match(/\*\*Tokens:\*\*\s*([\d.]+)k?\s*\/\s*([\d.]+)k?\s*\((\d+)%\)/);
+    // Format: **Tokens:** 19.6k / 200.0k (10%)  or  **Tokens:** 377.3k / 1000.0k (38%)
+    const tokensMatch = content.match(/\*\*Tokens:\*\*\s*([\d.]+k?)\s*\/\s*([\d.]+k?)\s*\((\d+)%\)/);
     if (!tokensMatch) {
       log.log('parseContextOutput: Could not parse tokens line');
       return null;
     }
 
     const parseTokens = (str: string): number => {
-      const num = parseFloat(str);
-      // If original string had 'k' suffix, multiply by 1000
-      return str.includes('k') || num < 1000 ? num * 1000 : num;
+      // The k suffix is now included in the capture group
+      if (str.endsWith('k') || str.endsWith('K')) {
+        return parseFloat(str) * 1000;
+      }
+      return parseFloat(str);
     };
 
     const totalTokens = parseTokens(tokensMatch[1]);
@@ -597,10 +655,12 @@ export function parseContextOutput(content: string): import('../../shared/types.
     // Parse category table
     const parseCategory = (name: string): { tokens: number; percent: number } => {
       // Match: | Category Name | 3.1k | 1.6% |
-      const regex = new RegExp(`\\|\\s*${name}\\s*\\|\\s*([\\d.]+)k?\\s*\\|\\s*([\\d.]+)%\\s*\\|`, 'i');
+      const regex = new RegExp(`\\|\\s*${name}\\s*\\|\\s*([\\d.]+k?)\\s*\\|\\s*([\\d.]+)%\\s*\\|`, 'i');
       const match = content.match(regex);
       if (match) {
-        const tokens = parseFloat(match[1]) * (match[1].includes('k') || parseFloat(match[1]) < 100 ? 1000 : 1);
+        const tokens = match[1].endsWith('k') || match[1].endsWith('K')
+          ? parseFloat(match[1]) * 1000
+          : parseFloat(match[1]);
         return { tokens, percent: parseFloat(match[2]) };
       }
       return { tokens: 0, percent: 0 };
