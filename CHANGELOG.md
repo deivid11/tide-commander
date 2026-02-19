@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.69.3] - 2026-02-19
+
+### Changed
+- **Expandable subagent results** - Subagent completion messages now show a collapsible "Show result" toggle instead of inline preview text, keeping the output clean while preserving full result access
+- **Hide tool_result in simple view** - Tool result entries are now hidden in simple/history view to match live output filtering behavior
+
+### Removed
+- **Dead silent context refresh code** - Removed unused `scheduleSilentContextRefresh` function and its wiring in runtime-events/runtime-service (context tracking now uses `usage_snapshot` events exclusively)
+
 ## [0.69.2] - 2026-02-19
 
 ### Changed

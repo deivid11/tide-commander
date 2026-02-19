@@ -254,6 +254,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
 
   // All hooks must be called before any conditional returns (Rules of Hooks)
   const [sessionExpanded, setSessionExpanded] = useState(false);
+  const [subagentResultExpanded, setSubagentResultExpanded] = useState(false);
   const { toggle: toggleTTS, speaking } = useTTS();
 
   // Format timestamp for display
@@ -773,6 +774,9 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     : '';
   const isSystemMessage = /^\s*(?:[\u{1F300}-\u{1FAFF}\u2600-\u27BF]\s*)?\[System\]/u.test(text);
 
+  // Detect subagent completion messages with full result content
+  const isSubagentCompletion = Boolean(output.subagentName && payloadToolOutput && /^[✅❌]\s*Subagent\s/.test(text));
+
   // Categorize other output types
   let className = 'output-line';
   let useMarkdown = true;
@@ -889,6 +893,22 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         </>
       ) : (
         text
+      )}
+      {isSubagentCompletion && payloadToolOutput && (
+        <div className="subagent-result-section">
+          <button
+            className="subagent-result-toggle"
+            onClick={(e) => { e.stopPropagation(); setSubagentResultExpanded(!subagentResultExpanded); }}
+          >
+            <span className="subagent-result-arrow">{subagentResultExpanded ? '▼' : '▶'}</span>
+            {subagentResultExpanded ? 'Hide result' : 'Show result'}
+          </button>
+          {subagentResultExpanded && (
+            <div className="subagent-result-content markdown-content">
+              {renderContentWithImages(payloadToolOutput, onImageClick, onFileClick)}
+            </div>
+          )}
+        </div>
       )}
       {isClaudeMessage && !isStreaming && (
         <div className="message-action-btns">

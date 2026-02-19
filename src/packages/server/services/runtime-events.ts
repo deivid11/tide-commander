@@ -48,9 +48,6 @@ interface RuntimeEventsDeps {
     systemPrompt?: string,
     forceNewSession?: boolean
   ) => Promise<void>;
-  // Kept for backwards compatibility but no longer auto-triggered.
-  // Real-time context tracking uses usage_snapshot events instead.
-  scheduleSilentContextRefresh?: (agentId: string, reason: 'step_complete' | 'handle_complete') => void;
 }
 
 export interface RuntimeRunnerCallbacks {

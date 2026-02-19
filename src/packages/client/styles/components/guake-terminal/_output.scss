@@ -687,6 +687,48 @@
   }
 }
 
+// Expandable subagent result content
+.subagent-result-section {
+  width: 100%;
+  margin-top: 4px;
+
+  .subagent-result-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: none;
+    border: none;
+    color: var(--accent-blue, #60a5fa);
+    font-size: 11px;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: $radius-sm;
+    opacity: 0.8;
+    transition: opacity 0.15s ease, background-color 0.15s ease;
+
+    &:hover {
+      opacity: 1;
+      background: color-mix(in srgb, var(--accent-blue, #60a5fa) 12%, transparent);
+    }
+
+    .subagent-result-arrow {
+      font-size: 9px;
+    }
+  }
+
+  .subagent-result-content {
+    margin-top: 6px;
+    padding: 10px 12px;
+    background: color-mix(in srgb, var(--bg-secondary, #1e1e2e) 60%, transparent);
+    border-left: 3px solid var(--accent-blue, #60a5fa);
+    border-radius: $radius-sm;
+    max-height: 600px;
+    overflow-y: auto;
+    font-size: 12px;
+    color: var(--text-primary);
+  }
+}
+
 // Collapsible codex-injected prompt preamble in user messages
 .injected-instructions {
   margin: 6px 0 8px 0;
