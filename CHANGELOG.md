@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.69.1] - 2026-02-18
+
+### Added
+- **Mobile context bar** - Compact context stats bar above the input area on mobile, tappable to open the full context modal
+- **New backend tests** - Tests for comma-separated token counts and visual context format parsing
+
+### Changed
+- **Unified token parser** - `parseContextOutput` and `parseVisualContextOutput` now share a robust `parseTokenValue` helper supporting `k`, `m` suffixes, comma separators, and decimal percentages
+- **Cumulative token guard** - `usage_snapshot` and `step_complete` handlers detect when token sums exceed the context limit (cumulative session totals) and preserve the last valid per-request value instead of inflating the context bar
+- **Context stats broadcast sanitization** - `broadcastContextStats` resets totalTokens to 0 if it exceeds contextWindow, preventing impossible context bar values
+- **Context command fallback chain** - `handleRequestContextStats` now tries CLI fetch, then in-session `/context` command, then tracked data (was: CLI then tracked data only)
+- **Context stats from tracked data** - `buildStatsFromTrackedData` guards against values exceeding contextLimit
+- **Real-time context updates** - `updateAgentContext` now also patches `contextStats` (totalTokens, contextWindow, usedPercent) so the context modal stays in sync
+- **History view** - Shows all messages including utility slash commands (`/context`, `/cost`, `/compact`) and tool results in simple view
+- **Visual context parser** - Upgraded regex to handle comma-separated numbers, `m` suffix (millions), and decimal percentages
+- **Context stats parsing** - `runtime-listeners` now tries `parseAllFormats` (which handles visual bar-chart format) before falling back to `parseContextOutput`
+
+### Fixed
+- **Sidebar toggle on mobile** - Button now toggles the slide-in sidebar on mobile instead of the desktop collapse state
+- **Sidebar open state on mobile** - `!important` overrides on transform/opacity/pointer-events ensure the sidebar actually appears when opened
+- **Mobile agent bar height** - Uses CSS custom property with `safe-area-inset-bottom` for landscape and portrait modes
+- **Stop bar position on mobile** - Moved up to clear the context bar
+- **Session expanded state** - Moved `useState` for session continuation before early returns to fix React hook ordering
+- **File path paste** - Inserts path as text when file is not found instead of silently dropping it
+- **dist-app in .gitignore** - Added `dist-app/` to prevent build artifacts from being tracked
+
 ## [0.69.0] - 2026-02-18
 
 ### Added

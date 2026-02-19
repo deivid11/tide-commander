@@ -20,10 +20,17 @@
   z-index: 150;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 
-  // Hide on mobile when terminal is open - terminal provides its own view mode toggle
+  // On mobile: hide in terminal view, show (repositioned) in 3D/2D view
   @media (max-width: 768px) {
-    .app.terminal-open & {
+    .app.mobile-view-terminal & {
       display: none !important;
+    }
+
+    // Reposition to the right of the FAB toggle button (44px + 12px left + 8px gap)
+    .app.mobile-view-3d & {
+      left: 64px;
+      top: 12px;
+      z-index: 999;
     }
   }
 }

@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { ServerMessage, Subagent } from '../../../shared/types.js';
 import { parseContextOutput } from '../../claude/backend.js';
+import { parseAllFormats } from '../handlers/agent-handler.js';
 import { agentService, runtimeService } from '../../services/index.js';
 import { logger, formatToolActivity } from '../../utils/index.js';
 import { parseBossDelegation, parseBossSpawn, getBossForSubordinate, clearDelegation } from '../handlers/boss-response-handler.js';
@@ -181,7 +182,8 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
 
     if (event.type === 'context_stats' && event.contextStatsRaw) {
       log.log(`[context_stats] Received for agent ${agentId}, raw length: ${event.contextStatsRaw.length}`);
-      const stats = parseContextOutput(event.contextStatsRaw);
+      // Try all known formats: markdown table, visual bar chart, etc.
+      const stats = parseAllFormats(event.contextStatsRaw) || parseContextOutput(event.contextStatsRaw);
       if (stats) {
         log.log(`[context_stats] Parsed: ${stats.usedPercent}% used, ${stats.totalTokens}/${stats.contextWindow} tokens`);
         agentService.updateAgent(agentId, {

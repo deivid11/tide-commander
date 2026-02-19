@@ -257,27 +257,36 @@ export async function handleCollapseContext(
  */
 function parseVisualContextOutput(content: string): ContextStats | null {
   try {
+    const parseTokenVal = (raw: string): number => {
+      const normalized = raw.trim().replace(/,/g, '');
+      const suffix = normalized.slice(-1).toLowerCase();
+      const numericPart = suffix === 'k' || suffix === 'm'
+        ? normalized.slice(0, -1)
+        : normalized;
+      const value = parseFloat(numericPart);
+      if (!Number.isFinite(value)) return NaN;
+      if (suffix === 'k') return value * 1000;
+      if (suffix === 'm') return value * 1000000;
+      return value;
+    };
+
     // Match: model-name · 46k/200k tokens (23%)
-    const headerMatch = content.match(/([\w.-]+)\s*[·•]\s*([\d.]+k?)\s*\/\s*([\d.]+k?)\s*tokens\s*\((\d+)%\)/);
+    const headerMatch = content.match(/([^\n]+?)\s*[·•]\s*([\d.,]+(?:[kKmM])?)\s*\/\s*([\d.,]+(?:[kKmM])?)\s*tokens?\s*\(([\d.]+)%\)/i);
     if (!headerMatch) {
       return null;
     }
 
-    const parseTokenVal = (str: string): number => {
-      if (str.endsWith('k') || str.endsWith('K')) {
-        return parseFloat(str) * 1000;
-      }
-      return parseFloat(str);
-    };
-
-    const model = headerMatch[1];
+    const model = headerMatch[1].trim();
     const totalTokens = parseTokenVal(headerMatch[2]);
     const contextWindow = parseTokenVal(headerMatch[3]);
-    const usedPercent = parseInt(headerMatch[4], 10);
+    const usedPercent = parseFloat(headerMatch[4]);
+    if (!Number.isFinite(totalTokens) || !Number.isFinite(contextWindow) || !Number.isFinite(usedPercent)) {
+      return null;
+    }
 
     // Parse categories from visual format: "⛁ Category Name: 6.7k tokens (3.4%)" or "⛁ Category Name: 479 tokens (0.2%)"
     const parseVisualCategory = (name: string): { tokens: number; percent: number } => {
-      const regex = new RegExp(`${name}:\\s*([\\.\\d]+k?)\\s*(?:tokens)?\\s*\\(([\\.\\d]+)%\\)`, 'i');
+      const regex = new RegExp(`${name}:\\s*([\\d.,]+(?:[kKmM])?)\\s*(?:tokens)?\\s*\\(([\\d.]+)%\\)`, 'i');
       const match = content.match(regex);
       if (match) {
         return { tokens: parseTokenVal(match[1]), percent: parseFloat(match[2]) };
@@ -330,6 +339,25 @@ function fetchContextFromCLI(sessionId: string, cwd: string): Promise<ContextSta
         resolve(stats2);
       });
     });
+  });
+}
+
+function waitForContextStatsUpdate(agentId: string, previousLastUpdated: number, timeoutMs = 2500): Promise<boolean> {
+  return new Promise((resolve) => {
+    const startedAt = Date.now();
+    const interval = setInterval(() => {
+      const agent = agentService.getAgent(agentId);
+      const lastUpdated = agent?.contextStats?.lastUpdated || 0;
+      if (lastUpdated > previousLastUpdated) {
+        clearInterval(interval);
+        resolve(true);
+        return;
+      }
+      if (Date.now() - startedAt >= timeoutMs) {
+        clearInterval(interval);
+        resolve(false);
+      }
+    }, 100);
   });
 }
 
@@ -467,7 +495,7 @@ function tryPlainPipe(sessionId: string, cwd: string): Promise<ContextStats | nu
 }
 
 /** Try every known format parser on the combined output. */
-function parseAllFormats(raw: string): ContextStats | null {
+export function parseAllFormats(raw: string): ContextStats | null {
   // Strip ANSI escape codes
   const stripped = raw.replace(/\x1B\[[0-9;]*[A-Za-z]/g, '');
 
@@ -491,8 +519,23 @@ function parseAllFormats(raw: string): ContextStats | null {
  * Build context stats from tracked agent data (fallback when CLI fetch isn't possible).
  */
 function buildStatsFromTrackedData(agent: Agent): ContextStats {
-  const contextUsed = Math.max(0, Math.round(agent.contextUsed || 0));
+  // Always use the real-time tracked values from step_complete/usage_snapshot events.
+  // These are updated on every API turn and are the most accurate source of truth.
+  // Do NOT prefer agent.contextStats here — those can become stale when previous
+  // fallback calls save their (potentially wrong) output back to agent.contextStats
+  // via broadcastContextStats, creating a self-reinforcing feedback loop.
   const contextLimit = Math.max(1, Math.round(agent.contextLimit || 200000));
+  const rawContextUsed = Math.max(0, Math.round(agent.contextUsed || 0));
+  // Guard: contextUsed can never exceed contextLimit. Values above the limit are
+  // cumulative session totals from result events, not per-request context fill.
+  const contextUsed = rawContextUsed <= contextLimit ? rawContextUsed : 0;
+
+  if (rawContextUsed > contextLimit) {
+    log.log(`[contextStats] Building from tracked data: raw ${rawContextUsed} exceeds limit ${contextLimit}, reset to 0`);
+  } else {
+    log.log(`[contextStats] Building from tracked data: ${contextUsed}/${contextLimit}`);
+  }
+
   const usedPercent = Math.min(100, Math.round((contextUsed / contextLimit) * 100));
   const freeTokens = Math.max(0, contextLimit - contextUsed);
   const model = agent.model || agent.codexModel || 'unknown';
@@ -517,6 +560,14 @@ function buildStatsFromTrackedData(agent: Agent): ContextStats {
  * Broadcast context stats to UI (both the modal and the context bar).
  */
 function broadcastContextStats(ctx: HandlerContext, agentId: string, stats: ContextStats, label: string): void {
+  // Sanitize: if totalTokens exceeds contextWindow, it's a cumulative artifact — reset to 0.
+  if (stats.totalTokens > stats.contextWindow) {
+    stats = { ...stats, totalTokens: 0, usedPercent: 0, categories: {
+      ...stats.categories,
+      messages: { tokens: 0, percent: 0 },
+      freeSpace: { tokens: stats.contextWindow, percent: 100 },
+    }};
+  }
   const freePercent = stats.categories?.freeSpace?.percent ?? (100 - stats.usedPercent);
 
   agentService.updateAgent(agentId, {
@@ -565,15 +616,32 @@ export async function handleRequestContextStats(
         broadcastContextStats(ctx, payload.agentId, stats, 'from CLI');
         return;
       }
-      log.warn(`[contextStats] CLI fetch returned null, falling back to tracked data`);
+      log.warn(`[contextStats] CLI fetch returned null, trying in-session /context command`);
     } catch (err) {
       log.error(`[contextStats] CLI fetch failed: ${err}`);
+    }
+
+    // Fallback #2 for Claude: ask the runtime session directly and let runtime-listeners
+    // parse/broadcast the authoritative context_stats event.
+    try {
+      const beforeUpdate = agent.contextStats?.lastUpdated || 0;
+      await runtimeService.sendSilentCommand(payload.agentId, '/context');
+      ctx.sendActivity(payload.agentId, 'Fetching context from Claude session');
+      const gotContextStats = await waitForContextStatsUpdate(payload.agentId, beforeUpdate);
+      if (gotContextStats) {
+        log.log(`[contextStats] In-session /context produced context_stats for ${agent.name}`);
+        return;
+      }
+      log.warn(`[contextStats] In-session /context produced no context_stats, falling back to tracked data`);
+    } catch (err) {
+      log.error(`[contextStats] In-session /context failed: ${err}`);
     }
   }
 
   // Fallback: generate from tracked data
-  const stats = buildStatsFromTrackedData(agent);
-  const label = agent.provider === 'codex' ? 'estimated from turn usage' : 'tracked from token usage';
+  const latestAgent = agentService.getAgent(payload.agentId) || agent;
+  const stats = buildStatsFromTrackedData(latestAgent);
+  const label = latestAgent.provider === 'codex' ? 'estimated from turn usage' : 'tracked from token usage';
   broadcastContextStats(ctx, payload.agentId, stats, label);
 }
 

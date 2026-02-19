@@ -199,11 +199,24 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
             const snapshotContextUsed = cacheRead + cacheCreation + inputTokens;
 
             if (snapshotContextUsed > 0) {
-              const updates: Record<string, unknown> = {
-                contextUsed: Math.max(0, snapshotContextUsed),
-              };
-              agentService.updateAgent(agentId, updates, false);
-              log.log(`[usage_snapshot] ${agentId}: input=${inputTokens} + cacheRead=${cacheRead} + cacheCreation=${cacheCreation} = ${snapshotContextUsed} (output=${event.tokens.output || 0}) limit=${agent.contextLimit || '?'}`);
+              const effectiveLimit = agent.contextLimit || 200000;
+              // Guard against cumulative session totals: if the sum exceeds the
+              // context window, it can't represent per-request context fill.
+              if (snapshotContextUsed > effectiveLimit) {
+                log.log(`[usage_snapshot] ${agentId}: sum ${snapshotContextUsed} exceeds limit ${effectiveLimit} (likely cumulative); skipping`);
+                // If the agent's existing contextUsed is also stale (exceeds limit),
+                // reset it to 0 so the UI doesn't keep showing an impossible value.
+                if ((agent.contextUsed || 0) > effectiveLimit) {
+                  agentService.updateAgent(agentId, { contextUsed: 0 }, false);
+                  log.log(`[usage_snapshot] ${agentId}: reset stale contextUsed ${agent.contextUsed} to 0`);
+                }
+              } else {
+                const updates: Record<string, unknown> = {
+                  contextUsed: Math.max(0, snapshotContextUsed),
+                };
+                agentService.updateAgent(agentId, updates, false);
+                log.log(`[usage_snapshot] ${agentId}: input=${inputTokens} + cacheRead=${cacheRead} + cacheCreation=${cacheCreation} = ${snapshotContextUsed} (output=${event.tokens.output || 0}) limit=${effectiveLimit}`);
+              }
             }
           }
         }
@@ -245,8 +258,21 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
               ? Math.max(rollingEstimate, inputTokens + outputTokens)
               : rollingEstimate;
           } else {
-            // Context window = input side only (output tokens don't count toward the limit)
-            contextUsed = cacheRead + cacheCreation + inputTokens;
+            // Context window = input side only (output tokens don't count toward the limit).
+            // IMPORTANT: modelUsage token sums in result events are CUMULATIVE session-wide
+            // totals, not per-request context fill. If the sum exceeds contextLimit, it's
+            // clearly cumulative — preserve the usage_snapshot value which IS per-request.
+            const modelUsageSum = cacheRead + cacheCreation + inputTokens;
+            if (modelUsageSum > contextLimit) {
+              // Cumulative session total detected. Prefer existing usage_snapshot value,
+              // but if that's ALSO stale (exceeds limit), fall back to 0 rather than
+              // propagating a bad value.
+              const existing = agent.contextUsed || 0;
+              contextUsed = existing <= contextLimit ? existing : 0;
+              log.log(`[step_complete] modelUsage sum ${modelUsageSum} exceeds contextLimit ${contextLimit} for ${agentId} (cumulative); using contextUsed=${contextUsed}`);
+            } else {
+              contextUsed = modelUsageSum;
+            }
           }
           log.log(`[step_complete] modelUsage data for ${agentId}: cacheRead=${cacheRead}, cacheCreation=${cacheCreation}, input=${inputTokens}, contextWindow=${event.modelUsage.contextWindow || 'none'}`);
         } else if (event.tokens) {
@@ -254,8 +280,16 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
             const cacheRead = event.tokens.cacheRead || 0;
             const cacheCreation = event.tokens.cacheCreation || 0;
             const inputTokens = event.tokens.input || 0;
-            // Context window = input side only
-            contextUsed = cacheRead + cacheCreation + inputTokens;
+            // Context window = input side only.
+            // Same cumulative guard as modelUsage path above.
+            const tokenSum = cacheRead + cacheCreation + inputTokens;
+            if (tokenSum > contextLimit) {
+              const existing = agent.contextUsed || 0;
+              contextUsed = existing <= contextLimit ? existing : 0;
+              log.log(`[step_complete] tokens sum ${tokenSum} exceeds contextLimit ${contextLimit} for ${agentId} (cumulative); using contextUsed=${contextUsed}`);
+            } else {
+              contextUsed = tokenSum;
+            }
           } else {
             const inputTokens = event.tokens.input || 0;
             const outputTokens = event.tokens.output || 0;
@@ -282,9 +316,16 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
         // authoritative contextUsed/contextLimit values. Don't overwrite them with
         // zero-token step_complete data from the local command.
         if (isContextCommand) {
-          contextUsed = agent.contextUsed || 0;
-          contextLimit = agent.contextLimit || 200000;
-          log.log(`[step_complete] Context command for ${agentId}; preserving context values from context_stats`);
+          const stats = agent.contextStats;
+          if (stats && stats.contextWindow > 0) {
+            contextUsed = Math.max(0, stats.totalTokens || 0);
+            contextLimit = Math.max(1, stats.contextWindow || 200000);
+            log.log(`[step_complete] Context command for ${agentId}; preserving context from context_stats ${contextUsed}/${contextLimit}`);
+          } else {
+            contextUsed = agent.contextUsed || 0;
+            contextLimit = agent.contextLimit || 200000;
+            log.log(`[step_complete] Context command for ${agentId}; preserving context values from tracked fields`);
+          }
         } else if (isClaudeProvider && hasZeroTokenUsage && hasNoModelUsage) {
           contextUsed = agent.contextUsed || 0;
           contextLimit = agent.contextLimit || 200000;
