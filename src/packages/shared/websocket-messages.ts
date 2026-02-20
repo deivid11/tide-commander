@@ -304,6 +304,16 @@ export interface SubagentCompletedMessage extends WSMessage {
   };
 }
 
+// Subagent JSONL stream message (Server -> Client)
+export interface SubagentStreamMessage extends WSMessage {
+  type: 'subagent_stream';
+  payload: {
+    toolUseId: string;
+    parentAgentId: string;
+    entries: import('./agent-types.js').SubagentStreamEntry[];
+  };
+}
+
 // ============================================================================
 // Areas Messages
 // ============================================================================
@@ -1416,7 +1426,8 @@ export type ServerMessage =
   | SnapshotRestoredMessage
   | SubagentStartedMessage
   | SubagentOutputMessage
-  | SubagentCompletedMessage;
+  | SubagentCompletedMessage
+  | SubagentStreamMessage;
 
 export type ClientMessage =
   | SpawnAgentMessage

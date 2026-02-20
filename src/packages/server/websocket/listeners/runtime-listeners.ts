@@ -7,6 +7,7 @@ import { parseAllFormats } from '../handlers/agent-handler.js';
 import { agentService, runtimeService } from '../../services/index.js';
 import { logger, formatToolActivity } from '../../utils/index.js';
 import { parseBossDelegation, parseBossSpawn, getBossForSubordinate, clearDelegation } from '../handlers/boss-response-handler.js';
+import { startWatching as startJsonlWatching, stopWatching as stopJsonlWatching, getSubagentsDir } from '../../services/subagent-jsonl-watcher.js';
 
 const log = logger.ws;
 const MAX_SYNTHETIC_DIFF_FILE_BYTES = 256 * 1024;
@@ -66,6 +67,17 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
 
           ctx.sendActivity(agentId, `Spawned subagent: ${subagent.name} (${subagent.subagentType})`);
           log.log(`[Subagent] Broadcast subagent_started: ${subagent.name} (${subagent.id})`);
+
+          // Start streaming JSONL file for this subagent
+          if (parentAgent?.sessionId) {
+            const subagentsDir = getSubagentsDir(parentAgent.cwd, parentAgent.sessionId);
+            startJsonlWatching(event.toolUseId, agentId, subagentsDir, (toolUseId, parentAgentId, entries) => {
+              ctx.broadcast({
+                type: 'subagent_stream',
+                payload: { toolUseId, parentAgentId, entries },
+              } as any);
+            });
+          }
         }
       }
     } else if (event.type === 'tool_result' && event.toolName === 'Task' && event.toolUseId) {
@@ -102,6 +114,9 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
       } as any);
 
       log.log(`[Subagent] Broadcast subagent_completed for toolUseId=${event.toolUseId}, name=${event.subagentName || 'unknown'}, stats=${event.subagentStats ? `${event.subagentStats.durationMs}ms/${event.subagentStats.tokensUsed}tok/${event.subagentStats.toolUseCount}tools` : 'none'}`);
+
+      // Stop streaming JSONL file for this subagent
+      stopJsonlWatching(event.toolUseId);
     }
 
     // Forward subagent internal tool activity to client (events with parentToolUseId)

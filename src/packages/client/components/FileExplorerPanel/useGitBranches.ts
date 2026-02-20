@@ -86,7 +86,7 @@ export function useGitBranches(): UseGitBranchesReturn {
     }
   }, []);
 
-  const pullFromRemote = useCallback(async (directory: string): Promise<GitBranchOperationResult> => {
+  const pullFromRemote = useCallback(async (directory: string): Promise<MergeResult> => {
     setOperationInProgress('pull');
     setError(null);
     try {
@@ -96,14 +96,14 @@ export function useGitBranches(): UseGitBranchesReturn {
         body: JSON.stringify({ directory }),
       });
       const data = await res.json();
-      if (!res.ok) {
+      if (!res.ok && !data.conflicts) {
         setError(data.error || 'Pull failed');
       }
       return data;
     } catch (err) {
       console.error('[GitBranches] Pull failed:', err);
-      const result = { success: false, error: 'Pull failed' };
-      setError(result.error);
+      const result: MergeResult = { success: false, error: 'Pull failed' };
+      setError(result.error!);
       return result;
     } finally {
       setOperationInProgress(null);

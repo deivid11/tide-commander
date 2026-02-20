@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.69.4] - 2026-02-19
+
+### Added
+- **Subagent JSONL streaming** - Real-time streaming of subagent activity from JSONL files via file watcher, with inline stream panel showing tool use, text output, and results as they happen
+- **Pull conflict resolution flow** - Git pull now detects merge conflicts and routes them through the existing merge resolution UI instead of showing a generic error
+
+### Changed
+- **Subagent auto-remove timer** - Extracted into shared `scheduleRemove` function; incoming stream entries now extend the timer so subagents with late-arriving data stay visible longer
+- **Folder dropdown polish** - Tighter padding/spacing, smaller font sizes, smooth scroll with `onWheel`, and redundant path label hidden when it matches the folder name
+- **Dedup debug logging** - History and live output deduplication now logs dropped outputs with UUIDs/timestamps for easier troubleshooting
+
+### Fixed
+- **Pull uses `--no-rebase`** - Git pull endpoint now uses merge strategy by default, and properly parses conflict file paths from combined stdout+stderr
+- **Pull return type** - `pullFromRemote` now returns `MergeResult` (with `conflicts` array) instead of generic `GitBranchOperationResult`
+
 ## [0.69.3] - 2026-02-19
 
 ### Changed

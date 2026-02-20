@@ -1057,6 +1057,7 @@ class Store
   getSubagentByToolUseId(...args: Parameters<SubagentActions['getSubagentByToolUseId']>) { return this.subagentActions.getSubagentByToolUseId(...args); }
   addSubagentActivity(...args: Parameters<SubagentActions['addSubagentActivity']>) { return this.subagentActions.addSubagentActivity(...args); }
   updateSubagentStats(...args: Parameters<SubagentActions['updateSubagentStats']>) { return this.subagentActions.updateSubagentStats(...args); }
+  addSubagentStreamEntries(...args: Parameters<SubagentActions['addSubagentStreamEntries']>) { return this.subagentActions.addSubagentStreamEntries(...args); }
 }
 
 // Extend Window interface for HMR persistence

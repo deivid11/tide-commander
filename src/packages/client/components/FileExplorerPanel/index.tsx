@@ -1044,6 +1044,15 @@ export function FileExplorerPanel({
     }
   }, [currentFolder, mergeBranch, loadGitStatus, loadTree, showToast]);
 
+  const handlePullConflicts = useCallback(async (conflicts: string[]) => {
+    // Pull with conflicts triggers the same merge resolution flow
+    setMergingBranch('remote');
+    await loadGitStatus();
+    const n = conflicts.length;
+    showToast('warning', 'Pull Conflicts', `${n} conflict${n > 1 ? 's' : ''} found — resolve to continue`);
+    setViewMode('git');
+  }, [loadGitStatus, showToast]);
+
   const handleConflictOpen = useCallback(async (filePath: string) => {
     if (!currentFolder) return;
     setConflictFile(filePath);
@@ -1259,6 +1268,7 @@ export function FileExplorerPanel({
                 }}
                 onMerge={handleMerge}
                 onCompare={handleCompare}
+                onPullConflicts={handlePullConflicts}
               />
             </>
           )}
@@ -1269,7 +1279,13 @@ export function FileExplorerPanel({
 
           {/* Folder Selector Dropdown (not shown in direct folder mode) */}
           {!isDirectFolderMode && showFolderSelector && allFolders.length > 0 && (
-            <div className="file-explorer-folder-dropdown">
+            <div
+              className="file-explorer-folder-dropdown"
+              onWheel={(e) => {
+                e.preventDefault();
+                e.currentTarget.scrollTop += e.deltaY * 0.35;
+              }}
+            >
               {allFolders.map((folder) => (
                 <div
                   key={`${folder.areaId}-${folder.path}`}
@@ -1288,7 +1304,9 @@ export function FileExplorerPanel({
                     />
                     {folder.path.split('/').pop() || folder.path}
                   </span>
-                  <span className="file-explorer-folder-option-path">{folder.path}</span>
+                  {(folder.path.split('/').pop() || folder.path) !== folder.path && (
+                    <span className="file-explorer-folder-option-path">{folder.path}</span>
+                  )}
                   <span className="file-explorer-folder-option-area">{folder.areaName}</span>
                 </div>
               ))}
