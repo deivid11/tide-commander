@@ -206,7 +206,21 @@
     "drawToCreate": "क्षेत्र बनाने के लिए रणभूमि पर ड्रॉ करें",
     "rect": "आयत",
     "circle": "वृत्त",
-    "deleteArea": "क्षेत्र हटाएं"
+    "deleteArea": "क्षेत्र हटाएं",
+    "logo": "लोगो",
+    "uploadLogo": "लोगो अपलोड करें",
+    "removeLogo": "हटाएं",
+    "logoPosition": "स्थिति",
+    "logoSize": "आकार",
+    "logoWidth": "चौ",
+    "logoHeight": "ऊं",
+    "logoOpacity": "अपारदर्शिता",
+    "keepAspectRatio": "अनुपात बनाए रखें",
+    "posCenter": "केंद्र",
+    "posTopLeft": "ऊपर-बाएं",
+    "posTopRight": "ऊपर-दाएं",
+    "posBottomLeft": "नीचे-बाएं",
+    "posBottomRight": "नीचे-दाएं"
   },
   "buildings": {
     "title": "बिल्डिंग्स ({{count}})",

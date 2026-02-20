@@ -206,7 +206,21 @@
     "drawToCreate": "フィールド上に描画してエリアを作成",
     "rect": "四角形",
     "circle": "円",
-    "deleteArea": "エリアを削除"
+    "deleteArea": "エリアを削除",
+    "logo": "ロゴ",
+    "uploadLogo": "ロゴをアップロード",
+    "removeLogo": "削除",
+    "logoPosition": "位置",
+    "logoSize": "サイズ",
+    "logoWidth": "幅",
+    "logoHeight": "高",
+    "logoOpacity": "不透明度",
+    "keepAspectRatio": "縦横比を維持",
+    "posCenter": "中央",
+    "posTopLeft": "左上",
+    "posTopRight": "右上",
+    "posBottomLeft": "左下",
+    "posBottomRight": "右下"
   },
   "buildings": {
     "title": "ビルディング ({{count}})",

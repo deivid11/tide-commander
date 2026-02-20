@@ -206,7 +206,21 @@
     "drawToCreate": "Auf dem Schlachtfeld zeichnen um Bereiche zu erstellen",
     "rect": "Rechteck",
     "circle": "Kreis",
-    "deleteArea": "Bereich löschen"
+    "deleteArea": "Bereich löschen",
+    "logo": "Logo",
+    "uploadLogo": "Logo hochladen",
+    "removeLogo": "Entfernen",
+    "logoPosition": "Position",
+    "logoSize": "Groesse",
+    "logoWidth": "B",
+    "logoHeight": "H",
+    "logoOpacity": "Deckkraft",
+    "keepAspectRatio": "Seitenverhaeltnis",
+    "posCenter": "Mitte",
+    "posTopLeft": "Oben-Links",
+    "posTopRight": "Oben-Rechts",
+    "posBottomLeft": "Unten-Links",
+    "posBottomRight": "Unten-Rechts"
   },
   "buildings": {
     "title": "Gebäude ({{count}})",

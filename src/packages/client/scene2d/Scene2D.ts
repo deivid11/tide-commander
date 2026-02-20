@@ -15,6 +15,7 @@ import { Scene2DCamera } from './Scene2DCamera';
 import { Scene2DEffects } from './Scene2DEffects';
 import { AGENT_CLASS_CONFIG, FORMATION_SPACING } from '../scene/config';
 import { fpsTracker } from '../utils/profiling';
+import { apiUrl, authUrl } from '../utils/storage';
 
 /**
  * Agent data for 2D rendering
@@ -67,6 +68,13 @@ export interface Area2DData {
   directories: string[];
   hasDirectories?: boolean;
   directoryGitCounts?: number[];
+  logo?: {
+    url: string;
+    position: 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+    width: number;
+    height: number;
+    opacity: number;
+  };
 }
 
 /**
@@ -595,6 +603,14 @@ export class Scene2D {
       if (area.archived) continue;
 
       const hasDirectories = area.directories && area.directories.length > 0;
+      const logo = area.logo?.filename ? {
+        url: authUrl(apiUrl(`/api/areas/logos/${area.logo.filename}`)),
+        position: area.logo.position,
+        width: area.logo.width,
+        height: area.logo.height,
+        opacity: area.logo.opacity ?? 0.8,
+      } : undefined;
+
       if (area.type === 'rectangle' && area.width && area.height) {
         this.areas.set(area.id, {
           id: area.id,
@@ -607,6 +623,7 @@ export class Scene2D {
           directories: [...area.directories],
           hasDirectories,
           directoryGitCounts: area.directoryGitCounts ? [...area.directoryGitCounts] : undefined,
+          logo,
         });
       } else if (area.type === 'circle' && area.radius) {
         this.areas.set(area.id, {
@@ -620,6 +637,7 @@ export class Scene2D {
           directories: [...area.directories],
           hasDirectories,
           directoryGitCounts: area.directoryGitCounts ? [...area.directoryGitCounts] : undefined,
+          logo,
         });
       }
     }

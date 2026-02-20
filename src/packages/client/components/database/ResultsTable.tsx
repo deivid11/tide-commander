@@ -53,8 +53,8 @@ interface PendingUpdateState {
   originalQuery: string;
 }
 
-const PAGE_SIZE_OPTIONS = [25, 50, 100, 250];
-const DEFAULT_PAGE_SIZE = 50;
+const PAGE_SIZE_OPTIONS = [25, 50, 100, 250, 500, 1000];
+const DEFAULT_PAGE_SIZE = 250;
 
 const pad2 = (value: number): string => String(value).padStart(2, '0');
 

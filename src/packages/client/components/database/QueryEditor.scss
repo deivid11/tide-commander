@@ -19,6 +19,12 @@
     gap: 12px;
   }
 
+  &__buttons {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
   &__execute {
     display: flex;
     align-items: center;
@@ -42,8 +48,37 @@
     }
   }
 
+  &__execute-cursor {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    background: transparent;
+    border: 1px solid $accent-blue;
+    border-radius: 4px;
+    color: $accent-blue;
+    font-weight: 500;
+    font-size: 0.9em;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+
+    &:hover:not(:disabled) {
+      background: rgba($accent-blue, 0.12);
+      color: color.adjust($accent-blue, $lightness: 10%);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
   &__play-icon {
     font-size: 0.8em;
+  }
+
+  &__cursor-icon {
+    font-size: 0.85em;
   }
 
   &__spinner {
@@ -100,8 +135,6 @@
   &__editor {
     position: relative;
     flex: 1;
-    min-height: 100px;
-    max-height: 300px;
     overflow: hidden;
     background: $bg-tertiary;
     border: 1px solid $border-color;
@@ -210,6 +243,31 @@
   // When editor is focused
   &__editor:focus-within {
     border-color: $accent-blue;
+  }
+
+  &__resize-handle {
+    height: 5px;
+    cursor: row-resize;
+    background: transparent;
+    position: relative;
+    flex-shrink: 0;
+
+    &::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: 1px;
+      transform: translateX(-50%);
+      width: 40px;
+      height: 3px;
+      background: $border-color;
+      border-radius: 2px;
+      transition: background 0.15s;
+    }
+
+    &:hover::after {
+      background: $text-muted;
+    }
   }
 }
 

@@ -206,7 +206,21 @@
     "drawToCreate": "Dessinez sur le champ de bataille pour créer des zones",
     "rect": "Rect",
     "circle": "Cercle",
-    "deleteArea": "Supprimer la zone"
+    "deleteArea": "Supprimer la zone",
+    "logo": "Logo",
+    "uploadLogo": "Importer le logo",
+    "removeLogo": "Supprimer",
+    "logoPosition": "Position",
+    "logoSize": "Taille",
+    "logoWidth": "L",
+    "logoHeight": "H",
+    "logoOpacity": "Opacite",
+    "keepAspectRatio": "Garder les proportions",
+    "posCenter": "Centre",
+    "posTopLeft": "Haut-Gauche",
+    "posTopRight": "Haut-Droite",
+    "posBottomLeft": "Bas-Gauche",
+    "posBottomRight": "Bas-Droite"
   },
   "buildings": {
     "title": "Bâtiments ({{count}})",
