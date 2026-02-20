@@ -428,17 +428,22 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
     const result: typeof filteredOutputs = [];
     let lastLiveUserKey: string | null = null;
     let lastLiveUserTs = 0;
+    let droppedCount = 0;
 
     for (const output of filteredOutputs) {
       if (!output.isUserPrompt) {
         if (!output.isStreaming && !isToolOrSystemOutput(output.text)) {
           if (output.uuid && historyAssistantUuidSet.has(output.uuid)) {
+            droppedCount++;
+            console.warn(`[DEDUP-DROP] UUID match → dropped live output: uuid=${output.uuid} text="${output.text.slice(0, 80)}"`);
             continue;
           }
           const key = normalizeAssistantMessage(output.text);
           const ts = output.timestamp || 0;
           const historyTs = latestHistoryAssistantTsByKey.get(key);
           if (historyTs && Math.abs(ts - historyTs) <= HISTORY_ASSISTANT_OUTPUT_DUPLICATE_WINDOW_MS) {
+            droppedCount++;
+            console.warn(`[DEDUP-DROP] Text match (within ${HISTORY_ASSISTANT_OUTPUT_DUPLICATE_WINDOW_MS}ms) → dropped live output: ts=${ts} historyTs=${historyTs} diff=${Math.abs(ts - historyTs)}ms text="${output.text.slice(0, 80)}"`);
             continue;
           }
         }
@@ -452,17 +457,25 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
 
       // Duplicate of freshly-loaded history copy of the same user prompt
       if (latestHistoryTs && ts >= latestHistoryTs && ts - latestHistoryTs <= HISTORY_OUTPUT_DUPLICATE_WINDOW_MS) {
+        droppedCount++;
+        console.warn(`[DEDUP-DROP] User prompt history match → dropped: ts=${ts} historyTs=${latestHistoryTs} text="${output.text.slice(0, 80)}"`);
         continue;
       }
 
       // Duplicate command_started events that occasionally arrive twice
       if (lastLiveUserKey === key && Math.abs(ts - lastLiveUserTs) <= LIVE_DUPLICATE_WINDOW_MS) {
+        droppedCount++;
+        console.warn(`[DEDUP-DROP] Duplicate command_started → dropped: text="${output.text.slice(0, 80)}"`);
         continue;
       }
 
       result.push(output);
       lastLiveUserKey = key;
       lastLiveUserTs = ts;
+    }
+
+    if (droppedCount > 0) {
+      console.warn(`[DEDUP] Dropped ${droppedCount}/${filteredOutputs.length} outputs (kept ${result.length}). historyUuids=${historyAssistantUuidSet.size} historyTextKeys=${latestHistoryAssistantTsByKey.size}`);
     }
 
     return result;

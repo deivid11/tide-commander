@@ -802,6 +802,16 @@ export function handleServerMessage(message: ServerMessage): void {
       break;
     }
 
+    case 'subagent_stream': {
+      const { toolUseId, parentAgentId: streamParentId, entries } = message.payload as {
+        toolUseId: string;
+        parentAgentId: string;
+        entries: import('../../shared/types').SubagentStreamEntry[];
+      };
+      store.addSubagentStreamEntries(toolUseId, streamParentId, entries);
+      break;
+    }
+
     // ========================================================================
     // Secrets Messages
     // ========================================================================

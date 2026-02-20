@@ -15,7 +15,7 @@ import { renderContentWithImages, renderUserPromptContent } from './contentRende
 import { ansiToHtml } from '../../utils/ansiToHtml';
 import { useTTS } from '../../hooks/useTTS';
 import type { EditData } from './types';
-import type { ExecTask, Subagent } from '../../../shared/types';
+import type { ExecTask, Subagent, SubagentStreamEntry } from '../../../shared/types';
 
 /** Extract file extension (with dot) from a path, e.g. '/foo/bar.tsx' → '.tsx' */
 function getExtFromPath(filePath: string): string {
@@ -24,6 +24,61 @@ function getExtFromPath(filePath: string): string {
   if (dotIdx <= 0) return '';
   return basename.slice(dotIdx).toLowerCase();
 }
+
+/** Inline panel showing streamed subagent JSONL content */
+const SubagentStreamPanel = memo(function SubagentStreamPanel({ entries, isWorking }: { entries: SubagentStreamEntry[]; isWorking: boolean }) {
+  const [expanded, setExpanded] = useState(false);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll when new entries arrive while working and expanded
+  useEffect(() => {
+    if (isWorking && expanded && listRef.current) {
+      listRef.current.scrollTop = listRef.current.scrollHeight;
+    }
+  }, [entries.length, isWorking, expanded]);
+
+  const visibleEntries = expanded ? entries : entries.slice(-3);
+
+  return (
+    <div className="subagent-stream-panel">
+      <div
+        className="subagent-stream-toggle"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <span className="stream-toggle-arrow">{expanded ? '▼' : '▶'}</span>
+        <span>{expanded ? 'Hide stream' : `Stream (${entries.length} events)`}</span>
+      </div>
+      {(expanded || entries.length <= 3) && (
+        <div className="subagent-stream-list" ref={listRef}>
+          {visibleEntries.map((entry, i) => (
+            <div key={i} className={`subagent-stream-entry entry-${entry.type}${entry.isError ? ' entry-error' : ''}`}>
+              {entry.type === 'text' && (
+                <>
+                  <span className="stream-entry-icon">🤖</span>
+                  <span className="stream-entry-text">{entry.text}</span>
+                </>
+              )}
+              {entry.type === 'tool_use' && (
+                <>
+                  <span className="stream-entry-icon">{TOOL_ICONS[entry.toolName || ''] || TOOL_ICONS.default}</span>
+                  <span className="stream-entry-tool">{entry.toolName}</span>
+                  {entry.toolKeyParam && <span className="stream-entry-param">{entry.toolKeyParam}</span>}
+                </>
+              )}
+              {entry.type === 'tool_result' && (
+                <>
+                  <span className="stream-entry-icon">{entry.isError ? '✗' : '✓'}</span>
+                  <span className="stream-entry-result">{entry.resultPreview}</span>
+                </>
+              )}
+            </div>
+          ))}
+          {isWorking && <span className="subagent-cursor">▌</span>}
+        </div>
+      )}
+    </div>
+  );
+});
 
 interface OutputLineProps {
   output: ClaudeOutput & { _toolKeyParam?: string; _editData?: EditData; _todoInput?: string; _bashOutput?: string; _bashCommand?: string; _isRunning?: boolean };
@@ -658,6 +713,14 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
                   <span>{(matchingSubagent.stats.tokensUsed / 1000).toFixed(1)}K tokens</span>
                   <span>{matchingSubagent.stats.toolUseCount} tools</span>
                 </div>
+              )}
+
+              {/* Streaming content from JSONL file */}
+              {matchingSubagent.streamEntries && matchingSubagent.streamEntries.length > 0 && (
+                <SubagentStreamPanel
+                  entries={matchingSubagent.streamEntries}
+                  isWorking={matchingSubagent.status === 'working'}
+                />
               )}
             </div>
           </div>

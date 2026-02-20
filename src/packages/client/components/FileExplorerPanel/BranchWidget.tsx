@@ -21,6 +21,7 @@ interface BranchWidgetProps {
   onBranchChanged: () => void;
   onMerge?: (branch: string) => void;
   onCompare?: (branch: string) => void;
+  onPullConflicts?: (conflicts: string[]) => void;
 }
 
 export const BranchWidget = memo(function BranchWidget({
@@ -29,6 +30,7 @@ export const BranchWidget = memo(function BranchWidget({
   onBranchChanged,
   onMerge,
   onCompare,
+  onPullConflicts,
 }: BranchWidgetProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -145,10 +147,14 @@ export const BranchWidget = memo(function BranchWidget({
       setStatusMessage({ type: 'success', text: t('terminal:fileExplorer.pullComplete') });
       onBranchChanged();
       loadBranches(currentFolder);
+    } else if (result.conflicts && result.conflicts.length > 0) {
+      setStatusMessage({ type: 'error', text: `Pull conflicts: ${result.conflicts.length} file(s)` });
+      onPullConflicts?.(result.conflicts);
+      setShowDropdown(false);
     } else {
       setStatusMessage({ type: 'error', text: result.error || t('terminal:fileExplorer.pullFailed') });
     }
-  }, [currentFolder, operationInProgress, pullFromRemote, onBranchChanged, loadBranches]);
+  }, [currentFolder, operationInProgress, pullFromRemote, onBranchChanged, loadBranches, onPullConflicts]);
 
   const handlePush = useCallback(async () => {
     if (!currentFolder || operationInProgress) return;

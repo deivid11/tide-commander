@@ -1368,19 +1368,36 @@ router.post('/git-pull', async (req: Request, res: Response) => {
     }
 
     try {
-      let cmd = 'git pull';
+      let cmd = 'git pull --no-rebase';
       if (remote) cmd += ` "${remote}"`;
       if (branch) cmd += ` "${branch}"`;
       const output = execSync(cmd, { cwd: gitRoot, encoding: 'utf-8', timeout: 30000, maxBuffer: 10 * 1024 * 1024 });
       res.json({ success: true, output: output.trim() });
     } catch (err: any) {
-      const stderr = err.stderr?.toString() || err.message || '';
-      if (stderr.includes('CONFLICT')) {
-        res.status(409).json({ success: false, error: 'Merge conflict detected during pull. Resolve conflicts manually.' });
-      } else if (stderr.includes('ETIMEDOUT') || stderr.includes('Could not resolve')) {
+      const stderr = err.stderr?.toString() || '';
+      const stdout = err.stdout?.toString() || '';
+      const combined = stdout + '\n' + stderr;
+
+      if (combined.includes('CONFLICT') || combined.includes('Automatic merge failed')) {
+        // Parse conflict file paths from output (same as merge endpoint)
+        const conflicts: string[] = [];
+        const conflictRegex = /CONFLICT \([^)]+\): Merge conflict in (.+)/g;
+        let match;
+        while ((match = conflictRegex.exec(combined)) !== null) {
+          conflicts.push(path.join(gitRoot, match[1].trim()));
+        }
+        const bothRegex = /CONFLICT \([^)]+\):.+?(?:both modified|both added):\s*(.+)/g;
+        while ((match = bothRegex.exec(combined)) !== null) {
+          const conflictPath = path.join(gitRoot, match[1].trim());
+          if (!conflicts.includes(conflictPath)) {
+            conflicts.push(conflictPath);
+          }
+        }
+        res.json({ success: false, output: combined.trim(), conflicts });
+      } else if (combined.includes('ETIMEDOUT') || combined.includes('Could not resolve')) {
         res.status(504).json({ success: false, error: 'Network error. Check your connection.' });
       } else {
-        res.status(500).json({ success: false, error: stderr.trim() || err.message });
+        res.status(500).json({ success: false, error: (stderr || stdout).trim() || err.message });
       }
     }
   } catch (err: any) {

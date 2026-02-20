@@ -270,7 +270,7 @@ export interface UseGitBranchesReturn {
   loadBranches: (directory: string) => Promise<void>;
   checkoutBranch: (directory: string, branch: string) => Promise<GitBranchOperationResult>;
   createBranch: (directory: string, name: string, startPoint?: string) => Promise<GitBranchOperationResult>;
-  pullFromRemote: (directory: string) => Promise<GitBranchOperationResult>;
+  pullFromRemote: (directory: string) => Promise<MergeResult>;
   pushToRemote: (directory: string) => Promise<GitBranchOperationResult>;
   mergeBranch: (directory: string, branch: string) => Promise<MergeResult>;
   mergeAbort: (directory: string) => Promise<GitBranchOperationResult>;

@@ -263,14 +263,21 @@ export function useHistoryLoader({
           }
 
           const currentOutputs = store.getOutputs(selectedAgentId);
-          const newerOutputs = currentOutputs.filter((output) => shouldKeepOutput(
-            output,
-            historyUuidSet,
-            latestHistoryTsByKey,
-            lastHistoryTimestamp
-          ));
+          const newerOutputs = currentOutputs.filter((output) => {
+            const keep = shouldKeepOutput(
+              output,
+              historyUuidSet,
+              latestHistoryTsByKey,
+              lastHistoryTimestamp
+            );
+            if (!keep) {
+              console.warn(`[HISTORY-DEDUP] Removing live output: uuid=${output.uuid || 'none'} ts=${output.timestamp} lastHistTs=${lastHistoryTimestamp} text="${output.text.slice(0, 80)}"`);
+            }
+            return keep;
+          });
 
           if (currentOutputs.length !== newerOutputs.length) {
+            console.warn(`[HISTORY-DEDUP] Cleared ${currentOutputs.length - newerOutputs.length}/${currentOutputs.length} overlapping outputs for agent ${selectedAgentId}`);
             // Only clear/re-add if there are duplicates to remove
             store.clearOutputs(selectedAgentId);
             for (const output of newerOutputs) {

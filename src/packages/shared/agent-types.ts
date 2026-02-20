@@ -253,6 +253,8 @@ export interface Subagent {
   position?: { x: number; y: number; z: number };
   // Real-time activity tracking
   activities?: SubagentActivity[];
+  // Streaming content from JSONL file
+  streamEntries?: SubagentStreamEntry[];
   // Completion stats
   stats?: {
     durationMs: number;
@@ -265,6 +267,18 @@ export interface SubagentActivity {
   toolName: string;
   description: string;
   timestamp: number;
+}
+
+// Streaming entry from subagent JSONL file
+export interface SubagentStreamEntry {
+  type: 'text' | 'tool_use' | 'tool_result';
+  timestamp: string;
+  text?: string;                    // For text entries (assistant messages)
+  toolName?: string;                // For tool_use entries
+  toolKeyParam?: string;            // Key param (e.g., file path, command, query)
+  toolUseId?: string;               // Claude's tool_use_id
+  resultPreview?: string;           // For tool_result entries (truncated output)
+  isError?: boolean;                // For tool_result error status
 }
 
 // ============================================================================
