@@ -3,6 +3,10 @@ import type { Scene2DCamera } from '../Scene2DCamera';
 import { BaseRenderer } from './BaseRenderer';
 
 export class AreaRenderer extends BaseRenderer {
+  // Cached logo images
+  private logoImages = new Map<string, HTMLImageElement>();
+  private loadingLogos = new Set<string>();
+
   constructor(ctx: CanvasRenderingContext2D, camera: Scene2DCamera) {
     super(ctx, camera);
   }
@@ -25,6 +29,11 @@ export class AreaRenderer extends BaseRenderer {
 
       if (area.label) {
         this.drawAreaLabel(area.label, x, top, baseColor, zoom, 'top');
+      }
+
+      // Draw logo
+      if (area.logo) {
+        this.drawAreaLogo(area, x, z, width, height);
       }
 
       if (area.hasDirectories) {
@@ -52,6 +61,13 @@ export class AreaRenderer extends BaseRenderer {
 
       if (area.label) {
         this.drawAreaLabel(area.label, x, z - radius, baseColor, zoom, 'top');
+      }
+
+      // Draw logo
+      if (area.logo) {
+        const effectiveW = radius * 1.414;
+        const effectiveH = radius * 1.414;
+        this.drawAreaLogo(area, x, z, effectiveW, effectiveH);
       }
 
       if (area.hasDirectories) {
@@ -575,6 +591,86 @@ export class AreaRenderer extends BaseRenderer {
     }
 
     ctx.restore();
+  }
+
+  /**
+   * Get a cached logo image, starting an async load if not yet cached.
+   */
+  private getLogoImage(url: string): HTMLImageElement | null {
+    const cached = this.logoImages.get(url);
+    if (cached) return cached;
+
+    if (!this.loadingLogos.has(url)) {
+      this.loadingLogos.add(url);
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        this.logoImages.set(url, img);
+        this.loadingLogos.delete(url);
+      };
+      img.onerror = () => {
+        this.loadingLogos.delete(url);
+      };
+      img.src = url;
+    }
+
+    return null;
+  }
+
+  /**
+   * Draw a logo image inside an area.
+   * @param area - The area data
+   * @param cx - Area center X in world coords
+   * @param cz - Area center Z in world coords
+   * @param areaW - Effective area width
+   * @param areaH - Effective area height
+   */
+  private drawAreaLogo(
+    area: Area2DData,
+    cx: number,
+    cz: number,
+    areaW: number,
+    areaH: number
+  ): void {
+    const logo = area.logo!;
+    const img = this.getLogoImage(logo.url);
+    if (!img) return; // Still loading
+
+    const { position, width: logoW, height: logoH, opacity } = logo;
+    const offset = this.calculateLogoOffset(position, logoW, logoH, areaW, areaH);
+
+    const drawX = cx + offset.x - logoW / 2;
+    const drawZ = cz + offset.z - logoH / 2;
+
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.globalAlpha = opacity;
+    ctx.drawImage(img, drawX, drawZ, logoW, logoH);
+    ctx.restore();
+  }
+
+  /**
+   * Calculate position offset for logo placement within an area.
+   */
+  private calculateLogoOffset(
+    position: string,
+    logoW: number,
+    logoH: number,
+    areaW: number,
+    areaH: number
+  ): { x: number; z: number } {
+    if (position === 'center') return { x: 0, z: 0 };
+
+    const padX = logoW / 2 + 0.2;
+    const padZ = logoH / 2 + 0.2;
+
+    switch (position) {
+      case 'top-left':     return { x: -areaW / 2 + padX, z: -areaH / 2 + padZ };
+      case 'top-right':    return { x:  areaW / 2 - padX, z: -areaH / 2 + padZ };
+      case 'bottom-left':  return { x: -areaW / 2 + padX, z:  areaH / 2 - padZ };
+      case 'bottom-right': return { x:  areaW / 2 - padX, z:  areaH / 2 - padZ };
+      default:             return { x: 0, z: 0 };
+    }
   }
 
   drawAreaPreview(

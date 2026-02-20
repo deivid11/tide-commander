@@ -297,3 +297,197 @@
     color: $accent-blue;
   }
 }
+
+// ─── Area Logo ───
+
+.area-logo-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.area-logo-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  background: $bg-secondary;
+  border-radius: $radius-sm;
+}
+
+.area-logo-thumbnail {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  border-radius: $radius-sm;
+  border: 1px solid $border-color;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.area-logo-remove-btn {
+  background: none;
+  border: 1px solid $accent-red;
+  color: $accent-red;
+  padding: 4px 8px;
+  border-radius: $radius-sm;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    background: $accent-red;
+    color: white;
+  }
+}
+
+.area-logo-replace-btn {
+  background: none;
+  border: 1px solid $border-color;
+  color: $text-secondary;
+  padding: 4px 8px;
+  border-radius: $radius-sm;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all $transition-fast;
+  margin-left: auto;
+
+  &:hover {
+    border-color: $accent-blue;
+    color: $accent-blue;
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+.area-logo-upload-btn {
+  padding: 6px 8px;
+  background: transparent;
+  border: 1px dashed $border-color;
+  border-radius: $radius-sm;
+  color: $text-secondary;
+  font-size: 11px;
+  cursor: pointer;
+  text-align: center;
+  transition: all $transition-fast;
+
+  &:hover {
+    border-color: $accent-blue;
+    color: $accent-blue;
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+.area-logo-config-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.area-logo-config-label {
+  font-size: 10px;
+  color: $text-secondary;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.area-logo-position-row {
+  display: flex;
+  gap: 3px;
+  flex-wrap: wrap;
+}
+
+.area-logo-pos-btn {
+  flex: 1;
+  min-width: 48px;
+  padding: 4px 4px;
+  background: $bg-secondary;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  color: $text-primary;
+  font-size: 9px;
+  cursor: pointer;
+  text-align: center;
+  transition: all $transition-fast;
+
+  &:hover {
+    border-color: $accent-blue;
+  }
+
+  &.active {
+    border-color: $accent-blue;
+    background: rgba($accent-blue, 0.15);
+    color: $accent-blue;
+  }
+}
+
+.area-logo-size-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.area-logo-size-field {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: $text-secondary;
+}
+
+.area-logo-size-input {
+  width: 56px;
+  padding: 4px 6px;
+  background: $bg-secondary;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  color: $text-primary;
+  font-size: 12px;
+  outline: none;
+
+  &:focus {
+    border-color: $accent-blue;
+  }
+}
+
+.area-logo-aspect-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: $text-secondary;
+  cursor: pointer;
+  white-space: nowrap;
+
+  input[type="checkbox"] {
+    margin: 0;
+    accent-color: $accent-blue;
+  }
+}
+
+.area-logo-opacity-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.area-logo-opacity-slider {
+  flex: 1;
+  height: 4px;
+  accent-color: $accent-blue;
+  cursor: pointer;
+}
+
+.area-logo-opacity-value {
+  font-size: 11px;
+  color: $text-secondary;
+  min-width: 32px;
+  text-align: right;
+}

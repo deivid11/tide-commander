@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.70.0] - 2026-02-20
+
+### Added
+- **Area logo overlays** - Upload logo/image files to zones with configurable position (center, corners), size, aspect ratio lock, and opacity slider; rendered in both 3D and 2D scenes with texture caching
+- **Area logo API** - Upload, serve, and delete logo files via `/api/areas/:areaId/logo` and `/api/areas/logos/:filename` endpoints with 5MB limit and type validation
+- **Database multi-query support** - SQL editor now splits queries by semicolons; "Run at Cursor" (Ctrl+Enter) executes the statement at caret, "Run All" (Ctrl+Shift+Enter) executes every statement sequentially
+- **Query editor resize handle** - Drag handle below the editor to resize height, persisted to localStorage
+
+### Changed
+- **Folder dropdown compacted** - Smaller font/padding, hidden redundant path label when it matches folder name
+- **Area logo cleanup on sync** - Orphaned logo files are automatically deleted when areas are removed or logos replaced
+- **Locale updates** - Added area logo and multi-query translations across all 11 locales
+
 ## [0.69.4] - 2026-02-19
 
 ### Added

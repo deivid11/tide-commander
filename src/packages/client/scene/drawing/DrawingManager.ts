@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { DrawingArea, DrawingTool } from '../../../shared/types';
 import { store } from '../../store';
+import { apiUrl, authUrl } from '../../utils/storage';
 
 /**
  * Handle types for different positions.
@@ -45,6 +46,10 @@ export class DrawingManager {
 
   // Brightness multiplier for area materials (affects opacity/intensity)
   private brightness = 1;
+
+  // Texture cache for logo images
+  private logoTextures = new Map<string, THREE.Texture>();
+  private loadingLogoTextures = new Set<string>();
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -348,6 +353,11 @@ export class DrawingManager {
       });
     }
 
+    // Add logo if area has one configured
+    if (area.logo?.filename) {
+      this.addLogoToGroup(group, area, zOffset);
+    }
+
     group.position.set(area.center.x, 0, area.center.z);
     this.scene.add(group);
     this.areaMeshes.set(area.id, group);
@@ -504,6 +514,101 @@ export class DrawingManager {
     const sprite = new THREE.Sprite(spriteMaterial);
     sprite.scale.set(0.6, 0.6, 1);
     return sprite;
+  }
+
+  /**
+   * Add a logo mesh to an area group.
+   */
+  private addLogoToGroup(group: THREE.Group, area: DrawingArea, zOffset: number): void {
+    const logo = area.logo!;
+    const logoUrl = authUrl(apiUrl(`/api/areas/logos/${logo.filename}`));
+
+    // Check texture cache first
+    const cached = this.logoTextures.get(logo.filename);
+    if (cached) {
+      this.createLogoMesh(group, area, cached, zOffset);
+      return;
+    }
+
+    // Don't start duplicate loads
+    if (this.loadingLogoTextures.has(logo.filename)) return;
+    this.loadingLogoTextures.add(logo.filename);
+
+    const loader = new THREE.TextureLoader();
+    loader.load(
+      logoUrl,
+      (texture) => {
+        this.logoTextures.set(logo.filename, texture);
+        this.loadingLogoTextures.delete(logo.filename);
+
+        // If the group is still in the scene, add the logo mesh
+        const currentGroup = this.areaMeshes.get(area.id);
+        if (currentGroup === group) {
+          this.createLogoMesh(group, area, texture, zOffset);
+        }
+      },
+      undefined,
+      () => {
+        this.loadingLogoTextures.delete(logo.filename);
+      }
+    );
+  }
+
+  /**
+   * Create a textured plane mesh for the logo and add it to the group.
+   */
+  private createLogoMesh(group: THREE.Group, area: DrawingArea, texture: THREE.Texture, zOffset: number): void {
+    const logo = area.logo!;
+    const geometry = new THREE.PlaneGeometry(logo.width, logo.height);
+    const material = new THREE.MeshBasicMaterial({
+      map: texture,
+      transparent: true,
+      opacity: logo.opacity ?? 0.8,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.name = 'areaLogo';
+
+    const offset = this.calculateLogoOffset(area, logo.position, logo.width, logo.height);
+    mesh.position.set(offset.x, 0.04 + zOffset, offset.z);
+
+    group.add(mesh);
+  }
+
+  /**
+   * Calculate position offset for logo placement within an area.
+   * Coordinates are relative to the area center (0,0).
+   */
+  private calculateLogoOffset(
+    area: DrawingArea,
+    position: string,
+    logoW: number,
+    logoH: number
+  ): { x: number; z: number } {
+    if (position === 'center') return { x: 0, z: 0 };
+
+    let areaW = 0, areaH = 0;
+    if (area.type === 'rectangle' && area.width && area.height) {
+      areaW = area.width;
+      areaH = area.height;
+    } else if (area.type === 'circle' && area.radius) {
+      areaW = area.radius * 1.414;
+      areaH = area.radius * 1.414;
+    }
+
+    const padX = logoW / 2 + 0.2;
+    const padZ = logoH / 2 + 0.2;
+
+    switch (position) {
+      case 'top-left':     return { x: -areaW / 2 + padX, z: -areaH / 2 + padZ };
+      case 'top-right':    return { x:  areaW / 2 - padX, z: -areaH / 2 + padZ };
+      case 'bottom-left':  return { x: -areaW / 2 + padX, z:  areaH / 2 - padZ };
+      case 'bottom-right': return { x:  areaW / 2 - padX, z:  areaH / 2 - padZ };
+      default:             return { x: 0, z: 0 };
+    }
   }
 
   /**

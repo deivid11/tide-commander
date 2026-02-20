@@ -206,7 +206,21 @@
     "drawToCreate": "Desenhe no campo de batalha para criar areas",
     "rect": "Retangulo",
     "circle": "Circulo",
-    "deleteArea": "Excluir area"
+    "deleteArea": "Excluir area",
+    "logo": "Logo",
+    "uploadLogo": "Enviar Logo",
+    "removeLogo": "Remover",
+    "logoPosition": "Posicao",
+    "logoSize": "Tamanho",
+    "logoWidth": "L",
+    "logoHeight": "A",
+    "logoOpacity": "Opacidade",
+    "keepAspectRatio": "Manter proporcao",
+    "posCenter": "Centro",
+    "posTopLeft": "Sup-Esq",
+    "posTopRight": "Sup-Dir",
+    "posBottomLeft": "Inf-Esq",
+    "posBottomRight": "Inf-Dir"
   },
   "buildings": {
     "title": "Edificios ({{count}})",

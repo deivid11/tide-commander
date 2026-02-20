@@ -206,7 +206,21 @@
     "drawToCreate": "Нарисуйте на поле боя для создания зон",
     "rect": "Прямоугольник",
     "circle": "Круг",
-    "deleteArea": "Удалить зону"
+    "deleteArea": "Удалить зону",
+    "logo": "Логотип",
+    "uploadLogo": "Загрузить логотип",
+    "removeLogo": "Удалить",
+    "logoPosition": "Позиция",
+    "logoSize": "Размер",
+    "logoWidth": "Ш",
+    "logoHeight": "В",
+    "logoOpacity": "Прозрачность",
+    "keepAspectRatio": "Сохранять пропорции",
+    "posCenter": "Центр",
+    "posTopLeft": "Верх-Лево",
+    "posTopRight": "Верх-Право",
+    "posBottomLeft": "Низ-Лево",
+    "posBottomRight": "Низ-Право"
   },
   "buildings": {
     "title": "Здания ({{count}})",

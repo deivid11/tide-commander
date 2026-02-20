@@ -10,7 +10,7 @@ import { useTranslation } from 'react-i18next';
 import type { Building } from '../../../shared/types';
 import { store, useDatabaseState, useQueryResults, useQueryHistory, useExecutingQuery } from '../../store';
 import { DatabaseSidebar } from './DatabaseSidebar';
-import { QueryEditor } from './QueryEditor';
+import { QueryEditor, splitQueries, getQueryAtCursor, type ExecuteMode } from './QueryEditor';
 import { ResultsTable } from './ResultsTable';
 import { QueryHistoryPanel } from './QueryHistoryPanel';
 import { DatabaseTabs, type DatabaseTab } from './DatabaseTabs';
@@ -62,6 +62,7 @@ export const DatabasePanel: React.FC<DatabasePanelProps> = ({ building, onClose 
   // Load stored state on mount
   const storedState = useRef(loadStoredState(building.id));
   const panelRef = useRef<HTMLDivElement>(null);
+  const editorCursorRef = useRef(0);
 
   // Get current connection and database
   const connections = building.database?.connections ?? [];
@@ -244,11 +245,32 @@ export const DatabasePanel: React.FC<DatabasePanelProps> = ({ building, onClose 
     }
   }, [building.id, activeConnectionId, activeDatabase, query, initialized, openTabs, activeTabId, queries]);
 
-  // Execute query handler
-  const handleExecuteQuery = useCallback(() => {
+  // Execute query handler - supports 'all' (every statement) and 'cursor' (statement at cursor)
+  const handleExecuteQuery = useCallback((mode: ExecuteMode) => {
     if (!activeConnectionId || !activeDatabase || !query.trim() || isExecuting) return;
 
-    store.executeQuery(building.id, activeConnectionId, activeDatabase, query.trim());
+    if (mode === 'cursor') {
+      // Get cursor position from the textarea inside the editor
+      const textarea = panelRef.current?.querySelector<HTMLTextAreaElement>('.query-editor__textarea');
+      const cursorPos = textarea?.selectionStart ?? editorCursorRef.current;
+      const stmt = getQueryAtCursor(query, cursorPos);
+      if (stmt) {
+        store.executeQuery(building.id, activeConnectionId, activeDatabase, stmt);
+      }
+    } else {
+      // Run all: split and execute each statement sequentially
+      const stmts = splitQueries(query);
+      if (stmts.length <= 1) {
+        store.executeQuery(building.id, activeConnectionId, activeDatabase, query.trim());
+      } else {
+        // Execute statements one by one with small delays so each result appears separately
+        stmts.forEach((stmt, i) => {
+          setTimeout(() => {
+            store.executeQuery(building.id, activeConnectionId!, activeDatabase!, stmt.sql);
+          }, i * 150);
+        });
+      }
+    }
   }, [building.id, activeConnectionId, activeDatabase, query, isExecuting]);
 
   // Load query from history

@@ -21,6 +21,15 @@ export interface DrawingArea {
   assignedAgentIds: string[];
   directories: string[];  // Associated directory paths
   directoryGitCounts?: number[];  // Git pending changes count per directory (runtime only)
+  // Logo/image overlay
+  logo?: {
+    filename: string;              // Stored in ~/.local/share/tide-commander/area-logos/
+    position: 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+    width: number;                 // World units
+    height: number;                // World units
+    keepAspectRatio: boolean;
+    opacity?: number;              // 0-1, default 0.8
+  };
   // Archive support
   archived?: boolean;              // True if area is hidden from view
   archivedAt?: number;             // Timestamp when archived

@@ -206,7 +206,21 @@
     "drawToCreate": "Draw on the battlefield to create areas",
     "rect": "Rect",
     "circle": "Circle",
-    "deleteArea": "Delete area"
+    "deleteArea": "Delete area",
+    "logo": "Logo",
+    "uploadLogo": "Upload Logo",
+    "removeLogo": "Remove",
+    "logoPosition": "Position",
+    "logoSize": "Size",
+    "logoWidth": "W",
+    "logoHeight": "H",
+    "logoOpacity": "Opacity",
+    "keepAspectRatio": "Lock ratio",
+    "posCenter": "Center",
+    "posTopLeft": "Top-Left",
+    "posTopRight": "Top-Right",
+    "posBottomLeft": "Bot-Left",
+    "posBottomRight": "Bot-Right"
   },
   "buildings": {
     "title": "Buildings ({{count}})",

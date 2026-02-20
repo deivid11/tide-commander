@@ -35,6 +35,7 @@ const SKILLS_FILE = path.join(DATA_DIR, 'skills.json');
 const CUSTOM_CLASSES_FILE = path.join(DATA_DIR, 'custom-agent-classes.json');
 const RUNNING_PROCESSES_FILE = path.join(DATA_DIR, 'running-processes.json');
 const SECRETS_FILE = path.join(DATA_DIR, 'secrets.json');
+const AREA_LOGOS_DIR = path.join(DATA_DIR, 'area-logos');
 
 // Maximum history entries per agent
 const MAX_HISTORY_PER_AGENT = 50;
@@ -188,6 +189,33 @@ export function saveAreas(areas: DrawingArea[]): void {
     fs.writeFileSync(AREAS_FILE, JSON.stringify(data, null, 2));
   } catch (err) {
     log.error(' Failed to save areas:', err);
+  }
+}
+
+/**
+ * Ensure area logos directory exists
+ */
+export function ensureAreaLogosDir(): void {
+  if (!fs.existsSync(AREA_LOGOS_DIR)) {
+    fs.mkdirSync(AREA_LOGOS_DIR, { recursive: true });
+  }
+}
+
+/**
+ * Get path to the area logos directory
+ */
+export function getAreaLogosDir(): string {
+  return AREA_LOGOS_DIR;
+}
+
+/**
+ * Delete an area logo file from disk
+ */
+export function deleteAreaLogo(filename: string): void {
+  const filePath = path.join(AREA_LOGOS_DIR, path.basename(filename));
+  if (fs.existsSync(filePath)) {
+    fs.unlinkSync(filePath);
+    log.log(` Deleted area logo: ${filename}`);
   }
 }
 

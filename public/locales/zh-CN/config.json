@@ -206,7 +206,21 @@
     "drawToCreate": "在战场上绘制以创建区域",
     "rect": "矩形",
     "circle": "圆形",
-    "deleteArea": "删除区域"
+    "deleteArea": "删除区域",
+    "logo": "标志",
+    "uploadLogo": "上传标志",
+    "removeLogo": "移除",
+    "logoPosition": "位置",
+    "logoSize": "尺寸",
+    "logoWidth": "宽",
+    "logoHeight": "高",
+    "logoOpacity": "不透明度",
+    "keepAspectRatio": "锁定比例",
+    "posCenter": "居中",
+    "posTopLeft": "左上",
+    "posTopRight": "右上",
+    "posBottomLeft": "左下",
+    "posBottomRight": "右下"
   },
   "buildings": {
     "title": "建筑 ({{count}})",
