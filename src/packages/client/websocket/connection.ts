@@ -6,6 +6,7 @@ import type { ServerMessage } from '../../shared/types';
 import { store } from '../store';
 import { agentDebugger } from '../services/agentDebugger';
 import { STORAGE_KEYS, getStorageString, getAuthToken } from '../utils/storage';
+import { syncConnectionToNative } from '../utils/notifications';
 import {
   getWs, setWs,
   getIsConnecting, setIsConnecting,
@@ -152,6 +153,9 @@ export function connect(): void {
     } else {
       cb.onToast?.('success', 'Connected', 'Connected to Tide Commander server');
     }
+
+    // Sync server URL to native foreground service for background notifications
+    syncConnectionToNative(configuredUrl, authToken);
   };
 
   newSocket.onmessage = (event) => {
