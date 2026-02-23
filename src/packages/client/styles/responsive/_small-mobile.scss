@@ -73,9 +73,7 @@
   }
 
   // Keep circular button style on small screens
-  .guake-close-btn,
-  .guake-mode-btn,
-  .guake-clear {
+  .guake-close-btn {
     width: 22px;
     height: 22px;
     min-width: 22px;
@@ -87,6 +85,13 @@
   .guake-context-btn,
   .guake-search-toggle {
     display: none;
+  }
+
+  .guake-mobile-more-btn {
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    font-size: 12px;
   }
 
   // Input more compact
@@ -334,6 +339,61 @@
 
   .agent-bar-last-query {
     display: none;
+  }
+
+  // Database explorer - extra compact on small screens
+  .database-sidebar {
+    max-height: 30vh;
+
+    &__section--tables {
+      max-height: 80px;
+    }
+  }
+
+  .query-editor {
+    padding: 6px 8px;
+
+    &__execute {
+      padding: 5px 10px;
+      font-size: 0.8em;
+    }
+
+    &__execute-cursor {
+      display: none;
+    }
+
+    &__textarea {
+      font-size: 11px;
+      min-height: 48px;
+    }
+
+    &__highlight {
+      font-size: 11px;
+    }
+  }
+
+  .results-table {
+    &__cell {
+      max-width: 120px;
+    }
+
+    &__table {
+      font-size: 0.7em;
+
+      th,
+      td {
+        padding: 2px 4px;
+      }
+    }
+  }
+
+  .database-panel__tabs {
+    padding: 4px 8px;
+  }
+
+  .database-panel__tab {
+    font-size: 0.75em;
+    padding: 4px 6px;
   }
 }
 

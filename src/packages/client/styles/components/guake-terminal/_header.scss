@@ -877,6 +877,121 @@
 }
 
 // =============================================================================
+// Mobile More-Actions Menu
+// =============================================================================
+
+.guake-mobile-more {
+  position: relative;
+  display: none; // Hidden by default, shown via show-on-mobile
+}
+
+.guake-mobile-more-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba($dracula-comment, 0.4);
+  background: rgba($dracula-comment, 0.15);
+  color: $dracula-fg;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:active {
+    transform: scale(0.9);
+  }
+
+  &.active {
+    background: rgba($dracula-purple, 0.25);
+    border-color: rgba($dracula-purple, 0.6);
+    color: $dracula-purple;
+  }
+}
+
+.guake-mobile-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 1000;
+  min-width: 200px;
+  background: rgba($dracula-bg, 0.98);
+  border: 1px solid rgba($dracula-purple, 0.3);
+  border-radius: $radius-md;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(12px);
+  padding: 6px 0;
+  animation: guake-mobile-menu-in 0.15s ease-out;
+}
+
+@keyframes guake-mobile-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.guake-mobile-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  color: $dracula-fg;
+  font-family: $font-mono;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.1s ease;
+  text-align: left;
+
+  &:active {
+    background: rgba($dracula-purple, 0.15);
+  }
+
+  &.active {
+    color: $dracula-cyan;
+    background: rgba($dracula-cyan, 0.08);
+  }
+
+  &.danger {
+    color: $dracula-red;
+
+    &:active {
+      background: rgba($dracula-red, 0.15);
+    }
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+.guake-mobile-menu-icon {
+  font-size: 14px;
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.guake-mobile-menu-divider {
+  height: 1px;
+  margin: 4px 10px;
+  background: rgba($dracula-comment, 0.2);
+}
+
+// =============================================================================
 // Subagent Indicators (Claude Code Task tool subprocesses)
 // =============================================================================
 

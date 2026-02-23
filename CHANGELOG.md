@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.70.1] - 2026-02-23
+
+### Added
+- **Mobile overflow menu** - Terminal header actions consolidated into a "more actions" (⋮) dropdown menu on mobile for cleaner UI
+- **Mobile-optimized terminal header** - Streamlined header layout with fewer visible buttons, context and search hidden behind overflow menu
+
+### Changed
+- **Mobile responsive overhaul** - Major rework of mobile styles (~750 lines) for improved terminal, agent bar, and panel layouts
+- **Small mobile breakpoint** - Enhanced styles for very small screens with tighter spacing and compact controls
+- **Terminal base styles** - Added mobile-specific terminal base adjustments
+- **Terminal header styles** - New mobile overflow menu styles with dropdown positioning and animations
+- **Terminal output styles** - Mobile output area spacing improvements
+
 ## [0.70.0] - 2026-02-20
 
 ### Added

@@ -1139,7 +1139,7 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
         className="guake-handle"
         onClick={() => { if (isOpen) store.toggleTerminal(); }}
         onDoubleClick={() => { if (!isOpen) store.toggleTerminal(); }}
-        style={{ top: isOpen ? `${terminalHeight}%` : '0' }}
+        style={{ top: isOpen ? `min(${terminalHeight}%, calc(100vh - 72px))` : '0' }}
       >
         <span className="guake-handle-icon">{isOpen ? '▲' : '▼'}</span>
         <span className="guake-handle-text">{activeAgent.name}</span>

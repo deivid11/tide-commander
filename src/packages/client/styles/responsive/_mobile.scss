@@ -710,10 +710,8 @@
     display: flex !important;
   }
 
-  // Unified circular button style for mobile header
-  .guake-close-btn,
-  .guake-mode-btn,
-  .guake-clear {
+  // Mobile close button - circular style
+  .guake-close-btn {
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
@@ -724,69 +722,19 @@
     padding: 0 !important;
     border-radius: 50% !important;
     border: 1px solid;
-    font-size: 12px !important;
+    font-size: 11px !important;
+    font-weight: 600;
     line-height: 1 !important;
     cursor: pointer;
     transition: all 0.15s ease;
     box-sizing: border-box !important;
-
-    &:active {
-      transform: scale(0.9);
-    }
-  }
-
-  .guake-close-btn {
     background: rgba($dracula-red, 0.15);
     border-color: rgba($dracula-red, 0.4);
     color: $dracula-red;
-    font-size: 11px;
-    font-weight: 600;
 
     &:active {
+      transform: scale(0.9);
       background: rgba($dracula-red, 0.3);
-    }
-  }
-
-  .guake-mode-btn {
-    background: rgba($dracula-comment, 0.15);
-    border-color: rgba($dracula-comment, 0.4);
-    color: $dracula-comment;
-    font-size: 11px;
-
-    &.view-mode-simple {
-      color: $dracula-cyan;
-      border-color: rgba($dracula-cyan, 0.4);
-      background: rgba($dracula-cyan, 0.1);
-    }
-
-    &.view-mode-chat {
-      color: $dracula-green;
-      border-color: rgba($dracula-green, 0.4);
-      background: rgba($dracula-green, 0.1);
-    }
-
-    &.view-mode-advanced {
-      color: $dracula-purple;
-      border-color: rgba($dracula-purple, 0.4);
-      background: rgba($dracula-purple, 0.1);
-    }
-  }
-
-  .guake-clear {
-    background: rgba($dracula-orange, 0.1) !important;
-    border-color: rgba($dracula-orange, 0.4) !important;
-    color: $dracula-orange !important;
-    font-size: 11px !important;
-    // Ensure circular shape - override base padding
-    width: 24px !important;
-    height: 24px !important;
-    min-width: 24px !important;
-    max-width: 24px !important;
-    padding: 0 !important;
-    border-radius: 50% !important;
-
-    &:active {
-      background: rgba($dracula-orange, 0.2) !important;
     }
   }
 
@@ -794,6 +742,24 @@
   .guake-context-btn,
   .guake-search-toggle {
     display: none !important;
+  }
+
+  // Mobile more-actions menu button
+  .guake-mobile-more {
+    display: flex !important;
+    position: relative;
+  }
+
+  .guake-mobile-more-btn {
+    width: 24px !important;
+    height: 24px !important;
+    min-width: 24px !important;
+    max-width: 24px !important;
+    padding: 0 !important;
+    border-radius: 50% !important;
+    font-size: 14px !important;
+    line-height: 1 !important;
+    box-sizing: border-box !important;
   }
 
   // Input container adjustments for mobile
@@ -1477,5 +1443,429 @@
   .spotlight-container {
     width: 95vw;
     max-width: 95vw;
+  }
+
+  // Database Explorer Modal - full-screen on mobile
+  .modal-overlay:has(.database-panel-modal) {
+    padding: 0;
+  }
+
+  .database-panel-modal {
+    max-width: 100vw;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    border-radius: 0;
+    border: none;
+  }
+
+  .database-panel {
+    border-radius: 0;
+
+    &__header {
+      padding: 10px 12px;
+      padding-top: calc(10px + env(safe-area-inset-top, 0px));
+    }
+
+    &__close {
+      min-width: 40px;
+      min-height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.8em;
+    }
+
+    &__connection-info {
+      display: none;
+    }
+
+    &__name {
+      font-size: 1em;
+    }
+
+    &__body {
+      flex-direction: column;
+    }
+
+    &__tabs {
+      padding: 6px 10px;
+      gap: 2px;
+      overflow-x: auto;
+      flex-wrap: nowrap;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    &__tab {
+      font-size: 0.8em;
+      padding: 5px 8px;
+      white-space: nowrap;
+      min-height: 32px;
+    }
+
+    &__result-nav {
+      font-size: 0.8em;
+      gap: 4px;
+      flex-shrink: 0;
+
+      button {
+        padding: 4px 8px;
+        font-size: 0.85em;
+        min-height: 28px;
+      }
+    }
+
+    &__no-connections {
+      padding: 24px 16px;
+
+      &-icon {
+        font-size: 3em;
+      }
+
+      h3 {
+        font-size: 1.2em;
+      }
+
+      p {
+        font-size: 0.9em;
+      }
+    }
+  }
+
+  // Sidebar: stacks on top, scrollable on mobile
+  .database-sidebar {
+    width: 100%;
+    min-width: 100%;
+    max-height: 40vh;
+    border-right: none;
+    border-bottom: 1px solid $border-color;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+
+    &--collapsed {
+      width: 100%;
+      min-width: 100%;
+      max-height: none;
+      height: auto;
+      overflow: visible;
+
+      .database-sidebar__toggle {
+        width: 100%;
+        text-align: center;
+        padding: 8px;
+        font-size: 1.1em;
+      }
+    }
+
+    &__header {
+      padding: 8px 12px;
+      font-size: 0.8em;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: $bg-secondary;
+    }
+
+    &__toggle {
+      min-width: 36px;
+      min-height: 36px;
+    }
+
+    &__section {
+      padding: 8px 12px;
+    }
+
+    &__select {
+      font-size: 0.85em;
+      padding: 8px 10px;
+      min-height: 36px;
+    }
+
+    &__search-input {
+      font-size: 0.85em;
+      padding: 8px 10px;
+      min-height: 36px;
+    }
+
+    &__dropdown {
+      max-height: 160px;
+    }
+
+    &__dropdown-item {
+      padding: 8px 10px;
+      min-height: 32px;
+    }
+
+    &__section--tables {
+      max-height: 120px;
+      overflow: auto;
+    }
+
+    &__table-header {
+      padding: 4px 6px;
+      min-height: 28px;
+    }
+
+    &__table-name {
+      font-size: 0.8em;
+    }
+
+    // Always visible on touch (no hover)
+    &__table-insert {
+      opacity: 0.6;
+      min-width: 28px;
+      min-height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    &__column {
+      font-size: 0.8em;
+      padding: 4px 6px;
+      min-height: 24px;
+    }
+
+    &__column-type {
+      font-size: 0.75em;
+    }
+  }
+
+  // Database tabs - scrollable on mobile
+  .database-tabs {
+    padding: 6px 8px;
+    gap: 2px;
+    -webkit-overflow-scrolling: touch;
+
+    &__tab-label {
+      font-size: 0.8em;
+      padding: 5px 8px;
+      max-width: 140px;
+    }
+
+    &__tab-close {
+      width: 24px;
+      height: 24px;
+      font-size: 0.95em;
+    }
+  }
+
+  // Query editor - compact on mobile
+  .query-editor {
+    padding: 8px 10px;
+    gap: 6px;
+
+    &__toolbar {
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    &__buttons {
+      gap: 4px;
+      flex-wrap: wrap;
+      width: 100%;
+    }
+
+    &__execute {
+      padding: 8px 14px;
+      font-size: 0.85em;
+      min-height: 36px;
+      flex: 1;
+      justify-content: center;
+    }
+
+    &__execute-cursor {
+      padding: 8px 12px;
+      font-size: 0.8em;
+      min-height: 36px;
+      flex: 1;
+      justify-content: center;
+    }
+
+    &__hint {
+      display: none;
+    }
+
+    &__line-numbers {
+      display: none;
+    }
+
+    &__editor {
+      border-radius: 4px;
+    }
+
+    &__textarea {
+      font-size: 13px;
+      padding: 8px 10px;
+      min-height: 60px;
+    }
+
+    &__highlight {
+      font-size: 13px;
+      padding: 8px 10px;
+    }
+  }
+
+  // Results table - mobile optimizations
+  .results-table {
+    &__status-bar {
+      flex-wrap: wrap;
+      gap: 4px;
+      padding: 4px 8px;
+    }
+
+    &__status-info {
+      gap: 6px;
+      font-size: 0.75em;
+    }
+
+    &__pagination {
+      gap: 2px;
+      flex-wrap: wrap;
+    }
+
+    &__page-btn {
+      min-width: 24px;
+      min-height: 24px;
+      padding: 2px 4px;
+      font-size: 0.75em;
+    }
+
+    &__page-size {
+      font-size: 0.7em;
+      min-height: 24px;
+    }
+
+    &__page-info {
+      font-size: 0.7em;
+    }
+
+    &__table {
+      font-size: 0.75em;
+
+      th,
+      td {
+        padding: 3px 6px;
+      }
+    }
+
+    &__row-num {
+      width: 30px;
+      min-width: 30px;
+      padding-right: 4px;
+    }
+
+    &__cell {
+      max-width: 180px;
+    }
+
+    // Wider resize handles for touch
+    &__resize-handle {
+      width: 10px;
+    }
+
+    &__error {
+      padding: 12px;
+      max-width: none;
+      width: calc(100% - 24px);
+    }
+
+    &__error-query {
+      max-height: 80px;
+
+      code {
+        font-size: 0.8em;
+      }
+    }
+
+    &__success {
+      padding: 12px 16px;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    &__toast {
+      bottom: 12px;
+      right: 12px;
+      left: 12px;
+      max-width: none;
+      font-size: 0.85em;
+      padding: 10px 16px;
+    }
+
+    &__detail {
+      width: 95%;
+      max-width: none;
+      max-height: 90%;
+    }
+
+    &__detail-header {
+      padding: 10px 12px;
+    }
+
+    &__detail-textarea {
+      font-size: 0.75em;
+      min-height: 100px;
+    }
+
+    &__copy-btn {
+      padding: 4px 10px;
+      min-height: 24px;
+    }
+  }
+
+  // Query history - compact on mobile
+  .query-history {
+    &__toolbar {
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    &__search {
+      min-width: 0;
+      flex: 1 1 100%;
+      font-size: 0.85em;
+      min-height: 32px;
+    }
+
+    &__filter {
+      font-size: 0.75em;
+
+      input {
+        width: 16px;
+        height: 16px;
+      }
+    }
+
+    &__clear {
+      font-size: 0.7em;
+      padding: 4px 10px;
+      min-height: 28px;
+    }
+
+    &__item {
+      padding: 8px 10px;
+    }
+
+    &__item-header {
+      font-size: 0.75em;
+    }
+
+    &__query {
+      font-size: 0.75em;
+      max-height: 40px;
+      padding: 6px 8px;
+    }
+
+    // Touch-friendly action buttons
+    &__favorite,
+    &__delete {
+      min-width: 32px;
+      min-height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1em;
+    }
   }
 }

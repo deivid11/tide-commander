@@ -4,7 +4,7 @@
  * Displays agent info, status, actions buttons, and view mode toggle.
  */
 
-import React from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { store, useSupervisor, useSettings, useLastPrompts, useSubagentsForAgent, useCustomAgentClass } from '../../store';
 import { filterCostText } from '../../utils/formatting';
@@ -142,6 +142,28 @@ export function TerminalHeader({
   const agentEmoji = customClass?.icon
     || (BUILT_IN_AGENT_CLASSES as Record<string, { icon: string }>)[selectedAgent.class]?.icon
     || '🤖';
+
+  // Mobile overflow menu state
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
+
+  const closeMobileMenu = useCallback(() => setMobileMenuOpen(false), []);
+
+  // Close menu on outside click
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (mobileMenuRef.current && !mobileMenuRef.current.contains(e.target as Node)) {
+        closeMobileMenu();
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    document.addEventListener('touchstart', handleClick as EventListener);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('touchstart', handleClick as EventListener);
+    };
+  }, [mobileMenuOpen, closeMobileMenu]);
 
   return (
     <div
@@ -293,19 +315,11 @@ export function TerminalHeader({
         >
           {viewMode === 'simple' ? `○ ${t('terminal:header.simpleView')}` : viewMode === 'chat' ? `◐ ${t('terminal:header.chatView')}` : `◉ ${t('terminal:header.advancedView')}`}
         </button>
-        {/* Mobile view mode toggle - compact icon button */}
-        <button
-          className={`guake-mode-btn show-on-mobile view-mode-${viewMode}`}
-          onClick={handleViewModeToggle}
-          title={t('terminal:header.viewMode', { mode: viewMode })}
-        >
-          {viewMode === 'simple' ? '○' : viewMode === 'chat' ? '◐' : '◉'}
-        </button>
         {!isSnapshotView && (
           <>
             {outputsLength > 0 && (
               <button
-                className="guake-clear"
+                className="guake-clear hide-on-mobile"
                 onClick={() => store.clearOutputs(selectedAgentId)}
                 title={t('terminal:header.clearOutput')}
               >
@@ -345,6 +359,109 @@ export function TerminalHeader({
               </button>
             )}
           </>
+        )}
+        {/* Mobile more-actions menu */}
+        {!isSnapshotView && (
+          <div className="guake-mobile-more show-on-mobile" ref={mobileMenuRef}>
+            <button
+              className={`guake-mobile-more-btn ${mobileMenuOpen ? 'active' : ''}`}
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              title={t('terminal:header.moreActions', 'More actions')}
+            >
+              ⋮
+            </button>
+            {mobileMenuOpen && (
+              <div className="guake-mobile-menu">
+                <button
+                  className="guake-mobile-menu-item"
+                  onClick={() => { handleViewModeToggle(); closeMobileMenu(); }}
+                >
+                  <span className="guake-mobile-menu-icon">
+                    {viewMode === 'simple' ? '○' : viewMode === 'chat' ? '◐' : '◉'}
+                  </span>
+                  {viewMode === 'simple'
+                    ? t('terminal:header.simpleView')
+                    : viewMode === 'chat'
+                      ? t('terminal:header.chatView')
+                      : t('terminal:header.advancedView')}
+                </button>
+                {outputsLength > 0 && (
+                  <button
+                    className="guake-mobile-menu-item"
+                    onClick={() => { store.clearOutputs(selectedAgentId); closeMobileMenu(); }}
+                  >
+                    <span className="guake-mobile-menu-icon">🗑</span>
+                    {t('terminal:header.clearOutput')}
+                  </button>
+                )}
+                {onSaveSnapshot && outputsLength > 0 && (
+                  <button
+                    className="guake-mobile-menu-item"
+                    onClick={() => { onSaveSnapshot(); closeMobileMenu(); }}
+                  >
+                    <span className="guake-mobile-menu-icon">⭐</span>
+                    {t('terminal:header.saveSnapshot')}
+                  </button>
+                )}
+                <button
+                  className="guake-mobile-menu-item"
+                  onClick={() => { handleSearchToggle(); closeMobileMenu(); }}
+                >
+                  <span className="guake-mobile-menu-icon">{searchMode ? '✕' : '🔍'}</span>
+                  {t('terminal:header.search')}
+                </button>
+                {setOverviewPanelOpen && (
+                  <button
+                    className={`guake-mobile-menu-item ${overviewPanelOpen ? 'active' : ''}`}
+                    onClick={() => { setOverviewPanelOpen(!overviewPanelOpen); closeMobileMenu(); }}
+                  >
+                    <span className="guake-mobile-menu-icon">📊</span>
+                    {overviewPanelOpen ? t('terminal:header.hideOverview') : t('terminal:header.showOverview')}
+                  </button>
+                )}
+                <button
+                  className={`guake-mobile-menu-item ${debugPanelOpen ? 'active' : ''}`}
+                  onClick={() => { handleDebugToggle(); closeMobileMenu(); }}
+                >
+                  <span className="guake-mobile-menu-icon">🐛</span>
+                  {debugPanelOpen ? t('terminal:header.hideDebug') : t('terminal:header.showDebug')}
+                </button>
+                <div className="guake-mobile-menu-divider" />
+                <button
+                  className="guake-mobile-menu-item"
+                  onClick={() => { setContextConfirm('collapse'); closeMobileMenu(); }}
+                  disabled={selectedAgent.status !== 'idle'}
+                >
+                  <span className="guake-mobile-menu-icon">📦</span>
+                  {t('terminal:header.collapseContext')}
+                </button>
+                <button
+                  className="guake-mobile-menu-item danger"
+                  onClick={() => { setContextConfirm('clear'); closeMobileMenu(); }}
+                >
+                  <span className="guake-mobile-menu-icon">🗑️</span>
+                  {t('terminal:header.clearContext')}
+                </button>
+                {hasSubordinates && (
+                  <button
+                    className="guake-mobile-menu-item danger"
+                    onClick={() => { setContextConfirm('clear-subordinates'); closeMobileMenu(); }}
+                  >
+                    <span className="guake-mobile-menu-icon">👑🗑️</span>
+                    {t('terminal:header.clearAllSubordinates')}
+                  </button>
+                )}
+                <div className="guake-mobile-menu-divider" />
+                <button
+                  className="guake-mobile-menu-item danger"
+                  onClick={() => { handleRemoveAgent(); closeMobileMenu(); }}
+                >
+                  <span className="guake-mobile-menu-icon">🗑️</span>
+                  {t('terminal:header.removeAgent')}
+                </button>
+              </div>
+            )}
+          </div>
         )}
         {/* Mobile close button - switch to 3D view */}
         <button

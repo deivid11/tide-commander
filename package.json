@@ -1,6 +1,6 @@
 {
   "name": "tide-commander",
-  "version": "0.70.0",
+  "version": "0.70.1",
   "description": "Visual multi-agent orchestrator and manager for Claude Code with 3D/2D interface",
   "repository": {
     "type": "git",
@@ -66,6 +66,9 @@
     "tar": "7.5.7"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.1.0",
+    "@capacitor/cli": "^7.5.0",
+    "@capacitor/core": "^8.1.0",
     "@types/archiver": "^7.0.0",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",

@@ -422,7 +422,7 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
           onClick={onNewAreaClick}
           title={t('common:agentBar.drawNewArea')}
         >
-          <span className="agent-bar-spawn-icon">▢</span>
+          <span className="agent-bar-spawn-icon">🔲</span>
           <span className="agent-bar-spawn-label">{t('common:agentBar.newArea')}</span>
         </button>
         {/* Agents grouped by area */}
