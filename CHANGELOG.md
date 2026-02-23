@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.71.1] - 2026-02-23
+
+### Changed
+- **Custom app icon** - Replaced default Android launcher icons (all densities) with Tide Commander branded icon and dark background (#0a0a0f)
+- **Proper Capacitor ES imports** - Switched from `require()` try/catch to direct ES module imports for `@capacitor/core` and `@capacitor/local-notifications`
+- **ServerConfig plugin via registerPlugin** - Use Capacitor `registerPlugin()` API instead of accessing `Capacitor.Plugins` directly for type-safe native bridge calls
+- **Keyboard adjustResize** - Added `android:windowSoftInputMode="adjustResize"` to AndroidManifest for proper keyboard handling
+- **Notification error handling** - Wrapped all LocalNotifications calls in try/catch with console logging for better debugging on native
+- **Notification ID range** - Shifted local notification IDs to start at 100 to avoid collision with foreground service notification (ID 1)
+- **Removed scheduled delay** - Notifications now fire immediately instead of using 100ms `schedule.at` delay
+- **Live reload dev config** - Added dev server URL to `capacitor.config.ts` for faster Android development iteration
+
+### Removed
+- **Deleted vector drawable icons** - Removed `ic_launcher_foreground.xml` and `ic_launcher_background.xml` in favor of raster PNG icons
+
 ## [0.71.0] - 2026-02-23
 
 ### Added
