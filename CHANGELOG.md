@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.71.2] - 2026-02-23
+
+### Fixed
+- **Duplicate native notifications** - Skip `showNotification` on native Android since the foreground service WebSocket already handles background notifications, preventing double alerts
+- **Notification listener cleanup** - `initNotificationListeners` now returns a cleanup function and guards against duplicate registration across React re-renders
+- **Listener memory leak** - WebSocket connection hook properly removes notification tap listeners on unmount
+
 ## [0.71.1] - 2026-02-23
 
 ### Changed
