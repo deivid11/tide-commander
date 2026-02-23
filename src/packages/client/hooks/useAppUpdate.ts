@@ -6,17 +6,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-
-// Conditionally import Capacitor (only available on Android builds)
-let Capacitor: any;
-let CapacitorHttp: any;
-
-try {
-  Capacitor = require('@capacitor/core').Capacitor;
-  CapacitorHttp = require('@capacitor/core').CapacitorHttp;
-} catch {
-  // Capacitor not available (web build)
-}
+import { Capacitor, CapacitorHttp } from '@capacitor/core';
 
 const GITHUB_REPO = 'deivid11/tide-commander';
 const GITHUB_RELEASES_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;

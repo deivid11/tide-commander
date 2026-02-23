@@ -10,6 +10,8 @@ const config: CapacitorConfig = {
     androidScheme: 'http',
     // Allow cleartext (non-HTTPS) traffic
     cleartext: true,
+    // Live reload from dev server (comment out for production builds)
+    url: 'http://192.168.68.52:5173',
   },
   android: {
     // Allow mixed content for WebSocket connections

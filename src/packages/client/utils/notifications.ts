@@ -10,25 +10,16 @@
  */
 
 import { store } from '../store';
+import { Capacitor, registerPlugin } from '@capacitor/core';
+import { LocalNotifications } from '@capacitor/local-notifications';
 
-// Conditionally import Capacitor (only available on Android builds)
-// Separate try/catch blocks so one failing doesn't block the other
-let LocalNotifications: any;
-let Capacitor: any;
+// Register custom Capacitor plugin for syncing config to native foreground service
+const ServerConfig = registerPlugin<{
+  syncConfig(options: { url: string; token: string }): Promise<void>;
+}>('ServerConfig');
 
-try {
-  Capacitor = require('@capacitor/core').Capacitor;
-} catch {
-  // Capacitor core not available (web build)
-}
-
-try {
-  LocalNotifications = require('@capacitor/local-notifications').LocalNotifications;
-} catch {
-  // Local notifications plugin not available
-}
-
-let notificationId = 1;
+// Start at 100 to avoid collision with foreground service notification (ID 1)
+let notificationId = 100;
 
 // Must match the channel ID created in MainActivity.java
 const AGENT_NOTIFICATION_CHANNEL_ID = 'agent_alerts';
@@ -56,7 +47,11 @@ export function openAgentTerminalFromNotification(agentId: string): void {
  * Check if we're running in a native Capacitor app
  */
 export function isNativeApp(): boolean {
-  return Capacitor?.isNativePlatform?.() ?? false;
+  try {
+    return Capacitor.isNativePlatform();
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -65,8 +60,14 @@ export function isNativeApp(): boolean {
  */
 export async function requestNotificationPermission(): Promise<boolean> {
   if (isNativeApp()) {
-    const result = await LocalNotifications.requestPermissions();
-    return result.display === 'granted';
+    try {
+      const result = await LocalNotifications.requestPermissions();
+      console.log('[Notifications] Permission result:', result.display);
+      return result.display === 'granted';
+    } catch (err) {
+      console.error('[Notifications] Failed to request permissions:', err);
+      return false;
+    }
   } else {
     // Browser fallback
     if ('Notification' in window) {
@@ -82,8 +83,12 @@ export async function requestNotificationPermission(): Promise<boolean> {
  */
 export async function areNotificationsEnabled(): Promise<boolean> {
   if (isNativeApp()) {
-    const result = await LocalNotifications.checkPermissions();
-    return result.display === 'granted';
+    try {
+      const result = await LocalNotifications.checkPermissions();
+      return result.display === 'granted';
+    } catch {
+      return false;
+    }
   } else {
     if ('Notification' in window) {
       return Notification.permission === 'granted';
@@ -105,23 +110,27 @@ export async function showNotification(options: {
   const { title, body, icon, data } = options;
 
   if (isNativeApp()) {
-    await LocalNotifications.schedule({
-      notifications: [
-        {
-          id: notificationId++,
-          title,
-          body,
-          schedule: { at: new Date(Date.now() + 100) }, // Immediate
-          extra: data,
-          // Android-specific: use high-priority channel
-          channelId: AGENT_NOTIFICATION_CHANNEL_ID,
-          // Ensure notification is shown even when app is in foreground
-          smallIcon: 'ic_launcher',
-          // Additional Android settings for lock screen visibility
-          autoCancel: true,
-        },
-      ],
-    });
+    try {
+      const id = notificationId++;
+      console.log('[Notifications] Scheduling native notification id=' + id, title);
+      await LocalNotifications.schedule({
+        notifications: [
+          {
+            id,
+            title,
+            body,
+            extra: data,
+            // Android-specific: use high-priority channel
+            channelId: AGENT_NOTIFICATION_CHANNEL_ID,
+            smallIcon: 'ic_launcher',
+            autoCancel: true,
+          },
+        ],
+      });
+      console.log('[Notifications] Notification scheduled successfully');
+    } catch (err) {
+      console.error('[Notifications] Failed to schedule notification:', err);
+    }
   } else {
     // Browser fallback
     if ('Notification' in window && Notification.permission === 'granted') {
@@ -152,12 +161,16 @@ export async function initNotificationListeners(
     });
   }
 
-  if (isNativeApp() && LocalNotifications) {
-    await LocalNotifications.addListener('localNotificationActionPerformed', (notification: any) => {
-      if (onTap && notification.notification.extra) {
-        onTap(notification.notification.extra);
-      }
-    });
+  if (isNativeApp()) {
+    try {
+      await LocalNotifications.addListener('localNotificationActionPerformed', (notification: any) => {
+        if (onTap && notification.notification.extra) {
+          onTap(notification.notification.extra);
+        }
+      });
+    } catch (err) {
+      console.error('[Notifications] Failed to add tap listener:', err);
+    }
   }
 }
 
@@ -167,12 +180,12 @@ export async function initNotificationListeners(
  * No-op on non-native platforms.
  */
 export function syncConnectionToNative(serverUrl: string, authToken: string): void {
-  if (!isNativeApp() || !Capacitor?.Plugins?.ServerConfig) return;
+  if (!isNativeApp()) return;
 
-  Capacitor.Plugins.ServerConfig.syncConfig({
+  ServerConfig.syncConfig({
     url: serverUrl,
     token: authToken,
-  }).catch(() => {
-    // Plugin not available or call failed — non-critical
+  }).catch((err: any) => {
+    console.warn('[Notifications] Failed to sync config to native service:', err);
   });
 }
