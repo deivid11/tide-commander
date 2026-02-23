@@ -60,10 +60,13 @@ export function useWebSocketConnection({
 
     // Request notification permissions
     requestNotificationPermission();
+    let cleanupNotificationListeners: (() => void) | undefined;
     initNotificationListeners((data) => {
       if (data.type === 'agent_notification' && typeof data.agentId === 'string') {
         openAgentTerminalFromNotification(data.agentId);
       }
+    }).then((cleanup) => {
+      cleanupNotificationListeners = cleanup;
     });
 
     // Handle app resume from background (Android)
@@ -75,6 +78,7 @@ export function useWebSocketConnection({
 
     return () => {
       window.removeEventListener('tideAppResume', handleAppResume);
+      cleanupNotificationListeners?.();
     };
   }, [showToast, showAgentNotification]);
 }

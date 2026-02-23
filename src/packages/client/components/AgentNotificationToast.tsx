@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { store } from '../store';
 import type { AgentNotification, AgentClass } from '../../shared/types';
 import { BUILT_IN_AGENT_CLASSES } from '../../shared/types';
-import { showNotification, openAgentTerminalFromNotification } from '../utils/notifications';
+import { showNotification, openAgentTerminalFromNotification, isNativeApp } from '../utils/notifications';
 
 interface AgentNotificationContextType {
   showAgentNotification: (notification: AgentNotification) => void;
@@ -80,17 +80,20 @@ export function AgentNotificationProvider({ children }: { children: React.ReactN
     }, 8000);
     timeoutRefs.current.set(notification.id, timeout);
 
-    // Also send native notification (Android/browser)
-    // This works in background and shows in notification shade
-    showNotification({
-      title: `${notification.agentName}: ${notification.title}`,
-      body: notification.message,
-      data: {
-        type: 'agent_notification',
-        agentId: notification.agentId,
-        notificationId: notification.id,
-      },
-    });
+    // Send browser notification on web only.
+    // On native Android, the foreground service (WebSocketForegroundService)
+    // handles notifications via its own WebSocket — skip here to avoid duplicates.
+    if (!isNativeApp()) {
+      showNotification({
+        title: `${notification.agentName}: ${notification.title}`,
+        body: notification.message,
+        data: {
+          type: 'agent_notification',
+          agentId: notification.agentId,
+          notificationId: notification.id,
+        },
+      });
+    }
   }, [removeNotification]);
 
   const handleNotificationClick = useCallback((notification: AgentNotification) => {

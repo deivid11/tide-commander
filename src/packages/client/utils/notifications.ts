@@ -147,31 +147,50 @@ export async function showNotification(options: {
 
 
 /**
- * Initialize notification listeners (for handling taps)
+ * Initialize notification listeners (for handling taps).
+ * Returns a cleanup function to remove listeners.
+ * Guards against duplicate registration.
  */
+let notificationListenersInitialized = false;
+
 export async function initNotificationListeners(
   onTap?: (data: Record<string, unknown>) => void
-): Promise<void> {
+): Promise<() => void> {
+  const cleanups: Array<() => void> = [];
+
+  if (notificationListenersInitialized) {
+    return () => {};
+  }
+  notificationListenersInitialized = true;
+
   if (onTap) {
-    window.addEventListener(TIDE_NOTIFICATION_TAP_EVENT, (event: Event) => {
+    const handler = (event: Event) => {
       const customEvent = event as CustomEvent<Record<string, unknown>>;
       if (customEvent.detail) {
         onTap(customEvent.detail);
       }
-    });
+    };
+    window.addEventListener(TIDE_NOTIFICATION_TAP_EVENT, handler);
+    cleanups.push(() => window.removeEventListener(TIDE_NOTIFICATION_TAP_EVENT, handler));
   }
 
   if (isNativeApp()) {
     try {
-      await LocalNotifications.addListener('localNotificationActionPerformed', (notification: any) => {
+      const handle = await LocalNotifications.addListener('localNotificationActionPerformed', (notification: any) => {
         if (onTap && notification.notification.extra) {
           onTap(notification.notification.extra);
         }
       });
+      cleanups.push(() => handle.remove());
     } catch (err) {
       console.error('[Notifications] Failed to add tap listener:', err);
     }
   }
+
+  return () => {
+    cleanups.forEach((fn) => fn());
+    notificationListenersInitialized = false;
+  };
 }
 
 /**
