@@ -245,8 +245,10 @@
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
       // Add padding at bottom so last message is visible above fixed input
-      // When keyboard is open, add extra padding for keyboard height + input height
-      padding-bottom: calc(var(--keyboard-height, 0px) + 50px) !important;
+      // The input wrapper contains: context bar (~20px) + stop bar (~30px) + input (~70px)
+      // Total ~120px, plus the guake-content padding-bottom offsets by 80px,
+      // so we need enough internal padding to clear the remaining overlap (~40px) plus breathing room
+      padding-bottom: calc(var(--keyboard-height, 0px) + 120px) !important;
     }
 
     // Input wrapper - FIXED at bottom, moves up with keyboard
@@ -341,7 +343,10 @@
   }
 
   // Hide desktop sidebar collapse button in terminal view; show in 3D view
+  // On mobile, always pin to right edge (sidebar is off-screen by default)
   .sidebar-collapse-edge-btn {
+    right: 0 !important;
+
     .app.mobile-view-terminal & {
       display: none !important;
     }

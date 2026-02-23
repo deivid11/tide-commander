@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.71.0] - 2026-02-23
+
+### Added
+- **Native Android background notifications** - Foreground service now maintains its own OkHttp WebSocket connection to deliver agent notifications as Android system notifications when app is in background
+- **ServerConfigPlugin** - New Capacitor plugin that syncs server URL and auth token from JS to native SharedPreferences for foreground service WebSocket
+- **App foreground/background tracking** - MainActivity tracks `isAppInForeground` state so native notifications only fire when WebView JS is paused
+
+### Changed
+- **WebSocket foreground service rewrite** - Refactored `WebSocketForegroundService` with native OkHttp WebSocket client, exponential backoff reconnect, and dynamic foreground notification status updates
+- **Capacitor dependency cleanup** - Removed unused `@capacitor/haptics` and `@capawesome/capacitor-background-task` plugins from Android build
+- **Notification imports separated** - Split Capacitor core and local-notifications imports into separate try/catch blocks for better web build compatibility
+- **Mobile message padding** - Increased bottom padding in mobile terminal output to account for context bar, stop bar, and input wrapper height
+- **Sidebar collapse button mobile fix** - Pinned sidebar collapse button to right edge on mobile (sidebar off-screen by default)
+- **Connection sync to native** - WebSocket connection handler now syncs server URL to native foreground service on successful connect
+
 ## [0.70.1] - 2026-02-23
 
 ### Added

@@ -12,14 +12,20 @@
 import { store } from '../store';
 
 // Conditionally import Capacitor (only available on Android builds)
+// Separate try/catch blocks so one failing doesn't block the other
 let LocalNotifications: any;
 let Capacitor: any;
 
 try {
-  LocalNotifications = require('@capacitor/local-notifications').LocalNotifications;
   Capacitor = require('@capacitor/core').Capacitor;
 } catch {
-  // Capacitor not available (web build)
+  // Capacitor core not available (web build)
+}
+
+try {
+  LocalNotifications = require('@capacitor/local-notifications').LocalNotifications;
+} catch {
+  // Local notifications plugin not available
 }
 
 let notificationId = 1;
@@ -153,4 +159,20 @@ export async function initNotificationListeners(
       }
     });
   }
+}
+
+/**
+ * Sync the server connection URL to the native Android foreground service
+ * so it can maintain its own WebSocket for background notification delivery.
+ * No-op on non-native platforms.
+ */
+export function syncConnectionToNative(serverUrl: string, authToken: string): void {
+  if (!isNativeApp() || !Capacitor?.Plugins?.ServerConfig) return;
+
+  Capacitor.Plugins.ServerConfig.syncConfig({
+    url: serverUrl,
+    token: authToken,
+  }).catch(() => {
+    // Plugin not available or call failed — non-critical
+  });
 }

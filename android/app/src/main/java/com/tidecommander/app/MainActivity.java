@@ -23,6 +23,9 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // Register custom Capacitor plugins before super.onCreate()
+        registerPlugin(ServerConfigPlugin.class);
+
         super.onCreate(savedInstanceState);
 
         // Create notification channels for agent alerts (high priority)
@@ -50,10 +53,17 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onResume() {
         super.onResume();
+        WebSocketForegroundService.isAppInForeground = true;
 
         // Trigger reconnect when app comes back to foreground
         // The WebView will receive this and reconnect the WebSocket
         getBridge().eval("window.dispatchEvent(new Event('tideAppResume'));", null);
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        WebSocketForegroundService.isAppInForeground = false;
     }
 
     @Override
