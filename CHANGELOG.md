@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.71.3] - 2026-02-23
+
+### Fixed
+- **Area logo hash in 3D sync** - Include logo opacity, dimensions, position, and filename in area hash so 3D scene re-renders when logo properties change
+- **Logo texture race condition** - Logo texture load callback now fetches the current area group and state from the store instead of using stale closure references
+- **Logo opacity stacking** - Enabled `depthWrite` and `alphaTest` on logo material and set `renderOrder: -1` to prevent fill opacity stacking through the logo
+- **Brightness skips logos** - `setBrightness` and `setSelectedArea` now skip `areaLogo` meshes so logo opacity is not affected by brightness changes
+
 ## [0.71.2] - 2026-02-23
 
 ### Fixed
