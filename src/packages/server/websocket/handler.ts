@@ -334,13 +334,12 @@ export function init(server: HttpServer): WebSocketServer {
     },
   });
 
-  wss.on('connection', async (ws) => {
+  wss.on('connection', (ws) => {
     clients.add(ws);
     setWsClientsCount(clients.size);
     log.log(`Client connected (total: ${clients.size})`);
 
-    await runtimeService.syncAllAgentStatus();
-
+    // Send initial state immediately – status sync runs in background
     const customClasses = customClassService.getAllCustomClasses();
     ws.send(JSON.stringify({ type: 'custom_agent_classes_update', payload: customClasses }));
 
@@ -387,6 +386,13 @@ export function init(server: HttpServer): WebSocketServer {
       setWsClientsCount(clients.size);
       log.log(`Client disconnected (remaining: ${clients.size})`);
     });
+
+    // Background sync – refreshes agent status after initial data is sent
+    runtimeService.syncAllAgentStatus().then(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'agents_update', payload: agentService.getAllAgents() }));
+      }
+    }).catch(() => {});
   });
 
   setupServiceListeners({

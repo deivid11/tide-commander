@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.72.1] - 2026-02-23
+
+### Changed
+- **Non-blocking WebSocket connection** - Connection handler no longer awaits `syncAllAgentStatus()` before sending initial state; sends custom classes, agents, and settings immediately, then syncs status in background with a follow-up `agents_update`
+
 ## [0.72.0] - 2026-02-23
 
 ### Changed
