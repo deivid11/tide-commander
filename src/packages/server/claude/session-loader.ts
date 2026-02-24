@@ -861,7 +861,7 @@ export async function getSessionActivityStatus(
     return null;
   }
 
-  const stats = fs.statSync(resolved.filePath);
+  const stats = await fs.promises.stat(resolved.filePath);
   const lastModified = stats.mtime;
   const now = new Date();
   const secondsSinceModified = (now.getTime() - lastModified.getTime()) / 1000;

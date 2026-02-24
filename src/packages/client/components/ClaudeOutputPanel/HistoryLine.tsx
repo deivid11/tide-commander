@@ -15,7 +15,7 @@ import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { createMarkdownComponents } from './MarkdownComponents';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions } from './BossContext';
-import { EditToolDiff, ReadToolInput, TodoWriteInput } from './ToolRenderers';
+import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput } from './ToolRenderers';
 import { highlightText, renderContentWithImages, renderUserPromptContent } from './contentRendering';
 import { useTTS } from '../../hooks/useTTS';
 import { ansiToHtml } from '../../utils/ansiToHtml';
@@ -369,6 +369,28 @@ export const HistoryLine = memo(function HistoryLine({
             <TodoWriteInput content={content} />
           </div>
         );
+      }
+
+      // Special case: AskUserQuestion renders the questions with options inline
+      if ((toolName === 'AskUserQuestion' || toolName === 'AskFollowupQuestion') && content) {
+        // Verify it has valid questions data
+        let hasQuestions = false;
+        try {
+          const parsed = JSON.parse(content);
+          hasQuestions = Array.isArray(parsed.questions) && parsed.questions.length > 0;
+        } catch { /* not valid JSON */ }
+
+        if (hasQuestions) {
+          return (
+            <div className={`output-line output-tool-use output-tool-simple output-ask-question-inline`}>
+              {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+              {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+              <span className="output-tool-icon">{icon}</span>
+              <span className="output-tool-name">{displayToolName}</span>
+              <AskQuestionInput content={content} />
+            </div>
+          );
+        }
       }
 
       return (

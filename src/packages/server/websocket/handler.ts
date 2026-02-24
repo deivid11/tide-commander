@@ -112,47 +112,37 @@ type MessageHandlerMap = {
 // Broadcasting
 // ============================================================================
 
+/**
+ * JSON replacer that handles non-standard types (Error, Map, Set, Date, etc.)
+ * Serialize once, reuse the string for all clients.
+ */
+function messageReplacer(_key: string, value: unknown): unknown {
+  if (value === undefined) return null;
+  if (typeof value === 'function') {
+    return `[Function: ${(value as Function).name || 'anonymous'}]`;
+  }
+  if (value instanceof Error) {
+    return { name: value.name, message: value.message, stack: value.stack };
+  }
+  if (typeof value === 'object' && value !== null) {
+    if (value instanceof Date) return value.toISOString();
+    if (value instanceof Map) return Array.from(value.entries());
+    if (value instanceof Set) return Array.from(value);
+    if (typeof (value as any)[Symbol.iterator] === 'function' && !Array.isArray(value)) {
+      try { return Array.from(value as Iterable<unknown>); } catch { /* not iterable */ }
+    }
+  }
+  return value;
+}
+
+/** Serialize a message once, reuse for all send calls. */
+function serializeMessage(message: ServerMessage): string {
+  return JSON.stringify(message, messageReplacer);
+}
+
 export function broadcast(message: ServerMessage): void {
   try {
-    const data = JSON.stringify(message, (key, value) => {
-      if (value === undefined) return null;
-      if (typeof value === 'function') {
-        return `[Function: ${(value as Function).name || 'anonymous'}]`;
-      }
-      if (value instanceof Error) {
-        return {
-          name: value.name,
-          message: value.message,
-          stack: value.stack,
-        };
-      }
-      if (typeof value === 'object' && value !== null) {
-        if (value instanceof Date) return value.toISOString();
-        if (value instanceof Map) return Array.from(value.entries());
-        if (value instanceof Set) return Array.from(value);
-        if (typeof value[Symbol.iterator] === 'function' && !Array.isArray(value)) {
-          try {
-            return Array.from(value as Iterable<unknown>);
-          } catch {
-            // Not iterable, let default handling continue
-          }
-        }
-      }
-      return value;
-    });
-
-    if (data.length === 0 || !data.startsWith('{')) {
-      log.error(`[BROADCAST] Invalid JSON generated for ${message.type}:`, data.substring(0, 100));
-      return;
-    }
-
-    try {
-      JSON.parse(data);
-    } catch (parseErr) {
-      log.error(`[BROADCAST] Generated invalid JSON for ${message.type}:`, parseErr);
-      log.error(`[BROADCAST] Data preview:`, data.substring(0, 200));
-      return;
-    }
+    const data = serializeMessage(message);
 
     let sentCount = 0;
     let errorCount = 0;
@@ -176,12 +166,11 @@ export function broadcast(message: ServerMessage): void {
     }
   } catch (err) {
     log.error(`[BROADCAST] Failed to serialize message of type ${message.type}:`, err);
-    log.error(`[BROADCAST] Message type structure:`, typeof message, Object.keys(message || {}));
   }
 }
 
 function broadcastToOthers(sender: WebSocket, message: ServerMessage): void {
-  const data = JSON.stringify(message);
+  const data = serializeMessage(message);
   for (const client of clients) {
     if (client !== sender && client.readyState === WebSocket.OPEN) {
       client.send(data);
@@ -214,10 +203,10 @@ function createHandlerContext(ws: WebSocket): HandlerContext {
       broadcastToOthers(ws, message);
     },
     sendToClient: (message: ServerMessage) => {
-      ws.send(JSON.stringify(message));
+      ws.send(serializeMessage(message));
     },
     sendError: (message: string) => {
-      ws.send(JSON.stringify({ type: 'error', payload: { message } }));
+      ws.send(serializeMessage({ type: 'error', payload: { message } } as ServerMessage));
     },
     sendActivity,
   };

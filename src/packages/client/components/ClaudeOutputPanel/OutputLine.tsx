@@ -10,7 +10,7 @@ import { TOOL_ICONS, extractExecWrappedCommand, formatTimestamp, getLocalizedToo
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, DelegatedTaskHeader, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions } from './BossContext';
-import { EditToolDiff, ReadToolInput, TodoWriteInput } from './ToolRenderers';
+import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput } from './ToolRenderers';
 import { renderContentWithImages, renderUserPromptContent } from './contentRendering';
 import { ansiToHtml } from '../../utils/ansiToHtml';
 import { useTTS } from '../../hooks/useTTS';
@@ -414,6 +414,24 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
           <span className="output-tool-icon">{icon}</span>
           <span className="output-tool-name">{displayToolName}</span>
           <TodoWriteInput content={todoContent} />
+        </div>
+      );
+    }
+
+    // Special case: AskUserQuestion shows questions with options inline
+    const askQuestionContent = (
+      (toolName === 'AskUserQuestion' || toolName === 'AskFollowupQuestion') && payloadToolInput && typeof payloadToolInput === 'object' && Array.isArray((payloadToolInput as Record<string, unknown>).questions)
+        ? JSON.stringify(payloadToolInput)
+        : undefined
+    );
+    if ((toolName === 'AskUserQuestion' || toolName === 'AskFollowupQuestion') && askQuestionContent) {
+      return (
+        <div className={`output-line output-tool-use output-ask-question-inline ${isStreaming ? 'output-streaming' : ''}`}>
+          <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
+          {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+          <span className="output-tool-icon">{icon}</span>
+          <span className="output-tool-name">{displayToolName}</span>
+          <AskQuestionInput content={askQuestionContent} />
         </div>
       );
     }

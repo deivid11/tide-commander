@@ -186,13 +186,9 @@ const statusSync = createRuntimeStatusSync({
   },
 });
 
-// Interval for periodic status sync (30 seconds)
-const STATUS_SYNC_INTERVAL = 30000;
-let statusSyncTimer: NodeJS.Timeout | null = null;
-
-// Interval for polling orphaned agents (10 seconds)
-const ORPHAN_POLL_INTERVAL = 10000;
-let orphanPollTimer: NodeJS.Timeout | null = null;
+// Combined interval for status sync + orphan polling (20 seconds)
+const STATUS_POLL_INTERVAL = 20000;
+let statusPollTimer: NodeJS.Timeout | null = null;
 
 export function init(): void {
   runners.set('claude', runtimeProviders.claude.createRunner({
@@ -210,21 +206,15 @@ export function init(): void {
     onError: runtimeEvents.handleError,
   }));
 
-  if (statusSyncTimer) {
-    clearInterval(statusSyncTimer);
+  if (statusPollTimer) {
+    clearInterval(statusPollTimer);
   }
-  statusSyncTimer = setInterval(() => {
-    syncAllAgentStatus();
-  }, STATUS_SYNC_INTERVAL);
+  statusPollTimer = setInterval(async () => {
+    await statusSync.pollOrphanedAgents();
+    await syncAllAgentStatus();
+  }, STATUS_POLL_INTERVAL);
 
-  if (orphanPollTimer) {
-    clearInterval(orphanPollTimer);
-  }
-  orphanPollTimer = setInterval(() => {
-    statusSync.pollOrphanedAgents();
-  }, ORPHAN_POLL_INTERVAL);
-
-  log.log(' Initialized with periodic status sync and orphan polling');
+  log.log(' Initialized with combined status sync + orphan polling (20s)');
 }
 
 /**
@@ -234,13 +224,9 @@ export function init(): void {
  *                        Set to true for clean shutdown, false for commander restart/crash recovery.
  */
 export async function shutdown(killProcesses: boolean = false): Promise<void> {
-  if (statusSyncTimer) {
-    clearInterval(statusSyncTimer);
-    statusSyncTimer = null;
-  }
-  if (orphanPollTimer) {
-    clearInterval(orphanPollTimer);
-    orphanPollTimer = null;
+  if (statusPollTimer) {
+    clearInterval(statusPollTimer);
+    statusPollTimer = null;
   }
   for (const runner of runners.values()) {
     await runner.stopAll(killProcesses);

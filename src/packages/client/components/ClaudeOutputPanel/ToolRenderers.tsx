@@ -2,7 +2,7 @@
  * Tool-specific rendering components for Edit, Read, TodoWrite tools
  */
 
-import React, { useRef, useCallback, useEffect } from 'react';
+import React, { useRef, useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { DiffLine, EditData, TodoItem } from './types';
 
@@ -317,6 +317,85 @@ export function TodoWriteInput({ content }: TodoWriteInputProps) {
             </div>
           ))}
         </div>
+      </div>
+    );
+  } catch {
+    return <pre className="output-input-content">{content}</pre>;
+  }
+}
+
+// ============================================================================
+// AskUserQuestion Tool Input Component
+// ============================================================================
+
+interface AskQuestionOption {
+  label: string;
+  description?: string;
+  markdown?: string;
+}
+
+interface AskQuestion {
+  question: string;
+  header?: string;
+  options?: AskQuestionOption[];
+  multiSelect?: boolean;
+}
+
+interface AskQuestionInputProps {
+  content: string;
+}
+
+export function AskQuestionInput({ content }: AskQuestionInputProps) {
+  const [expandedOption, setExpandedOption] = useState<number | null>(null);
+
+  try {
+    const input = JSON.parse(content);
+    const questions: AskQuestion[] = input.questions;
+
+    if (!Array.isArray(questions) || questions.length === 0) {
+      return <pre className="output-input-content">{content}</pre>;
+    }
+
+    return (
+      <div className="ask-question-input">
+        {questions.map((q, qIdx) => (
+          <div key={qIdx} className="ask-question-block">
+            <div className="ask-question-header">
+              {q.header && <span className="ask-question-badge">{q.header}</span>}
+              <span className="ask-question-text">{q.question}</span>
+              {q.multiSelect && <span className="ask-question-multi">multi</span>}
+            </div>
+            {q.options && q.options.length > 0 && (
+              <div className="ask-question-options">
+                {q.options.map((opt, oIdx) => {
+                  const globalIdx = qIdx * 100 + oIdx;
+                  const isExpanded = expandedOption === globalIdx;
+                  return (
+                    <div
+                      key={oIdx}
+                      className={`ask-question-option ${isExpanded ? 'expanded' : ''}`}
+                      onClick={() => setExpandedOption(isExpanded ? null : globalIdx)}
+                    >
+                      <div className="ask-option-row">
+                        <span className="ask-option-number">{oIdx + 1}</span>
+                        <span className="ask-option-label">{opt.label}</span>
+                        {opt.markdown && (
+                          <span className="ask-option-preview-hint">{isExpanded ? '▼' : '▶'}</span>
+                        )}
+                      </div>
+                      {opt.description && (
+                        <div className="ask-option-desc">{opt.description}</div>
+                      )}
+                      {opt.markdown && isExpanded && (
+                        <pre className="ask-option-markdown">{opt.markdown}</pre>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ))}
       </div>
     );
   } catch {

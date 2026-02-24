@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.75.0] - 2026-02-23
+
+### Added
+- **AskUserQuestion inline renderer** - New `AskQuestionInput` component renders questions with numbered options, badges, description text, and expandable markdown previews directly in the output panel
+- **Mobile card-stack Commander View** - Replaced scroll-based layout with Apple Wallet-style card stack: focused agent fills the screen, non-focused agents collapse to peeking headers with tap-to-focus
+
+### Changed
+- **WebSocket broadcast serialization** - Extracted `messageReplacer` and `serializeMessage` to serialize once and reuse the string for all clients, eliminating per-client re-serialization and double-parse validation
+- **Combined status polling** - Merged separate status sync (30s) and orphan polling (10s) intervals into a single 20s timer, reducing timer overhead
+- **Async session stat** - `getSessionActivityStatus` now uses `fs.promises.stat` instead of blocking `fs.statSync`
+
 ## [0.74.0] - 2026-02-23
 
 ### Changed

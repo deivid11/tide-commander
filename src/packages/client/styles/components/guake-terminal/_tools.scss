@@ -709,6 +709,176 @@
 }
 
 // =============================================================================
+// AskUserQuestion Tool Input - Inline on "Using tool:" line
+// =============================================================================
+
+.output-ask-question-inline {
+  flex-wrap: wrap;
+
+  .ask-question-input {
+    flex-basis: 100%;
+    margin-top: 4px;
+    border: 1px solid rgba($border-color, 0.5);
+    border-radius: $radius-sm;
+    overflow: hidden;
+  }
+}
+
+.ask-question-input {
+  width: 100%;
+}
+
+.ask-question-block {
+  & + & {
+    margin-top: 6px;
+    border-top: 1px solid $border-color;
+    padding-top: 6px;
+  }
+}
+
+.ask-question-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: rgba($bg-tertiary, 0.6);
+  border-bottom: 1px solid $border-color;
+  border-radius: $radius-sm $radius-sm 0 0;
+}
+
+.ask-question-badge {
+  font-family: $font-mono;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--accent-purple, #a78bfa);
+  background: color-mix(in srgb, var(--accent-purple, #a78bfa) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-purple, #a78bfa) 40%, transparent);
+  border-radius: 4px;
+  padding: 1px 6px;
+  flex-shrink: 0;
+}
+
+.ask-question-text {
+  font-family: $font-mono;
+  font-size: 12px;
+  font-weight: 600;
+  color: $text-primary;
+  flex: 1;
+}
+
+.ask-question-multi {
+  font-family: $font-mono;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--accent-cyan);
+  background: color-mix(in srgb, var(--accent-cyan) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-cyan) 35%, transparent);
+  border-radius: 3px;
+  padding: 1px 5px;
+  flex-shrink: 0;
+}
+
+.ask-question-options {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 0;
+  background: rgba($bg-primary, 0.3);
+  border-radius: 0 0 $radius-sm $radius-sm;
+}
+
+.ask-question-option {
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: background $transition-fast;
+  border-left: 2px solid transparent;
+
+  &:hover {
+    background: rgba($text-primary, 0.04);
+  }
+
+  &.expanded {
+    background: rgba(var(--accent-purple-rgb, 167, 139, 250), 0.06);
+    border-left-color: var(--accent-purple, #a78bfa);
+  }
+}
+
+.ask-option-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ask-option-number {
+  font-family: $font-mono;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent-purple, #a78bfa);
+  background: color-mix(in srgb, var(--accent-purple, #a78bfa) 15%, transparent);
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.ask-option-label {
+  font-family: $font-mono;
+  font-size: 12px;
+  font-weight: 600;
+  color: $text-primary;
+}
+
+.ask-option-preview-hint {
+  margin-left: auto;
+  font-size: 10px;
+  color: $text-muted;
+  opacity: 0.6;
+}
+
+.ask-option-desc {
+  font-family: $font-mono;
+  font-size: 10px;
+  color: $text-secondary;
+  padding: 2px 0 0 26px;
+  line-height: 1.4;
+}
+
+.ask-option-markdown {
+  margin: 6px 0 2px 26px;
+  padding: 8px 10px;
+  font-family: $font-mono;
+  font-size: 10px;
+  line-height: 1.35;
+  color: $text-secondary;
+  background: rgba($bg-primary, 0.8);
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  white-space: pre;
+  overflow-x: auto;
+  max-height: 200px;
+  overflow-y: auto;
+
+  &::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: rgba($text-muted, 0.3);
+    border-radius: 2px;
+  }
+}
+
+// =============================================================================
 // Tool Result in Live Streaming
 // =============================================================================
 
