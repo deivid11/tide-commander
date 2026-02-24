@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.71.5] - 2026-02-23
+
+### Changed
+- **Faster history fade-in** - Reduced terminal history message fade-in animation from 250ms (with 50ms delay) to 50ms immediate for snappier feel
+
 ## [0.71.4] - 2026-02-23
 
 ### Changed
