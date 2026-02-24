@@ -6,9 +6,9 @@
  * - Keyboard navigation
  */
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Fuse from 'fuse.js';
-import { useStore, store } from '../../store';
+import { store, useAgents, useAreas, useBuildings, useFileChanges } from '../../store';
 import { formatShortcut } from '../../store/shortcuts';
 import type { Agent, DrawingArea } from '../../../shared/types';
 import type { SearchResult, UseSpotlightSearchOptions, SpotlightSearchState } from './types';
@@ -29,7 +29,46 @@ export function useSpotlightSearch({
   onOpenBossLogsModal,
   onOpenDatabasePanel,
 }: UseSpotlightSearchOptions): SpotlightSearchState {
-  const state = useStore();
+  // Granular selectors — only re-render when the specific slice changes
+  const agents = useAgents();
+  const areas = useAreas();
+  const buildings = useBuildings();
+  const fileChanges = useFileChanges();
+
+  // Stable version string for supervisor history — only changes when entry counts change
+  const supervisorHistoriesVersion = useMemo(() => {
+    const histories = store.getState().supervisor.agentHistories;
+    let version = '';
+    for (const [id, entries] of histories) {
+      version += `${id}:${entries.length},`;
+    }
+    return version;
+  // Re-derive when agents change (new agent might have history)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agents]);
+
+  // Stabilize callback props via refs to remove them from useMemo dependency arrays.
+  // Actions inside search results capture these via ref so the data arrays don't
+  // recreate when a parent re-render produces new callback identities.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const onOpenSpawnModalRef = useRef(onOpenSpawnModal);
+  onOpenSpawnModalRef.current = onOpenSpawnModal;
+  const onOpenCommanderViewRef = useRef(onOpenCommanderView);
+  onOpenCommanderViewRef.current = onOpenCommanderView;
+  const onOpenToolboxRef = useRef(onOpenToolbox);
+  onOpenToolboxRef.current = onOpenToolbox;
+  const onOpenSupervisorRef = useRef(onOpenSupervisor);
+  onOpenSupervisorRef.current = onOpenSupervisor;
+  const onOpenFileExplorerRef = useRef(onOpenFileExplorer);
+  onOpenFileExplorerRef.current = onOpenFileExplorer;
+  const onOpenPM2LogsModalRef = useRef(onOpenPM2LogsModal);
+  onOpenPM2LogsModalRef.current = onOpenPM2LogsModal;
+  const onOpenBossLogsModalRef = useRef(onOpenBossLogsModal);
+  onOpenBossLogsModalRef.current = onOpenBossLogsModal;
+  const onOpenDatabasePanelRef = useRef(onOpenDatabasePanel);
+  onOpenDatabasePanelRef.current = onOpenDatabasePanel;
+
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
 
@@ -40,21 +79,23 @@ export function useSpotlightSearch({
       setSelectedIndex(0);
 
       // Request supervisor history for all agents that haven't had their full history fetched
-      const agents = Array.from(state.agents.values());
-      for (const agent of agents) {
+      const agentValues = Array.from(agents.values());
+      for (const agent of agentValues) {
         // Request history if not already fetched and not currently loading
         if (!store.hasHistoryBeenFetched(agent.id) && !store.isLoadingHistoryForAgent(agent.id)) {
           store.requestAgentSupervisorHistory(agent.id);
         }
       }
     }
-  }, [isOpen, state.agents]);
+  }, [isOpen, agents]);
 
   // Get shortcuts for display
   const shortcuts = store.getShortcuts();
 
   // Build command results
   const commands: SearchResult[] = useMemo(() => {
+    if (!isOpen) return [];
+
     const spawnShortcut = shortcuts.find((s) => s.id === 'spawn-agent');
     const commanderShortcut = shortcuts.find((s) => s.id === 'toggle-commander');
 
@@ -66,8 +107,8 @@ export function useSpotlightSearch({
         subtitle: spawnShortcut ? formatShortcut(spawnShortcut) : 'Alt+N',
         icon: '➕',
         action: () => {
-          onClose();
-          onOpenSpawnModal();
+          onCloseRef.current();
+          onOpenSpawnModalRef.current();
         },
       },
       {
@@ -77,8 +118,8 @@ export function useSpotlightSearch({
         subtitle: commanderShortcut ? formatShortcut(commanderShortcut) : 'Ctrl+K',
         icon: '📊',
         action: () => {
-          onClose();
-          onOpenCommanderView();
+          onCloseRef.current();
+          onOpenCommanderViewRef.current();
         },
       },
       {
@@ -88,8 +129,8 @@ export function useSpotlightSearch({
         subtitle: 'Configure Tide Commander',
         icon: '⚙️',
         action: () => {
-          onClose();
-          onOpenToolbox();
+          onCloseRef.current();
+          onOpenToolboxRef.current();
         },
       },
       {
@@ -99,18 +140,18 @@ export function useSpotlightSearch({
         subtitle: 'View agent analysis',
         icon: '🎖️',
         action: () => {
-          onClose();
-          onOpenSupervisor();
+          onCloseRef.current();
+          onOpenSupervisorRef.current();
         },
       },
     ];
-  }, [shortcuts, onClose, onOpenSpawnModal, onOpenCommanderView, onOpenToolbox, onOpenSupervisor]);
+  }, [isOpen, shortcuts]);
 
   // Build agent results with supervisor history, modified files, and user queries included in searchable text
   const agentResults: SearchResult[] = useMemo(() => {
-    const fileChanges = state.fileChanges || [];
+    if (!isOpen) return [];
 
-    return Array.from(state.agents.values()).map((agent: Agent) => {
+    return Array.from(agents.values()).map((agent: Agent) => {
       // Get ALL supervisor history for this agent (sorted by timestamp, newest first)
       const history = store.getAgentSupervisorHistory(agent.id);
       const latestEntry = history.length > 0 ? history[0] : null;
@@ -122,7 +163,7 @@ export function useSpotlightSearch({
       }));
 
       // Get modified files for this agent
-      const agentFiles = fileChanges.filter((fc) => fc.agentId === agent.id).map((fc) => fc.filePath);
+      const agentFiles = (fileChanges || []).filter((fc) => fc.agentId === agent.id).map((fc) => fc.filePath);
       // Get unique file names for search
       const uniqueFiles = [...new Set(agentFiles)];
       const fileNames = uniqueFiles.map((fp) => fp.split('/').pop() || fp);
@@ -195,31 +236,35 @@ export function useSpotlightSearch({
         _userQueries: userQueries,
         _historyEntries: historyEntries,
         action: () => {
-          onClose();
+          onCloseRef.current();
           store.selectAgent(agent.id);
         },
       };
     });
-  }, [state.agents, state.supervisor.agentHistories, state.fileChanges, onClose]);
+  }, [isOpen, agents, supervisorHistoriesVersion, fileChanges]);
 
   // Build area results
   const areaResults: SearchResult[] = useMemo(() => {
-    return Array.from(state.areas.values()).map((area: DrawingArea) => ({
+    if (!isOpen) return [];
+
+    return Array.from(areas.values()).map((area: DrawingArea) => ({
       id: `area-${area.id}`,
       type: 'area' as const,
       title: area.name,
       subtitle: `${area.assignedAgentIds.length} agents • ${area.directories?.length || 0} folders`,
       icon: '🗺️',
       action: () => {
-        onClose();
+        onCloseRef.current();
         store.selectArea(area.id);
       },
     }));
-  }, [state.areas, onClose]);
+  }, [isOpen, areas]);
 
   // Build building results (server, boss, and database buildings)
   const buildingResults: SearchResult[] = useMemo(() => {
-    return Array.from(state.buildings.values())
+    if (!isOpen) return [];
+
+    return Array.from(buildings.values())
       .filter((building) => building.type === 'server' || building.type === 'boss' || building.type === 'database')
       .map((building) => {
         const statusIcon = building.status === 'running' ? '🟢' : building.status === 'stopped' ? '🔴' : '🟡';
@@ -251,27 +296,29 @@ export function useSpotlightSearch({
           icon: `${statusIcon} ${typeIcon}`,
           _searchText: searchText,
           action: () => {
-            onClose();
+            onCloseRef.current();
             if (building.type === 'boss') {
-              onOpenBossLogsModal(building.id);
+              onOpenBossLogsModalRef.current(building.id);
             } else if (building.type === 'database') {
-              onOpenDatabasePanel(building.id);
+              onOpenDatabasePanelRef.current(building.id);
             } else if (building.pm2?.enabled) {
-              onOpenPM2LogsModal(building.id);
+              onOpenPM2LogsModalRef.current(building.id);
             }
           },
         };
       });
-  }, [state.buildings, onClose, onOpenPM2LogsModal, onOpenBossLogsModal, onOpenDatabasePanel]);
+  }, [isOpen, buildings]);
 
   // Build modified files results from file changes
   const modifiedFileResults: SearchResult[] = useMemo(() => {
-    const fileChanges = state.fileChanges || [];
+    if (!isOpen) return [];
+
+    const fc = fileChanges || [];
     const seenPaths = new Set<string>();
     const results: SearchResult[] = [];
 
     // Get unique file paths with their most recent change
-    for (const change of fileChanges) {
+    for (const change of fc) {
       if (seenPaths.has(change.filePath)) continue;
       seenPaths.add(change.filePath);
 
@@ -293,23 +340,20 @@ export function useSpotlightSearch({
         matchedText: change.filePath,
         icon: change.action === 'deleted' ? '🗑️' : getFileIconFromPath(change.filePath),
         action: () => {
-          onClose();
-          // Try to find an area that contains this file
-          const areas = Array.from(state.areas.values());
-          for (const area of areas) {
+          onCloseRef.current();
+          // Try to find an area that contains this file (read live from store)
+          const currentAreas = Array.from(store.getState().areas.values());
+          for (const area of currentAreas) {
             for (const dir of area.directories || []) {
               if (change.filePath.startsWith(dir)) {
                 store.setFileViewerPath(change.filePath);
-                onOpenFileExplorer(area.id);
+                onOpenFileExplorerRef.current(area.id);
                 return;
               }
             }
           }
           // If no area found, just select the agent
-          const agent = state.agents.get(change.agentId);
-          if (agent) {
-            store.selectAgent(change.agentId);
-          }
+          store.selectAgent(change.agentId);
         },
       });
 
@@ -318,14 +362,16 @@ export function useSpotlightSearch({
     }
 
     return results;
-  }, [state.fileChanges, state.areas, state.agents, onClose, onOpenFileExplorer]);
+  }, [isOpen, fileChanges]);
 
   // Build activity results from supervisor history (searchable by status/summary text)
   const activityResults: SearchResult[] = useMemo(() => {
-    const results: SearchResult[] = [];
-    const agents = Array.from(state.agents.values());
+    if (!isOpen) return [];
 
-    for (const agent of agents) {
+    const results: SearchResult[] = [];
+    const agentValues = Array.from(agents.values());
+
+    for (const agent of agentValues) {
       const history = store.getAgentSupervisorHistory(agent.id);
 
       // Only include the most recent entry per agent for activity search
@@ -342,7 +388,7 @@ export function useSpotlightSearch({
           matchedText: analysis.recentWorkSummary,
           icon: getAgentIcon(agent.class),
           action: () => {
-            onClose();
+            onCloseRef.current();
             store.selectAgent(agent.id);
           },
         });
@@ -350,7 +396,7 @@ export function useSpotlightSearch({
     }
 
     return results;
-  }, [state.agents, state.supervisor.agentHistories, onClose]);
+  }, [isOpen, agents, supervisorHistoriesVersion]);
 
   // Create Fuse instances for fuzzy search
   // ignoreLocation: true allows matching anywhere in the text (not just first 600 chars)
@@ -621,7 +667,7 @@ export function useSpotlightSearch({
       switch (e.key) {
         case 'Escape':
           e.preventDefault();
-          onClose();
+          onCloseRef.current();
           break;
         case 'ArrowUp':
           e.preventDefault();
@@ -639,7 +685,7 @@ export function useSpotlightSearch({
           break;
       }
     },
-    [onClose, results, selectedIndex]
+    [results, selectedIndex]
   );
 
   // Highlight matching text - improved version that highlights all occurrences

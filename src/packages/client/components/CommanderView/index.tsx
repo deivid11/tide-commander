@@ -296,7 +296,11 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
   const handleExpandAgent = useCallback((agentId: string) => setExpandedAgentId(agentId), []);
   const handleFocusAgent = useCallback((index: number) => setFocusedIndex(index), []);
   const handleInputRef = useCallback((agentId: string, el: HTMLInputElement | HTMLTextAreaElement | null) => {
-    if (el) inputRefs.current.set(agentId, el);
+    if (el) {
+      inputRefs.current.set(agentId, el);
+    } else {
+      inputRefs.current.delete(agentId);
+    }
   }, []);
 
   // Reset page and save tab when switching tabs

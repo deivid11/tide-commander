@@ -73,19 +73,22 @@ export function createExecTaskActions(
     handleExecTaskOutput(taskId: string, agentId: string, output: string, isError?: boolean): void {
       setState((state) => {
         const task = state.execTasks?.get(taskId);
-        if (task) {
-          // Split output into lines and add to the output array
-          const lines = output.split('\n');
-          for (const line of lines) {
-            if (line.length > 0) {
-              task.output.push(isError ? `[stderr] ${line}` : line);
-            }
-          }
-          // Keep only the last 500 lines to avoid memory issues
-          if (task.output.length > 500) {
-            task.output = task.output.slice(-500);
+        if (!task) return;
+
+        // Build new output array (immutable update for selector change detection)
+        const lines = output.split('\n');
+        const newOutput = [...task.output];
+        for (const line of lines) {
+          if (line.length > 0) {
+            newOutput.push(isError ? `[stderr] ${line}` : line);
           }
         }
+        // Keep only the last 500 lines to avoid memory issues
+        if (newOutput.length > 500) {
+          newOutput.splice(0, newOutput.length - 500);
+        }
+        // Create new task object so shallowArrayEqual in useExecTasks detects the change
+        state.execTasks!.set(taskId, { ...task, output: newOutput });
       });
       notify();
     },

@@ -676,11 +676,6 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
 
                   {/* Output lines */}
                   <div className="exec-task-inline-terminal">
-                    {/* Ellipsis indicator when collapsed */}
-                    {isCollapsed && !isExpanded && (
-                      <div className="exec-task-ellipsis">...</div>
-                    )}
-
                     <pre className="exec-task-inline-output">
                       {displayLines.map((line, idx) => (
                         <div key={idx} dangerouslySetInnerHTML={{ __html: ansiToHtml(line) }} />

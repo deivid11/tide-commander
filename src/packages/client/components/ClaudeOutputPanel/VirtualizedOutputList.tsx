@@ -5,7 +5,7 @@
  * Only renders visible items plus overscan buffer, reducing DOM nodes from 200+ to ~30.
  */
 
-import React, { useRef, useEffect, useLayoutEffect, useCallback, memo } from 'react';
+import React, { useRef, useEffect, useLayoutEffect, useCallback, useMemo, memo } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { HistoryLine } from './HistoryLine';
 import { OutputLine } from './OutputLine';
@@ -150,7 +150,7 @@ const VirtualRow = memo(function VirtualRow({
   );
 });
 
-export const VirtualizedOutputList = function VirtualizedOutputList({
+export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   historyMessages,
   liveOutputs,
   agentId,
@@ -174,14 +174,22 @@ export const VirtualizedOutputList = function VirtualizedOutputList({
   onPinCancel,
   isLoadingHistory,
 }: VirtualizedOutputListProps) {
-  // Combine history and live outputs into single array
-  const allItems = [...historyMessages, ...liveOutputs];
+  // Combine history and live outputs into single array (memoized to avoid
+  // re-creating the array on every render, which would trigger virtualizer
+  // recalculations and cascade into unnecessary child re-renders)
+  const allItems = useMemo(
+    () => [...historyMessages, ...liveOutputs],
+    [historyMessages, liveOutputs]
+  );
   const historyCount = historyMessages.length;
 
   // Track if we're programmatically scrolling (to avoid triggering onUserScroll)
   const isProgrammaticScrollRef = useRef(false);
   const prevItemCountRef = useRef(allItems.length);
   const agentSwitchGraceRef = useRef(false);
+  // Ref for allItems count so scrollToBottom can read it without being recreated
+  const allItemsCountRef = useRef(allItems.length);
+  allItemsCountRef.current = allItems.length;
 
   // Create virtualizer
   // initialRect prevents the first render from having outerSize=0 (which yields
@@ -198,14 +206,25 @@ export const VirtualizedOutputList = function VirtualizedOutputList({
     },
   });
 
+  // Release all DOM element references held by the virtualizer's internal
+  // elementsCache when this component unmounts.  @tanstack/virtual-core's
+  // cleanup() disconnects the ResizeObserver but does NOT clear elementsCache,
+  // so detached DOM nodes accumulate until the virtualizer is GC'd.
+  useEffect(() => {
+    return () => {
+      virtualizer.elementsCache.clear();
+    };
+  }, [virtualizer]);
+
   const scrollToBottom = useCallback(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
-    if (allItems.length <= 0) return;
+    const count = allItemsCountRef.current;
+    if (count <= 0) return;
     // Use both the virtualizer and direct scrollTop for robustness.
-    virtualizer.scrollToIndex(allItems.length - 1, { align: 'end' });
+    virtualizer.scrollToIndex(count - 1, { align: 'end' });
     container.scrollTop = container.scrollHeight;
-  }, [allItems.length, scrollContainerRef, virtualizer]);
+  }, [scrollContainerRef, virtualizer]);
 
   // Pin-to-bottom mode (used for agent switching / initial load).
   // While pinned, we keep applying a bottom scroll on layout changes so large conversations can't
@@ -306,9 +325,10 @@ export const VirtualizedOutputList = function VirtualizedOutputList({
     if (selectedMessageIndex !== null && selectedMessageIndex >= 0 && selectedMessageIndex < allItems.length) {
       isProgrammaticScrollRef.current = true;
       virtualizer.scrollToIndex(selectedMessageIndex, { align: 'center' });
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         isProgrammaticScrollRef.current = false;
       }, 100);
+      return () => clearTimeout(timer);
     }
   }, [selectedMessageIndex, virtualizer, allItems.length]);
 
@@ -360,6 +380,6 @@ export const VirtualizedOutputList = function VirtualizedOutputList({
       })}
     </div>
   );
-};
+});
 
 export default VirtualizedOutputList;
