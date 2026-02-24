@@ -4,9 +4,9 @@
  * Displays agent info, status, actions buttons, and view mode toggle.
  */
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { store, useSupervisor, useSettings, useLastPrompts, useSubagentsForAgent, useCustomAgentClass } from '../../store';
+import { store, useSupervisor, useSettings, useLastPrompt, useSubagentsForAgent, useCustomAgentClass } from '../../store';
 import { filterCostText } from '../../utils/formatting';
 import { STORAGE_KEYS, setStorageString } from '../../utils/storage';
 import { agentDebugger } from '../../services/agentDebugger';
@@ -47,7 +47,7 @@ export interface TerminalHeaderProps {
   onToggleAgentInfo?: () => void;
 }
 
-export function TerminalHeader({
+export const TerminalHeader = memo(function TerminalHeader({
   selectedAgent,
   selectedAgentId,
   sortedAgents,
@@ -74,7 +74,7 @@ export function TerminalHeader({
   const { t } = useTranslation(['terminal', 'common']);
   const supervisor = useSupervisor();
   const settings = useSettings();
-  const lastPrompts = useLastPrompts();
+  const lastPrompt = useLastPrompt(selectedAgentId);
 
   const handleViewModeToggle = () => {
     const currentIndex = VIEW_MODES.indexOf(viewMode);
@@ -110,7 +110,7 @@ export function TerminalHeader({
   const lastInput =
     selectedAgent.currentTask ||
     selectedAgent.lastAssignedTask ||
-    lastPrompts.get(selectedAgentId)?.text;
+    lastPrompt?.text;
 
   const agentAnalysis = supervisor.lastReport?.agentSummaries.find(
     (a: AgentAnalysis) => a.agentId === selectedAgent.id || a.agentName === selectedAgent.name
@@ -474,7 +474,7 @@ export function TerminalHeader({
       </div>
     </div>
   );
-}
+});
 
 // Search bar component
 export interface SearchBarProps {

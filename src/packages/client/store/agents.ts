@@ -117,7 +117,7 @@ export function createAgentActions(
         state.agents = newAgents;
         // Auto-select working agent if no agent is currently selected
         if (workingAgent && state.selectedAgentIds.size === 0) {
-          state.selectedAgentIds.add(workingAgent.id);
+          state.selectedAgentIds = new Set([workingAgent.id]);
           state.terminalOpen = true;
         }
       });
@@ -222,7 +222,9 @@ export function createAgentActions(
         const newAgents = new Map(state.agents);
         newAgents.delete(agentId);
         state.agents = newAgents;
-        state.selectedAgentIds.delete(agentId);
+        const newSelectedIds = new Set(state.selectedAgentIds);
+        newSelectedIds.delete(agentId);
+        state.selectedAgentIds = newSelectedIds;
         // Clean up agent outputs to prevent memory leak
         state.agentOutputs.delete(agentId);
         // Clean up last prompts
@@ -254,9 +256,9 @@ export function createAgentActions(
     selectAgent(agentId: string | null): void {
       let unseenChanged = false;
       setState((state) => {
-        state.selectedAgentIds.clear();
+        // Create a new Set so selectors (shallowSetEqual) detect the reference change
+        state.selectedAgentIds = new Set(agentId ? [agentId] : []);
         if (agentId) {
-          state.selectedAgentIds.add(agentId);
           state.lastSelectedAgentId = agentId;
 
           // NEW: Clear unseen badge when agent is selected
@@ -279,10 +281,12 @@ export function createAgentActions(
     addToSelection(agentId: string): void {
       let unseenChanged = false;
       setState((state) => {
-        if (state.selectedAgentIds.has(agentId)) {
-          state.selectedAgentIds.delete(agentId);
+        // Create a new Set so selectors (shallowSetEqual) detect the reference change
+        const newSet = new Set(state.selectedAgentIds);
+        if (newSet.has(agentId)) {
+          newSet.delete(agentId);
         } else {
-          state.selectedAgentIds.add(agentId);
+          newSet.add(agentId);
 
           // NEW: Clear unseen badge when agent is added to selection
           if (state.agentsWithUnseenOutput.has(agentId)) {
@@ -292,6 +296,7 @@ export function createAgentActions(
             unseenChanged = true;
           }
         }
+        state.selectedAgentIds = newSet;
       });
       if (unseenChanged && saveUnseenAgents) {
         saveUnseenAgents();
@@ -301,17 +306,14 @@ export function createAgentActions(
 
     selectMultiple(agentIds: string[]): void {
       setState((state) => {
-        state.selectedAgentIds.clear();
-        for (const id of agentIds) {
-          state.selectedAgentIds.add(id);
-        }
+        state.selectedAgentIds = new Set(agentIds);
       });
       notify();
     },
 
     deselectAll(): void {
       setState((state) => {
-        state.selectedAgentIds.clear();
+        state.selectedAgentIds = new Set();
       });
       notify();
     },

@@ -6,9 +6,13 @@
  * - File uploads
  */
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { STORAGE_KEYS, getStorageString, setStorageString, removeStorage, apiUrl, authFetch } from '../../utils/storage';
 import type { AttachedFile } from './types';
+
+// Stable empty references to avoid defeating memo on consumers
+const EMPTY_MAP = new Map<number, string>();
+const EMPTY_FILES: AttachedFile[] = [];
 
 interface UseTerminalInputOptions {
   selectedAgentId: string | null;
@@ -79,11 +83,11 @@ export function useTerminalInput({ selectedAgentId }: UseTerminalInputOptions): 
     }
   }, [selectedAgentId, agentCommands]);
 
-  // Get current agent's values
+  // Get current agent's values (use stable empty references to avoid defeating memo)
   const command = selectedAgentId ? agentCommands.get(selectedAgentId) || '' : '';
   const forceTextarea = selectedAgentId ? agentForceTextarea.get(selectedAgentId) || false : false;
-  const pastedTexts = selectedAgentId ? agentPastedTexts.get(selectedAgentId) || new Map() : new Map<number, string>();
-  const attachedFiles = selectedAgentId ? agentAttachedFiles.get(selectedAgentId) || [] : [];
+  const pastedTexts = (selectedAgentId ? agentPastedTexts.get(selectedAgentId) : undefined) || EMPTY_MAP;
+  const attachedFiles = (selectedAgentId ? agentAttachedFiles.get(selectedAgentId) : undefined) || EMPTY_FILES;
 
   // Use textarea if: forced, has newlines, or text is long
   // On mobile, always use textarea so Enter can add newlines
@@ -231,7 +235,7 @@ export function useTerminalInput({ selectedAgentId }: UseTerminalInputOptions): 
     return Math.min(rows, 10);
   }, [command]);
 
-  return {
+  return useMemo(() => ({
     command,
     setCommand,
     forceTextarea,
@@ -247,5 +251,10 @@ export function useTerminalInput({ selectedAgentId }: UseTerminalInputOptions): 
     uploadFile,
     expandPastedTexts,
     getTextareaRows,
-  };
+  }), [
+    command, setCommand, forceTextarea, setForceTextarea, useTextarea,
+    pastedTexts, setPastedTexts, incrementPastedCount, resetPastedCount,
+    attachedFiles, setAttachedFiles, removeAttachedFile, uploadFile,
+    expandPastedTexts, getTextareaRows,
+  ]);
 }

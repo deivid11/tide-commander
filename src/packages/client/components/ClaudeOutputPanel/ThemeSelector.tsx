@@ -2,11 +2,11 @@
  * ThemeSelector - Compact theme switcher for the terminal status bar
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { memo, useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { themes, getTheme, applyTheme, getSavedTheme, type ThemeId } from '../../utils/themes';
 
-export function ThemeSelector() {
+export const ThemeSelector = memo(function ThemeSelector() {
   const { t } = useTranslation(['terminal']);
   const [isOpen, setIsOpen] = useState(false);
   const [currentTheme, setCurrentTheme] = useState<ThemeId>(() => getSavedTheme());
@@ -149,4 +149,4 @@ export function ThemeSelector() {
       )}
     </div>
   );
-}
+});

@@ -6,10 +6,10 @@
  * - TerminalInput from shared components for input handling
  */
 
-import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useMemo, useCallback, memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Agent } from '../../../shared/types';
-import { useSupervisor, store, ClaudeOutput } from '../../store';
+import { useSupervisorLastReport, store, ClaudeOutput } from '../../store';
 import { formatTokens } from '../../utils/formatting';
 import { VirtualizedOutputList } from '../ClaudeOutputPanel/VirtualizedOutputList';
 import { ImageModal, BashModal, AgentResponseModalWrapper, type BashModalState } from '../ClaudeOutputPanel/TerminalModals';
@@ -36,7 +36,7 @@ interface AgentPanelProps {
   onClearHistory: () => void;
 }
 
-export function AgentPanel({
+export const AgentPanel = memo(function AgentPanel({
   agent,
   history,
   outputs,
@@ -50,7 +50,7 @@ export function AgentPanel({
   onClearHistory,
 }: AgentPanelProps) {
   const { t } = useTranslation(['terminal', 'common']);
-  const supervisor = useSupervisor();
+  const lastReport = useSupervisorLastReport();
   const outputRef = useRef<HTMLDivElement>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const scrollPositionRef = useRef<number>(0);
@@ -93,12 +93,11 @@ export function AgentPanel({
 
   // Get supervisor status for this agent
   const supervisorStatus = useMemo(() => {
-    const report = supervisor?.lastReport;
-    if (!report?.agentSummaries) return null;
-    return report.agentSummaries.find(
+    if (!lastReport?.agentSummaries) return null;
+    return lastReport.agentSummaries.find(
       s => s.agentId === agent.id || s.agentName === agent.name
     );
-  }, [supervisor?.lastReport, agent.id, agent.name]);
+  }, [lastReport, agent.id, agent.name]);
 
   // Calculate context usage info
   const contextInfo = useMemo(() => {
@@ -247,6 +246,22 @@ export function AgentPanel({
     setResponseModalContent(content);
   }, []);
 
+  const handlePinCancel = useCallback(() => setPinToBottom(false), []);
+
+  const handleCloseImageModal = useCallback(() => setImageModal(null), []);
+  const handleCloseBashModal = useCallback(() => setBashModal(null), []);
+  const handleCloseResponseModal = useCallback(() => setResponseModalContent(null), []);
+
+  const handleStopAgent = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    store.stopAgent(agent.id);
+  }, [agent.id]);
+
+  const handleExpandClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    onExpand();
+  }, [onExpand]);
+
   const statusColor = STATUS_COLORS[agent.status] || '#888888';
   const messages = history?.messages || [];
 
@@ -303,10 +318,7 @@ export function AgentPanel({
           )}
           <button
             className="agent-panel-expand"
-            onClick={e => {
-              e.stopPropagation();
-              onExpand();
-            }}
+            onClick={handleExpandClick}
             title={isExpanded ? t('commander.collapsePanel') : t('commander.expandPanel')}
           >
             {isExpanded ? (
@@ -365,7 +377,7 @@ export function AgentPanel({
                 shouldAutoScroll={shouldAutoScroll}
                 onUserScroll={handleUserScrollUp}
                 pinToBottom={pinToBottom}
-                onPinCancel={() => setPinToBottom(false)}
+                onPinCancel={handlePinCancel}
                 isLoadingHistory={history?.loading}
               />
             )}
@@ -374,10 +386,7 @@ export function AgentPanel({
                 <WorkingIndicator detached={agent.isDetached} />
                 <button
                   className="agent-panel-stop-btn"
-                  onClick={e => {
-                    e.stopPropagation();
-                    store.stopAgent(agent.id);
-                  }}
+                  onClick={handleStopAgent}
                   title={t('input.stopOperation')}
                 >
                   {t('common:buttons.stop')}
@@ -409,9 +418,9 @@ export function AgentPanel({
         />
       </div>
 
-      {imageModal && <ImageModal url={imageModal.url} name={imageModal.name} onClose={() => setImageModal(null)} />}
-      {bashModal && <BashModal state={bashModal} onClose={() => setBashModal(null)} />}
-      <AgentResponseModalWrapper agent={agent} content={responseModalContent} onClose={() => setResponseModalContent(null)} />
+      {imageModal && <ImageModal url={imageModal.url} name={imageModal.name} onClose={handleCloseImageModal} />}
+      {bashModal && <BashModal state={bashModal} onClose={handleCloseBashModal} />}
+      <AgentResponseModalWrapper agent={agent} content={responseModalContent} onClose={handleCloseResponseModal} />
     </div>
   );
-}
+});

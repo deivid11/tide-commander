@@ -138,6 +138,9 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
   });
   const inputRefs = useRef<Map<string, HTMLInputElement | HTMLTextAreaElement>>(new Map());
   const visibleAgentsRef = useRef<Agent[]>([]);
+  const focusedIndexRef = useRef(0);
+  const tabsRef = useRef<TabConfig[]>([]);
+  const activeTabRef = useRef<TabId>(activeTab);
 
   // Use the custom hook for history management
   const { histories, loadMoreHistory, clearAgentHistory } = useAgentHistory({
@@ -172,6 +175,23 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
     if (activeTab === 'all' || activeTab === 'unassigned') return null;
     return areas.get(activeTab) || null;
   }, [activeTab, areas]);
+
+  // Pre-compute agent counts per tab to avoid inline filtering on every render
+  const tabCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    counts.set('all', agents.size);
+    let unassignedCount = 0;
+    for (const agent of agents.values()) {
+      const area = store.getAreaForAgent(agent.id);
+      if (!area) {
+        unassignedCount++;
+      } else {
+        counts.set(area.id, (counts.get(area.id) || 0) + 1);
+      }
+    }
+    counts.set('unassigned', unassignedCount);
+    return counts;
+  }, [agents]);
 
   // Filter helpers
   const hasActiveFilters = filters.status !== 'all' || filters.activity !== 'all' || filters.sort !== 'activity';
@@ -242,11 +262,17 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
   }, [agents, activeTab, filters]);
 
   const totalPages = Math.ceil(filteredAgents.length / AGENTS_PER_PAGE);
-  const visibleAgents = filteredAgents.slice(page * AGENTS_PER_PAGE, (page + 1) * AGENTS_PER_PAGE);
+  const visibleAgents = useMemo(
+    () => filteredAgents.slice(page * AGENTS_PER_PAGE, (page + 1) * AGENTS_PER_PAGE),
+    [filteredAgents, page]
+  );
 
   // Keep refs in sync (avoids re-focusing on terminal updates, stable keydown handler)
   visibleAgentsRef.current = visibleAgents;
   expandedAgentIdRef.current = expandedAgentId;
+  focusedIndexRef.current = focusedIndex;
+  tabsRef.current = tabs;
+  activeTabRef.current = activeTab;
 
   // Register expanded agent on modal stack so ESC (via closeTopModal) collapses it
   // instead of closing the entire commander
@@ -294,6 +320,7 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
   }, [isOpen, focusedIndex, expandedAgentId]);
 
   // Keyboard shortcuts (use capture phase to handle before inputs)
+  // All mutable values accessed via refs to keep deps minimal and avoid re-registering the listener
   useEffect(() => {
     if (!isOpen) return;
 
@@ -301,7 +328,8 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
       const shortcuts = store.getShortcuts();
       const target = e.target as HTMLElement;
       const isInputFocused = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
-      const maxIndex = visibleAgents.length - 1;
+      const currentVisibleAgents = visibleAgentsRef.current;
+      const maxIndex = currentVisibleAgents.length - 1;
       const expanded = expandedAgentIdRef.current;
 
       // Escape: collapse or close
@@ -356,8 +384,11 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
         e.preventDefault();
         if (expanded) {
           setExpandedAgentId(null);
-        } else if (visibleAgents[focusedIndex]) {
-          setExpandedAgentId(visibleAgents[focusedIndex].id);
+        } else {
+          const currentFocused = currentVisibleAgents[focusedIndexRef.current];
+          if (currentFocused) {
+            setExpandedAgentId(currentFocused.id);
+          }
         }
         return;
       }
@@ -374,21 +405,22 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
       const nextTabShortcut = shortcuts.find(s => s.id === 'commander-next-tab');
       const prevTabShortcut = shortcuts.find(s => s.id === 'commander-prev-tab');
       if (!isInputFocused) {
+        const currentTabs = tabsRef.current;
         if (matchesShortcut(e, nextTabShortcut)) {
           e.preventDefault();
           e.stopPropagation();
-          const currentIndex = tabs.findIndex(t => t.id === activeTab);
-          const nextIndex = (currentIndex + 1) % tabs.length;
-          setActiveTab(tabs[nextIndex].id);
+          const currentIndex = currentTabs.findIndex(t => t.id === activeTabRef.current);
+          const nextIndex = (currentIndex + 1) % currentTabs.length;
+          setActiveTab(currentTabs[nextIndex].id);
           setFocusedIndex(0);
           return;
         }
         if (matchesShortcut(e, prevTabShortcut)) {
           e.preventDefault();
           e.stopPropagation();
-          const currentIndex = tabs.findIndex(t => t.id === activeTab);
-          const nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
-          setActiveTab(tabs[nextIndex].id);
+          const currentIndex = currentTabs.findIndex(t => t.id === activeTabRef.current);
+          const nextIndex = (currentIndex - 1 + currentTabs.length) % currentTabs.length;
+          setActiveTab(currentTabs[nextIndex].id);
           setFocusedIndex(0);
           return;
         }
@@ -396,7 +428,7 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
     };
     document.addEventListener('keydown', handleKeyDown, true);
     return () => document.removeEventListener('keydown', handleKeyDown, true);
-  }, [isOpen, onClose, visibleAgents, focusedIndex, tabs, activeTab]);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -457,14 +489,7 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
                 )}
                 <span>{tab.name}</span>
                 <span className="commander-tab-count">
-                  {tab.id === 'all'
-                    ? agents.size
-                    : tab.id === 'unassigned'
-                      ? Array.from(agents.values()).filter(a => !store.getAreaForAgent(a.id))
-                          .length
-                      : Array.from(agents.values()).filter(
-                          a => store.getAreaForAgent(a.id)?.id === tab.id
-                        ).length}
+                  {tabCounts.get(tab.id) || 0}
                 </span>
                 {hasDirectories && (
                   <span

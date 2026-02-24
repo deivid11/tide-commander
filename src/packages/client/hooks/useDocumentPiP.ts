@@ -3,7 +3,7 @@
  * Allows extracting UI components to a floating window that stays on top
  */
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 
 export interface DocumentPiPOptions {
   /** Width of the PiP window */
@@ -268,7 +268,7 @@ export function useDocumentPiP(): DocumentPiPState {
     };
   }, []);
 
-  return {
+  return useMemo(() => ({
     isOpen,
     pipWindow,
     pipContainer,
@@ -276,7 +276,7 @@ export function useDocumentPiP(): DocumentPiPState {
     open,
     close,
     toggle,
-  };
+  }), [isOpen, pipWindow, pipContainer, isSupported, open, close, toggle]);
 }
 
 export default useDocumentPiP;

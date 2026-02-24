@@ -13,7 +13,7 @@
  * - Agent switcher bar
  */
 
-import React, { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo, memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   useAgents,
@@ -27,11 +27,12 @@ import {
   useReconnectCount,
   useAgentTaskProgress,
   useExecTasks,
-  useSubagents,
+  useSubagentsMapForAgent,
   useFileViewerPath,
   useContextModalAgentId,
   useCurrentSnapshot,
   useOverviewPanelOpen,
+  usePermissionRequests,
 } from '../../store';
 import {
   STORAGE_KEYS,
@@ -69,7 +70,6 @@ import {
 } from './TerminalModals';
 import { HistoryLine } from './HistoryLine';
 import { VirtualizedOutputList } from './VirtualizedOutputList';
-import { GuakeAgentLink as _GuakeAgentLink } from './GuakeAgentLink';
 import { AgentDebugPanel } from './AgentDebugPanel';
 import { AgentOverviewPanel } from './AgentOverviewPanel';
 import { agentDebugger } from '../../services/agentDebugger';
@@ -112,7 +112,7 @@ export interface GuakeOutputPanelProps {
   onSaveSnapshot?: () => void;
 }
 
-export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {}) {
+export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {}) {
   const { t } = useTranslation(['terminal', 'common']);
   // Store selectors
   const agents = useAgents();
@@ -165,20 +165,15 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
   const outputs = useAgentOutputs(activeAgentId);
 
   // Use snapshot outputs if viewing a snapshot, otherwise use agent outputs
-  const displayOutputs = isSnapshotView && currentSnapshot
-    ? currentSnapshot.outputs.map((output: any) => {
-        // Log for debugging empty messages
-        if (!output.text || !output.text.trim()) {
-          console.warn('[GuakeOutputPanel] Empty snapshot output:', output);
-        }
-        return {
-          text: output.text || '',
-          timestamp: output.timestamp,
-          isStreaming: false,
-          isUserPrompt: false,
-        };
-      })
-    : outputs;
+  const displayOutputs = useMemo(() => {
+    if (!(isSnapshotView && currentSnapshot)) return outputs;
+    return currentSnapshot.outputs.map((output: any) => ({
+      text: output.text || '',
+      timestamp: output.timestamp,
+      isStreaming: false,
+      isUserPrompt: false,
+    }));
+  }, [isSnapshotView, currentSnapshot, outputs]);
 
   // Shared ref for output scroll container (used by history loader and swipe)
   const outputScrollRef = useRef<HTMLDivElement>(null);
@@ -231,6 +226,7 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
   // History fade-in state
   const [historyFadeIn, setHistoryFadeIn] = useState(false);
   const [pinToBottom, setPinToBottom] = useState(false);
+  const [isAgentSwitching, setIsAgentSwitching] = useState(false);
 
   // Use store's terminal state
   const isOpen = terminalOpen && activeAgent !== null;
@@ -264,10 +260,14 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
   // Terminal input hook
   const terminalInput = useTerminalInput({ selectedAgentId });
 
-  // Get pending permission requests
-  const pendingPermissions = !isSnapshotView && activeAgentId
-    ? store.getPendingPermissionsForAgent(activeAgentId)
-    : [];
+  // Get pending permission requests - subscribe to store changes so we see new permissions
+  const permissionRequests = usePermissionRequests();
+  const pendingPermissions = useMemo(() => {
+    if (isSnapshotView || !activeAgentId) return [];
+    return Array.from(permissionRequests.values()).filter(
+      (r) => r.agentId === activeAgentId && r.status === 'pending'
+    );
+  }, [isSnapshotView, activeAgentId, permissionRequests]);
 
   // Check if selected agent is a boss
   const isBoss = activeAgent?.class === 'boss' || activeAgent?.isBoss;
@@ -276,8 +276,8 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
   // Get exec tasks for the selected agent
   const execTasks = useExecTasks(!isSnapshotView ? activeAgentId : null);
 
-  // Get subagents for inline activity display
-  const subagents = useSubagents();
+  // Get subagents for inline activity display (scoped to active agent to avoid re-renders from other agents)
+  const subagents = useSubagentsMapForAgent(!isSnapshotView ? activeAgentId : null);
 
   // Auto-enable debugger when panel opens
   useEffect(() => {
@@ -428,22 +428,17 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
     const result: typeof filteredOutputs = [];
     let lastLiveUserKey: string | null = null;
     let lastLiveUserTs = 0;
-    let droppedCount = 0;
 
     for (const output of filteredOutputs) {
       if (!output.isUserPrompt) {
         if (!output.isStreaming && !isToolOrSystemOutput(output.text)) {
           if (output.uuid && historyAssistantUuidSet.has(output.uuid)) {
-            droppedCount++;
-            console.warn(`[DEDUP-DROP] UUID match → dropped live output: uuid=${output.uuid} text="${output.text.slice(0, 80)}"`);
             continue;
           }
           const key = normalizeAssistantMessage(output.text);
           const ts = output.timestamp || 0;
           const historyTs = latestHistoryAssistantTsByKey.get(key);
           if (historyTs && Math.abs(ts - historyTs) <= HISTORY_ASSISTANT_OUTPUT_DUPLICATE_WINDOW_MS) {
-            droppedCount++;
-            console.warn(`[DEDUP-DROP] Text match (within ${HISTORY_ASSISTANT_OUTPUT_DUPLICATE_WINDOW_MS}ms) → dropped live output: ts=${ts} historyTs=${historyTs} diff=${Math.abs(ts - historyTs)}ms text="${output.text.slice(0, 80)}"`);
             continue;
           }
         }
@@ -457,25 +452,17 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
 
       // Duplicate of freshly-loaded history copy of the same user prompt
       if (latestHistoryTs && ts >= latestHistoryTs && ts - latestHistoryTs <= HISTORY_OUTPUT_DUPLICATE_WINDOW_MS) {
-        droppedCount++;
-        console.warn(`[DEDUP-DROP] User prompt history match → dropped: ts=${ts} historyTs=${latestHistoryTs} text="${output.text.slice(0, 80)}"`);
         continue;
       }
 
       // Duplicate command_started events that occasionally arrive twice
       if (lastLiveUserKey === key && Math.abs(ts - lastLiveUserTs) <= LIVE_DUPLICATE_WINDOW_MS) {
-        droppedCount++;
-        console.warn(`[DEDUP-DROP] Duplicate command_started → dropped: text="${output.text.slice(0, 80)}"`);
         continue;
       }
 
       result.push(output);
       lastLiveUserKey = key;
       lastLiveUserTs = ts;
-    }
-
-    if (droppedCount > 0) {
-      console.warn(`[DEDUP] Dropped ${droppedCount}/${filteredOutputs.length} outputs (kept ${result.length}). historyUuids=${historyAssistantUuidSet.size} historyTextKeys=${latestHistoryAssistantTsByKey.size}`);
     }
 
     return result;
@@ -529,6 +516,10 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
     setResponseModalContent(content);
   }, []);
 
+  const toggleAgentInfo = useCallback(() => {
+    setAgentInfoOpen(prev => !prev);
+  }, []);
+
   // Scroll handling - track if user scrolled up to disable auto-scroll
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const isUserScrolledUpRef = useRef(false);
@@ -542,6 +533,8 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
     setShouldAutoScroll(false);
   }, []);
 
+  const handlePinCancel = useCallback(() => setPinToBottom(false), []);
+
   // Reset auto-scroll when agent changes (NOT on new outputs - that would override user scroll-up)
   useEffect(() => {
     setShouldAutoScroll(true);
@@ -553,6 +546,10 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
     }, 3000);
     return () => clearTimeout(timeout);
   }, [activeAgentId]);
+
+  // Keep historyLoader.handleScroll in a ref so handleScroll callback stays stable
+  const historyLoaderHandleScrollRef = useRef(historyLoader.handleScroll);
+  historyLoaderHandleScrollRef.current = historyLoader.handleScroll;
 
   const handleScroll = useCallback(() => {
     if (!outputScrollRef.current) return;
@@ -570,8 +567,8 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
       }
     }
 
-    historyLoader.handleScroll(keyboard.keyboardScrollLockRef);
-  }, [outputScrollRef, keyboard.keyboardScrollLockRef, historyLoader]);
+    historyLoaderHandleScrollRef.current(keyboard.keyboardScrollLockRef);
+  }, [outputScrollRef, keyboard.keyboardScrollLockRef]);
 
   // Auto-scroll on new output (only if user hasn't scrolled up)
   const lastOutputLength = outputs.length > 0 ? outputs[outputs.length - 1]?.text?.length || 0 : 0;
@@ -593,18 +590,38 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
   // Also clear snapshot view when switching agents
   const prevSelectedAgentIdRef = useRef<string | null>(null);
   useLayoutEffect(() => {
+    const prev = prevSelectedAgentIdRef.current;
+    const changed = prev !== null && prev !== selectedAgentId;
+    if (changed) {
+      setIsAgentSwitching(true);
+    }
+
     // Only hide content if no cached history exists for this agent.
     // When cache is available, content shows instantly without a blank flash.
     if (!selectedAgentId || !historyLoader.hasCachedHistory(selectedAgentId)) {
       setHistoryFadeIn(false);
     }
-    const prev = prevSelectedAgentIdRef.current;
-    const changed = prev !== selectedAgentId;
     prevSelectedAgentIdRef.current = selectedAgentId;
     if (changed && store.getState().currentSnapshot) {
       store.setCurrentSnapshot(null);
     }
   }, [selectedAgentId]);
+
+  // Keep Guake output empty while agent switch is still settling (history fetch/cache rebind).
+  useEffect(() => {
+    if (!isAgentSwitching) return;
+    if (historyLoader.fetchingHistory) return;
+    const raf = requestAnimationFrame(() => {
+      // Reset scroll position before VirtualizedOutputList remounts so the
+      // virtualizer doesn't initialise at a stale offset (which can cause it
+      // to calculate zero visible items until the user scrolls).
+      if (outputScrollRef.current) {
+        outputScrollRef.current.scrollTop = outputScrollRef.current.scrollHeight;
+      }
+      setIsAgentSwitching(false);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [isAgentSwitching, historyLoader.fetchingHistory, historyLoader.historyLoadVersion]);
 
   // Track when we need to scroll and fade in (to avoid stale closure issues)
   const pendingFadeInRef = useRef(false);
@@ -901,7 +918,7 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
           overviewPanelOpen={overviewPanelOpen}
           setOverviewPanelOpen={setOverviewPanelOpen}
           agentInfoOpen={agentInfoOpen}
-          onToggleAgentInfo={() => setAgentInfoOpen(!agentInfoOpen)}
+          onToggleAgentInfo={toggleAgentInfo}
           outputsLength={dedupedHistory.length + dedupedOutputs.length}
           setContextConfirm={setContextConfirm}
           headerRef={swipe.headerRef}
@@ -969,13 +986,16 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
               </>
             ) : (
               <div className={`guake-history-content ${historyFadeIn ? 'fade-in' : ''}`}>
-                {historyLoader.loadingHistory && historyLoader.history.length === 0 && outputs.length === 0 && (
+                {isAgentSwitching && (
                   <div className="guake-empty loading">{t('terminal:empty.loadingConversation')}<span className="loading-dots"><span></span><span></span><span></span></span></div>
                 )}
-                {!historyLoader.loadingHistory && historyLoader.history.length === 0 && displayOutputs.length === 0 && activeAgent.status !== 'working' && (
+                {!isAgentSwitching && historyLoader.loadingHistory && historyLoader.history.length === 0 && outputs.length === 0 && (
+                  <div className="guake-empty loading">{t('terminal:empty.loadingConversation')}<span className="loading-dots"><span></span><span></span><span></span></span></div>
+                )}
+                {!isAgentSwitching && !historyLoader.loadingHistory && historyLoader.history.length === 0 && displayOutputs.length === 0 && activeAgent.status !== 'working' && (
                   <div className="guake-empty">{t('terminal:empty.noOutput')}</div>
                 )}
-                {historyLoader.hasMore && !search.searchMode && (
+                {!isAgentSwitching && historyLoader.hasMore && !search.searchMode && (
                   <div className="guake-load-more">
                     {historyLoader.loadingMore ? (
                       <span>{t('terminal:empty.loadingOlder')}</span>
@@ -987,33 +1007,36 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
                   </div>
                 )}
                 {/* Virtualized rendering - only renders visible items + overscan buffer */}
-                <VirtualizedOutputList
-                  historyMessages={dedupedHistory}
-                  liveOutputs={dedupedOutputs}
-                  agentId={activeAgentId}
-                  execTasks={execTasks}
-                  subagents={subagents}
-                  viewMode={viewMode}
-                  selectedMessageIndex={messageNav.selectedIndex}
-                  isMessageSelected={messageNav.isSelected}
-                  onImageClick={handleImageClick}
-                  onFileClick={handleFileClick}
-                  onBashClick={handleBashClick}
-                  onViewMarkdown={handleViewMarkdown}
-                  scrollContainerRef={outputScrollRef}
-                  onScrollTopReached={historyLoader.loadMoreHistory}
-                  isLoadingMore={historyLoader.loadingMore}
-                  hasMore={historyLoader.hasMore}
-                  shouldAutoScroll={shouldAutoScroll}
-                  onUserScroll={handleUserScrollUp}
-                  pinToBottom={pinToBottom}
-                  onPinCancel={() => setPinToBottom(false)}
-                  // Use in-flight flag so the virtualized list can reliably detect load completion
-                  // (the spinner flag is intentionally delayed and may never toggle true on fast loads).
-                  isLoadingHistory={historyLoader.fetchingHistory}
-                />
+                {!isAgentSwitching && (
+                  <VirtualizedOutputList
+                    key={activeAgentId}
+                    historyMessages={dedupedHistory}
+                    liveOutputs={dedupedOutputs}
+                    agentId={activeAgentId}
+                    execTasks={execTasks}
+                    subagents={subagents}
+                    viewMode={viewMode}
+                    selectedMessageIndex={messageNav.selectedIndex}
+                    isMessageSelected={messageNav.isSelected}
+                    onImageClick={handleImageClick}
+                    onFileClick={handleFileClick}
+                    onBashClick={handleBashClick}
+                    onViewMarkdown={handleViewMarkdown}
+                    scrollContainerRef={outputScrollRef}
+                    onScrollTopReached={historyLoader.loadMoreHistory}
+                    isLoadingMore={historyLoader.loadingMore}
+                    hasMore={historyLoader.hasMore}
+                    shouldAutoScroll={shouldAutoScroll}
+                    onUserScroll={handleUserScrollUp}
+                    pinToBottom={pinToBottom}
+                    onPinCancel={handlePinCancel}
+                    // Use in-flight flag so the virtualized list can reliably detect load completion
+                    // (the spinner flag is intentionally delayed and may never toggle true on fast loads).
+                    isLoadingHistory={historyLoader.fetchingHistory}
+                  />
+                )}
                 {/* Boss agent progress indicators */}
-                {isBoss && agentTaskProgress.size > 0 && (
+                {!isAgentSwitching && isBoss && agentTaskProgress.size > 0 && (
                   <div className="agent-progress-container">
                     <div className="agent-progress-container-header">
                       <span className="progress-crown">👑</span>
@@ -1025,7 +1048,7 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
                         key={progress.agentId}
                         progress={progress}
                         defaultExpanded={progress.status === 'working'}
-                        onAgentClick={(agentId) => store.selectAgent(agentId)}
+                        onAgentClick={store.selectAgent}
                       />
                     ))}
                   </div>
@@ -1168,7 +1191,7 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
       )}
     </div>
   );
-}
+});
 
 // Re-export types for convenience
 export type { HistoryMessage, AttachedFile, ViewMode, EditData } from './types';

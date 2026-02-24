@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback, useMemo, Profiler } fr
 import { useTranslation } from 'react-i18next';
 import {
   store,
-  useAgents,
+  useAgentCount,
   useAreas,
   useBuildings,
   useSelectedAgentIds,
@@ -10,7 +10,7 @@ import {
   useSelectedAreaId,
   useActiveTool,
   useSettings,
-  useSupervisor,
+  useSupervisorGeneratingReport,
   useMobileView,
   useViewMode,
   useExplorerFolderPath,
@@ -177,7 +177,9 @@ function AppContent() {
     openDatabasePanel: (buildingId) => setDatabasePanelBuildingId(buildingId),
   });
 
-  const agents = useAgents();
+  // Use agentCount instead of useAgents() to avoid re-renders on every agent property change.
+  // For on-demand agent data, read store.getState().agents directly.
+  const agentCount = useAgentCount();
   const areas = useAreas();
   const buildings = useBuildings();
   const selectedAgentIds = useSelectedAgentIds();
@@ -185,7 +187,7 @@ function AppContent() {
   const selectedAreaId = useSelectedAreaId();
   const activeTool = useActiveTool();
   const settings = useSettings();
-  const supervisor = useSupervisor();
+  const supervisorGeneratingReport = useSupervisorGeneratingReport();
   const viewMode = useViewMode();
   const snapshotsLoading = useSnapshotsLoading();
   const snapshotsError = useSnapshotsError();
@@ -217,8 +219,9 @@ function AppContent() {
     if (!rawAgentId && !rawAgentName) return;
 
     // Wait until agents are available from initial websocket sync.
-    if (agents.size === 0) return;
+    if (agentCount === 0) return;
 
+    const agents = store.getState().agents;
     const openTerminalParam = params.get('openTerminal');
     const shouldOpenTerminal = openTerminalParam
       ? ['1', 'true', 'yes'].includes(openTerminalParam.toLowerCase())
@@ -250,7 +253,7 @@ function AppContent() {
     window.history.replaceState({}, document.title, nextUrl);
 
     deepLinkHandledRef.current = true;
-  }, [agents]);
+  }, [agentCount]);
 
   // Keyboard shortcuts
   useKeyboardShortcuts({
@@ -404,15 +407,17 @@ function AppContent() {
   }, []);
 
   // Handle delete selected agents
+  // Read selection from store at execution time (not from closure) to avoid
+  // stale-closure bugs where React re-renders clear the captured array.
   const handleDeleteSelectedAgents = useCallback(() => {
-    const selectedIds = selectedAgentIdsArray;
+    const selectedIds = Array.from(store.getState().selectedAgentIds);
     selectedIds.forEach(id => {
       store.removeAgentFromServer(id);
       sceneRef.current?.removeAgent(id);
     });
     deleteConfirmModal.close();
     showToast('info', t('notifications:toast.agentsRemoved'), t('notifications:toast.agentsRemovedMsg', { count: selectedIds.length }));
-  }, [selectedAgentIdsArray, showToast, deleteConfirmModal, sceneRef, t]);
+  }, [showToast, deleteConfirmModal, sceneRef, t]);
 
   // Building delete confirmation handler
   const handleConfirmBuildingDelete = useCallback(() => {
@@ -432,12 +437,13 @@ function AppContent() {
     setPendingBuildingDelete(null);
   }, [pendingBuildingDelete, buildings, selectedBuildingIds.size, showToast, sceneRef, t]);
 
-  // Context menu actions
+  // Context menu actions - read agents from store on demand (not reactive) since
+  // contextMenu.worldPosition/target already trigger recalculation when the menu opens.
   const contextMenuActions = useMemo(() => {
     return buildContextMenuActions(
       contextMenu.worldPosition,
       contextMenu.target,
-      agents,
+      store.getState().agents,
       areas,
       buildings,
       {
@@ -458,7 +464,6 @@ function AppContent() {
   }, [
     contextMenu.worldPosition,
     contextMenu.target,
-    agents,
     areas,
     buildings,
     spawnModal,
@@ -492,6 +497,12 @@ function AppContent() {
       (window as any).__tideScene2D_setDrawingTool(null);
     }
   }, [sceneRef]);
+
+  // Stable callbacks for MobileFabMenu
+  const handleMobileMenuToggle = useCallback(() => setMobileMenuOpen(prev => !prev), []);
+  const handleShowTerminal = useCallback(() => store.setMobileView('terminal'), []);
+  const handleOpenSidebar = useCallback(() => setSidebarOpen(true), []);
+  const canTakeSnapshot = selectedAgentIdsArray.length === 1 && store.getOutputs(selectedAgentIdsArray[0]).length > 0;
 
   return (
     <div className={`app ${terminalOpen ? 'terminal-open' : ''} ${isDrawingMode ? 'drawing-mode' : ''} ${sidebarCollapsed ? 'sidebar-collapsed' : ''} mobile-view-${mobileView}`}>
@@ -671,17 +682,17 @@ function AppContent() {
         {/* Mobile FAB Menu */}
         <MobileFabMenu
           isOpen={mobileMenuOpen}
-          onToggle={() => setMobileMenuOpen(!mobileMenuOpen)}
-          onShowTerminal={() => store.setMobileView('terminal')}
-          onOpenSidebar={() => setSidebarOpen(true)}
-          onOpenToolbox={() => toolboxModal.open()}
-          onOpenCommander={() => commanderModal.open()}
-          onOpenSupervisor={() => supervisorModal.open()}
-          onOpenControls={() => controlsModal.open()}
-          onOpenSkills={() => skillsModal.open()}
-          onOpenSnapshots={() => snapshotsModal.open()}
-          onTakeSnapshot={() => saveSnapshotModal.open()}
-          canTakeSnapshot={selectedAgentIdsArray.length === 1 && store.getOutputs(selectedAgentIdsArray[0]).length > 0}
+          onToggle={handleMobileMenuToggle}
+          onShowTerminal={handleShowTerminal}
+          onOpenSidebar={handleOpenSidebar}
+          onOpenToolbox={toolboxModal.open}
+          onOpenCommander={commanderModal.open}
+          onOpenSupervisor={supervisorModal.open}
+          onOpenControls={controlsModal.open}
+          onOpenSkills={skillsModal.open}
+          onOpenSnapshots={snapshotsModal.open}
+          onTakeSnapshot={saveSnapshotModal.open}
+          canTakeSnapshot={canTakeSnapshot}
           mobileView={mobileView}
         />
 
@@ -774,19 +785,19 @@ function AppContent() {
 
         {/* Guake-style dropdown terminal */}
         <Profiler id="GuakeOutputPanel" onRender={profileRender}>
-          <GuakeOutputPanel onSaveSnapshot={() => saveSnapshotModal.open()} />
+          <GuakeOutputPanel onSaveSnapshot={saveSnapshotModal.open} />
         </Profiler>
       </main>
 
       {/* Floating Action Buttons */}
       <FloatingActionButtons
-        onOpenToolbox={() => toolboxModal.open()}
-        onOpenCommander={() => commanderModal.open()}
-        onOpenSupervisor={() => supervisorModal.open()}
-        onOpenControls={() => controlsModal.open()}
-        onOpenSkills={() => skillsModal.open()}
-        onOpenSnapshots={() => snapshotsModal.open()}
-        isGeneratingReport={supervisor.generatingReport}
+        onOpenToolbox={toolboxModal.open}
+        onOpenCommander={commanderModal.open}
+        onOpenSupervisor={supervisorModal.open}
+        onOpenControls={controlsModal.open}
+        onOpenSkills={skillsModal.open}
+        onOpenSnapshots={snapshotsModal.open}
+        isGeneratingReport={supervisorGeneratingReport}
         pip={pip}
       />
 
@@ -798,7 +809,7 @@ function AppContent() {
 
       {/* Agent Hover Popup (battlefield tooltip) */}
       {hoveredAgentPopup && (() => {
-        const agent = agents.get(hoveredAgentPopup.agentId);
+        const agent = store.getState().agents.get(hoveredAgentPopup.agentId);
         if (!agent) return null;
         return (
           <AgentHoverPopup
@@ -953,7 +964,7 @@ function AppContent() {
       {/* Save Snapshot Modal */}
       {saveSnapshotModal.isOpen && selectedAgentIdsArray.length === 1 && (() => {
         const agentId = selectedAgentIdsArray[0];
-        const agent = agents.get(agentId);
+        const agent = store.getState().agents.get(agentId);
         if (!agent) return null;
         const outputs = store.getOutputs(agentId);
         return (
@@ -998,8 +1009,8 @@ function AppContent() {
       {/* Bottom Agent Bar */}
       <AgentBar
         onFocusAgent={handleFocusAgent}
-        onSpawnClick={() => spawnModal.open()}
-        onSpawnBossClick={() => bossSpawnModal.open()}
+        onSpawnClick={spawnModal.open}
+        onSpawnBossClick={bossSpawnModal.open}
         onNewBuildingClick={handleNewBuilding}
         onNewAreaClick={handleNewArea}
       />

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { memo, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   store,
@@ -7,12 +7,11 @@ import {
   useSelectedAgentIds,
   useLastSelectedAgentId,
   useLastPrompts,
-  useTerminalOpen,
   useCustomAgentClassesArray,
   useSettings,
   useAgentsWithUnseenOutput,
 } from '../store';
-import type { Agent, DrawingArea, AgentSupervisorHistoryEntry } from '../../shared/types';
+import type { Agent, DrawingArea, AgentSupervisorHistoryEntry, CustomAgentClass } from '../../shared/types';
 import { formatIdleTime } from '../utils/formatting';
 import { getClassConfig } from '../utils/classConfig';
 import { getIdleTimerColor, getAgentStatusColor } from '../utils/colors';
@@ -35,14 +34,92 @@ interface AgentGroup {
   agents: Agent[];
 }
 
-export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBuildingClick, onNewAreaClick }: AgentBarProps) {
+// Memoized individual agent item - only re-renders when its own agent data changes
+interface AgentBarItemProps {
+  agent: Agent;
+  currentIndex: number;
+  agentIndex: number;
+  isSelected: boolean;
+  hasUnseenOutput: boolean;
+  isDragging: boolean;
+  isDragOver: boolean;
+  customClasses: CustomAgentClass[];
+  onDragStart: (e: React.DragEvent, agent: Agent) => void;
+  onDragEnd: (e: React.DragEvent) => void;
+  onDragOver: (e: React.DragEvent, index: number) => void;
+  onDragEnter: (e: React.DragEvent, index: number) => void;
+  onDragLeave: (e: React.DragEvent) => void;
+  onDrop: (e: React.DragEvent, index: number) => void;
+  onAgentClick: (agent: Agent, e: React.MouseEvent) => void;
+  onAgentDoubleClick: (agent: Agent) => void;
+  onHoverEnter: (agent: Agent) => void;
+  onHoverLeave: () => void;
+  onItemRef: (agentId: string, el: HTMLDivElement | null) => void;
+}
+
+const AgentBarItem = memo(function AgentBarItem({
+  agent, currentIndex, agentIndex, isSelected, hasUnseenOutput,
+  isDragging, isDragOver, customClasses,
+  onDragStart, onDragEnd, onDragOver, onDragEnter, onDragLeave, onDrop,
+  onAgentClick, onAgentDoubleClick, onHoverEnter, onHoverLeave, onItemRef,
+}: AgentBarItemProps) {
+  const config = useMemo(() => getClassConfig(agent.class, customClasses), [agent.class, customClasses]);
+
+  const handleRef = useCallback((el: HTMLDivElement | null) => {
+    onItemRef(agent.id, el);
+  }, [agent.id, onItemRef]);
+
+  return (
+    <div
+      ref={handleRef}
+      className={`agent-bar-item ${isSelected ? 'selected' : ''} ${agent.status} ${agent.isBoss ? 'is-boss' : ''} ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
+      draggable
+      onDragStart={(e) => onDragStart(e, agent)}
+      onDragEnd={onDragEnd}
+      onDragOver={(e) => onDragOver(e, agentIndex)}
+      onDragEnter={(e) => onDragEnter(e, agentIndex)}
+      onDragLeave={onDragLeave}
+      onDrop={(e) => onDrop(e, agentIndex)}
+      onClick={(e) => onAgentClick(agent, e)}
+      onDoubleClick={() => onAgentDoubleClick(agent)}
+      onMouseEnter={() => onHoverEnter(agent)}
+      onMouseLeave={onHoverLeave}
+      title={`${agent.name} (${currentIndex + 1}) - Drag to reorder within group`}
+    >
+      <div className="agent-bar-avatar">
+        <span className="agent-bar-icon">{config.icon}</span>
+        <span
+          className="agent-bar-status"
+          style={{ backgroundColor: getAgentStatusColor(agent.status) }}
+        />
+        {hasUnseenOutput && (
+          <span
+            className="agent-bar-notification-badge"
+            title="New output available - click to view"
+          />
+        )}
+        {agent.status === 'idle' && agent.lastActivity > 0 && (
+          <span
+            className="agent-bar-idle-clock"
+            style={{ color: getIdleTimerColor(agent.lastActivity) }}
+            title={formatIdleTime(agent.lastActivity)}
+          >
+            ⏱
+          </span>
+        )}
+      </div>
+      <span className="agent-bar-hotkey" title={`Ctrl+${currentIndex + 1}`}>^{currentIndex + 1}</span>
+    </div>
+  );
+});
+
+export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBuildingClick, onNewAreaClick }: AgentBarProps) {
   const { t } = useTranslation(['common']);
   const agentsMap = useAgents();
   const areas = useAreas();
   const selectedAgentIds = useSelectedAgentIds();
   const lastSelectedAgentId = useLastSelectedAgentId();
   const lastPrompts = useLastPrompts();
-  const terminalOpen = useTerminalOpen();
   const settings = useSettings();
   const customClasses = useCustomAgentClassesArray();
   const agentsWithUnseenOutput = useAgentsWithUnseenOutput();
@@ -142,6 +219,18 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
     return groupArray;
   }, [agents, agentAreas]);
 
+  // Refs for stable callbacks (avoid re-creating closures on every render)
+  const onFocusAgentRef = useRef(onFocusAgent);
+  onFocusAgentRef.current = onFocusAgent;
+  const draggedAgentRef = useRef(draggedAgent);
+  draggedAgentRef.current = draggedAgent;
+  const agentsFlatRef = useRef(agents);
+  agentsFlatRef.current = agents;
+  const agentAreasRef = useRef(agentAreas);
+  agentAreasRef.current = agentAreas;
+  const moveAgentRef = useRef(moveAgent);
+  moveAgentRef.current = moveAgent;
+
   // Watch for tool changes on agents
   useEffect(() => {
     const newBubbles = new Map(toolBubbles);
@@ -200,39 +289,37 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
     }
   }, [lastSelectedAgentId]);
 
-  const handleAgentClick = (agent: Agent, e: React.MouseEvent) => {
-    // Mark that selection came from direct click (not swipe gesture)
-    // This prevents autofocus of input on mobile
+  // Stabilized click handlers (read reactive values from store/refs to avoid deps)
+  const handleAgentClick = useCallback((agent: Agent, e: React.MouseEvent) => {
     store.setLastSelectionViaDirectClick(true);
-
     if (e.shiftKey) {
-      // Shift+click to add/remove from selection
       store.addToSelection(agent.id);
     } else {
-      // Normal click to select only this agent
       store.selectAgent(agent.id);
     }
-
-    // On mobile, open terminal immediately when agent is clicked
-    // On desktop, keep terminal open if it was already open (switch to clicked agent's terminal)
-    const isMobile = window.innerWidth <= 768;
-    if (isMobile || terminalOpen) {
-      store.setTerminalOpen(true);
-    }
-  };
-
-  const handleAgentDoubleClick = (agent: Agent) => {
-    // Double-click to focus camera on agent and open terminal
-    onFocusAgent?.(agent.id);
     store.setTerminalOpen(true);
-  };
+  }, []);
 
-  // Drag and drop handlers
+  const handleAgentDoubleClick = useCallback((agent: Agent) => {
+    onFocusAgentRef.current?.(agent.id);
+    store.setTerminalOpen(true);
+  }, []);
+
+  const handleHoverLeave = useCallback(() => setHoveredAgent(null), []);
+
+  const handleItemRef = useCallback((agentId: string, el: HTMLDivElement | null) => {
+    if (el) {
+      agentItemRefs.current.set(agentId, el);
+    } else {
+      agentItemRefs.current.delete(agentId);
+    }
+  }, []);
+
+  // Drag and drop handlers (stabilized with refs)
   const handleDragStart = useCallback((e: React.DragEvent, agent: Agent) => {
     setDraggedAgent(agent);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', agent.id);
-    // Add a slight delay to allow the drag image to be captured
     requestAnimationFrame(() => {
       (e.target as HTMLElement).classList.add('dragging');
     });
@@ -247,35 +334,29 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
 
   const handleDragOver = useCallback((e: React.DragEvent, index: number) => {
     e.preventDefault();
-
-    // Set cursor based on whether drop is allowed (same area)
-    if (draggedAgent) {
-      const fromArea = agentAreas.get(draggedAgent.id);
-      const toAgent = agents[index];
-      const toArea = toAgent ? agentAreas.get(toAgent.id) : null;
-
+    const currentDraggedAgent = draggedAgentRef.current;
+    if (currentDraggedAgent) {
+      const fromArea = agentAreasRef.current.get(currentDraggedAgent.id);
+      const toAgent = agentsFlatRef.current[index];
+      const toArea = toAgent ? agentAreasRef.current.get(toAgent.id) : null;
       const fromAreaId = fromArea?.id ?? null;
       const toAreaId = toArea?.id ?? null;
-
       e.dataTransfer.dropEffect = fromAreaId === toAreaId ? 'move' : 'none';
     } else {
       e.dataTransfer.dropEffect = 'move';
     }
-  }, [draggedAgent, agents, agentAreas]);
+  }, []);
 
   const handleDragEnter = useCallback((e: React.DragEvent, index: number) => {
     e.preventDefault();
     dragCounter.current++;
-
-    // Only show drag-over visual if in the same area as the dragged agent
-    if (draggedAgent) {
-      const fromArea = agentAreas.get(draggedAgent.id);
-      const toAgent = agents[index];
-      const toArea = toAgent ? agentAreas.get(toAgent.id) : null;
-
+    const currentDraggedAgent = draggedAgentRef.current;
+    if (currentDraggedAgent) {
+      const fromArea = agentAreasRef.current.get(currentDraggedAgent.id);
+      const toAgent = agentsFlatRef.current[index];
+      const toArea = toAgent ? agentAreasRef.current.get(toAgent.id) : null;
       const fromAreaId = fromArea?.id ?? null;
       const toAreaId = toArea?.id ?? null;
-
       if (fromAreaId === toAreaId) {
         setDragOverIndex(index);
       } else {
@@ -284,7 +365,7 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
     } else {
       setDragOverIndex(index);
     }
-  }, [draggedAgent, agents, agentAreas]);
+  }, []);
 
   const handleDragLeave = useCallback((_e: React.DragEvent) => {
     dragCounter.current--;
@@ -295,29 +376,25 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
 
   const handleDrop = useCallback((e: React.DragEvent, toIndex: number) => {
     e.preventDefault();
-    if (!draggedAgent) return;
-
-    const fromIndex = agents.findIndex(a => a.id === draggedAgent.id);
+    const currentDraggedAgent = draggedAgentRef.current;
+    if (!currentDraggedAgent) return;
+    const currentAgents = agentsFlatRef.current;
+    const currentAgentAreas = agentAreasRef.current;
+    const fromIndex = currentAgents.findIndex(a => a.id === currentDraggedAgent.id);
     if (fromIndex !== -1 && fromIndex !== toIndex) {
-      // Check if both agents are in the same area (or both have no area)
-      const fromArea = agentAreas.get(draggedAgent.id);
-      const toAgent = agents[toIndex];
-      const toArea = toAgent ? agentAreas.get(toAgent.id) : null;
-
-      // Only allow reorder within the same group/area
+      const fromArea = currentAgentAreas.get(currentDraggedAgent.id);
+      const toAgent = currentAgents[toIndex];
+      const toArea = toAgent ? currentAgentAreas.get(toAgent.id) : null;
       const fromAreaId = fromArea?.id ?? null;
       const toAreaId = toArea?.id ?? null;
-
       if (fromAreaId === toAreaId) {
-        moveAgent(fromIndex, toIndex);
+        moveAgentRef.current(fromIndex, toIndex);
       }
-      // If areas don't match, silently reject the drop
     }
-
     setDraggedAgent(null);
     setDragOverIndex(null);
     dragCounter.current = 0;
-  }, [draggedAgent, agents, moveAgent, agentAreas]);
+  }, []);
 
   // Use getAgentStatusColor from utils/colors.ts
 
@@ -496,76 +573,29 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
               {groupAgents.map((agent) => {
                 const currentIndex = globalIndex++;
                 const agentIndex = agents.findIndex(a => a.id === agent.id);
-                const isSelected = selectedAgentIds.has(agent.id);
-                const config = getClassConfig(agent.class, customClasses);
-                const lastPrompt = lastPrompts.get(agent.id);
-
-                const toolBubble = toolBubbles.get(agent.id);
-                const _toolIcon = toolBubble
-                  ? TOOL_ICONS[toolBubble.tool] || TOOL_ICONS.default
-                  : null;
-
-                // Truncate last query for display
-                const _lastQueryShort = lastPrompt?.text
-                  ? lastPrompt.text.length > 30
-                    ? lastPrompt.text.substring(0, 30) + '...'
-                    : lastPrompt.text
-                  : null;
-
-                const isDragging = draggedAgent?.id === agent.id;
-                const isDragOver = dragOverIndex === agentIndex;
-
                 return (
-                  <div
+                  <AgentBarItem
                     key={agent.id}
-                    ref={(el) => {
-                      if (el) {
-                        agentItemRefs.current.set(agent.id, el);
-                      } else {
-                        agentItemRefs.current.delete(agent.id);
-                      }
-                    }}
-                    className={`agent-bar-item ${isSelected ? 'selected' : ''} ${agent.status} ${agent.isBoss ? 'is-boss' : ''} ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, agent)}
+                    agent={agent}
+                    currentIndex={currentIndex}
+                    agentIndex={agentIndex}
+                    isSelected={selectedAgentIds.has(agent.id)}
+                    hasUnseenOutput={agentsWithUnseenOutput.has(agent.id)}
+                    isDragging={draggedAgent?.id === agent.id}
+                    isDragOver={dragOverIndex === agentIndex}
+                    customClasses={customClasses}
+                    onDragStart={handleDragStart}
                     onDragEnd={handleDragEnd}
-                    onDragOver={(e) => handleDragOver(e, agentIndex)}
-                    onDragEnter={(e) => handleDragEnter(e, agentIndex)}
+                    onDragOver={handleDragOver}
+                    onDragEnter={handleDragEnter}
                     onDragLeave={handleDragLeave}
-                    onDrop={(e) => handleDrop(e, agentIndex)}
-                    onClick={(e) => handleAgentClick(agent, e)}
-                    onDoubleClick={() => handleAgentDoubleClick(agent)}
-                    onMouseEnter={() => setHoveredAgent(agent)}
-                    onMouseLeave={() => setHoveredAgent(null)}
-                    title={`${agent.name} (${currentIndex + 1}) - Drag to reorder within group`}
-                  >
-                    <div className="agent-bar-avatar">
-                      <span className="agent-bar-icon">{config.icon}</span>
-                      <span
-                        className="agent-bar-status"
-                        style={{ backgroundColor: getAgentStatusColor(agent.status) }}
-                      />
-
-                      {/* Unseen output notification badge */}
-                      {agentsWithUnseenOutput.has(agent.id) && (
-                        <span
-                          className="agent-bar-notification-badge"
-                          title="New output available - click to view"
-                        />
-                      )}
-
-                      {agent.status === 'idle' && agent.lastActivity > 0 && (
-                        <span
-                          className="agent-bar-idle-clock"
-                          style={{ color: getIdleTimerColor(agent.lastActivity) }}
-                          title={formatIdleTime(agent.lastActivity)}
-                        >
-                          ⏱
-                        </span>
-                      )}
-                    </div>
-                    <span className="agent-bar-hotkey" title={`Ctrl+${currentIndex + 1}`}>^{currentIndex + 1}</span>
-                  </div>
+                    onDrop={handleDrop}
+                    onAgentClick={handleAgentClick}
+                    onAgentDoubleClick={handleAgentDoubleClick}
+                    onHoverEnter={setHoveredAgent}
+                    onHoverLeave={handleHoverLeave}
+                    onItemRef={handleItemRef}
+                  />
                 );
               })}
             </div>
@@ -793,4 +823,4 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
       })()}
     </div>
   );
-}
+});

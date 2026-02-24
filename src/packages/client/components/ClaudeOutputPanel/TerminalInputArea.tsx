@@ -4,7 +4,7 @@
  * Handles text input, file attachments, paste handling, and send functionality.
  */
 
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { store, useSettings, useLastPrompt } from '../../store';
 import { PermissionRequestInline } from './PermissionRequest';
@@ -13,6 +13,51 @@ import { PastedTextChip } from './PastedTextChip';
 import { useSTT } from '../../hooks/useSTT';
 import type { Agent, PermissionRequest } from '../../../shared/types';
 import type { AttachedFile } from './types';
+
+/**
+ * Isolated elapsed timer component — owns its own 1-second setInterval so the
+ * parent TerminalInputArea is NOT re-rendered every tick.
+ */
+const ElapsedTimer = memo(function ElapsedTimer({
+  agentId,
+  isWorking,
+  timestamp,
+}: {
+  agentId: string;
+  isWorking: boolean;
+  timestamp: number | undefined;
+}) {
+  const { t } = useTranslation(['terminal']);
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    if (!isWorking || !timestamp) {
+      setElapsed(0);
+      return;
+    }
+    setElapsed(Date.now() - timestamp);
+    const interval = setInterval(() => {
+      setElapsed(Date.now() - timestamp);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isWorking, timestamp]);
+
+  if (!isWorking) return null;
+
+  return (
+    <div className="guake-stop-bar">
+      <span className="guake-elapsed-timer">{formatElapsed(elapsed)}</span>
+      <button
+        className="guake-stop-btn"
+        onClick={() => store.stopAgent(agentId)}
+        title={t('terminal:input.stopOperation')}
+      >
+        <span className="stop-icon">■</span>
+        <span className="stop-label">{t('terminal:input.stop')}</span>
+      </button>
+    </div>
+  );
+});
 
 /**
  * Get VSCode icon SVG path for file type based on extension
@@ -143,7 +188,7 @@ export interface TerminalInputAreaProps {
   onClearHistory: () => void;
 }
 
-export function TerminalInputArea({
+export const TerminalInputArea = memo(function TerminalInputArea({
   selectedAgent,
   selectedAgentId,
   isOpen,
@@ -186,22 +231,10 @@ export function TerminalInputArea({
   // Get settings to check if TTS feature is enabled
   const settings = useSettings();
 
-  // Live elapsed timer while agent is working
+  // Live elapsed timer — delegated to ElapsedTimer component to avoid
+  // re-rendering the entire TerminalInputArea every second.
   const lastPrompt = useLastPrompt(selectedAgentId);
   const isWorking = selectedAgent.status === 'working';
-  const [elapsed, setElapsed] = useState(0);
-
-  useEffect(() => {
-    if (!isWorking || !lastPrompt?.timestamp) {
-      setElapsed(0);
-      return;
-    }
-    setElapsed(Date.now() - lastPrompt.timestamp);
-    const interval = setInterval(() => {
-      setElapsed(Date.now() - lastPrompt.timestamp);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [isWorking, lastPrompt?.timestamp]);
 
   // Speech-to-text hook - automatically send transcribed text to agent
   const { recording, transcribing, toggleRecording } = useSTT({
@@ -409,28 +442,16 @@ export function TerminalInputArea({
   };
 
   const handlePaste = async (e: React.ClipboardEvent) => {
-    console.log('[TerminalInputArea] Paste event detected');
     const items = e.clipboardData.items;
-    console.log('[TerminalInputArea] Clipboard items count:', items.length);
-
-    // Log all clipboard item types
-    for (let i = 0; i < items.length; i++) {
-      console.log(`[TerminalInputArea] Item ${i}: kind=${items[i].kind}, type=${items[i].type}`);
-    }
 
     // Try to get files from clipboard items (works when copying files from file explorer)
     for (const item of items) {
-      console.log('[TerminalInputArea] Processing item:', { kind: item.kind, type: item.type });
-
       if (item.type.startsWith('image/')) {
-        console.log('[TerminalInputArea] Image detected');
         e.preventDefault();
         const blob = item.getAsFile();
         if (blob) {
-          console.log('[TerminalInputArea] Image blob obtained, uploading:', blob.name, blob.size);
           const attached = await uploadFile(blob);
           if (attached) {
-            console.log('[TerminalInputArea] Image attached successfully');
             setAttachedFiles((prev) => [...prev, attached]);
           }
         }
@@ -439,18 +460,12 @@ export function TerminalInputArea({
 
       // Handle any file type (not just images)
       if (item.kind === 'file') {
-        console.log('[TerminalInputArea] File detected via clipboard');
         e.preventDefault();
         const file = item.getAsFile();
-        console.log('[TerminalInputArea] File object:', { name: file?.name, size: file?.size, type: file?.type });
         if (file) {
-          console.log('[TerminalInputArea] Uploading file:', file.name, file.size);
           const attached = await uploadFile(file);
           if (attached) {
-            console.log('[TerminalInputArea] File attached successfully:', attached.name);
             setAttachedFiles((prev) => [...prev, attached]);
-          } else {
-            console.error('[TerminalInputArea] File upload returned null');
           }
         }
         return;
@@ -458,15 +473,11 @@ export function TerminalInputArea({
     }
 
     const files = e.clipboardData.files;
-    console.log('[TerminalInputArea] Fallback check - e.clipboardData.files length:', files.length);
     if (files.length > 0) {
-      console.log('[TerminalInputArea] Files found in clipboardData.files');
       e.preventDefault();
       for (const file of files) {
-        console.log('[TerminalInputArea] Processing file from clipboardData:', { name: file.name, size: file.size });
         const attached = await uploadFile(file);
         if (attached) {
-          console.log('[TerminalInputArea] File attached:', attached.name);
           setAttachedFiles((prev) => [...prev, attached]);
         }
       }
@@ -482,7 +493,6 @@ export function TerminalInputArea({
 
     if (isSingleLine && looksLikeFilePath && hasFileExtension) {
       e.preventDefault();
-      console.log('[TerminalInputArea] Attempting to load file from path:', pastedText.trim());
       try {
         // Request the file from the server
         const response = await fetch('/api/files/by-path', {
@@ -494,18 +504,14 @@ export function TerminalInputArea({
         if (response.ok) {
           const blob = await response.blob();
           const filename = pastedText.trim().split(/[/\\]/).pop() || 'file';
-          console.log('[TerminalInputArea] File loaded from path, uploading:', filename);
           const attached = await uploadFile(blob, filename);
           if (attached) {
-            console.log('[TerminalInputArea] File attached from path successfully');
             setAttachedFiles((prev) => [...prev, attached]);
           }
           return;
-        } else {
-          console.warn('[TerminalInputArea] File not found at path, inserting as text');
         }
-      } catch (err) {
-        console.error('[TerminalInputArea] Failed to load file from path:', err);
+      } catch {
+        /* File not found or fetch failed - fall through to insert as text */
       }
       // File not found or fetch failed - insert the path as plain text
       setCommand(command + pastedText);
@@ -674,20 +680,12 @@ export function TerminalInputArea({
             </div>
           );
         })()}
-        {/* Floating stop button + elapsed timer - shown when agent is working */}
-        {selectedAgent.status === 'working' && (
-          <div className="guake-stop-bar">
-            <span className="guake-elapsed-timer">{formatElapsed(elapsed)}</span>
-            <button
-              className="guake-stop-btn"
-              onClick={() => store.stopAgent(selectedAgent.id)}
-              title={t('terminal:input.stopOperation')}
-            >
-              <span className="stop-icon">■</span>
-              <span className="stop-label">{t('terminal:input.stop')}</span>
-            </button>
-          </div>
-        )}
+        {/* Floating stop button + elapsed timer - isolated component to avoid re-rendering input area */}
+        <ElapsedTimer
+          agentId={selectedAgentId}
+          isWorking={isWorking}
+          timestamp={lastPrompt?.timestamp}
+        />
         {/* Completion elapsed time - shown briefly when agent finishes */}
         {showCompletion && completionElapsed !== null && (
           <div className="guake-completion-time">{formatElapsed(completionElapsed)}</div>
@@ -754,4 +752,4 @@ export function TerminalInputArea({
       </div>
     </>
   );
-}
+});

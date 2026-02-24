@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.73.0] - 2026-02-23
+
+### Changed
+- **Memo-wrapped core components** - `AgentBar`, `GuakeOutputPanel`, `TerminalHeader`, `TerminalInputArea`, `AgentPanel`, `MobileFabMenu`, `GuakeAgentLink`, and `ThemeSelector` are now wrapped in `React.memo()` to skip re-renders when props are unchanged
+- **Isolated ElapsedTimer component** - Extracted the 1-second elapsed timer into its own component so the entire `TerminalInputArea` no longer re-renders every tick
+- **Stable callback references** - Replaced inline arrow functions with `useCallback` and ref-based patterns across `App.tsx`, `AgentBar`, and `CommanderView` keyboard handlers to preserve referential equality
+- **Narrower store selectors** - New `useAgentCount`, `useSupervisorLastReport`, `useSupervisorGeneratingReport`, `useSubagentsMapForAgent`, and `useLastPrompt` selectors replace broad subscriptions
+- **Set immutability for selectedAgentIds** - All mutations now create new `Set()` instances so shallow-equality selectors properly detect changes
+- **Commander View tab counts** - Pre-computed `tabCounts` map replaces inline `Array.from().filter()` on every render
+- **Working agent panel styling** - Changed from purple to green theme for better visual distinction
+- **Agent removal cleanup** - `handleRemoveAgent` now stops the runtime, cancels pending permissions, and cleans up boss hierarchy before deleting
+
+### Added
+- **`AgentBarItem` memoized component** - Individual agent items in the bottom bar are now independently memoized, preventing full-bar re-renders on single-agent updates
+- **`usePermissionRequests` reactive selector** - Permission requests in `GuakeOutputPanel` now use a store subscription instead of imperative reads, ensuring new permissions appear immediately
+- **Agent-switch scroll reset** - `isAgentSwitching` state + `key={activeAgentId}` on `VirtualizedOutputList` forces a clean remount, fixing stale virtualizer offsets when switching agents
+
+### Fixed
+- **Stale closure in delete handler** - `handleDeleteSelectedAgents` now reads selection from `store.getState()` at execution time instead of a potentially stale closure
+- **Console log cleanup** - Removed ~40 debug `console.log`, `console.warn`, and `console.trace` calls left over from development
+
 ## [0.72.1] - 2026-02-23
 
 ### Changed

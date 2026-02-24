@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSettings } from '../store';
 import { VoiceAssistant } from './VoiceAssistant';
@@ -19,7 +19,7 @@ interface MobileFabMenuProps {
   mobileView: '3d' | 'terminal';
 }
 
-export function MobileFabMenu({
+export const MobileFabMenu = memo(function MobileFabMenu({
   isOpen,
   onToggle,
   onShowTerminal,
@@ -170,4 +170,4 @@ export function MobileFabMenu({
       )}
     </>
   );
-}
+});

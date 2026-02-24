@@ -659,14 +659,29 @@ export function handleMoveAgent(
 }
 
 /**
- * Handle remove_agent message - removes from persistence only
+ * Handle remove_agent message - stops runtime and deletes agent
  */
-export function handleRemoveAgent(
+export async function handleRemoveAgent(
   ctx: HandlerContext,
   payload: { agentId: string }
-): void {
+): Promise<void> {
+  const agent = agentService.getAgent(payload.agentId);
+  log.log(`Agent ${agent?.name || payload.agentId}: User requested agent removal`);
+
+  // Cancel any pending permissions and notify clients
+  const cancelledPermissions = permissionService.cancelRequestsForAgent(payload.agentId);
+  for (const requestId of cancelledPermissions) {
+    ctx.broadcast({
+      type: 'permission_resolved',
+      payload: { requestId, approved: false },
+    });
+  }
+
+  await runtimeService.stopAgent(payload.agentId);
   unlinkAgentFromBossHierarchy(payload.agentId);
   agentService.deleteAgent(payload.agentId);
+
+  log.log(`Agent ${agent?.name || payload.agentId}: Agent removed successfully`);
 }
 
 /**

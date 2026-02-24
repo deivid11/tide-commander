@@ -142,6 +142,15 @@ export function useAgents(): Map<string, Agent> {
 }
 
 /**
+ * Get agent count. Only re-renders when number of agents changes (not on property updates).
+ */
+export function useAgentCount(): number {
+  return useSelector(
+    useCallback((state: StoreState) => state.agents.size, [])
+  );
+}
+
+/**
  * Get all agents as an array. Only re-renders when agents change.
  */
 export function useAgentsArray(): Agent[] {
@@ -389,10 +398,24 @@ export function useSupervisor(): SupervisorState {
 }
 
 /**
+ * Get supervisor last report. Only re-renders when lastReport changes.
+ */
+export function useSupervisorLastReport() {
+  return useSelector(useCallback((state: StoreState) => state.supervisor.lastReport, []));
+}
+
+/**
  * Get supervisor enabled status. Only re-renders when enabled changes.
  */
 export function useSupervisorEnabled(): boolean {
   return useSelector(useCallback((state: StoreState) => state.supervisor.enabled, []));
+}
+
+/**
+ * Get supervisor generating report status. Only re-renders when it changes.
+ */
+export function useSupervisorGeneratingReport(): boolean {
+  return useSelector(useCallback((state: StoreState) => state.supervisor.generatingReport, []));
 }
 
 /**
@@ -1017,6 +1040,32 @@ export function useSubagentsForAgent(parentAgentId: string | null): Subagent[] {
   );
 }
 
+/**
+ * Get subagents Map for a specific parent agent.
+ * Only re-renders when that agent's subagents change (not other agents').
+ */
+export function useSubagentsMapForAgent(parentAgentId: string | null): Map<string, Subagent> {
+  const emptyMap = useRef(new Map<string, Subagent>());
+
+  return useSelector(
+    useCallback(
+      (state: StoreState) => {
+        if (!parentAgentId) return emptyMap.current;
+        const filtered = new Map<string, Subagent>();
+        for (const [id, sub] of state.subagents) {
+          if (sub.parentAgentId === parentAgentId) {
+            filtered.set(id, sub);
+          }
+        }
+        if (filtered.size === 0) return emptyMap.current;
+        return filtered;
+      },
+      [parentAgentId]
+    ),
+    shallowMapEqual
+  );
+}
+
 // ============================================================================
 // VIEW MODE SELECTORS
 // ============================================================================
@@ -1040,5 +1089,8 @@ export function useOverviewPanelOpen(): boolean {
  * Get set of agents with unseen output (completed but not viewed by user)
  */
 export function useAgentsWithUnseenOutput(): Set<string> {
-  return useSelector(useCallback((state: StoreState) => state.agentsWithUnseenOutput, []));
+  return useSelector(
+    useCallback((state: StoreState) => state.agentsWithUnseenOutput, []),
+    shallowSetEqual
+  );
 }

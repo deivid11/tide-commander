@@ -2,7 +2,7 @@
  * GuakeAgentLink component - agent indicator in the bottom bar
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import { useCustomAgentClassesArray } from '../../store';
 import type { Agent } from '../../../shared/types';
 import { formatIdleTime } from '../../utils/formatting';
@@ -34,7 +34,7 @@ interface GuakeAgentLinkProps {
   onClick: () => void;
 }
 
-export function GuakeAgentLink({ agent, isSelected, onClick }: GuakeAgentLinkProps) {
+export const GuakeAgentLink = memo(function GuakeAgentLink({ agent, isSelected, onClick }: GuakeAgentLinkProps) {
   const customClasses = useCustomAgentClassesArray();
   const [, setTick] = useState(0);
   const config = getClassConfig(agent.class, customClasses);
@@ -69,4 +69,4 @@ export function GuakeAgentLink({ agent, isSelected, onClick }: GuakeAgentLinkPro
       )}
     </div>
   );
-}
+});

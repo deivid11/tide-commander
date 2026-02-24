@@ -122,8 +122,18 @@
   min-height: 0;
 
   &.working {
-    border-color: $dracula-purple;
-    box-shadow: 0 0 20px rgba($dracula-purple, 0.25);
+    background: linear-gradient(180deg, rgba($dracula-green, 0.12) 0%, rgba($dracula-green, 0.06) 100%);
+    border-color: rgba($dracula-green, 0.6);
+    box-shadow: 0 0 20px rgba($dracula-green, 0.2);
+
+    .agent-panel-header {
+      background: rgba(mix($dracula-green, $dracula-bg, 12%), 0.95);
+      border-bottom-color: rgba($dracula-green, 0.2);
+    }
+
+    .agent-panel-content {
+      background: rgba(mix($dracula-green, $dracula-bg-darker, 8%), 0.7);
+    }
   }
 
   &.expanded {

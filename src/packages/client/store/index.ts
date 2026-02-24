@@ -79,6 +79,7 @@ export {
 export {
   useStore,
   useAgents,
+  useAgentCount,
   useAgentsArray,
   useAgent,
   useSelectedAgentIds,
@@ -98,7 +99,9 @@ export {
   useSelectedBuildingIds,
   useBuildingLogs,
   useSupervisor,
+  useSupervisorLastReport,
   useSupervisorEnabled,
+  useSupervisorGeneratingReport,
   useAgentSupervisorHistory,
   usePermissionRequests,
   useDelegationHistory,
@@ -149,6 +152,7 @@ export {
   useSnapshotsError,
   useSubagents,
   useSubagentsForAgent,
+  useSubagentsMapForAgent,
   useViewMode,
   useOverviewPanelOpen,
   useAgentsWithUnseenOutput,
@@ -402,19 +406,13 @@ class Store
 
   toggleTerminal(agentId?: string): void {
     if (agentId && !this.state.selectedAgentIds.has(agentId)) {
-      this.state.selectedAgentIds.clear();
-      this.state.selectedAgentIds.add(agentId);
+      this.state.selectedAgentIds = new Set([agentId]);
     }
     this.state.terminalOpen = !this.state.terminalOpen;
     this.notify();
   }
 
   setTerminalOpen(open: boolean): void {
-    console.log('[Store] setTerminalOpen called with:', open, 'current:', this.state.terminalOpen);
-    if (!open && this.state.terminalOpen) {
-      // Log stack trace when closing terminal to find the culprit
-      console.trace('[Store] Closing terminal - stack trace:');
-    }
     this.state.terminalOpen = open;
     // When opening terminal, ensure we can actually render the terminal panel.
     // ClaudeOutputPanel returns null when no agent is selected.
@@ -424,7 +422,6 @@ class Store
       // use the virtual snapshotAgent from currentSnapshot instead
       if (this.state.selectedAgentIds.size === 0 && this.state.agents.size > 0 && !this.state.currentSnapshot) {
         const firstAgentId = Array.from(this.state.agents.keys())[0];
-        console.log('[Store] Auto-selecting first agent for terminal open:', firstAgentId);
         this.state.selectedAgentIds = new Set([firstAgentId]);
       }
 
@@ -437,7 +434,6 @@ class Store
             unseenChanged = true;
           }
           this.state.agentsWithUnseenOutput.delete(agentId);
-          console.log(`[Store] Cleared unseen badge for agent ${agentId}`);
         }
       }
       if (unseenChanged) {
@@ -445,7 +441,6 @@ class Store
       }
     }
     this.notify();
-    console.log('[Store] After notify, terminalOpen:', this.state.terminalOpen);
   }
 
   setOverviewPanelOpen(open: boolean): void {
@@ -454,7 +449,6 @@ class Store
   }
 
   setMobileView(view: 'terminal' | '3d'): void {
-    console.log('[Store] setMobileView called:', view, 'previous:', this.state.mobileView);
     this.state.mobileView = view;
     // Persist mobile view preference to localStorage
     setStorageString(STORAGE_KEYS.MOBILE_VIEW, view);
@@ -462,7 +456,6 @@ class Store
     // Otherwise the terminal component returns null
     if (view === 'terminal' && this.state.selectedAgentIds.size === 0 && this.state.agents.size > 0 && !this.state.currentSnapshot) {
       const firstAgentId = Array.from(this.state.agents.keys())[0];
-      console.log('[Store] Auto-selecting first agent for terminal view:', firstAgentId);
       this.state.selectedAgentIds = new Set([firstAgentId]);
       this.state.terminalOpen = true;
     }
@@ -482,12 +475,10 @@ class Store
    * This ensures the terminal is visible and not obscured by other panels.
    */
   openTerminalOnMobile(agentId: string): void {
-    console.log('[Store] openTerminalOnMobile called for agent:', agentId);
     // Close all modals except terminal itself
     closeAllModalsExcept('terminal');
     // Select the agent
-    this.state.selectedAgentIds.clear();
-    this.state.selectedAgentIds.add(agentId);
+    this.state.selectedAgentIds = new Set([agentId]);
     // Open terminal
     this.state.terminalOpen = true;
     // Switch to terminal view
@@ -497,7 +488,6 @@ class Store
     if (this.state.agentsWithUnseenOutput.has(agentId)) {
       this.state.agentsWithUnseenOutput = new Set(this.state.agentsWithUnseenOutput);
       this.state.agentsWithUnseenOutput.delete(agentId);
-      console.log(`[Store] Cleared unseen badge for agent ${agentId}`);
       this.saveUnseenAgents();
     }
 
