@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.71.4] - 2026-02-23
+
+### Changed
+- **README** - Added Commander View screenshot, updated view modes count from three to four, trailing whitespace cleanup
+
 ## [0.71.3] - 2026-02-23
 
 ### Fixed

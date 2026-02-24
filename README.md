@@ -116,6 +116,8 @@ You can upload your own 3D character models in **GLB format**. Custom models sup
 ### Commander View
 A view where you can see all the Claude Code agent terminals on a single view, grouped by areas.
 
+![Commander View](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/img/commander_view.png)
+
 ### Skills
 Built-in and custom skills that extend what agents can do. Skills are like plugins with defined tool permissions and can be assigned to specific agents or classes. Built-in skills include notifications, inter-agent messaging, git workflows, server log access, and streaming command execution. You can create your own skills in TypeScript.
 
@@ -149,7 +151,7 @@ Define global instructions that apply to all agents, then layer them with class-
 - Set security best practices globally, then customize per-agent as needed
 
 ### View Modes
-Three ways to view the battlefield (cycle with Alt+2):
+Four ways to view the battlefield (cycle with Alt+2):
 - **3D View** - Full Three.js battlefield with character models and post-processing (default)
 
 ![3D View](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/example-battlefield.png)
@@ -161,6 +163,10 @@ Three ways to view the battlefield (cycle with Alt+2):
 - **Dashboard** - Agent status cards, building overview, and metrics
 
 ![Dashboard View](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/img/dashboard_view.png)
+
+- **Commander View** - Tactical command panel for agent coordination
+
+![Commander View](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/img/commander_view.png)
 
 ### Spotlight Search
 Press **Ctrl+K** (or Alt+P) to open the command palette. Search for agents by name, class, or current task. Jump to areas, find modified files across all agents, or trigger quick actions.
