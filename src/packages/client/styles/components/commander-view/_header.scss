@@ -253,3 +253,99 @@
     border-color: $dracula-red;
   }
 }
+
+// Mobile: compact header, fullscreen view, scrollable filters
+@media (max-width: 768px) {
+  .commander-overlay {
+    padding: 0;
+  }
+
+  .commander-view {
+    height: 100dvh;
+    border-radius: 0;
+    border: none;
+    border-top: 2px solid $dracula-purple;
+  }
+
+  .commander-header {
+    padding: 8px 12px;
+  }
+
+  .commander-title {
+    font-size: 13px;
+  }
+
+  .commander-shortcuts {
+    display: none;
+  }
+
+  .commander-controls {
+    gap: 8px;
+  }
+
+  .commander-view-toggle,
+  .commander-add-btn,
+  .commander-close {
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+
+  .commander-filters {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    gap: 12px;
+    padding: 6px 8px;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  .commander-filter-group {
+    flex-shrink: 0;
+    scroll-snap-align: start;
+  }
+
+  .commander-filter-label {
+    font-size: 9px;
+    margin-right: 2px;
+  }
+
+  .commander-filter-btn {
+    padding: 4px 6px;
+    font-size: 10px;
+  }
+
+  .commander-filter-clear {
+    flex-shrink: 0;
+    margin-left: 0;
+  }
+
+  .commander-pagination {
+    padding: 6px 8px;
+    gap: 8px;
+  }
+
+  .commander-page-btn {
+    padding: 4px 10px;
+    font-size: 11px;
+  }
+
+  .commander-page-info {
+    font-size: 11px;
+  }
+
+  // Safe area insets for notched devices
+  @supports (padding: env(safe-area-inset-bottom)) {
+    .commander-view {
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    .commander-header {
+      padding-top: calc(8px + env(safe-area-inset-top, 0px));
+    }
+  }
+}

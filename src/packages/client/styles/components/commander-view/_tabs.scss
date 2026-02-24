@@ -75,6 +75,28 @@
   }
 }
 
+// Mobile: compact tabs
+@media (max-width: 768px) {
+  .commander-tabs {
+    padding: 0 8px;
+  }
+
+  .commander-tab {
+    padding: 8px 10px;
+    font-size: 11px;
+    gap: 4px;
+  }
+
+  .commander-tab-count {
+    font-size: 9px;
+    padding: 1px 5px;
+  }
+
+  .commander-tab-folder {
+    font-size: 11px;
+  }
+}
+
 // File explorer panel within commander view
 .commander-view .file-explorer-panel {
   position: absolute;

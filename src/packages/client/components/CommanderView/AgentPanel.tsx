@@ -6,7 +6,7 @@
  * - TerminalInput from shared components for input handling
  */
 
-import React, { useRef, useEffect, useState, useMemo, useCallback, memo } from 'react';
+import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Agent } from '../../../shared/types';
 import { useSupervisorLastReport, store, ClaudeOutput } from '../../store';
@@ -36,7 +36,7 @@ interface AgentPanelProps {
   onClearHistory: () => void;
 }
 
-export const AgentPanel = memo(function AgentPanel({
+export function AgentPanel({
   agent,
   history,
   outputs,
@@ -423,4 +423,4 @@ export const AgentPanel = memo(function AgentPanel({
       <AgentResponseModalWrapper agent={agent} content={responseModalContent} onClose={handleCloseResponseModal} />
     </div>
   );
-});
+}

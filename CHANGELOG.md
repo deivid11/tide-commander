@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.74.0] - 2026-02-23
+
+### Changed
+- **Atomic file writes with backup recovery** - All data persistence (agents, areas, buildings, skills, secrets, etc.) now uses write-to-tmp + rename pattern with `.bak` fallback, preventing corruption from mid-write crashes
+- **Async debounced agent persistence** - `updateAgent()` coalesces rapid writes into a single async write (2s debounce), reducing I/O pressure from frequent status updates
+- **Flush-on-shutdown** - New `flushPersistAgents()` cancels any pending debounced write and performs an immediate sync save during graceful shutdown
+- **Removed unnecessary memo wrappers** - `VirtualizedOutputList` and `AgentPanel` no longer wrapped in `React.memo()` since they re-render on every parent update anyway
+- **2D scene animation timing** - Separate `animationDelta` based on time since last render keeps animation speed constant regardless of FPS limiting
+
+### Added
+- **Mobile Commander View** - Fully responsive layout for screens under 768px: vertically scrolling 60vh agent cards with scroll-snap, touch-optimized 44px hit targets, compact header/tabs/filters, horizontally scrollable filter bar, and safe-area inset support for notched devices
+- **Virtualizer initialRect** - Prevents empty first render by providing a non-zero initial size estimate
+- **ResizeObserver scroll sync** - Dispatches a scroll event after container resize to keep the virtualizer offset in sync with the actual scrollTop after CSS grid reflows
+
+### Fixed
+- **Virtualizer blank on first render** - `initialRect: { width: 500, height: 800 }` prevents `outerSize=0` from yielding zero visible items until a scroll event
+- **Virtualizer blank after filter change** - ResizeObserver detects container resize and forces virtualizer to re-read scroll offset, fixing zero-item renders after grid reflow
+
 ## [0.73.0] - 2026-02-23
 
 ### Changed

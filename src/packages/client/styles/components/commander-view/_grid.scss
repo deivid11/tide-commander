@@ -977,9 +977,108 @@
   }
 }
 
-@media (max-width: 900px) {
+// Mobile: vertically scrolling cards with fixed height
+@media (max-width: 768px) {
   .commander-grid {
-    grid-template-columns: 1fr;
-    grid-template-rows: repeat(6, 1fr);
+    // Override ALL data-agent-count layouts on mobile
+    &,
+    &[data-agent-count="1"],
+    &[data-agent-count="2"],
+    &[data-agent-count="3"],
+    &[data-agent-count="4"],
+    &[data-agent-count="5"],
+    &[data-agent-count="6"],
+    &[data-agent-count="7"],
+    &[data-agent-count="8"],
+    &[data-agent-count="9"] {
+      grid-template-columns: 1fr;
+      grid-template-rows: none;
+      grid-auto-rows: auto;
+      align-content: start;
+    }
+
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 6px;
+    gap: 6px;
+    scroll-snap-type: y proximity;
+
+    // Expanded mode: fill viewport
+    &.has-expanded {
+      grid-template-columns: 1fr;
+      grid-template-rows: 1fr;
+      scroll-snap-type: none;
+      overflow: hidden;
+
+      .agent-panel {
+        height: auto;
+        max-height: none;
+      }
+    }
+  }
+
+  // Each agent card: fixed ~60vh height, scrollable content
+  .agent-panel {
+    max-height: none;
+    height: 60vh;
+    min-height: 280px;
+    scroll-snap-align: start;
+    flex-shrink: 0;
+
+    &.expanded {
+      height: auto;
+      min-height: 0;
+    }
+  }
+
+  // Single agent fills available space instead of fixed 60vh
+  .commander-grid[data-agent-count="1"]:not(.has-expanded) {
+    .agent-panel {
+      height: auto;
+      flex: 1;
+      min-height: 0;
+    }
+  }
+
+  // Larger touch targets on agent panel controls
+  .agent-panel-expand {
+    width: 32px;
+    height: 32px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .agent-panel-stop-btn {
+    padding: 8px 14px;
+    font-size: 12px;
+    min-height: 44px;
+  }
+
+  .agent-panel-header {
+    padding: 8px 10px;
+  }
+
+  .agent-panel-input {
+    padding: 8px 10px;
+  }
+
+  .agent-panel-input-container {
+    min-height: 44px;
+  }
+
+  .agent-panel-attach-btn,
+  .agent-panel-send-btn {
+    width: 44px;
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .agent-panel-content {
+    font-size: 12px;
+    padding: 8px 10px;
+  }
+
+  .agent-panel-name {
+    font-size: 13px;
   }
 }

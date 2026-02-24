@@ -119,6 +119,7 @@ export class Scene2D {
   // Animation
   private animationFrameId: number | null = null;
   private lastFrameTime = 0;
+  private lastAnimationTime = 0;
   private lastRenderTime = 0;
   private isRunning = false;
 
@@ -183,6 +184,7 @@ export class Scene2D {
     if (this.isRunning) return;
     this.isRunning = true;
     this.lastFrameTime = performance.now();
+    this.lastAnimationTime = this.lastFrameTime;
     this.animate();
   }
 
@@ -252,6 +254,11 @@ export class Scene2D {
     const deltaTime = (now - this.lastFrameTime) / 1000;
     this.lastFrameTime = now;
 
+    // Animation deltaTime uses time since last render, not last frame
+    // This keeps animation speed constant regardless of FPS limit
+    const animationDelta = (now - this.lastAnimationTime) / 1000;
+    this.lastAnimationTime = now;
+
     // Update camera (smooth easing)
     this.camera.update(deltaTime);
 
@@ -259,10 +266,10 @@ export class Scene2D {
     this.updateMovements(now);
 
     // Update effects
-    this.effects.update(deltaTime);
+    this.effects.update(animationDelta);
 
     // Update renderer animation time
-    this.renderer.update(deltaTime);
+    this.renderer.update(animationDelta);
 
     // Render
     this.render();

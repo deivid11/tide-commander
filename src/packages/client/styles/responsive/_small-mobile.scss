@@ -311,6 +311,22 @@
     min-width: 44px;
   }
 
+  // Commander View touch optimizations
+  .agent-panel-expand {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .agent-panel-stop-btn {
+    min-height: 44px;
+  }
+
+  .agent-panel-attach-btn,
+  .agent-panel-send-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
   // Disable hover effects that don't work well on touch
   .agent-bar-item:hover {
     transform: none;

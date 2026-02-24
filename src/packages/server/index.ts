@@ -129,7 +129,7 @@ async function main(): Promise<void> {
       buildingService.stopPM2StatusPolling();
       buildingService.stopDockerStatusPolling();
       await runtimeService.shutdown();
-      agentService.persistAgents();
+      agentService.flushPersistAgents();
       wss.clients.forEach((client) => client.terminate());
       await new Promise<void>((resolve) => wss.close(() => resolve()));
       sockets.forEach((socket) => socket.destroy());

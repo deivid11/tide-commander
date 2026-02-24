@@ -88,22 +88,123 @@ function ensureDataDir(): void {
   }
 }
 
+// ============================================================================
+// Atomic Write & Safe Read Helpers
+// ============================================================================
+
+/**
+ * Atomic write (sync): write to .tmp, backup existing to .bak, rename .tmp to target.
+ * Prevents corruption from crashes mid-write. Used for shutdown and infrequent saves.
+ */
+function atomicWriteJsonSync(filePath: string, data: unknown): void {
+  const tmpFile = filePath + '.tmp';
+  const bakFile = filePath + '.bak';
+  const content = JSON.stringify(data, null, 2);
+
+  fs.writeFileSync(tmpFile, content, 'utf-8');
+
+  if (fs.existsSync(filePath)) {
+    fs.copyFileSync(filePath, bakFile);
+  }
+
+  fs.renameSync(tmpFile, filePath);
+}
+
+/**
+ * Atomic write (async): non-blocking variant for hot paths.
+ * Same corruption guarantees, doesn't block the event loop.
+ */
+async function atomicWriteJson(filePath: string, data: unknown): Promise<void> {
+  const tmpFile = filePath + '.tmp';
+  const bakFile = filePath + '.bak';
+  const content = JSON.stringify(data, null, 2);
+
+  await fs.promises.writeFile(tmpFile, content, 'utf-8');
+
+  try {
+    await fs.promises.access(filePath);
+    await fs.promises.copyFile(filePath, bakFile);
+  } catch {
+    // No existing file to backup
+  }
+
+  await fs.promises.rename(tmpFile, filePath);
+}
+
+/**
+ * Safe JSON read with .bak fallback.
+ * If main file is corrupted/missing, tries the backup and restores it.
+ */
+function safeReadJsonSync<T>(filePath: string, label: string): T | null {
+  const bakFile = filePath + '.bak';
+
+  // Try main file
+  try {
+    if (fs.existsSync(filePath)) {
+      return JSON.parse(fs.readFileSync(filePath, 'utf-8')) as T;
+    }
+  } catch {
+    log.error(` ${label}: main file corrupted, trying backup...`);
+  }
+
+  // Try backup
+  try {
+    if (fs.existsSync(bakFile)) {
+      const data = JSON.parse(fs.readFileSync(bakFile, 'utf-8')) as T;
+      log.warn(` ${label}: recovered from backup file`);
+      try { fs.copyFileSync(bakFile, filePath); } catch { /* best effort */ }
+      return data;
+    }
+  } catch {
+    log.error(` ${label}: backup also corrupted`);
+  }
+
+  return null;
+}
+
+/**
+ * Convert Agent objects to StoredAgent format (strips runtime-only fields)
+ */
+function toStoredAgents(agents: Agent[]): StoredAgent[] {
+  return agents.map(agent => ({
+    id: agent.id,
+    name: agent.name,
+    class: agent.class,
+    provider: agent.provider,
+    position: agent.position,
+    cwd: agent.cwd,
+    tokensUsed: agent.tokensUsed,
+    contextUsed: agent.contextUsed,
+    contextLimit: agent.contextLimit,
+    contextStats: agent.contextStats,
+    taskCount: agent.taskCount,
+    permissionMode: agent.permissionMode,
+    useChrome: agent.useChrome,
+    model: agent.model,
+    codexModel: agent.codexModel,
+    codexConfig: agent.codexConfig,
+    createdAt: agent.createdAt,
+    lastActivity: agent.lastActivity,
+    sessionId: agent.sessionId,
+    currentTask: agent.currentTask,
+    lastAssignedTask: agent.lastAssignedTask,
+    lastAssignedTaskTime: agent.lastAssignedTaskTime,
+    isBoss: agent.isBoss,
+    subordinateIds: agent.subordinateIds,
+    bossId: agent.bossId,
+  }));
+}
+
 /**
  * Load agents from disk
  */
 export function loadAgents(): StoredAgent[] {
   ensureDataDir();
-
-  try {
-    if (fs.existsSync(AGENTS_FILE)) {
-      const data: TideData = JSON.parse(fs.readFileSync(AGENTS_FILE, 'utf-8'));
-      log.log(` Loaded ${data.agents.length} agents from ${AGENTS_FILE}`);
-      return data.agents;
-    }
-  } catch (err) {
-    log.error(' Failed to load agents:', err);
+  const data = safeReadJsonSync<TideData>(AGENTS_FILE, 'Agents');
+  if (data?.agents) {
+    log.log(` Loaded ${data.agents.length} agents from ${AGENTS_FILE}`);
+    return data.agents;
   }
-
   return [];
 }
 
@@ -112,48 +213,32 @@ export function loadAgents(): StoredAgent[] {
  */
 export function saveAgents(agents: Agent[]): void {
   ensureDataDir();
-
   try {
-    // Convert to stored format (remove runtime-only fields)
-    const storedAgents: StoredAgent[] = agents.map(agent => ({
-      id: agent.id,
-      name: agent.name,
-      class: agent.class,
-      provider: agent.provider,
-      position: agent.position,
-      cwd: agent.cwd,
-      tokensUsed: agent.tokensUsed,
-      contextUsed: agent.contextUsed,
-      contextLimit: agent.contextLimit,
-      contextStats: agent.contextStats, // Persist detailed context stats
-      taskCount: agent.taskCount,
-      permissionMode: agent.permissionMode, // Persist permission mode
-      useChrome: agent.useChrome, // Persist Chrome flag
-      model: agent.model, // Persist model selection
-      codexModel: agent.codexModel,
-      codexConfig: agent.codexConfig,
-      createdAt: agent.createdAt,
-      lastActivity: agent.lastActivity,
-      sessionId: agent.sessionId,
-      currentTask: agent.currentTask,
-      // Task tracking for auto-resume
-      lastAssignedTask: agent.lastAssignedTask,
-      lastAssignedTaskTime: agent.lastAssignedTaskTime,
-      // Boss-specific fields
-      isBoss: agent.isBoss,
-      subordinateIds: agent.subordinateIds,
-      bossId: agent.bossId,
-    }));
-
     const data: TideData = {
-      agents: storedAgents,
+      agents: toStoredAgents(agents),
       savedAt: Date.now(),
       version: '1.0.0',
     };
-
-    fs.writeFileSync(AGENTS_FILE, JSON.stringify(data, null, 2));
+    atomicWriteJsonSync(AGENTS_FILE, data);
   } catch (err) {
     log.error(' Failed to save agents:', err);
+  }
+}
+
+/**
+ * Async save agents - non-blocking for hot paths (e.g. frequent updateAgent calls)
+ */
+export async function saveAgentsAsync(agents: Agent[]): Promise<void> {
+  ensureDataDir();
+  try {
+    const data: TideData = {
+      agents: toStoredAgents(agents),
+      savedAt: Date.now(),
+      version: '1.0.0',
+    };
+    await atomicWriteJson(AGENTS_FILE, data);
+  } catch (err) {
+    log.error(' Failed to save agents (async):', err);
   }
 }
 
@@ -162,17 +247,8 @@ export function saveAgents(agents: Agent[]): void {
  */
 export function loadAreas(): DrawingArea[] {
   ensureDataDir();
-
-  try {
-    if (fs.existsSync(AREAS_FILE)) {
-      const data = JSON.parse(fs.readFileSync(AREAS_FILE, 'utf-8'));
-      return data.areas || [];
-    }
-  } catch (err) {
-    log.error(' Failed to load areas:', err);
-  }
-
-  return [];
+  const data = safeReadJsonSync<{ areas: DrawingArea[] }>(AREAS_FILE, 'Areas');
+  return data?.areas || [];
 }
 
 /**
@@ -180,13 +256,8 @@ export function loadAreas(): DrawingArea[] {
  */
 export function saveAreas(areas: DrawingArea[]): void {
   ensureDataDir();
-
   try {
-    const data = {
-      areas,
-      savedAt: Date.now(),
-    };
-    fs.writeFileSync(AREAS_FILE, JSON.stringify(data, null, 2));
+    atomicWriteJsonSync(AREAS_FILE, { areas, savedAt: Date.now() });
   } catch (err) {
     log.error(' Failed to save areas:', err);
   }
@@ -274,17 +345,11 @@ interface SupervisorHistoryData {
  */
 export function loadSupervisorHistory(): Map<string, AgentSupervisorHistoryEntry[]> {
   ensureDataDir();
-
-  try {
-    if (fs.existsSync(SUPERVISOR_HISTORY_FILE)) {
-      const data: SupervisorHistoryData = JSON.parse(fs.readFileSync(SUPERVISOR_HISTORY_FILE, 'utf-8'));
-      log.log(` Loaded supervisor history for ${Object.keys(data.histories).length} agents`);
-      return new Map(Object.entries(data.histories));
-    }
-  } catch (err) {
-    log.error(' Failed to load supervisor history:', err);
+  const data = safeReadJsonSync<SupervisorHistoryData>(SUPERVISOR_HISTORY_FILE, 'Supervisor history');
+  if (data?.histories) {
+    log.log(` Loaded supervisor history for ${Object.keys(data.histories).length} agents`);
+    return new Map(Object.entries(data.histories));
   }
-
   return new Map();
 }
 
@@ -293,15 +358,12 @@ export function loadSupervisorHistory(): Map<string, AgentSupervisorHistoryEntry
  */
 export function saveSupervisorHistory(histories: Map<string, AgentSupervisorHistoryEntry[]>): void {
   ensureDataDir();
-
   try {
-    const data: SupervisorHistoryData = {
+    atomicWriteJsonSync(SUPERVISOR_HISTORY_FILE, {
       histories: Object.fromEntries(histories),
       savedAt: Date.now(),
       version: '1.0.0',
-    };
-
-    fs.writeFileSync(SUPERVISOR_HISTORY_FILE, JSON.stringify(data, null, 2));
+    });
   } catch (err) {
     log.error(' Failed to save supervisor history:', err);
   }
@@ -367,26 +429,23 @@ let buildingsCacheMtime: number = 0;
 export function loadBuildings(): Building[] {
   ensureDataDir();
 
+  // Check cache validity
   try {
     if (fs.existsSync(BUILDINGS_FILE)) {
-      const stat = fs.statSync(BUILDINGS_FILE);
-      const mtime = stat.mtimeMs;
-
-      // Return cached data if file hasn't changed
+      const mtime = fs.statSync(BUILDINGS_FILE).mtimeMs;
       if (buildingsCache !== null && mtime === buildingsCacheMtime) {
         return buildingsCache;
       }
-
-      const data = JSON.parse(fs.readFileSync(BUILDINGS_FILE, 'utf-8'));
-      buildingsCache = data.buildings || [];
-      buildingsCacheMtime = mtime;
-      log.log(` Loaded ${buildingsCache!.length} buildings from ${BUILDINGS_FILE}`);
-      return buildingsCache!;
     }
-  } catch (err) {
-    log.error(' Failed to load buildings:', err);
-  }
+  } catch { /* proceed to read */ }
 
+  const data = safeReadJsonSync<{ buildings: Building[] }>(BUILDINGS_FILE, 'Buildings');
+  if (data?.buildings) {
+    buildingsCache = data.buildings;
+    try { buildingsCacheMtime = fs.statSync(BUILDINGS_FILE).mtimeMs; } catch { buildingsCacheMtime = 0; }
+    log.log(` Loaded ${buildingsCache.length} buildings from ${BUILDINGS_FILE}`);
+    return buildingsCache;
+  }
   return [];
 }
 
@@ -395,15 +454,8 @@ export function loadBuildings(): Building[] {
  */
 export function saveBuildings(buildings: Building[]): void {
   ensureDataDir();
-
   try {
-    const data = {
-      buildings,
-      savedAt: Date.now(),
-      version: '1.0.0',
-    };
-    fs.writeFileSync(BUILDINGS_FILE, JSON.stringify(data, null, 2));
-    // Invalidate cache so next load picks up the new data
+    atomicWriteJsonSync(BUILDINGS_FILE, { buildings, savedAt: Date.now(), version: '1.0.0' });
     buildingsCache = buildings;
     buildingsCacheMtime = fs.statSync(BUILDINGS_FILE).mtimeMs;
   } catch (err) {
@@ -426,17 +478,11 @@ interface DelegationHistoryData {
  */
 export function loadDelegationHistory(): Map<string, DelegationDecision[]> {
   ensureDataDir();
-
-  try {
-    if (fs.existsSync(DELEGATION_HISTORY_FILE)) {
-      const data: DelegationHistoryData = JSON.parse(fs.readFileSync(DELEGATION_HISTORY_FILE, 'utf-8'));
-      log.log(` Loaded delegation history for ${Object.keys(data.histories).length} bosses`);
-      return new Map(Object.entries(data.histories));
-    }
-  } catch (err) {
-    log.error(' Failed to load delegation history:', err);
+  const data = safeReadJsonSync<DelegationHistoryData>(DELEGATION_HISTORY_FILE, 'Delegation history');
+  if (data?.histories) {
+    log.log(` Loaded delegation history for ${Object.keys(data.histories).length} bosses`);
+    return new Map(Object.entries(data.histories));
   }
-
   return new Map();
 }
 
@@ -445,15 +491,12 @@ export function loadDelegationHistory(): Map<string, DelegationDecision[]> {
  */
 export function saveDelegationHistory(histories: Map<string, DelegationDecision[]>): void {
   ensureDataDir();
-
   try {
-    const data: DelegationHistoryData = {
+    atomicWriteJsonSync(DELEGATION_HISTORY_FILE, {
       histories: Object.fromEntries(histories),
       savedAt: Date.now(),
       version: '1.0.0',
-    };
-
-    fs.writeFileSync(DELEGATION_HISTORY_FILE, JSON.stringify(data, null, 2));
+    });
   } catch (err) {
     log.error(' Failed to save delegation history:', err);
   }
@@ -517,17 +560,11 @@ interface SkillsData {
  */
 export function loadSkills(): Skill[] {
   ensureDataDir();
-
-  try {
-    if (fs.existsSync(SKILLS_FILE)) {
-      const data: SkillsData = JSON.parse(fs.readFileSync(SKILLS_FILE, 'utf-8'));
-      log.log(` Loaded ${data.skills.length} skills from ${SKILLS_FILE}`);
-      return data.skills;
-    }
-  } catch (err) {
-    log.error(' Failed to load skills:', err);
+  const data = safeReadJsonSync<SkillsData>(SKILLS_FILE, 'Skills');
+  if (data?.skills) {
+    log.log(` Loaded ${data.skills.length} skills from ${SKILLS_FILE}`);
+    return data.skills;
   }
-
   return [];
 }
 
@@ -536,15 +573,12 @@ export function loadSkills(): Skill[] {
  */
 export function saveSkills(skills: Skill[]): void {
   ensureDataDir();
-
   try {
-    const data: SkillsData = {
+    atomicWriteJsonSync(SKILLS_FILE, {
       skills: skills as StoredSkill[],
       savedAt: Date.now(),
       version: '1.0.0',
-    };
-
-    fs.writeFileSync(SKILLS_FILE, JSON.stringify(data, null, 2));
+    });
     log.log(` Saved ${skills.length} skills to ${SKILLS_FILE}`);
   } catch (err) {
     log.error(' Failed to save skills:', err);
@@ -566,17 +600,11 @@ interface CustomAgentClassesData {
  */
 export function loadCustomAgentClasses(): CustomAgentClass[] {
   ensureDataDir();
-
-  try {
-    if (fs.existsSync(CUSTOM_CLASSES_FILE)) {
-      const data: CustomAgentClassesData = JSON.parse(fs.readFileSync(CUSTOM_CLASSES_FILE, 'utf-8'));
-      log.log(` Loaded ${data.classes.length} custom agent classes from ${CUSTOM_CLASSES_FILE}`);
-      return data.classes;
-    }
-  } catch (err) {
-    log.error(' Failed to load custom agent classes:', err);
+  const data = safeReadJsonSync<CustomAgentClassesData>(CUSTOM_CLASSES_FILE, 'Custom agent classes');
+  if (data?.classes) {
+    log.log(` Loaded ${data.classes.length} custom agent classes from ${CUSTOM_CLASSES_FILE}`);
+    return data.classes;
   }
-
   return [];
 }
 
@@ -585,15 +613,8 @@ export function loadCustomAgentClasses(): CustomAgentClass[] {
  */
 export function saveCustomAgentClasses(classes: CustomAgentClass[]): void {
   ensureDataDir();
-
   try {
-    const data: CustomAgentClassesData = {
-      classes,
-      savedAt: Date.now(),
-      version: '1.0.0',
-    };
-
-    fs.writeFileSync(CUSTOM_CLASSES_FILE, JSON.stringify(data, null, 2));
+    atomicWriteJsonSync(CUSTOM_CLASSES_FILE, { classes, savedAt: Date.now(), version: '1.0.0' });
     log.log(` Saved ${classes.length} custom agent classes to ${CUSTOM_CLASSES_FILE}`);
   } catch (err) {
     log.error(' Failed to save custom agent classes:', err);
@@ -626,17 +647,11 @@ interface RunningProcessesData {
  */
 export function loadRunningProcesses(): RunningProcessInfo[] {
   ensureDataDir();
-
-  try {
-    if (fs.existsSync(RUNNING_PROCESSES_FILE)) {
-      const data: RunningProcessesData = JSON.parse(fs.readFileSync(RUNNING_PROCESSES_FILE, 'utf-8'));
-      log.log(` Loaded ${data.processes.length} running process records (from commander PID ${data.commanderPid})`);
-      return data.processes;
-    }
-  } catch (err) {
-    log.error(' Failed to load running processes:', err);
+  const data = safeReadJsonSync<RunningProcessesData>(RUNNING_PROCESSES_FILE, 'Running processes');
+  if (data?.processes) {
+    log.log(` Loaded ${data.processes.length} running process records (from commander PID ${data.commanderPid})`);
+    return data.processes;
   }
-
   return [];
 }
 
@@ -646,15 +661,12 @@ export function loadRunningProcesses(): RunningProcessInfo[] {
  */
 export function saveRunningProcesses(processes: RunningProcessInfo[]): void {
   ensureDataDir();
-
   try {
-    const data: RunningProcessesData = {
+    atomicWriteJsonSync(RUNNING_PROCESSES_FILE, {
       processes,
       savedAt: Date.now(),
       commanderPid: process.pid,
-    };
-
-    fs.writeFileSync(RUNNING_PROCESSES_FILE, JSON.stringify(data, null, 2));
+    });
   } catch (err) {
     log.error(' Failed to save running processes:', err);
   }
@@ -1038,40 +1050,21 @@ interface SecretsData {
  */
 export function loadSecrets(): Secret[] {
   ensureDataDir();
-
-  try {
-    if (fs.existsSync(SECRETS_FILE)) {
-      const data: SecretsData = JSON.parse(fs.readFileSync(SECRETS_FILE, 'utf-8'));
-      log.log(` Loaded ${data.secrets.length} secrets from ${SECRETS_FILE}`);
-
-      // Decrypt values
-      const decryptedSecrets: Secret[] = data.secrets.map(secret => {
-        try {
-          // Check if value is encrypted (for migration from unencrypted)
-          if (secret.encrypted !== false && isEncrypted(secret.value)) {
-            return {
-              ...secret,
-              value: decryptValue(secret.value),
-            };
-          }
-          // Unencrypted value (legacy or migration)
-          return secret as Secret;
-        } catch (err) {
-          log.error(` Failed to decrypt secret "${secret.name}":`, err);
-          // Return with empty value if decryption fails
-          return {
-            ...secret,
-            value: '',
-          };
+  const data = safeReadJsonSync<SecretsData>(SECRETS_FILE, 'Secrets');
+  if (data?.secrets) {
+    log.log(` Loaded ${data.secrets.length} secrets from ${SECRETS_FILE}`);
+    return data.secrets.map(secret => {
+      try {
+        if (secret.encrypted !== false && isEncrypted(secret.value)) {
+          return { ...secret, value: decryptValue(secret.value) };
         }
-      });
-
-      return decryptedSecrets;
-    }
-  } catch (err) {
-    log.error(' Failed to load secrets:', err);
+        return secret as Secret;
+      } catch (err) {
+        log.error(` Failed to decrypt secret "${secret.name}":`, err);
+        return { ...secret, value: '' };
+      }
+    });
   }
-
   return [];
 }
 
@@ -1080,22 +1073,17 @@ export function loadSecrets(): Secret[] {
  */
 export function saveSecrets(secrets: Secret[]): void {
   ensureDataDir();
-
   try {
-    // Encrypt values before saving
     const encryptedSecrets: EncryptedStoredSecret[] = secrets.map(secret => ({
       ...secret,
       value: encryptValue(secret.value),
       encrypted: true,
     }));
-
-    const data: SecretsData = {
+    atomicWriteJsonSync(SECRETS_FILE, {
       secrets: encryptedSecrets,
       savedAt: Date.now(),
       version: '1.0.0',
-    };
-
-    fs.writeFileSync(SECRETS_FILE, JSON.stringify(data, null, 2));
+    });
     log.log(` Saved ${secrets.length} secrets to ${SECRETS_FILE} (encrypted)`);
   } catch (err) {
     log.error(' Failed to save secrets:', err);
@@ -1136,18 +1124,8 @@ function getQueryHistoryFile(buildingId: string): string {
  */
 export function loadQueryHistory(buildingId: string): QueryHistoryEntry[] {
   ensureQueryHistoryDir();
-
-  try {
-    const filePath = getQueryHistoryFile(buildingId);
-    if (fs.existsSync(filePath)) {
-      const data: QueryHistoryData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-      return data.history || [];
-    }
-  } catch (err) {
-    log.error(` Failed to load query history for building ${buildingId}:`, err);
-  }
-
-  return [];
+  const data = safeReadJsonSync<QueryHistoryData>(getQueryHistoryFile(buildingId), `Query history (${buildingId})`);
+  return data?.history || [];
 }
 
 /**
@@ -1155,16 +1133,8 @@ export function loadQueryHistory(buildingId: string): QueryHistoryEntry[] {
  */
 export function saveQueryHistory(buildingId: string, history: QueryHistoryEntry[]): void {
   ensureQueryHistoryDir();
-
   try {
-    const data: QueryHistoryData = {
-      history,
-      savedAt: Date.now(),
-      version: '1.0.0',
-    };
-
-    const filePath = getQueryHistoryFile(buildingId);
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+    atomicWriteJsonSync(getQueryHistoryFile(buildingId), { history, savedAt: Date.now(), version: '1.0.0' });
   } catch (err) {
     log.error(` Failed to save query history for building ${buildingId}:`, err);
   }

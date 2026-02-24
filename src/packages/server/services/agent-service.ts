@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import type { Agent, AgentClass, PermissionMode, ClaudeModel, AgentProvider, CodexConfig, CodexModel } from '../../shared/types.js';
-import { loadAgents, saveAgents, getDataDir } from '../data/index.js';
+import { loadAgents, saveAgents, saveAgentsAsync, getDataDir } from '../data/index.js';
 import {
   listSessions,
   getSessionSummary,
@@ -161,6 +161,34 @@ export function persistAgents(): void {
   } catch (err) {
     log.error(' Failed to save agents:', err);
   }
+}
+
+// Debounced persist - coalesces rapid updateAgent() calls into one async write
+let persistTimer: NodeJS.Timeout | null = null;
+const PERSIST_DEBOUNCE_MS = 2000;
+
+function debouncedPersistAgents(): void {
+  if (persistTimer) {
+    clearTimeout(persistTimer);
+  }
+  persistTimer = setTimeout(() => {
+    persistTimer = null;
+    saveAgentsAsync(Array.from(agents.values())).catch(err => {
+      log.error(' Failed to save agents (debounced):', err);
+    });
+  }, PERSIST_DEBOUNCE_MS);
+}
+
+/**
+ * Flush any pending debounced writes synchronously (for shutdown).
+ * Cancels the timer and does an immediate sync atomic write.
+ */
+export function flushPersistAgents(): void {
+  if (persistTimer) {
+    clearTimeout(persistTimer);
+    persistTimer = null;
+  }
+  persistAgents();
 }
 
 // ============================================================================
@@ -327,7 +355,7 @@ export function updateAgent(id: string, updates: Partial<Agent>, updateActivity 
     Object.assign(agent, updates);
   }
   agents.set(id, agent);
-  persistAgents();
+  debouncedPersistAgents();
 
   // Debug logging for sessionId changes
   if (sessionIdBefore !== agent.sessionId) {

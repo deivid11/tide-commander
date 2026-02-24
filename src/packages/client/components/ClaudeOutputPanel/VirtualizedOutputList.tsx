@@ -150,7 +150,7 @@ const VirtualRow = memo(function VirtualRow({
   );
 });
 
-export const VirtualizedOutputList = memo(function VirtualizedOutputList({
+export const VirtualizedOutputList = function VirtualizedOutputList({
   historyMessages,
   liveOutputs,
   agentId,
@@ -184,11 +184,14 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   const agentSwitchGraceRef = useRef(false);
 
   // Create virtualizer
+  // initialRect prevents the first render from having outerSize=0 (which yields
+  // zero visible items until a scroll event triggers a re-measure).
   const virtualizer = useVirtualizer({
     count: allItems.length,
     getScrollElement: () => scrollContainerRef.current,
     estimateSize: (index) => getEstimatedHeight(allItems[index]),
     overscan: 10, // Render 10 items above/below viewport
+    initialRect: { width: 500, height: 800 },
     measureElement: (element) => {
       // Measure actual rendered height for accurate positioning
       return element.getBoundingClientRect().height;
@@ -277,6 +280,27 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     return () => container.removeEventListener('scroll', handleScroll);
   }, [handleScroll, scrollContainerRef]);
 
+  // Fix: sync virtualizer scroll offset after container resize.
+  // The virtualizer tracks scroll offset only via scroll events. After a CSS grid
+  // reflow (e.g. filter change alters agent count), the browser may clamp scrollTop
+  // without firing a scroll event, leaving the virtualizer with a stale offset that
+  // produces zero visible items. Dispatching a scroll event forces the re-read.
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const observer = new ResizeObserver(() => {
+      isProgrammaticScrollRef.current = true;
+      container.dispatchEvent(new Event('scroll'));
+      requestAnimationFrame(() => {
+        isProgrammaticScrollRef.current = false;
+      });
+    });
+
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [scrollContainerRef]);
+
   // Scroll to selected message when navigating
   useEffect(() => {
     if (selectedMessageIndex !== null && selectedMessageIndex >= 0 && selectedMessageIndex < allItems.length) {
@@ -336,6 +360,6 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
       })}
     </div>
   );
-});
+};
 
 export default VirtualizedOutputList;
