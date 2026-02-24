@@ -76,8 +76,12 @@ const AgentPanelWrapper = memo(function AgentPanelWrapper({
   }, [agent.id, isExpanded, onExpand, onCollapse]);
 
   const handleFocus = useCallback(() => {
-    onFocus(index);
-  }, [index, onFocus]);
+    if (isFocused) {
+      onFocus(-1); // Toggle: collapse if already focused
+    } else {
+      onFocus(index);
+    }
+  }, [index, isFocused, onFocus]);
 
   const handleInputRef = useCallback((el: HTMLInputElement | HTMLTextAreaElement | null) => {
     onInputRef(agent.id, el);
@@ -308,8 +312,10 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
   }, [filters]);
 
   // Focus input when focusedIndex changes or when expanded (not on terminal updates)
+  // Skip auto-focus on touch devices to avoid opening the virtual keyboard
   useEffect(() => {
     if (!isOpen) return;
+    if (window.matchMedia('(pointer: coarse)').matches) return;
     const agentId = expandedAgentId || visibleAgentsRef.current[focusedIndex]?.id;
     if (agentId) {
       const input = inputRefs.current.get(agentId);

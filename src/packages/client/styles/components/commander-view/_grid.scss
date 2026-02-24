@@ -226,6 +226,37 @@
   font-size: 11px;
 }
 
+.agent-panel-status-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 1px 5px;
+  border-radius: 2px;
+  font-family: $font-mono;
+  flex-shrink: 0;
+
+  &.working {
+    color: $dracula-green;
+    background: rgba($dracula-green, 0.15);
+  }
+
+  &.idle {
+    color: $dracula-comment;
+    background: rgba($dracula-current, 0.4);
+  }
+
+  &.error, &.waiting, &.waiting_permission {
+    color: $dracula-red;
+    background: rgba($dracula-red, 0.15);
+  }
+
+  &.offline, &.orphaned {
+    color: $dracula-comment;
+    background: rgba($dracula-current, 0.3);
+    opacity: 0.6;
+  }
+}
+
 .agent-panel-class {
   font-size: 10px;
   color: $dracula-comment;
@@ -782,33 +813,6 @@
   }
 }
 
-// Typing indicator for agent panels
-.agent-panel-typing {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  margin: 3px 0;
-}
-
-.agent-panel-stop-btn {
-  margin-left: 8px;
-  padding: 3px 8px;
-  background: rgba($dracula-red, 0.2);
-  border: 1px solid $dracula-red;
-  border-radius: $radius-sm;
-  color: $dracula-red;
-  font-size: 10px;
-  font-family: $font-mono;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all $transition-fast;
-
-  &:hover {
-    background: $dracula-red;
-    color: $dracula-bg;
-  }
-}
 
 // File attachments in agent panel
 .agent-panel-attachments {
@@ -977,13 +981,16 @@
   }
 }
 
-// Mobile: accordion layout
-// Tap an agent header to expand it in-place, others collapse to header-only
+// Mobile: accordion layout with smooth expand/collapse
+// Uses interpolate-size to animate height: 0 ↔ auto
 @media (max-width: 768px) {
   .commander-grid {
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    interpolate-size: allow-keywords;
     padding: 4px;
     gap: 2px;
 
@@ -1014,31 +1021,69 @@
     }
   }
 
-  // Focused/open accordion panel: expands to fill remaining space
-  .agent-panel.focused {
-    flex: 1 1 auto;
-    max-height: none;
-    height: auto;
-    min-height: 180px;
+  // Panel expand: max-height grows from header to full, content fades in staggered
+  @keyframes panelExpand {
+    0% {
+      max-height: 44px;
+      overflow: hidden;
+    }
+    60% {
+      max-height: 75vh;
+      overflow: hidden;
+    }
+    100% {
+      max-height: 100vh;
+      overflow: hidden;
+    }
   }
 
-  // Collapsed accordion panels: header-only rows
+  @keyframes contentFadeIn {
+    0% { opacity: 0; transform: translateY(-8px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes inputSlideIn {
+    0% { opacity: 0; transform: translateY(10px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+
+  // Focused panel: takes remaining space, content scrolls inside
+  .agent-panel.focused {
+    flex: 1 1 0%;
+    height: auto;
+    min-height: 50vh;
+    overflow: hidden;
+    animation: panelExpand 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+
+    .agent-panel-content {
+      font-size: 12px;
+      padding: 8px 10px;
+      animation: contentFadeIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both;
+    }
+
+    .agent-panel-supervisor-status {
+      animation: contentFadeIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both;
+    }
+
+    .guake-input-wrapper {
+      animation: inputSlideIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.2s both;
+    }
+  }
+
+  // Collapsed panels: header-only, instant hide
   .agent-panel:not(.focused):not(.expanded) {
     flex: 0 0 auto;
-    max-height: none;
     height: auto;
+    max-height: none;
     overflow: hidden;
     cursor: pointer;
-    transition: background $transition-fast;
 
-    // Hide content and input — only header visible
     .agent-panel-content,
     .guake-input-wrapper,
     .agent-panel-supervisor-status {
       display: none;
     }
 
-    // Tap feedback
     &:active {
       background: rgba($dracula-purple, 0.12);
     }
@@ -1052,17 +1097,11 @@
     max-height: none;
   }
 
-  // Larger touch targets on agent panel controls
+  // Larger touch targets
   .agent-panel-expand {
     width: 32px;
     height: 32px;
     min-width: 44px;
-    min-height: 44px;
-  }
-
-  .agent-panel-stop-btn {
-    padding: 8px 14px;
-    font-size: 12px;
     min-height: 44px;
   }
 
@@ -1083,11 +1122,6 @@
     width: 44px;
     min-height: 44px;
     font-size: 16px;
-  }
-
-  .agent-panel-content {
-    font-size: 12px;
-    padding: 8px 10px;
   }
 
   .agent-panel-name {
