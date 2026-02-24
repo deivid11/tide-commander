@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.77.0] - 2026-02-24
+
+### Changed
+- **Scene2D static/dynamic layer split** - Ground, grid, areas, and buildings render to an off-screen canvas cache that only redraws on camera or data changes; main canvas blits the cache in a single `drawImage` call
+- **Adaptive FPS throttling** - Idle scenes render at 8 fps, working-agent scenes at 15 fps, and active interactions (pan/zoom/drag) run uncapped, cutting GPU usage when nothing is moving
+- **DPR cap and pixel budget** - Device pixel ratio clamped to 1.25 with a 4M-pixel ceiling to keep `clearRect`/fill passes fast on ultra-wide and HiDPI displays
+- **Frustum culling** - Agents, areas, buildings, and boss-subordinate lines skip drawing when off-screen
+- **Removed all Canvas2D `shadowBlur`** - Replaced with lightweight offset shapes, wider translucent strokes, and radial gradients across `AgentRenderer`, `AreaRenderer`, `BuildingRenderer`, and `Scene2DEffects`
+- **Removed all CSS `backdrop-filter: blur()`** - Agent bar, bottom toolbar, context menu, commander view overlay, guake terminal, and right panel now use higher-opacity backgrounds instead
+- **Color conversion caching** - `hexToRgba`, `lightenColor`, and `darkenColor` results cached in shared maps with quantized alpha keys
+- **Cached sorted area arrays** - Area sort by zIndex computed once and invalidated on mutation instead of re-sorting every frame
+- **Per-frame store snapshots in AgentRenderer** - `beginFrame()` reads `customAgentClasses` and `agentsWithUnseenOutput` once, avoiding `store.getState()` per agent in the hot loop
+- **Cached ground gradient in GridRenderer** - Radial gradient rebuilt only on viewport resize instead of every frame
+- **Removed animated dash offsets** - Area borders, boss lines, and drawing previews use static dash patterns instead of per-frame `lineDashOffset` animation
+- **Reduced working-agent animation complexity** - Removed water-wave ripple effect; simplified bounce, pulse, and selection glow to fewer trig calls
+- **Granular store selectors** - New `useAgents`, `useAreas`, `useBuildings`, `useFileChanges` selectors replace broad state subscriptions
+- **Memo-wrapped VirtualizedOutputList** - Wrapped in `React.memo` with custom comparator to skip re-renders when messages haven't changed
+
+### Fixed
+- **Memory leak in useSceneSetup cleanup** - StrictMode disposal now checks `store.viewMode` instead of `canvas.isConnected`, correctly preserving WebGL context during React re-mounts
+- **Stale eslint disable comment** - Removed orphaned `react-hooks/exhaustive-deps` suppression in `useSpotlightSearch` (rule was not configured)
+
 ## [0.76.0] - 2026-02-24
 
 ### Added
