@@ -115,6 +115,7 @@ export {
   useFileViewerSearchRoot,
   useExplorerFolderPath,
   useContextModalAgentId,
+  useCommanderExpandRequest,
   useToolExecutions,
   useFileChanges,
   useSkills,
@@ -264,6 +265,7 @@ class Store
       })(),
       overviewPanelOpen: false,
       agentsWithUnseenOutput: this.loadUnseenAgents(),
+      commanderExpandRequest: null,
     };
 
     // Helper functions for domain modules
@@ -573,6 +575,20 @@ class Store
     this.state.fileViewerPath = null;
     this.state.fileViewerEditData = null;
     this.state.fileViewerSearchRoot = null;
+    this.notify();
+  }
+
+  // ============================================================================
+  // Commander View
+  // ============================================================================
+
+  requestCommanderExpand(agentId: string): void {
+    this.state.commanderExpandRequest = agentId;
+    this.notify();
+  }
+
+  clearCommanderExpandRequest(): void {
+    this.state.commanderExpandRequest = null;
     this.notify();
   }
 

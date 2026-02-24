@@ -592,6 +592,13 @@ export function useContextModalAgentId(): string | null {
   return useSelector(useCallback((state: StoreState) => state.contextModalAgentId, []));
 }
 
+/**
+ * Get commander expand request. Only re-renders when it changes.
+ */
+export function useCommanderExpandRequest(): string | null {
+  return useSelector(useCallback((state: StoreState) => state.commanderExpandRequest, []));
+}
+
 // ============================================================================
 // TOOL HISTORY SELECTORS
 // ============================================================================

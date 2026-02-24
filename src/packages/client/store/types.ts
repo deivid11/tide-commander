@@ -259,6 +259,8 @@ export interface StoreState {
   overviewPanelOpen: boolean;
   // Agents with unseen output (completed work but user hasn't viewed)
   agentsWithUnseenOutput: Set<string>;
+  // Request to expand an agent in the commander view (set from notification clicks)
+  commanderExpandRequest: string | null;
 }
 
 // Database building state

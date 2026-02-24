@@ -15,11 +15,12 @@
 
 import React, { useEffect, useRef, useState, useMemo, useCallback, memo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useAgents, useAreas, useAgentOutputs, store } from '../../store';
+import { useAgents, useAreas, useAgentOutputs, useCommanderExpandRequest, store } from '../../store';
 import type { Agent } from '../../../shared/types';
 import { FileExplorerPanel } from '../FileExplorerPanel';
 import { matchesShortcut } from '../../store/shortcuts';
 import { STORAGE_KEYS, getStorageString, setStorageString } from '../../utils/storage';
+import { useModalStackRegistration } from '../../hooks/useModalStack';
 import { useAgentHistory } from './useAgentHistory';
 import { AgentPanel } from './AgentPanel';
 import { SpawnForm } from './SpawnForm';
@@ -123,6 +124,7 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
   });
   const [page, setPage] = useState(0);
   const [expandedAgentId, setExpandedAgentId] = useState<string | null>(null);
+  const expandedAgentIdRef = useRef<string | null>(null);
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [showSpawnForm, setShowSpawnForm] = useState(false);
   const [fileExplorerAreaId, setFileExplorerAreaId] = useState<string | null>(null);
@@ -242,8 +244,22 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
   const totalPages = Math.ceil(filteredAgents.length / AGENTS_PER_PAGE);
   const visibleAgents = filteredAgents.slice(page * AGENTS_PER_PAGE, (page + 1) * AGENTS_PER_PAGE);
 
-  // Keep ref in sync for focus effect (avoids re-focusing on terminal updates)
+  // Keep refs in sync (avoids re-focusing on terminal updates, stable keydown handler)
   visibleAgentsRef.current = visibleAgents;
+  expandedAgentIdRef.current = expandedAgentId;
+
+  // Register expanded agent on modal stack so ESC (via closeTopModal) collapses it
+  // instead of closing the entire commander
+  useModalStackRegistration('commander-expanded', expandedAgentId !== null, () => setExpandedAgentId(null));
+
+  // Watch for expand requests from notifications
+  const commanderExpandRequest = useCommanderExpandRequest();
+  useEffect(() => {
+    if (isOpen && commanderExpandRequest) {
+      setExpandedAgentId(commanderExpandRequest);
+      store.clearCommanderExpandRequest();
+    }
+  }, [isOpen, commanderExpandRequest]);
 
   // Stable callbacks for AgentPanelWrapper to prevent unnecessary re-renders
   const handleCollapseExpanded = useCallback(() => setExpandedAgentId(null), []);
@@ -286,6 +302,7 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
       const target = e.target as HTMLElement;
       const isInputFocused = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
       const maxIndex = visibleAgents.length - 1;
+      const expanded = expandedAgentIdRef.current;
 
       // Escape: collapse or close
       const closeShortcut = shortcuts.find(s => s.id === 'commander-close');
@@ -295,8 +312,8 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
         if (fileViewerPath || contextModalAgentId) return;
 
         e.preventDefault();
-        e.stopPropagation();
-        if (expandedAgentId) {
+        e.stopImmediatePropagation();
+        if (expanded) {
           setExpandedAgentId(null);
         } else {
           onClose();
@@ -306,28 +323,28 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
 
       // Vim-style navigation
       const vimLeftShortcut = shortcuts.find(s => s.id === 'commander-vim-left');
-      if (matchesShortcut(e, vimLeftShortcut) && !expandedAgentId) {
+      if (matchesShortcut(e, vimLeftShortcut) && !expanded) {
         e.preventDefault();
         setFocusedIndex(i => (i > 0 ? i - 1 : i));
         return;
       }
 
       const vimRightShortcut = shortcuts.find(s => s.id === 'commander-vim-right');
-      if (matchesShortcut(e, vimRightShortcut) && !expandedAgentId) {
+      if (matchesShortcut(e, vimRightShortcut) && !expanded) {
         e.preventDefault();
         setFocusedIndex(i => (i < maxIndex ? i + 1 : i));
         return;
       }
 
       const vimUpShortcut = shortcuts.find(s => s.id === 'commander-vim-up');
-      if (matchesShortcut(e, vimUpShortcut) && !expandedAgentId) {
+      if (matchesShortcut(e, vimUpShortcut) && !expanded) {
         e.preventDefault();
         setFocusedIndex(i => (i >= GRID_COLS ? i - GRID_COLS : i));
         return;
       }
 
       const vimDownShortcut = shortcuts.find(s => s.id === 'commander-vim-down');
-      if (matchesShortcut(e, vimDownShortcut) && !expandedAgentId) {
+      if (matchesShortcut(e, vimDownShortcut) && !expanded) {
         e.preventDefault();
         setFocusedIndex(i => (i + GRID_COLS <= maxIndex ? i + GRID_COLS : i));
         return;
@@ -337,7 +354,7 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
       const expandShortcut = shortcuts.find(s => s.id === 'commander-expand');
       if (matchesShortcut(e, expandShortcut)) {
         e.preventDefault();
-        if (expandedAgentId) {
+        if (expanded) {
           setExpandedAgentId(null);
         } else if (visibleAgents[focusedIndex]) {
           setExpandedAgentId(visibleAgents[focusedIndex].id);
@@ -379,7 +396,7 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
     };
     document.addEventListener('keydown', handleKeyDown, true);
     return () => document.removeEventListener('keydown', handleKeyDown, true);
-  }, [isOpen, onClose, expandedAgentId, visibleAgents, focusedIndex, tabs, activeTab]);
+  }, [isOpen, onClose, visibleAgents, focusedIndex, tabs, activeTab]);
 
   if (!isOpen) return null;
 
@@ -540,7 +557,7 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
 
         <div
           className={`commander-grid ${expandedAgentId ? 'has-expanded' : ''}`}
-          data-agent-count={visibleAgents.length}
+          data-agent-count={expandedAgentId ? 1 : visibleAgents.length}
         >
           {visibleAgents.length === 0 ? (
             <div className="commander-empty">

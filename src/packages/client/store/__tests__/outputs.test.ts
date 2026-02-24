@@ -144,6 +144,32 @@ describe('Output Store Actions', () => {
       expect(outputs[0].text).toBe('msg-10');
       expect(outputs[199].text).toBe('msg-209');
     });
+
+    it('truncates oversized single output entries', () => {
+      const { state, actions } = createMockStore();
+      const hugeText = 'a'.repeat(40000); // ~80KB in UTF-16
+
+      actions.addOutput('agent-1', makeOutput({ text: hugeText }));
+
+      const outputs = state.agentOutputs.get('agent-1')!;
+      expect(outputs).toHaveLength(1);
+      expect(outputs[0].text.length).toBeLessThan(hugeText.length);
+      expect(outputs[0].text).toContain('[output truncated]');
+    });
+
+    it('enforces total byte cap by evicting oldest outputs', () => {
+      const { state, actions } = createMockStore();
+      const bigChunk = 'x'.repeat(20000); // ~40KB each
+
+      for (let i = 0; i < 40; i++) {
+        actions.addOutput('agent-1', makeOutput({ text: `${i}:${bigChunk}` }));
+      }
+
+      const outputs = state.agentOutputs.get('agent-1')!;
+      expect(outputs.length).toBeLessThan(40);
+      // The latest outputs should be preserved after eviction.
+      expect(outputs[outputs.length - 1].text.startsWith('39:')).toBe(true);
+    });
   });
 
   describe('clearOutputs', () => {

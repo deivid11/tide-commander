@@ -556,6 +556,29 @@ export function measure(_name: string, _startMark: string, _endMark?: string): v
   // Intentionally disabled - native performance.measure() entries are never GC'd.
 }
 
+// Periodically clear browser performance buffer to prevent PerformanceEventTiming
+// and other native entries from accumulating indefinitely (~165K+ objects in long sessions).
+// The browser adds entries for every click, scroll, input, etc. and never GC's them.
+if (typeof window !== 'undefined') {
+  const PERF_BUFFER_CLEAR_INTERVAL = 60_000; // Every 60 seconds
+  setInterval(() => {
+    try {
+      performance.clearMarks();
+      performance.clearMeasures();
+      performance.clearResourceTimings();
+    } catch {
+      // Ignore errors in browsers that don't support these APIs
+    }
+  }, PERF_BUFFER_CLEAR_INTERVAL);
+
+  // Set max buffer size to 0 to prevent resource timing accumulation
+  try {
+    performance.setResourceTimingBufferSize(0);
+  } catch {
+    // Ignore if not supported
+  }
+}
+
 // Expose to window for debugging
 if (isDev && typeof window !== 'undefined') {
   (window as any).__tidePerf = {

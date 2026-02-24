@@ -39,6 +39,12 @@ export function openAgentTerminalFromNotification(agentId: string): void {
     return;
   }
 
+  // If the commander view is open, expand this agent there instead of opening the terminal
+  if (document.querySelector('.commander-overlay')) {
+    store.requestCommanderExpand(agentId);
+    return;
+  }
+
   store.selectAgent(agentId);
   store.setTerminalOpen(true);
 }

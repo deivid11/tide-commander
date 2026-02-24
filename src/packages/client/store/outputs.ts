@@ -8,6 +8,54 @@ import type { StoreState, AgentOutput, LastPrompt } from './types';
 import { perf } from '../utils/profiling';
 import { debugLog } from '../services/agentDebugger';
 
+const MAX_OUTPUTS_PER_AGENT = 200;
+const MAX_OUTPUT_BYTES_PER_AGENT = 1024 * 1024; // 1MB soft cap per agent output buffer
+const MAX_SINGLE_OUTPUT_BYTES = 64 * 1024; // 64KB max per single output entry
+const TRUNCATION_SUFFIX = '\n\n[output truncated]';
+
+function estimateTextBytes(text: string): number {
+  // JS strings are UTF-16, so 2 bytes per code unit is a good upper-bound estimate.
+  return text.length * 2;
+}
+
+function truncateTextToBytes(text: string, maxBytes: number): string {
+  if (estimateTextBytes(text) <= maxBytes) {
+    return text;
+  }
+
+  const suffixBytes = estimateTextBytes(TRUNCATION_SUFFIX);
+  const availableBytes = Math.max(0, maxBytes - suffixBytes);
+  const maxChars = Math.floor(availableBytes / 2);
+  return `${text.slice(0, maxChars)}${TRUNCATION_SUFFIX}`;
+}
+
+function normalizeOutputSize(output: AgentOutput): AgentOutput {
+  if (estimateTextBytes(output.text) <= MAX_SINGLE_OUTPUT_BYTES) {
+    return output;
+  }
+
+  return {
+    ...output,
+    text: truncateTextToBytes(output.text, MAX_SINGLE_OUTPUT_BYTES),
+  };
+}
+
+function enforceOutputBufferLimits(outputs: AgentOutput[]): AgentOutput[] {
+  let next = outputs;
+
+  if (next.length > MAX_OUTPUTS_PER_AGENT) {
+    next = next.slice(-MAX_OUTPUTS_PER_AGENT);
+  }
+
+  let totalBytes = next.reduce((sum, item) => sum + estimateTextBytes(item.text), 0);
+  while (next.length > 1 && totalBytes > MAX_OUTPUT_BYTES_PER_AGENT) {
+    totalBytes -= estimateTextBytes(next[0].text);
+    next = next.slice(1);
+  }
+
+  return next;
+}
+
 export interface OutputActions {
   addOutput(agentId: string, output: AgentOutput): void;
   clearOutputs(agentId: string): void;
@@ -40,13 +88,14 @@ export function createOutputActions(
       // to avoid race conditions when multiple outputs arrive rapidly
       setState((s) => {
         const currentOutputs = s.agentOutputs.get(agentId) || [];
+        const normalizedOutput = normalizeOutputSize(output);
 
           // DEDUPLICATION: Use message UUID if available, otherwise skip dedup
         // This ensures reliable message delivery without false positives
-        if (output.uuid) {
+        if (normalizedOutput.uuid) {
           // Check if we already have this exact message UUID (indicates a resend)
           const isDuplicate = currentOutputs.some(existing =>
-            existing.uuid === output.uuid
+            existing.uuid === normalizedOutput.uuid
           );
           if (isDuplicate) {
             // Message already delivered - skip
@@ -55,17 +104,12 @@ export function createOutputActions(
         }
 
         // Create NEW array with the new output appended (immutable update for React reactivity)
-        let newOutputs = [...currentOutputs, output];
-
-        // Keep last 200 outputs per agent
-        if (newOutputs.length > 200) {
-          newOutputs = newOutputs.slice(-200);
-        }
+        const newOutputs = enforceOutputBufferLimits([...currentOutputs, normalizedOutput]);
 
         debugLog.info(`Store: ${currentOutputs.length} -> ${newOutputs.length}`, {
           agentId,
-          text: output.text.slice(0, 60),
-          isStreaming: output.isStreaming,
+          text: normalizedOutput.text.slice(0, 60),
+          isStreaming: normalizedOutput.isStreaming,
           listeners: listenerCount,
         }, 'store:addOutput');
 
@@ -129,8 +173,9 @@ export function createOutputActions(
       preservedOutputs: AgentOutput[]
     ): AgentOutput[] {
       // Just concatenate and sort by timestamp - no dedup
-      const merged = [...historyMessages, ...preservedOutputs];
+      let merged = [...historyMessages, ...preservedOutputs].map(normalizeOutputSize);
       merged.sort((a, b) => a.timestamp - b.timestamp);
+      merged = enforceOutputBufferLimits(merged);
 
       setState((s) => {
         const newAgentOutputs = new Map(s.agentOutputs);

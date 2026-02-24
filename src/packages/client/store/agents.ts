@@ -8,6 +8,18 @@ import type { Agent, AgentClass, PermissionMode, ClaudeModel, CodexModel, AgentP
 import type { StoreState, Activity } from './types';
 import { perf } from '../utils/profiling';
 import { apiUrl, authFetch } from '../utils/storage';
+import { evictHistoryCache } from '../components/ClaudeOutputPanel/useHistoryLoader';
+
+const verboseAgentStoreLogs =
+  import.meta.env.DEV &&
+  typeof window !== 'undefined' &&
+  (window as any).__TIDE_VERBOSE_STORE__ === true;
+
+function logAgentStore(...args: unknown[]): void {
+  if (verboseAgentStoreLogs) {
+    console.log(...args);
+  }
+}
 
 export interface AgentActions {
   // Agent CRUD
@@ -94,7 +106,7 @@ export function createAgentActions(
         newAgents.set(agent.id, agent);
         // Debug: log boss agents with subordinates
         if (agent.class === 'boss' || agent.isBoss) {
-          console.log('[Store.setAgents] Boss agent:', agent.name, 'subordinateIds:', agent.subordinateIds);
+          logAgentStore('[Store.setAgents] Boss agent:', agent.name, 'subordinateIds:', agent.subordinateIds);
         }
       }
 
@@ -127,7 +139,7 @@ export function createAgentActions(
       const oldAgent = state.agents.get(agent.id);
       const statusChanged = oldAgent?.status !== agent.status;
       if (statusChanged) {
-        console.log(`[Store] Agent ${agent.name} status update: ${oldAgent?.status} → ${agent.status}`);
+        logAgentStore(`[Store] Agent ${agent.name} status update: ${oldAgent?.status} → ${agent.status}`);
       }
       let unseenChanged = false;
       setState((s) => {
@@ -142,7 +154,7 @@ export function createAgentActions(
           if (!isViewing) {
             s.agentsWithUnseenOutput = new Set(s.agentsWithUnseenOutput);
             s.agentsWithUnseenOutput.add(agent.id);
-            console.log(`[Store] Agent ${agent.name} completed work - marked as unseen`);
+            logAgentStore(`[Store] Agent ${agent.name} completed work - marked as unseen`);
             unseenChanged = true;
           }
         }
@@ -152,7 +164,7 @@ export function createAgentActions(
       }
       notify();
       if (statusChanged) {
-        console.log(`[Store] Agent ${agent.name} status now in store: ${getState().agents.get(agent.id)?.status}`);
+        logAgentStore(`[Store] Agent ${agent.name} status now in store: ${getState().agents.get(agent.id)?.status}`);
       }
     },
 
@@ -213,12 +225,26 @@ export function createAgentActions(
         state.selectedAgentIds.delete(agentId);
         // Clean up agent outputs to prevent memory leak
         state.agentOutputs.delete(agentId);
-        // NEW: Clean up unseen badge
+        // Clean up last prompts
+        state.lastPrompts.delete(agentId);
+        // Clean up unseen badge
         if (state.agentsWithUnseenOutput.has(agentId)) {
           state.agentsWithUnseenOutput = new Set(state.agentsWithUnseenOutput);
           state.agentsWithUnseenOutput.delete(agentId);
         }
+        // Clean up delegation data for this agent
+        state.delegationHistories.delete(agentId);
+        state.lastDelegationReceived.delete(agentId);
+        state.agentTaskProgress.delete(agentId);
+        // Clean up supervisor data
+        state.supervisor.narratives.delete(agentId);
+        state.supervisor.agentHistories.delete(agentId);
+        state.supervisor.historyFetchedForAgents.delete(agentId);
+        // Clean up subagents
+        state.subagents.delete(agentId);
       });
+      // Evict from history cache
+      evictHistoryCache(agentId);
       if (hadUnseen && saveUnseenAgents) {
         saveUnseenAgents();
       }
@@ -237,7 +263,7 @@ export function createAgentActions(
           if (state.agentsWithUnseenOutput.has(agentId)) {
             state.agentsWithUnseenOutput = new Set(state.agentsWithUnseenOutput);
             state.agentsWithUnseenOutput.delete(agentId);
-            console.log(`[Store] Cleared unseen badge for selected agent ${agentId}`);
+            logAgentStore(`[Store] Cleared unseen badge for selected agent ${agentId}`);
             unseenChanged = true;
           }
         }
@@ -262,7 +288,7 @@ export function createAgentActions(
           if (state.agentsWithUnseenOutput.has(agentId)) {
             state.agentsWithUnseenOutput = new Set(state.agentsWithUnseenOutput);
             state.agentsWithUnseenOutput.delete(agentId);
-            console.log(`[Store] Cleared unseen badge for multi-selected agent ${agentId}`);
+            logAgentStore(`[Store] Cleared unseen badge for multi-selected agent ${agentId}`);
             unseenChanged = true;
           }
         }
@@ -305,7 +331,7 @@ export function createAgentActions(
       model?: ClaudeModel,
       customInstructions?: string
     ): void {
-      console.log('[Store] spawnAgent called with:', {
+      logAgentStore('[Store] spawnAgent called with:', {
         name,
         agentClass,
         cwd,
@@ -348,7 +374,7 @@ export function createAgentActions(
       }
 
       sendMessage(message);
-      console.log('[Store] Message sent to WebSocket');
+      logAgentStore('[Store] Message sent to WebSocket');
     },
 
     createDirectoryAndSpawn(path: string, name: string, agentClass: AgentClass): void {
