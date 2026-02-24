@@ -266,12 +266,19 @@ export function createDelegationActions(
         const taskProgress = bossProgress.get(subordinateId);
         if (!taskProgress) return;
 
+        // Cap output array at 200 lines to prevent unbounded memory growth
+        const MAX_TASK_OUTPUT_LINES = 200;
+        let newOutput = [...taskProgress.output, output];
+        if (newOutput.length > MAX_TASK_OUTPUT_LINES) {
+          newOutput = newOutput.slice(-MAX_TASK_OUTPUT_LINES);
+        }
+
         // Create new map structure for immutability
         const newProgress = new Map(state.agentTaskProgress);
         const newBossProgress = new Map(bossProgress);
         newBossProgress.set(subordinateId, {
           ...taskProgress,
-          output: [...taskProgress.output, output],
+          output: newOutput,
         });
         newProgress.set(bossId, newBossProgress);
         state.agentTaskProgress = newProgress;
@@ -287,12 +294,18 @@ export function createDelegationActions(
         const taskProgress = bossProgress.get(subordinateId);
         if (!taskProgress) return;
 
+        // Trim output to last 20 lines on completion to free memory
+        const trimmedOutput = taskProgress.output.length > 20
+          ? taskProgress.output.slice(-20)
+          : taskProgress.output;
+
         const newProgress = new Map(state.agentTaskProgress);
         const newBossProgress = new Map(bossProgress);
         newBossProgress.set(subordinateId, {
           ...taskProgress,
           status: success ? 'completed' : 'failed',
           completedAt: Date.now(),
+          output: trimmedOutput,
         });
         newProgress.set(bossId, newBossProgress);
         state.agentTaskProgress = newProgress;

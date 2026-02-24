@@ -43,6 +43,13 @@ function historyCacheEvict(): void {
   }
 }
 
+/**
+ * Remove a specific agent's cached history (call when agent is removed/killed).
+ */
+export function evictHistoryCache(agentId: string): void {
+  historyCache.delete(agentId);
+}
+
 function normalizeMessage(text: string): string {
   return text.trim().replace(/\r\n/g, '\n');
 }
