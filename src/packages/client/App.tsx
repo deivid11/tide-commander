@@ -1,6 +1,25 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo, Profiler } from 'react';
 import { useTranslation } from 'react-i18next';
-import { store, useStore, useMobileView, useExplorerFolderPath, useFileViewerPath, useContextModalAgentId, useTerminalOpen } from './store';
+import {
+  store,
+  useAgents,
+  useAreas,
+  useBuildings,
+  useSelectedAgentIds,
+  useSelectedBuildingIds,
+  useSelectedAreaId,
+  useActiveTool,
+  useSettings,
+  useSupervisor,
+  useMobileView,
+  useViewMode,
+  useExplorerFolderPath,
+  useFileViewerPath,
+  useContextModalAgentId,
+  useTerminalOpen,
+  useSnapshotsLoading,
+  useSnapshotsError,
+} from './store';
 import { ToastProvider, useToast } from './components/Toast';
 import { AgentNotificationProvider, useAgentNotification } from './components/AgentNotificationToast';
 import { UnitPanel } from './components/UnitPanel';
@@ -28,7 +47,7 @@ import { PiPWindow, AgentsPiPView } from './components/PiPWindow';
 import { IframeModal } from './components/IframeModal';
 import { SaveSnapshotModal } from './components/SaveSnapshotModal';
 import { NotConnectedOverlay } from './components/NotConnectedOverlay';
-import { profileRender } from './utils/profiling';
+import { profileRender, useRenderCounter } from './utils/profiling';
 import {
   useModalState,
   useModalStateWithId,
@@ -158,16 +177,30 @@ function AppContent() {
     openDatabasePanel: (buildingId) => setDatabasePanelBuildingId(buildingId),
   });
 
-  const state = useStore();
+  const agents = useAgents();
+  const areas = useAreas();
+  const buildings = useBuildings();
+  const selectedAgentIds = useSelectedAgentIds();
+  const selectedBuildingIds = useSelectedBuildingIds();
+  const selectedAreaId = useSelectedAreaId();
+  const activeTool = useActiveTool();
+  const settings = useSettings();
+  const supervisor = useSupervisor();
+  const viewMode = useViewMode();
+  const snapshotsLoading = useSnapshotsLoading();
+  const snapshotsError = useSnapshotsError();
+  const selectedAgentIdsArray = useMemo(() => Array.from(selectedAgentIds), [selectedAgentIds]);
   const deepLinkHandledRef = useRef(false);
+
+  useRenderCounter('AppContent');
 
   // Scene synchronization hooks
   useSelectionSync(sceneRef);
   useAreaSync(sceneRef);
   useBuildingSync(sceneRef);
   useBuildingGitStatus();
-  useAreaHighlight(sceneRef, state.selectedAreaId);
-  usePowerSaving(sceneRef, state.settings.powerSaving);
+  useAreaHighlight(sceneRef, selectedAreaId);
+  usePowerSaving(sceneRef, settings.powerSaving);
 
   // POC: allow external launchers (e.g. KRunner) to deep-link into an agent terminal.
   // Supported query params:
@@ -184,17 +217,17 @@ function AppContent() {
     if (!rawAgentId && !rawAgentName) return;
 
     // Wait until agents are available from initial websocket sync.
-    if (state.agents.size === 0) return;
+    if (agents.size === 0) return;
 
     const openTerminalParam = params.get('openTerminal');
     const shouldOpenTerminal = openTerminalParam
       ? ['1', 'true', 'yes'].includes(openTerminalParam.toLowerCase())
       : true;
 
-    let targetAgent = rawAgentId ? state.agents.get(rawAgentId) : undefined;
+    let targetAgent = rawAgentId ? agents.get(rawAgentId) : undefined;
     if (!targetAgent && rawAgentName) {
       const lowerName = rawAgentName.toLowerCase();
-      targetAgent = Array.from(state.agents.values()).find((agent) => agent.name.toLowerCase() === lowerName);
+      targetAgent = Array.from(agents.values()).find((agent) => agent.name.toLowerCase() === lowerName);
     }
 
     if (!targetAgent) {
@@ -217,7 +250,7 @@ function AppContent() {
     window.history.replaceState({}, document.title, nextUrl);
 
     deepLinkHandledRef.current = true;
-  }, [state.agents]);
+  }, [agents]);
 
   // Keyboard shortcuts
   useKeyboardShortcuts({
@@ -372,41 +405,41 @@ function AppContent() {
 
   // Handle delete selected agents
   const handleDeleteSelectedAgents = useCallback(() => {
-    const selectedIds = Array.from(state.selectedAgentIds);
+    const selectedIds = selectedAgentIdsArray;
     selectedIds.forEach(id => {
       store.removeAgentFromServer(id);
       sceneRef.current?.removeAgent(id);
     });
     deleteConfirmModal.close();
     showToast('info', t('notifications:toast.agentsRemoved'), t('notifications:toast.agentsRemovedMsg', { count: selectedIds.length }));
-  }, [state.selectedAgentIds, showToast, deleteConfirmModal, sceneRef]);
+  }, [selectedAgentIdsArray, showToast, deleteConfirmModal, sceneRef, t]);
 
   // Building delete confirmation handler
   const handleConfirmBuildingDelete = useCallback(() => {
     if (pendingBuildingDelete === 'selected') {
       // Delete all selected buildings
-      const count = state.selectedBuildingIds.size;
+      const count = selectedBuildingIds.size;
       store.deleteSelectedBuildings();
       sceneRef.current?.syncBuildings();
       showToast('info', t('notifications:toast.buildingsDeleted'), t('notifications:toast.buildingsDeletedMsg', { count }));
     } else if (pendingBuildingDelete) {
       // Delete single building
-      const building = state.buildings.get(pendingBuildingDelete);
+      const building = buildings.get(pendingBuildingDelete);
       store.deleteBuilding(pendingBuildingDelete);
       sceneRef.current?.syncBuildings();
       showToast('info', t('notifications:toast.buildingDeleted'), t('notifications:toast.buildingDeletedMsg', { name: building?.name || 'Building' }));
     }
     setPendingBuildingDelete(null);
-  }, [pendingBuildingDelete, state.buildings, state.selectedBuildingIds.size, showToast, sceneRef]);
+  }, [pendingBuildingDelete, buildings, selectedBuildingIds.size, showToast, sceneRef, t]);
 
   // Context menu actions
   const contextMenuActions = useMemo(() => {
     return buildContextMenuActions(
       contextMenu.worldPosition,
       contextMenu.target,
-      state.agents,
-      state.areas,
-      state.buildings,
+      agents,
+      areas,
+      buildings,
       {
         showToast,
         openSpawnModal: () => spawnModal.open(),
@@ -425,9 +458,9 @@ function AppContent() {
   }, [
     contextMenu.worldPosition,
     contextMenu.target,
-    state.agents,
-    state.areas,
-    state.buildings,
+    agents,
+    areas,
+    buildings,
     spawnModal,
     bossSpawnModal,
     buildingModal,
@@ -448,7 +481,7 @@ function AppContent() {
   }, [spawnModal.isOpen, bossSpawnModal.isOpen]);
 
   // Check if in drawing mode
-  const isDrawingMode = state.activeTool === 'rectangle' || state.activeTool === 'circle';
+  const isDrawingMode = activeTool === 'rectangle' || activeTool === 'circle';
 
   // Handle exit drawing mode
   const handleExitDrawingMode = useCallback(() => {
@@ -461,19 +494,19 @@ function AppContent() {
   }, [sceneRef]);
 
   return (
-    <div className={`app ${state.terminalOpen ? 'terminal-open' : ''} ${isDrawingMode ? 'drawing-mode' : ''} ${sidebarCollapsed ? 'sidebar-collapsed' : ''} mobile-view-${mobileView}`}>
+    <div className={`app ${terminalOpen ? 'terminal-open' : ''} ${isDrawingMode ? 'drawing-mode' : ''} ${sidebarCollapsed ? 'sidebar-collapsed' : ''} mobile-view-${mobileView}`}>
       {/* Not Connected Overlay */}
       <NotConnectedOverlay />
 
       {/* FPS Meter */}
-      <FPSMeter visible={state.settings.showFPS} position="bottom-right" />
+      <FPSMeter visible={settings.showFPS} position="bottom-right" />
 
       {/* View Mode Toggle (3D / 2D / Dashboard) */}
       <ViewModeToggle className="app-view-mode-toggle" />
 
       <main className="main-content">
         <div className="battlefield-container">
-          {state.viewMode === 'dashboard' ? (
+          {viewMode === 'dashboard' ? (
             <DashboardView
               onSelectAgent={(agentId) => store.selectAgent(agentId)}
               onFocusAgent={(agentId) => {
@@ -495,7 +528,7 @@ function AppContent() {
                 }
               }}
             />
-          ) : state.viewMode === '2d' ? (
+          ) : viewMode === '2d' ? (
             <Scene2DCanvas
               onAgentClick={(agentId, shiftKey) => {
                 if (shiftKey) {
@@ -648,7 +681,7 @@ function AppContent() {
           onOpenSkills={() => skillsModal.open()}
           onOpenSnapshots={() => snapshotsModal.open()}
           onTakeSnapshot={() => saveSnapshotModal.open()}
-          canTakeSnapshot={state.selectedAgentIds.size === 1 && store.getOutputs(Array.from(state.selectedAgentIds)[0]).length > 0}
+          canTakeSnapshot={selectedAgentIdsArray.length === 1 && store.getOutputs(selectedAgentIdsArray[0]).length > 0}
           mobileView={mobileView}
         />
 
@@ -707,7 +740,7 @@ function AppContent() {
           >
             ✕
           </button>
-          {state.selectedAgentIds.size > 0 ? (
+          {selectedAgentIdsArray.length > 0 ? (
             <>
               <div className="sidebar-section unit-section">
                 <Profiler id="UnitPanel" onRender={profileRender}>
@@ -721,7 +754,7 @@ function AppContent() {
               </div>
               <div className="sidebar-section tool-history-section">
                 <Profiler id="ToolHistory" onRender={profileRender}>
-                  <ToolHistory agentIds={Array.from(state.selectedAgentIds)} />
+                  <ToolHistory agentIds={selectedAgentIdsArray} />
                 </Profiler>
               </div>
             </>
@@ -753,19 +786,19 @@ function AppContent() {
         onOpenControls={() => controlsModal.open()}
         onOpenSkills={() => skillsModal.open()}
         onOpenSnapshots={() => snapshotsModal.open()}
-        isGeneratingReport={state.supervisor.generatingReport}
+        isGeneratingReport={supervisor.generatingReport}
         pip={pip}
       />
 
       {/* Drawing Mode Indicator */}
       <DrawingModeIndicator
-        activeTool={state.activeTool}
+        activeTool={activeTool}
         onExit={handleExitDrawingMode}
       />
 
       {/* Agent Hover Popup (battlefield tooltip) */}
       {hoveredAgentPopup && (() => {
-        const agent = state.agents.get(hoveredAgentPopup.agentId);
+        const agent = agents.get(hoveredAgentPopup.agentId);
         if (!agent) return null;
         return (
           <AgentHoverPopup
@@ -778,7 +811,7 @@ function AppContent() {
 
       {/* Building Action Popup (battlefield click) */}
       {buildingPopup && (() => {
-        const building = state.buildings.get(buildingPopup.buildingId);
+        const building = buildings.get(buildingPopup.buildingId);
         if (!building) return null;
 
         const closePopup = () => setBuildingPopup(null);
@@ -850,7 +883,7 @@ function AppContent() {
 
       {/* PM2/Docker Logs Modal */}
       {pm2LogsModalBuildingId && (() => {
-        const building = state.buildings.get(pm2LogsModalBuildingId);
+        const building = buildings.get(pm2LogsModalBuildingId);
         if (!building) return null;
         // Use DockerLogsModal for Docker buildings, PM2LogsModal for PM2 buildings
         if (building.docker?.enabled) {
@@ -873,7 +906,7 @@ function AppContent() {
 
       {/* Boss Logs Modal */}
       {bossLogsModalBuildingId && (() => {
-        const building = state.buildings.get(bossLogsModalBuildingId);
+        const building = buildings.get(bossLogsModalBuildingId);
         if (!building) return null;
         return (
           <BossLogsModal
@@ -886,7 +919,7 @@ function AppContent() {
 
       {/* Database Panel Modal */}
       {databasePanelBuildingId && (() => {
-        const building = state.buildings.get(databasePanelBuildingId);
+        const building = buildings.get(databasePanelBuildingId);
         if (!building) return null;
         return (
           <div
@@ -918,9 +951,9 @@ function AppContent() {
       />
 
       {/* Save Snapshot Modal */}
-      {saveSnapshotModal.isOpen && state.selectedAgentIds.size === 1 && (() => {
-        const agentId = Array.from(state.selectedAgentIds)[0];
-        const agent = state.agents.get(agentId);
+      {saveSnapshotModal.isOpen && selectedAgentIdsArray.length === 1 && (() => {
+        const agentId = selectedAgentIdsArray[0];
+        const agent = agents.get(agentId);
         if (!agent) return null;
         const outputs = store.getOutputs(agentId);
         return (
@@ -956,8 +989,8 @@ function AppContent() {
                 showToast('error', t('notifications:toast.snapshotFailed'), message);
               }
             }}
-            isSaving={state.snapshotsLoading}
-            error={state.snapshotsError || undefined}
+            isSaving={snapshotsLoading}
+            error={snapshotsError || undefined}
           />
         );
       })()}

@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.72.0] - 2026-02-23
+
+### Changed
+- **Granular store selectors** - App and AgentBar no longer subscribe to the entire store via `useStore()`; each slice (agents, areas, buildings, settings, etc.) uses its own selector, drastically reducing unnecessary re-renders
+- **History cache for instant agent switching** - Per-agent history cache shows cached messages immediately on revisit instead of blanking the screen while fetching
+- **Commander View virtualized output** - AgentPanel now uses `VirtualizedOutputList` instead of rendering every message in the DOM, improving scroll performance for long histories
+- **Disabled performance.mark/measure** - Native `PerformanceMeasure` entries accumulated indefinitely causing ~40MB+ memory leak in long sessions; disabled to prevent bloat
+
+### Added
+- **`/clear` command in Commander View** - Typing `/clear` in an agent panel input now clears that agent's context and history
+- **`useRenderCounter` dev hook** - Logs render frequency per component interval to help spot render storms during development
+- **`useLastSelectedAgentId` selector** - Fine-grained selector that only triggers re-renders when the last-selected agent ID changes
+- **Escape key fix in Commander View** - Escape no longer closes Commander View when a file viewer or context modal is open on top
+
+### Fixed
+- **Space key in collapsed terminal input** - Space shortcut to open terminal now properly blurs the input first in both 3D and 2D scene handlers
+- **History fade-in flash** - Skip hiding content when switching agents if cached history is available, preventing a blank flash on revisit
+
 ## [0.71.5] - 2026-02-23
 
 ### Changed

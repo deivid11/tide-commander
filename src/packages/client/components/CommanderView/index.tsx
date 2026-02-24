@@ -45,6 +45,7 @@ interface AgentPanelWrapperProps {
   onFocus: (index: number) => void;
   onInputRef: (agentId: string, el: HTMLInputElement | HTMLTextAreaElement | null) => void;
   onLoadMore: (agentId: string) => void;
+  onClearHistory: (agentId: string) => void;
 }
 
 const AgentPanelWrapper = memo(function AgentPanelWrapper({
@@ -59,6 +60,7 @@ const AgentPanelWrapper = memo(function AgentPanelWrapper({
   onFocus,
   onInputRef,
   onLoadMore,
+  onClearHistory,
 }: AgentPanelWrapperProps) {
   // Use the hook here so only this component re-renders when outputs change
   const outputs = useAgentOutputs(agent.id);
@@ -84,6 +86,10 @@ const AgentPanelWrapper = memo(function AgentPanelWrapper({
     onLoadMore(agent.id);
   }, [agent.id, onLoadMore]);
 
+  const handleClearHistory = useCallback(() => {
+    onClearHistory(agent.id);
+  }, [agent.id, onClearHistory]);
+
   return (
     <AgentPanel
       agent={agent}
@@ -96,6 +102,7 @@ const AgentPanelWrapper = memo(function AgentPanelWrapper({
       onFocus={handleFocus}
       inputRef={handleInputRef}
       onLoadMore={handleLoadMore}
+      onClearHistory={handleClearHistory}
     />
   );
 });
@@ -131,7 +138,7 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
   const visibleAgentsRef = useRef<Agent[]>([]);
 
   // Use the custom hook for history management
-  const { histories, loadMoreHistory } = useAgentHistory({
+  const { histories, loadMoreHistory, clearAgentHistory } = useAgentHistory({
     isOpen,
     agents,
   });
@@ -283,6 +290,10 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
       // Escape: collapse or close
       const closeShortcut = shortcuts.find(s => s.id === 'commander-close');
       if (matchesShortcut(e, closeShortcut)) {
+        // If a modal (file viewer, context modal) is open on top, let its handler close it instead
+        const { fileViewerPath, contextModalAgentId } = store.getState();
+        if (fileViewerPath || contextModalAgentId) return;
+
         e.preventDefault();
         e.stopPropagation();
         if (expandedAgentId) {
@@ -558,6 +569,7 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
                   onFocus={handleFocusAgent}
                   onInputRef={handleInputRef}
                   onLoadMore={loadMoreHistory}
+                  onClearHistory={clearAgentHistory}
                 />
               );
             })()
@@ -576,6 +588,7 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
                 onFocus={handleFocusAgent}
                 onInputRef={handleInputRef}
                 onLoadMore={loadMoreHistory}
+                onClearHistory={clearAgentHistory}
               />
             ))
           )}

@@ -82,6 +82,7 @@ export {
   useAgentsArray,
   useAgent,
   useSelectedAgentIds,
+  useLastSelectedAgentId,
   useSelectedAgents,
   useBossAgents,
   useSubordinateAgents,

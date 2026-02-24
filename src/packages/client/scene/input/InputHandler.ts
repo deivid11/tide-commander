@@ -655,6 +655,9 @@ export class InputHandler {
 
       if (isAltNavKey && isCollapsedTerminal) {
         (target as HTMLInputElement | HTMLTextAreaElement).blur();
+      } else if (matchesShortcut(event, openTerminalShortcut) && isCollapsedTerminal) {
+        // Space in collapsed terminal input - blur and let it open the terminal
+        (target as HTMLInputElement | HTMLTextAreaElement).blur();
       } else {
         // Space and other keys should not trigger when input is focused
         return;

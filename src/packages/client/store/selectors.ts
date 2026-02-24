@@ -178,6 +178,13 @@ export function useSelectedAgentIds(): Set<string> {
 }
 
 /**
+ * Get last selected agent ID. Only re-renders when it changes.
+ */
+export function useLastSelectedAgentId(): string | null {
+  return useSelector(useCallback((state: StoreState) => state.lastSelectedAgentId, []));
+}
+
+/**
  * Get selected agents as array. Only re-renders when selection or agents change.
  */
 export function useSelectedAgents(): Agent[] {

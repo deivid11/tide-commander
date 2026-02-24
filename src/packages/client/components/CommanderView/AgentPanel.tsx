@@ -11,15 +11,14 @@ import { useTranslation } from 'react-i18next';
 import type { Agent } from '../../../shared/types';
 import { useSupervisor, store, ClaudeOutput } from '../../store';
 import { formatTokens } from '../../utils/formatting';
-import { HistoryLine } from '../ClaudeOutputPanel/HistoryLine';
-import { OutputLine } from '../ClaudeOutputPanel/OutputLine';
+import { VirtualizedOutputList } from '../ClaudeOutputPanel/VirtualizedOutputList';
 import { ImageModal, BashModal, AgentResponseModalWrapper, type BashModalState } from '../ClaudeOutputPanel/TerminalModals';
 import { useTerminalInput } from '../ClaudeOutputPanel/useTerminalInput';
 import { TerminalInput } from '../shared/TerminalInput';
 import { WorkingIndicator } from '../shared/WorkingIndicator';
 import { useFilteredOutputs } from '../shared/useFilteredOutputs';
 import type { AgentHistory } from './types';
-import { STATUS_COLORS, SCROLL_THRESHOLD } from './types';
+import { STATUS_COLORS } from './types';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { useModalStackRegistration } from '../../hooks/useModalStack';
 
@@ -34,6 +33,7 @@ interface AgentPanelProps {
   onFocus?: () => void;
   inputRef: (el: HTMLInputElement | HTMLTextAreaElement | null) => void;
   onLoadMore?: () => void;
+  onClearHistory: () => void;
 }
 
 export function AgentPanel({
@@ -47,6 +47,7 @@ export function AgentPanel({
   onFocus,
   inputRef,
   onLoadMore,
+  onClearHistory,
 }: AgentPanelProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const supervisor = useSupervisor();
@@ -54,6 +55,8 @@ export function AgentPanel({
   const [loadingMore, setLoadingMore] = useState(false);
   const scrollPositionRef = useRef<number>(0);
   const isUserScrolledUpRef = useRef(false);
+  const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
+  const [pinToBottom, setPinToBottom] = useState(false);
   const [imageModal, setImageModal] = useState<{ url: string; name: string } | null>(null);
   const [bashModal, setBashModal] = useState<BashModalState | null>(null);
   const [responseModalContent, setResponseModalContent] = useState<string | null>(null);
@@ -121,17 +124,13 @@ export function AgentPanel({
     };
   }, [agent.contextStats, agent.contextUsed, agent.contextLimit]);
 
-  // Handle scroll to detect when to load more and track if user scrolled up
-  const handleScroll = useCallback(() => {
-    if (!outputRef.current) return;
-
-    const { scrollTop, scrollHeight, clientHeight } = outputRef.current;
-    const isAtBottom = scrollHeight - scrollTop - clientHeight < 150;
-    isUserScrolledUpRef.current = !isAtBottom;
-
-    if (!loadingMore && history?.hasMore && onLoadMore && scrollTop < SCROLL_THRESHOLD) {
+  // Handle load-more when VirtualizedOutputList detects scroll near top
+  const handleScrollTopReached = useCallback(() => {
+    if (!loadingMore && history?.hasMore && onLoadMore) {
       setLoadingMore(true);
-      scrollPositionRef.current = scrollHeight - scrollTop;
+      scrollPositionRef.current = outputRef.current
+        ? outputRef.current.scrollHeight - outputRef.current.scrollTop
+        : 0;
       onLoadMore();
     }
   }, [loadingMore, history?.hasMore, onLoadMore]);
@@ -140,56 +139,46 @@ export function AgentPanel({
   useEffect(() => {
     if (loadingMore && history && !history.loading) {
       setLoadingMore(false);
-      requestAnimationFrame(() => {
-        if (outputRef.current) {
-          outputRef.current.scrollTop = outputRef.current.scrollHeight - scrollPositionRef.current;
-        }
-      });
     }
   }, [history, loadingMore]);
 
-  // Scroll to bottom when panel first opens or becomes expanded
+  // Handle user scrolling up (disables auto-scroll)
+  const handleUserScrollUp = useCallback(() => {
+    isUserScrolledUpRef.current = true;
+    setShouldAutoScroll(false);
+  }, []);
+
+  // Pin to bottom when panel expands or history finishes loading
   const prevExpandedRef = useRef(isExpanded);
   useEffect(() => {
     if (isExpanded && !prevExpandedRef.current) {
       isUserScrolledUpRef.current = false;
+      setShouldAutoScroll(true);
+      setPinToBottom(true);
     }
     prevExpandedRef.current = isExpanded;
-
-    requestAnimationFrame(() => {
-      if (outputRef.current) {
-        outputRef.current.scrollTop = outputRef.current.scrollHeight;
-      }
-    });
   }, [isExpanded]);
 
-  // Scroll to bottom when history finishes loading
+  // Pin to bottom when history finishes loading
   const prevLoadingRef = useRef(history?.loading);
   useEffect(() => {
     if (prevLoadingRef.current && !history?.loading) {
       isUserScrolledUpRef.current = false;
-      requestAnimationFrame(() => {
-        if (outputRef.current) {
-          outputRef.current.scrollTop = outputRef.current.scrollHeight;
-        }
-      });
+      setShouldAutoScroll(true);
+      setPinToBottom(true);
     }
     prevLoadingRef.current = history?.loading;
   }, [history?.loading]);
 
-  // Auto-scroll on new content (only if user is at bottom)
+  // Re-enable auto-scroll when new outputs arrive and user is at bottom
   useEffect(() => {
-    requestAnimationFrame(() => {
-      if (outputRef.current) {
-        const { scrollTop, scrollHeight, clientHeight } = outputRef.current;
-        const isAtBottom = scrollHeight - scrollTop - clientHeight < 150;
-        // Only auto-scroll if user is at (or near) bottom
-        if (isAtBottom) {
-          outputRef.current.scrollTop = scrollHeight;
-        }
-      }
-    });
-  }, [history?.messages.length, filteredOutputs.length]);
+    if (!isUserScrolledUpRef.current) {
+      setShouldAutoScroll(true);
+    }
+  }, [filteredOutputs.length]);
+
+  // No-op for message selection (CommanderView doesn't use keyboard message nav)
+  const noopIsMessageSelected = useCallback(() => false, []);
 
   // Input handlers
   const handleAddPastedText = useCallback((text: string): number => {
@@ -204,6 +193,17 @@ export function AgentPanel({
 
   const handleSend = useCallback(() => {
     if (!canSend) return;
+
+    if (command.trim() === '/clear' && attachedFiles.length === 0) {
+      store.clearContext(agent.id);
+      onClearHistory();
+      setCommand('');
+      setForceTextarea(false);
+      setPastedTexts(new Map());
+      setAttachedFiles([]);
+      resetPastedCount();
+      return;
+    }
 
     // Expand pasted text placeholders before sending
     let fullCommand = expandPastedTexts(command.trim());
@@ -224,7 +224,7 @@ export function AgentPanel({
     setPastedTexts(new Map());
     setAttachedFiles([]);
     resetPastedCount();
-  }, [agent.id, command, canSend, attachedFiles, expandPastedTexts, resetPastedCount, setCommand, setForceTextarea, setPastedTexts, setAttachedFiles]);
+  }, [agent.id, command, canSend, attachedFiles, expandPastedTexts, onClearHistory, resetPastedCount, setCommand, setForceTextarea, setPastedTexts, setAttachedFiles]);
 
   const handleImageClick = useCallback((url: string, name: string) => {
     setImageModal({ url, name });
@@ -333,53 +333,41 @@ export function AgentPanel({
         <div className="agent-panel-supervisor-status">{supervisorStatus.statusDescription}</div>
       )}
 
-      {/* Output Content */}
-      <div className="agent-panel-content" ref={outputRef} onScroll={handleScroll}>
+      {/* Output Content - Virtualized scroll rendering */}
+      <div className="agent-panel-content" ref={outputRef}>
         {history?.loading ? (
           <div className="agent-panel-loading">{t('common:status.loading')}</div>
         ) : (
           <>
-            {history?.hasMore && (
-              <div className="agent-panel-load-more">
-                {loadingMore ? (
-                  <span>{t('common:status.loading')}</span>
-                ) : (
-                  <button onClick={onLoadMore}>
-                    {t('commander.loadMore', { count: (history?.totalCount || 0) - (history?.messages.length || 0) })}
-                  </button>
-                )}
-              </div>
-            )}
-            {messages.map((msg, i) => (
-              <HistoryLine
-                key={`h-${i}`}
-                message={msg}
-                agentId={agent.id}
-                simpleView={!advancedView}
-                onImageClick={handleImageClick}
-                onFileClick={handleFileClick}
-                onBashClick={handleBashClick}
-                onViewMarkdown={handleViewMarkdown}
-              />
-            ))}
-            {filteredOutputs.map((output, i) => (
-              <OutputLine
-                key={`o-${i}`}
-                output={output}
-                agentId={agent.id}
-                onImageClick={handleImageClick}
-                onFileClick={handleFileClick}
-                onBashClick={handleBashClick}
-                onViewMarkdown={handleViewMarkdown}
-              />
-            ))}
-            {!messages.length && !filteredOutputs.length && (
+            {!messages.length && !filteredOutputs.length ? (
               <div className="agent-panel-empty">
                 {t('commander.noMessages')}
                 {!agent.sessionId && (
                   <div style={{ fontSize: '10px', color: '#666' }}>{t('commander.noSessionId')}</div>
                 )}
               </div>
+            ) : (
+              <VirtualizedOutputList
+                historyMessages={messages}
+                liveOutputs={filteredOutputs}
+                agentId={agent.id}
+                viewMode={advancedView ? 'advanced' : 'simple'}
+                selectedMessageIndex={null}
+                isMessageSelected={noopIsMessageSelected}
+                onImageClick={handleImageClick}
+                onFileClick={handleFileClick}
+                onBashClick={handleBashClick}
+                onViewMarkdown={handleViewMarkdown}
+                scrollContainerRef={outputRef}
+                onScrollTopReached={handleScrollTopReached}
+                isLoadingMore={loadingMore}
+                hasMore={history?.hasMore}
+                shouldAutoScroll={shouldAutoScroll}
+                onUserScroll={handleUserScrollUp}
+                pinToBottom={pinToBottom}
+                onPinCancel={() => setPinToBottom(false)}
+                isLoadingHistory={history?.loading}
+              />
             )}
             {agent.status === 'working' && (
               <div className="agent-panel-typing">

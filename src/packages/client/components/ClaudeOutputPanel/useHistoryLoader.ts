@@ -12,6 +12,37 @@ import { MESSAGES_PER_PAGE, SCROLL_THRESHOLD } from './types';
 
 const HISTORY_LIVE_DEDUP_WINDOW_MS = 120_000;
 
+// Maximum number of agents to keep cached history for (LRU eviction)
+const HISTORY_CACHE_MAX_AGENTS = 5;
+
+// Per-agent history cache for instant display on revisit (LRU: most recent access last)
+const historyCache = new Map<string, {
+  messages: HistoryMessage[];
+  hasMore: boolean;
+  totalCount: number;
+}>();
+
+/** Touch an entry to mark it as most recently used (move to end of Map iteration order). */
+function historyCacheTouch(agentId: string): void {
+  const entry = historyCache.get(agentId);
+  if (entry) {
+    historyCache.delete(agentId);
+    historyCache.set(agentId, entry);
+  }
+}
+
+/** Evict oldest entries when cache exceeds max size. */
+function historyCacheEvict(): void {
+  while (historyCache.size > HISTORY_CACHE_MAX_AGENTS) {
+    const oldestKey = historyCache.keys().next().value;
+    if (oldestKey !== undefined) {
+      historyCache.delete(oldestKey);
+    } else {
+      break;
+    }
+  }
+}
+
 function normalizeMessage(text: string): string {
   return text.trim().replace(/\r\n/g, '\n');
 }
@@ -79,6 +110,8 @@ export interface UseHistoryLoaderReturn {
   handleScroll: (keyboardScrollLockRef: React.MutableRefObject<boolean>) => void;
   /** Clear history (for context clear) */
   clearHistory: () => void;
+  /** Check if an agent has cached history (for instant display on revisit) */
+  hasCachedHistory: (agentId: string) => boolean;
 }
 
 export function useHistoryLoader({
@@ -176,18 +209,35 @@ export function useHistoryLoader({
       loadingTimerRef.current = null;
     }
 
+    // Invalidate cache on reconnect so we fetch fresh data
+    if (isReconnect) {
+      historyCache.delete(selectedAgentId);
+    }
+
     // Mark fetch as in-flight immediately (used for logic like scroll-to-bottom)
     fetchSeqRef.current += 1;
     const fetchSeq = fetchSeqRef.current;
     setFetchingHistory(true);
 
-    // Clear existing history immediately on any new load to avoid briefly showing
-    // the previous agent's conversation (which can also cause scroll glitches).
-    setHistory([]);
-    historyLengthRef.current = 0;
-    setHasMore(false);
-    hasMoreRef.current = false;
-    setTotalCount(0);
+    // If we have cached history for this agent, show it immediately
+    // instead of blanking the screen while waiting for the network fetch.
+    const cached = historyCache.get(selectedAgentId);
+    if (cached) {
+      historyCacheTouch(selectedAgentId);
+      setHistory(cached.messages);
+      historyLengthRef.current = cached.messages.length;
+      setHasMore(cached.hasMore);
+      hasMoreRef.current = cached.hasMore;
+      setTotalCount(cached.totalCount);
+    } else {
+      // Clear existing history immediately on any new load to avoid briefly showing
+      // the previous agent's conversation (which can also cause scroll glitches).
+      setHistory([]);
+      historyLengthRef.current = 0;
+      setHasMore(false);
+      hasMoreRef.current = false;
+      setTotalCount(0);
+    }
 
     // Only show loading after a delay to avoid flash for quick loads
     if (!isSessionEstablishment) {
@@ -211,6 +261,14 @@ export function useHistoryLoader({
         setHasMore(hasMoreValue);
         hasMoreRef.current = hasMoreValue;
         setTotalCount(data.totalCount || 0);
+
+        // Cache for instant display on revisit (LRU-evicted)
+        historyCache.set(selectedAgentId, {
+          messages,
+          hasMore: hasMoreValue,
+          totalCount: data.totalCount || 0,
+        });
+        historyCacheEvict();
 
         // Handle output deduplication - always dedupe to avoid showing same message twice
         if (preservedOutputsSnapshot && preservedOutputsSnapshot.length > 0) {
@@ -400,7 +458,8 @@ export function useHistoryLoader({
   const clearHistory = useCallback(() => {
     setHistory([]);
     historyLengthRef.current = 0;
-  }, []);
+    if (selectedAgentId) historyCache.delete(selectedAgentId);
+  }, [selectedAgentId]);
 
   return {
     history,
@@ -414,5 +473,6 @@ export function useHistoryLoader({
     loadMoreHistory,
     handleScroll,
     clearHistory,
+    hasCachedHistory: useCallback((agentId: string) => historyCache.has(agentId), []),
   };
 }

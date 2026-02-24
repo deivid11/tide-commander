@@ -593,7 +593,11 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
   // Also clear snapshot view when switching agents
   const prevSelectedAgentIdRef = useRef<string | null>(null);
   useLayoutEffect(() => {
-    setHistoryFadeIn(false);
+    // Only hide content if no cached history exists for this agent.
+    // When cache is available, content shows instantly without a blank flash.
+    if (!selectedAgentId || !historyLoader.hasCachedHistory(selectedAgentId)) {
+      setHistoryFadeIn(false);
+    }
     const prev = prevSelectedAgentIdRef.current;
     const changed = prev !== selectedAgentId;
     prevSelectedAgentIdRef.current = selectedAgentId;
@@ -696,7 +700,6 @@ export function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {})
     // Use timeout + RAF to ensure content is fully rendered before fade-in
     const timeoutId = setTimeout(() => {
       requestAnimationFrame(() => {
-        // Mark as no longer pending and trigger fade-in
         pendingFadeInRef.current = false;
         setHistoryFadeIn(true);
       });

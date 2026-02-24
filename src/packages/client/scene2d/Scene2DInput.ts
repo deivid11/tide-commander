@@ -567,6 +567,9 @@ export class Scene2DInput {
 
       if (isAltNavKey && isCollapsedTerminal) {
         (target as HTMLInputElement | HTMLTextAreaElement).blur();
+      } else if (matchesShortcut(event, openTerminalShortcut) && isCollapsedTerminal) {
+        // Space in collapsed terminal input - blur and let it open the terminal
+        (target as HTMLInputElement | HTMLTextAreaElement).blur();
       } else {
         return;
       }

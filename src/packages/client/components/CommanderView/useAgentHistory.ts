@@ -69,6 +69,7 @@ interface UseAgentHistoryOptions {
 interface UseAgentHistoryReturn {
   histories: Map<string, AgentHistory>;
   loadMoreHistory: (agentId: string) => Promise<void>;
+  clearAgentHistory: (agentId: string) => void;
 }
 
 export function useAgentHistory({ isOpen, agents }: UseAgentHistoryOptions): UseAgentHistoryReturn {
@@ -291,5 +292,23 @@ export function useAgentHistory({ isOpen, agents }: UseAgentHistoryOptions): Use
     }
   }, []); // No dependencies - uses refs
 
-  return { histories, loadMoreHistory };
+  const clearAgentHistory = useCallback((agentId: string) => {
+    loadingRef.current.delete(agentId);
+    setHistories(prev => {
+      const newMap = new Map(prev);
+      const existing = prev.get(agentId);
+      if (existing) {
+        newMap.set(agentId, {
+          ...existing,
+          messages: [],
+          hasMore: false,
+          totalCount: 0,
+          loading: false,
+        });
+      }
+      return newMap;
+    });
+  }, []);
+
+  return { histories, loadMoreHistory, clearAgentHistory };
 }

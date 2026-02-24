@@ -1,11 +1,23 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useStore, store, useCustomAgentClassesArray, useSettings, useAgentsWithUnseenOutput } from '../store';
+import {
+  store,
+  useAgents,
+  useAreas,
+  useSelectedAgentIds,
+  useLastSelectedAgentId,
+  useLastPrompts,
+  useTerminalOpen,
+  useCustomAgentClassesArray,
+  useSettings,
+  useAgentsWithUnseenOutput,
+} from '../store';
 import type { Agent, DrawingArea, AgentSupervisorHistoryEntry } from '../../shared/types';
 import { formatIdleTime } from '../utils/formatting';
 import { getClassConfig } from '../utils/classConfig';
 import { getIdleTimerColor, getAgentStatusColor } from '../utils/colors';
 import { TOOL_ICONS } from '../utils/outputRendering';
+import { useRenderCounter } from '../utils/profiling';
 import { useAgentOrder } from '../hooks';
 import { useNpmVersionStatus } from '../hooks/useNpmVersionStatus';
 import { hasPendingSceneChanges, refreshScene } from '../hooks/useSceneSetup';
@@ -25,11 +37,18 @@ interface AgentGroup {
 
 export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBuildingClick, onNewAreaClick }: AgentBarProps) {
   const { t } = useTranslation(['common']);
-  const state = useStore();
+  const agentsMap = useAgents();
+  const areas = useAreas();
+  const selectedAgentIds = useSelectedAgentIds();
+  const lastSelectedAgentId = useLastSelectedAgentId();
+  const lastPrompts = useLastPrompts();
+  const terminalOpen = useTerminalOpen();
   const settings = useSettings();
   const customClasses = useCustomAgentClassesArray();
   const agentsWithUnseenOutput = useAgentsWithUnseenOutput();
   const [hasPendingHmrChanges, setHasPendingHmrChanges] = useState(false);
+
+  useRenderCounter('AgentBar');
 
   // Refs for scrolling to selected agent
   const agentBarRef = useRef<HTMLDivElement>(null);       // outer container (no overflow clip)
@@ -78,10 +97,10 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
   // Get agents sorted by creation time as base, then apply custom order
   // Filter out agents in archived areas
   const baseAgents = useMemo(() =>
-    Array.from(state.agents.values())
+    Array.from(agentsMap.values())
       .filter(agent => !store.isAgentInArchivedArea(agent.id))
       .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)),
-    [state.agents, state.areas] // Re-run when areas change (archived state may change)
+    [agentsMap, areas] // Re-run when areas change (archived state may change)
   );
 
   // Use the reorder hook for persistent ordering
@@ -95,7 +114,7 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
       areaMap.set(agent.id, store.getAreaForAgent(agent.id));
     }
     return areaMap;
-  }, [agents, state.areas]);
+  }, [agents, areas]);
 
   // Group agents by their area while preserving custom order within each group
   const agentGroups = useMemo(() => {
@@ -161,7 +180,7 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
 
   // Scroll selected agent into view (centered) when selection changes
   useEffect(() => {
-    const selectedId = state.lastSelectedAgentId;
+    const selectedId = lastSelectedAgentId;
     if (!selectedId) return;
 
     const agentElement = agentItemRefs.current.get(selectedId);
@@ -179,7 +198,7 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
         scroller.scrollTo({ left: elCenter - scrollerWidth / 2, behavior: 'smooth' });
       });
     }
-  }, [state.lastSelectedAgentId]);
+  }, [lastSelectedAgentId]);
 
   const handleAgentClick = (agent: Agent, e: React.MouseEvent) => {
     // Mark that selection came from direct click (not swipe gesture)
@@ -197,7 +216,7 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
     // On mobile, open terminal immediately when agent is clicked
     // On desktop, keep terminal open if it was already open (switch to clicked agent's terminal)
     const isMobile = window.innerWidth <= 768;
-    if (isMobile || state.terminalOpen) {
+    if (isMobile || terminalOpen) {
       store.setTerminalOpen(true);
     }
   };
@@ -477,9 +496,9 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
               {groupAgents.map((agent) => {
                 const currentIndex = globalIndex++;
                 const agentIndex = agents.findIndex(a => a.id === agent.id);
-                const isSelected = state.selectedAgentIds.has(agent.id);
+                const isSelected = selectedAgentIds.has(agent.id);
                 const config = getClassConfig(agent.class, customClasses);
-                const lastPrompt = state.lastPrompts.get(agent.id);
+                const lastPrompt = lastPrompts.get(agent.id);
 
                 const toolBubble = toolBubbles.get(agent.id);
                 const _toolIcon = toolBubble
@@ -581,7 +600,7 @@ export function AgentBar({ onFocusAgent, onSpawnClick, onSpawnBossClick, onNewBu
       {/* Hover tooltip — rendered outside scroll wrapper so it's not clipped */}
       {hoveredAgent && (() => {
         const hoveredArea = store.getAreaForAgent(hoveredAgent.id);
-        const hoveredLastPrompt = state.lastPrompts.get(hoveredAgent.id);
+        const hoveredLastPrompt = lastPrompts.get(hoveredAgent.id);
         const config = getClassConfig(hoveredAgent.class, customClasses);
 
         // Get last supervisor analysis for this agent

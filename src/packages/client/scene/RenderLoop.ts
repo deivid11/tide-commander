@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { perf, fpsTracker } from '../utils/profiling';
+import { fpsTracker } from '../utils/profiling';
 import { saveCameraState } from '../utils/camera';
 import { CAMERA_SAVE_INTERVAL } from './config';
 import { store } from '../store';
@@ -197,7 +197,6 @@ export class RenderLoop {
 
     // Track FPS
     fpsTracker.tick();
-    perf.start('scene:frame');
 
     controls.update();
 
@@ -264,10 +263,6 @@ export class RenderLoop {
     }
 
     // Render (uses post-processing if enabled)
-    perf.start('scene:render');
     this.deps.render(camera);
-    perf.end('scene:render');
-
-    perf.end('scene:frame');
   };
 }

@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react';
+
 /**
  * Performance Profiling Utilities
  *
@@ -505,27 +507,53 @@ export function profileRender(
 }
 
 /**
- * Create a performance mark (visible in DevTools Performance tab).
+ * Dev-only render counter hook.
+ * Logs number of renders per interval to help spot render storms.
  */
-export function mark(name: string): void {
-  if (!isDev) return;
-  performance.mark(`tide:${name}`);
+export function useRenderCounter(
+  label: string,
+  options?: { intervalMs?: number; enabled?: boolean }
+): void {
+  const intervalMs = options?.intervalMs ?? 5000;
+  const enabled = options?.enabled ?? true;
+  const countRef = useRef(0);
+
+  if (isDev && enabled) {
+    countRef.current += 1;
+  }
+
+  useEffect(() => {
+    if (!isDev || !enabled) return;
+
+    const intervalId = window.setInterval(() => {
+      const count = countRef.current;
+      if (count > 0) {
+        const perSecond = (count / (intervalMs / 1000)).toFixed(1);
+        console.log(`[RenderCounter] ${label}: ${count} renders/${intervalMs}ms (${perSecond}/s)`);
+      }
+      countRef.current = 0;
+    }, intervalMs);
+
+    return () => window.clearInterval(intervalId);
+  }, [label, intervalMs, enabled]);
+}
+
+/**
+ * Create a performance mark (visible in DevTools Performance tab).
+ * NOTE: Disabled to prevent PerformanceMeasure leak - native entries accumulate
+ * indefinitely and cause major memory bloat (351K+ objects in long sessions).
+ */
+export function mark(_name: string): void {
+  // Intentionally disabled - native performance.mark() entries are never GC'd
+  // and accumulate indefinitely, causing ~40MB+ memory leak in long sessions.
 }
 
 /**
  * Create a performance measure between two marks.
+ * NOTE: Disabled to prevent PerformanceMeasure leak.
  */
-export function measure(name: string, startMark: string, endMark?: string): void {
-  if (!isDev) return;
-  try {
-    performance.measure(
-      `tide:${name}`,
-      `tide:${startMark}`,
-      endMark ? `tide:${endMark}` : undefined
-    );
-  } catch {
-    // Marks may not exist
-  }
+export function measure(_name: string, _startMark: string, _endMark?: string): void {
+  // Intentionally disabled - native performance.measure() entries are never GC'd.
 }
 
 // Expose to window for debugging
