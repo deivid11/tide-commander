@@ -90,6 +90,19 @@ export function useAreaSync(sceneRef: React.RefObject<SceneManager | null>): voi
             areaHash += (c + 1) * 7;
           }
         }
+        // Include logo properties in hash so 3D re-renders on logo changes
+        if (area.logo) {
+          areaHash += Math.floor((area.logo.opacity ?? 0.8) * 1000);
+          areaHash += Math.floor(area.logo.width * 100) + Math.floor(area.logo.height * 100);
+          for (let i = 0; i < area.logo.position.length; i++) {
+            areaHash += area.logo.position.charCodeAt(i);
+          }
+          if (area.logo.filename) {
+            for (let i = 0; i < area.logo.filename.length; i++) {
+              areaHash += area.logo.filename.charCodeAt(i);
+            }
+          }
+        }
         hash ^= areaHash | 0;
       }
 

@@ -93,11 +93,11 @@ export class DrawingManager {
    */
   setBrightness(brightness: number): void {
     this.brightness = brightness;
-    // Update existing area materials
+    // Update existing area fill materials (skip logos, labels, icons, handles)
     for (const [id, group] of this.areaMeshes) {
       const isSelected = id === this.selectedAreaId;
       group.traverse((child) => {
-        if (child instanceof THREE.Mesh && child.name !== 'resizeHandle') {
+        if (child instanceof THREE.Mesh && child.name !== 'resizeHandle' && child.name !== 'areaLogo') {
           const mat = child.material as THREE.MeshBasicMaterial;
           // Base opacity: 0.15 idle, 0.3 selected. Apply brightness multiplier.
           const baseOpacity = isSelected ? 0.3 : 0.15;
@@ -534,6 +534,7 @@ export class DrawingManager {
     if (this.loadingLogoTextures.has(logo.filename)) return;
     this.loadingLogoTextures.add(logo.filename);
 
+    const areaId = area.id;
     const loader = new THREE.TextureLoader();
     loader.load(
       logoUrl,
@@ -541,10 +542,12 @@ export class DrawingManager {
         this.logoTextures.set(logo.filename, texture);
         this.loadingLogoTextures.delete(logo.filename);
 
-        // If the group is still in the scene, add the logo mesh
-        const currentGroup = this.areaMeshes.get(area.id);
-        if (currentGroup === group) {
-          this.createLogoMesh(group, area, texture, zOffset);
+        // Use the current group (may have been re-created by syncFromStore since load started)
+        const currentGroup = this.areaMeshes.get(areaId);
+        const currentArea = store.getState().areas.get(areaId);
+        if (currentGroup && currentArea?.logo?.filename) {
+          const currentZOffset = (currentArea.zIndex ?? 0) * 0.001;
+          this.createLogoMesh(currentGroup, currentArea, texture, currentZOffset);
         }
       },
       undefined,
@@ -565,12 +568,16 @@ export class DrawingManager {
       transparent: true,
       opacity: logo.opacity ?? 0.8,
       side: THREE.DoubleSide,
-      depthWrite: false,
+      depthWrite: true,
+      alphaTest: 0.01,
     });
 
     const mesh = new THREE.Mesh(geometry, material);
     mesh.rotation.x = -Math.PI / 2;
     mesh.name = 'areaLogo';
+    // Render before the area fill so the fill's depth test fails where the logo is,
+    // preventing opacity stacking between the fill and logo.
+    mesh.renderOrder = -1;
 
     const offset = this.calculateLogoOffset(area, logo.position, logo.width, logo.height);
     mesh.position.set(offset.x, 0.04 + zOffset, offset.z);
@@ -653,7 +660,7 @@ export class DrawingManager {
     for (const [id, group] of this.areaMeshes) {
       const isSelected = id === areaId;
       group.traverse((child) => {
-        if (child instanceof THREE.Mesh && child.name !== 'resizeHandle') {
+        if (child instanceof THREE.Mesh && child.name !== 'resizeHandle' && child.name !== 'areaLogo') {
           const mat = child.material as THREE.MeshBasicMaterial;
           // Apply brightness multiplier to opacity
           const baseOpacity = isSelected ? 0.3 : 0.15;
