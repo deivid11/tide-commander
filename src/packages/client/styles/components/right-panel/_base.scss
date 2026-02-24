@@ -172,9 +172,8 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  background: rgba($bg-secondary, 0.95);
+  background: rgba($bg-secondary, 0.98);
   border-left: 1px solid $border-color;
-  backdrop-filter: blur(12px);
   overflow: hidden;
   opacity: 1;
   transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);

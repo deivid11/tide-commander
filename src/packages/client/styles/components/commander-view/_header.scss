@@ -30,7 +30,6 @@
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.85);
-  backdrop-filter: blur(4px);
   z-index: 900; // Above Guake terminal (200) but below modals (1000)
   display: flex;
   align-items: flex-start;
@@ -55,7 +54,6 @@
   flex-direction: column;
   overflow: hidden;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 40px rgba($dracula-purple, 0.15);
-  backdrop-filter: blur(12px);
   transform-origin: top center;
   animation: commander-drop-in 170ms cubic-bezier(0.25, 0.8, 0.25, 1);
 }

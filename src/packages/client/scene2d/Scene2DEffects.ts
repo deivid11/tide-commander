@@ -92,6 +92,10 @@ export class Scene2DEffects {
     }
   }
 
+  hasActiveEffects(): boolean {
+    return this.moveOrderEffects.length > 0 || this.toolBubbles.size > 0 || this.statusParticles.length > 0;
+  }
+
   render(ctx: CanvasRenderingContext2D, camera: Scene2DCamera): void {
     const now = performance.now();
 
@@ -149,14 +153,19 @@ export class Scene2DEffects {
       const radius = 0.3 + ringProgress * 2;
       const lineWidth = Math.max(1, (3 - ringProgress * 2)) / zoom;
 
-      // Outer glow
-      ctx.shadowColor = EFFECT_COLORS.moveOrder.glow;
-      ctx.shadowBlur = 10 / zoom;
+      // Outer glow (lightweight: thicker translucent stroke instead of shadowBlur)
 
       // Create gradient stroke
       const gradient = ctx.createRadialGradient(x, z, radius * 0.8, x, z, radius * 1.2);
       gradient.addColorStop(0, this.hexToRgba(EFFECT_COLORS.moveOrder.primary, ringAlpha));
       gradient.addColorStop(1, this.hexToRgba(EFFECT_COLORS.moveOrder.secondary, ringAlpha * 0.5));
+
+      // Draw a wider translucent ring first for glow effect
+      ctx.strokeStyle = this.hexToRgba(EFFECT_COLORS.moveOrder.primary, ringAlpha * 0.3);
+      ctx.lineWidth = lineWidth * 3;
+      ctx.beginPath();
+      ctx.arc(x, z, radius, 0, Math.PI * 2);
+      ctx.stroke();
 
       ctx.strokeStyle = gradient;
       ctx.lineWidth = lineWidth;
@@ -164,8 +173,6 @@ export class Scene2DEffects {
       ctx.arc(x, z, radius, 0, Math.PI * 2);
       ctx.stroke();
     }
-
-    ctx.shadowBlur = 0;
 
     // Animated crosshair/target marker at center
     const markerAlpha = alpha * 0.8;
@@ -278,10 +285,11 @@ export class Scene2DEffects {
     const bubbleX = screenPos.x - bubbleWidth / 2;
     const bubbleY = screenPos.y - bubbleHeight / 2;
 
-    // Drop shadow
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
-    ctx.shadowBlur = 8;
-    ctx.shadowOffsetY = 2;
+    // Drop shadow (lightweight: offset dark rect instead of shadowBlur)
+    ctx.fillStyle = `rgba(0, 0, 0, ${0.3 * alpha})`;
+    ctx.beginPath();
+    this.roundedRect(ctx, bubbleX + 2, bubbleY + 3, bubbleWidth, bubbleHeight, borderRadius);
+    ctx.fill();
 
     // Gradient background
     const bgGradient = ctx.createLinearGradient(
@@ -295,9 +303,6 @@ export class Scene2DEffects {
     ctx.beginPath();
     this.roundedRect(ctx, bubbleX, bubbleY, bubbleWidth, bubbleHeight, borderRadius);
     ctx.fill();
-
-    ctx.shadowBlur = 0;
-    ctx.shadowOffsetY = 0;
 
     // Subtle inner highlight at top
     const highlightGradient = ctx.createLinearGradient(
@@ -389,9 +394,6 @@ export class Scene2DEffects {
     const length = Math.sqrt(dx * dx + dz * dz);
     const angle = Math.atan2(dz, dx);
 
-    // Animated dash offset for flowing effect
-    const dashOffset = (this.animationTime * 30) % 24;
-
     // Create gradient along the line
     const gradient = ctx.createLinearGradient(from.x, from.z, to.x, to.z);
     gradient.addColorStop(0, this.hexToRgba(EFFECT_COLORS.bossLine.primary, 0.7));
@@ -411,7 +413,7 @@ export class Scene2DEffects {
     ctx.strokeStyle = gradient;
     ctx.lineWidth = 2.5 / zoom;
     ctx.setLineDash([8 / zoom, 4 / zoom]);
-    ctx.lineDashOffset = -dashOffset / zoom;
+    ctx.lineDashOffset = 0;
 
     ctx.beginPath();
     ctx.moveTo(from.x, from.z);
@@ -429,9 +431,7 @@ export class Scene2DEffects {
       const dotX = from.x + dx * t;
       const dotZ = from.z + dz * t;
 
-      // Animate dot alpha based on position and time
-      const pulseOffset = (this.animationTime * 2 + t * 5) % 1;
-      const dotAlpha = 0.3 + Math.sin(pulseOffset * Math.PI * 2) * 0.2;
+      const dotAlpha = 0.35;
 
       ctx.fillStyle = this.hexToRgba(EFFECT_COLORS.bossLine.primary, dotAlpha);
       ctx.beginPath();
@@ -509,22 +509,17 @@ export class Scene2DEffects {
 
     const { x, z } = particle.position;
 
-    // Particle glow
-    ctx.shadowColor = particle.color;
-    ctx.shadowBlur = 4 / camera.getZoom();
-
-    // Gradient for sparkle effect
-    const gradient = ctx.createRadialGradient(x, z, 0, x, z, size);
+    // Gradient for sparkle effect (no shadowBlur - gradient already provides glow)
+    const gradient = ctx.createRadialGradient(x, z, 0, x, z, size * 1.5);
     gradient.addColorStop(0, this.hexToRgba('#ffffff', alpha));
-    gradient.addColorStop(0.3, this.hexToRgba(particle.color, alpha));
+    gradient.addColorStop(0.2, this.hexToRgba(particle.color, alpha));
+    gradient.addColorStop(0.6, this.hexToRgba(particle.color, alpha * 0.4));
     gradient.addColorStop(1, this.hexToRgba(particle.color, 0));
 
     ctx.fillStyle = gradient;
     ctx.beginPath();
-    ctx.arc(x, z, size, 0, Math.PI * 2);
+    ctx.arc(x, z, size * 1.5, 0, Math.PI * 2);
     ctx.fill();
-
-    ctx.shadowBlur = 0;
 
     camera.restoreTransform(ctx);
   }
@@ -579,18 +574,28 @@ export class Scene2DEffects {
     ctx.arcTo(x, y, x + radius, y, radius);
   }
 
+  // Shared cache for hex->rgba conversions
+  private static rgbaCache = new Map<string, string>();
+  private static readonly RGBA_CACHE_MAX = 256;
+
   private hexToRgba(hex: string, alpha: number): string {
-    // Handle both #rgb and #rrggbb formats
+    const quantizedAlpha = Math.round(alpha * 100) / 100;
+    const key = `${hex}|${quantizedAlpha}`;
+    let result = Scene2DEffects.rgbaCache.get(key);
+    if (result) return result;
+
     let r: number, g: number, b: number;
 
     if (hex.startsWith('rgba') || hex.startsWith('rgb')) {
-      // Already an rgb/rgba string, just adjust alpha
       const match = hex.match(/[\d.]+/g);
       if (match) {
         r = parseInt(match[0]);
         g = parseInt(match[1]);
         b = parseInt(match[2]);
-        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        result = `rgba(${r}, ${g}, ${b}, ${quantizedAlpha})`;
+        if (Scene2DEffects.rgbaCache.size >= Scene2DEffects.RGBA_CACHE_MAX) Scene2DEffects.rgbaCache.clear();
+        Scene2DEffects.rgbaCache.set(key, result);
+        return result;
       }
     }
 
@@ -605,7 +610,10 @@ export class Scene2DEffects {
       b = parseInt(cleanHex.slice(4, 6), 16);
     }
 
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    result = `rgba(${r}, ${g}, ${b}, ${quantizedAlpha})`;
+    if (Scene2DEffects.rgbaCache.size >= Scene2DEffects.RGBA_CACHE_MAX) Scene2DEffects.rgbaCache.clear();
+    Scene2DEffects.rgbaCache.set(key, result);
+    return result;
   }
 
   private easeOutCubic(t: number): number {

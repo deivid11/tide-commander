@@ -44,7 +44,6 @@ export function useSpotlightSearch({
     }
     return version;
   // Re-derive when agents change (new agent might have history)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agents]);
 
   // Stabilize callback props via refs to remove them from useMemo dependency arrays.

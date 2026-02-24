@@ -109,6 +109,14 @@ export class Scene2D {
   private camera: Scene2DCamera;
   private effects: Scene2DEffects;
 
+  // Static layer cache — ground, grid, areas, buildings, boss lines
+  // Redrawn only when camera/data changes; blitted onto main canvas each frame.
+  private staticCanvas: HTMLCanvasElement;
+  private staticCtx: CanvasRenderingContext2D;
+  private staticRenderer: Scene2DRenderer;
+  private staticDirty = true;    // needs full static redraw
+  private needsRender = true;    // needs any render at all
+
   // Data
   private agents = new Map<string, Agent2DData>();
   private buildings = new Map<string, Building2DData>();
@@ -126,6 +134,10 @@ export class Scene2D {
   // FPS limiting
   private fpsLimit = 0; // 0 = unlimited
   private frameInterval = 0; // Calculated from fpsLimit
+  private static readonly IDLE_FPS_LIMIT = 8;
+  private static readonly WORKING_FPS_LIMIT = 15;
+  private static readonly MAX_DPR = 1.25;
+  private currentDpr = 1;
 
   // Movements (for animation)
   private movements = new Map<string, {
@@ -150,6 +162,11 @@ export class Scene2D {
   private drawStartPos: { x: number; z: number } | null = null;
   private drawCurrentPos: { x: number; z: number } | null = null;
 
+  // Cached sorted areas (invalidated on area mutations)
+  private sortedAreasAsc: Area2DData[] = [];
+  private sortedAreasDesc: Area2DData[] = [];
+  private areasSortDirty = true;
+
   // Area selection and resize state
   private selectedAreaId: string | null = null;
   private isResizingArea = false;
@@ -165,9 +182,16 @@ export class Scene2D {
     if (!ctx) throw new Error('Failed to get 2D context');
     this.ctx = ctx;
 
+    // Create off-screen canvas for the static layer cache
+    this.staticCanvas = document.createElement('canvas');
+    const staticCtx = this.staticCanvas.getContext('2d');
+    if (!staticCtx) throw new Error('Failed to get static 2D context');
+    this.staticCtx = staticCtx;
+
     // Initialize subsystems
     this.camera = new Scene2DCamera(canvas.width, canvas.height);
     this.renderer = new Scene2DRenderer(ctx, this.camera);
+    this.staticRenderer = new Scene2DRenderer(staticCtx, this.camera);
     this.effects = new Scene2DEffects();
     this.input = new Scene2DInput(canvas, this.camera, this);
 
@@ -205,23 +229,46 @@ export class Scene2D {
     this.agents.clear();
     this.buildings.clear();
     this.areas.clear();
+    this.invalidateAreaSort();
+    // Release the static layer backing store
+    this.staticCanvas.width = 0;
+    this.staticCanvas.height = 0;
   }
 
   private handleResize = (): void => {
     const parent = this.canvas.parentElement;
     if (!parent) return;
 
-    const dpr = window.devicePixelRatio || 1;
+    let dpr = Math.min(window.devicePixelRatio || 1, Scene2D.MAX_DPR);
     const width = parent.clientWidth;
     const height = parent.clientHeight;
+
+    // Cap total pixel budget to ~4M pixels (roughly 2560x1600) to keep
+    // clearRect + fill passes fast on large / ultra-wide displays.
+    const MAX_PIXELS = 4_000_000;
+    const totalPixels = width * height * dpr * dpr;
+    if (totalPixels > MAX_PIXELS) {
+      dpr = Math.sqrt(MAX_PIXELS / (width * height));
+    }
+    this.currentDpr = dpr;
 
     this.canvas.width = width * dpr;
     this.canvas.height = height * dpr;
     this.canvas.style.width = `${width}px`;
     this.canvas.style.height = `${height}px`;
 
+    // Resize the static layer cache to match
+    this.staticCanvas.width = width * dpr;
+    this.staticCanvas.height = height * dpr;
+
+    // Reset transform first to avoid cumulative scaling on repeated resizes.
+    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
     this.ctx.scale(dpr, dpr);
+    this.staticCtx.setTransform(1, 0, 0, 1, 0, 0);
+    this.staticCtx.scale(dpr, dpr);
     this.camera.setViewportSize(width, height);
+    this.staticDirty = true;
+    this.needsRender = true;
   };
 
   // ============================================
@@ -235,14 +282,58 @@ export class Scene2D {
 
     const now = performance.now();
 
-    // FPS limiting - skip render if not enough time has passed
-    if (this.frameInterval > 0) {
+    const deltaTime = (now - this.lastFrameTime) / 1000;
+    this.lastFrameTime = now;
+
+    // Update camera (smooth easing)
+    this.camera.update(deltaTime);
+
+    const hasMovementAnimations = this.movements.size > 0;
+    const hasActiveEffects = this.effects.hasActiveEffects();
+    const hasInteractionOverlay = this.isDrawing || this.isResizingArea || this.input.getSelectionBox() !== null;
+    const hasWorkingAgents = this.hasWorkingAgents();
+    const hasRuntimeAnimations = hasMovementAnimations || hasActiveEffects || hasInteractionOverlay || this.camera.isCurrentlyAnimating();
+
+    const cameraChanged = this.hasCameraChanged();
+    if (cameraChanged) {
+      this.staticDirty = true;
+      this.needsRender = true;
+    }
+
+    // Any runtime animation or working agents means we need to render (dynamic layer)
+    if (hasRuntimeAnimations || hasWorkingAgents) {
+      this.needsRender = true;
+    }
+
+    // If absolutely nothing needs rendering, skip entirely (0 GPU cost).
+    // When agents exist we still render at idle FPS (the static cache makes
+    // this cheap: just a blit + agent draws).
+    if (!this.needsRender && this.agents.size === 0) {
+      return;
+    }
+
+    // Adapt render frequency:
+    // - full speed while actively moving/interacting/camera animating
+    // - medium FPS when there are working agents (so their status animation stays visible)
+    // - low FPS when fully idle/static
+    const idleFrameInterval = 1000 / Scene2D.IDLE_FPS_LIMIT;
+    const workingFrameInterval = 1000 / Scene2D.WORKING_FPS_LIMIT;
+    let effectiveFrameInterval: number;
+    if (hasRuntimeAnimations || cameraChanged) {
+      effectiveFrameInterval = this.frameInterval;
+    } else if (hasWorkingAgents) {
+      effectiveFrameInterval = this.frameInterval > 0
+        ? Math.min(this.frameInterval, workingFrameInterval)
+        : workingFrameInterval;
+    } else {
+      effectiveFrameInterval = this.frameInterval > 0
+        ? Math.min(this.frameInterval, idleFrameInterval)
+        : idleFrameInterval;
+    }
+
+    if (effectiveFrameInterval > 0) {
       const elapsed = now - this.lastRenderTime;
-      if (elapsed < this.frameInterval) {
-        // Still update camera for smooth panning even when frame-limited
-        const deltaTime = (now - this.lastFrameTime) / 1000;
-        this.lastFrameTime = now;
-        this.camera.update(deltaTime);
+      if (elapsed < effectiveFrameInterval) {
         return;
       }
       this.lastRenderTime = now;
@@ -251,29 +342,126 @@ export class Scene2D {
     // Track FPS for the FPSMeter component
     fpsTracker.tick();
 
-    const deltaTime = (now - this.lastFrameTime) / 1000;
-    this.lastFrameTime = now;
-
     // Animation deltaTime uses time since last render, not last frame
     // This keeps animation speed constant regardless of FPS limit
     const animationDelta = (now - this.lastAnimationTime) / 1000;
     this.lastAnimationTime = now;
 
-    // Update camera (smooth easing)
-    this.camera.update(deltaTime);
-
     // Update movements
     this.updateMovements(now);
 
-    // Update effects
-    this.effects.update(animationDelta);
-
-    // Update renderer animation time
-    this.renderer.update(animationDelta);
+    if (hasRuntimeAnimations || hasWorkingAgents) {
+      // Update effects + animation clocks only when visuals are changing.
+      this.effects.update(animationDelta);
+      this.renderer.update(animationDelta);
+      this.staticRenderer.update(animationDelta);
+    }
 
     // Render
     this.render();
+
+    // If nothing is actively animating, clear the render flag.
+    // Next frame will skip unless something sets needsRender again.
+    if (!hasRuntimeAnimations && !hasWorkingAgents) {
+      this.needsRender = false;
+    }
   };
+
+  // Numeric camera state for cheap comparison (avoids string allocations)
+  private lastCamX = NaN;
+  private lastCamZ = NaN;
+  private lastCamZoom = NaN;
+
+  private hasCameraChanged(): boolean {
+    const pos = this.camera.getPosition();
+    const zoom = this.camera.getZoom();
+    // Round to 3 decimal places via integer comparison to avoid float drift
+    const cx = Math.round(pos.x * 1000);
+    const cz = Math.round(pos.z * 1000);
+    const cZoom = Math.round(zoom * 1000);
+    if (cx !== this.lastCamX || cz !== this.lastCamZ || cZoom !== this.lastCamZoom) {
+      this.lastCamX = cx;
+      this.lastCamZ = cz;
+      this.lastCamZoom = cZoom;
+      return true;
+    }
+    return false;
+  }
+
+  /** Mark the static layer (ground/grid/areas/buildings) as needing a redraw. */
+  private markStaticDirty(): void {
+    this.staticDirty = true;
+    this.needsRender = true;
+  }
+
+  /** Mark the scene as needing a render pass (for dynamic-only changes like agents). */
+  private markDirty(): void {
+    this.needsRender = true;
+  }
+
+  private invalidateAreaSort(): void {
+    this.areasSortDirty = true;
+  }
+
+  private getSortedAreasAsc(): Area2DData[] {
+    if (this.areasSortDirty) {
+      this.sortedAreasAsc = Array.from(this.areas.values()).sort((a, b) => a.zIndex - b.zIndex);
+      this.sortedAreasDesc = Array.from(this.areas.values()).sort((a, b) => b.zIndex - a.zIndex);
+      this.areasSortDirty = false;
+    }
+    return this.sortedAreasAsc;
+  }
+
+  private getSortedAreasDesc(): Area2DData[] {
+    if (this.areasSortDirty) {
+      this.sortedAreasAsc = Array.from(this.areas.values()).sort((a, b) => a.zIndex - b.zIndex);
+      this.sortedAreasDesc = Array.from(this.areas.values()).sort((a, b) => b.zIndex - a.zIndex);
+      this.areasSortDirty = false;
+    }
+    return this.sortedAreasDesc;
+  }
+
+  private hasWorkingAgents(): boolean {
+    for (const agent of this.agents.values()) {
+      if (agent.status === 'working') return true;
+    }
+    return false;
+  }
+
+  private isPointVisible(x: number, z: number, margin = 0): boolean {
+    return this.camera.isVisible(x, z, margin);
+  }
+
+  private isAreaVisible(area: Area2DData): boolean {
+    const bounds = this.camera.getVisibleBounds();
+    const margin = 2;
+
+    if (area.type === 'rectangle' && 'width' in area.size) {
+      const minX = area.position.x - area.size.width / 2;
+      const maxX = area.position.x + area.size.width / 2;
+      const minZ = area.position.z - area.size.height / 2;
+      const maxZ = area.position.z + area.size.height / 2;
+
+      return !(
+        maxX < bounds.minX - margin ||
+        minX > bounds.maxX + margin ||
+        maxZ < bounds.minZ - margin ||
+        minZ > bounds.maxZ + margin
+      );
+    }
+
+    if (area.type === 'circle' && 'radius' in area.size) {
+      const r = area.size.radius;
+      return !(
+        area.position.x + r < bounds.minX - margin ||
+        area.position.x - r > bounds.maxX + margin ||
+        area.position.z + r < bounds.minZ - margin ||
+        area.position.z - r > bounds.maxZ + margin
+      );
+    }
+
+    return true;
+  }
 
   private updateMovements(now: number): void {
     const completedIds: string[] = [];
@@ -303,52 +491,70 @@ export class Scene2D {
 
   private render(): void {
     const { width, height } = this.canvas;
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = this.currentDpr;
+    const cssW = width / dpr;
+    const cssH = height / dpr;
 
-    // Clear
-    this.ctx.clearRect(0, 0, width / dpr, height / dpr);
+    // ── Static layer (ground, grid, areas, buildings, boss lines) ──
+    // Only redrawn when data or camera changes; otherwise the cached bitmap
+    // is blitted in a single drawImage call (~0 GPU cost).
+    if (this.staticDirty) {
+      this.staticCtx.clearRect(0, 0, cssW, cssH);
 
-    // Draw ground
-    this.renderer.drawGround(this.gridSize);
+      // Ground
+      this.staticRenderer.drawGround(this.gridSize);
 
-    // Draw grid
-    if (this.showGrid) {
-      this.renderer.drawGrid(this.gridSize, this.gridSpacing);
+      // Grid
+      if (this.showGrid) {
+        this.staticRenderer.drawGrid(this.gridSize, this.gridSpacing);
+      }
+
+      // Areas (sorted by zIndex)
+      for (const area of this.getSortedAreasAsc()) {
+        if (!this.isAreaVisible(area)) continue;
+        const isSelected = area.id === this.selectedAreaId;
+        this.staticRenderer.drawArea(area, isSelected);
+      }
+
+      // Buildings
+      for (const building of this.buildings.values()) {
+        if (!this.isPointVisible(building.position.x, building.position.z, 2)) continue;
+        const isSelected = this.selectedBuildingIds.has(building.id);
+        this.staticRenderer.drawBuilding(building, isSelected);
+      }
+
+      this.staticDirty = false;
     }
 
-    // Draw areas (sorted by zIndex - lower values first, higher on top)
-    const sortedAreas = Array.from(this.areas.values()).sort((a, b) => a.zIndex - b.zIndex);
-    for (const area of sortedAreas) {
-      const isSelected = area.id === this.selectedAreaId;
-      this.renderer.drawArea(area, isSelected);
-    }
+    // ── Composite: blit static cache onto main canvas (single GPU texture copy) ──
+    this.ctx.save();
+    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+    this.ctx.drawImage(this.staticCanvas, 0, 0);
+    this.ctx.restore();
 
-    // Draw boss-subordinate lines
+    // ── Dynamic layer (agents, effects, overlays) — drawn fresh each frame ──
+
+    // Boss-subordinate lines (depend on agent positions + selection, both dynamic)
     this.renderBossLines();
 
-    // Draw buildings
-    for (const building of this.buildings.values()) {
-      const isSelected = this.selectedBuildingIds.has(building.id);
-      this.renderer.drawBuilding(building, isSelected);
-    }
-
-    // Draw agents
+    this.renderer.beginAgentFrame();
     for (const agent of this.agents.values()) {
+      if (!this.isPointVisible(agent.position.x, agent.position.z, 2.5)) continue;
       const isSelected = this.selectedAgentIds.has(agent.id);
       const isMoving = this.movements.has(agent.id);
       this.renderer.drawAgent(agent, isSelected, isMoving, this.indicatorScale);
     }
 
-    // Draw effects
+    // Effects
     this.effects.render(this.ctx, this.camera);
 
-    // Draw selection box if active
+    // Selection box
     const selectionBox = this.input.getSelectionBox();
     if (selectionBox) {
       this.renderer.drawSelectionBox(selectionBox.start, selectionBox.end);
     }
 
-    // Draw area drawing preview if active
+    // Area drawing preview
     const drawingPreview = this.getDrawingPreview();
     if (drawingPreview) {
       this.renderer.drawAreaPreview(drawingPreview.start, drawingPreview.end, drawingPreview.tool);
@@ -365,7 +571,7 @@ export class Scene2D {
       if (agent.isBoss && agent.subordinateIds) {
         for (const subId of agent.subordinateIds) {
           const sub = this.agents.get(subId);
-          if (sub) {
+          if (sub && (this.isPointVisible(agent.position.x, agent.position.z, 2.5) || this.isPointVisible(sub.position.x, sub.position.z, 2.5))) {
             this.effects.renderBossLine(this.ctx, this.camera, agent.position, sub.position);
           }
         }
@@ -377,7 +583,7 @@ export class Scene2D {
         if (boss && boss.subordinateIds) {
           for (const subId of boss.subordinateIds) {
             const sub = this.agents.get(subId);
-            if (sub) {
+            if (sub && (this.isPointVisible(boss.position.x, boss.position.z, 2.5) || this.isPointVisible(sub.position.x, sub.position.z, 2.5))) {
               this.effects.renderBossLine(this.ctx, this.camera, boss.position, sub.position);
             }
           }
@@ -394,7 +600,7 @@ export class Scene2D {
       if (building.subordinateBuildingIds && building.subordinateBuildingIds.length > 0) {
         for (const subId of building.subordinateBuildingIds) {
           const sub = this.buildings.get(subId);
-          if (sub) {
+          if (sub && (this.isPointVisible(building.position.x, building.position.z, 2) || this.isPointVisible(sub.position.x, sub.position.z, 2))) {
             this.effects.renderBossLine(this.ctx, this.camera, building.position, sub.position);
           }
         }
@@ -409,7 +615,7 @@ export class Scene2D {
           // This building is a boss of the selected building, show all its connections
           for (const subId of building.subordinateBuildingIds) {
             const sub = this.buildings.get(subId);
-            if (sub) {
+            if (sub && (this.isPointVisible(building.position.x, building.position.z, 2) || this.isPointVisible(sub.position.x, sub.position.z, 2))) {
               this.effects.renderBossLine(this.ctx, this.camera, building.position, sub.position);
             }
           }
@@ -445,12 +651,14 @@ export class Scene2D {
       contextStats: agent.contextStats,
       provider: agent.provider,
     });
+    this.markDirty();
   }
 
   removeAgent(agentId: string): void {
     this.agents.delete(agentId);
     this.movements.delete(agentId);
     this.selectedAgentIds.delete(agentId);
+    this.markDirty();
   }
 
   updateAgent(agent: Agent, animatePosition = true): void {
@@ -520,6 +728,7 @@ export class Scene2D {
     existing.contextLimit = agent.contextLimit;
     existing.contextStats = agent.contextStats;
     existing.provider = agent.provider;
+    this.markDirty();
   }
 
   syncAgents(agents: Agent[]): void {
@@ -555,11 +764,13 @@ export class Scene2D {
       subordinateBuildingIds: building.subordinateBuildingIds,
       gitChangesCount: building.gitChangesCount,
     });
+    this.markStaticDirty();
   }
 
   removeBuilding(buildingId: string): void {
     this.buildings.delete(buildingId);
     this.selectedBuildingIds.delete(buildingId);
+    this.markStaticDirty();
   }
 
   updateBuilding(building: Building): void {
@@ -578,9 +789,11 @@ export class Scene2D {
     existing.scale = building.scale || 1;
     existing.subordinateBuildingIds = building.subordinateBuildingIds;
     existing.gitChangesCount = building.gitChangesCount;
+    this.markStaticDirty();
   }
 
   syncBuildings(): void {
+    this.markStaticDirty();
     const state = store.getState();
     const buildingIds = new Set(state.buildings.keys());
 
@@ -604,6 +817,8 @@ export class Scene2D {
   syncAreas(): void {
     const state = store.getState();
     this.areas.clear();
+    this.invalidateAreaSort();
+    this.markStaticDirty();
 
     for (const area of state.areas.values()) {
       // Skip archived areas - they should not be rendered
@@ -661,6 +876,7 @@ export class Scene2D {
   selectArea(areaId: string | null): void {
     this.selectedAreaId = areaId;
     store.selectArea(areaId);
+    this.markStaticDirty();
   }
 
   isAreaSelected(): boolean {
@@ -963,16 +1179,19 @@ export class Scene2D {
 
   setSelectedAgents(agentIds: Set<string>): void {
     this.selectedAgentIds = new Set(agentIds);
+    this.markDirty();
   }
 
   setSelectedBuildings(buildingIds: Set<string>): void {
     this.selectedBuildingIds = new Set(buildingIds);
+    this.markStaticDirty(); // buildings are on static layer
   }
 
   refreshSelectionVisuals(): void {
     const state = store.getState();
     this.selectedAgentIds = new Set(state.selectedAgentIds);
     this.selectedBuildingIds = new Set(state.selectedBuildingIds);
+    this.markStaticDirty();
   }
 
   // ============================================
@@ -981,6 +1200,7 @@ export class Scene2D {
 
   createMoveOrderEffect(worldPos: { x: number; z: number }): void {
     this.effects.addMoveOrderEffect(worldPos);
+    this.markDirty();
   }
 
   /**
@@ -1065,6 +1285,7 @@ export class Scene2D {
     const agent = this.agents.get(agentId);
     if (agent) {
       this.effects.addToolBubble(agentId, agent.position, toolName);
+      this.markDirty();
     }
   }
 
@@ -1133,6 +1354,7 @@ export class Scene2D {
 
   setGridVisible(visible: boolean): void {
     this.showGrid = visible;
+    this.markStaticDirty();
   }
 
   setFpsLimit(limit: number): void {
@@ -1249,9 +1471,7 @@ export class Scene2D {
     const _zoom = this.camera.getZoom();
 
     // Check areas in reverse zIndex order (topmost first)
-    const sortedAreas = Array.from(this.areas.values()).sort((a, b) => b.zIndex - a.zIndex);
-
-    for (const area of sortedAreas) {
+    for (const area of this.getSortedAreasDesc()) {
       if (!area.hasDirectories) continue;
 
       const iconSize = 0.5; // World units - same as in AreaRenderer
@@ -1379,9 +1599,7 @@ export class Scene2D {
 
   getAreaAtWorldPos(worldX: number, worldZ: number): Area2DData | null {
     // Sort areas by zIndex descending (highest first) so we check topmost areas first
-    const sortedAreas = Array.from(this.areas.values()).sort((a, b) => b.zIndex - a.zIndex);
-
-    for (const area of sortedAreas) {
+    for (const area of this.getSortedAreasDesc()) {
       if (area.type === 'rectangle' && 'width' in area.size) {
         const { width, height } = area.size;
         const left = area.position.x - width / 2;

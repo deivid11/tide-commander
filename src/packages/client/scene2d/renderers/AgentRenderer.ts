@@ -19,9 +19,20 @@ const STATUS_COLORS: Record<string, { color: string; glow: string; darkColor: st
 export class AgentRenderer extends BaseRenderer {
   private effect: EffectRenderer;
 
+  // Per-frame cached state to avoid store.getState() inside hot loop
+  private frameCustomClasses: Map<string, { icon: string }> | null = null;
+  private frameUnseenOutput: Set<string> | null = null;
+
   constructor(ctx: CanvasRenderingContext2D, camera: Scene2DCamera, effect: EffectRenderer) {
     super(ctx, camera);
     this.effect = effect;
+  }
+
+  /** Call once per frame before drawing agents to snapshot store state. */
+  beginFrame(): void {
+    const state = store.getState();
+    this.frameCustomClasses = state.customAgentClasses;
+    this.frameUnseenOutput = state.agentsWithUnseenOutput;
   }
 
   private getAgentClassIcon(agentClass: string): string {
@@ -30,8 +41,7 @@ export class AgentRenderer extends BaseRenderer {
       return builtIn.icon;
     }
 
-    const state = store.getState();
-    const custom = state.customAgentClasses.get(agentClass);
+    const custom = this.frameCustomClasses?.get(agentClass);
     if (custom) {
       return custom.icon;
     }
@@ -49,13 +59,8 @@ export class AgentRenderer extends BaseRenderer {
 
     const walkSpeed = 8;
     const walkPhase = this.animationTime * walkSpeed;
-    const pulsePhase = this.animationTime * 3;
-    const glowPhase = this.animationTime * 2;
-
     const isWorking = agent.status === 'working';
-    const workBounceSpeed = 6;
-    const workBouncePhase = this.animationTime * workBounceSpeed;
-    const iconBounceOffset = isWorking ? Math.abs(Math.sin(workBouncePhase)) * 8 * zoomScaleFactor : 0;
+    const iconBounceOffset = isWorking ? Math.abs(Math.sin(this.animationTime * 4)) * 4 * zoomScaleFactor : 0;
 
     const bobAmount = isMoving ? Math.sin(walkPhase * 2) * 0.05 : 0;
     const squashAmount = isMoving ? 1 + Math.sin(walkPhase * 2) * 0.08 : 1;
@@ -71,15 +76,17 @@ export class AgentRenderer extends BaseRenderer {
     const screenPos = this.camera.worldToScreen(x, z + bobAmount);
     const screenRadius = radius * this.camera.getZoom();
 
-    // ========== DROP SHADOW ==========
+    // ========== DROP SHADOW (lightweight: offset dark circle, no shadowBlur) ==========
     this.ctx.save();
-    this.ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
-    this.ctx.shadowBlur = 8;
-    this.ctx.shadowOffsetX = 3;
-    this.ctx.shadowOffsetY = 3;
+
+    // Fake drop shadow as a dark ellipse underneath (avoids expensive shadowBlur)
+    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+    this.ctx.beginPath();
+    this.ctx.ellipse(screenPos.x + 3, screenPos.y + 3, screenRadius * 1.05, screenRadius * 0.95, 0, 0, Math.PI * 2);
+    this.ctx.fill();
 
     // ========== STATUS RING ==========
-    const statusPulse = 0.7 + Math.sin(pulsePhase) * 0.3;
+    const statusPulse = isWorking ? 0.75 + Math.sin(this.animationTime * 2.5) * 0.2 : 0.85;
     const statusRingRadius = screenRadius + 6;
 
     const statusGradient = this.ctx.createRadialGradient(
@@ -101,63 +108,10 @@ export class AgentRenderer extends BaseRenderer {
     this.ctx.lineWidth = 2;
     this.ctx.stroke();
 
-    // ========== WATER WAVE RIPPLE EFFECT ==========
-    // Drawn without shadow and with 'lighter' blending to avoid displacing other elements
-    if (isWorking) {
-      this.ctx.shadowColor = 'transparent';
-      this.ctx.shadowBlur = 0;
-      this.ctx.shadowOffsetX = 0;
-      this.ctx.shadowOffsetY = 0;
-      const prevComposite = this.ctx.globalCompositeOperation;
-      this.ctx.globalCompositeOperation = 'lighter';
-
-      const waveCount = 3;
-      const waveCycleDuration = 2;
-      const maxWaveRadius = screenRadius * 2.2;
-      const waveThickness = 2;
-
-      for (let i = 0; i < waveCount; i++) {
-        const wavePhase = ((this.animationTime / waveCycleDuration) + (i / waveCount)) % 1;
-        const waveRadius = screenRadius + (wavePhase * (maxWaveRadius - screenRadius));
-        const waveOpacity = Math.max(0, 1 - wavePhase) * 0.5;
-
-        if (waveOpacity < 0.05) continue;
-
-        const waveGradient = this.ctx.createRadialGradient(
-          screenPos.x, screenPos.y, waveRadius - waveThickness,
-          screenPos.x, screenPos.y, waveRadius + waveThickness
-        );
-        waveGradient.addColorStop(0, 'transparent');
-        waveGradient.addColorStop(0.3, this.hexToRgba('#4a9eff', waveOpacity * 0.4));
-        waveGradient.addColorStop(0.5, this.hexToRgba('#bd93f9', waveOpacity * 0.7));
-        waveGradient.addColorStop(0.7, this.hexToRgba('#ff79c6', waveOpacity * 0.4));
-        waveGradient.addColorStop(1, 'transparent');
-
-        this.ctx.beginPath();
-        this.ctx.arc(screenPos.x, screenPos.y, waveRadius, 0, Math.PI * 2);
-        this.ctx.strokeStyle = waveGradient;
-        this.ctx.lineWidth = waveThickness * 2;
-        this.ctx.stroke();
-
-        this.ctx.beginPath();
-        this.ctx.arc(screenPos.x, screenPos.y, waveRadius, 0, Math.PI * 2);
-        this.ctx.strokeStyle = this.hexToRgba('#bd93f9', waveOpacity * 0.4);
-        this.ctx.lineWidth = 1;
-        this.ctx.stroke();
-      }
-
-      this.ctx.globalCompositeOperation = prevComposite;
-      // Restore shadow for remaining elements in this save block
-      this.ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
-      this.ctx.shadowBlur = 8;
-      this.ctx.shadowOffsetX = 3;
-      this.ctx.shadowOffsetY = 3;
-    }
-
     // ========== SELECTION GLOW ==========
     if (isSelected) {
-      const glowPulse = 0.5 + Math.sin(glowPhase) * 0.5;
-      const selectionRadius = screenRadius + 12 + Math.sin(glowPhase * 2) * 2;
+      const glowPulse = 0.65;
+      const selectionRadius = screenRadius + 12;
 
       const selectionGradient = this.ctx.createRadialGradient(
         screenPos.x, screenPos.y, screenRadius + 6,
@@ -177,7 +131,7 @@ export class AgentRenderer extends BaseRenderer {
       this.ctx.strokeStyle = bodyColor;
       this.ctx.lineWidth = 3;
       this.ctx.setLineDash([8, 4]);
-      this.ctx.lineDashOffset = -this.animationTime * 20;
+      this.ctx.lineDashOffset = -this.animationTime * 12;
       this.ctx.stroke();
       this.ctx.setLineDash([]);
     }
@@ -247,12 +201,7 @@ export class AgentRenderer extends BaseRenderer {
       this.ctx.font = `${crownSize}px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", serif`;
       this.ctx.textAlign = 'center';
       this.ctx.textBaseline = 'bottom';
-
-      this.ctx.save();
-      this.ctx.shadowColor = 'rgba(255, 215, 0, 0.8)';
-      this.ctx.shadowBlur = 6;
       this.ctx.fillText('👑', screenPos.x, screenPos.y - screenRadius - 2);
-      this.ctx.restore();
     }
 
     // ========== DUST PARTICLES ==========
@@ -482,8 +431,7 @@ export class AgentRenderer extends BaseRenderer {
     }
 
     // ========== UNSEEN OUTPUT NOTIFICATION BADGE ==========
-    const state = store.getState();
-    if (state.agentsWithUnseenOutput.has(agent.id)) {
+    if (this.frameUnseenOutput?.has(agent.id)) {
       const badgeRadius = 10 * zoomScaleFactor;
       const badgeX = screenPos.x + screenRadius * 0.7;
       const badgeY = screenPos.y - screenRadius * 0.7;
@@ -557,14 +505,12 @@ export class AgentRenderer extends BaseRenderer {
     const dashLength = 6 / zoom;
     const gapLength = 3 / zoom;
 
-    ctx.save();
-    ctx.shadowColor = 'rgba(74, 158, 255, 0.5)';
-    ctx.shadowBlur = 10;
-    ctx.fillStyle = 'transparent';
+    // Outer glow border (lightweight: wider translucent stroke instead of shadowBlur)
+    ctx.strokeStyle = 'rgba(74, 158, 255, 0.2)';
+    ctx.lineWidth = 6 / zoom;
     ctx.beginPath();
     ctx.rect(minX, minZ, width, height);
-    ctx.fill();
-    ctx.restore();
+    ctx.stroke();
 
     const gradient = ctx.createLinearGradient(minX, minZ, maxX, maxZ);
     gradient.addColorStop(0, 'rgba(74, 158, 255, 0.15)');
@@ -624,9 +570,6 @@ export class AgentRenderer extends BaseRenderer {
     ctx.fillStyle = accentColor;
 
     const pulseAlpha = 0.6 + Math.sin(this.animationTime * 4) * 0.3;
-    ctx.save();
-    ctx.shadowColor = `rgba(74, 158, 255, ${pulseAlpha})`;
-    ctx.shadowBlur = 6;
 
     const corners = [
       { x: minX, y: minZ },
@@ -636,12 +579,17 @@ export class AgentRenderer extends BaseRenderer {
     ];
 
     for (const corner of corners) {
+      // Glow halo (replaces shadowBlur)
+      ctx.fillStyle = `rgba(74, 158, 255, ${pulseAlpha * 0.35})`;
+      ctx.beginPath();
+      ctx.arc(corner.x, corner.y, dotRadius * 2.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = accentColor;
       ctx.beginPath();
       ctx.arc(corner.x, corner.y, dotRadius, 0, Math.PI * 2);
       ctx.fill();
     }
-
-    ctx.restore();
 
     this.camera.restoreTransform(this.ctx);
   }

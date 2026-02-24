@@ -67,25 +67,19 @@ export class BuildingRenderer extends BaseRenderer {
 
     if (isSelected) {
       const glowPulse = 0.5 + Math.sin(this.animationTime * 4) * 0.2;
-      this.ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
-      this.ctx.shadowBlur = 15 / this.camera.getZoom();
       this.ctx.strokeStyle = `rgba(255, 255, 255, ${glowPulse})`;
       this.ctx.lineWidth = 4 / this.camera.getZoom();
       this.ctx.beginPath();
       this.roundedRect(x - baseSize / 2 - 0.05, z - baseSize / 2 - 0.05, baseSize + 0.1, baseSize + 0.1, 0.2);
       this.ctx.stroke();
-      this.ctx.shadowBlur = 0;
     }
 
     if (isHovered && !isSelected) {
-      this.ctx.shadowColor = mainColor;
-      this.ctx.shadowBlur = 10 / this.camera.getZoom();
       this.ctx.strokeStyle = `rgba(255, 255, 255, 0.4)`;
       this.ctx.lineWidth = 2 / this.camera.getZoom();
       this.ctx.beginPath();
       this.roundedRect(x - baseSize / 2, z - baseSize / 2, baseSize, baseSize, 0.15);
       this.ctx.stroke();
-      this.ctx.shadowBlur = 0;
     }
 
     const gradient = this.ctx.createLinearGradient(
@@ -132,14 +126,13 @@ export class BuildingRenderer extends BaseRenderer {
     const indicatorX = x + baseSize / 2 - indicatorRadius - 0.1;
     const indicatorY = z - baseSize / 2 + indicatorRadius + 0.1;
 
-    this.ctx.shadowColor = statusConfig.color;
-    this.ctx.shadowBlur = 8 / this.camera.getZoom();
-
+    // Status indicator dark background
     this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
     this.ctx.beginPath();
     this.ctx.arc(indicatorX, indicatorY, indicatorRadius + 0.03, 0, Math.PI * 2);
     this.ctx.fill();
 
+    // Status indicator with gradient (no shadowBlur)
     const indicatorGradient = this.ctx.createRadialGradient(
       indicatorX - indicatorRadius * 0.3, indicatorY - indicatorRadius * 0.3, 0,
       indicatorX, indicatorY, indicatorRadius
@@ -151,8 +144,6 @@ export class BuildingRenderer extends BaseRenderer {
     this.ctx.beginPath();
     this.ctx.arc(indicatorX, indicatorY, indicatorRadius, 0, Math.PI * 2);
     this.ctx.fill();
-
-    this.ctx.shadowBlur = 0;
 
     this.camera.restoreTransform(this.ctx);
 

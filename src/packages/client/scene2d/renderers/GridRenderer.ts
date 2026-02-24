@@ -2,6 +2,11 @@ import type { Scene2DCamera } from '../Scene2DCamera';
 import { BaseRenderer } from './BaseRenderer';
 
 export class GridRenderer extends BaseRenderer {
+  // Cached ground gradient (only rebuild on viewport resize)
+  private groundGradient: CanvasGradient | null = null;
+  private groundViewportW = 0;
+  private groundViewportH = 0;
+
   constructor(ctx: CanvasRenderingContext2D, camera: Scene2DCamera) {
     super(ctx, camera);
   }
@@ -9,20 +14,24 @@ export class GridRenderer extends BaseRenderer {
   drawGround(_size: number): void {
     const { width, height } = this.camera.getViewportSize();
 
-    const centerX = width / 2;
-    const centerY = height / 2;
-    const maxRadius = Math.sqrt(centerX * centerX + centerY * centerY) * 1.2;
+    // Rebuild gradient only when viewport size changes
+    if (!this.groundGradient || width !== this.groundViewportW || height !== this.groundViewportH) {
+      const centerX = width / 2;
+      const centerY = height / 2;
+      const maxRadius = Math.sqrt(centerX * centerX + centerY * centerY) * 1.2;
 
-    const gradient = this.ctx.createRadialGradient(
-      centerX, centerY, 0,
-      centerX, centerY, maxRadius
-    );
+      this.groundGradient = this.ctx.createRadialGradient(
+        centerX, centerY, 0,
+        centerX, centerY, maxRadius
+      );
+      this.groundGradient.addColorStop(0, '#1a1f2e');
+      this.groundGradient.addColorStop(0.5, '#141820');
+      this.groundGradient.addColorStop(1, '#0a0c12');
+      this.groundViewportW = width;
+      this.groundViewportH = height;
+    }
 
-    gradient.addColorStop(0, '#1a1f2e');
-    gradient.addColorStop(0.5, '#141820');
-    gradient.addColorStop(1, '#0a0c12');
-
-    this.ctx.fillStyle = gradient;
+    this.ctx.fillStyle = this.groundGradient;
     this.ctx.fillRect(0, 0, width, height);
   }
 

@@ -18,14 +18,12 @@ export class AreaRenderer extends BaseRenderer {
     const baseColor = area.color || '#4a9eff';
     const zoom = this.camera.getZoom();
 
-    const dashOffset = (this.animationTime * 20) % 24;
-
     if (area.type === 'rectangle' && 'width' in area.size) {
       const { width, height } = area.size;
       const left = x - width / 2;
       const top = z - height / 2;
 
-      this.drawRectangleArea(left, top, width, height, baseColor, zoom, dashOffset, isSelected);
+      this.drawRectangleArea(left, top, width, height, baseColor, zoom, isSelected);
 
       if (area.label) {
         this.drawAreaLabel(area.label, x, top, baseColor, zoom, 'top');
@@ -57,7 +55,7 @@ export class AreaRenderer extends BaseRenderer {
     } else if (area.type === 'circle' && 'radius' in area.size) {
       const { radius } = area.size;
 
-      this.drawCircleArea(x, z, radius, baseColor, zoom, dashOffset, isSelected);
+      this.drawCircleArea(x, z, radius, baseColor, zoom, isSelected);
 
       if (area.label) {
         this.drawAreaLabel(area.label, x, z - radius, baseColor, zoom, 'top');
@@ -101,33 +99,19 @@ export class AreaRenderer extends BaseRenderer {
     height: number,
     baseColor: string,
     zoom: number,
-    dashOffset: number,
     isSelected: boolean = false
   ): void {
     const ctx = this.ctx;
     const cornerSize = Math.min(width, height) * 0.08;
 
     if (isSelected) {
-      const glowPulse = 0.5 + Math.sin(this.animationTime * 3) * 0.2;
-      ctx.save();
-      ctx.shadowColor = this.hexToRgba(baseColor, glowPulse);
-      ctx.shadowBlur = 20;
+      const glowPulse = 0.5;
       ctx.strokeStyle = this.hexToRgba(baseColor, glowPulse * 0.8);
       ctx.lineWidth = 4 / zoom;
       ctx.beginPath();
       ctx.rect(left - 2 / zoom, top - 2 / zoom, width + 4 / zoom, height + 4 / zoom);
       ctx.stroke();
-      ctx.restore();
     }
-
-    ctx.save();
-    ctx.shadowColor = this.hexToRgba(baseColor, isSelected ? 0.6 : 0.4);
-    ctx.shadowBlur = isSelected ? 16 : 12;
-    ctx.fillStyle = 'transparent';
-    ctx.beginPath();
-    ctx.rect(left, top, width, height);
-    ctx.fill();
-    ctx.restore();
 
     const baseOpacity = isSelected ? 0.25 : 0.15;
     const gradient = ctx.createLinearGradient(left, top, left + width, top + height);
@@ -169,7 +153,7 @@ export class AreaRenderer extends BaseRenderer {
     ctx.strokeStyle = this.hexToRgba(baseColor, 0.7);
     ctx.lineWidth = 2 / zoom;
     ctx.setLineDash([8 / zoom, 4 / zoom]);
-    ctx.lineDashOffset = -dashOffset / zoom;
+    ctx.lineDashOffset = 0;
 
     ctx.beginPath();
     ctx.rect(left, top, width, height);
@@ -242,32 +226,18 @@ export class AreaRenderer extends BaseRenderer {
     radius: number,
     baseColor: string,
     zoom: number,
-    dashOffset: number,
     isSelected: boolean = false
   ): void {
     const ctx = this.ctx;
 
     if (isSelected) {
-      const glowPulse = 0.5 + Math.sin(this.animationTime * 3) * 0.2;
-      ctx.save();
-      ctx.shadowColor = this.hexToRgba(baseColor, glowPulse);
-      ctx.shadowBlur = 20;
+      const glowPulse = 0.5;
       ctx.strokeStyle = this.hexToRgba(baseColor, glowPulse * 0.8);
       ctx.lineWidth = 4 / zoom;
       ctx.beginPath();
       ctx.arc(cx, cy, radius + 3 / zoom, 0, Math.PI * 2);
       ctx.stroke();
-      ctx.restore();
     }
-
-    ctx.save();
-    ctx.shadowColor = this.hexToRgba(baseColor, isSelected ? 0.6 : 0.4);
-    ctx.shadowBlur = isSelected ? 16 : 12;
-    ctx.fillStyle = 'transparent';
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
 
     const baseOpacity = isSelected ? 0.3 : 0.2;
     const gradient = ctx.createRadialGradient(cx, cy - radius * 0.3, 0, cx, cy, radius);
@@ -300,7 +270,7 @@ export class AreaRenderer extends BaseRenderer {
     ctx.strokeStyle = this.hexToRgba(baseColor, 0.7);
     ctx.lineWidth = 2 / zoom;
     ctx.setLineDash([8 / zoom, 4 / zoom]);
-    ctx.lineDashOffset = -dashOffset / zoom;
+    ctx.lineDashOffset = 0;
 
     ctx.beginPath();
     ctx.arc(cx, cy, radius, 0, Math.PI * 2);
@@ -373,17 +343,10 @@ export class AreaRenderer extends BaseRenderer {
     this.roundedRect(bgX, bgY, bgWidth, bgHeight, borderRadius);
     ctx.stroke();
 
-    ctx.save();
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
-    ctx.shadowBlur = 2;
-    ctx.shadowOffsetY = 1;
-
     ctx.fillStyle = this.lightenColor(baseColor, 0.3);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(label, x, y + offsetY);
-
-    ctx.restore();
   }
 
   private drawRectangleResizeHandles(
@@ -395,7 +358,7 @@ export class AreaRenderer extends BaseRenderer {
     zoom: number
   ): void {
     const handleRadius = 0.25;
-    const handlePulse = 0.8 + Math.sin(this.animationTime * 4) * 0.2;
+    const handlePulse = 0.9;
 
     const corners = [
       { x: cx - width / 2, z: cz - height / 2 },
@@ -431,7 +394,7 @@ export class AreaRenderer extends BaseRenderer {
     zoom: number
   ): void {
     const handleRadius = 0.25;
-    const handlePulse = 0.8 + Math.sin(this.animationTime * 4) * 0.2;
+    const handlePulse = 0.9;
 
     this.drawResizeHandle(cx + radius, cz, handleRadius, '#ffffff', zoom, handlePulse);
     this.drawResizeHandle(cx, cz, handleRadius * 1.2, '#ffcc00', zoom, handlePulse, true);
@@ -449,9 +412,8 @@ export class AreaRenderer extends BaseRenderer {
     const ctx = this.ctx;
 
     ctx.save();
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 10;
 
+    // Dark background circle (replaces expensive shadowBlur)
     ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
     ctx.beginPath();
     ctx.arc(x, z, radius * 1.3, 0, Math.PI * 2);
@@ -700,9 +662,8 @@ export class AreaRenderer extends BaseRenderer {
       ctx.fillStyle = 'rgba(74, 158, 255, 0.2)';
       ctx.fillRect(minX, minZ, width, height);
 
-      const dashOffset = (this.animationTime * 30) % 20;
       ctx.setLineDash([6 / zoom, 4 / zoom]);
-      ctx.lineDashOffset = -dashOffset / zoom;
+      ctx.lineDashOffset = 0;
       ctx.strokeStyle = areaColor;
       ctx.lineWidth = 2 / zoom;
       ctx.strokeRect(minX, minZ, width, height);
@@ -722,9 +683,8 @@ export class AreaRenderer extends BaseRenderer {
       ctx.arc(start.x, start.z, radius, 0, Math.PI * 2);
       ctx.fill();
 
-      const dashOffset = (this.animationTime * 30) % 20;
       ctx.setLineDash([6 / zoom, 4 / zoom]);
-      ctx.lineDashOffset = -dashOffset / zoom;
+      ctx.lineDashOffset = 0;
       ctx.strokeStyle = areaColor;
       ctx.lineWidth = 2 / zoom;
       ctx.beginPath();

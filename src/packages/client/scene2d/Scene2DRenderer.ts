@@ -55,6 +55,11 @@ export class Scene2DRenderer {
     this.building.drawBuilding(building, isSelected, isHovered);
   }
 
+  /** Snapshot store state once per frame (avoids per-agent store reads). */
+  beginAgentFrame(): void {
+    this.agent.beginFrame();
+  }
+
   drawAgent(agent: Agent2DData, isSelected: boolean, isMoving: boolean, indicatorScale: number): void {
     this.agent.drawAgent(agent, isSelected, isMoving, indicatorScale);
   }

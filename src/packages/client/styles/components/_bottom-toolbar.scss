@@ -6,14 +6,13 @@
   left: 0;
   right: 0;
   height: 130px;
-  background: linear-gradient(180deg, rgba($dracula-bg, 0.95) 0%, rgba($dracula-bg-darker, 0.98) 100%);
+  background: linear-gradient(180deg, rgba($dracula-bg, 0.97) 0%, rgba($dracula-bg-darker, 0.99) 100%);
   border-top: 1px solid $dracula-current;
   display: flex;
   align-items: stretch;
   padding: 12px 20px;
   gap: 20px;
   z-index: 99;
-  backdrop-filter: blur(8px);
 }
 
 // Left: Portrait section with 3D preview

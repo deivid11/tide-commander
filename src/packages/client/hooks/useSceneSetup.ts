@@ -459,11 +459,12 @@ export function useSceneSetup({
         initRafIdRef.current = null;
       }
 
-      // React may re-run effects when dependencies change, but the canvas stays connected.
-      // Only dispose if the canvas is actually disconnected from DOM (real unmount).
-      // This prevents losing WebGL context when canvas is being reused.
-      if (canvasRef.current?.isConnected) {
-        return;
+      // React StrictMode re-runs effects: the canvas stays connected and viewMode is still '3d'.
+      // Only dispose when switching away from 3D mode (viewMode is '2d' or 'dashboard').
+      // During cleanup, DOM nodes are still connected, so we check the store's viewMode instead.
+      const currentViewMode = store.getState().viewMode;
+      if (currentViewMode === '3d') {
+        return; // StrictMode remount — canvas still in use, don't dispose
       }
 
       // Memory optimization: dispose 3D scene when switching to 2D mode

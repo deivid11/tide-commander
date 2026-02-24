@@ -6,12 +6,11 @@
   left: 0;
   right: 0;
   height: 72px;
-  background: linear-gradient(180deg, rgba($dracula-bg, 0.9) 0%, rgba($dracula-bg-darker, 0.95) 100%);
+  background: linear-gradient(180deg, rgba($dracula-bg, 0.95) 0%, rgba($dracula-bg-darker, 0.98) 100%);
   border-top: 1px solid $dracula-current;
   display: flex;
   align-items: center;
   z-index: 100;
-  backdrop-filter: blur(8px);
   // No overflow clipping on outer container — tooltips/bubbles need to overflow Y
   overflow: visible;
 }
@@ -935,7 +934,6 @@
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
   animation: hover-popup-appear 0.15s ease-out;
   pointer-events: auto;
-  backdrop-filter: blur(8px);
   font-size: 0.9em;
 }
 
