@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.78.0] - 2026-02-24
+
+### Added
+- **Instant agent switching for cached history** - Switching between agents with cached conversation history is now instant, skipping redundant re-fetches
+- **Release pipeline builtin skill** - New TC Release Pipeline skill for full release workflow: lint, type-check, test, build, version bump, changelog, git tag, and GitHub release
+- **README resume section** - Added documentation for resuming agent sessions
+
 ## [0.77.0] - 2026-02-24
 
 ### Changed
