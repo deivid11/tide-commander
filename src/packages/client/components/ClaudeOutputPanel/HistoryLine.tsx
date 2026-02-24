@@ -461,9 +461,9 @@ export const HistoryLine = memo(function HistoryLine({
                 {(() => {
                   const taskId = `history-curl-${timestamp}`;
                   const isExpanded = expandedExecTasks.has(taskId);
-                  const lastThreeLines = execTaskOutput.output.slice(-3);
-                  const isCollapsed = execTaskOutput.output.length > 3;
-                  const displayLines = isExpanded ? execTaskOutput.output : lastThreeLines;
+                  const lastLines = execTaskOutput.output.slice(-6);
+                  const isCollapsed = execTaskOutput.output.length > 6;
+                  const displayLines = isExpanded ? execTaskOutput.output : lastLines;
 
                   return (
                     <>

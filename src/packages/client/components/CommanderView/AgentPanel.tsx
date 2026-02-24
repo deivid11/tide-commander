@@ -6,21 +6,72 @@
  * - TerminalInput from shared components for input handling
  */
 
-import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useMemo, useCallback, memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Agent } from '../../../shared/types';
-import { useSupervisorLastReport, store, ClaudeOutput } from '../../store';
+import { useSupervisorLastReport, useLastPrompt, store, ClaudeOutput } from '../../store';
 import { formatTokens } from '../../utils/formatting';
 import { VirtualizedOutputList } from '../ClaudeOutputPanel/VirtualizedOutputList';
 import { ImageModal, BashModal, AgentResponseModalWrapper, type BashModalState } from '../ClaudeOutputPanel/TerminalModals';
 import { useTerminalInput } from '../ClaudeOutputPanel/useTerminalInput';
 import { TerminalInput } from '../shared/TerminalInput';
-import { WorkingIndicator } from '../shared/WorkingIndicator';
 import { useFilteredOutputs } from '../shared/useFilteredOutputs';
 import type { AgentHistory } from './types';
 import { STATUS_COLORS } from './types';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { useModalStackRegistration } from '../../hooks/useModalStack';
+
+function formatElapsed(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
+/**
+ * Isolated elapsed timer + stop button — same style as Guake terminal.
+ * Owns its own 1-second interval so the parent AgentPanel is NOT re-rendered every tick.
+ */
+const ElapsedTimer = memo(function ElapsedTimer({
+  agentId,
+  isWorking,
+  timestamp,
+}: {
+  agentId: string;
+  isWorking: boolean;
+  timestamp: number | undefined;
+}) {
+  const { t } = useTranslation(['terminal']);
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    if (!isWorking || !timestamp) {
+      setElapsed(0);
+      return;
+    }
+    setElapsed(Date.now() - timestamp);
+    const interval = setInterval(() => {
+      setElapsed(Date.now() - timestamp);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isWorking, timestamp]);
+
+  if (!isWorking) return null;
+
+  return (
+    <div className="guake-stop-bar">
+      <span className="guake-elapsed-timer">{formatElapsed(elapsed)}</span>
+      <button
+        className="guake-stop-btn"
+        onClick={() => store.stopAgent(agentId)}
+        title={t('terminal:input.stopOperation')}
+      >
+        <span className="stop-icon">■</span>
+        <span className="stop-label">{t('terminal:input.stop')}</span>
+      </button>
+    </div>
+  );
+});
 
 interface AgentPanelProps {
   agent: Agent;
@@ -51,6 +102,7 @@ export function AgentPanel({
 }: AgentPanelProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const lastReport = useSupervisorLastReport();
+  const lastPrompt = useLastPrompt(agent.id);
   const outputRef = useRef<HTMLDivElement>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const scrollPositionRef = useRef<number>(0);
@@ -147,16 +199,18 @@ export function AgentPanel({
     setShouldAutoScroll(false);
   }, []);
 
-  // Pin to bottom when panel expands or history finishes loading
+  // Pin to bottom when panel expands or becomes focused
   const prevExpandedRef = useRef(isExpanded);
+  const prevFocusedRef = useRef(isFocused);
   useEffect(() => {
-    if (isExpanded && !prevExpandedRef.current) {
+    if ((isExpanded && !prevExpandedRef.current) || (isFocused && !prevFocusedRef.current)) {
       isUserScrolledUpRef.current = false;
       setShouldAutoScroll(true);
       setPinToBottom(true);
     }
     prevExpandedRef.current = isExpanded;
-  }, [isExpanded]);
+    prevFocusedRef.current = isFocused;
+  }, [isExpanded, isFocused]);
 
   // Pin to bottom when history finishes loading
   const prevLoadingRef = useRef(history?.loading);
@@ -252,11 +306,6 @@ export function AgentPanel({
   const handleCloseBashModal = useCallback(() => setBashModal(null), []);
   const handleCloseResponseModal = useCallback(() => setResponseModalContent(null), []);
 
-  const handleStopAgent = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    store.stopAgent(agent.id);
-  }, [agent.id]);
-
   const handleExpandClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     onExpand();
@@ -268,10 +317,10 @@ export function AgentPanel({
   return (
     <div
       className={`agent-panel ${agent.status === 'working' ? 'working' : ''} ${isExpanded ? 'expanded' : ''} ${isFocused ? 'focused' : ''}`}
-      onClick={onFocus}
+      onClick={!isFocused ? onFocus : undefined}
     >
       {/* Header */}
-      <div className="agent-panel-header">
+      <div className="agent-panel-header" onClick={isFocused ? onFocus : undefined}>
         <div className="agent-panel-info">
           <span
             className="agent-panel-status"
@@ -284,6 +333,7 @@ export function AgentPanel({
             )}
             {agent.name}
           </span>
+          <span className={`agent-panel-status-label ${agent.status}`}>{agent.status}</span>
           <span className="agent-panel-class">{agent.class}</span>
           <span className={`agent-panel-provider ${agent.provider === 'codex' ? 'codex' : 'claude'}`}>
             {agent.provider === 'codex' ? 'codex' : 'claude'}
@@ -381,24 +431,17 @@ export function AgentPanel({
                 isLoadingHistory={history?.loading}
               />
             )}
-            {agent.status === 'working' && (
-              <div className="agent-panel-typing">
-                <WorkingIndicator detached={agent.isDetached} />
-                <button
-                  className="agent-panel-stop-btn"
-                  onClick={handleStopAgent}
-                  title={t('input.stopOperation')}
-                >
-                  {t('common:buttons.stop')}
-                </button>
-              </div>
-            )}
           </>
         )}
       </div>
 
       {/* Input - using shared TerminalInput with guake wrapper state classes */}
-      <div className={`guake-input-wrapper ${agent.status === 'working' ? 'is-working' : ''}`}>
+      <div className={`guake-input-wrapper ${agent.status === 'working' ? 'has-stop-btn is-working' : ''}`}>
+        <ElapsedTimer
+          agentId={agent.id}
+          isWorking={agent.status === 'working'}
+          timestamp={lastPrompt?.timestamp}
+        />
         <TerminalInput
           command={command}
           onCommandChange={setCommand}

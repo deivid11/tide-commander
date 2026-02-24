@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.76.0] - 2026-02-24
+
+### Added
+- **Isolated ElapsedTimer in AgentPanel** - Extracted elapsed timer + stop button into its own `memo`-wrapped component so the parent `AgentPanel` no longer re-renders every second while an agent is working
+- **Agent status label badge** - Colored status label (working/idle/error/offline) shown in the agent panel header for at-a-glance state
+- **Animated mobile accordion** - Focused panel expands with `panelExpand` keyframe animation plus staggered `contentFadeIn` and `inputSlideIn` for smooth open/close transitions
+- **Focus toggle** - Tapping an already-focused agent header collapses it back (toggle behavior instead of one-way)
+
+### Changed
+- **Exec task output preview** - Collapsed exec output now shows last 6 lines instead of 3 for better context
+- **Mobile auto-focus skips touch devices** - `(pointer: coarse)` media query prevents auto-focusing inputs on mobile, avoiding unwanted virtual keyboard popup
+- **Pin to bottom on focus** - Scroll auto-pins when an agent panel becomes focused (not just expanded)
+- **Click handler optimization** - Panel body `onClick` only fires on non-focused panels; focused panels route header clicks to toggle
+
+### Removed
+- **WorkingIndicator in AgentPanel** - Replaced by the isolated `ElapsedTimer` component that uses the Guake stop bar styling
+- **`.agent-panel-typing` / `.agent-panel-stop-btn`** - Removed old typing indicator styles in favor of shared `guake-stop-bar` styles
+
 ## [0.75.0] - 2026-02-23
 
 ### Added

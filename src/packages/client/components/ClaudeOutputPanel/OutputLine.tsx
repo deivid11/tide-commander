@@ -645,9 +645,9 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
           <div className="exec-task-output-container">
             {matchingExecTasks.map((task) => {
               const isExpanded = expandedExecTasks.has(task.taskId);
-              const lastThreeLines = task.output.slice(-3);
-              const isCollapsed = task.output.length > 3;
-              const displayLines = isExpanded ? task.output : lastThreeLines;
+              const lastLines = task.output.slice(-6);
+              const isCollapsed = task.output.length > 6;
+              const displayLines = isExpanded ? task.output : lastLines;
 
               return (
                 <div key={task.taskId} className={`exec-task-inline status-${task.status}`}>
