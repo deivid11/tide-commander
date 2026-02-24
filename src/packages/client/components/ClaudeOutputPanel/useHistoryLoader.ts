@@ -261,6 +261,9 @@ export function useHistoryLoader({
         return res.json();
       })
       .then((data) => {
+        // Ignore stale completions if a newer fetch has started (rapid agent switching)
+        if (fetchSeq !== fetchSeqRef.current) return;
+
         const messages: HistoryMessage[] = Array.isArray(data.messages) ? data.messages : [];
         setHistory(messages);
         historyLengthRef.current = messages.length;

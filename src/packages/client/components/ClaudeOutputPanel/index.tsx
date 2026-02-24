@@ -586,25 +586,33 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     });
   }, [outputs.length, lastOutputLength, keyboard.keyboardScrollLockRef, outputScrollRef]);
 
-  // Hide content immediately when agent changes (useLayoutEffect to avoid flicker)
-  // Also clear snapshot view when switching agents
+  // Hide content immediately when agent changes (useLayoutEffect to avoid flicker).
+  // For cached agents: skip isAgentSwitching entirely — content stays visible and
+  // VirtualizedOutputList remounts via key={activeAgentId} with cached data.
+  // For non-cached agents: hide content while history fetches.
   const prevSelectedAgentIdRef = useRef<string | null>(null);
   useLayoutEffect(() => {
     const prev = prevSelectedAgentIdRef.current;
     const changed = prev !== null && prev !== selectedAgentId;
-    if (changed) {
-      setIsAgentSwitching(true);
-    }
 
-    // Only hide content if no cached history exists for this agent.
-    // When cache is available, content shows instantly without a blank flash.
-    if (!selectedAgentId || !historyLoader.hasCachedHistory(selectedAgentId)) {
+    if (changed) {
+      const hasCached = selectedAgentId ? historyLoader.hasCachedHistory(selectedAgentId) : false;
+      if (!hasCached) {
+        // No cache: hide content and show loading indicator while history fetches
+        setIsAgentSwitching(true);
+        setHistoryFadeIn(false);
+      }
+      // Cached: content stays visible, VirtualizedOutputList remounts via key change.
+      // ~1 frame of stale data is imperceptible at 60fps.
+
+      if (store.getState().currentSnapshot) {
+        store.setCurrentSnapshot(null);
+      }
+    } else if (!selectedAgentId) {
       setHistoryFadeIn(false);
     }
+
     prevSelectedAgentIdRef.current = selectedAgentId;
-    if (changed && store.getState().currentSnapshot) {
-      store.setCurrentSnapshot(null);
-    }
   }, [selectedAgentId]);
 
   // Keep Guake output empty while agent switch is still settling (history fetch/cache rebind).
@@ -704,25 +712,35 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     };
   }, [pinToBottom, isOpen, historyLoader.fetchingHistory, historyLoader.historyLoadVersion]);
 
-  // After content loads: scroll first, then fade in
+  // After content loads: fade in once scroll has stabilized.
+  // Primary path: pinToBottom transitions true→false when stabilization loop completes.
+  const prevPinToBottomRef = useRef(false);
   useEffect(() => {
-    // Wait until open
-    if (!isOpen) return;
-
-    // Check if we have a pending fade-in
-    if (!pendingFadeInRef.current) {
-      return;
+    if (prevPinToBottomRef.current && !pinToBottom && pendingFadeInRef.current) {
+      // Scroll stabilization just completed — safe to show content
+      pendingFadeInRef.current = false;
+      setHistoryFadeIn(true);
     }
+    prevPinToBottomRef.current = pinToBottom;
+  }, [pinToBottom]);
 
-    // Use timeout + RAF to ensure content is fully rendered before fade-in
-    const timeoutId = setTimeout(() => {
-      requestAnimationFrame(() => {
+  // Fallback: if pinToBottom was never activated or was already false when
+  // history finished loading, trigger fade-in once fetch completes.
+  useEffect(() => {
+    if (!isOpen) return;
+    if (!pendingFadeInRef.current) return;
+    if (pinToBottom) return; // Wait for stabilization loop instead
+    if (historyLoader.fetchingHistory) return; // Wait for fetch to complete
+
+    // Pin was never active or already released — content is ready
+    const rafId = requestAnimationFrame(() => {
+      if (pendingFadeInRef.current) {
         pendingFadeInRef.current = false;
         setHistoryFadeIn(true);
-      });
-    }, 50);
-    return () => clearTimeout(timeoutId);
-  }, [historyLoader.historyLoadVersion, isOpen, outputScrollRef]);
+      }
+    });
+    return () => cancelAnimationFrame(rafId);
+  }, [historyLoader.historyLoadVersion, isOpen, pinToBottom, historyLoader.fetchingHistory]);
 
   // Keyboard shortcut to toggle terminal
   useEffect(() => {

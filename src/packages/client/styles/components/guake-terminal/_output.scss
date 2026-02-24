@@ -147,20 +147,12 @@
   }
 }
 
-// History content wrapper with fade-in animation
+// History content wrapper with fade-in transition
 .guake-history-content {
   opacity: 0;
+  transition: opacity 50ms ease-out;
 
   &.fade-in {
-    animation: history-fade-in 50ms ease-out forwards;
-  }
-}
-
-@keyframes history-fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
     opacity: 1;
   }
 }

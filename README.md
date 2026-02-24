@@ -203,6 +203,14 @@ AI coding orchestration and multi-agent management features:
 - 🌍 **Multilingual** - Full i18n support with 10 languages: English, Spanish, French, German, Italian, Portuguese, Russian, Chinese, Japanese, and Hindi
 - 📱 **Mobile Compatible** - Works on mobile devices and Android (optional APK)
 
+## 📲 Resume Anywhere
+
+Your agent sessions are not tied to one machine. Start work on desktop, then reconnect and continue the same conversations from your phone, tablet, or any other computer with remote access to your Tide Commander server.
+
+This makes it easy to keep tasks moving while you are away from your primary workstation.
+
+![Mobile Remote Session Resume](docs/img/mobile-remote-resume.png)
+
 ## 📚 Documentation
 
 Detailed guides for each feature are available in the [`docs/`](docs/) folder:
