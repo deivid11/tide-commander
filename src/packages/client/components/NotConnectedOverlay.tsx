@@ -1,14 +1,46 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import { useIsConnected } from '../store/selectors';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { store, useIsConnected } from '../store';
 import { reconnect } from '../websocket/connection';
 import { getBackendUrl, setBackendUrl, subscribeBackendUrlChange } from '../utils/storage';
+import { validateBackendUrlInput, checkBackendReachability } from '../utils/backendConnection';
+
+const CONNECT_TIMEOUT_MS = 4000;
 
 export function NotConnectedOverlay() {
   const isConnected = useIsConnected();
   const [dismissed, setDismissed] = useState(false);
   const [copied, setCopied] = useState(false);
   const [gracePeriod, setGracePeriod] = useState(true);
-  const [backendUrl, setBackendUrlState] = useState(() => getBackendUrl());
+  const [backendUrlDraft, setBackendUrlDraft] = useState(() => getBackendUrl());
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [connectError, setConnectError] = useState<string | null>(null);
+  const [connectStatus, setConnectStatus] = useState<string | null>(null);
+  const mountedRef = useRef(true);
+
+  const waitForWsConnected = useCallback((timeoutMs: number = 7000): Promise<boolean> => {
+    if (store.getState().isConnected) {
+      return Promise.resolve(true);
+    }
+
+    return new Promise((resolve) => {
+      let done = false;
+      const finish = (result: boolean) => {
+        if (done) return;
+        done = true;
+        clearTimeout(timeout);
+        unsubscribe();
+        resolve(result);
+      };
+
+      const unsubscribe = store.subscribe(() => {
+        if (store.getState().isConnected) {
+          finish(true);
+        }
+      });
+
+      const timeout = setTimeout(() => finish(false), timeoutMs);
+    });
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => setGracePeriod(false), 3000);
@@ -16,8 +48,14 @@ export function NotConnectedOverlay() {
   }, []);
 
   useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
     return subscribeBackendUrlChange((nextUrl) => {
-      setBackendUrlState(nextUrl);
+      setBackendUrlDraft(nextUrl);
     });
   }, []);
 
@@ -28,21 +66,84 @@ export function NotConnectedOverlay() {
     }).catch(() => {});
   }, []);
 
-  const handleConnect = useCallback(() => {
-    setBackendUrl(backendUrl);
+  const handleConnect = useCallback(async () => {
+    if (isConnecting) return;
+
+    const startedAt = Date.now();
+    const getRemainingMs = () => CONNECT_TIMEOUT_MS - (Date.now() - startedAt);
+
+    setConnectError(null);
+    setConnectStatus('Validating URL');
+
+    const validation = validateBackendUrlInput(backendUrlDraft);
+    if (!validation.ok) {
+      setConnectStatus(null);
+      setConnectError(validation.error || 'Invalid backend URL');
+      return;
+    }
+
+    setIsConnecting(true);
+    setConnectStatus('Checking host reachability');
+    const reachabilityTimeout = getRemainingMs();
+    if (reachabilityTimeout <= 0) {
+      setIsConnecting(false);
+      setConnectStatus(null);
+      setConnectError('Connection timeout after 4 seconds');
+      return;
+    }
+    const reachability = await checkBackendReachability(validation.normalizedUrl, reachabilityTimeout);
+    if (!reachability.ok) {
+      if (!mountedRef.current) return;
+      setIsConnecting(false);
+      setConnectStatus(null);
+      if (getRemainingMs() <= 0) {
+        setConnectError('Connection timeout after 4 seconds');
+      } else {
+        setConnectError(reachability.error || 'Failed to reach host');
+      }
+      return;
+    }
+
+    setBackendUrl(validation.normalizedUrl);
+    setConnectStatus('Connecting to server');
     reconnect();
-  }, [backendUrl]);
+
+    const wsTimeout = getRemainingMs();
+    if (wsTimeout <= 0) {
+      setIsConnecting(false);
+      setConnectStatus(null);
+      setConnectError('Connection timeout after 4 seconds');
+      return;
+    }
+
+    const connected = await waitForWsConnected(wsTimeout);
+    if (!mountedRef.current) return;
+
+    if (!connected) {
+      setIsConnecting(false);
+      setConnectStatus(null);
+      if (getRemainingMs() <= 0) {
+        setConnectError('Connection timeout after 4 seconds');
+      } else {
+        setConnectError('Could not establish WebSocket connection. Verify host and auth token, then retry');
+      }
+      return;
+    }
+
+    setIsConnecting(false);
+    setConnectStatus('Connected');
+    setConnectError(null);
+  }, [backendUrlDraft, isConnecting, waitForWsConnected]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !isConnecting) {
+      void handleConnect();
+    }
+  }, [handleConnect, isConnecting]);
 
   const handleExplore = useCallback(() => {
     setDismissed(true);
   }, []);
-
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      setBackendUrl(backendUrl);
-      reconnect();
-    }
-  }, [backendUrl]);
 
   if (isConnected || dismissed || gracePeriod) return null;
 
@@ -73,19 +174,29 @@ export function NotConnectedOverlay() {
               type="text"
               className="not-connected-url-input"
               placeholder="http://localhost:6200"
-              value={backendUrl}
+              value={backendUrlDraft}
+              disabled={isConnecting}
               onChange={(e) => {
                 const nextUrl = e.target.value;
-                setBackendUrlState(nextUrl);
-                setBackendUrl(nextUrl);
+                setBackendUrlDraft(nextUrl);
+                if (connectError) {
+                  setConnectError(null);
+                }
               }}
               onKeyDown={handleKeyDown}
             />
           </div>
+          <span className="config-hint">Leave empty for auto-detect</span>
+          {connectStatus && !connectError && (
+            <div className="not-connected-status" aria-live="polite">{connectStatus}</div>
+          )}
+          {connectError && (
+            <div className="not-connected-error" aria-live="assertive">{connectError}</div>
+          )}
         </div>
         <div className="not-connected-actions">
-          <button className="not-connected-btn not-connected-btn-retry" onClick={handleConnect}>
-            ↻ Connect
+          <button className="not-connected-btn not-connected-btn-retry" onClick={() => { void handleConnect(); }} disabled={isConnecting}>
+            {isConnecting ? 'Connecting...' : '↻ Connect'}
           </button>
           <button className="not-connected-btn not-connected-btn-explore" onClick={handleExplore}>
             Explore

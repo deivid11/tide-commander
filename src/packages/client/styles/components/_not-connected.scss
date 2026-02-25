@@ -133,6 +133,11 @@
   &:focus {
     border-color: $accent-blue;
   }
+
+  &:disabled {
+    opacity: 0.75;
+    cursor: not-allowed;
+  }
 }
 
 .not-connected-url-row {
@@ -146,6 +151,19 @@
   justify-content: center;
 }
 
+.not-connected-status {
+  margin-top: 10px;
+  font-size: 0.8rem;
+  color: $text-muted;
+}
+
+.not-connected-error {
+  margin-top: 10px;
+  font-size: 0.82rem;
+  color: #ff7d7d;
+  line-height: 1.4;
+}
+
 .not-connected-btn {
   padding: 10px 24px;
   border-radius: 8px;
@@ -155,6 +173,11 @@
   transition: all 0.2s;
   border: 1px solid transparent;
   font-family: inherit;
+
+  &:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
 }
 
 .not-connected-btn-retry {

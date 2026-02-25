@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.82.0] - 2026-02-25
+
+### Added
+- **Backend connection validation** - New `backendConnection.ts` utility with URL validation and `/api/health` reachability check before connecting
+- **NotConnectedOverlay connect flow** - Multi-step connection with status indicators (validating, checking reachability, connecting WebSocket) and clear error messages
+- **Boss delegation parser refactor** - Extracted delegation block extraction, JSON segment parser, and typed payload into clean functions with test helper
+
+### Changed
+- **Exec route `success` semantics** - `/api/exec` now returns `success: true` whenever the command ran (agents check `exitCode` for pass/fail)
+- **Streaming exec skill docs** - Documented `success`/`exitCode` semantics so agents correctly interpret non-zero exit codes
+
 ## [0.81.0] - 2026-02-25
 
 ### Added

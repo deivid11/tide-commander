@@ -32,8 +32,193 @@ export function clearDelegation(subordinateId: string): void {
   activeDelegations.delete(subordinateId);
 }
 
+/**
+ * Test helper to clear delegation parser state.
+ */
+export function resetBossDelegationStateForTests(): void {
+  processedDelegations.clear();
+  activeDelegations.clear();
+}
+
 export type BroadcastFn = (message: ServerMessage) => void;
 export type SendActivityFn = (agentId: string, message: string) => void;
+
+type DelegationPayload = {
+  selectedAgentId: string;
+  selectedAgentName: string;
+  taskCommand: string;
+  reasoning: string;
+  alternativeAgents: string[];
+  confidence: 'high' | 'medium' | 'low';
+};
+
+function broadcastDelegationError(
+  broadcast: BroadcastFn,
+  bossId: string,
+  bossName: string,
+  message: string
+): void {
+  broadcast({
+    type: 'output',
+    payload: {
+      agentId: bossId,
+      text: `Delegation parse error (${bossName}): ${message}`,
+      isStreaming: false,
+      timestamp: Date.now(),
+      isDelegation: true,
+    },
+  });
+}
+
+function extractDelegationBlocks(resultText: string): string[] {
+  const blocks: string[] = [];
+  const regex = /```delegation\s*\n([\s\S]*?)\n```/g;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(resultText)) !== null) {
+    blocks.push(match[1].trim());
+  }
+  return blocks;
+}
+
+function extractJsonSegments(text: string): string[] {
+  const segments: string[] = [];
+  let i = 0;
+
+  while (i < text.length) {
+    const startArray = text.indexOf('[', i);
+    const startObject = text.indexOf('{', i);
+    let start = -1;
+    if (startArray === -1) {
+      start = startObject;
+    } else if (startObject === -1) {
+      start = startArray;
+    } else {
+      start = Math.min(startArray, startObject);
+    }
+    if (start === -1) break;
+
+    const stack: string[] = [];
+    let inString = false;
+    let escaped = false;
+    let end = -1;
+
+    for (let j = start; j < text.length; j++) {
+      const ch = text[j];
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+        } else if (ch === '\\') {
+          escaped = true;
+        } else if (ch === '"') {
+          inString = false;
+        }
+        continue;
+      }
+
+      if (ch === '"') {
+        inString = true;
+        continue;
+      }
+
+      if (ch === '[' || ch === '{') {
+        stack.push(ch);
+        continue;
+      }
+
+      if (ch === ']' || ch === '}') {
+        const open = stack[stack.length - 1];
+        const validPair = (open === '[' && ch === ']') || (open === '{' && ch === '}');
+        if (!validPair) {
+          break;
+        }
+        stack.pop();
+        if (stack.length === 0) {
+          end = j + 1;
+          break;
+        }
+      }
+    }
+
+    if (end === -1) break;
+    segments.push(text.slice(start, end));
+    i = end;
+  }
+
+  return segments;
+}
+
+function parseDelegationBlockToArray(block: string): unknown[] {
+  const direct = block.trim();
+  if (!direct) return [];
+  try {
+    const parsed = JSON.parse(direct);
+    return Array.isArray(parsed) ? parsed : [parsed];
+  } catch {
+    const parsedSegments: unknown[] = [];
+    for (const segment of extractJsonSegments(block)) {
+      try {
+        const parsed = JSON.parse(segment);
+        if (Array.isArray(parsed)) {
+          parsedSegments.push(...parsed);
+        } else {
+          parsedSegments.push(parsed);
+        }
+      } catch {
+        // Continue trying subsequent JSON-like segments.
+      }
+    }
+    return parsedSegments;
+  }
+}
+
+function validateDelegationPayload(
+  raw: unknown,
+  originalCommand: string
+): { payload?: DelegationPayload; error?: string } {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { error: 'delegation item must be an object' };
+  }
+
+  const item = raw as Record<string, unknown>;
+  const selectedAgentId = typeof item.selectedAgentId === 'string' ? item.selectedAgentId.trim() : '';
+  const selectedAgentName = typeof item.selectedAgentName === 'string' ? item.selectedAgentName.trim() : '';
+  const explicitTask = typeof item.taskCommand === 'string' ? item.taskCommand.trim() : '';
+  const fallbackTask = originalCommand.trim();
+  const taskCommand = explicitTask || fallbackTask;
+
+  if (!selectedAgentId) return { error: 'selectedAgentId is required' };
+  if (!selectedAgentName) return { error: 'selectedAgentName is required' };
+  if (!taskCommand) return { error: 'taskCommand is required (or last boss command must be available)' };
+
+  const reasoning = typeof item.reasoning === 'string' ? item.reasoning : '';
+
+  let alternativeAgents: string[] = [];
+  if (item.alternativeAgents !== undefined) {
+    if (!Array.isArray(item.alternativeAgents) || item.alternativeAgents.some((a) => typeof a !== 'string')) {
+      return { error: 'alternativeAgents must be an array of strings' };
+    }
+    alternativeAgents = item.alternativeAgents;
+  }
+
+  let confidence: 'high' | 'medium' | 'low' = 'medium';
+  if (item.confidence !== undefined) {
+    if (item.confidence !== 'high' && item.confidence !== 'medium' && item.confidence !== 'low') {
+      return { error: 'confidence must be one of high|medium|low' };
+    }
+    confidence = item.confidence;
+  }
+
+  return {
+    payload: {
+      selectedAgentId,
+      selectedAgentName,
+      taskCommand,
+      reasoning,
+      alternativeAgents,
+      confidence,
+    },
+  };
+}
 
 /**
  * Parse delegation block from boss response
@@ -44,103 +229,113 @@ export function parseBossDelegation(
   resultText: string,
   broadcast: BroadcastFn
 ): void {
-  log.log(`🔴🔴🔴 parseBossDelegation CALLED for boss ${bossName}, resultText length: ${resultText.length}`);
-  log.log(` Boss ${bossName} checking for delegation block: ${resultText.includes('```delegation')}`);
+  log.log(`parseBossDelegation called for boss ${bossName}, resultText length=${resultText.length}`);
+  const blocks = extractDelegationBlocks(resultText);
+  if (blocks.length === 0) return;
 
-  const delegationMatch = resultText.match(/```delegation\s*\n([\s\S]*?)\n```/);
-  if (!delegationMatch) return;
+  log.log(`Boss ${bossName} found ${blocks.length} delegation block(s)`);
+  const originalCommand = getLastBossCommand(agentId) || '';
+  const now = Date.now();
 
-  log.log(` Boss ${bossName} delegation match found!`);
-  try {
-    const parsed = JSON.parse(delegationMatch[1].trim());
-    const delegations = Array.isArray(parsed) ? parsed : [parsed];
+  for (const [key, timestamp] of processedDelegations) {
+    if (now - timestamp > DELEGATION_DEDUP_WINDOW_MS) {
+      processedDelegations.delete(key);
+    }
+  }
 
-    log.log(` Parsed ${delegations.length} delegation(s) from boss ${bossName}`);
+  let anyParsed = false;
+  for (let blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
+    const block = blocks[blockIndex];
+    const parsedItems = parseDelegationBlockToArray(block);
 
-    const originalCommand = getLastBossCommand(agentId) || '';
-    const now = Date.now();
-
-    // Clean up old entries
-    for (const [key, timestamp] of processedDelegations) {
-      if (now - timestamp > DELEGATION_DEDUP_WINDOW_MS) {
-        processedDelegations.delete(key);
-      }
+    if (parsedItems.length === 0) {
+      const message = `block #${blockIndex + 1} has no valid JSON object/array`;
+      log.error(`Failed to parse delegation JSON from boss ${bossName}: ${message}`);
+      broadcastDelegationError(broadcast, agentId, bossName, message);
+      continue;
     }
 
-    for (const delegationJson of delegations) {
-      const taskCommand = delegationJson.taskCommand || originalCommand;
-      const targetAgentId = delegationJson.selectedAgentId;
-      const dedupKey = `${agentId}:${targetAgentId}:${taskCommand}`;
+    anyParsed = true;
+    log.log(`Boss ${bossName} parsed ${parsedItems.length} delegation item(s) from block #${blockIndex + 1}`);
 
+    for (let itemIndex = 0; itemIndex < parsedItems.length; itemIndex++) {
+      const rawItem = parsedItems[itemIndex];
+      const validated = validateDelegationPayload(rawItem, originalCommand);
+
+      if (!validated.payload) {
+        const message = `block #${blockIndex + 1}, item #${itemIndex + 1}: ${validated.error}`;
+        log.error(`Invalid delegation payload from boss ${bossName}: ${message}`);
+        broadcastDelegationError(broadcast, agentId, bossName, message);
+        continue;
+      }
+
+      const delegationJson = validated.payload;
+      const dedupKey = `${agentId}:${delegationJson.selectedAgentId}:${delegationJson.taskCommand}`;
       if (processedDelegations.has(dedupKey)) {
-        log.log(` SKIPPING duplicate delegation to ${delegationJson.selectedAgentName}: "${taskCommand.slice(0, 50)}..." (already processed)`);
+        log.log(`Skipping duplicate delegation to ${delegationJson.selectedAgentName}: "${delegationJson.taskCommand.slice(0, 50)}..."`);
         continue;
       }
 
       processedDelegations.set(dedupKey, now);
-      log.log(` Delegation to ${delegationJson.selectedAgentName}: "${taskCommand.slice(0, 80)}..."`);
+      log.log(`Delegation to ${delegationJson.selectedAgentName}: "${delegationJson.taskCommand.slice(0, 80)}..."`);
 
       const decision: DelegationDecision = {
-        id: `del-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        id: `del-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
         timestamp: Date.now(),
         bossId: agentId,
-        userCommand: taskCommand,
+        userCommand: delegationJson.taskCommand,
         selectedAgentId: delegationJson.selectedAgentId,
         selectedAgentName: delegationJson.selectedAgentName,
-        reasoning: delegationJson.reasoning || '',
-        alternativeAgents: delegationJson.alternativeAgents || [],
-        confidence: delegationJson.confidence || 'medium',
+        reasoning: delegationJson.reasoning,
+        alternativeAgents: delegationJson.alternativeAgents,
+        confidence: delegationJson.confidence,
         status: 'sent',
       };
 
       bossService.addDelegationToHistory(agentId, decision);
       broadcast({ type: 'delegation_decision', payload: decision });
 
-      if (decision.selectedAgentId) {
-        broadcast({
-          type: 'output',
-          payload: {
-            agentId: decision.selectedAgentId,
-            text: `📋 **Task delegated from ${bossName}:**\n\n${decision.userCommand}`,
-            isStreaming: false,
-            timestamp: Date.now(),
-            isDelegation: true,
-          },
-        });
-      }
+      broadcast({
+        type: 'output',
+        payload: {
+          agentId: decision.selectedAgentId,
+          text: `📋 **Task delegated from ${bossName}:**\n\n${decision.userCommand}`,
+          isStreaming: false,
+          timestamp: Date.now(),
+          isDelegation: true,
+        },
+      });
 
-      if (decision.selectedAgentId && decision.userCommand) {
-        log.log(`🟢🟢🟢 SENDING COMMAND to ${decision.selectedAgentName} (${decision.selectedAgentId}): "${decision.userCommand.slice(0, 50)}..."`);
+      log.log(`Sending command to ${decision.selectedAgentName} (${decision.selectedAgentId}): "${decision.userCommand.slice(0, 50)}..."`);
 
-        // Track this as an active delegation for progress reporting
-        activeDelegations.set(decision.selectedAgentId, {
+      activeDelegations.set(decision.selectedAgentId, {
+        bossId: agentId,
+        taskDescription: decision.userCommand,
+      });
+
+      broadcast({
+        type: 'agent_task_started',
+        payload: {
           bossId: agentId,
+          subordinateId: decision.selectedAgentId,
+          subordinateName: decision.selectedAgentName,
           taskDescription: decision.userCommand,
+        },
+      } as any);
+
+      const targetAgent = agentService.getAgent(decision.selectedAgentId);
+      const customAgentConfig = targetAgent ? buildCustomAgentConfig(decision.selectedAgentId, targetAgent.class) : undefined;
+      runtimeService.sendCommand(decision.selectedAgentId, decision.userCommand, undefined, undefined, customAgentConfig)
+        .catch(err => {
+          log.error(`Failed to auto-forward command to ${decision.selectedAgentName}:`, err);
         });
-        log.log(`[DELEGATION] Tracked active delegation: subordinate=${decision.selectedAgentId} -> boss=${agentId}, total active=${activeDelegations.size}`);
-
-        // Broadcast agent_task_started to boss terminal
-        broadcast({
-          type: 'agent_task_started',
-          payload: {
-            bossId: agentId,
-            subordinateId: decision.selectedAgentId,
-            subordinateName: decision.selectedAgentName,
-            taskDescription: decision.userCommand,
-          },
-        } as any);
-
-        // Build customAgentConfig for the target agent to ensure it gets its class instructions
-        const targetAgent = agentService.getAgent(decision.selectedAgentId);
-        const customAgentConfig = targetAgent ? buildCustomAgentConfig(decision.selectedAgentId, targetAgent.class) : undefined;
-        runtimeService.sendCommand(decision.selectedAgentId, decision.userCommand, undefined, undefined, customAgentConfig)
-          .catch(err => {
-            log.error(` Failed to auto-forward command to ${decision.selectedAgentName}:`, err);
-          });
-      }
     }
-  } catch (err) {
-    log.error(` Failed to parse delegation JSON from boss ${bossName}:`, err);
+  }
+
+  if (!anyParsed) {
+    const message = 'no valid delegation payloads were parsed';
+    log.error(`Failed to parse delegation JSON from boss ${bossName}: ${message}`);
+    broadcastDelegationError(broadcast, agentId, bossName, message);
   }
 }
 

@@ -86,11 +86,16 @@ The endpoint returns JSON when the command completes:
 }
 \`\`\`
 
+\`success\` is always \`true\` if the command executed (even with non-zero exit code).
+Check \`exitCode\` to determine if the command itself passed (0) or failed (non-zero).
+A non-zero exit code (e.g. test failures) is a normal result you should analyze, not an error.
+
 ## Important Notes
 
 1. Replace \`YOUR_AGENT_ID\` with your actual agent ID from the system prompt
 2. The user will see streaming output in the terminal "Running Tasks" section
 3. You will receive the final output when the command completes
 4. Use \`timeout\` command wrapper for commands that run indefinitely (like dev servers)
-5. The command runs in your agent's working directory by default`,
+5. The command runs in your agent's working directory by default
+6. Non-zero exit codes mean the command failed (e.g. test failures), not the API. Always check \`output\` to understand what happened`,
 };

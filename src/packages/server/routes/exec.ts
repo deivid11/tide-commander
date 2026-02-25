@@ -205,6 +205,7 @@ router.post('/', async (req: Request, res: Response) => {
     runningTasks.delete(taskId);
 
     // Broadcast task completed
+    // success means the task ran to completion (not killed/crashed)
     if (broadcastFn) {
       broadcastFn({
         type: 'exec_task_completed',
@@ -212,7 +213,7 @@ router.post('/', async (req: Request, res: Response) => {
           taskId,
           agentId,
           exitCode,
-          success: exitCode === 0,
+          success: exitCode !== null,
         },
       } as ServerMessage);
     }
@@ -220,8 +221,10 @@ router.post('/', async (req: Request, res: Response) => {
     log.log(`[${agent.name}] Command completed with exit code ${exitCode}`);
 
     // Return final result to the caller (curl)
+    // Always success: true since the API call worked (command was executed).
+    // Agents should check exitCode to determine if the command itself passed.
     res.status(200).json({
-      success: exitCode === 0,
+      success: true,
       taskId,
       exitCode,
       output: fullOutput,
