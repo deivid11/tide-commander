@@ -191,7 +191,7 @@ export function hasStorage(key: string): boolean {
  * Uses configured backend URL, dev default, or same-origin in production.
  */
 export function getApiBaseUrl(): string {
-  const configuredUrl = getStorageString(STORAGE_KEYS.BACKEND_URL, '');
+  const configuredUrl = getBackendUrl();
   if (configuredUrl) {
     // Remove trailing slash if present
     return configuredUrl.replace(/\/$/, '');
@@ -225,10 +225,40 @@ export function getBackendUrl(): string {
  * Set the configured backend URL and notify listeners in this window.
  */
 export function setBackendUrl(url: string): void {
-  setStorageString(STORAGE_KEYS.BACKEND_URL, url);
+  const nextUrl = url.trim();
+  setStorageString(STORAGE_KEYS.BACKEND_URL, nextUrl);
   if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent<string>(BACKEND_URL_CHANGE_EVENT, { detail: url }));
+    window.dispatchEvent(new CustomEvent<string>(BACKEND_URL_CHANGE_EVENT, { detail: nextUrl }));
   }
+}
+
+/**
+ * Subscribe to backend URL changes from both in-window updates and cross-tab storage updates.
+ */
+export function subscribeBackendUrlChange(onChange: (url: string) => void): () => void {
+  if (typeof window === 'undefined') {
+    return () => {};
+  }
+
+  const handleCustomEvent = (event: Event) => {
+    const customEvent = event as CustomEvent<string>;
+    onChange(customEvent.detail);
+  };
+
+  const handleStorageEvent = (event: StorageEvent) => {
+    if (event.key !== STORAGE_KEYS.BACKEND_URL) {
+      return;
+    }
+    onChange(event.newValue ?? '');
+  };
+
+  window.addEventListener(BACKEND_URL_CHANGE_EVENT, handleCustomEvent);
+  window.addEventListener('storage', handleStorageEvent);
+
+  return () => {
+    window.removeEventListener(BACKEND_URL_CHANGE_EVENT, handleCustomEvent);
+    window.removeEventListener('storage', handleStorageEvent);
+  };
 }
 
 /**

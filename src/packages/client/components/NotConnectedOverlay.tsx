@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useIsConnected } from '../store/selectors';
 import { reconnect } from '../websocket/connection';
-import { BACKEND_URL_CHANGE_EVENT, getBackendUrl, setBackendUrl } from '../utils/storage';
+import { getBackendUrl, setBackendUrl, subscribeBackendUrlChange } from '../utils/storage';
 
 export function NotConnectedOverlay() {
   const isConnected = useIsConnected();
@@ -16,15 +16,9 @@ export function NotConnectedOverlay() {
   }, []);
 
   useEffect(() => {
-    const handleBackendUrlChange = (event: Event) => {
-      const customEvent = event as CustomEvent<string>;
-      setBackendUrlState(customEvent.detail);
-    };
-
-    window.addEventListener(BACKEND_URL_CHANGE_EVENT, handleBackendUrlChange);
-    return () => {
-      window.removeEventListener(BACKEND_URL_CHANGE_EVENT, handleBackendUrlChange);
-    };
+    return subscribeBackendUrlChange((nextUrl) => {
+      setBackendUrlState(nextUrl);
+    });
   }, []);
 
   const handleCopy = useCallback(() => {
@@ -80,7 +74,11 @@ export function NotConnectedOverlay() {
               className="not-connected-url-input"
               placeholder="http://localhost:6200"
               value={backendUrl}
-              onChange={(e) => setBackendUrlState(e.target.value)}
+              onChange={(e) => {
+                const nextUrl = e.target.value;
+                setBackendUrlState(nextUrl);
+                setBackendUrl(nextUrl);
+              }}
               onKeyDown={handleKeyDown}
             />
           </div>

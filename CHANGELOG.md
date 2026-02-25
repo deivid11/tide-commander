@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.81.0] - 2026-02-25
+
+### Added
+- **Cross-tab backend URL sync** - New `subscribeBackendUrlChange()` utility syncs backend URL changes across browser tabs via `StorageEvent`
+
+### Changed
+- **Backend URL input persistence** - NotConnectedOverlay now saves URL on every keystroke instead of only on explicit save
+- **Centralized `getBackendUrl()` usage** - WebSocket connection and API base URL now use the same `getBackendUrl()` accessor instead of raw storage reads
+- **Simplified URL change subscriptions** - ConfigSection and NotConnectedOverlay use the new `subscribeBackendUrlChange()` helper, removing manual event listener boilerplate
+
 ## [0.80.0] - 2026-02-25
 
 ### Added

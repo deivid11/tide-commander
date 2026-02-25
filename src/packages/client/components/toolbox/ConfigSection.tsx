@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
 import { useStore, store } from '../../store';
-import { BACKEND_URL_CHANGE_EVENT, getBackendUrl, setBackendUrl, STORAGE_KEYS, setStorageString, getAuthToken } from '../../utils/storage';
+import { getBackendUrl, setBackendUrl, subscribeBackendUrlChange, STORAGE_KEYS, setStorageString, getAuthToken } from '../../utils/storage';
 import { reconnect } from '../../websocket';
 import { CollapsibleSection } from './CollapsibleSection';
 import { SecretsSection } from './SecretsSection';
@@ -227,16 +227,10 @@ export function ConfigSection({ config, onChange, searchQuery = '' }: ConfigSect
   }, []);
 
   useEffect(() => {
-    const handleBackendUrlChange = (event: Event) => {
-      const customEvent = event as CustomEvent<string>;
-      setBackendUrlState(customEvent.detail);
+    return subscribeBackendUrlChange((nextUrl) => {
+      setBackendUrlState(nextUrl);
       setBackendUrlDirty(false);
-    };
-
-    window.addEventListener(BACKEND_URL_CHANGE_EVENT, handleBackendUrlChange);
-    return () => {
-      window.removeEventListener(BACKEND_URL_CHANGE_EVENT, handleBackendUrlChange);
-    };
+    });
   }, []);
 
   // Translate option arrays at render time

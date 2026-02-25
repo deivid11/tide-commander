@@ -5,7 +5,7 @@
 import type { ServerMessage } from '../../shared/types';
 import { store } from '../store';
 import { agentDebugger } from '../services/agentDebugger';
-import { STORAGE_KEYS, getStorageString, getAuthToken } from '../utils/storage';
+import { getBackendUrl, getAuthToken } from '../utils/storage';
 import { syncConnectionToNative } from '../utils/notifications';
 import {
   getWs, setWs,
@@ -97,7 +97,7 @@ export function connect(): void {
   setIsConnecting(true);
 
   // Get configured backend URL or use defaults
-  const configuredUrl = getStorageString(STORAGE_KEYS.BACKEND_URL, '');
+  const configuredUrl = getBackendUrl();
   const authToken = getAuthToken();
 
   // Build WebSocket URL
