@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.78.1] - 2026-02-24
+
+### Changed
+- **Release pipeline skill refinements** - Debug APK now always builds as part of the release (no longer optional), version bump type is auto-decided from commit history
+
 ## [0.78.0] - 2026-02-24
 
 ### Added

@@ -18,7 +18,7 @@ export const releasePipeline: BuiltinSkillDefinition = {
   ],
   content: `# Release Pipeline
 
-Full release workflow for Tide Commander. Runs quality checks, builds everything, bumps the version, updates the changelog, tags, pushes, creates a GitHub release, and optionally attaches the APK.
+Full release workflow for Tide Commander. Runs quality checks, builds web app + debug APK, bumps the version, updates the changelog, tags, pushes, creates a GitHub release with the APK attached.
 
 ## Core Principles
 
@@ -110,23 +110,9 @@ curl -s -X POST http://localhost:5174/api/exec \\
 
 If the build fails, STOP and report the error.
 
-#### Build Android APK (optional - ask user)
+#### Build Android Debug APK
 
-Ask the user: "Do you want to build the Android APK as part of this release?"
-
-If yes, build the **release** APK:
-
-\`\`\`bash
-curl -s -X POST http://localhost:5174/api/exec \\
-  -H "Content-Type: application/json" \\
-  -d '{"agentId":"YOUR_AGENT_ID","command":"make apk-release"}'
-\`\`\`
-
-This runs: \`npm run build\` + \`npx cap sync\` + \`gradlew assembleRelease\`
-
-Output APK location: \`android/app/build/outputs/apk/release/app-release-unsigned.apk\`
-
-For a **debug** APK instead:
+After the web build succeeds, always build the debug APK. This runs \`npx cap sync android\` + \`gradlew assembleDebug\`:
 
 \`\`\`bash
 curl -s -X POST http://localhost:5174/api/exec \\
@@ -134,7 +120,7 @@ curl -s -X POST http://localhost:5174/api/exec \\
   -d '{"agentId":"YOUR_AGENT_ID","command":"make apk"}'
 \`\`\`
 
-Output: \`android/app/build/outputs/apk/debug/app-debug.apk\`
+Output APK location: \`android/app/build/outputs/apk/debug/app-debug.apk\`
 
 If the APK build fails, STOP and report the error.
 
@@ -149,10 +135,12 @@ Read the current version:
 npm pkg get version
 \`\`\`
 
-Ask the user or infer from changes:
-- **patch** (0.0.X): Bug fixes, small changes, performance tweaks
-- **minor** (0.X.0): New features, non-breaking changes
-- **major** (X.0.0): Breaking changes, major rewrites
+Analyze the commits since the last tag and **decide the version bump yourself** based on conventional commit prefixes. Do NOT ask the user which type to use.
+
+Rules for automatic selection:
+- **patch** (0.0.X): Only \`fix:\`, \`perf:\`, \`refactor:\`, \`chore:\`, \`docs:\`, \`style:\`, \`test:\` commits - no new user-facing features
+- **minor** (0.X.0): At least one \`feat:\` or \`add:\` commit, or new files/modules/skills added - no breaking changes
+- **major** (X.0.0): Commits containing \`BREAKING CHANGE\` in the body, or \`feat!:\` / \`fix!:\` prefix indicating breaking API/behavior changes
 
 #### Bump the Version
 
@@ -257,15 +245,10 @@ gh release create v<VERSION> --title "v<VERSION>" --notes "<RELEASE_NOTES>"
 - Architecture changes
 \`\`\`
 
-#### Attach APK to Release (if built)
+#### Attach Debug APK to Release
 
-If an APK was built, attach it to the GitHub release:
+Attach the debug APK to the GitHub release:
 
-\`\`\`bash
-gh release upload v<VERSION> android/app/build/outputs/apk/release/app-release-unsigned.apk --clobber
-\`\`\`
-
-Or for debug APK:
 \`\`\`bash
 gh release upload v<VERSION> android/app/build/outputs/apk/debug/app-debug.apk --clobber
 \`\`\`
@@ -319,7 +302,6 @@ Skip Phases 2-4, run Phases 5-7 only.
 | Tests | \`npm test\` | All passing |
 | Build | \`npm run build\` | Exit code 0 |
 | APK Debug | \`make apk\` | Exit code 0 |
-| APK Release | \`make apk-release\` | Exit code 0 |
 | Version | \`npm version <type> --no-git-tag-version\` | - |
 | Tag | \`git tag -a v<VER> -m "..."\` | - |
 | Push | \`git push origin <branch> && git push origin v<VER>\` | - |
@@ -335,9 +317,5 @@ Skip Phases 2-4, run Phases 5-7 only.
 - **x.Y.0** - New features (backwards compatible)
 - **x.x.Z** - Bug fixes only
 
-When unsure about version type, ask the user:
-> "What type of release is this?
-> - **patch** (bug fixes only)
-> - **minor** (new features, no breaking changes)
-> - **major** (breaking changes)"`,
+Always decide the version type automatically based on the commit history. Only ask the user if the commits are genuinely ambiguous (e.g., a mix of features and potential breaking changes).`,
 };
