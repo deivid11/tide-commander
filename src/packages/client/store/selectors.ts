@@ -760,6 +760,17 @@ export function useReconnectCount(): number {
   );
 }
 
+/**
+ * Get the history refresh trigger counter.
+ * Increments when an agent's session file updates or agent transitions to idle,
+ * signaling useHistoryLoader to re-fetch conversation history.
+ */
+export function useHistoryRefreshTrigger(): number {
+  return useSelector(
+    useCallback((state: StoreState) => state.historyRefreshTrigger, [])
+  );
+}
+
 // ============================================================================
 // GLOBAL USAGE SELECTORS
 // ============================================================================

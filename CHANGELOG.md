@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.79.0] - 2026-02-24
+
+### Added
+- **Auto-refresh conversation history** - Terminal output now auto-refreshes when an agent transitions from working to idle or when a session file updates, catching events missed during backend disconnects
+
 ## [0.78.1] - 2026-02-24
 
 ### Changed

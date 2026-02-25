@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { useAgentsArray, useAgent, useAgentOutputs, useReconnectCount, useLastPrompts } from '../../store/selectors';
+import { useAgentsArray, useAgent, useAgentOutputs, useReconnectCount, useHistoryRefreshTrigger, useLastPrompts } from '../../store/selectors';
 import { store } from '../../store';
 import { BUILT_IN_AGENT_CLASSES, type Agent, type AgentStatus } from '../../../shared/types';
 
@@ -318,6 +318,7 @@ function ConversationView({ agentId, onBack }: ConversationViewProps) {
   const agent = useAgent(agentId);
   const outputs = useAgentOutputs(agentId);
   const reconnectCount = useReconnectCount();
+  const historyRefreshTrigger = useHistoryRefreshTrigger();
   const lastPrompts = useLastPrompts();
   const outputScrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -332,6 +333,7 @@ function ConversationView({ agentId, onBack }: ConversationViewProps) {
     selectedAgentId: agentId,
     hasSessionId,
     reconnectCount,
+    historyRefreshTrigger,
     lastPrompts,
     outputScrollRef,
   });

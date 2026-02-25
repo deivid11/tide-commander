@@ -25,6 +25,7 @@ import {
   useMobileView,
   store,
   useReconnectCount,
+  useHistoryRefreshTrigger,
   useAgentTaskProgress,
   useExecTasks,
   useSubagentsMapForAgent,
@@ -120,6 +121,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
   const terminalOpen = useTerminalOpen();
   const lastPrompts = useLastPrompts();
   const reconnectCount = useReconnectCount();
+  const historyRefreshTrigger = useHistoryRefreshTrigger();
   const mobileView = useMobileView();
   const fileViewerPath = useFileViewerPath();
   const contextModalAgentId = useContextModalAgentId();
@@ -236,6 +238,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     selectedAgentId: activeAgentId,
     hasSessionId,
     reconnectCount,
+    historyRefreshTrigger,
     lastPrompts,
     outputScrollRef,
   });

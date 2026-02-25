@@ -28,6 +28,7 @@ import { createSecretActions, type SecretActions } from './secrets';
 import { createDatabaseActions, type DatabaseActions } from './database';
 import { createSnapshotActions, type SnapshotActions } from './snapshots';
 import { createSubagentActions, type SubagentActions } from './subagents';
+import { evictHistoryCache } from '../components/ClaudeOutputPanel/useHistoryLoader';
 
 // Import shortcuts
 import { ShortcutConfig, DEFAULT_SHORTCUTS } from './shortcuts';
@@ -129,6 +130,7 @@ export {
   useCustomAgentClassesArray,
   useCustomAgentClass,
   useReconnectCount,
+  useHistoryRefreshTrigger,
   useGlobalUsage,
   useRefreshingUsage,
   useMouseControls,
@@ -251,6 +253,7 @@ class Store
       skills: new Map(),
       customAgentClasses: new Map(),
       reconnectCount: 0,
+      historyRefreshTrigger: 0,
       execTasks: new Map(),
       secrets: new Map(),
       databaseState: new Map(),
@@ -397,6 +400,17 @@ class Store
    */
   triggerReconnect(): void {
     this.state.reconnectCount++;
+    this.notify();
+  }
+
+  /**
+   * Called when an agent's session file updates or agent transitions to idle.
+   * Evicts the history cache and increments historyRefreshTrigger so
+   * useHistoryLoader re-fetches conversation history for that agent.
+   */
+  triggerHistoryRefresh(agentId: string): void {
+    evictHistoryCache(agentId);
+    this.state.historyRefreshTrigger++;
     this.notify();
   }
 

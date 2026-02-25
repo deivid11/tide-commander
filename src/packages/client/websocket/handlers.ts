@@ -90,6 +90,12 @@ export function handleServerMessage(message: ServerMessage): void {
         console.log(`[Tide] 🔔 Status change for ${updatedAgent.name}: ${previousAgent?.status} → ${updatedAgent.status}`);
       }
 
+      // When agent transitions from working to idle, refresh conversation history
+      // to catch up on events missed during backend disconnects
+      if (statusChanged && previousAgent?.status === 'working' && updatedAgent.status === 'idle') {
+        store.triggerHistoryRefresh(updatedAgent.id);
+      }
+
       const positionChanged = previousAgent
         ? previousAgent.position.x !== updatedAgent.position.x ||
           previousAgent.position.z !== updatedAgent.position.z
@@ -255,10 +261,13 @@ export function handleServerMessage(message: ServerMessage): void {
     }
 
     case 'session_updated': {
-      // An orphaned agent's session file was updated - refresh its history
+      // An agent's session file was updated - refresh its history
       const { agentId } = message.payload as { agentId: string };
       // Reload the tool history to get the latest updates from the detached process
       store.loadToolHistory();
+      // Trigger a conversation history refresh so the terminal catches up
+      // on any events that were missed (e.g. during a backend disconnect)
+      store.triggerHistoryRefresh(agentId);
       // Also update the agent to trigger a UI refresh
       const agent = store.getState().agents.get(agentId);
       if (agent) {
