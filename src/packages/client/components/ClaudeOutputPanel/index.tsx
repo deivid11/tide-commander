@@ -34,6 +34,7 @@ import {
   useCurrentSnapshot,
   useOverviewPanelOpen,
   usePermissionRequests,
+  useAreas,
 } from '../../store';
 import {
   STORAGE_KEYS,
@@ -160,6 +161,18 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
   const activeAgent = selectedAgent ?? (isSnapshotView ? snapshotAgent : null);
   const activeAgentId = selectedAgentId ?? (isSnapshotView ? currentSnapshot?.agentId ?? null : null);
   const hasSessionId = !!activeAgent?.sessionId && !isSnapshotView;
+
+  // Get area folders for the active agent
+  const areas = useAreas();
+  const agentArea = useMemo(() => {
+    if (!activeAgentId) return null;
+    for (const area of areas.values()) {
+      if (area.assignedAgentIds.includes(activeAgentId) && area.directories.length > 0) {
+        return area;
+      }
+    }
+    return null;
+  }, [activeAgentId, areas]);
 
   // Use extracted hooks
   const { terminalHeight, terminalRef, handleResizeStart } = useTerminalResize();
@@ -1140,6 +1153,16 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
               📁 {activeAgent.cwd.split('/').filter(Boolean).slice(-2).join('/') || activeAgent.cwd}
             </span>
           )}
+          {agentArea && agentArea.directories.map((dir) => (
+            <span
+              key={dir}
+              className="guake-agent-area-dir"
+              title={dir}
+              onClick={() => store.openFileExplorerForAreaFolder(agentArea.id, dir)}
+            >
+              📂 {dir.split('/').filter(Boolean).pop() || dir}
+            </span>
+          ))}
           {!isSnapshotView && activeAgent && (() => {
             // Use contextStats if available (from /context command), otherwise fallback to basic
             const stats = activeAgent.contextStats;

@@ -405,13 +405,17 @@ class Store
 
   /**
    * Called when an agent's session file updates or agent transitions to idle.
-   * Evicts the history cache and increments historyRefreshTrigger so
-   * useHistoryLoader re-fetches conversation history for that agent.
+   * Always evicts the history cache so the next visit fetches fresh data.
+   * Only increments historyRefreshTrigger (causing an immediate re-fetch)
+   * if the affected agent is currently selected in the terminal.
    */
   triggerHistoryRefresh(agentId: string): void {
     evictHistoryCache(agentId);
-    this.state.historyRefreshTrigger++;
-    this.notify();
+    // Only trigger an immediate re-fetch if this agent is currently viewed
+    if (this.state.selectedAgentIds.has(agentId)) {
+      this.state.historyRefreshTrigger++;
+      this.notify();
+    }
   }
 
   // ============================================================================

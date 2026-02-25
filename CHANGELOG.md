@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.83.0] - 2026-02-25
+
+### Added
+- **Area directory badges in terminal header** - Clickable folder badges showing assigned area directories for the active agent, opening the file explorer on click
+
+### Changed
+- **Smarter history refresh trigger** - `triggerHistoryRefresh` now only triggers an immediate re-fetch if the affected agent is currently selected in the terminal, reducing unnecessary network requests
+
 ## [0.82.0] - 2026-02-25
 
 ### Added
