@@ -599,14 +599,16 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     const changed = prev !== null && prev !== selectedAgentId;
 
     if (changed) {
+      // Always hide content during switch — the VirtualizedOutputList remounts via
+      // key={activeAgentId} and needs a few frames to rebuild + scroll to bottom.
+      // Content is revealed by the fade-in after scroll stabilises.
+      setHistoryFadeIn(false);
+
       const hasCached = selectedAgentId ? historyLoader.hasCachedHistory(selectedAgentId) : false;
       if (!hasCached) {
-        // No cache: hide content and show loading indicator while history fetches
+        // No cache: also show loading indicator while history fetches
         setIsAgentSwitching(true);
-        setHistoryFadeIn(false);
       }
-      // Cached: content stays visible, VirtualizedOutputList remounts via key change.
-      // ~1 frame of stale data is imperceptible at 60fps.
 
       if (store.getState().currentSnapshot) {
         store.setCurrentSnapshot(null);
@@ -693,7 +695,9 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
       lastScrollHeight = currentScrollHeight;
 
       // If we've been stable at the bottom for a few frames, stop pinning.
-      if (stableFrames >= 8) {
+      // VirtualizedOutputList's RAF loop handles the active scrolling;
+      // this loop only observes when it's safe to release.
+      if (stableFrames >= 3) {
         setPinToBottom(false);
         rafId = null;
         return;

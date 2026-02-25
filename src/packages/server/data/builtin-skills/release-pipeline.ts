@@ -3,7 +3,7 @@ import type { BuiltinSkillDefinition } from './types.js';
 export const releasePipeline: BuiltinSkillDefinition = {
   slug: 'release-pipeline',
   name: 'TC Release Pipeline',
-  description: 'Full release workflow: lint, type-check, test, build, APK, version bump, changelog, git tag, GitHub release. Use when asked to release, publish, ship, or do a full build pipeline.',
+  description: 'Full release workflow: lint, type-check, test, build, APK artifacts, version bump, changelog, git tag, GitHub release, npm public publish. Use when asked to release, publish, ship, or do a full build pipeline.',
   allowedTools: [
     'Bash(git:*)',
     'Bash(npm:*)',
@@ -18,7 +18,7 @@ export const releasePipeline: BuiltinSkillDefinition = {
   ],
   content: `# Release Pipeline
 
-Full release workflow for Tide Commander. Runs quality checks, builds web app + debug APK, bumps the version, updates the changelog, tags, pushes, creates a GitHub release with the APK attached.
+Full release workflow for Tide Commander. Runs quality checks, builds web app + APK artifacts, bumps the version, updates the changelog, tags, pushes, creates a GitHub release with APKs attached, and publishes publicly to npm.
 
 ## Core Principles
 
@@ -124,6 +124,20 @@ Output APK location: \`android/app/build/outputs/apk/debug/app-debug.apk\`
 
 If the APK build fails, STOP and report the error.
 
+#### Build Android Non-Dev Debug APK (signing-safe artifact)
+
+Build a non-dev debug APK using bundled assets:
+
+\`\`\`bash
+curl -s -X POST http://localhost:5174/api/exec \\
+  -H "Content-Type: application/json" \\
+  -d '{"agentId":"YOUR_AGENT_ID","command":"make apk-release-nondev"}'
+\`\`\`
+
+Output APK location: \`android/app/build/outputs/apk/debug/app-debug.apk\`
+
+If the non-dev debug APK build fails, STOP and report the error.
+
 ---
 
 ### Phase 4: Version Bump
@@ -219,7 +233,7 @@ git push origin v<VERSION>
 
 ---
 
-### Phase 7: GitHub Release
+### Phase 7: Public Release (GitHub + npm)
 
 Create the GitHub release using the \`gh\` CLI:
 
@@ -245,13 +259,32 @@ gh release create v<VERSION> --title "v<VERSION>" --notes "<RELEASE_NOTES>"
 - Architecture changes
 \`\`\`
 
-#### Attach Debug APK to Release
+#### Attach APK Artifacts to Release
 
-Attach the debug APK to the GitHub release:
+Attach APK artifacts to the GitHub release:
 
 \`\`\`bash
 gh release upload v<VERSION> android/app/build/outputs/apk/debug/app-debug.apk --clobber
 \`\`\`
+
+#### Publish to npm (public)
+
+Preferred path: pushing tag \`v<VERSION>\` triggers the trusted publish workflow in \`.github/workflows/publish.yml\`.
+
+Verify publish workflow completion:
+
+\`\`\`bash
+gh run list --workflow publish.yml --limit 5
+\`\`\`
+
+If workflow is unavailable or user asks for manual publish, run:
+
+\`\`\`bash
+npm whoami
+npm publish --provenance --access public
+\`\`\`
+
+If publish fails, STOP and report exact error (auth, 2FA, version exists, provenance, etc).
 
 ---
 
@@ -286,6 +319,8 @@ Skip Phases 2-4, run Phases 5-7 only.
 - **Test failures**: STOP, report failing tests, do NOT auto-fix
 - **Build failure**: STOP, report the build error
 - **APK build failure**: STOP, report the error (often SDK/Gradle issues)
+- **GitHub release failure**: STOP, report the \`gh\` error and current release/tag state
+- **npm publish failure**: STOP, report exact publish error (auth, 2FA, version exists, provenance)
 - **Git conflicts**: STOP, list conflicting files, ask user to resolve manually
 - **Push rejected**: STOP, report the rejection reason (likely needs pull first)
 
@@ -302,11 +337,13 @@ Skip Phases 2-4, run Phases 5-7 only.
 | Tests | \`npm test\` | All passing |
 | Build | \`npm run build\` | Exit code 0 |
 | APK Debug | \`make apk\` | Exit code 0 |
+| APK Non-Dev Debug | \`make apk-release-nondev\` | Exit code 0 |
 | Version | \`npm version <type> --no-git-tag-version\` | - |
 | Tag | \`git tag -a v<VER> -m "..."\` | - |
 | Push | \`git push origin <branch> && git push origin v<VER>\` | - |
 | GH Release | \`gh release create v<VER> --notes "..."\` | - |
-| Attach APK | \`gh release upload v<VER> <apk-path> --clobber\` | - |
+| Attach APKs | \`gh release upload v<VER> <apk-path> --clobber\` | - |
+| npm Publish | \`npm publish --provenance --access public\` | Exit code 0 |
 
 ---
 

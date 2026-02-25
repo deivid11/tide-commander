@@ -4,6 +4,8 @@
 
 import React, { useRef, useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import type { DiffLine, EditData, TodoItem } from './types';
 
 // ============================================================================
@@ -396,6 +398,57 @@ export function AskQuestionInput({ content }: AskQuestionInputProps) {
             )}
           </div>
         ))}
+      </div>
+    );
+  } catch {
+    return <pre className="output-input-content">{content}</pre>;
+  }
+}
+
+// ============================================================================
+// ExitPlanMode Tool Input Component
+// ============================================================================
+
+interface ExitPlanModeInputProps {
+  content: string;
+}
+
+export function ExitPlanModeInput({ content }: ExitPlanModeInputProps) {
+  const [expanded, setExpanded] = useState(false);
+
+  try {
+    const input = JSON.parse(content);
+    const plan = typeof input.plan === 'string' ? input.plan.trim() : '';
+
+    if (!plan) {
+      return <pre className="output-input-content">{content}</pre>;
+    }
+
+    const headingMatch = plan.match(/^#+\s+(.+)$/m);
+    const preview = (headingMatch?.[1] || plan.split('\n').find((line: string) => line.trim().length > 0) || 'Plan ready').trim();
+
+    return (
+      <div className="plan-tool-input">
+        <div className="plan-tool-header">
+          <span className="plan-tool-title">🗺 Plan</span>
+          <button
+            type="button"
+            className="plan-tool-toggle"
+            onClick={() => setExpanded((prev) => !prev)}
+            title={expanded ? 'Collapse plan' : 'Expand plan'}
+          >
+            {expanded ? '▼ Hide' : '▶ Show'}
+          </button>
+        </div>
+        {expanded ? (
+          <div className="plan-tool-markdown markdown-content">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {plan}
+            </ReactMarkdown>
+          </div>
+        ) : (
+          <div className="plan-tool-collapsed-preview">{preview}</div>
+        )}
       </div>
     );
   } catch {

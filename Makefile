@@ -1,7 +1,7 @@
 # Tide Commander Makefile
 # Common commands for development and builds
 
-.PHONY: dev build clean install lint test apk apk-release sync help landing dev-landing deploy-landing tc
+.PHONY: dev build clean install lint test apk apk-release apk-release-nondev dev-apk sync help landing dev-landing deploy-landing tc
 
 # Default target
 help:
@@ -24,6 +24,8 @@ help:
 	@echo "  Android:"
 	@echo "    make apk          - Build debug APK"
 	@echo "    make apk-release  - Build release APK"
+	@echo "    make apk-release-nondev - Build non-dev debug APK"
+	@echo "    make dev-apk      - Build debug APK with CAP_SERVER_URL"
 	@echo "    make sync         - Sync web assets to Android"
 	@echo "    make android      - Full build + open Android Studio"
 	@echo ""
@@ -91,6 +93,27 @@ apk-release: sync
 	@echo ""
 	@echo "Release APK built!"
 	@echo "Location: android/app/build/outputs/apk/release/app-release-unsigned.apk"
+
+apk-release-nondev:
+	CAP_SERVER_URL= npm run build
+	CAP_SERVER_URL= npx cap sync android
+	cd android && ./gradlew assembleDebug
+	@echo ""
+	@echo "Non-dev debug APK built with bundled assets"
+	@echo "Location: android/app/build/outputs/apk/debug/app-debug.apk"
+
+dev-apk:
+	@if [ -z "$(CAP_SERVER_URL)" ]; then \
+		echo "CAP_SERVER_URL is required"; \
+		echo "Usage: make dev-apk CAP_SERVER_URL=http://<your-ip>:5173"; \
+		exit 1; \
+	fi
+	CAP_SERVER_URL="$(CAP_SERVER_URL)" npm run build
+	CAP_SERVER_URL="$(CAP_SERVER_URL)" npx cap sync android
+	cd android && ./gradlew assembleDebug
+	@echo ""
+	@echo "Dev debug APK built with CAP_SERVER_URL=$(CAP_SERVER_URL)"
+	@echo "Location: android/app/build/outputs/apk/debug/app-debug.apk"
 
 android:
 	npm run android

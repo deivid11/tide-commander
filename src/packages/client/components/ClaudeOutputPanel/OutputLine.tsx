@@ -10,7 +10,7 @@ import { TOOL_ICONS, extractExecWrappedCommand, formatTimestamp, getLocalizedToo
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, DelegatedTaskHeader, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions } from './BossContext';
-import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput } from './ToolRenderers';
+import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, ExitPlanModeInput } from './ToolRenderers';
 import { renderContentWithImages, renderUserPromptContent } from './contentRendering';
 import { ansiToHtml } from '../../utils/ansiToHtml';
 import { useTTS } from '../../hooks/useTTS';
@@ -274,6 +274,8 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       const prompts = input.allowedPrompts as Array<{ tool?: string; prompt?: string }> | undefined;
       if (Array.isArray(prompts) && prompts.length > 0) {
         toolKeyParamOrFallback = prompts.map(p => p.prompt || p.tool || '').filter(Boolean).join(', ');
+      } else if (payloadToolName === 'ExitPlanMode' && typeof input.plan === 'string' && input.plan.trim().length > 0) {
+        toolKeyParamOrFallback = input.plan.trim();
       } else {
         toolKeyParamOrFallback = payloadToolName === 'ExitPlanMode' ? 'Plan ready' : 'Entering plan mode';
       }
@@ -432,6 +434,24 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
           <span className="output-tool-icon">{icon}</span>
           <span className="output-tool-name">{displayToolName}</span>
           <AskQuestionInput content={askQuestionContent} />
+        </div>
+      );
+    }
+
+    // Special case: ExitPlanMode renders plan markdown inline
+    const exitPlanContent = (
+      toolName === 'ExitPlanMode' && payloadToolInput && typeof payloadToolInput === 'object' && typeof (payloadToolInput as Record<string, unknown>).plan === 'string'
+        ? JSON.stringify(payloadToolInput)
+        : undefined
+    );
+    if (toolName === 'ExitPlanMode' && exitPlanContent) {
+      return (
+        <div className={`output-line output-tool-use output-plan-inline ${isStreaming ? 'output-streaming' : ''}`}>
+          <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
+          {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+          <span className="output-tool-icon">{icon}</span>
+          <span className="output-tool-name">{displayToolName}</span>
+          <ExitPlanModeInput content={exitPlanContent} />
         </div>
       );
     }

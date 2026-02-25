@@ -1,18 +1,30 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useIsConnected } from '../store/selectors';
 import { reconnect } from '../websocket/connection';
-import { STORAGE_KEYS, getStorageString, setStorageString } from '../utils/storage';
+import { BACKEND_URL_CHANGE_EVENT, getBackendUrl, setBackendUrl } from '../utils/storage';
 
 export function NotConnectedOverlay() {
   const isConnected = useIsConnected();
   const [dismissed, setDismissed] = useState(false);
   const [copied, setCopied] = useState(false);
   const [gracePeriod, setGracePeriod] = useState(true);
-  const [backendUrl, setBackendUrl] = useState(() => getStorageString(STORAGE_KEYS.BACKEND_URL, ''));
+  const [backendUrl, setBackendUrlState] = useState(() => getBackendUrl());
 
   useEffect(() => {
     const timer = setTimeout(() => setGracePeriod(false), 3000);
     return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    const handleBackendUrlChange = (event: Event) => {
+      const customEvent = event as CustomEvent<string>;
+      setBackendUrlState(customEvent.detail);
+    };
+
+    window.addEventListener(BACKEND_URL_CHANGE_EVENT, handleBackendUrlChange);
+    return () => {
+      window.removeEventListener(BACKEND_URL_CHANGE_EVENT, handleBackendUrlChange);
+    };
   }, []);
 
   const handleCopy = useCallback(() => {
@@ -23,7 +35,7 @@ export function NotConnectedOverlay() {
   }, []);
 
   const handleConnect = useCallback(() => {
-    setStorageString(STORAGE_KEYS.BACKEND_URL, backendUrl);
+    setBackendUrl(backendUrl);
     reconnect();
   }, [backendUrl]);
 
@@ -33,7 +45,7 @@ export function NotConnectedOverlay() {
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      setStorageString(STORAGE_KEYS.BACKEND_URL, backendUrl);
+      setBackendUrl(backendUrl);
       reconnect();
     }
   }, [backendUrl]);
@@ -68,7 +80,7 @@ export function NotConnectedOverlay() {
               className="not-connected-url-input"
               placeholder="http://localhost:6200"
               value={backendUrl}
-              onChange={(e) => setBackendUrl(e.target.value)}
+              onChange={(e) => setBackendUrlState(e.target.value)}
               onKeyDown={handleKeyDown}
             />
           </div>

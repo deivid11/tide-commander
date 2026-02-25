@@ -37,6 +37,14 @@ export const ViewModeToggle = memo(function ViewModeToggle({ className = '' }: V
   const handleModeChange = useCallback(
     (mode: ViewMode) => {
       if (mode !== viewMode) {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('tide:viewmode-switch-pressed', { detail: { mode } }));
+        }
+        if (mode === '3d') {
+          // Let loader state render first, then switch modes on next frame.
+          requestAnimationFrame(() => setViewMode(mode));
+          return;
+        }
         setViewMode(mode);
       }
     },

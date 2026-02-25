@@ -49,6 +49,41 @@
   display: block;
 }
 
+.scene-loading-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: radial-gradient(circle at center, rgba(16, 20, 28, 0.72), rgba(10, 12, 18, 0.88));
+  color: $text-primary;
+  pointer-events: none;
+}
+
+.scene-loading-overlay__spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid color-mix(in srgb, #{$text-primary} 20%, transparent);
+  border-top-color: $accent-yellow;
+  border-radius: 50%;
+  animation: scene-loading-spin 0.8s linear infinite;
+}
+
+.scene-loading-overlay__label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+@keyframes scene-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .sidebar {
   position: fixed;
   top: 0;

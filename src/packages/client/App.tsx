@@ -144,6 +144,7 @@ function AppContent() {
   const [sidebarRevealedByHover, setSidebarRevealedByHover] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const mobileView = useMobileView();
+  const viewMode = useViewMode();
   const fileViewerPath = useFileViewerPath();
   const contextModalAgentId = useContextModalAgentId();
   const terminalOpen = useTerminalOpen();
@@ -160,10 +161,37 @@ function AppContent() {
     showAgentNotification,
   });
 
+  // Scene loading state
+  const [sceneLoading, setSceneLoading] = useState(false);
+
+  // Show loader immediately when user presses the 3D mode button.
+  useEffect(() => {
+    const handleViewModeSwitchPressed = (event: Event) => {
+      const mode = (event as CustomEvent<{ mode?: string }>).detail?.mode;
+      if (mode === '3d') {
+        setSceneLoading(true);
+      }
+    };
+
+    window.addEventListener('tide:viewmode-switch-pressed', handleViewModeSwitchPressed as EventListener);
+    return () => {
+      window.removeEventListener('tide:viewmode-switch-pressed', handleViewModeSwitchPressed as EventListener);
+    };
+  }, []);
+
+  // Fallback: also show loader for any programmatic switch to 3D.
+  useEffect(() => {
+    if (viewMode === '3d') {
+      setSceneLoading(true);
+    }
+  }, [viewMode]);
+
   // Scene setup
   const sceneRef = useSceneSetup({
     canvasRef,
     selectionBoxRef,
+    viewMode,
+    sceneMountKey: sceneKey,
     showToast,
     showAgentNotification,
     toolboxModal,
@@ -175,6 +203,7 @@ function AppContent() {
     openPM2LogsModal: (buildingId) => setPm2LogsModalBuildingId(buildingId),
     openBossLogsModal: (buildingId) => setBossLogsModalBuildingId(buildingId),
     openDatabasePanel: (buildingId) => setDatabasePanelBuildingId(buildingId),
+    onSceneLoadingChange: setSceneLoading,
   });
 
   // Use agentCount instead of useAgents() to avoid re-renders on every agent property change.
@@ -188,7 +217,6 @@ function AppContent() {
   const activeTool = useActiveTool();
   const settings = useSettings();
   const supervisorGeneratingReport = useSupervisorGeneratingReport();
-  const viewMode = useViewMode();
   const snapshotsLoading = useSnapshotsLoading();
   const snapshotsError = useSnapshotsError();
   const selectedAgentIdsArray = useMemo(() => Array.from(selectedAgentIds), [selectedAgentIds]);
@@ -676,6 +704,12 @@ function AppContent() {
               <canvas ref={canvasRef} id="battlefield" tabIndex={0}></canvas>
               <div ref={selectionBoxRef} id="selection-box"></div>
             </React.Fragment>
+          )}
+          {sceneLoading && (
+            <div className="scene-loading-overlay">
+              <div className="scene-loading-overlay__spinner" />
+              <span className="scene-loading-overlay__label">Loading 3D scene…</span>
+            </div>
           )}
         </div>
 
