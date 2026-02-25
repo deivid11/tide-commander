@@ -156,11 +156,18 @@ export class RunnerStdoutPipeline {
       }
 
       case 'step_complete': {
-        if (event.resultText && !this.textEmittedInTurn.has(agentId)) {
+        const hasErrorResultText = this.isLikelyErrorResultText(event.resultText);
+        if (event.resultText && (!this.textEmittedInTurn.has(agentId) || hasErrorResultText)) {
           log.log(`[step_complete] Emitting resultText as fallback (no prior text events) for agent ${agentId.slice(0, 4)}`);
           this.callbacks.onOutput(agentId, event.resultText, false, undefined, event.uuid);
         } else if (event.resultText) {
           log.log(`[step_complete] Skipping resultText (already emitted via text events) for agent ${agentId.slice(0, 4)}`);
+        }
+        if (event.permissionDenials && event.permissionDenials.length > 0) {
+          for (const denial of event.permissionDenials) {
+            const denialSummary = this.formatPermissionDenialSummary(denial.toolName, denial.toolInput);
+            this.callbacks.onOutput(agentId, `[System] Permission denied: ${denialSummary}`, false, undefined, event.uuid);
+          }
         }
         this.textEmittedInTurn.delete(agentId);
         if (event.tokens) {
@@ -189,5 +196,33 @@ export class RunnerStdoutPipeline {
       default:
         break;
     }
+  }
+
+  private isLikelyErrorResultText(resultText?: string): boolean {
+    if (!resultText) return false;
+    const lower = resultText.toLowerCase();
+    return (
+      lower.includes('api error') ||
+      lower.includes('internal server error') ||
+      lower.includes('permission denied') ||
+      lower.includes('tool denied') ||
+      lower.includes('error')
+    );
+  }
+
+  private formatPermissionDenialSummary(toolName: string, input?: Record<string, unknown>): string {
+    const details = input && typeof input === 'object' ? this.summarizeToolInput(input) : '';
+    return details ? `${toolName} (${details})` : toolName;
+  }
+
+  private summarizeToolInput(input: Record<string, unknown>): string {
+    const summaryKeys = ['command', 'file_path', 'path', 'pattern', 'url', 'query', 'description'];
+    for (const key of summaryKeys) {
+      const value = input[key];
+      if (typeof value === 'string' && value.trim().length > 0) {
+        return value.length > 120 ? `${value.slice(0, 117)}...` : value;
+      }
+    }
+    return '';
   }
 }

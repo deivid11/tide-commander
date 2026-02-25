@@ -397,9 +397,14 @@ make apk
 
 # Or build release APK
 make apk-release
+
+# Build debug APK pointing to a live dev server
+make dev-apk CAP_SERVER_URL=http://192.168.1.100:5173
 ```
 
 The APK will be at `android/app/build/outputs/apk/debug/app-debug.apk`.
+
+For non-dev APKs, make sure `CAP_SERVER_URL` is unset before building.
 
 To configure which server the app connects to, set `LISTEN_ALL_INTERFACES=1` on your server and update the server URL in the app settings.
 

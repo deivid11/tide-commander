@@ -227,8 +227,7 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   }, [scrollContainerRef, virtualizer]);
 
   // Pin-to-bottom mode (used for agent switching / initial load).
-  // While pinned, we keep applying a bottom scroll on layout changes so large conversations can't
-  // land mid-list due to measurement updates.
+  // Immediate synchronous scroll before first paint.
   useLayoutEffect(() => {
     if (!pinToBottom) return;
     if (isLoadingHistory) return;
@@ -238,13 +237,28 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     scrollToBottom();
   }, [pinToBottom, isLoadingHistory, allItems.length, scrollToBottom]);
 
-  // Release flags once pin mode ends.
+  // Continuous scroll enforcement while pinned — the virtualizer re-measures
+  // items across multiple frames which changes scrollHeight.  A one-shot
+  // scrollToBottom isn't enough; keep calling virtualizer.scrollToIndex +
+  // raw scrollTop on every frame so we track measurement updates.
   useEffect(() => {
     if (!pinToBottom) {
       isProgrammaticScrollRef.current = false;
       agentSwitchGraceRef.current = false;
+      return;
     }
-  }, [pinToBottom]);
+    if (isLoadingHistory) return;
+    if (allItems.length === 0) return;
+
+    let rafId: number;
+    const enforce = () => {
+      isProgrammaticScrollRef.current = true;
+      scrollToBottom();
+      rafId = requestAnimationFrame(enforce);
+    };
+    rafId = requestAnimationFrame(enforce);
+    return () => cancelAnimationFrame(rafId);
+  }, [pinToBottom, isLoadingHistory, allItems.length, scrollToBottom]);
 
   // Auto-scroll to bottom when new items arrive
   useEffect(() => {

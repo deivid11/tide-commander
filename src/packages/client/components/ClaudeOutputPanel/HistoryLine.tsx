@@ -15,7 +15,7 @@ import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { createMarkdownComponents } from './MarkdownComponents';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions } from './BossContext';
-import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput } from './ToolRenderers';
+import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, ExitPlanModeInput } from './ToolRenderers';
 import { highlightText, renderContentWithImages, renderUserPromptContent } from './contentRendering';
 import { useTTS } from '../../hooks/useTTS';
 import { ansiToHtml } from '../../utils/ansiToHtml';
@@ -256,10 +256,11 @@ export const HistoryLine = memo(function HistoryLine({
   if (type === 'tool_use') {
     const icon = TOOL_ICONS[toolName || ''] || TOOL_ICONS.default;
     const displayToolName = toolName ? getLocalizedToolName(toolName, t) : '';
+    const toolInputContent = message.toolInput ? JSON.stringify(message.toolInput) : content;
 
     // Simple view: show icon, tool name, and key parameter
     if (simpleView) {
-      let keyParam = toolName && content ? extractToolKeyParam(toolName, content) : null;
+      let keyParam = toolName && toolInputContent ? extractToolKeyParam(toolName, toolInputContent) : null;
       if (toolName === 'Bash' && keyParam && keyParam.length > 300) {
         keyParam = keyParam.substring(0, 297) + '...';
       }
@@ -277,9 +278,9 @@ export const HistoryLine = memo(function HistoryLine({
 
       const handleParamClick = () => {
         if (isFileClickable && keyParam) {
-          if (toolName === 'Edit' && content) {
+          if (toolName === 'Edit' && toolInputContent) {
             try {
-              const parsed = JSON.parse(content);
+              const parsed = JSON.parse(toolInputContent);
               if (parsed.old_string !== undefined || parsed.new_string !== undefined) {
                 onFileClick(keyParam, {
                   oldString: parsed.old_string || '',
@@ -293,9 +294,9 @@ export const HistoryLine = memo(function HistoryLine({
             }
           }
           // Handle Read tool with offset/limit
-          if (toolName === 'Read' && content) {
+          if (toolName === 'Read' && toolInputContent) {
             try {
-              const parsed = JSON.parse(content);
+              const parsed = JSON.parse(toolInputContent);
               if (parsed.offset !== undefined && parsed.limit !== undefined) {
                 onFileClick(keyParam, { highlightRange: { offset: parsed.offset, limit: parsed.limit } });
                 return;
@@ -359,24 +360,24 @@ export const HistoryLine = memo(function HistoryLine({
       }
 
       // Special case: TodoWrite renders the formatted checklist inline
-      if (toolName === 'TodoWrite' && content) {
+      if (toolName === 'TodoWrite' && toolInputContent) {
         return (
           <div className={`output-line output-tool-use output-tool-simple output-todo-inline`}>
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
             <span className="output-tool-icon">{icon}</span>
             <span className="output-tool-name">{displayToolName}</span>
-            <TodoWriteInput content={content} />
+            <TodoWriteInput content={toolInputContent} />
           </div>
         );
       }
 
       // Special case: AskUserQuestion renders the questions with options inline
-      if ((toolName === 'AskUserQuestion' || toolName === 'AskFollowupQuestion') && content) {
+      if ((toolName === 'AskUserQuestion' || toolName === 'AskFollowupQuestion') && toolInputContent) {
         // Verify it has valid questions data
         let hasQuestions = false;
         try {
-          const parsed = JSON.parse(content);
+          const parsed = JSON.parse(toolInputContent);
           hasQuestions = Array.isArray(parsed.questions) && parsed.questions.length > 0;
         } catch { /* not valid JSON */ }
 
@@ -387,10 +388,23 @@ export const HistoryLine = memo(function HistoryLine({
               {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
               <span className="output-tool-icon">{icon}</span>
               <span className="output-tool-name">{displayToolName}</span>
-              <AskQuestionInput content={content} />
+              <AskQuestionInput content={toolInputContent} />
             </div>
           );
         }
+      }
+
+      // Special case: ExitPlanMode renders markdown plan inline
+      if (toolName === 'ExitPlanMode' && toolInputContent) {
+        return (
+          <div className={`output-line output-tool-use output-tool-simple output-plan-inline`}>
+            {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+            {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+            <span className="output-tool-icon">{icon}</span>
+            <span className="output-tool-name">{displayToolName}</span>
+            <ExitPlanModeInput content={toolInputContent} />
+          </div>
+        );
       }
 
       return (
@@ -509,7 +523,7 @@ export const HistoryLine = memo(function HistoryLine({
     }
 
     // Special rendering for Edit tool - show diff view
-    if (toolName === 'Edit' && content) {
+    if (toolName === 'Edit' && toolInputContent) {
       return (
         <>
           <div className="output-line output-tool-use">
@@ -519,14 +533,14 @@ export const HistoryLine = memo(function HistoryLine({
             <span className="output-tool-name">{displayToolName}</span>
           </div>
           <div className="output-line output-tool-input">
-            <EditToolDiff content={content} onFileClick={onFileClick} />
+            <EditToolDiff content={toolInputContent} onFileClick={onFileClick} />
           </div>
         </>
       );
     }
 
     // Special rendering for Read tool - show file link
-    if (toolName === 'Read' && content) {
+    if (toolName === 'Read' && toolInputContent) {
       return (
         <>
           <div className="output-line output-tool-use">
@@ -536,14 +550,14 @@ export const HistoryLine = memo(function HistoryLine({
             <span className="output-tool-name">{displayToolName}</span>
           </div>
           <div className="output-line output-tool-input">
-            <ReadToolInput content={content} onFileClick={onFileClick} />
+            <ReadToolInput content={toolInputContent} onFileClick={onFileClick} />
           </div>
         </>
       );
     }
 
     // Special rendering for TodoWrite tool - show checklist
-    if (toolName === 'TodoWrite' && content) {
+    if (toolName === 'TodoWrite' && toolInputContent) {
       return (
         <>
           <div className="output-line output-tool-use">
@@ -553,7 +567,24 @@ export const HistoryLine = memo(function HistoryLine({
             <span className="output-tool-name">{displayToolName}</span>
           </div>
           <div className="output-line output-tool-input">
-            <TodoWriteInput content={content} />
+            <TodoWriteInput content={toolInputContent} />
+          </div>
+        </>
+      );
+    }
+
+    // Special rendering for ExitPlanMode tool - render markdown plan
+    if (toolName === 'ExitPlanMode' && toolInputContent) {
+      return (
+        <>
+          <div className="output-line output-tool-use">
+            {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+            {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+            <span className="output-tool-icon">{icon}</span>
+            <span className="output-tool-name">{displayToolName}</span>
+          </div>
+          <div className="output-line output-tool-input">
+            <ExitPlanModeInput content={toolInputContent} />
           </div>
         </>
       );
@@ -568,9 +599,9 @@ export const HistoryLine = memo(function HistoryLine({
           <span className="output-tool-icon">{icon}</span>
           <span className="output-tool-name">{displayToolName}</span>
         </div>
-        {content && (
+        {toolInputContent && (
           <div className="output-line output-tool-input">
-            <pre className="output-input-content">{highlightText(content, highlight)}</pre>
+            <pre className="output-input-content">{highlightText(toolInputContent, highlight)}</pre>
           </div>
         )}
       </>

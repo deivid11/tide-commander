@@ -186,6 +186,9 @@ export function extractToolKeyParam(toolName: string, inputJson: string): string
         if (Array.isArray(prompts) && prompts.length > 0) {
           return prompts.map((p: { tool?: string; prompt?: string }) => p.prompt || p.tool || '').filter(Boolean).join(', ');
         }
+        if (toolName === 'ExitPlanMode' && typeof input.plan === 'string' && input.plan.trim().length > 0) {
+          return input.plan.trim();
+        }
         return toolName === 'ExitPlanMode' ? 'Plan ready' : 'Entering plan mode';
       }
       case 'TodoWrite': {

@@ -57,6 +57,8 @@ export const STORAGE_KEYS = {
   UNSEEN_AGENTS: 'tide-unseen-agents',
 } as const;
 
+export const BACKEND_URL_CHANGE_EVENT = 'tide-backend-url-change';
+
 /**
  * Get a value from localStorage with type safety
  * Returns the default value if the key doesn't exist or parsing fails
@@ -210,6 +212,23 @@ export function getApiBaseUrl(): string {
  */
 export function getAuthToken(): string {
   return getStorageString(STORAGE_KEYS.AUTH_TOKEN, '');
+}
+
+/**
+ * Get the configured backend URL.
+ */
+export function getBackendUrl(): string {
+  return getStorageString(STORAGE_KEYS.BACKEND_URL, '');
+}
+
+/**
+ * Set the configured backend URL and notify listeners in this window.
+ */
+export function setBackendUrl(url: string): void {
+  setStorageString(STORAGE_KEYS.BACKEND_URL, url);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent<string>(BACKEND_URL_CHANGE_EVENT, { detail: url }));
+  }
 }
 
 /**

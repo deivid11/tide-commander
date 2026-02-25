@@ -13,20 +13,20 @@ import { loadConfig } from '../app/sceneConfig';
 import type { ToastType } from '../components/Toast';
 import type { UseModalState } from './index';
 
-// =============================================================================
-// MEMORY OPTIMIZATION: Dispose 3D scene when switching to 2D mode
-// =============================================================================
-// When enabled (DISPOSE_3D_ON_MODE_SWITCH = true):
-//   - Switching to 2D mode fully disposes the 3D scene and frees GPU memory
-//   - Switching back to 3D mode requires reloading all models (slower transition)
-//   - Better for memory-constrained environments
-//
-// When disabled (DISPOSE_3D_ON_MODE_SWITCH = false):
-//   - 3D scene stays in memory when in 2D mode
-//   - Switching between modes is instant (smoother UX)
-//   - Uses more memory when in 2D mode
-// =============================================================================
-const DISPOSE_3D_ON_MODE_SWITCH = true;
+type NavigatorWithDeviceMemory = Navigator & { deviceMemory?: number };
+
+function shouldDispose3DOnModeSwitch(): boolean {
+  if (typeof window === 'undefined') return true;
+
+  // Keep 3D scene in memory on desktop for fast 2D<->3D switching.
+  // Dispose only on mobile where memory pressure is much more common.
+  const isMobileViewport = window.matchMedia('(max-width: 768px)').matches;
+  const deviceMemory = (navigator as NavigatorWithDeviceMemory).deviceMemory;
+  if (import.meta.env.DEV) {
+    console.log('[Tide] 3D mode switch memory policy', { isMobileViewport, deviceMemory });
+  }
+  return isMobileViewport;
+}
 
 // HMR tracking for 3D scene changes - track pending changes for manual refresh
 declare global {
@@ -126,6 +126,8 @@ if (typeof window !== 'undefined') {
 interface UseSceneSetupOptions {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   selectionBoxRef: React.RefObject<HTMLDivElement | null>;
+  viewMode: '2d' | '3d' | 'dashboard';
+  sceneMountKey?: number;
   showToast: (type: ToastType, title: string, message: string, duration?: number) => void;
   showAgentNotification: (notification: any) => void;
   toolboxModal: UseModalState;
@@ -143,6 +145,7 @@ interface UseSceneSetupOptions {
   openPM2LogsModal?: (buildingId: string) => void;
   openBossLogsModal?: (buildingId: string) => void;
   openDatabasePanel?: (buildingId: string) => void;
+  onSceneLoadingChange?: (loading: boolean) => void;
 }
 
 /**
@@ -153,6 +156,8 @@ interface UseSceneSetupOptions {
 export function useSceneSetup({
   canvasRef,
   selectionBoxRef,
+  viewMode,
+  sceneMountKey = 0,
   showToast: _showToast,
   showAgentNotification: _showAgentNotification,
   toolboxModal: _toolboxModal,
@@ -164,18 +169,30 @@ export function useSceneSetup({
   openPM2LogsModal,
   openBossLogsModal,
   openDatabasePanel,
+  onSceneLoadingChange,
 }: UseSceneSetupOptions): React.RefObject<SceneManager | null> {
   const sceneRef = useRef<SceneManager | null>(null);
   // Track pending popup timeout to cancel on double-click
   const pendingPopupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Track RAF ID for cleanup
   const initRafIdRef = useRef<number | null>(null);
+  // Track delayed loader hide RAFs so they can be canceled on cleanup
+  const hideLoaderRaf1Ref = useRef<number | null>(null);
+  const hideLoaderRaf2Ref = useRef<number | null>(null);
 
   useEffect(() => {
+    if (viewMode !== '3d') {
+      onSceneLoadingChange?.(false);
+      return;
+    }
+
     if (!canvasRef.current || !selectionBoxRef.current) return;
 
     // Flag to track if this effect has been cleaned up
     let isCleanedUp = false;
+
+    // Scene setup owns the loading lifecycle and will always emit a matching false.
+    onSceneLoadingChange?.(true);
 
     // Get current persisted state from window (survives StrictMode remounts)
     const currentPersistedScene = getPersistedScene();
@@ -279,20 +296,41 @@ export function useSceneSetup({
       });
     }
 
-    // Reuse existing scene for StrictMode remounts, otherwise create new
-    if (currentPersistedScene && isSameCanvas) {
-      sceneRef.current = currentPersistedScene;
-      console.log('[Tide] Reusing existing scene (StrictMode remount)');
-      // IMPORTANT: Sync areas BEFORE agents so isAgentInArchivedArea works correctly
-      const state = store.getState();
-      currentPersistedScene.syncAreas();
-      currentPersistedScene.syncBuildings();
-      if (state.agents.size > 0) {
-        console.log('[Tide] Re-syncing agents from store after remount:', state.agents.size);
-        currentPersistedScene.syncAgents(Array.from(state.agents.values()));
+    // Reuse existing scene when available (StrictMode remount or mode switch reattach)
+    if (currentPersistedScene) {
+      try {
+        sceneRef.current = currentPersistedScene;
+        if (isSameCanvas) {
+          console.log('[Tide] Reusing existing scene (StrictMode remount)');
+        } else {
+          console.log('[Tide] Reattaching persisted scene to new canvas');
+          currentPersistedScene.reattach(canvasRef.current, selectionBoxRef.current);
+          setPersistedCanvas(canvasRef.current);
+        }
+        // IMPORTANT: Sync areas BEFORE agents so isAgentInArchivedArea works correctly
+        const state = store.getState();
+        currentPersistedScene.syncAreas();
+        currentPersistedScene.syncBuildings();
+        if (state.agents.size > 0) {
+          console.log('[Tide] Re-syncing agents from store after remount:', state.agents.size);
+          currentPersistedScene.syncAgents(Array.from(state.agents.values()));
+        }
+        // Set up callbacks for reused scene
+        setupSceneCallbacks();
+      } catch (error) {
+        console.error('[Tide] Failed to reattach persisted 3D scene:', error);
+        onSceneLoadingChange?.(false);
+      } finally {
+        // Keep loader visible through at least one paint after reattach so users
+        // see transition feedback when switching 2D -> 3D.
+        hideLoaderRaf1Ref.current = requestAnimationFrame(() => {
+          hideLoaderRaf2Ref.current = requestAnimationFrame(() => {
+            onSceneLoadingChange?.(false);
+            hideLoaderRaf2Ref.current = null;
+          });
+          hideLoaderRaf1Ref.current = null;
+        });
       }
-      // Set up callbacks for reused scene
-      setupSceneCallbacks();
     } else {
       // Defer scene initialization to next frame to ensure CSS is applied
       // This is critical for production builds where CSS may load async
@@ -303,12 +341,14 @@ export function useSceneSetup({
         // Check if effect was cleaned up before RAF executed
         if (isCleanedUp) {
           console.log('[Tide] Effect cleaned up before scene init, skipping');
+          onSceneLoadingChange?.(false);
           return;
         }
 
         // Verify canvas still exists and is connected
         if (!canvas.isConnected || !selectionBox.isConnected) {
           console.warn('[Tide] Canvas disconnected before initialization');
+          onSceneLoadingChange?.(false);
           return;
         }
 
@@ -373,6 +413,8 @@ export function useSceneSetup({
             scene.upgradeAgentModels();
           }).catch((err) => {
             console.warn('[Tide] Some models failed to load, using fallback:', err);
+          }).finally(() => {
+            onSceneLoadingChange?.(false);
           });
 
           // Set up callbacks after scene is created
@@ -380,6 +422,7 @@ export function useSceneSetup({
         } catch (error) {
           console.error('[Tide] Failed to initialize 3D scene:', error);
           // Could trigger fallback to 2D mode here if needed
+          onSceneLoadingChange?.(false);
         }
       };
 
@@ -458,6 +501,14 @@ export function useSceneSetup({
         cancelAnimationFrame(initRafIdRef.current);
         initRafIdRef.current = null;
       }
+      if (hideLoaderRaf1Ref.current !== null) {
+        cancelAnimationFrame(hideLoaderRaf1Ref.current);
+        hideLoaderRaf1Ref.current = null;
+      }
+      if (hideLoaderRaf2Ref.current !== null) {
+        cancelAnimationFrame(hideLoaderRaf2Ref.current);
+        hideLoaderRaf2Ref.current = null;
+      }
 
       // React StrictMode re-runs effects: the canvas stays connected and viewMode is still '3d'.
       // Only dispose when switching away from 3D mode (viewMode is '2d' or 'dashboard').
@@ -467,9 +518,8 @@ export function useSceneSetup({
         return; // StrictMode remount — canvas still in use, don't dispose
       }
 
-      // Memory optimization: dispose 3D scene when switching to 2D mode
-      // Set DISPOSE_3D_ON_MODE_SWITCH = false at top of file for instant mode switching
-      if (DISPOSE_3D_ON_MODE_SWITCH && sceneRef.current) {
+      // Memory optimization: dispose 3D scene only on constrained devices.
+      if (shouldDispose3DOnModeSwitch() && sceneRef.current) {
         console.log('[Tide] 3D canvas unmounted - disposing scene to free memory');
         // Clear scene-specific websocket callbacks
         clearSceneCallbacks();
@@ -483,8 +533,8 @@ export function useSceneSetup({
         setPersistedCanvas(null);
       }
     };
-    // Re-run when canvas becomes available (e.g., switching from 2D to 3D mode)
-  }, [canvasRef.current, selectionBoxRef.current]);
+    // Re-run when switching view modes or forcing a 3D canvas remount.
+  }, [viewMode, sceneMountKey]);
 
   return sceneRef;
 }

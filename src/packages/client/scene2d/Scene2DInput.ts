@@ -37,6 +37,8 @@ export class Scene2DInput {
 
   // Feature flags
   private static readonly ENABLE_DOUBLE_CLICK_CAMERA_FOCUS = false; // Set to true to enable camera zoom/pan on double-click
+  private static readonly TOUCH_LONG_PRESS_DURATION = 500;
+  private static readonly TOUCH_DRAG_THRESHOLD = 5;
 
   // Selection box
   private selectionBox: SelectionBox | null = null;
@@ -80,7 +82,9 @@ export class Scene2DInput {
     this.canvas.removeEventListener('touchstart', this.onTouchStart);
     this.canvas.removeEventListener('touchmove', this.onTouchMove);
     this.canvas.removeEventListener('touchend', this.onTouchEnd);
+    this.canvas.removeEventListener('touchcancel', this.onTouchCancel);
     document.removeEventListener('keydown', this.onKeyDown, true);
+    this.clearLongPressTimer();
   }
 
   private setupEventListeners(): void {
@@ -95,6 +99,7 @@ export class Scene2DInput {
     this.canvas.addEventListener('touchstart', this.onTouchStart, { passive: false });
     this.canvas.addEventListener('touchmove', this.onTouchMove, { passive: false });
     this.canvas.addEventListener('touchend', this.onTouchEnd);
+    this.canvas.addEventListener('touchcancel', this.onTouchCancel);
 
     // Keyboard events (for space key to open terminal)
     // Use capture phase so global shortcuts (like spotlight) are processed first
@@ -709,9 +714,15 @@ export class Scene2DInput {
 
   private touchStartPositions: Array<{ x: number; y: number }> = [];
   private initialPinchDistance = 0;
+  private longPressTimer: ReturnType<typeof setTimeout> | null = null;
+  private longPressTriggered = false;
+  private touchIsPanning = false;
 
   private onTouchStart = (e: TouchEvent): void => {
     e.preventDefault();
+    this.clearLongPressTimer();
+    this.longPressTriggered = false;
+    this.touchIsPanning = false;
 
     const rect = this.canvas.getBoundingClientRect();
     this.touchStartPositions = Array.from(e.touches).map(t => ({
@@ -728,8 +739,21 @@ export class Scene2DInput {
       this.lastMouseY = y;
       this.mouseDownTime = Date.now();
       this.isMouseDown = true;
+
+      const touchClientX = e.touches[0].clientX;
+      const touchClientY = e.touches[0].clientY;
+      this.longPressTimer = setTimeout(() => {
+        this.longPressTriggered = true;
+        this.longPressTimer = null;
+        this.handleTouchLongPress(touchClientX, touchClientY);
+
+        if (navigator.vibrate) {
+          navigator.vibrate(50);
+        }
+      }, Scene2DInput.TOUCH_LONG_PRESS_DURATION);
     } else if (e.touches.length === 2) {
       // Pinch zoom
+      this.clearLongPressTimer();
       this.initialPinchDistance = this.getPinchDistance(e.touches);
       this.isPanning = false;
     }
@@ -744,16 +768,28 @@ export class Scene2DInput {
       const x = e.touches[0].clientX - rect.left;
       const y = e.touches[0].clientY - rect.top;
 
-      const deltaX = x - this.lastMouseX;
-      const deltaY = y - this.lastMouseY;
+      const movedFromStartX = x - this.mouseDownX;
+      const movedFromStartY = y - this.mouseDownY;
+      const movedBeyondThreshold =
+        Math.abs(movedFromStartX) > Scene2DInput.TOUCH_DRAG_THRESHOLD ||
+        Math.abs(movedFromStartY) > Scene2DInput.TOUCH_DRAG_THRESHOLD;
 
-      // Pan
-      this.camera.panBy(deltaX, deltaY);
+      if (movedBeyondThreshold) {
+        this.clearLongPressTimer();
+        this.touchIsPanning = true;
+      }
+
+      if (this.touchIsPanning) {
+        const deltaX = x - this.lastMouseX;
+        const deltaY = y - this.lastMouseY;
+        this.camera.panBy(deltaX, deltaY);
+      }
 
       this.lastMouseX = x;
       this.lastMouseY = y;
     } else if (e.touches.length === 2) {
       // Pinch zoom
+      this.clearLongPressTimer();
       const currentDistance = this.getPinchDistance(e.touches);
       const zoomDelta = (currentDistance - this.initialPinchDistance) * 0.01;
 
@@ -766,7 +802,18 @@ export class Scene2DInput {
   };
 
   private onTouchEnd = (e: TouchEvent): void => {
+    this.clearLongPressTimer();
+
     if (e.touches.length === 0 && this.touchStartPositions.length === 1) {
+      if (this.longPressTriggered) {
+        this.longPressTriggered = false;
+        this.isMouseDown = false;
+        this.isPanning = false;
+        this.touchStartPositions = [];
+        this.touchIsPanning = false;
+        return;
+      }
+
       const clickDuration = Date.now() - this.mouseDownTime;
       const distFromStart = Math.sqrt(
         Math.pow(this.lastMouseX - this.mouseDownX, 2) +
@@ -782,6 +829,57 @@ export class Scene2DInput {
     this.isMouseDown = false;
     this.isPanning = false;
     this.touchStartPositions = [];
+    this.touchIsPanning = false;
+  };
+
+  private onTouchCancel = (): void => {
+    this.clearLongPressTimer();
+    this.longPressTriggered = false;
+    this.isMouseDown = false;
+    this.isPanning = false;
+    this.touchStartPositions = [];
+    this.touchIsPanning = false;
+  };
+
+  private clearLongPressTimer(): void {
+    if (this.longPressTimer) {
+      clearTimeout(this.longPressTimer);
+      this.longPressTimer = null;
+    }
+  }
+
+  private handleTouchLongPress(clientX: number, clientY: number): void {
+    const rect = this.canvas.getBoundingClientRect();
+    const screenX = clientX - rect.left;
+    const screenY = clientY - rect.top;
+    const worldPos = this.camera.screenToWorld(screenX, screenY);
+    const agent = this.scene.getAgentAtScreenPos(screenX, screenY);
+    const building = this.scene.getBuildingAtScreenPos(screenX, screenY);
+    const area = this.scene.getAreaAtScreenPos(screenX, screenY);
+
+    const state = store.getState();
+    if (state.selectedAgentIds.size > 0 && !agent && !building) {
+      this.scene.handleMoveCommand({ x: worldPos.x, z: worldPos.z });
+      this.scene.createMoveOrderEffect({ x: worldPos.x, z: worldPos.z });
+      return;
+    }
+
+    let target: { type: string; id?: string } | null = null;
+    if (agent) {
+      target = { type: 'agent', id: agent.id };
+    } else if (building) {
+      target = { type: 'building', id: building.id };
+    } else if (area) {
+      target = { type: 'area', id: area.id };
+    } else {
+      target = { type: 'ground' };
+    }
+
+    this.scene.handleContextMenu(
+      { x: clientX, y: clientY },
+      { x: worldPos.x, z: worldPos.z },
+      target
+    );
   };
 
   private getPinchDistance(touches: TouchList): number {

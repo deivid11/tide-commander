@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
 import { useStore, store } from '../../store';
-import { STORAGE_KEYS, getStorageString, setStorageString, getAuthToken } from '../../utils/storage';
+import { BACKEND_URL_CHANGE_EVENT, getBackendUrl, setBackendUrl, STORAGE_KEYS, setStorageString, getAuthToken } from '../../utils/storage';
 import { reconnect } from '../../websocket';
 import { CollapsibleSection } from './CollapsibleSection';
 import { SecretsSection } from './SecretsSection';
@@ -209,7 +209,7 @@ export function ConfigSection({ config, onChange, searchQuery = '' }: ConfigSect
   const { t } = useTranslation(['config', 'common']);
   const state = useStore();
   const [historyLimit, setHistoryLimit] = useState(state.settings.historyLimit);
-  const [backendUrl, setBackendUrl] = useState(() => getStorageString(STORAGE_KEYS.BACKEND_URL, ''));
+  const [backendUrl, setBackendUrlState] = useState(() => getBackendUrl());
   const [backendUrlDirty, setBackendUrlDirty] = useState(false);
   const [authToken, setAuthToken] = useState(() => getAuthToken());
   const [authTokenDirty, setAuthTokenDirty] = useState(false);
@@ -218,12 +218,25 @@ export function ConfigSection({ config, onChange, searchQuery = '' }: ConfigSect
   const [isSystemPromptModalOpen, setIsSystemPromptModalOpen] = useState(false);
 
   // Sync echo prompt setting from server on mount
-  React.useEffect(() => {
+  useEffect(() => {
     fetchEchoPromptSetting().then((enabled) => {
       if (enabled !== state.settings.experimentalEchoPrompt) {
         store.updateSettings({ experimentalEchoPrompt: enabled });
       }
     }).catch(() => { /* ignore fetch errors on mount */ });
+  }, []);
+
+  useEffect(() => {
+    const handleBackendUrlChange = (event: Event) => {
+      const customEvent = event as CustomEvent<string>;
+      setBackendUrlState(customEvent.detail);
+      setBackendUrlDirty(false);
+    };
+
+    window.addEventListener(BACKEND_URL_CHANGE_EVENT, handleBackendUrlChange);
+    return () => {
+      window.removeEventListener(BACKEND_URL_CHANGE_EVENT, handleBackendUrlChange);
+    };
   }, []);
 
   // Translate option arrays at render time
@@ -270,12 +283,12 @@ export function ConfigSection({ config, onChange, searchQuery = '' }: ConfigSect
   };
 
   const handleBackendUrlChange = (value: string) => {
-    setBackendUrl(value);
+    setBackendUrlState(value);
     setBackendUrlDirty(true);
   };
 
   const handleBackendUrlSave = () => {
-    setStorageString(STORAGE_KEYS.BACKEND_URL, backendUrl);
+    setBackendUrl(backendUrl);
     setBackendUrlDirty(false);
     reconnect();
   };

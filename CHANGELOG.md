@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.80.0] - 2026-02-25
+
+### Added
+- **3D scene loading overlay** - Spinner overlay shown when switching to 3D mode for smoother UX
+- **ExitPlanMode tool renderer** - Collapsible plan display with markdown rendering in terminal output
+- **Touch long-press context menu** - Mobile 2D scene supports long-press to open agent context menus with haptic feedback
+- **Android app icon refresh** - Updated launcher icons and foreground assets
+- **Env-driven Capacitor server URL** - `CAP_SERVER_URL` controls dev vs bundled APK builds
+- **New Makefile targets** - `apk-release-nondev` for bundled-asset debug APK, `dev-apk` for live-reload APK
+- **Release pipeline: non-dev APK and npm publish steps** - Pipeline now builds both APK variants and includes npm publish phase
+
+### Changed
+- **Smart 3D scene disposal** - 3D scene kept in memory on desktop for instant mode switching, disposed only on mobile to save memory
+- **Stdout pipeline improvements** - Enhanced output parsing and rendering
+- **NotConnectedOverlay** - Updated layout and styling
+- **ConfigSection** - Improved settings layout
+- **VirtualizedOutputList and HistoryLine** - Enhanced rendering and interaction
+
 ## [0.79.0] - 2026-02-24
 
 ### Added
