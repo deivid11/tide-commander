@@ -85,6 +85,8 @@ export interface UseHistoryLoaderProps {
   selectedAgentId: string | null;
   hasSessionId: boolean;
   reconnectCount: number;
+  /** Increments when an agent's session file updates or agent transitions to idle */
+  historyRefreshTrigger: number;
   lastPrompts: Map<string, { text: string }>;
   /** External ref for the scroll container (from swipe hook) */
   outputScrollRef: React.RefObject<HTMLDivElement | null>;
@@ -125,6 +127,7 @@ export function useHistoryLoader({
   selectedAgentId,
   hasSessionId,
   reconnectCount,
+  historyRefreshTrigger,
   lastPrompts,
   outputScrollRef,
 }: UseHistoryLoaderProps): UseHistoryLoaderReturn {
@@ -163,7 +166,7 @@ export function useHistoryLoader({
     };
   }, []);
 
-  // Load conversation history when agent changes or on reconnect
+  // Load conversation history when agent changes, on reconnect, or when session file updates
   useEffect(() => {
     if (!selectedAgentId || !hasSessionId) {
       setHistory([]);
@@ -180,8 +183,8 @@ export function useHistoryLoader({
       return;
     }
 
-    // Create a unique key for this agent+reconnect combo
-    const loadKey = `${selectedAgentId}:${reconnectCount}`;
+    // Create a unique key for this agent+reconnect+refresh combo
+    const loadKey = `${selectedAgentId}:${reconnectCount}:${historyRefreshTrigger}`;
 
     // Skip if we've already loaded for this exact combo
     if (loadedForRef.current === loadKey) {
@@ -394,7 +397,7 @@ export function useHistoryLoader({
         setHistoryLoadVersion((v) => v + 1);
       });
   // Note: lastPrompts intentionally excluded from deps - we only use it to set initial prompt, not to trigger reloads
-  }, [selectedAgentId, hasSessionId, reconnectCount]);
+  }, [selectedAgentId, hasSessionId, reconnectCount, historyRefreshTrigger]);
 
   // Load more history when scrolling to top
   const loadMoreHistory = useCallback(async () => {
