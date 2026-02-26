@@ -460,11 +460,35 @@ export function createAgentActions(
         type: 'clear_context',
         payload: { agentId },
       });
-      // Also clear local outputs
+      // Also clear local outputs and reset agent session metadata for immediate UI parity.
       setState((state) => {
+        const agent = state.agents.get(agentId);
+        if (agent) {
+          const updatedAgent = {
+            ...agent,
+            status: 'idle' as const,
+            currentTask: undefined,
+            taskLabel: undefined,
+            currentTool: undefined,
+            lastAssignedTask: undefined,
+            lastAssignedTaskTime: undefined,
+            sessionId: undefined,
+            tokensUsed: 0,
+            contextUsed: 0,
+            contextStats: undefined,
+          };
+          const newAgents = new Map(state.agents);
+          newAgents.set(agentId, updatedAgent);
+          state.agents = newAgents;
+        }
+
         const newAgentOutputs = new Map(state.agentOutputs);
         newAgentOutputs.delete(agentId);
         state.agentOutputs = newAgentOutputs;
+
+        const newLastPrompts = new Map(state.lastPrompts);
+        newLastPrompts.delete(agentId);
+        state.lastPrompts = newLastPrompts;
       });
       notify();
     },

@@ -76,29 +76,26 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
   const [customInstructions, setCustomInstructions] = useState('');
   const [skillSearch, setSkillSearch] = useState('');
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const wasOpenRef = useRef(false);
 
   // Get available skills (enabled ones)
   const availableSkills = useMemo(() => skills.filter(s => s.enabled), [skills]);
 
   // Default skill slugs that should be pre-selected for new agents
-  const DEFAULT_SKILL_SLUGS = ['full-notifications', 'streaming-exec'];
+  const DEFAULT_SKILL_SLUGS = ['full-notifications', 'streaming-exec', 'task-label'];
 
-  // Initialize default skills when modal opens
+  // Initialize default skills once per open event
   useEffect(() => {
-    if (isOpen && availableSkills.length > 0) {
+    const didJustOpen = isOpen && !wasOpenRef.current;
+    if (didJustOpen && availableSkills.length > 0) {
       const defaultSkillIds = availableSkills
         .filter(s => DEFAULT_SKILL_SLUGS.includes(s.slug))
         .map(s => s.id);
       if (defaultSkillIds.length > 0) {
-        setSelectedSkillIds(prev => {
-          // Only set defaults if no skills are selected yet
-          if (prev.size === 0) {
-            return new Set(defaultSkillIds);
-          }
-          return prev;
-        });
+        setSelectedSkillIds(new Set(defaultSkillIds));
       }
     }
+    wasOpenRef.current = isOpen;
   }, [isOpen, availableSkills]);
 
   // Filter skills by search query

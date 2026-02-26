@@ -163,6 +163,7 @@ describe('Command Handler', () => {
       expect(runtimeService.stopAgent).toHaveBeenCalledWith('agent-1');
       expect(agentService.updateAgent).toHaveBeenCalledWith('agent-1', expect.objectContaining({
         status: 'idle',
+        taskLabel: undefined,
         sessionId: undefined,
         tokensUsed: 0,
       }));

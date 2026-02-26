@@ -68,6 +68,9 @@ router.post('/', (req: Request, res: Response) => {
       timestamp: Date.now(),
     };
 
+    // Update agent's task label to reflect the notification
+    agentService.updateAgent(agentId, { taskLabel: message });
+
     log.log(`Notification from ${agent.name}: "${title}" - ${message}`);
 
     // Broadcast to all connected clients

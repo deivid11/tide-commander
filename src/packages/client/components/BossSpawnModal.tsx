@@ -57,6 +57,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
   const [customInstructions, setCustomInstructions] = useState('');
   const nameInputRef = useRef<HTMLInputElement>(null);
   const hasInitializedRef = useRef(false);
+  const wasOpenRef = useRef(false);
 
   // Get available skills (enabled ones)
   const availableSkills = useMemo(() => skills.filter(s => s.enabled), [skills]);
@@ -78,6 +79,23 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
     if (!customClass?.defaultSkillIds?.length) return [];
     return skills.filter(s => customClass.defaultSkillIds.includes(s.id));
   }, [customClasses, selectedClass, skills]);
+
+  // Default skill slugs that should be pre-selected for new boss agents
+  const DEFAULT_SKILL_SLUGS = ['full-notifications', 'streaming-exec', 'task-label'];
+
+  // Initialize default skills once per open event
+  useEffect(() => {
+    const didJustOpen = isOpen && !wasOpenRef.current;
+    if (didJustOpen && availableSkills.length > 0) {
+      const defaultSkillIds = availableSkills
+        .filter(s => DEFAULT_SKILL_SLUGS.includes(s.slug))
+        .map(s => s.id);
+      if (defaultSkillIds.length > 0) {
+        setSelectedSkillIds(new Set(defaultSkillIds));
+      }
+    }
+    wasOpenRef.current = isOpen;
+  }, [isOpen, availableSkills]);
 
   // Toggle skill selection
   const toggleSkill = useCallback((skillId: string) => {

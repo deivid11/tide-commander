@@ -216,6 +216,7 @@ export async function handleClearContext(
   agentService.updateAgent(payload.agentId, {
     status: 'idle',
     currentTask: undefined,
+    taskLabel: undefined,
     currentTool: undefined,
     lastAssignedTask: undefined,
     lastAssignedTaskTime: undefined,

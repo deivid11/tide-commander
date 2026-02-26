@@ -136,6 +136,7 @@ export async function handleSendCommand(
     agentService.updateAgent(agentId, {
       status: 'idle',
       currentTask: undefined,
+      taskLabel: undefined,
       currentTool: undefined,
       lastAssignedTask: undefined,
       lastAssignedTaskTime: undefined,

@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.84.1] - 2026-02-26
+
+### Added
+- **Default skills for boss spawn modal** - Boss agents now pre-select full-notifications, streaming-exec, and task-label skills on open
+- **Task-label skill added to default spawn skills** - Both regular and boss spawn modals include task-label in default skill set
+
+### Changed
+- **Clear context resets agent metadata** - Clearing context now resets status, taskLabel, currentTask, sessionId, tokens, and last prompts for immediate UI parity
+- **Spawn modal skill initialization** - Default skills now re-apply on each modal open instead of only when no skills are selected
+- **Notification route updates task label** - Posting a notification also updates the agent's taskLabel to reflect the message
+- **Task label cleared on agent reset** - Agent handler and command handler clear taskLabel when resetting agent state
+
 ## [0.84.0] - 2026-02-26
 
 ### Added
