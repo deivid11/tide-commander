@@ -279,13 +279,37 @@ function ensureFileExists(filePath: string, label: string): void {
   }
 }
 
+function findSystemMkcert(): string | null {
+  try {
+    const allPaths = execSync('which -a mkcert', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+      .trim()
+      .split('\n');
+    for (const p of allPaths) {
+      if (!p.includes('node_modules')) {
+        return p;
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 function installLocalCert(host: string): { keyPath: string; certPath: string } {
   fs.mkdirSync(TLS_DIR, { recursive: true });
-  const mkcertCmd = 'mkcert -install';
+  const mkcertBin = findSystemMkcert();
+  if (!mkcertBin) {
+    throw new Error(
+      'mkcert (Go binary) is required for --install-local-cert but was not found in PATH.\n'
+      + 'Install it from: https://github.com/FiloSottile/mkcert\n'
+      + 'Note: the npm "mkcert" package is not the same tool.',
+    );
+  }
+
   try {
-    spawnSyncOrThrow(mkcertCmd);
+    spawnSyncOrThrow(`"${mkcertBin}" -install`);
   } catch {
-    throw new Error('mkcert is required for --install-local-cert');
+    throw new Error(`mkcert -install failed. You may need to run: sudo ${mkcertBin} -install`);
   }
 
   const hostArgs = ['localhost', '127.0.0.1', '::1'];
@@ -293,7 +317,7 @@ function installLocalCert(host: string): { keyPath: string; certPath: string } {
     hostArgs.push(host);
   }
 
-  const mkcertGenCmd = `mkcert -cert-file "${DEFAULT_TLS_CERT_FILE}" -key-file "${DEFAULT_TLS_KEY_FILE}" ${hostArgs.join(' ')}`;
+  const mkcertGenCmd = `"${mkcertBin}" -cert-file "${DEFAULT_TLS_CERT_FILE}" -key-file "${DEFAULT_TLS_KEY_FILE}" ${hostArgs.join(' ')}`;
   spawnSyncOrThrow(mkcertGenCmd);
   ensureFileExists(DEFAULT_TLS_CERT_FILE, 'TLS cert');
   ensureFileExists(DEFAULT_TLS_KEY_FILE, 'TLS key');

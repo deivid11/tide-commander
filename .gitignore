@@ -45,3 +45,6 @@ coverage/
 
 # Release artifacts
 release/
+
+# TLS certificates
+*.pem
