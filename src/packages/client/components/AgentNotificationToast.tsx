@@ -57,6 +57,9 @@ export function AgentNotificationProvider({ children }: { children: React.ReactN
   }, []);
 
   const showAgentNotification = useCallback((notification: AgentNotification) => {
+    // Keep track of the latest sender for keyboard jump from Commander (Tab).
+    store.setLatestNotificationAgentId(notification.agentId);
+
     // Show in-app toast notification
     setNotifications((prev) => {
       // Limit to max visible, remove oldest if needed

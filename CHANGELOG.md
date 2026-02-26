@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.84.3] - 2026-02-26
+
+### Added
+- **Keyboard jump to notifying agent** - Tab shortcut in Commander view jumps to the agent that last sent a notification, then cycles tabs normally
+- **Auto-generate local certs on `--https`** - When HTTPS is enabled but no certs exist, mkcert auto-generates them instead of failing
+
+### Changed
+- **mkcert output visible** - Certificate installation now uses `stdio: inherit` so users see mkcert progress and password prompts
+- **TLS cert resolution order** - Explicit `--tls-key`/`--tls-cert` flags applied before `--install-local-cert` to prevent override
+- **Removed dead `spawnSyncOrThrow`** - Replaced by direct `execSync` calls in mkcert workflow
+
 ## [0.84.2] - 2026-02-26
 
 ### Changed

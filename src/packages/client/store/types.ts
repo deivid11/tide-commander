@@ -264,6 +264,8 @@ export interface StoreState {
   agentsWithUnseenOutput: Set<string>;
   // Request to expand an agent in the commander view (set from notification clicks)
   commanderExpandRequest: string | null;
+  // Most recent agent that sent a notification (used for quick keyboard jump)
+  latestNotificationAgentId: string | null;
 }
 
 // Database building state
