@@ -77,6 +77,7 @@ export class RunnerProcessLifecycle {
     log.log(`🚀 Spawning: ${executable} ${args.join(' ')}`);
 
     const isWindows = process.platform === 'win32';
+    const extraEnv = this.backend.getExtraEnv?.() ?? {};
     const childProcess = spawn(executable, args, {
       cwd: workingDir,
       env: {
@@ -84,6 +85,7 @@ export class RunnerProcessLifecycle {
         LANG: 'en_US.UTF-8',
         LC_ALL: 'en_US.UTF-8',
         TIDE_SERVER: `http://localhost:${process.env.TIDE_PORT || process.env.PORT || 5174}`,
+        ...extraEnv,
       },
       shell: isWindows ? true : false,
       detached: isWindows ? false : true,

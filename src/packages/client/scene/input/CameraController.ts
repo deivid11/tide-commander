@@ -24,6 +24,13 @@ export class CameraController {
   private goalCameraPos: THREE.Vector3 | null = null;
   private goalOrbitTarget: THREE.Vector3 | null = null;
 
+  // Touch pan inertia state
+  private panInertiaVelocity = new THREE.Vector3();
+  private lastPanEventTime = 0;
+  private panInertiaActive = false;
+  private static readonly PAN_INERTIA_DECAY = 0.9;
+  private static readonly PAN_INERTIA_MIN_SPEED = 0.6; // world units / second
+
   constructor(
     camera: THREE.PerspectiveCamera,
     controls: OrbitControls,
@@ -61,6 +68,7 @@ export class CameraController {
    * @param speedMultiplier - Optional sensitivity multiplier (default 1.0)
    */
   handleWheelZoom(event: WheelEvent, speedMultiplier: number = 1.0): void {
+    this.stopPanInertia();
     event.preventDefault();
 
     // Normalize deltaY: mice typically send ~100-120 per notch, trackpads send smaller values
@@ -120,6 +128,7 @@ export class CameraController {
    * Handle pinch-to-zoom gesture.
    */
   handlePinchZoom(scale: number, center: ScreenPosition): void {
+    this.stopPanInertia();
     // Cancel smooth zoom — pinch is a continuous gesture that needs instant response
     this.goalCameraPos = null;
     this.goalOrbitTarget = null;
@@ -165,6 +174,7 @@ export class CameraController {
    * Handle single-finger pan gesture.
    */
   handlePan(dx: number, dy: number): void {
+    this.panInertiaActive = false;
     this.goalCameraPos = null;
     this.goalOrbitTarget = null;
     const cameraDirection = new THREE.Vector3();
@@ -186,12 +196,18 @@ export class CameraController {
 
     this.controls.target.add(panDelta);
     this.camera.position.add(panDelta);
+
+    const now = performance.now();
+    const dt = this.lastPanEventTime > 0 ? Math.max(0.001, (now - this.lastPanEventTime) / 1000) : 1 / 60;
+    this.lastPanEventTime = now;
+    this.panInertiaVelocity.copy(panDelta).divideScalar(dt);
   }
 
   /**
    * Handle orbit gesture (rotate camera around target).
    */
   handleOrbit(dx: number, dy: number): void {
+    this.stopPanInertia();
     this.goalCameraPos = null;
     this.goalOrbitTarget = null;
     const rotateSpeed = 0.005;
@@ -220,6 +236,7 @@ export class CameraController {
    * Handle two-finger rotation (twist gesture).
    */
   handleTwistRotation(angleDelta: number): void {
+    this.stopPanInertia();
     this.goalCameraPos = null;
     this.goalOrbitTarget = null;
     const offset = this.camera.position.clone().sub(this.controls.target);
@@ -240,6 +257,7 @@ export class CameraController {
    * Advance smooth zoom interpolation. Call once per frame from the render loop.
    */
   updateSmoothZoom(deltaTime: number): void {
+    this.updatePanInertia(deltaTime);
     if (!this.goalCameraPos || !this.goalOrbitTarget) return;
 
     const smoothing = store.getMouseControls().sensitivity.smoothing;
@@ -280,5 +298,41 @@ export class CameraController {
    */
   get isZoomAnimating(): boolean {
     return this.goalCameraPos !== null;
+  }
+
+  /**
+   * Start decaying inertia after single-finger touch pan ends.
+   */
+  endPanWithInertia(): void {
+    this.lastPanEventTime = 0;
+    if (this.panInertiaVelocity.length() < CameraController.PAN_INERTIA_MIN_SPEED) {
+      this.stopPanInertia();
+      return;
+    }
+    this.panInertiaActive = true;
+  }
+
+  /**
+   * Stop any active pan inertia immediately.
+   */
+  stopPanInertia(): void {
+    this.panInertiaActive = false;
+    this.panInertiaVelocity.set(0, 0, 0);
+    this.lastPanEventTime = 0;
+  }
+
+  private updatePanInertia(deltaTime: number): void {
+    if (!this.panInertiaActive) return;
+
+    const panDelta = this.panInertiaVelocity.clone().multiplyScalar(deltaTime);
+    this.controls.target.add(panDelta);
+    this.camera.position.add(panDelta);
+
+    const decay = Math.pow(CameraController.PAN_INERTIA_DECAY, deltaTime * 60);
+    this.panInertiaVelocity.multiplyScalar(decay);
+
+    if (this.panInertiaVelocity.length() < CameraController.PAN_INERTIA_MIN_SPEED) {
+      this.stopPanInertia();
+    }
   }
 }

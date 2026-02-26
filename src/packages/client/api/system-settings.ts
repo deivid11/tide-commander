@@ -94,3 +94,36 @@ export async function updateEchoPromptSetting(enabled: boolean): Promise<void> {
     throw new Error(`Failed to update echo prompt setting: ${response.statusText}`);
   }
 }
+
+/**
+ * Get the configured codex binary path
+ */
+export async function fetchCodexBinaryPath(): Promise<string> {
+  const token = getAuthToken();
+  const response = await fetch(`${getApiBaseUrl()}/api/agents/system-settings/codex-binary`, {
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch codex binary path: ${response.statusText}`);
+  }
+  const data = await response.json();
+  return data.path || '';
+}
+
+/**
+ * Set the codex binary path
+ */
+export async function updateCodexBinaryPath(binaryPath: string): Promise<void> {
+  const token = getAuthToken();
+  const response = await fetch(`${getApiBaseUrl()}/api/agents/system-settings/codex-binary`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({ path: binaryPath }),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to update codex binary path: ${response.statusText}`);
+  }
+}

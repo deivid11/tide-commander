@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.85.0] - 2026-02-26
+
+### Added
+- **Mobile swipe-up close gesture** - Swipe up from terminal input to return to 3D scene on small screens
+- **Codex binary path configuration** - Settings UI (Connection section) for overriding auto-detected Codex path
+- **Pan inertia/momentum physics** - Smooth camera panning momentum on 3D and 2D scenes after swipe release
+- **Web search tool rendering** - Codex session history now parses and displays web search tool results
+- **Fallback tool renderer** - Unknown/unsupported Codex tool types shown with expandable details view
+- **Codex experimental JSON event format** - Parser supports payload-wrapped response items and reasoning events
+- **Android notification deduplication** - Notification ID tracking with 2-minute TTL prevents duplicate alerts
+- **Session loader for Codex** - Parses Codex session history into structured events for display
+
+### Changed
+- **Codex backend uses `--experimental-json`** - Enhanced event stream format replacing `--json`
+- **Notification skill simplified** - Uses only HTTP API, removed D-Bus fallback on Linux
+- **Mobile terminal header sizing** - Minimum 40px height for better touch accessibility
+- **2D scene stays mounted on mobile** - Prevents reload/flicker when toggling terminal panel
+- **Notification toasts show agent class icon** - Visual distinction for agent notifications
+- **Terminal input area refactored** - Mobile swipe gesture state management and tracking
+
+### Fixed
+- **Codex binary PATH resolution** - Respects `CODEX_BINARY` env var and Settings UI path override
+- **Codex event text capping** - Fallback text capped at 4000 chars to prevent unreadable output
+- **Codex task completion events** - Properly show last agent message in session history
+
 ## [0.84.3] - 2026-02-26
 
 ### Added

@@ -197,6 +197,9 @@ export interface CLIBackend {
   // Detect CLI installation
   detectInstallation(): string | null;
 
+  // Extra environment variables for the spawned process (e.g. PATH additions)
+  getExtraEnv?(): Record<string, string>;
+
   // Whether stdin input is required
   requiresStdinInput(): boolean;
 

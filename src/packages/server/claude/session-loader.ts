@@ -232,6 +232,38 @@ function normalizeCodexFunctionToolCall(
   };
 }
 
+function normalizeCodexWebSearchToolInput(payload: Record<string, unknown>): Record<string, unknown> {
+  const action = isObject(payload.action) ? payload.action : {};
+  const actionQueriesRaw = action.queries;
+  const actionQueries = Array.isArray(actionQueriesRaw) && actionQueriesRaw.every((q) => typeof q === 'string')
+    ? actionQueriesRaw as string[]
+    : undefined;
+
+  return {
+    actionType: typeof action.type === 'string' ? action.type : undefined,
+    actionQuery: typeof action.query === 'string' ? action.query : undefined,
+    actionQueries,
+    actionUrl: typeof action.url === 'string' ? action.url : undefined,
+    status: typeof payload.status === 'string' ? payload.status : undefined,
+  };
+}
+
+function normalizeCodexEventFallbackText(eventType: string, payload: unknown): string {
+  let serialized = '';
+  try {
+    serialized = JSON.stringify(payload, null, 2);
+  } catch {
+    serialized = String(payload);
+  }
+
+  const MAX_LEN = 4000;
+  if (serialized.length > MAX_LEN) {
+    serialized = `${serialized.slice(0, MAX_LEN)}...`;
+  }
+
+  return `[codex-event] ${eventType}\n${serialized}`;
+}
+
 function findCodexSessionFile(sessionId: string): string | null {
   const cached = codexSessionFileById.get(sessionId);
   if (cached && fs.existsSync(cached)) {
@@ -564,6 +596,42 @@ function parseCodexEntryMessages(
       });
       return;
     }
+
+    // token_count: Skip in history (token accounting shown via turn.completed)
+    if (payload.type === 'token_count') {
+      return;
+    }
+
+    // agent_reasoning: Skip in history (consistent with Claude thinking behavior)
+    if (payload.type === 'agent_reasoning') {
+      return;
+    }
+
+    // turn_aborted: Skip in history (interruption is visible from agent stopping)
+    if (payload.type === 'turn_aborted') {
+      return;
+    }
+
+    // task_complete: Show the final agent message as formatted text
+    if (payload.type === 'task_complete' && typeof payload.last_agent_message === 'string') {
+      messages.push({
+        type: 'assistant',
+        content: payload.last_agent_message,
+        timestamp: entry.timestamp,
+        uuid: `${entry.timestamp}-assistant-task-complete`,
+      });
+      return;
+    }
+
+    // Unknown event_msg types: keep fallback
+    const payloadType = typeof payload.type === 'string' ? payload.type : 'unknown';
+    messages.push({
+      type: 'assistant',
+      content: normalizeCodexEventFallbackText(`event_msg.${payloadType}`, payload),
+      timestamp: entry.timestamp,
+      uuid: `${entry.timestamp}-assistant-codex-event`,
+    });
+    return;
   }
 
   if (entry.type !== 'response_item' || !isObject(entry.payload)) {
@@ -620,6 +688,35 @@ function parseCodexEntryMessages(
     return;
   }
 
+  if (payloadType === 'web_search_call') {
+    const toolName = 'web_search';
+    const toolInput = normalizeCodexWebSearchToolInput(payload);
+    const status = typeof payload.status === 'string' ? payload.status : undefined;
+    const toolUseId = typeof payload.call_id === 'string' ? payload.call_id : `${entry.timestamp}-web-search`;
+
+    messages.push({
+      type: 'tool_use',
+      content: JSON.stringify(toolInput, null, 2),
+      timestamp: entry.timestamp,
+      uuid: `${entry.timestamp}-tool-use-web-search`,
+      toolName,
+      toolInput,
+      toolUseId,
+    });
+
+    if (status === 'completed') {
+      messages.push({
+        type: 'tool_result',
+        content: JSON.stringify(toolInput, null, 2),
+        timestamp: entry.timestamp,
+        uuid: `${entry.timestamp}-tool-result-web-search`,
+        toolName,
+        toolUseId,
+      });
+    }
+    return;
+  }
+
   if (payloadType === 'function_call_output') {
     const toolUseId = typeof payload.call_id === 'string' ? payload.call_id : undefined;
     const toolName = toolUseId ? (toolUseIdToName.get(toolUseId) || 'unknown') : 'unknown';
@@ -632,7 +729,88 @@ function parseCodexEntryMessages(
       toolName,
       toolUseId,
     });
+    return;
   }
+
+  // reasoning: Skip in history (consistent with Claude thinking behavior)
+  if (payloadType === 'reasoning') {
+    return;
+  }
+
+  // custom_tool_call: Map to tool_use (normalize apply_patch -> Edit)
+  if (payloadType === 'custom_tool_call') {
+    const rawToolName = typeof payload.name === 'string' ? payload.name : 'unknown';
+    const callId = typeof payload.call_id === 'string' ? payload.call_id : undefined;
+    const rawInput = typeof payload.input === 'string' ? payload.input : '';
+
+    // Normalize: apply_patch -> Edit for consistent UI rendering
+    const toolName = rawToolName === 'apply_patch' ? 'Edit' : rawToolName;
+    const toolInput: Record<string, unknown> = {};
+
+    if (rawToolName === 'apply_patch' && rawInput) {
+      // Extract file path from patch for clickable display
+      const fileMatch = rawInput.match(/\*\*\* (?:Update|Add|Delete) File: (.+)/);
+      if (fileMatch) {
+        toolInput.file_path = fileMatch[1].trim();
+      }
+      toolInput.old_string = '';
+      toolInput.new_string = rawInput;
+    } else {
+      toolInput.input = rawInput;
+    }
+
+    if (callId) {
+      toolUseIdToName.set(callId, toolName);
+    }
+
+    messages.push({
+      type: 'tool_use',
+      content: JSON.stringify(toolInput, null, 2),
+      timestamp: entry.timestamp,
+      uuid: `${entry.timestamp}-tool-use-custom`,
+      toolName,
+      toolInput,
+      toolUseId: callId,
+    });
+    return;
+  }
+
+  // custom_tool_call_output: Map to tool_result
+  if (payloadType === 'custom_tool_call_output') {
+    const callId = typeof payload.call_id === 'string' ? payload.call_id : undefined;
+    const toolName = callId ? (toolUseIdToName.get(callId) || 'unknown') : 'unknown';
+    let content = normalizeTextContent(payload.output);
+
+    // Parse apply_patch JSON output wrapper to extract meaningful text
+    if (content) {
+      try {
+        const parsed = JSON.parse(content);
+        if (isObject(parsed) && typeof parsed.output === 'string') {
+          content = parsed.output as string;
+        }
+      } catch {
+        // Use raw content as-is
+      }
+    }
+
+    messages.push({
+      type: 'tool_result',
+      content,
+      timestamp: entry.timestamp,
+      uuid: `${entry.timestamp}-tool-result-custom`,
+      toolName,
+      toolUseId: callId,
+    });
+    return;
+  }
+
+  const unknownPayloadType = typeof payloadType === 'string' ? payloadType : 'unknown';
+  messages.push({
+    type: 'assistant',
+    content: normalizeCodexEventFallbackText(`response_item.${unknownPayloadType}`, payload),
+    timestamp: entry.timestamp,
+    uuid: `${entry.timestamp}-assistant-codex-response-item`,
+  });
 }
 
 async function parseSessionMessages(

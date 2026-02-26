@@ -158,6 +158,16 @@ export function useSwipeGesture(
     }
   }, [threshold, maxVerticalMovement, onSwipeLeft, onSwipeRight, onSwipeCancel]);
 
+  // touchcancel resets state without triggering any swipe action
+  const handleTouchCancel = useCallback(() => {
+    const hadMovedEnough = touchStateRef.current.hasMovedEnough;
+    touchStateRef.current.isTracking = false;
+    touchStateRef.current.hasMovedEnough = false;
+    if (hadMovedEnough) {
+      onSwipeCancel?.();
+    }
+  }, [onSwipeCancel]);
+
   useEffect(() => {
     const element = ref.current;
     if (!element || !enabled) return;
@@ -169,11 +179,13 @@ export function useSwipeGesture(
     element.addEventListener('touchstart', handleTouchStart, { passive: true });
     element.addEventListener('touchmove', handleTouchMove, { passive: true });
     element.addEventListener('touchend', handleTouchEnd, { passive: true });
+    element.addEventListener('touchcancel', handleTouchCancel, { passive: true });
 
     return () => {
       element.removeEventListener('touchstart', handleTouchStart);
       element.removeEventListener('touchmove', handleTouchMove);
       element.removeEventListener('touchend', handleTouchEnd);
+      element.removeEventListener('touchcancel', handleTouchCancel);
     };
-  }, [ref, enabled, handleTouchStart, handleTouchMove, handleTouchEnd]);
+  }, [ref, enabled, handleTouchStart, handleTouchMove, handleTouchEnd, handleTouchCancel]);
 }

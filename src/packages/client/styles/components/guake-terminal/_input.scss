@@ -606,3 +606,21 @@
   color: $dracula-comment;
   font-weight: 400;
 }
+
+@media (max-width: 768px) {
+  .guake-input-swipe-shell {
+    touch-action: pan-x;
+    transition: opacity 140ms ease, filter 140ms ease;
+    will-change: opacity, filter;
+  }
+
+  .guake-input-swipe-shell.swipe-close-ready {
+    opacity: 0.96;
+    filter: drop-shadow(0 -4px 10px rgba($dracula-cyan, 0.45));
+
+    .guake-input-container {
+      border-color: rgba($dracula-cyan, 0.75);
+      box-shadow: 0 0 0 2px rgba($dracula-cyan, 0.2);
+    }
+  }
+}

@@ -455,3 +455,35 @@ export function ExitPlanModeInput({ content }: ExitPlanModeInputProps) {
     return <pre className="output-input-content">{content}</pre>;
   }
 }
+
+interface UnknownToolInputProps {
+  toolName: string;
+  content: string;
+}
+
+export function UnknownToolInput({ toolName, content }: UnknownToolInputProps) {
+  const [expanded, setExpanded] = useState(false);
+  const preview = content.length > 220 ? `${content.slice(0, 220)}...` : content;
+
+  return (
+    <div className="unknown-tool-input">
+      <div className="unknown-tool-header">
+        <span className="unknown-tool-badge">Fallback</span>
+        <span className="unknown-tool-name">{toolName}</span>
+        <button
+          type="button"
+          className="unknown-tool-toggle"
+          onClick={() => setExpanded((prev) => !prev)}
+          title={expanded ? 'Collapse details' : 'Expand details'}
+        >
+          {expanded ? '▼ Hide' : '▶ Show'}
+        </button>
+      </div>
+      {expanded ? (
+        <pre className="output-input-content">{content}</pre>
+      ) : (
+        <pre className="unknown-tool-preview">{preview}</pre>
+      )}
+    </div>
+  );
+}

@@ -4,7 +4,7 @@
  * Handles text input, file attachments, paste handling, and send functionality.
  */
 
-import React, { useRef, useEffect, useState, memo } from 'react';
+import React, { useRef, useEffect, useState, useCallback, memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { store, useSettings, useLastPrompt } from '../../store';
 import { PermissionRequestInline } from './PermissionRequest';
@@ -148,6 +148,9 @@ function formatElapsed(ms: number): string {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
+const MOBILE_SWIPE_CLOSE_THRESHOLD_PX = 72;
+const MOBILE_SWIPE_CLOSE_MAX_PULL_PX = 128;
+
 export interface TerminalInputAreaProps {
   selectedAgent: Agent;
   selectedAgentId: string;
@@ -186,6 +189,10 @@ export interface TerminalInputAreaProps {
   isSnapshotView?: boolean;
   // Clear loaded history in panel (used by /clear command parity with header action)
   onClearHistory: () => void;
+  // Mobile swipe-up close support (starts from input area)
+  canSwipeClose?: boolean;
+  onSwipeCloseOffsetChange?: (offset: number) => void;
+  onSwipeClose?: () => void;
 }
 
 export const TerminalInputArea = memo(function TerminalInputArea({
@@ -216,6 +223,9 @@ export const TerminalInputArea = memo(function TerminalInputArea({
   textareaRef: externalTextareaRef,
   isSnapshotView = false,
   onClearHistory,
+  canSwipeClose = false,
+  onSwipeCloseOffsetChange,
+  onSwipeClose,
 }: TerminalInputAreaProps) {
   const { t } = useTranslation(['terminal', 'common']);
 
@@ -227,6 +237,14 @@ export const TerminalInputArea = memo(function TerminalInputArea({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const prevUseTextareaRef = useRef(useTextarea);
   const cursorPositionRef = useRef<number>(0);
+  const swipeCloseResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const swipeGestureRef = useRef({
+    isTracking: false,
+    startY: 0,
+    startX: 0,
+  });
+  const [swipeCloseOffset, setSwipeCloseOffset] = useState(0);
+  const [swipeClosePhase, setSwipeClosePhase] = useState<'idle' | 'dragging' | 'returning'>('idle');
 
   // Get settings to check if TTS feature is enabled
   const settings = useSettings();
@@ -247,6 +265,101 @@ export const TerminalInputArea = memo(function TerminalInputArea({
       }
     },
   });
+
+  const clearSwipeCloseResetTimer = useCallback(() => {
+    if (!swipeCloseResetTimerRef.current) return;
+    clearTimeout(swipeCloseResetTimerRef.current);
+    swipeCloseResetTimerRef.current = null;
+  }, []);
+
+  const resetSwipeCloseVisuals = useCallback((phase: 'idle' | 'returning' = 'idle') => {
+    clearSwipeCloseResetTimer();
+    setSwipeCloseOffset(0);
+    setSwipeClosePhase(phase);
+    onSwipeCloseOffsetChange?.(0);
+    if (phase === 'returning') {
+      swipeCloseResetTimerRef.current = setTimeout(() => {
+        setSwipeClosePhase('idle');
+        swipeCloseResetTimerRef.current = null;
+      }, 160);
+    }
+  }, [clearSwipeCloseResetTimer, onSwipeCloseOffsetChange]);
+
+  const handleSwipeCloseTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    if (!canSwipeClose || !onSwipeClose) return;
+    if (window.innerWidth > 768) return;
+    if (e.touches.length !== 1) return;
+
+    clearSwipeCloseResetTimer();
+    const touch = e.touches[0];
+    swipeGestureRef.current = {
+      isTracking: true,
+      startY: touch.clientY,
+      startX: touch.clientX,
+    };
+    setSwipeClosePhase('idle');
+    setSwipeCloseOffset(0);
+    onSwipeCloseOffsetChange?.(0);
+  }, [canSwipeClose, onSwipeClose, clearSwipeCloseResetTimer, onSwipeCloseOffsetChange]);
+
+  const handleSwipeCloseTouchMove = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    if (!swipeGestureRef.current.isTracking) return;
+
+    const touch = e.touches[0];
+    const deltaY = touch.clientY - swipeGestureRef.current.startY;
+    const deltaX = Math.abs(touch.clientX - swipeGestureRef.current.startX);
+
+    // Ignore mostly-horizontal gestures to avoid fighting agent swipe interactions.
+    if (deltaX > 48 && deltaX > Math.abs(deltaY)) {
+      swipeGestureRef.current.isTracking = false;
+      resetSwipeCloseVisuals('returning');
+      return;
+    }
+
+    if (deltaY >= 0) {
+      setSwipeCloseOffset(0);
+      setSwipeClosePhase('idle');
+      return;
+    }
+
+    const upwardPull = Math.min(MOBILE_SWIPE_CLOSE_MAX_PULL_PX, Math.abs(deltaY));
+    if (upwardPull > 8) {
+      e.preventDefault();
+    }
+    setSwipeCloseOffset(upwardPull);
+    setSwipeClosePhase('dragging');
+    onSwipeCloseOffsetChange?.(upwardPull);
+  }, [resetSwipeCloseVisuals, onSwipeCloseOffsetChange]);
+
+  const handleSwipeCloseTouchEnd = useCallback(() => {
+    if (!swipeGestureRef.current.isTracking) return;
+    swipeGestureRef.current.isTracking = false;
+
+    if (!canSwipeClose || !onSwipeClose) {
+      resetSwipeCloseVisuals('returning');
+      return;
+    }
+
+    if (swipeCloseOffset >= MOBILE_SWIPE_CLOSE_THRESHOLD_PX) {
+      onSwipeClose();
+      return;
+    }
+
+    resetSwipeCloseVisuals('returning');
+  }, [canSwipeClose, onSwipeClose, swipeCloseOffset, resetSwipeCloseVisuals, onSwipeCloseOffsetChange]);
+
+  const handleSwipeCloseTouchCancel = useCallback(() => {
+    swipeGestureRef.current.isTracking = false;
+    resetSwipeCloseVisuals('returning');
+  }, [resetSwipeCloseVisuals]);
+
+  useEffect(() => () => clearSwipeCloseResetTimer(), [clearSwipeCloseResetTimer]);
+
+  useEffect(() => {
+    if (canSwipeClose) return;
+    swipeGestureRef.current.isTracking = false;
+    resetSwipeCloseVisuals('idle');
+  }, [canSwipeClose, resetSwipeCloseVisuals]);
 
   // Track cursor position on every input change
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -657,96 +770,104 @@ export const TerminalInputArea = memo(function TerminalInputArea({
       )}
 
       <div className={`guake-input-wrapper ${selectedAgent.status === 'working' ? 'has-stop-btn is-working' : ''} ${showCompletion ? 'is-completed' : ''} ${isSnapshotView ? 'is-snapshot-view' : ''}`}>
-        {/* Mobile context bar - compact context stats above input */}
-        {!isSnapshotView && (() => {
-          const stats = selectedAgent.contextStats;
-          const totalTokens = stats ? stats.totalTokens : (selectedAgent.contextUsed || 0);
-          const contextWindow = stats ? stats.contextWindow : (selectedAgent.contextLimit || 200000);
-          const usedPercent = stats ? stats.usedPercent : Math.round((totalTokens / contextWindow) * 100);
-          const freePercent = Math.round(100 - usedPercent);
-          const percentColor = usedPercent >= 80 ? '#ff4a4a' : usedPercent >= 60 ? '#ff9e4a' : usedPercent >= 40 ? '#ffd700' : '#4aff9e';
-          const usedK = (totalTokens / 1000).toFixed(1);
-          const limitK = (contextWindow / 1000).toFixed(1);
-          return (
-            <div
-              className="mobile-context-bar show-on-mobile"
-              onClick={() => store.setContextModalAgentId(selectedAgentId)}
-            >
-              <span className="mobile-context-bar-fill" style={{ width: `${Math.min(100, usedPercent)}%`, backgroundColor: percentColor }} />
-              <span className="mobile-context-bar-text">
-                <span style={{ color: percentColor }}>{usedK}k/{limitK}k</span>
-                <span className="mobile-context-bar-pct">({freePercent}% free)</span>
-              </span>
-            </div>
-          );
-        })()}
-        {/* Floating stop button + elapsed timer - isolated component to avoid re-rendering input area */}
-        <ElapsedTimer
-          agentId={selectedAgentId}
-          isWorking={isWorking}
-          timestamp={lastPrompt?.timestamp}
-        />
-        {/* Completion elapsed time - shown briefly when agent finishes */}
-        {showCompletion && completionElapsed !== null && (
-          <div className="guake-completion-time">{formatElapsed(completionElapsed)}</div>
-        )}
-
-        <div className={`guake-input ${useTextarea ? 'guake-input-expanded' : ''}`}>
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            onChange={handleFileSelect}
-            style={{ display: 'none' }}
-            accept="*"
-          />
-          <div className="guake-input-container" onAuxClick={handleContainerAuxClick}>
-            <button
-              className="guake-attach-btn"
-              onClick={() => fileInputRef.current?.click()}
-              title={t('terminal:input.attachOrPaste')}
-            >
-              📎
-            </button>
-            {settings.experimentalTTS && (
-              <button
-                className={`guake-mic-btn ${recording ? 'recording' : ''} ${transcribing ? 'transcribing' : ''}`}
-                onClick={toggleRecording}
-                title={recording ? t('terminal:input.stopRecording') : transcribing ? t('terminal:input.transcribing') : t('terminal:input.voiceInput')}
-                disabled={transcribing}
+        <div
+          className={`guake-input-swipe-shell ${swipeClosePhase !== 'idle' ? 'swipe-close-active' : ''} ${swipeCloseOffset >= MOBILE_SWIPE_CLOSE_THRESHOLD_PX ? 'swipe-close-ready' : ''}`}
+          onTouchStart={handleSwipeCloseTouchStart}
+          onTouchMove={handleSwipeCloseTouchMove}
+          onTouchEnd={handleSwipeCloseTouchEnd}
+          onTouchCancel={handleSwipeCloseTouchCancel}
+        >
+          {/* Mobile context bar - compact context stats above input */}
+          {!isSnapshotView && (() => {
+            const stats = selectedAgent.contextStats;
+            const totalTokens = stats ? stats.totalTokens : (selectedAgent.contextUsed || 0);
+            const contextWindow = stats ? stats.contextWindow : (selectedAgent.contextLimit || 200000);
+            const usedPercent = stats ? stats.usedPercent : Math.round((totalTokens / contextWindow) * 100);
+            const freePercent = Math.round(100 - usedPercent);
+            const percentColor = usedPercent >= 80 ? '#ff4a4a' : usedPercent >= 60 ? '#ff9e4a' : usedPercent >= 40 ? '#ffd700' : '#4aff9e';
+            const usedK = (totalTokens / 1000).toFixed(1);
+            const limitK = (contextWindow / 1000).toFixed(1);
+            return (
+              <div
+                className="mobile-context-bar show-on-mobile"
+                onClick={() => store.setContextModalAgentId(selectedAgentId)}
               >
-                {transcribing ? '⏳' : recording ? '🔴' : '🎤'}
+                <span className="mobile-context-bar-fill" style={{ width: `${Math.min(100, usedPercent)}%`, backgroundColor: percentColor }} />
+                <span className="mobile-context-bar-text">
+                  <span style={{ color: percentColor }}>{usedK}k/{limitK}k</span>
+                  <span className="mobile-context-bar-pct">({freePercent}% free)</span>
+                </span>
+              </div>
+            );
+          })()}
+          {/* Floating stop button + elapsed timer - isolated component to avoid re-rendering input area */}
+          <ElapsedTimer
+            agentId={selectedAgentId}
+            isWorking={isWorking}
+            timestamp={lastPrompt?.timestamp}
+          />
+          {/* Completion elapsed time - shown briefly when agent finishes */}
+          {showCompletion && completionElapsed !== null && (
+            <div className="guake-completion-time">{formatElapsed(completionElapsed)}</div>
+          )}
+
+          <div className={`guake-input ${useTextarea ? 'guake-input-expanded' : ''}`}>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              onChange={handleFileSelect}
+              style={{ display: 'none' }}
+              accept="*"
+            />
+            <div className="guake-input-container" onAuxClick={handleContainerAuxClick}>
+              <button
+                className="guake-attach-btn"
+                onClick={() => fileInputRef.current?.click()}
+                title={t('terminal:input.attachOrPaste')}
+              >
+                📎
               </button>
-            )}
-            {useTextarea ? (
-              <textarea
-                ref={textareaRef}
-                placeholder={t('terminal:input.placeholder', { agent: selectedAgent.name })}
-                value={command}
-                onChange={handleChange}
-                onKeyDown={handleKeyDown}
-                onPaste={handlePaste}
-                onMouseDown={handleMouseDown}
-                onFocus={handleInputFocus}
-                onBlur={handleInputBlur}
-              />
-            ) : (
-              <input
-                ref={inputRef}
-                type="text"
-                placeholder={t('terminal:input.placeholder', { agent: selectedAgent.name })}
-                value={command}
-                onChange={handleChange}
-                onKeyDown={handleKeyDown}
-                onPaste={handlePaste}
-                onMouseDown={handleMouseDown}
-                onFocus={handleInputFocus}
-                onBlur={handleInputBlur}
-              />
-            )}
-            <button onClick={handleSendCommand} disabled={!command.trim() && attachedFiles.length === 0} title={t('terminal:input.send')}>
-              ➤
-            </button>
+              {settings.experimentalTTS && (
+                <button
+                  className={`guake-mic-btn ${recording ? 'recording' : ''} ${transcribing ? 'transcribing' : ''}`}
+                  onClick={toggleRecording}
+                  title={recording ? t('terminal:input.stopRecording') : transcribing ? t('terminal:input.transcribing') : t('terminal:input.voiceInput')}
+                  disabled={transcribing}
+                >
+                  {transcribing ? '⏳' : recording ? '🔴' : '🎤'}
+                </button>
+              )}
+              {useTextarea ? (
+                <textarea
+                  ref={textareaRef}
+                  placeholder={t('terminal:input.placeholder', { agent: selectedAgent.name })}
+                  value={command}
+                  onChange={handleChange}
+                  onKeyDown={handleKeyDown}
+                  onPaste={handlePaste}
+                  onMouseDown={handleMouseDown}
+                  onFocus={handleInputFocus}
+                  onBlur={handleInputBlur}
+                />
+              ) : (
+                <input
+                  ref={inputRef}
+                  type="text"
+                  placeholder={t('terminal:input.placeholder', { agent: selectedAgent.name })}
+                  value={command}
+                  onChange={handleChange}
+                  onKeyDown={handleKeyDown}
+                  onPaste={handlePaste}
+                  onMouseDown={handleMouseDown}
+                  onFocus={handleInputFocus}
+                  onBlur={handleInputBlur}
+                />
+              )}
+              <button onClick={handleSendCommand} disabled={!command.trim() && attachedFiles.length === 0} title={t('terminal:input.send')}>
+                ➤
+              </button>
+            </div>
           </div>
         </div>
       </div>

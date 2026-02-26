@@ -53,7 +53,10 @@
     "tokenRequired": "Erforderlich wenn der Server AUTH_TOKEN gesetzt hat",
     "saveAndReconnect": "Speichern und neu verbinden",
     "showToken": "Token anzeigen",
-    "hideToken": "Token ausblenden"
+    "hideToken": "Token ausblenden",
+    "codexBinaryPath": "Codex-Binärpfad",
+    "codexBinaryPathPlaceholder": "Leer lassen für automatische Erkennung",
+    "codexBinaryPathHint": "Pfad zur nativen Codex-Binärdatei. Umgeht den Node.js-Wrapper für bessere Sitzungspersistenz."
   },
   "scene": {
     "characterSize": "Charaktergröße",

@@ -53,7 +53,10 @@
     "tokenRequired": "如果服务器设置了 AUTH_TOKEN 则必填",
     "saveAndReconnect": "保存并重新连接",
     "showToken": "显示令牌",
-    "hideToken": "隐藏令牌"
+    "hideToken": "隐藏令牌",
+    "codexBinaryPath": "Codex 二进制路径",
+    "codexBinaryPathPlaceholder": "留空以自动检测",
+    "codexBinaryPathHint": "原生 Codex 二进制文件的路径。绕过 Node.js 包装器以获得更好的会话持久性。"
   },
   "scene": {
     "characterSize": "角色大小",

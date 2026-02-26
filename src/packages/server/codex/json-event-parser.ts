@@ -35,6 +35,22 @@ interface CodexEventEnvelope {
   type?: string;
   item?: CodexItem;
   usage?: CodexUsage;
+  payload?: CodexResponsePayload;
+}
+
+interface CodexResponsePayload {
+  type?: string;
+  status?: string;
+  action?: CodexItemAction;
+  item?: CodexItem;
+  usage?: CodexUsage;
+  // For custom_tool_call / custom_tool_call_output
+  call_id?: string;
+  name?: string;       // Tool name (e.g. "apply_patch")
+  input?: string;      // Tool input string (e.g. patch content)
+  output?: string;     // Tool output string (JSON-encoded)
+  // For reasoning events
+  summary?: Array<{ type?: string; text?: string }>;
 }
 
 interface InferredToolCall {
@@ -56,6 +72,7 @@ interface FileSnapshot {
 const log = createLogger('CodexParser');
 let hasLoggedTurnAbortedLiveWarning = false;
 const MAX_DIFF_FILE_BYTES = 256 * 1024;
+const MAX_FALLBACK_EVENT_TEXT = 4000;
 
 function sanitizeCodexMessageText(text: string): { text: string; hadTurnAborted: boolean } {
   const hadTurnAborted = /<turn_aborted>[\s\S]*?<\/turn_aborted>/.test(text);
@@ -126,11 +143,38 @@ function parseEnvelope(value: unknown): CodexEventEnvelope | undefined {
     type: asString(value.type),
     item: parseItem(value.item),
     usage: parseUsage(value.usage),
+    payload: parseResponsePayload(value.payload),
+  };
+}
+
+function parseSummaryArray(value: unknown): Array<{ type?: string; text?: string }> | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value
+    .filter(isObject)
+    .map((entry) => ({
+      type: asString(entry.type),
+      text: asString(entry.text),
+    }));
+}
+
+function parseResponsePayload(payload: unknown): CodexResponsePayload | undefined {
+  if (!isObject(payload)) return undefined;
+  return {
+    type: asString(payload.type),
+    status: asString(payload.status),
+    action: parseAction(payload.action),
+    item: parseItem(payload.item),
+    usage: parseUsage(payload.usage),
+    call_id: asString(payload.call_id),
+    name: asString(payload.name),
+    input: asString(payload.input),
+    output: asString(payload.output),
+    summary: parseSummaryArray(payload.summary),
   };
 }
 
 /**
- * Parses line-delimited JSON events from `codex exec --json` and maps them to
+ * Parses line-delimited JSON events from `codex exec --experimental-json` and maps them to
  * Tide runtime events.
  */
 export class CodexJsonEventParser {
@@ -166,6 +210,14 @@ export class CodexJsonEventParser {
     const event = parseEnvelope(rawEvent);
     if (!event?.type) return [];
 
+    if (event.type === 'event_msg') {
+      return this.parseEventMsg(rawEvent);
+    }
+
+    if (event.type === 'response_item') {
+      return this.parseResponseItem(event.payload);
+    }
+
     if (event.type === 'item.started') {
       return this.parseItemStarted(event.item);
     }
@@ -180,7 +232,192 @@ export class CodexJsonEventParser {
       return this.parseTurnCompleted(event.usage);
     }
 
-    return [];
+    // Informational envelope events that don't need terminal display
+    if (event.type === 'turn.started' || event.type === 'thread.started') {
+      return [];
+    }
+
+    return [this.buildUnknownEventFallback(`Unhandled Codex event type: ${event.type}`, rawEvent)];
+  }
+
+  private parseEventMsg(rawEvent: unknown): RuntimeEvent[] {
+    if (!isObject(rawEvent)) return [];
+    const payload = rawEvent.payload;
+    if (!isObject(payload)) return [];
+
+    const payloadType = asString(payload.type);
+
+    // token_count: Silent. Token accounting is handled by turn.completed.
+    if (payloadType === 'token_count') {
+      return [];
+    }
+
+    // agent_reasoning: Map to thinking event
+    if (payloadType === 'agent_reasoning') {
+      const text = asString(payload.text);
+      if (!text) return [];
+      return [{ type: 'thinking', text, isStreaming: false }];
+    }
+
+    // turn_aborted: Silent. The interruption is already visible from the agent stopping.
+    if (payloadType === 'turn_aborted') {
+      return [];
+    }
+
+    // user_message / agent_message are handled via item.completed, skip if seen here
+    if (payloadType === 'user_message' || payloadType === 'agent_message') {
+      return [];
+    }
+
+    // task_complete: Display the final agent message as formatted text
+    if (payloadType === 'task_complete') {
+      const lastMsg = asString(payload.last_agent_message);
+      if (lastMsg) {
+        return [{ type: 'text', text: lastMsg, isStreaming: false }];
+      }
+      return [];
+    }
+
+    return [this.buildUnknownEventFallback(`Unhandled Codex event_msg type: ${payloadType}`, payload)];
+  }
+
+  private parseResponseItem(payload?: CodexResponsePayload): RuntimeEvent[] {
+    if (!payload?.type) return [];
+
+    // Codex can emit web search activity wrapped in response_item payloads.
+    // Emit synthetic start/result so terminal streaming and history stay consistent.
+    if (payload.type === 'web_search_call') {
+      const toolName = 'web_search';
+      const toolInput: Record<string, unknown> = {
+        actionType: payload.action?.type,
+        actionQuery: payload.action?.query,
+        actionQueries: payload.action?.queries,
+        actionUrl: payload.action?.url,
+        status: payload.status,
+      };
+
+      if (payload.status === 'completed') {
+        return [
+          { type: 'tool_start', toolName, toolInput },
+          { type: 'tool_result', toolName, toolOutput: JSON.stringify(toolInput) },
+        ];
+      }
+
+      if (payload.status === 'in_progress' || payload.status === 'started') {
+        return [{ type: 'tool_start', toolName, toolInput }];
+      }
+
+      return [{ type: 'tool_result', toolName, toolOutput: JSON.stringify(toolInput) }];
+    }
+
+    // reasoning: Map summary text to thinking event
+    if (payload.type === 'reasoning') {
+      const text = this.extractReasoningSummaryText(payload);
+      if (!text) return [];
+      return [{ type: 'thinking', text, isStreaming: false }];
+    }
+
+    // custom_tool_call: Map to tool_start (with special handling for apply_patch)
+    if (payload.type === 'custom_tool_call') {
+      return this.parseCustomToolCall(payload);
+    }
+
+    // custom_tool_call_output: Map to tool_result
+    if (payload.type === 'custom_tool_call_output') {
+      return this.parseCustomToolCallOutput(payload);
+    }
+
+    return [this.buildUnknownEventFallback(`Unhandled Codex response_item payload type: ${payload.type}`, payload)];
+  }
+
+  private extractReasoningSummaryText(payload: CodexResponsePayload): string | undefined {
+    if (!payload.summary || !Array.isArray(payload.summary)) return undefined;
+    const texts = payload.summary
+      .map((s) => s.text)
+      .filter((t): t is string => Boolean(t));
+    return texts.length > 0 ? texts.join('\n') : undefined;
+  }
+
+  private parseCustomToolCall(payload: CodexResponsePayload): RuntimeEvent[] {
+    const toolName = payload.name || 'unknown_tool';
+    const callId = payload.call_id;
+    const input = payload.input || '';
+
+    // Track tool name by call_id for correlating with custom_tool_call_output
+    if (callId) {
+      this.activeToolByItemId.set(callId, toolName);
+    }
+
+    // Special handling for apply_patch: generate synthetic Edit/Write events
+    if (toolName === 'apply_patch' && input) {
+      const inferredCalls = this.extractApplyPatchOperations(input);
+      if (inferredCalls.length > 0) {
+        const events: RuntimeEvent[] = [];
+        for (const call of inferredCalls) {
+          const filePath = this.stringField(call.toolInput.file_path);
+          if (filePath) {
+            const uiPath = this.normalizePathForUi(filePath);
+            if (uiPath) {
+              call.toolInput.file_path = uiPath;
+            }
+          }
+          events.push({
+            type: 'tool_start',
+            toolName: call.toolName,
+            toolInput: call.toolInput,
+          });
+          if (call.toolOutput) {
+            events.push({
+              type: 'tool_result',
+              toolName: call.toolName,
+              toolOutput: call.toolOutput,
+            });
+          }
+        }
+        return events;
+      }
+    }
+
+    // Generic tool_start for non-apply_patch or when patch parsing yields nothing
+    return [{
+      type: 'tool_start',
+      toolName,
+      toolInput: { input, call_id: callId },
+    }];
+  }
+
+  private parseCustomToolCallOutput(payload: CodexResponsePayload): RuntimeEvent[] {
+    const callId = payload.call_id;
+    const toolName = callId
+      ? (this.activeToolByItemId.get(callId) ?? 'unknown_tool')
+      : 'unknown_tool';
+
+    if (callId) {
+      this.activeToolByItemId.delete(callId);
+    }
+
+    let toolOutput = payload.output || '';
+
+    // For apply_patch, extract the meaningful output from the JSON wrapper
+    if (toolName === 'apply_patch' && toolOutput) {
+      try {
+        const parsed = JSON.parse(toolOutput);
+        if (isObject(parsed)) {
+          const outputText = asString(parsed.output);
+          if (outputText) {
+            toolOutput = outputText;
+          }
+        }
+      } catch {
+        // Use raw output string as-is
+      }
+    }
+
+    return [{
+      type: 'tool_result',
+      toolName: toolName === 'apply_patch' ? 'Edit' : toolName,
+      toolOutput,
+    }];
   }
 
   private parseItemStarted(item?: CodexItem): RuntimeEvent[] {
@@ -214,7 +451,7 @@ export class CodexJsonEventParser {
       ];
     }
 
-    return [];
+    return [this.buildUnknownEventFallback(`Unhandled Codex item.started type: ${item.type}`, item)];
   }
 
   private parseItemCompleted(item?: CodexItem): RuntimeEvent[] {
@@ -268,7 +505,13 @@ export class CodexJsonEventParser {
       ];
     }
 
-    return [];
+    // file_change: Silent. File change info is already captured from the
+    // command_execution or custom_tool_call that caused it.
+    if (item.type === 'file_change') {
+      return [];
+    }
+
+    return [this.buildUnknownEventFallback(`Unhandled Codex item.completed type: ${item.type}`, item)];
   }
 
   private parseTurnCompleted(usage?: CodexUsage): RuntimeEvent[] {
@@ -290,6 +533,23 @@ export class CodexJsonEventParser {
     }
 
     return [event];
+  }
+
+  private buildUnknownEventFallback(prefix: string, payload: unknown): RuntimeEvent {
+    let serialized = '';
+    try {
+      serialized = JSON.stringify(payload);
+    } catch {
+      serialized = String(payload);
+    }
+    if (serialized.length > MAX_FALLBACK_EVENT_TEXT) {
+      serialized = `${serialized.slice(0, MAX_FALLBACK_EVENT_TEXT)}...`;
+    }
+    return {
+      type: 'text',
+      text: `[codex-event] ${prefix}\n${serialized}`,
+      isStreaming: false,
+    };
   }
 
   private buildWebSearchToolInput(item: CodexItem): Record<string, unknown> {

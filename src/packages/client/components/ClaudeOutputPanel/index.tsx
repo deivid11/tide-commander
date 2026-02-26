@@ -83,6 +83,8 @@ import type { Agent } from '../../../shared/types';
 const LIVE_DUPLICATE_WINDOW_MS = 10_000;
 const HISTORY_OUTPUT_DUPLICATE_WINDOW_MS = 30_000;
 const HISTORY_ASSISTANT_OUTPUT_DUPLICATE_WINDOW_MS = 120_000;
+const MOBILE_CLOSE_SWIPE_MAX_OFFSET_PX = 128;
+const MOBILE_CLOSE_SWIPE_RELEASE_MS = 140;
 
 function normalizeUserMessage(text: string): string {
   const parsedBoss = parseBossContext(text);
@@ -266,7 +268,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     isOpen,
   });
 
-  // Swipe navigation hook
+  // Swipe navigation hook (horizontal agent switching)
   const swipe = useSwipeNavigation({
     agents,
     selectedAgentId: activeAgentId,
@@ -542,6 +544,8 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
 
   // Scroll handling - track if user scrolled up to disable auto-scroll
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
+  const [mobileSwipeCloseOffset, setMobileSwipeCloseOffset] = useState(0);
+  const [isMobileSwipeClosing, setIsMobileSwipeClosing] = useState(false);
   const isUserScrolledUpRef = useRef(false);
   // Grace period after agent switch - don't detect user scroll during this time
   const agentSwitchGraceRef = useRef(false);
@@ -555,9 +559,30 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
 
   const handlePinCancel = useCallback(() => setPinToBottom(false), []);
 
+  const handleMobileSwipeClose = useCallback(() => {
+    if (typeof window === 'undefined' || window.innerWidth > 768) return;
+    setIsMobileSwipeClosing(true);
+    setMobileSwipeCloseOffset(MOBILE_CLOSE_SWIPE_MAX_OFFSET_PX);
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    setTimeout(() => {
+      store.setMobileView('3d');
+      setIsMobileSwipeClosing(false);
+      setMobileSwipeCloseOffset(0);
+    }, MOBILE_CLOSE_SWIPE_RELEASE_MS);
+  }, []);
+
+  const handleMobileSwipeCloseOffsetChange = useCallback((offset: number) => {
+    if (isMobileSwipeClosing) return;
+    setMobileSwipeCloseOffset(offset);
+  }, [isMobileSwipeClosing]);
+
   // Reset auto-scroll when agent changes (NOT on new outputs - that would override user scroll-up)
   useEffect(() => {
     setShouldAutoScroll(true);
+    setMobileSwipeCloseOffset(0);
+    setIsMobileSwipeClosing(false);
     isUserScrolledUpRef.current = false;
     // Start grace period - for 3 seconds after agent change, don't detect user scroll
     agentSwitchGraceRef.current = true;
@@ -969,8 +994,8 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
   return (
     <div
       ref={terminalRef}
-      className={`guake-terminal ${isOpen ? 'open' : 'collapsed'} ${debugPanelOpen && isOpen ? 'with-debug-panel' : ''} ${overviewPanelOpen && isOpen ? 'with-overview-panel' : ''} ${draggingOver ? 'drag-over' : ''}`}
-      style={{ '--terminal-height': `${terminalHeight}%` } as React.CSSProperties}
+      className={`guake-terminal ${isOpen ? 'open' : 'collapsed'} ${debugPanelOpen && isOpen ? 'with-debug-panel' : ''} ${overviewPanelOpen && isOpen ? 'with-overview-panel' : ''} ${draggingOver ? 'drag-over' : ''} ${mobileSwipeCloseOffset > 0 ? 'mobile-swipe-close-active' : ''} ${isMobileSwipeClosing ? 'mobile-swipe-close-closing' : ''}`}
+      style={{ '--terminal-height': `${terminalHeight}%`, '--mobile-swipe-close-offset': `${mobileSwipeCloseOffset}px` } as React.CSSProperties}
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -1185,6 +1210,15 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
           textareaRef={terminalTextareaRef}
           isSnapshotView={isSnapshotView}
           onClearHistory={historyLoader.clearHistory}
+          canSwipeClose={
+            isMobileWidth
+            && mobileView === 'terminal'
+            && !isAgentSwitching
+            && !search.searchMode
+            && !historyLoader.fetchingHistory
+          }
+          onSwipeCloseOffsetChange={handleMobileSwipeCloseOffsetChange}
+          onSwipeClose={handleMobileSwipeClose}
         />
 
         {/* Agent Status Bar (CWD + Context) */}

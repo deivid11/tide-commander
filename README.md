@@ -304,7 +304,7 @@ Tide Commander is a Claude Code and Codex-compatible orchestrator that provides 
 
 **🤖 CLI Integration (Claude + Codex)**
 - Claude agents run `claude` with `--output-format stream-json` and use stdin for follow-up messages
-- Codex agents run `codex exec --json` and resume via session-based command args
+- Codex agents run `codex exec --experimental-json` and resume via session-based command args
 - Events (tool usage, text output, errors) are parsed from stdout for both providers
 - Sessions are persisted and can be resumed
 
@@ -475,3 +475,6 @@ Have a feature idea or found a bug? Open an [issue](https://github.com/your-repo
 
 MIT
  
+
+Added a line.
+Another line added.

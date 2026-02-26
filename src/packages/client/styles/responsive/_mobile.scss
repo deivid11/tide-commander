@@ -184,6 +184,22 @@
       display: none;
     }
 
+    // Keep 2D scene mounted behind terminal to avoid reload/flicker on open/close.
+    &.view-mode-2d {
+      .battlefield-container {
+        display: flex !important;
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .guake-terminal {
+        z-index: 1;
+      }
+    }
+
     // Agent bar at bottom - stays fixed, keyboard naturally pushes viewport
     .agent-bar {
       z-index: 160;
@@ -457,6 +473,19 @@
     &.open {
       display: flex;
     }
+
+    &.mobile-swipe-close-active {
+      transform: translateY(calc(var(--mobile-swipe-close-offset, 0px) * -1));
+      opacity: 1;
+      transition: transform 100ms linear, opacity 100ms linear;
+      will-change: transform, opacity;
+    }
+
+    &.mobile-swipe-close-closing {
+      transition: transform 140ms ease-out, opacity 140ms ease-out;
+      transform: translateY(-140px);
+      opacity: 0;
+    }
   }
 
   // Guake content fills available space
@@ -625,12 +654,12 @@
   // Guake header adjustments - compact mobile design
   .guake-header {
     display: flex !important;
-    padding: 2px 6px;
+    padding: 4px 6px;
     flex-wrap: nowrap;
     gap: 4px;
-    height: 28px;
-    min-height: 28px;
-    max-height: 28px;
+    height: auto;
+    min-height: 40px;
+    max-height: none;
     background: rgba($dracula-bg, 0.98);
     position: relative;
     z-index: 10;
@@ -644,9 +673,20 @@
     flex: 1;
     min-width: 0;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 10px;
     overflow: hidden;
+  }
+
+  .guake-title-btn,
+  .guake-title-with-provider {
+    min-width: 0;
+    max-width: 100%;
+    align-items: flex-start;
+  }
+
+  .guake-title-block {
+    min-width: 0;
   }
 
   .guake-title {
@@ -660,14 +700,17 @@
     background-clip: text;
   }
 
+  .guake-mobile-title-context {
+    display: block;
+    font-size: 9px;
+    line-height: 1.2;
+    color: $dracula-comment;
+    margin-top: 1px;
+    max-width: min(56vw, 240px);
+  }
+
   .guake-status-line {
-    font-size: 10px;
-    gap: 6px;
-    flex: 1;
-    min-width: 0;
-    background: rgba($dracula-current, 0.3);
-    padding: 4px 8px;
-    border-radius: 12px;
+    display: none;
   }
 
   .guake-supervisor-badge {

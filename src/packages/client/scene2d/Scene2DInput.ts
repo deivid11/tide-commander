@@ -39,6 +39,8 @@ export class Scene2DInput {
   private static readonly ENABLE_DOUBLE_CLICK_CAMERA_FOCUS = false; // Set to true to enable camera zoom/pan on double-click
   private static readonly TOUCH_LONG_PRESS_DURATION = 500;
   private static readonly TOUCH_DRAG_THRESHOLD = 5;
+  private static readonly TOUCH_INERTIA_DECAY = 0.9;
+  private static readonly TOUCH_INERTIA_MIN_SPEED = 0.02; // px/ms
 
   // Selection box
   private selectionBox: SelectionBox | null = null;
@@ -73,6 +75,7 @@ export class Scene2DInput {
   }
 
   dispose(): void {
+    this.stopTouchInertia();
     this.canvas.removeEventListener('mousedown', this.onMouseDown);
     this.canvas.removeEventListener('mousemove', this.onMouseMove);
     this.canvas.removeEventListener('mouseup', this.onMouseUp);
@@ -717,12 +720,20 @@ export class Scene2DInput {
   private longPressTimer: ReturnType<typeof setTimeout> | null = null;
   private longPressTriggered = false;
   private touchIsPanning = false;
+  private touchPanVelocityX = 0;
+  private touchPanVelocityY = 0;
+  private lastTouchMoveTime = 0;
+  private touchInertiaFrameId: number | null = null;
 
   private onTouchStart = (e: TouchEvent): void => {
     e.preventDefault();
+    this.stopTouchInertia();
     this.clearLongPressTimer();
     this.longPressTriggered = false;
     this.touchIsPanning = false;
+    this.touchPanVelocityX = 0;
+    this.touchPanVelocityY = 0;
+    this.lastTouchMoveTime = 0;
 
     const rect = this.canvas.getBoundingClientRect();
     this.touchStartPositions = Array.from(e.touches).map(t => ({
@@ -815,11 +826,20 @@ export class Scene2DInput {
       }
 
       if (this.touchIsPanning) {
+        const dt = this.lastTouchMoveTime > 0
+          ? Math.max(1, e.timeStamp - this.lastTouchMoveTime)
+          : 16;
         const deltaX = x - this.lastMouseX;
         const deltaY = y - this.lastMouseY;
+        const instantaneousVX = deltaX / dt;
+        const instantaneousVY = deltaY / dt;
+        // Blend velocity to keep inertia smooth and avoid spikes.
+        this.touchPanVelocityX = this.touchPanVelocityX * 0.7 + instantaneousVX * 0.3;
+        this.touchPanVelocityY = this.touchPanVelocityY * 0.7 + instantaneousVY * 0.3;
         this.camera.panBy(deltaX, deltaY);
       }
 
+      this.lastTouchMoveTime = e.timeStamp;
       this.lastMouseX = x;
       this.lastMouseY = y;
     } else if (e.touches.length === 2) {
@@ -867,6 +887,9 @@ export class Scene2DInput {
         this.isPanning = false;
         this.touchStartPositions = [];
         this.touchIsPanning = false;
+        this.touchPanVelocityX = 0;
+        this.touchPanVelocityY = 0;
+        this.lastTouchMoveTime = 0;
         return;
       }
 
@@ -880,22 +903,71 @@ export class Scene2DInput {
       if (clickDuration < 300 && distFromStart < 20) {
         this.handleClick(this.lastMouseX, this.lastMouseY, false);
       }
+
+      if (this.touchIsPanning) {
+        this.startTouchInertia();
+      }
     }
 
     this.isMouseDown = false;
     this.isPanning = false;
     this.touchStartPositions = [];
     this.touchIsPanning = false;
+    this.lastTouchMoveTime = 0;
   };
 
   private onTouchCancel = (): void => {
+    this.stopTouchInertia();
     this.clearLongPressTimer();
     this.longPressTriggered = false;
     this.isMouseDown = false;
     this.isPanning = false;
     this.touchStartPositions = [];
     this.touchIsPanning = false;
+    this.touchPanVelocityX = 0;
+    this.touchPanVelocityY = 0;
+    this.lastTouchMoveTime = 0;
   };
+
+  private startTouchInertia(): void {
+    const initialSpeed = Math.hypot(this.touchPanVelocityX, this.touchPanVelocityY);
+    if (initialSpeed < Scene2DInput.TOUCH_INERTIA_MIN_SPEED) return;
+
+    this.stopTouchInertia();
+    let velocityX = this.touchPanVelocityX;
+    let velocityY = this.touchPanVelocityY;
+    let lastFrameTime = performance.now();
+
+    const tick = (now: number): void => {
+      const dt = Math.max(1, now - lastFrameTime);
+      lastFrameTime = now;
+
+      this.camera.panBy(velocityX * dt, velocityY * dt);
+
+      const decay = Math.pow(Scene2DInput.TOUCH_INERTIA_DECAY, dt / (1000 / 60));
+      velocityX *= decay;
+      velocityY *= decay;
+
+      const speed = Math.hypot(velocityX, velocityY);
+      if (speed < Scene2DInput.TOUCH_INERTIA_MIN_SPEED) {
+        this.touchInertiaFrameId = null;
+        this.touchPanVelocityX = 0;
+        this.touchPanVelocityY = 0;
+        return;
+      }
+
+      this.touchInertiaFrameId = requestAnimationFrame(tick);
+    };
+
+    this.touchInertiaFrameId = requestAnimationFrame(tick);
+  }
+
+  private stopTouchInertia(): void {
+    if (this.touchInertiaFrameId !== null) {
+      cancelAnimationFrame(this.touchInertiaFrameId);
+      this.touchInertiaFrameId = null;
+    }
+  }
 
   private clearLongPressTimer(): void {
     if (this.longPressTimer) {

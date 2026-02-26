@@ -4,7 +4,7 @@ import * as path from 'path';
 import type { CLIBackend, BackendConfig, StandardEvent } from '../claude/types.js';
 import { CodexJsonEventParser } from './json-event-parser.js';
 import { TIDE_COMMANDER_APPENDED_PROMPT } from '../prompts/tide-commander.js';
-import { isEchoPromptEnabled } from '../services/system-prompt-service.js';
+import { isEchoPromptEnabled, getCodexBinaryPath } from '../services/system-prompt-service.js';
 
 interface CodexRawEvent {
   type?: string;
@@ -59,7 +59,7 @@ export class CodexBackend implements CLIBackend {
   buildArgs(config: BackendConfig): string[] {
     this.parser.setWorkingDirectory(config.workingDir);
     const prompt = buildCodexPrompt(config);
-    const args: string[] = ['exec', '--json'];
+    const args: string[] = ['exec', '--experimental-json'];
     const codexConfig = config.codexConfig;
     const fullAuto = codexConfig?.fullAuto !== false;
 
@@ -116,6 +116,15 @@ export class CodexBackend implements CLIBackend {
   }
 
   getExecutablePath(): string {
+    // Priority: 1) CODEX_BINARY env var  2) Settings UI  3) auto-detect
+    const envBinary = process.env.CODEX_BINARY;
+    if (envBinary && fs.existsSync(envBinary)) {
+      return envBinary;
+    }
+    const settingsBinary = getCodexBinaryPath();
+    if (settingsBinary && fs.existsSync(settingsBinary)) {
+      return settingsBinary;
+    }
     return this.detectInstallation() || 'codex';
   }
 
@@ -138,6 +147,22 @@ export class CodexBackend implements CLIBackend {
       if (fs.existsSync(p)) return p;
     }
     return null;
+  }
+
+  getExtraEnv(): Record<string, string> {
+    // When using the native binary directly, we need to add
+    // the vendor path directory to PATH so codex can find bundled tools like rg.
+    const envBinary = process.env.CODEX_BINARY || getCodexBinaryPath();
+    if (!envBinary) return {};
+
+    const codexDir = path.dirname(envBinary);    // .../codex/
+    const archRoot = path.dirname(codexDir);      // .../x86_64-unknown-linux-musl/
+    const pathDir = path.join(archRoot, 'path');
+    if (fs.existsSync(pathDir)) {
+      const sep = process.platform === 'win32' ? ';' : ':';
+      return { PATH: pathDir + sep + (process.env.PATH || '') };
+    }
+    return {};
   }
 
   requiresStdinInput(): boolean {

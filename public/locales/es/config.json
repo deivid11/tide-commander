@@ -53,7 +53,10 @@
     "tokenRequired": "Requerido si el servidor tiene AUTH_TOKEN configurado",
     "saveAndReconnect": "Guardar y reconectar",
     "showToken": "Mostrar token",
-    "hideToken": "Ocultar token"
+    "hideToken": "Ocultar token",
+    "codexBinaryPath": "Ruta del binario Codex",
+    "codexBinaryPathPlaceholder": "Dejar vacío para detección automática",
+    "codexBinaryPathHint": "Ruta al binario nativo de Codex. Omite el wrapper de Node.js para mejor persistencia de sesión."
   },
   "scene": {
     "characterSize": "Tamano del personaje",

@@ -9,6 +9,7 @@ export interface TouchGestureCallbacks {
   onTap: (clientX: number, clientY: number) => void;
   onLongPress: (clientX: number, clientY: number) => void;
   onPan: (dx: number, dy: number) => void;
+  onPanEnd: () => void;
   onPinchZoom: (scale: number, center: ScreenPosition) => void;
   onOrbit: (dx: number, dy: number) => void;
   onRotation: (angleDelta: number) => void;
@@ -293,10 +294,15 @@ export class TouchGestureHandler {
   private handleAllTouchesEnd(event: TouchEvent): boolean {
     const touchDuration = performance.now() - this.touchStartTime;
     const wasTap = !this.isTouchDragging && !this.longPressTriggered && touchDuration < 400;
+    const endedSingleFingerPan = this.isTouchPanning;
 
     if (wasTap && event.changedTouches.length > 0) {
       const touch = event.changedTouches[0];
       this.callbacks.onTap(touch.clientX, touch.clientY);
+    }
+
+    if (endedSingleFingerPan) {
+      this.callbacks.onPanEnd();
     }
 
     this.reset();

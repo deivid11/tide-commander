@@ -153,4 +153,105 @@ describe('session-loader codex normalization', () => {
     expect(history?.messages[0].content).toContain('[Image: /tmp/tide-commander-uploads/image-xlz8m7.png]');
     expect(history?.messages[0].content).not.toContain('[Image attached]');
   });
+
+  it('loads codex response_item web_search_call into tool history entries', async () => {
+    const sessionId = 'session-websearch123';
+    const sessionDir = path.join(tempHomeDir, '.codex', 'sessions', '2026', '02', '07');
+    fs.mkdirSync(sessionDir, { recursive: true });
+    const sessionFile = path.join(sessionDir, `run-${sessionId}.jsonl`);
+
+    const webSearchEntry = {
+      timestamp: '2026-02-07T00:00:02.000Z',
+      type: 'response_item',
+      payload: {
+        type: 'web_search_call',
+        status: 'completed',
+        action: {
+          type: 'search',
+          query: 'codex web search_call docs',
+          queries: ['codex web search_call docs'],
+        },
+      },
+    };
+
+    fs.writeFileSync(sessionFile, `${JSON.stringify(webSearchEntry)}\n`, 'utf8');
+
+    const { loadSession } = await import('./session-loader.js');
+    const history = await loadSession('/workspace/project', sessionId, 20, 0);
+
+    expect(history).not.toBeNull();
+    expect(history?.messages).toHaveLength(2);
+
+    const [toolUse, toolResult] = history!.messages;
+    expect(toolUse).toMatchObject({
+      type: 'tool_use',
+      toolName: 'web_search',
+      toolInput: {
+        actionType: 'search',
+        actionQuery: 'codex web search_call docs',
+        actionQueries: ['codex web search_call docs'],
+        status: 'completed',
+      },
+    });
+    expect(toolResult).toMatchObject({
+      type: 'tool_result',
+      toolName: 'web_search',
+    });
+  });
+
+  it('formats event_msg.task_complete with last_agent_message as assistant text', async () => {
+    const sessionId = 'session-task-complete';
+    const sessionDir = path.join(tempHomeDir, '.codex', 'sessions', '2026', '02', '07');
+    fs.mkdirSync(sessionDir, { recursive: true });
+    const sessionFile = path.join(sessionDir, `run-${sessionId}.jsonl`);
+
+    const taskCompleteEntry = {
+      timestamp: '2026-02-07T00:00:04.000Z',
+      type: 'event_msg',
+      payload: {
+        type: 'task_complete',
+        turn_id: '019c9bff-3b84-7e81-8c2e-e9afa20399be',
+        last_agent_message: 'Done.\n\n1. Fixed the bug\n2. Updated tests',
+      },
+    };
+
+    fs.writeFileSync(sessionFile, `${JSON.stringify(taskCompleteEntry)}\n`, 'utf8');
+
+    const { loadSession } = await import('./session-loader.js');
+    const history = await loadSession('/workspace/project', sessionId, 20, 0);
+
+    expect(history).not.toBeNull();
+    expect(history?.messages).toHaveLength(1);
+    expect(history?.messages[0].type).toBe('assistant');
+    expect(history?.messages[0].content).toBe('Done.\n\n1. Fixed the bug\n2. Updated tests');
+    expect(history?.messages[0].content).not.toContain('[codex-event]');
+  });
+
+  it('keeps unknown codex response_item payloads via fallback assistant message', async () => {
+    const sessionId = 'session-unknown-event';
+    const sessionDir = path.join(tempHomeDir, '.codex', 'sessions', '2026', '02', '07');
+    fs.mkdirSync(sessionDir, { recursive: true });
+    const sessionFile = path.join(sessionDir, `run-${sessionId}.jsonl`);
+
+    const unknownEntry = {
+      timestamp: '2026-02-07T00:00:03.000Z',
+      type: 'response_item',
+      payload: {
+        type: 'future_event_type',
+        status: 'completed',
+        payload: { alpha: 1 },
+      },
+    };
+
+    fs.writeFileSync(sessionFile, `${JSON.stringify(unknownEntry)}\n`, 'utf8');
+
+    const { loadSession } = await import('./session-loader.js');
+    const history = await loadSession('/workspace/project', sessionId, 20, 0);
+
+    expect(history).not.toBeNull();
+    expect(history?.messages).toHaveLength(1);
+    expect(history?.messages[0].type).toBe('assistant');
+    expect(history?.messages[0].content).toContain('[codex-event]');
+    expect(history?.messages[0].content).toContain('response_item.future_event_type');
+  });
 });

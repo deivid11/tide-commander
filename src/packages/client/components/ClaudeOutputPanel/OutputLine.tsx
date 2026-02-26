@@ -10,7 +10,7 @@ import { TOOL_ICONS, extractExecWrappedCommand, formatTimestamp, getLocalizedToo
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, DelegatedTaskHeader, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions } from './BossContext';
-import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, ExitPlanModeInput } from './ToolRenderers';
+import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, ExitPlanModeInput, UnknownToolInput } from './ToolRenderers';
 import { renderContentWithImages, renderUserPromptContent } from './contentRendering';
 import { ansiToHtml } from '../../utils/ansiToHtml';
 import { useTTS } from '../../hooks/useTTS';
@@ -401,6 +401,23 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     const displayToolName = getLocalizedToolName(toolName, t);
     const icon = TOOL_ICONS[toolName] || TOOL_ICONS.default;
 
+    const recognizedTools = new Set([
+      'Bash',
+      'Read',
+      'Write',
+      'Edit',
+      'Glob',
+      'Grep',
+      'NotebookEdit',
+      'Task',
+      'TodoWrite',
+      'AskUserQuestion',
+      'AskFollowupQuestion',
+      'ExitPlanMode',
+      'EnterPlanMode',
+      'web_search',
+    ]);
+
     // Special case: TodoWrite shows the task list inline
     // Try _todoInput (look-ahead), then payloadToolInput (real-time WebSocket payload)
     const todoContent = _todoInput || (
@@ -455,6 +472,10 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         </div>
       );
     }
+
+    const unknownToolContent = payloadToolInput && typeof payloadToolInput === 'object'
+      ? JSON.stringify(payloadToolInput, null, 2)
+      : undefined;
 
     // Check if this tool uses file paths that should be clickable
     const fileTools = ['Read', 'Edit', 'Write', 'Glob', 'Grep', 'NotebookEdit'];
@@ -671,6 +692,13 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
           {isStreaming && <span className="output-tool-loading">...</span>}
         </div>
 
+        {!recognizedTools.has(toolName) && unknownToolContent && (
+          <div className="output-line output-tool-input output-tool-input-fallback">
+            <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
+            <UnknownToolInput toolName={toolName} content={unknownToolContent} />
+          </div>
+        )}
+
         {/* Exec task output below bash command line */}
         {showInlineRunningTasks && (
           <div className="exec-task-output-container">
@@ -811,7 +839,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     return (
       <div className="output-line output-tool-input">
         <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
-        <pre className="output-input-content">{inputText}</pre>
+        <UnknownToolInput toolName={payloadToolName || 'UnknownTool'} content={inputText} />
       </div>
     );
   }

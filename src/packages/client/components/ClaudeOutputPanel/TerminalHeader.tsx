@@ -111,6 +111,7 @@ export const TerminalHeader = memo(function TerminalHeader({
     selectedAgent.currentTask ||
     selectedAgent.lastAssignedTask ||
     lastPrompt?.text;
+  const mobileHeaderContext = selectedAgent.taskLabel || lastInput;
 
   const agentAnalysis = supervisor.lastReport?.agentSummaries.find(
     (a: AgentAnalysis) => a.agentId === selectedAgent.id || a.agentName === selectedAgent.name
@@ -202,7 +203,12 @@ export const TerminalHeader = memo(function TerminalHeader({
             onClick={onToggleAgentInfo}
             title={t('terminal:header.showAgentInfo')}
           >
-            <span className="guake-title">{agentEmoji} {selectedAgent.name}</span>
+            <span className="guake-title-block">
+              <span className="guake-title">{agentEmoji} {selectedAgent.name}</span>
+              {mobileHeaderContext && (
+                <span className="guake-mobile-title-context">{mobileHeaderContext}</span>
+              )}
+            </span>
             <img
               src={selectedAgent.provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
               alt={selectedAgent.provider}
@@ -213,7 +219,12 @@ export const TerminalHeader = memo(function TerminalHeader({
           </button>
         ) : (
           <div className="guake-title-with-provider">
-            <span className="guake-title">{agentEmoji} {selectedAgent.name}</span>
+            <span className="guake-title-block">
+              <span className="guake-title">{agentEmoji} {selectedAgent.name}</span>
+              {mobileHeaderContext && (
+                <span className="guake-mobile-title-context">{mobileHeaderContext}</span>
+              )}
+            </span>
             <img
               src={selectedAgent.provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
               alt={selectedAgent.provider}

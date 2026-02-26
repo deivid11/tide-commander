@@ -30,6 +30,23 @@
   flex-shrink: 0;
 }
 
+.guake-title-block {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.guake-mobile-title-context {
+  display: none;
+  color: $dracula-comment;
+  font-size: 10px;
+  font-family: $font-mono;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
 .guake-title-btn {
   display: inline-flex;
   align-items: center;
@@ -40,6 +57,7 @@
   background: transparent;
   cursor: pointer;
   transition: all 0.2s;
+  min-width: 0;
 
   .guake-title {
     color: var(--accent-pink);
@@ -493,6 +511,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
 }
 
 .guake-actions {

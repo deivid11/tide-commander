@@ -28,9 +28,9 @@
   // Guake header compact on small screens
   .guake-header {
     padding: 6px 10px;
-    height: 40px;
+    height: auto;
     min-height: 40px;
-    max-height: 40px;
+    max-height: none;
     gap: 8px;
   }
 
@@ -40,6 +40,11 @@
 
   .guake-title {
     font-size: 12px;
+  }
+
+  .guake-mobile-title-context {
+    font-size: 8px;
+    max-width: min(52vw, 180px);
   }
 
   .guake-status-line {

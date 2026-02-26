@@ -10,7 +10,7 @@ describe('CodexBackend', () => {
     });
 
     expect(args[0]).toBe('exec');
-    expect(args[1]).toBe('--json');
+    expect(args[1]).toBe('--experimental-json');
     expect(args[2]).toBe('--dangerously-bypass-approvals-and-sandbox');
     expect(args[3]).toBe('-C');
     expect(args[4]).toBe('/tmp/project');
@@ -30,7 +30,7 @@ describe('CodexBackend', () => {
     });
 
     expect(args[0]).toBe('exec');
-    expect(args[1]).toBe('--json');
+    expect(args[1]).toBe('--experimental-json');
     expect(args[2]).toBe('--dangerously-bypass-approvals-and-sandbox');
     expect(args[3]).toBe('-C');
     expect(args[4]).toBe('/tmp/project');
@@ -57,7 +57,7 @@ describe('CodexBackend', () => {
     });
 
     expect(args[0]).toBe('exec');
-    expect(args[1]).toBe('--json');
+    expect(args[1]).toBe('--experimental-json');
     expect(args[2]).toBe('--ask-for-approval');
     expect(args[3]).toBe('never');
     expect(args[4]).toBe('--sandbox');
@@ -99,7 +99,7 @@ describe('CodexBackend', () => {
     });
 
     expect(args[0]).toBe('exec');
-    expect(args[1]).toBe('--json');
+    expect(args[1]).toBe('--experimental-json');
     expect(args[2]).toBe('--dangerously-bypass-approvals-and-sandbox');
     expect(args[3]).toBe('-C');
     expect(args[4]).toBe('/tmp/project');

@@ -53,7 +53,10 @@
     "tokenRequired": "यदि सर्वर पर AUTH_TOKEN सेट है तो आवश्यक",
     "saveAndReconnect": "सहेजें और पुनः कनेक्ट करें",
     "showToken": "टोकन दिखाएं",
-    "hideToken": "टोकन छुपाएं"
+    "hideToken": "टोकन छुपाएं",
+    "codexBinaryPath": "Codex बाइनरी पथ",
+    "codexBinaryPathPlaceholder": "स्वतः पहचान के लिए खाली छोड़ें",
+    "codexBinaryPathHint": "नेटिव Codex बाइनरी का पथ। बेहतर सत्र स्थिरता के लिए Node.js रैपर को बायपास करता है।"
   },
   "scene": {
     "characterSize": "कैरेक्टर आकार",

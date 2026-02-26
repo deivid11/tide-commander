@@ -347,17 +347,13 @@ function AppContent() {
     });
   }, []);
 
-  // Trigger resize when switching to 3D view on mobile
+  // Trigger one post-transition resize when switching to mobile 3D view in 3D mode.
+  // In 2D mode we keep the scene mounted behind terminal, so no forced resize is needed.
   useEffect(() => {
-    if (mobileView === '3d') {
-      const timeouts = [
-        setTimeout(() => window.dispatchEvent(new Event('resize')), 0),
-        setTimeout(() => window.dispatchEvent(new Event('resize')), 100),
-        setTimeout(() => window.dispatchEvent(new Event('resize')), 300),
-      ];
-      return () => timeouts.forEach(clearTimeout);
-    }
-  }, [mobileView]);
+    if (mobileView !== '3d' || viewMode !== '3d') return;
+    const timeout = setTimeout(() => window.dispatchEvent(new Event('resize')), 80);
+    return () => clearTimeout(timeout);
+  }, [mobileView, viewMode]);
 
   // Handle config changes
   const handleConfigChange = useCallback((config: SceneConfig) => {
@@ -534,7 +530,7 @@ function AppContent() {
   const canTakeSnapshot = selectedAgentIdsArray.length === 1 && store.getOutputs(selectedAgentIdsArray[0]).length > 0;
 
   return (
-    <div className={`app ${terminalOpen ? 'terminal-open' : ''} ${isDrawingMode ? 'drawing-mode' : ''} ${sidebarCollapsed ? 'sidebar-collapsed' : ''} mobile-view-${mobileView}`}>
+    <div className={`app ${terminalOpen ? 'terminal-open' : ''} ${isDrawingMode ? 'drawing-mode' : ''} ${sidebarCollapsed ? 'sidebar-collapsed' : ''} mobile-view-${mobileView} view-mode-${viewMode}`}>
       {/* Not Connected Overlay */}
       <NotConnectedOverlay />
       <OnboardingModal onCreateAgent={spawnModal.open} />

@@ -23,6 +23,9 @@ import androidx.core.app.NotificationCompat;
 
 import org.json.JSONObject;
 
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import okhttp3.OkHttpClient;
@@ -60,6 +63,10 @@ public class WebSocketForegroundService extends Service {
     private WebSocket webSocket;
     private int reconnectAttempts = 0;
     private static final int MAX_RECONNECT_DELAY_MS = 30000;
+    // Dedupe agent notifications by server notification id
+    private static final long NOTIFICATION_DEDUPE_TTL_MS = 2 * 60 * 1000; // 2 minutes
+    private static final int NOTIFICATION_DEDUPE_CACHE_MAX_SIZE = 500;
+    private static final Map<String, Long> seenNotificationIds = new LinkedHashMap<>();
 
     @Override
     public void onCreate() {
@@ -219,6 +226,7 @@ public class WebSocketForegroundService extends Service {
             if ("agent_notification".equals(type)) {
                 JSONObject payload = message.optJSONObject("payload");
                 if (payload != null) {
+                    String notificationId = payload.optString("id", "");
                     String title = payload.optString("title", "Agent Alert");
                     String body = payload.optString("message", "");
                     String agentId = payload.optString("agentId", "");
@@ -227,12 +235,51 @@ public class WebSocketForegroundService extends Service {
                     // Only show native notification when app is in background
                     // (when in foreground, the WebView JS handles it with in-app toast)
                     if (!isAppInForeground) {
-                        showAgentNotification(agentName + ": " + title, body, agentId);
+                        if (shouldDisplayNotification(notificationId)) {
+                            showAgentNotification(agentName + ": " + title, body, agentId);
+                        } else {
+                            Log.d(TAG, "Skipping duplicate notification id=" + notificationId);
+                        }
                     }
                 }
             }
         } catch (Exception e) {
             // Ignore non-JSON or irrelevant messages
+        }
+    }
+
+    private boolean shouldDisplayNotification(String notificationId) {
+        if (notificationId == null || notificationId.isEmpty()) {
+            // If server id is unavailable, don't block delivery.
+            return true;
+        }
+
+        final long now = System.currentTimeMillis();
+        synchronized (seenNotificationIds) {
+            // Remove expired entries
+            Iterator<Map.Entry<String, Long>> it = seenNotificationIds.entrySet().iterator();
+            while (it.hasNext()) {
+                Map.Entry<String, Long> entry = it.next();
+                if (now - entry.getValue() > NOTIFICATION_DEDUPE_TTL_MS) {
+                    it.remove();
+                }
+            }
+
+            Long seenAt = seenNotificationIds.get(notificationId);
+            if (seenAt != null && now - seenAt <= NOTIFICATION_DEDUPE_TTL_MS) {
+                return false;
+            }
+
+            seenNotificationIds.put(notificationId, now);
+
+            // Bound cache size to avoid unbounded growth
+            while (seenNotificationIds.size() > NOTIFICATION_DEDUPE_CACHE_MAX_SIZE) {
+                Iterator<String> keyIt = seenNotificationIds.keySet().iterator();
+                if (!keyIt.hasNext()) break;
+                keyIt.next();
+                keyIt.remove();
+            }
+            return true;
         }
     }
 

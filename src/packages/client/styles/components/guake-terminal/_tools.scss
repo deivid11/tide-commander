@@ -256,6 +256,56 @@
   overflow-y: auto;
 }
 
+.unknown-tool-input {
+  width: 100%;
+  background: color-mix(in srgb, var(--surface-2) 75%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-muted) 25%, transparent);
+  border-radius: $radius-sm;
+  padding: 8px 10px;
+}
+
+.unknown-tool-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.unknown-tool-badge {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--warning, #d97706);
+  border: 1px solid color-mix(in srgb, var(--warning, #d97706) 45%, transparent);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+.unknown-tool-name {
+  font-family: $font-mono;
+  font-size: 11px;
+  color: var(--text-primary);
+}
+
+.unknown-tool-toggle {
+  margin-left: auto;
+  border: 1px solid color-mix(in srgb, var(--text-muted) 30%, transparent);
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.unknown-tool-preview {
+  margin: 0;
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-muted);
+}
+
 // =============================================================================
 // Edit Tool Diff View
 // =============================================================================

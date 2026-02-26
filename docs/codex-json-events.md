@@ -2,7 +2,7 @@
 
 Observed from:
 
-`codex exec --json --full-auto "..."`
+`codex exec --experimental-json --full-auto "..."`
 
 ## Top-level event envelope
 

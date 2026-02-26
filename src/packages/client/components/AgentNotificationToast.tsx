@@ -87,8 +87,9 @@ export function AgentNotificationProvider({ children }: { children: React.ReactN
     // On native Android, the foreground service (WebSocketForegroundService)
     // handles notifications via its own WebSocket — skip here to avoid duplicates.
     if (!isNativeApp()) {
+      const classIcon = getClassIcon(notification.agentClass);
       showNotification({
-        title: `${notification.agentName}: ${notification.title}`,
+        title: `${classIcon} ${notification.agentName}: ${notification.title}`,
         body: notification.message,
         data: {
           type: 'agent_notification',

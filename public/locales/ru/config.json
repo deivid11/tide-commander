@@ -53,7 +53,10 @@
     "tokenRequired": "Требуется, если на сервере установлен AUTH_TOKEN",
     "saveAndReconnect": "Сохранить и переподключиться",
     "showToken": "Показать токен",
-    "hideToken": "Скрыть токен"
+    "hideToken": "Скрыть токен",
+    "codexBinaryPath": "Путь к бинарному файлу Codex",
+    "codexBinaryPathPlaceholder": "Оставьте пустым для автоопределения",
+    "codexBinaryPathHint": "Путь к нативному бинарному файлу Codex. Обходит обёртку Node.js для лучшей сохранности сессий."
   },
   "scene": {
     "characterSize": "Размер персонажа",

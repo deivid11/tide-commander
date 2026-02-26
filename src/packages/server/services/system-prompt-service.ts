@@ -142,3 +142,65 @@ export function setEchoPromptEnabled(enabled: boolean): void {
     throw error;
   }
 }
+
+// ============================================================================
+// Codex Binary Path Setting
+// ============================================================================
+
+const CODEX_BINARY_FILE = path.join(DATA_DIR, 'codex-binary-path.json');
+
+interface CodexBinaryPathData {
+  path: string;
+  updatedAt: number;
+}
+
+/**
+ * Get the configured codex binary path (empty string if not set)
+ */
+export function getCodexBinaryPath(): string {
+  ensureDataDir();
+  try {
+    if (fs.existsSync(CODEX_BINARY_FILE)) {
+      const data: CodexBinaryPathData = JSON.parse(fs.readFileSync(CODEX_BINARY_FILE, 'utf-8'));
+      return data.path;
+    }
+  } catch (error: any) {
+    log.error(` Failed to load codex binary path: ${error.message}`);
+  }
+  return '';
+}
+
+/**
+ * Set the codex binary path
+ */
+export function setCodexBinaryPath(binaryPath: string): void {
+  ensureDataDir();
+  const trimmed = binaryPath.trim();
+  if (trimmed) {
+    const data: CodexBinaryPathData = {
+      path: trimmed,
+      updatedAt: Date.now(),
+    };
+    fs.writeFileSync(CODEX_BINARY_FILE, JSON.stringify(data, null, 2), 'utf-8');
+    log.log(` Codex binary path set: ${trimmed}`);
+  } else {
+    // Empty means clear
+    clearCodexBinaryPath();
+  }
+}
+
+/**
+ * Clear the codex binary path (revert to auto-detect)
+ */
+export function clearCodexBinaryPath(): void {
+  ensureDataDir();
+  try {
+    if (fs.existsSync(CODEX_BINARY_FILE)) {
+      fs.unlinkSync(CODEX_BINARY_FILE);
+      log.log(` Codex binary path cleared (will auto-detect)`);
+    }
+  } catch (error: any) {
+    log.error(` Failed to clear codex binary path: ${error.message}`);
+    throw error;
+  }
+}

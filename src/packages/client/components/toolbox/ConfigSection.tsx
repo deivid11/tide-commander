@@ -9,7 +9,7 @@ import { SecretsSection } from './SecretsSection';
 import { DataSection } from './DataSection';
 import { AboutSection, ThemeSelector } from './AboutSection';
 import { SystemPromptModal } from '../SystemPromptModal';
-import { fetchEchoPromptSetting, updateEchoPromptSetting } from '../../api/system-settings';
+import { fetchEchoPromptSetting, updateEchoPromptSetting, fetchCodexBinaryPath, updateCodexBinaryPath } from '../../api/system-settings';
 import { BUILTIN_AGENT_NAMES } from '../../scene/config';
 import type {
   SceneConfig,
@@ -179,7 +179,7 @@ const SETTINGS_SECTIONS = [
   { id: 'general', title: 'General', keywords: ['history', 'hide costs', 'grid', 'fps', 'power saving', 'performance', 'limit', 'editor', 'external editor', 'language', 'idioma', '语言'] },
   { id: 'agentNames', title: 'Agent Names', keywords: ['agent', 'names', 'custom', 'characters', 'rename'] },
   { id: 'appearance', title: 'Appearance', keywords: ['theme', 'appearance', 'color', 'dark', 'light', 'style', 'look'] },
-  { id: 'connection', title: 'Connection', keywords: ['backend', 'url', 'auth', 'token', 'reconnect', 'server', 'api', 'connect'] },
+  { id: 'connection', title: 'Connection', keywords: ['backend', 'url', 'auth', 'token', 'reconnect', 'server', 'api', 'connect', 'codex', 'binary', 'path'] },
   { id: 'scene', title: 'Scene', keywords: ['character', 'size', 'indicator', 'scale', 'time', 'dawn', 'day', 'dusk', 'night', 'auto'] },
   { id: 'terrain', title: 'Terrain', keywords: ['trees', 'bushes', 'house', 'lamps', 'grass', 'clouds', 'fog', 'brightness', 'floor', 'sky', 'color', 'environment', 'battlefield', 'size', 'grid'] },
   { id: 'modelStyle', title: 'Agent Model Style', keywords: ['saturation', 'roughness', 'metalness', 'glow', 'emissive', 'reflections', 'wireframe', 'color mode', 'material', 'shader'] },
@@ -216,6 +216,13 @@ export function ConfigSection({ config, onChange, searchQuery = '' }: ConfigSect
   const [showToken, setShowToken] = useState(false);
   const [newAgentName, setNewAgentName] = useState('');
   const [isSystemPromptModalOpen, setIsSystemPromptModalOpen] = useState(false);
+  const [codexBinaryPath, setCodexBinaryPathState] = useState('');
+  const [codexBinaryPathDirty, setCodexBinaryPathDirty] = useState(false);
+
+  // Load codex binary path from server on mount
+  useEffect(() => {
+    fetchCodexBinaryPath().then(setCodexBinaryPathState).catch(() => {});
+  }, []);
 
   // Sync echo prompt setting from server on mount
   useEffect(() => {
@@ -296,6 +303,16 @@ export function ConfigSection({ config, onChange, searchQuery = '' }: ConfigSect
     setStorageString(STORAGE_KEYS.AUTH_TOKEN, authToken);
     setAuthTokenDirty(false);
     reconnect();
+  };
+
+  const handleCodexBinaryPathChange = (value: string) => {
+    setCodexBinaryPathState(value);
+    setCodexBinaryPathDirty(true);
+  };
+
+  const handleCodexBinaryPathSave = () => {
+    updateCodexBinaryPath(codexBinaryPath).catch(() => {});
+    setCodexBinaryPathDirty(false);
   };
 
   const updateTerrain = (updates: Partial<TerrainConfig>) => {
@@ -438,6 +455,16 @@ export function ConfigSection({ config, onChange, searchQuery = '' }: ConfigSect
             )}
           </div>
           <span className="config-hint">{t('config:connection.tokenRequired')}</span>
+        </div>
+        <div className="config-row config-row-stacked">
+          <span className="config-label"><HighlightText text={t('config:connection.codexBinaryPath')} query={searchQuery} /></span>
+          <div className="config-input-group">
+            <input type="text" className="config-input config-input-full" value={codexBinaryPath} onChange={(e) => handleCodexBinaryPathChange(e.target.value)} placeholder={t('config:connection.codexBinaryPathPlaceholder')} onKeyDown={(e) => { if (e.key === 'Enter' && codexBinaryPathDirty) { handleCodexBinaryPathSave(); } }} />
+            {codexBinaryPathDirty && (
+              <button className="config-btn config-btn-sm" onClick={handleCodexBinaryPathSave}>{t('common:buttons.apply')}</button>
+            )}
+          </div>
+          <span className="config-hint">{t('config:connection.codexBinaryPathHint')}</span>
         </div>
         <div className="config-row">
           <span className="config-label"><HighlightText text={t('common:buttons.reconnect')} query={searchQuery} /></span>

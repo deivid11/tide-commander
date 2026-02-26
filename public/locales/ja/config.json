@@ -53,7 +53,10 @@
     "tokenRequired": "サーバーにAUTH_TOKENが設定されている場合は必須",
     "saveAndReconnect": "保存して再接続",
     "showToken": "トークンを表示",
-    "hideToken": "トークンを非表示"
+    "hideToken": "トークンを非表示",
+    "codexBinaryPath": "Codexバイナリパス",
+    "codexBinaryPathPlaceholder": "空欄で自動検出",
+    "codexBinaryPathHint": "ネイティブCodexバイナリへのパス。Node.jsラッパーをバイパスしてセッションの永続性を向上させます。"
   },
   "scene": {
     "characterSize": "キャラクターサイズ",

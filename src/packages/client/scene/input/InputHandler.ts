@@ -165,6 +165,7 @@ export class InputHandler {
       onTap: this.handleTouchTap,
       onLongPress: this.handleLongPress,
       onPan: (dx, dy) => this.cameraController.handlePan(dx, dy),
+      onPanEnd: () => this.cameraController.endPanWithInertia(),
       onPinchZoom: (scale, center) => this.cameraController.handlePinchZoom(scale, center),
       onOrbit: (dx, dy) => this.cameraController.handleOrbit(dx, dy),
       onRotation: (angleDelta) => this.cameraController.handleTwistRotation(angleDelta),
@@ -847,6 +848,7 @@ export class InputHandler {
   // --- Touch Event Handlers ---
 
   private onTouchStart = (event: TouchEvent): void => {
+    this.cameraController.stopPanInertia();
     // When in drawing mode, prevent default touch behavior (scrolling/panning)
     // and let pointer events handle the drawing instead
     if (this.drawingModeChecker()) {

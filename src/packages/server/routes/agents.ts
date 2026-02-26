@@ -13,7 +13,7 @@ import { getClaudeProjectDir } from '../data/index.js';
 // Session listing is done inline for performance
 import { createLogger } from '../utils/logger.js';
 import { buildCustomAgentConfig } from '../websocket/handlers/command-handler.js';
-import { getSystemPrompt, setSystemPrompt, clearSystemPrompt, isEchoPromptEnabled, setEchoPromptEnabled } from '../services/system-prompt-service.js';
+import { getSystemPrompt, setSystemPrompt, clearSystemPrompt, isEchoPromptEnabled, setEchoPromptEnabled, getCodexBinaryPath, setCodexBinaryPath } from '../services/system-prompt-service.js';
 
 const log = createLogger('Routes');
 
@@ -564,6 +564,34 @@ router.post('/system-settings/echo-prompt', (req: Request, res: Response) => {
     res.json({ success: true, enabled });
   } catch (err: any) {
     log.error(' Failed to set echo prompt setting:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/system-settings/codex-binary - Get the codex binary path
+router.get('/system-settings/codex-binary', (_req: Request, res: Response) => {
+  try {
+    const binaryPath = getCodexBinaryPath();
+    res.json({ path: binaryPath });
+  } catch (err: any) {
+    log.error(' Failed to get codex binary path:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/system-settings/codex-binary - Set the codex binary path
+router.post('/system-settings/codex-binary', (req: Request, res: Response) => {
+  try {
+    const { path: binaryPath } = req.body;
+    if (typeof binaryPath !== 'string') {
+      res.status(400).json({ error: 'path must be a string' });
+      return;
+    }
+    setCodexBinaryPath(binaryPath);
+    log.log(` Codex binary path updated: ${binaryPath || '(cleared)'}`);
+    res.json({ success: true, path: binaryPath });
+  } catch (err: any) {
+    log.error(' Failed to set codex binary path:', err);
     res.status(500).json({ error: err.message });
   }
 });
