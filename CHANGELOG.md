@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.84.2] - 2026-02-26
+
+### Changed
+- **Landing page demo link** - Demo nav link now styled as primary button linking directly to `/app` instead of `#demo` anchor
+- **mkcert resolution** - `--install-local-cert` now explicitly finds the system Go-based mkcert binary, skipping any npm `mkcert` package to avoid conflicts
+- **Improved mkcert error messages** - Clear errors when mkcert is missing or `-install` fails, with install link and sudo hint
+
 ## [0.84.1] - 2026-02-26
 
 ### Added
