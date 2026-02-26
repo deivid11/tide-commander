@@ -417,6 +417,31 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
       if (!isInputFocused) {
         const currentTabs = tabsRef.current;
         if (matchesShortcut(e, nextTabShortcut)) {
+          const latestNotificationAgentId = store.getState().latestNotificationAgentId;
+          if (latestNotificationAgentId) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const currentState = store.getState();
+            const notifiedAgent = currentState.agents.get(latestNotificationAgentId);
+            if (!notifiedAgent) {
+              store.setLatestNotificationAgentId(null);
+              return;
+            }
+
+            const areaForAgent = store.getAreaForAgent(latestNotificationAgentId);
+            if (areaForAgent && currentTabs.some((tab) => tab.id === areaForAgent.id)) {
+              setActiveTab(areaForAgent.id);
+            } else {
+              setActiveTab('unassigned');
+            }
+            setExpandedAgentId(latestNotificationAgentId);
+            setFocusedIndex(0);
+            setPage(0);
+            store.setLatestNotificationAgentId(null);
+            return;
+          }
+
           e.preventDefault();
           e.stopPropagation();
           const currentIndex = currentTabs.findIndex(t => t.id === activeTabRef.current);

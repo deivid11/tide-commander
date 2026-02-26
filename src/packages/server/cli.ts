@@ -300,14 +300,22 @@ function installLocalCert(host: string): { keyPath: string; certPath: string } {
   const mkcertBin = findSystemMkcert();
   if (!mkcertBin) {
     throw new Error(
-      'mkcert (Go binary) is required for --install-local-cert but was not found in PATH.\n'
+      'mkcert (Go binary) is required for HTTPS but was not found in PATH.\n'
       + 'Install it from: https://github.com/FiloSottile/mkcert\n'
       + 'Note: the npm "mkcert" package is not the same tool.',
     );
   }
 
+  const dim = '\x1b[2m';
+  const cyan = '\x1b[36m';
+  const reset = '\x1b[0m';
+
+  console.log(`\n${cyan}Installing local CA with mkcert...${reset}`);
+  console.log(`${dim}Running: ${mkcertBin} -install${reset}`);
+  console.log(`${dim}This may require your password to trust the local CA.${reset}\n`);
+
   try {
-    spawnSyncOrThrow(`"${mkcertBin}" -install`);
+    execSync(`"${mkcertBin}" -install`, { stdio: 'inherit' });
   } catch {
     throw new Error(`mkcert -install failed. You may need to run: sudo ${mkcertBin} -install`);
   }
@@ -318,14 +326,18 @@ function installLocalCert(host: string): { keyPath: string; certPath: string } {
   }
 
   const mkcertGenCmd = `"${mkcertBin}" -cert-file "${DEFAULT_TLS_CERT_FILE}" -key-file "${DEFAULT_TLS_KEY_FILE}" ${hostArgs.join(' ')}`;
-  spawnSyncOrThrow(mkcertGenCmd);
+  console.log(`${dim}Running: ${mkcertBin} ${hostArgs.join(' ')}${reset}`);
+
+  try {
+    execSync(mkcertGenCmd, { stdio: 'inherit' });
+  } catch {
+    throw new Error(`Failed to generate TLS certificates with mkcert`);
+  }
+
   ensureFileExists(DEFAULT_TLS_CERT_FILE, 'TLS cert');
   ensureFileExists(DEFAULT_TLS_KEY_FILE, 'TLS key');
+  console.log(`${cyan}Local certificates generated at ${TLS_DIR}${reset}\n`);
   return { keyPath: DEFAULT_TLS_KEY_FILE, certPath: DEFAULT_TLS_CERT_FILE };
-}
-
-function spawnSyncOrThrow(command: string): void {
-  execSync(command, { stdio: 'ignore' });
 }
 
 function readPidFile(): number | null {
@@ -674,6 +686,11 @@ async function main(): Promise<void> {
     process.env.HTTPS = '1';
   }
 
+  if (options.tlsKey && options.tlsCert) {
+    process.env.TLS_KEY_PATH = resolveFromCwd(options.tlsKey);
+    process.env.TLS_CERT_PATH = resolveFromCwd(options.tlsCert);
+  }
+
   if (options.installLocalCert) {
     const host = process.env.HOST || 'localhost';
     const generated = installLocalCert(host);
@@ -681,9 +698,15 @@ async function main(): Promise<void> {
     process.env.TLS_CERT_PATH = generated.certPath;
   }
 
-  if (options.tlsKey && options.tlsCert) {
-    process.env.TLS_KEY_PATH = resolveFromCwd(options.tlsKey);
-    process.env.TLS_CERT_PATH = resolveFromCwd(options.tlsCert);
+  if (process.env.HTTPS === '1' && !process.env.TLS_KEY_PATH && !process.env.TLS_CERT_PATH) {
+    const defaultKeyExists = fs.existsSync(DEFAULT_TLS_KEY_FILE);
+    const defaultCertExists = fs.existsSync(DEFAULT_TLS_CERT_FILE);
+    if (!defaultKeyExists || !defaultCertExists) {
+      const host = process.env.HOST || 'localhost';
+      const generated = installLocalCert(host);
+      process.env.TLS_KEY_PATH = generated.keyPath;
+      process.env.TLS_CERT_PATH = generated.certPath;
+    }
   }
 
   if (process.env.HTTPS === '1') {

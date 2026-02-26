@@ -273,6 +273,7 @@ class Store
       overviewPanelOpen: false,
       agentsWithUnseenOutput: this.loadUnseenAgents(),
       commanderExpandRequest: null,
+      latestNotificationAgentId: null,
     };
 
     // Helper functions for domain modules
@@ -597,6 +598,11 @@ class Store
 
   clearCommanderExpandRequest(): void {
     this.state.commanderExpandRequest = null;
+    this.notify();
+  }
+
+  setLatestNotificationAgentId(agentId: string | null): void {
+    this.state.latestNotificationAgentId = agentId;
     this.notify();
   }
 
