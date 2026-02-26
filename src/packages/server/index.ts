@@ -5,6 +5,8 @@
 
 import 'dotenv/config';
 import { createServer } from 'http';
+import { createServer as createHttpsServer } from 'https';
+import fs from 'node:fs';
 import type { Socket } from 'node:net';
 import { createApp } from './app.js';
 import { agentService, runtimeService, supervisorService, bossService, skillService, customClassService, secretsService, buildingService } from './services/index.js';
@@ -15,6 +17,9 @@ import { logger, closeFileLogging, getLogFilePath } from './utils/logger.js';
 // Configuration
 const PORT = process.env.PORT || 6200;
 const HOST = process.env.HOST || (process.env.LISTEN_ALL_INTERFACES ? '::' : '127.0.0.1');
+const HTTPS_ENABLED = process.env.HTTPS === '1';
+const TLS_KEY_PATH = process.env.TLS_KEY_PATH;
+const TLS_CERT_PATH = process.env.TLS_CERT_PATH;
 const FORCE_SHUTDOWN_TIMEOUT_MS = 4500;
 
 // ============================================================================
@@ -68,7 +73,15 @@ async function main(): Promise<void> {
 
   // Create Express app and HTTP server
   const app = createApp();
-  const server = createServer(app);
+  const server = HTTPS_ENABLED
+    ? createHttpsServer(
+      {
+        key: fs.readFileSync(assertTlsPath(TLS_KEY_PATH, 'TLS_KEY_PATH')),
+        cert: fs.readFileSync(assertTlsPath(TLS_CERT_PATH, 'TLS_CERT_PATH')),
+      },
+      app,
+    )
+    : createServer(app);
   const sockets = new Set<Socket>();
 
   server.on('connection', (socket) => {
@@ -101,9 +114,11 @@ async function main(): Promise<void> {
   });
 
   server.listen(Number(PORT), HOST, () => {
-    logger.server.log(`Server running on http://${HOST}:${PORT}`);
-    logger.server.log(`WebSocket available at ws://${HOST}:${PORT}/ws`);
-    logger.server.log(`API available at http://${HOST}:${PORT}/api`);
+    const protocol = HTTPS_ENABLED ? 'https' : 'http';
+    const wsProtocol = HTTPS_ENABLED ? 'wss' : 'ws';
+    logger.server.log(`Server running on ${protocol}://${HOST}:${PORT}`);
+    logger.server.log(`WebSocket available at ${wsProtocol}://${HOST}:${PORT}/ws`);
+    logger.server.log(`API available at ${protocol}://${HOST}:${PORT}/api`);
   });
 
   let isShuttingDown = false;
@@ -147,6 +162,13 @@ async function main(): Promise<void> {
 
   process.on('SIGINT', () => { void gracefulShutdown('SIGINT'); });
   process.on('SIGTERM', () => { void gracefulShutdown('SIGTERM'); });
+}
+
+function assertTlsPath(value: string | undefined, envName: string): string {
+  if (!value) {
+    throw new Error(`${envName} is required when HTTPS=1`);
+  }
+  return value;
 }
 
 main().catch(console.error);

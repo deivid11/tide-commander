@@ -36,6 +36,64 @@
     // Handle position is now controlled via inline style
   }
 
+  .guake-drop-overlay {
+    display: none;
+    position: absolute;
+    inset: 0;
+    z-index: 999;
+    background: rgba($dracula-bg-darker, 0.88);
+    backdrop-filter: blur(4px);
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    pointer-events: none;
+    animation: dropOverlayIn 0.15s ease-out;
+
+    .drop-icon {
+      font-size: 36px;
+      filter: drop-shadow(0 0 12px rgba($dracula-cyan, 0.5));
+      animation: dropBounce 1s ease-in-out infinite;
+    }
+
+    .drop-label {
+      font-family: $font-mono;
+      font-size: 15px;
+      font-weight: 600;
+      color: $dracula-cyan;
+      letter-spacing: 0.5px;
+      text-shadow: 0 0 16px rgba($dracula-cyan, 0.4);
+    }
+
+    .drop-border {
+      position: absolute;
+      inset: 8px;
+      border: 2px dashed rgba($dracula-cyan, 0.5);
+      border-radius: $radius-lg;
+      pointer-events: none;
+    }
+  }
+
+  &.drag-over {
+    .guake-drop-overlay {
+      display: flex;
+    }
+
+    .guake-input-container {
+      border-color: rgba($dracula-cyan, 0.7);
+    }
+  }
+
+  @keyframes dropOverlayIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes dropBounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+  }
+
   &.collapsed {
     pointer-events: none;
 

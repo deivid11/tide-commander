@@ -312,8 +312,8 @@ export function getSkillsForAgent(agentId: string, agentClass: AgentClass): Skil
     // Check direct assignment
     if (skill.assignedAgentIds.includes(agentId)) return true;
 
-    // Check class assignment
-    if (skill.assignedAgentClasses.includes(agentClass)) return true;
+    // Check class assignment (supports '*' wildcard for all classes)
+    if (skill.assignedAgentClasses.includes('*') || skill.assignedAgentClasses.includes(agentClass)) return true;
 
     return false;
   });
@@ -558,8 +558,8 @@ async function handleSkillContentUpdate(skill: Skill): Promise<void> {
   const affectedAgents = allAgents.filter(agent => {
     // Check direct assignment
     if (skill.assignedAgentIds.includes(agent.id)) return true;
-    // Check class assignment
-    if (skill.assignedAgentClasses.includes(agent.class as AgentClass)) return true;
+    // Check class assignment (supports '*' wildcard for all classes)
+    if (skill.assignedAgentClasses.includes('*') || skill.assignedAgentClasses.includes(agent.class as AgentClass)) return true;
     return false;
   });
 

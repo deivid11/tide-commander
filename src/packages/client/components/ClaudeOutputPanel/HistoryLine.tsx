@@ -10,7 +10,7 @@ import { useHideCost, useSettings } from '../../store';
 import { store } from '../../store';
 import { BOSS_CONTEXT_START } from '../../../shared/types';
 import { filterCostText } from '../../utils/formatting';
-import { TOOL_ICONS, extractToolKeyParam, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand, splitCommandForFileLinks } from '../../utils/outputRendering';
+import { TOOL_ICONS, extractToolKeyParam, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, splitCommandForFileLinks } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { createMarkdownComponents } from './MarkdownComponents';
@@ -275,6 +275,7 @@ export const HistoryLine = memo(function HistoryLine({
       const bashCommand = _bashCommand || keyParam || '';
       const bashSearchCommand = isBashTool && bashCommand ? parseBashSearchCommand(bashCommand) : null;
       const bashNotificationCommand = isBashTool && bashCommand ? parseBashNotificationCommand(bashCommand) : null;
+      const bashTaskLabelCommand = isBashTool && bashCommand ? parseBashTaskLabelCommand(bashCommand) : null;
 
       const handleParamClick = () => {
         if (isFileClickable && keyParam) {
@@ -436,6 +437,16 @@ export const HistoryLine = memo(function HistoryLine({
                 {bashNotificationCommand.message && (
                   <span className="bash-notify-message">{bashNotificationCommand.message}</span>
                 )}
+              </span>
+            ) : isBashTool && bashTaskLabelCommand ? (
+              <span
+                className="output-tool-param bash-command bash-task-label-param"
+                onClick={handleBashClick}
+                title={bashTaskLabelCommand.commandBody}
+                style={{ cursor: 'pointer' }}
+              >
+                <span className="bash-task-label-chip">📋 task</span>
+                <span className="bash-task-label-value">{bashTaskLabelCommand.taskLabel}</span>
               </span>
             ) : isBashTool && bashSearchCommand ? (
               <span

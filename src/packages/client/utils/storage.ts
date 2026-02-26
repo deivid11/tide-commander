@@ -200,7 +200,8 @@ export function getApiBaseUrl(): string {
   // In dev, frontend (Vite) and backend run on different ports.
   if (import.meta.env.DEV) {
     const defaultPort = typeof __SERVER_PORT__ !== 'undefined' ? __SERVER_PORT__ : 6200;
-    return `http://localhost:${defaultPort}`;
+    const apiProtocol = window.location.protocol === 'https:' ? 'https' : 'http';
+    return `${apiProtocol}://localhost:${defaultPort}`;
   }
 
   // In production, use the same host that served the UI.

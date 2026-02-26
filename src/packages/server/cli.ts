@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
-import { spawn } from 'node:child_process';
+import { execSync, spawn } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -19,6 +20,12 @@ type CliOptions = {
   port?: string;
   host?: string;
   listenAll?: boolean;
+  https?: boolean;
+  tlsKey?: string;
+  tlsCert?: string;
+  installLocalCert?: boolean;
+  authToken?: string;
+  generateAuthToken?: boolean;
   foreground?: boolean;
   follow?: boolean;
   lines?: number;
@@ -30,11 +37,16 @@ const PID_FILE = path.join(PID_DIR, 'server.pid');
 const META_FILE = path.join(PID_DIR, 'server-meta.json');
 const LOG_FILE = path.join(process.cwd(), 'logs', 'server.log');
 const PACKAGE_NAME = 'tide-commander';
+const TLS_DIR = path.join(os.homedir(), '.tide-commander', 'certs');
+const DEFAULT_TLS_KEY_FILE = path.join(TLS_DIR, 'localhost-key.pem');
+const DEFAULT_TLS_CERT_FILE = path.join(TLS_DIR, 'localhost.pem');
 
 type ServerMeta = {
   pid: number;
   host: string;
   port: string;
+  https?: boolean;
+  authEnabled?: boolean;
 };
 
 function findProjectRoot(startDir: string): string | null {
@@ -62,6 +74,15 @@ Options:
   -p, --port <port>     Set server port (default: 6200)
   -H, --host <host>     Set server host (default: 127.0.0.1)
   -l, --listen-all      Listen on all network interfaces
+      --https           Enable HTTPS/WSS server mode
+      --tls-key <path>  TLS private key path (PEM)
+      --tls-cert <path> TLS certificate path (PEM)
+      --install-local-cert
+                        Install local trusted cert with mkcert
+      --auth-token <token>
+                        Set AUTH_TOKEN for this server run
+      --generate-auth-token
+                        Generate a secure AUTH_TOKEN automatically
   -f, --foreground      Run in foreground (default is background)
       --lines <n>       Number of log lines for logs command (default: 100)
       --follow          Follow logs stream (like tail -f)
@@ -109,6 +130,42 @@ function parseArgs(argv: string[]): CliOptions {
       case '-l':
       case '--listen-all':
         options.listenAll = true;
+        break;
+      case '--https':
+        options.https = true;
+        break;
+      case '--tls-key': {
+        const value = argv[i + 1];
+        if (!value || value.startsWith('-')) {
+          throw new Error(`Missing value for ${arg}`);
+        }
+        options.tlsKey = value;
+        i += 1;
+        break;
+      }
+      case '--tls-cert': {
+        const value = argv[i + 1];
+        if (!value || value.startsWith('-')) {
+          throw new Error(`Missing value for ${arg}`);
+        }
+        options.tlsCert = value;
+        i += 1;
+        break;
+      }
+      case '--install-local-cert':
+        options.installLocalCert = true;
+        break;
+      case '--auth-token': {
+        const value = argv[i + 1];
+        if (!value || value.startsWith('-')) {
+          throw new Error(`Missing value for ${arg}`);
+        }
+        options.authToken = value;
+        i += 1;
+        break;
+      }
+      case '--generate-auth-token':
+        options.generateAuthToken = true;
         break;
       case '-f':
       case '--foreground':
@@ -187,6 +244,8 @@ function readServerMeta(): ServerMeta | null {
       typeof parsed.pid === 'number'
       && typeof parsed.host === 'string'
       && typeof parsed.port === 'string'
+      && (parsed.https === undefined || typeof parsed.https === 'boolean')
+      && (parsed.authEnabled === undefined || typeof parsed.authEnabled === 'boolean')
     ) {
       return parsed as ServerMeta;
     }
@@ -202,6 +261,47 @@ function clearServerMeta(): void {
   } catch {
     // no-op
   }
+}
+
+function resolveFromCwd(filePath: string): string {
+  if (filePath.startsWith('~/')) {
+    return path.join(os.homedir(), filePath.slice(2));
+  }
+  if (path.isAbsolute(filePath)) {
+    return filePath;
+  }
+  return path.resolve(process.cwd(), filePath);
+}
+
+function ensureFileExists(filePath: string, label: string): void {
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`${label} not found: ${filePath}`);
+  }
+}
+
+function installLocalCert(host: string): { keyPath: string; certPath: string } {
+  fs.mkdirSync(TLS_DIR, { recursive: true });
+  const mkcertCmd = 'mkcert -install';
+  try {
+    spawnSyncOrThrow(mkcertCmd);
+  } catch {
+    throw new Error('mkcert is required for --install-local-cert');
+  }
+
+  const hostArgs = ['localhost', '127.0.0.1', '::1'];
+  if (host !== 'localhost' && host !== '127.0.0.1' && host !== '::1' && host !== '0.0.0.0' && host !== '::') {
+    hostArgs.push(host);
+  }
+
+  const mkcertGenCmd = `mkcert -cert-file "${DEFAULT_TLS_CERT_FILE}" -key-file "${DEFAULT_TLS_KEY_FILE}" ${hostArgs.join(' ')}`;
+  spawnSyncOrThrow(mkcertGenCmd);
+  ensureFileExists(DEFAULT_TLS_CERT_FILE, 'TLS cert');
+  ensureFileExists(DEFAULT_TLS_KEY_FILE, 'TLS key');
+  return { keyPath: DEFAULT_TLS_KEY_FILE, certPath: DEFAULT_TLS_CERT_FILE };
+}
+
+function spawnSyncOrThrow(command: string): void {
+  execSync(command, { stdio: 'ignore' });
 }
 
 function readPidFile(): number | null {
@@ -326,7 +426,9 @@ async function statusCommand(): Promise<number> {
   const meta = readServerMeta();
   const port = meta?.port ?? process.env.PORT ?? '6200';
   const host = meta?.host ?? process.env.HOST ?? 'localhost';
-  const url = `http://${host}:${port}`;
+  const protocol = meta?.https ? 'https' : 'http';
+  const url = `${protocol}://${host}:${port}`;
+  const authEnabled = meta?.authEnabled === true;
   const uptime = getProcessUptime(pid);
   const version = getPackageVersion();
 
@@ -334,6 +436,7 @@ async function statusCommand(): Promise<number> {
   console.log(`${cyan}${'═'.repeat(60)}${reset}`);
   console.log(`${green}✓ Running${reset} (PID: ${pid})`);
   console.log(`${blue}${bright}🚀 Access: ${url}${reset}`);
+  console.log(`   Auth: ${authEnabled ? 'enabled' : 'disabled'}`);
   console.log(`   Version: ${version}`);
   const npmVersion = await checkNpmVersion(PACKAGE_NAME, version);
   if (npmVersion.relation === 'behind' && npmVersion.latestVersion) {
@@ -477,6 +580,10 @@ function printUpdateNotice(latestVersion: string): void {
   console.log(`${yellow}${bright}⬆  Update available: v${latestVersion}${reset} ${dim}(run: bunx tide-commander@latest)${reset}`);
 }
 
+function generateAuthToken(): string {
+  return randomBytes(32).toString('hex');
+}
+
 function versionCommand(): void {
   try {
     const version = getPackageVersion();
@@ -523,6 +630,53 @@ async function main(): Promise<void> {
     process.env.LISTEN_ALL_INTERFACES = '1';
   }
 
+  if (options.tlsKey && !options.tlsCert) {
+    throw new Error('--tls-key requires --tls-cert');
+  }
+  if (options.tlsCert && !options.tlsKey) {
+    throw new Error('--tls-cert requires --tls-key');
+  }
+  if (options.generateAuthToken && options.authToken) {
+    throw new Error('--generate-auth-token cannot be used with --auth-token');
+  }
+
+  const shouldEnableHttps = options.https === true
+    || options.installLocalCert === true
+    || options.tlsKey !== undefined
+    || options.tlsCert !== undefined
+    || process.env.HTTPS === '1';
+
+  if (shouldEnableHttps) {
+    process.env.HTTPS = '1';
+  }
+
+  if (options.installLocalCert) {
+    const host = process.env.HOST || 'localhost';
+    const generated = installLocalCert(host);
+    process.env.TLS_KEY_PATH = generated.keyPath;
+    process.env.TLS_CERT_PATH = generated.certPath;
+  }
+
+  if (options.tlsKey && options.tlsCert) {
+    process.env.TLS_KEY_PATH = resolveFromCwd(options.tlsKey);
+    process.env.TLS_CERT_PATH = resolveFromCwd(options.tlsCert);
+  }
+
+  if (process.env.HTTPS === '1') {
+    const tlsKeyPath = resolveFromCwd(process.env.TLS_KEY_PATH || DEFAULT_TLS_KEY_FILE);
+    const tlsCertPath = resolveFromCwd(process.env.TLS_CERT_PATH || DEFAULT_TLS_CERT_FILE);
+    ensureFileExists(tlsKeyPath, 'TLS key');
+    ensureFileExists(tlsCertPath, 'TLS cert');
+    process.env.TLS_KEY_PATH = tlsKeyPath;
+    process.env.TLS_CERT_PATH = tlsCertPath;
+  }
+
+  if (options.generateAuthToken) {
+    process.env.AUTH_TOKEN = generateAuthToken();
+  } else if (options.authToken) {
+    process.env.AUTH_TOKEN = options.authToken;
+  }
+
   const cliDir = path.dirname(fileURLToPath(import.meta.url));
   const serverLaunch = resolveServerLaunch(cliDir);
   const runInForeground = options.foreground === true || process.env.TIDE_COMMANDER_FOREGROUND === '1';
@@ -530,6 +684,12 @@ async function main(): Promise<void> {
   const hasStartupOverrides = options.port !== undefined
     || options.host !== undefined
     || options.listenAll === true
+    || options.https === true
+    || options.tlsKey !== undefined
+    || options.tlsCert !== undefined
+    || options.installLocalCert === true
+    || options.authToken !== undefined
+    || options.generateAuthToken === true
     || options.foreground === true;
 
   if (existingPid && isRunning(existingPid)) {
@@ -553,7 +713,9 @@ async function main(): Promise<void> {
     const meta = readServerMeta();
     const port = meta?.port ?? process.env.PORT ?? '6200';
     const host = meta?.host ?? process.env.HOST ?? 'localhost';
-    const url = `http://${host}:${port}`;
+    const protocol = meta?.https ? 'https' : 'http';
+    const url = `${protocol}://${host}:${port}`;
+    const authEnabled = meta?.authEnabled === true;
     const dim = '\x1b[2m';
     const yellow = '\x1b[33m';
     const cyan = '\x1b[36m';
@@ -566,6 +728,7 @@ async function main(): Promise<void> {
     console.log(`\n${cyan}${bright}🌊 Tide Commander${reset} ${dim}(already running, PID: ${existingPid})${reset}`);
     console.log(`${cyan}${'═'.repeat(60)}${reset}`);
     console.log(`${blue}${bright}🚀 Open: ${url}${reset}`);
+    console.log(`   Auth: ${authEnabled ? 'enabled' : 'disabled'}`);
     console.log(`   Version: ${currentVer}`);
     const npmVersion = await checkNpmVersion(PACKAGE_NAME, currentVer);
     if (npmVersion.relation === 'behind' && npmVersion.latestVersion) {
@@ -615,12 +778,16 @@ async function main(): Promise<void> {
         pid: child.pid,
         host: process.env.HOST || 'localhost',
         port: process.env.PORT || '6200',
+        https: process.env.HTTPS === '1',
+        authEnabled: Boolean(process.env.AUTH_TOKEN),
       });
     }
     child.unref();
     const port = process.env.PORT || '6200';
     const host = process.env.HOST || 'localhost';
-    const url = `http://${host}:${port}`;
+    const protocol = process.env.HTTPS === '1' ? 'https' : 'http';
+    const url = `${protocol}://${host}:${port}`;
+    const authEnabled = Boolean(process.env.AUTH_TOKEN);
 
     // ANSI color codes for beautiful output
     const cyan = '\x1b[36m';
@@ -637,7 +804,11 @@ async function main(): Promise<void> {
     const currentVersion = getPackageVersion();
     console.log(`${green}✓${reset} Started in background (PID: ${child.pid ?? 'unknown'})`);
     console.log(`${blue}${bright}🚀 Open: ${url}${reset}`);
+    console.log(`   Auth: ${authEnabled ? 'enabled' : 'disabled'}`);
     console.log(`   Version: ${currentVersion}`);
+    if (options.generateAuthToken && process.env.AUTH_TOKEN) {
+      console.log(`   Generated AUTH_TOKEN: ${process.env.AUTH_TOKEN}`);
+    }
     const npmVersion = await checkNpmVersion(PACKAGE_NAME, currentVersion);
     if (npmVersion.relation === 'behind' && npmVersion.latestVersion) {
       printUpdateNotice(npmVersion.latestVersion);
@@ -660,6 +831,8 @@ async function main(): Promise<void> {
       pid: child.pid,
       host: process.env.HOST || 'localhost',
       port: process.env.PORT || '6200',
+      https: process.env.HTTPS === '1',
+      authEnabled: Boolean(process.env.AUTH_TOKEN),
     });
   }
 

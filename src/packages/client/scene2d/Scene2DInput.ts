@@ -740,6 +740,23 @@ export class Scene2DInput {
       this.mouseDownTime = Date.now();
       this.isMouseDown = true;
 
+      // Drawing mode - start drawing on touch, skip long-press timer
+      if (this.scene.isInDrawingMode()) {
+        const worldPos = this.camera.screenToWorld(x, y);
+        this.scene.startDrawing(worldPos);
+        return;
+      }
+
+      // Check if touching a resize handle (when area is selected)
+      const worldPos = this.camera.screenToWorld(x, y);
+      const handle = this.scene.getAreaHandleAtWorldPos(worldPos.x, worldPos.z);
+      if (handle) {
+        this.isResizingArea = true;
+        this.resizeHandleType = handle.handleType;
+        this.scene.startAreaResize(handle.handleType, worldPos);
+        return;
+      }
+
       const touchClientX = e.touches[0].clientX;
       const touchClientY = e.touches[0].clientY;
       this.longPressTimer = setTimeout(() => {
@@ -767,6 +784,24 @@ export class Scene2DInput {
     if (e.touches.length === 1) {
       const x = e.touches[0].clientX - rect.left;
       const y = e.touches[0].clientY - rect.top;
+
+      // Handle drawing mode - update drawing instead of panning
+      if (this.scene.isCurrentlyDrawing()) {
+        const worldPos = this.camera.screenToWorld(x, y);
+        this.scene.updateDrawing(worldPos);
+        this.lastMouseX = x;
+        this.lastMouseY = y;
+        return;
+      }
+
+      // Handle area resizing/moving
+      if (this.isResizingArea) {
+        const worldPos = this.camera.screenToWorld(x, y);
+        this.scene.updateAreaResize(worldPos);
+        this.lastMouseX = x;
+        this.lastMouseY = y;
+        return;
+      }
 
       const movedFromStartX = x - this.mouseDownX;
       const movedFromStartY = y - this.mouseDownY;
@@ -805,6 +840,27 @@ export class Scene2DInput {
     this.clearLongPressTimer();
 
     if (e.touches.length === 0 && this.touchStartPositions.length === 1) {
+      // Handle drawing completion
+      if (this.scene.isCurrentlyDrawing()) {
+        const worldPos = this.camera.screenToWorld(this.lastMouseX, this.lastMouseY);
+        this.scene.finishDrawing(worldPos);
+        this.isMouseDown = false;
+        this.touchStartPositions = [];
+        this.touchIsPanning = false;
+        return;
+      }
+
+      // Handle area resize completion
+      if (this.isResizingArea) {
+        this.scene.finishAreaResize();
+        this.isResizingArea = false;
+        this.resizeHandleType = null;
+        this.isMouseDown = false;
+        this.touchStartPositions = [];
+        this.touchIsPanning = false;
+        return;
+      }
+
       if (this.longPressTriggered) {
         this.longPressTriggered = false;
         this.isMouseDown = false;

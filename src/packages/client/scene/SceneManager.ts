@@ -121,6 +121,12 @@ export class SceneManager {
         onUpdateNotificationBadges: () => this.agentManager.updateNotificationBadges(),
         onUpdateBossSubordinateLines: () => this.selectionManager.updateBossSubordinateLines(this.movementAnimator.hasActiveMovements()),
         onUpdateIndicatorScales: (camera, meshes, scale) => this.updateIndicatorScales(camera, meshes, scale),
+        onUpdateCameraSmoothing: (deltaTime) => {
+          this.inputHandler.updateSmoothZoom(deltaTime);
+          if (this.inputHandler.isZoomAnimating) {
+            this.renderLoop.markActivity();
+          }
+        },
       }
     );
     this.renderLoop.setHasActiveMovements(() => this.movementAnimator.hasActiveMovements());
@@ -355,13 +361,19 @@ export class SceneManager {
         const rawBaseScale = typeof nameLabelSprite.userData.baseIndicatorScale === 'number'
           ? nameLabelSprite.userData.baseIndicatorScale
           : (isBoss ? 1.5 : 1.25);
-        const maxBaseScale = isBoss ? 1.65 : 1.35;
-        const minBaseScale = isBoss ? 1.35 : 1.1;
-        const baseScale = Math.max(minBaseScale, Math.min(maxBaseScale, rawBaseScale));
+        // Only clamp for name-only sprites; task-label sprites use their own larger scale
+        const hasTaskLabel = rawBaseScale > 2;
+        const baseScale = hasTaskLabel
+          ? rawBaseScale
+          : Math.max(isBoss ? 1.35 : 1.1, Math.min(isBoss ? 1.65 : 1.35, rawBaseScale));
         const aspectRatio = typeof nameLabelSprite.userData.aspectRatio === 'number'
           ? nameLabelSprite.userData.aspectRatio
           : (1024 / 4096);
-        nameLabelSprite.scale.set(baseScale * scale, baseScale * aspectRatio * scale, 1);
+        // Separate distance-based zoom from indicatorScale so both apply correctly
+        const distScale = Math.max(0.5, Math.min(2.5, distance / 15));
+        const zoomFactor = hasTaskLabel ? Math.max(0.8, Math.min(1.2, distScale)) : distScale;
+        const labelScale = zoomFactor * indicatorScale;
+        nameLabelSprite.scale.set(baseScale * labelScale, baseScale * aspectRatio * labelScale, 1);
       }
 
       // Combined UI sprite (legacy - single sprite for all UI elements)
@@ -552,7 +564,7 @@ export class SceneManager {
   setDebugTime(hour: number | null): void { this.battlefield.setDebugTime(hour); }
   setTimeMode(mode: string): void { this.battlefield.setTimeMode(mode); }
 
-  setTerrainConfig(config: { showTrees: boolean; showBushes: boolean; showHouse: boolean; showLamps: boolean; showGrass: boolean; fogDensity: number; brightness?: number; skyColor?: string | null }): void {
+  setTerrainConfig(config: { showTrees: boolean; showBushes: boolean; showHouse: boolean; showLamps: boolean; showGrass: boolean; fogDensity: number; brightness?: number; skyColor?: string | null; battlefieldSize?: number }): void {
     this.battlefield.setTerrainConfig(config);
     // Propagate brightness to all managers for materials that don't respond to lighting
     if (config.brightness !== undefined) {

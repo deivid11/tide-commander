@@ -771,7 +771,9 @@ export class EffectsManager {
     sprite.renderOrder = 1000;
 
     // Position at bottom, behind name label (below character)
-    const baseY = agentGroup.position.y - 1.3;
+    // Push further down when taskLabel is present to avoid overlapping it
+    const hasTaskLabel = !!agentGroup.userData._cachedTaskLabel;
+    const baseY = agentGroup.position.y - (hasTaskLabel ? 2.0 : 1.3);
     sprite.position.copy(agentGroup.position);
     sprite.position.y = baseY;
 
@@ -1138,8 +1140,10 @@ export class EffectsManager {
       bubble.sprite.material.opacity = fadeIn * fadeOut;
 
       // Position at bottom, behind name label
+      // Push further down when taskLabel is present to avoid overlapping it
       const agentY = agentGroup ? agentGroup.position.y : 0;
-      bubble.sprite.position.y = agentY - 1.3;
+      const hasTaskLabel = agentGroup ? !!agentGroup.userData._cachedTaskLabel : false;
+      bubble.sprite.position.y = agentY - (hasTaskLabel ? 2.0 : 1.3);
 
       if (t >= 1) {
         toRemove.push(i);

@@ -243,6 +243,10 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
   const [pinToBottom, setPinToBottom] = useState(false);
   const [isAgentSwitching, setIsAgentSwitching] = useState(false);
 
+  // Drag-and-drop file attach
+  const [draggingOver, setDraggingOver] = useState(false);
+  const dragCounterRef = useRef(0);
+
   // Use store's terminal state
   const isOpen = terminalOpen && activeAgent !== null;
 
@@ -880,6 +884,12 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [keyboard]);
 
+  // Clean up stale keyboard styles when agent changes or component unmounts.
+  // This prevents --keyboard-visible getting stuck at 1 after rapid agent switches.
+  useEffect(() => {
+    return () => keyboard.cleanup();
+  }, [activeAgentId, keyboard]);
+
   // Mobile placeholder rendering
   const isMobileWidth = typeof window !== 'undefined' && window.innerWidth <= 768;
 
@@ -916,12 +926,63 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
   // At this point activeAgent exists, so activeAgentId must exist too
   if (!activeAgentId) return null;
 
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current++;
+    if (e.dataTransfer.types.includes('Files')) {
+      setDraggingOver(true);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current--;
+    if (dragCounterRef.current === 0) {
+      setDraggingOver(false);
+    }
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current = 0;
+    setDraggingOver(false);
+
+    const files = e.dataTransfer.files;
+    if (!files.length) return;
+
+    for (const file of files) {
+      const attached = await terminalInput.uploadFile(file);
+      if (attached) {
+        terminalInput.setAttachedFiles((prev) => [...prev, attached]);
+      }
+    }
+  };
+
   return (
     <div
       ref={terminalRef}
-      className={`guake-terminal ${isOpen ? 'open' : 'collapsed'} ${debugPanelOpen && isOpen ? 'with-debug-panel' : ''} ${overviewPanelOpen && isOpen ? 'with-overview-panel' : ''}`}
+      className={`guake-terminal ${isOpen ? 'open' : 'collapsed'} ${debugPanelOpen && isOpen ? 'with-debug-panel' : ''} ${overviewPanelOpen && isOpen ? 'with-overview-panel' : ''} ${draggingOver ? 'drag-over' : ''}`}
       style={{ '--terminal-height': `${terminalHeight}%` } as React.CSSProperties}
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
     >
+      {/* Drop overlay */}
+      <div className="guake-drop-overlay">
+        <div className="drop-border" />
+        <span className="drop-icon">📎</span>
+        <span className="drop-label">{t('terminal:input.dropToAttach')}</span>
+      </div>
+
       {/* Debug Panel */}
       {!isSnapshotView && debugPanelOpen && isOpen && activeAgentId && (
         <AgentDebugPanel agentId={activeAgentId} onClose={() => setDebugPanelOpen(false)} />

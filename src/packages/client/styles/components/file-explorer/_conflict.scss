@@ -27,6 +27,38 @@
   color: $dracula-orange;
 }
 
+.conflict-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.conflict-nav-btn {
+  background: transparent;
+  border: 1px solid rgba($dracula-orange, 0.4);
+  color: $dracula-orange;
+  font-size: 10px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: $radius-sm;
+  line-height: 1;
+  transition: all $transition-fast;
+
+  &:hover {
+    background: rgba($dracula-orange, 0.15);
+    border-color: $dracula-orange;
+  }
+}
+
+.conflict-nav-counter {
+  font-family: $font-mono;
+  font-size: 11px;
+  font-weight: 600;
+  color: $dracula-orange;
+  min-width: 40px;
+  text-align: center;
+}
+
 .conflict-close-btn {
   background: transparent;
   border: none;
@@ -85,6 +117,18 @@
 }
 
 .conflict-section-unchanged {
+  .conflict-pane {
+    background: transparent;
+
+    &.ours {
+      background: transparent;
+    }
+
+    &.theirs {
+      background: transparent;
+    }
+  }
+
   pre {
     margin: 0;
     padding: 4px 12px;
@@ -193,6 +237,35 @@
   }
 }
 
+.conflict-accept-both-btn {
+  display: block;
+  width: calc(100% - 16px);
+  margin: 4px 8px 8px;
+  padding: 4px 8px;
+  border-radius: $radius-sm;
+  font-family: $font-mono;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all $transition-fast;
+  background: transparent;
+  border: 1px solid rgba($dracula-orange, 0.4);
+  color: $dracula-orange;
+
+  &:hover:not(:disabled) {
+    background: rgba($dracula-orange, 0.15);
+    border-color: $dracula-orange;
+  }
+
+  &.accepted,
+  &:disabled {
+    background: rgba($dracula-green, 0.15);
+    border-color: $dracula-green;
+    color: $dracula-green;
+    cursor: default;
+  }
+}
+
 .conflict-actions {
   display: flex;
   gap: 6px;
@@ -230,6 +303,17 @@
     &:hover {
       background: rgba($dracula-purple, 0.15);
       border-color: $dracula-purple;
+    }
+  }
+
+  &.accept-all-both {
+    background: transparent;
+    border: 1px solid rgba($dracula-orange, 0.4);
+    color: $dracula-orange;
+
+    &:hover {
+      background: rgba($dracula-orange, 0.15);
+      border-color: $dracula-orange;
     }
   }
 

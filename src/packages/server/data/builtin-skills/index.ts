@@ -18,6 +18,7 @@ import { bitbucketPR } from './bitbucket-pr.js';
 import { pm2Logs } from './pm2-logs.js';
 import { createBuilding } from './create-building.js';
 import { releasePipeline } from './release-pipeline.js';
+import { taskLabel } from './task-label.js';
 
 // Re-export types
 export type { BuiltinSkillDefinition } from './types.js';
@@ -35,6 +36,7 @@ export const BUILTIN_SKILLS: BuiltinSkillDefinition[] = [
   pm2Logs,
   createBuilding,
   releasePipeline,
+  taskLabel,
 ];
 
 /**

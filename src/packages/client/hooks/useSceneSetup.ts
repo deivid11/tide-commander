@@ -436,6 +436,8 @@ export function useSceneSetup({
     setCallbacks({
       onAgentCreated: (agent) => {
         sceneRef.current?.addAgent(agent);
+        // Refresh selection visuals after mesh is added so newly auto-selected agent gets highlighted
+        sceneRef.current?.refreshSelectionVisuals();
         (window as any).__spawnModalSuccess?.();
       },
       onAgentUpdated: (agent, positionChanged) => {

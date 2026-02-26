@@ -213,7 +213,10 @@
       // Force display even when .collapsed class is present
       display: flex !important;
       position: relative;
-      z-index: 1;
+      // z-index: auto prevents creating a stacking context, so the fixed
+      // .guake-input-wrapper (z-index: 200) can properly layer above
+      // .agent-bar (z-index: 160) which lives outside the terminal.
+      z-index: auto;
       flex: 1;
       min-height: 0;
       height: 100%;
@@ -1421,6 +1424,31 @@
   .spawn-modal,
   .agent-edit-modal {
     max-height: 75vh;
+  }
+
+  // Spawn modal mobile layout - stack rows vertically
+  .spawn-top-section {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .spawn-preview-compact {
+    display: flex;
+    justify-content: center;
+  }
+
+  .spawn-form-row {
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .spawn-field.spawn-field-wide {
+    flex: 1;
+  }
+
+  // Model buttons: single row, full width
+  .spawn-select-row {
+    flex-wrap: wrap;
   }
 
   .image-modal-header {

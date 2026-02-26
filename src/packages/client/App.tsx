@@ -47,6 +47,7 @@ import { PiPWindow, AgentsPiPView } from './components/PiPWindow';
 import { IframeModal } from './components/IframeModal';
 import { SaveSnapshotModal } from './components/SaveSnapshotModal';
 import { NotConnectedOverlay } from './components/NotConnectedOverlay';
+import { OnboardingModal } from './components/OnboardingModal';
 import { profileRender, useRenderCounter } from './utils/profiling';
 import {
   useModalState,
@@ -536,6 +537,7 @@ function AppContent() {
     <div className={`app ${terminalOpen ? 'terminal-open' : ''} ${isDrawingMode ? 'drawing-mode' : ''} ${sidebarCollapsed ? 'sidebar-collapsed' : ''} mobile-view-${mobileView}`}>
       {/* Not Connected Overlay */}
       <NotConnectedOverlay />
+      <OnboardingModal onCreateAgent={spawnModal.open} />
 
       {/* FPS Meter */}
       <FPSMeter visible={settings.showFPS} position="bottom-right" />

@@ -222,10 +222,10 @@ export const TerminalHeader = memo(function TerminalHeader({
             />
           </div>
         )}
-        {(lastInput || agentAnalysis) && (
+        {(lastInput || agentAnalysis || selectedAgent.taskLabel) && (
           <span
             className="guake-status-line"
-            title={`${lastInput || 'No task'}${agentAnalysis ? `\n\n🎖️ ${agentAnalysis.statusDescription}\n${agentAnalysis.recentWorkSummary}` : ''}`}
+            title={`${selectedAgent.taskLabel ? `📋 ${selectedAgent.taskLabel}\n` : ''}${lastInput || 'No task'}${agentAnalysis ? `\n\n🎖️ ${agentAnalysis.statusDescription}\n${agentAnalysis.recentWorkSummary}` : ''}`}
           >
             {agentAnalysis && (
               <span
@@ -235,8 +235,11 @@ export const TerminalHeader = memo(function TerminalHeader({
                 🎖️ {agentAnalysis.progress.replace('_', ' ')}
               </span>
             )}
+            {selectedAgent.taskLabel && (
+              <span className="guake-task-label">📋 {selectedAgent.taskLabel}</span>
+            )}
             {filteredStatus && <span className="guake-supervisor-summary">{filteredStatus}</span>}
-            {!filteredStatus && lastInput && <span className="guake-last-input">{lastInput}</span>}
+            {!filteredStatus && !selectedAgent.taskLabel && lastInput && <span className="guake-last-input">{lastInput}</span>}
           </span>
         )}
         {subagents.length > 0 && (
@@ -317,15 +320,6 @@ export const TerminalHeader = memo(function TerminalHeader({
         </button>
         {!isSnapshotView && (
           <>
-            {outputsLength > 0 && (
-              <button
-                className="guake-clear hide-on-mobile"
-                onClick={() => store.clearOutputs(selectedAgentId)}
-                title={t('terminal:header.clearOutput')}
-              >
-                🗑
-              </button>
-            )}
             <button
               className="guake-context-btn hide-on-mobile"
               onClick={() => setContextConfirm('collapse')}

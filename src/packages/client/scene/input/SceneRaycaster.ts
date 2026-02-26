@@ -62,15 +62,23 @@ export class SceneRaycaster {
    * Raycast to ground from mouse event and return world position.
    */
   raycastGroundFromEvent(event: MouseEvent): GroundPosition | null {
-    if (!this.ground) return null;
-
     this.updateMouseFromEvent(event);
     this.raycaster.setFromCamera(this.mouse, this.camera);
 
-    const intersects = this.raycaster.intersectObject(this.ground);
-    if (intersects.length > 0) {
-      const point = intersects[0].point;
-      return { x: point.x, z: point.z };
+    // Try ground mesh first
+    if (this.ground) {
+      const intersects = this.raycaster.intersectObject(this.ground);
+      if (intersects.length > 0) {
+        const point = intersects[0].point;
+        return { x: point.x, z: point.z };
+      }
+    }
+
+    // Fallback to Y=0 plane (allows placement beyond ground edges)
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const target = new THREE.Vector3();
+    if (this.raycaster.ray.intersectPlane(plane, target)) {
+      return { x: target.x, z: target.z };
     }
     return null;
   }
@@ -79,15 +87,23 @@ export class SceneRaycaster {
    * Raycast to ground from screen coordinates.
    */
   raycastGroundFromPoint(clientX: number, clientY: number): GroundPosition | null {
-    if (!this.ground) return null;
-
     this.updateMouseFromPoint(clientX, clientY);
     this.raycaster.setFromCamera(this.mouse, this.camera);
 
-    const intersects = this.raycaster.intersectObject(this.ground);
-    if (intersects.length > 0) {
-      const point = intersects[0].point;
-      return { x: point.x, z: point.z };
+    // Try ground mesh first
+    if (this.ground) {
+      const intersects = this.raycaster.intersectObject(this.ground);
+      if (intersects.length > 0) {
+        const point = intersects[0].point;
+        return { x: point.x, z: point.z };
+      }
+    }
+
+    // Fallback to Y=0 plane (allows placement beyond ground edges)
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const target = new THREE.Vector3();
+    if (this.raycaster.ray.intersectPlane(plane, target)) {
+      return { x: target.x, z: target.z };
     }
     return null;
   }

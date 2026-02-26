@@ -13,6 +13,7 @@ export const DEFAULT_TERRAIN = {
   floorStyle: 'metal' as const,
   brightness: 1, // 0.2 = dark, 1 = normal, 2 = bright
   skyColor: null as string | null, // null = auto (based on time mode)
+  battlefieldSize: 50, // Ground plane size in units (30-200)
 };
 
 // Default agent model style config
@@ -41,7 +42,7 @@ export const DEFAULT_FPS_LIMIT = 0;
 export function loadConfig(): SceneConfig {
   const defaultConfig: SceneConfig = {
     characterScale: 2.0,
-    indicatorScale: 1,
+    indicatorScale: 0.7,
     gridVisible: false,
     timeMode: 'day',
     terrain: DEFAULT_TERRAIN,

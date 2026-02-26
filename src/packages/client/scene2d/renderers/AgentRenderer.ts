@@ -110,15 +110,15 @@ export class AgentRenderer extends BaseRenderer {
 
     // ========== SELECTION GLOW ==========
     if (isSelected) {
-      const glowPulse = 0.65;
-      const selectionRadius = screenRadius + 12;
+      const glowPulse = agent.isBoss ? 0.4 : 0.34;
+      const selectionRadius = screenRadius + 10;
 
       const selectionGradient = this.ctx.createRadialGradient(
         screenPos.x, screenPos.y, screenRadius + 6,
         screenPos.x, screenPos.y, selectionRadius + 8
       );
-      selectionGradient.addColorStop(0, this.hexToRgba(bodyColor, glowPulse * 0.6));
-      selectionGradient.addColorStop(0.5, this.hexToRgba(bodyColor, glowPulse * 0.3));
+      selectionGradient.addColorStop(0, this.hexToRgba(bodyColor, glowPulse * 0.34));
+      selectionGradient.addColorStop(0.5, this.hexToRgba(bodyColor, glowPulse * 0.16));
       selectionGradient.addColorStop(1, 'transparent');
 
       this.ctx.beginPath();
@@ -128,8 +128,8 @@ export class AgentRenderer extends BaseRenderer {
 
       this.ctx.beginPath();
       this.ctx.arc(screenPos.x, screenPos.y, selectionRadius, 0, Math.PI * 2);
-      this.ctx.strokeStyle = bodyColor;
-      this.ctx.lineWidth = 3;
+      this.ctx.strokeStyle = this.hexToRgba(bodyColor, agent.isBoss ? 0.44 : 0.36);
+      this.ctx.lineWidth = agent.isBoss ? 2.2 : 1.8;
       this.ctx.setLineDash([8, 4]);
       this.ctx.lineDashOffset = -this.animationTime * 12;
       this.ctx.stroke();
@@ -224,7 +224,7 @@ export class AgentRenderer extends BaseRenderer {
     // ========== NAME TAG ==========
     const labelScale = indicatorScale * zoomScaleFactor;
     const labelY = screenPos.y + screenRadius + 12 * zoomScaleFactor;
-    const labelFontSize = Math.max(5, 9 * labelScale);
+    const labelFontSize = Math.max(7, 13 * labelScale);
 
     this.ctx.font = `bold ${labelFontSize}px "Segoe UI", Arial, sans-serif`;
     const nameWidth = this.ctx.measureText(agent.name).width;
@@ -428,6 +428,33 @@ export class AgentRenderer extends BaseRenderer {
       this.ctx.textAlign = 'center';
       this.ctx.textBaseline = 'middle';
       this.ctx.fillText(toolContent, screenPos.x, animatedToolY);
+    }
+
+    // ========== TASK LABEL BADGE ==========
+    if (agent.taskLabel) {
+      const taskFontSize = Math.max(9, 15 * labelScale);
+      this.ctx.font = `bold italic ${taskFontSize}px "Segoe UI", Arial, sans-serif`;
+      const taskText = agent.taskLabel.length > 30 ? agent.taskLabel.substring(0, 28) + '..' : agent.taskLabel;
+      const taskWidth = this.ctx.measureText(taskText).width;
+      const taskPadding = 6 * zoomScaleFactor;
+      const taskHeight = taskFontSize + 5 * zoomScaleFactor;
+      const taskY = barY + barHeight + 10 * zoomScaleFactor;
+
+      this.ctx.beginPath();
+      this.roundedRectScreen(
+        screenPos.x - taskWidth / 2 - taskPadding,
+        taskY - taskHeight / 2,
+        taskWidth + taskPadding * 2,
+        taskHeight,
+        taskHeight / 2
+      );
+      this.ctx.fillStyle = 'rgba(60, 60, 80, 0.8)';
+      this.ctx.fill();
+
+      this.ctx.fillStyle = 'rgba(180, 195, 215, 0.95)';
+      this.ctx.textAlign = 'center';
+      this.ctx.textBaseline = 'middle';
+      this.ctx.fillText(taskText, screenPos.x, taskY);
     }
 
     // ========== UNSEEN OUTPUT NOTIFICATION BADGE ==========

@@ -55,7 +55,7 @@ export const GuakeAgentLink = memo(function GuakeAgentLink({ agent, isSelected, 
     <div
       className={`guake-agent-link ${isSelected ? 'selected' : ''} ${agent.status}`}
       onClick={onClick}
-      title={`${agent.name} - ${agent.status}${agent.currentTool ? ` (${agent.currentTool})` : ''}${agent.lastActivity ? ` • Idle: ${formatIdleTime(agent.lastActivity)}` : ''}\n📁 ${agent.cwd}${agent.lastAssignedTask ? `\n📋 ${agent.lastAssignedTask}` : ''}`}
+      title={`${agent.name} - ${agent.status}${agent.currentTool ? ` (${agent.currentTool})` : ''}${agent.lastActivity ? ` • Idle: ${formatIdleTime(agent.lastActivity)}` : ''}${agent.taskLabel ? `\n📋 ${agent.taskLabel}` : ''}\n📁 ${agent.cwd}${agent.lastAssignedTask ? `\n💬 ${agent.lastAssignedTask}` : ''}`}
     >
       <span className="guake-agent-link-icon">{config.icon}</span>
       <span className="guake-agent-link-status" style={{ backgroundColor: getAgentStatusColor(agent.status) }} />

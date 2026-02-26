@@ -238,7 +238,7 @@ export function TerminalInput({
           multiple
           onChange={handleFileSelect}
           style={{ display: 'none' }}
-          accept="image/*,.txt,.md,.json,.js,.ts,.tsx,.jsx,.py,.sh,.css,.scss,.html,.xml,.yaml,.yml,.toml,.ini,.cfg,.conf"
+          accept="*"
         />
         <div className={containerClass} onAuxClick={handleContainerAuxClick}>
           <button

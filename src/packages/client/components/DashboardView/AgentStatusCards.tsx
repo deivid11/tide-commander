@@ -36,7 +36,7 @@ export const AgentCard = React.memo(({
   const icon = getAgentClassIcon(agent.class);
   const contextPercent = getContextPercent(agent);
   const barColor = getContextBarColor(contextPercent);
-  const taskPreview = agent.currentTask || agent.lastAssignedTask;
+  const taskPreview = agent.taskLabel ? `📋 ${agent.taskLabel}` : (agent.currentTask || agent.lastAssignedTask);
   const showIdleTime = agent.status === 'idle' && agent.lastActivity > 0;
   const [, setTick] = React.useState(0);
 

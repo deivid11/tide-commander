@@ -37,6 +37,7 @@
 @use 'components/tooltip';
 @use 'components/snapshots';
 @use 'components/not-connected';
+@use 'components/onboarding';
 
 // Responsive styles (must be last to override component styles)
 @use 'responsive/index' as responsive;

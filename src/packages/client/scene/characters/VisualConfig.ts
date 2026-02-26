@@ -102,6 +102,7 @@ export class VisualConfig {
       map: texture,
       transparent: true,
       depthTest: false,
+      depthWrite: false,
     });
 
     const sprite = new THREE.Sprite(material);
@@ -111,6 +112,7 @@ export class VisualConfig {
     const aspectRatio = canvas.height / canvas.width;
     sprite.scale.set(baseScale, baseScale * aspectRatio, 1);
     sprite.name = 'statusBar';
+    sprite.renderOrder = 1100;
     sprite.userData.modelHeight = modelHeight;
     sprite.userData.baseIndicatorScale = baseScale;
     sprite.userData.aspectRatio = aspectRatio;
@@ -121,14 +123,14 @@ export class VisualConfig {
   /**
    * Create a name label sprite. Positioned below the character.
    */
-  createNameLabelSprite(name: string, color: number, isBoss: boolean, provider?: string): THREE.Sprite {
+  createNameLabelSprite(name: string, color: number, isBoss: boolean, provider?: string, taskLabel?: string): THREE.Sprite {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d')!;
 
     canvas.width = 4096;
-    canvas.height = 1024;
+    canvas.height = taskLabel ? 2048 : 1024;
 
-    this.drawNameLabel(ctx, canvas.width, canvas.height, name, color, provider);
+    this.drawNameLabel(ctx, canvas.width, canvas.height, name, color, provider, taskLabel);
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.minFilter = THREE.LinearMipmapLinearFilter;
@@ -141,14 +143,19 @@ export class VisualConfig {
       map: texture,
       transparent: true,
       depthTest: false,
+      depthWrite: false,
     });
 
     const sprite = new THREE.Sprite(material);
-    sprite.position.y = isBoss ? -0.74 : -0.56;
-    const baseScale = isBoss ? 1.5 : 1.25;
+    // When task label is present, use a much wider sprite so text stays legible and shift down
+    const baseScale = isBoss ? 4.2 : 3.5;
+    sprite.position.y = taskLabel
+      ? (isBoss ? -1.2 : -1.0)
+      : (isBoss ? -0.9 : -0.7);
     const aspectRatio = canvas.height / canvas.width;
     sprite.scale.set(baseScale, baseScale * aspectRatio, 1);
     sprite.name = 'nameLabelSprite';
+    sprite.renderOrder = 1200;
     sprite.userData.baseIndicatorScale = baseScale;
     sprite.userData.aspectRatio = aspectRatio;
 
@@ -164,11 +171,15 @@ export class VisualConfig {
     height: number,
     name: string,
     color: number,
-    provider?: string
+    provider?: string,
+    taskLabel?: string
   ): void {
     ctx.clearRect(0, 0, width, height);
 
     const colorHex = `#${color.toString(16).padStart(6, '0')}`;
+
+    // When task label is present, shift name up to make room
+    const nameY = taskLabel ? height * 0.3 : height / 2;
 
     let fontSize = 800;
     const minFontSize = 300;
@@ -203,7 +214,7 @@ export class VisualConfig {
     ctx.strokeStyle = '#000';
     ctx.lineWidth = fontSize * 0.14;
     ctx.lineJoin = 'round';
-    ctx.strokeText(name, textX, height / 2);
+    ctx.strokeText(name, textX, nameY);
 
     ctx.shadowColor = 'transparent';
     ctx.shadowBlur = 0;
@@ -212,7 +223,7 @@ export class VisualConfig {
 
     if (hasProviderDot) {
       const dotX = width / 2 - totalContentWidth / 2 + dotDiameter / 2;
-      const dotY = height / 2;
+      const dotY = nameY;
       const providerColor = provider === 'codex' ? '#4a9eff' : '#ff9e4a';
       ctx.beginPath();
       ctx.arc(dotX, dotY, dotDiameter / 2, 0, Math.PI * 2);
@@ -224,7 +235,40 @@ export class VisualConfig {
     }
 
     ctx.fillStyle = colorHex;
-    ctx.fillText(name, textX, height / 2);
+    ctx.fillText(name, textX, nameY);
+
+    // Task label (below the name)
+    if (taskLabel) {
+      const taskFontSize = Math.round(fontSize * 0.85);
+      const taskY = height * 0.55;
+      let displayLabel = taskLabel;
+
+      const maxLabelWidth = width - 600;
+      let actualTaskFontSize = taskFontSize;
+      ctx.font = `italic ${actualTaskFontSize}px "Segoe UI", Arial, sans-serif`;
+      while (ctx.measureText(displayLabel).width > maxLabelWidth && actualTaskFontSize > 200) {
+        actualTaskFontSize -= 40;
+        ctx.font = `italic ${actualTaskFontSize}px "Segoe UI", Arial, sans-serif`;
+      }
+
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+      ctx.shadowBlur = actualTaskFontSize * 0.1;
+      ctx.shadowOffsetX = actualTaskFontSize * 0.03;
+      ctx.shadowOffsetY = actualTaskFontSize * 0.03;
+
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = actualTaskFontSize * 0.12;
+      ctx.lineJoin = 'round';
+      ctx.strokeText(displayLabel, width / 2, taskY);
+
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+
+      ctx.fillStyle = 'rgba(190, 205, 225, 0.9)';
+      ctx.fillText(displayLabel, width / 2, taskY);
+    }
   }
 
   /**
@@ -417,6 +461,7 @@ export class VisualConfig {
       map: texture,
       transparent: true,
       depthTest: false,
+      depthWrite: false,
     });
 
     const sprite = new THREE.Sprite(material);
@@ -660,6 +705,7 @@ export class VisualConfig {
     const widthScale = baseWidth * (canvas.width / 512);
     sprite.scale.set(widthScale, baseHeight, 1);
     sprite.name = 'nameLabel';
+    sprite.renderOrder = 1200;
     sprite.userData.aspectRatio = canvas.width / canvas.height;
 
     return sprite;
@@ -1073,22 +1119,40 @@ export class VisualConfig {
       }
     }
 
-    // Name label: only redraw if name actually changed (already guarded)
-    if (ud.agentName !== agent.name) {
+    // Name label: redraw if name or taskLabel changed
+    const taskLabel = agent.taskLabel;
+    if (ud.agentName !== agent.name || ud._cachedTaskLabel !== taskLabel) {
       const nameLabelSprite = group.getObjectByName('nameLabelSprite') as THREE.Sprite;
       if (nameLabelSprite) {
-        const material = nameLabelSprite.material as THREE.SpriteMaterial;
-        if (material.map) {
-          const canvas = material.map.image as HTMLCanvasElement;
-          if (canvas instanceof HTMLCanvasElement) {
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-              this.drawNameLabel(ctx, canvas.width, canvas.height, agent.name, classColor);
-              material.map.needsUpdate = true;
-              ud.agentName = agent.name;
+        // If taskLabel presence changed, we need to resize the canvas
+        const hadTaskLabel = !!ud._cachedTaskLabel;
+        const hasTaskLabel = !!taskLabel;
+        if (hadTaskLabel !== hasTaskLabel) {
+          // Recreate sprite with new canvas size
+          const material = nameLabelSprite.material as THREE.SpriteMaterial;
+          material.map?.dispose();
+          material.dispose();
+          group.remove(nameLabelSprite);
+
+          const isBoss = agent.isBoss === true || agent.class === 'boss';
+          const newSprite = this.createNameLabelSprite(agent.name, classColor, isBoss, agent.provider, taskLabel);
+          group.add(newSprite);
+        } else {
+          // Same canvas size, just redraw
+          const material = nameLabelSprite.material as THREE.SpriteMaterial;
+          if (material.map) {
+            const canvas = material.map.image as HTMLCanvasElement;
+            if (canvas instanceof HTMLCanvasElement) {
+              const ctx = canvas.getContext('2d');
+              if (ctx) {
+                this.drawNameLabel(ctx, canvas.width, canvas.height, agent.name, classColor, agent.provider, taskLabel);
+                material.map.needsUpdate = true;
+              }
             }
           }
         }
+        ud.agentName = agent.name;
+        ud._cachedTaskLabel = taskLabel;
       }
 
       // Legacy fallback name update
@@ -1097,6 +1161,7 @@ export class VisualConfig {
       if (!statusBarExists && !combinedUIExists) {
         this.updateNameLabel(group, agent.name, agent.class, agent.provider);
         ud.agentName = agent.name;
+        ud._cachedTaskLabel = taskLabel;
       }
     }
 
@@ -1107,10 +1172,10 @@ export class VisualConfig {
       if (isSelected) {
         const builtInConfig = AGENT_CLASS_CONFIG[agent.class as BuiltInAgentClass];
         material.color.setHex(builtInConfig?.color ?? classColor);
-        material.opacity = 0.8;
+        material.opacity = (agent.isBoss === true || agent.class === 'boss') ? 0.34 : 0.28;
       } else if (isSubordinateOfSelectedBoss) {
         material.color.setHex(0xffd700);
-        material.opacity = 0.5;
+        material.opacity = 0.2;
       } else {
         material.opacity = 0;
       }

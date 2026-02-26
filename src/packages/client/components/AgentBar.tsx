@@ -39,6 +39,8 @@ interface AgentBarItemProps {
   agent: Agent;
   currentIndex: number;
   agentIndex: number;
+  isTouchInput: boolean;
+  isTouchDragEnabled: boolean;
   isSelected: boolean;
   hasUnseenOutput: boolean;
   isDragging: boolean;
@@ -52,18 +54,23 @@ interface AgentBarItemProps {
   onDrop: (e: React.DragEvent, index: number) => void;
   onAgentClick: (agent: Agent, e: React.MouseEvent) => void;
   onAgentDoubleClick: (agent: Agent) => void;
+  onTouchStart: (e: React.TouchEvent, agentId: string) => void;
+  onTouchMove: (e: React.TouchEvent) => void;
+  onTouchEnd: () => void;
+  onTouchCancel: () => void;
   onHoverEnter: (agent: Agent) => void;
   onHoverLeave: () => void;
   onItemRef: (agentId: string, el: HTMLDivElement | null) => void;
 }
 
 const AgentBarItem = memo(function AgentBarItem({
-  agent, currentIndex, agentIndex, isSelected, hasUnseenOutput,
+  agent, currentIndex, agentIndex, isTouchInput, isTouchDragEnabled, isSelected, hasUnseenOutput,
   isDragging, isDragOver, customClasses,
   onDragStart, onDragEnd, onDragOver, onDragEnter, onDragLeave, onDrop,
-  onAgentClick, onAgentDoubleClick, onHoverEnter, onHoverLeave, onItemRef,
+  onAgentClick, onAgentDoubleClick, onTouchStart, onTouchMove, onTouchEnd, onTouchCancel, onHoverEnter, onHoverLeave, onItemRef,
 }: AgentBarItemProps) {
   const config = useMemo(() => getClassConfig(agent.class, customClasses), [agent.class, customClasses]);
+  const canDrag = !isTouchInput || isTouchDragEnabled;
 
   const handleRef = useCallback((el: HTMLDivElement | null) => {
     onItemRef(agent.id, el);
@@ -72,19 +79,25 @@ const AgentBarItem = memo(function AgentBarItem({
   return (
     <div
       ref={handleRef}
-      className={`agent-bar-item ${isSelected ? 'selected' : ''} ${agent.status} ${agent.isBoss ? 'is-boss' : ''} ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
-      draggable
+      className={`agent-bar-item ${isSelected ? 'selected' : ''} ${agent.status} ${agent.isBoss ? 'is-boss' : ''} ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''} ${isTouchDragEnabled ? 'touch-drag-enabled' : ''}`}
+      draggable={canDrag}
       onDragStart={(e) => onDragStart(e, agent)}
       onDragEnd={onDragEnd}
       onDragOver={(e) => onDragOver(e, agentIndex)}
       onDragEnter={(e) => onDragEnter(e, agentIndex)}
       onDragLeave={onDragLeave}
       onDrop={(e) => onDrop(e, agentIndex)}
+      onTouchStart={(e) => onTouchStart(e, agent.id)}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      onTouchCancel={onTouchCancel}
       onClick={(e) => onAgentClick(agent, e)}
       onDoubleClick={() => onAgentDoubleClick(agent)}
       onMouseEnter={() => onHoverEnter(agent)}
       onMouseLeave={onHoverLeave}
-      title={`${agent.name} (${currentIndex + 1}) - Drag to reorder within group`}
+      title={isTouchInput
+        ? `${agent.name} (${currentIndex + 1}) - Long press to reorder`
+        : `${agent.name} (${currentIndex + 1}) - Drag to reorder within group`}
     >
       <div className="agent-bar-avatar">
         <span className="agent-bar-icon">{config.icon}</span>
@@ -170,6 +183,17 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
   const [draggedAgent, setDraggedAgent] = useState<Agent | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const dragCounter = useRef(0);
+  const [touchDragEnabledAgentId, setTouchDragEnabledAgentId] = useState<string | null>(null);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const touchStartRef = useRef<{ agentId: string; x: number; y: number } | null>(null);
+  const suppressNextClickAgentIdRef = useRef<string | null>(null);
+  const suppressClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const TOUCH_LONG_PRESS_MS = 350;
+  const TOUCH_MOVE_CANCEL_PX = 8;
+  const isTouchInput = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    return ('ontouchstart' in window) || window.matchMedia('(pointer: coarse)').matches;
+  }, []);
 
   // Get agents sorted by creation time as base, then apply custom order
   // Filter out agents in archived areas
@@ -291,6 +315,12 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
 
   // Stabilized click handlers (read reactive values from store/refs to avoid deps)
   const handleAgentClick = useCallback((agent: Agent, e: React.MouseEvent) => {
+    if (suppressNextClickAgentIdRef.current === agent.id) {
+      suppressNextClickAgentIdRef.current = null;
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
     store.setLastSelectionViaDirectClick(true);
     if (e.shiftKey) {
       store.addToSelection(agent.id);
@@ -318,6 +348,7 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
   // Drag and drop handlers (stabilized with refs)
   const handleDragStart = useCallback((e: React.DragEvent, agent: Agent) => {
     setDraggedAgent(agent);
+    setTouchDragEnabledAgentId(agent.id);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', agent.id);
     requestAnimationFrame(() => {
@@ -328,6 +359,7 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
   const handleDragEnd = useCallback((e: React.DragEvent) => {
     setDraggedAgent(null);
     setDragOverIndex(null);
+    setTouchDragEnabledAgentId(null);
     dragCounter.current = 0;
     (e.target as HTMLElement).classList.remove('dragging');
   }, []);
@@ -393,8 +425,71 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
     }
     setDraggedAgent(null);
     setDragOverIndex(null);
+    setTouchDragEnabledAgentId(null);
     dragCounter.current = 0;
   }, []);
+
+  const clearLongPressTimer = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }, []);
+
+  const clearSuppressClickTimer = useCallback(() => {
+    if (suppressClearTimerRef.current) {
+      clearTimeout(suppressClearTimerRef.current);
+      suppressClearTimerRef.current = null;
+    }
+  }, []);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent, agentId: string) => {
+    if (!isTouchInput || e.touches.length !== 1) return;
+    clearLongPressTimer();
+    clearSuppressClickTimer();
+    setTouchDragEnabledAgentId(null);
+    const touch = e.touches[0];
+    touchStartRef.current = { agentId, x: touch.clientX, y: touch.clientY };
+    longPressTimerRef.current = setTimeout(() => {
+      setTouchDragEnabledAgentId(agentId);
+      suppressNextClickAgentIdRef.current = agentId;
+      longPressTimerRef.current = null;
+    }, TOUCH_LONG_PRESS_MS);
+  }, [clearLongPressTimer, clearSuppressClickTimer, isTouchInput]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!isTouchInput || e.touches.length !== 1) return;
+    const start = touchStartRef.current;
+    if (!start || !longPressTimerRef.current) return;
+    const touch = e.touches[0];
+    const dx = touch.clientX - start.x;
+    const dy = touch.clientY - start.y;
+    const distance = Math.sqrt((dx * dx) + (dy * dy));
+    if (distance > TOUCH_MOVE_CANCEL_PX) {
+      clearLongPressTimer();
+      touchStartRef.current = null;
+    }
+  }, [clearLongPressTimer, isTouchInput]);
+
+  const handleTouchEnd = useCallback(() => {
+    clearLongPressTimer();
+    touchStartRef.current = null;
+    if (!draggedAgentRef.current) {
+      setTouchDragEnabledAgentId(null);
+    }
+    clearSuppressClickTimer();
+    suppressClearTimerRef.current = setTimeout(() => {
+      suppressNextClickAgentIdRef.current = null;
+      suppressClearTimerRef.current = null;
+    }, 450);
+  }, [clearLongPressTimer, clearSuppressClickTimer]);
+
+  useEffect(() => {
+    return () => {
+      clearLongPressTimer();
+      clearSuppressClickTimer();
+    };
+  }, [clearLongPressTimer, clearSuppressClickTimer]);
 
   // Use getAgentStatusColor from utils/colors.ts
 
@@ -579,6 +674,8 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
                     agent={agent}
                     currentIndex={currentIndex}
                     agentIndex={agentIndex}
+                    isTouchInput={isTouchInput}
+                    isTouchDragEnabled={touchDragEnabledAgentId === agent.id}
                     isSelected={selectedAgentIds.has(agent.id)}
                     hasUnseenOutput={agentsWithUnseenOutput.has(agent.id)}
                     isDragging={draggedAgent?.id === agent.id}
@@ -592,6 +689,10 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
                     onDrop={handleDrop}
                     onAgentClick={handleAgentClick}
                     onAgentDoubleClick={handleAgentDoubleClick}
+                    onTouchStart={handleTouchStart}
+                    onTouchMove={handleTouchMove}
+                    onTouchEnd={handleTouchEnd}
+                    onTouchCancel={handleTouchEnd}
                     onHoverEnter={setHoveredAgent}
                     onHoverLeave={handleHoverLeave}
                     onItemRef={handleItemRef}
@@ -749,6 +850,14 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
                   <span className="agent-bar-tooltip-label">{t('common:agentPopup.tool')}:</span>
                   <span className="agent-bar-tooltip-value agent-bar-tooltip-tool">
                     {TOOL_ICONS[hoveredAgent.currentTool] || TOOL_ICONS.default} {hoveredAgent.currentTool}
+                  </span>
+                </div>
+              )}
+              {hoveredAgent.taskLabel && (
+                <div className="agent-bar-tooltip-row">
+                  <span className="agent-bar-tooltip-label">📋 Task:</span>
+                  <span className="agent-bar-tooltip-value agent-bar-tooltip-tool">
+                    {hoveredAgent.taskLabel}
                   </span>
                 </div>
               )}

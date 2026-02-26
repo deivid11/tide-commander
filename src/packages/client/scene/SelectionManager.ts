@@ -64,9 +64,11 @@ export class SelectionManager {
     const state = store.getState();
     const agentMeshes = this.getAgentMeshes();
 
-    // Collect all bosses whose hierarchy should be shown
-    const bossesToShow = new Map<string, Agent>();
+    // Collect line connections and hierarchy highlights based on current selection.
+    // Selecting a subordinate only shows its direct boss link.
+    const connectionKeys = new Set<string>();
     const subordinateIdsOfSelectedBosses = new Set<string>();
+    const bossIdsToHighlight = new Set<string>();
 
     for (const selectedId of state.selectedAgentIds) {
       const selectedAgent = state.agents.get(selectedId);
@@ -74,19 +76,19 @@ export class SelectionManager {
 
       // If selected agent is a boss, show their hierarchy
       if ((selectedAgent.isBoss || selectedAgent.class === 'boss') && selectedAgent.subordinateIds) {
-        bossesToShow.set(selectedAgent.id, selectedAgent);
+        bossIdsToHighlight.add(selectedAgent.id);
         for (const subId of selectedAgent.subordinateIds) {
           subordinateIdsOfSelectedBosses.add(subId);
+          connectionKeys.add(`${selectedAgent.id}:${subId}`);
         }
       }
 
-      // If selected agent has a boss, show that boss's entire hierarchy
+      // If selected agent has a boss, only show the direct boss <-> selected link
       if (selectedAgent.bossId) {
         const boss = state.agents.get(selectedAgent.bossId);
-        if (boss && (boss.isBoss || boss.class === 'boss') && boss.subordinateIds) {
-          bossesToShow.set(boss.id, boss);
-          for (const subId of boss.subordinateIds) {
-            subordinateIdsOfSelectedBosses.add(subId);
+        if (boss && (boss.isBoss || boss.class === 'boss')) {
+          if (!boss.subordinateIds || boss.subordinateIds.includes(selectedAgent.id)) {
+            connectionKeys.add(`${boss.id}:${selectedAgent.id}`);
           }
         }
       }
@@ -95,16 +97,14 @@ export class SelectionManager {
     // Clear and rebuild cached line connections
     this.cachedLineConnections = [];
 
-    // Collect all connections
-    for (const [, boss] of bossesToShow) {
-      const bossMesh = agentMeshes.get(boss.id);
-      if (!bossMesh || !boss.subordinateIds) continue;
-
-      for (const subId of boss.subordinateIds) {
-        const subMesh = agentMeshes.get(subId);
-        if (!subMesh) continue;
-        this.cachedLineConnections.push({ bossId: boss.id, subId });
-      }
+    // Collect all resolved line segments
+    for (const key of connectionKeys) {
+      const [bossId, subId] = key.split(':');
+      if (!bossId || !subId) continue;
+      const bossMesh = agentMeshes.get(bossId);
+      const subMesh = agentMeshes.get(subId);
+      if (!bossMesh || !subMesh) continue;
+      this.cachedLineConnections.push({ bossId, subId });
     }
 
     // Create or update batched LineSegments
@@ -155,9 +155,6 @@ export class SelectionManager {
     } else if (this.bossSubordinateLines) {
       this.bossSubordinateLines.visible = false;
     }
-
-    // Also track boss IDs that should be highlighted
-    const bossIdsToHighlight = new Set(bossesToShow.keys());
 
     for (const [agentId, meshData] of agentMeshes) {
       const agent = state.agents.get(agentId);

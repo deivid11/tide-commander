@@ -30,9 +30,11 @@ export function useKeyboardHeight(): UseKeyboardHeightReturn {
   const baselineOverlapRef = useRef<number>(0);
   const baselineInnerHeightRef = useRef<number>(0);
 
-  // Set the CSS custom property for keyboard height on the app element
+  // Set the CSS custom property for keyboard height on the app element.
+  // Query `.app` (not `.app.mobile-view-terminal`) so cleanup always works
+  // even if the mobile view class changed between focus and blur.
   const setKeyboardState = useCallback((height: number, visible: boolean) => {
-    const app = document.querySelector('.app.mobile-view-terminal') as HTMLElement;
+    const app = document.querySelector('.app') as HTMLElement;
     if (app) {
       app.style.setProperty('--keyboard-height', `${height}px`);
       app.style.setProperty('--keyboard-visible', visible ? '1' : '0');

@@ -341,6 +341,15 @@ export function AgentPanel({
           <span className="agent-panel-id" title={`ID: ${agent.id}`}>
             [{agent.id.substring(0, 4)}]
           </span>
+          {agent.taskLabel ? (
+            <div className="agent-panel-task agent-panel-task-label" title={agent.taskLabel}>
+              📋 {agent.taskLabel}
+            </div>
+          ) : agent.currentTask ? (
+            <div className="agent-panel-task" title={agent.currentTask}>
+              {agent.currentTask.substring(0, 40)}...
+            </div>
+          ) : null}
         </div>
         <div
           className="agent-panel-context"
@@ -361,11 +370,6 @@ export function AgentPanel({
           <span className="agent-panel-context-text">{Math.round(contextInfo.freePercent)}%</span>
         </div>
         <div className="agent-panel-actions">
-          {agent.currentTask && (
-            <div className="agent-panel-task" title={agent.currentTask}>
-              {agent.currentTask.substring(0, 40)}...
-            </div>
-          )}
           <button
             className="agent-panel-expand"
             onClick={handleExpandClick}

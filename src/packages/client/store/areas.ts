@@ -51,6 +51,14 @@ export function createAreaActions(
     });
   };
 
+  // Create a new Map reference so shallowMapEqual in useAreas() detects the change.
+  // Without this, in-place mutations to the same Map object are invisible to selectors.
+  const touchAreasMap = (): void => {
+    setState((state) => {
+      state.areas = new Map(state.areas);
+    });
+  };
+
   return {
     setActiveTool(tool: DrawingTool): void {
       setState((state) => {
@@ -80,6 +88,7 @@ export function createAreaActions(
       setState((state) => {
         state.areas.set(area.id, area);
       });
+      touchAreasMap();
       syncAreasToServer();
       notify();
     },
@@ -91,6 +100,7 @@ export function createAreaActions(
         setState((s) => {
           Object.assign(s.areas.get(areaId)!, updates);
         });
+        touchAreasMap();
         syncAreasToServer();
         notify();
       }
@@ -104,6 +114,7 @@ export function createAreaActions(
         setState((s) => {
           Object.assign(s.areas.get(areaId)!, updates);
         });
+        touchAreasMap();
         notify();
       }
     },
@@ -115,6 +126,7 @@ export function createAreaActions(
           state.selectedAreaId = null;
         }
       });
+      touchAreasMap();
       syncAreasToServer();
       notify();
     },
@@ -133,6 +145,7 @@ export function createAreaActions(
           }
           s.areas.get(areaId)!.assignedAgentIds.push(agentId);
         });
+        touchAreasMap();
         syncAreasToServer();
         notify();
       }
@@ -147,6 +160,7 @@ export function createAreaActions(
           setState((s) => {
             s.areas.get(areaId)!.assignedAgentIds.splice(idx, 1);
           });
+          touchAreasMap();
           syncAreasToServer();
           notify();
         }
@@ -160,6 +174,7 @@ export function createAreaActions(
         setState((s) => {
           s.areas.get(areaId)!.directories.push(directoryPath);
         });
+        touchAreasMap();
         syncAreasToServer();
         notify();
       }
@@ -174,6 +189,7 @@ export function createAreaActions(
           setState((s) => {
             s.areas.get(areaId)!.directories.splice(idx, 1);
           });
+          touchAreasMap();
           syncAreasToServer();
           notify();
         }
@@ -271,6 +287,7 @@ export function createAreaActions(
       setState((s) => {
         s.areas.get(areaId)!.zIndex = nextZ;
       });
+      touchAreasMap();
       syncAreasToServer();
       notify();
     },
@@ -297,6 +314,7 @@ export function createAreaActions(
         }
         s.areas.get(areaId)!.zIndex = 0;
       });
+      touchAreasMap();
       syncAreasToServer();
       notify();
     },
@@ -309,6 +327,7 @@ export function createAreaActions(
       setState((s) => {
         s.areas.get(areaId)!.zIndex = zIndex;
       });
+      touchAreasMap();
       syncAreasToServer();
       notify();
     },
@@ -336,6 +355,7 @@ export function createAreaActions(
           s.selectedAreaId = null;
         }
       });
+      touchAreasMap();
       syncAreasToServer();
       notify();
     },
@@ -378,6 +398,7 @@ export function createAreaActions(
           }
         }
       });
+      touchAreasMap();
       syncAreasToServer();
       notify();
     },

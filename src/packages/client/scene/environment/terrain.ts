@@ -3,9 +3,12 @@
  *
  * Trees, bushes, house, and street lamps for the battlefield environment.
  * Uses InstancedMesh for trees and bushes to reduce draw calls.
+ * All positions are computed relative to the battlefield size so they
+ * always appear at the corners/edges.
  */
 
 import * as THREE from 'three';
+import { BATTLEFIELD_SIZE } from '../config';
 
 /**
  * Result of creating terrain elements.
@@ -20,13 +23,77 @@ export interface TerrainElements {
 }
 
 /**
+ * Generate tree positions relative to battlefield size.
+ * Trees are placed OUTSIDE the usable ground plane (beyond the edges).
+ */
+function getTreeData(size: number): Array<{ x: number; z: number; scale: number }> {
+  const edge = size / 2;
+  const outer = edge + 5; // Outside the ground plane
+  return [
+    // Corner clusters (2 trees per corner, outside ground)
+    { x: -outer,     z: -outer + 2, scale: 1.2 },
+    { x: -outer + 2, z: -outer,     scale: 1.4 },
+    { x: outer,      z: -outer + 2, scale: 1.3 },
+    { x: outer - 2,  z: -outer,     scale: 1.0 },
+    { x: -outer,     z: outer - 2,  scale: 1.1 },
+    { x: -outer + 2, z: outer,      scale: 1.5 },
+    { x: outer,      z: outer - 2,  scale: 1.25 },
+    { x: outer - 2,  z: outer,      scale: 1.35 },
+  ];
+}
+
+/**
+ * Generate bush positions relative to battlefield size.
+ * Bushes are placed OUTSIDE the usable ground plane, lining the edges.
+ */
+function getBushPositions(size: number): Array<{ x: number; z: number }> {
+  const edge = size / 2;
+  const outer = edge + 3; // Outside the ground plane
+  const mid = edge * 0.5;
+  return [
+    // Left edge (outside)
+    { x: -outer, z: -mid },
+    { x: -outer, z: 0 },
+    { x: -outer, z: mid },
+    // Right edge (outside)
+    { x: outer, z: -mid },
+    { x: outer, z: 0 },
+    { x: outer, z: mid },
+    // Top edge (outside)
+    { x: -mid, z: -outer },
+    { x: 0, z: -outer },
+    { x: mid, z: -outer },
+    // Bottom edge (outside)
+    { x: -mid, z: outer },
+    { x: 0, z: outer },
+    { x: mid, z: outer },
+    // Extra pair near house corner
+    { x: -outer - 5, z: mid + 2 },
+    { x: -outer - 8, z: mid + 5 },
+  ];
+}
+
+/**
+ * Generate lamp positions just outside the four corners of the ground plane.
+ */
+function getLampPositions(size: number): Array<{ x: number; z: number }> {
+  const corner = size / 2 + 2; // Just outside the ground edge
+  return [
+    { x: -corner, z: -corner },
+    { x: corner,  z: -corner },
+    { x: -corner, z: corner },
+    { x: corner,  z: corner },
+  ];
+}
+
+/**
  * Create all terrain elements.
  */
-export function createTerrainElements(scene: THREE.Scene): TerrainElements {
-  const trees = createInstancedTrees(scene);
-  const bushes = createInstancedBushes(scene);
-  const { house, windowMaterials } = createHouse(scene);
-  const { lamps, lampLights } = createInstancedStreetLamps(scene);
+export function createTerrainElements(scene: THREE.Scene, size: number = BATTLEFIELD_SIZE): TerrainElements {
+  const trees = createInstancedTrees(scene, size);
+  const bushes = createInstancedBushes(scene, size);
+  const { house, windowMaterials } = createHouse(scene, size);
+  const { lamps, lampLights } = createInstancedStreetLamps(scene, size);
 
   return {
     trees,
@@ -39,27 +106,14 @@ export function createTerrainElements(scene: THREE.Scene): TerrainElements {
 }
 
 /**
- * Tree positions and scales.
- */
-const TREE_DATA = [
-  { x: -20, z: -18, scale: 1.2 },
-  { x: -22, z: -8, scale: 1.4 },
-  { x: -20, z: 5, scale: 1.1 },
-  { x: 18, z: -20, scale: 1.3 },
-  { x: 22, z: -5, scale: 1.0 },
-  { x: 20, z: 10, scale: 1.5 },
-  { x: -8, z: -22, scale: 1.25 },
-  { x: 5, z: -20, scale: 1.35 },
-];
-
-/**
  * Create instanced trees - reduces 24 draw calls to 3.
  */
-function createInstancedTrees(scene: THREE.Scene): THREE.Group {
+function createInstancedTrees(scene: THREE.Scene, size: number): THREE.Group {
   const treeGroup = new THREE.Group();
   treeGroup.name = 'trees_instanced';
 
-  const numTrees = TREE_DATA.length;
+  const treeData = getTreeData(size);
+  const numTrees = treeData.length;
 
   // Shared materials
   const trunkMaterial = new THREE.MeshStandardMaterial({
@@ -96,7 +150,7 @@ function createInstancedTrees(scene: THREE.Scene): THREE.Group {
   const rotation = new THREE.Quaternion();
   const scale = new THREE.Vector3();
 
-  TREE_DATA.forEach((tree, i) => {
+  treeData.forEach((tree, i) => {
     const s = tree.scale;
     const rotY = Math.random() * Math.PI * 2;
 
@@ -133,30 +187,12 @@ function createInstancedTrees(scene: THREE.Scene): THREE.Group {
 }
 
 /**
- * Bush positions.
- */
-const BUSH_POSITIONS = [
-  { x: -17, z: -14 },
-  { x: -16, z: 0 },
-  { x: -17, z: 12 },
-  { x: 17, z: -15 },
-  { x: 16, z: 3 },
-  { x: 17, z: 15 },
-  { x: -12, z: -17 },
-  { x: 0, z: -17 },
-  { x: 12, z: -17 },
-  { x: -10, z: 17 },
-  { x: 3, z: 17 },
-  { x: 14, z: 17 },
-  { x: -25, z: 8 },
-  { x: -28, z: 12 },
-];
-
-/**
  * Create instanced bushes - reduces ~35 draw calls to 1.
  * Uses a single sphere geometry with varied transforms for organic look.
  */
-function createInstancedBushes(scene: THREE.Scene): THREE.InstancedMesh {
+function createInstancedBushes(scene: THREE.Scene, size: number): THREE.InstancedMesh {
+  const bushPositions = getBushPositions(size);
+
   // Pre-generate bush sphere data (2-3 spheres per bush position)
   const sphereData: Array<{ x: number; y: number; z: number; scaleX: number; scaleY: number; scaleZ: number }> = [];
 
@@ -166,22 +202,22 @@ function createInstancedBushes(scene: THREE.Scene): THREE.InstancedMesh {
     return x - Math.floor(x);
   };
 
-  BUSH_POSITIONS.forEach((pos, bushIdx) => {
+  bushPositions.forEach((pos, bushIdx) => {
     const numSpheres = 2 + Math.floor(seededRandom(bushIdx * 100) * 2); // 2-3 spheres
     for (let j = 0; j < numSpheres; j++) {
       const seed = bushIdx * 100 + j;
-      const size = 0.6 + seededRandom(seed) * 0.4;
+      const bsize = 0.6 + seededRandom(seed) * 0.4;
       const offsetX = (seededRandom(seed + 1) - 0.5) * 0.8;
       const offsetZ = (seededRandom(seed + 2) - 0.5) * 0.8;
       const scaleY = 0.7 + seededRandom(seed + 3) * 0.2;
 
       sphereData.push({
         x: pos.x + offsetX,
-        y: size * 0.7,
+        y: bsize * 0.7,
         z: pos.z + offsetZ,
-        scaleX: size,
-        scaleY: size * scaleY,
-        scaleZ: size,
+        scaleX: bsize,
+        scaleY: bsize * scaleY,
+        scaleZ: bsize,
       });
     }
   });
@@ -220,7 +256,7 @@ function createInstancedBushes(scene: THREE.Scene): THREE.InstancedMesh {
 /**
  * Create the house.
  */
-function createHouse(scene: THREE.Scene): { house: THREE.Group; windowMaterials: THREE.MeshStandardMaterial[] } {
+function createHouse(scene: THREE.Scene, size: number): { house: THREE.Group; windowMaterials: THREE.MeshStandardMaterial[] } {
   const house = new THREE.Group();
   const windowMaterials: THREE.MeshStandardMaterial[] = [];
 
@@ -287,8 +323,9 @@ function createHouse(scene: THREE.Scene): { house: THREE.Group; windowMaterials:
   chimney.castShadow = true;
   house.add(chimney);
 
-  // Position house outside work floor
-  house.position.set(-25, 0, 10);
+  // Position house outside the battlefield near bottom-left corner
+  const edge = size / 2;
+  house.position.set(-edge - 5, 0, edge - 5);
   house.rotation.y = Math.PI / 6;
   house.name = 'house';
 
@@ -298,24 +335,15 @@ function createHouse(scene: THREE.Scene): { house: THREE.Group; windowMaterials:
 }
 
 /**
- * Street lamp positions.
- */
-const LAMP_POSITIONS = [
-  { x: -16, z: -16 },
-  { x: 16, z: -16 },
-  { x: -16, z: 16 },
-  { x: 16, z: 16 },
-];
-
-/**
  * Create instanced street lamps - reduces 16 draw calls to 4.
  */
-function createInstancedStreetLamps(scene: THREE.Scene): { lamps: THREE.Group; lampLights: THREE.PointLight[] } {
+function createInstancedStreetLamps(scene: THREE.Scene, size: number): { lamps: THREE.Group; lampLights: THREE.PointLight[] } {
   const lampGroup = new THREE.Group();
   lampGroup.name = 'lamps_instanced';
   const lampLights: THREE.PointLight[] = [];
 
-  const numLamps = LAMP_POSITIONS.length;
+  const lampPositions = getLampPositions(size);
+  const numLamps = lampPositions.length;
 
   // Shared materials
   const poleMaterial = new THREE.MeshStandardMaterial({
@@ -358,7 +386,7 @@ function createInstancedStreetLamps(scene: THREE.Scene): { lamps: THREE.Group; l
   const rotation = new THREE.Quaternion();
   const scale = new THREE.Vector3(1, 1, 1);
 
-  LAMP_POSITIONS.forEach((pos, i) => {
+  lampPositions.forEach((pos, i) => {
     // Pole: y=2.5
     position.set(pos.x, 2.5, pos.z);
     rotation.identity();
@@ -406,8 +434,9 @@ function createInstancedStreetLamps(scene: THREE.Scene): { lamps: THREE.Group; l
 /**
  * Create grass area around the work floor.
  */
-export function createGrass(scene: THREE.Scene): THREE.Mesh {
-  const grassGeometry = new THREE.PlaneGeometry(80, 80);
+export function createGrass(scene: THREE.Scene, size: number = BATTLEFIELD_SIZE): THREE.Mesh {
+  const grassSize = size * 1.5;
+  const grassGeometry = new THREE.PlaneGeometry(grassSize, grassSize);
   const grassMaterial = new THREE.MeshStandardMaterial({
     color: 0x2d5a27,
     roughness: 0.9,

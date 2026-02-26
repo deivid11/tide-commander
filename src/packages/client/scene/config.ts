@@ -73,6 +73,9 @@ export const MOVE_SPEED = 3; // Units per second
 export const DRAG_THRESHOLD = 5; // Pixels before considered a drag
 export const CAMERA_SAVE_INTERVAL = 1000; // Save camera every 1 second
 
+// Battlefield settings
+export const BATTLEFIELD_SIZE = 50; // Default ground plane size in units (configurable via Settings)
+
 // Formation settings
 export const FORMATION_SPACING = 1.2;
 

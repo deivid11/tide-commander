@@ -2,6 +2,34 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.84.0] - 2026-02-26
+
+### Added
+- **Onboarding modal** - Welcome screen for first-time users with step-by-step guidance and "Create First Agent" button
+- **Task label skill** - Agents can set brief task labels displayed in the UI, providing better visibility of current work
+- **Drag and drop file attachment** - Terminal now supports dragging files directly into the input area
+- **Touch input for agent bar** - Long-press on touch devices to reorder agents with improved drag handling
+- **Syntax highlighting in conflict resolver** - File conflicts now display with language-specific syntax highlighting via Prism
+- **Conflict navigation** - Previous/Next buttons and keyboard navigation to jump between merge conflicts
+- **HTTPS/WSS server support** - Enable TLS/SSL encryption with `--https` flag and certificate configuration
+- **Auth token generation** - New `--generate-auth-token` CLI flag to auto-generate secure authentication tokens
+- **Smooth camera zoom interpolation** - Camera zoom now smoothly interpolates between positions instead of snapping
+- **Dynamic battlefield sizing** - Terrain elements scale and reposition based on battlefield size configuration
+
+### Changed
+- **Conflict resolver "both" strategy** - Resolution options now support keeping both sides in addition to "ours" and "theirs"
+- **File upload acceptance** - Terminal file input now accepts all file types instead of whitelisted extensions only
+- **Agent panel task labels** - Task labels displayed in header next to agent ID for better visibility
+- **3D sprite rendering** - Status bars and name labels use proper depth/render order for cleaner layering
+- **Area state reactivity** - Area updates now create new Map references to ensure UI detects changes properly
+- **2D scene touch input** - Touch events prioritize drawing mode and area resizing before panning/dragging
+
+### Fixed
+- **Terminal keyboard cleanup** - Fixed stuck keyboard visibility state after rapid agent switching
+- **Conflict resolver auto-scroll** - Conflicts now automatically scroll into view on page load
+- **Touch drag on mobile** - Improved drag threshold and long-press detection to prevent accidental drags
+- **Vite dev server HTTPS** - Added HTTPS support in development builds with configurable certificate paths
+
 ## [0.83.0] - 2026-02-25
 
 ### Added

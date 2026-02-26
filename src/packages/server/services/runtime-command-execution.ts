@@ -88,6 +88,7 @@ export function createRuntimeCommandExecution(deps: RuntimeCommandExecutionDeps)
     if (!isSystemMessage) {
       updateData.lastAssignedTask = command;
       updateData.lastAssignedTaskTime = Date.now();
+      updateData.taskLabel = undefined; // Clear for agent to regenerate via skill
     }
 
     if (Object.keys(updateData).length > 0) {
@@ -149,6 +150,7 @@ export function createRuntimeCommandExecution(deps: RuntimeCommandExecutionDeps)
           if (!isSystemMessage) {
             updateData.lastAssignedTask = command;
             updateData.lastAssignedTaskTime = Date.now();
+            updateData.taskLabel = undefined; // Clear for agent to regenerate via skill
           }
           agentService.updateAgent(agentId, updateData);
 

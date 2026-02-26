@@ -92,7 +92,12 @@ function AgentCard({ agent, onClick }: AgentCardProps) {
         </span>
       </div>
 
-      {agent.status === 'working' && agent.currentTask && (
+      {agent.taskLabel && (
+        <div className="pip-agent-task">
+          📋 {agent.taskLabel}
+        </div>
+      )}
+      {!agent.taskLabel && agent.status === 'working' && agent.currentTask && (
         <div className="pip-agent-task">
           {agent.currentTask.length > 60
             ? agent.currentTask.slice(0, 60) + '...'

@@ -363,6 +363,22 @@
   color: $accent-blue;
 }
 
+.unit-task-label {
+  padding: 8px;
+  background: $bg-tertiary;
+  border-radius: $radius-md;
+  margin-bottom: 8px;
+  border-left: 2px solid $dracula-cyan;
+}
+
+.unit-task-label-value {
+  font-size: 12px;
+  font-weight: 600;
+  font-style: italic;
+  color: $dracula-cyan;
+  line-height: 1.4;
+}
+
 .unit-task {
   padding: 8px;
   background: $bg-tertiary;

@@ -108,6 +108,17 @@
   min-width: 0;
 }
 
+.guake-task-label {
+  color: $dracula-cyan;
+  font-weight: 600;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
 .guake-last-input {
   color: $dracula-comment;
   overflow: hidden;

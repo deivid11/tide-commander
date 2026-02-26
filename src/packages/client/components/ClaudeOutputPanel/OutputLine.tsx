@@ -6,7 +6,7 @@ import React, { memo, useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useHideCost, useSettings, ClaudeOutput, store } from '../../store';
 import { filterCostText } from '../../utils/formatting';
-import { TOOL_ICONS, extractExecWrappedCommand, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand, splitCommandForFileLinks } from '../../utils/outputRendering';
+import { TOOL_ICONS, extractExecWrappedCommand, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, splitCommandForFileLinks } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, DelegatedTaskHeader, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions } from './BossContext';
@@ -526,6 +526,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       : undefined;
     const bashSearchCommand = isBashTool && bashCommand ? parseBashSearchCommand(bashCommand) : null;
     const bashNotificationCommand = isBashTool && bashCommand ? parseBashNotificationCommand(bashCommand) : null;
+    const bashTaskLabelCommand = isBashTool && bashCommand ? parseBashTaskLabelCommand(bashCommand) : null;
 
     const handleParamClick = (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -609,6 +610,16 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
                 {bashNotificationCommand.message && (
                   <span className="bash-notify-message">{bashNotificationCommand.message}</span>
                 )}
+              </span>
+            ) : bashTaskLabelCommand ? (
+              <span
+                className="output-tool-param bash-command bash-task-label-param"
+                onClick={handleBashClick}
+                title={bashTaskLabelCommand.commandBody}
+                style={{ cursor: 'pointer' }}
+              >
+                <span className="bash-task-label-chip">📋 task</span>
+                <span className="bash-task-label-value">{bashTaskLabelCommand.taskLabel}</span>
               </span>
             ) : bashSearchCommand ? (
               <span

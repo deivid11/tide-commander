@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { ScreenPosition } from './types';
+import { store } from '../../store';
 
 /**
  * Interface for raycasting to ground/plane.
@@ -18,6 +19,10 @@ export class CameraController {
   private controls: OrbitControls;
   private canvas: HTMLCanvasElement;
   private raycastProvider: RaycastProvider | null = null;
+
+  // Smooth zoom interpolation state
+  private goalCameraPos: THREE.Vector3 | null = null;
+  private goalOrbitTarget: THREE.Vector3 | null = null;
 
   constructor(
     camera: THREE.PerspectiveCamera,
@@ -51,7 +56,7 @@ export class CameraController {
   }
 
   /**
-   * Handle wheel zoom towards mouse position.
+   * Handle wheel zoom towards mouse position with smooth interpolation.
    * @param event - The wheel event
    * @param speedMultiplier - Optional sensitivity multiplier (default 1.0)
    */
@@ -63,10 +68,16 @@ export class CameraController {
     const normalizedDelta = Math.sign(event.deltaY) * Math.min(Math.abs(event.deltaY), 100) / 100;
     const zoomIn = normalizedDelta < 0;
 
-    // Base zoom factor: 0.03 (3%) per normalized scroll unit, multiplied by sensitivity
-    const zoomFactor = 0.03 * Math.abs(normalizedDelta) * speedMultiplier;
+    // Base zoom factor: 8% per normalized scroll unit, multiplied by sensitivity
+    const zoomFactor = 0.08 * Math.abs(normalizedDelta) * speedMultiplier;
 
-    const cameraToTarget = this.camera.position.clone().sub(this.controls.target);
+    // Use goal state if mid-animation, otherwise use current camera state.
+    // This lets rapid scroll ticks accumulate on the target rather than the
+    // current (still-interpolating) position, so the camera keeps up.
+    const startTarget = this.goalOrbitTarget?.clone() ?? this.controls.target.clone();
+    const startCamPos = this.goalCameraPos?.clone() ?? this.camera.position.clone();
+
+    const cameraToTarget = startCamPos.clone().sub(startTarget);
     const currentDistance = cameraToTarget.length();
 
     const minDistance = this.controls.minDistance;
@@ -77,7 +88,7 @@ export class CameraController {
 
     if (newDistance === currentDistance) return;
 
-    // Get target point under cursor
+    // Raycast from the CURRENT camera (what the user sees) for accurate cursor targeting
     let targetPoint: THREE.Vector3 | null = null;
     if (this.raycastProvider) {
       const mouse = this.raycastProvider.getNormalizedMouseFromEvent(event);
@@ -87,28 +98,31 @@ export class CameraController {
     if (!targetPoint) {
       // Fallback: just zoom without moving target
       const direction = cameraToTarget.normalize();
-      this.camera.position.copy(this.controls.target).add(direction.multiplyScalar(newDistance));
+      this.goalCameraPos = startTarget.clone().add(direction.multiplyScalar(newDistance));
+      this.goalOrbitTarget = startTarget.clone();
       return;
     }
 
     // Move orbit target towards mouse position proportionally
     const zoomRatio = newDistance / currentDistance;
-    const targetToMouse = targetPoint.clone().sub(this.controls.target);
+    const targetToMouse = targetPoint.clone().sub(startTarget);
     const moveAmount = 1 - zoomRatio;
 
-    const newTarget = this.controls.target.clone().add(targetToMouse.multiplyScalar(moveAmount));
+    const newTarget = startTarget.clone().add(targetToMouse.multiplyScalar(moveAmount));
     newTarget.y = Math.max(0, newTarget.y);
 
-    this.controls.target.copy(newTarget);
-
     const newCameraDirection = cameraToTarget.normalize();
-    this.camera.position.copy(newTarget).add(newCameraDirection.multiplyScalar(newDistance));
+    this.goalCameraPos = newTarget.clone().add(newCameraDirection.multiplyScalar(newDistance));
+    this.goalOrbitTarget = newTarget;
   }
 
   /**
    * Handle pinch-to-zoom gesture.
    */
   handlePinchZoom(scale: number, center: ScreenPosition): void {
+    // Cancel smooth zoom — pinch is a continuous gesture that needs instant response
+    this.goalCameraPos = null;
+    this.goalOrbitTarget = null;
     const cameraToTarget = this.camera.position.clone().sub(this.controls.target);
     const currentDistance = cameraToTarget.length();
 
@@ -151,6 +165,8 @@ export class CameraController {
    * Handle single-finger pan gesture.
    */
   handlePan(dx: number, dy: number): void {
+    this.goalCameraPos = null;
+    this.goalOrbitTarget = null;
     const cameraDirection = new THREE.Vector3();
     this.camera.getWorldDirection(cameraDirection);
 
@@ -176,6 +192,8 @@ export class CameraController {
    * Handle orbit gesture (rotate camera around target).
    */
   handleOrbit(dx: number, dy: number): void {
+    this.goalCameraPos = null;
+    this.goalOrbitTarget = null;
     const rotateSpeed = 0.005;
 
     const angleX = -dx * rotateSpeed;
@@ -202,6 +220,8 @@ export class CameraController {
    * Handle two-finger rotation (twist gesture).
    */
   handleTwistRotation(angleDelta: number): void {
+    this.goalCameraPos = null;
+    this.goalOrbitTarget = null;
     const offset = this.camera.position.clone().sub(this.controls.target);
 
     const spherical = new THREE.Spherical();
@@ -214,5 +234,51 @@ export class CameraController {
 
     this.camera.position.copy(this.controls.target).add(offset);
     this.camera.lookAt(this.controls.target);
+  }
+
+  /**
+   * Advance smooth zoom interpolation. Call once per frame from the render loop.
+   */
+  updateSmoothZoom(deltaTime: number): void {
+    if (!this.goalCameraPos || !this.goalOrbitTarget) return;
+
+    const smoothing = store.getMouseControls().sensitivity.smoothing;
+
+    // smoothing=0 means instant — snap directly to goal
+    if (smoothing <= 0) {
+      this.camera.position.copy(this.goalCameraPos);
+      this.controls.target.copy(this.goalOrbitTarget);
+      this.goalCameraPos = null;
+      this.goalOrbitTarget = null;
+      return;
+    }
+
+    // Map smoothing (0–1) to exponential decay rate.
+    // Lower smoothing → faster convergence, higher → more gradual.
+    //   smoothing 0.3 (default) → factor ≈ 15 → reaches 95% in ~0.2 s
+    //   smoothing 1.0            → factor ≈ 3  → reaches 95% in ~1.0 s
+    const factor = THREE.MathUtils.lerp(20, 3, smoothing);
+    const t = 1 - Math.exp(-factor * deltaTime);
+
+    this.camera.position.lerp(this.goalCameraPos, t);
+    this.controls.target.lerp(this.goalOrbitTarget, t);
+
+    // Snap when close enough to avoid lingering micro-movements
+    if (
+      this.camera.position.distanceTo(this.goalCameraPos) < 0.005 &&
+      this.controls.target.distanceTo(this.goalOrbitTarget) < 0.005
+    ) {
+      this.camera.position.copy(this.goalCameraPos);
+      this.controls.target.copy(this.goalOrbitTarget);
+      this.goalCameraPos = null;
+      this.goalOrbitTarget = null;
+    }
+  }
+
+  /**
+   * Whether a smooth zoom animation is currently in progress.
+   */
+  get isZoomAnimating(): boolean {
+    return this.goalCameraPos !== null;
   }
 }

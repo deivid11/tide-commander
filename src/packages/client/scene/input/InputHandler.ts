@@ -280,6 +280,20 @@ export class InputHandler {
   }
 
   /**
+   * Advance smooth zoom interpolation (call once per frame).
+   */
+  updateSmoothZoom(deltaTime: number): void {
+    this.cameraController.updateSmoothZoom(deltaTime);
+  }
+
+  /**
+   * Whether a smooth zoom animation is in progress.
+   */
+  get isZoomAnimating(): boolean {
+    return this.cameraController.isZoomAnimating;
+  }
+
+  /**
    * Calculate formation positions for multiple agents.
    */
   calculateFormationPositions(
@@ -363,21 +377,21 @@ export class InputHandler {
     if (event.button === 0) {
       this.controls.mouseButtons.LEFT = null as unknown as THREE.MOUSE;
 
-      // Check resize handle (mouse only)
-      if (!isTouch) {
-        const resizeHandle = this.raycaster.checkResizeHandleClick(event);
-        if (resizeHandle) {
-          const groundPos = this.raycaster.raycastGroundFromEvent(event);
-          if (groundPos) {
-            this.isResizing = true;
-            this.callbacks.onResizeStart?.(resizeHandle, groundPos);
-          }
-          return;
+      // Check resize handle (mouse and touch)
+      const resizeHandle = this.raycaster.checkResizeHandleClick(event);
+      if (resizeHandle) {
+        const groundPos = this.raycaster.raycastGroundFromEvent(event);
+        if (groundPos) {
+          this.isResizing = true;
+          // Cancel any pending touch gestures (e.g. long-press timer)
+          if (isTouch) this.touchHandler.reset();
+          this.callbacks.onResizeStart?.(resizeHandle, groundPos);
         }
+        return;
       }
 
-      // Check drawing mode (mouse only)
-      if (!isTouch && this.drawingModeChecker()) {
+      // Check drawing mode (mouse and touch)
+      if (this.drawingModeChecker()) {
         const groundPos = this.raycaster.raycastGroundFromEvent(event);
         if (groundPos) {
           this.isDrawing = true;
@@ -539,7 +553,8 @@ export class InputHandler {
 
       // Skip click handling for touch events - they're handled by handleTouchTap
       // This prevents the synthetic pointer events from touch from double-processing
-      if (event.pointerType === 'touch') {
+      // Exception: allow through when drawing or resizing so those operations can complete
+      if (event.pointerType === 'touch' && !this.isDrawing && !this.isResizing) {
         this.pointerDownOnCanvas = false;
         return;
       }
@@ -832,14 +847,29 @@ export class InputHandler {
   // --- Touch Event Handlers ---
 
   private onTouchStart = (event: TouchEvent): void => {
+    // When in drawing mode, prevent default touch behavior (scrolling/panning)
+    // and let pointer events handle the drawing instead
+    if (this.drawingModeChecker()) {
+      event.preventDefault();
+      return;
+    }
     this.touchHandler.onTouchStart(event);
   };
 
   private onTouchMove = (event: TouchEvent): void => {
+    // During active drawing or resizing, prevent touch from panning the camera
+    if (this.isDrawing || this.isResizing) {
+      event.preventDefault();
+      return;
+    }
     this.touchHandler.onTouchMove(event);
   };
 
   private onTouchEnd = (event: TouchEvent): void => {
+    // During active drawing or resizing, let pointer events handle the end
+    if (this.isDrawing || this.isResizing) {
+      return;
+    }
     this.touchHandler.onTouchEnd(event);
   };
 

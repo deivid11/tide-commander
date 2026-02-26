@@ -310,6 +310,14 @@ export function SingleAgentPanel({
       {/* Current Tool */}
       {agent.currentTool && <CurrentTool toolName={agent.currentTool} />}
 
+      {/* Task Label */}
+      {agent.taskLabel && (
+        <div className="unit-task-label">
+          <div className="unit-stat-label">📋 Task</div>
+          <div className="unit-task-label-value">{agent.taskLabel}</div>
+        </div>
+      )}
+
       {/* Current Task */}
       {agent.currentTask && <CurrentTask task={agent.currentTask} />}
 

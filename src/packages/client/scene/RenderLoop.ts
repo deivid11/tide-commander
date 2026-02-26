@@ -26,6 +26,7 @@ export interface RenderLoopCallbacks {
   onUpdateBossSubordinateLines: () => void;
   onUpdateIndicatorScales: (camera: THREE.PerspectiveCamera, agentMeshes: Map<string, AgentMeshData>, indicatorScale: number) => void;
   onUpdateNotificationBadges?: () => void; // Update visual badges for unseen agents
+  onUpdateCameraSmoothing?: (deltaTime: number) => void; // Smooth zoom interpolation
 }
 
 /**
@@ -204,6 +205,9 @@ export class RenderLoop {
     const rawDelta = this.lastFrameTime ? (now - this.lastFrameTime) / 1000 : 0.016;
     const deltaTime = Math.min(rawDelta, 0.1);
     this.lastFrameTime = now;
+
+    // Advance smooth zoom interpolation
+    this.callbacks.onUpdateCameraSmoothing?.(deltaTime);
 
     // Save camera periodically
     if (now - this.lastCameraSave > CAMERA_SAVE_INTERVAL) {

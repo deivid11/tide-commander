@@ -13,6 +13,7 @@ import { createGalacticElements, removeGalacticElements, updateGalacticAnimation
 import { getTimeConfig } from './timeConfig';
 import { createSun, createMoon, createStars, createClouds, updateClouds, setCloudOpacity, type CloudState } from './celestial';
 import { createTerrainElements, createGrass } from './terrain';
+import { BATTLEFIELD_SIZE } from '../config';
 
 // Re-export types for backwards compatibility
 export type { FloorStyle } from './types';
@@ -60,6 +61,12 @@ export class Battlefield {
   // Reusable Color instance for applyTimeConfig to prevent allocations
   private tempColor = new THREE.Color();
 
+  // Current battlefield size (dynamically configurable)
+  private currentSize = BATTLEFIELD_SIZE;
+
+  // Track terrain visibility for resize recreation
+  private terrainVisibility = { trees: true, bushes: true, house: true, lamps: true, grass: true };
+
   constructor(scene: THREE.Scene) {
     this.scene = scene;
   }
@@ -78,7 +85,7 @@ export class Battlefield {
    */
   create(): void {
     this.createGround();
-    this.grass = createGrass(this.scene);
+    this.grass = createGrass(this.scene, this.currentSize);
     this.createGrid();
     // this.createLogo(); // Logo commented out
 
@@ -94,8 +101,8 @@ export class Battlefield {
     this.cloudState = createClouds();
     this.scene.add(this.cloudState.group);
 
-    // Create terrain elements
-    const terrain = createTerrainElements(this.scene);
+    // Create terrain elements positioned at battlefield corners
+    const terrain = createTerrainElements(this.scene, this.currentSize);
     this.trees = terrain.trees;
     this.bushes = terrain.bushes;
     this.house = terrain.house;
@@ -171,7 +178,22 @@ export class Battlefield {
     fogDensity: number;
     brightness?: number;
     skyColor?: string | null;
+    battlefieldSize?: number;
   }): void {
+    // Check if battlefield size changed - resize if needed
+    if (config.battlefieldSize !== undefined && config.battlefieldSize !== this.currentSize) {
+      this.resizeBattlefield(config.battlefieldSize);
+    }
+
+    // Track visibility state for resize recreation
+    this.terrainVisibility = {
+      trees: config.showTrees,
+      bushes: config.showBushes,
+      house: config.showHouse,
+      lamps: config.showLamps,
+      grass: config.showGrass,
+    };
+
     // Toggle trees (instanced group)
     if (this.trees) {
       this.trees.visible = config.showTrees;
@@ -220,6 +242,106 @@ export class Battlefield {
     }
 
     this.updateTimeOfDay(); // Re-apply time config which uses fog density, brightness, and sky color
+  }
+
+  /**
+   * Resize the battlefield (ground, grid, grass, terrain, shadow camera).
+   * Disposes and recreates affected elements.
+   */
+  private resizeBattlefield(newSize: number): void {
+    this.currentSize = newSize;
+    console.log(`[Battlefield] Resizing to ${newSize}x${newSize}`);
+
+    // Dispose and recreate ground
+    if (this.ground) {
+      this.ground.geometry.dispose();
+      this.disposeMaterial(this.ground.material as THREE.Material);
+      this.scene.remove(this.ground);
+      this.ground = null;
+    }
+    this.createGround();
+    // Re-apply current floor style to new ground
+    this.setFloorStyle(this.currentFloorStyle, true);
+
+    // Dispose and recreate grid
+    if (this.gridHelper) {
+      this.gridHelper.geometry.dispose();
+      if (this.gridHelper.material instanceof THREE.Material) {
+        this.gridHelper.material.dispose();
+      }
+      this.scene.remove(this.gridHelper);
+      this.gridHelper = null;
+    }
+    this.createGrid();
+
+    // Dispose and recreate grass
+    if (this.grass) {
+      this.grass.geometry.dispose();
+      this.disposeMaterial(this.grass.material as THREE.Material);
+      this.scene.remove(this.grass);
+    }
+    this.grass = createGrass(this.scene, this.currentSize);
+    this.grass.visible = this.terrainVisibility.grass;
+
+    // Dispose and recreate terrain elements at new positions
+    this.disposeTerrainElements();
+    const terrain = createTerrainElements(this.scene, this.currentSize);
+    this.trees = terrain.trees;
+    this.bushes = terrain.bushes;
+    this.house = terrain.house;
+    this.lamps = terrain.lamps;
+    this.lampLights = terrain.lampLights;
+    this.windowMaterials = terrain.windowMaterials;
+
+    // Re-apply visibility
+    if (this.trees) this.trees.visible = this.terrainVisibility.trees;
+    if (this.bushes) this.bushes.visible = this.terrainVisibility.bushes;
+    if (this.house) this.house.visible = this.terrainVisibility.house;
+    if (this.lamps) this.lamps.visible = this.terrainVisibility.lamps;
+    this.lampLights.forEach(light => { light.visible = this.terrainVisibility.lamps; });
+
+    // Update shadow camera bounds
+    if (this.mainLight) {
+      const shadowBound = this.currentSize * 0.6;
+      this.mainLight.shadow.camera.left = -shadowBound;
+      this.mainLight.shadow.camera.right = shadowBound;
+      this.mainLight.shadow.camera.top = shadowBound;
+      this.mainLight.shadow.camera.bottom = -shadowBound;
+      this.mainLight.shadow.camera.updateProjectionMatrix();
+    }
+  }
+
+  /**
+   * Dispose terrain elements (trees, bushes, house, lamps) for recreation.
+   */
+  private disposeTerrainElements(): void {
+    if (this.trees) {
+      this.disposeGroup(this.trees);
+      this.scene.remove(this.trees);
+      this.trees = null;
+    }
+    if (this.bushes) {
+      this.bushes.geometry.dispose();
+      (this.bushes.material as THREE.Material).dispose();
+      this.scene.remove(this.bushes);
+      this.bushes = null;
+    }
+    if (this.house) {
+      this.disposeGroup(this.house);
+      this.scene.remove(this.house);
+      this.house = null;
+    }
+    if (this.lamps) {
+      this.disposeGroup(this.lamps);
+      this.scene.remove(this.lamps);
+      this.lamps = null;
+    }
+    for (const light of this.lampLights) {
+      this.scene.remove(light);
+      light.dispose();
+    }
+    this.lampLights = [];
+    this.windowMaterials = [];
   }
 
   /**
@@ -286,7 +408,8 @@ export class Battlefield {
           texture.wrapS = THREE.RepeatWrapping;
           texture.wrapT = THREE.RepeatWrapping;
           // Pokemon stadium should not repeat - single arena covering the floor
-          texture.repeat.set(style === 'pokemon-stadium' ? 1 : 6, style === 'pokemon-stadium' ? 1 : 6);
+          const repeat = style === 'pokemon-stadium' ? 1 : Math.round(this.currentSize / 5);
+          texture.repeat.set(repeat, repeat);
           material.map = texture;
           material.needsUpdate = true;
         }
@@ -481,13 +604,14 @@ export class Battlefield {
   }
 
   private createGround(): void {
-    const geometry = new THREE.PlaneGeometry(30, 30);
+    const geometry = new THREE.PlaneGeometry(this.currentSize, this.currentSize);
 
     // Generate programmatic texture
     const floorTexture = generateFloorTexture(this.currentFloorStyle);
     floorTexture.wrapS = THREE.RepeatWrapping;
     floorTexture.wrapT = THREE.RepeatWrapping;
-    floorTexture.repeat.set(this.currentFloorStyle === 'galactic' ? 1 : 6, this.currentFloorStyle === 'galactic' ? 1 : 6);
+    const textureRepeat = this.currentFloorStyle === 'galactic' ? 1 : Math.round(this.currentSize / 5);
+    floorTexture.repeat.set(textureRepeat, textureRepeat);
 
     const material = new THREE.MeshStandardMaterial({
       map: floorTexture,
@@ -505,7 +629,8 @@ export class Battlefield {
   }
 
   private createGrid(): void {
-    this.gridHelper = new THREE.GridHelper(30, 30, 0x2a2a3a, 0x1a1a2a);
+    const divisions = Math.round(this.currentSize / 2);
+    this.gridHelper = new THREE.GridHelper(this.currentSize, divisions, 0x2a2a3a, 0x1a1a2a);
     this.gridHelper.position.y = 0.01;
     this.scene.add(this.gridHelper);
   }
@@ -558,11 +683,12 @@ export class Battlefield {
     this.mainLight.shadow.mapSize.width = 2048;
     this.mainLight.shadow.mapSize.height = 2048;
     this.mainLight.shadow.camera.near = 0.5;
-    this.mainLight.shadow.camera.far = 150;
-    this.mainLight.shadow.camera.left = -35;
-    this.mainLight.shadow.camera.right = 35;
-    this.mainLight.shadow.camera.top = 35;
-    this.mainLight.shadow.camera.bottom = -35;
+    this.mainLight.shadow.camera.far = 200;
+    const shadowBound = this.currentSize * 0.6;
+    this.mainLight.shadow.camera.left = -shadowBound;
+    this.mainLight.shadow.camera.right = shadowBound;
+    this.mainLight.shadow.camera.top = shadowBound;
+    this.mainLight.shadow.camera.bottom = -shadowBound;
     this.scene.add(this.mainLight);
 
     // Fill light - increased intensity for better shadow fill

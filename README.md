@@ -57,7 +57,30 @@ tide-commander --foreground
 tide-commander logs --lines 200
 tide-commander --port 8080 --host 0.0.0.0
 tide-commander --listen-all --port 8080
+tide-commander --https --tls-key ./certs/localhost-key.pem --tls-cert ./certs/localhost.pem
+tide-commander --install-local-cert --https
 ```
+
+To generate and trust a local certificate automatically (requires `mkcert`):
+
+```bash
+tide-commander start --install-local-cert --https
+```
+
+## 🔒 HTTPS Security
+
+Use HTTPS/WSS whenever Tide Commander is reachable beyond localhost, especially on shared networks.
+
+- Enable HTTPS with existing cert files: `tide-commander start --https --tls-key ./certs/localhost-key.pem --tls-cert ./certs/localhost.pem`
+- Generate and install a trusted local cert with `mkcert`: `tide-commander start --install-local-cert --https`
+- Set an auth token explicitly: `tide-commander start --https --auth-token <your-token>`
+- Generate a secure auth token automatically: `tide-commander start --https --generate-auth-token`
+- For development UI over HTTPS, set `DEV_HTTPS=1` and provide `DEV_TLS_KEY_PATH` + `DEV_TLS_CERT_PATH`.
+
+Notes:
+- Local certs are stored in `~/.tide-commander/certs/` when using `--install-local-cert`.
+- `--generate-auth-token` prints the generated token at startup; save it in a secure password manager.
+- If `AUTH_TOKEN` is configured, keep using it with HTTPS for transport encryption plus access control.
 
 ## 🧑‍💻 Development Setup
 
@@ -71,7 +94,7 @@ bun install
 bun run dev
 ```
 
-Open http://localhost:5173 in your browser (or your configured `VITE_PORT`).
+Open `http://localhost:5173` in your browser (or `https://localhost:5173` when `DEV_HTTPS=1`).
 
 ## 💡 Why Tide Commander?
 
@@ -357,6 +380,12 @@ Configuration via environment variables (see `.env.example`):
 | `TIDE_SERVER` | `http://localhost:$PORT` | Server URL for hooks |
 | `LISTEN_ALL_INTERFACES` | _(unset)_ | Set to `1` to listen on 0.0.0.0 instead of localhost |
 | `AUTH_TOKEN` | _(unset)_ | Token for authenticating WebSocket and HTTP connections |
+| `HTTPS` | _(unset)_ | Set to `1` to serve backend over HTTPS/WSS |
+| `TLS_KEY_PATH` | `~/.tide-commander/certs/localhost-key.pem` | TLS private key path for backend HTTPS |
+| `TLS_CERT_PATH` | `~/.tide-commander/certs/localhost.pem` | TLS certificate path for backend HTTPS |
+| `DEV_HTTPS` | _(unset)_ | Set to `1` to run Vite dev server over HTTPS |
+| `DEV_TLS_KEY_PATH` | _(unset)_ | TLS private key path for Vite dev HTTPS |
+| `DEV_TLS_CERT_PATH` | _(unset)_ | TLS certificate path for Vite dev HTTPS |
 
 ## 🛠️ Development
 

@@ -312,6 +312,18 @@
     "clickToOpen": "Click to open",
     "updated": "(updated)"
   },
+  "onboarding": {
+    "title": "Welcome to Tide Commander",
+    "subtitle": "Your AI team is ready to deploy",
+    "step1Title": "Deploy an Agent",
+    "step1Desc": "Spawn a Claude Code or Codex agent pointed at any project directory.",
+    "step2Title": "Give it a Task",
+    "step2Desc": "Type a prompt and the agent works autonomously in its own terminal.",
+    "step3Title": "Scale Your Team",
+    "step3Desc": "Add more agents, assign bosses, and monitor everything in real time.",
+    "createFirst": "Create Your First Agent",
+    "explore": "Explore First"
+  },
   "floatingButtons": {
     "settingsAndTools": "Settings & Tools",
     "commanderView": "Commander View",

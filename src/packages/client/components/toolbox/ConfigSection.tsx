@@ -181,7 +181,7 @@ const SETTINGS_SECTIONS = [
   { id: 'appearance', title: 'Appearance', keywords: ['theme', 'appearance', 'color', 'dark', 'light', 'style', 'look'] },
   { id: 'connection', title: 'Connection', keywords: ['backend', 'url', 'auth', 'token', 'reconnect', 'server', 'api', 'connect'] },
   { id: 'scene', title: 'Scene', keywords: ['character', 'size', 'indicator', 'scale', 'time', 'dawn', 'day', 'dusk', 'night', 'auto'] },
-  { id: 'terrain', title: 'Terrain', keywords: ['trees', 'bushes', 'house', 'lamps', 'grass', 'clouds', 'fog', 'brightness', 'floor', 'sky', 'color', 'environment'] },
+  { id: 'terrain', title: 'Terrain', keywords: ['trees', 'bushes', 'house', 'lamps', 'grass', 'clouds', 'fog', 'brightness', 'floor', 'sky', 'color', 'environment', 'battlefield', 'size', 'grid'] },
   { id: 'modelStyle', title: 'Agent Model Style', keywords: ['saturation', 'roughness', 'metalness', 'glow', 'emissive', 'reflections', 'wireframe', 'color mode', 'material', 'shader'] },
   { id: 'animations', title: 'Animations', keywords: ['idle', 'working', 'animation', 'walk', 'run', 'sprint', 'jump', 'sit', 'crouch'] },
   { id: 'secrets', title: 'Secrets', keywords: ['secrets', 'api', 'key', 'password', 'credentials', 'env', 'environment'] },
@@ -497,6 +497,11 @@ export function ConfigSection({ config, onChange, searchQuery = '' }: ConfigSect
               <button key={opt.value ?? 'auto'} className={`sky-color-btn ${config.terrain.skyColor === opt.value ? 'active' : ''}`} onClick={() => updateTerrain({ skyColor: opt.value })} title={opt.label} style={{ background: opt.color }} />
             ))}
           </div>
+        </div>
+        <div className="config-row">
+          <span className="config-label"><HighlightText text={t('config:terrainSettings.battlefieldSize')} query={searchQuery} /></span>
+          <input type="range" className="config-slider" min="30" max="200" step="10" value={config.terrain.battlefieldSize} onChange={(e) => updateTerrain({ battlefieldSize: parseInt(e.target.value) })} />
+          <span className="config-value">{config.terrain.battlefieldSize}</span>
         </div>
       </CollapsibleSection>
       )}

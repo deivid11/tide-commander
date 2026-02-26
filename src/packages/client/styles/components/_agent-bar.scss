@@ -406,6 +406,12 @@
     cursor: grabbing;
   }
 
+  // Mobile long-press drag unlock feedback
+  &.touch-drag-enabled {
+    border-color: rgba($dracula-purple, 0.85);
+    box-shadow: 0 0 10px rgba($dracula-purple, 0.45);
+  }
+
   &.drag-over {
     transform: translateY(-4px) scale(1.05);
     box-shadow: 0 8px 24px rgba($dracula-purple, 0.5);

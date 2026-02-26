@@ -116,7 +116,8 @@ export function connect(): void {
       const wsHost = (browserHost === 'localhost' || browserHost === '127.0.0.1' || browserHost === '::1')
         ? '127.0.0.1'
         : browserHost;
-      wsUrl = `ws://${wsHost}:${defaultPort}/ws`;
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+      wsUrl = `${wsProtocol}://${wsHost}:${defaultPort}/ws`;
     } else {
       const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       wsUrl = `${wsProtocol}//${window.location.host}/ws`;

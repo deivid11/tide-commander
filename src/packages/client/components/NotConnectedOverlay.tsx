@@ -75,7 +75,8 @@ export function NotConnectedOverlay() {
     setConnectError(null);
     setConnectStatus('Validating URL');
 
-    const validation = validateBackendUrlInput(backendUrlDraft);
+    const effectiveUrl = backendUrlDraft.trim() || 'http://localhost:6200';
+    const validation = validateBackendUrlInput(effectiveUrl);
     if (!validation.ok) {
       setConnectStatus(null);
       setConnectError(validation.error || 'Invalid backend URL');

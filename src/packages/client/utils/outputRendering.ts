@@ -606,6 +606,50 @@ export function parseBashNotificationCommand(command: string): BashNotificationC
   };
 }
 
+export interface BashTaskLabelCommandInfo {
+  shellPrefix?: string;
+  commandBody: string;
+  taskLabel: string;
+}
+
+/**
+ * Parse Bash commands that set a task label via curl PATCH /api/agents/...
+ * Detects: curl ... -X PATCH .../api/agents/... -d '{"taskLabel":"..."}'
+ * Returns null when command does not look like a task label command.
+ */
+export function parseBashTaskLabelCommand(command: string): BashTaskLabelCommandInfo | null {
+  const trimmed = command.trim();
+  if (!trimmed) return null;
+
+  let shellPrefix: string | undefined;
+  let commandBody = trimmed;
+
+  const shellWrapped = trimmed.match(/^(\S+)\s+-lc\s+([\s\S]+)$/);
+  if (shellWrapped) {
+    shellPrefix = `${shellWrapped[1]} -lc`;
+    commandBody = stripWrappingQuotes(shellWrapped[2].trim());
+  }
+
+  // Must be a curl PATCH to /api/agents/ with taskLabel in payload
+  if (!/\bcurl\b/.test(commandBody)) return null;
+  if (!/PATCH/.test(commandBody)) return null;
+  if (!/\/api\/agents\//.test(commandBody)) return null;
+
+  // Extract taskLabel from JSON payload
+  const payloadMatch = commandBody.match(/-d\s+((['"])([\s\S]*?)\2)/);
+  if (!payloadMatch) return null;
+
+  const rawPayload = stripWrappingQuotes(payloadMatch[1]).replace(/\\"/g, '"');
+  const labelMatch = rawPayload.match(/"taskLabel"\s*:\s*"([^"]*)"/);
+  if (!labelMatch?.[1]) return null;
+
+  return {
+    shellPrefix,
+    commandBody,
+    taskLabel: labelMatch[1],
+  };
+}
+
 /**
  * Parse tool name from "Using tool: ToolName" format
  */

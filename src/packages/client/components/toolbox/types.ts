@@ -18,6 +18,7 @@ export interface TerrainConfig {
   floorStyle: FloorStyle;
   brightness: number; // 0.2 = dark, 1 = normal, 2 = bright
   skyColor: string | null; // null = auto (based on time), or hex color like '#4a90d9'
+  battlefieldSize: number; // 30 = small, 100 = default, 200 = large
 }
 
 // Color mode type for agent models

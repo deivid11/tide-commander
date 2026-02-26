@@ -303,7 +303,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
   font-family: $font-mono;
-  max-width: 120px;
+  flex: 1;
+  min-width: 0;
+}
+
+.agent-panel-task-label {
+  font-weight: 600;
+  font-style: italic;
+  font-family: $font-mono;
 }
 
 // Context usage bar in agent panel header

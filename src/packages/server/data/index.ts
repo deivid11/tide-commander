@@ -68,6 +68,8 @@ export interface StoredAgent {
   // Task tracking for auto-resume
   lastAssignedTask?: string;      // Last task assigned (persisted for auto-resume)
   lastAssignedTaskTime?: number;  // When last task was assigned
+  // Brief task label for scene display
+  taskLabel?: string;
   // Boss-specific fields
   isBoss?: boolean;           // True if this agent is a boss
   subordinateIds?: string[];  // Only for boss agents
@@ -189,6 +191,7 @@ function toStoredAgents(agents: Agent[]): StoredAgent[] {
     currentTask: agent.currentTask,
     lastAssignedTask: agent.lastAssignedTask,
     lastAssignedTaskTime: agent.lastAssignedTaskTime,
+    taskLabel: agent.taskLabel,
     isBoss: agent.isBoss,
     subordinateIds: agent.subordinateIds,
     bossId: agent.bossId,

@@ -37,6 +37,7 @@ export interface Agent2DData {
   contextLimit?: number;
   contextStats?: ContextStats;
   provider?: string;
+  taskLabel?: string;
 }
 
 /**
@@ -562,6 +563,8 @@ export class Scene2D {
   }
 
   private renderBossLines(): void {
+    const renderedConnections = new Set<string>();
+
     // Draw lines for selected boss agents to their subordinates
     for (const agentId of this.selectedAgentIds) {
       const agent = this.agents.get(agentId);
@@ -572,21 +575,21 @@ export class Scene2D {
         for (const subId of agent.subordinateIds) {
           const sub = this.agents.get(subId);
           if (sub && (this.isPointVisible(agent.position.x, agent.position.z, 2.5) || this.isPointVisible(sub.position.x, sub.position.z, 2.5))) {
+            renderedConnections.add(`${agent.id}:${sub.id}`);
             this.effects.renderBossLine(this.ctx, this.camera, agent.position, sub.position);
           }
         }
       }
 
-      // If selected agent has a boss, show that boss's hierarchy
+      // If selected agent has a boss, only show the direct boss <-> selected link
       if (agent.bossId) {
         const boss = this.agents.get(agent.bossId);
-        if (boss && boss.subordinateIds) {
-          for (const subId of boss.subordinateIds) {
-            const sub = this.agents.get(subId);
-            if (sub && (this.isPointVisible(boss.position.x, boss.position.z, 2.5) || this.isPointVisible(sub.position.x, sub.position.z, 2.5))) {
-              this.effects.renderBossLine(this.ctx, this.camera, boss.position, sub.position);
-            }
-          }
+        const key = boss ? `${boss.id}:${agent.id}` : null;
+        const isDirectSubordinate = !boss?.subordinateIds || boss.subordinateIds.includes(agent.id);
+        if (boss && key && isDirectSubordinate && !renderedConnections.has(key) &&
+          (this.isPointVisible(boss.position.x, boss.position.z, 2.5) || this.isPointVisible(agent.position.x, agent.position.z, 2.5))) {
+          renderedConnections.add(key);
+          this.effects.renderBossLine(this.ctx, this.camera, boss.position, agent.position);
         }
       }
     }
@@ -728,6 +731,7 @@ export class Scene2D {
     existing.contextLimit = agent.contextLimit;
     existing.contextStats = agent.contextStats;
     existing.provider = agent.provider;
+    existing.taskLabel = agent.taskLabel;
     this.markDirty();
   }
 

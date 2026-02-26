@@ -3,16 +3,14 @@
  * Handles API calls for system-level settings like global prompts
  */
 
-import { getAuthToken } from '../utils/storage';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5174';
+import { getAuthToken, getApiBaseUrl } from '../utils/storage';
 
 /**
  * Get the current system prompt
  */
 export async function fetchSystemPrompt(): Promise<string> {
   const token = getAuthToken();
-  const response = await fetch(`${API_BASE}/api/agents/system-settings/prompt`, {
+  const response = await fetch(`${getApiBaseUrl()}/api/agents/system-settings/prompt`, {
     headers: {
       'Authorization': `Bearer ${token}`,
     },
@@ -31,7 +29,7 @@ export async function fetchSystemPrompt(): Promise<string> {
  */
 export async function updateSystemPrompt(prompt: string): Promise<void> {
   const token = getAuthToken();
-  const response = await fetch(`${API_BASE}/api/agents/system-settings/prompt`, {
+  const response = await fetch(`${getApiBaseUrl()}/api/agents/system-settings/prompt`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -50,7 +48,7 @@ export async function updateSystemPrompt(prompt: string): Promise<void> {
  */
 export async function clearSystemPrompt(): Promise<void> {
   const token = getAuthToken();
-  const response = await fetch(`${API_BASE}/api/agents/system-settings/prompt`, {
+  const response = await fetch(`${getApiBaseUrl()}/api/agents/system-settings/prompt`, {
     method: 'DELETE',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -67,7 +65,7 @@ export async function clearSystemPrompt(): Promise<void> {
  */
 export async function fetchEchoPromptSetting(): Promise<boolean> {
   const token = getAuthToken();
-  const response = await fetch(`${API_BASE}/api/agents/system-settings/echo-prompt`, {
+  const response = await fetch(`${getApiBaseUrl()}/api/agents/system-settings/echo-prompt`, {
     headers: {
       'Authorization': `Bearer ${token}`,
     },
@@ -84,7 +82,7 @@ export async function fetchEchoPromptSetting(): Promise<boolean> {
  */
 export async function updateEchoPromptSetting(enabled: boolean): Promise<void> {
   const token = getAuthToken();
-  const response = await fetch(`${API_BASE}/api/agents/system-settings/echo-prompt`, {
+  const response = await fetch(`${getApiBaseUrl()}/api/agents/system-settings/echo-prompt`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

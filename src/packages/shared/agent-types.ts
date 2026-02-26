@@ -214,6 +214,9 @@ export interface Agent {
   lastAssignedTask?: string;
   lastAssignedTaskTime?: number;
 
+  // Brief task label (max 5 words) for display in 2D/3D scenes
+  taskLabel?: string;
+
   // Task counter - number of user messages/commands sent to this agent
   taskCount: number;
 

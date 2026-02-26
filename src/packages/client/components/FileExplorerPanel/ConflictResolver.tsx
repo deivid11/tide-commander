@@ -5,8 +5,9 @@
  * "current" (ours) or "incoming" (theirs) changes per conflict section.
  */
 
-import React, { memo, useState, useMemo, useCallback } from 'react';
+import React, { memo, useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Prism, getLanguageForExtension } from './syntaxHighlighting';
 
 // ============================================================================
 // TYPES
@@ -24,7 +25,22 @@ interface ConflictResolverProps {
 
 type Section =
   | { type: 'unchanged'; content: string }
-  | { type: 'conflict'; ours: string; theirs: string; resolved: 'ours' | 'theirs' | null };
+  | { type: 'conflict'; ours: string; theirs: string; resolved: 'ours' | 'theirs' | 'both' | null };
+
+// ============================================================================
+// SYNTAX HIGHLIGHTING
+// ============================================================================
+
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function highlightCode(code: string, language: string): string {
+  if (!code) return '';
+  const grammar = Prism.languages[language];
+  if (!grammar) return escapeHtml(code);
+  return Prism.highlight(code, grammar, language);
+}
 
 // ============================================================================
 // CONFLICT MARKER PARSING
@@ -87,6 +103,13 @@ export const ConflictResolver = memo(function ConflictResolver({
   mergingBranch,
 }: ConflictResolverProps) {
   const { t } = useTranslation(['terminal']);
+
+  const prismLang = useMemo(() => {
+    if (!versions?.filename) return 'plaintext';
+    const ext = '.' + versions.filename.split('.').pop()?.toLowerCase();
+    return getLanguageForExtension(ext);
+  }, [versions?.filename]);
+
   const initialSections = useMemo(() => {
     if (!versions?.merged) return [];
     return parseConflicts(versions.merged);
@@ -100,12 +123,54 @@ export const ConflictResolver = memo(function ConflictResolver({
     setSections(initialSections);
   }, [initialSections]);
 
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [activeConflictIdx, setActiveConflictIdx] = useState(0);
+
+  // Indices of conflict sections within the sections array
+  const conflictIndices = useMemo(
+    () => sections.map((s, i) => (s.type === 'conflict' ? i : -1)).filter((i) => i !== -1),
+    [sections],
+  );
+
+  const totalConflicts = conflictIndices.length;
+
+  const scrollToConflict = useCallback(
+    (conflictNum: number) => {
+      const container = contentRef.current;
+      if (!container || conflictNum < 0 || conflictNum >= conflictIndices.length) return;
+      const sectionIdx = conflictIndices[conflictNum];
+      const el = container.querySelector(`[data-section-idx="${sectionIdx}"]`) as HTMLElement | null;
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setActiveConflictIdx(conflictNum);
+      }
+    },
+    [conflictIndices],
+  );
+
+  const handlePrevConflict = useCallback(() => {
+    scrollToConflict(activeConflictIdx > 0 ? activeConflictIdx - 1 : conflictIndices.length - 1);
+  }, [activeConflictIdx, conflictIndices.length, scrollToConflict]);
+
+  const handleNextConflict = useCallback(() => {
+    scrollToConflict(activeConflictIdx < conflictIndices.length - 1 ? activeConflictIdx + 1 : 0);
+  }, [activeConflictIdx, conflictIndices.length, scrollToConflict]);
+
+  // Auto-scroll to first conflict on load
+  useEffect(() => {
+    if (conflictIndices.length > 0 && contentRef.current) {
+      // Small delay to let the DOM render
+      const timer = setTimeout(() => scrollToConflict(0), 100);
+      return () => clearTimeout(timer);
+    }
+  }, [conflictIndices.length, scrollToConflict]);
+
   const allResolved = useMemo(() => {
     const conflictSections = sections.filter((s): s is Extract<Section, { type: 'conflict' }> => s.type === 'conflict');
     return conflictSections.length > 0 && conflictSections.every((s) => s.resolved !== null);
   }, [sections]);
 
-  const handleResolveSection = useCallback((idx: number, choice: 'ours' | 'theirs') => {
+  const handleResolveSection = useCallback((idx: number, choice: 'ours' | 'theirs' | 'both') => {
     setSections((prev) =>
       prev.map((section, i) => {
         if (i !== idx || section.type !== 'conflict') return section;
@@ -114,7 +179,7 @@ export const ConflictResolver = memo(function ConflictResolver({
     );
   }, []);
 
-  const handleAcceptAll = useCallback((choice: 'ours' | 'theirs') => {
+  const handleAcceptAll = useCallback((choice: 'ours' | 'theirs' | 'both') => {
     setSections((prev) =>
       prev.map((section) => {
         if (section.type !== 'conflict') return section;
@@ -138,6 +203,9 @@ export const ConflictResolver = memo(function ConflictResolver({
           if (section.resolved === 'theirs') {
             return section.theirs;
           }
+          if (section.resolved === 'both') {
+            return section.ours + '\n' + section.theirs;
+          }
           // Unresolved - keep original markers
           return `<<<<<<< ${currentBranch}\n${section.ours}\n=======\n${section.theirs}\n>>>>>>> ${mergingBranch}`;
         })
@@ -156,6 +224,19 @@ export const ConflictResolver = memo(function ConflictResolver({
         <span className="conflict-header-title">
           {t('terminal:fileExplorer.resolveFile', { filename: versions?.filename })}
         </span>
+        {totalConflicts > 0 && (
+          <div className="conflict-nav">
+            <button className="conflict-nav-btn" onClick={handlePrevConflict} title={t('terminal:fileExplorer.prevConflict')}>
+              ▲
+            </button>
+            <span className="conflict-nav-counter">
+              {activeConflictIdx + 1} / {totalConflicts}
+            </span>
+            <button className="conflict-nav-btn" onClick={handleNextConflict} title={t('terminal:fileExplorer.nextConflict')}>
+              ▼
+            </button>
+          </div>
+        )}
         <button className="conflict-close-btn" onClick={onClose}>×</button>
       </div>
 
@@ -170,21 +251,28 @@ export const ConflictResolver = memo(function ConflictResolver({
           </div>
 
           {/* Content */}
-          <div className="conflict-content">
+          <div className="conflict-content" ref={contentRef}>
             {sections.map((section, idx) => {
               if (section.type === 'unchanged') {
                 return (
                   <div key={idx} className="conflict-section-unchanged">
-                    <pre>{section.content}</pre>
+                    <div className="conflict-panes">
+                      <div className="conflict-pane ours">
+                        <pre dangerouslySetInnerHTML={{ __html: highlightCode(section.content, prismLang) }} />
+                      </div>
+                      <div className="conflict-pane theirs">
+                        <pre dangerouslySetInnerHTML={{ __html: highlightCode(section.content, prismLang) }} />
+                      </div>
+                    </div>
                   </div>
                 );
               }
               // conflict section
               return (
-                <div key={idx} className={`conflict-section-conflict ${section.resolved ? 'resolved' : ''}`}>
+                <div key={idx} data-section-idx={idx} className={`conflict-section-conflict ${section.resolved ? 'resolved' : ''}`}>
                   <div className="conflict-panes">
-                    <div className={`conflict-pane ours ${section.resolved === 'ours' ? 'accepted' : ''}`}>
-                      <pre>{section.ours}</pre>
+                    <div className={`conflict-pane ours ${section.resolved === 'ours' || section.resolved === 'both' ? 'accepted' : ''}`}>
+                      <pre dangerouslySetInnerHTML={{ __html: highlightCode(section.ours, prismLang) }} />
                       <button
                         className="conflict-accept-btn ours"
                         onClick={() => handleResolveSection(idx, 'ours')}
@@ -193,8 +281,8 @@ export const ConflictResolver = memo(function ConflictResolver({
                         {section.resolved === 'ours' ? t('terminal:fileExplorer.accepted') : t('terminal:fileExplorer.acceptCurrent')}
                       </button>
                     </div>
-                    <div className={`conflict-pane theirs ${section.resolved === 'theirs' ? 'accepted' : ''}`}>
-                      <pre>{section.theirs}</pre>
+                    <div className={`conflict-pane theirs ${section.resolved === 'theirs' || section.resolved === 'both' ? 'accepted' : ''}`}>
+                      <pre dangerouslySetInnerHTML={{ __html: highlightCode(section.theirs, prismLang) }} />
                       <button
                         className="conflict-accept-btn theirs"
                         onClick={() => handleResolveSection(idx, 'theirs')}
@@ -204,6 +292,13 @@ export const ConflictResolver = memo(function ConflictResolver({
                       </button>
                     </div>
                   </div>
+                  <button
+                    className={`conflict-accept-both-btn ${section.resolved === 'both' ? 'accepted' : ''}`}
+                    onClick={() => handleResolveSection(idx, 'both')}
+                    disabled={section.resolved === 'both'}
+                  >
+                    {section.resolved === 'both' ? t('terminal:fileExplorer.accepted') : t('terminal:fileExplorer.acceptBoth')}
+                  </button>
                 </div>
               );
             })}
@@ -216,6 +311,9 @@ export const ConflictResolver = memo(function ConflictResolver({
             </button>
             <button className="conflict-action-btn accept-all-incoming" onClick={() => handleAcceptAll('theirs')}>
               {t('terminal:fileExplorer.acceptAllIncoming')}
+            </button>
+            <button className="conflict-action-btn accept-all-both" onClick={() => handleAcceptAll('both')}>
+              {t('terminal:fileExplorer.acceptAllBoth')}
             </button>
             <button
               className="conflict-action-btn save-resolved"

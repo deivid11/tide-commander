@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
+import os from 'node:os';
+import fs from 'node:fs';
 import react from '@vitejs/plugin-react';
 import pkg from './package.json';
 
@@ -8,6 +10,34 @@ import pkg from './package.json';
 const SERVER_PORT = process.env.PORT || 6200;
 const VITE_PORT = process.env.VITE_PORT || 5173;
 const VITE_HOST = process.env.LISTEN_ALL_INTERFACES ? '::' : '127.0.0.1';
+const DEV_HTTPS = process.env.DEV_HTTPS === '1';
+const DEV_TLS_KEY_PATH = process.env.DEV_TLS_KEY_PATH;
+const DEV_TLS_CERT_PATH = process.env.DEV_TLS_CERT_PATH;
+
+function getDevHttpsOptions(): { key: Buffer; cert: Buffer } | undefined {
+  if (!DEV_HTTPS) {
+    return undefined;
+  }
+
+  if (!DEV_TLS_KEY_PATH || !DEV_TLS_CERT_PATH) {
+    throw new Error('DEV_HTTPS=1 requires DEV_TLS_KEY_PATH and DEV_TLS_CERT_PATH');
+  }
+
+  const keyPath = resolveTlsPath(DEV_TLS_KEY_PATH);
+  const certPath = resolveTlsPath(DEV_TLS_CERT_PATH);
+
+  return {
+    key: fs.readFileSync(keyPath),
+    cert: fs.readFileSync(certPath),
+  };
+}
+
+function resolveTlsPath(filePath: string): string {
+  if (filePath.startsWith('~/')) {
+    return resolve(os.homedir(), filePath.slice(2));
+  }
+  return resolve(process.cwd(), filePath);
+}
 
 export default defineConfig({
   plugins: [react()],
@@ -27,6 +57,7 @@ export default defineConfig({
   server: {
     host: VITE_HOST,
     port: Number(VITE_PORT),
+    https: getDevHttpsOptions(),
     // Disable bfcache in dev mode to prevent memory leaks on reload
     // This is especially important for Brave browser which aggressively caches pages
     headers: {
