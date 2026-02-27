@@ -264,17 +264,19 @@ export class CodexJsonEventParser {
       return [];
     }
 
+    // task_started: Silent. Envelope event with no user-facing content.
+    if (payloadType === 'task_started') {
+      return [];
+    }
+
     // user_message / agent_message are handled via item.completed, skip if seen here
     if (payloadType === 'user_message' || payloadType === 'agent_message') {
       return [];
     }
 
-    // task_complete: Display the final agent message as formatted text
+    // task_complete: Silent. Final agent message is already displayed
+    // via item.completed with type=agent_message.
     if (payloadType === 'task_complete') {
-      const lastMsg = asString(payload.last_agent_message);
-      if (lastMsg) {
-        return [{ type: 'text', text: lastMsg, isStreaming: false }];
-      }
       return [];
     }
 

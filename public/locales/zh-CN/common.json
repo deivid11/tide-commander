@@ -248,7 +248,8 @@
     "clearContextBtn": "清除上下文",
     "removePattern": "移除此模式",
     "agentsCount": "{{count}} 个代理",
-    "confidence": "置信度：{{level}}"
+    "confidence": "置信度：{{level}}",
+    "otherAgents": "其他代理"
   },
   "multiAgent": {
     "agentsSelected": "已选择 {{count}} 个代理",
@@ -262,7 +263,21 @@
     "areasAndAgents": "区域和代理",
     "browseFiles": "浏览文件",
     "supervisorStatus": "监管状态",
-    "unassigned": "未分配"
+    "unassigned": "未分配",
+    "total": "总计",
+    "statusActive": "活跃",
+    "statusIdle": "空闲",
+    "statusWaiting": "等待中",
+    "statusError": "错误",
+    "searchPlaceholder": "搜索代理...",
+    "filter_all": "全部",
+    "filter_active": "活跃",
+    "filter_idle": "空闲",
+    "filter_waiting": "等待中",
+    "filter_error": "错误",
+    "showing": "显示 {{count}}/{{total}}",
+    "clearFilters": "清除筛选",
+    "noResults": "未找到匹配的代理"
   },
   "rightPanel": {
     "expandPanel": "展开面板 (Ctrl+\\)",

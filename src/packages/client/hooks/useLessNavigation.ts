@@ -489,43 +489,54 @@ export function useLessNavigation(options: UseLessNavigationOptions): UseLessNav
     setHelpActive((prev) => !prev);
   }, []);
 
+  /** Scroll the container so the given line is visible with some top margin */
+  const scrollToMatchLine = useCallback((line: number) => {
+    const container = containerState.current;
+    if (!container) return;
+
+    // Use the <pre> element to compute the accurate position (same as ensureCursorVisible)
+    const preEl = container.querySelector('.file-viewer-pre') as HTMLElement | null;
+    const lh = preEl
+      ? (parseFloat(getComputedStyle(preEl).lineHeight) || lineHeight.current)
+      : lineHeight.current;
+    const prePaddingTop = preEl ? (parseFloat(getComputedStyle(preEl).paddingTop) || 0) : 0;
+    const preOffsetTop = preEl ? preEl.offsetTop : 0;
+
+    const targetTop = preOffsetTop + prePaddingTop + (line - 1) * lh;
+    // Place the match ~3 lines from the top for comfortable visibility
+    const margin = lh * 3;
+    container.scrollTo({
+      top: Math.max(0, targetTop - margin),
+      behavior: 'smooth',
+    });
+  }, []);
+
+  // Reset to first match when matches change (user typing in search bar)
+  useEffect(() => {
+    if (!searchActive || searchMatches.length === 0) return;
+    setCurrentMatchIndex(0);
+  }, [searchMatches, searchActive]);
+
+  // Unified auto-scroll: whenever current match changes, scroll to it
+  useEffect(() => {
+    if (!searchActive || searchMatches.length === 0) return;
+    const match = searchMatches[currentMatchIndex];
+    if (match) {
+      setCursorLine(match.line);
+      setCursorCol(match.column);
+      scrollToMatchLine(match.line);
+    }
+  }, [searchActive, searchMatches, currentMatchIndex, scrollToMatchLine]);
+
   const nextMatch = useCallback(() => {
     if (searchMatches.length === 0) return;
-
     setCurrentMatchIndex((prev) => (prev + 1) % searchMatches.length);
-
-    // Auto-scroll to current match and move cursor
-    const currentMatch = searchMatches[(currentMatchIndex + 1) % searchMatches.length];
-    if (currentMatch && containerState.current) {
-      setCursorLine(currentMatch.line);
-      setCursorCol(currentMatch.column);
-      const lineHeight = getLineHeight(containerState.current);
-      const targetTop = (currentMatch.line - 1) * lineHeight;
-      containerState.current.scrollTo({
-        top: Math.max(0, targetTop - 100),
-        behavior: 'smooth',
-      });
-    }
-  }, [searchMatches, currentMatchIndex]);
+  }, [searchMatches]);
 
   const prevMatch = useCallback(() => {
     if (searchMatches.length === 0) return;
-
     setCurrentMatchIndex((prev) => (prev - 1 + searchMatches.length) % searchMatches.length);
-
-    // Auto-scroll to current match and move cursor
-    const currentMatch = searchMatches[(currentMatchIndex - 1 + searchMatches.length) % searchMatches.length];
-    if (currentMatch && containerState.current) {
-      setCursorLine(currentMatch.line);
-      setCursorCol(currentMatch.column);
-      const lineHeight = getLineHeight(containerState.current);
-      const targetTop = (currentMatch.line - 1) * lineHeight;
-      containerState.current.scrollTo({
-        top: Math.max(0, targetTop - 100),
-        behavior: 'smooth',
-      });
-    }
-  }, [searchMatches, currentMatchIndex]);
+  }, [searchMatches]);
 
   /**
    * Ensure the cursor line is visible within the scroll container.
@@ -688,7 +699,13 @@ export function useLessNavigation(options: UseLessNavigationOptions): UseLessNav
       const next = Math.max(cursorLine - linesPerHalfPage, 1);
       moveToLine(next, cursorCol);
       handled = true;
-    } else if (e.key === 'f' && visualMode === 'none' && !searchActive) {
+    } else if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+      // Ctrl+F / Cmd+F: open search (works even with vim mode)
+      e.preventDefault();
+      e.stopPropagation();
+      startSearch();
+      handled = true;
+    } else if (e.key === 'f' && !e.ctrlKey && !e.metaKey && visualMode === 'none' && !searchActive) {
       e.preventDefault();
       e.stopPropagation();
       const next = Math.min(cursorLine + linesPerPage, totalLines);

@@ -165,89 +165,49 @@
     }
   }
 
-  // Action buttons (expand/collapse all)
+  // Action buttons & toggle switches bar
   .aop-actions {
     display: flex;
-    gap: 6px;
-    padding: 6px 12px;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 10px;
     background: rgba($dracula-bg, 0.3);
     border-bottom: 1px solid $dracula-current;
+    flex-wrap: wrap;
 
     .action-btn {
-      padding: 3px 10px;
-      background: rgba($dracula-cyan, 0.15);
-      border: 1px solid rgba($dracula-cyan, 0.3);
+      padding: 2px 7px;
+      background: rgba($dracula-comment, 0.1);
+      border: 1px solid rgba($dracula-comment, 0.25);
       border-radius: $radius-sm;
-      color: $dracula-cyan;
+      color: $dracula-comment;
       font-family: $font-mono;
-      font-size: 10px;
+      font-size: 9px;
       cursor: pointer;
-      transition: all 0.2s;
+      transition: all 0.15s;
+      white-space: nowrap;
 
       &:hover {
+        background: rgba($dracula-cyan, 0.15);
+        border-color: rgba($dracula-cyan, 0.4);
+        color: $dracula-cyan;
+      }
+
+      &:active {
         background: rgba($dracula-cyan, 0.25);
-        border-color: $dracula-cyan;
-      }
-    }
-
-    .aop-group-toggle {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      margin-left: auto;
-      cursor: pointer;
-      font-family: $font-mono;
-      font-size: 10px;
-      color: $dracula-comment;
-
-      input[type="checkbox"] {
-        position: absolute;
-        opacity: 0;
-        width: 0;
-        height: 0;
       }
 
-      .toggle-switch {
-        position: relative;
-        width: 28px;
-        height: 16px;
-        background: rgba($dracula-comment, 0.3);
-        border-radius: 8px;
-        transition: background 0.2s ease;
-
-        &::after {
-          content: '';
-          position: absolute;
-          top: 2px;
-          left: 2px;
-          width: 12px;
-          height: 12px;
-          background: $dracula-fg;
-          border-radius: 50%;
-          transition: transform 0.2s ease;
-          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+      // Toggle buttons (Areas, Same Area, Subagents, Activity)
+      &--toggle {
+        &.active {
+          background: rgba($dracula-cyan, 0.15);
+          border-color: rgba($dracula-cyan, 0.4);
+          color: $dracula-cyan;
         }
-      }
 
-      input:checked + .toggle-switch {
-        background: $dracula-cyan;
-
-        &::after {
-          transform: translateX(12px);
-          background: white;
+        &.active:hover {
+          background: rgba($dracula-cyan, 0.25);
         }
-      }
-
-      .toggle-label {
-        user-select: none;
-      }
-
-      &:hover .toggle-switch {
-        background: rgba($dracula-comment, 0.5);
-      }
-
-      &:hover input:checked + .toggle-switch {
-        background: color.adjust($dracula-cyan, $lightness: 10%);
       }
     }
   }
@@ -328,6 +288,14 @@
       flex-shrink: 0;
     }
   }
+
+  .aop-area-content {
+    margin-left: 10px;
+    padding: 6px 6px 2px;
+    border-left: 1px solid rgba($dracula-current, 0.45);
+    border-radius: 0 0 $radius-sm $radius-sm;
+    background: rgba($dracula-bg, 0.22);
+  }
 }
 
 // =============================================================================
@@ -335,20 +303,44 @@
 // =============================================================================
 
 .aop-agent-card {
-  margin-bottom: 6px;
+  margin-bottom: 8px;
   background: rgba($dracula-bg, 0.5);
   border-radius: $radius-sm;
+  border: 1px solid rgba($dracula-current, 0.55);
   border-left: 3px solid $dracula-current;
   overflow: hidden;
+  cursor: pointer;
   transition: border-color 0.2s;
 
   &.active {
+    border-color: rgba($dracula-cyan, 0.6);
     border-left-color: $dracula-cyan;
     background: rgba($dracula-cyan, 0.05);
   }
 
+  &.unread {
+    box-shadow: inset 0 0 0 1px rgba($dracula-cyan, 0.25);
+  }
+
   &.working {
     border-left-color: $dracula-green;
+
+    .aop-agent-header::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: -120%;
+      width: 42%;
+      background: linear-gradient(
+        90deg,
+        rgba($dracula-green, 0),
+        rgba($dracula-green, 0.14),
+        rgba($dracula-green, 0)
+      );
+      animation: aop-card-loading-sweep 1.8s ease-in-out infinite;
+      pointer-events: none;
+    }
   }
 
   &.error {
@@ -363,27 +355,42 @@
   .aop-agent-header {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 10px;
+    gap: 6px;
+    padding: 4px 8px;
     cursor: pointer;
     transition: background 0.2s;
     font-family: $font-mono;
-    font-size: 12px;
+    font-size: 10px;
+    position: relative;
+    overflow: hidden;
 
     &:hover {
       background: rgba($dracula-purple, 0.08);
     }
 
     .aop-expand-icon {
+      appearance: none;
+      background: transparent;
+      border: none;
+      padding: 0;
       color: $dracula-comment;
-      font-size: 10px;
-      width: 12px;
+      font-size: 9px;
+      width: 9px;
       flex-shrink: 0;
+      cursor: pointer;
     }
 
     .aop-agent-status {
       flex-shrink: 0;
-      font-size: 12px;
+      font-size: 11px;
+    }
+
+    .aop-provider-icon {
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+      border-radius: 2px;
+      object-fit: contain;
     }
 
     .aop-agent-name {
@@ -394,9 +401,10 @@
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      padding: 1px 6px;
+      padding: 0 4px;
       border-radius: 3px;
       border: 1px solid transparent;
+      line-height: 1.25;
 
       &:hover {
         color: $dracula-cyan;
@@ -404,23 +412,31 @@
       }
     }
 
+    .aop-agent-class-icon {
+      font-size: 11px;
+      line-height: 1;
+      flex-shrink: 0;
+      opacity: 0.95;
+    }
+
     .aop-agent-class {
-      color: $dracula-purple;
-      font-size: 10px;
-      padding: 1px 6px;
-      background: rgba($dracula-purple, 0.12);
+      font-size: 9px;
+      padding: 0 5px;
+      background: rgba($dracula-current, 0.2);
       border-radius: $radius-sm;
+      border: 1px solid rgba($dracula-current, 0.35);
       flex-shrink: 0;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
       max-width: 80px;
+      margin-left: auto;
     }
 
     .aop-area-chip {
-      font-size: 9px;
+      font-size: 8px;
       font-weight: 500;
-      padding: 1px 5px;
+      padding: 0 3px;
       border-radius: 3px;
       border: 1px solid;
       flex-shrink: 0;
@@ -432,22 +448,64 @@
 
     .aop-msg-count {
       color: $dracula-fg;
-      font-size: 9px;
+      font-size: 8px;
       font-weight: 600;
       background: rgba($dracula-purple, 0.2);
-      padding: 1px 5px;
+      padding: 0 4px;
       border-radius: $radius-sm;
       flex-shrink: 0;
-      margin-left: auto;
+    }
+
+    .aop-pending-read-indicator {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #2f8cff;
+      color: #ffffff;
+      font-size: 9px;
+      font-weight: 700;
+      line-height: 1;
+      box-shadow: 0 0 0 1px rgba(47, 140, 255, 0.35);
     }
 
     .aop-subagent-count {
       color: $dracula-orange;
-      font-size: 10px;
+      font-size: 9px;
       background: rgba($dracula-orange, 0.15);
-      padding: 1px 6px;
+      padding: 0 4px;
       border-radius: $radius-sm;
       flex-shrink: 0;
+    }
+  }
+
+  // Task label preview
+  .aop-task-label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px 3px 25px; // left-align with agent name
+    font-family: $font-mono;
+    font-size: 9px;
+    border-top: 1px solid rgba($dracula-current, 0.25);
+    background: transparent;
+
+    .task-prefix {
+      color: $dracula-cyan;
+      font-size: 9px;
+      flex-shrink: 0;
+    }
+
+    .task-text {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: color.adjust($dracula-cyan, $lightness: 12%);
+      line-height: 1.4;
+      opacity: 0.9;
     }
   }
 
@@ -455,10 +513,10 @@
   .aop-last-message {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 4px 10px 4px 30px; // left-align with agent name
+    gap: 5px;
+    padding: 3px 9px 3px 25px; // left-align with agent name
     font-family: $font-mono;
-    font-size: 10px;
+    font-size: 9px;
     border-top: 1px solid rgba($dracula-current, 0.25);
     background: rgba($dracula-bg-darker, 0.3);
 
@@ -480,7 +538,7 @@
 
     .lm-time {
       color: $dracula-comment;
-      font-size: 9px;
+      font-size: 8px;
       flex-shrink: 0;
     }
 
@@ -494,9 +552,67 @@
     }
   }
 
+  // Search match context (deep search result indicator)
+  .aop-match-context {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px 3px 25px;
+    font-family: $font-mono;
+    font-size: 9px;
+    border-top: 1px solid rgba($dracula-current, 0.25);
+    background: rgba($dracula-yellow, 0.04);
+
+    .match-icon {
+      font-size: 9px;
+      flex-shrink: 0;
+    }
+
+    .match-label {
+      font-size: 8px;
+      font-weight: 600;
+      text-transform: uppercase;
+      flex-shrink: 0;
+      padding: 0 3px;
+      border-radius: 2px;
+      line-height: 1.4;
+    }
+
+    .match-text {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: $dracula-fg;
+      opacity: 0.7;
+      line-height: 1.4;
+    }
+
+    &--history {
+      .match-label {
+        color: $dracula-purple;
+        background: rgba($dracula-purple, 0.15);
+      }
+    }
+
+    &--file {
+      .match-label {
+        color: $dracula-green;
+        background: rgba($dracula-green, 0.15);
+      }
+    }
+
+    &--task {
+      .match-label {
+        color: $dracula-orange;
+        background: rgba($dracula-orange, 0.15);
+      }
+    }
+  }
+
   // Expanded body
   .aop-agent-body {
-    padding: 8px 10px;
+    padding: 6px 9px;
     border-top: 1px solid rgba($dracula-current, 0.5);
     background: rgba($dracula-bg-darker, 0.4);
 
@@ -519,6 +635,36 @@
       padding: 8px 0;
       text-align: center;
     }
+  }
+
+  // Context usage bar (always at bottom of card)
+  .aop-context-bar {
+    height: 2px;
+    background: rgba($dracula-comment, 0.1);
+    overflow: hidden;
+
+    .aop-context-fill {
+      height: 100%;
+      background: rgba($dracula-cyan, 0.5);
+      transition: width 0.4s ease;
+
+      &.warn {
+        background: rgba($dracula-orange, 0.7);
+      }
+
+      &.critical {
+        background: rgba($dracula-red, 0.8);
+      }
+    }
+  }
+}
+
+@keyframes aop-card-loading-sweep {
+  0% {
+    left: -120%;
+  }
+  100% {
+    left: 130%;
   }
 }
 

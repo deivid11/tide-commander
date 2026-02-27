@@ -248,7 +248,8 @@
     "clearContextBtn": "Cancella contesto",
     "removePattern": "Rimuovi questo pattern",
     "agentsCount": "{{count}} agenti",
-    "confidence": "Confidenza: {{level}}"
+    "confidence": "Confidenza: {{level}}",
+    "otherAgents": "Altri agenti"
   },
   "multiAgent": {
     "agentsSelected": "{{count}} agenti selezionati",
@@ -262,7 +263,21 @@
     "areasAndAgents": "Aree e agenti",
     "browseFiles": "Esplora file",
     "supervisorStatus": "Stato supervisore",
-    "unassigned": "Non assegnato"
+    "unassigned": "Non assegnato",
+    "total": "totale",
+    "statusActive": "attivo",
+    "statusIdle": "inattivo",
+    "statusWaiting": "in attesa",
+    "statusError": "errore",
+    "searchPlaceholder": "Cerca agenti...",
+    "filter_all": "Tutti",
+    "filter_active": "Attivo",
+    "filter_idle": "Inattivo",
+    "filter_waiting": "In attesa",
+    "filter_error": "Errore",
+    "showing": "{{count}} di {{total}} mostrati",
+    "clearFilters": "Cancella filtri",
+    "noResults": "Nessun agente trovato"
   },
   "rightPanel": {
     "expandPanel": "Espandi pannello (Ctrl+\\)",

@@ -75,6 +75,31 @@ export function getContextBarColor(remainingPercent: number): string {
 }
 
 /**
+ * Status priority for sorting: active statuses first
+ */
+const STATUS_PRIORITY: Record<string, number> = {
+  working: 0,
+  waiting_permission: 1,
+  waiting: 2,
+  error: 3,
+  orphaned: 4,
+  idle: 5,
+  offline: 6,
+};
+
+/**
+ * Sort agents by activity: active statuses first, then by most recent activity
+ */
+export function sortAgentsByActivity(agents: Agent[]): Agent[] {
+  return [...agents].sort((a, b) => {
+    const priorityA = STATUS_PRIORITY[a.status] ?? 5;
+    const priorityB = STATUS_PRIORITY[b.status] ?? 5;
+    if (priorityA !== priorityB) return priorityA - priorityB;
+    return (b.lastActivity || 0) - (a.lastActivity || 0);
+  });
+}
+
+/**
  * Group agents by area ID
  */
 export function groupAgentsByArea(

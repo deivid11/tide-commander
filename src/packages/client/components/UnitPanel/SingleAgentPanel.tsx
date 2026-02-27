@@ -324,6 +324,9 @@ export function SingleAgentPanel({
       {/* Working Directory */}
       <WorkingDirectory cwd={agent.cwd} />
 
+      {/* Other Agents */}
+      <OtherAgentsSection currentAgentId={agent.id} />
+
       {/* Permission Mode */}
       <div className="unit-permission-mode">
         <div className="unit-stat-label">{t('unitPanel.permissions')}</div>
@@ -444,6 +447,59 @@ export function SingleAgentPanel({
     </div>
   );
 }
+
+// ============================================================================
+// OtherAgentsSection Component
+// ============================================================================
+
+const OtherAgentsSection = memo(function OtherAgentsSection({ currentAgentId }: { currentAgentId: string }) {
+  const { t } = useTranslation(['common']);
+  const state = useStore();
+  const customClasses = useCustomAgentClassesArray();
+  const [collapsed, setCollapsed] = useState(false);
+
+  const otherAgents = useMemo(() => {
+    const agents = Array.from(state.agents.values()).filter(a => a.id !== currentAgentId);
+    // Sort by most recent activity first
+    return [...agents].sort((a, b) => (b.lastActivity || 0) - (a.lastActivity || 0));
+  }, [state.agents, currentAgentId]);
+
+  if (otherAgents.length === 0) return null;
+
+  return (
+    <div className="unit-other-agents">
+      <div className="unit-other-agents-header" onClick={() => setCollapsed(!collapsed)}>
+        <div className="unit-stat-label">{t('unitPanel.otherAgents')} ({otherAgents.length})</div>
+        <span className="unit-other-agents-toggle">{collapsed ? '▶' : '▼'}</span>
+      </div>
+      {!collapsed && (
+        <div className="unit-other-agents-list">
+          {otherAgents.map(agent => {
+            const cc = getClassConfig(agent.class, customClasses);
+            return (
+              <div
+                key={agent.id}
+                className={`unit-other-agent-item ${agent.status}`}
+                onClick={() => store.selectAgent(agent.id)}
+              >
+                <span className="unit-other-agent-icon" style={{ background: `${cc.color}20` }}>
+                  {cc.icon}
+                </span>
+                <div className="unit-other-agent-info">
+                  <span className="unit-other-agent-name">{agent.name}</span>
+                  {agent.taskLabel && (
+                    <span className="unit-other-agent-task">{agent.taskLabel}</span>
+                  )}
+                </div>
+                <div className={`agent-status-dot ${agent.status}`} />
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+});
 
 // ============================================================================
 // RememberedPatternsSection Component
@@ -572,16 +628,28 @@ const ContextConfirmModal = memo(function ContextConfirmModal({
 const SupervisorHistoryItem = memo(function SupervisorHistoryItem({
   entry,
   defaultExpanded = false,
+  agent,
+  onAgentClick,
 }: SupervisorHistoryItemProps) {
   const { t } = useTranslation(['common']);
   const [expanded, setExpanded] = useState(defaultExpanded);
   const state = useStore();
+  const customClasses = useCustomAgentClassesArray();
   const { analysis } = entry;
   const hideCost = state.settings.hideCost;
 
   const statusDescription = filterCostText(analysis.statusDescription, hideCost);
   const recentWorkSummary = filterCostText(analysis.recentWorkSummary, hideCost);
   const concerns = analysis.concerns?.map((c) => filterCostText(c, hideCost)).filter((c) => c.length > 0);
+
+  const classConfig = agent ? getClassConfig(agent.class, customClasses) : null;
+
+  const handleAgentClick = (e: React.MouseEvent) => {
+    if (agent && onAgentClick) {
+      e.stopPropagation();
+      onAgentClick(agent.id);
+    }
+  };
 
   return (
     <div className="supervisor-history-item">
@@ -591,8 +659,19 @@ const SupervisorHistoryItem = memo(function SupervisorHistoryItem({
           style={{ background: PROGRESS_COLORS[analysis.progress] || '#888' }}
           title={analysis.progress}
         />
-        <span className="supervisor-history-status">{statusDescription}</span>
-        <span className="supervisor-history-time">{formatRelativeTime(entry.timestamp)}</span>
+        <div className="supervisor-history-item-content">
+          {agent && classConfig && (
+            <div className="supervisor-history-agent-line" onClick={handleAgentClick}>
+              <span className="supervisor-history-agent-icon">{classConfig.icon}</span>
+              <span className="supervisor-history-agent-name">{agent.name}</span>
+              <span className="supervisor-history-time">{formatRelativeTime(entry.timestamp)}</span>
+            </div>
+          )}
+          <div className="supervisor-history-status">{statusDescription}</div>
+        </div>
+        {!agent && (
+          <span className="supervisor-history-time">{formatRelativeTime(entry.timestamp)}</span>
+        )}
       </div>
       {expanded && (
         <div className="supervisor-history-item-details">

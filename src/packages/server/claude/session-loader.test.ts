@@ -199,7 +199,7 @@ describe('session-loader codex normalization', () => {
     });
   });
 
-  it('formats event_msg.task_complete with last_agent_message as assistant text', async () => {
+  it('silently skips event_msg.task_complete (handled by response_item.message)', async () => {
     const sessionId = 'session-task-complete';
     const sessionDir = path.join(tempHomeDir, '.codex', 'sessions', '2026', '02', '07');
     fs.mkdirSync(sessionDir, { recursive: true });
@@ -221,10 +221,7 @@ describe('session-loader codex normalization', () => {
     const history = await loadSession('/workspace/project', sessionId, 20, 0);
 
     expect(history).not.toBeNull();
-    expect(history?.messages).toHaveLength(1);
-    expect(history?.messages[0].type).toBe('assistant');
-    expect(history?.messages[0].content).toBe('Done.\n\n1. Fixed the bug\n2. Updated tests');
-    expect(history?.messages[0].content).not.toContain('[codex-event]');
+    expect(history?.messages).toHaveLength(0);
   });
 
   it('keeps unknown codex response_item payloads via fallback assistant message', async () => {

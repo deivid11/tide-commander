@@ -38,7 +38,9 @@ import {
 } from '../../store';
 import {
   STORAGE_KEYS,
+  getStorageBoolean,
   getStorageString,
+  setStorageBoolean,
 } from '../../utils/storage';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 
@@ -84,7 +86,7 @@ const LIVE_DUPLICATE_WINDOW_MS = 10_000;
 const HISTORY_OUTPUT_DUPLICATE_WINDOW_MS = 30_000;
 const HISTORY_ASSISTANT_OUTPUT_DUPLICATE_WINDOW_MS = 120_000;
 const MOBILE_CLOSE_SWIPE_MAX_OFFSET_PX = 128;
-const MOBILE_CLOSE_SWIPE_RELEASE_MS = 140;
+const MOBILE_CLOSE_SWIPE_RELEASE_MS = 95;
 
 function normalizeUserMessage(text: string): string {
   const parsedBoss = parseBossContext(text);
@@ -109,6 +111,30 @@ function isToolOrSystemOutput(text: string): boolean {
     || text.startsWith('🔄 [System]')
     || text.startsWith('📋 [System]')
     || text.startsWith('[System]');
+}
+
+function isPositionInArea(
+  pos: { x: number; z: number },
+  area: { type: string; center: { x: number; z: number }; width?: number; height?: number; radius?: number }
+): boolean {
+  if (area.type === 'rectangle' && area.width && area.height) {
+    const halfW = area.width / 2;
+    const halfH = area.height / 2;
+    return (
+      pos.x >= area.center.x - halfW &&
+      pos.x <= area.center.x + halfW &&
+      pos.z >= area.center.z - halfH &&
+      pos.z <= area.center.z + halfH
+    );
+  }
+
+  if (area.type === 'circle' && area.radius) {
+    const dx = pos.x - area.center.x;
+    const dz = pos.z - area.center.z;
+    return dx * dx + dz * dz <= area.radius * area.radius;
+  }
+
+  return false;
 }
 
 export interface GuakeOutputPanelProps {
@@ -166,15 +192,38 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
 
   // Get area folders for the active agent
   const areas = useAreas();
-  const agentArea = useMemo(() => {
+  const agentAreaDirectories = useMemo(() => {
     if (!activeAgentId) return null;
+    const matchedAreaIds = new Set<string>();
+    const matchedAreas: { id: string; name: string; directories: string[] }[] = [];
+
     for (const area of areas.values()) {
-      if (area.assignedAgentIds.includes(activeAgentId) && area.directories.length > 0) {
-        return area;
+      if (area.archived || area.directories.length === 0) continue;
+      if (area.assignedAgentIds.includes(activeAgentId)) {
+        matchedAreaIds.add(area.id);
+        matchedAreas.push(area);
       }
     }
-    return null;
-  }, [activeAgentId, areas]);
+
+    // Also include areas containing the agent position.
+    // This keeps folder badges visible when area assignment state is stale.
+    const agent = agents.get(activeAgentId);
+    if (agent) {
+      for (const area of areas.values()) {
+        if (area.archived || area.directories.length === 0 || matchedAreaIds.has(area.id)) continue;
+        if (isPositionInArea({ x: agent.position.x, z: agent.position.z }, area)) {
+          matchedAreaIds.add(area.id);
+          matchedAreas.push(area);
+        }
+      }
+    }
+
+    if (matchedAreas.length === 0) return null;
+
+    return matchedAreas.flatMap((area) => area.directories
+      .filter((dir) => dir && dir.trim().length > 0)
+      .map((dir) => ({ areaId: area.id, areaName: area.name, dir })));
+  }, [activeAgentId, areas, agents]);
 
   // Use extracted hooks
   const { terminalHeight, terminalRef, handleResizeStart } = useTerminalResize();
@@ -209,6 +258,9 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     if (oldSaved === 'true') return 'advanced';
     return 'simple';
   });
+  const [isFullscreen, setIsFullscreen] = useState(() =>
+    getStorageBoolean(STORAGE_KEYS.TERMINAL_FULLSCREEN, false)
+  );
 
   // Modal states
   const [imageModal, setImageModal] = useState<{ url: string; name: string } | null>(null);
@@ -251,6 +303,13 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
 
   // Use store's terminal state
   const isOpen = terminalOpen && activeAgent !== null;
+  const handleFullscreenToggle = useCallback(() => {
+    setIsFullscreen((previous) => {
+      const next = !previous;
+      setStorageBoolean(STORAGE_KEYS.TERMINAL_FULLSCREEN, next);
+      return next;
+    });
+  }, []);
 
   // History loader hook
   const historyLoader = useHistoryLoader({
@@ -921,7 +980,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
   if (!activeAgent) {
     if (isMobileWidth && mobileView === 'terminal' && selectedAgentIds.size === 0) {
       return (
-        <div ref={terminalRef} className="guake-terminal open" style={{ '--terminal-height': `${terminalHeight}%` } as React.CSSProperties}>
+        <div ref={terminalRef} className={`guake-terminal open ${isFullscreen ? 'fullscreen' : ''}`} style={{ '--terminal-height': `${terminalHeight}%` } as React.CSSProperties}>
           <div className="guake-content">
             <div className="guake-output" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6272a4' }}>
               <div style={{ textAlign: 'center' }}>
@@ -936,7 +995,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     }
     if (isMobileWidth && mobileView === 'terminal' && selectedAgentIds.size > 0) {
       return (
-        <div ref={terminalRef} className="guake-terminal open" style={{ '--terminal-height': `${terminalHeight}%` } as React.CSSProperties}>
+        <div ref={terminalRef} className={`guake-terminal open ${isFullscreen ? 'fullscreen' : ''}`} style={{ '--terminal-height': `${terminalHeight}%` } as React.CSSProperties}>
           <div className="guake-content">
             <div className="guake-output" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6272a4' }}>
               <div className="guake-empty loading">{t('terminal:empty.loadingTerminal')}<span className="loading-dots"><span></span><span></span><span></span></span></div>
@@ -994,7 +1053,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
   return (
     <div
       ref={terminalRef}
-      className={`guake-terminal ${isOpen ? 'open' : 'collapsed'} ${debugPanelOpen && isOpen ? 'with-debug-panel' : ''} ${overviewPanelOpen && isOpen ? 'with-overview-panel' : ''} ${draggingOver ? 'drag-over' : ''} ${mobileSwipeCloseOffset > 0 ? 'mobile-swipe-close-active' : ''} ${isMobileSwipeClosing ? 'mobile-swipe-close-closing' : ''}`}
+      className={`guake-terminal ${isOpen ? 'open' : 'collapsed'} ${isFullscreen && isOpen ? 'fullscreen' : ''} ${debugPanelOpen && isOpen ? 'with-debug-panel' : ''} ${overviewPanelOpen && isOpen ? 'with-overview-panel' : ''} ${draggingOver ? 'drag-over' : ''} ${mobileSwipeCloseOffset > 0 ? 'mobile-swipe-close-active' : ''} ${isMobileSwipeClosing ? 'mobile-swipe-close-closing' : ''}`}
       style={{ '--terminal-height': `${terminalHeight}%`, '--mobile-swipe-close-offset': `${mobileSwipeCloseOffset}px` } as React.CSSProperties}
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
@@ -1043,6 +1102,8 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
           setOverviewPanelOpen={setOverviewPanelOpen}
           agentInfoOpen={agentInfoOpen}
           onToggleAgentInfo={toggleAgentInfo}
+          isFullscreen={isFullscreen}
+          onToggleFullscreen={handleFullscreenToggle}
           outputsLength={dedupedHistory.length + dedupedOutputs.length}
           setContextConfirm={setContextConfirm}
           headerRef={swipe.headerRef}
@@ -1248,12 +1309,12 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
               📁 {activeAgent.cwd.split('/').filter(Boolean).slice(-2).join('/') || activeAgent.cwd}
             </span>
           )}
-          {agentArea && agentArea.directories.map((dir) => (
+          {agentAreaDirectories && agentAreaDirectories.map(({ areaId, areaName, dir }) => (
             <span
-              key={dir}
+              key={`${areaId}:${dir}`}
               className="guake-agent-area-dir"
-              title={dir}
-              onClick={() => store.openFileExplorerForAreaFolder(agentArea.id, dir)}
+              title={`${areaName}: ${dir}`}
+              onClick={() => store.openFileExplorerForAreaFolder(areaId, dir)}
             >
               📂 {dir.split('/').filter(Boolean).pop() || dir}
             </span>
@@ -1301,14 +1362,14 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
       </div>
 
       {/* Resize handle */}
-      {isOpen && <div className="guake-resize-handle" onMouseDown={handleResizeStart} title={t('common:rightPanel.dragToResize')} />}
+      {isOpen && !isFullscreen && <div className="guake-resize-handle" onMouseDown={handleResizeStart} title={t('common:rightPanel.dragToResize')} />}
 
       {/* Terminal handle */}
       <div
-        className="guake-handle"
+        className={`guake-handle ${isFullscreen && isOpen ? 'fullscreen' : ''}`}
         onClick={() => { if (isOpen) store.toggleTerminal(); }}
         onDoubleClick={() => { if (!isOpen) store.toggleTerminal(); }}
-        style={{ top: isOpen ? `min(${terminalHeight}%, calc(100vh - 72px))` : '0' }}
+        style={{ top: isOpen ? (isFullscreen ? 'calc(100vh - 72px)' : `min(${terminalHeight}%, calc(100vh - 72px))`) : '0' }}
       >
         <span className="guake-handle-icon">{isOpen ? '▲' : '▼'}</span>
         <span className="guake-handle-text">{activeAgent.name}</span>

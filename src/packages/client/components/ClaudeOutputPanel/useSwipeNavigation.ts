@@ -6,9 +6,10 @@
  */
 
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { store } from '../../store';
+import { store, useAreas, useToolExecutions } from '../../store';
 import { matchesShortcut } from '../../store/shortcuts';
-import { useSwipeGesture, useAgentOrder } from '../../hooks';
+import { useSwipeGesture } from '../../hooks';
+import { STORAGE_KEYS, getStorage } from '../../utils/storage';
 import type { Agent } from '../../../shared/types';
 
 export interface UseSwipeNavigationProps {
@@ -53,43 +54,102 @@ export function useSwipeNavigation({
   hasModalOpen = false,
   outputRef,
 }: UseSwipeNavigationProps): UseSwipeNavigationReturn {
-  // Get agents sorted by creation time as base
-  const baseAgents = useMemo(
-    () =>
-      Array.from(agents.values()).sort(
-        (a, b) => (a.createdAt || 0) - (b.createdAt || 0)
-      ),
-    [agents]
-  );
+  const areas = useAreas();
+  const toolExecutions = useToolExecutions();
 
-  // Use the same ordering hook as AgentBar for consistent navigation order
-  const { orderedAgents } = useAgentOrder(baseAgents);
-
-  // Group agents by their area while preserving custom order within each group
+  // Match Agent Overview ordering so keyboard/swipe navigation follows the same visual sequence.
   const sortedAgents = useMemo(() => {
-    const groups = new Map<string | null, { area: { name: string } | null; agents: Agent[] }>();
-
-    for (const agent of orderedAgents) {
-      const area = store.getAreaForAgent(agent.id);
-      const areaKey = area?.id || null;
-
-      if (!groups.has(areaKey)) {
-        groups.set(areaKey, { area: area ? { name: area.name } : null, agents: [] });
-      }
-      groups.get(areaKey)!.agents.push(agent);
+    type SortMode = 'name' | 'status' | 'recent';
+    type FilterMode = 'all' | 'working' | 'idle' | 'error';
+    interface AopConfig {
+      groupByArea: boolean;
+      sortMode: SortMode;
+      filterMode: FilterMode;
+      sameAreaOnly: boolean;
     }
 
-    // Sort groups: areas first (alphabetically), then unassigned
-    const groupArray = Array.from(groups.values());
-    groupArray.sort((a, b) => {
-      if (!a.area && b.area) return 1;
-      if (a.area && !b.area) return -1;
-      if (!a.area && !b.area) return 0;
-      return (a.area?.name || '').localeCompare(b.area?.name || '');
+    const aopConfig = getStorage<AopConfig>(STORAGE_KEYS.AOP_CONFIG, {
+      groupByArea: true,
+      sortMode: 'recent',
+      filterMode: 'all',
+      sameAreaOnly: false,
     });
 
-    return groupArray.flatMap((group) => group.agents);
-  }, [orderedAgents]);
+    const allAgents = Array.from(agents.values());
+    const state = store.getState();
+    const toolsByAgent = new Map<string, number>();
+    for (const exec of toolExecutions) {
+      if (!toolsByAgent.has(exec.agentId)) {
+        toolsByAgent.set(exec.agentId, exec.timestamp);
+      }
+    }
+
+    const agentAreaMap = new Map<string, string>();
+    for (const agent of allAgents) {
+      const area = store.getAreaForAgent(agent.id);
+      if (!area || area.archived) continue;
+      agentAreaMap.set(agent.id, area.id);
+    }
+
+    let filteredAgents = allAgents.filter((agent) => {
+      if (aopConfig.filterMode === 'working' && agent.status !== 'working') return false;
+      if (aopConfig.filterMode === 'idle' && agent.status !== 'idle') return false;
+      if (aopConfig.filterMode === 'error' && agent.status !== 'error') return false;
+
+      if (aopConfig.sameAreaOnly && selectedAgentId) {
+        const selectedAreaId = agentAreaMap.get(selectedAgentId) ?? null;
+        const agentAreaId = agentAreaMap.get(agent.id) ?? null;
+        if (selectedAreaId !== agentAreaId) return false;
+      }
+      return true;
+    });
+
+    const sortAgents = (list: Agent[]) => [...list].sort((a, b) => {
+      if (aopConfig.sortMode === 'name') return a.name.localeCompare(b.name);
+      if (aopConfig.sortMode === 'status') {
+        const hasInstruction = (agent: Agent) => {
+          if (agent.lastAssignedTask?.trim()) return true;
+          const outputs = state.agentOutputs.get(agent.id);
+          return !!outputs?.some((o) => o.isUserPrompt && o.text.trim().length > 0);
+        };
+        const aHasInstruction = hasInstruction(a);
+        const bHasInstruction = hasInstruction(b);
+        if (aHasInstruction !== bHasInstruction) return aHasInstruction ? -1 : 1;
+        const statusOrder = ['working', 'waiting_input', 'waiting_permission', 'error', 'idle', 'stopped'];
+        const statusDiff = statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status);
+        if (statusDiff !== 0) return statusDiff;
+        return a.name.localeCompare(b.name);
+      }
+      const aTime = toolsByAgent.get(a.id) || 0;
+      const bTime = toolsByAgent.get(b.id) || 0;
+      return bTime - aTime;
+    });
+
+    if (!aopConfig.groupByArea) {
+      return sortAgents(filteredAgents);
+    }
+
+    const result: Agent[] = [];
+    const used = new Set<string>();
+
+    for (const [areaId, area] of areas) {
+      if (area.archived) continue;
+      const areaAgents = filteredAgents.filter((agent) => agentAreaMap.get(agent.id) === areaId);
+      if (areaAgents.length > 0) {
+        const sortedAreaAgents = sortAgents(areaAgents);
+        result.push(...sortedAreaAgents);
+        for (const agent of sortedAreaAgents) {
+          used.add(agent.id);
+        }
+      }
+    }
+
+    const unassigned = sortAgents(filteredAgents.filter((agent) => !used.has(agent.id)));
+    result.push(...unassigned);
+    filteredAgents = result;
+
+    return filteredAgents;
+  }, [agents, areas, toolExecutions, selectedAgentId]);
 
   // Swipe animation state
   const [swipeOffset, setSwipeOffset] = useState(0);
@@ -215,6 +275,8 @@ export function useSwipeNavigation({
       const nextWorkingShortcut = shortcuts.find(s => s.id === 'next-working-agent');
       const prevAgentShortcut = shortcuts.find(s => s.id === 'prev-agent-terminal');
       const nextAgentShortcut = shortcuts.find(s => s.id === 'next-agent-terminal');
+      const isAltShiftNext = e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey && e.code === 'KeyJ';
+      const isAltShiftPrev = e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey && e.code === 'KeyK';
 
       // Previous working/unseen agent
       if (matchesShortcut(e, prevWorkingShortcut)) {
@@ -251,13 +313,13 @@ export function useSwipeNavigation({
         return;
       }
       // Previous agent
-      if (matchesShortcut(e, prevAgentShortcut)) {
+      if (matchesShortcut(e, prevAgentShortcut) || isAltShiftPrev) {
         e.preventDefault();
         handleSwipeRight();
         return;
       }
       // Next agent
-      if (matchesShortcut(e, nextAgentShortcut)) {
+      if (matchesShortcut(e, nextAgentShortcut) || isAltShiftNext) {
         e.preventDefault();
         handleSwipeLeft();
         return;

@@ -36,7 +36,7 @@ function getClassColor(agentClass: AgentClass): string {
 const MAX_VISIBLE_NOTIFICATIONS = 3;
 
 export function AgentNotificationProvider({ children }: { children: React.ReactNode }) {
-  const { t } = useTranslation(['notifications']);
+  const { t: _t } = useTranslation(['notifications']);
   const [notifications, setNotifications] = useState<AgentNotification[]>([]);
   const timeoutRefs = useRef<Map<string, number>>(new Map());
 
@@ -121,15 +121,13 @@ export function AgentNotificationProvider({ children }: { children: React.ReactN
               onClick={() => handleNotificationClick(notification)}
               style={{ '--agent-color': classColor } as React.CSSProperties}
             >
-              <div className="agent-notification-avatar">
-                <span className="agent-notification-icon">{classIcon}</span>
-              </div>
               <div className="agent-notification-content">
                 <div className="agent-notification-header">
+                  <span className="agent-notification-icon">{classIcon}</span>
                   <span className="agent-notification-name">{notification.agentName}</span>
-                  <span className="agent-notification-hint">{t('notifications:agent.clickToFocus')}</span>
+                  <span className="agent-notification-separator">&middot;</span>
+                  <span className="agent-notification-title">{notification.title}</span>
                 </div>
-                <div className="agent-notification-title">{notification.title}</div>
                 <div className="agent-notification-message">{notification.message}</div>
               </div>
               <button

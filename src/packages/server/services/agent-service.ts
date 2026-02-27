@@ -25,14 +25,6 @@ const agents = new Map<string, Agent>();
 type AgentListener = (event: string, agent: Agent | string) => void;
 const listeners = new Set<AgentListener>();
 
-// Track agents that were working before server restart (for auto-resume)
-interface AgentToResume {
-  id: string;
-  name: string;
-  lastTask: string;
-  sessionId?: string;
-}
-const agentsToResume: AgentToResume[] = [];
 
 // Track agents with pending property updates that need notification on next command
 // These are changes that affect the agent's behavior but don't require session restart
@@ -69,13 +61,9 @@ export function sanitizeCodexModel(model: unknown): CodexModel | undefined {
 // Initialization
 // ============================================================================
 
-// Max age for auto-resume (5 minutes) - only resume if task was assigned recently
-const AUTO_RESUME_MAX_AGE_MS = 5 * 60 * 1000;
-
 export function initAgents(): void {
   try {
     const storedAgents = loadAgents();
-    const now = Date.now();
 
     for (const stored of storedAgents) {
       const contextLimit = stored.contextLimit ?? 200000;
@@ -88,27 +76,6 @@ export function initAgents(): void {
       // Don't clamp to contextLimit - contextUsed can legitimately exceed the default
       // 200k limit for models with larger context windows (up to 1M).
       const contextUsed = Math.max(0, persistedContextUsed);
-
-      // Track agents that were working before restart
-      // Use lastAssignedTask (which persists) instead of currentTask (which gets cleared)
-      // Only resume if task was assigned within the last 5 minutes
-      // Skip if lastAssignedTask is a system auto-resume message (avoid recursive loop)
-      const taskAge = stored.lastAssignedTaskTime ? now - stored.lastAssignedTaskTime : Infinity;
-      const isSystemMessage = stored.lastAssignedTask?.startsWith('[System:');
-      const wasRecentlyWorking = stored.lastAssignedTask && stored.sessionId && taskAge < AUTO_RESUME_MAX_AGE_MS && !isSystemMessage;
-
-      if (wasRecentlyWorking) {
-        agentsToResume.push({
-          id: stored.id,
-          name: stored.name,
-          lastTask: stored.lastAssignedTask!,
-          sessionId: stored.sessionId,
-        });
-        const ageSeconds = Math.round(taskAge / 1000);
-        log.log(` Agent ${stored.name} was working ${ageSeconds}s ago on: "${stored.lastAssignedTask}" - will auto-resume`);
-      } else if (isSystemMessage) {
-        log.log(` Agent ${stored.name} skipped auto-resume: lastAssignedTask is a system message`);
-      }
 
       const agent: Agent = {
         ...stored,
@@ -132,27 +99,9 @@ export function initAgents(): void {
       agents.set(agent.id, agent);
     }
     log.log(` Loaded ${agents.size} agents from ${getDataDir()}`);
-    if (agentsToResume.length > 0) {
-      log.log(` ${agentsToResume.length} agent(s) will be auto-resumed`);
-    }
   } catch (err) {
     log.error(' Failed to load agents:', err);
   }
-}
-
-/**
- * Get list of agents that were working before server restart
- * These should be auto-resumed to continue their tasks
- */
-export function getAgentsToResume(): AgentToResume[] {
-  return [...agentsToResume];
-}
-
-/**
- * Clear the list of agents to resume (call after auto-resume completes)
- */
-export function clearAgentsToResume(): void {
-  agentsToResume.length = 0;
 }
 
 export function persistAgents(): void {

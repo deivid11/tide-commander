@@ -248,7 +248,8 @@
     "clearContextBtn": "Kontext leeren",
     "removePattern": "Dieses Muster entfernen",
     "agentsCount": "{{count}} Agenten",
-    "confidence": "Konfidenz: {{level}}"
+    "confidence": "Konfidenz: {{level}}",
+    "otherAgents": "Andere Agenten"
   },
   "multiAgent": {
     "agentsSelected": "{{count}} Agenten ausgewählt",
@@ -262,7 +263,21 @@
     "areasAndAgents": "Bereiche & Agenten",
     "browseFiles": "Dateien durchsuchen",
     "supervisorStatus": "Supervisor-Status",
-    "unassigned": "Nicht zugewiesen"
+    "unassigned": "Nicht zugewiesen",
+    "total": "gesamt",
+    "statusActive": "aktiv",
+    "statusIdle": "inaktiv",
+    "statusWaiting": "wartet",
+    "statusError": "Fehler",
+    "searchPlaceholder": "Agenten suchen...",
+    "filter_all": "Alle",
+    "filter_active": "Aktiv",
+    "filter_idle": "Inaktiv",
+    "filter_waiting": "Wartet",
+    "filter_error": "Fehler",
+    "showing": "{{count}} von {{total}} angezeigt",
+    "clearFilters": "Filter löschen",
+    "noResults": "Keine Agenten gefunden"
   },
   "rightPanel": {
     "expandPanel": "Panel aufklappen (Strg+\\)",

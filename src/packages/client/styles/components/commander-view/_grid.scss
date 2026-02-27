@@ -1134,4 +1134,16 @@
   .agent-panel-name {
     font-size: 13px;
   }
+
+  // Wrap info row so taskLabel drops below name/badges
+  .agent-panel-info {
+    flex-wrap: wrap;
+  }
+
+  .agent-panel-task {
+    flex: 0 0 100%;
+    font-size: 9px;
+    margin-top: 2px;
+    padding-left: 14px; // align with name (past status dot)
+  }
 }

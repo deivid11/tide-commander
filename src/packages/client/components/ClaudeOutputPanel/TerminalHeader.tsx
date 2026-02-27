@@ -7,7 +7,6 @@
 import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { store, useSupervisor, useSettings, useLastPrompt, useSubagentsForAgent, useCustomAgentClass } from '../../store';
-import { filterCostText } from '../../utils/formatting';
 import { STORAGE_KEYS, setStorageString } from '../../utils/storage';
 import { agentDebugger } from '../../services/agentDebugger';
 import { Tooltip } from '../shared/Tooltip';
@@ -45,6 +44,10 @@ export interface TerminalHeaderProps {
   agentInfoOpen?: boolean;
   /** Callback to open/close agent info modal */
   onToggleAgentInfo?: () => void;
+  /** Fullscreen state for terminal */
+  isFullscreen?: boolean;
+  /** Toggle terminal fullscreen mode */
+  onToggleFullscreen?: () => void;
 }
 
 export const TerminalHeader = memo(function TerminalHeader({
@@ -70,10 +73,12 @@ export const TerminalHeader = memo(function TerminalHeader({
   setOverviewPanelOpen,
   agentInfoOpen = false,
   onToggleAgentInfo,
+  isFullscreen = false,
+  onToggleFullscreen,
 }: TerminalHeaderProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const supervisor = useSupervisor();
-  const settings = useSettings();
+  const _settings = useSettings();
   const lastPrompt = useLastPrompt(selectedAgentId);
 
   const handleViewModeToggle = () => {
@@ -124,10 +129,6 @@ export const TerminalHeader = memo(function TerminalHeader({
     completed: '#4a9eff',
     idle: '#888',
   };
-
-  const filteredStatus = agentAnalysis?.statusDescription
-    ? filterCostText(agentAnalysis.statusDescription, settings.hideCost)
-    : null;
 
   // Check if selected agent is a boss with subordinates
   const isBoss = selectedAgent.class === 'boss' || selectedAgent.isBoss;
@@ -249,8 +250,7 @@ export const TerminalHeader = memo(function TerminalHeader({
             {selectedAgent.taskLabel && (
               <span className="guake-task-label">📋 {selectedAgent.taskLabel}</span>
             )}
-            {filteredStatus && <span className="guake-supervisor-summary">{filteredStatus}</span>}
-            {!filteredStatus && !selectedAgent.taskLabel && lastInput && <span className="guake-last-input">{lastInput}</span>}
+            {!selectedAgent.taskLabel && lastInput && <span className="guake-last-input">{lastInput}</span>}
           </span>
         )}
         {subagents.length > 0 && (
@@ -309,6 +309,13 @@ export const TerminalHeader = memo(function TerminalHeader({
             🐛
           </button>
         )}
+        <button
+          className={`guake-fullscreen-toggle hide-on-mobile ${isFullscreen ? 'active' : ''}`}
+          onClick={onToggleFullscreen}
+          title={isFullscreen ? t('terminal:header.exitFullscreen') : t('terminal:header.enterFullscreen')}
+        >
+          {isFullscreen ? '🗗' : '⛶'}
+        </button>
         <button
           className={`guake-search-toggle hide-on-mobile ${searchMode ? 'active' : ''}`}
           onClick={handleSearchToggle}
@@ -408,6 +415,13 @@ export const TerminalHeader = memo(function TerminalHeader({
                     {t('terminal:header.saveSnapshot')}
                   </button>
                 )}
+                <button
+                  className={`guake-mobile-menu-item ${isFullscreen ? 'active' : ''}`}
+                  onClick={() => { onToggleFullscreen?.(); closeMobileMenu(); }}
+                >
+                  <span className="guake-mobile-menu-icon">{isFullscreen ? '🗗' : '⛶'}</span>
+                  {isFullscreen ? t('terminal:header.exitFullscreen') : t('terminal:header.enterFullscreen')}
+                </button>
                 <button
                   className="guake-mobile-menu-item"
                   onClick={() => { handleSearchToggle(); closeMobileMenu(); }}

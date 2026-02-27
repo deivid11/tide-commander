@@ -248,7 +248,8 @@
     "clearContextBtn": "Очистить контекст",
     "removePattern": "Удалить этот шаблон",
     "agentsCount": "{{count}} агентов",
-    "confidence": "Уверенность: {{level}}"
+    "confidence": "Уверенность: {{level}}",
+    "otherAgents": "Другие агенты"
   },
   "multiAgent": {
     "agentsSelected": "{{count}} агентов выбрано",
@@ -262,7 +263,21 @@
     "areasAndAgents": "Зоны и агенты",
     "browseFiles": "Обзор файлов",
     "supervisorStatus": "Статус супервизора",
-    "unassigned": "Не назначен"
+    "unassigned": "Не назначен",
+    "total": "всего",
+    "statusActive": "активен",
+    "statusIdle": "простой",
+    "statusWaiting": "ожидание",
+    "statusError": "ошибка",
+    "searchPlaceholder": "Поиск агентов...",
+    "filter_all": "Все",
+    "filter_active": "Активен",
+    "filter_idle": "Простой",
+    "filter_waiting": "Ожидание",
+    "filter_error": "Ошибка",
+    "showing": "Показано {{count}} из {{total}}",
+    "clearFilters": "Сбросить фильтры",
+    "noResults": "Агенты не найдены"
   },
   "rightPanel": {
     "expandPanel": "Развернуть панель (Ctrl+\\)",

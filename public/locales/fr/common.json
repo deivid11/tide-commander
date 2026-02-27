@@ -248,7 +248,8 @@
     "clearContextBtn": "Effacer le contexte",
     "removePattern": "Retirer ce modèle",
     "agentsCount": "{{count}} agents",
-    "confidence": "Confiance : {{level}}"
+    "confidence": "Confiance : {{level}}",
+    "otherAgents": "Autres agents"
   },
   "multiAgent": {
     "agentsSelected": "{{count}} agents sélectionnés",
@@ -262,7 +263,21 @@
     "areasAndAgents": "Zones et agents",
     "browseFiles": "Parcourir les fichiers",
     "supervisorStatus": "Statut du superviseur",
-    "unassigned": "Non assigné"
+    "unassigned": "Non assigné",
+    "total": "total",
+    "statusActive": "actif",
+    "statusIdle": "inactif",
+    "statusWaiting": "en attente",
+    "statusError": "erreur",
+    "searchPlaceholder": "Rechercher des agents...",
+    "filter_all": "Tous",
+    "filter_active": "Actif",
+    "filter_idle": "Inactif",
+    "filter_waiting": "En attente",
+    "filter_error": "Erreur",
+    "showing": "{{count}} sur {{total}} affichés",
+    "clearFilters": "Effacer les filtres",
+    "noResults": "Aucun agent trouvé"
   },
   "rightPanel": {
     "expandPanel": "Développer le panneau (Ctrl+\\)",

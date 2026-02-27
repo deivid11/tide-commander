@@ -6,17 +6,21 @@
  * Inspired by the AgentDebugPanel layout.
  */
 
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   useAgentsArray,
+  useAgentsWithUnseenOutput,
+  useCustomAgentClassesArray,
   useToolExecutions,
   useSubagents,
   useAreas,
+  useFileChanges,
   store,
 } from '../../store';
 import { TOOL_ICONS, formatTimestamp } from '../../utils/outputRendering';
 import { STORAGE_KEYS, getStorage, setStorage } from '../../utils/storage';
+import { getClassConfig } from '../../utils/classConfig';
 import type { Agent, Subagent, DrawingArea } from '../../../shared/types';
 import type { ToolExecution, ClaudeOutput } from '../../store/types';
 
@@ -26,6 +30,9 @@ interface AopConfig {
   sortMode: SortMode;
   filterMode: FilterMode;
   allExpanded: boolean; // true = expand all by default, false = collapse all
+  sameAreaOnly: boolean; // only show agents in the same area as the active agent
+  showSubagents: boolean; // show subagents section in expanded cards
+  showRecentActivity: boolean; // show recent activity section in expanded cards
 }
 
 interface AgentOverviewPanelProps {
@@ -87,10 +94,26 @@ function getMessageCount(agentId: string): number {
   return count;
 }
 
+/** True when agent has any explicit user instruction (assigned task or user prompt output) */
+function hasUserInstruction(agent: Agent): boolean {
+  if (agent.lastAssignedTask?.trim()) return true;
+
+  const outputs = store.getState().agentOutputs.get(agent.id);
+  if (!outputs) return false;
+
+  return outputs.some(o => o.isUserPrompt && o.text.trim().length > 0);
+}
+
 /** Truncate text with ellipsis */
 function truncate(text: string, maxLen: number): string {
   const line = text.split('\n')[0];
   return line.length > maxLen ? line.slice(0, maxLen) + '...' : line;
+}
+
+/** Context about why an agent matched a search query (for non-obvious matches) */
+interface SearchMatchContext {
+  type: 'task' | 'history' | 'file';
+  text: string;
 }
 
 interface AreaGroup {
@@ -101,9 +124,20 @@ interface AreaGroup {
 export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent }: AgentOverviewPanelProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const agents = useAgentsArray();
+  const agentsWithUnseenOutput = useAgentsWithUnseenOutput();
   const toolExecutions = useToolExecutions();
   const subagents = useSubagents();
   const areas = useAreas();
+  const fileChanges = useFileChanges();
+
+  // Request supervisor history for all agents (enables deep search)
+  useEffect(() => {
+    for (const agent of agents) {
+      if (!store.hasHistoryBeenFetched(agent.id) && !store.isLoadingHistoryForAgent(agent.id)) {
+        store.requestAgentSupervisorHistory(agent.id);
+      }
+    }
+  }, [agents]);
 
   // Load persisted config from localStorage
   const savedConfig = useMemo(() => getStorage<AopConfig>(STORAGE_KEYS.AOP_CONFIG, {
@@ -111,6 +145,9 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent }: Ag
     sortMode: 'recent',
     filterMode: 'all',
     allExpanded: false,
+    sameAreaOnly: false,
+    showSubagents: true,
+    showRecentActivity: true,
   }), []);
 
   const [expandedAgents, setExpandedAgents] = useState<Set<string>>(() =>
@@ -122,23 +159,53 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent }: Ag
   const [searchQuery, setSearchQuery] = useState('');
   const [groupByArea, setGroupByArea] = useState(savedConfig.groupByArea);
   const [allExpanded, setAllExpanded] = useState(savedConfig.allExpanded);
+  const [sameAreaOnly, setSameAreaOnly] = useState(savedConfig.sameAreaOnly);
+  const [showSubagents, setShowSubagents] = useState(savedConfig.showSubagents);
+  const [showRecentActivity, setShowRecentActivity] = useState(savedConfig.showRecentActivity);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Focus overview search with Alt+Shift+F when panel is open.
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const isFocusSearchShortcut = event.altKey
+        && event.shiftKey
+        && !event.ctrlKey
+        && !event.metaKey
+        && event.code === 'KeyF';
+
+      if (!isFocusSearchShortcut) return;
+      event.preventDefault();
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+    };
+
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
+  }, []);
 
   // Persist config changes to localStorage
   useEffect(() => {
-    setStorage(STORAGE_KEYS.AOP_CONFIG, { groupByArea, sortMode, filterMode, allExpanded } as AopConfig);
-  }, [groupByArea, sortMode, filterMode, allExpanded]);
+    setStorage(STORAGE_KEYS.AOP_CONFIG, {
+      groupByArea,
+      sortMode,
+      filterMode,
+      allExpanded,
+      sameAreaOnly,
+      showSubagents,
+      showRecentActivity,
+    } as AopConfig);
+  }, [groupByArea, sortMode, filterMode, allExpanded, sameAreaOnly, showSubagents, showRecentActivity]);
 
   // Map agent -> area info (color + name) for badge display
   const agentAreaInfo = useMemo(() => {
     const map = new Map<string, { color: string; name: string }>();
-    for (const [, area] of areas) {
-      if (area.archived) continue;
-      for (const agentId of area.assignedAgentIds) {
-        map.set(agentId, { color: area.color, name: area.name });
-      }
+    for (const agent of agents) {
+      const area = store.getAreaForAgent(agent.id);
+      if (!area || area.archived) continue;
+      map.set(agent.id, { color: area.color, name: area.name });
     }
     return map;
-  }, [areas]);
+  }, [agents, areas]);
 
   // Group tool executions by agent
   const toolsByAgent = useMemo(() => {
@@ -162,27 +229,94 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent }: Ag
     return map;
   }, [subagents]);
 
-  // Filter agents
-  const filteredAgents = useMemo(() => {
-    return agents.filter(a => {
+  // Map agent ID → area ID for efficient lookups
+  const agentToAreaId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const agent of agents) {
+      const area = store.getAreaForAgent(agent.id);
+      if (!area || area.archived) continue;
+      map.set(agent.id, area.id);
+    }
+    return map;
+  }, [agents, areas]);
+
+  // Filter agents — deep search through supervisor history, file changes, and user tasks
+  const [filteredAgents, searchMatchContexts] = useMemo(() => {
+    const activeAreaId = agentToAreaId.get(activeAgentId) ?? null;
+    const contexts = new Map<string, SearchMatchContext>();
+
+    const result = agents.filter(a => {
       if (filterMode === 'working' && a.status !== 'working') return false;
       if (filterMode === 'idle' && a.status !== 'idle') return false;
       if (filterMode === 'error' && a.status !== 'error') return false;
+      if (sameAreaOnly) {
+        const aAreaId = agentToAreaId.get(a.id) ?? null;
+        if (aAreaId !== activeAreaId) return false;
+      }
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
-        return a.name.toLowerCase().includes(q) || a.id.includes(q) || (a.class || '').toLowerCase().includes(q);
+
+        // Basic fields (match is visible directly in the card UI)
+        if (
+          a.name.toLowerCase().includes(q)
+          || a.id.includes(q)
+          || (a.class || '').toLowerCase().includes(q)
+          || (a.taskLabel || '').toLowerCase().includes(q)
+        ) {
+          return true;
+        }
+
+        // Full user instruction (lastAssignedTask is longer than taskLabel)
+        const task = a.lastAssignedTask || '';
+        if (task.toLowerCase().includes(q)) {
+          contexts.set(a.id, { type: 'task', text: task });
+          return true;
+        }
+
+        // Supervisor history (status descriptions + work summaries)
+        const history = store.getAgentSupervisorHistory(a.id);
+        for (const entry of history) {
+          const summary = entry.analysis.recentWorkSummary;
+          const desc = entry.analysis.statusDescription;
+          if (summary.toLowerCase().includes(q)) {
+            contexts.set(a.id, { type: 'history', text: summary });
+            return true;
+          }
+          if (desc.toLowerCase().includes(q)) {
+            contexts.set(a.id, { type: 'history', text: desc });
+            return true;
+          }
+        }
+
+        // File changes
+        for (const fc of fileChanges) {
+          if (fc.agentId === a.id && fc.filePath.toLowerCase().includes(q)) {
+            contexts.set(a.id, { type: 'file', text: fc.filePath });
+            return true;
+          }
+        }
+
+        return false;
       }
       return true;
     });
-  }, [agents, filterMode, searchQuery]);
+
+    return [result, contexts] as const;
+  }, [agents, filterMode, searchQuery, sameAreaOnly, agentToAreaId, activeAgentId, fileChanges]);
 
   // Sort agents within groups
   const sortAgents = useCallback((list: Agent[]) => {
     return [...list].sort((a, b) => {
       if (sortMode === 'name') return a.name.localeCompare(b.name);
       if (sortMode === 'status') {
+        const aHasInstruction = hasUserInstruction(a);
+        const bHasInstruction = hasUserInstruction(b);
+        if (aHasInstruction !== bHasInstruction) return aHasInstruction ? -1 : 1;
+
         const statusOrder = ['working', 'waiting_input', 'waiting_permission', 'error', 'idle', 'stopped'];
-        return statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status);
+        const statusCmp = statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status);
+        if (statusCmp !== 0) return statusCmp;
+        return a.name.localeCompare(b.name);
       }
       const aTime = (toolsByAgent.get(a.id) || [])[0]?.timestamp || 0;
       const bTime = (toolsByAgent.get(b.id) || [])[0]?.timestamp || 0;
@@ -197,29 +331,31 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent }: Ag
       return [{ area: null, agents: sortAgents(filteredAgents) }] as AreaGroup[];
     }
 
-    const agentAreaMap = new Map<string, string>();
-    for (const [areaId, area] of areas) {
-      if (area.archived) continue;
-      for (const agentId of area.assignedAgentIds) {
-        agentAreaMap.set(agentId, areaId);
+    const agentsByAreaId = new Map<string, Agent[]>();
+    const unassignedAgents: Agent[] = [];
+    for (const agent of filteredAgents) {
+      const area = store.getAreaForAgent(agent.id);
+      if (!area || area.archived) {
+        unassignedAgents.push(agent);
+        continue;
       }
+      const list = agentsByAreaId.get(area.id);
+      if (list) list.push(agent);
+      else agentsByAreaId.set(area.id, [agent]);
     }
 
     const groups: AreaGroup[] = [];
-    const usedAgentIds = new Set<string>();
 
     for (const [areaId, area] of areas) {
       if (area.archived) continue;
-      const areaAgents = filteredAgents.filter(a => agentAreaMap.get(a.id) === areaId);
+      const areaAgents = agentsByAreaId.get(areaId) || [];
       if (areaAgents.length > 0) {
         groups.push({ area, agents: sortAgents(areaAgents) });
-        areaAgents.forEach(a => usedAgentIds.add(a.id));
       }
     }
 
-    const unassigned = filteredAgents.filter(a => !usedAgentIds.has(a.id));
-    if (unassigned.length > 0) {
-      groups.push({ area: null, agents: sortAgents(unassigned) });
+    if (unassignedAgents.length > 0) {
+      groups.push({ area: null, agents: sortAgents(unassignedAgents) });
     }
 
     return groups;
@@ -301,10 +437,21 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent }: Ag
           <option value="name">{t('terminal:overview.byName')}</option>
         </select>
         <input
+          ref={searchInputRef}
           type="text"
           placeholder={t('terminal:overview.searchAgents')}
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
+          onKeyDown={e => {
+            if (e.key !== 'Enter') return;
+            if (e.nativeEvent.isComposing) return;
+            if (searchQuery.trim().length === 0) return;
+            if (filteredAgents.length === 0) return;
+
+            e.preventDefault();
+            onSelectAgent(filteredAgents[0].id);
+            setSearchQuery('');
+          }}
           className="search-input"
         />
       </div>
@@ -317,15 +464,18 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent }: Ag
         <button onClick={collapseAll} className="action-btn" title={t('common:buttons.collapse')}>
           {t('common:buttons.collapse')}
         </button>
-        <label className="aop-group-toggle" title={t('terminal:overview.areas')}>
-          <input
-            type="checkbox"
-            checked={groupByArea}
-            onChange={e => setGroupByArea(e.target.checked)}
-          />
-          <span className="toggle-switch" />
-          <span className="toggle-label">{t('terminal:overview.areas')}</span>
-        </label>
+        <button onClick={() => setGroupByArea(v => !v)} className={`action-btn action-btn--toggle${groupByArea ? ' active' : ''}`} title={t('terminal:overview.areas')}>
+          {t('terminal:overview.areas')}
+        </button>
+        <button onClick={() => setSameAreaOnly(v => !v)} className={`action-btn action-btn--toggle${sameAreaOnly ? ' active' : ''}`} title={t('terminal:overview.sameAreaOnly')}>
+          {t('terminal:overview.sameAreaOnly')}
+        </button>
+        <button onClick={() => setShowSubagents(v => !v)} className={`action-btn action-btn--toggle${showSubagents ? ' active' : ''}`} title="Subagents">
+          Subagents
+        </button>
+        <button onClick={() => setShowRecentActivity(v => !v)} className={`action-btn action-btn--toggle${showRecentActivity ? ' active' : ''}`} title={t('terminal:overview.recentActivity')}>
+          Activity
+        </button>
       </div>
 
       {/* Agent List grouped by area */}
@@ -356,19 +506,28 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent }: Ag
                     <span className="aop-area-count">{group.agents.length}</span>
                   </div>
                 )}
-                {(!groupByArea || !isCollapsed) && group.agents.map(agent => (
-                  <AgentCard
-                    key={agent.id}
-                    agent={agent}
-                    isActive={agent.id === activeAgentId}
-                    isExpanded={expandedAgents.has(agent.id)}
-                    toolExecs={toolsByAgent.get(agent.id) || []}
-                    subagents={subagentsByParent.get(agent.id) || []}
-                    areaInfo={agentAreaInfo.get(agent.id)}
-                    onToggle={() => toggleAgent(agent.id)}
-                    onSelect={() => onSelectAgent(agent.id)}
-                  />
-                ))}
+                {(!groupByArea || !isCollapsed) && (
+                  <div className={groupByArea ? 'aop-area-content' : undefined}>
+                    {group.agents.map(agent => (
+                      <AgentCard
+                        key={agent.id}
+                        agent={agent}
+                        isActive={agent.id === activeAgentId}
+                        isExpanded={expandedAgents.has(agent.id)}
+                        hasPendingRead={agentsWithUnseenOutput.has(agent.id)}
+                        showSubagents={showSubagents}
+                        showRecentActivity={showRecentActivity}
+                        showAreaChip={!groupByArea}
+                        toolExecs={toolsByAgent.get(agent.id) || []}
+                        subagents={subagentsByParent.get(agent.id) || []}
+                        areaInfo={agentAreaInfo.get(agent.id)}
+                        matchContext={searchMatchContexts.get(agent.id)}
+                        onToggle={() => toggleAgent(agent.id)}
+                        onSelect={() => onSelectAgent(agent.id)}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })
@@ -386,9 +545,14 @@ interface AgentCardProps {
   agent: Agent;
   isActive: boolean;
   isExpanded: boolean;
+  hasPendingRead: boolean;
+  showSubagents: boolean;
+  showRecentActivity: boolean;
+  showAreaChip: boolean;
   toolExecs: ToolExecution[];
   subagents: Subagent[];
   areaInfo?: { color: string; name: string };
+  matchContext?: SearchMatchContext;
   onToggle: () => void;
   onSelect: () => void;
 }
@@ -403,8 +567,24 @@ interface SubagentEntry {
   timestamp: number;
 }
 
-function AgentCard({ agent, isActive, isExpanded, toolExecs, subagents, areaInfo, onToggle, onSelect }: AgentCardProps) {
+function AgentCard({
+  agent,
+  isActive,
+  isExpanded,
+  hasPendingRead,
+  showSubagents,
+  showRecentActivity,
+  showAreaChip,
+  toolExecs,
+  subagents,
+  areaInfo,
+  matchContext,
+  onToggle,
+  onSelect,
+}: AgentCardProps) {
   const { t } = useTranslation(['terminal', 'common']);
+  const customClasses = useCustomAgentClassesArray();
+  const classConfig = getClassConfig(agent.class, customClasses);
   const statusIcon = STATUS_ICONS[agent.status] || '❓';
   const statusLabel = STATUS_LABEL_KEYS[agent.status] ? t(`terminal:${STATUS_LABEL_KEYS[agent.status]}`) : agent.status;
   const recentTools = toolExecs.slice(0, 8);
@@ -452,35 +632,58 @@ function AgentCard({ agent, isActive, isExpanded, toolExecs, subagents, areaInfo
   }, [subagents, toolExecs]);
 
   const activeSubagents = allSubagentEntries.filter(s => s.status === 'working' || s.status === 'spawning');
+  const hasVisibleSubagents = showSubagents && allSubagentEntries.length > 0;
+  const hasVisibleRecentActivity = showRecentActivity && recentTools.length > 0;
+  const hasAnyVisibleSection = hasVisibleSubagents || hasVisibleRecentActivity;
+  const contextUsageRatio = agent.contextLimit > 0 ? agent.contextUsed / agent.contextLimit : 0;
+  const contextUsagePercent = Math.min(100, contextUsageRatio * 100);
+  const clampedContextRatio = Math.min(1, Math.max(0, contextUsageRatio));
+  const contextHue = Math.round((1 - clampedContextRatio) * 120); // 120=green, 0=red
+  const contextFillColor = `hsl(${contextHue} 80% 45% / 0.55)`;
 
   return (
-    <div className={`aop-agent-card ${isActive ? 'active' : ''} ${agent.status}`}>
+    <div
+      className={`aop-agent-card ${isActive ? 'active' : ''} ${agent.status} ${hasPendingRead ? 'unread' : ''}`}
+      onClick={onSelect}
+    >
       {/* Card Header - always visible */}
-      <div className="aop-agent-header" onClick={onToggle}>
-        <span className="aop-expand-icon">{isExpanded ? '▾' : '▸'}</span>
+      <div className="aop-agent-header">
+        <button
+          type="button"
+          className="aop-expand-icon"
+          aria-label={isExpanded ? 'Collapse agent' : 'Expand agent'}
+          onClick={e => {
+            e.stopPropagation();
+            onToggle();
+          }}
+        >
+          {isExpanded ? '▾' : '▸'}
+        </button>
         <span className="aop-agent-status" title={statusLabel}>{statusIcon}</span>
+        <img
+          src={agent.provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
+          alt={agent.provider}
+          className="aop-provider-icon"
+          title={agent.provider === 'codex' ? 'Codex Agent' : 'Claude Agent'}
+        />
         <span
           className="aop-agent-name"
-          onClick={e => { e.stopPropagation(); onSelect(); }}
           title={t('terminal:overview.clickToSwitch')}
           style={areaInfo ? { background: `${areaInfo.color}22`, borderColor: `${areaInfo.color}44` } : undefined}
         >
           {agent.name}
         </span>
-        {areaInfo && (
-          <span
-            className="aop-area-chip"
-            style={{ background: `${areaInfo.color}20`, borderColor: `${areaInfo.color}40`, color: areaInfo.color }}
-          >
-            {areaInfo.name}
-          </span>
+        <span className="aop-agent-class-icon" style={{ color: classConfig.color }} title={agent.class || 'agent'}>
+          {classConfig.icon}
+        </span>
+        {hasPendingRead && (
+          <span className="aop-pending-read-indicator" title="Pending read">!</span>
         )}
         {msgCount > 0 && (
           <span className="aop-msg-count" title={t('terminal:overview.messages', { count: msgCount })}>
             {msgCount}
           </span>
         )}
-        {agent.class && <span className="aop-agent-class">{agent.class}</span>}
         {activeSubagents.length > 0 && (
           <span className="aop-subagent-count" title={activeSubagents.map(s => `${s.name}: ${s.description || s.type}`).join('\n')}>
             ⑂{activeSubagents.length}
@@ -491,10 +694,34 @@ function AgentCard({ agent, isActive, isExpanded, toolExecs, subagents, areaInfo
             ⑂{allSubagentEntries.length}
           </span>
         )}
+        {agent.class && (
+          <span
+            className="aop-agent-class"
+            style={{ color: classConfig.color, background: `${classConfig.color}20`, borderColor: `${classConfig.color}40` }}
+          >
+            {agent.class}
+          </span>
+        )}
+        {showAreaChip && areaInfo && (
+          <span
+            className="aop-area-chip"
+            style={{ background: `${areaInfo.color}20`, borderColor: `${areaInfo.color}40`, color: areaInfo.color }}
+          >
+            {areaInfo.name}
+          </span>
+        )}
       </div>
 
-      {/* Last message preview - always visible below header */}
-      {lastMsg && (
+      {/* Task label preview - always visible when available */}
+      {agent.taskLabel && (
+        <div className="aop-task-label" title={agent.taskLabel}>
+          <span className="task-prefix">📋</span>
+          <span className="task-text">{truncate(agent.taskLabel, 80)}</span>
+        </div>
+      )}
+
+      {/* Last message preview - hide assistant messages when collapsed */}
+      {lastMsg && (isExpanded || lastMsg.isUserPrompt) && (
         <div
           className={`aop-last-message ${lastMsg.isUserPrompt ? 'user' : 'assistant'}`}
           title={lastMsg.text.split('\n')[0]}
@@ -505,11 +732,24 @@ function AgentCard({ agent, isActive, isExpanded, toolExecs, subagents, areaInfo
         </div>
       )}
 
+      {/* Search match context — shows why agent matched a deep search */}
+      {matchContext && (
+        <div className={`aop-match-context aop-match-context--${matchContext.type}`} title={matchContext.text}>
+          <span className="match-icon">
+            {matchContext.type === 'history' ? '📜' : matchContext.type === 'file' ? '📄' : '💬'}
+          </span>
+          <span className="match-label">
+            {matchContext.type === 'history' ? 'history' : matchContext.type === 'file' ? 'file' : 'task'}
+          </span>
+          <span className="match-text">{truncate(matchContext.text, 80)}</span>
+        </div>
+      )}
+
       {/* Expanded Content */}
       {isExpanded && (
         <div className="aop-agent-body">
           {/* Subagents (live + historical from tool execs) */}
-          {allSubagentEntries.length > 0 && (
+          {hasVisibleSubagents && (
             <div className="aop-subagents">
               <div className="aop-section-label">{t('terminal:overview.subagents', { count: allSubagentEntries.length })}</div>
               {allSubagentEntries.map(sub => (
@@ -528,7 +768,7 @@ function AgentCard({ agent, isActive, isExpanded, toolExecs, subagents, areaInfo
           )}
 
           {/* Recent tool activity timeline */}
-          {recentTools.length > 0 && (
+          {hasVisibleRecentActivity && (
             <div className="aop-tool-timeline">
               <div className="aop-section-label">{t('terminal:overview.recentActivity')}</div>
               {recentTools.map((exec, i) => {
@@ -552,9 +792,22 @@ function AgentCard({ agent, isActive, isExpanded, toolExecs, subagents, areaInfo
             </div>
           )}
 
-          {toolExecs.length === 0 && subagents.length === 0 && (
+          {!hasAnyVisibleSection && (showSubagents || showRecentActivity) && (
             <div className="aop-no-activity">{t('terminal:overview.noToolActivity')}</div>
           )}
+        </div>
+      )}
+
+      {/* Context usage bar */}
+      {agent.contextLimit > 0 && (
+        <div
+          className="aop-context-bar"
+          title={`${Math.round(contextUsageRatio * 100)}% context used (${Math.round(agent.contextUsed / 1000)}k / ${Math.round(agent.contextLimit / 1000)}k)`}
+        >
+          <div
+            className="aop-context-fill"
+            style={{ width: `${contextUsagePercent}%`, backgroundColor: contextFillColor }}
+          />
         </div>
       )}
     </div>

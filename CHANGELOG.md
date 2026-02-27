@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.0] - 2026-02-27
+
+### Added
+- **Agent list search and filtering** - Search agents by name, task, class, or tool with status filter chips (Active, Idle, Waiting, Error) and count badges
+- **Agent overview deep search** - Search through supervisor history and file changes with match context display
+- **Same Area Only filter** - Scope agent overview panel to agents in the same area as the active agent
+- **Terminal fullscreen toggle** - Fullscreen button with keyboard shortcut and mobile menu support
+- **File viewer search highlights** - Absolute-positioned overlay spans for search matches with auto-scroll navigation
+- **Spawn modal auto-select** - Automatically selects agent class when search narrows to exactly one result
+- **Codex context stats** - Generates estimated context stats from usage snapshots for proper context bar display
+- **Agent debugger enhancements** - Extracts parentAgentId and bossId from message payloads for better tracing
+
+### Changed
+- **Agent list UI restructured** - Search bar, status filters, quick stats bar, and activity-based sorting
+- **Agent overview panel rewritten** - Configurable display options for subagents and recent activity sections
+- **Supervisor reports improved** - Reports only on idle after step_complete with 5-minute cooldown to prevent duplicates
+- **Codex session deduplication** - Content-based dedup for assistant messages prevents duplicate text from multiple event types
+- **Notification toast redesign** - Icon inline with agent name, title on same line, removed "click to focus" hint
+- **Terminal header simplified** - Shows task label or last input without status description filtering
+- **Auto-resume on restart removed** - Agents start idle after server restart instead of attempting auto-resume
+- **Agent debugger always captures** - Message logging no longer conditional on debugger enabled state
+- **i18n updates** - New translation keys across all 11 locales for search, filters, fullscreen, and status labels
+
+### Fixed
+- **Codex context bar showing "Not retrieved yet"** - Properly generates stats from available token data
+- **Duplicate assistant messages in Codex sessions** - Content-based dedup prevents same text appearing multiple times
+- **File viewer search scroll** - Decoupled match navigation from scroll action for reliable auto-scroll
+- **Agent debugger inconsistent capture** - Always logs and captures messages regardless of enabled state
+
 ## [0.85.0] - 2026-02-26
 
 ### Added

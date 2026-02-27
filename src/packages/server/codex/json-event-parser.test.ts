@@ -298,7 +298,7 @@ describe('CodexJsonEventParser', () => {
     expect(events).toHaveLength(0);
   });
 
-  it('maps event_msg.task_complete to formatted text from last_agent_message', () => {
+  it('silently ignores event_msg.task_complete (handled by item.completed agent_message)', () => {
     const parser = new CodexJsonEventParser();
     const events = parser.parseEvent({
       type: 'event_msg',
@@ -307,21 +307,6 @@ describe('CodexJsonEventParser', () => {
         turn_id: '019c9bff-3b84-7e81-8c2e-e9afa20399be',
         last_agent_message: 'Done.\n\n1. Fixed the bug\n2. Updated tests',
       },
-    });
-
-    expect(events).toHaveLength(1);
-    expect(events[0]).toMatchObject({
-      type: 'text',
-      text: 'Done.\n\n1. Fixed the bug\n2. Updated tests',
-      isStreaming: false,
-    });
-  });
-
-  it('silently ignores event_msg.task_complete without last_agent_message', () => {
-    const parser = new CodexJsonEventParser();
-    const events = parser.parseEvent({
-      type: 'event_msg',
-      payload: { type: 'task_complete', turn_id: 'abc' },
     });
     expect(events).toHaveLength(0);
   });

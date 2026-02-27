@@ -6,7 +6,7 @@
  * regardless of the active view mode.
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { store } from '../store';
 import { connect, setCallbacks } from '../websocket';
 import {
@@ -33,15 +33,7 @@ export function useWebSocketConnection({
   showToast,
   showAgentNotification,
 }: UseWebSocketConnectionOptions): void {
-  const initializedRef = useRef(false);
-
   useEffect(() => {
-    // Only initialize once
-    if (initializedRef.current || getWsConnected()) {
-      return;
-    }
-    initializedRef.current = true;
-
     // Set up websocket callbacks for store updates
     // Note: Scene-specific callbacks (like visual effects for onAgentCreated, onToolUse, etc.)
     // are set up separately in useSceneSetup/useScene2DSetup using setCallbacks which merges
@@ -55,8 +47,12 @@ export function useWebSocketConnection({
       },
     });
 
-    connect();
-    setWsConnected(true);
+    // Keep callback wiring fresh across remounts (e.g. React StrictMode),
+    // but only establish the socket once.
+    if (!getWsConnected()) {
+      connect();
+      setWsConnected(true);
+    }
 
     // Request notification permissions
     requestNotificationPermission();

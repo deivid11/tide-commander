@@ -6,7 +6,7 @@
  * Markdown files can be rendered or viewed as source code.
  */
 
-import React, { useEffect, useRef, memo, useState, useCallback } from 'react';
+import React, { useEffect, useRef, memo, useState, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -303,101 +303,20 @@ function TextFileViewer({ file, onRevealInTree, scrollToLine, onSearchStateChang
     }
   }, [file]);
 
-  // Apply search highlights when matches change
-  useEffect(() => {
-    if (!codeRef.current) return;
-
-    const codeElement = codeRef.current;
-    const preElement = codeElement.parentElement;
-    if (!preElement) return;
-
-    // Clear previous highlights by removing mark elements
-    const existingMarks = preElement.querySelectorAll('mark');
-    existingMarks.forEach((mark) => {
-      const parent = mark.parentNode;
-      if (parent) {
-        while (mark.firstChild) {
-          parent.insertBefore(mark.firstChild, mark);
-        }
-        parent.removeChild(mark);
-      }
-    });
-
-    // If no matches, return
-    if (navigation.searchMatches.length === 0) return;
-
-    const matches = navigation.searchMatches;
-    const currentIndex = navigation.currentMatchIndex;
-
-    // Get the full text content of the code element
-    const _fullText = codeElement.textContent || '';
-
-    // Walk through text nodes and apply highlights
-    const walker = document.createTreeWalker(
-      codeElement,
-      NodeFilter.SHOW_TEXT,
-      null
-    );
-
-    let currentOffset = 0;
-    let textNode: Node | null;
-    const nodesToProcess: Array<{ node: Text; startOffset: number; endOffset: number }> = [];
-
-    // First pass: collect text nodes and their character ranges
-    while ((textNode = walker.nextNode())) {
-      const text = textNode.textContent || '';
-      const endOffset = currentOffset + text.length;
-      nodesToProcess.push({
-        node: textNode as Text,
-        startOffset: currentOffset,
-        endOffset,
-      });
-      currentOffset = endOffset;
-    }
-
-    // Second pass: apply highlights to matching text
-    nodesToProcess.forEach(({ node, startOffset, endOffset }) => {
-      const fragment = document.createDocumentFragment();
-      const text = node.textContent || '';
-      let lastIndex = 0;
-
-      // Find all matches within this node's range
-      matches.forEach((match, idx) => {
-        const matchStart = match.charIndex;
-        const matchEnd = matchStart + match.length;
-
-        // Check if match overlaps with this node
-        if (matchEnd > startOffset && matchStart < endOffset) {
-          const nodeStart = Math.max(0, matchStart - startOffset);
-          const nodeEnd = Math.min(text.length, matchEnd - startOffset);
-
-          // Add text before match
-          if (nodeStart > lastIndex) {
-            fragment.appendChild(
-              document.createTextNode(text.substring(lastIndex, nodeStart))
-            );
-          }
-
-          // Add highlighted match
-          const mark = document.createElement('mark');
-          mark.textContent = text.substring(nodeStart, nodeEnd);
-          mark.className = idx === currentIndex ? 'search-match current' : 'search-match';
-          fragment.appendChild(mark);
-
-          lastIndex = nodeEnd;
-        }
-      });
-
-      // Add remaining text
-      if (lastIndex < text.length) {
-        fragment.appendChild(document.createTextNode(text.substring(lastIndex)));
-      }
-
-      // Replace node if we created highlights
-      if (lastIndex > 0) {
-        node.parentNode?.replaceChild(fragment, node);
-      }
-    });
+  // Search highlight overlays (rendered as absolutely positioned spans, no DOM mutation)
+  const searchHighlights = useMemo(() => {
+    if (navigation.searchMatches.length === 0) return null;
+    return navigation.searchMatches.map((match, idx) => (
+      <span
+        key={`${match.line}-${match.column}-${idx}`}
+        className={`search-highlight-overlay${idx === navigation.currentMatchIndex ? ' current' : ''}`}
+        style={{
+          top: `${(match.line - 1) * 1.5}em`,
+          left: `${match.column}ch`,
+          width: `${match.length}ch`,
+        }}
+      />
+    ));
   }, [navigation.searchMatches, navigation.currentMatchIndex]);
 
   // Scroll to target line
@@ -432,24 +351,29 @@ function TextFileViewer({ file, onRevealInTree, scrollToLine, onSearchStateChang
             <code ref={codeRef} className={`language-${language}`}>
               {file.content}
             </code>
-            {/* Visual selection overlay */}
-            {navigation.visualMode !== 'none' && navigation.selection && (
-              <VisualSelectionOverlay
-                selection={navigation.selection}
-                visualMode={navigation.visualMode}
-                lines={contentLines}
-              />
-            )}
-            {/* Block cursor positioned at cursorLine:cursorCol (only visible in cursor mode) */}
-            {navigation.cursorModeActive && (
-              <span
-                className={`file-viewer-block-cursor${navigation.visualMode !== 'none' ? ' visual-active' : ''}`}
-                style={{
-                  top: `${(navigation.cursorLine - 1) * 1.5}em`,
-                  left: `${navigation.cursorCol}ch`,
-                }}
-              />
-            )}
+            {/* Overlay container - matches <pre> padding so overlays align with text */}
+            <div className="file-viewer-overlay-anchor" aria-hidden="true">
+              {/* Search match highlights (overlay-based, no DOM mutation) */}
+              {searchHighlights}
+              {/* Visual selection overlay */}
+              {navigation.visualMode !== 'none' && navigation.selection && (
+                <VisualSelectionOverlay
+                  selection={navigation.selection}
+                  visualMode={navigation.visualMode}
+                  lines={contentLines}
+                />
+              )}
+              {/* Block cursor positioned at cursorLine:cursorCol (only visible in cursor mode) */}
+              {navigation.cursorModeActive && (
+                <span
+                  className={`file-viewer-block-cursor${navigation.visualMode !== 'none' ? ' visual-active' : ''}`}
+                  style={{
+                    top: `${(navigation.cursorLine - 1) * 1.5}em`,
+                    left: `${navigation.cursorCol}ch`,
+                  }}
+                />
+              )}
+            </div>
           </pre>
         </div>
         {/* Scroll position indicator with cursor line:col and mode */}
