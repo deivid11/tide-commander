@@ -26,6 +26,12 @@
     right: 0;
   }
 
+  &.fullscreen {
+    right: 0;
+    height: 100vh;
+    max-height: 100vh;
+  }
+
   &.open {
     .guake-content {
       transform: translateY(0);
@@ -266,6 +272,12 @@
   &:hover {
     background: rgba($accent-blue, 0.1);
     border-color: $accent-blue;
+  }
+
+  &.fullscreen {
+    border-radius: 10px 10px 0 0;
+    border-top: 1px solid $border-color;
+    border-bottom: none;
   }
 }
 

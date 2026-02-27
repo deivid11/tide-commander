@@ -55,7 +55,8 @@ class AgentDebuggerService {
   private logs: DebugLog[] = [];
   private maxMessagesPerAgent = 200;
   private maxLogs = 500;
-  private enabled = false;
+  // Keep message capture active by default so buffers fill even when the debug panel is closed.
+  private enabled = true;
   private listeners: Set<DebugListener> = new Set();
   private logListeners: Set<LogListener> = new Set();
 
@@ -78,8 +79,6 @@ class AgentDebuggerService {
    * Capture a message sent to the server for a specific agent
    */
   captureSent(agentId: string, raw: string): void {
-    if (!this.enabled) return;
-
     try {
       const parsed = JSON.parse(raw);
       console.log(`[AgentDebugger] SENT - agent: ${agentId.slice(0,4)}, type: ${parsed.type}, size: ${raw.length}B`);
@@ -112,8 +111,6 @@ class AgentDebuggerService {
    * Capture a message received from the server for a specific agent
    */
   captureReceived(agentId: string, raw: string): void {
-    if (!this.enabled) return;
-
     try {
       const parsed = JSON.parse(raw);
       console.log(`[AgentDebugger] RECEIVED - agent: ${agentId.slice(0,4)}, type: ${parsed.type}, size: ${raw.length}B`);

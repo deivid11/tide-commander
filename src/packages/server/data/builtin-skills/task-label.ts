@@ -8,7 +8,7 @@ export const taskLabel: BuiltinSkillDefinition = {
   assignedAgentClasses: ['*'],
   content: `# Task Label (MANDATORY - Execute FIRST)
 
-**IMPORTANT: Before doing ANY other work, you MUST generate a brief task label describing your current task.**
+**IMPORTANT: You MUST generate a brief task label describing your current task.**
 
 ## Steps (do this FIRST before anything else):
 1. Read the user's request
@@ -25,7 +25,14 @@ curl -s -X PATCH http://localhost:5174/api/agents/YOUR_AGENT_ID -H "Content-Type
 - Keep labels between 1-5 words maximum
 - Use action verbs: Fix, Add, Update, Refactor, Debug, Implement, Remove, etc.
 - Be specific but concise (e.g., "Fix login redirect" not "Work on stuff")
-- Do this BEFORE any other work - it should be your very first action
 - Do NOT use exclamation marks (!) in the label - they cause bash errors
-- Replace YOUR_AGENT_ID with your actual agent ID from the system prompt`,
+- Replace YOUR_AGENT_ID with your actual agent ID from the system prompt
+
+## CRITICAL: Execution Order
+- This MUST be your absolute first action - before reading files, before searching code, before ANY tool call
+- The very first tool call in your response MUST be the curl command to set the task label
+- Do NOT plan, research, or explore anything before setting the label
+- Do NOT batch the label call with other tool calls - it must be the sole action in your first response
+- If you fail to set the label as your first action, you are violating a mandatory instruction
+- There are ZERO exceptions to this rule - every single task begins with setting the label`,
 };

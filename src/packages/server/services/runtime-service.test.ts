@@ -23,7 +23,6 @@ vi.mock('./agent-service.js', () => ({
   getAgent: mockGetAgent,
   updateAgent: mockUpdateAgent,
   getAllAgents: vi.fn(() => []),
-  getAgentsToResume: vi.fn(() => []),
 }));
 
 vi.mock('../claude/session-loader.js', () => ({

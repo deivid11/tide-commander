@@ -43,6 +43,8 @@ export interface GlobalSupervisorStatusProps {
 export interface SupervisorHistoryItemProps {
   entry: AgentSupervisorHistoryEntry;
   defaultExpanded?: boolean;
+  agent?: Agent;
+  onAgentClick?: (agentId: string) => void;
 }
 
 export interface BossAgentSectionProps {

@@ -118,7 +118,7 @@ function buildCodexRecoverySystemPrompt(sessionId: string, messages: SessionMess
   ].join('\n\n');
 }
 
-function buildEstimatedCodexContextStats(totalTokens: number, contextWindow: number, model?: string): ContextStats {
+function buildEstimatedContextStats(totalTokens: number, contextWindow: number, model?: string): ContextStats {
   const safeWindow = contextWindow > 0 ? contextWindow : DEFAULT_CODEX_CONTEXT_WINDOW;
   const usedPercent = Math.min(100, Math.max(0, Math.round((totalTokens / safeWindow) * 100)));
   const freeTokens = Math.max(0, safeWindow - totalTokens);
@@ -213,9 +213,19 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
                   log.log(`[usage_snapshot] ${agentId}: reset stale contextUsed ${agent.contextUsed} to 0`);
                 }
               } else {
+                const safeContextUsed = Math.max(0, snapshotContextUsed);
                 const updates: Record<string, unknown> = {
-                  contextUsed: Math.max(0, snapshotContextUsed),
+                  contextUsed: safeContextUsed,
                 };
+                // Build estimated contextStats so the frontend shows a real bar
+                // instead of "Not retrieved yet" — skip if authoritative /context data exists.
+                if (!agent.contextStats || !agent.contextStats.lastUpdated) {
+                  updates.contextStats = buildEstimatedContextStats(
+                    safeContextUsed,
+                    effectiveLimit,
+                    agent.model || 'claude'
+                  );
+                }
                 agentService.updateAgent(agentId, updates, false);
                 log.log(`[usage_snapshot] ${agentId}: input=${inputTokens} + cacheRead=${cacheRead} + cacheCreation=${cacheCreation} = ${snapshotContextUsed} (output=${event.tokens.output || 0}) limit=${effectiveLimit}`);
               }
@@ -329,11 +339,15 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
           contextUsed,
           contextLimit,
         };
-        if (!isClaudeProvider) {
-          updates.contextStats = buildEstimatedCodexContextStats(
+        // Build estimated contextStats for all providers so the frontend always
+        // has hasData=true. For Claude agents, skip if authoritative stats from
+        // a /context command already exist (they have category breakdowns).
+        const hasAuthoritativeStats = isClaudeProvider && agent.contextStats && agent.contextStats.lastUpdated > 0;
+        if (!hasAuthoritativeStats) {
+          updates.contextStats = buildEstimatedContextStats(
             Math.max(0, Math.round(contextUsed)),
             Math.max(1, Math.round(contextLimit)),
-            agent.codexModel || agent.model
+            isClaudeProvider ? (agent.model || 'claude') : (agent.codexModel || agent.model)
           );
         }
         agentService.updateAgent(agentId, updates);

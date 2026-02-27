@@ -248,7 +248,8 @@
     "clearContextBtn": "Clear Context",
     "removePattern": "Remove this pattern",
     "agentsCount": "{{count}} agents",
-    "confidence": "Confidence: {{level}}"
+    "confidence": "Confidence: {{level}}",
+    "otherAgents": "Other Agents"
   },
   "multiAgent": {
     "agentsSelected": "{{count}} Agents Selected",
@@ -262,7 +263,21 @@
     "areasAndAgents": "Areas & Agents",
     "browseFiles": "Browse files",
     "supervisorStatus": "Supervisor Status",
-    "unassigned": "Unassigned"
+    "unassigned": "Unassigned",
+    "total": "total",
+    "statusActive": "active",
+    "statusIdle": "idle",
+    "statusWaiting": "waiting",
+    "statusError": "error",
+    "searchPlaceholder": "Search agents...",
+    "filter_all": "All",
+    "filter_active": "Active",
+    "filter_idle": "Idle",
+    "filter_waiting": "Waiting",
+    "filter_error": "Error",
+    "showing": "Showing {{count}} of {{total}}",
+    "clearFilters": "Clear filters",
+    "noResults": "No agents match your filters"
   },
   "rightPanel": {
     "expandPanel": "Expand panel (Ctrl+\\)",

@@ -28,6 +28,7 @@ export const STORAGE_KEYS = {
   VIEW_MODE: 'guake-view-mode',
   ADVANCED_VIEW: 'guake-advanced-view', // Legacy key
   TERMINAL_HEIGHT: 'guake-terminal-height',
+  TERMINAL_FULLSCREEN: 'guake-terminal-fullscreen',
   INPUT_TEXT_PREFIX: 'guake-input-',
   PASTED_TEXTS_PREFIX: 'guake-pasted-',
 
@@ -52,6 +53,7 @@ export const STORAGE_KEYS = {
 
   // Agent Overview Panel
   AOP_CONFIG: 'tide-aop-config',
+  AOP_OPEN: 'tide-aop-open',
 
   // Agent notifications
   UNSEEN_AGENTS: 'tide-unseen-agents',

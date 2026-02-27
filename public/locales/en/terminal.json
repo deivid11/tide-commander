@@ -10,6 +10,8 @@
     "hideOverview": "Hide Agent Overview",
     "showDebug": "Show Debug Panel",
     "hideDebug": "Hide Debug Panel",
+    "enterFullscreen": "Enter Fullscreen",
+    "exitFullscreen": "Exit Fullscreen",
     "search": "Search (Ctrl+F)",
     "viewMode": "View: {{mode}}",
     "chatView": "Chat",
@@ -232,6 +234,7 @@
     "noToolActivity": "No tool activity yet",
     "messages": "{{count}} messages",
     "clickToSwitch": "Click to switch to this agent",
+    "sameAreaOnly": "Same Area",
     "subagentsCompleted": "{{count}} subagents (all completed)",
     "statusLabels": {
       "working": "Working",

@@ -248,7 +248,8 @@
     "clearContextBtn": "Limpar Contexto",
     "removePattern": "Remover este padrao",
     "agentsCount": "{{count}} agentes",
-    "confidence": "Confianca: {{level}}"
+    "confidence": "Confianca: {{level}}",
+    "otherAgents": "Outros agentes"
   },
   "multiAgent": {
     "agentsSelected": "{{count}} Agentes Selecionados",
@@ -262,7 +263,21 @@
     "areasAndAgents": "Areas e Agentes",
     "browseFiles": "Navegar arquivos",
     "supervisorStatus": "Status do Supervisor",
-    "unassigned": "Nao atribuido"
+    "unassigned": "Nao atribuido",
+    "total": "total",
+    "statusActive": "ativo",
+    "statusIdle": "inativo",
+    "statusWaiting": "aguardando",
+    "statusError": "erro",
+    "searchPlaceholder": "Buscar agentes...",
+    "filter_all": "Todos",
+    "filter_active": "Ativo",
+    "filter_idle": "Inativo",
+    "filter_waiting": "Aguardando",
+    "filter_error": "Erro",
+    "showing": "Mostrando {{count}} de {{total}}",
+    "clearFilters": "Limpar filtros",
+    "noResults": "Nenhum agente encontrado"
   },
   "rightPanel": {
     "expandPanel": "Expandir painel (Ctrl+\\)",

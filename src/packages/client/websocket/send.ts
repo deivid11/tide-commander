@@ -14,6 +14,8 @@ export function extractAgentId(message: ServerMessage | ClientMessage): string |
   if (message.payload && typeof message.payload === 'object') {
     const payload = message.payload as any;
     if (payload.agentId) return payload.agentId;
+    if (payload.parentAgentId) return payload.parentAgentId;
+    if (payload.bossId) return payload.bossId;
     if (payload.id) return payload.id;
   }
   return null;
@@ -40,14 +42,11 @@ export function sendMessage(message: ClientMessage): void {
   try {
     const messageStr = JSON.stringify(message);
 
-    // Capture for agent-specific debugger if message has agentId
-    const isDebuggerEnabled = agentDebugger.isEnabled();
-    if (isDebuggerEnabled) {
-      const agentId = extractAgentId(message);
-      console.log('[AgentDebugger] SENT - type:', message.type, 'agentId:', agentId, 'payload:', message.payload);
-      if (agentId) {
-        agentDebugger.captureSent(agentId, messageStr);
-      }
+    // Capture for agent-specific debugger if message has an extractable agent id.
+    const agentId = extractAgentId(message);
+    console.log('[AgentDebugger] SENT - type:', message.type, 'agentId:', agentId, 'payload:', message.payload);
+    if (agentId) {
+      agentDebugger.captureSent(agentId, messageStr);
     }
 
     ws.send(messageStr);

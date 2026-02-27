@@ -52,6 +52,10 @@ const REPORT_DEBOUNCE_MS = 3000; // Wait 3 seconds after last event before gener
 const agentReportTimers = new Map<string, NodeJS.Timeout>();
 const agentReportInProgress = new Set<string>();
 
+// Track last reported status per agent to avoid duplicate idle reports
+const lastReportedStatus = new Map<string, { status: string; timestamp: number }>();
+const IDLE_REPORT_COOLDOWN_MS = 300_000; // 5 minutes between idle reports for same agent
+
 // Track if a full report is currently being generated
 let isGeneratingReport = false;
 
@@ -111,6 +115,14 @@ export function generateNarrative(
   let type: ActivityNarrative['type'] = 'output';
   let toolName: string | undefined;
 
+  // Clear idle tracking when agent starts working again so next completion gets a fresh report
+  if (event.type === 'tool_start' || event.type === 'init') {
+    const prev = lastReportedStatus.get(agentId);
+    if (prev && prev.status === 'idle') {
+      lastReportedStatus.delete(agentId);
+    }
+  }
+
   switch (event.type) {
     case 'tool_start':
       type = 'tool_use';
@@ -160,10 +172,24 @@ export function generateNarrative(
   // Emit for real-time updates
   emit('narrative', { agentId, narrative: activityNarrative });
 
-  // Trigger single-agent report generation on significant events (task start or complete)
-  if (event.type === 'init' || event.type === 'step_complete') {
-    log.log(` Event trigger: ${event.type} from agent ${agentId}`);
-    scheduleAgentReportGeneration(agentId);
+  // Trigger single-agent report only on meaningful transitions
+  // step_complete = agent finished a turn (generate report only if agent is now idle, meaning task done)
+  // init = new session started (skip — wait for actual work to complete)
+  if (event.type === 'step_complete') {
+    const currentAgent = agentService.getAgent(agentId);
+    if (currentAgent && currentAgent.status === 'idle') {
+      // Agent just went idle after step_complete = task finished
+      const lastReport = lastReportedStatus.get(agentId);
+      const now = Date.now();
+
+      if (lastReport && lastReport.status === 'idle' && (now - lastReport.timestamp) < IDLE_REPORT_COOLDOWN_MS) {
+        log.log(` Skipping duplicate idle report for ${agentId} (last idle report ${Math.round((now - lastReport.timestamp) / 1000)}s ago)`);
+      } else {
+        log.log(` Task completed for agent ${agentId}, scheduling report`);
+        scheduleAgentReportGeneration(agentId);
+      }
+    }
+    // If agent is still working, skip — it's mid-task, wait for final idle
   }
 
   return activityNarrative;
@@ -549,6 +575,13 @@ function saveSingleAgentToHistory(analysis: AgentAnalysis): void {
 
   addSupervisorHistoryEntry(supervisorHistory, analysis.agentId, entry);
   saveSupervisorHistory(supervisorHistory);
+
+  // Track reported status to prevent duplicate idle reports
+  lastReportedStatus.set(analysis.agentId, {
+    status: analysis.progress === 'idle' || analysis.progress === 'completed' ? 'idle' : 'working',
+    timestamp: Date.now(),
+  });
+
   log.log(` Saved single-agent history entry for ${analysis.agentName}`);
 }
 
@@ -666,6 +699,12 @@ function saveReportToHistory(report: SupervisorReport): void {
     };
 
     addSupervisorHistoryEntry(supervisorHistory, analysis.agentId, entry);
+
+    // Track reported status to prevent duplicate idle reports
+    lastReportedStatus.set(analysis.agentId, {
+      status: analysis.progress === 'idle' || analysis.progress === 'completed' ? 'idle' : 'working',
+      timestamp: report.timestamp,
+    });
   }
 
   // Persist to disk

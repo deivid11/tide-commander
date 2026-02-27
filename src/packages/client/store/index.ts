@@ -7,7 +7,7 @@
  */
 
 import type { ClientMessage } from '../../shared/types';
-import { STORAGE_KEYS, getStorage, setStorage, getStorageString, setStorageString } from '../utils/storage';
+import { STORAGE_KEYS, getStorage, setStorage, getStorageString, setStorageString, getStorageBoolean, setStorageBoolean } from '../utils/storage';
 import { closeAllModalsExcept } from '../hooks';
 
 // Import types
@@ -270,7 +270,7 @@ class Store
         const saved = getStorageString(STORAGE_KEYS.SCENE_VIEW_MODE, '3d');
         return (saved === '2d' || saved === '3d' || saved === 'dashboard') ? saved as StoreState['viewMode'] : '3d';
       })(),
-      overviewPanelOpen: false,
+      overviewPanelOpen: getStorageBoolean(STORAGE_KEYS.AOP_OPEN, false),
       agentsWithUnseenOutput: this.loadUnseenAgents(),
       commanderExpandRequest: null,
       latestNotificationAgentId: null,
@@ -464,6 +464,7 @@ class Store
 
   setOverviewPanelOpen(open: boolean): void {
     this.state.overviewPanelOpen = open;
+    setStorageBoolean(STORAGE_KEYS.AOP_OPEN, open);
     this.notify();
   }
 

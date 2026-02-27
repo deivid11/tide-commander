@@ -477,12 +477,12 @@
     &.mobile-swipe-close-active {
       transform: translateY(calc(var(--mobile-swipe-close-offset, 0px) * -1));
       opacity: 1;
-      transition: transform 100ms linear, opacity 100ms linear;
+      transition: transform 85ms linear, opacity 85ms linear;
       will-change: transform, opacity;
     }
 
     &.mobile-swipe-close-closing {
-      transition: transform 140ms ease-out, opacity 140ms ease-out;
+      transition: transform 95ms ease-out, opacity 95ms ease-out;
       transform: translateY(-140px);
       opacity: 0;
     }

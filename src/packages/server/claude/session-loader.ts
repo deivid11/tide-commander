@@ -75,6 +75,10 @@ export interface FileChange {
 function deduplicateSessionMessages(messages: SessionMessage[]): SessionMessage[] {
   const deduped: SessionMessage[] = [];
   const seen = new Set<string>();
+  // Content-based dedup for assistant messages: Codex can emit the same text
+  // via multiple event types (event_msg.agent_message, response_item.message,
+  // event_msg.task_complete). Keep only the first occurrence per unique content.
+  const seenAssistantContent = new Set<string>();
 
   for (const message of messages) {
     const toolInputSignature = message.toolInput ? JSON.stringify(message.toolInput) : '';
@@ -91,8 +95,15 @@ function deduplicateSessionMessages(messages: SessionMessage[]): SessionMessage[
     if (seen.has(key)) {
       continue;
     }
-
     seen.add(key);
+
+    if (message.type === 'assistant') {
+      if (seenAssistantContent.has(message.content)) {
+        continue;
+      }
+      seenAssistantContent.add(message.content);
+    }
+
     deduped.push(message);
   }
 
@@ -587,13 +598,9 @@ function parseCodexEntryMessages(
       });
       return;
     }
-    if (payload.type === 'agent_message' && typeof payload.message === 'string') {
-      messages.push({
-        type: 'assistant',
-        content: payload.message,
-        timestamp: entry.timestamp,
-        uuid: `${entry.timestamp}-assistant`,
-      });
+    // agent_message: Skip. Handled by response_item with role=assistant.
+    // (Matches live parser behavior in json-event-parser.ts)
+    if (payload.type === 'agent_message') {
       return;
     }
 
@@ -612,14 +619,14 @@ function parseCodexEntryMessages(
       return;
     }
 
-    // task_complete: Show the final agent message as formatted text
-    if (payload.type === 'task_complete' && typeof payload.last_agent_message === 'string') {
-      messages.push({
-        type: 'assistant',
-        content: payload.last_agent_message,
-        timestamp: entry.timestamp,
-        uuid: `${entry.timestamp}-assistant-task-complete`,
-      });
+    // task_complete: Skip. Final agent message is already present via
+    // response_item with role=assistant (or item.completed agent_message).
+    if (payload.type === 'task_complete') {
+      return;
+    }
+
+    // task_started: Skip. Envelope event with no user-facing content.
+    if (payload.type === 'task_started') {
       return;
     }
 

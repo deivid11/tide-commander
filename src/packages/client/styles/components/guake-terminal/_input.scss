@@ -5,7 +5,8 @@
 @use 'sass:color';
 @use '../../variables' as *;
 
-.guake-search-toggle {
+.guake-search-toggle,
+.guake-fullscreen-toggle {
   background: transparent;
   border: 1px solid $dracula-comment;
   color: $dracula-comment;
@@ -24,6 +25,11 @@
     border-color: $dracula-cyan;
     color: $dracula-cyan;
   }
+}
+
+.guake-fullscreen-toggle.active {
+  border-color: $dracula-green;
+  color: $dracula-green;
 }
 
 .guake-search {
@@ -610,7 +616,7 @@
 @media (max-width: 768px) {
   .guake-input-swipe-shell {
     touch-action: pan-x;
-    transition: opacity 140ms ease, filter 140ms ease;
+    transition: opacity 95ms ease, filter 95ms ease;
     will-change: opacity, filter;
   }
 

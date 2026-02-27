@@ -163,14 +163,11 @@ export function connect(): void {
     try {
       const message = JSON.parse(event.data) as ServerMessage;
 
-      // Capture for agent-specific debugger if message has agentId
-      const isDebuggerEnabled = agentDebugger.isEnabled();
-      if (isDebuggerEnabled) {
-        const agentId = extractAgentId(message);
-        console.log('[AgentDebugger] RECEIVED - type:', message.type, 'agentId:', agentId, 'payload:', message.payload);
-        if (agentId) {
-          agentDebugger.captureReceived(agentId, event.data);
-        }
+      // Capture for agent-specific debugger if message has an extractable agent id.
+      const agentId = extractAgentId(message);
+      console.log('[AgentDebugger] RECEIVED - type:', message.type, 'agentId:', agentId, 'payload:', message.payload);
+      if (agentId) {
+        agentDebugger.captureReceived(agentId, event.data);
       }
 
       handleServerMessage(message);

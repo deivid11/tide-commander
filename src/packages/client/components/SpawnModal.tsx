@@ -170,6 +170,20 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
     });
   }, [classSearch]);
 
+  // Auto-select class when search narrows results to exactly one class
+  useEffect(() => {
+    if (!isOpen || !classSearch.trim()) return;
+
+    const matchingClassIds: AgentClass[] = [
+      ...filteredCustomClasses.map(c => c.id),
+      ...filteredBuiltInClasses.map(c => c.id),
+    ];
+
+    if (matchingClassIds.length === 1 && matchingClassIds[0] !== selectedClass) {
+      setSelectedClass(matchingClassIds[0]);
+    }
+  }, [isOpen, classSearch, filteredCustomClasses, filteredBuiltInClasses, selectedClass]);
+
   // Get custom class config if selected class is custom
   const selectedCustomClass = useMemo(() => {
     return customClasses.find(c => c.id === selectedClass);

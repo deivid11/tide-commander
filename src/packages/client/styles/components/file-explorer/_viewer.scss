@@ -305,6 +305,17 @@
   }
 }
 
+// Overlay anchor - wraps all overlays (cursor, selection, search) inside <pre>
+// top offset matches .file-viewer-pre padding-top so overlays align with text
+.file-viewer-overlay-anchor {
+  position: absolute;
+  top: calc(16px + 1.5em);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
 // Terminal-style block cursor (vim style)
 .file-viewer-block-cursor {
   position: absolute;
@@ -646,13 +657,19 @@
   }
 }
 
-// Search match highlight
-.search-match {
-  background: rgba($dracula-yellow, 0.3);
-  border-radius: 2px;
+// Search match highlight (overlay-based, positioned inside <pre>)
+.search-highlight-overlay {
+  position: absolute;
+  height: 1.5em;
+  pointer-events: none;
+  z-index: 1;
+  border-bottom: 2px solid rgba($dracula-yellow, 0.6);
+  background: rgba($dracula-yellow, 0.08);
 
   &.current {
-    background: rgba($dracula-orange, 0.5);
-    outline: 1px solid $dracula-orange;
+    border-bottom-color: $dracula-orange;
+    background: rgba($dracula-orange, 0.12);
+    outline: 1px solid rgba($dracula-orange, 0.5);
+    border-radius: 2px;
   }
 }

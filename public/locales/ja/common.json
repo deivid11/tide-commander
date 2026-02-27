@@ -248,7 +248,8 @@
     "clearContextBtn": "コンテキストをクリア",
     "removePattern": "このパターンを削除",
     "agentsCount": "{{count}}エージェント",
-    "confidence": "信頼度: {{level}}"
+    "confidence": "信頼度: {{level}}",
+    "otherAgents": "他のエージェント"
   },
   "multiAgent": {
     "agentsSelected": "{{count}}エージェント選択中",
@@ -262,7 +263,21 @@
     "areasAndAgents": "エリアとエージェント",
     "browseFiles": "ファイルを閲覧",
     "supervisorStatus": "スーパーバイザーステータス",
-    "unassigned": "未割り当て"
+    "unassigned": "未割り当て",
+    "total": "合計",
+    "statusActive": "アクティブ",
+    "statusIdle": "待機中",
+    "statusWaiting": "待機",
+    "statusError": "エラー",
+    "searchPlaceholder": "エージェントを検索...",
+    "filter_all": "すべて",
+    "filter_active": "アクティブ",
+    "filter_idle": "待機中",
+    "filter_waiting": "待機",
+    "filter_error": "エラー",
+    "showing": "{{total}}件中{{count}}件表示",
+    "clearFilters": "フィルターをクリア",
+    "noResults": "該当するエージェントがありません"
   },
   "rightPanel": {
     "expandPanel": "パネルを展開 (Ctrl+\\)",

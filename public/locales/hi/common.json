@@ -248,7 +248,8 @@
     "clearContextBtn": "संदर्भ साफ करें",
     "removePattern": "यह पैटर्न हटाएं",
     "agentsCount": "{{count}} एजेंट",
-    "confidence": "विश्वास: {{level}}"
+    "confidence": "विश्वास: {{level}}",
+    "otherAgents": "अन्य एजेंट"
   },
   "multiAgent": {
     "agentsSelected": "{{count}} एजेंट चयनित",
@@ -262,7 +263,21 @@
     "areasAndAgents": "क्षेत्र और एजेंट",
     "browseFiles": "फ़ाइलें ब्राउज़ करें",
     "supervisorStatus": "पर्यवेक्षक स्थिति",
-    "unassigned": "अनियुक्त"
+    "unassigned": "अनियुक्त",
+    "total": "कुल",
+    "statusActive": "सक्रिय",
+    "statusIdle": "निष्क्रिय",
+    "statusWaiting": "प्रतीक्षा",
+    "statusError": "त्रुटि",
+    "searchPlaceholder": "एजेंट खोजें...",
+    "filter_all": "सभी",
+    "filter_active": "सक्रिय",
+    "filter_idle": "निष्क्रिय",
+    "filter_waiting": "प्रतीक्षा",
+    "filter_error": "त्रुटि",
+    "showing": "{{total}} में से {{count}} दिखा रहा है",
+    "clearFilters": "फ़िल्टर साफ़ करें",
+    "noResults": "कोई एजेंट नहीं मिला"
   },
   "rightPanel": {
     "expandPanel": "पैनल विस्तार करें (Ctrl+\\)",
