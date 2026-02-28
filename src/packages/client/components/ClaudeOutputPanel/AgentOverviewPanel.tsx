@@ -415,6 +415,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent }: Ag
           agent={agent}
           isActive={agent.id === activeAgentId}
           isExpanded={expandedAgents.has(agent.id)}
+          isMobile={isMobileViewport}
           hasPendingRead={agentsWithUnseenOutput.has(agent.id)}
           showSubagents={showSubagents}
           showRecentActivity={showRecentActivity}
@@ -642,6 +643,7 @@ interface AgentCardProps {
   agent: Agent;
   isActive: boolean;
   isExpanded: boolean;
+  isMobile: boolean;
   hasPendingRead: boolean;
   showSubagents: boolean;
   showRecentActivity: boolean;
@@ -668,6 +670,7 @@ function AgentCard({
   agent,
   isActive,
   isExpanded,
+  isMobile,
   hasPendingRead,
   showSubagents,
   showRecentActivity,
@@ -684,9 +687,10 @@ function AgentCard({
   const classConfig = getClassConfig(agent.class, customClasses);
   const statusIcon = STATUS_ICONS[agent.status] || '❓';
   const statusLabel = STATUS_LABEL_KEYS[agent.status] ? t(`terminal:${STATUS_LABEL_KEYS[agent.status]}`) : agent.status;
-  const recentTools = toolExecs.slice(0, 8);
+  const recentTools = toolExecs.slice(0, isMobile ? 4 : 8);
   const lastMsg = getLastMessage(agent.id);
   const msgCount = getMessageCount(agent.id);
+  const trunc = isMobile ? 40 : 80;
 
   // Build unified subagent list: live subagents + Task tool execs not in live store
   const allSubagentEntries = useMemo((): SubagentEntry[] => {
@@ -813,7 +817,7 @@ function AgentCard({
       {agent.taskLabel && (
         <div className="aop-task-label" title={agent.taskLabel}>
           <span className="task-prefix">📋</span>
-          <span className="task-text">{truncate(agent.taskLabel, 80)}</span>
+          <span className="task-text">{truncate(agent.taskLabel, trunc)}</span>
         </div>
       )}
 
@@ -824,7 +828,7 @@ function AgentCard({
           title={lastMsg.text.split('\n')[0]}
         >
           <span className="lm-prefix">{lastMsg.isUserPrompt ? '▶' : '◀'}</span>
-          <span className="lm-text">{truncate(lastMsg.text, 80)}</span>
+          <span className="lm-text">{truncate(lastMsg.text, trunc)}</span>
           <span className="lm-time">{formatTimestamp(lastMsg.timestamp)}</span>
         </div>
       )}
@@ -838,7 +842,7 @@ function AgentCard({
           <span className="match-label">
             {matchContext.type === 'history' ? 'history' : matchContext.type === 'file' ? 'file' : 'task'}
           </span>
-          <span className="match-text">{truncate(matchContext.text, 80)}</span>
+          <span className="match-text">{truncate(matchContext.text, trunc)}</span>
         </div>
       )}
 
@@ -857,7 +861,7 @@ function AgentCard({
                   <span className="sub-name">{sub.name}</span>
                   <span className="sub-type">{sub.type}</span>
                   {sub.description && (
-                    <span className="sub-desc" title={sub.description}>{truncate(sub.description, 50)}</span>
+                    <span className="sub-desc" title={sub.description}>{truncate(sub.description, isMobile ? 30 : 50)}</span>
                   )}
                 </div>
               ))}

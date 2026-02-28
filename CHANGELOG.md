@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.2] - 2026-02-28
+
+### Added
+- **Mobile overview panel resize** - Drag handle between overview panel and terminal allows resizing on mobile with touch and mouse support, persisted to localStorage
+- **Responsive text truncation** - Agent cards adapt text truncation limits and tool count based on mobile viewport detection
+
+### Changed
+- **Agent card mobile optimization** - Reduced recent tools from 8 to 4, shortened truncation from 80 to 40 chars, and subagent descriptions from 50 to 30 chars on mobile
+- **Direct click selection tracking** - Agent selection via overview panel now marks as direct click to prevent auto-scroll conflicts
+
 ## [1.1.1] - 2026-02-28
 
 ### Added

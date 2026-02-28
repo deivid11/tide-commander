@@ -50,6 +50,7 @@ import type { ViewMode, EnrichedHistoryMessage } from './types';
 // Import extracted hooks
 import { useKeyboardHeight } from './useKeyboardHeight';
 import { useTerminalResize } from './useTerminalResize';
+import { useMobileOverviewResize } from './useMobileOverviewResize';
 import { useSwipeNavigation } from './useSwipeNavigation';
 import { useHistoryLoader } from './useHistoryLoader';
 import { useSearchHistory } from './useSearchHistory';
@@ -227,6 +228,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
 
   // Use extracted hooks
   const { terminalHeight, terminalRef, handleResizeStart } = useTerminalResize();
+  const { mobileOverviewHeight, handleResizeMouseDown: handleOverviewResizeMouseDown, handleResizeTouchStart: handleOverviewResizeTouchStart } = useMobileOverviewResize();
   const keyboard = useKeyboardHeight();
   const outputs = useAgentOutputs(activeAgentId);
 
@@ -1055,7 +1057,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     <div
       ref={terminalRef}
       className={`guake-terminal ${isOpen ? 'open' : 'collapsed'} ${isFullscreen && isOpen ? 'fullscreen' : ''} ${debugPanelOpen && isOpen ? 'with-debug-panel' : ''} ${overviewPanelOpen && isOpen ? 'with-overview-panel' : ''} ${draggingOver ? 'drag-over' : ''} ${mobileSwipeCloseOffset > 0 ? 'mobile-swipe-close-active' : ''} ${isMobileSwipeClosing ? 'mobile-swipe-close-closing' : ''}`}
-      style={{ '--terminal-height': `${terminalHeight}%`, '--mobile-swipe-close-offset': `${mobileSwipeCloseOffset}px` } as React.CSSProperties}
+      style={{ '--terminal-height': `${terminalHeight}%`, '--mobile-swipe-close-offset': `${mobileSwipeCloseOffset}px`, ...(mobileOverviewHeight > 0 ? { '--guake-mobile-overview-height': `${mobileOverviewHeight}px` } : {}) } as React.CSSProperties}
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -1079,8 +1081,18 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
           activeAgentId={activeAgentId}
           onClose={() => setOverviewPanelOpen(false)}
           onSelectAgent={(agentId) => {
+            store.setLastSelectionViaDirectClick(true);
             store.selectAgent(agentId);
           }}
+        />
+      )}
+
+      {/* Mobile resize handle between overview and terminal */}
+      {!isSnapshotView && overviewPanelOpen && isOpen && activeAgentId && (
+        <div
+          className="aop-resize-handle"
+          onMouseDown={handleOverviewResizeMouseDown}
+          onTouchStart={handleOverviewResizeTouchStart}
         />
       )}
 

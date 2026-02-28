@@ -54,6 +54,7 @@ export const STORAGE_KEYS = {
   // Agent Overview Panel
   AOP_CONFIG: 'tide-aop-config',
   AOP_OPEN: 'tide-aop-open',
+  MOBILE_OVERVIEW_HEIGHT: 'tide-mobile-overview-height',
 
   // Agent notifications
   UNSEEN_AGENTS: 'tide-unseen-agents',
