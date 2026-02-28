@@ -12,7 +12,7 @@
 
 Tide Commander is a Claude Code and Codex orchestrator and manager that lets you deploy, control, and monitor multiple AI coding agents from a single visual interface. Spawn agents, assign tasks, and watch them work in real-time on an RTS-inspired 3D battlefield — or switch to a lightweight 2D canvas or a metrics dashboard.
 
-## 🚀 Getting Started
+## 🚀 Getting Started 
 
 Requirements:
 - Node.js 18+
@@ -477,4 +477,4 @@ MIT
  
 
 Added a line.
-Another line added.
+Another line added. 

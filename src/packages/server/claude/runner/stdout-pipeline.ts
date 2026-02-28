@@ -123,7 +123,7 @@ export class RunnerStdoutPipeline {
         break;
 
       case 'tool_start': {
-        if (event.toolName === 'Task' && event.subagentName) {
+        if ((event.toolName === 'Task' || event.toolName === 'Agent') && event.subagentName) {
           this.activeSubagentName.set(agentId, event.subagentName);
         }
         // Skip output for subagent internal tools (shown in inline activity panel instead)
@@ -149,7 +149,7 @@ export class RunnerStdoutPipeline {
             this.callbacks.onOutput(agentId, `Bash output:\n${event.toolOutput}`, false, toolResultSubName, event.uuid);
           }
         }
-        if (event.toolName === 'Task') {
+        if (event.toolName === 'Task' || event.toolName === 'Agent') {
           this.activeSubagentName.delete(agentId);
         }
         break;

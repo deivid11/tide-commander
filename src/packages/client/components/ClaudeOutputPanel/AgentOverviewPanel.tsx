@@ -390,6 +390,59 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent }: Ag
     return groups;
   }, [areas, filteredAgents, sortAgents, groupByArea]);
 
+  const renderAgentCards = useCallback((groupAgents: Agent[]) => {
+    const isUnreadAgent = (agent: Agent) => agentsWithUnseenOutput.has(agent.id);
+    const firstUnreadIndex = groupAgents.findIndex(agent => agentsWithUnseenOutput.has(agent.id));
+    const hasUnreadAgents = firstUnreadIndex >= 0;
+    // Idle separator should only apply to "read idle" agents.
+    const firstReadIdleIndex = groupAgents.findIndex(agent => agent.status === 'idle' && !isUnreadAgent(agent));
+    const hasIdleSeparator = firstReadIdleIndex >= 0
+      && groupAgents.slice(0, firstReadIdleIndex).some(agent => agent.status === 'working' || isUnreadAgent(agent));
+
+    return groupAgents.map((agent, index) => (
+      <React.Fragment key={agent.id}>
+        {hasUnreadAgents && index === firstUnreadIndex && (
+          <div className="aop-status-separator aop-status-separator--unread" role="separator" aria-label="unread notifications">
+            <span>Unread notifications</span>
+          </div>
+        )}
+        {hasIdleSeparator && index === firstReadIdleIndex && (
+          <div className="aop-status-separator" role="separator" aria-label="idle agents">
+            <span>{t('terminal:overview.statusLabels.idle')}</span>
+          </div>
+        )}
+        <AgentCard
+          agent={agent}
+          isActive={agent.id === activeAgentId}
+          isExpanded={expandedAgents.has(agent.id)}
+          hasPendingRead={agentsWithUnseenOutput.has(agent.id)}
+          showSubagents={showSubagents}
+          showRecentActivity={showRecentActivity}
+          showAreaChip={!groupByArea}
+          toolExecs={toolsByAgent.get(agent.id) || []}
+          subagents={subagentsByParent.get(agent.id) || []}
+          areaInfo={agentAreaInfo.get(agent.id)}
+          matchContext={searchMatchContexts.get(agent.id)}
+          onToggle={() => toggleAgent(agent.id)}
+          onSelect={() => onSelectAgent(agent.id)}
+        />
+      </React.Fragment>
+    ));
+  }, [
+    t,
+    activeAgentId,
+    expandedAgents,
+    agentsWithUnseenOutput,
+    showSubagents,
+    showRecentActivity,
+    groupByArea,
+    toolsByAgent,
+    subagentsByParent,
+    agentAreaInfo,
+    searchMatchContexts,
+    onSelectAgent,
+  ]);
+
   // Status summary
   const statusSummary = useMemo(() => {
     const summary = { total: agents.length, working: 0, idle: 0, error: 0 };
@@ -558,24 +611,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent }: Ag
                 )}
                 {(!groupByArea || !isCollapsed) && (
                   <div className={groupByArea ? 'aop-area-content' : undefined}>
-                    {group.agents.map(agent => (
-                      <AgentCard
-                        key={agent.id}
-                        agent={agent}
-                        isActive={agent.id === activeAgentId}
-                        isExpanded={expandedAgents.has(agent.id)}
-                        hasPendingRead={agentsWithUnseenOutput.has(agent.id)}
-                        showSubagents={showSubagents}
-                        showRecentActivity={showRecentActivity}
-                        showAreaChip={!groupByArea}
-                        toolExecs={toolsByAgent.get(agent.id) || []}
-                        subagents={subagentsByParent.get(agent.id) || []}
-                        areaInfo={agentAreaInfo.get(agent.id)}
-                        matchContext={searchMatchContexts.get(agent.id)}
-                        onToggle={() => toggleAgent(agent.id)}
-                        onSelect={() => onSelectAgent(agent.id)}
-                      />
-                    ))}
+                    {renderAgentCards(group.agents)}
                   </div>
                 )}
               </div>
@@ -661,7 +697,7 @@ function AgentCard({
 
     // Second: Task tool executions that don't have a matching live subagent
     for (const exec of toolExecs) {
-      if (exec.toolName !== 'Task') continue;
+      if (exec.toolName !== 'Task' && exec.toolName !== 'Agent') continue;
       const desc = (exec.toolInput?.description as string) || (exec.toolInput?.name as string) || '';
       const name = desc || (exec.toolInput?.prompt as string)?.slice(0, 40) || 'Task';
       if (seenNames.has(name)) continue;
@@ -719,11 +755,11 @@ function AgentCard({
         <span
           className="aop-agent-name"
           title={t('terminal:overview.clickToSwitch')}
-          style={areaInfo ? { background: `${areaInfo.color}22`, borderColor: `${areaInfo.color}44` } : undefined}
+          style={areaInfo ? { background: `${areaInfo.color}12`, borderColor: `${areaInfo.color}28` } : undefined}
         >
           {agent.name}
         </span>
-        <span className="aop-agent-class-icon" style={{ color: classConfig.color }} title={agent.class || 'agent'}>
+        <span className="aop-agent-class-icon" style={{ color: `color-mix(in srgb, ${classConfig.color} 60%, var(--text-muted))` }} title={agent.class || 'agent'}>
           {classConfig.icon}
         </span>
         {hasPendingRead && (
@@ -747,7 +783,7 @@ function AgentCard({
         {agent.class && (
           <span
             className="aop-agent-class"
-            style={{ color: classConfig.color, background: `${classConfig.color}20`, borderColor: `${classConfig.color}40` }}
+            style={{ color: `color-mix(in srgb, ${classConfig.color} 65%, var(--text-muted))`, background: `${classConfig.color}10`, borderColor: `${classConfig.color}25` }}
           >
             {agent.class}
           </span>
@@ -755,7 +791,7 @@ function AgentCard({
         {showAreaChip && areaInfo && (
           <span
             className="aop-area-chip"
-            style={{ background: `${areaInfo.color}20`, borderColor: `${areaInfo.color}40`, color: areaInfo.color }}
+            style={{ background: `${areaInfo.color}10`, borderColor: `${areaInfo.color}25`, color: `color-mix(in srgb, ${areaInfo.color} 65%, var(--text-muted))` }}
           >
             {areaInfo.name}
           </span>

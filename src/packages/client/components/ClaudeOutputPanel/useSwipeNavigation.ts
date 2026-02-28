@@ -16,6 +16,7 @@ export interface UseSwipeNavigationProps {
   agents: Map<string, Agent>;
   selectedAgentId: string | null;
   isOpen: boolean;
+  overviewPanelOpen: boolean;
   loadingHistory: boolean;
   /** Optional callback when modals are open to prevent navigation */
   hasModalOpen?: boolean;
@@ -50,15 +51,45 @@ export function useSwipeNavigation({
   agents,
   selectedAgentId,
   isOpen,
+  overviewPanelOpen,
   loadingHistory,
   hasModalOpen = false,
   outputRef,
 }: UseSwipeNavigationProps): UseSwipeNavigationReturn {
   const areas = useAreas();
   const toolExecutions = useToolExecutions();
+  const isAgentBarVisible = (): boolean => {
+    if (typeof document === 'undefined') return false;
+    const agentBar = document.querySelector<HTMLElement>('.agent-bar');
+    if (!agentBar) return false;
+    const style = window.getComputedStyle(agentBar);
+    if (style.display === 'none' || style.visibility === 'hidden') return false;
+    const rect = agentBar.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  };
 
   // Match Agent Overview ordering so keyboard/swipe navigation follows the same visual sequence.
   const sortedAgents = useMemo(() => {
+    const allAgents = Array.from(agents.values());
+
+    // When overview is closed and the bottom agent toolbar is visible, use toolbar order for swipe nav.
+    // This keeps swipe next/prev aligned with the visible toolbar ordering.
+    if (!overviewPanelOpen && isAgentBarVisible()) {
+      const toolbarAgents = allAgents
+        .filter(agent => !store.isAgentInArchivedArea(agent.id))
+        .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+      const savedOrder = getStorage<string[]>(STORAGE_KEYS.AGENT_ORDER, []);
+      const toolbarIdSet = new Set(toolbarAgents.map(a => a.id));
+      const orderedIds = [
+        ...savedOrder.filter(id => toolbarIdSet.has(id)),
+        ...toolbarAgents.filter(a => !savedOrder.includes(a.id)).map(a => a.id),
+      ];
+      const toolbarMap = new Map(toolbarAgents.map(a => [a.id, a]));
+      return orderedIds
+        .map(id => toolbarMap.get(id))
+        .filter((agent): agent is Agent => agent !== undefined);
+    }
+
     type SortMode = 'name' | 'status' | 'recent';
     type FilterMode = 'all' | 'working' | 'idle' | 'error';
     interface AopConfig {
@@ -75,7 +106,6 @@ export function useSwipeNavigation({
       sameAreaOnly: false,
     });
 
-    const allAgents = Array.from(agents.values());
     const state = store.getState();
     const toolsByAgent = new Map<string, number>();
     for (const exec of toolExecutions) {
@@ -144,7 +174,7 @@ export function useSwipeNavigation({
     filteredAgents = result;
 
     return filteredAgents;
-  }, [agents, areas, toolExecutions, selectedAgentId]);
+  }, [agents, areas, toolExecutions, selectedAgentId, overviewPanelOpen]);
 
   // Swipe animation state
   const [swipeOffset, setSwipeOffset] = useState(0);
@@ -312,13 +342,13 @@ export function useSwipeNavigation({
       // Previous agent
       if (matchesShortcut(e, prevAgentShortcut) || isAltShiftPrev) {
         e.preventDefault();
-        handleSwipeRight();
+        handleSwipeLeft();
         return;
       }
       // Next agent
       if (matchesShortcut(e, nextAgentShortcut) || isAltShiftNext) {
         e.preventDefault();
-        handleSwipeLeft();
+        handleSwipeRight();
         return;
       }
     };

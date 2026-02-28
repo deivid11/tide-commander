@@ -146,6 +146,26 @@
   flex: 1;
   overflow: auto;
   min-height: 0;
+  scrollbar-width: thin;
+
+  &::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+  }
+
+  // When showing DiffViewer, disable outer scroll — panels handle their own
+  &:has(> .diff-viewer) {
+    overflow: hidden;
+  }
 }
 
 .file-viewer-loading,
@@ -390,6 +410,86 @@
       opacity: 1;
       color: var(--accent-yellow);
     }
+  }
+
+  code {
+    flex: 1;
+    background: none;
+    padding: 0;
+    font-size: inherit;
+    white-space: pre;
+  }
+}
+
+// Unified diff fallback view
+.file-viewer-unified-diff {
+  padding: 0;
+
+  .file-line {
+    display: flex;
+    padding: 0 16px;
+    line-height: 1.5;
+
+    &:first-child {
+      padding-top: 8px;
+    }
+
+    &:last-child {
+      padding-bottom: 8px;
+    }
+
+    &.file-line-diff-add {
+      background: color-mix(in srgb, var(--accent-green) 12%, transparent);
+
+      .file-line-num {
+        color: var(--accent-green);
+        opacity: 0.8;
+      }
+
+      code {
+        color: var(--text-primary);
+      }
+    }
+
+    &.file-line-diff-del {
+      background: color-mix(in srgb, var(--accent-red) 12%, transparent);
+
+      .file-line-num {
+        color: var(--accent-red);
+        opacity: 0.8;
+      }
+
+      code {
+        color: var(--text-primary);
+      }
+    }
+
+    &.file-line-diff-hdr {
+      background: color-mix(in srgb, var(--accent-blue) 8%, transparent);
+
+      code {
+        color: color-mix(in srgb, var(--accent-blue) 80%, var(--text-primary));
+        font-weight: 600;
+      }
+    }
+
+    &.file-line-diff-meta {
+      code {
+        color: var(--text-muted);
+        font-style: italic;
+      }
+    }
+  }
+
+  .file-line-num {
+    flex-shrink: 0;
+    width: 45px;
+    padding-right: 12px;
+    text-align: right;
+    color: var(--text-muted);
+    font-size: 11px;
+    user-select: none;
+    opacity: 0.6;
   }
 
   code {

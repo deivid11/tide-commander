@@ -13,6 +13,7 @@ import {
   loadToolHistory,
   searchSession,
 } from '../claude/session-loader.js';
+import { loadSubagentHistory, type SubagentHistoryEntry } from '../claude/subagent-history-loader.js';
 import { logger, generateId } from '../utils/index.js';
 
 const log = logger.agent;
@@ -352,7 +353,13 @@ export async function getAgentSessions(agentId: string) {
   };
 }
 
-export async function getAgentHistory(agentId: string, limit: number = 50, offset: number = 0) {
+export async function getAgentHistory(
+  agentId: string,
+  limit: number = 50,
+  offset: number = 0,
+  includeSubagents: boolean = true,
+  subagentEntriesLimit: number = 200
+) {
   const agent = agents.get(agentId);
   log.log(` getAgentHistory called for agentId=${agentId}, agent found: ${!!agent}`);
   if (!agent) return null;
@@ -361,17 +368,51 @@ export async function getAgentHistory(agentId: string, limit: number = 50, offse
 
   if (!agent.sessionId) {
     log.log(` No sessionId for agent ${agentId}, returning empty`);
-    return { messages: [], sessionId: null, totalCount: 0, hasMore: false };
+    return { messages: [], sessionId: null, totalCount: 0, hasMore: false, subagents: [] as SubagentHistoryEntry[] };
   }
 
   const history = await loadSession(agent.cwd, agent.sessionId, limit, offset);
-  log.log(` Loaded ${history?.messages.length || 0} messages for agent ${agentId} from session ${agent.sessionId}`);
+  const messages = history?.messages || [];
+  log.log(` Loaded ${messages.length} messages for agent ${agentId} from session ${agent.sessionId}`);
+
+  // Load subagent history if requested
+  let subagents: SubagentHistoryEntry[] = [];
+  if (includeSubagents && messages.length > 0) {
+    // Collect Task/Agent tool_use IDs from the current page
+    const toolUseIdsInPage = new Set<string>();
+    for (const msg of messages) {
+      if (msg.type === 'tool_use' && (msg.toolName === 'Task' || msg.toolName === 'Agent') && msg.toolUseId) {
+        toolUseIdsInPage.add(msg.toolUseId);
+      }
+    }
+
+    if (toolUseIdsInPage.size > 0) {
+      try {
+        // We need all messages for correlation (not just the page), so load full session
+        const fullHistory = await loadSession(agent.cwd, agent.sessionId, 10000, 0);
+        const allMessages = fullHistory?.messages || messages;
+
+        subagents = await loadSubagentHistory(
+          agent.cwd,
+          agent.sessionId,
+          allMessages,
+          toolUseIdsInPage,
+          subagentEntriesLimit
+        );
+        log.log(` Loaded ${subagents.length} subagent histories for agent ${agentId}`);
+      } catch (err) {
+        log.error(` Failed to load subagent history for agent ${agentId}:`, err);
+      }
+    }
+  }
+
   return {
     sessionId: agent.sessionId,
-    messages: history?.messages || [],
+    messages,
     cwd: agent.cwd,
     totalCount: history?.totalCount || 0,
     hasMore: history?.hasMore || false,
+    subagents,
   };
 }
 

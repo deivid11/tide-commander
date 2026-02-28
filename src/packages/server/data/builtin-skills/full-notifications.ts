@@ -45,6 +45,16 @@ curl -s -X POST http://localhost:5174/api/notify -H "Content-Type: application/j
   - If you used a tool or spawned a subagent, verify output before notifying
   - If task involves waiting for other agents to finish, do NOT notify until they confirm completion
   - Only notify when YOU have nothing more to do on this task
-- Send notification as your FINAL action after completing work
-- Do NOT skip this step - the user relies on notifications`,
+- Do NOT skip this step - the user relies on notifications
+
+## CRITICAL: Notification Must Be Your ABSOLUTE LAST Action
+- The notification curl command must be the VERY LAST thing you do - your final tool call
+- Present ALL findings, summaries, and explanations to the user BEFORE sending the notification
+- Do NOT output any text, commentary, or follow-up messages after sending the notification
+- Do NOT say "I will now send a notification" or announce the notification - just send it silently as your last action
+- The notification signals to the system that you are DONE - anything after it may be lost or ignored
+- **Correct order**: Do work -> present results to user -> send notification (end)
+- **Wrong order**: Do work -> send notification -> present results (NEVER do this)
+- **Also wrong**: Do work -> present results -> send notification -> add follow-up text (NEVER do this)
+- Think of the notification as your "exit" command - nothing comes after it`,
 };

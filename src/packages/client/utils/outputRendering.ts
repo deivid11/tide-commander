@@ -12,6 +12,7 @@ export const TOOL_ICONS: Record<string, string> = {
   Glob: '🔍',
   Grep: '🔎',
   Task: '📋',
+  Agent: '🤖',
   WebFetch: '🌐',
   WebSearch: '🌍',
   TodoWrite: '✅',
@@ -40,6 +41,7 @@ const TOOL_NAME_TRANSLATION_KEYS: Record<string, string> = {
   Glob: 'tools:display.toolNames.glob',
   Grep: 'tools:display.toolNames.grep',
   Task: 'tools:display.toolNames.task',
+  Agent: 'tools:display.toolNames.agent',
   WebFetch: 'tools:display.toolNames.webFetch',
   WebSearch: 'tools:display.toolNames.webSearch',
   TodoWrite: 'tools:display.toolNames.todoWrite',
@@ -169,7 +171,8 @@ export function extractToolKeyParam(toolName: string, inputJson: string): string
         }
         break;
       }
-      case 'Task': {
+      case 'Task':
+      case 'Agent': {
         const desc = input.description;
         const agentType = input.subagent_type;
         if (desc) {

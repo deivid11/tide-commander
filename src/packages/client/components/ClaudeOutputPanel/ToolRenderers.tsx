@@ -9,6 +9,85 @@ import remarkGfm from 'remark-gfm';
 import type { DiffLine, EditData, TodoItem } from './types';
 
 // ============================================================================
+// Unified Diff Parser
+// ============================================================================
+
+interface UnifiedDiffLine {
+  type: 'context' | 'added' | 'removed';
+  content: string;
+  oldNum?: number;
+  newNum?: number;
+}
+
+interface DiffHunk {
+  header: string;
+  oldStart: number;
+  oldCount: number;
+  newStart: number;
+  newCount: number;
+  lines: UnifiedDiffLine[];
+}
+
+/**
+ * Parse standard unified diff output into structured hunks
+ */
+function parseUnifiedDiff(diffText: string): DiffHunk[] {
+  const lines = diffText.split('\n');
+  const hunks: DiffHunk[] = [];
+  let current: DiffHunk | null = null;
+  let oldLine = 0;
+  let newLine = 0;
+
+  for (const line of lines) {
+    // Skip diff header lines (diff --git, index, ---, +++)
+    if (line.startsWith('diff --git') || line.startsWith('index ') ||
+        line.startsWith('--- ') || line.startsWith('+++ ') ||
+        line.startsWith('new file mode') || line.startsWith('deleted file mode') ||
+        line.startsWith('old mode') || line.startsWith('new mode') ||
+        line.startsWith('similarity index') || line.startsWith('rename from') ||
+        line.startsWith('rename to') || line.startsWith('Binary files')) {
+      continue;
+    }
+
+    // Hunk header: @@ -oldStart,oldCount +newStart,newCount @@ context
+    const hunkMatch = line.match(/^@@\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s+@@(.*)$/);
+    if (hunkMatch) {
+      current = {
+        header: hunkMatch[5]?.trim() || '',
+        oldStart: parseInt(hunkMatch[1], 10),
+        oldCount: parseInt(hunkMatch[2] ?? '1', 10),
+        newStart: parseInt(hunkMatch[3], 10),
+        newCount: parseInt(hunkMatch[4] ?? '1', 10),
+        lines: [],
+      };
+      oldLine = current.oldStart;
+      newLine = current.newStart;
+      hunks.push(current);
+      continue;
+    }
+
+    if (!current) continue;
+
+    if (line.startsWith('+')) {
+      current.lines.push({ type: 'added', content: line.slice(1), newNum: newLine });
+      newLine++;
+    } else if (line.startsWith('-')) {
+      current.lines.push({ type: 'removed', content: line.slice(1), oldNum: oldLine });
+      oldLine++;
+    } else if (line.startsWith(' ') || line === '') {
+      current.lines.push({ type: 'context', content: line.startsWith(' ') ? line.slice(1) : line, oldNum: oldLine, newNum: newLine });
+      oldLine++;
+      newLine++;
+    } else if (line.startsWith('\\')) {
+      // "\ No newline at end of file" — skip
+      continue;
+    }
+  }
+
+  return hunks;
+}
+
+// ============================================================================
 // Diff Computation Utilities
 // ============================================================================
 
@@ -111,24 +190,20 @@ export function EditToolDiff({ content, onFileClick }: EditToolDiffProps) {
     const right = rightRef.current;
     if (!left || !right) return;
 
-    // Prevent feedback loops
     if (isScrollingRef.current && isScrollingRef.current !== source) return;
     isScrollingRef.current = source;
 
     const sourceEl = source === 'left' ? left : right;
     const targetEl = source === 'left' ? right : left;
 
-    // Sync both vertical and horizontal scroll
     targetEl.scrollTop = sourceEl.scrollTop;
     targetEl.scrollLeft = sourceEl.scrollLeft;
 
-    // Reset scroll lock after animation frame
     requestAnimationFrame(() => {
       isScrollingRef.current = null;
     });
   }, []);
 
-  // Set up scroll listeners
   useEffect(() => {
     const left = leftRef.current;
     const right = rightRef.current;
@@ -148,13 +223,76 @@ export function EditToolDiff({ content, onFileClick }: EditToolDiffProps) {
 
   try {
     const input = JSON.parse(content);
-    const { file_path, old_string, new_string, replace_all } = input;
+    const { file_path, old_string, new_string, replace_all, unified_diff } = input;
 
     if (!file_path) {
       return <pre className="output-input-content">{content}</pre>;
     }
 
     const fileName = file_path.split('/').pop() || file_path;
+
+    // If unified_diff is available, render hunk-based view
+    if (unified_diff) {
+      const hunks = parseUnifiedDiff(unified_diff);
+      const stats = { added: 0, removed: 0 };
+      for (const hunk of hunks) {
+        for (const line of hunk.lines) {
+          if (line.type === 'added') stats.added++;
+          if (line.type === 'removed') stats.removed++;
+        }
+      }
+
+      return (
+        <div className="edit-tool-diff">
+          <div className="edit-tool-header">
+            <span
+              className="edit-tool-file clickable"
+              onClick={() => onFileClick?.(file_path, { oldString: old_string || '', newString: new_string || '', unifiedDiff: unified_diff })}
+              title={t('terminal:history.openFileWithDiff', { path: file_path })}
+            >
+              {fileName}
+            </span>
+            <span className="edit-tool-path">{file_path}</span>
+            <div className="edit-tool-stats">
+              {stats.added > 0 && <span className="edit-stat added">+{stats.added}</span>}
+              {stats.removed > 0 && <span className="edit-stat removed">-{stats.removed}</span>}
+            </div>
+            {replace_all && <span className="edit-tool-badge">{t('tools:diff.replaceAll')}</span>}
+          </div>
+          <div className="edit-tool-unified">
+            {hunks.map((hunk, hunkIdx) => (
+              <div key={hunkIdx} className="diff-hunk">
+                <div className="diff-hunk-header">
+                  <span className="diff-hunk-range">
+                    @@ -{hunk.oldStart},{hunk.oldCount} +{hunk.newStart},{hunk.newCount} @@
+                  </span>
+                  {hunk.header && <span className="diff-hunk-context">{hunk.header}</span>}
+                </div>
+                {hunk.lines.map((line, lineIdx) => (
+                  <div key={lineIdx} className={`diff-line diff-line-${line.type}`}>
+                    <span className="diff-line-num diff-line-num-old">
+                      {line.type !== 'added' ? line.oldNum : ''}
+                    </span>
+                    <span className="diff-line-num diff-line-num-new">
+                      {line.type !== 'removed' ? line.newNum : ''}
+                    </span>
+                    <span className="diff-line-marker">
+                      {line.type === 'added' ? '+' : line.type === 'removed' ? '-' : ' '}
+                    </span>
+                    <span className="diff-line-content">{line.content || ' '}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+            {hunks.length === 0 && (
+              <div className="diff-empty">No changes detected</div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // Fallback: side-by-side LCS diff
     const { leftLines, rightLines, stats } = computeSideBySideDiff(old_string || '', new_string || '');
 
     return (
@@ -165,7 +303,7 @@ export function EditToolDiff({ content, onFileClick }: EditToolDiffProps) {
             onClick={() => onFileClick?.(file_path, { oldString: old_string || '', newString: new_string || '' })}
             title={t('terminal:history.openFileWithDiff', { path: file_path })}
           >
-            📄 {fileName}
+            {fileName}
           </span>
           <span className="edit-tool-path">{file_path}</span>
           <div className="edit-tool-stats">
@@ -175,7 +313,6 @@ export function EditToolDiff({ content, onFileClick }: EditToolDiffProps) {
           {replace_all && <span className="edit-tool-badge">{t('tools:diff.replaceAll')}</span>}
         </div>
         <div className="edit-tool-panels">
-          {/* Original (Left) */}
           <div className="edit-panel edit-panel-original">
             <div className="edit-panel-header">
               <span className="edit-panel-label">{t('tools:diff.original')}</span>
@@ -196,7 +333,6 @@ export function EditToolDiff({ content, onFileClick }: EditToolDiffProps) {
             </div>
           </div>
 
-          {/* Modified (Right) */}
           <div className="edit-panel edit-panel-modified">
             <div className="edit-panel-header">
               <span className="edit-panel-label">{t('tools:diff.modified')}</span>

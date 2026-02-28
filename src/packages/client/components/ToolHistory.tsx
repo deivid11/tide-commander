@@ -86,7 +86,7 @@ export function ToolHistory({ agentIds }: ToolHistoryProps) {
     if (toolName === 'Bash') return '💻';
     if (toolName === 'Grep') return '🔍';
     if (toolName === 'Glob') return '📁';
-    if (toolName === 'Task') return '🤖';
+    if (toolName === 'Task' || toolName === 'Agent') return '🤖';
     if (toolName === 'WebFetch') return '🌐';
     if (toolName === 'WebSearch') return '🔎';
     return '🔧';

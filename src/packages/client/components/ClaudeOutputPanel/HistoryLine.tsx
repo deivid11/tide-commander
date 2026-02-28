@@ -78,7 +78,7 @@ export const HistoryLine = memo(function HistoryLine({
   const parentAgentName = agentId ? store.getState().agents.get(agentId)?.name : null;
   const provider = agentId ? store.getState().agents.get(agentId)?.provider : undefined;
   const assistantRoleLabel = provider === 'codex' ? 'Codex' : 'Claude';
-  const subagentNameFromInput = (type === 'tool_use' && toolName === 'Task' && message.toolInput)
+  const subagentNameFromInput = (type === 'tool_use' && (toolName === 'Task' || toolName === 'Agent') && message.toolInput)
     ? ((message.toolInput.name as string) || (message.toolInput.description as string) || null)
     : null;
   const agentName = subagentNameFromInput || parentAgentName;
@@ -267,7 +267,8 @@ export const HistoryLine = memo(function HistoryLine({
 
       const fileTools = ['Read', 'Edit', 'Write', 'Glob', 'Grep', 'NotebookEdit'];
       const isFileTool = fileTools.includes(toolName || '');
-      const isFilePath = keyParam && (keyParam.startsWith('/') || keyParam.includes('/'));
+      // File tools always have a file path as keyParam (even root-level files like "README.md" without slashes)
+      const isFilePath = keyParam && (isFileTool || keyParam.startsWith('/') || keyParam.includes('/'));
       const isFileClickable = isFileTool && isFilePath && onFileClick;
 
       // Bash tools are clickable if we have onBashClick handler
@@ -282,11 +283,12 @@ export const HistoryLine = memo(function HistoryLine({
           if (toolName === 'Edit' && toolInputContent) {
             try {
               const parsed = JSON.parse(toolInputContent);
-              if (parsed.old_string !== undefined || parsed.new_string !== undefined) {
+              if (parsed.old_string !== undefined || parsed.new_string !== undefined || parsed.unified_diff !== undefined) {
                 onFileClick(keyParam, {
                   oldString: parsed.old_string || '',
                   newString: parsed.new_string || '',
                   operation: typeof parsed.operation === 'string' ? parsed.operation : undefined,
+                  unifiedDiff: typeof parsed.unified_diff === 'string' ? parsed.unified_diff : undefined,
                 });
                 return;
               }

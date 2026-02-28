@@ -13,6 +13,11 @@ interface CodexItemAction {
   url?: string;
 }
 
+interface CodexItemChange {
+  path?: string;
+  kind?: string; // 'Add' | 'Delete' | 'Update'
+}
+
 interface CodexItem {
   id?: string;
   type?: string;
@@ -23,6 +28,7 @@ interface CodexItem {
   exit_code?: number;
   status?: string;
   action?: CodexItemAction;
+  changes?: CodexItemChange[];
 }
 
 interface CodexUsage {
@@ -113,6 +119,16 @@ function parseAction(action: unknown): CodexItemAction | undefined {
   };
 }
 
+function parseChanges(changes: unknown): CodexItemChange[] | undefined {
+  if (!Array.isArray(changes)) return undefined;
+  return changes
+    .filter(isObject)
+    .map((entry) => ({
+      path: asString(entry.path),
+      kind: asString(entry.kind),
+    }));
+}
+
 function parseItem(item: unknown): CodexItem | undefined {
   if (!isObject(item)) return undefined;
   return {
@@ -125,6 +141,7 @@ function parseItem(item: unknown): CodexItem | undefined {
     exit_code: asNumber(item.exit_code),
     status: asString(item.status),
     action: parseAction(item.action),
+    changes: parseChanges(item.changes),
   };
 }
 
@@ -507,10 +524,8 @@ export class CodexJsonEventParser {
       ];
     }
 
-    // file_change: Silent. File change info is already captured from the
-    // command_execution or custom_tool_call that caused it.
     if (item.type === 'file_change') {
-      return [];
+      return this.parseFileChange(item);
     }
 
     return [this.buildUnknownEventFallback(`Unhandled Codex item.completed type: ${item.type}`, item)];
@@ -535,6 +550,87 @@ export class CodexJsonEventParser {
     }
 
     return [event];
+  }
+
+  private parseFileChange(item: CodexItem): RuntimeEvent[] {
+    if (!item.changes || item.changes.length === 0) return [];
+    if (item.status !== 'completed') return [];
+
+    const events: RuntimeEvent[] = [];
+    for (const change of item.changes) {
+      if (!change.path) continue;
+      const filePath = change.path;
+      const unifiedDiff = this.getGitUnifiedDiff(filePath);
+      if (!unifiedDiff) continue;
+
+      const toolInput: Record<string, unknown> = {
+        file_path: filePath,
+        unified_diff: unifiedDiff,
+      };
+
+      // Also grab old/new content for fallback rendering
+      if (this.enableFileDiffEnrichment) {
+        const snapshot = this.getFileSnapshot(filePath);
+        if (snapshot && snapshot.oldContent !== snapshot.newContent) {
+          toolInput.old_string = snapshot.oldContent;
+          toolInput.new_string = snapshot.newContent;
+        }
+      }
+
+      events.push(
+        {
+          type: 'tool_start',
+          toolName: 'Edit',
+          toolInput,
+        },
+        {
+          type: 'tool_result',
+          toolName: 'Edit',
+          toolOutput: `File ${change.kind?.toLowerCase() || 'changed'}: ${filePath}`,
+        },
+      );
+    }
+    return events;
+  }
+
+  private getGitUnifiedDiff(filePath: string): string | null {
+    const absolutePath = this.resolveAbsolutePath(filePath);
+    if (!absolutePath) return null;
+
+    const gitRoot = this.findGitRoot(path.dirname(absolutePath));
+    if (!gitRoot) return null;
+
+    const relativePath = path.relative(gitRoot, absolutePath);
+    if (!relativePath || relativePath.startsWith('..')) return null;
+
+    const gitPath = relativePath.split(path.sep).join(path.posix.sep);
+    try {
+      const diff = execFileSync(
+        'git',
+        ['diff', 'HEAD', '-U3', '--no-color', '--', gitPath],
+        {
+          cwd: gitRoot,
+          encoding: 'utf8',
+          maxBuffer: MAX_DIFF_FILE_BYTES + 4096,
+        },
+      );
+      if (!diff.trim()) {
+        // Try staged diff for newly added files
+        const stagedDiff = execFileSync(
+          'git',
+          ['diff', '--cached', '-U3', '--no-color', '--', gitPath],
+          {
+            cwd: gitRoot,
+            encoding: 'utf8',
+            maxBuffer: MAX_DIFF_FILE_BYTES + 4096,
+          },
+        );
+        return stagedDiff.trim() || null;
+      }
+      return diff;
+    } catch {
+      return null;
+    }
   }
 
   private buildUnknownEventFallback(prefix: string, payload: unknown): RuntimeEvent {
@@ -1004,12 +1100,16 @@ export class CodexJsonEventParser {
     if (!snapshot) return;
     if (snapshot.oldContent === snapshot.newContent) return;
 
+    // Get a proper unified diff for better rendering
+    const unifiedDiff = this.getGitUnifiedDiff(filePath);
+
     call.toolName = 'Edit';
     call.toolInput = {
       ...call.toolInput,
       file_path: filePath,
       old_string: snapshot.oldContent,
       new_string: snapshot.newContent,
+      ...(unifiedDiff ? { unified_diff: unifiedDiff } : {}),
     };
   }
 

@@ -45,6 +45,8 @@ export interface ThemeColors {
   // Context stats colors
   contextBarBg: string;       // Context bar background
   contextBarFill: string;     // Context bar fill color (default, overridden by percent color)
+  // Task label color (overview panel)
+  taskLabelColor: string;     // Color for agent task label text in overview
 }
 
 export interface Theme {
@@ -98,6 +100,7 @@ const draculaTheme: Theme = {
     // Context stats: Iconic purple
     contextBarBg: 'rgba(189, 147, 249, 0.25)',
     contextBarFill: '#bd93f9',
+    taskLabelColor: '#ff79c6',            // Dracula pink
   },
 };
 
@@ -145,6 +148,7 @@ const mutedTheme: Theme = {
     // Context stats: Soft lavender
     contextBarBg: 'rgba(168, 152, 184, 0.2)',
     contextBarFill: '#a898b8',
+    taskLabelColor: '#c8a878',            // Dusty gold
   },
 };
 
@@ -192,6 +196,7 @@ const mutedRedTheme: Theme = {
     // Context stats: Rose gold
     contextBarBg: 'rgba(216, 136, 152, 0.25)',
     contextBarFill: '#d88898',
+    taskLabelColor: '#d8c088',            // Champagne
   },
 };
 
@@ -239,6 +244,7 @@ const nordTheme: Theme = {
     // Context stats: Frost blue
     contextBarBg: 'rgba(129, 161, 193, 0.25)',
     contextBarFill: '#81a1c1',
+    taskLabelColor: '#ebcb8b',            // Aurora yellow
   },
 };
 
@@ -286,6 +292,7 @@ const solarizedDarkTheme: Theme = {
     // Context stats: Solarized blue
     contextBarBg: 'rgba(38, 139, 210, 0.25)',
     contextBarFill: '#268bd2',
+    taskLabelColor: '#b58900',            // Solarized yellow
   },
 };
 
@@ -333,6 +340,7 @@ const monokaiTheme: Theme = {
     // Context stats: Hot pink
     contextBarBg: 'rgba(249, 38, 114, 0.25)',
     contextBarFill: '#f92672',
+    taskLabelColor: '#fd971f',            // Monokai orange
   },
 };
 
@@ -380,6 +388,7 @@ const gruvboxTheme: Theme = {
     // Context stats: Gruvbox orange
     contextBarBg: 'rgba(254, 128, 25, 0.25)',
     contextBarFill: '#fe8019',
+    taskLabelColor: '#fabd2f',            // Gruvbox yellow
   },
 };
 
@@ -427,6 +436,7 @@ const atomTheme: Theme = {
     // Context stats: Nebula purple
     contextBarBg: 'rgba(175, 122, 197, 0.25)',
     contextBarFill: '#af7ac5',
+    taskLabelColor: '#f7dc6f',            // Solar yellow
   },
 };
 
@@ -474,6 +484,7 @@ const cyberpunkTheme: Theme = {
     // Context stats: Hot magenta
     contextBarBg: 'rgba(255, 0, 170, 0.30)',
     contextBarFill: '#ff00aa',
+    taskLabelColor: '#fff000',            // Hazard yellow
   },
 };
 
@@ -521,53 +532,55 @@ const synthwaveTheme: Theme = {
     // Context stats: Neon pink
     contextBarBg: 'rgba(247, 6, 207, 0.25)',
     contextBarFill: '#f706cf',
+    taskLabelColor: '#fede5d',            // Sun gold
   },
 };
 
-// Abyss - ultra dark with vibrant accents
-// Signature: Deep black backgrounds, bright saturated colors pop
+// Abyss - pitch-black void with vivid accents emerging from darkness
+// Signature: Ultra-dark neutral backgrounds, warm vivid colors pop against the void
 const abyssTheme: Theme = {
   id: 'abyss',
   name: 'Abyss',
-  description: 'Deep black, vivid accents',
+  description: 'Pitch-black void, vivid accents',
   colors: {
-    bgPrimary: '#080a0c',
-    bgSecondary: '#0c0e12',
-    bgTertiary: '#12161a',
-    borderColor: '#1c2028',
-    textPrimary: '#a8b0b8',
-    textSecondary: '#889098',
-    textMuted: '#505860',
-    accentBlue: '#4da8da',
-    accentGreen: '#50c878',
-    accentOrange: '#e89050',
-    accentRed: '#e85050',
-    accentPurple: '#a070d8',
-    accentCyan: '#50d0d0',
-    accentClaude: '#50c878',
-    accentClaudeLight: '#68e090',
-    accentPink: '#e070a0',
-    accentYellow: '#e8d050',
-    // Messages: Blue user, green assistant - eye friendly text, transparent borders
-    msgUserBg: '#0b0b0b',
-    msgUserBorder: 'transparent',
-    msgUserText: '#98a0a8',
-    msgAssistantBg: '#1B1C25',
-    msgAssistantBorder: 'transparent',
-    msgAssistantText: '#98a0a8',
-    // Tools: Bright orange/purple on dark, using textSecondary
-    toolUseBg: '#1B1C25',
-    toolUseBorder: '#e89050',
-    toolUseText: '#98a0a8',
-    toolUseName: '#e89050',
-    toolResultBg: '#1B1C25',
-    toolResultBorder: '#a070d8',
-    toolResultText: '#98a0a8',
+    bgPrimary: '#08090c',              // Near-black void
+    bgSecondary: '#0e1014',            // Deep shadow
+    bgTertiary: '#16181e',             // Dark shelf
+    borderColor: '#242830',            // Faint neutral edges
+    textPrimary: '#b0b4bc',            // Neutral light gray
+    textSecondary: '#808690',          // Muted gray
+    textMuted: '#4c5058',              // Deep muted
+    accentBlue: '#3d8ab8',             // Subdued ocean blue
+    accentGreen: '#3ea868',            // Muted deep green
+    accentOrange: '#c07848',           // Dimmed ember orange
+    accentRed: '#b84848',              // Dark muted red
+    accentPurple: '#8060b0',           // Muted violet
+    accentCyan: '#3ca8a8',             // Subdued teal
+    accentClaude: '#3ea868',
+    accentClaudeLight: '#50b878',
+    accentPink: '#a85880',             // Dusty rose
+    accentYellow: '#b8a840',           // Dim gold
+    // Messages: Visible borders and distinct backgrounds
+    msgUserBg: '#181c24',
+    msgUserBorder: '#3a2820',             // Subtle warm border
+    msgUserText: '#d0d4dc',
+    msgAssistantBg: '#12161e',
+    msgAssistantBorder: '#1c3838',        // Subtle teal border for assistant
+    msgAssistantText: '#a0a8b4',
+    // Tools: Subtle warm/cool borders, distinct backgrounds
+    toolUseBg: '#161a22',
+    toolUseBorder: '#3a2820',             // Subtle warm border
+    toolUseText: '#989ea8',
+    toolUseName: '#c07848',
+    toolResultBg: '#121824',
+    toolResultBorder: '#202038',          // Subtle cool border
+    toolResultText: '#989ea8',
     // Output line: Deep void
     outputLineBg: '#0a0c10',
-    // Context stats: Dark muted for abyss
-    contextBarBg: 'rgba(80, 88, 96, 0.3)',
-    contextBarFill: '#606870',
+    // Context stats: Muted neutral
+    contextBarBg: 'rgba(60, 68, 76, 0.25)',
+    contextBarFill: '#4c5460',
+    taskLabelColor: '#c07848',            // Muted ember
   },
 };
 
@@ -615,6 +628,7 @@ const catppuccinTheme: Theme = {
     // Context stats: Pink
     contextBarBg: 'rgba(245, 194, 231, 0.25)',
     contextBarFill: '#f5c2e7',
+    taskLabelColor: '#fab387',            // Catppuccin peach
   },
 };
 
@@ -662,6 +676,7 @@ const githubDarkTheme: Theme = {
     // Context stats: GitHub blue
     contextBarBg: 'rgba(88, 166, 255, 0.25)',
     contextBarFill: '#58a6ff',
+    taskLabelColor: '#d29922',            // GitHub attention
   },
 };
 
@@ -709,6 +724,7 @@ const oneDarkTheme: Theme = {
     // Context stats: Blue moonlight
     contextBarBg: 'rgba(97, 175, 239, 0.25)',
     contextBarFill: '#61afef',
+    taskLabelColor: '#d19a66',            // One Dark orange
   },
 };
 
@@ -756,6 +772,7 @@ const classicTheme: Theme = {
     // Context stats: Muted sage green
     contextBarBg: 'rgba(106, 154, 120, 0.25)',
     contextBarFill: '#6a9a78',
+    taskLabelColor: '#8be9fd',            // Classic cyan
   },
 };
 
@@ -828,6 +845,8 @@ export function applyTheme(theme: Theme): void {
   // Context stats colors
   root.style.setProperty('--context-bar-bg', colors.contextBarBg);
   root.style.setProperty('--context-bar-fill', colors.contextBarFill);
+  // Task label color
+  root.style.setProperty('--task-label-color', colors.taskLabelColor);
 
   // Store in localStorage
   try {

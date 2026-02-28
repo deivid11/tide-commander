@@ -579,7 +579,7 @@ class Store
 
   setFileViewerPath(
     path: string | null,
-    editData?: { oldString?: string; newString?: string; operation?: string; highlightRange?: { offset: number; limit: number }; targetLine?: number },
+    editData?: { oldString?: string; newString?: string; operation?: string; unifiedDiff?: string; highlightRange?: { offset: number; limit: number }; targetLine?: number },
     searchRoot?: string | null
   ): void {
     this.state.fileViewerPath = path;
@@ -1097,6 +1097,7 @@ class Store
   addSubagentActivity(...args: Parameters<SubagentActions['addSubagentActivity']>) { return this.subagentActions.addSubagentActivity(...args); }
   updateSubagentStats(...args: Parameters<SubagentActions['updateSubagentStats']>) { return this.subagentActions.updateSubagentStats(...args); }
   addSubagentStreamEntries(...args: Parameters<SubagentActions['addSubagentStreamEntries']>) { return this.subagentActions.addSubagentStreamEntries(...args); }
+  hydrateSubagentsFromHistory(...args: Parameters<SubagentActions['hydrateSubagentsFromHistory']>) { return this.subagentActions.hydrateSubagentsFromHistory(...args); }
 }
 
 // Extend Window interface for HMR persistence

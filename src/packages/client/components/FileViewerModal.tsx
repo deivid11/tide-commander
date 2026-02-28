@@ -38,6 +38,7 @@ interface FileViewerModalProps {
     oldString?: string;
     newString?: string;
     operation?: string;
+    unifiedDiff?: string;
     // For Read tool - highlight these lines
     highlightRange?: { offset: number; limit: number };
     // For direct file references like path/to/file.ts:16
@@ -62,6 +63,70 @@ interface FileData {
   content: string;
   size: number;
   modified: string;
+}
+
+/**
+ * Reconstruct the original file content from the current (modified) content
+ * and a unified diff. Reverses the diff: removes added lines, restores removed lines.
+ */
+function reconstructOriginalFromUnifiedDiff(currentContent: string, diffText: string): string | null {
+  try {
+    const currentLines = currentContent.split('\n');
+    const diffLines = diffText.split('\n');
+    const result: string[] = [];
+    let currentIdx = 0; // 0-based index into currentLines
+
+    for (let d = 0; d < diffLines.length; d++) {
+      const line = diffLines[d];
+      // Parse hunk header: @@ -oldStart,oldCount +newStart,newCount @@
+      const hunkMatch = line.match(/^@@\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s+@@/);
+      if (!hunkMatch) continue;
+
+      const newStart = parseInt(hunkMatch[3], 10); // 1-based line in modified file
+      const _newCount = parseInt(hunkMatch[4] ?? '1', 10);
+
+      // Copy unchanged lines before this hunk
+      const hunkStartIdx = newStart - 1; // 0-based
+      while (currentIdx < hunkStartIdx && currentIdx < currentLines.length) {
+        result.push(currentLines[currentIdx]);
+        currentIdx++;
+      }
+
+      // Process hunk lines
+      let _newLinesConsumed = 0;
+      for (let h = d + 1; h < diffLines.length; h++) {
+        const hLine = diffLines[h];
+        if (hLine.startsWith('@@') || hLine.startsWith('diff ')) break;
+        if (hLine.startsWith('---') || hLine.startsWith('+++') ||
+            hLine.startsWith('index ') || hLine.startsWith('new file') ||
+            hLine.startsWith('deleted file') || hLine.startsWith('\\')) continue;
+
+        if (hLine.startsWith('-')) {
+          // Removed line: add to original (restore it)
+          result.push(hLine.slice(1));
+        } else if (hLine.startsWith('+')) {
+          // Added line: skip (don't include in original), consume from current
+          _newLinesConsumed++;
+          currentIdx++;
+        } else {
+          // Context line: include in original, consume from current
+          result.push(hLine.startsWith(' ') ? hLine.slice(1) : hLine);
+          _newLinesConsumed++;
+          currentIdx++;
+        }
+      }
+    }
+
+    // Copy remaining unchanged lines after last hunk
+    while (currentIdx < currentLines.length) {
+      result.push(currentLines[currentIdx]);
+      currentIdx++;
+    }
+
+    return result.join('\n');
+  } catch {
+    return null;
+  }
 }
 
 // Language mapping for syntax highlighting hints
@@ -116,6 +181,8 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
   const [copyHtmlStatus, setCopyHtmlStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [copyMarkdownStatus, setCopyMarkdownStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [copyOriginalStatus, setCopyOriginalStatus] = useState<'idle' | 'copied' | 'error'>('idle');
+  const [fetchedUnifiedDiff, setFetchedUnifiedDiff] = useState<string | null>(null);
+  const [fetchedOriginalContent, setFetchedOriginalContent] = useState<string | null>(null);
   const markdownContentRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -129,12 +196,16 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     if (isOpen && effectivePath) {
       setResolvedCandidates([]);
       setDirectoryEntries([]);
+      setFetchedUnifiedDiff(null);
+      setFetchedOriginalContent(null);
       loadFile();
     } else {
       setFileData(null);
       setError(null);
       setResolvedCandidates([]);
       setDirectoryEntries([]);
+      setFetchedUnifiedDiff(null);
+      setFetchedOriginalContent(null);
     }
   }, [isOpen, effectivePath]);
 
@@ -235,11 +306,76 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
   }, [fileData, editData]);
 
   const hasEditStrings = !!editData && (!editData.highlightRange) && (!!editData.oldString || !!editData.newString);
-  const showDiffView = hasEditStrings && originalContent !== null;
+  const resolvedUnifiedDiff = editData?.unifiedDiff || fetchedUnifiedDiff;
+  const hasUnifiedDiff = !!resolvedUnifiedDiff;
+
+  // When direct reconstruction fails but we have a unified diff,
+  // reconstruct original from the diff to enable the side-by-side DiffViewer
+  const originalFromDiff = useMemo(() => {
+    if (originalContent !== null) return null; // Direct reconstruction succeeded
+    if (!fileData || !resolvedUnifiedDiff) return null;
+    return reconstructOriginalFromUnifiedDiff(fileData.content, resolvedUnifiedDiff);
+  }, [originalContent, fileData, resolvedUnifiedDiff]);
+
+  const effectiveOriginal = originalContent ?? originalFromDiff ?? fetchedOriginalContent;
+  const showDiffView = effectiveOriginal !== null && (hasEditStrings || hasUnifiedDiff);
+  // Fall back to raw unified diff only when DiffViewer cannot be used
+  const showUnifiedDiffView = hasUnifiedDiff && !showDiffView;
   const showHighlightView = effectiveHighlightRange !== undefined;
 
+  // Fetch git diff from server when reconstruction fails and no unified diff is available
+  useEffect(() => {
+    if (!fileData || !editData || editData.highlightRange) return;
+    if (showDiffView) return; // Side-by-side works, no need
+    if (editData.unifiedDiff) return; // Already have unified diff
+    if (fetchedUnifiedDiff !== null) return; // Already fetched (or failed)
+
+    const fetchDiff = async () => {
+      try {
+        const diffPath = fileData.path || effectivePath;
+        const res = await authFetch(apiUrl(`/api/files/git-diff?path=${encodeURIComponent(diffPath)}`));
+        if (res.ok) {
+          const data = await res.json();
+          if (data.diff && data.diff.trim()) {
+            setFetchedUnifiedDiff(data.diff);
+            return;
+          }
+        }
+      } catch { /* ignore */ }
+      setFetchedUnifiedDiff(''); // Mark as attempted (empty = no diff available)
+    };
+    fetchDiff();
+  }, [fileData, editData, showDiffView, effectivePath, fetchedUnifiedDiff]);
+
+  // Fetch original file content from git HEAD when reconstruction fails
+  // This enables the proper DiffViewer side-by-side component
+  useEffect(() => {
+    if (!fileData || !editData || editData.highlightRange) return;
+    // Skip if we already have original content from direct reconstruction or diff reconstruction
+    if (originalContent !== null || originalFromDiff !== null) return;
+    if (fetchedOriginalContent !== null) return; // Already fetched (or failed)
+    // Only fetch if we have reason to show a diff (edit strings or unified diff)
+    if (!hasEditStrings && !hasUnifiedDiff) return;
+
+    const fetchOriginal = async () => {
+      try {
+        const filePath = fileData.path || effectivePath;
+        const res = await authFetch(apiUrl(`/api/files/git-original?path=${encodeURIComponent(filePath)}`));
+        if (res.ok) {
+          const data = await res.json();
+          if (data.content !== undefined && data.content !== fileData.content) {
+            setFetchedOriginalContent(data.content);
+            return;
+          }
+        }
+      } catch { /* ignore */ }
+      setFetchedOriginalContent(''); // Mark as attempted
+    };
+    fetchOriginal();
+  }, [fileData, editData, originalContent, originalFromDiff, fetchedOriginalContent, hasEditStrings, hasUnifiedDiff, effectivePath]);
+
   const highlightedLines = useMemo(() => {
-    if (!fileData || showDiffView || showHighlightView || MARKDOWN_EXTENSIONS.includes(fileData.extension)) return [];
+    if (!fileData || showDiffView || showUnifiedDiffView || showHighlightView || MARKDOWN_EXTENSIONS.includes(fileData.extension)) return [];
     const codeLanguage = EXTENSION_LANGUAGES[fileData.extension] || 'text';
     const grammar = Prism.languages[codeLanguage];
     const escapeHtml = (value: string) => value
@@ -250,7 +386,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
       if (!grammar) return escapeHtml(line || ' ');
       return Prism.highlight(line || ' ', grammar, codeLanguage);
     });
-  }, [fileData, showDiffView, showHighlightView]);
+  }, [fileData, showDiffView, showUnifiedDiffView, showHighlightView]);
 
   // When a specific line is requested, center it in view.
   useEffect(() => {
@@ -557,7 +693,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
             <span className="file-viewer-filename">{fileData?.filename || effectivePath.split('/').pop()}</span>
           </div>
           <div className="file-viewer-header-buttons">
-            {isMarkdown && fileData && !showDiffView && (
+            {isMarkdown && fileData && !showDiffView && !showUnifiedDiffView && (
               <>
                 <button
                   className={`file-viewer-copy-html-btn ${copyRichTextStatus}`}
@@ -704,11 +840,28 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
             ) : showDiffView ? (
               // Show side-by-side diff view for Edit tool
               <DiffViewer
-                originalContent={originalContent!}
+                originalContent={effectiveOriginal!}
                 modifiedContent={fileData.content}
                 filename={fileData.filename}
                 language={language}
               />
+            ) : showUnifiedDiffView ? (
+              // Fallback: show unified diff when side-by-side reconstruction fails
+              <pre className="file-viewer-code file-viewer-unified-diff">
+                {resolvedUnifiedDiff!.split('\n').map((line, idx) => {
+                  let lineClass = 'diff-ctx';
+                  if (line.startsWith('+') && !line.startsWith('+++')) lineClass = 'diff-add';
+                  else if (line.startsWith('-') && !line.startsWith('---')) lineClass = 'diff-del';
+                  else if (line.startsWith('@@')) lineClass = 'diff-hdr';
+                  else if (line.startsWith('diff ') || line.startsWith('index ') || line.startsWith('---') || line.startsWith('+++')) lineClass = 'diff-meta';
+                  return (
+                    <div key={idx} className={`file-line file-line-${lineClass}`}>
+                      <span className="file-line-num">{idx + 1}</span>
+                      <code>{line || ' '}</code>
+                    </div>
+                  );
+                })}
+              </pre>
             ) : showHighlightView ? (
               // Show file with highlighted lines (for Read tool with offset/limit)
               <pre className="file-viewer-code file-viewer-code-highlighted">

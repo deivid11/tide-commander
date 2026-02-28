@@ -30,7 +30,7 @@ export function handleTaskToolStart(
   event: RuntimeEvent,
   log: { log: (message: string) => void }
 ): ActiveSubagent | null {
-  if (event.toolName !== 'Task' || !event.toolUseId || !event.subagentName) {
+  if ((event.toolName !== 'Task' && event.toolName !== 'Agent') || !event.toolUseId || !event.subagentName) {
     return null;
   }
 
@@ -57,7 +57,7 @@ export function handleTaskToolResult(
   event: RuntimeEvent,
   log: { log: (message: string) => void }
 ): void {
-  if (event.toolName !== 'Task' || !event.toolUseId) {
+  if ((event.toolName !== 'Task' && event.toolName !== 'Agent') || !event.toolUseId) {
     return;
   }
 

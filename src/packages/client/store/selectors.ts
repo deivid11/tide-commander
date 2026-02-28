@@ -588,6 +588,7 @@ export function useFileViewerEditData(): {
   oldString?: string;
   newString?: string;
   operation?: string;
+  unifiedDiff?: string;
   highlightRange?: { offset: number; limit: number };
   targetLine?: number;
 } | null {

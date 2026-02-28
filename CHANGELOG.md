@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.0] - 2026-02-28
+
+### Added
+- **Subagent history loading** - New module loads persisted subagent JSONL files from disk with correlation mapping to parent session tool_use calls
+- **Agent tool support** - Full parity with Task tool for subagent tracking, delegation, and history loading across frontend and backend
+- **Unified diff reconstruction** - FileViewerModal reconstructs original file content from unified diffs with fallback diff view
+- **Unified diff in file snapshots** - Build file snapshots now include `unified_diff` from `git diff HEAD` for richer context
+- **Theme task label color** - Added `taskLabelColor` field to all 10 theme definitions for overview panel styling
+- **CSS custom properties in overview panel** - Replaced Sass variables with CSS variables for better theming flexibility
+
+### Changed
+- **Overview panel color styling** - Agent name backgrounds, class badges, and area chips use lighter color-mix() approach for improved readability
+- **Agent card rendering refactored** - Extracted `renderAgentCards()` with status separators for cleaner markup and sorting UX
+- **History loader subagent hydration** - `useHistoryLoader` hook now calls `store.hydrateSubagentsFromHistory()` when subagent data arrives
+- **File path detection improved** - File tools now detect root-level files without slashes (e.g., README.md)
+- **Diff viewer styling** - Thinner scrollbars, transparent tracks, proper horizontal scrolling with `fit-content` width
+- **File viewer scroll management** - Outer scroll disabled when DiffViewer shown to prevent double-scrolling
+
+### Fixed
+- **Subagent history correlation** - JSONL files properly correlated to parent tool_use IDs via `buildToolUseIdToSubagentIdMap()`
+- **Stream entry limits** - Subagent file parsing truncates to 200 most recent entries per file to prevent payload bloat
+- **Diff viewer filename overflow** - Ellipsis truncation with proper `min-width: 0` for long paths
+- **Diff panel width management** - Both side-by-side panels now have proper overflow handling for flex layout
+
 ## [1.0.1] - 2026-02-28
 
 ### Added

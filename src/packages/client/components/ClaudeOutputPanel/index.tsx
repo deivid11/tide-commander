@@ -332,6 +332,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     agents,
     selectedAgentId: activeAgentId,
     isOpen,
+    overviewPanelOpen,
     // Use in-flight flag so swipe-in animation waits even when the UI loading flag is delayed
     loadingHistory: historyLoader.fetchingHistory,
     hasModalOpen: !!(imageModal || bashModal || responseModalContent || fileViewerPath || contextModalAgentId),
@@ -580,7 +581,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     setImageModal({ url, name });
   }, []);
 
-  const handleFileClick = useCallback((path: string, editData?: { oldString?: string; newString?: string; operation?: string; highlightRange?: { offset: number; limit: number }; targetLine?: number }) => {
+  const handleFileClick = useCallback((path: string, editData?: { oldString?: string; newString?: string; operation?: string; unifiedDiff?: string; highlightRange?: { offset: number; limit: number }; targetLine?: number }) => {
     const ref = resolveAgentFileReference(path, activeAgent?.cwd);
     const mergedEditData = ref.line
       ? { ...(editData || {}), targetLine: ref.line }

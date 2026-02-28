@@ -268,12 +268,17 @@ export function useHistoryLoader({
         if (fetchSeq !== fetchSeqRef.current) return;
 
         const messages: HistoryMessage[] = Array.isArray(data.messages) ? data.messages : [];
+        const subagents = Array.isArray(data.subagents) ? data.subagents : [];
         setHistory(messages);
         historyLengthRef.current = messages.length;
         const hasMoreValue = data.hasMore || false;
         setHasMore(hasMoreValue);
         hasMoreRef.current = hasMoreValue;
         setTotalCount(data.totalCount || 0);
+
+        if (subagents.length > 0) {
+          store.hydrateSubagentsFromHistory(selectedAgentId, subagents);
+        }
 
         // Cache for instant display on revisit (LRU-evicted)
         historyCache.set(selectedAgentId, {
@@ -420,6 +425,10 @@ export function useHistoryLoader({
     try {
       const res = await authFetch(apiUrl(`/api/agents/${selectedAgentId}/history?limit=${MESSAGES_PER_PAGE}&offset=${currentOffset}`));
       const data = await res.json();
+      const subagents = Array.isArray(data.subagents) ? data.subagents : [];
+      if (subagents.length > 0) {
+        store.hydrateSubagentsFromHistory(selectedAgentId, subagents);
+      }
 
       if (data.messages && data.messages.length > 0) {
         if (!isMountedRef.current) return;

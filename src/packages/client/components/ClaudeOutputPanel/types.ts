@@ -112,6 +112,7 @@ export interface EditData {
   oldString: string;
   newString: string;
   operation?: string;
+  unifiedDiff?: string;
 }
 
 // Enriched history message with linked tool results

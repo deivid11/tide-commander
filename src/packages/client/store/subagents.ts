@@ -16,6 +16,20 @@ const SUBAGENT_REMOVE_DELAY_MS = 30_000;
 // Track auto-remove timers so stream entries can extend them
 const removeTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
+/** Subagent history entry from the history API */
+export interface SubagentHistoryPayload {
+  toolUseId: string;
+  subagentAgentId?: string;
+  name?: string;
+  description?: string;
+  subagentType?: string;
+  model?: string;
+  startedAt?: number;
+  completedAt?: number;
+  stats?: { durationMs: number; tokensUsed: number; toolUseCount: number };
+  streamEntries: SubagentStreamEntry[];
+}
+
 export interface SubagentActions {
   addSubagent(subagent: Subagent): void;
   completeSubagent(subagentId: string, parentAgentId: string, success: boolean): void;
@@ -28,6 +42,8 @@ export interface SubagentActions {
   addSubagentStreamEntries(toolUseId: string, parentAgentId: string, entries: SubagentStreamEntry[]): void;
   /** Find subagent by toolUseId (used for correlating completion events) */
   getSubagentByToolUseId(toolUseId: string): Subagent | undefined;
+  /** Hydrate subagents from history API response (no auto-removal timers) */
+  hydrateSubagentsFromHistory(parentAgentId: string, subagents: SubagentHistoryPayload[]): void;
 }
 
 /** Find a subagent by ID or toolUseId within a given parent agent */
@@ -173,6 +189,49 @@ export function createSubagentActions(
         if (sub.toolUseId === toolUseId) return sub;
       }
       return undefined;
+    },
+
+    hydrateSubagentsFromHistory(parentAgentId: string, subagents: SubagentHistoryPayload[]): void {
+      if (!subagents || subagents.length === 0) return;
+
+      setState((s) => {
+        const newSubagents = new Map(s.subagents);
+
+        for (const entry of subagents) {
+          // Skip if a live subagent already exists for this toolUseId
+          // (live data takes priority over historical data)
+          let alreadyExists = false;
+          for (const [, existing] of newSubagents) {
+            if (existing.toolUseId === entry.toolUseId && existing.parentAgentId === parentAgentId) {
+              alreadyExists = true;
+              break;
+            }
+          }
+          if (alreadyExists) continue;
+
+          // Create a hydrated subagent marked as completed (historical)
+          const hydratedId = `hist_${entry.toolUseId}`;
+          const hydrated: Subagent = {
+            id: hydratedId,
+            parentAgentId,
+            toolUseId: entry.toolUseId,
+            name: entry.name || 'Subagent',
+            description: entry.description || '',
+            subagentType: entry.subagentType || 'general-purpose',
+            model: entry.model,
+            status: 'completed',
+            startedAt: entry.startedAt || 0,
+            completedAt: entry.completedAt,
+            streamEntries: entry.streamEntries.slice(-MAX_STREAM_ENTRIES),
+            stats: entry.stats,
+          };
+
+          newSubagents.set(hydratedId, hydrated);
+        }
+
+        s.subagents = newSubagents;
+      });
+      notify();
     },
   };
 }

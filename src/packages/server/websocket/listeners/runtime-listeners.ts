@@ -34,7 +34,7 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
       const details = formatToolActivity(event.toolName, event.toolInput);
       ctx.sendActivity(agentId, details);
 
-      if (event.toolName === 'Task' && event.toolUseId && event.subagentName) {
+      if ((event.toolName === 'Task' || event.toolName === 'Agent') && event.toolUseId && event.subagentName) {
         const subagent = runtimeService.getActiveSubagentByToolUseId(event.toolUseId);
         if (subagent) {
           const parentAgent = agentService.getAgent(agentId);
@@ -80,7 +80,7 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
           }
         }
       }
-    } else if (event.type === 'tool_result' && event.toolName === 'Task' && event.toolUseId) {
+    } else if (event.type === 'tool_result' && (event.toolName === 'Task' || event.toolName === 'Agent') && event.toolUseId) {
       let cleanPreview: string | undefined;
       if (event.toolOutput) {
         try {
@@ -120,7 +120,7 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
     }
 
     // Forward subagent internal tool activity to client (events with parentToolUseId)
-    if (event.parentToolUseId && event.type === 'tool_start' && event.toolName !== 'Task') {
+    if (event.parentToolUseId && event.type === 'tool_start' && event.toolName !== 'Task' && event.toolName !== 'Agent') {
       const toolDesc = formatToolActivity(event.toolName, event.toolInput);
       ctx.broadcast({
         type: 'subagent_output',
@@ -388,6 +388,7 @@ function inferEditInputsFromBash(command: string, cwd: string): InferredEditInpu
       old_string: snapshot.old_string,
       new_string: snapshot.new_string,
       operation,
+      ...(snapshot.unified_diff ? { unified_diff: snapshot.unified_diff } : {}),
     });
   }
 
@@ -439,7 +440,7 @@ function normalizePathForUi(filePath: string): string {
   return `./${filePath}`;
 }
 
-function buildFileSnapshot(filePath: string, cwd: string): { old_string: string; new_string: string } | null {
+function buildFileSnapshot(filePath: string, cwd: string): { old_string: string; new_string: string; unified_diff?: string } | null {
   const absolutePath = resolveAbsolutePath(filePath, cwd);
   if (!absolutePath) return null;
 
@@ -459,7 +460,27 @@ function buildFileSnapshot(filePath: string, cwd: string): { old_string: string;
   const oldContent = readHeadFileIfSmall(gitRoot, relativePath);
   if (oldContent === null) return null;
 
-  return { old_string: oldContent, new_string: newContent };
+  const unifiedDiff = getGitUnifiedDiff(gitRoot, relativePath);
+
+  return { old_string: oldContent, new_string: newContent, ...(unifiedDiff ? { unified_diff: unifiedDiff } : {}) };
+}
+
+function getGitUnifiedDiff(gitRoot: string, relativePath: string): string | null {
+  const gitPath = relativePath.split(path.sep).join(path.posix.sep);
+  try {
+    const diff = execFileSync(
+      'git',
+      ['diff', 'HEAD', '-U3', '--no-color', '--', gitPath],
+      {
+        cwd: gitRoot,
+        encoding: 'utf8',
+        maxBuffer: MAX_SYNTHETIC_DIFF_FILE_BYTES + 4096,
+      },
+    );
+    return diff.trim() || null;
+  } catch {
+    return null;
+  }
 }
 
 function resolveAbsolutePath(filePath: string, cwd: string): string | null {

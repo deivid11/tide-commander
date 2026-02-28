@@ -13,6 +13,7 @@ export interface EditData {
   oldString: string;
   newString: string;
   operation?: string;
+  unifiedDiff?: string;
 }
 
 // Extended output type with tool enrichment
@@ -197,11 +198,12 @@ export function useFilteredOutputs({
             if (toolName === 'Edit') {
               try {
                 const parsed = JSON.parse(inputJson);
-                if (parsed.old_string !== undefined || parsed.new_string !== undefined) {
+                if (parsed.old_string !== undefined || parsed.new_string !== undefined || parsed.unified_diff !== undefined) {
                   editData = {
                     oldString: parsed.old_string || '',
                     newString: parsed.new_string || '',
                     operation: typeof parsed.operation === 'string' ? parsed.operation : undefined,
+                    unifiedDiff: typeof parsed.unified_diff === 'string' ? parsed.unified_diff : undefined,
                   };
                 }
               } catch {

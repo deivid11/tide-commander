@@ -399,7 +399,9 @@ router.get('/:id/history', async (req: Request<{ id: string }>, res: Response) =
   try {
     const limit = parseInt(req.query.limit as string) || 50;
     const offset = parseInt(req.query.offset as string) || 0;
-    const result = await agentService.getAgentHistory(req.params.id, limit, offset);
+    const includeSubagents = req.query.includeSubagents !== 'false'; // default true
+    const subagentEntriesLimit = parseInt(req.query.subagentEntriesLimit as string) || 200;
+    const result = await agentService.getAgentHistory(req.params.id, limit, offset, includeSubagents, subagentEntriesLimit);
 
     if (!result) {
       res.status(404).json({ error: 'Agent not found' });

@@ -266,7 +266,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       if (Array.isArray(questions) && questions[0]?.question) {
         toolKeyParamOrFallback = questions[0].question;
       }
-    } else if (payloadToolName === 'Task' && typeof input.description === 'string') {
+    } else if ((payloadToolName === 'Task' || payloadToolName === 'Agent') && typeof input.description === 'string') {
       const desc = input.description as string;
       const agentType = input.subagent_type as string | undefined;
       toolKeyParamOrFallback = agentType ? `[${agentType}] ${desc}` : desc;
@@ -410,6 +410,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       'Grep',
       'NotebookEdit',
       'Task',
+      'Agent',
       'TodoWrite',
       'AskUserQuestion',
       'AskFollowupQuestion',
@@ -494,7 +495,8 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       : undefined;
 
     const resolvedFilePathForClick = _toolKeyParam || payloadFilePath;
-    const isFilePath = !!resolvedFilePathForClick && (resolvedFilePathForClick.startsWith('/') || resolvedFilePathForClick.includes('/'));
+    // File tools always have a file path as keyParam (even root-level files like "README.md" without slashes)
+    const isFilePath = !!resolvedFilePathForClick && (isFileTool || resolvedFilePathForClick.startsWith('/') || resolvedFilePathForClick.includes('/'));
     const isFileClickable = isFileTool && isFilePath && onFileClick;
 
     const editDataFallback = (toolName === 'Edit' && payloadInputRecord)
@@ -536,8 +538,8 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     const showInlineRunningTasks = Boolean(isBashTool && isCurlExecCommand && matchingExecTasks.length > 0);
     const _truncatedTaskCommand = (value: string) => (value.length > 52 ? `${value.slice(0, 52)}...` : value);
 
-    // Match Task tool line to its subagent via uuid (which equals toolUseId)
-    const matchingSubagent = toolName === 'Task' && subagents && output.uuid
+    // Match Task/Agent tool line to its subagent via uuid (which equals toolUseId)
+    const matchingSubagent = (toolName === 'Task' || toolName === 'Agent') && subagents && output.uuid
       ? (() => {
           for (const [, sub] of subagents) {
             if (sub.toolUseId === output.uuid) return sub;

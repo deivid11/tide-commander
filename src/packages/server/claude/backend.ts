@@ -245,8 +245,8 @@ export class ClaudeBackend implements CLIBackend {
             toolOutput: content,
             toolUseId: block.tool_use_id, // Preserve for subagent correlation
           };
-          // Extract subagent stats from Task tool completion metadata
-          if (toolName === 'Task' && event.tool_use_result) {
+          // Extract subagent stats from Task/Agent tool completion metadata
+          if ((toolName === 'Task' || toolName === 'Agent') && event.tool_use_result) {
             const tur = event.tool_use_result;
             if (tur.totalDurationMs || tur.totalTokens || tur.totalToolUseCount) {
               toolResult.subagentStats = {
@@ -365,8 +365,8 @@ export class ClaudeBackend implements CLIBackend {
         if ((event as any).parent_tool_use_id) {
           toolEvent.parentToolUseId = (event as any).parent_tool_use_id;
         }
-        // Extract subagent metadata from Task tool inputs
-        if (toolName === 'Task' && block.input) {
+        // Extract subagent metadata from Task/Agent tool inputs
+        if ((toolName === 'Task' || toolName === 'Agent') && block.input) {
           const input = block.input as Record<string, unknown>;
           toolEvent.subagentName = (input.name as string) || (input.description as string) || 'Subagent';
           toolEvent.subagentDescription = (input.description as string) || '';

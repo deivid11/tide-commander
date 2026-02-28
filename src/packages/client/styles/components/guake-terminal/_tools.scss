@@ -597,6 +597,149 @@
 }
 
 // =============================================================================
+// Unified Diff View (hunk-based)
+// =============================================================================
+
+.edit-tool-unified {
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  overflow: hidden;
+  max-height: 350px;
+  overflow-y: auto;
+  background: rgba($bg-primary, 0.8);
+
+  &::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: $bg-primary;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: $border-color;
+    border-radius: 3px;
+
+    &:hover {
+      background: $text-muted;
+    }
+  }
+}
+
+.diff-hunk {
+  &:not(:first-child) {
+    border-top: 1px solid $border-color;
+  }
+}
+
+.diff-hunk-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 8px;
+  background: rgba(#58a6ff, 0.08);
+  border-bottom: 1px solid rgba(#58a6ff, 0.15);
+  font-family: $font-mono;
+  font-size: 10px;
+  color: rgba(#58a6ff, 0.8);
+}
+
+.diff-hunk-range {
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.diff-hunk-context {
+  color: $text-muted;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diff-line {
+  display: flex;
+  height: 18px;
+  line-height: 18px;
+  font-size: 11px;
+  font-family: $font-mono;
+  white-space: pre;
+
+  &.diff-line-context {
+    background: transparent;
+    color: $text-primary;
+  }
+
+  &.diff-line-added {
+    background: rgba($accent-green, 0.1);
+
+    .diff-line-num {
+      background: rgba($accent-green, 0.12);
+      color: rgba($accent-green, 0.7);
+    }
+
+    .diff-line-marker {
+      color: $accent-green;
+    }
+  }
+
+  &.diff-line-removed {
+    background: rgba($accent-red, 0.1);
+
+    .diff-line-num {
+      background: rgba($accent-red, 0.12);
+      color: rgba($accent-red, 0.7);
+    }
+
+    .diff-line-marker {
+      color: $accent-red;
+    }
+  }
+}
+
+.diff-line-num {
+  flex-shrink: 0;
+  width: 36px;
+  padding: 0 4px;
+  text-align: right;
+  color: $text-muted;
+  background: rgba($bg-tertiary, 0.5);
+  border-right: 1px solid rgba($border-color, 0.5);
+  user-select: none;
+  font-size: 10px;
+
+  &.diff-line-num-old {
+    border-right: none;
+  }
+}
+
+.diff-line-marker {
+  flex-shrink: 0;
+  width: 14px;
+  padding: 0 2px;
+  text-align: center;
+  color: $text-muted;
+  user-select: none;
+  font-weight: 600;
+}
+
+.diff-line-content {
+  flex: 1;
+  padding: 0 8px 0 4px;
+  min-width: 0;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.diff-empty {
+  padding: 12px;
+  text-align: center;
+  color: $text-muted;
+  font-size: 11px;
+  font-style: italic;
+}
+
+// =============================================================================
 // Read Tool Input
 // =============================================================================
 

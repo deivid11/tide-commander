@@ -35,6 +35,7 @@
       "glob": "Glob",
       "grep": "Grep",
       "task": "Task",
+      "agent": "Agent",
       "webFetch": "WebFetch",
       "webSearch": "WebSearch",
       "todoWrite": "TodoWrite",
