@@ -351,14 +351,14 @@ export const TerminalHeader = memo(function TerminalHeader({
               onClick={() => setContextConfirm('clear')}
               title={t('terminal:header.clearContextDesc')}
             >
-              🗑️ {t('terminal:header.clearContext')}
+              🧹 {t('terminal:header.clearContext')}
             </button>
             <button
               className="guake-remove-agent-btn hide-on-mobile"
               onClick={handleRemoveAgent}
               title={t('terminal:header.removeAgentDesc')}
             >
-              🗑️ {t('terminal:header.removeAgent')}
+              ❌ {t('terminal:header.removeAgent')}
             </button>
             {/* Boss-only: Clear all subordinates' context */}
             {hasSubordinates && (
@@ -458,7 +458,7 @@ export const TerminalHeader = memo(function TerminalHeader({
                   className="guake-mobile-menu-item danger"
                   onClick={() => { setContextConfirm('clear'); closeMobileMenu(); }}
                 >
-                  <span className="guake-mobile-menu-icon">🗑️</span>
+                  <span className="guake-mobile-menu-icon">🧹</span>
                   {t('terminal:header.clearContext')}
                 </button>
                 {hasSubordinates && (
@@ -475,7 +475,7 @@ export const TerminalHeader = memo(function TerminalHeader({
                   className="guake-mobile-menu-item danger"
                   onClick={() => { handleRemoveAgent(); closeMobileMenu(); }}
                 >
-                  <span className="guake-mobile-menu-icon">🗑️</span>
+                  <span className="guake-mobile-menu-icon">❌</span>
                   {t('terminal:header.removeAgent')}
                 </button>
               </div>

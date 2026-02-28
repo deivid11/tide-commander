@@ -7,18 +7,18 @@
 
 .guake-terminal.with-debug-panel {
   .guake-content {
-    margin-left: 550px;
+    margin-right: var(--guake-side-panel-width);
   }
 }
 
 .agent-debug-panel {
   position: absolute;
-  left: 0;
+  right: 0;
   top: 0;
   bottom: 0;
-  width: 550px;
+  width: var(--guake-side-panel-width);
   background: rgba($dracula-bg-darker, 0.98);
-  border-right: 2px solid $dracula-purple;
+  border-left: 2px solid $dracula-purple;
   display: flex;
   flex-direction: column;
   z-index: 201;

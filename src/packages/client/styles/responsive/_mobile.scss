@@ -209,6 +209,15 @@
       right: 0;
     }
 
+    // Fullscreen terminal on mobile: hide bottom toolbar and reclaim its space.
+    &:has(.guake-terminal.fullscreen.open) {
+      --mobile-agent-bar-height: 0px;
+
+      .agent-bar {
+        display: none !important;
+      }
+    }
+
     // When the keyboard is open, hide the agent bar so only the input is shown above the keyboard.
     &.keyboard-visible {
       .agent-bar {
@@ -239,6 +248,11 @@
       // Ensure proper flex column layout
       flex-direction: column;
       overflow: hidden;
+    }
+
+    // Save vertical space when overview panel is open on mobile.
+    .guake-terminal.with-overview-panel .guake-header {
+      display: none !important;
     }
 
     // Ensure guake-content fills terminal and has proper flex layout

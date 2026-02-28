@@ -1477,6 +1477,7 @@ export function FileExplorerPanel({
                 onMergeContinue={handleMergeContinue}
                 onMergeAbort={handleMergeAbort}
                 onConflictOpen={handleConflictOpen}
+                onRevealInTree={handleRevealInTree}
               />
             )}
           </div>

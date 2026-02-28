@@ -9,6 +9,8 @@
   --terminal-height: 55%;
   // Agent bar height – keep in sync with _agent-bar.scss
   --agent-bar-height: 72px;
+  // Shared side panel width for Debug and Overview panels
+  --guake-side-panel-width: 420px;
 
   position: fixed;
   top: 0;

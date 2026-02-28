@@ -79,7 +79,7 @@ export function buildContextMenuActions(
       actions.push({
         id: 'delete-agent',
         label: `Remove ${agent.name}`,
-        icon: '🗑️',
+        icon: '❌',
         danger: true,
         onClick: () => {
           store.removeAgentFromServer(target.id!);

@@ -46,8 +46,13 @@ export function useBackNavigation(): {
       window.location.hash = '#app';
     }
 
+    // Prevent both popstate and hashchange from firing on the same back gesture
+    let backHandledAt = 0;
+
     const handleHashChange = () => {
       if (window.innerWidth > 768) return;
+      // Skip if popstate already handled this back gesture
+      if (Date.now() - backHandledAt < 200) return;
 
       if (!window.location.hash.includes('app')) {
         window.location.hash = '#app';
@@ -74,7 +79,9 @@ export function useBackNavigation(): {
         }, 50);
       }
 
-      if (!closeTopModal()) {
+      if (closeTopModal()) {
+        backHandledAt = Date.now();
+      } else {
         window.__tideSetBackNavModal?.(true);
       }
     };

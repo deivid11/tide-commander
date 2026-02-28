@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useIsConnected } from '../store';
+import { useIsConnected, useAgentCount } from '../store';
 import { ModalPortal } from './shared/ModalPortal';
 
 const SESSION_KEY = 'tide-onboarding-dismissed';
@@ -12,9 +12,10 @@ interface OnboardingModalProps {
 export function OnboardingModal({ onCreateAgent }: OnboardingModalProps) {
   const { t } = useTranslation('common');
   const isConnected = useIsConnected();
+  const agentCount = useAgentCount();
   const [dismissed, setDismissed] = useState(() => sessionStorage.getItem(SESSION_KEY) === '1');
 
-  const shouldShow = isConnected && !dismissed;
+  const shouldShow = isConnected && !dismissed && agentCount === 0;
 
   const handleDismiss = useCallback(() => {
     setDismissed(true);

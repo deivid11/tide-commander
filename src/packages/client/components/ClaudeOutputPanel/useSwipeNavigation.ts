@@ -107,18 +107,13 @@ export function useSwipeNavigation({
     const sortAgents = (list: Agent[]) => [...list].sort((a, b) => {
       if (aopConfig.sortMode === 'name') return a.name.localeCompare(b.name);
       if (aopConfig.sortMode === 'status') {
-        const hasInstruction = (agent: Agent) => {
-          if (agent.lastAssignedTask?.trim()) return true;
-          const outputs = state.agentOutputs.get(agent.id);
-          return !!outputs?.some((o) => o.isUserPrompt && o.text.trim().length > 0);
-        };
-        const aHasInstruction = hasInstruction(a);
-        const bHasInstruction = hasInstruction(b);
-        if (aHasInstruction !== bHasInstruction) return aHasInstruction ? -1 : 1;
+        const aUnread = state.agentsWithUnseenOutput.has(a.id);
+        const bUnread = state.agentsWithUnseenOutput.has(b.id);
         const statusOrder = ['working', 'waiting_input', 'waiting_permission', 'error', 'idle', 'stopped'];
         const statusDiff = statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status);
         if (statusDiff !== 0) return statusDiff;
-        return a.name.localeCompare(b.name);
+        if (aUnread !== bUnread) return aUnread ? -1 : 1;
+        return (b.lastActivity || 0) - (a.lastActivity || 0);
       }
       const aTime = toolsByAgent.get(a.id) || 0;
       const bTime = toolsByAgent.get(b.id) || 0;
@@ -164,40 +159,40 @@ export function useSwipeNavigation({
     ? sortedAgents.findIndex((a) => a.id === selectedAgentId)
     : -1;
 
-  // Get next/previous agent for indicators
+  // Get next/previous agent for indicators (left indicator = prev in list, right indicator = next in list)
   const prevAgent = currentAgentIndex > 0 ? sortedAgents[currentAgentIndex - 1] : sortedAgents[sortedAgents.length - 1];
   const nextAgent = currentAgentIndex < sortedAgents.length - 1 ? sortedAgents[currentAgentIndex + 1] : sortedAgents[0];
 
   // Refs for swipe targets
   const headerRef = useRef<HTMLDivElement>(null);
 
-  // Swipe handlers
+  // Swipe handlers — swipe left = previous agent (up in list), swipe right = next agent (down in list)
   const handleSwipeLeft = useCallback(() => {
     if (!selectedAgentId || sortedAgents.length <= 1) return;
     const currentIndex = sortedAgents.findIndex((a) => a.id === selectedAgentId);
     if (currentIndex === -1) return;
-    const nextIndex = (currentIndex + 1) % sortedAgents.length;
+    const prevIndex = (currentIndex - 1 + sortedAgents.length) % sortedAgents.length;
 
     setPendingSwipeDirection('left');
     setSwipeOffset(0);
     setSwipeAnimationClass('');
     // Mark that this selection is from swipe to prevent autofocus
     store.setLastSelectionViaSwipe(true);
-    store.selectAgent(sortedAgents[nextIndex].id);
+    store.selectAgent(sortedAgents[prevIndex].id);
   }, [selectedAgentId, sortedAgents]);
 
   const handleSwipeRight = useCallback(() => {
     if (!selectedAgentId || sortedAgents.length <= 1) return;
     const currentIndex = sortedAgents.findIndex((a) => a.id === selectedAgentId);
     if (currentIndex === -1) return;
-    const prevIndex = (currentIndex - 1 + sortedAgents.length) % sortedAgents.length;
+    const nextIndex = (currentIndex + 1) % sortedAgents.length;
 
     setPendingSwipeDirection('right');
     setSwipeOffset(0);
     setSwipeAnimationClass('');
     // Mark that this selection is from swipe to prevent autofocus
     store.setLastSelectionViaSwipe(true);
-    store.selectAgent(sortedAgents[prevIndex].id);
+    store.selectAgent(sortedAgents[nextIndex].id);
   }, [selectedAgentId, sortedAgents]);
 
   // Handle swipe movement for visual feedback
@@ -245,8 +240,10 @@ export function useSwipeNavigation({
   // Attach swipe gesture to header
   useSwipeGesture(headerRef, {
     enabled: isOpen && sortedAgents.length > 1,
-    onSwipeLeft: handleSwipeLeft,
-    onSwipeRight: handleSwipeRight,
+    // Gesture direction is intentionally inverted from keyboard next/prev semantics:
+    // swipe left => previous agent, swipe right => next agent.
+    onSwipeLeft: handleSwipeRight,
+    onSwipeRight: handleSwipeLeft,
     onSwipeMove: handleSwipeMove,
     onSwipeCancel: handleSwipeCancel,
     threshold: 40,
@@ -256,8 +253,8 @@ export function useSwipeNavigation({
   // Attach swipe gesture to output area
   useSwipeGesture(outputRef, {
     enabled: isOpen && sortedAgents.length > 1,
-    onSwipeLeft: handleSwipeLeft,
-    onSwipeRight: handleSwipeRight,
+    onSwipeLeft: handleSwipeRight,
+    onSwipeRight: handleSwipeLeft,
     onSwipeMove: handleSwipeMove,
     onSwipeCancel: handleSwipeCancel,
     threshold: 50,

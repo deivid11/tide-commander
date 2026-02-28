@@ -264,7 +264,7 @@ class Store
       snapshotsLoading: false,
       snapshotsError: null,
       lastSelectionViaSwipe: false,
-      lastSelectionViaDirectClick: false,
+      lastSelectionViaDirectClickAt: null,
       subagents: new Map(),
       viewMode: (() => {
         const saved = getStorageString(STORAGE_KEYS.SCENE_VIEW_MODE, '3d');
@@ -458,6 +458,11 @@ class Store
       if (unseenChanged) {
         this.saveUnseenAgents();
       }
+    } else {
+      // On mobile, closing the terminal should switch back to 3D view
+      if (window.innerWidth <= 768) {
+        this.state.mobileView = '3d';
+      }
     }
     this.notify();
   }
@@ -552,7 +557,7 @@ class Store
    * This prevents autofocus to avoid unwanted keyboard popup.
    */
   setLastSelectionViaDirectClick(value: boolean): void {
-    this.state.lastSelectionViaDirectClick = value;
+    this.state.lastSelectionViaDirectClickAt = value ? Date.now() : null;
     // Don't notify - this is an internal flag that doesn't need to trigger re-renders
   }
 
@@ -561,9 +566,11 @@ class Store
    * Returns true if the flag was set, then clears it.
    */
   consumeDirectClickSelectionFlag(): boolean {
-    const wasDirectClick = this.state.lastSelectionViaDirectClick;
-    this.state.lastSelectionViaDirectClick = false;
-    return wasDirectClick;
+    const lastDirectClickAt = this.state.lastSelectionViaDirectClickAt;
+    this.state.lastSelectionViaDirectClickAt = null;
+    if (lastDirectClickAt === null) return false;
+    // Ignore stale direct-click events so delayed agent switches don't suppress autofocus.
+    return Date.now() - lastDirectClickAt <= 1500;
   }
 
   // ============================================================================

@@ -430,6 +430,21 @@
     "committedAndPushed": "Committed and pushed",
     "committedButPushFailed": "Committed, but push failed: {{error}}",
     "committedSuccessfully": "Committed successfully",
+    "gitGroups": {
+      "conflicts": "Conflicts",
+      "changes": "Changes",
+      "unversioned": "Unversioned Files"
+    },
+    "gitContextMenu": {
+      "openFile": "Open File",
+      "openConflictResolver": "Open Conflict Resolver",
+      "stageFile": "Stage File",
+      "discardChanges": "Discard Changes",
+      "deleteFile": "Delete File",
+      "copyFullPath": "Copy Full Path",
+      "copyRelativePath": "Copy Relative Path",
+      "revealInTree": "Reveal in File Tree"
+    },
     "noMatchesFound": "No matches found",
     "files": "Files",
     "content": "Content",

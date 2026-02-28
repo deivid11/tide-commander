@@ -1065,6 +1065,106 @@ router.post('/git-add', async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/files/git-discard - Discard working tree changes for files
+router.post('/git-discard', async (req: Request, res: Response) => {
+  try {
+    const { files, directory } = req.body as {
+      files?: Array<{ path: string; status: string }>;
+      directory?: string;
+    };
+
+    if (!directory || typeof directory !== 'string') {
+      res.status(400).json({ error: 'Missing directory parameter' });
+      return;
+    }
+
+    if (!path.isAbsolute(directory)) {
+      res.status(400).json({ error: 'Directory must be absolute' });
+      return;
+    }
+
+    if (!files || !Array.isArray(files) || files.length === 0) {
+      res.status(400).json({ error: 'Missing or empty files array' });
+      return;
+    }
+
+    // Validate all paths
+    for (const f of files) {
+      if (!f.path || !path.isAbsolute(f.path)) {
+        res.status(400).json({ error: `Path must be absolute: ${f.path}` });
+        return;
+      }
+      if (f.path.includes('..')) {
+        res.status(400).json({ error: `Path traversal not allowed: ${f.path}` });
+        return;
+      }
+    }
+
+    // Find git root
+    let gitRoot: string;
+    try {
+      gitRoot = execSync('git rev-parse --show-toplevel', {
+        cwd: directory,
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      }).trim();
+    } catch {
+      res.status(400).json({ error: 'Not in a git repository' });
+      return;
+    }
+
+    let discarded = 0;
+
+    for (const f of files) {
+      const rel = path.relative(gitRoot, f.path);
+      if (rel.startsWith('..')) {
+        res.status(400).json({ error: `Path is outside the git repository: ${f.path}` });
+        return;
+      }
+
+      try {
+        if (f.status === 'untracked') {
+          // Untracked files: just delete from disk
+          if (fs.existsSync(f.path)) {
+            fs.unlinkSync(f.path);
+          }
+        } else if (f.status === 'added') {
+          // Staged new files: unstage then delete
+          try {
+            execSync(`git rm --cached "${rel}"`, {
+              cwd: gitRoot,
+              encoding: 'utf-8',
+              stdio: ['pipe', 'pipe', 'pipe'],
+            });
+          } catch {
+            // May not be staged, ignore
+          }
+          if (fs.existsSync(f.path)) {
+            fs.unlinkSync(f.path);
+          }
+        } else {
+          // modified, deleted, renamed, conflict: restore from HEAD
+          execSync(`git checkout HEAD -- "${rel}"`, {
+            cwd: gitRoot,
+            encoding: 'utf-8',
+            maxBuffer: 10 * 1024 * 1024,
+          });
+        }
+        discarded++;
+      } catch (err: any) {
+        log.error(` Git discard failed for ${f.path}:`, err);
+        res.status(500).json({ error: `Failed to discard ${f.path}: ${err.message}` });
+        return;
+      }
+    }
+
+    res.json({ success: true, discarded });
+  } catch (err: any) {
+    log.error(' Failed to discard files:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/files/git-original - Get original file content from git HEAD
 router.get('/git-original', async (req: Request, res: Response) => {
   try {

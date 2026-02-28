@@ -1,8 +1,10 @@
 /**
  * GitChanges - Git status panel component
  *
- * Displays git status with modified, added, deleted, and untracked files.
- * Supports two view modes: flat list (grouped by status) and directory tree.
+ * Displays git status with IntelliJ-style grouping:
+ * - Conflicts (if any)
+ * - Changes (modified, added, deleted, renamed — mixed in one tree)
+ * - Unversioned Files (untracked)
  */
 
 import React, { memo, useState, useMemo, useEffect, useCallback, useRef } from 'react';
@@ -12,6 +14,9 @@ import { GIT_STATUS_CONFIG } from './constants';
 import { buildGitTree, collectGitTreeDirPaths, getIconForExtension } from './fileUtils';
 import type { GitTreeNode } from './fileUtils';
 import { apiUrl, authFetch } from '../../utils/storage';
+import { ContextMenu } from '../ContextMenu';
+import type { ContextMenuAction } from '../ContextMenu';
+import { useToast } from '../Toast';
 
 type GitViewMode = 'flat' | 'tree';
 
@@ -23,26 +28,27 @@ interface GitFileItemProps {
   file: GitFileStatus;
   isSelected: boolean;
   onSelect: (path: string, status: GitFileStatusType) => void;
-  status: GitFileStatusType;
   onStage?: (path: string) => void;
   isStaging?: boolean;
   showDirPath?: boolean;
   isChecked?: boolean;
   onToggleCheck?: (path: string) => void;
+  onContextMenu?: (event: React.MouseEvent, file: GitFileStatus, status: GitFileStatusType) => void;
 }
 
 const GitFileItem = memo(function GitFileItem({
   file,
   isSelected,
   onSelect,
-  status,
   onStage,
   isStaging,
   showDirPath,
   isChecked,
   onToggleCheck,
+  onContextMenu,
 }: GitFileItemProps) {
   const { t } = useTranslation(['terminal']);
+  const status = file.status;
   const config = GIT_STATUS_CONFIG[status];
   const isDeleted = status === 'deleted';
   const showStageBtn = status === 'untracked' && onStage;
@@ -55,6 +61,10 @@ const GitFileItem = memo(function GitFileItem({
     <div
       className={`git-file-item ${isSelected ? 'selected' : ''}`}
       onClick={() => !isDeleted && onSelect(file.path, status)}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        onContextMenu?.(e, file, status);
+      }}
       style={{ cursor: isDeleted ? 'not-allowed' : 'pointer' }}
       title={file.path}
     >
@@ -70,7 +80,6 @@ const GitFileItem = memo(function GitFileItem({
           onClick={(e) => e.stopPropagation()}
         />
       )}
-      <span className="tree-arrow-spacer" />
       <img className="tree-icon" src={getIconForExtension(ext)} alt="file" />
       <span className="git-file-name">
         {file.name}
@@ -112,11 +121,11 @@ interface GitTreeNodeItemProps {
   onToggleDir: (path: string) => void;
   selectedPath: string | null;
   onSelect: (path: string, status: GitFileStatusType) => void;
-  status: GitFileStatusType;
   onStage?: (path: string) => void;
   stagingPaths?: Set<string>;
   checkedFiles?: Set<string>;
   onToggleCheck?: (path: string) => void;
+  onContextMenu?: (event: React.MouseEvent, file: GitFileStatus, status: GitFileStatusType) => void;
 }
 
 const GIT_TREE_INDENT = 16; // px per depth level
@@ -128,21 +137,27 @@ const GitTreeNodeItem = memo(function GitTreeNodeItem({
   onToggleDir,
   selectedPath,
   onSelect,
-  status,
   onStage,
   stagingPaths,
   checkedFiles,
   onToggleCheck,
+  onContextMenu,
 }: GitTreeNodeItemProps) {
   const { t } = useTranslation(['terminal']);
   const indent = depth * GIT_TREE_INDENT;
 
   if (!node.isDirectory) {
+    const fileStatus = node.file!.status;
+    const config = GIT_STATUS_CONFIG[fileStatus];
     return (
       <div
         className={`git-file-item ${selectedPath === node.path ? 'selected' : ''}`}
-        onClick={() => status !== 'deleted' && onSelect(node.file!.path, status)}
-        style={{ paddingLeft: `${indent + 4}px`, cursor: status === 'deleted' ? 'not-allowed' : 'pointer' }}
+        onClick={() => fileStatus !== 'deleted' && onSelect(node.file!.path, fileStatus)}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          onContextMenu?.(e, node.file!, fileStatus);
+        }}
+        style={{ paddingLeft: `${indent + 4}px`, cursor: fileStatus === 'deleted' ? 'not-allowed' : 'pointer' }}
         title={node.file!.path}
       >
         {onToggleCheck && (
@@ -157,18 +172,17 @@ const GitTreeNodeItem = memo(function GitTreeNodeItem({
             onClick={(e) => e.stopPropagation()}
           />
         )}
-        <span className="tree-arrow-spacer" />
         <img className="tree-icon" src={getIconForExtension(node.file!.name.includes('.') ? '.' + node.file!.name.split('.').pop() : '')} alt="file" />
         <span className="git-file-name">{node.file!.name}</span>
-        <span className="git-file-status" style={{ color: GIT_STATUS_CONFIG[status].color }}>
-          {GIT_STATUS_CONFIG[status].icon}
+        <span className="git-file-status" style={{ color: config.color }}>
+          {config.icon}
         </span>
         {node.file!.oldPath && (
           <span className="git-file-renamed">
             ← {node.file!.oldPath.split('/').pop()}
           </span>
         )}
-        {status === 'untracked' && onStage && (
+        {fileStatus === 'untracked' && onStage && (
           <button
             className={`git-stage-btn ${stagingPaths?.has(node.path) ? 'staging' : ''}`}
             onClick={(e) => {
@@ -216,11 +230,11 @@ const GitTreeNodeItem = memo(function GitTreeNodeItem({
               onToggleDir={onToggleDir}
               selectedPath={selectedPath}
               onSelect={onSelect}
-              status={status}
               onStage={onStage}
               stagingPaths={stagingPaths}
               checkedFiles={checkedFiles}
               onToggleCheck={onToggleCheck}
+              onContextMenu={onContextMenu}
             />
           ))}
         </div>
@@ -230,11 +244,13 @@ const GitTreeNodeItem = memo(function GitTreeNodeItem({
 });
 
 // ============================================================================
-// GIT STATUS GROUP
+// GIT MERGED GROUP (renders a group with mixed statuses)
 // ============================================================================
 
-interface GitStatusGroupProps {
-  status: GitFileStatusType;
+interface GitMergedGroupProps {
+  groupLabel: string;
+  groupIcon: string;
+  groupColor: string;
   files: GitFileStatus[];
   treeNodes: GitTreeNode[];
   viewMode: GitViewMode;
@@ -247,10 +263,13 @@ interface GitStatusGroupProps {
   stagingPaths?: Set<string>;
   checkedFiles?: Set<string>;
   onToggleCheck?: (path: string) => void;
+  onContextMenu?: (event: React.MouseEvent, file: GitFileStatus, status: GitFileStatusType) => void;
 }
 
-const GitStatusGroup = memo(function GitStatusGroup({
-  status,
+const GitMergedGroup = memo(function GitMergedGroup({
+  groupLabel,
+  groupIcon,
+  groupColor,
   files,
   treeNodes,
   viewMode,
@@ -263,27 +282,28 @@ const GitStatusGroup = memo(function GitStatusGroup({
   stagingPaths,
   checkedFiles,
   onToggleCheck,
-}: GitStatusGroupProps) {
+  onContextMenu,
+}: GitMergedGroupProps) {
   const { t } = useTranslation(['terminal']);
   if (files.length === 0) return null;
 
-  const config = GIT_STATUS_CONFIG[status];
-  const showStageAll = status === 'untracked' && onStageAll && files.length > 0;
+  const hasUntracked = files.some(f => f.status === 'untracked');
+  const showStageAll = hasUntracked && onStageAll && files.length > 0;
   const isStagingAll = stagingPaths ? files.every(f => stagingPaths.has(f.path)) : false;
 
   return (
     <div className="git-status-group">
-      <div className="git-status-group-header" style={{ color: config.color }}>
-        <span className="git-status-badge" style={{ background: config.color }}>
-          {config.icon}
+      <div className="git-status-group-header" style={{ color: groupColor }}>
+        <span className="git-status-badge" style={{ background: groupColor }}>
+          {groupIcon}
         </span>
-        {config.label} ({files.length})
+        {groupLabel} ({files.length})
         {showStageAll && (
           <button
             className={`git-stage-all-btn ${isStagingAll ? 'staging' : ''}`}
             onClick={(e) => {
               e.stopPropagation();
-              if (!isStagingAll) onStageAll();
+              if (!isStagingAll) onStageAll!();
             }}
             title={t('terminal:fileExplorer.stageAllUntracked')}
             disabled={isStagingAll}
@@ -304,11 +324,11 @@ const GitStatusGroup = memo(function GitStatusGroup({
               onToggleDir={onToggleDir}
               selectedPath={selectedPath}
               onSelect={onFileSelect}
-              status={status}
-              onStage={status === 'untracked' ? onStageFile : undefined}
-              stagingPaths={status === 'untracked' ? stagingPaths : undefined}
+              onStage={onStageFile}
+              stagingPaths={stagingPaths}
               checkedFiles={checkedFiles}
               onToggleCheck={onToggleCheck}
+              onContextMenu={onContextMenu}
             />
           ))}
         </div>
@@ -320,12 +340,12 @@ const GitStatusGroup = memo(function GitStatusGroup({
               file={file}
               isSelected={selectedPath === file.path}
               onSelect={onFileSelect}
-              status={status}
-              onStage={status === 'untracked' ? onStageFile : undefined}
+              onStage={file.status === 'untracked' ? onStageFile : undefined}
               isStaging={stagingPaths?.has(file.path)}
               showDirPath
               isChecked={checkedFiles?.has(file.path)}
               onToggleCheck={onToggleCheck}
+              onContextMenu={onContextMenu}
             />
           ))}
         </div>
@@ -353,6 +373,7 @@ function GitChangesComponent({
   onMergeContinue,
   onMergeAbort,
   onConflictOpen,
+  onRevealInTree,
 }: GitChangesProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const [gitViewMode, setGitViewMode] = useState<GitViewMode>('tree');
@@ -366,6 +387,159 @@ function GitChangesComponent({
   const [isCommitting, setIsCommitting] = useState(false);
   const [commitStatus, setCommitStatus] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const commitTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const { showToast } = useToast();
+
+  // Context menu state
+  const [gitFileContextMenu, setGitFileContextMenu] = useState<{
+    isOpen: boolean;
+    position: { x: number; y: number };
+    file: GitFileStatus;
+    status: GitFileStatusType;
+  } | null>(null);
+
+  const handleGitFileContextMenu = useCallback((
+    event: React.MouseEvent,
+    file: GitFileStatus,
+    status: GitFileStatusType,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setGitFileContextMenu({
+      isOpen: true,
+      position: { x: event.clientX, y: event.clientY },
+      file,
+      status,
+    });
+  }, []);
+
+  const handleDiscardFile = useCallback(async (file: GitFileStatus, status: GitFileStatusType) => {
+    if (!currentFolder) return;
+    try {
+      const res = await authFetch(apiUrl('/api/files/git-discard'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          files: [{ path: file.path, status }],
+          directory: currentFolder,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast('success', 'Discarded', `Restored ${file.name}`);
+        onRefresh();
+      } else {
+        showToast('error', 'Discard Failed', data.error || 'Could not discard changes');
+      }
+    } catch {
+      showToast('error', 'Discard Failed', 'Network error');
+    }
+  }, [currentFolder, onRefresh, showToast]);
+
+  const handleCopyFullPath = useCallback(async (filePath: string) => {
+    try {
+      await navigator.clipboard.writeText(filePath);
+      showToast('success', 'Copied', 'Full path copied');
+    } catch {
+      showToast('error', 'Copy Failed', 'Could not copy path');
+    }
+  }, [showToast]);
+
+  const handleCopyRelativePath = useCallback(async (filePath: string) => {
+    const relativePath = currentFolder
+      ? filePath.startsWith(currentFolder + '/') ? filePath.slice(currentFolder.length + 1) : filePath
+      : filePath;
+    try {
+      await navigator.clipboard.writeText(relativePath);
+      showToast('success', 'Copied', 'Relative path copied');
+    } catch {
+      showToast('error', 'Copy Failed', 'Could not copy path');
+    }
+  }, [currentFolder, showToast]);
+
+  const gitFileContextActions = useMemo((): ContextMenuAction[] => {
+    if (!gitFileContextMenu) return [];
+    const { file, status } = gitFileContextMenu;
+    const actions: ContextMenuAction[] = [];
+
+    // Open File / Open Conflict Resolver
+    if (status === 'conflict' && onConflictOpen) {
+      actions.push({
+        id: 'open-conflict',
+        label: t('terminal:fileExplorer.gitContextMenu.openConflictResolver'),
+        icon: '⚠️',
+        onClick: () => onConflictOpen(file.path),
+      });
+    } else if (status !== 'deleted') {
+      actions.push({
+        id: 'open-file',
+        label: t('terminal:fileExplorer.gitContextMenu.openFile'),
+        icon: '📄',
+        onClick: () => onFileSelect(file.path, status),
+      });
+    }
+
+    // Stage File
+    if (status !== 'conflict') {
+      actions.push({
+        id: 'stage-file',
+        label: t('terminal:fileExplorer.gitContextMenu.stageFile'),
+        icon: '➕',
+        onClick: () => { void onStageFiles([file.path]); },
+      });
+    }
+
+    actions.push({ id: 'divider-1', label: '', divider: true, onClick: () => {} });
+
+    // Discard Changes / Delete File (danger actions)
+    if (status === 'modified' || status === 'deleted' || status === 'renamed' || status === 'conflict') {
+      actions.push({
+        id: 'discard-changes',
+        label: t('terminal:fileExplorer.gitContextMenu.discardChanges'),
+        icon: '↩️',
+        danger: true,
+        onClick: () => { void handleDiscardFile(file, status); },
+      });
+    }
+
+    if (status === 'untracked' || status === 'added') {
+      actions.push({
+        id: 'delete-file',
+        label: t('terminal:fileExplorer.gitContextMenu.deleteFile'),
+        icon: '🗑️',
+        danger: true,
+        onClick: () => { void handleDiscardFile(file, status); },
+      });
+    }
+
+    actions.push({ id: 'divider-2', label: '', divider: true, onClick: () => {} });
+
+    // Copy paths
+    actions.push({
+      id: 'copy-full-path',
+      label: t('terminal:fileExplorer.gitContextMenu.copyFullPath'),
+      icon: '🧷',
+      onClick: () => { void handleCopyFullPath(file.path); },
+    });
+
+    actions.push({
+      id: 'copy-relative-path',
+      label: t('terminal:fileExplorer.gitContextMenu.copyRelativePath'),
+      icon: '📋',
+      onClick: () => { void handleCopyRelativePath(file.path); },
+    });
+
+    // Reveal in File Tree
+    if (onRevealInTree && status !== 'deleted') {
+      actions.push({
+        id: 'reveal-in-tree',
+        label: t('terminal:fileExplorer.gitContextMenu.revealInTree'),
+        icon: '◎',
+        onClick: () => onRevealInTree(file.path),
+      });
+    }
+
+    return actions;
+  }, [gitFileContextMenu, onFileSelect, onStageFiles, onConflictOpen, onRevealInTree, handleDiscardFile, handleCopyFullPath, handleCopyRelativePath, t]);
 
   const toggleDir = useCallback((dirPath: string) => {
     setExpandedDirs(prev => {
@@ -379,31 +553,43 @@ function GitChangesComponent({
     });
   }, []);
 
-  // Build trees for each status group
-  const { groupedTrees, grouped, allDirPaths } = useMemo(() => {
+  // Build merged groups: Conflicts, Changes, Unversioned
+  const { conflictFiles, conflictTree, changesFiles, changesTree, untrackedFiles, untrackedTree, allDirPaths } = useMemo(() => {
     if (!gitStatus || !gitStatus.isGitRepo || gitStatus.files.length === 0) {
       return {
-        groupedTrees: {} as Record<GitFileStatusType, GitTreeNode[]>,
-        grouped: {} as Record<GitFileStatusType, GitFileStatus[]>,
+        conflictFiles: [] as GitFileStatus[],
+        conflictTree: [] as GitTreeNode[],
+        changesFiles: [] as GitFileStatus[],
+        changesTree: [] as GitTreeNode[],
+        untrackedFiles: [] as GitFileStatus[],
+        untrackedTree: [] as GitTreeNode[],
         allDirPaths: new Set<string>(),
       };
     }
 
-    const statuses: GitFileStatusType[] = ['conflict', 'modified', 'added', 'deleted', 'renamed', 'untracked'];
-    const grp: Record<string, GitFileStatus[]> = {};
-    const trees: Record<string, GitTreeNode[]> = {};
     const dirs = new Set<string>();
 
-    for (const s of statuses) {
-      const files = gitStatus.files.filter(f => f.status === s);
-      grp[s] = files;
-      trees[s] = buildGitTree(files);
-      collectGitTreeDirPaths(trees[s], dirs);
-    }
+    const conflicts = gitStatus.files.filter(f => f.status === 'conflict');
+    const conflictTreeNodes = buildGitTree(conflicts);
+    collectGitTreeDirPaths(conflictTreeNodes, dirs);
+
+    const changes = gitStatus.files.filter(f =>
+      f.status === 'modified' || f.status === 'added' || f.status === 'deleted' || f.status === 'renamed'
+    );
+    const changesTreeNodes = buildGitTree(changes);
+    collectGitTreeDirPaths(changesTreeNodes, dirs);
+
+    const untracked = gitStatus.files.filter(f => f.status === 'untracked');
+    const untrackedTreeNodes = buildGitTree(untracked);
+    collectGitTreeDirPaths(untrackedTreeNodes, dirs);
 
     return {
-      groupedTrees: trees as Record<GitFileStatusType, GitTreeNode[]>,
-      grouped: grp as Record<GitFileStatusType, GitFileStatus[]>,
+      conflictFiles: conflicts,
+      conflictTree: conflictTreeNodes,
+      changesFiles: changes,
+      changesTree: changesTreeNodes,
+      untrackedFiles: untracked,
+      untrackedTree: untrackedTreeNodes,
       allDirPaths: dirs,
     };
   }, [gitStatus]);
@@ -420,7 +606,7 @@ function GitChangesComponent({
     }
   }, [gitStatus?.files]);
 
-  const hasConflicts = gitStatus?.files.some(f => f.status === 'conflict') ?? false;
+  const hasConflicts = conflictFiles.length > 0;
 
   // Auto-clear commit status
   useEffect(() => {
@@ -572,9 +758,18 @@ function GitChangesComponent({
   };
 
   const handleStageAllUntracked = () => {
-    const untrackedPaths = (grouped.untracked || []).map(f => f.path);
+    const untrackedPaths = untrackedFiles.map(f => f.path);
     if (untrackedPaths.length > 0) {
       onStageFiles(untrackedPaths);
+    }
+  };
+
+  // File select handler that routes conflicts to conflict opener
+  const handleFileSelect = (path: string, status: GitFileStatusType) => {
+    if (status === 'conflict' && onConflictOpen) {
+      onConflictOpen(path);
+    } else {
+      onFileSelect(path, status);
     }
   };
 
@@ -666,31 +861,61 @@ function GitChangesComponent({
         </div>
       )}
 
-      {/* File list grouped by status */}
+      {/* File list — IntelliJ-style merged groups */}
       <div className="git-changes-list">
-        {(['conflict', 'modified', 'added', 'deleted', 'renamed', 'untracked'] as const).map(
-          (status) => (
-            <GitStatusGroup
-              key={status}
-              status={status}
-              files={grouped[status] || []}
-              treeNodes={groupedTrees[status] || []}
-              viewMode={gitViewMode}
-              selectedPath={selectedPath}
-              expandedDirs={expandedDirs}
-              onToggleDir={toggleDir}
-              onFileSelect={status === 'conflict' && onConflictOpen
-                ? (path: string, _status: GitFileStatusType) => onConflictOpen(path)
-                : onFileSelect
-              }
-              onStageFile={status === 'untracked' ? handleStageFile : undefined}
-              onStageAll={status === 'untracked' ? handleStageAllUntracked : undefined}
-              stagingPaths={status === 'untracked' ? stagingPaths : undefined}
-              checkedFiles={checkedFiles}
-              onToggleCheck={handleToggleCheck}
-            />
-          )
-        )}
+        {/* Conflicts group */}
+        <GitMergedGroup
+          groupLabel={t('terminal:fileExplorer.gitGroups.conflicts')}
+          groupIcon="C"
+          groupColor="#ff5555"
+          files={conflictFiles}
+          treeNodes={conflictTree}
+          viewMode={gitViewMode}
+          selectedPath={selectedPath}
+          expandedDirs={expandedDirs}
+          onToggleDir={toggleDir}
+          onFileSelect={handleFileSelect}
+          checkedFiles={checkedFiles}
+          onToggleCheck={handleToggleCheck}
+          onContextMenu={handleGitFileContextMenu}
+        />
+
+        {/* Changes group (modified + added + deleted + renamed) */}
+        <GitMergedGroup
+          groupLabel={t('terminal:fileExplorer.gitGroups.changes')}
+          groupIcon="~"
+          groupColor="#c89a5a"
+          files={changesFiles}
+          treeNodes={changesTree}
+          viewMode={gitViewMode}
+          selectedPath={selectedPath}
+          expandedDirs={expandedDirs}
+          onToggleDir={toggleDir}
+          onFileSelect={handleFileSelect}
+          checkedFiles={checkedFiles}
+          onToggleCheck={handleToggleCheck}
+          onContextMenu={handleGitFileContextMenu}
+        />
+
+        {/* Unversioned files (untracked) */}
+        <GitMergedGroup
+          groupLabel={t('terminal:fileExplorer.gitGroups.unversioned')}
+          groupIcon="?"
+          groupColor="#6ab8c8"
+          files={untrackedFiles}
+          treeNodes={untrackedTree}
+          viewMode={gitViewMode}
+          selectedPath={selectedPath}
+          expandedDirs={expandedDirs}
+          onToggleDir={toggleDir}
+          onFileSelect={handleFileSelect}
+          onStageFile={handleStageFile}
+          onStageAll={handleStageAllUntracked}
+          stagingPaths={stagingPaths}
+          checkedFiles={checkedFiles}
+          onToggleCheck={handleToggleCheck}
+          onContextMenu={handleGitFileContextMenu}
+        />
       </div>
 
       {/* Commit Panel */}
@@ -769,6 +994,17 @@ function GitChangesComponent({
           </button>
         </div>
       </div>
+
+      {/* Git file context menu */}
+      {gitFileContextMenu && (
+        <ContextMenu
+          isOpen={gitFileContextMenu.isOpen}
+          position={gitFileContextMenu.position}
+          worldPosition={{ x: 0, z: 0 }}
+          actions={gitFileContextActions}
+          onClose={() => setGitFileContextMenu(null)}
+        />
+      )}
     </div>
   );
 }

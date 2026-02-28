@@ -252,8 +252,9 @@ export interface StoreState {
   snapshotsError: string | null;
   // Flag to track if last agent selection was via swipe (prevents autofocus on mobile)
   lastSelectionViaSwipe: boolean;
-  // Flag to track if last agent selection was via direct click on agent bar (prevents autofocus)
-  lastSelectionViaDirectClick: boolean;
+  // Timestamp (ms) for last direct-click agent selection on the bar.
+  // Stored as timestamp instead of boolean to avoid stale focus suppression.
+  lastSelectionViaDirectClickAt: number | null;
   // Virtual subagents (Task tool spawned by Claude Code)
   subagents: Map<string, Subagent>;  // subagent.id -> Subagent
   // View mode for main viewport (3d, 2d, dashboard)

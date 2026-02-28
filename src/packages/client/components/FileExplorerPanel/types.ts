@@ -187,6 +187,7 @@ export interface GitChangesProps {
   onMergeContinue?: () => void;
   onMergeAbort?: () => void;
   onConflictOpen?: (filePath: string) => void;
+  onRevealInTree?: (path: string) => void;
 }
 
 // ============================================================================

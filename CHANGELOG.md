@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.1] - 2026-02-28
+
+### Added
+- **Git changes context menu** - Right-click git files for actions: open, stage, discard, delete, copy path, reveal in tree, open conflict resolver
+- **Git status grouping** - IntelliJ-style grouping into Conflicts, Changes, and Unversioned Files categories
+- **Git discard endpoint** - New `/api/files/git-discard` for discarding working tree changes with proper handling of untracked, staged, and modified files
+- **Mobile-responsive overview panel** - Collapsible filters, smart agent sorting by status/unread/activity, auto-scroll to active agent
+
+### Changed
+- **Swipe navigation direction** - Fixed swipe left/right to correctly map to previous/next agent
+- **Agent selection tracking** - Timestamp-based direct click tracking with 1500ms threshold replaces boolean flag
+- **Mobile layout improvements** - Overview header hidden on mobile, terminal fullscreen reclaims agent bar space, virtual keyboard suppresses autofocus
+- **Git file item styling** - Reduced spacing and padding for denser list display
+- **Button icons** - Clear Context uses broom icon, Remove Agent uses X mark icon
+- **Onboarding modal** - Only displays when no agents exist
+
+### Fixed
+- **Mobile back navigation double-fire** - Added 200ms debounce for popstate/hashchange events
+- **Agent overview sorting** - Removed deprecated hasUserInstruction check, reordered to status/unread/activity
+- **Direct click autofocus** - Timestamp-based tracking prevents stale flag from suppressing focus
+
 ## [1.0.0] - 2026-02-27
 
 ### Added

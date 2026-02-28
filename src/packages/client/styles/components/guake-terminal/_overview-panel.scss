@@ -8,7 +8,7 @@
 // Layout adjustment when overview panel is open
 .guake-terminal.with-overview-panel {
   .guake-content {
-    margin-left: 420px;
+    margin-left: var(--guake-side-panel-width);
   }
 }
 
@@ -41,7 +41,7 @@
   left: 0;
   top: 0;
   bottom: 0;
-  width: 420px;
+  width: var(--guake-side-panel-width);
   background: rgba($dracula-bg-darker, 0.98);
   border-right: 2px solid $dracula-cyan;
   display: flex;
@@ -49,87 +49,56 @@
   z-index: 201;
   overflow: hidden;
 
-  // Header
-  .aop-header {
+  // Unified stats + filters + close row
+  .aop-stats-row {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    padding: 10px 16px;
+    gap: 8px;
+    padding: 10px 12px;
     background: rgba($dracula-bg, 0.95);
-    border-bottom: 1px solid $dracula-current;
-
-    .aop-title {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      color: $dracula-cyan;
-      font-weight: 600;
-      font-size: 14px;
-      font-family: $font-mono;
-
-      .icon {
-        font-size: 16px;
-      }
-    }
-
-    .close-btn {
-      background: transparent;
-      border: none;
-      color: $dracula-comment;
-      font-size: 18px;
-      cursor: pointer;
-      padding: 4px 8px;
-      border-radius: $radius-sm;
-      transition: all 0.2s;
-
-      &:hover {
-        background: rgba($dracula-red, 0.2);
-        color: $dracula-red;
-      }
-    }
-  }
-
-  // Stats bar
-  .aop-stats {
-    display: flex;
-    gap: 12px;
-    padding: 8px 16px;
-    background: rgba($dracula-bg, 0.6);
     border-bottom: 1px solid $dracula-current;
     font-family: $font-mono;
     font-size: 11px;
-    align-items: center;
     flex-wrap: wrap;
 
     .stat {
       color: $dracula-fg;
       opacity: 0.8;
+      flex-shrink: 0;
 
-      &.stat-working {
-        color: $dracula-green;
-      }
+      &.stat-working { color: $dracula-green; }
+      &.stat-idle { color: $dracula-comment; }
+      &.stat-error { color: $dracula-red; }
+    }
 
-      &.stat-idle {
-        color: $dracula-comment;
-      }
+    .aop-row-controls {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin-left: auto;
+      flex-shrink: 1;
+      min-width: 0;
+    }
 
-      &.stat-error {
-        color: $dracula-red;
+    .aop-filters-toggle {
+      display: none;
+      border: 1px solid rgba($dracula-cyan, 0.35);
+      background: rgba($dracula-cyan, 0.08);
+      color: $dracula-cyan;
+      font-family: $font-mono;
+      font-size: 10px;
+      line-height: 1.2;
+      padding: 3px 6px;
+      border-radius: $radius-sm;
+      cursor: pointer;
+
+      &:hover {
+        background: rgba($dracula-cyan, 0.16);
       }
     }
-  }
-
-  // Controls (filter, sort, search)
-  .aop-controls {
-    display: flex;
-    gap: 6px;
-    padding: 8px 12px;
-    background: rgba($dracula-bg, 0.4);
-    border-bottom: 1px solid $dracula-current;
 
     .filter-select {
-      flex: 1;
-      padding: 4px 6px;
+      padding: 3px 4px;
       background: rgba($dracula-bg-darker, 0.8);
       border: 1px solid $dracula-current;
       border-radius: $radius-sm;
@@ -137,6 +106,7 @@
       font-family: $font-mono;
       font-size: 10px;
       cursor: pointer;
+      max-width: 90px;
 
       &:focus {
         outline: none;
@@ -145,14 +115,15 @@
     }
 
     .search-input {
-      flex: 2;
-      padding: 4px 8px;
+      padding: 3px 6px;
       background: rgba($dracula-bg-darker, 0.8);
       border: 1px solid $dracula-current;
       border-radius: $radius-sm;
       color: $dracula-fg;
       font-family: $font-mono;
       font-size: 10px;
+      min-width: 60px;
+      max-width: 120px;
 
       &::placeholder {
         color: $dracula-comment;
@@ -161,6 +132,24 @@
       &:focus {
         outline: none;
         border-color: $dracula-cyan;
+        max-width: 160px;
+      }
+    }
+
+    .close-btn {
+      background: transparent;
+      border: none;
+      color: $dracula-comment;
+      font-size: 16px;
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: $radius-sm;
+      transition: all 0.2s;
+      flex-shrink: 0;
+
+      &:hover {
+        background: rgba($dracula-red, 0.2);
+        color: $dracula-red;
       }
     }
   }
@@ -773,5 +762,210 @@
       white-space: nowrap;
       font-size: 9px;
     }
+  }
+}
+
+// =============================================================================
+// Mobile Overrides
+// =============================================================================
+
+@media (max-width: 768px) {
+  .guake-terminal {
+    --guake-mobile-overview-height: clamp(200px, 38dvh, 320px);
+  }
+
+  .guake-terminal.with-overview-panel {
+    .guake-content {
+      margin-left: 0;
+      margin-top: var(--guake-mobile-overview-height);
+    }
+  }
+
+  .agent-overview-panel {
+    left: 0;
+    right: 0;
+    bottom: auto;
+    width: 100%;
+    max-width: 100%;
+    height: var(--guake-mobile-overview-height);
+    border-left: none;
+    border-right: none;
+    border-bottom: 1px solid rgba($dracula-cyan, 0.35);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+
+    &.mobile-filters-collapsed {
+      .aop-stats-row .aop-row-controls .filter-select,
+      .aop-stats-row .aop-row-controls .search-input,
+      .aop-actions {
+        display: none;
+      }
+    }
+
+    .aop-stats-row {
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      padding: 8px 10px;
+      font-size: 10px;
+      gap: 6px;
+
+      .aop-filters-toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+
+        &.collapsed {
+          border-color: rgba($dracula-green, 0.45);
+          background: rgba($dracula-green, 0.12);
+          color: $dracula-green;
+        }
+      }
+
+      .aop-row-controls {
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .filter-select {
+        max-width: none;
+        min-height: 28px;
+        font-size: 11px;
+      }
+
+      .search-input {
+        max-width: none;
+        flex: 1 1 100%;
+        min-height: 30px;
+        font-size: 11px;
+      }
+    }
+
+    .aop-actions {
+      display: flex;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      gap: 6px;
+      padding: 8px 12px;
+      scrollbar-width: thin;
+      -webkit-overflow-scrolling: touch;
+
+      .action-btn {
+        flex: 0 0 auto;
+        padding: 4px 9px;
+        font-size: 10px;
+      }
+    }
+
+    .aop-agent-list {
+      padding: 10px 8px;
+    }
+  }
+
+  .aop-area-group {
+    .aop-area-header {
+      padding: 8px 10px;
+      font-size: 10px;
+    }
+
+    .aop-area-content {
+      margin-left: 0;
+      padding: 6px 4px 0;
+      border-left: none;
+    }
+  }
+
+  .aop-agent-card {
+    .aop-agent-header {
+      flex-wrap: wrap;
+      gap: 5px;
+      padding: 6px 8px;
+
+      .aop-agent-name {
+        flex: 1 1 auto;
+        min-width: 82px;
+      }
+
+      .aop-agent-class {
+        margin-left: 0;
+        max-width: 100%;
+      }
+
+      .aop-area-chip {
+        max-width: 100%;
+      }
+    }
+
+    .aop-task-label,
+    .aop-last-message,
+    .aop-match-context {
+      padding-left: 10px;
+      padding-right: 8px;
+    }
+
+    .aop-agent-body {
+      padding: 8px;
+    }
+  }
+
+  .aop-subagents {
+    .aop-subagent-item {
+      flex-wrap: wrap;
+
+      .sub-desc {
+        margin-left: 0;
+        flex-basis: 100%;
+        max-width: none;
+      }
+    }
+  }
+
+  .aop-tool-timeline {
+    .aop-timeline-entry {
+      flex-wrap: wrap;
+      gap: 4px 6px;
+      padding: 5px 0;
+
+      .tl-time {
+        min-width: auto;
+      }
+
+      .tl-param {
+        flex-basis: 100%;
+      }
+    }
+  }
+}
+
+@media (max-width: 420px) {
+  .guake-terminal {
+    --guake-mobile-overview-height: clamp(180px, 34dvh, 280px);
+  }
+
+  .agent-overview-panel {
+    .aop-stats-row {
+      font-size: 9px;
+      gap: 5px;
+
+      .search-input {
+        flex: 1 1 100%;
+      }
+    }
+
+    .aop-agent-card {
+      .aop-agent-header {
+        .aop-agent-class,
+        .aop-area-chip,
+        .aop-msg-count,
+        .aop-subagent-count {
+          display: none;
+        }
+      }
+    }
+  }
+}
+
+@media (max-width: 768px) and (orientation: landscape) {
+  .guake-terminal {
+    --guake-mobile-overview-height: clamp(170px, 32dvh, 250px);
   }
 }

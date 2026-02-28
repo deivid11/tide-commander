@@ -95,7 +95,7 @@ function getMessageCount(agentId: string): number {
 }
 
 /** True when agent has any explicit user instruction (assigned task or user prompt output) */
-function hasUserInstruction(agent: Agent): boolean {
+function _hasUserInstruction(agent: Agent): boolean {
   if (agent.lastAssignedTask?.trim()) return true;
 
   const outputs = store.getState().agentOutputs.get(agent.id);
@@ -162,7 +162,32 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent }: Ag
   const [sameAreaOnly, setSameAreaOnly] = useState(savedConfig.sameAreaOnly);
   const [showSubagents, setShowSubagents] = useState(savedConfig.showSubagents);
   const [showRecentActivity, setShowRecentActivity] = useState(savedConfig.showRecentActivity);
+  const [isMobileViewport, setIsMobileViewport] = useState<boolean>(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(max-width: 768px)').matches : false
+  );
+  const [mobileFiltersCollapsed, setMobileFiltersCollapsed] = useState<boolean>(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(max-width: 768px)').matches : false
+  );
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const agentListRef = useRef<HTMLDivElement>(null);
+  const hasCenteredActiveRef = useRef(false);
+
+  // Track mobile breakpoint to enable compact filter controls by default on phones.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const media = window.matchMedia('(max-width: 768px)');
+    const apply = (matches: boolean) => {
+      setIsMobileViewport(matches);
+      setMobileFiltersCollapsed(matches);
+    };
+
+    apply(media.matches);
+
+    const onChange = (event: MediaQueryListEvent) => apply(event.matches);
+    media.addEventListener('change', onChange);
+    return () => media.removeEventListener('change', onChange);
+  }, []);
 
   // Focus overview search with Alt+Shift+F when panel is open.
   useEffect(() => {
@@ -309,20 +334,24 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent }: Ag
     return [...list].sort((a, b) => {
       if (sortMode === 'name') return a.name.localeCompare(b.name);
       if (sortMode === 'status') {
-        const aHasInstruction = hasUserInstruction(a);
-        const bHasInstruction = hasUserInstruction(b);
-        if (aHasInstruction !== bHasInstruction) return aHasInstruction ? -1 : 1;
-
+        // 1. Status order
         const statusOrder = ['working', 'waiting_input', 'waiting_permission', 'error', 'idle', 'stopped'];
         const statusCmp = statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status);
         if (statusCmp !== 0) return statusCmp;
-        return a.name.localeCompare(b.name);
+
+        // 2. Unread notifications first
+        const aUnread = agentsWithUnseenOutput.has(a.id);
+        const bUnread = agentsWithUnseenOutput.has(b.id);
+        if (aUnread !== bUnread) return aUnread ? -1 : 1;
+
+        // 3. Most recently active first
+        return (b.lastActivity || 0) - (a.lastActivity || 0);
       }
       const aTime = (toolsByAgent.get(a.id) || [])[0]?.timestamp || 0;
       const bTime = (toolsByAgent.get(b.id) || [])[0]?.timestamp || 0;
       return bTime - aTime;
     });
-  }, [sortMode, toolsByAgent]);
+  }, [sortMode, toolsByAgent, agentsWithUnseenOutput]);
 
   // Build area groups (or flat list)
   const areaGroups = useMemo(() => {
@@ -393,67 +422,88 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent }: Ag
   const expandAll = () => { setExpandedAgents(new Set(agents.map(a => a.id))); setAllExpanded(true); };
   const collapseAll = () => { setExpandedAgents(new Set()); setAllExpanded(false); };
 
-  return (
-    <div className="agent-overview-panel">
-      {/* Header */}
-      <div className="aop-header">
-        <div className="aop-title">
-          <span className="icon">📊</span>
-          {t('terminal:overview.title')}
-        </div>
-        <button className="close-btn" onClick={onClose} title={t('common:buttons.close')}>
-          ✕
-        </button>
-      </div>
+  // Keep the active agent card centered in the overview scroll container when selection changes.
+  useEffect(() => {
+    const container = agentListRef.current;
+    if (!container) return;
 
-      {/* Stats Bar */}
-      <div className="aop-stats">
+    const activeCard = container.querySelector<HTMLElement>('.aop-agent-card.active');
+    if (!activeCard) return;
+
+    const containerRect = container.getBoundingClientRect();
+    const activeRect = activeCard.getBoundingClientRect();
+    const offsetWithinContainer = activeRect.top - containerRect.top;
+    const targetTop = container.scrollTop + offsetWithinContainer - ((containerRect.height - activeRect.height) / 2);
+    const clampedTargetTop = Math.max(0, targetTop);
+    const delta = Math.abs(container.scrollTop - clampedTargetTop);
+    if (delta < 2) return;
+
+    container.scrollTo({
+      top: clampedTargetTop,
+      behavior: hasCenteredActiveRef.current ? 'smooth' : 'auto',
+    });
+    hasCenteredActiveRef.current = true;
+  }, [activeAgentId, areaGroups]);
+
+  return (
+    <div className={`agent-overview-panel${isMobileViewport && mobileFiltersCollapsed ? ' mobile-filters-collapsed' : ''}`}>
+      {/* Stats + Filters + Close — single compact row */}
+      <div className="aop-stats-row">
         <span className="stat">{t('terminal:overview.agents', { count: statusSummary.total })}</span>
         {statusSummary.working > 0 && <span className="stat stat-working">🟢 {statusSummary.working}</span>}
         {statusSummary.idle > 0 && <span className="stat stat-idle">💤 {statusSummary.idle}</span>}
         {statusSummary.error > 0 && <span className="stat stat-error">🔴 {statusSummary.error}</span>}
-        <span className="stat">{t('terminal:overview.tools', { count: toolExecutions.length })}</span>
-      </div>
 
-      {/* Controls */}
-      <div className="aop-controls">
-        <select
-          value={filterMode}
-          onChange={e => setFilterMode(e.target.value as FilterMode)}
-          className="filter-select"
-        >
-          <option value="all">{t('terminal:overview.allStatus')}</option>
-          <option value="working">{t('terminal:overview.statusLabels.working')}</option>
-          <option value="idle">{t('terminal:overview.statusLabels.idle')}</option>
-          <option value="error">{t('terminal:overview.statusLabels.error')}</option>
-        </select>
-        <select
-          value={sortMode}
-          onChange={e => setSortMode(e.target.value as SortMode)}
-          className="filter-select"
-        >
-          <option value="recent">{t('terminal:overview.mostRecent')}</option>
-          <option value="status">{t('terminal:overview.byStatus')}</option>
-          <option value="name">{t('terminal:overview.byName')}</option>
-        </select>
-        <input
-          ref={searchInputRef}
-          type="text"
-          placeholder={t('terminal:overview.searchAgents')}
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
-          onKeyDown={e => {
-            if (e.key !== 'Enter') return;
-            if (e.nativeEvent.isComposing) return;
-            if (searchQuery.trim().length === 0) return;
-            if (filteredAgents.length === 0) return;
+        <div className="aop-row-controls">
+          <button
+            type="button"
+            className={`aop-filters-toggle${mobileFiltersCollapsed ? ' collapsed' : ''}`}
+            onClick={() => setMobileFiltersCollapsed(v => !v)}
+            title={mobileFiltersCollapsed ? 'Show filters' : 'Hide filters'}
+          >
+            {mobileFiltersCollapsed ? 'Filters' : 'Hide filters'}
+          </button>
+          <select
+            value={filterMode}
+            onChange={e => setFilterMode(e.target.value as FilterMode)}
+            className="filter-select"
+          >
+            <option value="all">{t('terminal:overview.allStatus')}</option>
+            <option value="working">{t('terminal:overview.statusLabels.working')}</option>
+            <option value="idle">{t('terminal:overview.statusLabels.idle')}</option>
+            <option value="error">{t('terminal:overview.statusLabels.error')}</option>
+          </select>
+          <select
+            value={sortMode}
+            onChange={e => setSortMode(e.target.value as SortMode)}
+            className="filter-select"
+          >
+            <option value="recent">{t('terminal:overview.mostRecent')}</option>
+            <option value="status">{t('terminal:overview.byStatus')}</option>
+            <option value="name">{t('terminal:overview.byName')}</option>
+          </select>
+          <input
+            ref={searchInputRef}
+            type="text"
+            placeholder={t('terminal:overview.searchAgents')}
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            onKeyDown={e => {
+              if (e.key !== 'Enter') return;
+              if (e.nativeEvent.isComposing) return;
+              if (searchQuery.trim().length === 0) return;
+              if (filteredAgents.length === 0) return;
 
-            e.preventDefault();
-            onSelectAgent(filteredAgents[0].id);
-            setSearchQuery('');
-          }}
-          className="search-input"
-        />
+              e.preventDefault();
+              onSelectAgent(filteredAgents[0].id);
+              setSearchQuery('');
+            }}
+            className="search-input"
+          />
+          <button className="close-btn" onClick={onClose} title={t('common:buttons.close')}>
+            ✕
+          </button>
+        </div>
       </div>
 
       {/* Actions */}
@@ -479,7 +529,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent }: Ag
       </div>
 
       {/* Agent List grouped by area */}
-      <div className="aop-agent-list">
+      <div className="aop-agent-list" ref={agentListRef}>
         {areaGroups.length === 0 ? (
           <div className="aop-empty">
             {agents.length === 0 ? t('terminal:overview.noAgentsDeployed') : t('terminal:overview.noAgentsMatch')}

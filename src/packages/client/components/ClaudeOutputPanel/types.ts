@@ -13,7 +13,7 @@ export const VIEW_MODES: ViewMode[] = ['simple', 'chat', 'advanced'];
 // Constants for terminal height
 export const DEFAULT_TERMINAL_HEIGHT = 55; // percentage
 export const MIN_TERMINAL_HEIGHT = 20; // percentage
-export const MAX_TERMINAL_HEIGHT = 85; // percentage
+export const MAX_TERMINAL_HEIGHT = 95; // percentage
 
 // Scroll threshold (use local value for ClaudeOutputPanel, different from shared default)
 export const SCROLL_THRESHOLD = 200; // px from top to trigger load more

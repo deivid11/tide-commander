@@ -1134,10 +1134,10 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
             <>
               <div className={`swipe-indicator left ${swipe.swipeOffset > 0.3 ? 'visible' : ''}`}>
                 <span className="indicator-icon">←</span>
-                <span className="indicator-name">{swipe.prevAgent?.name}</span>
+                <span className="indicator-name">{swipe.nextAgent?.name}</span>
               </div>
               <div className={`swipe-indicator right ${swipe.swipeOffset < -0.3 ? 'visible' : ''}`}>
-                <span className="indicator-name">{swipe.nextAgent?.name}</span>
+                <span className="indicator-name">{swipe.prevAgent?.name}</span>
                 <span className="indicator-icon">→</span>
               </div>
             </>

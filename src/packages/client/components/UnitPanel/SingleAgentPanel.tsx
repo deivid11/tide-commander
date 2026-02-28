@@ -279,7 +279,7 @@ export function SingleAgentPanel({
             onClick={() => setContextConfirm('clear')}
             title={t('unitPanel.clearContext')}
           >
-            🗑️
+            🧹
           </button>
           <button className="unit-action-icon danger" onClick={handleKill} title={t('unitPanel.killAgent')}>
             ☠️

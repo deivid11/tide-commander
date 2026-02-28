@@ -412,6 +412,7 @@ export const TerminalInputArea = memo(function TerminalInputArea({
   useEffect(() => {
     const wasOpen = prevIsOpenRef.current;
     prevIsOpenRef.current = isOpen;
+    const isTouchDevice = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
 
     // Check if this selection was from a swipe gesture (consumes and clears the flag)
     // If so, don't autofocus to prevent keyboard from popping up on mobile
@@ -422,8 +423,10 @@ export const TerminalInputArea = memo(function TerminalInputArea({
     const wasDirectClick = store.consumeDirectClickSelectionFlag();
 
     // Focus when terminal opens (transition from closed to open)
-    // or when agent changes while terminal is already open (but not from swipe or direct click)
-    if (isOpen && (!wasOpen || selectedAgentId) && !wasSwipe && !wasDirectClick) {
+    // or when agent changes while terminal is already open.
+    // Suppress only on touch devices to avoid opening the virtual keyboard.
+    const shouldSuppressAutofocus = isTouchDevice && (wasSwipe || wasDirectClick);
+    if (isOpen && (!wasOpen || selectedAgentId) && !shouldSuppressAutofocus) {
       // Small delay to ensure terminal animation has started
       const timeoutId = setTimeout(() => {
         if (useTextarea && textareaRef.current) {
