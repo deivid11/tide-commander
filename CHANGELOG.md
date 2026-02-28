@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.1] - 2026-02-28
+
+### Added
+- **Mobile search toggle button** - Dedicated search icon button in overview panel stats row for quick access on phones
+
+### Changed
+- **Mobile overview panel border** - Thicker bottom border with cyan accent and layered box-shadow for better visual separation
+
 ## [1.1.0] - 2026-02-28
 
 ### Added
