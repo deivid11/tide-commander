@@ -305,6 +305,9 @@
         // Keep the bar pinned to the (shrunk) layout viewport bottom, then lift by measured keyboard height.
         // On Android/WebViews that shrink the layout viewport, `--keyboard-height` will be 0.
         transform: translateY(calc(var(--keyboard-height, 0px) * -1)) !important;
+        // Keyboard covers the bottom safe area (navigation bar), so remove its padding
+        // to prevent the input from being pushed lower than the keyboard edge.
+        padding-bottom: 8px !important;
       }
     }
 

@@ -3,9 +3,20 @@
  *
  * Uses the Visual Viewport API to detect keyboard height and adjust layout.
  * Sets CSS custom properties for components to react to keyboard state.
+ *
+ * On Android Capacitor, a native WindowInsets listener (in MainActivity.java)
+ * provides the exact keyboard height via `window.__nativeKeyboardHeight` and
+ * sets CSS properties directly. When this native handler is active, the Visual
+ * Viewport API detection is skipped to avoid conflicts.
  */
 
 import { useCallback, useRef } from 'react';
+
+declare global {
+  interface Window {
+    __nativeKeyboardHeight?: number;
+  }
+}
 
 export interface UseKeyboardHeightReturn {
   /** Ref to track if an input is currently focused */
@@ -79,8 +90,12 @@ export function useKeyboardHeight(): UseKeyboardHeightReturn {
     // Lock scrolling during keyboard animation to prevent auto-scroll from interfering
     keyboardScrollLockRef.current = true;
 
-    // Use Visual Viewport API - the most reliable way to detect keyboard on modern mobile browsers
-    if (window.visualViewport) {
+    // On Android Capacitor, the native insets listener handles keyboard height
+    // directly via CSS custom properties. Skip JS detection to avoid conflicts.
+    const hasNativeHandler = typeof window.__nativeKeyboardHeight === 'number';
+
+    // Use Visual Viewport API as fallback when native handler isn't available
+    if (!hasNativeHandler && window.visualViewport) {
       // Capture "UI chrome" overlap before the keyboard opens (e.g. URL bars).
       // Some browsers report a small overlap even with no keyboard, which would
       // otherwise lift the input a bit above the keyboard.
@@ -132,7 +147,14 @@ export function useKeyboardHeight(): UseKeyboardHeightReturn {
 
           // If layout is shrinking, fixed elements already sit above the keyboard.
           // Keep keyboardHeight at 0 so CSS doesn't push the input upward.
-          const keyboardHeight = layoutShrink >= 120 ? 0 : Math.max(0, overlap - baselineOverlapRef.current);
+          // When keyboard IS visible, use the full overlap (don't subtract baseline).
+          // The baseline overlap comes from bottom system chrome (navigation bar)
+          // which the keyboard covers, so the full overlap is the true keyboard height.
+          const keyboardHeight = layoutShrink >= 120
+            ? 0
+            : keyboardVisible
+              ? Math.max(0, overlap)
+              : 0;
 
           // Update the CSS custom property
           if (keyboardHeight !== lastKeyboardHeightRef.current || keyboardVisible !== lastKeyboardVisibleRef.current) {
@@ -170,6 +192,8 @@ export function useKeyboardHeight(): UseKeyboardHeightReturn {
     setTimeout(() => {
       // Only reset if still not focused
       if (!isInputFocusedRef.current) {
+        // Native handler resets via WindowInsets automatically;
+        // still reset here as fallback for non-native environments.
         resetKeyboardStyles();
         cleanupKeyboardHandling();
       }

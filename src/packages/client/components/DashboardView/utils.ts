@@ -644,6 +644,11 @@ export function sortAgentsInGroupWithOptions(
     if (orderA !== orderB) return orderA - orderB;
 
     if (prioritizeRecentlyIdle && a.status === 'idle' && b.status === 'idle') {
+      // Idle agents with a taskLabel first (completed a task, need attention)
+      const aHasTask = !!a.taskLabel;
+      const bHasTask = !!b.taskLabel;
+      if (aHasTask !== bHasTask) return aHasTask ? -1 : 1;
+
       return (b.lastActivity || 0) - (a.lastActivity || 0);
     }
 

@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.1] - 2026-02-28
+
+### Fixed
+- **Android keyboard height detection** - Native WindowInsets listener in MainActivity passes exact keyboard height to WebView via CSS custom properties, replacing unreliable Visual Viewport API on Android
+- **Keyboard height calculation** - Fixed baseline overlap subtraction that caused incorrect keyboard height when system navigation bar was present
+- **Mobile input bar padding** - Removed bottom safe-area padding when keyboard is visible to prevent input being pushed below keyboard edge
+
+### Changed
+- **Viewport meta tag** - Added `interactive-widget=resizes-content` for better keyboard behavior on modern mobile browsers
+- **Idle agent sorting** - Idle agents with a task label (completed tasks needing attention) are now sorted before other idle agents in both overview panel and dashboard
+- **useKeyboardHeight native detection** - Skips Visual Viewport API when native Android insets handler is active to avoid conflicts
+
 ## [1.2.0] - 2026-02-28
 
 ### Added

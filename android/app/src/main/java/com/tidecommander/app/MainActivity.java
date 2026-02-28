@@ -11,6 +11,8 @@ import android.provider.Settings;
 import android.view.View;
 import android.view.WindowManager;
 import androidx.core.app.NotificationManagerCompat;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
@@ -33,6 +35,11 @@ public class MainActivity extends BridgeActivity {
 
         // Enable immersive fullscreen mode (hide status bar and navigation bar)
         hideSystemUI();
+
+        // Listen for keyboard (IME) insets and pass exact height to the WebView.
+        // With setDecorFitsSystemWindows(false), the WebView extends behind the
+        // keyboard, so we must manually report the keyboard height to CSS.
+        setupKeyboardInsetsListener();
 
         // Start foreground service to keep WebSocket alive in background
         startBackgroundService();
@@ -92,6 +99,42 @@ public class MainActivity extends BridgeActivity {
     private void stopBackgroundService() {
         Intent serviceIntent = new Intent(this, WebSocketForegroundService.class);
         stopService(serviceIntent);
+    }
+
+    /**
+     * Listen for keyboard (IME) window insets and inject the exact keyboard height
+     * into the WebView as a CSS custom property. This is needed because
+     * setDecorFitsSystemWindows(false) makes the content extend behind the keyboard,
+     * and the Visual Viewport API may not report the correct height in all cases.
+     */
+    private void setupKeyboardInsetsListener() {
+        View contentView = findViewById(android.R.id.content);
+        if (contentView == null) return;
+
+        ViewCompat.setOnApplyWindowInsetsListener(contentView, (view, windowInsets) -> {
+            Insets imeInsets = windowInsets.getInsets(WindowInsetsCompat.Type.ime());
+            boolean imeVisible = windowInsets.isVisible(WindowInsetsCompat.Type.ime());
+
+            // The IME bottom inset is the exact keyboard height in pixels.
+            // Convert to CSS pixels by dividing by device pixel ratio (handled in JS).
+            int keyboardHeightPx = imeInsets.bottom;
+
+            String js = "(() => {"
+                + "const app = document.querySelector('.app');"
+                + "if (!app) return;"
+                + "const density = window.devicePixelRatio || 1;"
+                + "const heightCss = Math.round(" + keyboardHeightPx + " / density);"
+                + "app.style.setProperty('--native-keyboard-height', heightCss + 'px');"
+                + "app.style.setProperty('--keyboard-height', heightCss + 'px');"
+                + "app.style.setProperty('--keyboard-visible', " + (imeVisible ? "'1'" : "'0'") + ");"
+                + "app.classList.toggle('keyboard-visible', " + imeVisible + ");"
+                + "window.__nativeKeyboardHeight = heightCss;"
+                + "})();";
+
+            getBridge().eval(js, null);
+
+            return windowInsets;
+        });
     }
 
     private void hideSystemUI() {
