@@ -426,6 +426,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent }: Ag
           matchContext={searchMatchContexts.get(agent.id)}
           onToggle={() => toggleAgent(agent.id)}
           onSelect={() => onSelectAgent(agent.id)}
+          onClearContext={() => store.clearContext(agent.id)}
         />
       </React.Fragment>
     ));
@@ -654,6 +655,7 @@ interface AgentCardProps {
   matchContext?: SearchMatchContext;
   onToggle: () => void;
   onSelect: () => void;
+  onClearContext: () => void;
 }
 
 /** Unified subagent entry combining live store data and tool execution history */
@@ -681,6 +683,7 @@ function AgentCard({
   matchContext,
   onToggle,
   onSelect,
+  onClearContext,
 }: AgentCardProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const customClasses = useCustomAgentClassesArray();
@@ -741,14 +744,122 @@ function AgentCard({
   const clampedContextRatio = Math.min(1, Math.max(0, contextUsageRatio));
   const contextHue = Math.round((1 - clampedContextRatio) * 120); // 120=green, 0=red
   const contextFillColor = `hsl(${contextHue} 80% 45% / 0.55)`;
+  const swipeRevealWidth = 112;
+  const swipeRevealThreshold = 56;
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const [swipeRevealed, setSwipeRevealed] = useState(false);
+  const [isSwiping, setIsSwiping] = useState(false);
+  const touchStartXRef = useRef(0);
+  const touchStartYRef = useRef(0);
+  const touchStartOffsetRef = useRef(0);
+  const hasDirectionRef = useRef(false);
+  const isHorizontalSwipeRef = useRef(false);
+  const suppressNextClickRef = useRef(false);
+
+  useEffect(() => {
+    if (isMobile) return;
+    setSwipeOffset(0);
+    setSwipeRevealed(false);
+    setIsSwiping(false);
+  }, [isMobile]);
+
+  const handleSelect = useCallback(() => {
+    if (suppressNextClickRef.current) {
+      suppressNextClickRef.current = false;
+      return;
+    }
+
+    if (swipeRevealed) {
+      setSwipeOffset(0);
+      setSwipeRevealed(false);
+      suppressNextClickRef.current = true;
+      return;
+    }
+
+    onSelect();
+  }, [onSelect, swipeRevealed]);
+
+  const handleTouchStart = useCallback((event: React.TouchEvent<HTMLDivElement>) => {
+    if (!isMobile || event.touches.length !== 1) return;
+    const touch = event.touches[0];
+    touchStartXRef.current = touch.clientX;
+    touchStartYRef.current = touch.clientY;
+    touchStartOffsetRef.current = swipeRevealed ? swipeRevealWidth : 0;
+    hasDirectionRef.current = false;
+    isHorizontalSwipeRef.current = false;
+    setIsSwiping(true);
+  }, [isMobile, swipeRevealed]);
+
+  const handleTouchMove = useCallback((event: React.TouchEvent<HTMLDivElement>) => {
+    if (!isMobile || !isSwiping || event.touches.length !== 1) return;
+
+    const touch = event.touches[0];
+    const deltaX = touch.clientX - touchStartXRef.current;
+    const deltaY = touch.clientY - touchStartYRef.current;
+
+    if (!hasDirectionRef.current) {
+      if (Math.abs(deltaX) < 8 && Math.abs(deltaY) < 8) return;
+      hasDirectionRef.current = true;
+      isHorizontalSwipeRef.current = Math.abs(deltaX) > Math.abs(deltaY);
+    }
+
+    if (!isHorizontalSwipeRef.current) return;
+
+    event.preventDefault();
+    const nextOffset = Math.max(0, Math.min(swipeRevealWidth, touchStartOffsetRef.current - deltaX));
+    setSwipeOffset(nextOffset);
+  }, [isMobile, isSwiping]);
+
+  const finishSwipe = useCallback(() => {
+    if (!isMobile || !isSwiping) return;
+    setIsSwiping(false);
+
+    if (!isHorizontalSwipeRef.current) {
+      if (!swipeRevealed) setSwipeOffset(0);
+      return;
+    }
+
+    const reveal = swipeOffset >= swipeRevealThreshold;
+    const changed = reveal !== swipeRevealed || swipeOffset !== (reveal ? swipeRevealWidth : 0);
+    setSwipeRevealed(reveal);
+    setSwipeOffset(reveal ? swipeRevealWidth : 0);
+    if (changed) suppressNextClickRef.current = true;
+  }, [isMobile, isSwiping, swipeOffset, swipeRevealed]);
+
+  const handleClearContext = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    onClearContext();
+    setSwipeRevealed(false);
+    setSwipeOffset(0);
+    suppressNextClickRef.current = true;
+  }, [onClearContext]);
 
   return (
-    <div
-      className={`aop-agent-card ${isActive ? 'active' : ''} ${agent.status} ${hasPendingRead ? 'unread' : ''}`}
-      onClick={onSelect}
-    >
-      {/* Card Header - always visible */}
-      <div className="aop-agent-header">
+    <div className={`aop-agent-swipe${isMobile ? ' swipe-enabled' : ''}${swipeRevealed ? ' revealed' : ''}`}>
+      {isMobile && (
+        <button
+          type="button"
+          className="aop-swipe-clear-action"
+          onClick={handleClearContext}
+          title={t('terminal:overview.clearContext', { defaultValue: 'Clear context' })}
+        >
+          🧹 {t('terminal:overview.clearContext', { defaultValue: 'Clear' })}
+        </button>
+      )}
+      <div
+        className={`aop-agent-card ${isActive ? 'active' : ''} ${agent.status} ${hasPendingRead ? 'unread' : ''}`}
+        onClick={handleSelect}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={finishSwipe}
+        onTouchCancel={finishSwipe}
+        style={isMobile ? {
+          transform: `translateX(-${swipeOffset}px)`,
+          transition: isSwiping ? 'none' : 'transform 0.18s ease',
+        } : undefined}
+      >
+        {/* Card Header - always visible */}
+        <div className="aop-agent-header">
         <button
           type="button"
           className="aop-expand-icon"
@@ -811,106 +922,107 @@ function AgentCard({
             {areaInfo.name}
           </span>
         )}
-      </div>
-
-      {/* Task label preview - always visible when available */}
-      {agent.taskLabel && (
-        <div className="aop-task-label" title={agent.taskLabel}>
-          <span className="task-prefix">📋</span>
-          <span className="task-text">{truncate(agent.taskLabel, trunc)}</span>
         </div>
-      )}
 
-      {/* Last message preview - hide assistant messages when collapsed */}
-      {lastMsg && (isExpanded || lastMsg.isUserPrompt) && (
-        <div
-          className={`aop-last-message ${lastMsg.isUserPrompt ? 'user' : 'assistant'}`}
-          title={lastMsg.text.split('\n')[0]}
-        >
-          <span className="lm-prefix">{lastMsg.isUserPrompt ? '▶' : '◀'}</span>
-          <span className="lm-text">{truncate(lastMsg.text, trunc)}</span>
-          <span className="lm-time">{formatTimestamp(lastMsg.timestamp)}</span>
-        </div>
-      )}
+        {/* Task label preview - always visible when available */}
+        {agent.taskLabel && (
+          <div className="aop-task-label" title={agent.taskLabel}>
+            <span className="task-prefix">📋</span>
+            <span className="task-text">{truncate(agent.taskLabel, trunc)}</span>
+          </div>
+        )}
 
-      {/* Search match context — shows why agent matched a deep search */}
-      {matchContext && (
-        <div className={`aop-match-context aop-match-context--${matchContext.type}`} title={matchContext.text}>
-          <span className="match-icon">
-            {matchContext.type === 'history' ? '📜' : matchContext.type === 'file' ? '📄' : '💬'}
-          </span>
-          <span className="match-label">
-            {matchContext.type === 'history' ? 'history' : matchContext.type === 'file' ? 'file' : 'task'}
-          </span>
-          <span className="match-text">{truncate(matchContext.text, trunc)}</span>
-        </div>
-      )}
-
-      {/* Expanded Content */}
-      {isExpanded && (
-        <div className="aop-agent-body">
-          {/* Subagents (live + historical from tool execs) */}
-          {hasVisibleSubagents && (
-            <div className="aop-subagents">
-              <div className="aop-section-label">{t('terminal:overview.subagents', { count: allSubagentEntries.length })}</div>
-              {allSubagentEntries.map(sub => (
-                <div key={sub.id} className={`aop-subagent-item ${sub.status}`}>
-                  <span className="sub-icon">
-                    {sub.status === 'completed' ? '✅' : sub.status === 'failed' ? '❌' : sub.status === 'unknown' ? '⬜' : '⑂'}
-                  </span>
-                  <span className="sub-name">{sub.name}</span>
-                  <span className="sub-type">{sub.type}</span>
-                  {sub.description && (
-                    <span className="sub-desc" title={sub.description}>{truncate(sub.description, isMobile ? 30 : 50)}</span>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Recent tool activity timeline */}
-          {hasVisibleRecentActivity && (
-            <div className="aop-tool-timeline">
-              <div className="aop-section-label">{t('terminal:overview.recentActivity')}</div>
-              {recentTools.map((exec, i) => {
-                const param = exec.toolInput
-                  ? (exec.toolInput.file_path as string)
-                    || (exec.toolInput.command as string)?.slice(0, 40)
-                    || (exec.toolInput.pattern as string)
-                    || (exec.toolInput.description as string)
-                    || (exec.toolInput.prompt as string)?.slice(0, 50)
-                    || ''
-                  : '';
-                return (
-                  <div key={`${exec.timestamp}-${i}`} className="aop-timeline-entry">
-                    <span className="tl-time">{formatTimestamp(exec.timestamp)}</span>
-                    <span className="tl-icon">{TOOL_ICONS[exec.toolName] || TOOL_ICONS.default}</span>
-                    <span className="tl-tool">{exec.toolName}</span>
-                    {param && <span className="tl-param">{param}</span>}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {!hasAnyVisibleSection && (showSubagents || showRecentActivity) && (
-            <div className="aop-no-activity">{t('terminal:overview.noToolActivity')}</div>
-          )}
-        </div>
-      )}
-
-      {/* Context usage bar */}
-      {agent.contextLimit > 0 && (
-        <div
-          className="aop-context-bar"
-          title={`${Math.round(contextUsageRatio * 100)}% context used (${Math.round(agent.contextUsed / 1000)}k / ${Math.round(agent.contextLimit / 1000)}k)`}
-        >
+        {/* Last message preview - hide assistant messages when collapsed */}
+        {lastMsg && (isExpanded || lastMsg.isUserPrompt) && (
           <div
-            className="aop-context-fill"
-            style={{ width: `${contextUsagePercent}%`, backgroundColor: contextFillColor }}
-          />
-        </div>
-      )}
+            className={`aop-last-message ${lastMsg.isUserPrompt ? 'user' : 'assistant'}`}
+            title={lastMsg.text.split('\n')[0]}
+          >
+            <span className="lm-prefix">{lastMsg.isUserPrompt ? '▶' : '◀'}</span>
+            <span className="lm-text">{truncate(lastMsg.text, trunc)}</span>
+            <span className="lm-time">{formatTimestamp(lastMsg.timestamp)}</span>
+          </div>
+        )}
+
+        {/* Search match context — shows why agent matched a deep search */}
+        {matchContext && (
+          <div className={`aop-match-context aop-match-context--${matchContext.type}`} title={matchContext.text}>
+            <span className="match-icon">
+              {matchContext.type === 'history' ? '📜' : matchContext.type === 'file' ? '📄' : '💬'}
+            </span>
+            <span className="match-label">
+              {matchContext.type === 'history' ? 'history' : matchContext.type === 'file' ? 'file' : 'task'}
+            </span>
+            <span className="match-text">{truncate(matchContext.text, trunc)}</span>
+          </div>
+        )}
+
+        {/* Expanded Content */}
+        {isExpanded && (
+          <div className="aop-agent-body">
+            {/* Subagents (live + historical from tool execs) */}
+            {hasVisibleSubagents && (
+              <div className="aop-subagents">
+                <div className="aop-section-label">{t('terminal:overview.subagents', { count: allSubagentEntries.length })}</div>
+                {allSubagentEntries.map(sub => (
+                  <div key={sub.id} className={`aop-subagent-item ${sub.status}`}>
+                    <span className="sub-icon">
+                      {sub.status === 'completed' ? '✅' : sub.status === 'failed' ? '❌' : sub.status === 'unknown' ? '⬜' : '⑂'}
+                    </span>
+                    <span className="sub-name">{sub.name}</span>
+                    <span className="sub-type">{sub.type}</span>
+                    {sub.description && (
+                      <span className="sub-desc" title={sub.description}>{truncate(sub.description, isMobile ? 30 : 50)}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Recent tool activity timeline */}
+            {hasVisibleRecentActivity && (
+              <div className="aop-tool-timeline">
+                <div className="aop-section-label">{t('terminal:overview.recentActivity')}</div>
+                {recentTools.map((exec, i) => {
+                  const param = exec.toolInput
+                    ? (exec.toolInput.file_path as string)
+                      || (exec.toolInput.command as string)?.slice(0, 40)
+                      || (exec.toolInput.pattern as string)
+                      || (exec.toolInput.description as string)
+                      || (exec.toolInput.prompt as string)?.slice(0, 50)
+                      || ''
+                    : '';
+                  return (
+                    <div key={`${exec.timestamp}-${i}`} className="aop-timeline-entry">
+                      <span className="tl-time">{formatTimestamp(exec.timestamp)}</span>
+                      <span className="tl-icon">{TOOL_ICONS[exec.toolName] || TOOL_ICONS.default}</span>
+                      <span className="tl-tool">{exec.toolName}</span>
+                      {param && <span className="tl-param">{param}</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {!hasAnyVisibleSection && (showSubagents || showRecentActivity) && (
+              <div className="aop-no-activity">{t('terminal:overview.noToolActivity')}</div>
+            )}
+          </div>
+        )}
+
+        {/* Context usage bar */}
+        {agent.contextLimit > 0 && (
+          <div
+            className="aop-context-bar"
+            title={`${Math.round(contextUsageRatio * 100)}% context used (${Math.round(agent.contextUsed / 1000)}k / ${Math.round(agent.contextLimit / 1000)}k)`}
+          >
+            <div
+              className="aop-context-fill"
+              style={{ width: `${contextUsagePercent}%`, backgroundColor: contextFillColor }}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

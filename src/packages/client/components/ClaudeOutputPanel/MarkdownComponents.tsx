@@ -6,6 +6,7 @@
 import React from 'react';
 import { Components } from 'react-markdown';
 import { decodeTideFileHref } from '../../utils/outputRendering';
+import { highlightCode, isLanguageSupported } from '../FileExplorerPanel/syntaxHighlighting';
 
 interface MarkdownComponentOptions {
   onFileClick?: (path: string) => void;
@@ -88,6 +89,20 @@ export const createMarkdownComponents = ({ onFileClick }: MarkdownComponentOptio
     // Check if it's a code block (has language class) or inline code
     const isBlock = className?.includes('language-');
     if (isBlock) {
+      const language = className?.replace('language-', '') ?? '';
+      const codeText = getNodeText(children);
+
+      if (language && isLanguageSupported(language)) {
+        const highlighted = highlightCode(codeText, language);
+        return (
+          <code
+            className={className}
+            style={{ background: 'none', padding: 0, fontSize: '12px', lineHeight: 1.5 }}
+            dangerouslySetInnerHTML={{ __html: highlighted }}
+          />
+        );
+      }
+
       return (
         <code style={{ background: 'none', padding: 0, color: 'var(--text-primary)', fontSize: '12px', lineHeight: 1.5 }}>
           {children}

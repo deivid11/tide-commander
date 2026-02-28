@@ -305,11 +305,53 @@
 // Agent Card
 // =============================================================================
 
+.aop-agent-swipe {
+  position: relative;
+  margin-bottom: 8px;
+  border-radius: $radius-sm;
+  overflow: hidden;
+
+  .aop-swipe-clear-action {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 112px;
+    border: none;
+    border-left: 1px solid color-mix(in srgb, var(--accent-red) 45%, transparent);
+    border-radius: 0;
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--accent-red) 45%, var(--bg-secondary)),
+      color-mix(in srgb, var(--accent-red) 72%, var(--bg-secondary))
+    );
+    color: #fff;
+    font-family: $font-mono;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    opacity: 1;
+    pointer-events: none;
+  }
+
+  &.swipe-enabled.revealed .aop-swipe-clear-action {
+    pointer-events: auto;
+  }
+
+  &.swipe-enabled .aop-agent-card {
+    touch-action: pan-y;
+  }
+}
+
 .aop-agent-card {
   // Selected accent: blend of accent-orange and text-muted (theme-aware)
   --aop-selected: color-mix(in srgb, var(--accent-orange) 68%, var(--text-muted));
 
-  margin-bottom: 8px;
+  margin-bottom: 0;
   background: var(--bg-secondary);
   border-radius: $radius-sm;
   border: 1px solid var(--border-color);
@@ -1096,6 +1138,18 @@
     }
   }
 
+  .aop-status-separator {
+    gap: 6px;
+    margin: 5px 0 6px;
+    font-size: 10px;
+    letter-spacing: 0.02em;
+
+    &::before,
+    &::after {
+      opacity: 0.8;
+    }
+  }
+
   .aop-tool-timeline {
     .aop-timeline-entry {
       flex-wrap: wrap;
@@ -1120,6 +1174,11 @@
   }
 
   .agent-overview-panel {
+    .aop-status-separator {
+      font-size: 9px;
+      margin: 4px 0 5px;
+    }
+
     .aop-stats-row {
       font-size: 9px;
       gap: 5px;

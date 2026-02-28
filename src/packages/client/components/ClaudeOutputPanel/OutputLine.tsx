@@ -13,6 +13,7 @@ import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, D
 import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, ExitPlanModeInput, UnknownToolInput } from './ToolRenderers';
 import { renderContentWithImages, renderUserPromptContent } from './contentRendering';
 import { ansiToHtml } from '../../utils/ansiToHtml';
+import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
 import { useTTS } from '../../hooks/useTTS';
 import type { EditData } from './types';
 import type { ExecTask, Subagent, SubagentStreamEntry } from '../../../shared/types';
@@ -577,13 +578,17 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
 
     const renderBashCommandWithFileLinks = () => {
       if (!displayCommand) return null;
-      if (!onFileClick) return displayCommand;
+      if (!onFileClick) {
+        return <span dangerouslySetInnerHTML={{ __html: highlightCode(displayCommand, 'bash') }} />;
+      }
 
       const agentCwd = agentId ? store.getState().agents.get(agentId)?.cwd : undefined;
       const segments = splitCommandForFileLinks(displayCommand);
 
       return segments.map((segment, idx) => {
-        if (!segment.fileRef) return <React.Fragment key={`cmd-${idx}`}>{segment.text}</React.Fragment>;
+        if (!segment.fileRef) {
+          return <span key={`cmd-${idx}`} dangerouslySetInnerHTML={{ __html: highlightCode(segment.text, 'bash') }} />;
+        }
         const resolved = resolveAgentFileReference(segment.fileRef, agentCwd);
         return (
           <span

@@ -86,5 +86,30 @@ export function isLanguageSupported(language: string): boolean {
   return language in Prism.languages;
 }
 
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+/**
+ * Highlight a code string using Prism.js.
+ * Returns an HTML string safe for dangerouslySetInnerHTML.
+ * Falls back to HTML-escaped plain text if the language is unsupported.
+ */
+export function highlightCode(code: string, language: string): string {
+  if (!code) return '';
+  const grammar = Prism.languages[language];
+  if (!grammar) return escapeHtml(code);
+  try {
+    return Prism.highlight(code, grammar, language);
+  } catch {
+    return escapeHtml(code);
+  }
+}
+
 // Re-export Prism for direct usage if needed
 export { Prism };

@@ -20,6 +20,7 @@ import { ContextViewModal } from '../ContextViewModal';
 import { FileViewerModal } from '../FileViewerModal';
 import { AgentResponseModal } from './AgentResponseModal';
 import { ansiToHtml } from '../../utils/ansiToHtml';
+import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
 import type { Agent } from '../../../shared/types';
 import { useModalClose } from '../../hooks';
 import { ModalPortal } from '../shared/ModalPortal';
@@ -79,7 +80,7 @@ export function BashModal({ state, onClose }: BashModalProps) {
             </button>
           </div>
           <div className="bash-modal-command">
-            <pre>{state.command}</pre>
+            <pre dangerouslySetInnerHTML={{ __html: highlightCode(state.command, 'bash') }} />
           </div>
           <div className={`bash-modal-content ${state.isLive ? 'is-loading' : ''}`}>
             <pre dangerouslySetInnerHTML={{ __html: ansiToHtml(state.output) }} />

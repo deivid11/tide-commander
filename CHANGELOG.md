@@ -2,15 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.1.2] - 2026-02-28
+## [1.2.0] - 2026-02-28
 
 ### Added
-- **Mobile overview panel resize** - Drag handle between overview panel and terminal allows resizing on mobile with touch and mouse support, persisted to localStorage
-- **Responsive text truncation** - Agent cards adapt text truncation limits and tool count based on mobile viewport detection
+- **Syntax highlighting for code blocks** - Markdown code blocks in agent output now use Prism.js syntax highlighting when the language is supported
+- **Syntax highlighting for bash commands** - Bash commands in OutputLine and BashModal render with Prism.js highlighting for better readability
+- **Swipe-to-reveal clear context** - Mobile agent cards support swipe-left gesture to reveal a "Clear context" action button
+- **`highlightCode` utility** - New exported function in syntaxHighlighting for safe Prism.js highlighting with HTML-escape fallback
 
 ### Changed
-- **Agent card mobile optimization** - Reduced recent tools from 8 to 4, shortened truncation from 80 to 40 chars, and subagent descriptions from 50 to 30 chars on mobile
-- **Direct click selection tracking** - Agent selection via overview panel now marks as direct click to prevent auto-scroll conflicts
+- **Agent card swipe interaction** - Cards now wrap in a swipe container with touch direction detection, preventing conflicts with vertical scrolling
+- **Overview panel mobile polish** - Improved styling for swipe reveal actions and resize handle
 
 ## [1.1.1] - 2026-02-28
 
