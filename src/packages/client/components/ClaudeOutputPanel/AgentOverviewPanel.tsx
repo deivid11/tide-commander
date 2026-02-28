@@ -510,6 +510,17 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent }: Ag
         <div className="aop-row-controls">
           <button
             type="button"
+            className="aop-search-toggle"
+            onClick={() => {
+              setMobileFiltersCollapsed(false);
+              requestAnimationFrame(() => searchInputRef.current?.focus());
+            }}
+            title="Search agents"
+          >
+            🔍
+          </button>
+          <button
+            type="button"
             className={`aop-filters-toggle${mobileFiltersCollapsed ? ' collapsed' : ''}`}
             onClick={() => setMobileFiltersCollapsed(v => !v)}
             title={mobileFiltersCollapsed ? 'Show filters' : 'Hide filters'}
