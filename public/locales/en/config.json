@@ -38,6 +38,8 @@
   },
   "vibrationValues": {
     "off": "Off",
+    "ultraLight": "Ultra Light",
+    "veryLight": "Very Light",
     "light": "Light",
     "medium": "Medium",
     "heavy": "Heavy"

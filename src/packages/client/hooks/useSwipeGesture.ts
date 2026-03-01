@@ -22,7 +22,7 @@ export interface SwipeGestureOptions {
   onSwipeMove?: (offset: number) => void;
   /** Callback when swipe ends without triggering navigation (resets animation) */
   onSwipeCancel?: () => void;
-  /** Vibration intensity for haptic feedback (0=off, 1=light, 2=medium, 3=heavy). Default: 1 */
+  /** Vibration intensity for haptic feedback (0=off, 1=ultra light ... 5=heavy). Default: 1 */
   vibrationIntensity?: VibrationIntensity;
 }
 

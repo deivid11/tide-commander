@@ -11,8 +11,9 @@ export const fullNotifications: BuiltinSkillDefinition = {
 
 ## Trigger Conditions (Act Immediately)
 1. **Task Completed** - Right after finishing any user request
-2. **Blocking Error** - When you cannot proceed
-3. **Awaiting Input** - When you need user decision
+2. **Plan Ready for Review** - As soon as your implementation plan is written and ready for user approval
+3. **Blocking Error** - When you cannot proceed
+4. **Awaiting Input** - When you need user decision
 
 ## Command Template
 \`\`\`bash
@@ -31,6 +32,11 @@ curl -s -X POST http://localhost:5174/api/notify -H "Content-Type: application/j
 curl -s -X POST http://localhost:5174/api/notify -H "Content-Type: application/json" -d '{"agentId":"YOUR_AGENT_ID","title":"Error","message":"Build failed"}'
 \`\`\`
 
+**Plan Ready for Review:**
+\`\`\`bash
+curl -s -X POST http://localhost:5174/api/notify -H "Content-Type: application/json" -d '{"agentId":"YOUR_AGENT_ID","title":"Plan Ready","message":"Review implementation plan"}'
+\`\`\`
+
 **Input Required:**
 \`\`\`bash
 curl -s -X POST http://localhost:5174/api/notify -H "Content-Type: application/json" -d '{"agentId":"YOUR_AGENT_ID","title":"Input Needed","message":"Which database?"}'
@@ -47,6 +53,13 @@ curl -s -X POST http://localhost:5174/api/notify -H "Content-Type: application/j
   - Only notify when YOU have nothing more to do on this task
 - Do NOT skip this step - the user relies on notifications
 
+## MANDATORY: Plan Review Notifications
+- When you enter plan mode and write an implementation plan, you MUST send a "Plan Ready" notification IMMEDIATELY after the plan is written and before waiting for user approval
+- Do NOT wait for the user to notice the plan on their own - notify them right away
+- Send the notification as soon as you call ExitPlanMode or present the plan for review
+- The notification title should be "Plan Ready" and the message should briefly describe what the plan covers
+- This applies every time a plan is created, without exception
+
 ## CRITICAL: Notification Must Be Your ABSOLUTE LAST Action
 - The notification curl command must be the VERY LAST thing you do - your final tool call
 - Present ALL findings, summaries, and explanations to the user BEFORE sending the notification
@@ -56,5 +69,6 @@ curl -s -X POST http://localhost:5174/api/notify -H "Content-Type: application/j
 - **Correct order**: Do work -> present results to user -> send notification (end)
 - **Wrong order**: Do work -> send notification -> present results (NEVER do this)
 - **Also wrong**: Do work -> present results -> send notification -> add follow-up text (NEVER do this)
-- Think of the notification as your "exit" command - nothing comes after it`,
+- Think of the notification as your "exit" command - nothing comes after it
+- **Exception**: "Plan Ready" notifications are sent mid-task (right after writing the plan) since you still need user approval to proceed. In this case the notification is NOT your last action - you continue after user review`,
 };

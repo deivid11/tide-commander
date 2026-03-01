@@ -117,7 +117,7 @@ export interface Settings {
   experimentalEchoPrompt: boolean;
   // External editor preference
   externalEditorCommand?: string; // e.g., 'subl', 'code', 'nvim' (empty = system default)
-  // Vibration intensity for swipe gestures: 0=off, 1=light, 2=medium, 3=heavy
+  // Vibration intensity for gestures: 0=off, 1=ultra light, 2=very light, 3=light, 4=medium, 5=heavy
   vibrationIntensity: number;
 }
 

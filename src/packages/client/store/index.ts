@@ -9,6 +9,7 @@
 import type { ClientMessage } from '../../shared/types';
 import { STORAGE_KEYS, getStorage, setStorage, getStorageString, setStorageString, getStorageBoolean, setStorageBoolean } from '../utils/storage';
 import { closeAllModalsExcept } from '../hooks';
+import { MAX_VIBRATION_INTENSITY } from '../utils/haptics';
 
 // Import types
 import type { StoreState, Listener, Settings } from './types';
@@ -304,7 +305,12 @@ class Store
   private loadSettings(): Settings {
     const stored = getStorage<typeof DEFAULT_SETTINGS | null>(STORAGE_KEYS.SETTINGS, null);
     if (stored) {
-      return { ...DEFAULT_SETTINGS, ...stored };
+      const merged = { ...DEFAULT_SETTINGS, ...stored };
+      const rawIntensity = Number(merged.vibrationIntensity);
+      merged.vibrationIntensity = Number.isFinite(rawIntensity)
+        ? Math.max(0, Math.min(MAX_VIBRATION_INTENSITY, Math.round(rawIntensity)))
+        : DEFAULT_SETTINGS.vibrationIntensity;
+      return merged;
     }
     return { ...DEFAULT_SETTINGS };
   }
@@ -676,7 +682,14 @@ class Store
   // ============================================================================
 
   updateSettings(updates: Partial<Settings>): void {
-    this.state.settings = { ...this.state.settings, ...updates };
+    const normalizedUpdates = { ...updates };
+    if (normalizedUpdates.vibrationIntensity !== undefined) {
+      const rawIntensity = Number(normalizedUpdates.vibrationIntensity);
+      normalizedUpdates.vibrationIntensity = Number.isFinite(rawIntensity)
+        ? Math.max(0, Math.min(MAX_VIBRATION_INTENSITY, Math.round(rawIntensity)))
+        : this.state.settings.vibrationIntensity;
+    }
+    this.state.settings = { ...this.state.settings, ...normalizedUpdates };
     setStorage(STORAGE_KEYS.SETTINGS, this.state.settings);
     this.notify();
   }

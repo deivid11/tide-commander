@@ -4,20 +4,25 @@
  *
  * Intensity levels:
  *   0 = Off (no vibration)
- *   1 = Light
- *   2 = Medium
- *   3 = Heavy
+ *   1 = Ultra Light
+ *   2 = Very Light
+ *   3 = Light
+ *   4 = Medium
+ *   5 = Heavy
  */
 
-/** Vibration intensity: 0=off, 1=light, 2=medium, 3=heavy */
-export type VibrationIntensity = 0 | 1 | 2 | 3;
+/** Vibration intensity: 0=off, 1=ultra light, 2=very light, 3=light, 4=medium, 5=heavy */
+export type VibrationIntensity = 0 | 1 | 2 | 3 | 4 | 5;
+export const MAX_VIBRATION_INTENSITY: VibrationIntensity = 5;
 
 // Web vibration durations (ms) — tuned for perceptible differences
 const WEB_VIBRATION_MS: Record<VibrationIntensity, number> = {
   0: 0,
-  1: 5,
-  2: 25,
-  3: 50,
+  1: 4,
+  2: 8,
+  3: 14,
+  4: 25,
+  5: 50,
 };
 
 // Capacitor Haptics — loaded once via dynamic import
@@ -43,12 +48,25 @@ loadCapacitorHaptics();
  * Trigger haptic feedback at the specified intensity.
  * No-op when intensity is 0 (off).
  */
-export function triggerHaptic(intensity: VibrationIntensity): void {
+export function triggerHaptic(intensityInput: VibrationIntensity | number): void {
+  const clamped = Math.round(intensityInput);
+  const intensity = (clamped <= 0 ? 0 : clamped >= MAX_VIBRATION_INTENSITY ? MAX_VIBRATION_INTENSITY : clamped) as VibrationIntensity;
   if (intensity === 0) return;
 
   if (capacitorHaptics) {
     const { Haptics, ImpactStyle } = capacitorHaptics;
-    const styleMap: Record<number, string> = { 1: 'Light', 2: 'Medium', 3: 'Heavy' };
+    // Capacitor only exposes three impact levels, so map the two lighter
+    // intensities to selection haptics for APK while preserving web granularity.
+    if (intensity <= 2 && typeof Haptics.selectionChanged === 'function') {
+      Haptics.selectionChanged().catch(() => {
+        if (navigator.vibrate) {
+          navigator.vibrate(WEB_VIBRATION_MS[intensity]);
+        }
+      });
+      return;
+    }
+
+    const styleMap: Record<number, string> = { 3: 'Light', 4: 'Medium', 5: 'Heavy' };
     const styleName = styleMap[intensity];
     if (styleName && ImpactStyle[styleName]) {
       Haptics.impact({ style: ImpactStyle[styleName] }).catch(() => {

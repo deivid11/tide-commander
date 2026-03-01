@@ -15,7 +15,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { triggerHaptic, type VibrationIntensity } from '../utils/haptics';
+import { triggerHaptic, type VibrationIntensity, MAX_VIBRATION_INTENSITY } from '../utils/haptics';
 import { store } from '../store';
 
 export interface TwoFingerSelectorOptions {
@@ -111,7 +111,8 @@ export function useTwoFingerSelector(options: TwoFingerSelectorOptions): TwoFing
     const id = hoveredAgentIdRef.current;
     if (id) {
       const base = (store.getState().settings.vibrationIntensity ?? 1) as number;
-      const confirmIntensity = Math.min(base + 1, 3) as VibrationIntensity;
+      // Respect "Off" setting: never escalate 0 -> 1 on selection confirm.
+      const confirmIntensity = (base <= 0 ? 0 : Math.min(base + 1, MAX_VIBRATION_INTENSITY)) as VibrationIntensity;
       triggerHaptic(confirmIntensity);
       onSelectRef.current(id);
     }

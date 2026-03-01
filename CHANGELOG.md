@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.2] - 2026-03-01
+
+### Added
+- **Mobile theme selector** - Theme picker now available directly in the terminal header mobile overflow menu with color previews
+- **Plan-ready notifications** - Notification skill now includes mandatory plan-ready notification instructions for agents entering plan mode
+
+### Changed
+- **Vibration intensity scale** - Expanded from 4 levels (0-3) to 6 levels (0-5: Off, Ultra Light, Very Light, Light, Medium, Heavy) for finer haptic control
+- **Haptics Capacitor mapping** - Ultra Light and Very Light levels now use `selectionChanged()` on native Android, reserving impact haptics for Light/Medium/Heavy
+
+### Fixed
+- **Vibration intensity clamping** - Store now validates and clamps vibration intensity on load and update, preventing out-of-range values from persisted settings
+- **Two-finger selector off respect** - Confirmation haptic no longer escalates from 0 to 1 when vibration is set to Off
+
 ## [1.4.1] - 2026-03-01
 
 ### Fixed

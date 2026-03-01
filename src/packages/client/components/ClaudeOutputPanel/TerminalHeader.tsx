@@ -15,6 +15,7 @@ import type { Agent, AgentAnalysis } from '../../../shared/types';
 import { BUILT_IN_AGENT_CLASSES } from '../../../shared/types';
 import type { ViewMode } from './types';
 import { VIEW_MODES } from './types';
+import { themes, getTheme, applyTheme, getSavedTheme, type ThemeId } from '../../utils/themes';
 
 export interface TerminalHeaderProps {
   selectedAgent: Agent;
@@ -147,9 +148,20 @@ export const TerminalHeader = memo(function TerminalHeader({
 
   // Mobile overflow menu state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileThemeExpanded, setMobileThemeExpanded] = useState(false);
+  const [currentTheme, setCurrentTheme] = useState<ThemeId>(() => getSavedTheme());
   const mobileMenuRef = useRef<HTMLDivElement>(null);
 
-  const closeMobileMenu = useCallback(() => setMobileMenuOpen(false), []);
+  const closeMobileMenu = useCallback(() => {
+    setMobileMenuOpen(false);
+    setMobileThemeExpanded(false);
+  }, []);
+
+  const handleMobileThemeSelect = (themeId: ThemeId) => {
+    const theme = getTheme(themeId);
+    applyTheme(theme);
+    setCurrentTheme(themeId);
+  };
 
   // Close menu on outside click
   useEffect(() => {
@@ -445,6 +457,34 @@ export const TerminalHeader = memo(function TerminalHeader({
                   <span className="guake-mobile-menu-icon">🐛</span>
                   {debugPanelOpen ? t('terminal:header.hideDebug') : t('terminal:header.showDebug')}
                 </button>
+                <button
+                  className={`guake-mobile-menu-item ${mobileThemeExpanded ? 'active' : ''}`}
+                  onClick={() => setMobileThemeExpanded(!mobileThemeExpanded)}
+                >
+                  <span className="guake-mobile-menu-icon">🎨</span>
+                  {t('terminal:themeSelector.selectTheme')}
+                  <span className="guake-mobile-theme-arrow">{mobileThemeExpanded ? '▲' : '▼'}</span>
+                </button>
+                {mobileThemeExpanded && (
+                  <div className="guake-mobile-theme-list">
+                    {themes.map((theme) => (
+                      <button
+                        key={theme.id}
+                        className={`guake-mobile-theme-option ${theme.id === currentTheme ? 'active' : ''}`}
+                        onClick={() => handleMobileThemeSelect(theme.id)}
+                      >
+                        <span
+                          className="guake-mobile-theme-preview"
+                          style={{
+                            background: `linear-gradient(135deg, ${theme.colors.bgPrimary} 0%, ${theme.colors.bgSecondary} 50%, ${theme.colors.accentPurple} 100%)`,
+                          }}
+                        />
+                        <span className="guake-mobile-theme-name">{theme.name}</span>
+                        {theme.id === currentTheme && <span className="guake-mobile-theme-check">✓</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <div className="guake-mobile-menu-divider" />
                 <button
                   className="guake-mobile-menu-item"

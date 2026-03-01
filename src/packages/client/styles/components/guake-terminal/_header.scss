@@ -1046,6 +1046,90 @@
 }
 
 // =============================================================================
+// Mobile Theme Selector (inline expandable within more-actions menu)
+// =============================================================================
+
+.guake-mobile-theme-arrow {
+  margin-left: auto;
+  font-size: 8px;
+  opacity: 0.6;
+}
+
+.guake-mobile-theme-list {
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 4px 6px;
+  border-top: 1px solid rgba($dracula-comment, 0.15);
+  border-bottom: 1px solid rgba($dracula-comment, 0.15);
+  background: rgba(0, 0, 0, 0.15);
+
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: rgba($dracula-comment, 0.3);
+    border-radius: 2px;
+  }
+}
+
+.guake-mobile-theme-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  transition: all 0.1s ease;
+  text-align: left;
+
+  &:active {
+    background: rgba($dracula-purple, 0.15);
+    border-color: rgba($dracula-purple, 0.3);
+  }
+
+  &.active {
+    background: rgba($dracula-green, 0.1);
+    border-color: rgba($dracula-green, 0.3);
+
+    .guake-mobile-theme-name {
+      color: var(--accent-green);
+    }
+  }
+}
+
+.guake-mobile-theme-preview {
+  width: 24px;
+  height: 24px;
+  border-radius: $radius-sm;
+  border: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.guake-mobile-theme-name {
+  flex: 1;
+  font-family: $font-mono;
+  font-size: 12px;
+  font-weight: 500;
+  color: $dracula-fg;
+}
+
+.guake-mobile-theme-check {
+  font-size: 14px;
+  color: var(--accent-green);
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+// =============================================================================
 // Subagent Indicators (Claude Code Task tool subprocesses)
 // =============================================================================
 

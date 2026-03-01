@@ -379,8 +379,20 @@ export function ConfigSection({ config, onChange, searchQuery = '' }: ConfigSect
         </div>
         <div className="config-row">
           <span className="config-label"><HighlightText text={t('config:general.vibrationIntensity')} query={searchQuery} /></span>
-          <input type="range" className="config-slider" min="0" max="3" step="1" value={state.settings.vibrationIntensity} onChange={(e) => store.updateSettings({ vibrationIntensity: parseInt(e.target.value) })} />
-          <span className="config-value">{state.settings.vibrationIntensity === 0 ? t('config:vibrationValues.off') : state.settings.vibrationIntensity === 1 ? t('config:vibrationValues.light') : state.settings.vibrationIntensity === 2 ? t('config:vibrationValues.medium') : t('config:vibrationValues.heavy')}</span>
+          <input type="range" className="config-slider" min="0" max="5" step="1" value={state.settings.vibrationIntensity} onChange={(e) => store.updateSettings({ vibrationIntensity: parseInt(e.target.value) })} />
+          <span className="config-value">
+            {state.settings.vibrationIntensity === 0
+              ? t('config:vibrationValues.off')
+              : state.settings.vibrationIntensity === 1
+                ? t('config:vibrationValues.ultraLight')
+                : state.settings.vibrationIntensity === 2
+                  ? t('config:vibrationValues.veryLight')
+                  : state.settings.vibrationIntensity === 3
+                    ? t('config:vibrationValues.light')
+                    : state.settings.vibrationIntensity === 4
+                      ? t('config:vibrationValues.medium')
+                      : t('config:vibrationValues.heavy')}
+          </span>
         </div>
         <div className="config-row">
           <span className="config-label"><HighlightText text={t('config:general.externalEditor')} query={searchQuery} /></span>
