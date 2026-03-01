@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.2] - 2026-03-01
+
+### Fixed
+- **Swipe navigation sorting** - Aligned agent sort order in swipe navigation with overview panel: idle agents with task labels now sorted first, status ordering applied before unread check
+- **Mobile agent bar sizing** - Reduced agent bar item and spawn button sizes (20px to 15px, icons 10px to 8px) for a more compact mobile bottom bar
+- **Small mobile agent bar** - Scaled down agent bar items from 36px to 27px and icons from 16px to 12px for better fit on small screens
+- **Mobile agent bar min-height** - Reduced from 24px to 18px for tighter layout
+
 ## [1.2.1] - 2026-02-28
 
 ### Fixed

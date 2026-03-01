@@ -576,7 +576,7 @@
     right: 0;
     left: 0;
     height: auto;
-    min-height: 24px;
+    min-height: 18px;
     padding: 1px 0;
     position: fixed;
     bottom: 0;
@@ -615,13 +615,13 @@
 
   // Tiny agent items on mobile
   .agent-bar-item {
-    width: 20px;
-    height: 20px;
+    width: 15px;
+    height: 15px;
     flex-shrink: 0;
   }
 
   .agent-bar-icon {
-    font-size: 10px;
+    font-size: 8px;
   }
 
   // Agent groups minimal
@@ -650,9 +650,9 @@
     flex-direction: row !important;
     align-items: center;
     justify-content: center;
-    width: 20px;
-    min-width: 20px;
-    height: 20px;
+    width: 15px;
+    min-width: 15px;
+    height: 15px;
     flex-shrink: 0;
     margin-right: 1px;
     border-radius: 3px;
@@ -660,7 +660,7 @@
   }
 
   .agent-bar-spawn-icon {
-    font-size: 10px;
+    font-size: 8px;
     margin: 0;
   }
 
