@@ -33,7 +33,14 @@
     "compactView": "Compact View",
     "autoScroll": "Auto Scroll",
     "notifications": "Notifications",
-    "soundEffects": "Sound Effects"
+    "soundEffects": "Sound Effects",
+    "vibrationIntensity": "Vibration Intensity"
+  },
+  "vibrationValues": {
+    "off": "Off",
+    "light": "Light",
+    "medium": "Medium",
+    "heavy": "Heavy"
   },
   "agentNames": {
     "customConfigured": "{{count}} custom names configured",
