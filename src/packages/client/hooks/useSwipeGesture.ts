@@ -5,17 +5,7 @@
  */
 
 import { useRef, useEffect, useCallback } from 'react';
-
-// Conditionally import Capacitor Haptics (only available on Android builds)
-let Haptics: any;
-let ImpactStyle: any;
-
-try {
-  Haptics = require('@capacitor/haptics').Haptics;
-  ImpactStyle = require('@capacitor/haptics').ImpactStyle;
-} catch {
-  // Capacitor Haptics not available (web build)
-}
+import { triggerHaptic, type VibrationIntensity } from '../utils/haptics';
 
 export interface SwipeGestureOptions {
   /** Minimum distance in pixels to trigger a swipe */
@@ -32,6 +22,8 @@ export interface SwipeGestureOptions {
   onSwipeMove?: (offset: number) => void;
   /** Callback when swipe ends without triggering navigation (resets animation) */
   onSwipeCancel?: () => void;
+  /** Vibration intensity for haptic feedback (0=off, 1=light, 2=medium, 3=heavy). Default: 1 */
+  vibrationIntensity?: VibrationIntensity;
 }
 
 interface TouchState {
@@ -54,6 +46,7 @@ export function useSwipeGesture(
     onSwipeRight,
     onSwipeMove,
     onSwipeCancel,
+    vibrationIntensity = 1,
   } = options;
 
   const touchStateRef = useRef<TouchState>({
@@ -130,20 +123,8 @@ export function useSwipeGesture(
       deltaY <= maxVerticalMovement &&
       duration < 500 // Must complete within 500ms for quick swipe
     ) {
-      // Light haptic feedback using Capacitor Haptics
-      if (Haptics && ImpactStyle) {
-        Haptics.impact({ style: ImpactStyle.Light }).catch(() => {
-          // Fallback to web vibration API if Haptics not available
-          if (navigator.vibrate) {
-            navigator.vibrate(8);
-          }
-        });
-      } else {
-        // Web vibration API fallback
-        if (navigator.vibrate) {
-          navigator.vibrate(8);
-        }
-      }
+      // Haptic feedback (configurable intensity)
+      triggerHaptic(vibrationIntensity as VibrationIntensity);
 
       if (deltaX > 0) {
         // Swiped right (left-to-right)
@@ -156,7 +137,7 @@ export function useSwipeGesture(
       // Swipe didn't complete but we showed visual feedback, so animate back
       onSwipeCancel?.();
     }
-  }, [threshold, maxVerticalMovement, onSwipeLeft, onSwipeRight, onSwipeCancel]);
+  }, [threshold, maxVerticalMovement, vibrationIntensity, onSwipeLeft, onSwipeRight, onSwipeCancel]);
 
   // touchcancel resets state without triggering any swipe action
   const handleTouchCancel = useCallback(() => {

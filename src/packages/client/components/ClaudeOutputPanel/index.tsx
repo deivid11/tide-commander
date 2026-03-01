@@ -77,6 +77,7 @@ import { HistoryLine } from './HistoryLine';
 import { VirtualizedOutputList } from './VirtualizedOutputList';
 import { AgentDebugPanel } from './AgentDebugPanel';
 import { AgentOverviewPanel } from './AgentOverviewPanel';
+import { useTwoFingerSelector } from '../../hooks/useTwoFingerSelector';
 import { agentDebugger } from '../../services/agentDebugger';
 import { AgentProgressIndicator } from './AgentProgressIndicator';
 import { ThemeSelector } from './ThemeSelector';
@@ -246,6 +247,9 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
   // Shared ref for output scroll container (used by history loader and swipe)
   const outputScrollRef = useRef<HTMLDivElement>(null);
 
+  // Ref for the agent overview list (shared with two-finger selector)
+  const agentListRef = useRef<HTMLDivElement>(null);
+
   // Refs for terminal input elements (shared with message navigation for focus-on-type)
   const terminalInputRef = useRef<HTMLInputElement>(null);
   const terminalTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -339,6 +343,19 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     loadingHistory: historyLoader.fetchingHistory,
     hasModalOpen: !!(imageModal || bashModal || responseModalContent || fileViewerPath || contextModalAgentId),
     outputRef: outputScrollRef,
+  });
+
+  // Two-finger scroll agent selector (mobile: gesture on terminal, cursor on overview)
+  const handleTwoFingerSelect = useCallback((agentId: string) => {
+    store.setLastSelectionViaDirectClick(true);
+    store.selectAgent(agentId);
+  }, []);
+  const twoFingerEnabled = typeof window !== 'undefined' && window.innerWidth <= 768 && overviewPanelOpen && isOpen;
+  const twoFingerSelector = useTwoFingerSelector({
+    gestureRef: outputScrollRef,
+    agentListRef,
+    enabled: twoFingerEnabled,
+    onSelect: handleTwoFingerSelect,
   });
 
   // Terminal input hook
@@ -1084,6 +1101,8 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
             store.setLastSelectionViaDirectClick(true);
             store.selectAgent(agentId);
           }}
+          agentListRef={agentListRef}
+          twoFingerState={twoFingerSelector}
         />
       )}
 

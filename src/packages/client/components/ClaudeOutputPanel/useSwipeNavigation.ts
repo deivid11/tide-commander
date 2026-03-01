@@ -6,10 +6,11 @@
  */
 
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { store, useAreas, useToolExecutions } from '../../store';
+import { store, useAreas, useToolExecutions, useSettings } from '../../store';
 import { matchesShortcut } from '../../store/shortcuts';
 import { useSwipeGesture } from '../../hooks';
 import { STORAGE_KEYS, getStorage } from '../../utils/storage';
+import type { VibrationIntensity } from '../../utils/haptics';
 import type { Agent } from '../../../shared/types';
 
 export interface UseSwipeNavigationProps {
@@ -58,6 +59,8 @@ export function useSwipeNavigation({
 }: UseSwipeNavigationProps): UseSwipeNavigationReturn {
   const areas = useAreas();
   const toolExecutions = useToolExecutions();
+  const settings = useSettings();
+  const vibrationIntensity = (settings.vibrationIntensity ?? 1) as VibrationIntensity;
   const isAgentBarVisible = (): boolean => {
     if (typeof document === 'undefined') return false;
     const agentBar = document.querySelector<HTMLElement>('.agent-bar');
@@ -174,14 +177,19 @@ export function useSwipeNavigation({
         const bUnread = state.agentsWithUnseenOutput.has(b.id);
         if (aUnread !== bUnread) return aUnread ? -1 : 1;
 
-        // 3. Within idle: agents with taskLabel first (completed a task, need attention)
+        // 3. Within working: sort by name for stable ordering
+        if (a.status === 'working' && b.status === 'working') {
+          return a.name.localeCompare(b.name);
+        }
+
+        // 4. Within idle: agents with taskLabel first (completed a task, need attention)
         if (a.status === 'idle' && b.status === 'idle') {
           const aHasTask = !!a.taskLabel;
           const bHasTask = !!b.taskLabel;
           if (aHasTask !== bHasTask) return aHasTask ? -1 : 1;
         }
 
-        // 4. Most recently active first
+        // 5. Most recently active first
         return (b.lastActivity || 0) - (a.lastActivity || 0);
       }
       const aTime = toolsByAgent.get(a.id) || 0;
@@ -317,6 +325,7 @@ export function useSwipeNavigation({
     onSwipeCancel: handleSwipeCancel,
     threshold: 40,
     maxVerticalMovement: 50,
+    vibrationIntensity,
   });
 
   // Attach swipe gesture to output area
@@ -328,6 +337,7 @@ export function useSwipeNavigation({
     onSwipeCancel: handleSwipeCancel,
     threshold: 50,
     maxVerticalMovement: 35,
+    vibrationIntensity,
   });
 
   // Keyboard shortcuts for agent navigation (Alt+H / Alt+L)

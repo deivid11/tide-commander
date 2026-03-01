@@ -23,6 +23,7 @@ import { STORAGE_KEYS, getStorage, setStorage } from '../../utils/storage';
 import { getClassConfig } from '../../utils/classConfig';
 import type { Agent, Subagent, DrawingArea } from '../../../shared/types';
 import type { ToolExecution, ClaudeOutput } from '../../store/types';
+import type { TwoFingerSelectorState } from '../../hooks/useTwoFingerSelector';
 
 /** Persisted config shape for the overview panel */
 interface AopConfig {
@@ -39,6 +40,10 @@ interface AgentOverviewPanelProps {
   activeAgentId: string;
   onClose: () => void;
   onSelectAgent: (agentId: string) => void;
+  /** External ref for the agent card list (used by the two-finger selector hook). */
+  agentListRef?: React.RefObject<HTMLDivElement | null>;
+  /** Two-finger selector state driven from the parent (GuakeOutputPanel). */
+  twoFingerState?: TwoFingerSelectorState;
 }
 
 type SortMode = 'name' | 'status' | 'recent';
@@ -121,7 +126,7 @@ interface AreaGroup {
   agents: Agent[];
 }
 
-export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent }: AgentOverviewPanelProps) {
+export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agentListRef: externalAgentListRef, twoFingerState }: AgentOverviewPanelProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const agents = useAgentsArray();
   const agentsWithUnseenOutput = useAgentsWithUnseenOutput();
@@ -169,8 +174,12 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent }: Ag
     typeof window !== 'undefined' ? window.matchMedia('(max-width: 768px)').matches : false
   );
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const agentListRef = useRef<HTMLDivElement>(null);
+  const internalAgentListRef = useRef<HTMLDivElement>(null);
+  const agentListRef = externalAgentListRef || internalAgentListRef;
   const hasCenteredActiveRef = useRef(false);
+
+  // Two-finger state comes from the parent (detected on terminal, applied here)
+  const twoFingerSelector = twoFingerState || { isActive: false, hoveredAgentId: null, cursorY: 0 };
 
   // Track mobile breakpoint to enable compact filter controls by default on phones.
   useEffect(() => {
@@ -344,14 +353,19 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent }: Ag
         const bUnread = agentsWithUnseenOutput.has(b.id);
         if (aUnread !== bUnread) return aUnread ? -1 : 1;
 
-        // 3. Within idle: agents with taskLabel first (completed a task, need attention)
+        // 3. Within working: sort by name for stable ordering
+        if (a.status === 'working' && b.status === 'working') {
+          return a.name.localeCompare(b.name);
+        }
+
+        // 4. Within idle: agents with taskLabel first (completed a task, need attention)
         if (a.status === 'idle' && b.status === 'idle') {
           const aHasTask = !!a.taskLabel;
           const bHasTask = !!b.taskLabel;
           if (aHasTask !== bHasTask) return aHasTask ? -1 : 1;
         }
 
-        // 4. Most recently active first
+        // 5. Most recently active first
         return (b.lastActivity || 0) - (a.lastActivity || 0);
       }
       const aTime = (toolsByAgent.get(a.id) || [])[0]?.timestamp || 0;
@@ -424,6 +438,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent }: Ag
           isExpanded={expandedAgents.has(agent.id)}
           isMobile={isMobileViewport}
           hasPendingRead={agentsWithUnseenOutput.has(agent.id)}
+          isTwoFingerHovered={twoFingerSelector.hoveredAgentId === agent.id}
           showSubagents={showSubagents}
           showRecentActivity={showRecentActivity}
           showAreaChip={!groupByArea}
@@ -442,6 +457,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent }: Ag
     activeAgentId,
     expandedAgents,
     agentsWithUnseenOutput,
+    twoFingerSelector.hoveredAgentId,
     showSubagents,
     showRecentActivity,
     groupByArea,
@@ -639,6 +655,14 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent }: Ag
           })
         )}
       </div>
+
+      {/* Two-finger scroll cursor overlay */}
+      {twoFingerSelector.isActive && (
+        <div
+          className="aop-two-finger-cursor"
+          style={{ top: twoFingerSelector.cursorY }}
+        />
+      )}
     </div>
   );
 }
@@ -653,6 +677,7 @@ interface AgentCardProps {
   isExpanded: boolean;
   isMobile: boolean;
   hasPendingRead: boolean;
+  isTwoFingerHovered: boolean;
   showSubagents: boolean;
   showRecentActivity: boolean;
   showAreaChip: boolean;
@@ -681,6 +706,7 @@ function AgentCard({
   isExpanded,
   isMobile,
   hasPendingRead,
+  isTwoFingerHovered,
   showSubagents,
   showRecentActivity,
   showAreaChip,
@@ -854,7 +880,8 @@ function AgentCard({
         </button>
       )}
       <div
-        className={`aop-agent-card ${isActive ? 'active' : ''} ${agent.status} ${hasPendingRead ? 'unread' : ''}`}
+        className={`aop-agent-card ${isActive ? 'active' : ''} ${agent.status} ${hasPendingRead ? 'unread' : ''}${isTwoFingerHovered ? ' two-finger-hover' : ''}`}
+        data-agent-id={agent.id}
         onClick={handleSelect}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}

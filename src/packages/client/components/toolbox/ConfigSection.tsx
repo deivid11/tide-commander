@@ -176,7 +176,7 @@ function HighlightText({ text, query }: { text: string; query: string }) {
 
 // Define searchable settings configuration (English keywords for search matching)
 const SETTINGS_SECTIONS = [
-  { id: 'general', title: 'General', keywords: ['history', 'hide costs', 'grid', 'fps', 'power saving', 'performance', 'limit', 'editor', 'external editor', 'language', 'idioma', '语言'] },
+  { id: 'general', title: 'General', keywords: ['history', 'hide costs', 'grid', 'fps', 'power saving', 'performance', 'limit', 'editor', 'external editor', 'language', 'idioma', '语言', 'vibration', 'haptic', 'intensity'] },
   { id: 'agentNames', title: 'Agent Names', keywords: ['agent', 'names', 'custom', 'characters', 'rename'] },
   { id: 'appearance', title: 'Appearance', keywords: ['theme', 'appearance', 'color', 'dark', 'light', 'style', 'look'] },
   { id: 'connection', title: 'Connection', keywords: ['backend', 'url', 'auth', 'token', 'reconnect', 'server', 'api', 'connect', 'codex', 'binary', 'path'] },
@@ -376,6 +376,11 @@ export function ConfigSection({ config, onChange, searchQuery = '' }: ConfigSect
         <div className="config-row">
           <span className="config-label" title="Experimental: Reduce FPS when idle to save power"><HighlightText text={t('config:general.powerSaving')} query={searchQuery} /> ⚡</span>
           <Toggle checked={state.settings.powerSaving} onChange={(checked) => store.updateSettings({ powerSaving: checked })} />
+        </div>
+        <div className="config-row">
+          <span className="config-label"><HighlightText text={t('config:general.vibrationIntensity')} query={searchQuery} /></span>
+          <input type="range" className="config-slider" min="0" max="3" step="1" value={state.settings.vibrationIntensity} onChange={(e) => store.updateSettings({ vibrationIntensity: parseInt(e.target.value) })} />
+          <span className="config-value">{state.settings.vibrationIntensity === 0 ? t('config:vibrationValues.off') : state.settings.vibrationIntensity === 1 ? t('config:vibrationValues.light') : state.settings.vibrationIntensity === 2 ? t('config:vibrationValues.medium') : t('config:vibrationValues.heavy')}</span>
         </div>
         <div className="config-row">
           <span className="config-label"><HighlightText text={t('config:general.externalEditor')} query={searchQuery} /></span>

@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.0] - 2026-03-01
+
+### Added
+- **Two-finger scroll agent selector** - On mobile, use two fingers on the terminal area to scroll through agent cards in the overview panel with a visual cursor highlight
+- **Configurable vibration intensity** - New setting in General to control haptic feedback strength (Off / Light / Medium / Heavy) for swipe gestures
+- **Haptics utility** - Centralized haptic feedback module replacing inline Capacitor/Web vibration logic
+
+### Changed
+- **Working agent sort stability** - Working agents now sort alphabetically by name within the working group for consistent ordering
+- **Swipe gesture haptics** - Refactored to use shared haptics utility with configurable intensity from settings
+
 ## [1.2.4] - 2026-03-01
 
 ### Fixed
