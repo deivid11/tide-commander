@@ -182,11 +182,12 @@ export function useSwipeNavigation({
           return a.name.localeCompare(b.name);
         }
 
-        // 4. Within idle: agents with taskLabel first (completed a task, need attention)
+        // 4. Within idle: taskLabel first, then most recently active
         if (a.status === 'idle' && b.status === 'idle') {
           const aHasTask = !!a.taskLabel;
           const bHasTask = !!b.taskLabel;
           if (aHasTask !== bHasTask) return aHasTask ? -1 : 1;
+          return (b.lastActivity || 0) - (a.lastActivity || 0);
         }
 
         // 5. Most recently active first
