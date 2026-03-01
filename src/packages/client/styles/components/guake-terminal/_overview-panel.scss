@@ -48,11 +48,6 @@
   z-index: 201;
   overflow: hidden;
 
-  // Two-finger selector cursor line (mobile only, rendered via fixed positioning)
-  .aop-two-finger-cursor {
-    display: none;
-  }
-
   // Unified stats + filters + close row
   .aop-stats-row {
     display: flex;
@@ -962,20 +957,6 @@
     box-shadow:
       0 2px 0 0 color-mix(in srgb, var(--accent-cyan) 18%, transparent),
       0 8px 24px rgba(0, 0, 0, 0.45);
-
-    // Two-finger selector cursor line (visible on mobile)
-    .aop-two-finger-cursor {
-      display: block;
-      position: fixed;
-      left: 0;
-      right: 0;
-      height: 2px;
-      background: var(--accent-cyan);
-      box-shadow: 0 0 8px 2px color-mix(in srgb, var(--accent-cyan) 60%, transparent);
-      pointer-events: none;
-      z-index: 210;
-      transition: top 0.05s linear;
-    }
 
     &.mobile-filters-collapsed {
       .aop-stats-row .aop-row-controls .filter-select,

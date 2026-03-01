@@ -179,7 +179,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
   const hasCenteredActiveRef = useRef(false);
 
   // Two-finger state comes from the parent (detected on terminal, applied here)
-  const twoFingerSelector = twoFingerState || { isActive: false, hoveredAgentId: null, cursorY: 0 };
+  const twoFingerSelector = twoFingerState || { isActive: false, hoveredAgentId: null };
 
   // Track mobile breakpoint to enable compact filter controls by default on phones.
   useEffect(() => {
@@ -657,13 +657,6 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
         )}
       </div>
 
-      {/* Two-finger scroll cursor overlay */}
-      {twoFingerSelector.isActive && (
-        <div
-          className="aop-two-finger-cursor"
-          style={{ top: twoFingerSelector.cursorY }}
-        />
-      )}
     </div>
   );
 }

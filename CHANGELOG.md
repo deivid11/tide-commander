@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.1] - 2026-03-01
+
+### Fixed
+- **Two-finger selector hit-testing** - Added dynamic padding to agent list so first/last cards can be scrolled to center for reliable hit-testing, removed broken cursor overlay
+- **Two-finger selector haptics** - Now uses configurable vibration intensity from settings instead of hardcoded values; confirmation haptic is one level above base intensity
+- **Web vibration durations** - Re-tuned durations (Light: 5ms, Medium: 25ms, Heavy: 50ms) for more perceptible differences between levels
+- **Two-finger selector cleanup** - Properly restores agent list padding on unmount while gesture is active
+
 ## [1.4.0] - 2026-03-01
 
 ### Added

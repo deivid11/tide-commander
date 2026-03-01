@@ -15,7 +15,8 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { triggerHaptic } from '../utils/haptics';
+import { triggerHaptic, type VibrationIntensity } from '../utils/haptics';
+import { store } from '../store';
 
 export interface TwoFingerSelectorOptions {
   /** Element where the two-finger gesture is detected (terminal output). */
@@ -29,8 +30,6 @@ export interface TwoFingerSelectorOptions {
 export interface TwoFingerSelectorState {
   isActive: boolean;
   hoveredAgentId: string | null;
-  /** Viewport-Y of the cursor line (center of the visible agent list). */
-  cursorY: number;
 }
 
 // ── scroll constants ────────────────────────────────────────────────
@@ -43,7 +42,6 @@ export function useTwoFingerSelector(options: TwoFingerSelectorOptions): TwoFing
 
   const [isActive, setIsActive] = useState(false);
   const [hoveredAgentId, setHoveredAgentId] = useState<string | null>(null);
-  const [cursorY, setCursorY] = useState(0);
 
   const isActiveRef        = useRef(false);
   const hoveredAgentIdRef  = useRef<string | null>(null);
@@ -56,15 +54,27 @@ export function useTwoFingerSelector(options: TwoFingerSelectorOptions): TwoFing
     if (isActiveRef.current) return;
     isActiveRef.current = true;
     setIsActive(true);
-  }, []);
+    // Add padding so first/last cards can be scrolled to center for hit-testing
+    const agentList = agentListRef.current;
+    if (agentList) {
+      const halfHeight = Math.round(agentList.clientHeight / 2);
+      agentList.style.paddingTop = `${halfHeight}px`;
+      agentList.style.paddingBottom = `${halfHeight}px`;
+    }
+  }, [agentListRef]);
 
   const reset = useCallback(() => {
     isActiveRef.current = false;
     hoveredAgentIdRef.current = null;
     setIsActive(false);
     setHoveredAgentId(null);
-    setCursorY(0);
-  }, []);
+    // Remove the selection padding
+    const agentList = agentListRef.current;
+    if (agentList) {
+      agentList.style.paddingTop = '';
+      agentList.style.paddingBottom = '';
+    }
+  }, [agentListRef]);
 
   /**
    * Scroll the agent list by `deltaY` and hit-test the card under the
@@ -77,13 +87,10 @@ export function useTwoFingerSelector(options: TwoFingerSelectorOptions): TwoFing
     // Scroll the agent list by the gesture delta
     agentList.scrollTop += deltaY;
 
-    // Cursor sits at the vertical center of the visible agent list
+    // Hit-test at the vertical center of the visible agent list
     const rect = agentList.getBoundingClientRect();
     const centerY = rect.top + rect.height / 2;
     const centerX = rect.left + rect.width / 2;
-    setCursorY(centerY);
-
-    // Hit-test at the center
     const el = document.elementFromPoint(centerX, centerY);
     let newId: string | null = null;
     if (el) {
@@ -93,13 +100,21 @@ export function useTwoFingerSelector(options: TwoFingerSelectorOptions): TwoFing
     if (newId !== hoveredAgentIdRef.current) {
       hoveredAgentIdRef.current = newId;
       setHoveredAgentId(newId);
-      if (newId) triggerHaptic(1);
+      if (newId) {
+        const intensity = (store.getState().settings.vibrationIntensity ?? 1) as VibrationIntensity;
+        triggerHaptic(intensity);
+      }
     }
   }, [agentListRef]);
 
   const selectAndReset = useCallback(() => {
     const id = hoveredAgentIdRef.current;
-    if (id) { triggerHaptic(2); onSelectRef.current(id); }
+    if (id) {
+      const base = (store.getState().settings.vibrationIntensity ?? 1) as number;
+      const confirmIntensity = Math.min(base + 1, 3) as VibrationIntensity;
+      triggerHaptic(confirmIntensity);
+      onSelectRef.current(id);
+    }
     reset();
   }, [reset]);
 
@@ -261,8 +276,11 @@ export function useTwoFingerSelector(options: TwoFingerSelectorOptions): TwoFing
       container.removeEventListener('touchcancel', onCancel);
       container.style.touchAction = prev;
       stopMomentum();
+      // Restore padding if unmounted while active
+      const al = agentListRef.current;
+      if (al) { al.style.paddingTop = ''; al.style.paddingBottom = ''; }
     };
   }, [gestureRef, agentListRef, enabled, activate, reset, scrollAndHitTest, selectAndReset]);
 
-  return { isActive, hoveredAgentId, cursorY };
+  return { isActive, hoveredAgentId };
 }

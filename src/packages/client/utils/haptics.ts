@@ -12,12 +12,12 @@
 /** Vibration intensity: 0=off, 1=light, 2=medium, 3=heavy */
 export type VibrationIntensity = 0 | 1 | 2 | 3;
 
-// Web vibration durations (ms) — large enough to feel on Android hardware
+// Web vibration durations (ms) — tuned for perceptible differences
 const WEB_VIBRATION_MS: Record<VibrationIntensity, number> = {
   0: 0,
-  1: 15,
-  2: 35,
-  3: 60,
+  1: 5,
+  2: 25,
+  3: 50,
 };
 
 // Capacitor Haptics — loaded once via dynamic import
