@@ -334,20 +334,22 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent }: Ag
     return [...list].sort((a, b) => {
       if (sortMode === 'name') return a.name.localeCompare(b.name);
       if (sortMode === 'status') {
-        // 1. Idle agents with a taskLabel first (completed a task, need attention)
-        const aIdleWithTask = a.status === 'idle' && !!a.taskLabel;
-        const bIdleWithTask = b.status === 'idle' && !!b.taskLabel;
-        if (aIdleWithTask !== bIdleWithTask) return aIdleWithTask ? -1 : 1;
-
-        // 2. Status order for the rest
+        // 1. Working/waiting agents always first
         const statusOrder = ['working', 'waiting_input', 'waiting_permission', 'error', 'idle', 'stopped'];
         const statusCmp = statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status);
         if (statusCmp !== 0) return statusCmp;
 
-        // 3. Unread notifications first
+        // 2. Within same status: unread notifications first
         const aUnread = agentsWithUnseenOutput.has(a.id);
         const bUnread = agentsWithUnseenOutput.has(b.id);
         if (aUnread !== bUnread) return aUnread ? -1 : 1;
+
+        // 3. Within idle: agents with taskLabel first (completed a task, need attention)
+        if (a.status === 'idle' && b.status === 'idle') {
+          const aHasTask = !!a.taskLabel;
+          const bHasTask = !!b.taskLabel;
+          if (aHasTask !== bHasTask) return aHasTask ? -1 : 1;
+        }
 
         // 4. Most recently active first
         return (b.lastActivity || 0) - (a.lastActivity || 0);

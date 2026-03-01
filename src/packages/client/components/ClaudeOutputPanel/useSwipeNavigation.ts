@@ -164,20 +164,22 @@ export function useSwipeNavigation({
     const sortAgents = (list: Agent[]) => [...list].sort((a, b) => {
       if (aopConfig.sortMode === 'name') return a.name.localeCompare(b.name);
       if (aopConfig.sortMode === 'status') {
-        // 1. Idle agents with a taskLabel first (completed a task, need attention)
-        const aIdleWithTask = a.status === 'idle' && !!a.taskLabel;
-        const bIdleWithTask = b.status === 'idle' && !!b.taskLabel;
-        if (aIdleWithTask !== bIdleWithTask) return aIdleWithTask ? -1 : 1;
-
-        // 2. Status order
+        // 1. Working/waiting agents always first
         const statusOrder = ['working', 'waiting_input', 'waiting_permission', 'error', 'idle', 'stopped'];
         const statusDiff = statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status);
         if (statusDiff !== 0) return statusDiff;
 
-        // 3. Unread notifications first
+        // 2. Within same status: unread notifications first
         const aUnread = state.agentsWithUnseenOutput.has(a.id);
         const bUnread = state.agentsWithUnseenOutput.has(b.id);
         if (aUnread !== bUnread) return aUnread ? -1 : 1;
+
+        // 3. Within idle: agents with taskLabel first (completed a task, need attention)
+        if (a.status === 'idle' && b.status === 'idle') {
+          const aHasTask = !!a.taskLabel;
+          const bHasTask = !!b.taskLabel;
+          if (aHasTask !== bHasTask) return aHasTask ? -1 : 1;
+        }
 
         // 4. Most recently active first
         return (b.lastActivity || 0) - (a.lastActivity || 0);

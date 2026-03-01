@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.4] - 2026-03-01
+
+### Fixed
+- **Agent sorting priority** - Working and active agents now always sort above idle agents; idle-with-taskLabel priority only applies within the idle group, preventing completed-task agents from appearing above actively working ones
+
 ## [1.2.3] - 2026-03-01
 
 ### Fixed
