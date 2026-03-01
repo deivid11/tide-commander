@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.0] - 2026-03-01
+
+### Added
+- **Native Android haptics** - Added `@capacitor/haptics` as a proper dependency for native vibration feedback on Android devices
+
+### Changed
+- **Haptics dynamic import** - Capacitor Haptics module is now loaded via async dynamic import instead of synchronous require, with eager preloading for instant availability on first swipe
+- **Web vibration durations** - Increased vibration durations (Light: 8ms to 15ms, Medium: 15ms to 35ms, Heavy: 25ms to 60ms) for more noticeable feedback on Android hardware
+- **Idle agent sub-sorting** - Idle agents now sort by most recently active within the idle group, providing a stable secondary sort after taskLabel priority
+
 ## [1.3.0] - 2026-03-01
 
 ### Added

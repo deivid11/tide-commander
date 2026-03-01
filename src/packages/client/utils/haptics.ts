@@ -4,37 +4,40 @@
  *
  * Intensity levels:
  *   0 = Off (no vibration)
- *   1 = Light (8ms web / ImpactStyle.Light)
- *   2 = Medium (15ms web / ImpactStyle.Medium)
- *   3 = Heavy (25ms web / ImpactStyle.Heavy)
+ *   1 = Light
+ *   2 = Medium
+ *   3 = Heavy
  */
-
-// Conditionally import Capacitor Haptics (only available on Android/APK builds)
-let Haptics: any;
-let ImpactStyle: any;
-
-try {
-  Haptics = require('@capacitor/haptics').Haptics;
-  ImpactStyle = require('@capacitor/haptics').ImpactStyle;
-} catch {
-  // Capacitor Haptics not available (web build)
-}
 
 /** Vibration intensity: 0=off, 1=light, 2=medium, 3=heavy */
 export type VibrationIntensity = 0 | 1 | 2 | 3;
 
+// Web vibration durations (ms) — large enough to feel on Android hardware
 const WEB_VIBRATION_MS: Record<VibrationIntensity, number> = {
   0: 0,
-  1: 8,
-  2: 15,
-  3: 25,
+  1: 15,
+  2: 35,
+  3: 60,
 };
 
-const IMPACT_STYLE_NAMES: Record<number, string> = {
-  1: 'Light',
-  2: 'Medium',
-  3: 'Heavy',
-};
+// Capacitor Haptics — loaded once via dynamic import
+let capacitorHaptics: { Haptics: any; ImpactStyle: any } | null = null;
+let capacitorLoaded = false;
+
+async function loadCapacitorHaptics() {
+  if (capacitorLoaded) return capacitorHaptics;
+  capacitorLoaded = true;
+  try {
+    const mod = await import('@capacitor/haptics');
+    capacitorHaptics = { Haptics: mod.Haptics, ImpactStyle: mod.ImpactStyle };
+  } catch {
+    // Not available (web build)
+  }
+  return capacitorHaptics;
+}
+
+// Eagerly start loading so it's ready by the time first swipe happens
+loadCapacitorHaptics();
 
 /**
  * Trigger haptic feedback at the specified intensity.
@@ -43,16 +46,22 @@ const IMPACT_STYLE_NAMES: Record<number, string> = {
 export function triggerHaptic(intensity: VibrationIntensity): void {
   if (intensity === 0) return;
 
-  if (Haptics && ImpactStyle) {
-    const styleName = IMPACT_STYLE_NAMES[intensity];
+  if (capacitorHaptics) {
+    const { Haptics, ImpactStyle } = capacitorHaptics;
+    const styleMap: Record<number, string> = { 1: 'Light', 2: 'Medium', 3: 'Heavy' };
+    const styleName = styleMap[intensity];
     if (styleName && ImpactStyle[styleName]) {
       Haptics.impact({ style: ImpactStyle[styleName] }).catch(() => {
         if (navigator.vibrate) {
           navigator.vibrate(WEB_VIBRATION_MS[intensity]);
         }
       });
+      return;
     }
-  } else if (navigator.vibrate) {
+  }
+
+  // Web fallback
+  if (navigator.vibrate) {
     navigator.vibrate(WEB_VIBRATION_MS[intensity]);
   }
 }

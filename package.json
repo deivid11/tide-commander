@@ -1,6 +1,6 @@
 {
   "name": "tide-commander",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Visual multi-agent orchestrator and manager for Claude Code with 3D/2D interface",
   "repository": {
     "type": "git",
@@ -37,6 +37,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
+    "@capacitor/haptics": "^8.0.1",
     "@capacitor/local-notifications": "^8.0.1",
     "@tanstack/react-virtual": "^3.13.18",
     "@types/oracledb": "^6.10.1",
