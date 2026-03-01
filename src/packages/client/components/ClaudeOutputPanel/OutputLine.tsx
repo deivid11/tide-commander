@@ -518,13 +518,19 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     const bashCommand = _bashCommand || _toolKeyParam || toolKeyParamOrFallback || '';
     const displayCommand = extractExecWrappedCommand(bashCommand);
     const isCurlExecCommand = /\bcurl\b[\s\S]*\/api\/exec\b/.test(bashCommand);
+
+    // Debug: log exec task matching for curl exec commands
+    if (isBashTool && bashCommand.includes('/api/exec')) {
+      console.log('[ExecTaskMatch] bashCommand:', bashCommand.slice(0, 80), '| isCurl:', isCurlExecCommand, '| execTasks:', execTasks.length, '| sources:', { _bashCommand: !!_bashCommand, _toolKeyParam: !!_toolKeyParam, fallback: !!toolKeyParamOrFallback });
+    }
+
     // Show only the MOST RECENT exec task that started shortly after this bash command
     const bashTimestampMs = timestamp ? new Date(timestamp).getTime() : 0;
     const matchingExecTasks = isCurlExecCommand && execTasks.length > 0
       ? (() => {
-          // Find the most recent task that started after this bash command (within 2 seconds)
+          // Find the most recent task that started after this bash command (within 5 seconds)
           const tasksAfterBash = execTasks.filter(
-            (task) => task.startedAt >= bashTimestampMs && task.startedAt <= bashTimestampMs + 2000
+            (task) => task.startedAt >= bashTimestampMs && task.startedAt <= bashTimestampMs + 5000
           );
           if (tasksAfterBash.length > 0) {
             // Return only the most recent one
@@ -532,6 +538,11 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
               current.startedAt > latest.startedAt ? current : latest
             );
             return [mostRecent];
+          }
+          // Fallback: if no task found in time window, try the most recent running task for this agent
+          const runningTasks = execTasks.filter((task) => task.status === 'running');
+          if (runningTasks.length > 0) {
+            return [runningTasks[runningTasks.length - 1]];
           }
           return [];
         })()

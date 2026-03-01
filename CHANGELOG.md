@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.3] - 2026-03-01
+
+### Fixed
+- **Exec task matching** - Widened time window from 2s to 5s and added fallback to most recent running task when no time-window match found, fixing missed streaming output displays
+- **Swipe navigation order** - Swipe next/prev now replicates the agent bar's area-grouped visual order (areas alphabetically, unassigned last) instead of flat toolbar order
+
 ## [1.2.2] - 2026-03-01
 
 ### Fixed

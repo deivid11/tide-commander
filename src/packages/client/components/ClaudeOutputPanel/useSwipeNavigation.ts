@@ -73,21 +73,48 @@ export function useSwipeNavigation({
     const allAgents = Array.from(agents.values());
 
     // When overview is closed and the bottom agent toolbar is visible, use toolbar order for swipe nav.
-    // This keeps swipe next/prev aligned with the visible toolbar ordering.
+    // This must replicate the AgentBar's area-grouped visual order exactly:
+    //   Area A agents → Area B agents → ... → Unassigned agents
+    // Each group preserves custom drag-reorder from useAgentOrder.
     if (!overviewPanelOpen && isAgentBarVisible()) {
-      const toolbarAgents = allAgents
+      // 1. Build base agents (non-archived, sorted by createdAt) — same as AgentBar
+      const baseAgents = allAgents
         .filter(agent => !store.isAgentInArchivedArea(agent.id))
         .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+
+      // 2. Apply saved custom order — same as useAgentOrder hook
       const savedOrder = getStorage<string[]>(STORAGE_KEYS.AGENT_ORDER, []);
-      const toolbarIdSet = new Set(toolbarAgents.map(a => a.id));
-      const orderedIds = [
-        ...savedOrder.filter(id => toolbarIdSet.has(id)),
-        ...toolbarAgents.filter(a => !savedOrder.includes(a.id)).map(a => a.id),
-      ];
-      const toolbarMap = new Map(toolbarAgents.map(a => [a.id, a]));
-      return orderedIds
-        .map(id => toolbarMap.get(id))
-        .filter((agent): agent is Agent => agent !== undefined);
+      const baseIdSet = new Set(baseAgents.map(a => a.id));
+      const validSaved = savedOrder.filter(id => baseIdSet.has(id));
+      const newIds = baseAgents.filter(a => !validSaved.includes(a.id)).map(a => a.id);
+      const finalOrder = [...validSaved, ...newIds];
+      const agentMap = new Map(baseAgents.map(a => [a.id, a]));
+      const orderedAgents = finalOrder
+        .map(id => agentMap.get(id))
+        .filter((a): a is Agent => a !== undefined);
+
+      // 3. Group by area preserving custom order — same as AgentBar's agentGroups
+      const groups = new Map<string | null, { name: string; agents: Agent[] }>();
+      for (const agent of orderedAgents) {
+        const area = store.getAreaForAgent(agent.id);
+        const areaKey = area?.id ?? null;
+        if (!groups.has(areaKey)) {
+          groups.set(areaKey, { name: area?.name ?? '', agents: [] });
+        }
+        groups.get(areaKey)!.agents.push(agent);
+      }
+
+      // 4. Sort groups: areas alphabetically, unassigned (null) last — same as AgentBar
+      const groupEntries = Array.from(groups.entries());
+      groupEntries.sort(([keyA, groupA], [keyB, groupB]) => {
+        if (keyA === null && keyB !== null) return 1;
+        if (keyA !== null && keyB === null) return -1;
+        if (keyA === null && keyB === null) return 0;
+        return groupA.name.localeCompare(groupB.name);
+      });
+
+      // 5. Flatten groups to get final visual order
+      return groupEntries.flatMap(([, group]) => group.agents);
     }
 
     type SortMode = 'name' | 'status' | 'recent';
