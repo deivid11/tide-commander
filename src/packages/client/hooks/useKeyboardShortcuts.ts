@@ -197,6 +197,20 @@ export function useKeyboardShortcuts({
         return;
       }
 
+      // Clear context for selected agent (Alt+Shift+C)
+      const clearContextShortcut = shortcuts.find(s => s.id === 'clear-context');
+      if (matchesShortcut(e, clearContextShortcut)) {
+        e.preventDefault();
+        const currentState = store.getState();
+        const selectedId = currentState.selectedAgentIds.size === 1
+          ? Array.from(currentState.selectedAgentIds)[0]
+          : null;
+        if (selectedId) {
+          store.clearContext(selectedId);
+        }
+        return;
+      }
+
       // Navigate between agents with unseen output OR working agents (Alt+Shift+H / Alt+Shift+L)
       const nextWorkingShortcut = shortcuts.find(s => s.id === 'next-working-agent');
       const prevWorkingShortcut = shortcuts.find(s => s.id === 'prev-working-agent');

@@ -1,7 +1,7 @@
 import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import type { ServerMessage, Subagent } from '../../../shared/types.js';
+import type { ContextStats, ServerMessage, Subagent } from '../../../shared/types.js';
 import { parseContextOutput } from '../../claude/backend.js';
 import { parseAllFormats } from '../handlers/agent-handler.js';
 import { agentService, runtimeService } from '../../services/index.js';
@@ -22,6 +22,21 @@ interface InferredEditInput extends Record<string, unknown> {
 interface RuntimeListenerContext {
   broadcast: (message: ServerMessage) => void;
   sendActivity: (agentId: string, message: string) => void;
+}
+
+function sanitizeParsedContextStats(stats: ContextStats): ContextStats {
+  if (stats.totalTokens <= stats.contextWindow) return stats;
+
+  return {
+    ...stats,
+    totalTokens: 0,
+    usedPercent: 0,
+    categories: {
+      ...stats.categories,
+      messages: { tokens: 0, percent: 0 },
+      freeSpace: { tokens: stats.contextWindow, percent: 100 },
+    },
+  };
 }
 
 export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
@@ -199,7 +214,8 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
     if (event.type === 'context_stats' && event.contextStatsRaw) {
       log.log(`[context_stats] Received for agent ${agentId}, raw length: ${event.contextStatsRaw.length}`);
       // Try all known formats: markdown table, visual bar chart, etc.
-      const stats = parseAllFormats(event.contextStatsRaw) || parseContextOutput(event.contextStatsRaw);
+      const parsedStats = parseAllFormats(event.contextStatsRaw) || parseContextOutput(event.contextStatsRaw);
+      const stats = parsedStats ? sanitizeParsedContextStats(parsedStats) : null;
       if (stats) {
         log.log(`[context_stats] Parsed: ${stats.usedPercent}% used, ${stats.totalTokens}/${stats.contextWindow} tokens`);
         agentService.updateAgent(agentId, {

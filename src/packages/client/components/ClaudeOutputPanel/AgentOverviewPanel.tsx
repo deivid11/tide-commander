@@ -156,7 +156,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
   }), []);
 
   const [expandedAgents, setExpandedAgents] = useState<Set<string>>(() =>
-    savedConfig.allExpanded ? new Set(agents.map(a => a.id)) : new Set([activeAgentId])
+    savedConfig.allExpanded ? new Set(agents.map(a => a.id)) : new Set()
   );
   const [collapsedAreas, setCollapsedAreas] = useState<Set<string>>(new Set());
   const [sortMode, setSortMode] = useState<SortMode>(savedConfig.sortMode);

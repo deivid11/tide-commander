@@ -375,7 +375,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
   }, [fileData, editData, originalContent, originalFromDiff, fetchedOriginalContent, hasEditStrings, hasUnifiedDiff, effectivePath]);
 
   const highlightedLines = useMemo(() => {
-    if (!fileData || showDiffView || showUnifiedDiffView || showHighlightView || MARKDOWN_EXTENSIONS.includes(fileData.extension)) return [];
+    if (!fileData || showDiffView || showUnifiedDiffView || MARKDOWN_EXTENSIONS.includes(fileData.extension)) return [];
     const codeLanguage = EXTENSION_LANGUAGES[fileData.extension] || 'text';
     const grammar = Prism.languages[codeLanguage];
     const escapeHtml = (value: string) => value
@@ -386,7 +386,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
       if (!grammar) return escapeHtml(line || ' ');
       return Prism.highlight(line || ' ', grammar, codeLanguage);
     });
-  }, [fileData, showDiffView, showUnifiedDiffView, showHighlightView]);
+  }, [fileData, showDiffView, showUnifiedDiffView]);
 
   // When a specific line is requested, center it in view.
   useEffect(() => {
@@ -872,7 +872,10 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
                   return (
                     <div key={idx} className={`file-line ${isHighlighted ? 'file-line-highlighted' : ''}`}>
                       <span className="file-line-num">{lineNum}</span>
-                      <code className={`language-${language}`}>{line || ' '}</code>
+                      <code
+                        className={`language-${language}`}
+                        dangerouslySetInnerHTML={{ __html: highlightedLines[idx] || (line || ' ') }}
+                      />
                     </div>
                   );
                 })}

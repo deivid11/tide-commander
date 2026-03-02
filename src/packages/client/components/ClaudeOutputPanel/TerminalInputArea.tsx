@@ -189,6 +189,8 @@ export interface TerminalInputAreaProps {
   isSnapshotView?: boolean;
   // Clear loaded history in panel (used by /clear command parity with header action)
   onClearHistory: () => void;
+  // Called after a message is sent (used to reset auto-scroll)
+  onSendCommand?: () => void;
   // Mobile swipe-up close support (starts from input area)
   canSwipeClose?: boolean;
   onSwipeCloseOffsetChange?: (offset: number) => void;
@@ -223,6 +225,7 @@ export const TerminalInputArea = memo(function TerminalInputArea({
   textareaRef: externalTextareaRef,
   isSnapshotView = false,
   onClearHistory,
+  onSendCommand,
   canSwipeClose = false,
   onSwipeCloseOffsetChange,
   onSwipeClose,
@@ -500,6 +503,7 @@ export const TerminalInputArea = memo(function TerminalInputArea({
     }
 
     store.sendCommand(selectedAgentId, fullCommand);
+    onSendCommand?.();
     setCommand('');
     setForceTextarea(false);
     setPastedTexts(new Map());
@@ -785,8 +789,9 @@ export const TerminalInputArea = memo(function TerminalInputArea({
             const stats = selectedAgent.contextStats;
             const totalTokens = stats ? stats.totalTokens : (selectedAgent.contextUsed || 0);
             const contextWindow = stats ? stats.contextWindow : (selectedAgent.contextLimit || 200000);
-            const usedPercent = stats ? stats.usedPercent : Math.round((totalTokens / contextWindow) * 100);
-            const freePercent = Math.round(100 - usedPercent);
+            const rawUsedPercent = stats ? stats.usedPercent : Math.round((totalTokens / contextWindow) * 100);
+            const usedPercent = Math.max(0, Math.min(100, rawUsedPercent));
+            const freePercent = Math.max(0, 100 - usedPercent);
             const percentColor = usedPercent >= 80 ? '#ff4a4a' : usedPercent >= 60 ? '#ff9e4a' : usedPercent >= 40 ? '#ffd700' : '#4aff9e';
             const usedK = (totalTokens / 1000).toFixed(1);
             const limitK = (contextWindow / 1000).toFixed(1);

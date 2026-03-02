@@ -70,6 +70,7 @@ export const DEFAULT_SHORTCUTS: ShortcutConfig[] = [
   shortcut('toggle-spotlight', 'Toggle Spotlight', 'Open/close global search', 'p', { alt: true }),
   shortcut('open-database', 'Open Database', 'Open last used database query builder', 'd', { alt: true }),
   shortcut('toggle-2d-view', 'Cycle View Mode', 'Cycle between 3D, 2D, and Dashboard views', '2', { alt: true }),
+  shortcut('clear-context', 'Clear Context', 'Clear context of the selected agent', 'c', { alt: true, shift: true }),
 
   // Commander context shortcuts
   shortcut('commander-close', 'Close Commander', 'Close Commander View', 'Escape', {}, 'commander'),
