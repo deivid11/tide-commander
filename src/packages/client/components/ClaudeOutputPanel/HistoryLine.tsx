@@ -13,6 +13,7 @@ import { filterCostText } from '../../utils/formatting';
 import { TOOL_ICONS, extractToolKeyParam, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, splitCommandForFileLinks } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
+import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
 import { createMarkdownComponents } from './MarkdownComponents';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions } from './BossContext';
 import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, ExitPlanModeInput } from './ToolRenderers';
@@ -320,13 +321,17 @@ export const HistoryLine = memo(function HistoryLine({
 
       const renderBashCommandWithFileLinks = () => {
         if (!keyParam) return null;
-        if (!onFileClick) return keyParam;
+        if (!onFileClick) {
+          return <span dangerouslySetInnerHTML={{ __html: highlightCode(keyParam, 'bash') }} />;
+        }
 
         const agentCwd = agentId ? store.getState().agents.get(agentId)?.cwd : undefined;
         const segments = splitCommandForFileLinks(keyParam);
 
         return segments.map((segment, idx) => {
-          if (!segment.fileRef) return <React.Fragment key={`cmd-${idx}`}>{segment.text}</React.Fragment>;
+          if (!segment.fileRef) {
+            return <span key={`cmd-${idx}`} dangerouslySetInnerHTML={{ __html: highlightCode(segment.text, 'bash') }} />;
+          }
           const resolved = resolveAgentFileReference(segment.fileRef, agentCwd);
           return (
             <span
@@ -626,6 +631,28 @@ export const HistoryLine = memo(function HistoryLine({
     if (simpleView) return null;
 
     const isError = content.toLowerCase().includes('error') || content.toLowerCase().includes('failed');
+
+    // Bash tool results get terminal-style rendering (matching real-time OutputLine)
+    if (toolName === 'Bash') {
+      const isBashError = isError ||
+        content.toLowerCase().includes('command not found') ||
+        content.toLowerCase().includes('permission denied');
+      const isTruncated = content.includes('... (truncated,');
+      return (
+        <div className={`output-line output-bash-result ${isBashError ? 'is-error' : ''}`}>
+          {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+          <div className="bash-output-container">
+            <div className="bash-output-header">
+              <span className="bash-output-icon">$</span>
+              <span className="bash-output-label">{t('tools:display.terminalOutput')}</span>
+              {isTruncated && <span className="bash-output-truncated">{t('tools:display.truncated')}</span>}
+            </div>
+            <pre className="bash-output-content" dangerouslySetInnerHTML={{ __html: ansiToHtml(content) }} />
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className={`output-line output-tool-result ${isError ? 'is-error' : ''}`}>
         {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}

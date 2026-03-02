@@ -638,6 +638,12 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
 
   const handlePinCancel = useCallback(() => setPinToBottom(false), []);
 
+  // Reset auto-scroll when user sends a message so terminal scrolls to bottom
+  const handleSendCommand = useCallback(() => {
+    isUserScrolledUpRef.current = false;
+    setShouldAutoScroll(true);
+  }, []);
+
   const handleMobileSwipeClose = useCallback(() => {
     if (typeof window === 'undefined' || window.innerWidth > 768) return;
     setIsMobileSwipeClosing(true);
@@ -1303,6 +1309,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
           textareaRef={terminalTextareaRef}
           isSnapshotView={isSnapshotView}
           onClearHistory={historyLoader.clearHistory}
+          onSendCommand={handleSendCommand}
           canSwipeClose={
             isMobileWidth
             && mobileView === 'terminal'
@@ -1357,8 +1364,9 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
             const hasData = !!stats;
             const totalTokens = stats ? stats.totalTokens : (activeAgent.contextUsed || 0);
             const contextWindow = stats ? stats.contextWindow : (activeAgent.contextLimit || 200000);
-            const usedPercent = stats ? stats.usedPercent : Math.round((totalTokens / contextWindow) * 100);
-            const freePercent = Math.round(100 - usedPercent);
+            const rawUsedPercent = stats ? stats.usedPercent : Math.round((totalTokens / contextWindow) * 100);
+            const usedPercent = Math.max(0, Math.min(100, rawUsedPercent));
+            const freePercent = Math.max(0, 100 - usedPercent);
             const percentColor = usedPercent >= 80 ? '#ff4a4a' : usedPercent >= 60 ? '#ff9e4a' : usedPercent >= 40 ? '#ffd700' : '#4aff9e';
             const usedK = (totalTokens / 1000).toFixed(1);
             const limitK = (contextWindow / 1000).toFixed(1);

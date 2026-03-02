@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.3] - 2026-03-01
+
+### Added
+- **Clear context shortcut** - Alt+Shift+C keyboard shortcut to clear context of the selected agent
+
+### Fixed
+- **File viewer syntax highlighting** - Fixed code not being syntax-highlighted in the file viewer modal (was rendering plain text)
+- **Bash history rendering** - Bash commands and results in conversation history now get syntax highlighting and terminal-style output rendering
+- **Context usage clamping** - Context usage percentage clamped to 0-100% range, preventing invalid display values
+- **Context stats sanitization** - Server resets parsed context stats when totalTokens exceeds contextWindow, fixing stale data after autocompaction
+- **Auto-scroll on send** - Terminal now scrolls to bottom when sending a message, resetting manual scroll-up state
+- **Agent overview default state** - Agent cards in overview panel are now collapsed by default instead of auto-expanding the active agent
+
 ## [1.4.2] - 2026-03-01
 
 ### Added
