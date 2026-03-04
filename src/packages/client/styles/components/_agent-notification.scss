@@ -27,12 +27,17 @@
   pointer-events: auto;
   cursor: pointer;
   animation: agent-notification-in 0.4s ease-out;
-  transition: transform $transition-fast, box-shadow $transition-fast, border-color $transition-fast;
+  // transform & opacity are controlled by inline styles for swipe; box-shadow/border via CSS
+  transition: box-shadow $transition-fast, border-color $transition-fast;
+  touch-action: pan-y; // allow vertical scroll, we handle horizontal
 
   &:hover {
-    transform: scale(1.01);
     box-shadow: 0 6px 24px rgba(0, 0, 0, 0.6), 0 0 30px rgba(var(--agent-color-rgb, 74, 224, 255), 0.2);
     border-color: var(--agent-color, $accent-cyan);
+  }
+
+  &.is-dismissing {
+    pointer-events: none;
   }
 }
 

@@ -11,6 +11,11 @@ $breakpoint-tablet: 1024px;
 $breakpoint-mobile: 768px;
 $breakpoint-small: 480px;
 
+// Mobile tree resize handle - hidden on desktop
+.fe-mobile-resize-handle {
+  display: none;
+}
+
 // =============================================================================
 // TABLET STYLES (up to 1024px)
 // =============================================================================
@@ -148,37 +153,24 @@ $breakpoint-small: 480px;
     display: none;
   }
 
-  // Tree panel - compact
+  // Tree panel - compact, with dynamic height from resize
   .file-explorer-tree-panel {
     width: 100%;
     min-width: 100%;
     max-width: 100%;
-    height: auto;
-    max-height: 50%;
+    height: var(--fe-mobile-tree-height, auto);
+    max-height: var(--fe-mobile-tree-height, 50%);
     min-height: 100px;
     border-right: none;
     border-bottom: 1px solid $border-color;
     flex-shrink: 0;
-    transition: max-height 0.2s ease, min-height 0.2s ease;
-
-    // Resize handle
-    &::after {
-      content: '';
-      position: absolute;
-      bottom: 0;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 30px;
-      height: 2px;
-      background: rgba($dracula-comment, 0.3);
-      border-radius: 1px;
-      margin-bottom: 1px;
-    }
+    overflow: hidden;
 
     // Collapsed state - only show tab bar
     &.collapsed {
       max-height: 32px;
       min-height: 32px;
+      height: 32px;
       overflow: hidden;
 
       .file-explorer-folders,
@@ -186,10 +178,43 @@ $breakpoint-small: 480px;
       .file-explorer-tree-content {
         display: none;
       }
+    }
+  }
 
-      &::after {
-        display: none;
-      }
+  // Mobile resize handle (between tree and viewer)
+  .fe-mobile-resize-handle {
+    display: block;
+    width: 100%;
+    height: 14px;
+    flex-shrink: 0;
+    cursor: ns-resize;
+    background: transparent;
+    touch-action: none;
+    position: relative;
+    z-index: 2;
+
+    // Visual pill indicator
+    &::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 48px;
+      height: 4px;
+      background: rgba($dracula-comment, 0.4);
+      border-radius: 2px;
+      transition: all $transition-fast;
+    }
+
+    &:hover::after,
+    &:active::after {
+      width: 64px;
+      background: $accent-blue;
+    }
+
+    &:active {
+      background: rgba($accent-blue, 0.08);
     }
   }
 
@@ -767,7 +792,7 @@ $breakpoint-small: 480px;
   }
 
   .file-explorer-tree-panel {
-    max-height: 40%;
+    max-height: var(--fe-mobile-tree-height, 40%);
     min-height: 100px;
   }
 
@@ -965,10 +990,10 @@ $breakpoint-small: 480px;
     max-height: 100%;
     border-right: 1px solid $border-color;
     border-bottom: none;
+  }
 
-    &::after {
-      display: none;
-    }
+  .fe-mobile-resize-handle {
+    display: none;
   }
 
   .file-explorer-viewer-panel {

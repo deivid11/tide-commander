@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.0] - 2026-03-04
+
+### Added
+- **Swipeable notification toasts** - Swipe left to dismiss agent notifications on mobile with haptic feedback, direction locking, and opacity fade animation
+- **Mobile tree panel resize** - Drag handle between tree and viewer panels in the file explorer on mobile, with persisted height via localStorage
+- **Hidden files in file explorer** - Dotfiles and hidden directories are now visible in file listings, tree views, and search results
+
+### Changed
+- **File search limits** - Increased filename and content search result limits from 20 to 200 for more comprehensive results
+- **Subagent badges** - Terminal header now only shows badges for spawning/working subagents, hiding completed and failed ones
+- **Git tree indentation** - Improved alignment with base padding constant and negative-margin checkbox positioning so file icons align with directory arrows
+
+### Removed
+- **Current tool display** - Removed the CurrentTool widget from the agent unit panel (tool info is already shown in terminal output)
+
 ## [1.4.3] - 2026-03-01
 
 ### Added

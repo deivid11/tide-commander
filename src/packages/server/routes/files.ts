@@ -353,9 +353,6 @@ router.get('/list', async (req: Request, res: Response) => {
     const files: FileEntry[] = [];
 
     for (const entry of entries) {
-      // Skip hidden files by default
-      if (entry.name.startsWith('.')) continue;
-
       const fullPath = path.join(dirPath, entry.name);
       try {
         const entryStats = fs.statSync(fullPath);
@@ -401,8 +398,6 @@ function buildTree(dirPath: string, depth: number, maxDepth: number): TreeNode[]
     const entries = fs.readdirSync(dirPath, { withFileTypes: true });
 
     for (const entry of entries) {
-      // Skip hidden files
-      if (entry.name.startsWith('.')) continue;
       // Skip common non-essential directories (but keep 'build' for APK access)
       if (['node_modules', 'dist', '.git', '__pycache__', 'venv', '.venv'].includes(entry.name)) continue;
 
@@ -633,8 +628,7 @@ function searchFiles(dirPath: string, query: string, results: TreeNode[], maxRes
     for (const entry of entries) {
       if (results.length >= maxResults) break;
 
-      // Skip hidden directories (except .claude which is a config location) and common non-essential
-      if (entry.name.startsWith('.') && entry.name !== '.claude') continue;
+      // Skip common non-essential directories
       if (['node_modules', 'dist', '.git', '__pycache__', 'venv', '.venv'].includes(entry.name)) continue;
 
       const fullPath = path.join(dirPath, entry.name);
@@ -746,8 +740,7 @@ function searchFileContents(
     for (const entry of entries) {
       if (results.length >= maxResults) break;
 
-      // Skip hidden and common non-essential
-      if (entry.name.startsWith('.')) continue;
+      // Skip common non-essential directories
       if (['node_modules', 'dist', 'build', '.git', '__pycache__', 'venv', '.venv', 'target', 'vendor'].includes(entry.name)) continue;
 
       const fullPath = path.join(dirPath, entry.name);

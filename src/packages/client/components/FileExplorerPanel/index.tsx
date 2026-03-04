@@ -31,6 +31,7 @@ import { useGitStatus, loadGitOriginalContent } from './useGitStatus';
 import { useFileContent } from './useFileContent';
 import { useFileExplorerStorage } from './useFileExplorerStorage';
 import { useTreePanelResize } from './useTreePanelResize';
+import { useMobileTreeResize } from './useMobileTreeResize';
 import { useGitBranches } from './useGitBranches';
 import { useToast } from '../Toast';
 
@@ -170,6 +171,7 @@ export function FileExplorerPanel({
 
   // Tree panel resize
   const { treePanelWidth, handleResizeStart, isResizing } = useTreePanelResize();
+  const { mobileTreeHeight, handleResizeMouseDown: handleMobileResizeMouseDown, handleResizeTouchStart: handleMobileResizeTouchStart } = useMobileTreeResize();
 
   // Storage hook for persistence
   const { loadStoredState, saveState } = useFileExplorerStorage({
@@ -358,13 +360,13 @@ export function FileExplorerPanel({
 
         // Always search by filename
         const filenamePromise = authFetch(
-          apiUrl(`/api/files/search?path=${encodeURIComponent(currentFolder)}&q=${encodeURIComponent(query)}&limit=20`)
+          apiUrl(`/api/files/search?path=${encodeURIComponent(currentFolder)}&q=${encodeURIComponent(query)}&limit=200`)
         ).then(res => res.json()).catch(() => ({ results: [] }));
 
         // Only search content if query is at least 2 chars and no line number specified
         const contentPromise = query.length >= 2 && !parsedSearch.lineNumber
           ? authFetch(
-              apiUrl(`/api/files/search-content?path=${encodeURIComponent(currentFolder)}&q=${encodeURIComponent(query)}&limit=20`)
+              apiUrl(`/api/files/search-content?path=${encodeURIComponent(currentFolder)}&q=${encodeURIComponent(query)}&limit=200`)
             ).then(res => res.json()).catch(() => ({ results: [] }))
           : Promise.resolve({ results: [] });
 
@@ -1319,7 +1321,10 @@ export function FileExplorerPanel({
       </div>
 
       {/* Main Content */}
-      <div className="file-explorer-main">
+      <div
+        className="file-explorer-main"
+        style={mobileTreeHeight > 0 ? { '--fe-mobile-tree-height': `${mobileTreeHeight}px` } as React.CSSProperties : undefined}
+      >
         {/* Tree Panel (Left) */}
         <div
           className={`file-explorer-tree-panel ${treePanelCollapsed ? 'collapsed' : ''}`}
@@ -1483,11 +1488,20 @@ export function FileExplorerPanel({
           </div>
         </div>
 
-        {/* Resize Handle */}
+        {/* Desktop Resize Handle */}
         <div
           className={`file-explorer-resize-handle ${isResizing ? 'active' : ''}`}
           onMouseDown={handleResizeStart}
         />
+
+        {/* Mobile Resize Handle (between tree and viewer) */}
+        {!treePanelCollapsed && (
+          <div
+            className="fe-mobile-resize-handle"
+            onMouseDown={handleMobileResizeMouseDown}
+            onTouchStart={handleMobileResizeTouchStart}
+          />
+        )}
 
         {/* File Viewer (Right) */}
         <div className="file-explorer-viewer-panel">

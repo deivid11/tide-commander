@@ -129,6 +129,7 @@ interface GitTreeNodeItemProps {
 }
 
 const GIT_TREE_INDENT = 16; // px per depth level
+const GIT_TREE_BASE_PAD = 52; // px base padding (enough room for checkbox via negative margin)
 
 const GitTreeNodeItem = memo(function GitTreeNodeItem({
   node,
@@ -157,7 +158,7 @@ const GitTreeNodeItem = memo(function GitTreeNodeItem({
           e.preventDefault();
           onContextMenu?.(e, node.file!, fileStatus);
         }}
-        style={{ paddingLeft: `${indent + 4}px`, cursor: fileStatus === 'deleted' ? 'not-allowed' : 'pointer' }}
+        style={{ paddingLeft: `${indent + GIT_TREE_BASE_PAD}px`, cursor: fileStatus === 'deleted' ? 'not-allowed' : 'pointer' }}
         title={node.file!.path}
       >
         {onToggleCheck && (
@@ -205,7 +206,7 @@ const GitTreeNodeItem = memo(function GitTreeNodeItem({
     <div className="tree-node-wrapper">
       <div
         className={`tree-node directory ${isExpanded ? 'expanded' : ''}`}
-        style={{ paddingLeft: `${indent + 4}px` }}
+        style={{ paddingLeft: `${indent + GIT_TREE_BASE_PAD}px` }}
         onClick={() => onToggleDir(node.path)}
       >
         <span className={`tree-arrow ${isExpanded ? 'expanded' : ''}`}>▸</span>

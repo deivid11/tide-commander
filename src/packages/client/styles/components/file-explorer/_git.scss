@@ -282,6 +282,12 @@
 .git-tree-content .git-file-item {
   padding: 2px 4px;
   gap: 4px;
+
+  // Pull checkbox into the padding area so the file icon
+  // aligns with the directory arrow at the same depth level
+  .git-file-checkbox {
+    margin-left: -18px; // 14px checkbox + 4px gap
+  }
 }
 
 .git-file-renamed {

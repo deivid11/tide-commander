@@ -93,7 +93,6 @@ export {
   AgentStatsGrid,
   ContextBar,
   IdleTimer,
-  CurrentTool,
   CurrentTask,
   WorkingDirectory,
   LastPrompt,
