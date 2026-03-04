@@ -476,7 +476,10 @@ const OtherAgentsSection = memo(function OtherAgentsSection({ currentAgentId }: 
               <div
                 key={agent.id}
                 className={`unit-other-agent-item ${agent.status}`}
-                onClick={() => store.selectAgent(agent.id)}
+                onClick={() => {
+                  store.selectAgent(agent.id);
+                  store.setTerminalOpen(true);
+                }}
               >
                 <span className="unit-other-agent-icon" style={{ background: `${cc.color}20` }}>
                   {cc.icon}
@@ -748,12 +751,37 @@ const BossAgentSection = memo(function BossAgentSection({ agent }: BossAgentSect
             ) : (
               subordinates.map((sub) => {
                 const subClassConfig = getClassConfig(sub.class, customClasses);
+                const subordinateContextInfo = calculateContextInfo(sub);
+                const subordinateContextPercent = Math.max(0, Math.min(100, Math.round(subordinateContextInfo.usedPercent)));
+                const subordinateContextHue = Math.round((1 - subordinateContextPercent / 100) * 120); // 120=green, 0=red
+                const subordinateContextStyle = {
+                  width: `${subordinateContextPercent}%`,
+                  '--boss-context-hue': `${subordinateContextHue}`,
+                } as React.CSSProperties;
                 return (
-                  <div key={sub.id} className="boss-subordinate-item" onClick={() => store.selectAgent(sub.id)}>
+                  <div
+                    key={sub.id}
+                    className="boss-subordinate-item"
+                    onClick={() => {
+                      store.selectAgent(sub.id);
+                      store.setTerminalOpen(true);
+                    }}
+                  >
                     <span className="boss-subordinate-icon" style={{ color: subClassConfig.color }}>
                       {subClassConfig.icon}
                     </span>
-                    <span className="boss-subordinate-name">{sub.name}</span>
+                    <div className="boss-subordinate-meta">
+                      <span className="boss-subordinate-name">{sub.name}</span>
+                      <div className="boss-subordinate-context" title={`${subordinateContextPercent}% context used`}>
+                        <div className="boss-subordinate-context-track">
+                          <div
+                            className="boss-subordinate-context-fill"
+                            style={subordinateContextStyle}
+                          />
+                        </div>
+                        <span className="boss-subordinate-context-value">{subordinateContextPercent}%</span>
+                      </div>
+                    </div>
                     <span className={`boss-subordinate-status status-${sub.status}`}>{sub.status}</span>
                     <button
                       className="boss-subordinate-unlink"

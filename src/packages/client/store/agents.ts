@@ -489,6 +489,19 @@ export function createAgentActions(
         const newLastPrompts = new Map(state.lastPrompts);
         newLastPrompts.delete(agentId);
         state.lastPrompts = newLastPrompts;
+
+        // Clear subagents for this agent so badge indicators are removed
+        const newSubagents = new Map(state.subagents);
+        let subagentsChanged = false;
+        for (const [id, sub] of newSubagents) {
+          if (sub.parentAgentId === agentId) {
+            newSubagents.delete(id);
+            subagentsChanged = true;
+          }
+        }
+        if (subagentsChanged) {
+          state.subagents = newSubagents;
+        }
       });
       notify();
     },

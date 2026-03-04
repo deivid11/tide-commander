@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.2] - 2026-03-04
+
+### Changed
+- **Boss agent card styling** - Boss agents in overview panel now have gold-themed borders, background gradient, and crown emoji indicator
+- **Boss agent sorting** - Boss agents now sort before regular idle agents in overview panel and swipe navigation
+- **Subordinate context bars** - Boss panel subordinate list now shows context usage progress bars with color-coded fill (green to red)
+- **Agent click opens terminal** - Clicking on other-agents and boss subordinates now also opens the terminal panel
+- **Default skills** - `report-task-to-boss` skill is now pre-selected by default when spawning new agents
+
+### Fixed
+- **Subagent badge cleanup** - Deleting an agent now clears its subagent badge indicators from the store
+
 ## [1.6.1] - 2026-03-04
 
 ### Fixed

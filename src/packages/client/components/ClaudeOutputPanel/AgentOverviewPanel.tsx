@@ -358,8 +358,11 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
           return a.name.localeCompare(b.name);
         }
 
-        // 4. Within idle: taskLabel first, then most recently active
+        // 4. Within idle: boss agents first, then taskLabel, then most recently active
         if (a.status === 'idle' && b.status === 'idle') {
+          const aIsBoss = !!a.isBoss;
+          const bIsBoss = !!b.isBoss;
+          if (aIsBoss !== bIsBoss) return aIsBoss ? -1 : 1;
           const aHasTask = !!a.taskLabel;
           const bHasTask = !!b.taskLabel;
           if (aHasTask !== bHasTask) return aHasTask ? -1 : 1;
@@ -715,6 +718,7 @@ function AgentCard({
   const { t } = useTranslation(['terminal', 'common']);
   const customClasses = useCustomAgentClassesArray();
   const classConfig = getClassConfig(agent.class, customClasses);
+  const isBossAgent = agent.isBoss || agent.class === 'boss';
   const statusIcon = STATUS_ICONS[agent.status] || '❓';
   const statusLabel = STATUS_LABEL_KEYS[agent.status] ? t(`terminal:${STATUS_LABEL_KEYS[agent.status]}`) : agent.status;
   const recentTools = toolExecs.slice(0, isMobile ? 4 : 8);
@@ -874,7 +878,7 @@ function AgentCard({
         </button>
       )}
       <div
-        className={`aop-agent-card ${isActive ? 'active' : ''} ${agent.status} ${hasPendingRead ? 'unread' : ''}${isTwoFingerHovered ? ' two-finger-hover' : ''}`}
+        className={`aop-agent-card ${isBossAgent ? 'boss' : ''} ${isActive ? 'active' : ''} ${agent.status} ${hasPendingRead ? 'unread' : ''}${isTwoFingerHovered ? ' two-finger-hover' : ''}`}
         data-agent-id={agent.id}
         onClick={handleSelect}
         onTouchStart={handleTouchStart}
@@ -911,6 +915,7 @@ function AgentCard({
           title={t('terminal:overview.clickToSwitch')}
           style={areaInfo ? { background: `${areaInfo.color}12`, borderColor: `${areaInfo.color}28` } : undefined}
         >
+          {isBossAgent && <span className="aop-boss-crown" aria-hidden="true">👑</span>}
           {agent.name}
         </span>
         <span className="aop-agent-class-icon" style={{ color: `color-mix(in srgb, ${classConfig.color} 60%, var(--text-muted))` }} title={agent.class || 'agent'}>

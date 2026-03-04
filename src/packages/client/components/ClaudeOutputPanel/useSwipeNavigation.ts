@@ -182,8 +182,11 @@ export function useSwipeNavigation({
           return a.name.localeCompare(b.name);
         }
 
-        // 4. Within idle: taskLabel first, then most recently active
+        // 4. Within idle: boss agents first, then taskLabel, then most recently active
         if (a.status === 'idle' && b.status === 'idle') {
+          const aIsBoss = !!a.isBoss;
+          const bIsBoss = !!b.isBoss;
+          if (aIsBoss !== bIsBoss) return aIsBoss ? -1 : 1;
           const aHasTask = !!a.taskLabel;
           const bHasTask = !!b.taskLabel;
           if (aHasTask !== bHasTask) return aHasTask ? -1 : 1;

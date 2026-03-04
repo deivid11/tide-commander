@@ -363,14 +363,58 @@
   font-size: 14px;
 }
 
-.boss-subordinate-name {
+.boss-subordinate-meta {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.boss-subordinate-name {
   font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.boss-subordinate-context {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.boss-subordinate-context-track {
+  flex: 1;
+  min-width: 56px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.boss-subordinate-context-fill {
+  height: 100%;
+  border-radius: inherit;
+  transition: width 0.2s ease;
+  background: linear-gradient(
+    90deg,
+    hsl(var(--boss-context-hue, 120) 78% 48%) 0%,
+    hsl(var(--boss-context-hue, 120) 84% 40%) 100%
+  );
+}
+
+.boss-subordinate-context-value {
+  font-size: 10px;
+  color: var(--text-secondary);
+  min-width: 30px;
+  text-align: right;
 }
 
 .boss-subordinate-status {
   font-size: 10px;
   text-transform: capitalize;
+  white-space: nowrap;
 
   &.status-idle {
     color: $accent-green;
@@ -396,7 +440,7 @@
   color: var(--text-secondary);
   border-radius: 3px;
   transition: all 0.15s ease;
-  margin-left: auto;
+  margin-left: 4px;
 
   &:hover {
     background: rgba(255, 74, 74, 0.2);
