@@ -236,7 +236,7 @@ export function extractToolKeyParam(toolName: string, inputJson: string): string
   return null;
 }
 
-function extractExecPayloadCommand(cmd: string): string | null {
+export function extractExecPayloadCommand(cmd: string): string | null {
   if (!cmd.includes('curl') || !cmd.includes('/api/exec')) return null;
 
   const candidates: string[] = [];

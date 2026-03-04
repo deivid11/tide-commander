@@ -228,6 +228,23 @@ export const HistoryLine = memo(function HistoryLine({
   const extractExecTaskOutputLines = (raw: string): string[] | null => {
     if (!raw) return null;
 
+    // Strip <persisted-output> wrapper tags from Claude Code's large output storage
+    let content = raw;
+    if (content.includes('<persisted-output>')) {
+      content = content.replace(/<\/?persisted-output>/g, '').trim();
+      // Extract just the JSON portion after "Preview (first NKB):" header
+      const previewMatch = content.match(/Preview \(first [^)]+\):\s*([\s\S]*)/);
+      if (previewMatch) {
+        content = previewMatch[1].trim();
+      } else {
+        // Try to find JSON start directly (skip the "Output too large..." header)
+        const jsonStart = content.indexOf('{');
+        if (jsonStart !== -1) {
+          content = content.slice(jsonStart);
+        }
+      }
+    }
+
     const tryParse = (value: string): string[] | null => {
       try {
         const parsed = JSON.parse(value);
@@ -240,15 +257,43 @@ export const HistoryLine = memo(function HistoryLine({
       return null;
     };
 
-    const direct = tryParse(raw);
+    const direct = tryParse(content);
     if (direct) return direct;
 
     // Some stored history payloads include wrappers around the JSON response.
-    const firstBrace = raw.indexOf('{');
-    const lastBrace = raw.lastIndexOf('}');
+    const firstBrace = content.indexOf('{');
+    const lastBrace = content.lastIndexOf('}');
     if (firstBrace !== -1 && lastBrace > firstBrace) {
-      const extracted = tryParse(raw.slice(firstBrace, lastBrace + 1));
+      const extracted = tryParse(content.slice(firstBrace, lastBrace + 1));
       if (extracted) return extracted;
+    }
+
+    // Handle truncated JSON (large outputs get truncated by Claude Code).
+    // Try to extract the "output" field value even from broken JSON.
+    const outputFieldMatch = content.match(/"output"\s*:\s*"([\s\S]*)/);
+    if (outputFieldMatch) {
+      let outputStr = outputFieldMatch[1];
+      // Remove trailing JSON structure if present (e.g. `","duration":123}`)
+      const trailingMatch = outputStr.match(/","(?:duration|exitCode|taskId|success)":/);
+      if (trailingMatch && trailingMatch.index !== undefined) {
+        outputStr = outputStr.slice(0, trailingMatch.index);
+      }
+      // Remove trailing truncation markers (e.g. `...\n`)
+      outputStr = outputStr.replace(/\.\.\.\s*$/, '');
+      // Unescape JSON string escapes
+      try {
+        outputStr = JSON.parse(`"${outputStr}"`);
+      } catch {
+        // If unescape fails, do basic unescaping including \uXXXX unicode sequences (e.g. \u001b for ANSI ESC)
+        outputStr = outputStr
+          .replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+          .replace(/\\n/g, '\n')
+          .replace(/\\t/g, '\t')
+          .replace(/\\"/g, '"')
+          .replace(/\\\\/g, '\\');
+      }
+      const lines = outputStr.split('\n').filter((line: string) => line.length > 0);
+      if (lines.length > 0) return lines;
     }
 
     return null;

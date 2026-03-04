@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.1] - 2026-03-04
+
+### Fixed
+- **Persisted output parsing** - Terminal now correctly parses `<persisted-output>` wrapped exec task results, handling truncated large outputs from Claude Code
+- **Exec task matching** - Streaming exec output now matches by extracted command name instead of unreliable time-window fallback, preventing cross-task output duplication
+- **Removed debug logging** - Cleaned up console.log debug statements from exec task matching code
+
 ## [1.6.0] - 2026-03-04
 
 ### Added
