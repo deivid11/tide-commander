@@ -473,6 +473,31 @@ User: "Analyze the frontend, create a parallelizable plan, and assign tasks"
 
 ---
 
+## ⚠️ PARALLELIZATION CAUTION
+
+**Only parallelize when you are 100% certain:**
+1. Tasks are truly independent with NO shared context or dependencies
+2. Each task has ALL required information/context to complete independently
+3. One task's output won't be needed as input for another task
+4. Both agents can work simultaneously without blocking each other
+5. You've verified both agents have the capabilities needed
+
+**If unsure, use SEQUENTIAL delegation instead.** It's better to have one agent complete work, then pass context to the next agent, than to have two agents working in parallel and later discovering they needed each other's results.
+
+**Default to SINGLE AGENT** for most work. Parallelization should be rare and intentional, not the default.
+
+**Example - DON'T PARALLELIZE (BAD):**
+- Task A: "Refactor the auth module"
+- Task B: "Update the login form to match new auth API"
+→ Task B depends on Task A being done first. Sequential only.
+
+**Example - DO PARALLELIZE (GOOD):**
+- Task A: "Add button styling to _buttons.scss"
+- Task B: "Add input styling to _inputs.scss"
+→ Independent files, no dependencies. Can parallelize.
+
+---
+
 ## SPAWNING NEW AGENTS:
 You can ONLY spawn new agents when the user EXPLICITLY requests it.
 
