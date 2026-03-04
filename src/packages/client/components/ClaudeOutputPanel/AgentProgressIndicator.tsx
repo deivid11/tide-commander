@@ -3,12 +3,16 @@
  * Used in boss terminal to show when subordinates are executing delegated tasks
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import type { AgentTaskProgress } from '../../store/types';
 import type { ClaudeOutput } from '../../store';
+import { linkifyFilePathsForMarkdown } from '../../utils/outputRendering';
 import type { EditData } from './types';
 import { useFilteredOutputs } from '../shared/useFilteredOutputs';
+import { createMarkdownComponents } from './MarkdownComponents';
 import { OutputLine } from './OutputLine';
 
 interface AgentProgressIndicatorProps {
@@ -62,6 +66,13 @@ export function AgentProgressIndicator({
   };
 
   const { t } = useTranslation(['tools']);
+  const markdownComponents = useMemo(
+    () =>
+      createMarkdownComponents({
+        onFileClick: onFileClick ? (path) => onFileClick(path) : undefined,
+      }),
+    [onFileClick]
+  );
   const statusText: Record<string, string> = {
     working: t('tools:progress.workingOn'),
     completed: t('tools:progress.taskFinished'),
@@ -128,7 +139,13 @@ export function AgentProgressIndicator({
       {!isExpanded && <div className="agent-progress-task-preview">{truncatedTask}</div>}
       {isExpanded && (
         <div className="agent-progress-expanded">
-          <div className="agent-progress-task-full">{progress.taskDescription}</div>
+          <div className="agent-progress-task-full">
+            <div className="markdown-content">
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                {linkifyFilePathsForMarkdown(progress.taskDescription)}
+              </ReactMarkdown>
+            </div>
+          </div>
           {progress.output.length > 0 && (
             <div className="agent-progress-output-section">
               <AgentProgressOutput

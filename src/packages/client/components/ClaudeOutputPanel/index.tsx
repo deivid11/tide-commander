@@ -373,6 +373,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
   // Check if selected agent is a boss
   const isBoss = activeAgent?.class === 'boss' || activeAgent?.isBoss;
   const agentTaskProgress = useAgentTaskProgress(!isSnapshotView && isBoss ? activeAgentId : null);
+  const [agentProgressCollapsed, setAgentProgressCollapsed] = useState(true);
 
   // Get exec tasks for the selected agent
   const execTasks = useExecTasks(!isSnapshotView ? activeAgentId : null);
@@ -1260,13 +1261,25 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
                 )}
                 {/* Boss agent progress indicators */}
                 {!isAgentSwitching && isBoss && agentTaskProgress.size > 0 && (
-                  <div className="agent-progress-container">
-                    <div className="agent-progress-container-header">
+                  <div className={`agent-progress-container ${agentProgressCollapsed ? 'collapsed' : 'expanded'}`}>
+                    <div
+                      className="agent-progress-container-header"
+                      onClick={() => setAgentProgressCollapsed((previous) => !previous)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          setAgentProgressCollapsed((previous) => !previous);
+                        }
+                      }}
+                    >
                       <span className="progress-crown">👑</span>
                       <span>{t('terminal:empty.subordinateProgress')}</span>
                       <span className="progress-count">{t('terminal:empty.activeCount', { count: agentTaskProgress.size })}</span>
+                      <span className="agent-progress-container-toggle">{agentProgressCollapsed ? '▶' : '▼'}</span>
                     </div>
-                    {Array.from(agentTaskProgress.values()).map((progress) => (
+                    {!agentProgressCollapsed && Array.from(agentTaskProgress.values()).map((progress) => (
                       <AgentProgressIndicator
                         key={progress.agentId}
                         progress={progress}
