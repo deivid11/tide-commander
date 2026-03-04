@@ -10,12 +10,12 @@ import { useHideCost, useSettings } from '../../store';
 import { store } from '../../store';
 import { BOSS_CONTEXT_START } from '../../../shared/types';
 import { filterCostText } from '../../utils/formatting';
-import { TOOL_ICONS, extractToolKeyParam, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, splitCommandForFileLinks } from '../../utils/outputRendering';
+import { TOOL_ICONS, extractToolKeyParam, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, splitCommandForFileLinks } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
 import { createMarkdownComponents } from './MarkdownComponents';
-import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions } from './BossContext';
+import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions, parseDelegatedTaskMessage, DelegatedTaskMessage, parseTaskReportMessage, TaskReportHeader } from './BossContext';
 import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, ExitPlanModeInput } from './ToolRenderers';
 import { highlightText, renderContentWithImages, renderUserPromptContent } from './contentRendering';
 import { useTTS } from '../../hooks/useTTS';
@@ -278,6 +278,7 @@ export const HistoryLine = memo(function HistoryLine({
       const bashSearchCommand = isBashTool && bashCommand ? parseBashSearchCommand(bashCommand) : null;
       const bashNotificationCommand = isBashTool && bashCommand ? parseBashNotificationCommand(bashCommand) : null;
       const bashTaskLabelCommand = isBashTool && bashCommand ? parseBashTaskLabelCommand(bashCommand) : null;
+      const bashReportTaskCommand = isBashTool && bashCommand ? parseBashReportTaskCommand(bashCommand) : null;
 
       const handleParamClick = () => {
         if (isFileClickable && keyParam) {
@@ -454,6 +455,20 @@ export const HistoryLine = memo(function HistoryLine({
               >
                 <span className="bash-task-label-chip">📋 task</span>
                 <span className="bash-task-label-value">{bashTaskLabelCommand.taskLabel}</span>
+              </span>
+            ) : isBashTool && bashReportTaskCommand ? (
+              <span
+                className="output-tool-param bash-command bash-report-task-param"
+                onClick={handleBashClick}
+                title={bashReportTaskCommand.commandBody}
+                style={{ cursor: 'pointer' }}
+              >
+                <span className={`bash-report-task-chip ${bashReportTaskCommand.status === 'failed' ? 'status-failed' : 'status-completed'}`}>
+                  {bashReportTaskCommand.status === 'failed' ? '❌ report' : '✅ report'}
+                </span>
+                {bashReportTaskCommand.summary && (
+                  <span className="bash-report-task-summary">{bashReportTaskCommand.summary}</span>
+                )}
               </span>
             ) : isBashTool && bashSearchCommand ? (
               <span
@@ -671,6 +686,41 @@ export const HistoryLine = memo(function HistoryLine({
   if (isUser && parsedBoss) {
     const parsedInjected = parseInjectedInstructions(parsedBoss.userMessage);
     const displayMessage = parsedInjected.userMessage;
+
+    // Check for [DELEGATED TASK ...] message (subordinate receiving a task)
+    const delegatedTaskParsed = parseDelegatedTaskMessage(displayMessage.trim());
+    if (delegatedTaskParsed.isDelegatedTask) {
+      return (
+        <div className={className}>
+          {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+          <span className="history-content">
+            <DelegatedTaskMessage bossName={delegatedTaskParsed.bossName} bossId={delegatedTaskParsed.bossId} taskCommand={delegatedTaskParsed.taskCommand} />
+          </span>
+        </div>
+      );
+    }
+
+    // Check for [TASK REPORT ...] message (boss receiving completion report)
+    const taskReportParsed = parseTaskReportMessage(displayMessage.trim());
+    if (taskReportParsed.isTaskReport) {
+      return (
+        <div className={className}>
+          {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+          <span className="history-content">
+            {parsedBoss.hasContext && parsedBoss.context && (
+              <BossContext key={`boss-${timestamp || content.slice(0, 50)}`} context={parsedBoss.context} onFileClick={onFileClick ? (path) => onFileClick(path) : undefined} />
+            )}
+            <TaskReportHeader
+              agentName={taskReportParsed.agentName}
+              agentId={taskReportParsed.agentId}
+              status={taskReportParsed.status}
+              originalTask={taskReportParsed.originalTask}
+              summary={taskReportParsed.summary}
+            />
+          </span>
+        </div>
+      );
+    }
 
     return (
       <div className={className}>

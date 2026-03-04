@@ -5,7 +5,7 @@
  */
 
 import type { ClientMessage, Agent, AgentClass, PermissionMode, ClaudeModel, CodexModel, AgentProvider, CodexConfig, DelegationDecision } from '../../shared/types';
-import type { StoreState, AgentTaskProgress } from './types';
+import type { StoreState, AgentTaskProgress, AgentOutput } from './types';
 
 export interface DelegationActions {
   // Boss agent spawning
@@ -49,7 +49,7 @@ export interface DelegationActions {
 
   // Agent task progress tracking (for subordinates in boss terminal)
   handleAgentTaskStarted(bossId: string, subordinateId: string, subordinateName: string, taskDescription: string): void;
-  handleAgentTaskOutput(bossId: string, subordinateId: string, output: string): void;
+  handleAgentTaskOutput(bossId: string, subordinateId: string, output: AgentOutput): void;
   handleAgentTaskCompleted(bossId: string, subordinateId: string, success: boolean): void;
   getAgentTaskProgress(bossId: string): Map<string, AgentTaskProgress>;
   clearAgentTaskProgress(bossId: string, subordinateId?: string): void;
@@ -258,7 +258,7 @@ export function createDelegationActions(
       notify();
     },
 
-    handleAgentTaskOutput(bossId: string, subordinateId: string, output: string): void {
+    handleAgentTaskOutput(bossId: string, subordinateId: string, output: AgentOutput): void {
       setState((state) => {
         const bossProgress = state.agentTaskProgress.get(bossId);
         if (!bossProgress) return;

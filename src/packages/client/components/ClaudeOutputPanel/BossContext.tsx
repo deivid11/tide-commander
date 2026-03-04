@@ -123,6 +123,64 @@ export function parseInjectedInstructions(content: string): ParsedInjectedInstru
 }
 
 // ============================================================================
+// Delegated Task Message Parsing
+// ============================================================================
+
+export interface ParsedDelegatedTask {
+  isDelegatedTask: boolean;
+  bossName: string;
+  bossId: string;
+  taskCommand: string;
+}
+
+/**
+ * Parse [DELEGATED TASK from boss "Name" (id)] messages sent to subordinates
+ */
+export function parseDelegatedTaskMessage(content: string): ParsedDelegatedTask {
+  const match = content.match(/^\[DELEGATED TASK from boss "([^"]+)" \(([^)]+)\)\]\s*\n\n([\s\S]*?)\n\n---\nThis task was delegated by your boss agent\./);
+  if (!match) {
+    return { isDelegatedTask: false, bossName: '', bossId: '', taskCommand: '' };
+  }
+  return {
+    isDelegatedTask: true,
+    bossName: match[1],
+    bossId: match[2],
+    taskCommand: match[3].trim(),
+  };
+}
+
+// ============================================================================
+// Task Report Message Parsing
+// ============================================================================
+
+export interface ParsedTaskReport {
+  isTaskReport: boolean;
+  agentName: string;
+  agentId: string;
+  status: 'COMPLETED' | 'FAILED' | string;
+  originalTask: string;
+  summary: string;
+}
+
+/**
+ * Parse [TASK REPORT from AgentName (id)] messages sent to boss
+ */
+export function parseTaskReportMessage(content: string): ParsedTaskReport {
+  const match = content.match(/^\[TASK REPORT from ([^(]+?)\s*\(([^)]+)\)\]\s*\n\nStatus:\s*(\w+)\nOriginal task:\s*([\s\S]*?)\n(?:\nSummary:\s*([\s\S]*?))?\n\nYou may review/);
+  if (!match) {
+    return { isTaskReport: false, agentName: '', agentId: '', status: '', originalTask: '', summary: '' };
+  }
+  return {
+    isTaskReport: true,
+    agentName: match[1].trim(),
+    agentId: match[2].trim(),
+    status: match[3].trim(),
+    originalTask: match[4].trim(),
+    summary: (match[5] || '').trim(),
+  };
+}
+
+// ============================================================================
 // Delegation Block Parsing
 // ============================================================================
 
@@ -374,6 +432,80 @@ export function DelegatedTaskHeader({ bossName, taskCommand }: DelegatedTaskHead
       </div>
       {isExpanded && <div className="delegated-task-command">{taskCommand}</div>}
       {!isExpanded && <div className="delegated-task-preview">{truncatedCommand}</div>}
+    </div>
+  );
+}
+
+// ============================================================================
+// Delegated Task Message Component (shown on subordinate terminal)
+// ============================================================================
+
+interface DelegatedTaskMessageProps {
+  bossName: string;
+  bossId: string;
+  taskCommand: string;
+}
+
+export function DelegatedTaskMessage({ bossName, bossId, taskCommand }: DelegatedTaskMessageProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const truncatedCommand = taskCommand.length > 80 ? taskCommand.slice(0, 80) + '...' : taskCommand;
+
+  return (
+    <div className={`delegated-task-message ${isExpanded ? 'expanded' : 'compact'}`}>
+      <div className="delegated-task-message-badge" onClick={() => setIsExpanded(!isExpanded)}>
+        <span className="delegated-task-message-icon">📋</span>
+        <span className="delegated-task-message-label">
+          Delegated by <strong>{bossName}</strong>
+        </span>
+        <span className="delegated-task-message-id">{bossId.slice(0, 8)}</span>
+        <span className="delegated-task-message-toggle">{isExpanded ? '▼' : '▶'}</span>
+      </div>
+      {isExpanded ? (
+        <div className="delegated-task-message-command">{taskCommand}</div>
+      ) : (
+        <div className="delegated-task-message-preview">{truncatedCommand}</div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// Task Report Component (shown on boss terminal)
+// ============================================================================
+
+interface TaskReportHeaderProps {
+  agentName: string;
+  agentId: string;
+  status: string;
+  originalTask: string;
+  summary: string;
+}
+
+export function TaskReportHeader({ agentName, agentId, status, originalTask, summary }: TaskReportHeaderProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const isCompleted = status === 'COMPLETED';
+
+  return (
+    <div className={`task-report-header ${isExpanded ? 'expanded' : 'compact'} status-${isCompleted ? 'completed' : 'failed'}`}>
+      <div className="task-report-badge" onClick={() => setIsExpanded(!isExpanded)}>
+        <span className="task-report-icon">{isCompleted ? '✅' : '❌'}</span>
+        <span className="task-report-label">
+          <strong>{agentName}</strong> — Task {isCompleted ? 'Completed' : 'Failed'}
+        </span>
+        <span className="task-report-id">{agentId.slice(0, 8)}</span>
+        <span className="task-report-toggle">{isExpanded ? '▼' : '▶'}</span>
+      </div>
+      {summary && (
+        <div className="task-report-summary">{summary}</div>
+      )}
+      {isExpanded && (
+        <div className="task-report-details">
+          <div className="task-report-original-task">
+            <span className="task-report-detail-label">Original task:</span>
+            <span className="task-report-detail-value">{originalTask}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

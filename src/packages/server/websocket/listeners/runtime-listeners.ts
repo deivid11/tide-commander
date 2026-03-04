@@ -313,6 +313,12 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
             bossId: delegation.bossId,
             subordinateId: agentId,
             output: text.slice(0, 500),
+            isStreaming: isStreaming || false,
+            timestamp: Date.now(),
+            ...(subagentName ? { subagentName } : {}),
+            ...(payload.toolName ? { toolName: payload.toolName } : {}),
+            ...(payload.toolInput ? { toolInput: payload.toolInput } : {}),
+            ...(payload.toolOutput ? { toolOutput: payload.toolOutput } : {}),
           },
         } as any);
       }

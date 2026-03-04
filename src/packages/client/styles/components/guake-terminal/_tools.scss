@@ -159,6 +159,46 @@
   white-space: nowrap;
 }
 
+.output-tool-param.bash-report-task-param {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.bash-report-task-chip {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  border-radius: 4px;
+  padding: 1px 6px;
+  flex-shrink: 0;
+
+  &.status-completed {
+    color: var(--accent-green);
+    background: color-mix(in srgb, var(--accent-green) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-green) 40%, transparent);
+  }
+
+  &.status-failed {
+    color: var(--accent-red, #ef4444);
+    background: color-mix(in srgb, var(--accent-red, #ef4444) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-red, #ef4444) 40%, transparent);
+  }
+}
+
+.bash-report-task-summary {
+  color: var(--text-primary);
+  font-style: italic;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .bash-search-shell {
   color: var(--text-muted);
   opacity: 0.9;

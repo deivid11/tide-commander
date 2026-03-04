@@ -13,11 +13,23 @@ import { getClaudeProjectDir } from '../data/index.js';
 // Session listing is done inline for performance
 import { createLogger } from '../utils/logger.js';
 import { buildCustomAgentConfig } from '../websocket/handlers/command-handler.js';
+import { clearDelegation, getBossForSubordinate } from '../websocket/handlers/boss-response-handler.js';
 import { getSystemPrompt, setSystemPrompt, clearSystemPrompt, isEchoPromptEnabled, setEchoPromptEnabled, getCodexBinaryPath, setCodexBinaryPath } from '../services/system-prompt-service.js';
+import type { ServerMessage } from '../../shared/types.js';
 
 const log = createLogger('Routes');
 
 const router = Router();
+
+// Store for broadcasting via WebSocket
+let broadcastFn: ((message: ServerMessage) => void) | null = null;
+
+/**
+ * Set the broadcast function for sending messages to all WebSocket clients
+ */
+export function setBroadcast(fn: (message: ServerMessage) => void): void {
+  broadcastFn = fn;
+}
 
 interface ProcessCommandResult {
   exitCode: number | null;
@@ -481,6 +493,71 @@ router.post('/:id/message', async (req: Request<{ id: string }>, res: Response) 
     });
   } catch (err: any) {
     log.error(' Failed to send message to agent:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/agents/:id/report-task - Subordinate reports task completion to its boss
+router.post('/:id/report-task', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const subordinateId = req.params.id;
+    const { summary, status } = req.body as { summary?: string; status?: 'completed' | 'failed' };
+
+    const agent = agentService.getAgent(subordinateId);
+    if (!agent) {
+      res.status(404).json({ error: `Agent not found: ${subordinateId}` });
+      return;
+    }
+
+    // Find the boss for this subordinate (via active delegation tracking)
+    const delegation = getBossForSubordinate(subordinateId);
+    if (!delegation) {
+      res.status(400).json({ error: `No active delegation found for agent ${agent.name}. Not currently working under a boss.` });
+      return;
+    }
+
+    const bossAgent = agentService.getAgent(delegation.bossId);
+    const bossName = bossAgent?.name || delegation.bossId;
+    const taskStatus = status || 'completed';
+    const success = taskStatus === 'completed';
+
+    log.log(`Agent ${agent.name} reporting task ${taskStatus} to boss ${bossName}: "${(summary || '').slice(0, 80)}"`);
+
+    // 1. Broadcast agent_task_completed to update the progress indicator on the client
+    if (broadcastFn) {
+      broadcastFn({
+        type: 'agent_task_completed',
+        payload: {
+          bossId: delegation.bossId,
+          subordinateId,
+          success,
+        },
+      } as any);
+    }
+
+    // 2. Clear the active delegation tracking
+    clearDelegation(subordinateId);
+
+    // 3. Send a message to the boss so it knows the task finished and can decide next steps
+    const reportMessage = `[TASK REPORT from ${agent.name} (${subordinateId})]\n\nStatus: ${taskStatus === 'completed' ? 'COMPLETED' : 'FAILED'}\nOriginal task: ${delegation.taskDescription}\n${summary ? `\nSummary: ${summary}` : ''}\n\nYou may review the result, give follow-up instructions, or dismiss this agent's progress indicator.`;
+
+    if (bossAgent?.isBoss || bossAgent?.class === 'boss') {
+      const { message: bossMessage, systemPrompt } = await bossMessageService.buildBossMessage(delegation.bossId, reportMessage);
+      await runtimeService.sendCommand(delegation.bossId, bossMessage, systemPrompt);
+    } else {
+      await runtimeService.sendCommand(delegation.bossId, reportMessage);
+    }
+
+    res.status(200).json({
+      success: true,
+      subordinateId: agent.id,
+      subordinateName: agent.name,
+      bossId: delegation.bossId,
+      bossName,
+      taskStatus,
+    });
+  } catch (err: any) {
+    log.error(' Failed to report task to boss:', err);
     res.status(500).json({ error: err.message });
   }
 });

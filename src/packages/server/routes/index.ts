@@ -4,7 +4,7 @@
  */
 
 import { Router, raw } from 'express';
-import agentsRouter from './agents.js';
+import agentsRouter, { setBroadcast as setAgentsBroadcast } from './agents.js';
 import filesRouter from './files.js';
 import permissionsRouter from './permissions.js';
 import notificationsRouter, { setBroadcast as setNotificationBroadcast } from './notifications.js';
@@ -45,6 +45,6 @@ router.use('/config', raw({ type: 'application/zip', limit: '100mb' }), configRo
 router.use('/', permissionsRouter);
 
 // Export the broadcast setters for WebSocket handler to use
-export { setNotificationBroadcast, setExecBroadcast, setFocusAgentBroadcast };
+export { setNotificationBroadcast, setExecBroadcast, setFocusAgentBroadcast, setAgentsBroadcast };
 
 export default router;

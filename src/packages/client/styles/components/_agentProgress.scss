@@ -88,6 +88,22 @@
   font-family: $font-mono;
 }
 
+.agent-progress-dismiss {
+  font-size: 16px;
+  line-height: 1;
+  color: $text-muted;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0 2px;
+  border-radius: 3px;
+  transition: color $transition-fast, background-color $transition-fast;
+
+  &:hover {
+    color: #ef4444;
+    background-color: rgba(#ef4444, 0.15);
+  }
+}
+
 .agent-progress-toggle {
   font-size: 10px;
   color: $text-secondary;

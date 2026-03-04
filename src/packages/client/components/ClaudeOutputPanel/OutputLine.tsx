@@ -6,10 +6,10 @@ import React, { memo, useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useHideCost, useSettings, ClaudeOutput, store } from '../../store';
 import { filterCostText } from '../../utils/formatting';
-import { TOOL_ICONS, extractExecWrappedCommand, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, splitCommandForFileLinks } from '../../utils/outputRendering';
+import { TOOL_ICONS, extractExecWrappedCommand, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, splitCommandForFileLinks } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
-import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, DelegatedTaskHeader, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions } from './BossContext';
+import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, DelegatedTaskHeader, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions, parseDelegatedTaskMessage, DelegatedTaskMessage, parseTaskReportMessage, TaskReportHeader } from './BossContext';
 import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, ExitPlanModeInput, UnknownToolInput } from './ToolRenderers';
 import { renderContentWithImages, renderUserPromptContent } from './contentRendering';
 import { ansiToHtml } from '../../utils/ansiToHtml';
@@ -374,6 +374,38 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
 
     const parsed = parseBossContext(text);
     const parsedInjected = parseInjectedInstructions(parsed.userMessage);
+    const userMessage = parsedInjected.userMessage;
+
+    // Check for [DELEGATED TASK ...] message (subordinate receiving a task)
+    const delegatedTaskParsed = parseDelegatedTaskMessage(userMessage.trim());
+    if (delegatedTaskParsed.isDelegatedTask) {
+      return (
+        <div className="output-line output-user">
+          <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
+          <DelegatedTaskMessage bossName={delegatedTaskParsed.bossName} bossId={delegatedTaskParsed.bossId} taskCommand={delegatedTaskParsed.taskCommand} />
+        </div>
+      );
+    }
+
+    // Check for [TASK REPORT ...] message (boss receiving completion report)
+    const taskReportParsed = parseTaskReportMessage(userMessage.trim());
+    if (taskReportParsed.isTaskReport) {
+      return (
+        <div className="output-line output-user">
+          <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
+          {parsed.hasContext && parsed.context && (
+            <BossContext key={`boss-stream-${text.slice(0, 50)}`} context={parsed.context} onFileClick={onFileClick} />
+          )}
+          <TaskReportHeader
+            agentName={taskReportParsed.agentName}
+            agentId={taskReportParsed.agentId}
+            status={taskReportParsed.status}
+            originalTask={taskReportParsed.originalTask}
+            summary={taskReportParsed.summary}
+          />
+        </div>
+      );
+    }
 
     // Check if this user prompt matches a delegated task (text matches taskCommand)
     const isDelegatedTask = delegation && text.trim() === delegation.taskCommand.trim();
@@ -562,6 +594,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     const bashSearchCommand = isBashTool && bashCommand ? parseBashSearchCommand(bashCommand) : null;
     const bashNotificationCommand = isBashTool && bashCommand ? parseBashNotificationCommand(bashCommand) : null;
     const bashTaskLabelCommand = isBashTool && bashCommand ? parseBashTaskLabelCommand(bashCommand) : null;
+    const bashReportTaskCommand = isBashTool && bashCommand ? parseBashReportTaskCommand(bashCommand) : null;
 
     const handleParamClick = (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -659,6 +692,20 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
               >
                 <span className="bash-task-label-chip">📋 task</span>
                 <span className="bash-task-label-value">{bashTaskLabelCommand.taskLabel}</span>
+              </span>
+            ) : bashReportTaskCommand ? (
+              <span
+                className="output-tool-param bash-command bash-report-task-param"
+                onClick={handleBashClick}
+                title={bashReportTaskCommand.commandBody}
+                style={{ cursor: 'pointer' }}
+              >
+                <span className={`bash-report-task-chip ${bashReportTaskCommand.status === 'failed' ? 'status-failed' : 'status-completed'}`}>
+                  {bashReportTaskCommand.status === 'failed' ? '❌ report' : '✅ report'}
+                </span>
+                {bashReportTaskCommand.summary && (
+                  <span className="bash-report-task-summary">{bashReportTaskCommand.summary}</span>
+                )}
               </span>
             ) : bashSearchCommand ? (
               <span

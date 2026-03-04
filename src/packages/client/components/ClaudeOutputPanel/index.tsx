@@ -1272,6 +1272,13 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
                         progress={progress}
                         defaultExpanded={progress.status === 'working'}
                         onAgentClick={store.selectAgent}
+                        onDismiss={(subordinateId) => {
+                          if (activeAgentId) {
+                            store.clearAgentTaskProgress(activeAgentId, subordinateId);
+                          }
+                        }}
+                        onFileClick={handleFileClick}
+                        onBashClick={handleBashClick}
                       />
                     ))}
                   </div>

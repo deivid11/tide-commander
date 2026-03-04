@@ -3,10 +3,11 @@
  * Used in boss terminal to show when subordinates are executing delegated tasks
  */
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { AgentTaskProgress } from '../../store/types';
 import type { ClaudeOutput } from '../../store';
+import type { EditData } from './types';
 import { useFilteredOutputs } from '../shared/useFilteredOutputs';
 import { OutputLine } from './OutputLine';
 
@@ -14,12 +15,18 @@ interface AgentProgressIndicatorProps {
   progress: AgentTaskProgress;
   defaultExpanded?: boolean;
   onAgentClick?: (agentId: string) => void;
+  onDismiss?: (agentId: string) => void;
+  onFileClick?: (path: string, editData?: EditData | { highlightRange: { offset: number; limit: number } }) => void;
+  onBashClick?: (command: string, output: string) => void;
 }
 
 export function AgentProgressIndicator({
   progress,
   defaultExpanded: _defaultExpanded = false,
   onAgentClick,
+  onDismiss,
+  onFileClick,
+  onBashClick,
 }: AgentProgressIndicatorProps) {
   // Track user-initiated collapse state separately from status-based default
   const [userCollapsed, setUserCollapsed] = useState<boolean | null>(null);
@@ -104,6 +111,18 @@ export function AgentProgressIndicator({
           {statusText[progress.status]}
         </span>
         <span className="agent-progress-elapsed">{getElapsedTime()}</span>
+        {onDismiss && (
+          <span
+            className="agent-progress-dismiss"
+            title="Dismiss"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDismiss(progress.agentId);
+            }}
+          >
+            ×
+          </span>
+        )}
         <span className="agent-progress-toggle">{isExpanded ? '▼' : '▶'}</span>
       </div>
       {!isExpanded && <div className="agent-progress-task-preview">{truncatedTask}</div>}
@@ -116,6 +135,8 @@ export function AgentProgressIndicator({
                 output={progress.output}
                 agentId={progress.agentId}
                 maxHeight={200}
+                onFileClick={onFileClick}
+                onBashClick={onBashClick}
               />
             </div>
           )}
@@ -130,22 +151,18 @@ export function AgentProgressIndicator({
  * Uses the same "simple" view mode filtering as the main GuakeTerminal
  */
 interface AgentProgressOutputProps {
-  output: string[];
+  output: ClaudeOutput[];
   agentId: string;
   maxHeight?: number;
+  onFileClick?: (path: string, editData?: EditData | { highlightRange: { offset: number; limit: number } }) => void;
+  onBashClick?: (command: string, output: string) => void;
 }
 
-export function AgentProgressOutput({ output, agentId, maxHeight = 200 }: AgentProgressOutputProps) {
+export function AgentProgressOutput({ output, agentId, maxHeight = 200, onFileClick, onBashClick }: AgentProgressOutputProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Convert raw output strings to ClaudeOutput format
-  const outputObjects: ClaudeOutput[] = useMemo(() => {
-    return output.map((text, index) => ({
-      text,
-      isStreaming: false,
-      timestamp: Date.now() - (output.length - index) * 100,
-    }));
-  }, [output]);
+  // Output objects already come as ClaudeOutput with full tool metadata
+  const outputObjects = output;
 
   // Apply "simple" view mode filtering (same as GuakeTerminal)
   const filteredOutputs = useFilteredOutputs({
@@ -175,6 +192,8 @@ export function AgentProgressOutput({ output, agentId, maxHeight = 200 }: AgentP
           key={`progress-${index}`}
           output={outputObj}
           agentId={agentId}
+          onFileClick={onFileClick}
+          onBashClick={onBashClick}
         />
       ))}
     </div>

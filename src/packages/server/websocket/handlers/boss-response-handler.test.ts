@@ -70,9 +70,9 @@ More notes between blocks.
     await Promise.resolve();
 
     expect(runtimeService.sendCommand).toHaveBeenCalledTimes(3);
-    expect(runtimeService.sendCommand).toHaveBeenNthCalledWith(1, 'agent-1', 'Investigate token race around "refresh" flow', undefined, undefined, undefined);
-    expect(runtimeService.sendCommand).toHaveBeenNthCalledWith(2, 'agent-2', 'Implement fix in websocket handler', undefined, undefined, undefined);
-    expect(runtimeService.sendCommand).toHaveBeenNthCalledWith(3, 'agent-3', 'Add tests for malformed delegation payloads', undefined, undefined, undefined);
+    expect(runtimeService.sendCommand).toHaveBeenNthCalledWith(1, 'agent-1', expect.stringContaining('Investigate token race around "refresh" flow'), undefined, undefined, undefined);
+    expect(runtimeService.sendCommand).toHaveBeenNthCalledWith(2, 'agent-2', expect.stringContaining('Implement fix in websocket handler'), undefined, undefined, undefined);
+    expect(runtimeService.sendCommand).toHaveBeenNthCalledWith(3, 'agent-3', expect.stringContaining('Add tests for malformed delegation payloads'), undefined, undefined, undefined);
     expect(bossService.addDelegationToHistory).toHaveBeenCalledTimes(3);
   });
 
@@ -85,7 +85,7 @@ More notes between blocks.
     await Promise.resolve();
 
     expect(runtimeService.sendCommand).toHaveBeenCalledTimes(1);
-    expect(runtimeService.sendCommand).toHaveBeenCalledWith('agent-1', 'fallback delegated task', undefined, undefined, undefined);
+    expect(runtimeService.sendCommand).toHaveBeenCalledWith('agent-1', expect.stringContaining('fallback delegated task'), undefined, undefined, undefined);
   });
 
   it('skips invalid delegation items and emits clear error output', async () => {
@@ -101,7 +101,7 @@ More notes between blocks.
     await Promise.resolve();
 
     expect(runtimeService.sendCommand).toHaveBeenCalledTimes(1);
-    expect(runtimeService.sendCommand).toHaveBeenCalledWith('agent-1', 'valid', undefined, undefined, undefined);
+    expect(runtimeService.sendCommand).toHaveBeenCalledWith('agent-1', expect.stringContaining('valid'), undefined, undefined, undefined);
 
     const errorOutputs = broadcast.mock.calls
       .map((call) => call[0])

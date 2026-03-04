@@ -653,6 +653,65 @@ export function parseBashTaskLabelCommand(command: string): BashTaskLabelCommand
   };
 }
 
+export interface BashReportTaskCommandInfo {
+  shellPrefix?: string;
+  commandBody: string;
+  summary: string;
+  status: 'completed' | 'failed';
+}
+
+/**
+ * Parse Bash commands that report task completion to boss via curl POST /api/agents/.../report-task
+ * Returns null when command does not look like a report-task command.
+ */
+export function parseBashReportTaskCommand(command: string): BashReportTaskCommandInfo | null {
+  const trimmed = command.trim();
+  if (!trimmed) return null;
+
+  let shellPrefix: string | undefined;
+  let commandBody = trimmed;
+
+  const shellWrapped = trimmed.match(/^(\S+)\s+-lc\s+([\s\S]+)$/);
+  if (shellWrapped) {
+    shellPrefix = `${shellWrapped[1]} -lc`;
+    commandBody = stripWrappingQuotes(shellWrapped[2].trim());
+  }
+
+  if (!/\bcurl\b/.test(commandBody)) return null;
+  if (!/\/api\/agents\/.*\/report-task\b/.test(commandBody)) return null;
+
+  // Extract summary and status from JSON payload (supports both -d inline and heredoc)
+  let summary = '';
+  let status: 'completed' | 'failed' = 'completed';
+
+  // Try heredoc format: -d @- <<'EOF'\n{...}\nEOF
+  const heredocMatch = commandBody.match(/<<'?EOF'?\s*\n([\s\S]*?)\nEOF/);
+  if (heredocMatch) {
+    try {
+      const parsed = JSON.parse(heredocMatch[1].trim());
+      summary = parsed.summary || '';
+      status = parsed.status === 'failed' ? 'failed' : 'completed';
+    } catch { /* ignore parse errors */ }
+  } else {
+    // Try inline -d format
+    const payloadMatch = commandBody.match(/-d\s+((['"])([\s\S]*?)\2)/);
+    if (payloadMatch) {
+      const rawPayload = stripWrappingQuotes(payloadMatch[1]).replace(/\\"/g, '"');
+      const summaryMatch = rawPayload.match(/"summary"\s*:\s*"([^"]*)"/);
+      const statusMatch = rawPayload.match(/"status"\s*:\s*"([^"]*)"/);
+      if (summaryMatch) summary = summaryMatch[1];
+      if (statusMatch?.[1] === 'failed') status = 'failed';
+    }
+  }
+
+  return {
+    shellPrefix,
+    commandBody,
+    summary,
+    status,
+  };
+}
+
 /**
  * Parse tool name from "Using tool: ToolName" format
  */

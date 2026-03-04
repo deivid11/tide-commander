@@ -584,6 +584,209 @@
 }
 
 // ============================================================================
+// Delegated Task Message (shown on subordinate terminal when receiving from boss)
+// ============================================================================
+
+.delegated-task-message {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: $radius-sm;
+  background: color-mix(in srgb, var(--accent-purple) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-purple) 25%, transparent);
+  transition: all 0.15s ease;
+
+  &.expanded {
+    padding: 8px 12px;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--accent-purple) 14%, transparent) 0%, color-mix(in srgb, var(--accent-purple) 6%, transparent) 100%);
+    border-color: color-mix(in srgb, var(--accent-purple) 35%, transparent);
+  }
+}
+
+.delegated-task-message-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+
+  &:hover .delegated-task-message-toggle {
+    color: var(--accent-purple);
+  }
+}
+
+.delegated-task-message-icon {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.delegated-task-message-label {
+  font-family: $font-mono;
+  font-size: 11px;
+  color: color-mix(in srgb, var(--accent-purple) 80%, transparent);
+  letter-spacing: 0.3px;
+
+  strong {
+    color: var(--accent-purple);
+    font-weight: 600;
+  }
+}
+
+.delegated-task-message-id {
+  font-family: $font-mono;
+  font-size: 9px;
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+.delegated-task-message-toggle {
+  font-size: 8px;
+  color: color-mix(in srgb, var(--accent-purple) 50%, transparent);
+  margin-left: 2px;
+  transition: color 0.15s ease;
+}
+
+.delegated-task-message-preview {
+  font-family: $font-mono;
+  font-size: 11px;
+  color: color-mix(in srgb, var(--text-primary) 70%, transparent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 500px;
+}
+
+.delegated-task-message-command {
+  font-family: $font-mono;
+  font-size: 11px;
+  color: var(--text-primary);
+  line-height: 1.5;
+  padding: 6px 8px;
+  background: color-mix(in srgb, var(--bg-primary) 50%, transparent);
+  border-radius: $radius-sm;
+  border-left: 2px solid var(--accent-purple);
+  margin-top: 4px;
+  white-space: pre-wrap;
+}
+
+// ============================================================================
+// Task Report Header (shown on boss terminal when receiving completion report)
+// ============================================================================
+
+.task-report-header {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: $radius-sm;
+  transition: all 0.15s ease;
+
+  &.status-completed {
+    background: color-mix(in srgb, var(--accent-green) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-green) 25%, transparent);
+
+    &.expanded {
+      background: linear-gradient(135deg, color-mix(in srgb, var(--accent-green) 14%, transparent) 0%, color-mix(in srgb, var(--accent-green) 6%, transparent) 100%);
+      border-color: color-mix(in srgb, var(--accent-green) 35%, transparent);
+    }
+  }
+
+  &.status-failed {
+    background: color-mix(in srgb, var(--accent-red, #ef4444) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-red, #ef4444) 25%, transparent);
+
+    &.expanded {
+      background: linear-gradient(135deg, color-mix(in srgb, var(--accent-red, #ef4444) 14%, transparent) 0%, color-mix(in srgb, var(--accent-red, #ef4444) 6%, transparent) 100%);
+      border-color: color-mix(in srgb, var(--accent-red, #ef4444) 35%, transparent);
+    }
+  }
+}
+
+.task-report-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+
+  &:hover .task-report-toggle {
+    color: var(--text-primary);
+  }
+}
+
+.task-report-icon {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.task-report-label {
+  font-family: $font-mono;
+  font-size: 11px;
+  color: var(--text-secondary);
+  letter-spacing: 0.3px;
+
+  strong {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  .status-completed & {
+    strong { color: var(--accent-green); }
+  }
+
+  .status-failed & {
+    strong { color: var(--accent-red, #ef4444); }
+  }
+}
+
+.task-report-id {
+  font-family: $font-mono;
+  font-size: 9px;
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+.task-report-toggle {
+  font-size: 8px;
+  color: var(--text-muted);
+  margin-left: 2px;
+  transition: color 0.15s ease;
+}
+
+.task-report-summary {
+  font-family: $font-mono;
+  font-size: 11px;
+  color: var(--text-primary);
+  line-height: 1.4;
+  padding: 4px 8px;
+  background: color-mix(in srgb, var(--bg-primary) 40%, transparent);
+  border-radius: $radius-sm;
+  margin-top: 2px;
+}
+
+.task-report-details {
+  padding: 6px 8px;
+  margin-top: 4px;
+  background: color-mix(in srgb, var(--bg-primary) 50%, transparent);
+  border-radius: $radius-sm;
+}
+
+.task-report-detail-label {
+  font-family: $font-mono;
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-right: 6px;
+}
+
+.task-report-detail-value {
+  font-family: $font-mono;
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+// ============================================================================
 // Work Plan Block Styles - Using CSS variables for theme support
 // ============================================================================
 

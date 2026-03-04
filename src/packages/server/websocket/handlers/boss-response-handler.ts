@@ -325,7 +325,13 @@ export function parseBossDelegation(
 
       const targetAgent = agentService.getAgent(decision.selectedAgentId);
       const customAgentConfig = targetAgent ? buildCustomAgentConfig(decision.selectedAgentId, targetAgent.class) : undefined;
-      runtimeService.sendCommand(decision.selectedAgentId, decision.userCommand, undefined, undefined, customAgentConfig)
+
+      // Wrap the task command with boss delegation context so the subordinate knows:
+      // - Who delegated the task (boss name + ID)
+      // - That it should report back when done using the report-task endpoint
+      const delegatedMessage = `[DELEGATED TASK from boss "${bossName}" (${agentId})]\n\n${decision.userCommand}\n\n---\nThis task was delegated by your boss agent. When you finish, report completion using:\ncurl -s -X POST http://localhost:5174/api/agents/YOUR_AGENT_ID/report-task -H "Content-Type: application/json" -d '{"summary":"Brief result summary","status":"completed"}'`;
+
+      runtimeService.sendCommand(decision.selectedAgentId, delegatedMessage, undefined, undefined, customAgentConfig)
         .catch(err => {
           log.error(`Failed to auto-forward command to ${decision.selectedAgentName}:`, err);
         });

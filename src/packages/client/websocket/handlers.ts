@@ -536,12 +536,26 @@ export function handleServerMessage(message: ServerMessage): void {
     }
 
     case 'agent_task_output': {
-      const { bossId, subordinateId, output } = message.payload as {
+      const { bossId, subordinateId, output, isStreaming, timestamp, subagentName, toolName, toolInput, toolOutput } = message.payload as {
         bossId: string;
         subordinateId: string;
         output: string;
+        isStreaming?: boolean;
+        timestamp?: number;
+        subagentName?: string;
+        toolName?: string;
+        toolInput?: Record<string, unknown>;
+        toolOutput?: string;
       };
-      store.handleAgentTaskOutput(bossId, subordinateId, output);
+      store.handleAgentTaskOutput(bossId, subordinateId, {
+        text: output,
+        isStreaming: isStreaming || false,
+        timestamp: timestamp || Date.now(),
+        subagentName,
+        toolName,
+        toolInput,
+        toolOutput,
+      });
       break;
     }
 

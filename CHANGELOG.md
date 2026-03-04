@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.0] - 2026-03-04
+
+### Added
+- **Task report endpoint** - `POST /api/agents/:id/report-task` allows subordinates to report task completion/failure back to their boss agent with summary
+- **Report-task-to-boss skill** - New builtin skill enabling subordinate agents to report results to their boss
+- **Delegated task message UI** - Subordinate terminals now show a compact, expandable card for delegated tasks (with boss name, ID, and task command)
+- **Task report header UI** - Boss terminals display styled completion/failure reports from subordinates with status badges, summaries, and expandable details
+- **Bash report-task rendering** - curl commands to `/report-task` are rendered as compact status chips with summary preview in both live and history views
+- **Progress indicator dismiss button** - Boss terminal progress indicators now have a dismiss (x) button to clear completed task cards
+- **Progress indicator file/bash clicks** - Agent progress output now supports clickable file references and bash command inspection
+
+### Changed
+- **Delegated task wrapping** - Boss delegations now wrap the task command with context (boss name/ID and report-task instructions) so subordinates know how to report back
+- **Agent task progress output** - Progress output now carries full tool metadata (toolName, toolInput, toolOutput) instead of plain strings, enabling rich rendering in the boss terminal
+- **Boss response handler tests** - Updated delegation tests to use `expect.stringContaining()` matching the new wrapped delegation message format
+
 ## [1.5.0] - 2026-03-04
 
 ### Added

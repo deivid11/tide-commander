@@ -16,7 +16,7 @@ import {
 } from '../services/index.js';
 import { loadAreas, loadBuildings } from '../data/index.js';
 import { logger } from '../utils/index.js';
-import { setNotificationBroadcast, setExecBroadcast, setFocusAgentBroadcast } from '../routes/index.js';
+import { setNotificationBroadcast, setExecBroadcast, setFocusAgentBroadcast, setAgentsBroadcast } from '../routes/index.js';
 import { validateWebSocketAuth, isAuthEnabled } from '../auth/index.js';
 import { incrementWsSent, incrementWsReceived, setWsClientsCount } from '../routes/perf.js';
 import type { HandlerContext, MessageHandler } from './handlers/types.js';
@@ -392,6 +392,7 @@ export function init(server: HttpServer): WebSocketServer {
   setNotificationBroadcast(broadcast);
   setExecBroadcast(broadcast);
   setFocusAgentBroadcast(broadcast);
+  setAgentsBroadcast(broadcast);
 
   log.log('Handler initialized');
   return wss;

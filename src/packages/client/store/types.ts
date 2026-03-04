@@ -97,7 +97,7 @@ export interface AgentTaskProgress {
   agentName: string;
   taskDescription: string;
   status: 'working' | 'completed' | 'failed';
-  output: string[];           // Streaming output lines
+  output: AgentOutput[];      // Streaming output lines with tool metadata
   startedAt: number;
   completedAt?: number;
 }
