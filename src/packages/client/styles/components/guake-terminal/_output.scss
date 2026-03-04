@@ -13,6 +13,29 @@
   font-size: 13px;
   line-height: 1.6;
   color: var(--text-primary);
+  background: var(--bg-primary);
+
+  // Subtle background pattern for depth
+  position: relative;
+
+  &::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background:
+      repeating-linear-gradient(
+        0deg,
+        rgba(255, 255, 255, 0.02) 0px,
+        rgba(255, 255, 255, 0.02) 1px,
+        transparent 1px,
+        transparent 2px
+      );
+    pointer-events: none;
+    z-index: -1;
+  }
 
   a {
     color: var(--accent-blue);
@@ -58,20 +81,56 @@
     }
 
     code {
-      background: color-mix(in srgb, var(--bg-tertiary) 80%, transparent);
+      background: linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--accent-green) 12%, var(--bg-tertiary) 88%),
+        color-mix(in srgb, var(--accent-green) 8%, var(--bg-tertiary) 92%)
+      );
       color: var(--accent-green);
       padding: 0.15em 0.4em;
       border-radius: 3px;
       font-size: 0.9em;
+      border: 1px solid color-mix(in srgb, var(--accent-green) 15%, transparent);
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+      transition: all 0.15s ease;
+
+      &:hover {
+        border-color: color-mix(in srgb, var(--accent-green) 30%, transparent);
+        box-shadow: inset 0 1px 3px color-mix(in srgb, var(--accent-green) 15%, rgba(0, 0, 0, 0.2));
+      }
     }
 
     pre {
-      background: color-mix(in srgb, var(--bg-primary) 90%, transparent);
+      background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--bg-secondary) 70%, var(--bg-primary) 30%),
+        color-mix(in srgb, var(--bg-primary) 95%, transparent)
+      );
       border: 1px solid var(--border-color);
       border-radius: $radius-md;
       padding: 12px;
       margin: 0.6em 0;
       overflow-x: auto;
+      box-shadow:
+        0 2px 8px rgba(0, 0, 0, 0.15),
+        inset 0 1px 2px rgba(255, 255, 255, 0.05);
+      position: relative;
+
+      // Subtle left accent bar
+      &::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 3px;
+        background: linear-gradient(
+          to bottom,
+          var(--accent-cyan),
+          var(--accent-blue)
+        );
+        border-radius: $radius-md 0 0 $radius-md;
+      }
 
       code {
         background: none;
@@ -79,6 +138,8 @@
         color: var(--text-primary);
         font-size: 12px;
         line-height: 1.5;
+        position: relative;
+        z-index: 1;
       }
     }
 
@@ -98,11 +159,26 @@
     }
 
     blockquote {
-      border-left: 3px solid var(--accent-purple);
+      border-left: 4px solid var(--accent-purple);
       margin: 0.5em 0;
       padding: 0.5em 1em;
-      background: color-mix(in srgb, var(--accent-purple) 10%, transparent);
+      background: linear-gradient(
+        to right,
+        color-mix(in srgb, var(--accent-purple) 12%, var(--bg-secondary) 88%),
+        color-mix(in srgb, var(--accent-purple) 6%, var(--bg-secondary) 94%)
+      );
       border-radius: 0 $radius-sm $radius-sm 0;
+      box-shadow:
+        0 2px 6px rgba(0, 0, 0, 0.1),
+        inset 1px 0 0 color-mix(in srgb, var(--accent-purple) 20%, transparent);
+      transition: all 0.2s ease;
+
+      &:hover {
+        border-left-color: color-mix(in srgb, var(--accent-purple) 120%, white);
+        box-shadow:
+          0 3px 8px rgba(0, 0, 0, 0.15),
+          inset 1px 0 0 color-mix(in srgb, var(--accent-purple) 30%, transparent);
+      }
 
       p { margin: 0; }
     }
@@ -122,22 +198,53 @@
       border-collapse: collapse;
       margin: 0.6em 0;
       font-size: 12px;
+      overflow: hidden;
+      border-radius: $radius-sm;
+      border: 1px solid var(--border-color);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     }
 
     th, td {
       border: 1px solid var(--border-color);
-      padding: 6px 10px;
+      padding: 8px 12px;
       text-align: left;
+      transition: background 0.15s ease;
     }
 
     th {
-      background: color-mix(in srgb, var(--bg-tertiary) 80%, transparent);
+      background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--accent-pink) 15%, var(--bg-tertiary) 85%),
+        color-mix(in srgb, var(--accent-pink) 10%, var(--bg-tertiary) 90%)
+      );
       font-weight: 600;
       color: var(--accent-pink);
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      font-size: 11px;
     }
 
-    td { background: color-mix(in srgb, var(--bg-secondary) 50%, transparent); }
-    tr:nth-child(even) td { background: color-mix(in srgb, var(--bg-tertiary) 40%, transparent); }
+    td {
+      background: color-mix(in srgb, var(--bg-secondary) 40%, transparent);
+      transition: background 0.15s ease;
+    }
+
+    tr {
+      &:nth-child(even) td {
+        background: linear-gradient(
+          90deg,
+          color-mix(in srgb, var(--bg-tertiary) 35%, transparent),
+          color-mix(in srgb, var(--bg-secondary) 30%, transparent)
+        );
+      }
+
+      &:hover td {
+        background: color-mix(in srgb, var(--accent-cyan) 12%, var(--bg-secondary) 88%);
+      }
+    }
 
     // Checklist style
     input[type="checkbox"] {
@@ -153,30 +260,80 @@
 
   &.fade-in {
     opacity: 1;
-    transition: opacity 80ms ease-out;
+    transition: opacity 100ms ease-out;
+    animation: history-slide-in 0.2s ease-out;
+  }
+}
+
+@keyframes history-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
 // Output line types
 .output-line {
-  padding: 1px 0;
+  padding: 2px 0;
   word-wrap: break-word;
   background: var(--output-line-bg);
+  transition: background 0.15s ease;
+  border-radius: 2px;
 
   &.output-text {
     white-space: normal;
+  }
+
+  &:hover {
+    background: color-mix(in srgb, var(--output-line-bg) 100%, var(--accent-cyan) 5%);
   }
 }
 
 // Claude/Assistant message styling for live output
 // Using theme-specific message colors
 .output-claude {
-  background: var(--msg-assistant-bg);
+  background: linear-gradient(
+    to right,
+    var(--msg-assistant-bg),
+    color-mix(in srgb, var(--msg-assistant-bg) 90%, transparent)
+  );
   border-left: 3px solid var(--msg-assistant-border);
   padding: 8px 12px;
-  margin: 4px 0;
+  margin: 6px 0;
   border-radius: $radius-sm;
   color: var(--msg-assistant-text);
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.08),
+    inset 0 1px 2px rgba(255, 255, 255, 0.05);
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+
+  // Subtle accent gradient overlay
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 1px;
+    height: 100%;
+    background: linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--msg-assistant-border) 30%, transparent),
+      transparent
+    );
+  }
+
+  &:hover {
+    box-shadow:
+      0 3px 10px rgba(0, 0, 0, 0.12),
+      inset 0 1px 2px rgba(255, 255, 255, 0.08);
+    transform: translateX(2px);
+  }
 
   .output-role {
     color: var(--msg-assistant-text);
@@ -186,12 +343,44 @@
 // User prompt styling for live output
 // Using theme-specific message colors
 .output-user {
-  background: var(--msg-user-bg);
+  background: linear-gradient(
+    to right,
+    var(--msg-user-bg),
+    color-mix(in srgb, var(--msg-user-bg) 90%, transparent)
+  );
   border-left: 3px solid var(--msg-user-border);
   padding: 8px 12px;
-  margin: 4px 0;
+  margin: 6px 0;
   border-radius: $radius-sm;
   color: var(--msg-user-text);
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.08),
+    inset 0 1px 2px rgba(255, 255, 255, 0.05);
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+
+  // Subtle accent gradient overlay
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 1px;
+    height: 100%;
+    background: linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--msg-user-border) 30%, transparent),
+      transparent
+    );
+  }
+
+  &:hover {
+    box-shadow:
+      0 3px 10px rgba(0, 0, 0, 0.12),
+      inset 0 1px 2px rgba(255, 255, 255, 0.08);
+    transform: translateX(2px);
+  }
 
   .output-role {
     color: var(--msg-user-text);
@@ -201,18 +390,30 @@
 
 // System message styling (for runtime/session notifications)
 .output-system {
-  background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
+  background: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--accent-blue) 12%, transparent),
+    color-mix(in srgb, var(--accent-blue) 6%, transparent)
+  );
   border-left: 3px solid color-mix(in srgb, var(--accent-blue) 72%, var(--text-muted));
+  border-right: 1px solid color-mix(in srgb, var(--accent-blue) 20%, transparent);
   padding: 8px 12px;
-  margin: 4px 0;
+  margin: 6px 0;
   border-radius: $radius-sm;
   color: color-mix(in srgb, var(--accent-blue) 78%, var(--text-primary));
   font-size: 10px;
   line-height: 1.35;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  transition: all 0.15s ease;
+
+  &:hover {
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.12);
+  }
 
   .output-role {
     color: color-mix(in srgb, var(--accent-blue) 84%, var(--text-primary));
     font-size: 9px;
+    font-weight: 700;
   }
 }
 
@@ -290,19 +491,33 @@
   font-family: $font-mono;
   font-size: 9px;
   color: var(--text-muted);
-  background: color-mix(in srgb, var(--bg-primary) 70%, transparent);
-  padding: 1px 4px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--bg-primary) 75%, var(--bg-secondary) 25%),
+    color-mix(in srgb, var(--bg-primary) 70%, var(--bg-tertiary) 30%)
+  );
+  padding: 2px 6px;
   border-radius: 3px;
   flex-shrink: 0;
   user-select: none;
+  border: 1px solid color-mix(in srgb, var(--border-color) 30%, transparent);
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.03);
+  transition: all 0.15s ease;
 
   &--clickable {
     cursor: pointer;
-    transition: all 0.15s ease;
 
     &:hover {
       color: var(--accent-cyan);
-      background: color-mix(in srgb, var(--accent-cyan) 15%, var(--bg-primary) 70%);
+      background: linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--accent-cyan) 20%, var(--bg-primary) 80%),
+        color-mix(in srgb, var(--accent-cyan) 15%, var(--bg-primary) 85%)
+      );
+      border-color: color-mix(in srgb, var(--accent-cyan) 40%, transparent);
+      box-shadow:
+        inset 0 1px 2px rgba(255, 255, 255, 0.06),
+        0 0 8px color-mix(in srgb, var(--accent-cyan) 20%, transparent);
     }
   }
 }
@@ -317,14 +532,22 @@
   z-index: 1000;
   min-width: 280px;
   max-width: 400px;
-  background: color-mix(in srgb, var(--bg-primary) 97%, white);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--bg-primary) 98%, white),
+    color-mix(in srgb, var(--bg-secondary) 95%, var(--bg-primary) 5%)
+  );
   border: 1px solid var(--border-color);
   border-radius: $radius-md;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), 0 0 1px rgba(0, 0, 0, 0.3);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.2),
+    0 4px 16px rgba(0, 0, 0, 0.1),
+    0 0 1px rgba(255, 255, 255, 0.1);
   font-family: $font-mono;
   font-size: 11px;
   animation: msg-meta-fade-in 0.12s ease-out;
   pointer-events: auto;
+  backdrop-filter: blur(8px);
 
   &__header {
     display: flex;
@@ -381,11 +604,17 @@
     display: flex;
     align-items: baseline;
     gap: 8px;
-    padding: 2px 0;
+    padding: 4px 0;
     line-height: 1.4;
+    transition: background 0.1s ease;
+    border-radius: 2px;
 
     &:not(:last-child) {
-      border-bottom: 1px solid color-mix(in srgb, var(--border-color) 30%, transparent);
+      border-bottom: 1px solid color-mix(in srgb, var(--border-color) 25%, transparent);
+    }
+
+    &:hover {
+      background: color-mix(in srgb, var(--accent-cyan) 8%, transparent);
     }
   }
 
@@ -404,22 +633,32 @@
     color: var(--text-primary);
     word-break: break-all;
     cursor: pointer;
-    padding: 1px 3px;
+    padding: 2px 5px;
     border-radius: 2px;
-    transition: background 0.1s ease;
+    transition: all 0.1s ease;
+    border: 1px solid transparent;
 
     &:hover {
-      background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+      background: color-mix(in srgb, var(--accent-cyan) 18%, transparent);
+      border-color: color-mix(in srgb, var(--accent-cyan) 25%, transparent);
     }
 
     &:active {
-      background: color-mix(in srgb, var(--accent-cyan) 25%, transparent);
+      background: color-mix(in srgb, var(--accent-cyan) 28%, transparent);
+      border-color: color-mix(in srgb, var(--accent-cyan) 40%, transparent);
     }
 
     &.mono {
       font-family: $font-mono;
       font-size: 10px;
       color: var(--accent-green);
+      background: color-mix(in srgb, var(--accent-green) 10%, transparent);
+      border-color: color-mix(in srgb, var(--accent-green) 15%, transparent);
+
+      &:hover {
+        background: color-mix(in srgb, var(--accent-green) 15%, transparent);
+        border-color: color-mix(in srgb, var(--accent-green) 30%, transparent);
+      }
     }
   }
 }
@@ -524,43 +763,72 @@
 .output-context-stats {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 0;
+  gap: 10px;
+  padding: 6px 8px;
+  background: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--bg-secondary) 50%, transparent),
+    color-mix(in srgb, var(--bg-primary) 80%, transparent)
+  );
+  border-radius: 3px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 30%, transparent);
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: linear-gradient(
+      to right,
+      color-mix(in srgb, var(--bg-secondary) 60%, transparent),
+      color-mix(in srgb, var(--accent-purple) 8%, var(--bg-primary) 92%)
+    );
+    border-color: color-mix(in srgb, var(--accent-purple) 20%, transparent);
+  }
 
   .context-debug-hash {
     font-size: 9px;
     color: var(--text-muted);
     font-family: $font-mono;
+    opacity: 0.6;
   }
 
   .context-icon {
     color: var(--accent-purple);
-    font-size: 12px;
+    font-size: 13px;
+    opacity: 0.8;
+    transition: all 0.15s ease;
   }
 
   .context-label {
     font-size: 11px;
     color: var(--text-muted);
+    font-weight: 500;
   }
 
   .context-bar {
-    width: 80px;
-    height: 6px;
+    width: 100px;
+    height: 8px;
     background: var(--context-bar-bg);
-    border-radius: 3px;
+    border-radius: 4px;
     overflow: hidden;
     flex-shrink: 0;
+    border: 1px solid color-mix(in srgb, var(--context-bar-fill) 20%, transparent);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
 
     .context-bar-fill {
       height: 100%;
       border-radius: 3px;
-      background: var(--context-bar-fill);
+      background: linear-gradient(
+        90deg,
+        var(--context-bar-fill),
+        color-mix(in srgb, var(--context-bar-fill) 120%, white)
+      );
+      box-shadow: 0 0 4px color-mix(in srgb, var(--context-bar-fill) 30%, rgba(0, 0, 0, 0.2));
+      transition: width 0.3s ease;
     }
   }
 
   .context-tokens {
     font-size: 11px;
-    font-weight: 600;
+    font-weight: 700;
     color: var(--context-bar-fill);
   }
 
@@ -572,7 +840,8 @@
   .context-msgs {
     font-size: 10px;
     color: var(--accent-green);
-    opacity: 0.7;
+    opacity: 0.85;
+    font-weight: 500;
   }
 }
 
@@ -580,33 +849,64 @@
 .output-skill-update {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 0;
+  gap: 10px;
+  padding: 6px 8px;
+  background: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--accent-blue) 8%, transparent),
+    color-mix(in srgb, var(--accent-blue) 4%, transparent)
+  );
+  border-radius: 3px;
+  border: 1px solid color-mix(in srgb, var(--accent-blue) 15%, transparent);
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: linear-gradient(
+      to right,
+      color-mix(in srgb, var(--accent-blue) 12%, transparent),
+      color-mix(in srgb, var(--accent-blue) 8%, transparent)
+    );
+    border-color: color-mix(in srgb, var(--accent-blue) 30%, transparent);
+  }
 
   .skill-update-icon {
     color: var(--accent-blue);
-    font-size: 12px;
+    font-size: 13px;
+    animation: skill-update-pulse 2s ease-in-out infinite;
   }
 
   .skill-update-label {
     font-size: 11px;
     color: var(--text-muted);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
   }
 
   .skill-update-list {
     font-size: 11px;
     color: var(--accent-cyan);
-    font-weight: 500;
+    font-weight: 600;
   }
 
   .skill-update-item {
     cursor: help;
+    transition: all 0.1s ease;
+    padding: 1px 3px;
+    border-radius: 2px;
 
     &:hover {
       text-decoration: underline;
       text-decoration-style: dotted;
+      background: color-mix(in srgb, var(--accent-cyan) 12%, transparent);
+      text-decoration-color: var(--accent-cyan);
     }
   }
+}
+
+@keyframes skill-update-pulse {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; }
 }
 
 // Empty assistant message placeholder
@@ -624,16 +924,43 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  padding: 6px 10px;
-  margin: 4px 0;
-  background: color-mix(in srgb, var(--accent-purple) 15%, transparent);
+  padding: 8px 12px;
+  margin: 6px 0;
+  background: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--accent-purple) 16%, transparent),
+    color-mix(in srgb, var(--accent-purple) 8%, transparent)
+  );
   border-left: 3px solid var(--accent-purple);
   border-radius: $radius-sm;
   cursor: pointer;
-  transition: background-color 0.15s ease;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  position: relative;
+  overflow: hidden;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 1px;
+    height: 100%;
+    background: linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--accent-purple) 25%, transparent),
+      transparent
+    );
+  }
 
   &:hover {
-    background: color-mix(in srgb, var(--accent-purple) 22%, transparent);
+    background: linear-gradient(
+      to right,
+      color-mix(in srgb, var(--accent-purple) 22%, transparent),
+      color-mix(in srgb, var(--accent-purple) 12%, transparent)
+    );
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12);
+    transform: translateX(1px);
   }
 
   .session-continuation-icon {
@@ -682,103 +1009,169 @@
 // Expandable subagent result content
 .subagent-result-section {
   width: 100%;
-  margin-top: 4px;
+  margin-top: 6px;
 
   .subagent-result-toggle {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    background: none;
-    border: none;
+    background: linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--accent-blue, #60a5fa) 8%, transparent),
+      color-mix(in srgb, var(--accent-blue, #60a5fa) 4%, transparent)
+    );
+    border: 1px solid color-mix(in srgb, var(--accent-blue, #60a5fa) 15%, transparent);
     color: var(--accent-blue, #60a5fa);
     font-size: 11px;
     cursor: pointer;
-    padding: 2px 6px;
+    padding: 4px 8px;
     border-radius: $radius-sm;
-    opacity: 0.8;
-    transition: opacity 0.15s ease, background-color 0.15s ease;
+    opacity: 0.85;
+    transition: all 0.15s ease;
+    font-weight: 500;
 
     &:hover {
       opacity: 1;
-      background: color-mix(in srgb, var(--accent-blue, #60a5fa) 12%, transparent);
+      background: color-mix(in srgb, var(--accent-blue, #60a5fa) 15%, transparent);
+      border-color: color-mix(in srgb, var(--accent-blue, #60a5fa) 30%, transparent);
+      box-shadow: 0 2px 6px color-mix(in srgb, var(--accent-blue, #60a5fa) 15%, rgba(0, 0, 0, 0.1));
     }
 
     .subagent-result-arrow {
       font-size: 9px;
+      transition: transform 0.15s ease;
     }
   }
 
   .subagent-result-content {
-    margin-top: 6px;
-    padding: 10px 12px;
-    background: color-mix(in srgb, var(--bg-secondary, #1e1e2e) 60%, transparent);
-    border-left: 3px solid var(--accent-blue, #60a5fa);
+    margin-top: 8px;
+    padding: 12px;
+    background: linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--bg-secondary, #1e1e2e) 65%, transparent),
+      color-mix(in srgb, var(--bg-primary) 70%, transparent)
+    );
+    border-left: 4px solid var(--accent-blue, #60a5fa);
     border-radius: $radius-sm;
+    border: 1px solid color-mix(in srgb, var(--accent-blue, #60a5fa) 20%, transparent);
     max-height: 600px;
     overflow-y: auto;
     font-size: 12px;
     color: var(--text-primary);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    animation: subagent-fade-in 0.2s ease-out;
+  }
+}
+
+@keyframes subagent-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
 // Collapsible codex-injected prompt preamble in user messages
 .injected-instructions {
-  margin: 6px 0 8px 0;
-  border: 1px solid color-mix(in srgb, var(--accent-yellow) 35%, var(--border-color));
+  margin: 8px 0 10px 0;
+  border: 1px solid color-mix(in srgb, var(--accent-yellow) 40%, var(--border-color));
   border-radius: $radius-sm;
-  background: color-mix(in srgb, var(--accent-yellow) 8%, transparent);
+  background: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--accent-yellow) 10%, transparent),
+    color-mix(in srgb, var(--accent-yellow) 5%, transparent)
+  );
   overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  transition: all 0.15s ease;
 
   .injected-instructions-header {
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 6px 8px;
+    padding: 8px 10px;
     cursor: pointer;
     user-select: none;
     font-size: 11px;
     color: var(--text-secondary);
     border-bottom: 1px solid transparent;
-    transition: background-color 0.15s ease;
+    transition: all 0.15s ease;
 
     &:hover {
-      background: color-mix(in srgb, var(--accent-yellow) 12%, transparent);
+      background: linear-gradient(
+        to right,
+        color-mix(in srgb, var(--accent-yellow) 15%, transparent),
+        color-mix(in srgb, var(--accent-yellow) 8%, transparent)
+      );
+      border-bottom-color: color-mix(in srgb, var(--accent-yellow) 25%, transparent);
     }
   }
 
   .injected-instructions-icon {
     color: var(--accent-yellow);
+    font-size: 12px;
   }
 
   .injected-instructions-label {
     font-weight: 600;
-    color: var(--text-primary);
+    color: var(--accent-yellow);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
   }
 
   .injected-instructions-toggle {
     margin-left: auto;
     font-size: 10px;
     color: var(--text-muted);
+    transition: transform 0.15s ease;
   }
 
   .injected-instructions-content {
-    padding: 8px 10px;
-    border-top: 1px solid color-mix(in srgb, var(--accent-yellow) 20%, var(--border-color));
+    padding: 10px 12px;
+    border-top: 1px solid color-mix(in srgb, var(--accent-yellow) 25%, var(--border-color));
     max-height: 320px;
     overflow-y: auto;
     font-size: 12px;
+    background: color-mix(in srgb, var(--accent-yellow) 3%, transparent);
+  }
+
+  &.expanded {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   }
 }
 
 .output-separator {
   text-align: center;
-  padding: 8px;
+  padding: 12px 8px;
   color: var(--text-muted);
   font-size: 10px;
   letter-spacing: 1px;
-  border-top: 1px dashed color-mix(in srgb, var(--border-color) 60%, transparent);
-  border-bottom: 1px dashed color-mix(in srgb, var(--border-color) 60%, transparent);
-  margin: 8px 0;
+  border-top: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
+  margin: 10px 0;
+  background: linear-gradient(
+    to right,
+    transparent,
+    color-mix(in srgb, var(--border-color) 20%, transparent),
+    transparent
+  );
+  position: relative;
+  opacity: 0.7;
+  transition: opacity 0.15s ease;
+
+  &:hover {
+    opacity: 1;
+  }
+
+  &::before {
+    content: '—';
+    display: inline-block;
+    margin: 0 6px;
+    color: color-mix(in srgb, var(--accent-cyan) 50%, var(--text-muted) 50%);
+  }
 }
 
 // =============================================================================
@@ -787,33 +1180,47 @@
 
 .message-nav-wrapper {
   position: relative;
-  transition: background-color 0.15s ease;
+  transition: all 0.15s ease;
+  border-radius: 2px;
 
   &.message-selected {
-    background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+    background: linear-gradient(
+      to right,
+      color-mix(in srgb, var(--accent-cyan) 18%, transparent),
+      color-mix(in srgb, var(--accent-cyan) 8%, transparent)
+    );
     border-left: 3px solid var(--accent-cyan);
+    border-right: 1px solid color-mix(in srgb, var(--accent-cyan) 15%, transparent);
     margin-left: -3px;
 
     // Add a subtle glow effect
-    box-shadow: inset 0 0 12px color-mix(in srgb, var(--accent-cyan) 10%, transparent);
+    box-shadow:
+      inset 0 0 12px color-mix(in srgb, var(--accent-cyan) 10%, transparent),
+      0 0 12px color-mix(in srgb, var(--accent-cyan) 8%, rgba(0, 0, 0, 0.2));
 
     // Selection indicator arrow on the left
     &::before {
       content: '▶';
       position: absolute;
-      left: 4px;
+      left: 6px;
       top: 50%;
       transform: translateY(-50%);
       color: var(--accent-cyan);
-      font-size: 10px;
-      opacity: 0.8;
+      font-size: 11px;
+      opacity: 0.9;
       z-index: 1;
+      animation: selection-pulse 2s ease-in-out infinite;
     }
 
     // Ensure the content inside has proper padding to accommodate the arrow
     > .output-line,
     > .history-line {
-      padding-left: 18px;
+      padding-left: 20px;
     }
   }
+}
+
+@keyframes selection-pulse {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; }
 }

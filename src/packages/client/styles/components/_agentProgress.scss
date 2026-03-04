@@ -140,8 +140,12 @@
   background: $bg-primary;
   border-radius: 4px;
   margin-bottom: 8px;
-  white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: anywhere;
+
+  .markdown-content {
+    font-size: 12px;
+    line-height: 1.45;
+  }
 }
 
 .agent-progress-output-section {
@@ -244,6 +248,11 @@
     padding-bottom: 8px;
     border-bottom: 1px dashed rgba($border-color, 0.5);
   }
+
+  &.collapsed {
+    padding-bottom: 0;
+    border-bottom: none;
+  }
 }
 
 .agent-progress-container-header {
@@ -256,9 +265,15 @@
   color: $text-muted;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  cursor: pointer;
 
   .progress-count {
     color: $accent-orange;
+    font-weight: 600;
+  }
+
+  .agent-progress-container-toggle {
+    margin-left: auto;
     font-weight: 600;
   }
 }
