@@ -347,23 +347,6 @@
   text-align: right;
 }
 
-.unit-current-tool {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  background: rgba($accent-blue, 0.1);
-  border: 1px solid rgba($accent-blue, 0.3);
-  border-radius: $radius-sm;
-  margin-bottom: 8px;
-}
-
-.unit-tool-name {
-  font-size: 12px;
-  font-weight: 500;
-  color: $accent-blue;
-}
-
 .unit-task-label {
   padding: 8px;
   background: $bg-tertiary;

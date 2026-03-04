@@ -111,25 +111,6 @@ export const IdleTimer = memo(function IdleTimer({ lastActivity }: IdleTimerProp
   );
 });
 
-// ============================================================================
-// Current Tool Display
-// ============================================================================
-
-interface CurrentToolProps {
-  toolName: string;
-}
-
-export const CurrentTool = memo(function CurrentTool({ toolName }: CurrentToolProps) {
-  const { t } = useTranslation(['common']);
-  return (
-    <div className="unit-current-tool">
-      <span className="unit-stat-label">{t('unitPanel.using')}</span>
-      <span className="unit-tool-name">{toolName}</span>
-    </div>
-  );
-});
-
-// ============================================================================
 // Current Task Display
 // ============================================================================
 

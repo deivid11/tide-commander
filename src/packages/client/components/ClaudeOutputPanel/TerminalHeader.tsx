@@ -265,12 +265,14 @@ export const TerminalHeader = memo(function TerminalHeader({
             {!selectedAgent.taskLabel && lastInput && <span className="guake-last-input">{lastInput}</span>}
           </span>
         )}
-        {subagents.length > 0 && (
+        {subagents.filter(s => s.status === 'spawning' || s.status === 'working').length > 0 && (
           <span className="guake-subagents-indicator">
-            {subagents.map(sub => (
+            {subagents
+              .filter(s => s.status === 'spawning' || s.status === 'working')
+              .map(sub => (
               <span
                 key={sub.id}
-                className={`guake-subagent-badge ${sub.status === 'completed' ? 'completed' : sub.status === 'failed' ? 'failed' : 'active'}`}
+                className="guake-subagent-badge active"
                 title={`${sub.name} (${sub.subagentType}) - ${sub.status}`}
               >
                 <span className="guake-subagent-icon">⑂</span>

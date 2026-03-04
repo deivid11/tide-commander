@@ -47,6 +47,7 @@ export const STORAGE_KEYS = {
 
   // File Explorer
   TREE_PANEL_WIDTH: 'tide-tree-panel-width',
+  MOBILE_TREE_PANEL_HEIGHT: 'tide-mobile-tree-panel-height',
 
   // Agent Bar
   AGENT_ORDER: 'tide-agent-order',

@@ -23,7 +23,6 @@ import {
   AgentStatsGrid,
   ContextBar,
   IdleTimer,
-  CurrentTool,
   CurrentTask,
   WorkingDirectory,
   LastPrompt,
@@ -306,9 +305,6 @@ export function SingleAgentPanel({
 
       {/* Context Bar */}
       <ContextBar contextInfo={contextInfo} onClick={() => setShowContextModal(true)} />
-
-      {/* Current Tool */}
-      {agent.currentTool && <CurrentTool toolName={agent.currentTool} />}
 
       {/* Task Label */}
       {agent.taskLabel && (
