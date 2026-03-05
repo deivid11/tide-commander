@@ -145,7 +145,7 @@ describe('Output Store Actions', () => {
       expect(outputs[199].text).toBe('msg-209');
     });
 
-    it('truncates oversized single output entries', () => {
+    it('preserves full content of large single output entries', () => {
       const { state, actions } = createMockStore();
       const hugeText = 'a'.repeat(40000); // ~80KB in UTF-16
 
@@ -153,8 +153,7 @@ describe('Output Store Actions', () => {
 
       const outputs = state.agentOutputs.get('agent-1')!;
       expect(outputs).toHaveLength(1);
-      expect(outputs[0].text.length).toBeLessThan(hugeText.length);
-      expect(outputs[0].text).toContain('[output truncated]');
+      expect(outputs[0].text).toBe(hugeText);
     });
 
     it('enforces total byte cap by evicting oldest outputs', () => {

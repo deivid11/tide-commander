@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.1] - 2026-03-05
+
+### Changed
+- **Name label sizing** - Fixed font size (420px cap) instead of shrink-to-fit loop, with text truncation and ellipsis for long names
+- **Name label scaling** - Larger base scales (2.5 regular, 3.1 boss) and larger status indicators (2.1/2.6)
+- **Layout versioning** - Added NAME_LABEL_LAYOUT_VERSION for automatic sprite rebuild on layout changes
+
+### Fixed
+- **Output truncation removed** - Removed per-entry 64KB truncation in output store, preserving full content
+
 ## [1.8.0] - 2026-03-05
 
 ### Added

@@ -16,6 +16,10 @@ const STATUS_COLORS: Record<string, number> = {
   default: 0x888888,
 };
 
+const NAME_LABEL_REFERENCE_FONT_SIZE = 800;
+const NAME_LABEL_MAX_FONT_SIZE = 420;
+const NAME_LABEL_LAYOUT_VERSION = 4;
+
 /**
  * Calculate remaining context percentage from agent data.
  */
@@ -41,6 +45,32 @@ export class VisualConfig {
   private manaBarCtx: CanvasRenderingContext2D | null = null;
 
   constructor(private animConfig: AnimationConfigurator) {}
+
+  private getNameLabelBaseScale(isBoss: boolean, hasTaskLabel: boolean): number {
+    void hasTaskLabel;
+    return isBoss ? 3.1 : 2.5;
+  }
+
+  private fitNameLabelText(
+    ctx: CanvasRenderingContext2D,
+    name: string,
+    fontSize: number,
+    maxWidth: number,
+    hasProviderDot: boolean
+  ): string {
+    ctx.font = `bold ${fontSize}px Arial`;
+    const availableWidth = maxWidth - (hasProviderDot ? (fontSize * 0.42) + (fontSize * 0.3) : 0);
+    if (ctx.measureText(name).width <= availableWidth) {
+      return name;
+    }
+
+    let displayName = name;
+    while (displayName.length > 3 && ctx.measureText(`${displayName}...`).width > availableWidth) {
+      displayName = displayName.slice(0, -1);
+    }
+
+    return `${displayName}...`;
+  }
 
   /**
    * Get color for a status string.
@@ -108,7 +138,7 @@ export class VisualConfig {
     const sprite = new THREE.Sprite(material);
     const padding = isBoss ? 0.8 : 0.5;
     sprite.position.y = modelHeight + padding;
-    const baseScale = isBoss ? 2.0 : 1.6;
+    const baseScale = isBoss ? 2.6 : 2.1;
     const aspectRatio = canvas.height / canvas.width;
     sprite.scale.set(baseScale, baseScale * aspectRatio, 1);
     sprite.name = 'statusBar';
@@ -130,7 +160,7 @@ export class VisualConfig {
     canvas.width = 4096;
     canvas.height = taskLabel ? 2048 : 1024;
 
-    this.drawNameLabel(ctx, canvas.width, canvas.height, name, color, provider, taskLabel);
+    this.drawNameLabel(ctx, canvas.width, canvas.height, name, color, isBoss, provider, taskLabel);
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.minFilter = THREE.LinearMipmapLinearFilter;
@@ -147,8 +177,8 @@ export class VisualConfig {
     });
 
     const sprite = new THREE.Sprite(material);
-    // When task label is present, use a much wider sprite so text stays legible and shift down
-    const baseScale = isBoss ? 4.2 : 3.5;
+    // Name-only labels should stay compact; task-label variants need a wider card.
+    const baseScale = this.getNameLabelBaseScale(isBoss, !!taskLabel);
     sprite.position.y = taskLabel
       ? (isBoss ? -1.2 : -1.0)
       : (isBoss ? -0.9 : -0.7);
@@ -158,6 +188,7 @@ export class VisualConfig {
     sprite.renderOrder = 1200;
     sprite.userData.baseIndicatorScale = baseScale;
     sprite.userData.aspectRatio = aspectRatio;
+    sprite.userData.nameLabelLayoutVersion = NAME_LABEL_LAYOUT_VERSION;
 
     return sprite;
   }
@@ -171,6 +202,7 @@ export class VisualConfig {
     height: number,
     name: string,
     color: number,
+    isBoss: boolean,
     provider?: string,
     taskLabel?: string
   ): void {
@@ -181,22 +213,14 @@ export class VisualConfig {
     // When task label is present, shift name up to make room
     const nameY = taskLabel ? height * 0.3 : height / 2;
 
-    let fontSize = 800;
-    const minFontSize = 300;
     const hasProviderDot = provider === 'claude' || provider === 'codex';
-    const dotSize = hasProviderDot ? fontSize * 0.42 : 0;
-    const dotGap = hasProviderDot ? fontSize * 0.3 : 0;
-    const maxWidth = width - 400 - (hasProviderDot ? (dotSize + dotGap) : 0);
+    const fontSize = isBoss
+      ? Math.max(NAME_LABEL_MAX_FONT_SIZE, NAME_LABEL_REFERENCE_FONT_SIZE - 300)
+      : NAME_LABEL_MAX_FONT_SIZE;
 
     ctx.font = `bold ${fontSize}px Arial`;
-    let textWidth = ctx.measureText(name).width;
-
-    while (textWidth > maxWidth && fontSize > minFontSize) {
-      fontSize -= 40;
-      ctx.font = `bold ${fontSize}px Arial`;
-      textWidth = ctx.measureText(name).width;
-    }
-
+    const displayName = this.fitNameLabelText(ctx, name, fontSize, width - 400, hasProviderDot);
+    const textWidth = ctx.measureText(displayName).width;
     const dotDiameter = hasProviderDot ? fontSize * 0.42 : 0;
     const dotSpacing = hasProviderDot ? fontSize * 0.3 : 0;
     const providerBlock = dotDiameter + dotSpacing;
@@ -214,7 +238,7 @@ export class VisualConfig {
     ctx.strokeStyle = '#000';
     ctx.lineWidth = fontSize * 0.14;
     ctx.lineJoin = 'round';
-    ctx.strokeText(name, textX, nameY);
+    ctx.strokeText(displayName, textX, nameY);
 
     ctx.shadowColor = 'transparent';
     ctx.shadowBlur = 0;
@@ -235,7 +259,7 @@ export class VisualConfig {
     }
 
     ctx.fillStyle = colorHex;
-    ctx.fillText(name, textX, nameY);
+    ctx.fillText(displayName, textX, nameY);
 
     // Task label (below the name)
     if (taskLabel) {
@@ -1121,13 +1145,19 @@ export class VisualConfig {
 
     // Name label: redraw if name or taskLabel changed
     const taskLabel = agent.taskLabel;
-    if (ud.agentName !== agent.name || ud._cachedTaskLabel !== taskLabel) {
-      const nameLabelSprite = group.getObjectByName('nameLabelSprite') as THREE.Sprite;
+    const nameLabelSprite = group.getObjectByName('nameLabelSprite') as THREE.Sprite;
+    const expectedBaseScale = this.getNameLabelBaseScale(isBoss, !!taskLabel);
+    const nameLabelLayoutDirty = !!nameLabelSprite && (
+      nameLabelSprite.userData.nameLabelLayoutVersion !== NAME_LABEL_LAYOUT_VERSION
+      || nameLabelSprite.userData.baseIndicatorScale !== expectedBaseScale
+    );
+
+    if (ud.agentName !== agent.name || ud._cachedTaskLabel !== taskLabel || nameLabelLayoutDirty) {
       if (nameLabelSprite) {
         // If taskLabel presence changed, we need to resize the canvas
         const hadTaskLabel = !!ud._cachedTaskLabel;
         const hasTaskLabel = !!taskLabel;
-        if (hadTaskLabel !== hasTaskLabel) {
+        if (hadTaskLabel !== hasTaskLabel || nameLabelLayoutDirty) {
           // Recreate sprite with new canvas size
           const material = nameLabelSprite.material as THREE.SpriteMaterial;
           material.map?.dispose();
@@ -1145,7 +1175,7 @@ export class VisualConfig {
             if (canvas instanceof HTMLCanvasElement) {
               const ctx = canvas.getContext('2d');
               if (ctx) {
-                this.drawNameLabel(ctx, canvas.width, canvas.height, agent.name, classColor, agent.provider, taskLabel);
+                this.drawNameLabel(ctx, canvas.width, canvas.height, agent.name, classColor, isBoss, agent.provider, taskLabel);
                 material.map.needsUpdate = true;
               }
             }
