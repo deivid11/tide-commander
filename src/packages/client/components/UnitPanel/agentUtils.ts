@@ -3,6 +3,7 @@
  */
 
 import type { Agent } from '../../../shared/types';
+import { getDisplayContextInfo } from '../../utils/context';
 import type { ContextInfo } from './types';
 
 /**
@@ -36,32 +37,25 @@ export function formatRelativeTime(timestamp: number): string {
  * Calculate context info from agent stats
  */
 export function calculateContextInfo(agent: Agent): ContextInfo {
-  const stats = agent.contextStats;
-  if (stats) {
-    // Use data from /context command
-    const usedPercent = stats.usedPercent;
-    const freePercent = 100 - usedPercent;
-    const freeTokens = stats.contextWindow - stats.totalTokens;
+  if (agent.contextStats) {
+    const context = getDisplayContextInfo(agent);
     return {
-      remainingPercent: freePercent,
-      usedPercent,
+      remainingPercent: context.freePercent,
+      usedPercent: context.usedPercent,
       hasData: true,
-      totalTokens: stats.totalTokens,
-      contextWindow: stats.contextWindow,
-      freeTokens: freeTokens,
+      totalTokens: context.totalTokens,
+      contextWindow: context.contextWindow,
+      freeTokens: context.contextWindow - context.totalTokens,
     };
   }
-  // Fallback to basic calculation if no /context data
-  const used = agent.contextUsed || 0;
-  const limit = agent.contextLimit || 200000;
-  const remaining = Math.max(0, limit - used);
+  const context = getDisplayContextInfo(agent);
   return {
-    remainingPercent: (remaining / limit) * 100,
-    usedPercent: (used / limit) * 100,
+    remainingPercent: context.freePercent,
+    usedPercent: context.usedPercent,
     hasData: false,
-    totalTokens: used,
-    contextWindow: limit,
-    freeTokens: remaining,
+    totalTokens: context.totalTokens,
+    contextWindow: context.contextWindow,
+    freeTokens: context.contextWindow - context.totalTokens,
   };
 }
 

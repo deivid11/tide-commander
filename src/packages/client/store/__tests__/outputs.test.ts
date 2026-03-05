@@ -156,7 +156,7 @@ describe('Output Store Actions', () => {
       expect(outputs[0].text).toBe(hugeText);
     });
 
-    it('enforces total byte cap by evicting oldest outputs', () => {
+    it('preserves all large outputs until the count limit is reached', () => {
       const { state, actions } = createMockStore();
       const bigChunk = 'x'.repeat(20000); // ~40KB each
 
@@ -165,8 +165,8 @@ describe('Output Store Actions', () => {
       }
 
       const outputs = state.agentOutputs.get('agent-1')!;
-      expect(outputs.length).toBeLessThan(40);
-      // The latest outputs should be preserved after eviction.
+      expect(outputs).toHaveLength(40);
+      expect(outputs[0].text.startsWith('0:')).toBe(true);
       expect(outputs[outputs.length - 1].text.startsWith('39:')).toBe(true);
     });
   });

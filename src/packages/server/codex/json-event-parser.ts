@@ -37,6 +37,11 @@ interface CodexUsage {
   output_tokens?: number;
 }
 
+interface CodexTokenCountInfo {
+  model_context_window?: number;
+  last_token_usage?: CodexUsage;
+}
+
 interface CodexEventEnvelope {
   type?: string;
   item?: CodexItem;
@@ -47,9 +52,12 @@ interface CodexEventEnvelope {
 interface CodexResponsePayload {
   type?: string;
   status?: string;
+  text?: string;
   action?: CodexItemAction;
   item?: CodexItem;
   usage?: CodexUsage;
+  info?: CodexTokenCountInfo;
+  model_context_window?: number;
   // For custom_tool_call / custom_tool_call_output
   call_id?: string;
   name?: string;       // Tool name (e.g. "apply_patch")
@@ -179,9 +187,17 @@ function parseResponsePayload(payload: unknown): CodexResponsePayload | undefine
   return {
     type: asString(payload.type),
     status: asString(payload.status),
+    text: asString(payload.text),
     action: parseAction(payload.action),
     item: parseItem(payload.item),
     usage: parseUsage(payload.usage),
+    info: isObject(payload.info)
+      ? {
+        model_context_window: asNumber(payload.info.model_context_window),
+        last_token_usage: parseUsage(payload.info.last_token_usage),
+      }
+      : undefined,
+    model_context_window: asNumber(payload.model_context_window),
     call_id: asString(payload.call_id),
     name: asString(payload.name),
     input: asString(payload.input),
@@ -197,10 +213,15 @@ function parseResponsePayload(payload: unknown): CodexResponsePayload | undefine
 export class CodexJsonEventParser {
   private activeToolByItemId = new Map<string, string>();
   private lastAgentMessageText: string | undefined;
+  private lastModelUsageSnapshot: {
+    contextWindow?: number;
+    inputTokens?: number;
+    outputTokens?: number;
+    cacheReadInputTokens?: number;
+  } | undefined;
   private enableFileDiffEnrichment: boolean;
   private workingDirectory: string;
   private gitRootCache = new Map<string, string | null>();
-
   constructor(options: CodexJsonEventParserOptions = {}) {
     this.enableFileDiffEnrichment = options.enableFileDiffEnrichment === true;
     this.workingDirectory = options.workingDirectory || process.cwd();
@@ -228,7 +249,7 @@ export class CodexJsonEventParser {
     if (!event?.type) return [];
 
     if (event.type === 'event_msg') {
-      return this.parseEventMsg(rawEvent);
+      return this.parseEventMsg(event.payload);
     }
 
     if (event.type === 'response_item') {
@@ -257,15 +278,19 @@ export class CodexJsonEventParser {
     return [this.buildUnknownEventFallback(`Unhandled Codex event type: ${event.type}`, rawEvent)];
   }
 
-  private parseEventMsg(rawEvent: unknown): RuntimeEvent[] {
-    if (!isObject(rawEvent)) return [];
-    const payload = rawEvent.payload;
-    if (!isObject(payload)) return [];
-
+  private parseEventMsg(payload: CodexResponsePayload | undefined): RuntimeEvent[] {
+    if (!payload) return [];
     const payloadType = asString(payload.type);
 
     // token_count: Silent. Token accounting is handled by turn.completed.
     if (payloadType === 'token_count') {
+      const usage = payload.info?.last_token_usage;
+      this.lastModelUsageSnapshot = {
+        contextWindow: payload.info?.model_context_window ?? this.lastModelUsageSnapshot?.contextWindow,
+        inputTokens: usage?.input_tokens,
+        outputTokens: usage?.output_tokens,
+        cacheReadInputTokens: usage?.cached_input_tokens,
+      };
       return [];
     }
 
@@ -283,6 +308,12 @@ export class CodexJsonEventParser {
 
     // task_started: Silent. Envelope event with no user-facing content.
     if (payloadType === 'task_started') {
+      if (payload.model_context_window) {
+        this.lastModelUsageSnapshot = {
+          ...this.lastModelUsageSnapshot,
+          contextWindow: payload.model_context_window,
+        };
+      }
       return [];
     }
 
@@ -549,6 +580,20 @@ export class CodexJsonEventParser {
       this.lastAgentMessageText = undefined; // Reset for next turn
     }
 
+    if (this.lastModelUsageSnapshot && (
+      this.lastModelUsageSnapshot.contextWindow
+      || this.lastModelUsageSnapshot.inputTokens !== undefined
+      || this.lastModelUsageSnapshot.outputTokens !== undefined
+      || this.lastModelUsageSnapshot.cacheReadInputTokens !== undefined
+    )) {
+      event.modelUsage = {
+        contextWindow: this.lastModelUsageSnapshot.contextWindow,
+        inputTokens: this.lastModelUsageSnapshot.inputTokens ?? 0,
+        outputTokens: this.lastModelUsageSnapshot.outputTokens ?? 0,
+        cacheReadInputTokens: this.lastModelUsageSnapshot.cacheReadInputTokens ?? 0,
+      };
+      this.lastModelUsageSnapshot = undefined;
+    }
     return [event];
   }
 

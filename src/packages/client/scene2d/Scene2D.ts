@@ -16,6 +16,7 @@ import { Scene2DEffects } from './Scene2DEffects';
 import { AGENT_CLASS_CONFIG, FORMATION_SPACING } from '../scene/config';
 import { fpsTracker } from '../utils/profiling';
 import { apiUrl, authUrl } from '../utils/storage';
+import { getDisplayContextInfo } from '../utils/context';
 
 /**
  * Agent data for 2D rendering
@@ -644,7 +645,7 @@ export class Scene2D {
       status: agent.status,
       isBoss: agent.isBoss === true || agent.class === 'boss',
       color,
-      contextRemaining: 100 - (agent.contextUsed ?? 0),
+      contextRemaining: getDisplayContextInfo(agent).freePercent,
       lastActivity: agent.lastActivity,
       subordinateIds: agent.subordinateIds,
       bossId: agent.bossId,
@@ -722,7 +723,7 @@ export class Scene2D {
     existing.status = agent.status;
     existing.isBoss = agent.isBoss === true || agent.class === 'boss';
     existing.color = color;
-    existing.contextRemaining = 100 - (agent.contextUsed ?? 0);
+    existing.contextRemaining = getDisplayContextInfo(agent).freePercent;
     existing.lastActivity = agent.lastActivity;
     existing.subordinateIds = agent.subordinateIds;
     existing.bossId = agent.bossId;

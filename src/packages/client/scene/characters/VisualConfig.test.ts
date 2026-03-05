@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { getContextRemainingPercent, VisualConfig } from './VisualConfig';
 import type { Agent } from '../../../shared/types';
+import { getDisplayContextInfo } from '../../utils/context';
 
 function createMockAgent(overrides: Partial<any> = {}): Agent {
   return {
@@ -43,13 +44,13 @@ describe('getContextRemainingPercent', () => {
     expect(getContextRemainingPercent(agent)).toBe(0);
   });
 
-  it('uses contextStats when available', () => {
+  it('uses contextStats when they match tracked fields', () => {
     const agent = createMockAgent({
-      contextUsed: 50000,
+      contextUsed: 150000,
       contextLimit: 200000,
-      contextStats: { usedPercent: 75 },
+      contextStats: { usedPercent: 75, totalTokens: 150000, contextWindow: 200000 },
     });
-    // Should use contextStats (100 - 75 = 25), not basic calc (75%)
+    // Matching tracked fields keep the authoritative stats path.
     expect(getContextRemainingPercent(agent)).toBe(25);
   });
 
@@ -72,6 +73,25 @@ describe('getContextRemainingPercent', () => {
     const agent = createMockAgent({ contextUsed: 0, contextLimit: 0 });
     // contextUsed || 0 = 0, contextLimit || 200000 = 200000
     expect(getContextRemainingPercent(agent)).toBe(100);
+  });
+
+  it('prefers tracked context fields when contextStats is stale', () => {
+    const agent = createMockAgent({
+      contextUsed: 11263,
+      contextLimit: 258400,
+      contextStats: {
+        usedPercent: 100,
+        totalTokens: 285979,
+        contextWindow: 200000,
+      },
+    });
+    expect(getDisplayContextInfo(agent)).toMatchObject({
+      totalTokens: 11263,
+      contextWindow: 258400,
+      usedPercent: 4.4,
+      freePercent: 95.6,
+    });
+    expect(getContextRemainingPercent(agent)).toBe(95.6);
   });
 });
 

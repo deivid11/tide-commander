@@ -9,27 +9,13 @@ import { perf } from '../utils/profiling';
 import { debugLog } from '../services/agentDebugger';
 
 const MAX_OUTPUTS_PER_AGENT = 200;
-const MAX_OUTPUT_BYTES_PER_AGENT = 1024 * 1024; // 1MB soft cap per agent output buffer
-
-function estimateTextBytes(text: string): number {
-  // JS strings are UTF-16, so 2 bytes per code unit is a good upper-bound estimate.
-  return text.length * 2;
-}
 
 function enforceOutputBufferLimits(outputs: AgentOutput[]): AgentOutput[] {
-  let next = outputs;
-
-  if (next.length > MAX_OUTPUTS_PER_AGENT) {
-    next = next.slice(-MAX_OUTPUTS_PER_AGENT);
+  if (outputs.length <= MAX_OUTPUTS_PER_AGENT) {
+    return outputs;
   }
 
-  let totalBytes = next.reduce((sum, item) => sum + estimateTextBytes(item.text), 0);
-  while (next.length > 1 && totalBytes > MAX_OUTPUT_BYTES_PER_AGENT) {
-    totalBytes -= estimateTextBytes(next[0].text);
-    next = next.slice(1);
-  }
-
-  return next;
+  return outputs.slice(-MAX_OUTPUTS_PER_AGENT);
 }
 
 export interface OutputActions {

@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 import type { Agent } from '../../../shared/types';
 import { useSupervisorLastReport, useLastPrompt, store, ClaudeOutput } from '../../store';
 import { formatTokens } from '../../utils/formatting';
+import { getDisplayContextInfo } from '../../utils/context';
 import { VirtualizedOutputList } from '../ClaudeOutputPanel/VirtualizedOutputList';
 import { ImageModal, BashModal, AgentResponseModalWrapper, type BashModalState } from '../ClaudeOutputPanel/TerminalModals';
 import { useTerminalInput } from '../ClaudeOutputPanel/useTerminalInput';
@@ -153,25 +154,13 @@ export function AgentPanel({
 
   // Calculate context usage info
   const contextInfo = useMemo(() => {
-    const stats = agent.contextStats;
-    if (stats) {
-      return {
-        usedPercent: stats.usedPercent,
-        freePercent: 100 - stats.usedPercent,
-        hasData: true,
-        totalTokens: stats.totalTokens,
-        contextWindow: stats.contextWindow,
-      };
-    }
-    const used = agent.contextUsed || 0;
-    const limit = agent.contextLimit || 200000;
-    const usedPercent = (used / limit) * 100;
+    const context = getDisplayContextInfo(agent);
     return {
-      usedPercent,
-      freePercent: 100 - usedPercent,
-      hasData: false,
-      totalTokens: used,
-      contextWindow: limit,
+      usedPercent: context.usedPercent,
+      freePercent: context.freePercent,
+      hasData: Boolean(agent.contextStats),
+      totalTokens: context.totalTokens,
+      contextWindow: context.contextWindow,
     };
   }, [agent.contextStats, agent.contextUsed, agent.contextLimit]);
 

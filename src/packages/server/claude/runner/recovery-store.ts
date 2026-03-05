@@ -6,6 +6,7 @@ import {
   clearRunningProcesses,
   type RunningProcessInfo,
 } from '../../data/index.js';
+import * as agentService from '../../services/agent-service.js';
 import { createLogger } from '../../utils/logger.js';
 
 const log = createLogger('Runner');
@@ -32,6 +33,7 @@ export class RunnerRecoveryStore {
 
     for (const [agentId, activeProcess] of this.activeProcesses) {
       if (activeProcess.process.pid) {
+        const agent = agentService.getAgent(agentId);
         processes.push({
           agentId,
           pid: activeProcess.process.pid,
@@ -40,6 +42,7 @@ export class RunnerRecoveryStore {
           outputFile: activeProcess.outputFile,
           stderrFile: activeProcess.stderrFile,
           lastRequest: activeProcess.lastRequest,
+          agentStatus: agent?.status,
         });
       }
     }
@@ -72,6 +75,12 @@ export class RunnerRecoveryStore {
 
       log.log(`❌ Process for agent ${savedProcess.agentId} (PID ${savedProcess.pid}) is no longer running`);
       if (!this.backend.requiresStdinInput() && savedProcess.sessionId && savedProcess.lastRequest) {
+        // Only resume agents that were actively working when persisted.
+        // Idle agents with live processes (e.g. Codex waiting for stdin) should not be resumed.
+        if (savedProcess.agentStatus && savedProcess.agentStatus !== 'working') {
+          log.log(`🔄 [RESUME] Skipping resume for agent ${savedProcess.agentId} - was ${savedProcess.agentStatus} (not working)`);
+          continue;
+        }
         toResume.push(savedProcess);
       }
     }
@@ -84,6 +93,13 @@ export class RunnerRecoveryStore {
 
     setTimeout(() => {
       for (const saved of toResume) {
+        // Verify the agent still exists (it may have been deleted)
+        const agent = agentService.getAgent(saved.agentId);
+        if (!agent) {
+          log.log(`🔄 [RESUME] Skipping resume for agent ${saved.agentId} - agent no longer exists`);
+          continue;
+        }
+
         const lastRequest = saved.lastRequest as RunnerRequest;
         log.log(`🔄 [RESUME] Resuming codex session for agent ${saved.agentId} (session ${saved.sessionId})`);
         this.run({

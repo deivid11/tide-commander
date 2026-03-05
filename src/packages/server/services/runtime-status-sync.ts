@@ -14,8 +14,8 @@ interface RuntimeStatusSyncDeps {
 
 export interface RuntimeStatusSyncApi {
   pollOrphanedAgents: () => Promise<void>;
-  syncAgentStatus: (agentId: string, isStartupSync?: boolean) => Promise<void>;
-  syncAllAgentStatus: (isStartupSync?: boolean) => Promise<void>;
+  syncAgentStatus: (agentId: string) => Promise<void>;
+  syncAllAgentStatus: () => Promise<void>;
 }
 
 export function createRuntimeStatusSync(deps: RuntimeStatusSyncDeps): RuntimeStatusSyncApi {
@@ -56,15 +56,19 @@ export function createRuntimeStatusSync(deps: RuntimeStatusSyncDeps): RuntimeSta
     }
   }
 
-  async function syncAgentStatus(agentId: string, isStartupSync: boolean = false): Promise<void> {
+  async function syncAgentStatus(agentId: string): Promise<void> {
     const agent = agentService.getAgent(agentId);
     if (!agent) return;
+    // Only working agents need sync — idle agents stay idle.
+    // We intentionally do NOT promote idle agents to working based on
+    // orphaned processes or session activity. That caused agents to
+    // incorrectly resume after backend restarts/reconnects.
+    if (agent.status !== 'working') return;
 
     const isTrackedProcess = getRunnerForAgent(agentId)?.isRunning(agentId) ?? false;
     if (isTrackedProcess) return;
 
     let isRecentlyActive = false;
-    let hasOrphanedProcess = false;
 
     if (agent.sessionId && agent.cwd) {
       try {
@@ -75,46 +79,21 @@ export function createRuntimeStatusSync(deps: RuntimeStatusSyncDeps): RuntimeSta
       } catch {
         // Session activity check failed, assume not active.
       }
-
-      if (agent.status === 'idle') {
-        try {
-          const provider = agent.provider ?? 'claude';
-          hasOrphanedProcess = await isProviderProcessRunningInCwd(provider, agent.cwd);
-          if (hasOrphanedProcess) {
-            log.log(`[syncAgentStatus] Agent ${agentId}: Found orphaned ${provider} process, isRecentlyActive=${isRecentlyActive}`);
-          }
-        } catch (err) {
-          log.error(`[syncAgentStatus] Agent ${agentId}: Failed to check for orphaned process:`, err);
-        }
-      }
     }
 
-    if (agent.status === 'working' && !isRecentlyActive && !hasOrphanedProcess) {
+    if (!isRecentlyActive) {
       agentService.updateAgent(agentId, {
         status: 'idle',
         currentTask: undefined,
         currentTool: undefined,
         isDetached: false,
       });
-    } else if (agent.status === 'idle' && hasOrphanedProcess && isRecentlyActive) {
-      const provider = agent.provider ?? 'claude';
-      log.log(`Agent ${agentId} has orphaned ${provider} process with recent activity - marking as working (detached)`);
-      agentService.updateAgent(agentId, {
-        status: 'working',
-        currentTask: 'Processing (detached)...',
-        isDetached: true,
-      });
-    } else if (isStartupSync && agent.status === 'idle' && isRecentlyActive) {
-      agentService.updateAgent(agentId, {
-        status: 'working',
-        currentTask: 'Processing...',
-      });
     }
   }
 
-  async function syncAllAgentStatus(isStartupSync: boolean = false): Promise<void> {
+  async function syncAllAgentStatus(): Promise<void> {
     const agents = agentService.getAllAgents();
-    await Promise.all(agents.map((agent) => syncAgentStatus(agent.id, isStartupSync)));
+    await Promise.all(agents.map((agent) => syncAgentStatus(agent.id)));
   }
 
   return {

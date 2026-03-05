@@ -21,6 +21,27 @@ function logAgentStore(...args: unknown[]): void {
   }
 }
 
+function mergeFreshestContext(existing: Agent | undefined, incoming: Agent): Agent {
+  if (!existing) return incoming;
+
+  const existingContextUpdatedAt = existing.contextStats?.lastUpdated ?? 0;
+  const incomingContextUpdatedAt = incoming.contextStats?.lastUpdated ?? 0;
+  const keepExistingContext =
+    existingContextUpdatedAt > 0
+    && existingContextUpdatedAt > incomingContextUpdatedAt;
+
+  if (!keepExistingContext) {
+    return incoming;
+  }
+
+  return {
+    ...incoming,
+    contextUsed: existing.contextUsed,
+    contextLimit: existing.contextLimit,
+    contextStats: existing.contextStats,
+  };
+}
+
 export interface AgentActions {
   // Agent CRUD
   setAgents(agentList: Agent[]): void;
@@ -102,8 +123,10 @@ export function createAgentActions(
     setAgents(agentList: Agent[]): void {
       perf.start('store:setAgents');
       const newAgents = new Map<string, Agent>();
+      const existingAgents = getState().agents;
       for (const agent of agentList) {
-        newAgents.set(agent.id, agent);
+        const existingAgent = existingAgents.get(agent.id);
+        newAgents.set(agent.id, mergeFreshestContext(existingAgent, agent));
         // Debug: log boss agents with subordinates
         if (agent.class === 'boss' || agent.isBoss) {
           logAgentStore('[Store.setAgents] Boss agent:', agent.name, 'subordinateIds:', agent.subordinateIds);
@@ -144,7 +167,7 @@ export function createAgentActions(
       let unseenChanged = false;
       setState((s) => {
         const newAgents = new Map(s.agents);
-        newAgents.set(agent.id, agent);
+        newAgents.set(agent.id, mergeFreshestContext(oldAgent, agent));
         s.agents = newAgents;
 
         // NEW: Mark agent as having unseen output when completing work

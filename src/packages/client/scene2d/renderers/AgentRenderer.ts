@@ -4,6 +4,7 @@ import type { EffectRenderer } from './EffectRenderer';
 import { AGENT_CLASS_CONFIG } from '../../scene/config';
 import type { BuiltInAgentClass } from '../../../shared/types';
 import { store } from '../../store';
+import { getDisplayContextInfo } from '../../utils/context';
 import { TOOL_ICONS } from '../../utils/outputRendering';
 import { BaseRenderer } from './BaseRenderer';
 
@@ -278,15 +279,7 @@ export class AgentRenderer extends BaseRenderer {
     this.ctx.fillText(agent.name, textX, labelY);
 
     // ========== CONTEXT/MANA BAR ==========
-    let contextPercent: number;
-    if (agent.contextStats) {
-      contextPercent = 100 - agent.contextStats.usedPercent;
-    } else {
-      const used = agent.contextUsed || 0;
-      const limit = agent.contextLimit || 200000;
-      const remaining = Math.max(0, limit - used);
-      contextPercent = (remaining / limit) * 100;
-    }
+    const contextPercent = getDisplayContextInfo(agent).freePercent;
     const manaPercent = Math.max(0, Math.min(100, contextPercent)) / 100;
 
     const barY = labelY + nameHeight / 2 + 8 * zoomScaleFactor;

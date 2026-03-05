@@ -525,7 +525,8 @@ function buildStatsFromTrackedData(agent: Agent): ContextStats {
   // Do NOT prefer agent.contextStats here — those can become stale when previous
   // fallback calls save their (potentially wrong) output back to agent.contextStats
   // via broadcastContextStats, creating a self-reinforcing feedback loop.
-  const contextLimit = Math.max(1, Math.round(agent.contextLimit || 200000));
+  const defaultContextLimit = (agent.provider ?? 'claude') === 'codex' ? 258400 : 200000;
+  const contextLimit = Math.max(1, Math.round(agent.contextLimit || defaultContextLimit));
   const rawContextUsed = Math.max(0, Math.round(agent.contextUsed || 0));
   // Guard: contextUsed can never exceed contextLimit. Values above the limit are
   // cumulative session totals from result events, not per-request context fill.
@@ -606,6 +607,7 @@ export async function handleRequestContextStats(
   }
 
   const isClaudeProvider = (agent.provider ?? 'claude') === 'claude';
+  const isCodexProvider = (agent.provider ?? 'claude') === 'codex';
 
   // For Claude agents with an active session, fetch real context stats from the CLI
   if (isClaudeProvider && agent.sessionId) {
@@ -636,6 +638,33 @@ export async function handleRequestContextStats(
       log.warn(`[contextStats] In-session /context produced no context_stats, falling back to tracked data`);
     } catch (err) {
       log.error(`[contextStats] In-session /context failed: ${err}`);
+    }
+  }
+
+  if (isCodexProvider && agent.sessionId) {
+    const codexSnapshot = agentService.getCodexContextSnapshotFromSession(agent.sessionId);
+    if (codexSnapshot) {
+      const contextLimit = Math.max(1, codexSnapshot.contextLimit);
+      const contextUsed = Math.max(0, Math.min(codexSnapshot.contextUsed, contextLimit));
+      const usedPercent = Math.min(100, Math.round((contextUsed / contextLimit) * 100));
+      const freeTokens = Math.max(0, contextLimit - contextUsed);
+      const stats: ContextStats = {
+        model: agent.codexModel || agent.model || 'codex',
+        contextWindow: contextLimit,
+        totalTokens: contextUsed,
+        usedPercent,
+        categories: {
+          systemPrompt: { tokens: 0, percent: 0 },
+          systemTools: { tokens: 0, percent: 0 },
+          messages: { tokens: contextUsed, percent: Number(((contextUsed / contextLimit) * 100).toFixed(1)) },
+          freeSpace: { tokens: freeTokens, percent: Number(((freeTokens / contextLimit) * 100).toFixed(1)) },
+          autocompactBuffer: { tokens: 0, percent: 0 },
+        },
+        lastUpdated: Date.now(),
+      };
+      log.log(`[contextStats] Codex session snapshot for ${agent.name}: ${contextUsed}/${contextLimit}`);
+      broadcastContextStats(ctx, payload.agentId, stats, 'from Codex session');
+      return;
     }
   }
 

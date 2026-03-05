@@ -11,7 +11,8 @@ import {
 } from './runtime-watchdog.js';
 import { handleTaskToolResult, handleTaskToolStart } from './runtime-subagents.js';
 
-const DEFAULT_CODEX_CONTEXT_WINDOW = 200000;
+const DEFAULT_CLAUDE_CONTEXT_WINDOW = 200000;
+const DEFAULT_CODEX_CONTEXT_WINDOW = 258400;
 const CODEX_ROLLING_CONTEXT_TURNS = 40;
 const CODEX_PLAUSIBLE_USAGE_MULTIPLIER = 1.2;
 const CODEX_RECOVERABLE_RESUME_ERRORS = [
@@ -87,6 +88,10 @@ function estimateTokensFromText(text: string | undefined): number {
   return Math.max(1, Math.ceil(normalized.length / 4));
 }
 
+function getDefaultContextWindow(provider: 'claude' | 'codex' | undefined): number {
+  return provider === 'codex' ? DEFAULT_CODEX_CONTEXT_WINDOW : DEFAULT_CLAUDE_CONTEXT_WINDOW;
+}
+
 function updateCodexRollingContextEstimate(agentId: string, turnGrowth: number): number {
   const history = codexContextGrowthHistory.get(agentId) || [];
   history.push(Math.max(0, Math.round(turnGrowth)));
@@ -119,7 +124,7 @@ function buildCodexRecoverySystemPrompt(sessionId: string, messages: SessionMess
 }
 
 function buildEstimatedContextStats(totalTokens: number, contextWindow: number, model?: string): ContextStats {
-  const safeWindow = contextWindow > 0 ? contextWindow : DEFAULT_CODEX_CONTEXT_WINDOW;
+  const safeWindow = contextWindow > 0 ? contextWindow : DEFAULT_CLAUDE_CONTEXT_WINDOW;
   const usedPercent = Math.min(100, Math.max(0, Math.round((totalTokens / safeWindow) * 100)));
   const freeTokens = Math.max(0, safeWindow - totalTokens);
   const messagesPercent = Number(((totalTokens / safeWindow) * 100).toFixed(1));
@@ -252,7 +257,7 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
             const snapshotContextUsed = cacheRead + cacheCreation + inputTokens;
 
             if (snapshotContextUsed > 0) {
-              const effectiveLimit = agent.contextLimit || 200000;
+              const effectiveLimit = agent.contextLimit || getDefaultContextWindow(agent.provider);
               // Guard against cumulative session totals: if the sum exceeds the
               // context window, it can't represent per-request context fill.
               if (snapshotContextUsed > effectiveLimit) {
@@ -316,7 +321,7 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
         const isContextCommand = lastTask === '/context' || lastTask === '/cost' || lastTask === '/compact';
 
         let contextUsed = agent.contextUsed || 0;
-        let contextLimit = agent.contextLimit || 200000;
+        let contextLimit = agent.contextLimit || getDefaultContextWindow(agent.provider);
 
         // IMPORTANT: event.modelUsage is often {} (empty object) which is truthy.
         // We must check that it has actual data before using it, otherwise we'd
@@ -346,12 +351,15 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
             contextLimit = event.modelUsage.contextWindow;
           }
           const turnGrowthEstimate = estimateTokensFromText(agent.lastAssignedTask) + outputTokens;
-          const rollingEstimate = updateCodexRollingContextEstimate(agentId, turnGrowthEstimate);
+          updateCodexRollingContextEstimate(agentId, turnGrowthEstimate);
           const plausibleSnapshotLimit = contextLimit * CODEX_PLAUSIBLE_USAGE_MULTIPLIER;
-          const hasPlausibleSnapshot = inputTokens > 0 && inputTokens <= plausibleSnapshotLimit;
-          contextUsed = hasPlausibleSnapshot
-            ? Math.max(rollingEstimate, inputTokens + outputTokens)
-            : rollingEstimate;
+          const hasAuthoritativeSnapshot = inputTokens > 0 && inputTokens <= plausibleSnapshotLimit;
+          if (hasAuthoritativeSnapshot) {
+            contextUsed = inputTokens;
+          } else {
+            const rollingEstimate = updateCodexRollingContextEstimate(agentId, 0);
+            contextUsed = rollingEstimate;
+          }
           log.log(`[step_complete] Codex modelUsage for ${agentId}: input=${inputTokens}, contextWindow=${event.modelUsage.contextWindow || 'none'}`);
         } else if (event.tokens) {
           if (isCodexProvider) {
@@ -376,11 +384,11 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
           const stats = agent.contextStats;
           if (stats && stats.contextWindow > 0) {
             contextUsed = Math.max(0, stats.totalTokens || 0);
-            contextLimit = Math.max(1, stats.contextWindow || 200000);
+            contextLimit = Math.max(1, stats.contextWindow || getDefaultContextWindow(agent.provider));
             log.log(`[step_complete] Context command for ${agentId}; preserving context from context_stats ${contextUsed}/${contextLimit}`);
           } else {
             contextUsed = agent.contextUsed || 0;
-            contextLimit = agent.contextLimit || 200000;
+            contextLimit = agent.contextLimit || getDefaultContextWindow(agent.provider);
             log.log(`[step_complete] Context command for ${agentId}; preserving context values from tracked fields`);
           }
         }
@@ -486,13 +494,44 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
 
   function handleComplete(agentId: string, success: boolean): void {
     const receivedStepComplete = consumeStepCompleteReceived(agentId);
+    const agent = agentService.getAgent(agentId);
+    const isCodexProvider = (agent?.provider ?? 'claude') === 'codex';
+    const finalCodexSnapshot = isCodexProvider
+      ? agentService.getCodexContextSnapshotFromSession(agent?.sessionId)
+      : null;
 
-    agentService.updateAgent(agentId, {
+    const completionUpdates: Record<string, unknown> = {
       status: 'idle',
       currentTask: undefined,
       currentTool: undefined,
       isDetached: false,
-    });
+    };
+
+    if (finalCodexSnapshot) {
+      completionUpdates.contextUsed = finalCodexSnapshot.contextUsed;
+      completionUpdates.contextLimit = finalCodexSnapshot.contextLimit;
+      // Build proper contextStats from the snapshot. Don't blindly copy
+      // finalCodexSnapshot.contextStats — CodexContextSnapshot doesn't have
+      // that field, so it would be `undefined` and wipe the valid stats
+      // set by step_complete.
+      const existingStats = agent?.contextStats;
+      if (existingStats && existingStats.lastUpdated) {
+        completionUpdates.contextStats = updateContextStatsTokens(
+          existingStats,
+          finalCodexSnapshot.contextUsed,
+          finalCodexSnapshot.contextLimit,
+        );
+      } else {
+        completionUpdates.contextStats = buildEstimatedContextStats(
+          finalCodexSnapshot.contextUsed,
+          finalCodexSnapshot.contextLimit,
+          agent?.codexModel || agent?.model,
+        );
+      }
+      log.log(`[complete] Refreshed Codex context for ${agentId}: ${finalCodexSnapshot.contextUsed}/${finalCodexSnapshot.contextLimit}`);
+    }
+
+    agentService.updateAgent(agentId, completionUpdates);
     emitComplete(agentId, success);
 
     // Real-time context tracking via usage_snapshot events replaces automatic /context refresh.

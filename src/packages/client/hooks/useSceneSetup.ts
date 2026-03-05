@@ -441,13 +441,21 @@ export function useSceneSetup({
         (window as any).__spawnModalSuccess?.();
       },
       onAgentUpdated: (agent, positionChanged) => {
-        sceneRef.current?.updateAgent(agent, positionChanged);
+        // Read the merged agent from the store instead of using the raw server
+        // data. The store applies mergeFreshestContext which preserves context
+        // stats when the server sends stale/wiped contextStats (e.g. during
+        // Codex handleComplete).
+        const mergedAgent = store.getState().agents.get(agent.id) || agent;
+        sceneRef.current?.updateAgent(mergedAgent, positionChanged);
       },
       onAgentDeleted: (agentId) => {
         sceneRef.current?.removeAgent(agentId);
       },
-      onAgentsSync: (agents) => {
-        sceneRef.current?.syncAgents(agents);
+      onAgentsSync: (_agents) => {
+        // Read from the store instead of raw server data. The store applies
+        // mergeFreshestContext which prevents stale context overwrites.
+        const mergedAgents = Array.from(store.getState().agents.values());
+        sceneRef.current?.syncAgents(mergedAgents);
       },
       onAreasSync: () => {
         // Re-sync agents after areas are loaded to filter out those in archived areas

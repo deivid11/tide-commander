@@ -343,11 +343,11 @@ function _checkForOrphanedProcess(agentId: string): boolean {
   }
 }
 
-export async function syncAgentStatus(agentId: string, isStartupSync: boolean = false): Promise<void> {
-  await statusSync.syncAgentStatus(agentId, isStartupSync);
+export async function syncAgentStatus(agentId: string): Promise<void> {
+  await statusSync.syncAgentStatus(agentId);
 }
 
-export async function syncAllAgentStatus(isStartupSync: boolean = false): Promise<void> {
-  await statusSync.syncAllAgentStatus(isStartupSync);
+export async function syncAllAgentStatus(): Promise<void> {
+  await statusSync.syncAllAgentStatus();
 }
 

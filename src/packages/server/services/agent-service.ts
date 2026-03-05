@@ -4,6 +4,8 @@
  */
 
 import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import type { Agent, AgentClass, PermissionMode, ClaudeModel, AgentProvider, CodexConfig, CodexModel } from '../../shared/types.js';
 import { loadAgents, saveAgents, saveAgentsAsync, getDataDir } from '../data/index.js';
 import {
@@ -18,6 +20,17 @@ import { logger, generateId } from '../utils/index.js';
 
 const log = logger.agent;
 const CLAUDE_MODELS = new Set<ClaudeModel>(['sonnet', 'opus', 'haiku']);
+const DEFAULT_CLAUDE_CONTEXT_LIMIT = 200000;
+const DEFAULT_CODEX_CONTEXT_LIMIT = 258400;
+
+interface CodexContextSnapshot {
+  contextUsed: number;
+  contextLimit: number;
+}
+
+function getDefaultContextLimit(provider: AgentProvider | undefined): number {
+  return provider === 'codex' ? DEFAULT_CODEX_CONTEXT_LIMIT : DEFAULT_CLAUDE_CONTEXT_LIMIT;
+}
 
 // In-memory agent storage
 const agents = new Map<string, Agent>();
@@ -58,6 +71,110 @@ export function sanitizeCodexModel(model: unknown): CodexModel | undefined {
   return trimmed.length > 0 ? (trimmed as CodexModel) : undefined;
 }
 
+function findFileRecursively(rootDir: string, pattern: string): string | null {
+  if (!fs.existsSync(rootDir)) return null;
+
+  const entries = fs.readdirSync(rootDir, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = path.join(rootDir, entry.name);
+    if (entry.isDirectory()) {
+      const nested = findFileRecursively(fullPath, pattern);
+      if (nested) return nested;
+      continue;
+    }
+    if (entry.isFile() && entry.name.includes(pattern) && entry.name.endsWith('.jsonl')) {
+      return fullPath;
+    }
+  }
+
+  return null;
+}
+
+function findCodexRolloutPath(sessionId: string): string | null {
+  const codexHome = path.join(os.homedir(), '.codex');
+  return findFileRecursively(path.join(codexHome, 'sessions'), sessionId)
+    || findFileRecursively(path.join(codexHome, 'archived_sessions'), sessionId);
+}
+
+function getCodexLogPath(): string {
+  return path.join(os.homedir(), '.codex', 'log', 'codex-tui.log');
+}
+
+function parseCodexEstimatedContextSnapshot(sessionId: string, contextLimit: number): CodexContextSnapshot | null {
+  const logPath = getCodexLogPath();
+  if (!fs.existsSync(logPath)) return null;
+
+  const lines = fs.readFileSync(logPath, 'utf8').split('\n');
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const line = lines[index];
+    if (!line.includes(sessionId) || !line.includes('estimated_token_count=Some(')) continue;
+
+    const estimatedMatch = line.match(/estimated_token_count=Some\((\d+)\)/);
+    if (!estimatedMatch) continue;
+
+    const estimatedTokens = Number(estimatedMatch[1]);
+    if (!Number.isFinite(estimatedTokens) || estimatedTokens < 0) continue;
+
+    return {
+      contextUsed: Math.max(0, Math.round(estimatedTokens)),
+      contextLimit,
+    };
+  }
+
+  return null;
+}
+
+function parseCodexContextSnapshot(rolloutPath: string): CodexContextSnapshot | null {
+  if (!fs.existsSync(rolloutPath)) return null;
+
+  const lines = fs.readFileSync(rolloutPath, 'utf8').split('\n');
+  let contextLimit = DEFAULT_CODEX_CONTEXT_LIMIT;
+
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const line = lines[index].trim();
+    if (!line) continue;
+
+    try {
+      const parsed = JSON.parse(line);
+      const payload = parsed?.payload;
+      if (payload?.type === 'token_count' && payload.info) {
+        const modelContextWindow = Number(payload.info.model_context_window);
+        if (Number.isFinite(modelContextWindow) && modelContextWindow > 0) {
+          contextLimit = modelContextWindow;
+        }
+
+        const inputTokens = Number(payload.info?.last_token_usage?.input_tokens);
+        if (Number.isFinite(inputTokens) && inputTokens >= 0) {
+          return {
+            contextUsed: Math.min(Math.round(inputTokens), contextLimit),
+            contextLimit,
+          };
+        }
+      }
+
+      if (payload?.type === 'task_started') {
+        const modelContextWindow = Number(payload.model_context_window);
+        if (Number.isFinite(modelContextWindow) && modelContextWindow > 0) {
+          contextLimit = modelContextWindow;
+        }
+      }
+    } catch {
+      // Ignore malformed lines and continue scanning older entries.
+    }
+  }
+
+  return null;
+}
+
+export function getCodexContextSnapshotFromSession(sessionId: string | undefined): CodexContextSnapshot | null {
+  if (!sessionId) return null;
+  const rolloutPath = findCodexRolloutPath(sessionId);
+  const rolloutSnapshot = rolloutPath ? parseCodexContextSnapshot(rolloutPath) : null;
+  const contextLimit = rolloutSnapshot?.contextLimit ?? DEFAULT_CODEX_CONTEXT_LIMIT;
+  const estimatedSnapshot = parseCodexEstimatedContextSnapshot(sessionId, contextLimit);
+  return estimatedSnapshot ?? rolloutSnapshot;
+}
+
 // ============================================================================
 // Initialization
 // ============================================================================
@@ -67,16 +184,29 @@ export function initAgents(): void {
     const storedAgents = loadAgents();
 
     for (const stored of storedAgents) {
-      const contextLimit = stored.contextLimit ?? 200000;
+      const isCodexProvider = (stored.provider ?? 'claude') === 'codex';
+      const repairedCodexContext = isCodexProvider
+        ? getCodexContextSnapshotFromSession(stored.sessionId)
+        : null;
+      const defaultContextLimit = getDefaultContextLimit(stored.provider ?? 'claude');
+      const migratedPersistedContextLimit = isCodexProvider
+        && (stored.contextLimit === undefined || stored.contextLimit === DEFAULT_CLAUDE_CONTEXT_LIMIT)
+        ? defaultContextLimit
+        : stored.contextLimit;
+      const contextLimit = repairedCodexContext?.contextLimit ?? migratedPersistedContextLimit ?? defaultContextLimit;
       const tokensUsed = stored.tokensUsed ?? 0;
       // Preserve persisted context usage. Falling back to lifetime tokens can
       // inflate context on restart because tokensUsed is cumulative over time.
       const persistedContextUsed = typeof stored.contextUsed === 'number'
         ? stored.contextUsed
         : tokensUsed;
+      const baseContextUsed = repairedCodexContext?.contextUsed ?? persistedContextUsed;
       // Don't clamp to contextLimit - contextUsed can legitimately exceed the default
       // 200k limit for models with larger context windows (up to 1M).
-      const contextUsed = Math.max(0, persistedContextUsed);
+      const contextUsed = Math.max(0, baseContextUsed);
+      const clearStaleContextStats = isCodexProvider
+        && stored.contextStats
+        && (stored.contextStats.contextWindow !== contextLimit || stored.contextStats.totalTokens !== contextUsed);
 
       const agent: Agent = {
         ...stored,
@@ -88,6 +218,7 @@ export function initAgents(): void {
         // Ensure context fields have defaults (migration for existing agents)
         contextUsed,
         contextLimit,
+        contextStats: clearStaleContextStats ? undefined : stored.contextStats,
         taskCount: stored.taskCount ?? 0, // Migration for existing agents
         permissionMode: stored.permissionMode ?? 'bypass', // Migration for existing agents
         useChrome: stored.useChrome, // Restore Chrome flag
@@ -228,7 +359,7 @@ export async function createAgent(
     codexConfig,
     tokensUsed: 0,
     contextUsed: 0,
-    contextLimit: 200000, // Claude's default context limit
+    contextLimit: getDefaultContextLimit(provider),
     taskCount: 0, // Initialize task counter
     createdAt: Date.now(),
     lastActivity: Date.now(),

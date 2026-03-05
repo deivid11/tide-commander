@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.3] - 2026-03-05
+
+### Added
+- **Codex context snapshot parsing** - Parse Codex session rollout files and TUI logs for accurate context usage tracking at init and completion
+- **Codex default context limit** - Codex agents now default to 258,400 token context window instead of 200,000
+- **Codex token_count event tracking** - Track model usage snapshots from token_count events for more accurate context estimates
+- **Codex turn_aborted marker filtering** - Filter `<turn_aborted>` noise from agent messages in Codex parser
+- **Recovery store improvements** - Recovery store now cleans up entries for deleted agents
+- **Agent service test suite** - New tests for agent-service context snapshot functions
+- **Runtime events test suite** - New tests for runtime event handling
+
+### Changed
+- **Codex context estimation** - Use authoritative input token snapshots directly instead of inflating with rolling estimates
+- **Agent panel** - Updated AgentPanel with improved agent utility functions
+- **2D scene renderer** - Updated Scene2D and AgentRenderer with provider-aware rendering
+- **Runtime status sync** - Simplified status sync logic
+- **Output store** - Improved output normalization and size handling
+- **Base styles** - Minor CSS adjustments
+
+### Fixed
+- **Codex event_msg parsing** - Pass parsed payload instead of raw event to parseEventMsg for correct type handling
+- **Context limit migration** - Fix Codex agents incorrectly inheriting Claude's 200k context limit from persisted data
+
 ## [1.8.2] - 2026-03-05
 
 ### Added

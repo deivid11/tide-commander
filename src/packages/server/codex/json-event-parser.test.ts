@@ -221,6 +221,58 @@ describe('CodexJsonEventParser', () => {
     });
   });
 
+  it('carries token_count and task_started snapshots into turn.completed modelUsage', () => {
+    const parser = new CodexJsonEventParser();
+
+    expect(parser.parseEvent({
+      type: 'event_msg',
+      payload: {
+        type: 'task_started',
+        model_context_window: 256000,
+      },
+    })).toEqual([]);
+
+    expect(parser.parseEvent({
+      type: 'event_msg',
+      payload: {
+        type: 'token_count',
+        info: {
+          model_context_window: 256000,
+          last_token_usage: {
+            input_tokens: 21000,
+            cached_input_tokens: 5000,
+            output_tokens: 700,
+          },
+        },
+      },
+    })).toEqual([]);
+
+    const events = parser.parseEvent({
+      type: 'turn.completed',
+      usage: {
+        input_tokens: 19000,
+        cached_input_tokens: 0,
+        output_tokens: 600,
+      },
+    });
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      type: 'step_complete',
+      modelUsage: {
+        contextWindow: 256000,
+        inputTokens: 21000,
+        outputTokens: 700,
+        cacheReadInputTokens: 5000,
+      },
+      tokens: {
+        input: 19000,
+        output: 600,
+        cacheRead: 0,
+      },
+    });
+  });
+
   it('emits text fallback for unhandled codex event types', () => {
     const parser = new CodexJsonEventParser();
     const events = parser.parseEvent({

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Agent, BuiltInAgentClass } from '../../../shared/types';
+import { getDisplayContextInfo } from '../../utils/context';
 import { AGENT_CLASS_CONFIG } from '../config';
 import type { AnimationConfigurator } from './AnimationConfigurator';
 
@@ -24,13 +25,7 @@ const NAME_LABEL_LAYOUT_VERSION = 5;
  * Calculate remaining context percentage from agent data.
  */
 export function getContextRemainingPercent(agent: Agent): number {
-  if (agent.contextStats) {
-    return 100 - agent.contextStats.usedPercent;
-  }
-  const used = agent.contextUsed || 0;
-  const limit = agent.contextLimit || 200000;
-  const remaining = Math.max(0, limit - used);
-  return (remaining / limit) * 100;
+  return getDisplayContextInfo(agent).freePercent;
 }
 
 /**

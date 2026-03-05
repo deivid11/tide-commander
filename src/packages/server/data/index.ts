@@ -636,6 +636,7 @@ export interface RunningProcessInfo {
   outputFile?: string;  // File where Claude writes stdout (for reconnection)
   stderrFile?: string;  // File where Claude writes stderr
   lastRequest?: unknown; // Last request for auto-restart (serialized)
+  agentStatus?: string; // Agent status at persist time - only 'working' agents should be resumed
 }
 
 interface RunningProcessesData {

@@ -51,7 +51,7 @@ describe('runtime-service codex detached behavior', () => {
     expect(mockRunnerStopAll).toHaveBeenCalledWith(false);
   });
 
-  it('marks idle codex agent as detached working when orphan process is active', async () => {
+  it('does not promote idle codex agent when orphan process is active', async () => {
     mockGetAgent.mockReturnValue({
       id: 'agent-codex',
       provider: 'codex',
@@ -66,16 +66,9 @@ describe('runtime-service codex detached behavior', () => {
     const { syncAgentStatus } = await import('./runtime-service.js');
     await syncAgentStatus('agent-codex');
 
-    expect(mockIsCodexProcessRunningInCwd).toHaveBeenCalledWith('/tmp/project');
+    expect(mockIsCodexProcessRunningInCwd).not.toHaveBeenCalled();
     expect(mockIsClaudeProcessRunningInCwd).not.toHaveBeenCalled();
-    expect(mockUpdateAgent).toHaveBeenCalledWith(
-      'agent-codex',
-      expect.objectContaining({
-        status: 'working',
-        currentTask: 'Processing (detached)...',
-        isDetached: true,
-      })
-    );
+    expect(mockUpdateAgent).not.toHaveBeenCalled();
   });
 
   it('kills detached codex process on stopAgent', async () => {

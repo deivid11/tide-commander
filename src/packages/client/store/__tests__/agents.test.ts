@@ -84,4 +84,54 @@ describe('Agent Store Actions', () => {
     expect(state.agentOutputs.get('agent-1')).toBeUndefined();
     expect(state.lastPrompts.get('agent-1')).toBeUndefined();
   });
+
+  it('preserves fresher context data when a stale agent snapshot arrives later', () => {
+    const { state, actions } = createMockStore();
+    state.agents.set('agent-1', {
+      ...state.agents.get('agent-1'),
+      contextUsed: 174000,
+      contextLimit: 258400,
+      contextStats: {
+        model: 'gpt-5.4',
+        contextWindow: 258400,
+        totalTokens: 174000,
+        usedPercent: 67.3,
+        categories: {
+          systemPrompt: { tokens: 0, percent: 0 },
+          systemTools: { tokens: 0, percent: 0 },
+          messages: { tokens: 174000, percent: 67.3 },
+          freeSpace: { tokens: 84400, percent: 32.7 },
+          autocompactBuffer: { tokens: 0, percent: 0 },
+        },
+        lastUpdated: 200,
+      },
+    } as any);
+
+    actions.updateAgent({
+      ...state.agents.get('agent-1'),
+      status: 'idle',
+      contextUsed: 33649,
+      contextLimit: 258400,
+      contextStats: {
+        model: 'gpt-5.4',
+        contextWindow: 258400,
+        totalTokens: 33649,
+        usedPercent: 13,
+        categories: {
+          systemPrompt: { tokens: 0, percent: 0 },
+          systemTools: { tokens: 0, percent: 0 },
+          messages: { tokens: 33649, percent: 13 },
+          freeSpace: { tokens: 224751, percent: 87 },
+          autocompactBuffer: { tokens: 0, percent: 0 },
+        },
+        lastUpdated: 100,
+      },
+    } as any);
+
+    const updated = state.agents.get('agent-1');
+    expect(updated?.status).toBe('idle');
+    expect(updated?.contextUsed).toBe(174000);
+    expect(updated?.contextStats?.totalTokens).toBe(174000);
+    expect(updated?.contextStats?.lastUpdated).toBe(200);
+  });
 });

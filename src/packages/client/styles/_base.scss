@@ -23,7 +23,14 @@ body {
   height: 100vh;
 }
 
-// Scrollbar - using CSS variables for theme support
+// Scrollbar - cross-browser dark scrollbar styling
+// Standard properties (Firefox, future browsers)
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-color) var(--bg-tertiary);
+}
+
+// WebKit/Blink (Chrome, Edge, Safari)
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;

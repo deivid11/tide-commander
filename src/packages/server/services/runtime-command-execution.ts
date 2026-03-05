@@ -3,6 +3,7 @@ import type { CustomAgentDefinition, RuntimeRunner } from '../runtime/index.js';
 import * as agentService from './agent-service.js';
 import {
   clearPendingSilentContextRefresh,
+  clearStdinWatchdog,
   hasPendingSilentContextRefresh,
   markPendingSilentContextRefresh,
   startStdinWatchdog,
@@ -230,6 +231,10 @@ export function createRuntimeCommandExecution(deps: RuntimeCommandExecutionDeps)
   }
 
   async function stopAgent(agentId: string): Promise<void> {
+    // Cancel any pending stdin watchdog timer to prevent it from respawning
+    // the process after we've stopped it
+    clearStdinWatchdog(agentId);
+
     const runner = getRunnerForAgent(agentId);
     if (runner) {
       await runner.stop(agentId);

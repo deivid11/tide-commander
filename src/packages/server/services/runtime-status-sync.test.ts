@@ -20,7 +20,7 @@ describe('runtime-status-sync', () => {
     vi.clearAllMocks();
   });
 
-  it('marks idle agent as detached working when orphan process has activity', async () => {
+  it('does not promote idle agent to working even when orphan process has activity', async () => {
     mockGetAgent.mockReturnValue({
       id: 'a1',
       status: 'idle',
@@ -40,14 +40,8 @@ describe('runtime-status-sync', () => {
 
     await sync.syncAgentStatus('a1');
 
-    expect(mockUpdateAgent).toHaveBeenCalledWith(
-      'a1',
-      expect.objectContaining({
-        status: 'working',
-        currentTask: 'Processing (detached)...',
-        isDetached: true,
-      })
-    );
+    // Idle agents must stay idle — no promotion to working/detached
+    expect(mockUpdateAgent).not.toHaveBeenCalled();
   });
 
   it('marks stale working agent as idle when no activity and no orphan process', async () => {

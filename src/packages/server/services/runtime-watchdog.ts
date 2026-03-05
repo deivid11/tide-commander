@@ -1,4 +1,5 @@
 import type { RuntimeRunner } from '../runtime/index.js';
+import * as agentService from './agent-service.js';
 import { logger } from '../utils/logger.js';
 
 const log = logger.claude;
@@ -53,6 +54,13 @@ export function startStdinWatchdog(options: StartStdinWatchdogOptions): void {
 
   const watchdogTimer = setTimeout(async () => {
     stdinWatchdogTimers.delete(agentId);
+
+    // Don't respawn if the agent was explicitly stopped (status is idle)
+    const agent = agentService.getAgent(agentId);
+    if (!agent || agent.status !== 'working') {
+      log.log(`[STDIN-WATCHDOG] Agent ${agentId}: Skipping respawn - agent is ${agent?.status ?? 'not found'}`);
+      return;
+    }
 
     if (runner && !runner.hasRecentActivity(agentId, STDIN_ACTIVITY_TIMEOUT_MS)) {
       log.warn(`[STDIN-WATCHDOG] Agent ${agentId}: No activity after stdin message, respawning process...`);
