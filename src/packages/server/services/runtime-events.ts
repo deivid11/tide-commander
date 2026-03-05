@@ -141,6 +141,57 @@ function buildEstimatedContextStats(totalTokens: number, contextWindow: number, 
   };
 }
 
+/**
+ * Update an existing contextStats with new totalTokens, keeping authoritative
+ * category breakdowns (from /context) if they exist, but always refreshing
+ * the top-level totalTokens/usedPercent/freeSpace so the value never goes stale.
+ */
+function updateContextStatsTokens(existing: ContextStats, totalTokens: number, contextWindow?: number): ContextStats {
+  const safeWindow = contextWindow && contextWindow > 0 ? contextWindow : existing.contextWindow;
+  const usedPercent = Math.min(100, Math.max(0, Math.round((totalTokens / safeWindow) * 100)));
+  const freeTokens = Math.max(0, safeWindow - totalTokens);
+  const freePercent = Number(((freeTokens / safeWindow) * 100).toFixed(1));
+
+  const cats = existing.categories;
+  const hasAuthoritativeBreakdown = (cats.systemPrompt?.tokens || 0) > 0 || (cats.systemTools?.tokens || 0) > 0;
+  let updatedCategories: ContextStats['categories'];
+
+  if (hasAuthoritativeBreakdown) {
+    // Authoritative breakdown from /context — keep systemPrompt/systemTools/autocompactBuffer,
+    // adjust messages to account for the difference
+    const fixedTokens = (cats.systemPrompt?.tokens || 0) + (cats.systemTools?.tokens || 0)
+      + (cats.autocompactBuffer?.tokens || 0);
+    const messagesTokens = Math.max(0, totalTokens - fixedTokens);
+    const messagesPercent = Number(((messagesTokens / safeWindow) * 100).toFixed(1));
+    updatedCategories = {
+      systemPrompt: cats.systemPrompt,
+      systemTools: cats.systemTools,
+      messages: { tokens: messagesTokens, percent: messagesPercent },
+      freeSpace: { tokens: freeTokens, percent: freePercent },
+      autocompactBuffer: cats.autocompactBuffer,
+    };
+  } else {
+    // Estimated mode — all tokens attributed to messages
+    const messagesPercent = Number(((totalTokens / safeWindow) * 100).toFixed(1));
+    updatedCategories = {
+      systemPrompt: { tokens: 0, percent: 0 },
+      systemTools: { tokens: 0, percent: 0 },
+      messages: { tokens: totalTokens, percent: messagesPercent },
+      freeSpace: { tokens: freeTokens, percent: freePercent },
+      autocompactBuffer: { tokens: 0, percent: 0 },
+    };
+  }
+
+  return {
+    ...existing,
+    contextWindow: safeWindow,
+    totalTokens,
+    usedPercent,
+    categories: updatedCategories,
+    lastUpdated: Date.now(),
+  };
+}
+
 export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunnerCallbacks {
   const {
     log,
@@ -217,9 +268,16 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
                 const updates: Record<string, unknown> = {
                   contextUsed: safeContextUsed,
                 };
-                // Build estimated contextStats so the frontend shows a real bar
-                // instead of "Not retrieved yet" — skip if authoritative /context data exists.
-                if (!agent.contextStats || !agent.contextStats.lastUpdated) {
+                // Always keep contextStats.totalTokens in sync with contextUsed.
+                // If authoritative stats exist (from /context), merge the new total
+                // while preserving category breakdowns. Otherwise build estimated stats.
+                if (agent.contextStats && agent.contextStats.lastUpdated) {
+                  updates.contextStats = updateContextStatsTokens(
+                    agent.contextStats,
+                    safeContextUsed,
+                    effectiveLimit,
+                  );
+                } else {
                   updates.contextStats = buildEstimatedContextStats(
                     safeContextUsed,
                     effectiveLimit,
@@ -339,11 +397,16 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
           contextUsed,
           contextLimit,
         };
-        // Build estimated contextStats for all providers so the frontend always
-        // has hasData=true. For Claude agents, skip if authoritative stats from
-        // a /context command already exist (they have category breakdowns).
-        const hasAuthoritativeStats = isClaudeProvider && agent.contextStats && agent.contextStats.lastUpdated > 0;
-        if (!hasAuthoritativeStats) {
+        // Always keep contextStats in sync. If authoritative stats exist (from
+        // /context), merge the updated totalTokens while preserving category
+        // breakdowns. Otherwise build fresh estimated stats.
+        if (agent.contextStats && agent.contextStats.lastUpdated) {
+          updates.contextStats = updateContextStatsTokens(
+            agent.contextStats,
+            Math.max(0, Math.round(contextUsed)),
+            Math.max(1, Math.round(contextLimit)),
+          );
+        } else {
           updates.contextStats = buildEstimatedContextStats(
             Math.max(0, Math.round(contextUsed)),
             Math.max(1, Math.round(contextLimit)),

@@ -309,6 +309,64 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
 
   // Use store's terminal state
   const isOpen = terminalOpen && activeAgent !== null;
+  const agentNavigationHistoryRef = useRef<string[]>([]);
+  const agentNavigationIndexRef = useRef(-1);
+  const isHistoryNavigationRef = useRef(false);
+  const isBrowserPopNavigationRef = useRef(false);
+  const browserHistoryInitializedRef = useRef(false);
+  const lastBrowserHistoryAgentIdRef = useRef<string | null>(null);
+  const [canNavigateBack, setCanNavigateBack] = useState(false);
+  const [canNavigateForward, setCanNavigateForward] = useState(false);
+
+  const updateAgentNavigationAvailability = useCallback(() => {
+    const history = agentNavigationHistoryRef.current;
+    const index = agentNavigationIndexRef.current;
+    setCanNavigateBack(index > 0);
+    setCanNavigateForward(index >= 0 && index < history.length - 1);
+  }, []);
+
+  const navigateAgentHistory = useCallback((direction: -1 | 1) => {
+    const history = agentNavigationHistoryRef.current;
+    if (history.length === 0) return;
+
+    let nextIndex = agentNavigationIndexRef.current + direction;
+    while (nextIndex >= 0 && nextIndex < history.length) {
+      const targetAgentId = history[nextIndex];
+      if (agents.has(targetAgentId)) {
+        isHistoryNavigationRef.current = true;
+        agentNavigationIndexRef.current = nextIndex;
+        updateAgentNavigationAvailability();
+        store.selectAgent(targetAgentId);
+        return;
+      }
+      // Skip removed/non-existent agents in history
+      nextIndex += direction;
+    }
+  }, [agents, updateAgentNavigationAvailability]);
+
+  const handleNavigateBack = useCallback(() => {
+    navigateAgentHistory(-1);
+  }, [navigateAgentHistory]);
+
+  const handleNavigateForward = useCallback(() => {
+    navigateAgentHistory(1);
+  }, [navigateAgentHistory]);
+
+  const setGuakeBrowserHistoryState = useCallback((agentId: string, mode: 'push' | 'replace') => {
+    if (typeof window === 'undefined') return;
+    const currentState = window.history.state;
+    const baseState = typeof currentState === 'object' && currentState !== null ? currentState : {};
+    const nextState = {
+      ...baseState,
+      __guakeAgentNav: { agentId },
+    };
+    if (mode === 'replace') {
+      window.history.replaceState(nextState, '', window.location.href);
+    } else {
+      window.history.pushState(nextState, '', window.location.href);
+    }
+  }, []);
+
   const handleFullscreenToggle = useCallback(() => {
     setIsFullscreen((previous) => {
       const next = !previous;
@@ -373,6 +431,16 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
   // Check if selected agent is a boss
   const isBoss = activeAgent?.class === 'boss' || activeAgent?.isBoss;
   const agentTaskProgress = useAgentTaskProgress(!isSnapshotView && isBoss ? activeAgentId : null);
+  const activeTaskProgress = useMemo(
+    () => Array.from(agentTaskProgress.values()).filter((progress) => progress.status === 'working'),
+    [agentTaskProgress]
+  );
+  const completedTaskProgressIds = useMemo(
+    () => Array.from(agentTaskProgress.values())
+      .filter((progress) => progress.status === 'completed' || progress.status === 'failed')
+      .map((progress) => progress.agentId),
+    [agentTaskProgress]
+  );
   const [agentProgressCollapsed, setAgentProgressCollapsed] = useState(true);
 
   // Get exec tasks for the selected agent
@@ -394,6 +462,20 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
       setAgentInfoOpen(false);
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!activeAgentId || !isBoss || isSnapshotView || completedTaskProgressIds.length === 0) {
+      return;
+    }
+
+    const dismissTimer = window.setTimeout(() => {
+      completedTaskProgressIds.forEach((subordinateId) => {
+        store.clearAgentTaskProgress(activeAgentId, subordinateId);
+      });
+    }, 300);
+
+    return () => window.clearTimeout(dismissTimer);
+  }, [activeAgentId, isBoss, isSnapshotView, completedTaskProgressIds]);
 
   // Detect completion state
   useEffect(() => {
@@ -627,6 +709,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
   const [mobileSwipeCloseOffset, setMobileSwipeCloseOffset] = useState(0);
   const [isMobileSwipeClosing, setIsMobileSwipeClosing] = useState(false);
   const isUserScrolledUpRef = useRef(false);
+  const pendingSelectionScrollRef = useRef(false);
   // Grace period after agent switch - don't detect user scroll during this time
   const agentSwitchGraceRef = useRef(false);
 
@@ -670,6 +753,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     setMobileSwipeCloseOffset(0);
     setIsMobileSwipeClosing(false);
     isUserScrolledUpRef.current = false;
+    pendingSelectionScrollRef.current = true;
     // Start grace period - for 3 seconds after agent change, don't detect user scroll
     agentSwitchGraceRef.current = true;
     const timeout = setTimeout(() => {
@@ -677,6 +761,118 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     }, 3000);
     return () => clearTimeout(timeout);
   }, [activeAgentId]);
+
+  useEffect(() => {
+    if (!activeAgentId) {
+      agentNavigationHistoryRef.current = [];
+      agentNavigationIndexRef.current = -1;
+      updateAgentNavigationAvailability();
+      browserHistoryInitializedRef.current = false;
+      lastBrowserHistoryAgentIdRef.current = null;
+      return;
+    }
+
+    const history = agentNavigationHistoryRef.current;
+    if (isHistoryNavigationRef.current) {
+      isHistoryNavigationRef.current = false;
+      updateAgentNavigationAvailability();
+      return;
+    }
+
+    const currentIndex = agentNavigationIndexRef.current;
+    if (currentIndex >= 0 && history[currentIndex] === activeAgentId) {
+      updateAgentNavigationAvailability();
+      return;
+    }
+
+    const trimmedHistory = currentIndex < history.length - 1
+      ? history.slice(0, currentIndex + 1)
+      : history.slice();
+
+    trimmedHistory.push(activeAgentId);
+    const MAX_AGENT_HISTORY = 100;
+    if (trimmedHistory.length > MAX_AGENT_HISTORY) {
+      trimmedHistory.shift();
+    }
+
+    agentNavigationHistoryRef.current = trimmedHistory;
+    agentNavigationIndexRef.current = trimmedHistory.length - 1;
+    updateAgentNavigationAvailability();
+  }, [activeAgentId, updateAgentNavigationAvailability]);
+
+  useEffect(() => {
+    if (!isOpen || !activeAgentId) return;
+
+    if (!browserHistoryInitializedRef.current) {
+      setGuakeBrowserHistoryState(activeAgentId, 'replace');
+      browserHistoryInitializedRef.current = true;
+      lastBrowserHistoryAgentIdRef.current = activeAgentId;
+      return;
+    }
+
+    if (isBrowserPopNavigationRef.current) {
+      isBrowserPopNavigationRef.current = false;
+      lastBrowserHistoryAgentIdRef.current = activeAgentId;
+      return;
+    }
+
+    if (lastBrowserHistoryAgentIdRef.current === activeAgentId) return;
+
+    setGuakeBrowserHistoryState(activeAgentId, 'push');
+    lastBrowserHistoryAgentIdRef.current = activeAgentId;
+  }, [isOpen, activeAgentId, setGuakeBrowserHistoryState]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handlePopState = (event: PopStateEvent) => {
+      const targetAgentId = event.state?.__guakeAgentNav?.agentId;
+      if (!targetAgentId || typeof targetAgentId !== 'string') return;
+      if (!agents.has(targetAgentId)) return;
+      if (targetAgentId === selectedAgentId) return;
+
+      // Route browser history navigation through the same terminal selection flow.
+      isBrowserPopNavigationRef.current = true;
+      isHistoryNavigationRef.current = true;
+
+      const history = agentNavigationHistoryRef.current;
+      const foundIndex = history.lastIndexOf(targetAgentId);
+      if (foundIndex >= 0) {
+        agentNavigationIndexRef.current = foundIndex;
+      } else {
+        history.push(targetAgentId);
+        agentNavigationIndexRef.current = history.length - 1;
+      }
+      updateAgentNavigationAvailability();
+      store.selectAgent(targetAgentId);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [isOpen, agents, selectedAgentId, updateAgentNavigationAvailability]);
+
+  useEffect(() => {
+    if (!pendingSelectionScrollRef.current) return;
+    if (!activeAgentId) return;
+    if (isAgentSwitching) return;
+    if (historyLoader.fetchingHistory) return;
+
+    let rafId = 0;
+    let rafId2 = 0;
+    rafId = requestAnimationFrame(() => {
+      rafId2 = requestAnimationFrame(() => {
+        if (outputScrollRef.current) {
+          outputScrollRef.current.scrollTop = outputScrollRef.current.scrollHeight;
+        }
+        pendingSelectionScrollRef.current = false;
+      });
+    });
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      cancelAnimationFrame(rafId2);
+    };
+  }, [activeAgentId, isAgentSwitching, historyLoader.fetchingHistory, historyLoader.historyLoadVersion]);
 
   // Keep historyLoader.handleScroll in a ref so handleScroll callback stays stable
   const historyLoaderHandleScrollRef = useRef(historyLoader.handleScroll);
@@ -891,6 +1087,26 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [activeAgent]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleHistoryNavigation = (event: KeyboardEvent) => {
+      if (!event.altKey) return;
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+
+      if (event.key === 'ArrowLeft' && canNavigateBack) {
+        event.preventDefault();
+        handleNavigateBack();
+      } else if (event.key === 'ArrowRight' && canNavigateForward) {
+        event.preventDefault();
+        handleNavigateForward();
+      }
+    };
+
+    document.addEventListener('keydown', handleHistoryNavigation);
+    return () => document.removeEventListener('keydown', handleHistoryNavigation);
+  }, [isOpen, canNavigateBack, canNavigateForward, handleNavigateBack, handleNavigateForward]);
 
   // Escape key handler for modals and search (higher priority than message navigation)
   useEffect(() => {
@@ -1143,6 +1359,10 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
           onToggleAgentInfo={toggleAgentInfo}
           isFullscreen={isFullscreen}
           onToggleFullscreen={handleFullscreenToggle}
+          onNavigateBack={handleNavigateBack}
+          onNavigateForward={handleNavigateForward}
+          canNavigateBack={canNavigateBack}
+          canNavigateForward={canNavigateForward}
           outputsLength={dedupedHistory.length + dedupedOutputs.length}
           setContextConfirm={setContextConfirm}
           headerRef={swipe.headerRef}
@@ -1260,7 +1480,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
                   />
                 )}
                 {/* Boss agent progress indicators */}
-                {!isAgentSwitching && isBoss && agentTaskProgress.size > 0 && (
+                {!isAgentSwitching && isBoss && activeTaskProgress.length > 0 && (
                   <div className={`agent-progress-container ${agentProgressCollapsed ? 'collapsed' : 'expanded'}`}>
                     <div
                       className="agent-progress-container-header"
@@ -1276,10 +1496,10 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
                     >
                       <span className="progress-crown">👑</span>
                       <span>{t('terminal:empty.subordinateProgress')}</span>
-                      <span className="progress-count">{t('terminal:empty.activeCount', { count: agentTaskProgress.size })}</span>
+                      <span className="progress-count">{t('terminal:empty.activeCount', { count: activeTaskProgress.length })}</span>
                       <span className="agent-progress-container-toggle">{agentProgressCollapsed ? '▶' : '▼'}</span>
                     </div>
-                    {!agentProgressCollapsed && Array.from(agentTaskProgress.values()).map((progress) => (
+                    {!agentProgressCollapsed && activeTaskProgress.map((progress) => (
                       <AgentProgressIndicator
                         key={progress.agentId}
                         progress={progress}

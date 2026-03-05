@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.0] - 2026-03-05
+
+### Added
+- **Working agent indicator** - Agent cards in overview panel now show a pulsing green dot and breathing glow animation when working
+- **Boss delegation rules** - Boss agents now have strict delegation-over-tool-use enforcement and parallelization caution instructions
+- **Auto-dismiss completed tasks** - Boss terminal progress indicators auto-clear completed/failed tasks after 300ms
+
+### Changed
+- **Agent progress container** - Only shows actively working tasks (not completed/failed), collapsed by default
+- **Agent progress expand logic** - Uses explicit `defaultExpanded` prop instead of auto-expanding based on status
+- **Context stats sync** - Runtime events now always keep contextStats in sync with token updates, preserving authoritative category breakdowns from /context
+- **Scroll on agent select** - Terminal auto-scrolls to bottom when switching agents, using double rAF for reliability
+
+### Fixed
+- **Unused variable lint** - Removed unused `nonFreeTokens` variable in runtime-events context stats
+
 ## [1.6.2] - 2026-03-04
 
 ### Changed

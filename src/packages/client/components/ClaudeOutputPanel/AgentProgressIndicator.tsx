@@ -26,21 +26,20 @@ interface AgentProgressIndicatorProps {
 
 export function AgentProgressIndicator({
   progress,
-  defaultExpanded: _defaultExpanded = false,
+  defaultExpanded = false,
   onAgentClick,
   onDismiss,
   onFileClick,
   onBashClick,
 }: AgentProgressIndicatorProps) {
-  // Track user-initiated collapse state separately from status-based default
+  // Track user-initiated collapse state separately from initial default
   const [userCollapsed, setUserCollapsed] = useState<boolean | null>(null);
 
-  // Auto-expand when working, but respect user's manual collapse
-  // When status changes to completed/failed, keep expanded to show "finished" state
+  // Use explicit default on first render, then respect user toggles
   const prevStatusRef = useRef(progress.status);
   const isExpanded = userCollapsed !== null
     ? !userCollapsed
-    : (progress.status === 'working' || progress.status === 'completed' || progress.status === 'failed');
+    : defaultExpanded;
 
   // Reset user collapse preference when status changes (e.g., new task starts)
   useEffect(() => {

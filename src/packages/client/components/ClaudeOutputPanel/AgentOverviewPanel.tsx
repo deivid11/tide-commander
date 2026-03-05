@@ -904,6 +904,13 @@ function AgentCard({
           {isExpanded ? '▾' : '▸'}
         </button>
         <span className="aop-agent-status" title={statusLabel}>{statusIcon}</span>
+        {agent.status === 'working' && (
+          <span
+            className="aop-working-indicator"
+            aria-label={t('terminal:overview.statusLabels.working')}
+            title={t('terminal:overview.statusLabels.working')}
+          />
+        )}
         <img
           src={agent.provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
           alt={agent.provider}
