@@ -10,7 +10,7 @@ import { TOOL_ICONS, extractExecWrappedCommand, extractExecPayloadCommand, forma
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, DelegatedTaskHeader, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions, parseDelegatedTaskMessage, DelegatedTaskMessage, parseTaskReportMessage, TaskReportHeader } from './BossContext';
-import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, ExitPlanModeInput, UnknownToolInput } from './ToolRenderers';
+import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, ExitPlanModeInput, UnknownToolInput, ToolSearchInput, isToolSearchContent } from './ToolRenderers';
 import { renderContentWithImages, renderUserPromptContent } from './contentRendering';
 import { ansiToHtml } from '../../utils/ansiToHtml';
 import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
@@ -450,6 +450,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       'ExitPlanMode',
       'EnterPlanMode',
       'web_search',
+      'ToolSearch',
     ]);
 
     // Special case: TodoWrite shows the task list inline
@@ -503,6 +504,22 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
           <span className="output-tool-icon">{icon}</span>
           <span className="output-tool-name">{displayToolName}</span>
           <ExitPlanModeInput content={exitPlanContent} />
+        </div>
+      );
+    }
+    // Special case: ToolSearch renders formatted params instead of raw JSON
+    const toolSearchContent = (
+      toolName === 'ToolSearch' && payloadToolInput && typeof payloadToolInput === 'object'
+        ? JSON.stringify(payloadToolInput)
+        : undefined
+    );
+    if (toolName === 'ToolSearch' && toolSearchContent) {
+      return (
+        <div className={`output-line output-tool-use output-toolsearch-inline ${isStreaming ? 'output-streaming' : ''}`}>
+          <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
+          <span className="output-tool-icon">⚡</span>
+          <span className="output-tool-name">ToolSearch</span>
+          <ToolSearchInput content={toolSearchContent} agentName={agentName} />
         </div>
       );
     }
@@ -873,6 +890,15 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
   // Handle tool input with nice formatting
   if (text.startsWith('Tool input:')) {
     const inputText = text.replace('Tool input:', '').trim();
+
+    if (isToolSearchContent(inputText)) {
+      return (
+        <div className="output-line output-tool-input">
+          <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
+          <ToolSearchInput content={inputText} agentName={agentName} />
+        </div>
+      );
+    }
 
     // Check if it's an Edit tool input
     try {

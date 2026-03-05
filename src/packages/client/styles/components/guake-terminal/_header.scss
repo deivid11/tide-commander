@@ -520,6 +520,29 @@
   gap: 12px;
 }
 
+.guake-nav-btn {
+  background: transparent;
+  border: 1px solid $dracula-comment;
+  color: $dracula-comment;
+  width: 28px;
+  height: 24px;
+  border-radius: $radius-sm;
+  font-size: 13px;
+  font-family: $font-mono;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover:not(:disabled) {
+    border-color: $dracula-cyan;
+    color: $dracula-cyan;
+  }
+
+  &:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+}
+
 .guake-view-toggle {
   background: transparent;
   border: 1px solid $dracula-comment;

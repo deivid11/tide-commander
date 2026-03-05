@@ -4,7 +4,7 @@
  * Each theme defines CSS variable values that override the defaults in _variables.scss
  */
 
-export type ThemeId = 'dracula' | 'muted' | 'muted-red' | 'nord' | 'solarized-dark' | 'monokai' | 'gruvbox' | 'atom' | 'cyberpunk' | 'synthwave' | 'abyss' | 'catppuccin' | 'github-dark' | 'one-dark' | 'classic';
+export type ThemeId = 'dracula' | 'muted' | 'muted-red' | 'nord' | 'solarized-dark' | 'monokai' | 'gruvbox' | 'atom' | 'cyberpunk' | 'synthwave' | 'abyss' | 'obsidian-bloom' | 'catppuccin' | 'github-dark' | 'one-dark' | 'midnight-harbor' | 'ember-noir' | 'classic';
 
 export interface ThemeColors {
   bgPrimary: string;
@@ -560,9 +560,9 @@ const abyssTheme: Theme = {
     accentClaudeLight: '#50b878',
     accentPink: '#a85880',             // Dusty rose
     accentYellow: '#b8a840',           // Dim gold
-    // Messages: Visible borders and distinct backgrounds
+    // Messages: User messages pop with a purple border instead of red fill
     msgUserBg: '#181c24',
-    msgUserBorder: '#3a2820',             // Subtle warm border
+    msgUserBorder: '#6a4e96',
     msgUserText: '#d0d4dc',
     msgAssistantBg: '#12161e',
     msgAssistantBorder: '#1c3838',        // Subtle teal border for assistant
@@ -581,6 +581,54 @@ const abyssTheme: Theme = {
     contextBarBg: 'rgba(60, 68, 76, 0.25)',
     contextBarFill: '#4c5460',
     taskLabelColor: '#c07848',            // Muted ember
+  },
+};
+
+// Obsidian Bloom - ultra-dark graphite with subtle border-led contrast
+// Signature: Near-monochrome grayscale base, identity comes from soft cool border shifts
+const obsidianBloomTheme: Theme = {
+  id: 'obsidian-bloom',
+  name: 'Obsidian Bloom',
+  description: 'Ultra-dark graphite with subtle cool borders',
+  colors: {
+    bgPrimary: '#050608',
+    bgSecondary: '#0a0b0f',
+    bgTertiary: '#111319',
+    borderColor: '#2a2f3a',
+    textPrimary: '#c4cad4',
+    textSecondary: '#9aa3b1',
+    textMuted: '#67707d',
+    accentBlue: '#8aa3c7',
+    accentGreen: '#82a39a',
+    accentOrange: '#b39479',
+    accentRed: '#ad7d8a',
+    accentPurple: '#9a8fbd',
+    accentCyan: '#86a8b7',
+    accentClaude: '#9ca6c9',
+    accentClaudeLight: '#bcc3df',
+    accentPink: '#aa92bb',
+    accentYellow: '#b8ac8f',
+    // Messages: dark panels with clearer user/assistant separation
+    msgUserBg: 'rgba(21, 26, 35, 0.92)',
+    msgUserBorder: '#4c627f',
+    msgUserText: '#b8c8df',
+    msgAssistantBg: 'rgba(22, 20, 32, 0.92)',
+    msgAssistantBorder: '#5d5479',
+    msgAssistantText: '#c2bcdb',
+    // Tools: warm/cool distinction for scanning command flow
+    toolUseBg: 'rgba(28, 23, 20, 0.9)',
+    toolUseBorder: '#6b5646',
+    toolUseText: '#c8b3a1',
+    toolUseName: '#b8ac8f',
+    toolResultBg: 'rgba(20, 23, 30, 0.9)',
+    toolResultBorder: '#4e5a73',
+    toolResultText: '#b0bdd2',
+    // Output line: almost-black stacking for reduced glare
+    outputLineBg: 'rgba(10, 11, 15, 0.7)',
+    // Context stats: restrained steel-gray
+    contextBarBg: 'rgba(94, 106, 126, 0.22)',
+    contextBarFill: '#6f7f99',
+    taskLabelColor: '#9ea6b8',
   },
 };
 
@@ -728,6 +776,102 @@ const oneDarkTheme: Theme = {
   },
 };
 
+// Midnight Harbor - low-glare ocean twilight with balanced cool accents
+// Signature: Deep desaturated navy base, soft cyan/periwinkle pairing for long sessions
+const midnightHarborTheme: Theme = {
+  id: 'midnight-harbor',
+  name: 'Midnight Harbor',
+  description: 'Low-glare ocean twilight',
+  colors: {
+    bgPrimary: '#0e141d',
+    bgSecondary: '#151d28',
+    bgTertiary: '#1f2a38',
+    borderColor: '#33465a',
+    textPrimary: '#d9e2ed',
+    textSecondary: '#aebdce',
+    textMuted: '#7f93a8',
+    accentBlue: '#7baed6',
+    accentGreen: '#7fc3b8',
+    accentOrange: '#cfa77f',
+    accentRed: '#c9879c',
+    accentPurple: '#9b9fd1',
+    accentCyan: '#79bccc',
+    accentClaude: '#8ea8d9',
+    accentClaudeLight: '#b2c2e8',
+    accentPink: '#c79fbe',
+    accentYellow: '#d7c28f',
+    // Messages: Muted steel blue user, soft periwinkle assistant
+    msgUserBg: 'rgba(123, 174, 214, 0.12)',
+    msgUserBorder: '#7baed6',
+    msgUserText: '#9cc3e2',
+    msgAssistantBg: 'rgba(142, 168, 217, 0.12)',
+    msgAssistantBorder: '#8ea8d9',
+    msgAssistantText: '#b2c2e8',
+    // Tools: Warm sand + dusk violet
+    toolUseBg: 'rgba(207, 167, 127, 0.10)',
+    toolUseBorder: '#cfa77f',
+    toolUseText: '#ddbf9f',
+    toolUseName: '#d7c28f',
+    toolResultBg: 'rgba(155, 159, 209, 0.10)',
+    toolResultBorder: '#9b9fd1',
+    toolResultText: '#b9bbe2',
+    // Output line: Soft slate layering
+    outputLineBg: 'rgba(31, 42, 56, 0.5)',
+    // Context stats: Muted blue fill
+    contextBarBg: 'rgba(123, 174, 214, 0.24)',
+    contextBarFill: '#7baed6',
+    taskLabelColor: '#d7c28f',
+  },
+};
+
+// Ember Noir - warm plum dusk with softened rose and indigo balance
+// Signature: Dark mauve-charcoal base, low-chroma warm/cool contrast for comfort
+const emberNoirTheme: Theme = {
+  id: 'ember-noir',
+  name: 'Ember Noir',
+  description: 'Soft plum dusk with rose-indigo accents',
+  colors: {
+    bgPrimary: '#151118',
+    bgSecondary: '#1d1723',
+    bgTertiary: '#292132',
+    borderColor: '#473b56',
+    textPrimary: '#e7deed',
+    textSecondary: '#c4b4d0',
+    textMuted: '#93839f',
+    accentBlue: '#88a9d6',
+    accentGreen: '#8ab9ad',
+    accentOrange: '#cf9b79',
+    accentRed: '#cb8a9b',
+    accentPurple: '#ae8ec8',
+    accentCyan: '#86b8c6',
+    accentClaude: '#9ca7df',
+    accentClaudeLight: '#bcc3ea',
+    accentPink: '#cd9fbc',
+    accentYellow: '#d5bf93',
+    // Messages: Soft rose user, muted indigo assistant
+    msgUserBg: 'rgba(203, 138, 155, 0.12)',
+    msgUserBorder: '#cb8a9b',
+    msgUserText: '#d7a6b3',
+    msgAssistantBg: 'rgba(156, 167, 223, 0.12)',
+    msgAssistantBorder: '#9ca7df',
+    msgAssistantText: '#bcc3ea',
+    // Tools: Amber tan + gentle violet
+    toolUseBg: 'rgba(213, 191, 147, 0.10)',
+    toolUseBorder: '#d5bf93',
+    toolUseText: '#e0cfad',
+    toolUseName: '#88a9d6',
+    toolResultBg: 'rgba(174, 142, 200, 0.10)',
+    toolResultBorder: '#ae8ec8',
+    toolResultText: '#c6aed8',
+    // Output line: Dusty plum layering
+    outputLineBg: 'rgba(41, 33, 50, 0.52)',
+    // Context stats: Rose-mauve
+    contextBarBg: 'rgba(203, 138, 155, 0.24)',
+    contextBarFill: '#cb8a9b',
+    taskLabelColor: '#d5bf93',
+  },
+};
+
 // Classic - the original transparent style before the theme system
 // Signature: Very dark background with transparent colored message blocks
 const classicTheme: Theme = {
@@ -780,6 +924,7 @@ const classicTheme: Theme = {
 export const themes: Theme[] = [
   classicTheme,      // Default - original transparent style
   abyssTheme,        // Ultra dark with vivid accents
+  obsidianBloomTheme,
   draculaTheme,
   mutedTheme,
   mutedRedTheme,     // Rosewood
@@ -793,6 +938,8 @@ export const themes: Theme[] = [
   catppuccinTheme,
   githubDarkTheme,
   oneDarkTheme,
+  midnightHarborTheme,
+  emberNoirTheme,
 ];
 
 // Get theme by ID

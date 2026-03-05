@@ -597,6 +597,233 @@ interface UnknownToolInputProps {
   content: string;
 }
 
+interface ParsedToolSearchContent {
+  selectedTools: string[];
+  fallback: string | null;
+  showHide: string | null;
+  queryParams: Array<{ key: string; value: string }>;
+}
+
+interface ToolSearchControlTokens {
+  selectedTools: string[];
+  fallback: string | null;
+  showHide: string | null;
+}
+
+function normalizeToolList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => String(item).trim())
+      .filter((item) => item.length > 0);
+  }
+
+  if (typeof value === 'string') {
+    return value
+      .split(',')
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+  }
+
+  return [];
+}
+
+function objectEntriesToParams(obj: Record<string, unknown>): Array<{ key: string; value: string }> {
+  return Object.entries(obj)
+    .filter(([, value]) => value !== undefined)
+    .map(([key, value]) => ({
+      key,
+      value: typeof value === 'string' ? value : JSON.stringify(value),
+    }));
+}
+
+function extractControlTokensFromText(text: string): ToolSearchControlTokens {
+  const selectMatch = text.match(/(?:^|[\s,;])select\s*:\s*([^\n;]+)/i);
+  const fallbackMatch = text.match(/(?:^|[\s,;])fallback\s*:\s*([^\n;]+)/i);
+  const showHideMatch = text.match(/(?:^|[\s,;])(?:show|show_hide|hide)\s*:\s*([^\n;]+)/i);
+
+  const selectedTools = selectMatch
+    ? selectMatch[1].split(',').map((value) => value.trim()).filter(Boolean)
+    : [];
+
+  return {
+    selectedTools,
+    fallback: fallbackMatch ? fallbackMatch[1].trim() : null,
+    showHide: showHideMatch ? showHideMatch[1].trim() : null,
+  };
+}
+
+function parseToolSearchFromJson(raw: Record<string, unknown>): ParsedToolSearchContent | null {
+  const marker = typeof raw.tool === 'string' ? raw.tool.toLowerCase() : '';
+  const type = typeof raw.type === 'string' ? raw.type.toLowerCase() : '';
+  const label = typeof raw.label === 'string' ? raw.label.toLowerCase() : '';
+
+  let selectedTools = normalizeToolList(
+    raw.select
+    ?? raw.selected
+    ?? raw.selected_tools
+    ?? raw.tools
+  );
+
+  let fallbackRaw = raw.fallback ?? raw.use_fallback ?? raw.fallbackMode;
+  let showHideRaw = raw.show ?? raw.show_hide ?? raw.showHidden ?? raw.hide;
+  const queryRaw = raw.query_params ?? raw.query ?? raw.params ?? raw.arguments;
+
+  // Some ToolSearch payloads pack control tokens inside strings like:
+  // "select:Bash,Read,Grep,Glob fallback:true show:all"
+  const searchableText = Object.values(raw)
+    .filter((value) => typeof value === 'string')
+    .map((value) => value as string)
+    .join(' ; ');
+  const extracted = extractControlTokensFromText(searchableText);
+  if (selectedTools.length === 0 && extracted.selectedTools.length > 0) {
+    selectedTools = extracted.selectedTools;
+  }
+  if (fallbackRaw === undefined && extracted.fallback !== null) {
+    fallbackRaw = extracted.fallback;
+  }
+  if (showHideRaw === undefined && extracted.showHide !== null) {
+    showHideRaw = extracted.showHide;
+  }
+
+  const isToolSearchPayload =
+    marker.includes('toolsearch')
+    || type.includes('toolsearch')
+    || label.includes('toolsearch')
+    || selectedTools.length > 0
+    || queryRaw !== undefined;
+
+  if (!isToolSearchPayload) return null;
+
+  const queryParams = queryRaw && typeof queryRaw === 'object' && !Array.isArray(queryRaw)
+    ? objectEntriesToParams(queryRaw as Record<string, unknown>)
+    : [];
+
+  return {
+    selectedTools,
+    fallback: fallbackRaw !== undefined ? String(fallbackRaw) : null,
+    showHide: showHideRaw !== undefined ? String(showHideRaw) : null,
+    queryParams,
+  };
+}
+
+function parseToolSearchFromText(content: string): ParsedToolSearchContent | null {
+  const extracted = extractControlTokensFromText(content);
+  const queryMatch = content.match(/(?:^|\s)(?:query|params|query_params)\s*:\s*(.+)$/i);
+
+  if (extracted.selectedTools.length === 0 && !queryMatch) return null;
+
+  const queryParams: Array<{ key: string; value: string }> = [];
+  if (queryMatch) {
+    queryMatch[1]
+      .split(/[;,]/)
+      .map((segment) => segment.trim())
+      .filter(Boolean)
+      .forEach((segment) => {
+        const pair = segment.match(/^([^:=]+)\s*[:=]\s*(.+)$/);
+        if (pair) {
+          queryParams.push({ key: pair[1].trim(), value: pair[2].trim() });
+        } else {
+          queryParams.push({ key: 'query', value: segment });
+        }
+      });
+  }
+
+  return {
+    selectedTools: extracted.selectedTools,
+    fallback: extracted.fallback,
+    showHide: extracted.showHide,
+    queryParams,
+  };
+}
+
+function parseToolSearchContent(content: string): ParsedToolSearchContent | null {
+  try {
+    const parsed = JSON.parse(content);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parseToolSearchFromJson(parsed as Record<string, unknown>);
+    }
+  } catch {
+    // Fall through to text parser
+  }
+
+  return parseToolSearchFromText(content);
+}
+
+export function isToolSearchContent(content: string): boolean {
+  return parseToolSearchContent(content) !== null;
+}
+
+interface ToolSearchInputProps {
+  content: string;
+  agentName?: string | null;
+}
+
+export function ToolSearchInput({ content, agentName }: ToolSearchInputProps) {
+  const [expanded, setExpanded] = useState(false);
+  const parsed = parseToolSearchContent(content);
+
+  if (!parsed) {
+    return <pre className="output-input-content">{content}</pre>;
+  }
+
+  const compactTools = parsed.selectedTools.length > 0
+    ? parsed.selectedTools.slice(0, 4).join(', ')
+    : '-';
+  const hasMoreTools = parsed.selectedTools.length > 4;
+  const toolSummary = hasMoreTools ? `${compactTools} +${parsed.selectedTools.length - 4}` : compactTools;
+
+  return (
+    <div className="toolsearch-input">
+      <div className="toolsearch-header">
+        <span className="toolsearch-badge">⚡ ToolSearch</span>
+        {agentName && <span className="toolsearch-agent">{agentName}</span>}
+        <span className="toolsearch-meta-pill">
+          Tools: {toolSummary}
+        </span>
+        <span className="toolsearch-meta-pill">
+          Fallback: {parsed.fallback ?? '-'}
+        </span>
+        <span className="toolsearch-meta-pill">
+          Show/Hide: {parsed.showHide ?? '-'}
+        </span>
+        <button
+          type="button"
+          className="toolsearch-toggle"
+          onClick={() => setExpanded((prev) => !prev)}
+          title={expanded ? 'Hide details' : 'Show details'}
+        >
+          {expanded ? '▼ Hide' : '▶ Show'}
+        </button>
+      </div>
+
+      {expanded ? (
+        <div className="toolsearch-query-block">
+          <div className="toolsearch-tools">
+            {parsed.selectedTools.length > 0 ? parsed.selectedTools.map((tool) => (
+              <span key={tool} className="toolsearch-tool-chip">{tool}</span>
+            )) : <span className="toolsearch-empty">No selected tools</span>}
+          </div>
+          <div className="toolsearch-query-title">Query Parameters</div>
+          {parsed.queryParams.length > 0 ? (
+            <div className="toolsearch-query-list">
+              {parsed.queryParams.map((param, index) => (
+                <div key={`${param.key}-${index}`} className="toolsearch-query-row">
+                  <span className="toolsearch-query-key">{param.key}</span>
+                  <span className="toolsearch-query-value">{param.value}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="toolsearch-empty">No query parameters provided</div>
+          )}
+        </div>
+      ) : (
+        <div className="toolsearch-preview">Collapsed</div>
+      )}
+    </div>
+  );
+}
+
 export function UnknownToolInput({ toolName, content }: UnknownToolInputProps) {
   const [expanded, setExpanded] = useState(false);
   const preview = content.length > 220 ? `${content.slice(0, 220)}...` : content;

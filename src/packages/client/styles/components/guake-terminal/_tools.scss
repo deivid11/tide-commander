@@ -1005,6 +1005,144 @@
   }
 }
 
+.output-toolsearch-inline {
+  flex-wrap: wrap;
+
+  .toolsearch-input {
+    flex-basis: 100%;
+    margin-top: 4px;
+  }
+}
+
+.toolsearch-input {
+  width: 100%;
+  border: 1px solid rgba($accent-yellow, 0.35);
+  border-radius: $radius-sm;
+  background: rgba($accent-yellow, 0.06);
+  overflow: hidden;
+}
+
+.toolsearch-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 4px 8px;
+  background: rgba($bg-tertiary, 0.55);
+  border-bottom: 1px solid rgba($border-color, 0.45);
+}
+
+.toolsearch-badge {
+  font-family: $font-mono;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: $accent-yellow;
+  background: rgba($accent-yellow, 0.16);
+  border: 1px solid rgba($accent-yellow, 0.45);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.toolsearch-agent {
+  font-family: $font-mono;
+  font-size: 10px;
+  color: $text-primary;
+  font-weight: 600;
+}
+
+.toolsearch-meta-pill {
+  font-family: $font-mono;
+  font-size: 9px;
+  color: $text-secondary;
+  border: 1px solid rgba($border-color, 0.55);
+  border-radius: 4px;
+  padding: 1px 5px;
+  background: rgba($bg-primary, 0.55);
+}
+
+.toolsearch-toggle {
+  margin-left: auto;
+  border: 1px solid rgba($accent-yellow, 0.4);
+  background: rgba($accent-yellow, 0.12);
+  color: $accent-yellow;
+  border-radius: $radius-sm;
+  padding: 1px 7px;
+  font-family: $font-mono;
+  font-size: 9px;
+  cursor: pointer;
+
+  &:hover {
+    background: rgba($accent-yellow, 0.2);
+  }
+}
+
+.toolsearch-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 8px 4px;
+  background: rgba($bg-primary, 0.32);
+}
+
+.toolsearch-tool-chip {
+  font-family: $font-mono;
+  font-size: 9px;
+  color: $accent-cyan;
+  border: 1px solid rgba($accent-cyan, 0.4);
+  border-radius: 999px;
+  padding: 1px 6px;
+  background: rgba($accent-cyan, 0.12);
+}
+
+.toolsearch-preview,
+.toolsearch-empty {
+  padding: 0 8px 6px;
+  font-family: $font-mono;
+  font-size: 9px;
+  color: $text-secondary;
+}
+
+.toolsearch-query-block {
+  border-top: 1px solid rgba($border-color, 0.5);
+  background: rgba($bg-primary, 0.36);
+}
+
+.toolsearch-query-title {
+  padding: 6px 8px 4px;
+  font-family: $font-mono;
+  font-size: 10px;
+  font-weight: 600;
+  color: $text-primary;
+}
+
+.toolsearch-query-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 0 8px 8px;
+}
+
+.toolsearch-query-row {
+  display: grid;
+  grid-template-columns: minmax(95px, auto) 1fr;
+  gap: 6px;
+  align-items: baseline;
+  font-family: $font-mono;
+  font-size: 10px;
+}
+
+.toolsearch-query-key {
+  color: $accent-purple;
+  word-break: break-word;
+}
+
+.toolsearch-query-value {
+  color: $text-secondary;
+  word-break: break-word;
+}
+
 .plan-tool-input {
   width: 100%;
 }

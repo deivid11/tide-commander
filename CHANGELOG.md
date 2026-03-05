@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.0] - 2026-03-05
+
+### Added
+- **ToolSearch renderer** - New formatted display for ToolSearch tool calls showing selected tools as chips, query parameters, fallback/show-hide state with expand/collapse
+- **3 new themes** - Obsidian Bloom (ultra-dark graphite), Midnight Harbor (ocean twilight), Ember Noir (plum dusk with rose-indigo accents)
+- **GPT-5.4 model** - Added GPT-5.4 as a Codex model option
+- **Navigation button styles** - Back/forward navigation buttons in terminal header
+
+### Changed
+- **Abyss theme** - User message border changed from warm brown to purple for better contrast
+
 ## [1.7.1] - 2026-03-05
 
 ### Fixed

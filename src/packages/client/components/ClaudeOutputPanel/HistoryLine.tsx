@@ -16,7 +16,7 @@ import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
 import { createMarkdownComponents } from './MarkdownComponents';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions, parseDelegatedTaskMessage, DelegatedTaskMessage, parseTaskReportMessage, TaskReportHeader } from './BossContext';
-import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, ExitPlanModeInput } from './ToolRenderers';
+import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, ExitPlanModeInput, ToolSearchInput, isToolSearchContent } from './ToolRenderers';
 import { highlightText, renderContentWithImages, renderUserPromptContent } from './contentRendering';
 import { useTTS } from '../../hooks/useTTS';
 import { ansiToHtml } from '../../utils/ansiToHtml';
@@ -663,6 +663,39 @@ export const HistoryLine = memo(function HistoryLine({
           </div>
           <div className="output-line output-tool-input">
             <ExitPlanModeInput content={toolInputContent} />
+          </div>
+        </>
+      );
+    }
+
+    // Special rendering for ToolSearch - formatted query/selection display
+    if (toolName === 'ToolSearch' && toolInputContent) {
+      return (
+        <>
+          <div className="output-line output-tool-use">
+            {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+            {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+            <span className="output-tool-icon">⚡</span>
+            <span className="output-tool-name">ToolSearch</span>
+          </div>
+          <div className="output-line output-tool-input">
+            <ToolSearchInput content={toolInputContent} agentName={agentName} />
+          </div>
+        </>
+      );
+    }
+
+    if (toolInputContent && isToolSearchContent(toolInputContent)) {
+      return (
+        <>
+          <div className="output-line output-tool-use">
+            {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+            {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+            <span className="output-tool-icon">⚡</span>
+            <span className="output-tool-name">ToolSearch</span>
+          </div>
+          <div className="output-line output-tool-input">
+            <ToolSearchInput content={toolInputContent} agentName={agentName} />
           </div>
         </>
       );
