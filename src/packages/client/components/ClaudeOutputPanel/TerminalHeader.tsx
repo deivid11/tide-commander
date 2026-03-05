@@ -49,6 +49,14 @@ export interface TerminalHeaderProps {
   isFullscreen?: boolean;
   /** Toggle terminal fullscreen mode */
   onToggleFullscreen?: () => void;
+  /** Navigate to previous agent in terminal history */
+  onNavigateBack?: () => void;
+  /** Navigate to next agent in terminal history */
+  onNavigateForward?: () => void;
+  /** Whether previous navigation is available */
+  canNavigateBack?: boolean;
+  /** Whether forward navigation is available */
+  canNavigateForward?: boolean;
 }
 
 export const TerminalHeader = memo(function TerminalHeader({
@@ -76,6 +84,10 @@ export const TerminalHeader = memo(function TerminalHeader({
   onToggleAgentInfo,
   isFullscreen = false,
   onToggleFullscreen,
+  onNavigateBack,
+  onNavigateForward,
+  canNavigateBack = false,
+  canNavigateForward = false,
 }: TerminalHeaderProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const supervisor = useSupervisor();
@@ -305,6 +317,26 @@ export const TerminalHeader = memo(function TerminalHeader({
             </button>
           </Tooltip>
         )}
+        {!isSnapshotView && (
+          <>
+            <button
+              className="guake-nav-btn hide-on-mobile"
+              onClick={onNavigateBack}
+              title="Back (Alt+Left)"
+              disabled={!canNavigateBack}
+            >
+              ←
+            </button>
+            <button
+              className="guake-nav-btn hide-on-mobile"
+              onClick={onNavigateForward}
+              title="Forward (Alt+Right)"
+              disabled={!canNavigateForward}
+            >
+              →
+            </button>
+          </>
+        )}
         {!isSnapshotView && setOverviewPanelOpen && (
           <button
             className={`guake-overview-toggle hide-on-mobile ${overviewPanelOpen ? 'active' : ''}`}
@@ -398,6 +430,22 @@ export const TerminalHeader = memo(function TerminalHeader({
             </button>
             {mobileMenuOpen && (
               <div className="guake-mobile-menu">
+                <button
+                  className="guake-mobile-menu-item"
+                  onClick={() => { onNavigateBack?.(); closeMobileMenu(); }}
+                  disabled={!canNavigateBack}
+                >
+                  <span className="guake-mobile-menu-icon">←</span>
+                  Back
+                </button>
+                <button
+                  className="guake-mobile-menu-item"
+                  onClick={() => { onNavigateForward?.(); closeMobileMenu(); }}
+                  disabled={!canNavigateForward}
+                >
+                  <span className="guake-mobile-menu-icon">→</span>
+                  Forward
+                </button>
                 <button
                   className="guake-mobile-menu-item"
                   onClick={() => { handleViewModeToggle(); closeMobileMenu(); }}
