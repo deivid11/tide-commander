@@ -131,12 +131,21 @@ describe('VisualConfig name labels', () => {
     expect(ctx.font).toBe('bold 420px Arial');
   });
 
-  it('uses the same cap when a task label is present', () => {
-    visualConfig.drawNameLabel(ctx, 4096, 2048, 'Bo', 0x4a9eff, false, undefined, 'Answered GPT version');
+  it('keeps task labels at a fixed size and truncates when needed', () => {
+    visualConfig.drawNameLabel(
+      ctx,
+      4096,
+      2048,
+      'Bo',
+      0x4a9eff,
+      false,
+      undefined,
+      'Answered GPT version with a very long explanation'
+    );
 
     const finalTaskFontSize = Number(/(\d+)px/.exec(ctx.font)?.[1] ?? 0);
-    expect(finalTaskFontSize).toBeLessThanOrEqual(357);
-    expect(finalTaskFontSize).toBeGreaterThanOrEqual(200);
+    expect(finalTaskFontSize).toBe(357);
+    expect((ctx.fillText as any).mock.calls[1][0]).toContain('...');
   });
 
   it('keeps long non-boss names at the same font size and truncates them to fit', () => {

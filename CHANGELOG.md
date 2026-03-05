@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.2] - 2026-03-05
+
+### Added
+- **Provider badge images** - Agent name labels now show Claude/Codex logo images instead of colored dots, with async loading and fallback circles
+- **Task label truncation** - Long task labels are now truncated with ellipsis at a fixed font size instead of shrinking
+
+### Changed
+- **Status indicator zoom** - Status bar indicators now scale based on camera distance for better visibility at different zoom levels
+
 ## [1.8.1] - 2026-03-05
 
 ### Changed

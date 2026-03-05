@@ -18,7 +18,7 @@ const STATUS_COLORS: Record<string, number> = {
 
 const NAME_LABEL_REFERENCE_FONT_SIZE = 800;
 const NAME_LABEL_MAX_FONT_SIZE = 420;
-const NAME_LABEL_LAYOUT_VERSION = 4;
+const NAME_LABEL_LAYOUT_VERSION = 5;
 
 /**
  * Calculate remaining context percentage from agent data.
@@ -43,6 +43,8 @@ export class VisualConfig {
   private idleTimerCtx: CanvasRenderingContext2D | null = null;
   private manaBarCanvas: HTMLCanvasElement | null = null;
   private manaBarCtx: CanvasRenderingContext2D | null = null;
+  private providerBadgeImages = new Map<string, HTMLImageElement>();
+  private providerBadgeVersion = 0;
 
   constructor(private animConfig: AnimationConfigurator) {}
 
@@ -70,6 +72,49 @@ export class VisualConfig {
     }
 
     return `${displayName}...`;
+  }
+
+  private fitTaskLabelText(
+    ctx: CanvasRenderingContext2D,
+    taskLabel: string,
+    fontSize: number,
+    maxWidth: number
+  ): string {
+    ctx.font = `italic ${fontSize}px "Segoe UI", Arial, sans-serif`;
+    if (ctx.measureText(taskLabel).width <= maxWidth) {
+      return taskLabel;
+    }
+
+    let displayLabel = taskLabel;
+    while (displayLabel.length > 3 && ctx.measureText(`${displayLabel}...`).width > maxWidth) {
+      displayLabel = displayLabel.slice(0, -1);
+    }
+
+    return `${displayLabel}...`;
+  }
+
+  private getProviderBadgeImage(provider?: string): HTMLImageElement | null {
+    if (provider !== 'claude' && provider !== 'codex') {
+      return null;
+    }
+
+    const cached = this.providerBadgeImages.get(provider);
+    if (cached) {
+      return cached;
+    }
+
+    if (typeof Image === 'undefined') {
+      return null;
+    }
+
+    const image = new Image();
+    image.decoding = 'async';
+    image.src = provider === 'codex' ? '/assets/codex.png' : '/assets/claude.png';
+    image.onload = () => {
+      this.providerBadgeVersion += 1;
+    };
+    this.providerBadgeImages.set(provider, image);
+    return image;
   }
 
   /**
@@ -189,6 +234,7 @@ export class VisualConfig {
     sprite.userData.baseIndicatorScale = baseScale;
     sprite.userData.aspectRatio = aspectRatio;
     sprite.userData.nameLabelLayoutVersion = NAME_LABEL_LAYOUT_VERSION;
+    sprite.userData.providerBadgeVersion = this.providerBadgeVersion;
 
     return sprite;
   }
@@ -213,17 +259,18 @@ export class VisualConfig {
     // When task label is present, shift name up to make room
     const nameY = taskLabel ? height * 0.3 : height / 2;
 
-    const hasProviderDot = provider === 'claude' || provider === 'codex';
+    const providerBadgeImage = this.getProviderBadgeImage(provider);
+    const hasProviderBadge = providerBadgeImage !== null;
     const fontSize = isBoss
       ? Math.max(NAME_LABEL_MAX_FONT_SIZE, NAME_LABEL_REFERENCE_FONT_SIZE - 300)
       : NAME_LABEL_MAX_FONT_SIZE;
 
     ctx.font = `bold ${fontSize}px Arial`;
-    const displayName = this.fitNameLabelText(ctx, name, fontSize, width - 400, hasProviderDot);
+    const displayName = this.fitNameLabelText(ctx, name, fontSize, width - 400, hasProviderBadge);
     const textWidth = ctx.measureText(displayName).width;
-    const dotDiameter = hasProviderDot ? fontSize * 0.42 : 0;
-    const dotSpacing = hasProviderDot ? fontSize * 0.3 : 0;
-    const providerBlock = dotDiameter + dotSpacing;
+    const badgeSize = hasProviderBadge ? fontSize * 0.95 : 0;
+    const badgeSpacing = hasProviderBadge ? fontSize * 0.32 : 0;
+    const providerBlock = badgeSize + badgeSpacing;
     const totalContentWidth = textWidth + providerBlock;
     const textX = width / 2 + providerBlock / 2;
 
@@ -245,17 +292,20 @@ export class VisualConfig {
     ctx.shadowOffsetX = 0;
     ctx.shadowOffsetY = 0;
 
-    if (hasProviderDot) {
-      const dotX = width / 2 - totalContentWidth / 2 + dotDiameter / 2;
-      const dotY = nameY;
-      const providerColor = provider === 'codex' ? '#4a9eff' : '#ff9e4a';
-      ctx.beginPath();
-      ctx.arc(dotX, dotY, dotDiameter / 2, 0, Math.PI * 2);
-      ctx.fillStyle = providerColor;
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
-      ctx.lineWidth = Math.max(4, dotDiameter * 0.1);
-      ctx.stroke();
+    if (hasProviderBadge) {
+      const badgeX = width / 2 - totalContentWidth / 2;
+      const badgeY = nameY - badgeSize / 2;
+      if (providerBadgeImage && providerBadgeImage.complete && providerBadgeImage.naturalWidth > 0) {
+        ctx.drawImage(providerBadgeImage, badgeX, badgeY, badgeSize, badgeSize);
+      } else {
+        const fallbackX = badgeX + badgeSize / 2;
+        const fallbackY = nameY;
+        const providerColor = provider === 'codex' ? '#4a9eff' : '#ff9e4a';
+        ctx.beginPath();
+        ctx.arc(fallbackX, fallbackY, badgeSize / 2, 0, Math.PI * 2);
+        ctx.fillStyle = providerColor;
+        ctx.fill();
+      }
     }
 
     ctx.fillStyle = colorHex;
@@ -265,15 +315,10 @@ export class VisualConfig {
     if (taskLabel) {
       const taskFontSize = Math.round(fontSize * 0.85);
       const taskY = height * 0.55;
-      let displayLabel = taskLabel;
-
       const maxLabelWidth = width - 600;
-      let actualTaskFontSize = taskFontSize;
+      const actualTaskFontSize = taskFontSize;
+      const displayLabel = this.fitTaskLabelText(ctx, taskLabel, actualTaskFontSize, maxLabelWidth);
       ctx.font = `italic ${actualTaskFontSize}px "Segoe UI", Arial, sans-serif`;
-      while (ctx.measureText(displayLabel).width > maxLabelWidth && actualTaskFontSize > 200) {
-        actualTaskFontSize -= 40;
-        ctx.font = `italic ${actualTaskFontSize}px "Segoe UI", Arial, sans-serif`;
-      }
 
       ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
       ctx.shadowBlur = actualTaskFontSize * 0.1;
@@ -1150,6 +1195,7 @@ export class VisualConfig {
     const nameLabelLayoutDirty = !!nameLabelSprite && (
       nameLabelSprite.userData.nameLabelLayoutVersion !== NAME_LABEL_LAYOUT_VERSION
       || nameLabelSprite.userData.baseIndicatorScale !== expectedBaseScale
+      || nameLabelSprite.userData.providerBadgeVersion !== this.providerBadgeVersion
     );
 
     if (ud.agentName !== agent.name || ud._cachedTaskLabel !== taskLabel || nameLabelLayoutDirty) {

@@ -354,7 +354,10 @@ export class SceneManager {
         const aspectRatio = typeof statusBar.userData.aspectRatio === 'number'
           ? statusBar.userData.aspectRatio
           : (2560 / 4096);
-        statusBar.scale.set(baseScale * scale, baseScale * aspectRatio * scale, 1);
+        const distScale = Math.max(0.5, Math.min(2.5, distance / 15));
+        const zoomFactor = Math.max(0.8, Math.min(1.2, distScale));
+        const indicatorZoom = zoomFactor * indicatorScale;
+        statusBar.scale.set(baseScale * indicatorZoom, baseScale * aspectRatio * indicatorZoom, 1);
       }
 
       if (nameLabelSprite) {
