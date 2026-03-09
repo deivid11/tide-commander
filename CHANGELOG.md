@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.4] - 2026-03-09
+
+### Fixed
+- **Trackpad back navigation** - Prevent two-finger horizontal swipe from triggering browser back/forward navigation on desktop via CSS `overscroll-behavior`, JS wheel event interception, and history buffer absorption
+- **Back navigation scope** - Extend history buffer protection from mobile-only to all platforms, silently absorbing accidental back gestures on desktop
+
 ## [1.8.3] - 2026-03-05
 
 ### Added
