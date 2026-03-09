@@ -11,8 +11,14 @@ declare global {
 }
 
 /**
- * Hook to handle browser back navigation confirmation on mobile devices.
- * Returns state and handlers for the back navigation modal.
+ * Hook to handle browser back navigation.
+ *
+ * On all platforms a history buffer is pushed so that accidental trackpad
+ * swipes (two-finger left on macOS/Linux) are silently absorbed instead of
+ * navigating away from the app.
+ *
+ * On mobile devices an additional confirmation modal is shown when the user
+ * exhausts the buffer, giving them the option to stay or leave.
  */
 export function useBackNavigation(): {
   showBackNavModal: boolean;
@@ -25,12 +31,6 @@ export function useBackNavigation(): {
   window.__tideSetBackNavModal = setShowBackNavModal;
 
   useEffect(() => {
-    // Only enable exit prevention on mobile devices
-    const isMobile = window.innerWidth <= 768;
-    if (!isMobile) {
-      return;
-    }
-
     // Only setup the listener once globally (survives HMR)
     if (window.__tideBackNavSetup) {
       if (!window.location.hash.includes('app')) {
@@ -46,30 +46,33 @@ export function useBackNavigation(): {
       window.location.hash = '#app';
     }
 
+    const isMobile = () => window.innerWidth <= 768;
+
     // Prevent both popstate and hashchange from firing on the same back gesture
     let backHandledAt = 0;
 
     const handleHashChange = () => {
-      if (window.innerWidth > 768) return;
       // Skip if popstate already handled this back gesture
       if (Date.now() - backHandledAt < 200) return;
 
       if (!window.location.hash.includes('app')) {
         window.location.hash = '#app';
 
-        if (!closeTopModal()) {
-          window.__tideSetBackNavModal?.(true);
+        if (isMobile()) {
+          if (!closeTopModal()) {
+            window.__tideSetBackNavModal?.(true);
+          }
         }
+        // On desktop: silently absorbed — hash is restored, nothing else happens
       }
     };
 
     const handlePopState = () => {
-      if (window.innerWidth > 768) return;
-
       if (!window.location.hash.includes('app')) {
         window.location.hash = '#app';
       }
 
+      // Re-push the buffer entry so the next gesture is also absorbed
       if (window.location.hash === '#app') {
         setTimeout(() => {
           if (window.location.hash === '#app' && !window.location.hash.includes('app2')) {
@@ -79,10 +82,16 @@ export function useBackNavigation(): {
         }, 50);
       }
 
-      if (closeTopModal()) {
-        backHandledAt = Date.now();
+      if (isMobile()) {
+        if (closeTopModal()) {
+          backHandledAt = Date.now();
+        } else {
+          window.__tideSetBackNavModal?.(true);
+        }
       } else {
-        window.__tideSetBackNavModal?.(true);
+        // On desktop: try to close a modal if one is open, otherwise silently absorb
+        closeTopModal();
+        backHandledAt = Date.now();
       }
     };
 
