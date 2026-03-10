@@ -25,6 +25,8 @@ interface DiffViewerProps {
   modifiedContent: string;
   filename: string;
   language: string;
+  /** Start in "Modified Only" view mode */
+  initialModifiedOnly?: boolean;
 }
 
 interface DiffLine {
@@ -280,7 +282,7 @@ function calculateTargetScroll(
 
 const MARKDOWN_EXTENSIONS = ['.md', '.mdx', '.markdown'];
 
-export function DiffViewer({ originalContent, modifiedContent, filename, language }: DiffViewerProps) {
+export function DiffViewer({ originalContent, modifiedContent, filename, language, initialModifiedOnly = false }: DiffViewerProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const leftRef = useRef<HTMLDivElement>(null);
   const rightRef = useRef<HTMLDivElement>(null);
@@ -291,7 +293,7 @@ export function DiffViewer({ originalContent, modifiedContent, filename, languag
   const scrollTimeoutRef = useRef<number | null>(null);
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [copyHtmlStatus, setCopyHtmlStatus] = useState<'idle' | 'copied' | 'error'>('idle');
-  const [viewOnlyModified, setViewOnlyModified] = useState(false);
+  const [viewOnlyModified, setViewOnlyModified] = useState(initialModifiedOnly);
 
   // Check if file is markdown
   const isMarkdown = useMemo(() => {
