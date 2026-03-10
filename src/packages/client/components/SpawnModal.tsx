@@ -25,6 +25,14 @@ interface SpawnModalProps {
   onSpawnEnd: () => void;
   /** Optional spawn position - if provided, agent spawns at this location */
   spawnPosition?: { x: number; z: number } | null;
+  /** Optional area context - if provided, assign the created agent to this area */
+  spawnAreaId?: string | null;
+}
+
+declare global {
+  interface Window {
+    __spawnModalAreaContext?: { areaId: string } | null;
+  }
 }
 
 /**
@@ -40,7 +48,7 @@ function getRandomAgentName(usedNames: Set<string>, namesList: string[]): string
   return availableNames[Math.floor(Math.random() * availableNames.length)];
 }
 
-export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPosition }: SpawnModalProps) {
+export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPosition, spawnAreaId }: SpawnModalProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const agents = useAgents();
   const skills = useSkillsArray();
@@ -77,6 +85,10 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
   const [skillSearch, setSkillSearch] = useState('');
   const nameInputRef = useRef<HTMLInputElement>(null);
   const wasOpenRef = useRef(false);
+
+  const clearAreaContext = useCallback(() => {
+    window.__spawnModalAreaContext = null;
+  }, []);
 
   // Get available skills (enabled ones)
   const availableSkills = useMemo(() => skills.filter(s => s.enabled), [skills]);
@@ -349,7 +361,10 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
       initialSkillIds,
       model: selectedProvider === 'claude' ? selectedModel : undefined,
       customInstructions: trimmedInstructions ? `${trimmedInstructions.length} chars` : undefined,
+      spawnAreaId: spawnAreaId || undefined,
     });
+
+    window.__spawnModalAreaContext = spawnAreaId ? { areaId: spawnAreaId } : null;
 
     store.spawnAgent(
       name.trim(),
@@ -373,6 +388,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
     setIsSpawning(false);
     setName('');
     setSelectedSkillIds(new Set()); // Reset so defaults re-apply on next open
+    clearAreaContext();
     onSpawnEnd();
     onClose();
   };
@@ -381,6 +397,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
     console.error('[SpawnModal] Agent creation failed');
     setIsSpawning(false);
     setHasError(true);
+    clearAreaContext();
     onSpawnEnd();
   };
 
@@ -402,6 +419,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
   const handleCancelCreateDir = () => {
     setShowCreateDirPrompt(false);
     setMissingDirPath('');
+    clearAreaContext();
   };
 
   // Expose handlers for websocket callbacks
@@ -410,11 +428,12 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
     (window as any).__spawnModalError = handleError;
     (window as any).__spawnModalDirNotFound = handleDirectoryNotFound;
     return () => {
+      clearAreaContext();
       delete (window as any).__spawnModalSuccess;
       delete (window as any).__spawnModalError;
       delete (window as any).__spawnModalDirNotFound;
     };
-  }, [name, selectedClass]);
+  }, [name, selectedClass, handleSuccess, handleError, handleDirectoryNotFound, clearAreaContext]);
 
   const { handleMouseDown: handleBackdropMouseDown, handleClick: handleBackdropClick } = useModalClose(onClose);
 

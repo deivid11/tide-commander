@@ -64,6 +64,15 @@ export function handleServerMessage(message: ServerMessage): void {
       const newAgent = message.payload as Agent;
       console.log('[WebSocket] Agent created:', newAgent);
       store.addAgent(newAgent);
+      const pendingAreaId = (window as Window & {
+        __spawnModalAreaContext?: { areaId: string } | null;
+      }).__spawnModalAreaContext?.areaId;
+      if (pendingAreaId) {
+        store.assignAgentToArea(newAgent.id, pendingAreaId);
+        (window as Window & {
+          __spawnModalAreaContext?: { areaId: string } | null;
+        }).__spawnModalAreaContext = null;
+      }
       store.selectAgent(newAgent.id);
       cb.onAgentCreated?.(newAgent);
       cb.onSpawnSuccess?.();

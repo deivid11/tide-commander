@@ -39,6 +39,7 @@ interface AppModalsProps {
 
   // Modal data
   spawnPosition: { x: number; z: number } | null;
+  spawnAreaId: string | null;
   explorerFolderPath: string | null;
   contextMenuActions: ContextMenuAction[];
 
@@ -88,6 +89,7 @@ export function AppModals({
   explorerModal,
   contextMenu,
   spawnPosition,
+  spawnAreaId,
   explorerFolderPath,
   contextMenuActions,
   sceneConfig,
@@ -151,6 +153,7 @@ export function AppModals({
         onSpawnStart={() => {}}
         onSpawnEnd={() => {}}
         spawnPosition={spawnPosition}
+        spawnAreaId={spawnAreaId}
       />
 
       <BossSpawnModal

@@ -502,6 +502,10 @@ export function ConfigSection({ config, onChange, searchQuery = '' }: ConfigSect
           <input type="range" className="config-slider" min="0.3" max="2.0" step="0.1" value={config.indicatorScale} onChange={(e) => onChange({ ...config, indicatorScale: parseFloat(e.target.value) })} />
           <span className="config-value">{config.indicatorScale.toFixed(1)}x</span>
         </div>
+        <div className="config-row">
+          <span className="config-label"><HighlightText text={t('config:scene.show2DTaskLabels', { defaultValue: 'Show 2D task labels' })} query={searchQuery} /></span>
+          <Toggle checked={config.show2DTaskLabels} onChange={(checked) => onChange({ ...config, show2DTaskLabels: checked })} />
+        </div>
         <div className="config-group">
           <span className="config-label"><HighlightText text={t('config:scene.time')} query={searchQuery} /></span>
           <ChipSelector options={tTimeOpts} value={config.timeMode} onChange={(mode) => onChange({ ...config, timeMode: mode })} iconOnly />

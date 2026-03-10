@@ -21,8 +21,20 @@ function logAgentStore(...args: unknown[]): void {
   }
 }
 
+function isExplicitContextReset(agent: Agent): boolean {
+  return (agent.tokensUsed ?? 0) === 0
+    && (agent.contextUsed ?? 0) === 0
+    && !agent.contextStats
+    && !agent.sessionId
+    && !agent.currentTask
+    && !agent.lastAssignedTask;
+}
+
 function mergeFreshestContext(existing: Agent | undefined, incoming: Agent): Agent {
   if (!existing) return incoming;
+  if (isExplicitContextReset(incoming)) {
+    return incoming;
+  }
 
   const existingContextUpdatedAt = existing.contextStats?.lastUpdated ?? 0;
   const incomingContextUpdatedAt = incoming.contextStats?.lastUpdated ?? 0;

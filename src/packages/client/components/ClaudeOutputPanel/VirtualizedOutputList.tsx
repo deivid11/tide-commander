@@ -34,6 +34,8 @@ interface VirtualizedOutputListProps {
   // UI state
   viewMode: 'simple' | 'chat' | 'advanced';
   searchHighlight?: string;
+  /** Index of the active search match to scroll to */
+  searchActiveIndex?: number | null;
 
   // Message navigation
   selectedMessageIndex: number | null;
@@ -158,6 +160,7 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   subagents,
   viewMode,
   searchHighlight,
+  searchActiveIndex,
   selectedMessageIndex,
   isMessageSelected,
   onImageClick,
@@ -345,6 +348,18 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
       return () => clearTimeout(timer);
     }
   }, [selectedMessageIndex, virtualizer, allItems.length]);
+
+  // Scroll to active search match
+  useEffect(() => {
+    if (searchActiveIndex !== null && searchActiveIndex !== undefined && searchActiveIndex >= 0 && searchActiveIndex < allItems.length) {
+      isProgrammaticScrollRef.current = true;
+      virtualizer.scrollToIndex(searchActiveIndex, { align: 'center' });
+      const timer = setTimeout(() => {
+        isProgrammaticScrollRef.current = false;
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [searchActiveIndex, virtualizer, allItems.length]);
 
   const virtualItems = virtualizer.getVirtualItems();
   const simpleView = viewMode !== 'advanced';

@@ -163,6 +163,12 @@ export const TerminalHeader = memo(function TerminalHeader({
   const [mobileThemeExpanded, setMobileThemeExpanded] = useState(false);
   const [currentTheme, setCurrentTheme] = useState<ThemeId>(() => getSavedTheme());
   const mobileMenuRef = useRef<HTMLDivElement>(null);
+  const viewModeLabel = viewMode === 'simple'
+    ? t('terminal:header.simpleView')
+    : viewMode === 'chat'
+      ? t('terminal:header.chatView')
+      : t('terminal:header.advancedView');
+  const viewModeIcon = viewMode === 'simple' ? '○' : viewMode === 'chat' ? '◐' : '◉';
 
   const closeMobileMenu = useCallback(() => {
     setMobileMenuOpen(false);
@@ -197,178 +203,196 @@ export const TerminalHeader = memo(function TerminalHeader({
       ref={headerRef}
     >
       <div className="guake-header-left">
-        {selectedAgent.status === 'working' && (
-          <WorkingIndicator detached={selectedAgent.isDetached} />
-        )}
-        {selectedAgent.isDetached && (
-          <Tooltip
-            content={
-              <>
-                <div className="tide-tooltip__title">🔄 Reattaching Session...</div>
-                <div className="tide-tooltip__text">
-                  This agent's Claude process is running independently. Tide Commander is automatically
-                  attempting to reattach to the existing session. If reattachment fails, send a new message
-                  to manually resume the session.
-                  <br /><br />
-                  <strong>Status:</strong> Recovering session context and output history...
-                </div>
-              </>
-            }
-            position="bottom"
-            className="tide-tooltip--detached"
-          >
-            <span className="guake-detached-badge" title="Agent is detached - reattaching...">
-              <span className="guake-detached-spinner">🔄</span>
-            </span>
-          </Tooltip>
-        )}
-        {onToggleAgentInfo ? (
-          <button
-            className={`guake-title-btn ${agentInfoOpen ? 'active' : ''}`}
-            onClick={onToggleAgentInfo}
-            title={t('terminal:header.showAgentInfo')}
-          >
-            <span className="guake-title-block">
-              <span className="guake-title">{agentEmoji} {selectedAgent.name}</span>
-              {mobileHeaderContext && (
-                <span className="guake-mobile-title-context">{mobileHeaderContext}</span>
-              )}
-            </span>
-            <img
-              src={selectedAgent.provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
-              alt={selectedAgent.provider}
-              className="guake-provider-icon"
-              title={selectedAgent.provider === 'codex' ? 'Codex Agent' : 'Claude Agent'}
-            />
-            <span className="guake-title-info">ⓘ</span>
-          </button>
-        ) : (
-          <div className="guake-title-with-provider">
-            <span className="guake-title-block">
-              <span className="guake-title">{agentEmoji} {selectedAgent.name}</span>
-              {mobileHeaderContext && (
-                <span className="guake-mobile-title-context">{mobileHeaderContext}</span>
-              )}
-            </span>
-            <img
-              src={selectedAgent.provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
-              alt={selectedAgent.provider}
-              className="guake-provider-icon"
-              title={selectedAgent.provider === 'codex' ? 'Codex Agent' : 'Claude Agent'}
-            />
-          </div>
-        )}
-        {(lastInput || agentAnalysis || selectedAgent.taskLabel) && (
-          <span
-            className="guake-status-line"
-            title={`${selectedAgent.taskLabel ? `📋 ${selectedAgent.taskLabel}\n` : ''}${lastInput || 'No task'}${agentAnalysis ? `\n\n🎖️ ${agentAnalysis.statusDescription}\n${agentAnalysis.recentWorkSummary}` : ''}`}
-          >
-            {agentAnalysis && (
-              <span
-                className="guake-supervisor-badge"
-                style={{ color: progressColors[agentAnalysis.progress] || '#888' }}
-              >
-                🎖️ {agentAnalysis.progress.replace('_', ' ')}
+        <div className="guake-header-title-row">
+          {selectedAgent.status === 'working' && (
+            <WorkingIndicator detached={selectedAgent.isDetached} />
+          )}
+          {selectedAgent.isDetached && (
+            <Tooltip
+              content={
+                <>
+                  <div className="tide-tooltip__title">🔄 Reattaching Session...</div>
+                  <div className="tide-tooltip__text">
+                    This agent's Claude process is running independently. Tide Commander is automatically
+                    attempting to reattach to the existing session. If reattachment fails, send a new message
+                    to manually resume the session.
+                    <br /><br />
+                    <strong>Status:</strong> Recovering session context and output history...
+                  </div>
+                </>
+              }
+              position="bottom"
+              className="tide-tooltip--detached"
+            >
+              <span className="guake-detached-badge" title="Agent is detached - reattaching...">
+                <span className="guake-detached-spinner">🔄</span>
               </span>
-            )}
-            {selectedAgent.taskLabel && (
-              <span className="guake-task-label">📋 {selectedAgent.taskLabel}</span>
-            )}
-            {!selectedAgent.taskLabel && lastInput && <span className="guake-last-input">{lastInput}</span>}
-          </span>
-        )}
-        {subagents.filter(s => s.status === 'spawning' || s.status === 'working').length > 0 && (
-          <span className="guake-subagents-indicator">
-            {subagents
-              .filter(s => s.status === 'spawning' || s.status === 'working')
-              .map(sub => (
-              <span
-                key={sub.id}
-                className="guake-subagent-badge active"
-                title={`${sub.name} (${sub.subagentType}) - ${sub.status}`}
-              >
-                <span className="guake-subagent-icon">⑂</span>
-                <span className="guake-subagent-name">{sub.name}</span>
+            </Tooltip>
+          )}
+          {onToggleAgentInfo ? (
+            <button
+              className={`guake-title-btn ${agentInfoOpen ? 'active' : ''}`}
+              onClick={onToggleAgentInfo}
+              title={t('terminal:header.showAgentInfo')}
+            >
+              <span className="guake-agent-avatar">{agentEmoji}</span>
+              <span className="guake-title-block">
+                <span className="guake-title-main-row">
+                  <span className="guake-title">{selectedAgent.name}</span>
+                  {selectedAgent.taskLabel && (
+                    <span className="guake-title-task-chip">{selectedAgent.taskLabel}</span>
+                  )}
+                </span>
+                {mobileHeaderContext && (
+                  <span className="guake-mobile-title-context">{mobileHeaderContext}</span>
+                )}
               </span>
-            ))}
-          </span>
-        )}
+              <span className="guake-title-accessory">
+                <img
+                  src={selectedAgent.provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
+                  alt={selectedAgent.provider}
+                  className="guake-provider-icon"
+                  title={selectedAgent.provider === 'codex' ? 'Codex Agent' : 'Claude Agent'}
+                />
+                <span className="guake-title-info">Info</span>
+              </span>
+            </button>
+          ) : (
+            <div className="guake-title-with-provider">
+              <span className="guake-agent-avatar">{agentEmoji}</span>
+              <span className="guake-title-block">
+                <span className="guake-title-main-row">
+                  <span className="guake-title">{selectedAgent.name}</span>
+                  {selectedAgent.taskLabel && (
+                    <span className="guake-title-task-chip">{selectedAgent.taskLabel}</span>
+                  )}
+                </span>
+                {mobileHeaderContext && (
+                  <span className="guake-mobile-title-context">{mobileHeaderContext}</span>
+                )}
+              </span>
+              <span className="guake-title-accessory">
+                <img
+                  src={selectedAgent.provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
+                  alt={selectedAgent.provider}
+                  className="guake-provider-icon"
+                  title={selectedAgent.provider === 'codex' ? 'Codex Agent' : 'Claude Agent'}
+                />
+              </span>
+            </div>
+          )}
+        </div>
+        <div className="guake-header-meta">
+          {(lastInput || agentAnalysis || selectedAgent.taskLabel) && (
+            <span
+              className="guake-status-line"
+              title={`${selectedAgent.taskLabel ? `📋 ${selectedAgent.taskLabel}\n` : ''}${lastInput || 'No task'}${agentAnalysis ? `\n\n🎖️ ${agentAnalysis.statusDescription}\n${agentAnalysis.recentWorkSummary}` : ''}`}
+            >
+              {agentAnalysis && (
+                <span
+                  className="guake-supervisor-badge"
+                  style={{ color: progressColors[agentAnalysis.progress] || '#888' }}
+                >
+                  {agentAnalysis.progress.replace('_', ' ')}
+                </span>
+              )}
+              {lastInput && <span className="guake-last-input">{lastInput}</span>}
+            </span>
+          )}
+          {subagents.filter(s => s.status === 'spawning' || s.status === 'working').length > 0 && (
+            <span className="guake-subagents-indicator">
+              {subagents
+                .filter(s => s.status === 'spawning' || s.status === 'working')
+                .map(sub => (
+                  <span
+                    key={sub.id}
+                    className="guake-subagent-badge active"
+                    title={`${sub.name} (${sub.subagentType}) - ${sub.status}`}
+                  >
+                    <span className="guake-subagent-icon">⑂</span>
+                    <span className="guake-subagent-name">{sub.name}</span>
+                  </span>
+                ))}
+            </span>
+          )}
+        </div>
       </div>
       <div className="guake-actions">
-        {/* Star button - show for all conversations with messages (not in snapshot view) */}
-        {!isSnapshotView && onSaveSnapshot && outputsLength > 0 && (
-          <Tooltip
-            content={
-              <>
-                <div className="tide-tooltip__title">{t('terminal:header.saveSnapshot')}</div>
-                <div className="tide-tooltip__text">
-                  {t('terminal:header.saveSnapshotDesc')}
-                </div>
-              </>
-            }
-            position="bottom"
-          >
-            <button
-              className="guake-snapshot-btn hide-on-mobile"
-              onClick={onSaveSnapshot}
-              title={t('terminal:header.saveSnapshot')}
+        <div className="guake-action-cluster guake-action-cluster--compact hide-on-mobile">
+          {!isSnapshotView && onSaveSnapshot && outputsLength > 0 && (
+            <Tooltip
+              content={
+                <>
+                  <div className="tide-tooltip__title">{t('terminal:header.saveSnapshot')}</div>
+                  <div className="tide-tooltip__text">
+                    {t('terminal:header.saveSnapshotDesc')}
+                  </div>
+                </>
+              }
+              position="bottom"
             >
-              ⭐
-            </button>
-          </Tooltip>
-        )}
-        {!isSnapshotView && (
-          <>
+              <button
+                className="guake-icon-action guake-snapshot-btn"
+                onClick={onSaveSnapshot}
+                title={t('terminal:header.saveSnapshot')}
+              >
+                <span className="guake-action-icon">⭐</span>
+              </button>
+            </Tooltip>
+          )}
+          {!isSnapshotView && (
+            <>
+              <button
+                className="guake-icon-action guake-nav-btn"
+                onClick={onNavigateBack}
+                title="Back (Alt+Left)"
+                disabled={!canNavigateBack}
+              >
+                <span className="guake-action-icon">←</span>
+              </button>
+              <button
+                className="guake-icon-action guake-nav-btn"
+                onClick={onNavigateForward}
+                title="Forward (Alt+Right)"
+                disabled={!canNavigateForward}
+              >
+                <span className="guake-action-icon">→</span>
+              </button>
+            </>
+          )}
+          {!isSnapshotView && setOverviewPanelOpen && (
             <button
-              className="guake-nav-btn hide-on-mobile"
-              onClick={onNavigateBack}
-              title="Back (Alt+Left)"
-              disabled={!canNavigateBack}
+              className={`guake-icon-action guake-overview-toggle ${overviewPanelOpen ? 'active' : ''}`}
+              onClick={() => setOverviewPanelOpen(!overviewPanelOpen)}
+              title={overviewPanelOpen ? t('terminal:header.hideOverview') : t('terminal:header.showOverview')}
             >
-              ←
+              <span className="guake-action-icon">📊</span>
             </button>
+          )}
+          {!isSnapshotView && (
             <button
-              className="guake-nav-btn hide-on-mobile"
-              onClick={onNavigateForward}
-              title="Forward (Alt+Right)"
-              disabled={!canNavigateForward}
+              className={`guake-icon-action guake-debug-toggle ${debugPanelOpen ? 'active' : ''}`}
+              onClick={handleDebugToggle}
+              title={debugPanelOpen ? t('terminal:header.hideDebug') : t('terminal:header.showDebug')}
             >
-              →
+              <span className="guake-action-icon">🐛</span>
             </button>
-          </>
-        )}
-        {!isSnapshotView && setOverviewPanelOpen && (
+          )}
           <button
-            className={`guake-overview-toggle hide-on-mobile ${overviewPanelOpen ? 'active' : ''}`}
-            onClick={() => setOverviewPanelOpen(!overviewPanelOpen)}
-            title={overviewPanelOpen ? t('terminal:header.hideOverview') : t('terminal:header.showOverview')}
+            className={`guake-icon-action guake-fullscreen-toggle ${isFullscreen ? 'active' : ''}`}
+            onClick={onToggleFullscreen}
+            title={isFullscreen ? t('terminal:header.exitFullscreen') : t('terminal:header.enterFullscreen')}
           >
-            📊
+            <span className="guake-action-icon">{isFullscreen ? '🗗' : '⛶'}</span>
           </button>
-        )}
-        {!isSnapshotView && (
           <button
-            className={`guake-debug-toggle hide-on-mobile ${debugPanelOpen ? 'active' : ''}`}
-            onClick={handleDebugToggle}
-            title={debugPanelOpen ? t('terminal:header.hideDebug') : t('terminal:header.showDebug')}
+            className={`guake-icon-action guake-search-toggle ${searchMode ? 'active' : ''}`}
+            onClick={handleSearchToggle}
+            title={t('terminal:header.search')}
           >
-            🐛
+            <span className="guake-action-icon">🔍</span>
           </button>
-        )}
-        <button
-          className={`guake-fullscreen-toggle hide-on-mobile ${isFullscreen ? 'active' : ''}`}
-          onClick={onToggleFullscreen}
-          title={isFullscreen ? t('terminal:header.exitFullscreen') : t('terminal:header.enterFullscreen')}
-        >
-          {isFullscreen ? '🗗' : '⛶'}
-        </button>
-        <button
-          className={`guake-search-toggle hide-on-mobile ${searchMode ? 'active' : ''}`}
-          onClick={handleSearchToggle}
-          title={t('terminal:header.search')}
-        >
-          🔍
-        </button>
+        </div>
         <button
           className={`guake-view-toggle hide-on-mobile ${viewMode !== 'simple' ? 'active' : ''} view-mode-${viewMode}`}
           onClick={handleViewModeToggle}
@@ -380,43 +404,56 @@ export const TerminalHeader = memo(function TerminalHeader({
                 : t('terminal:header.advancedViewDesc')
           }
         >
-          {viewMode === 'simple' ? `○ ${t('terminal:header.simpleView')}` : viewMode === 'chat' ? `◐ ${t('terminal:header.chatView')}` : `◉ ${t('terminal:header.advancedView')}`}
+          <span className="guake-view-toggle__icon">{viewModeIcon}</span>
+          <span className="guake-view-toggle__label">{viewModeLabel}</span>
         </button>
         {!isSnapshotView && (
-          <>
-            <button
-              className="guake-context-btn hide-on-mobile"
-              onClick={() => setContextConfirm('collapse')}
-              title={t('terminal:header.collapseContextDesc')}
-              disabled={selectedAgent.status !== 'idle'}
-            >
-              📦 {t('terminal:header.collapseContext')}
-            </button>
-            <button
-              className="guake-context-btn danger hide-on-mobile"
-              onClick={() => setContextConfirm('clear')}
-              title={t('terminal:header.clearContextDesc')}
-            >
-              🧹 {t('terminal:header.clearContext')}
-            </button>
-            <button
-              className="guake-remove-agent-btn hide-on-mobile"
-              onClick={handleRemoveAgent}
-              title={t('terminal:header.removeAgentDesc')}
-            >
-              ❌ {t('terminal:header.removeAgent')}
-            </button>
+          <div className="guake-action-cluster guake-action-cluster--context hide-on-mobile">
+            <Tooltip content={t('terminal:header.collapseContext')} position="bottom">
+              <button
+                className="guake-icon-action guake-context-btn"
+                onClick={() => setContextConfirm('collapse')}
+                title={t('terminal:header.collapseContextDesc')}
+                aria-label={t('terminal:header.collapseContext')}
+                disabled={selectedAgent.status !== 'idle'}
+              >
+                <span className="guake-action-icon">📦</span>
+              </button>
+            </Tooltip>
+            <Tooltip content={t('terminal:header.clearContext')} position="bottom">
+              <button
+                className="guake-icon-action guake-context-btn danger"
+                onClick={() => setContextConfirm('clear')}
+                title={t('terminal:header.clearContextDesc')}
+                aria-label={t('terminal:header.clearContext')}
+              >
+                <span className="guake-action-icon">🧹</span>
+              </button>
+            </Tooltip>
+            <Tooltip content={t('terminal:header.removeAgent')} position="bottom">
+              <button
+                className="guake-icon-action guake-remove-agent-btn"
+                onClick={handleRemoveAgent}
+                title={t('terminal:header.removeAgentDesc')}
+                aria-label={t('terminal:header.removeAgent')}
+              >
+                <span className="guake-action-icon">❌</span>
+              </button>
+            </Tooltip>
             {/* Boss-only: Clear all subordinates' context */}
             {hasSubordinates && (
-              <button
-                className="guake-context-btn danger hide-on-mobile"
-                onClick={() => setContextConfirm('clear-subordinates')}
-                title={t('terminal:header.clearAllSubordinatesDesc')}
-              >
-                👑🗑️ {t('terminal:header.clearAllSubordinates')}
-              </button>
+              <Tooltip content={t('terminal:header.clearAllSubordinates')} position="bottom">
+                <button
+                  className="guake-icon-action guake-context-btn danger"
+                  onClick={() => setContextConfirm('clear-subordinates')}
+                  title={t('terminal:header.clearAllSubordinatesDesc')}
+                  aria-label={t('terminal:header.clearAllSubordinates')}
+                >
+                  <span className="guake-action-icon">👑</span>
+                </button>
+              </Tooltip>
             )}
-          </>
+          </div>
         )}
         {/* Mobile more-actions menu */}
         {!isSnapshotView && (
@@ -585,25 +622,29 @@ export const TerminalHeader = memo(function TerminalHeader({
   );
 });
 
-// Search bar component
+// Search bar component - WhatsApp-style in-thread search navigator
 export interface SearchBarProps {
   searchInputRef: React.RefObject<HTMLInputElement | null>;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
-  handleSearch: () => void;
   closeSearch: () => void;
-  searchLoading: boolean;
-  searchResultsCount: number;
+  matchCount: number;
+  currentMatch: number;
+  navigateNext: () => void;
+  navigatePrev: () => void;
+  loadingFullHistory?: boolean;
 }
 
 export function SearchBar({
   searchInputRef,
   searchQuery,
   setSearchQuery,
-  handleSearch,
   closeSearch,
-  searchLoading,
-  searchResultsCount,
+  matchCount,
+  currentMatch,
+  navigateNext,
+  navigatePrev,
+  loadingFullHistory,
 }: SearchBarProps) {
   const { t } = useTranslation(['terminal', 'common']);
   return (
@@ -615,14 +656,51 @@ export function SearchBar({
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') handleSearch();
-          if (e.key === 'Escape') closeSearch();
+          if (e.key === 'Escape') {
+            e.preventDefault();
+            closeSearch();
+          } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (e.shiftKey) {
+              navigatePrev();
+            } else {
+              navigateNext();
+            }
+          }
         }}
       />
-      <button onClick={handleSearch} disabled={searchLoading}>
-        {searchLoading ? '...' : t('common:buttons.search')}
+      {searchQuery.trim().length >= 2 && (
+        <span className="guake-search-count">
+          {loadingFullHistory
+            ? `${matchCount > 0 ? `${currentMatch + 1} / ${matchCount}` : '...'} loading`
+            : matchCount > 0
+              ? `${currentMatch + 1} / ${matchCount}`
+              : t('terminal:header.searchNoResults', 'No results')}
+        </span>
+      )}
+      <button
+        className="guake-search-nav"
+        onClick={navigatePrev}
+        disabled={matchCount === 0}
+        title="Previous match (Shift+Enter)"
+      >
+        ▲
       </button>
-      {searchResultsCount > 0 && <span className="guake-search-count">{t('terminal:header.searchResultsCount', { count: searchResultsCount })}</span>}
+      <button
+        className="guake-search-nav"
+        onClick={navigateNext}
+        disabled={matchCount === 0}
+        title="Next match (Enter)"
+      >
+        ▼
+      </button>
+      <button
+        className="guake-search-close"
+        onClick={closeSearch}
+        title="Close search (Escape)"
+      >
+        ✕
+      </button>
     </div>
   );
 }

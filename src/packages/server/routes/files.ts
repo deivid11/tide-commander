@@ -1276,6 +1276,35 @@ router.get('/git-diff', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/files/git-branch - Get current branch name for a directory (lightweight)
+router.get('/git-branch', async (req: Request, res: Response) => {
+  try {
+    const dirPath = req.query.path as string;
+    if (!dirPath) { res.status(400).json({ error: 'Missing path parameter' }); return; }
+    if (!path.isAbsolute(dirPath)) { res.status(400).json({ error: 'Path must be absolute' }); return; }
+    if (!fs.existsSync(dirPath)) { res.json({ branch: null }); return; }
+
+    let gitRoot: string;
+    try {
+      gitRoot = execSync('git rev-parse --show-toplevel', { cwd: dirPath, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
+    } catch {
+      res.json({ branch: null });
+      return;
+    }
+
+    let branch = '';
+    try {
+      branch = execSync('git branch --show-current', { cwd: gitRoot, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim() || 'HEAD';
+    } catch {
+      branch = 'HEAD';
+    }
+
+    res.json({ branch });
+  } catch (err: any) {
+    res.json({ branch: null });
+  }
+});
+
 // GET /api/files/git-branches - List all local and remote branches
 router.get('/git-branches', async (req: Request, res: Response) => {
   try {

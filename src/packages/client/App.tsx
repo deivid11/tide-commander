@@ -102,6 +102,7 @@ function AppContent() {
   const [iframeModalUrl, setIframeModalUrl] = useState<string | null>(null);
 
   const [spawnPosition, setSpawnPosition] = useState<{ x: number; z: number } | null>(null);
+  const [spawnAreaId, setSpawnAreaId] = useState<string | null>(null);
   // 'selected' means delete all selected buildings, otherwise a specific building ID
   const [pendingBuildingDelete, setPendingBuildingDelete] = useState<string | 'selected' | null>(null);
   const [hoveredAgentPopup, setHoveredAgentPopup] = useState<{
@@ -507,8 +508,23 @@ function AppContent() {
   useEffect(() => {
     if (!spawnModal.isOpen && !bossSpawnModal.isOpen) {
       setSpawnPosition(null);
+      setSpawnAreaId(null);
     }
   }, [spawnModal.isOpen, bossSpawnModal.isOpen]);
+
+  useEffect(() => {
+    const handleOpenSpawnModal = (event: Event) => {
+      const detail = (event as CustomEvent<{ areaId?: string; position?: { x: number; z: number } }>).detail;
+      setSpawnAreaId(detail?.areaId || null);
+      setSpawnPosition(detail?.position || null);
+      spawnModal.open();
+    };
+
+    window.addEventListener('tide:open-spawn-modal', handleOpenSpawnModal as EventListener);
+    return () => {
+      window.removeEventListener('tide:open-spawn-modal', handleOpenSpawnModal as EventListener);
+    };
+  }, [spawnModal]);
 
   // Check if in drawing mode
   const isDrawingMode = activeTool === 'rectangle' || activeTool === 'circle';
@@ -694,6 +710,7 @@ function AppContent() {
                 store.updateBuildingPosition(buildingId, endPos);
               }}
               indicatorScale={sceneConfig.indicatorScale}
+              showTaskLabels={sceneConfig.show2DTaskLabels}
               showGrid={sceneConfig.gridVisible}
               fpsLimit={sceneConfig.fpsLimit}
             />
@@ -1066,6 +1083,7 @@ function AppContent() {
         explorerModal={explorerModal}
         contextMenu={contextMenu}
         spawnPosition={spawnPosition}
+        spawnAreaId={spawnAreaId}
         explorerFolderPath={explorerFolderPath}
         contextMenuActions={contextMenuActions}
         sceneConfig={sceneConfig}

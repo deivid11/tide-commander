@@ -442,9 +442,8 @@ export function useSceneSetup({
       },
       onAgentUpdated: (agent, positionChanged) => {
         // Read the merged agent from the store instead of using the raw server
-        // data. The store applies mergeFreshestContext which preserves context
-        // stats when the server sends stale/wiped contextStats (e.g. during
-        // Codex handleComplete).
+        // data. The store applies mergeFreshestContext which ignores stale
+        // snapshots but still honors explicit clear-context resets.
         const mergedAgent = store.getState().agents.get(agent.id) || agent;
         sceneRef.current?.updateAgent(mergedAgent, positionChanged);
       },

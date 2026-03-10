@@ -7,6 +7,7 @@ import { store } from '../../store';
 import { getDisplayContextInfo } from '../../utils/context';
 import { TOOL_ICONS } from '../../utils/outputRendering';
 import { BaseRenderer } from './BaseRenderer';
+import { get2DIndicatorZoomFactor, get2DNameplateZoomFactor } from '../utils/indicatorScale';
 
 const STATUS_COLORS: Record<string, { color: string; glow: string; darkColor: string }> = {
   idle: { color: '#4aff9e', glow: 'rgba(74, 255, 158, 0.6)', darkColor: '#2a9a5e' },
@@ -50,18 +51,19 @@ export class AgentRenderer extends BaseRenderer {
     return '🤖';
   }
 
-  drawAgent(agent: Agent2DData, isSelected: boolean, isMoving: boolean, indicatorScale: number): void {
+  drawAgent(agent: Agent2DData, isSelected: boolean, isMoving: boolean, indicatorScale: number, showTaskLabels: boolean): void {
     const { x, z } = agent.position;
     const baseRadius = agent.isBoss ? 0.7 : 0.5;
     const radius = baseRadius;
 
     const zoom = this.camera.getZoom();
-    const zoomScaleFactor = Math.min(1, zoom / 30);
+    const indicatorZoomFactor = get2DIndicatorZoomFactor(zoom);
+    const nameplateZoomFactor = get2DNameplateZoomFactor(zoom, showTaskLabels && Boolean(agent.taskLabel));
 
     const walkSpeed = 8;
     const walkPhase = this.animationTime * walkSpeed;
     const isWorking = agent.status === 'working';
-    const iconBounceOffset = isWorking ? Math.abs(Math.sin(this.animationTime * 4)) * 4 * zoomScaleFactor : 0;
+    const iconBounceOffset = isWorking ? Math.abs(Math.sin(this.animationTime * 4)) * 4 * indicatorZoomFactor : 0;
 
     const bobAmount = isMoving ? Math.sin(walkPhase * 2) * 0.05 : 0;
     const squashAmount = isMoving ? 1 + Math.sin(walkPhase * 2) * 0.08 : 1;
@@ -190,7 +192,7 @@ export class AgentRenderer extends BaseRenderer {
     this.ctx.restore();
 
     // ========== CLASS EMOJI ==========
-    const emojiFontSize = Math.max(12 * zoomScaleFactor, screenRadius * 1.1);
+    const emojiFontSize = Math.max(12 * indicatorZoomFactor, screenRadius * 1.1);
     this.ctx.font = `${emojiFontSize}px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif`;
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
@@ -198,7 +200,7 @@ export class AgentRenderer extends BaseRenderer {
 
     // ========== BOSS CROWN ==========
     if (agent.isBoss) {
-      const crownSize = Math.max(10 * zoomScaleFactor, screenRadius * 0.6);
+      const crownSize = Math.max(10 * indicatorZoomFactor, screenRadius * 0.6);
       this.ctx.font = `${crownSize}px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", serif`;
       this.ctx.textAlign = 'center';
       this.ctx.textBaseline = 'bottom';
@@ -223,17 +225,19 @@ export class AgentRenderer extends BaseRenderer {
     }
 
     // ========== NAME TAG ==========
-    const labelScale = indicatorScale * zoomScaleFactor;
-    const labelY = screenPos.y + screenRadius + 12 * zoomScaleFactor;
+    const labelScale = indicatorScale * indicatorZoomFactor;
+    const labelY = screenPos.y + screenRadius + 12 * indicatorZoomFactor;
+    const nameTagScale = indicatorScale * nameplateZoomFactor;
     const labelFontSize = Math.max(7, 13 * labelScale);
+    const nameLabelFontSize = Math.max(7, 13 * nameTagScale);
 
-    this.ctx.font = `bold ${labelFontSize}px "Segoe UI", Arial, sans-serif`;
+    this.ctx.font = `bold ${nameLabelFontSize}px "Segoe UI", Arial, sans-serif`;
     const nameWidth = this.ctx.measureText(agent.name).width;
-    const namePadding = 6 * zoomScaleFactor;
-    const nameHeight = labelFontSize + 4 * zoomScaleFactor;
+    const namePadding = 6 * nameplateZoomFactor;
+    const nameHeight = nameLabelFontSize + 4 * nameplateZoomFactor;
     const hasProviderDot = agent.provider === 'claude' || agent.provider === 'codex';
-    const dotSize = hasProviderDot ? labelFontSize * 0.45 : 0;
-    const dotGap = hasProviderDot ? labelFontSize * 0.3 : 0;
+    const dotSize = hasProviderDot ? nameLabelFontSize * 0.45 : 0;
+    const dotGap = hasProviderDot ? nameLabelFontSize * 0.3 : 0;
     const providerBlock = dotSize + dotGap;
     const totalTagWidth = nameWidth + providerBlock + namePadding * 2;
     const textX = screenPos.x + providerBlock / 2;
@@ -276,15 +280,16 @@ export class AgentRenderer extends BaseRenderer {
     this.ctx.fillStyle = bodyColor;
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
+    this.ctx.font = `bold ${nameLabelFontSize}px "Segoe UI", Arial, sans-serif`;
     this.ctx.fillText(agent.name, textX, labelY);
 
     // ========== CONTEXT/MANA BAR ==========
     const contextPercent = getDisplayContextInfo(agent).freePercent;
     const manaPercent = Math.max(0, Math.min(100, contextPercent)) / 100;
 
-    const barY = labelY + nameHeight / 2 + 8 * zoomScaleFactor;
-    const barWidth = 100 * zoomScaleFactor;
-    const barHeight = 14 * zoomScaleFactor;
+    const barY = labelY + nameHeight / 2 + 8 * indicatorZoomFactor;
+    const barWidth = 100 * indicatorZoomFactor;
+    const barHeight = 14 * indicatorZoomFactor;
 
     this.ctx.beginPath();
     this.roundedRectScreen(screenPos.x - barWidth / 2, barY, barWidth, barHeight, 4);
@@ -324,7 +329,7 @@ export class AgentRenderer extends BaseRenderer {
     this.ctx.stroke();
 
     const percentText = `${Math.round(contextPercent)}%`;
-    const percentFontSize = Math.max(6, 10 * zoomScaleFactor);
+    const percentFontSize = Math.max(6, 10 * indicatorZoomFactor);
     this.ctx.font = `bold ${percentFontSize}px "Segoe UI", Arial, sans-serif`;
     this.ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
     this.ctx.textAlign = 'center';
@@ -336,7 +341,7 @@ export class AgentRenderer extends BaseRenderer {
       const idleSeconds = Math.floor((Date.now() - agent.lastActivity) / 1000);
       if (idleSeconds >= 5) {
         const idleText = this.formatIdleTime(idleSeconds);
-        const timerY = barY + barHeight + 10 * zoomScaleFactor;
+        const timerY = barY + barHeight + 10 * indicatorZoomFactor;
 
         let timerBgColor: string, timerTextColor: string, timerIcon: string;
         if (idleSeconds < 60) {
@@ -357,8 +362,8 @@ export class AgentRenderer extends BaseRenderer {
         this.ctx.font = `bold ${timerFontSize}px "Segoe UI Emoji", "Apple Color Emoji", Arial`;
         const timerContent = `${timerIcon} ${idleText}`;
         const timerWidth = this.ctx.measureText(timerContent).width;
-        const timerPadding = 5 * zoomScaleFactor;
-        const timerHeight = timerFontSize + 3 * zoomScaleFactor;
+        const timerPadding = 5 * indicatorZoomFactor;
+        const timerHeight = timerFontSize + 3 * indicatorZoomFactor;
 
         this.ctx.beginPath();
         this.roundedRectScreen(
@@ -384,7 +389,7 @@ export class AgentRenderer extends BaseRenderer {
 
     if (toolAnim && toolAnim.opacity > 0.01) {
       const toolIcon = TOOL_ICONS[toolAnim.tool] || TOOL_ICONS.default;
-      const toolY = barY + barHeight + 10 * zoomScaleFactor;
+      const toolY = barY + barHeight + 10 * indicatorZoomFactor;
       const opacity = toolAnim.opacity;
 
       const scaleProgress = toolAnim.fadeIn
@@ -396,10 +401,10 @@ export class AgentRenderer extends BaseRenderer {
       this.ctx.font = `bold ${toolFontSize}px "Segoe UI Emoji", "Apple Color Emoji", Arial`;
       const toolContent = `${toolIcon} ${toolAnim.tool}`;
       const toolTextWidth = this.ctx.measureText(toolContent).width;
-      const toolPadding = 6 * zoomScaleFactor * scale;
-      const toolBadgeHeight = toolFontSize + 4 * zoomScaleFactor * scale;
+      const toolPadding = 6 * indicatorZoomFactor * scale;
+      const toolBadgeHeight = toolFontSize + 4 * indicatorZoomFactor * scale;
 
-      const slideOffset = (1 - scaleProgress) * 4 * zoomScaleFactor;
+      const slideOffset = (1 - scaleProgress) * 4 * indicatorZoomFactor;
       const animatedToolY = toolY + slideOffset;
 
       this.ctx.beginPath();
@@ -424,14 +429,14 @@ export class AgentRenderer extends BaseRenderer {
     }
 
     // ========== TASK LABEL BADGE ==========
-    if (agent.taskLabel) {
+    if (showTaskLabels && agent.taskLabel) {
       const taskFontSize = Math.max(9, 15 * labelScale);
       this.ctx.font = `bold italic ${taskFontSize}px "Segoe UI", Arial, sans-serif`;
       const taskText = agent.taskLabel.length > 30 ? agent.taskLabel.substring(0, 28) + '..' : agent.taskLabel;
       const taskWidth = this.ctx.measureText(taskText).width;
-      const taskPadding = 6 * zoomScaleFactor;
-      const taskHeight = taskFontSize + 5 * zoomScaleFactor;
-      const taskY = barY + barHeight + 10 * zoomScaleFactor;
+      const taskPadding = 6 * indicatorZoomFactor;
+      const taskHeight = taskFontSize + 5 * indicatorZoomFactor;
+      const taskY = barY + barHeight + 10 * indicatorZoomFactor;
 
       this.ctx.beginPath();
       this.roundedRectScreen(
@@ -452,7 +457,7 @@ export class AgentRenderer extends BaseRenderer {
 
     // ========== UNSEEN OUTPUT NOTIFICATION BADGE ==========
     if (this.frameUnseenOutput?.has(agent.id)) {
-      const badgeRadius = 10 * zoomScaleFactor;
+      const badgeRadius = 10 * indicatorZoomFactor;
       const badgeX = screenPos.x + screenRadius * 0.7;
       const badgeY = screenPos.y - screenRadius * 0.7;
 

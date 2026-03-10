@@ -17,6 +17,7 @@
 
   // Subtle background pattern for depth
   position: relative;
+  z-index: 1;
 
   &::before {
     content: '';

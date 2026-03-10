@@ -134,4 +134,49 @@ describe('Agent Store Actions', () => {
     expect(updated?.contextStats?.totalTokens).toBe(174000);
     expect(updated?.contextStats?.lastUpdated).toBe(200);
   });
+
+  it('honors explicit clear-context resets over fresher cached stats', () => {
+    const { state, actions } = createMockStore();
+    state.agents.set('agent-1', {
+      ...state.agents.get('agent-1'),
+      status: 'idle',
+      sessionId: 'session-1',
+      tokensUsed: 999,
+      contextUsed: 174000,
+      contextLimit: 258400,
+      contextStats: {
+        model: 'gpt-5.4',
+        contextWindow: 258400,
+        totalTokens: 174000,
+        usedPercent: 67.3,
+        categories: {
+          systemPrompt: { tokens: 0, percent: 0 },
+          systemTools: { tokens: 0, percent: 0 },
+          messages: { tokens: 174000, percent: 67.3 },
+          freeSpace: { tokens: 84400, percent: 32.7 },
+          autocompactBuffer: { tokens: 0, percent: 0 },
+        },
+        lastUpdated: 200,
+      },
+    } as any);
+
+    actions.updateAgent({
+      ...state.agents.get('agent-1'),
+      status: 'idle',
+      currentTask: undefined,
+      taskLabel: undefined,
+      lastAssignedTask: undefined,
+      lastAssignedTaskTime: undefined,
+      sessionId: undefined,
+      tokensUsed: 0,
+      contextUsed: 0,
+      contextStats: undefined,
+    } as any);
+
+    const updated = state.agents.get('agent-1');
+    expect(updated?.tokensUsed).toBe(0);
+    expect(updated?.contextUsed).toBe(0);
+    expect(updated?.contextStats).toBeUndefined();
+    expect(updated?.sessionId).toBeUndefined();
+  });
 });

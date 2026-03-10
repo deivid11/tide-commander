@@ -5,38 +5,23 @@
 @use 'sass:color';
 @use '../../variables' as *;
 
-.guake-search-toggle,
-.guake-fullscreen-toggle {
-  background: transparent;
-  border: 1px solid $dracula-comment;
-  color: $dracula-comment;
-  padding: 4px 8px;
-  border-radius: $radius-sm;
-  font-size: 12px;
-  cursor: pointer;
-  transition: all $transition-fast;
-
-  &:hover {
-    border-color: $dracula-cyan;
-    color: $dracula-cyan;
-  }
-
-  &.active {
-    border-color: $dracula-cyan;
-    color: $dracula-cyan;
-  }
+.guake-search-toggle.active {
+  border-color: color-mix(in srgb, var(--accent-cyan) 34%, transparent);
+  background: color-mix(in srgb, var(--accent-cyan) 14%, transparent);
+  color: var(--accent-cyan);
 }
 
 .guake-fullscreen-toggle.active {
-  border-color: $dracula-green;
+  border-color: color-mix(in srgb, $dracula-green 36%, transparent);
+  background: color-mix(in srgb, $dracula-green 14%, transparent);
   color: $dracula-green;
 }
 
 .guake-search {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
+  gap: 6px;
+  padding: 6px 12px;
   background: rgba($dracula-bg, 0.98);
   border-bottom: 1px solid $dracula-current;
 
@@ -49,6 +34,7 @@
     color: $dracula-fg;
     font-family: $font-mono;
     font-size: 12px;
+    min-width: 0;
 
     &:focus {
       outline: none;
@@ -59,28 +45,6 @@
       color: $dracula-comment;
     }
   }
-
-  button {
-    background: $dracula-cyan;
-    border: none;
-    color: $dracula-bg;
-    padding: 6px 12px;
-    border-radius: $radius-sm;
-    font-size: 11px;
-    font-weight: 600;
-    font-family: $font-mono;
-    cursor: pointer;
-    transition: all $transition-fast;
-
-    &:hover:not(:disabled) {
-      background: color.adjust($dracula-cyan, $lightness: 10%);
-    }
-
-    &:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-  }
 }
 
 .guake-search-count {
@@ -88,16 +52,59 @@
   font-size: 11px;
   font-family: $font-mono;
   white-space: nowrap;
+  min-width: 50px;
+  text-align: center;
 }
 
-.guake-search-header {
-  padding: 8px 12px;
-  color: $dracula-cyan;
-  font-size: 11px;
-  font-family: $font-mono;
-  font-weight: 600;
-  border-bottom: 1px dashed rgba($dracula-cyan, 0.3);
-  margin-bottom: 8px;
+.guake-search-nav {
+  background: transparent;
+  border: 1px solid $dracula-comment;
+  color: $dracula-comment;
+  width: 26px;
+  height: 26px;
+  border-radius: $radius-sm;
+  font-size: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all $transition-fast;
+  padding: 0;
+  line-height: 1;
+  flex-shrink: 0;
+
+  &:hover:not(:disabled) {
+    border-color: $dracula-cyan;
+    color: $dracula-cyan;
+  }
+
+  &:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+}
+
+.guake-search-close {
+  background: transparent;
+  border: 1px solid $dracula-comment;
+  color: $dracula-comment;
+  width: 26px;
+  height: 26px;
+  border-radius: $radius-sm;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all $transition-fast;
+  padding: 0;
+  line-height: 1;
+  flex-shrink: 0;
+
+  &:hover {
+    border-color: $dracula-red;
+    color: $dracula-red;
+  }
 }
 
 .search-highlight {

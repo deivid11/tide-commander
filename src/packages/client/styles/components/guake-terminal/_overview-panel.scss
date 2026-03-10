@@ -11,27 +11,11 @@
   }
 }
 
-// Toggle button in header (matches debug toggle style)
-.guake-overview-toggle {
-  background: transparent;
-  border: 1px solid transparent;
-  color: var(--text-muted);
-  font-size: 14px;
-  cursor: pointer;
-  padding: 2px 6px;
-  border-radius: $radius-sm;
-  transition: all 0.2s;
-
-  &:hover {
-    background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
-    color: var(--accent-cyan);
-  }
-
-  &.active {
-    background: color-mix(in srgb, var(--accent-cyan) 20%, transparent);
-    border-color: var(--accent-cyan);
-    color: var(--accent-cyan);
-  }
+// Toggle button in header
+.guake-overview-toggle.active {
+  border-color: color-mix(in srgb, var(--accent-cyan) 34%, transparent);
+  background: color-mix(in srgb, var(--accent-cyan) 14%, transparent);
+  color: var(--accent-cyan);
 }
 
 // Main panel container
@@ -282,6 +266,29 @@
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+
+    .aop-area-add-btn {
+      width: 20px;
+      height: 20px;
+      border: 1px solid color-mix(in srgb, var(--accent-cyan) 28%, transparent);
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--accent-cyan) 10%, transparent);
+      color: var(--accent-cyan);
+      font-size: 14px;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+
+      &:hover {
+        background: color-mix(in srgb, var(--accent-cyan) 18%, transparent);
+        border-color: color-mix(in srgb, var(--accent-cyan) 42%, transparent);
+        transform: translateY(-1px);
+      }
     }
 
     .aop-area-count {

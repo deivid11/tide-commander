@@ -121,6 +121,10 @@ export interface UseHistoryLoaderReturn {
   clearHistory: () => void;
   /** Check if an agent has cached history (for instant display on revisit) */
   hasCachedHistory: (agentId: string) => boolean;
+  /** Load ALL remaining history pages (for search) */
+  loadAllHistory: () => Promise<void>;
+  /** Whether all history has been loaded (no more pages) */
+  allLoaded: boolean;
 }
 
 export function useHistoryLoader({
@@ -483,6 +487,54 @@ export function useHistoryLoader({
     if (selectedAgentId) historyCache.delete(selectedAgentId);
   }, [selectedAgentId]);
 
+  // Load ALL history in a single request (used for search to cover full conversation)
+  const loadAllHistoryRef = useRef(false);
+  const loadAllHistory = useCallback(async () => {
+    if (!selectedAgentId || !hasMoreRef.current) return;
+    if (loadingMoreRef.current || loadAllHistoryRef.current) return;
+
+    loadAllHistoryRef.current = true;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+
+    try {
+      // Fetch entire history in one request (limit=100000 to get everything)
+      const res = await authFetch(apiUrl(`/api/agents/${selectedAgentId}/history?limit=100000&offset=0`));
+      const data = await res.json();
+
+      if (!isMountedRef.current) return;
+
+      const subagents = Array.isArray(data.subagents) ? data.subagents : [];
+      if (subagents.length > 0) {
+        store.hydrateSubagentsFromHistory(selectedAgentId, subagents);
+      }
+
+      if (data.messages && data.messages.length > 0) {
+        setHistory(data.messages);
+        historyLengthRef.current = data.messages.length;
+      }
+
+      hasMoreRef.current = false;
+      setHasMore(false);
+      setTotalCount(data.totalCount || data.messages?.length || 0);
+
+      // Update cache with full history
+      historyCache.set(selectedAgentId, {
+        messages: data.messages || [],
+        hasMore: false,
+        totalCount: data.totalCount || data.messages?.length || 0,
+      });
+    } catch (err) {
+      console.error('Failed to load all history:', err);
+    } finally {
+      if (isMountedRef.current) {
+        loadingMoreRef.current = false;
+        loadAllHistoryRef.current = false;
+        setLoadingMore(false);
+      }
+    }
+  }, [selectedAgentId]);
+
   return {
     history,
     loadingHistory,
@@ -493,6 +545,8 @@ export function useHistoryLoader({
     totalCount,
     isMountedRef,
     loadMoreHistory,
+    loadAllHistory,
+    allLoaded: !hasMore,
     handleScroll,
     clearHistory,
     hasCachedHistory: useCallback((agentId: string) => historyCache.has(agentId), []),

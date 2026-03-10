@@ -210,6 +210,10 @@ export function useScene2DSetup(
     sceneRef.current?.setIndicatorScale(scale);
   }, []);
 
+  const setTaskLabelsVisible = useCallback((visible: boolean) => {
+    sceneRef.current?.setTaskLabelsVisible(visible);
+  }, []);
+
   const setGridVisible = useCallback((visible: boolean) => {
     sceneRef.current?.setGridVisible(visible);
   }, []);
@@ -229,6 +233,7 @@ export function useScene2DSetup(
     createMoveOrderEffect,
     showToolBubble,
     setIndicatorScale,
+    setTaskLabelsVisible,
     setGridVisible,
     setDrawingTool,
     setFpsLimit,

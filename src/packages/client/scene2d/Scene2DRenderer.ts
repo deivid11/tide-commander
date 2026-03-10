@@ -60,8 +60,8 @@ export class Scene2DRenderer {
     this.agent.beginFrame();
   }
 
-  drawAgent(agent: Agent2DData, isSelected: boolean, isMoving: boolean, indicatorScale: number): void {
-    this.agent.drawAgent(agent, isSelected, isMoving, indicatorScale);
+  drawAgent(agent: Agent2DData, isSelected: boolean, isMoving: boolean, indicatorScale: number, showTaskLabels: boolean): void {
+    this.agent.drawAgent(agent, isSelected, isMoving, indicatorScale, showTaskLabels);
   }
 
   drawBossLine(from: { x: number; z: number }, to: { x: number; z: number }): void {

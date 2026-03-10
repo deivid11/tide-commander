@@ -24,6 +24,8 @@ import { getClassConfig } from '../../utils/classConfig';
 import type { Agent, Subagent, DrawingArea } from '../../../shared/types';
 import type { ToolExecution, ClaudeOutput } from '../../store/types';
 import type { TwoFingerSelectorState } from '../../hooks/useTwoFingerSelector';
+import { ContextMenu } from '../ContextMenu';
+import type { ContextMenuAction } from '../ContextMenu';
 
 /** Persisted config shape for the overview panel */
 interface AopConfig {
@@ -173,6 +175,10 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
   const [mobileFiltersCollapsed, setMobileFiltersCollapsed] = useState<boolean>(() =>
     typeof window !== 'undefined' ? window.matchMedia('(max-width: 768px)').matches : false
   );
+  const [areaContextMenu, setAreaContextMenu] = useState<{
+    areaId: string;
+    position: { x: number; y: number };
+  } | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const internalAgentListRef = useRef<HTMLDivElement>(null);
   const agentListRef = externalAgentListRef || internalAgentListRef;
@@ -504,6 +510,40 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
   const expandAll = () => { setExpandedAgents(new Set(agents.map(a => a.id))); setAllExpanded(true); };
   const collapseAll = () => { setExpandedAgents(new Set()); setAllExpanded(false); };
 
+  const requestSpawnForArea = useCallback((area: DrawingArea) => {
+    window.dispatchEvent(new CustomEvent('tide:open-spawn-modal', {
+      detail: {
+        areaId: area.id,
+        position: {
+          x: area.center.x,
+          z: area.center.z,
+        },
+      },
+    }));
+  }, []);
+
+  const openAreaContextMenu = useCallback((area: DrawingArea, position: { x: number; y: number }) => {
+    setAreaContextMenu({
+      areaId: area.id,
+      position,
+    });
+  }, []);
+
+  const areaContextMenuActions = useMemo((): ContextMenuAction[] => {
+    if (!areaContextMenu) return [];
+    const area = areas.get(areaContextMenu.areaId);
+    if (!area) return [];
+
+    return [
+      {
+        id: 'spawn-agent',
+        label: t('common:agentBar.newAgent'),
+        icon: '+',
+        onClick: () => requestSpawnForArea(area),
+      },
+    ];
+  }, [areaContextMenu, areas, requestSpawnForArea, t]);
+
   // Keep the active agent card centered in the overview scroll container when selection changes.
   useEffect(() => {
     const container = agentListRef.current;
@@ -645,7 +685,41 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
                   >
                     <span className="aop-area-expand">{isCollapsed ? '▸' : '▾'}</span>
                     <span className="aop-area-color" style={{ background: areaColor }} />
-                    <span className="aop-area-name">{areaName}</span>
+                    <span
+                      className="aop-area-name"
+                      onContextMenu={(event) => {
+                        if (!group.area) return;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        openAreaContextMenu(group.area, {
+                          x: event.clientX,
+                          y: event.clientY,
+                        });
+                      }}
+                    >
+                      {areaName}
+                    </span>
+                    {group.area && (() => {
+                      const area = group.area;
+                      return (
+                      <button
+                        type="button"
+                        className="aop-area-add-btn"
+                        title={t('common:agentBar.newAgent')}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          const rect = event.currentTarget.getBoundingClientRect();
+                          openAreaContextMenu(area, {
+                            x: rect.left,
+                            y: rect.bottom + 6,
+                          });
+                        }}
+                      >
+                        +
+                      </button>
+                      );
+                    })()}
                     <span className="aop-area-count">{group.agents.length}</span>
                   </div>
                 )}
@@ -659,6 +733,14 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
           })
         )}
       </div>
+
+      <ContextMenu
+        isOpen={areaContextMenu !== null}
+        position={areaContextMenu?.position ?? { x: 0, y: 0 }}
+        worldPosition={{ x: 0, z: 0 }}
+        actions={areaContextMenuActions}
+        onClose={() => setAreaContextMenu(null)}
+      />
 
     </div>
   );

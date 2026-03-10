@@ -43,6 +43,7 @@ export function loadConfig(): SceneConfig {
   const defaultConfig: SceneConfig = {
     characterScale: 2.0,
     indicatorScale: 0.7,
+    show2DTaskLabels: true,
     gridVisible: false,
     timeMode: 'day',
     terrain: DEFAULT_TERRAIN,
@@ -56,6 +57,7 @@ export function loadConfig(): SceneConfig {
     return {
       characterScale: stored.characterScale ?? defaultConfig.characterScale,
       indicatorScale: stored.indicatorScale ?? defaultConfig.indicatorScale,
+      show2DTaskLabels: stored.show2DTaskLabels ?? defaultConfig.show2DTaskLabels,
       gridVisible: stored.gridVisible ?? defaultConfig.gridVisible,
       timeMode: stored.timeMode ?? defaultConfig.timeMode,
       terrain: { ...DEFAULT_TERRAIN, ...stored.terrain },

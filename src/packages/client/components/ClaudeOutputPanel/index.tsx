@@ -56,6 +56,7 @@ import { useHistoryLoader } from './useHistoryLoader';
 import { useSearchHistory } from './useSearchHistory';
 import { useTerminalInput } from './useTerminalInput';
 import { useMessageNavigation } from './useMessageNavigation';
+import { useGitBranches } from './useGitBranch';
 import { useFilteredOutputsWithLogging } from '../shared/useFilteredOutputs';
 import { parseBossContext, parseInjectedInstructions } from './BossContext';
 import { useModalStackRegistration } from '../../hooks/useModalStack';
@@ -227,6 +228,9 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
       .map((dir) => ({ areaId: area.id, areaName: area.name, dir })));
   }, [activeAgentId, areas, agents]);
 
+  // Fetch git branch names for area directories
+  const areaBranches = useGitBranches(agentAreaDirectories);
+
   // Use extracted hooks
   const { terminalHeight, terminalRef, handleResizeStart } = useTerminalResize();
   const { mobileOverviewHeight, handleResizeMouseDown: handleOverviewResizeMouseDown, handleResizeTouchStart: handleOverviewResizeTouchStart } = useMobileOverviewResize();
@@ -385,11 +389,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     outputScrollRef,
   });
 
-  // Search hook
-  const search = useSearchHistory({
-    selectedAgentId: activeAgentId,
-    isOpen,
-  });
+  // Search hook initialized below after dedupedHistory/dedupedOutputs are computed
 
   // Swipe navigation hook (horizontal agent switching)
   const swipe = useSwipeNavigation({
@@ -651,6 +651,24 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
 
     return result;
   }, [filteredOutputs, dedupedHistory]);
+
+  // Combined items for client-side search
+  const allSearchItems = useMemo(
+    () => [...dedupedHistory, ...dedupedOutputs],
+    [dedupedHistory, dedupedOutputs]
+  );
+
+  // Search hook (client-side, WhatsApp-style navigation)
+  // Loads all remaining history pages when search activates for full-conversation coverage
+  const search = useSearchHistory({
+    selectedAgentId: activeAgentId,
+    isOpen,
+    allItems: allSearchItems,
+    viewMode,
+    hasMoreHistory: historyLoader.hasMore,
+    loadAllHistory: historyLoader.loadAllHistory,
+    loadingMore: historyLoader.loadingMore,
+  });
 
   // Total navigable messages count (history + live outputs)
   const totalNavigableMessages = dedupedHistory.length + dedupedOutputs.length;
@@ -1376,10 +1394,12 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
             searchInputRef={search.searchInputRef}
             searchQuery={search.searchQuery}
             setSearchQuery={search.setSearchQuery}
-            handleSearch={search.handleSearch}
             closeSearch={search.closeSearch}
-            searchLoading={search.searchLoading}
-            searchResultsCount={search.searchResults.length}
+            matchCount={search.matchIndices.length}
+            currentMatch={search.currentMatch}
+            navigateNext={search.navigateNext}
+            navigatePrev={search.navigatePrev}
+            loadingFullHistory={search.loadingFullHistory}
           />
         )}
 
@@ -1412,23 +1432,6 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
           )}
 
           <div className="guake-output" ref={outputScrollRef} onScroll={handleScroll}>
-            {search.searchMode && search.searchResults.length > 0 ? (
-              <>
-                <div className="guake-search-header">{t('terminal:header.searchResultsTitle')}</div>
-                {search.searchResults.map((msg, index) => (
-                  <HistoryLine
-                    key={`s-${index}`}
-                    message={msg as EnrichedHistoryMessage}
-                    agentId={activeAgentId}
-                    highlight={search.searchQuery}
-                    onImageClick={handleImageClick}
-                    onFileClick={handleFileClick}
-                    onBashClick={handleBashClick}
-                    onViewMarkdown={handleViewMarkdown}
-                  />
-                ))}
-              </>
-            ) : (
               <div className={`guake-history-content ${historyFadeIn ? 'fade-in' : ''}`}>
                 {isAgentSwitching && (
                   <div className="guake-empty loading">{t('terminal:empty.loadingConversation')}<span className="loading-dots"><span></span><span></span><span></span></span></div>
@@ -1460,6 +1463,8 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
                     execTasks={execTasks}
                     subagents={subagents}
                     viewMode={viewMode}
+                    searchHighlight={search.highlightQuery}
+                    searchActiveIndex={search.scrollToIndex}
                     selectedMessageIndex={messageNav.selectedIndex}
                     isMessageSelected={messageNav.isSelected}
                     onImageClick={handleImageClick}
@@ -1504,7 +1509,10 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
                         key={progress.agentId}
                         progress={progress}
                         defaultExpanded={progress.status === 'working'}
-                        onAgentClick={store.selectAgent}
+                        onAgentClick={(agentId) => {
+                          store.selectAgent(agentId);
+                          store.setTerminalOpen(true);
+                        }}
                         onDismiss={(subordinateId) => {
                           if (activeAgentId) {
                             store.clearAgentTaskProgress(activeAgentId, subordinateId);
@@ -1517,7 +1525,6 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
                   </div>
                 )}
               </div>
-            )}
           </div>
         </div>
 
@@ -1588,16 +1595,20 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
               📁 {activeAgent.cwd.split('/').filter(Boolean).slice(-2).join('/') || activeAgent.cwd}
             </span>
           )}
-          {agentAreaDirectories && agentAreaDirectories.map(({ areaId, areaName, dir }) => (
-            <span
-              key={`${areaId}:${dir}`}
-              className="guake-agent-area-dir"
-              title={`${areaName}: ${dir}`}
-              onClick={() => store.openFileExplorerForAreaFolder(areaId, dir)}
-            >
-              📂 {dir.split('/').filter(Boolean).pop() || dir}
-            </span>
-          ))}
+          {agentAreaDirectories && agentAreaDirectories.map(({ areaId, areaName, dir }) => {
+            const branch = areaBranches.get(dir);
+            return (
+              <span
+                key={`${areaId}:${dir}`}
+                className="guake-agent-area-dir"
+                title={`${areaName}: ${dir}${branch ? ` (${branch})` : ''}`}
+                onClick={() => store.openFileExplorerForAreaFolder(areaId, dir)}
+              >
+                📂 {dir.split('/').filter(Boolean).pop() || dir}
+                {branch && <span className="guake-agent-area-branch"> ⎇ {branch}</span>}
+              </span>
+            );
+          })}
           {!isSnapshotView && activeAgent && (() => {
             // Use contextStats if available (from /context command), otherwise fallback to basic
             const stats = activeAgent.contextStats;
