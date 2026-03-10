@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.0] - 2026-03-10
+
+### Added
+- **Guake git panel** - New GuakeGitPanel component for integrated git status and diff viewing in the terminal
+- **Git branch display** - New useGitBranch hook showing current branch in terminal header
+- **Agent overview enhancements** - Extended AgentOverviewPanel with improved agent information display
+- **Search history improvements** - Extended search history functionality with richer capabilities
+- **2D scene config options** - New scene configuration entries for the 2D canvas
+- **Agent store capabilities** - New agent store features with expanded test coverage
+- **Agent renderer tests** - Added test suite for 2D AgentRenderer
+- **Indicator scale utility** - New indicatorScale utility for 2D scene rendering
+- **File route extensions** - Additional server file routes and websocket handler improvements
+
+### Changed
+- **Terminal header redesign** - Redesigned TerminalHeader with updated layout and styling
+- **Guake terminal styles** - Overhauled base, header, input, output, and overview panel styles
+- **Spawn modal updates** - Updated SpawnModal component interface
+- **2D scene rendering** - Refined Scene2D, Scene2DRenderer, and AgentRenderer
+- **DiffViewer component** - Updated diff viewer for git panel integration
+
+### Fixed
+- **Lint errors** - Resolved eslint-disable-line for missing react-hooks/exhaustive-deps rule and unused variable warnings
+
 ## [1.8.4] - 2026-03-09
 
 ### Fixed
