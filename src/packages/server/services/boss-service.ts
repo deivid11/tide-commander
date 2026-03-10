@@ -398,11 +398,13 @@ IMPORTANT: You MUST respond with ONLY a JSON object. No explanations, no markdow
 "{{USER_COMMAND}}"
 
 ## Selection Rules
-1. **Strongly prefer idle agents** - Balance workload by favoring idle agents, but use your judgment: if a busy agent has critical context or expertise that makes them significantly better suited for the task, it may be worth assigning to them
+1. **Strongly prefer idle agents** - If a capable idle agent exists, choose them. Do not select a working agent merely because they touched nearby code or have somewhat related context
 2. Match agent class to task type (scout=explore, builder=code, debugger=fix, architect=plan, warrior=refactor, support=docs/tests)
 3. **Prefer lower context usage** - Agents with lower contextPercent can work faster and more efficiently. When choosing between agents of similar capability, prefer the one with lower context usage. Avoid agents with >80% context usage entirely
-4. Consider recent work context - an agent who just worked on related code may be more efficient
+4. Consider recent work context only as a secondary tiebreaker, mainly among idle capable agents
 5. For general questions or status queries, pick any idle agent
+6. Assume the delegating boss can include enough repo paths, summaries, constraints, and handoff notes for another capable idle agent to pick up the task quickly
+7. Choose a working agent over an idle capable agent only when continuity is clearly critical and the interruption cost is justified
 
 ## Required Output Format (JSON only, no other text):
 {"selectedAgentId":"<agent id>","selectedAgentName":"<agent name>","reasoning":"<why this agent>","alternativeAgents":[],"confidence":"medium"}`;

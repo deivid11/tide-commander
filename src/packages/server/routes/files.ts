@@ -1299,9 +1299,28 @@ router.get('/git-branch', async (req: Request, res: Response) => {
       branch = 'HEAD';
     }
 
-    res.json({ branch });
+    // Get ahead/behind counts relative to upstream
+    let ahead = 0;
+    let behind = 0;
+    if (branch && branch !== 'HEAD') {
+      try {
+        const revList = execSync(
+          `git rev-list --left-right --count ${branch}...@{upstream}`,
+          { cwd: gitRoot, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
+        ).trim();
+        const parts = revList.split(/\s+/);
+        if (parts.length === 2) {
+          ahead = parseInt(parts[0], 10) || 0;
+          behind = parseInt(parts[1], 10) || 0;
+        }
+      } catch {
+        // No upstream configured or error — leave at 0
+      }
+    }
+
+    res.json({ branch, ahead, behind });
   } catch {
-    res.json({ branch: null });
+    res.json({ branch: null, ahead: 0, behind: 0 });
   }
 });
 
@@ -2411,6 +2430,35 @@ router.delete('/temp/:filename', (req: Request<{ filename: string }>, res: Respo
     res.json({ success: true });
   } catch (err: any) {
     log.error(' Failed to delete temp file:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/files/git-fetch - Run git fetch in a directory
+router.post('/git-fetch', async (req: Request, res: Response) => {
+  try {
+    const dirPath = (req.body as { path?: string }).path;
+    if (!dirPath || typeof dirPath !== 'string') { res.status(400).json({ error: 'Missing path parameter' }); return; }
+    if (!path.isAbsolute(dirPath)) { res.status(400).json({ error: 'Path must be absolute' }); return; }
+    if (!fs.existsSync(dirPath)) { res.status(404).json({ error: 'Directory not found' }); return; }
+
+    let gitRoot: string;
+    try {
+      gitRoot = execSync('git rev-parse --show-toplevel', { cwd: dirPath, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
+    } catch {
+      res.status(400).json({ error: 'Not a git repository' });
+      return;
+    }
+
+    try {
+      execSync('git fetch --prune', { cwd: gitRoot, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 30_000 });
+    } catch (err: any) {
+      res.status(500).json({ error: `git fetch failed: ${err.message}` });
+      return;
+    }
+
+    res.json({ success: true });
+  } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 });

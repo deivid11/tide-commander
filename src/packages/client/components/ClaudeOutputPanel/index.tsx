@@ -229,7 +229,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
   }, [activeAgentId, areas, agents]);
 
   // Fetch git branch names for area directories
-  const areaBranches = useGitBranches(agentAreaDirectories);
+  const { branches: areaBranches, fetchRemote: fetchGitRemote, fetchingDirs: gitFetchingDirs } = useGitBranches(agentAreaDirectories);
 
   // Use extracted hooks
   const { terminalHeight, terminalRef, handleResizeStart } = useTerminalResize();
@@ -292,8 +292,12 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
   const [debugPanelOpen, setDebugPanelOpen] = useState(false);
   const [debuggerEnabled, setDebuggerEnabled] = useState(() => agentDebugger.isEnabled());
 
-  // Git panel state
-  const [gitPanelOpen, setGitPanelOpen] = useState(false);
+  // Git panel state (persisted in localStorage)
+  const [gitPanelOpen, setGitPanelOpenRaw] = useState(() => getStorageBoolean(STORAGE_KEYS.GIT_PANEL_OPEN, false));
+  const setGitPanelOpen = useCallback((open: boolean) => {
+    setGitPanelOpenRaw(open);
+    setStorageBoolean(STORAGE_KEYS.GIT_PANEL_OPEN, open);
+  }, []);
 
   // Agent overview panel state (persisted in store across agent switches)
   const overviewPanelOpen = useOverviewPanelOpen();
@@ -1371,7 +1375,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
 
       {/* Git Panel */}
       {!isSnapshotView && gitPanelOpen && isOpen && activeAgentId && (
-        <GuakeGitPanel agentId={activeAgentId} agents={agents} onClose={() => setGitPanelOpen(false)} />
+        <GuakeGitPanel agentId={activeAgentId} agents={agents} onClose={() => setGitPanelOpen(false)} branchInfoMap={areaBranches} fetchRemote={fetchGitRemote} fetchingDirs={gitFetchingDirs} />
       )}
 
       {/* Agent Overview Panel */}
@@ -1639,16 +1643,30 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
             </span>
           )}
           {agentAreaDirectories && agentAreaDirectories.map(({ areaId, areaName, dir }) => {
-            const branch = areaBranches.get(dir);
+            const branchInfo = areaBranches.get(dir);
+            const isFetching = gitFetchingDirs.has(dir);
             return (
               <span
                 key={`${areaId}:${dir}`}
                 className="guake-agent-area-dir"
-                title={`${areaName}: ${dir}${branch ? ` (${branch})` : ''}`}
+                title={`${areaName}: ${dir}${branchInfo ? ` (${branchInfo.branch}${branchInfo.ahead ? ` ↑${branchInfo.ahead}` : ''}${branchInfo.behind ? ` ↓${branchInfo.behind}` : ''})` : ''}`}
                 onClick={() => store.openFileExplorerForAreaFolder(areaId, dir)}
               >
                 📂 {dir.split('/').filter(Boolean).pop() || dir}
-                {branch && <span className="guake-agent-area-branch"> ⎇ {branch}</span>}
+                {branchInfo && (
+                  <>
+                    <span className="guake-agent-area-branch"> ⎇ {branchInfo.branch}</span>
+                    {branchInfo.ahead > 0 && <span className="guake-branch-ahead" title={`${branchInfo.ahead} ahead`}>↑{branchInfo.ahead}</span>}
+                    {branchInfo.behind > 0 && <span className="guake-branch-behind" title={`${branchInfo.behind} behind`}>↓{branchInfo.behind}</span>}
+                    <span
+                      className={`guake-area-fetch-btn ${isFetching ? 'fetching' : ''}`}
+                      title="Git fetch"
+                      onClick={(e) => { e.stopPropagation(); fetchGitRemote(dir); }}
+                    >
+                      {isFetching ? '⏳' : '⇣'}
+                    </span>
+                  </>
+                )}
               </span>
             );
           })}

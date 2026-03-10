@@ -268,6 +268,32 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
     return () => clearTimeout(timer);
   }, [cwd, isOpen, fetchSessions]);
 
+  // Infer cwd from area members when spawning into an area
+  useEffect(() => {
+    if (!isOpen || !spawnAreaId) return;
+    const areaAgents = Array.from(agents.values()).filter(
+      (a) => store.getAreaForAgent(a.id)?.id === spawnAreaId && a.cwd
+    );
+    if (areaAgents.length === 0) return;
+
+    // Pick the most common cwd among area members
+    const cwdCounts = new Map<string, number>();
+    for (const a of areaAgents) {
+      cwdCounts.set(a.cwd, (cwdCounts.get(a.cwd) || 0) + 1);
+    }
+    let bestCwd = '';
+    let bestCount = 0;
+    for (const [dir, count] of cwdCounts) {
+      if (count > bestCount) {
+        bestCwd = dir;
+        bestCount = count;
+      }
+    }
+    if (bestCwd) {
+      setCwd(bestCwd);
+    }
+  }, [isOpen, spawnAreaId, agents]);
+
   // Generate a new name when modal opens
   useEffect(() => {
     if (isOpen) {

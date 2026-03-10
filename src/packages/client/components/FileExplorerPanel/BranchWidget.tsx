@@ -12,6 +12,7 @@ import React, { memo, useState, useEffect, useCallback, useRef, useMemo } from '
 import { useTranslation } from 'react-i18next';
 import type { GitStatus, GitBranch } from './types';
 import { useGitBranches } from './useGitBranches';
+import { apiUrl, authFetch } from '../../utils/storage';
 import { ContextMenu } from '../ContextMenu';
 import type { ContextMenuAction } from '../ContextMenu';
 
@@ -166,6 +167,32 @@ export const BranchWidget = memo(function BranchWidget({
     }
   }, [currentFolder, operationInProgress, pushToRemote]);
 
+  const [fetchInProgress, setFetchInProgress] = useState(false);
+
+  const handleFetch = useCallback(async () => {
+    if (!currentFolder || operationInProgress || fetchInProgress) return;
+    setFetchInProgress(true);
+    try {
+      const res = await authFetch(apiUrl('/api/files/git-fetch'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: currentFolder }),
+      });
+      if (res.ok) {
+        setStatusMessage({ type: 'success', text: 'Fetch complete' });
+        onBranchChanged();
+        loadBranches(currentFolder);
+      } else {
+        const data = await res.json().catch(() => ({ error: 'Fetch failed' }));
+        setStatusMessage({ type: 'error', text: data.error || 'Fetch failed' });
+      }
+    } catch {
+      setStatusMessage({ type: 'error', text: 'Fetch failed' });
+    } finally {
+      setFetchInProgress(false);
+    }
+  }, [currentFolder, operationInProgress, fetchInProgress, onBranchChanged, loadBranches]);
+
   const branchName = gitStatus?.branch || 'unknown';
   const isDisabled = !!operationInProgress;
 
@@ -279,6 +306,19 @@ export const BranchWidget = memo(function BranchWidget({
           {/* Quick Actions */}
           <div className="branch-widget-section-header">{t('terminal:fileExplorer.actions')}</div>
           <div className="branch-widget-actions">
+            <div
+              className={`branch-widget-action-item ${isDisabled || fetchInProgress ? 'disabled' : ''}`}
+              onClick={handleFetch}
+            >
+              <span className="branch-widget-action-icon">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M8 13l-3-3h2V6h2v4h2l-3 3zM8 3l3 3h-2v4H7V6H5l3-3z" />
+                </svg>
+              </span>
+              <span className="branch-widget-action-label">
+                {fetchInProgress ? 'Fetching...' : 'Fetch'}
+              </span>
+            </div>
             <div
               className={`branch-widget-action-item ${isDisabled ? 'disabled' : ''}`}
               onClick={handlePull}

@@ -186,11 +186,17 @@ You have access to tools (Glob, Grep, Read, Bash), but **your default should be 
 
 ## DECISION CRITERIA (in priority order):
 
-1. **Idle agents first** - Never overload a busy agent when idle ones exist
+1. **Idle agents first** - Strongly prefer idle agents. Do not pick a working agent just because they touched nearby code if a capable idle agent is available
 2. **Specialization match** - debugger for bugs, builder for features, scout for exploration
-3. **Recent context** - Agent worked on related code recently? Prefer them
+3. **Recent context** - Treat recent related work as a tiebreaker, not a reason to interrupt an active agent
 4. **Low context usage** - Prefer agents with <50% context; avoid >80%
 5. **Fullstack versatility** - Fullstack/custom agents can handle most tasks
+
+### Idle-vs-active assignment rule
+- If an idle agent can reasonably handle the task, assign the idle agent
+- A working agent's nearby context is usually not enough reason to interrupt them
+- Provide the needed repo paths, summaries, constraints, and handoff notes in the delegation so another capable idle agent can pick it up quickly
+- Only choose an already-working agent over an idle capable agent when the continuity benefit is clearly substantial and worth the interruption
 
 ---
 

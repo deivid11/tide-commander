@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { BOSS_CONTEXT_START, BOSS_CONTEXT_END } from '../../../shared/types';
+import { store } from '../../store';
 import { createMarkdownComponents } from './MarkdownComponents';
 import type { ParsedBossContent, ParsedDelegation, ParsedBossResponse, ParsedInjectedInstructions, ParsedWorkPlanResponse, WorkPlan, WorkPlanPhase, WorkPlanTask } from './types';
 
@@ -370,7 +371,13 @@ export function DelegationBlock({ delegation }: DelegationBlockProps) {
       <div className="delegation-details">
         <div className="delegation-target">
           <span className="delegation-label">{t('tools:delegation.to')}</span>
-          <span className="delegation-agent-name">{delegation.selectedAgentName}</span>
+          <span
+            className="delegation-agent-name clickable-agent-name"
+            onClick={() => {
+              store.selectAgent(delegation.selectedAgentId);
+              store.setTerminalOpen(true);
+            }}
+          >{delegation.selectedAgentName}</span>
         </div>
         {delegation.taskCommand && (
           <div className="delegation-task-command">
@@ -455,7 +462,14 @@ export function DelegatedTaskMessage({ bossName, bossId, taskCommand }: Delegate
       <div className="delegated-task-message-badge" onClick={() => setIsExpanded(!isExpanded)}>
         <span className="delegated-task-message-icon">📋</span>
         <span className="delegated-task-message-label">
-          Delegated by <strong>{bossName}</strong>
+          Delegated by <strong
+            className="clickable-agent-name"
+            onClick={(e) => {
+              e.stopPropagation();
+              store.selectAgent(bossId);
+              store.setTerminalOpen(true);
+            }}
+          >{bossName}</strong>
         </span>
         <span className="delegated-task-message-id">{bossId.slice(0, 8)}</span>
         <span className="delegated-task-message-toggle">{isExpanded ? '▼' : '▶'}</span>
@@ -490,7 +504,14 @@ export function TaskReportHeader({ agentName, agentId, status, originalTask, sum
       <div className="task-report-badge" onClick={() => setIsExpanded(!isExpanded)}>
         <span className="task-report-icon">{isCompleted ? '✅' : '❌'}</span>
         <span className="task-report-label">
-          <strong>{agentName}</strong> — Task {isCompleted ? 'Completed' : 'Failed'}
+          <strong
+            className="clickable-agent-name"
+            onClick={(e) => {
+              e.stopPropagation();
+              store.selectAgent(agentId);
+              store.setTerminalOpen(true);
+            }}
+          >{agentName}</strong> — Task {isCompleted ? 'Completed' : 'Failed'}
         </span>
         <span className="task-report-id">{agentId.slice(0, 8)}</span>
         <span className="task-report-toggle">{isExpanded ? '▼' : '▶'}</span>

@@ -57,6 +57,12 @@ export const STORAGE_KEYS = {
   AOP_OPEN: 'tide-aop-open',
   MOBILE_OVERVIEW_HEIGHT: 'tide-mobile-overview-height',
 
+  // Git Panel
+  GIT_PANEL_OPEN: 'guake-git-panel-open',
+  GIT_PANEL_MODE: 'guake-git-panel-mode',
+  GIT_PANEL_VIEW_MODE: 'guake-git-view-mode',
+  GIT_PANEL_FOLDER_IDX: 'guake-git-folder-idx',
+
   // Agent notifications
   UNSEEN_AGENTS: 'tide-unseen-agents',
 } as const;

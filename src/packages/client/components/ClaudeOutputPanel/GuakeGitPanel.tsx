@@ -9,14 +9,17 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { apiUrl, authFetch } from '../../utils/storage';
+import { apiUrl, authFetch, STORAGE_KEYS, getStorageString, setStorageString, getStorage, setStorage } from '../../utils/storage';
 import { useAreas } from '../../store';
 import { DiffViewer } from '../DiffViewer';
 import { GIT_STATUS_CONFIG } from '../FileExplorerPanel/constants';
 import { getIconForExtension, buildGitTree } from '../FileExplorerPanel/fileUtils';
 import type { GitTreeNode } from '../FileExplorerPanel/fileUtils';
-import type { GitStatus, GitFileStatus, GitFileStatusType } from '../FileExplorerPanel/types';
+import type { GitStatus, GitFileStatus, GitFileStatusType, TreeNode } from '../FileExplorerPanel/types';
 import type { Agent } from '../../../shared/types';
+import { useFileTree } from '../FileExplorerPanel/useFileTree';
+import { TreeNodeItem } from '../FileExplorerPanel/TreeNodeItem';
+import type { BranchInfo } from './useGitBranch';
 
 // ==========================================================================
 // TYPES
@@ -26,6 +29,9 @@ interface GuakeGitPanelProps {
   agentId: string;
   agents: Map<string, Agent>;
   onClose: () => void;
+  branchInfoMap: Map<string, BranchInfo>;
+  fetchRemote: (dir: string) => Promise<void>;
+  fetchingDirs: Set<string>;
 }
 
 interface RepoStatus {
@@ -49,8 +55,9 @@ interface ContentState {
   language: string;
 }
 
-type ModalState = { type: 'diff'; data: DiffState } | { type: 'content'; data: ContentState } | null;
+type ModalState = { type: 'diff'; data: DiffState } | { type: 'content'; data: ContentState; isNewFile?: boolean } | null;
 type ViewMode = 'flat' | 'tree';
+type PanelMode = 'changes' | 'explorer';
 
 // ==========================================================================
 // HELPERS
@@ -155,7 +162,7 @@ function TreeNodeView({ node, depth, expandedDirs, onToggleDir, onFileClick, rep
 // MAIN COMPONENT
 // ==========================================================================
 
-export function GuakeGitPanel({ agentId, agents, onClose }: GuakeGitPanelProps) {
+export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRemote, fetchingDirs }: GuakeGitPanelProps) {
   const { t: _t } = useTranslation(['terminal', 'common']);
   const areas = useAreas();
 
@@ -165,7 +172,33 @@ export function GuakeGitPanel({ agentId, agents, onClose }: GuakeGitPanelProps) 
   const [expandedTreeDirs, setExpandedTreeDirs] = useState<Set<string>>(new Set());
   const [modalState, setModalState] = useState<ModalState>(null);
   const [_diffLoading, setDiffLoading] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>('flat');
+  const [viewMode, setViewModeRaw] = useState<ViewMode>(() => {
+    const stored = getStorageString(STORAGE_KEYS.GIT_PANEL_VIEW_MODE, 'flat');
+    return stored === 'tree' ? 'tree' : 'flat';
+  });
+  const [panelMode, setPanelModeRaw] = useState<PanelMode>(() => {
+    const stored = getStorageString(STORAGE_KEYS.GIT_PANEL_MODE, 'changes');
+    return stored === 'explorer' ? 'explorer' : 'changes';
+  });
+  const [explorerFolderIdx, setExplorerFolderIdxRaw] = useState(() =>
+    getStorage<number>(STORAGE_KEYS.GIT_PANEL_FOLDER_IDX, 0)
+  );
+
+  const setViewMode = useCallback((v: ViewMode) => {
+    setViewModeRaw(v);
+    setStorageString(STORAGE_KEYS.GIT_PANEL_VIEW_MODE, v);
+  }, []);
+  const setPanelMode = useCallback((m: PanelMode) => {
+    setPanelModeRaw(m);
+    setStorageString(STORAGE_KEYS.GIT_PANEL_MODE, m);
+  }, []);
+  const setExplorerFolderIdx = useCallback((idx: number) => {
+    setExplorerFolderIdxRaw(idx);
+    setStorage(STORAGE_KEYS.GIT_PANEL_FOLDER_IDX, idx);
+  }, []);
+  const [explorerSelectedPath, setExplorerSelectedPath] = useState<string | null>(null);
+  const hasAutoExpanded = React.useRef(false);
+  const prevAgentIdRef = React.useRef(agentId);
 
   // Compute area directories for this agent
   const areaDirs = useMemo(() => {
@@ -201,9 +234,74 @@ export function GuakeGitPanel({ agentId, agents, onClose }: GuakeGitPanelProps) 
     return [...new Set(dirs)];
   }, [agentId, agents, areas]);
 
-  // Fetch git status
+  // Current explorer folder
+  const explorerFolder = areaDirs.length > 0 ? (areaDirs[explorerFolderIdx] || areaDirs[0]) : null;
+  const fileTree = useFileTree(panelMode === 'explorer' ? explorerFolder : null);
+
+  // Load tree when explorer mode is activated or folder changes
+  useEffect(() => {
+    if (panelMode === 'explorer' && explorerFolder) {
+      fileTree.loadTree();
+    }
+  }, [panelMode, explorerFolder]);
+
+  // Overlay git status onto the explorer tree
+  const explorerTreeWithGit = useMemo(() => {
+    if (fileTree.tree.length === 0 || repos.length === 0 || !explorerFolder) return fileTree.tree;
+
+    // Build a map of file paths → git status for the current explorer folder
+    const statusMap = new Map<string, GitFileStatusType>();
+    for (const repo of repos) {
+      // Match repos that share the same git root as the explorer folder
+      for (const file of repo.gitStatus.files) {
+        const fullPath = file.path.startsWith('/') ? file.path : `${repo.dir.replace(/\/$/, '')}/${file.path}`;
+        statusMap.set(fullPath, file.status);
+      }
+    }
+
+    if (statusMap.size === 0) return fileTree.tree;
+
+    // Recursively annotate tree nodes with git status
+    const annotate = (nodes: TreeNode[]): TreeNode[] => {
+      return nodes.map(node => {
+        if (node.isDirectory) {
+          const children = node.children ? annotate(node.children) : undefined;
+          const hasGitChanges = children ? children.some(c => c.gitStatus || c.hasGitChanges) : false;
+          if (hasGitChanges || children !== node.children) {
+            return { ...node, children, hasGitChanges };
+          }
+          return node;
+        }
+        const status = statusMap.get(node.path);
+        if (status) {
+          return { ...node, gitStatus: status };
+        }
+        return node;
+      });
+    };
+
+    return annotate(fileTree.tree);
+  }, [fileTree.tree, repos, explorerFolder]);
+
+  // Reset state when agent changes (component stays mounted across agent switches)
+  useEffect(() => {
+    if (prevAgentIdRef.current !== agentId) {
+      prevAgentIdRef.current = agentId;
+      hasAutoExpanded.current = false;
+      setRepos([]);
+      setExpandedRepos(new Set());
+      setExpandedTreeDirs(new Set());
+      setModalState(null);
+      setExplorerFolderIdx(0);
+      setExplorerSelectedPath(null);
+    }
+  }, [agentId]);
+
+  // Fetch git status with cancellation guard
+  const refreshGenRef = React.useRef(0);
   const refresh = useCallback(async () => {
     if (areaDirs.length === 0) return;
+    const gen = ++refreshGenRef.current;
     setLoading(true);
     try {
       const results: RepoStatus[] = [];
@@ -221,13 +319,16 @@ export function GuakeGitPanel({ agentId, agents, onClose }: GuakeGitPanelProps) 
           } catch { /* skip */ }
         })
       );
+      // Discard results if a newer refresh was triggered (agent switch)
+      if (gen !== refreshGenRef.current) return;
       results.sort((a, b) => a.dirName.localeCompare(b.dirName));
       setRepos(results);
-      if (expandedRepos.size === 0 && results.length > 0) {
+      if (!hasAutoExpanded.current && results.length > 0) {
+        hasAutoExpanded.current = true;
         setExpandedRepos(new Set(results.map(r => r.dir)));
       }
     } finally {
-      setLoading(false);
+      if (gen === refreshGenRef.current) setLoading(false);
     }
   }, [areaDirs]);
 
@@ -236,6 +337,13 @@ export function GuakeGitPanel({ agentId, agents, onClose }: GuakeGitPanelProps) 
     const timer = setInterval(refresh, 15_000);
     return () => clearInterval(timer);
   }, [refresh]);
+
+  // Git fetch all area directories then refresh
+  const gitFetchAll = useCallback(async () => {
+    if (areaDirs.length === 0) return;
+    await Promise.all(areaDirs.map((dir) => fetchRemote(dir)));
+    await refresh();
+  }, [areaDirs, fetchRemote, refresh]);
 
   const toggleRepo = useCallback((dir: string) => {
     setExpandedRepos(prev => {
@@ -299,9 +407,68 @@ export function GuakeGitPanel({ agentId, agents, onClose }: GuakeGitPanelProps) 
         setModalState({
           type: 'content',
           data: { filePath: fullPath, fileName: file.name, content, language: getLanguageForFile(file.name) },
+          isNewFile: true,
         });
       }
     } catch { /* skip */ } finally {
+      setDiffLoading(false);
+    }
+  }, []);
+
+  // Handle file select from explorer tree
+  const handleExplorerFileSelect = useCallback(async (node: TreeNode) => {
+    if (node.isDirectory) return;
+    setExplorerSelectedPath(node.path);
+    setDiffLoading(true);
+    try {
+      const fileName = node.name;
+      const language = getLanguageForFile(fileName);
+
+      // If the file has a diffable git status, show original vs modified
+      if (node.gitStatus && hasDiff(node.gitStatus)) {
+        let originalContent = '';
+        let modifiedContent = '';
+
+        if (node.gitStatus !== 'deleted') {
+          try {
+            const curRes = await authFetch(apiUrl(`/api/files/read?path=${encodeURIComponent(node.path)}`));
+            if (curRes.ok) {
+              const curData = await curRes.json();
+              if (curData.content != null) modifiedContent = curData.content;
+            }
+          } catch { /* skip */ }
+        }
+
+        try {
+          const origRes = await authFetch(apiUrl(`/api/files/git-original?path=${encodeURIComponent(node.path)}`));
+          if (origRes.ok) {
+            const origData = await origRes.json();
+            if (origData.content != null) originalContent = origData.content;
+          }
+        } catch { /* skip */ }
+
+        setModalState({
+          type: 'diff',
+          data: { filePath: node.path, fileName, originalContent, modifiedContent, language },
+        });
+      } else {
+        // Plain file view or added/untracked files
+        let content = '';
+        try {
+          const res = await authFetch(apiUrl(`/api/files/read?path=${encodeURIComponent(node.path)}`));
+          if (res.ok) {
+            const data = await res.json();
+            if (data.content != null) content = data.content;
+          }
+        } catch { /* skip */ }
+
+        setModalState({
+          type: 'content',
+          data: { filePath: node.path, fileName, content, language },
+          isNewFile: node.gitStatus === 'added' || node.gitStatus === 'untracked',
+        });
+      }
+    } finally {
       setDiffLoading(false);
     }
   }, []);
@@ -377,7 +544,7 @@ export function GuakeGitPanel({ agentId, agents, onClose }: GuakeGitPanelProps) 
           <div className="guake-git-diff-modal-header">
             <span className="guake-git-diff-filename" title={modalState.data.filePath}>
               {modalState.data.fileName}
-              <span className="guake-git-content-badge">new file</span>
+              {modalState.isNewFile && <span className="guake-git-content-badge">new file</span>}
             </span>
             <button className="guake-git-close" onClick={closeModal} title="Close (Esc)">×</button>
           </div>
@@ -397,95 +564,185 @@ export function GuakeGitPanel({ agentId, agents, onClose }: GuakeGitPanelProps) 
     <div className="guake-git-panel">
       <div className="guake-git-header">
         <div className="guake-git-title">
-          <span className="guake-git-icon">🌿</span>
-          <span>Git Changes</span>
-          {totalFiles > 0 && <span className="guake-git-badge">{totalFiles}</span>}
+          <div className="guake-git-tabs">
+            <button
+              className={`guake-git-tab ${panelMode === 'changes' ? 'active' : ''}`}
+              onClick={() => setPanelMode('changes')}
+            >
+              🌿 Changes
+              {totalFiles > 0 && <span className="guake-git-badge">{totalFiles}</span>}
+            </button>
+            <button
+              className={`guake-git-tab ${panelMode === 'explorer' ? 'active' : ''}`}
+              onClick={() => setPanelMode('explorer')}
+            >
+              📁 Files
+            </button>
+          </div>
         </div>
         <div className="guake-git-header-actions">
           <button
-            className={`guake-git-view-toggle ${viewMode === 'flat' ? 'active' : ''}`}
-            onClick={() => setViewMode('flat')}
-            title="Flat view"
-          >☰</button>
-          <button
-            className={`guake-git-view-toggle ${viewMode === 'tree' ? 'active' : ''}`}
-            onClick={() => setViewMode('tree')}
-            title="Tree view"
-          >🌲</button>
-          <button className="guake-git-refresh" onClick={refresh} title="Refresh" disabled={loading}>
-            {loading ? '⏳' : '↻'}
+            className={`guake-git-fetch-btn ${fetchingDirs.size > 0 ? 'fetching' : ''}`}
+            onClick={gitFetchAll}
+            title="Git fetch"
+            disabled={fetchingDirs.size > 0}
+          >
+            {fetchingDirs.size > 0 ? '⏳' : '⇣'}
           </button>
+          {panelMode === 'changes' && (
+            <>
+              <button
+                className={`guake-git-view-toggle ${viewMode === 'flat' ? 'active' : ''}`}
+                onClick={() => setViewMode('flat')}
+                title="Flat view"
+              >☰</button>
+              <button
+                className={`guake-git-view-toggle ${viewMode === 'tree' ? 'active' : ''}`}
+                onClick={() => setViewMode('tree')}
+                title="Tree view"
+              >🌲</button>
+              <button className="guake-git-refresh" onClick={refresh} title="Refresh" disabled={loading}>
+                {loading ? '⏳' : '↻'}
+              </button>
+            </>
+          )}
+          {panelMode === 'explorer' && (
+            <button className="guake-git-refresh" onClick={() => fileTree.loadTree()} title="Refresh" disabled={fileTree.loading}>
+              {fileTree.loading ? '⏳' : '↻'}
+            </button>
+          )}
           <button className="guake-git-close" onClick={onClose} title="Close">×</button>
         </div>
       </div>
 
       <div className="guake-git-body">
-        {loading && repos.length === 0 && (
-          <div className="guake-git-loading">Loading git status...</div>
+        {/* ===== CHANGES TAB ===== */}
+        {panelMode === 'changes' && (
+          <>
+            {loading && repos.length === 0 && (
+              <div className="guake-git-loading">Loading git status...</div>
+            )}
+
+            {!loading && repos.length === 0 && (
+              <div className="guake-git-empty">No git changes found</div>
+            )}
+
+            {repos.map(({ dir, dirName, gitStatus }) => {
+              const bi = branchInfoMap.get(dir);
+              return (
+              <div key={dir} className="guake-git-repo">
+                <div
+                  className={`guake-git-repo-header ${expandedRepos.has(dir) ? 'expanded' : ''}`}
+                  onClick={() => toggleRepo(dir)}
+                >
+                  <span className="guake-git-repo-arrow">{expandedRepos.has(dir) ? '▼' : '▶'}</span>
+                  <span className="guake-git-repo-name">{dirName}</span>
+                  {gitStatus.branch && (
+                    <span className="guake-git-repo-branch">⎇ {gitStatus.branch}</span>
+                  )}
+                  {bi && bi.ahead > 0 && <span className="guake-branch-ahead">↑{bi.ahead}</span>}
+                  {bi && bi.behind > 0 && <span className="guake-branch-behind">↓{bi.behind}</span>}
+                  <span className="guake-git-repo-count">{gitStatus.files.length}</span>
+                </div>
+
+                {expandedRepos.has(dir) && viewMode === 'flat' && (
+                  <div className="guake-git-file-list">
+                    {gitStatus.files.map((file) => {
+                      const cfg = GIT_STATUS_CONFIG[file.status];
+                      const iconSrc = getIconForExtension(file.name);
+                      return (
+                        <div
+                          key={file.path}
+                          className="guake-git-file"
+                          data-status={file.status}
+                          onClick={() => handleFileClick(file, dir)}
+                          title={file.path}
+                        >
+                          {iconSrc && <img src={iconSrc} alt="" className="guake-git-file-icon" />}
+                          <span className="guake-git-file-name">{file.name}</span>
+                          <span className="guake-git-file-dir">
+                            {file.path.includes('/') ? file.path.substring(0, file.path.lastIndexOf('/')) : ''}
+                          </span>
+                          <span className="guake-git-file-status" style={{ color: cfg.color }} title={cfg.label}>
+                            {cfg.icon}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {expandedRepos.has(dir) && viewMode === 'tree' && (
+                  <div className="guake-git-file-list">
+                    {buildGitTree(gitStatus.files).map((node) => (
+                      <TreeNodeView
+                        key={node.path}
+                        node={node}
+                        depth={0}
+                        expandedDirs={expandedTreeDirs}
+                        onToggleDir={toggleTreeDir}
+                        onFileClick={handleFileClick}
+                        repoDir={dir}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+              );
+            })}
+          </>
         )}
 
-        {!loading && repos.length === 0 && (
-          <div className="guake-git-empty">No git changes found</div>
-        )}
-
-        {repos.map(({ dir, dirName, gitStatus }) => (
-          <div key={dir} className="guake-git-repo">
-            <div
-              className={`guake-git-repo-header ${expandedRepos.has(dir) ? 'expanded' : ''}`}
-              onClick={() => toggleRepo(dir)}
-            >
-              <span className="guake-git-repo-arrow">{expandedRepos.has(dir) ? '▼' : '▶'}</span>
-              <span className="guake-git-repo-name">{dirName}</span>
-              {gitStatus.branch && (
-                <span className="guake-git-repo-branch">⎇ {gitStatus.branch}</span>
-              )}
-              <span className="guake-git-repo-count">{gitStatus.files.length}</span>
-            </div>
-
-            {expandedRepos.has(dir) && viewMode === 'flat' && (
-              <div className="guake-git-file-list">
-                {gitStatus.files.map((file) => {
-                  const cfg = GIT_STATUS_CONFIG[file.status];
-                  const iconSrc = getIconForExtension(file.name);
+        {/* ===== EXPLORER TAB ===== */}
+        {panelMode === 'explorer' && (
+          <>
+            {/* Folder selector when multiple area dirs */}
+            {areaDirs.length > 1 && (
+              <div className="guake-git-folder-selector">
+                {areaDirs.map((dir, idx) => {
+                  const name = dir.split('/').filter(Boolean).pop() || dir;
+                  const folderBi = branchInfoMap.get(dir);
                   return (
-                    <div
-                      key={file.path}
-                      className="guake-git-file"
-                      data-status={file.status}
-                      onClick={() => handleFileClick(file, dir)}
-                      title={file.path}
+                    <button
+                      key={dir}
+                      className={`guake-git-folder-btn ${idx === explorerFolderIdx ? 'active' : ''}`}
+                      onClick={() => setExplorerFolderIdx(idx)}
+                      title={dir}
                     >
-                      {iconSrc && <img src={iconSrc} alt="" className="guake-git-file-icon" />}
-                      <span className="guake-git-file-name">{file.name}</span>
-                      <span className="guake-git-file-dir">
-                        {file.path.includes('/') ? file.path.substring(0, file.path.lastIndexOf('/')) : ''}
-                      </span>
-                      <span className="guake-git-file-status" style={{ color: cfg.color }} title={cfg.label}>
-                        {cfg.icon}
-                      </span>
-                    </div>
+                      📂 {name}
+                      {folderBi && <span className="guake-git-folder-branch"> ⎇ {folderBi.branch}</span>}
+                      {folderBi && folderBi.ahead > 0 && <span className="guake-branch-ahead">↑{folderBi.ahead}</span>}
+                      {folderBi && folderBi.behind > 0 && <span className="guake-branch-behind">↓{folderBi.behind}</span>}
+                    </button>
                   );
                 })}
               </div>
             )}
 
-            {expandedRepos.has(dir) && viewMode === 'tree' && (
-              <div className="guake-git-file-list">
-                {buildGitTree(gitStatus.files).map((node) => (
-                  <TreeNodeView
-                    key={node.path}
-                    node={node}
-                    depth={0}
-                    expandedDirs={expandedTreeDirs}
-                    onToggleDir={toggleTreeDir}
-                    onFileClick={handleFileClick}
-                    repoDir={dir}
-                  />
-                ))}
-              </div>
+            {fileTree.loading && fileTree.tree.length === 0 && (
+              <div className="guake-git-loading">Loading files...</div>
             )}
-          </div>
-        ))}
+
+            {!fileTree.loading && fileTree.tree.length === 0 && (
+              <div className="guake-git-empty">No files found</div>
+            )}
+
+            <div className="guake-git-explorer-tree">
+              {explorerTreeWithGit.map((node) => (
+                <TreeNodeItem
+                  key={node.path}
+                  node={node}
+                  depth={0}
+                  selectedPath={explorerSelectedPath}
+                  expandedPaths={fileTree.expandedPaths}
+                  onSelect={handleExplorerFileSelect}
+                  onToggle={fileTree.togglePath}
+                  searchQuery=""
+                />
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </div>
     </>

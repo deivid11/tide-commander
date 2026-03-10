@@ -456,6 +456,14 @@
   font-weight: 600;
 }
 
+.clickable-agent-name {
+  cursor: pointer;
+  &:hover {
+    color: var(--accent-blue);
+    text-decoration: underline;
+  }
+}
+
 .delegation-command-text {
   color: var(--accent-blue);
   font-style: italic;

@@ -389,3 +389,232 @@
   font-weight: 500;
   opacity: 0.9;
 }
+
+// Panel mode tabs
+.guake-git-tabs {
+  display: flex;
+  gap: 2px;
+}
+
+.guake-git-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  color: $dracula-comment;
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  transition: color 0.15s, background 0.15s;
+
+  &:hover {
+    color: $dracula-fg;
+    background: rgba($dracula-current, 0.3);
+  }
+
+  &.active {
+    color: $dracula-green;
+    background: rgba($dracula-green, 0.12);
+  }
+
+  .guake-git-badge {
+    font-size: 10px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+  }
+}
+
+// Folder selector (for explorer with multiple dirs)
+.guake-git-folder-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 10px;
+  border-bottom: 1px solid rgba($dracula-current, 0.4);
+}
+
+.guake-git-folder-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba($dracula-bg, 0.4);
+  border: 1px solid transparent;
+  color: $dracula-comment;
+  cursor: pointer;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: $font-mono;
+  line-height: 1;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+
+  &:hover {
+    color: $dracula-fg;
+    background: rgba($dracula-current, 0.4);
+  }
+
+  &.active {
+    color: $dracula-cyan;
+    border-color: rgba($dracula-cyan, 0.4);
+    background: rgba($dracula-cyan, 0.08);
+  }
+}
+
+// Explorer file tree
+.guake-git-explorer-tree {
+  padding: 2px 0;
+
+  // Reuse file-explorer tree styles at a smaller scale
+  .tree-node-wrapper {
+    .tree-node {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      cursor: pointer;
+      font-size: 12px;
+      font-family: $font-mono;
+      color: $dracula-fg;
+      transition: background 0.12s;
+      min-height: 24px;
+
+      &:hover {
+        background: rgba($dracula-current, 0.3);
+      }
+
+      &.selected {
+        background: rgba($dracula-purple, 0.15);
+        color: $dracula-purple;
+      }
+    }
+
+    .tree-arrow {
+      font-size: 8px;
+      color: $dracula-comment;
+      width: 12px;
+      text-align: center;
+      flex-shrink: 0;
+      transition: transform 0.12s;
+
+      &.expanded {
+        transform: rotate(90deg);
+      }
+    }
+
+    .tree-arrow-spacer {
+      width: 12px;
+      flex-shrink: 0;
+    }
+
+    .tree-icon,
+    .tree-folder-icon {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+    }
+
+    .tree-folder-icon-wrapper {
+      position: relative;
+      display: inline-flex;
+      flex-shrink: 0;
+
+      .tree-folder-git-dot {
+        position: absolute;
+        top: -1px;
+        right: -2px;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+      }
+    }
+
+    .tree-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+    }
+
+    .tree-children {
+      // Nested children indentation handled by depth prop
+    }
+  }
+}
+
+// =============================================================================
+// Ahead/Behind Branch Indicators
+// =============================================================================
+
+.guake-branch-ahead {
+  font-size: 10px;
+  color: $dracula-green;
+  font-weight: 600;
+  margin-left: 4px;
+}
+
+.guake-branch-behind {
+  font-size: 10px;
+  color: $dracula-orange;
+  font-weight: 600;
+  margin-left: 2px;
+}
+
+// =============================================================================
+// Git Fetch Button
+// =============================================================================
+
+.guake-git-fetch-btn {
+  background: transparent;
+  border: 1px solid $dracula-comment;
+  border-radius: 4px;
+  color: $dracula-cyan;
+  font-size: 13px;
+  padding: 2px 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover:not(:disabled) {
+    background: rgba($dracula-cyan, 0.15);
+    border-color: $dracula-cyan;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  &.fetching {
+    animation: pulse-fetch 1s ease-in-out infinite;
+  }
+}
+
+.guake-area-fetch-btn {
+  font-size: 11px;
+  color: $dracula-cyan;
+  margin-left: 4px;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.15s ease;
+
+  &:hover {
+    opacity: 1;
+  }
+
+  &.fetching {
+    opacity: 1;
+    animation: pulse-fetch 1s ease-in-out infinite;
+  }
+}
+
+@keyframes pulse-fetch {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}

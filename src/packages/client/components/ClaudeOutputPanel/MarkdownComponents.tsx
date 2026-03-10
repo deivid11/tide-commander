@@ -5,11 +5,27 @@
 
 import React from 'react';
 import { Components } from 'react-markdown';
+import { store } from '../../store';
 import { decodeTideFileHref } from '../../utils/outputRendering';
 import { highlightCode, isLanguageSupported } from '../FileExplorerPanel/syntaxHighlighting';
 
 interface MarkdownComponentOptions {
   onFileClick?: (path: string) => void;
+}
+
+/**
+ * Check if bold text references a known agent (e.g. "📋 AgentName" or "💡 AgentName").
+ * Returns the agent ID if found, null otherwise.
+ */
+function findAgentIdByBoldText(text: string): string | null {
+  // Strip leading emoji + space (e.g. "📋 ", "💡 ", "🔍 ")
+  const stripped = text.replace(/^[\p{Emoji_Presentation}\p{Extended_Pictographic}\uFE0F]+\s*/u, '').trim();
+  if (!stripped) return null;
+  const agents = store.getState().agents;
+  for (const [id, agent] of agents) {
+    if (agent.name === stripped) return id;
+  }
+  return null;
 }
 
 function getNodeText(node: React.ReactNode): string {
@@ -82,7 +98,26 @@ export const createMarkdownComponents = ({ onFileClick }: MarkdownComponentOptio
     </h6>
   ),
   p: ({ children }) => <p style={{ margin: '0.4em 0' }}>{children}</p>,
-  strong: ({ children }) => <strong style={{ color: 'var(--accent-orange)', fontWeight: 600 }}>{children}</strong>,
+  strong: ({ children }) => {
+    const text = getNodeText(children);
+    const agentId = findAgentIdByBoldText(text);
+    if (agentId) {
+      return (
+        <strong
+          className="clickable-agent-name"
+          style={{ color: 'var(--accent-orange)', fontWeight: 600, cursor: 'pointer' }}
+          onClick={(e) => {
+            e.stopPropagation();
+            store.selectAgent(agentId);
+            store.setTerminalOpen(true);
+          }}
+        >
+          {children}
+        </strong>
+      );
+    }
+    return <strong style={{ color: 'var(--accent-orange)', fontWeight: 600 }}>{children}</strong>;
+  },
   em: ({ children }) => <em style={{ color: 'var(--accent-yellow)', fontStyle: 'italic' }}>{children}</em>,
   del: ({ children }) => <del style={{ color: 'var(--accent-red)', textDecoration: 'line-through' }}>{children}</del>,
   code: ({ children, className }) => {
