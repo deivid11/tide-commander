@@ -57,6 +57,10 @@ export interface TerminalHeaderProps {
   canNavigateBack?: boolean;
   /** Whether forward navigation is available */
   canNavigateForward?: boolean;
+  /** Git panel open state */
+  gitPanelOpen?: boolean;
+  /** Toggle git panel */
+  setGitPanelOpen?: (open: boolean) => void;
 }
 
 export const TerminalHeader = memo(function TerminalHeader({
@@ -88,6 +92,8 @@ export const TerminalHeader = memo(function TerminalHeader({
   onNavigateForward,
   canNavigateBack = false,
   canNavigateForward = false,
+  gitPanelOpen = false,
+  setGitPanelOpen,
 }: TerminalHeaderProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const supervisor = useSupervisor();
@@ -367,6 +373,15 @@ export const TerminalHeader = memo(function TerminalHeader({
               title={overviewPanelOpen ? t('terminal:header.hideOverview') : t('terminal:header.showOverview')}
             >
               <span className="guake-action-icon">📊</span>
+            </button>
+          )}
+          {!isSnapshotView && setGitPanelOpen && (
+            <button
+              className={`guake-icon-action guake-git-toggle ${gitPanelOpen ? 'active' : ''}`}
+              onClick={() => setGitPanelOpen(!gitPanelOpen)}
+              title={gitPanelOpen ? 'Hide Git Changes' : 'Show Git Changes'}
+            >
+              <span className="guake-action-icon">🌿</span>
             </button>
           )}
           {!isSnapshotView && (

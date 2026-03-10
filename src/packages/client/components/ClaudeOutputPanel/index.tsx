@@ -77,6 +77,7 @@ import {
 import { HistoryLine } from './HistoryLine';
 import { VirtualizedOutputList } from './VirtualizedOutputList';
 import { AgentDebugPanel } from './AgentDebugPanel';
+import { GuakeGitPanel } from './GuakeGitPanel';
 import { AgentOverviewPanel } from './AgentOverviewPanel';
 import { useTwoFingerSelector } from '../../hooks/useTwoFingerSelector';
 import { agentDebugger } from '../../services/agentDebugger';
@@ -292,6 +293,9 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
   const [debugPanelOpen, setDebugPanelOpen] = useState(false);
   const [debuggerEnabled, setDebuggerEnabled] = useState(() => agentDebugger.isEnabled());
 
+  // Git panel state
+  const [gitPanelOpen, setGitPanelOpen] = useState(false);
+
   // Agent overview panel state (persisted in store across agent switches)
   const overviewPanelOpen = useOverviewPanelOpen();
   const setOverviewPanelOpen = useCallback((open: boolean) => store.setOverviewPanelOpen(open), []);
@@ -402,6 +406,39 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     hasModalOpen: !!(imageModal || bashModal || responseModalContent || fileViewerPath || contextModalAgentId),
     outputRef: outputScrollRef,
   });
+
+  // Mouse back/forward button gestures for agent history navigation (scoped to guake terminal)
+  useEffect(() => {
+    const el = terminalRef.current;
+    if (!el || !isOpen) return;
+
+    const onMouseUp = (e: MouseEvent) => {
+      // Mouse button 3 = back, button 4 = forward (standard extended mouse buttons)
+      if (e.button === 3) {
+        e.preventDefault();
+        e.stopPropagation();
+        handleNavigateBack();
+      } else if (e.button === 4) {
+        e.preventDefault();
+        e.stopPropagation();
+        handleNavigateForward();
+      }
+    };
+
+    // Prevent the browser's default context menu / navigation for back/forward buttons
+    const onMouseDown = (e: MouseEvent) => {
+      if (e.button === 3 || e.button === 4) {
+        e.preventDefault();
+      }
+    };
+
+    el.addEventListener('mouseup', onMouseUp);
+    el.addEventListener('mousedown', onMouseDown);
+    return () => {
+      el.removeEventListener('mouseup', onMouseUp);
+      el.removeEventListener('mousedown', onMouseDown);
+    };
+  }, [isOpen, handleNavigateBack, handleNavigateForward]);
 
   // Two-finger scroll agent selector (mobile: gesture on terminal, cursor on overview)
   const handleTwoFingerSelect = useCallback((agentId: string) => {
@@ -1314,7 +1351,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
   return (
     <div
       ref={terminalRef}
-      className={`guake-terminal ${isOpen ? 'open' : 'collapsed'} ${isFullscreen && isOpen ? 'fullscreen' : ''} ${debugPanelOpen && isOpen ? 'with-debug-panel' : ''} ${overviewPanelOpen && isOpen ? 'with-overview-panel' : ''} ${draggingOver ? 'drag-over' : ''} ${mobileSwipeCloseOffset > 0 ? 'mobile-swipe-close-active' : ''} ${isMobileSwipeClosing ? 'mobile-swipe-close-closing' : ''}`}
+      className={`guake-terminal ${isOpen ? 'open' : 'collapsed'} ${isFullscreen && isOpen ? 'fullscreen' : ''} ${debugPanelOpen && isOpen ? 'with-debug-panel' : ''} ${gitPanelOpen && isOpen ? 'with-git-panel' : ''} ${overviewPanelOpen && isOpen ? 'with-overview-panel' : ''} ${draggingOver ? 'drag-over' : ''} ${mobileSwipeCloseOffset > 0 ? 'mobile-swipe-close-active' : ''} ${isMobileSwipeClosing ? 'mobile-swipe-close-closing' : ''}`}
       style={{ '--terminal-height': `${terminalHeight}%`, '--mobile-swipe-close-offset': `${mobileSwipeCloseOffset}px`, ...(mobileOverviewHeight > 0 ? { '--guake-mobile-overview-height': `${mobileOverviewHeight}px` } : {}) } as React.CSSProperties}
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
@@ -1331,6 +1368,11 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
       {/* Debug Panel */}
       {!isSnapshotView && debugPanelOpen && isOpen && activeAgentId && (
         <AgentDebugPanel agentId={activeAgentId} onClose={() => setDebugPanelOpen(false)} />
+      )}
+
+      {/* Git Panel */}
+      {!isSnapshotView && gitPanelOpen && isOpen && activeAgentId && (
+        <GuakeGitPanel agentId={activeAgentId} agents={agents} onClose={() => setGitPanelOpen(false)} />
       )}
 
       {/* Agent Overview Panel */}
@@ -1371,6 +1413,8 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
           setDebugPanelOpen={setDebugPanelOpen}
           debuggerEnabled={debuggerEnabled}
           setDebuggerEnabled={setDebuggerEnabled}
+          gitPanelOpen={gitPanelOpen}
+          setGitPanelOpen={setGitPanelOpen}
           overviewPanelOpen={overviewPanelOpen}
           setOverviewPanelOpen={setOverviewPanelOpen}
           agentInfoOpen={agentInfoOpen}
