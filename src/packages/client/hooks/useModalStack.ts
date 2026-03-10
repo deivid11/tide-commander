@@ -64,6 +64,17 @@ export function hasOpenModals(): boolean {
 }
 
 /**
+ * Check if there are any modals above a given modal on the stack.
+ * Used by the terminal click-outside handler to avoid closing the terminal
+ * when a modal (PM2 logs, boss logs, etc.) is open on top of it.
+ */
+export function hasModalsAbove(id: string): boolean {
+  const index = modalStack.findIndex(m => m.id === id);
+  if (index === -1) return false;
+  return index < modalStack.length - 1;
+}
+
+/**
  * Close all modals on the stack except the terminal.
  * Used when opening the terminal on mobile to ensure a clean view.
  */

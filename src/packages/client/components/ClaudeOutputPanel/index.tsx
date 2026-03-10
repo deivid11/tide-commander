@@ -59,7 +59,7 @@ import { useMessageNavigation } from './useMessageNavigation';
 import { useGitBranches } from './useGitBranch';
 import { useFilteredOutputsWithLogging } from '../shared/useFilteredOutputs';
 import { parseBossContext, parseInjectedInstructions } from './BossContext';
-import { useModalStackRegistration } from '../../hooks/useModalStack';
+import { useModalStackRegistration, hasModalsAbove } from '../../hooks/useModalStack';
 
 // Import extracted components
 import { TerminalHeader, SearchBar } from './TerminalHeader';
@@ -78,6 +78,7 @@ import { VirtualizedOutputList } from './VirtualizedOutputList';
 import { AgentDebugPanel } from './AgentDebugPanel';
 import { GuakeGitPanel } from './GuakeGitPanel';
 import { AgentOverviewPanel } from './AgentOverviewPanel';
+import { AreaBuildingsPanel } from './AreaBuildingsPanel';
 import { useTwoFingerSelector } from '../../hooks/useTwoFingerSelector';
 import { agentDebugger } from '../../services/agentDebugger';
 import { AgentProgressIndicator } from './AgentProgressIndicator';
@@ -297,6 +298,13 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
   const setGitPanelOpen = useCallback((open: boolean) => {
     setGitPanelOpenRaw(open);
     setStorageBoolean(STORAGE_KEYS.GIT_PANEL_OPEN, open);
+  }, []);
+
+  // Buildings panel state (persisted in localStorage)
+  const [buildingsPanelOpen, setBuildingsPanelOpenRaw] = useState(() => getStorageBoolean(STORAGE_KEYS.BUILDINGS_PANEL_OPEN, false));
+  const setBuildingsPanelOpen = useCallback((open: boolean) => {
+    setBuildingsPanelOpenRaw(open);
+    setStorageBoolean(STORAGE_KEYS.BUILDINGS_PANEL_OPEN, open);
   }, []);
 
   // Agent overview panel state (persisted in store across agent switches)
@@ -1222,7 +1230,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
       // Modals are rendered through portals under document.body.
       // Any modal interaction should never count as an outside click for Guake.
       const isInModal = !!target.closest(
-        '.modal-overlay, .modal, .image-modal-overlay, .image-modal, .bash-modal-overlay, .bash-modal, .agent-info-modal-overlay, .agent-info-modal, .agent-response-modal, .pasted-text-modal-overlay, .pasted-text-modal, .file-viewer-overlay, .file-viewer-modal, .context-view-modal, .guake-context-confirm-overlay, .guake-context-confirm-modal'
+        '.modal-overlay, .modal, .image-modal-overlay, .image-modal, .bash-modal-overlay, .bash-modal, .agent-info-modal-overlay, .agent-info-modal, .agent-response-modal, .pasted-text-modal-overlay, .pasted-text-modal, .file-viewer-overlay, .file-viewer-modal, .context-view-modal, .guake-context-confirm-overlay, .guake-context-confirm-modal, .pm2-logs-modal-overlay, .pm2-logs-modal, .database-panel-modal'
       );
 
       return !!isInTerminal || !!isAgentBar || isInModal;
@@ -1231,6 +1239,13 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     const handleMouseDown = (e: MouseEvent) => {
       // Only track if terminal is currently open
       if (!isOpenRef.current) {
+        isMouseDownOutsideRef.current = false;
+        return;
+      }
+
+      // If any modal is open above the terminal on the stack, don't track outside clicks.
+      // The modal handles its own closing; we shouldn't close the terminal underneath.
+      if (hasModalsAbove('terminal')) {
         isMouseDownOutsideRef.current = false;
         return;
       }
@@ -1354,7 +1369,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
   return (
     <div
       ref={terminalRef}
-      className={`guake-terminal ${isOpen ? 'open' : 'collapsed'} ${isFullscreen && isOpen ? 'fullscreen' : ''} ${debugPanelOpen && isOpen ? 'with-debug-panel' : ''} ${gitPanelOpen && isOpen ? 'with-git-panel' : ''} ${overviewPanelOpen && isOpen ? 'with-overview-panel' : ''} ${draggingOver ? 'drag-over' : ''} ${mobileSwipeCloseOffset > 0 ? 'mobile-swipe-close-active' : ''} ${isMobileSwipeClosing ? 'mobile-swipe-close-closing' : ''}`}
+      className={`guake-terminal ${isOpen ? 'open' : 'collapsed'} ${isFullscreen && isOpen ? 'fullscreen' : ''} ${debugPanelOpen && isOpen ? 'with-debug-panel' : ''} ${gitPanelOpen && isOpen ? 'with-git-panel' : ''} ${buildingsPanelOpen && isOpen ? 'with-buildings-panel' : ''} ${overviewPanelOpen && isOpen ? 'with-overview-panel' : ''} ${draggingOver ? 'drag-over' : ''} ${mobileSwipeCloseOffset > 0 ? 'mobile-swipe-close-active' : ''} ${isMobileSwipeClosing ? 'mobile-swipe-close-closing' : ''}`}
       style={{ '--terminal-height': `${terminalHeight}%`, '--mobile-swipe-close-offset': `${mobileSwipeCloseOffset}px`, ...(mobileOverviewHeight > 0 ? { '--guake-mobile-overview-height': `${mobileOverviewHeight}px` } : {}) } as React.CSSProperties}
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
@@ -1376,6 +1391,11 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
       {/* Git Panel */}
       {!isSnapshotView && gitPanelOpen && isOpen && activeAgentId && (
         <GuakeGitPanel agentId={activeAgentId} agents={agents} onClose={() => setGitPanelOpen(false)} branchInfoMap={areaBranches} fetchRemote={fetchGitRemote} fetchingDirs={gitFetchingDirs} />
+      )}
+
+      {/* Area Buildings Panel */}
+      {!isSnapshotView && buildingsPanelOpen && isOpen && activeAgentId && (
+        <AreaBuildingsPanel agentId={activeAgentId} onClose={() => setBuildingsPanelOpen(false)} />
       )}
 
       {/* Agent Overview Panel */}
@@ -1418,6 +1438,8 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
           setDebuggerEnabled={setDebuggerEnabled}
           gitPanelOpen={gitPanelOpen}
           setGitPanelOpen={setGitPanelOpen}
+          buildingsPanelOpen={buildingsPanelOpen}
+          setBuildingsPanelOpen={setBuildingsPanelOpen}
           overviewPanelOpen={overviewPanelOpen}
           setOverviewPanelOpen={setOverviewPanelOpen}
           agentInfoOpen={agentInfoOpen}

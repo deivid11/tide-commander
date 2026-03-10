@@ -102,6 +102,7 @@ function AppContent() {
   const [iframeModalUrl, setIframeModalUrl] = useState<string | null>(null);
 
   const [spawnPosition, setSpawnPosition] = useState<{ x: number; z: number } | null>(null);
+  const [buildingInitialPosition, setBuildingInitialPosition] = useState<{ x: number; z: number } | null>(null);
   const [spawnAreaId, setSpawnAreaId] = useState<string | null>(null);
   // 'selected' means delete all selected buildings, otherwise a specific building ID
   const [pendingBuildingDelete, setPendingBuildingDelete] = useState<string | 'selected' | null>(null);
@@ -324,6 +325,9 @@ function AppContent() {
   useModalStackRegistration('file-viewer', fileViewerPath !== null, () => store.clearFileViewerPath());
   useModalStackRegistration('context-modal', contextModalAgentId !== null, () => store.closeContextModal());
   useModalStackRegistration('terminal', terminalOpen, () => store.setTerminalOpen(false));
+  useModalStackRegistration('pm2-logs-modal', pm2LogsModalBuildingId !== null, () => setPm2LogsModalBuildingId(null));
+  useModalStackRegistration('boss-logs-modal', bossLogsModalBuildingId !== null, () => setBossLogsModalBuildingId(null));
+  useModalStackRegistration('database-panel', databasePanelBuildingId !== null, closeDatabasePanel);
 
   // Close tools modals when guake terminal transitions from open to closed
   const prevTerminalOpen = useRef(terminalOpen);
@@ -520,11 +524,51 @@ function AppContent() {
       spawnModal.open();
     };
 
+    const handleBuildingAction = (event: Event) => {
+      const detail = (event as CustomEvent<{ buildingId: string }>).detail;
+      if (!detail?.buildingId) return;
+      const building = store.getState().buildings.get(detail.buildingId);
+      if (!building) return;
+
+      if (building.type === 'server' && building.pm2?.enabled) {
+        setPm2LogsModalBuildingId(detail.buildingId);
+      } else if (building.type === 'boss') {
+        setBossLogsModalBuildingId(detail.buildingId);
+      } else if (building.type === 'database') {
+        setDatabasePanelBuildingId(detail.buildingId);
+      } else if (building.type === 'folder' && building.folderPath) {
+        store.openFileExplorer(building.folderPath);
+      } else {
+        buildingModal.open(detail.buildingId);
+      }
+    };
+
+    // Edit building - opens config modal for existing building
+    const handleBuildingEdit = (event: Event) => {
+      const detail = (event as CustomEvent<{ buildingId: string }>).detail;
+      if (detail?.buildingId) {
+        buildingModal.open(detail.buildingId);
+      }
+    };
+
+    // Create building - opens config modal in create mode with position
+    const handleBuildingCreate = (event: Event) => {
+      const detail = (event as CustomEvent<{ position: { x: number; z: number } }>).detail;
+      setBuildingInitialPosition(detail?.position || null);
+      buildingModal.open(null);
+    };
+
     window.addEventListener('tide:open-spawn-modal', handleOpenSpawnModal as EventListener);
+    window.addEventListener('tide:building-action', handleBuildingAction as EventListener);
+    window.addEventListener('tide:building-edit', handleBuildingEdit as EventListener);
+    window.addEventListener('tide:building-create', handleBuildingCreate as EventListener);
     return () => {
       window.removeEventListener('tide:open-spawn-modal', handleOpenSpawnModal as EventListener);
+      window.removeEventListener('tide:building-action', handleBuildingAction as EventListener);
+      window.removeEventListener('tide:building-edit', handleBuildingEdit as EventListener);
+      window.removeEventListener('tide:building-create', handleBuildingCreate as EventListener);
     };
-  }, [spawnModal]);
+  }, [spawnModal, buildingModal]);
 
   // Check if in drawing mode
   const isDrawingMode = activeTool === 'rectangle' || activeTool === 'circle';
@@ -1077,6 +1121,7 @@ function AppContent() {
         controlsModal={controlsModal}
         skillsModal={skillsModal}
         buildingModal={buildingModal}
+        buildingInitialPosition={buildingInitialPosition}
         agentEditModal={agentEditModal}
         snapshotsModal={snapshotsModal}
         restoreArchivedModal={restoreArchivedModal}

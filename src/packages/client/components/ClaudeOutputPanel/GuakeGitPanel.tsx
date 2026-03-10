@@ -109,6 +109,9 @@ interface TreeNodeProps {
 function TreeNodeView({ node, depth, expandedDirs, onToggleDir, onFileClick, repoDir }: TreeNodeProps) {
   if (node.isDirectory) {
     const isExpanded = expandedDirs.has(node.path);
+    const folderIconSrc = isExpanded
+      ? `${import.meta.env.BASE_URL}assets/vscode-icons/default_folder_opened.svg`
+      : `${import.meta.env.BASE_URL}assets/vscode-icons/default_folder.svg`;
     return (
       <>
         <div
@@ -119,6 +122,7 @@ function TreeNodeView({ node, depth, expandedDirs, onToggleDir, onFileClick, rep
           <span className="guake-git-repo-arrow" style={{ marginRight: 4 }}>
             {isExpanded ? '▼' : '▶'}
           </span>
+          <img src={folderIconSrc} alt="" className="guake-git-file-icon guake-git-folder-icon" />
           <span className="guake-git-file-name">{node.name}</span>
           <span className="guake-git-repo-count" style={{ marginLeft: 'auto' }}>{node.fileCount}</span>
         </div>

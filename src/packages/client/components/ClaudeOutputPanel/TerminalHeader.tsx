@@ -61,6 +61,10 @@ export interface TerminalHeaderProps {
   gitPanelOpen?: boolean;
   /** Toggle git panel */
   setGitPanelOpen?: (open: boolean) => void;
+  /** Buildings panel open state */
+  buildingsPanelOpen?: boolean;
+  /** Toggle buildings panel */
+  setBuildingsPanelOpen?: (open: boolean) => void;
 }
 
 export const TerminalHeader = memo(function TerminalHeader({
@@ -94,6 +98,8 @@ export const TerminalHeader = memo(function TerminalHeader({
   canNavigateForward = false,
   gitPanelOpen = false,
   setGitPanelOpen,
+  buildingsPanelOpen = false,
+  setBuildingsPanelOpen,
 }: TerminalHeaderProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const supervisor = useSupervisor();
@@ -382,6 +388,15 @@ export const TerminalHeader = memo(function TerminalHeader({
               title={gitPanelOpen ? 'Hide Git Changes' : 'Show Git Changes'}
             >
               <span className="guake-action-icon">🌿</span>
+            </button>
+          )}
+          {!isSnapshotView && setBuildingsPanelOpen && (
+            <button
+              className={`guake-icon-action guake-buildings-toggle ${buildingsPanelOpen ? 'active' : ''}`}
+              onClick={() => setBuildingsPanelOpen(!buildingsPanelOpen)}
+              title={buildingsPanelOpen ? 'Hide Area Buildings' : 'Show Area Buildings'}
+            >
+              <span className="guake-action-icon">🏗️</span>
             </button>
           )}
           {!isSnapshotView && (

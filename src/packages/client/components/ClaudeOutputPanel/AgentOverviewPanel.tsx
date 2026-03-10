@@ -179,6 +179,10 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     areaId: string;
     position: { x: number; y: number };
   } | null>(null);
+  const [agentContextMenu, setAgentContextMenu] = useState<{
+    agentId: string;
+    position: { x: number; y: number };
+  } | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const internalAgentListRef = useRef<HTMLDivElement>(null);
   const agentListRef = externalAgentListRef || internalAgentListRef;
@@ -459,6 +463,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
           onToggle={() => toggleAgent(agent.id)}
           onSelect={() => onSelectAgent(agent.id)}
           onClearContext={() => store.clearContext(agent.id)}
+          onContextMenu={(position) => setAgentContextMenu({ agentId: agent.id, position })}
         />
       </React.Fragment>
     ));
@@ -543,6 +548,35 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
       },
     ];
   }, [areaContextMenu, areas, requestSpawnForArea, t]);
+
+  const agentContextMenuActions = useMemo((): ContextMenuAction[] => {
+    if (!agentContextMenu) return [];
+    const agent = agents.find(a => a.id === agentContextMenu.agentId);
+    if (!agent) return [];
+    const isExpanded = expandedAgents.has(agent.id);
+
+    return [
+      {
+        id: 'toggle-expand',
+        label: isExpanded ? t('terminal:overview.collapse', { defaultValue: 'Collapse' }) : t('terminal:overview.expand', { defaultValue: 'Expand' }),
+        icon: isExpanded ? '▾' : '▸',
+        onClick: () => toggleAgent(agent.id),
+      },
+      {
+        id: 'clear-context',
+        label: t('terminal:overview.clearContext', { defaultValue: 'Clear context' }),
+        icon: '🧹',
+        onClick: () => store.clearContext(agent.id),
+      },
+      {
+        id: 'remove-agent',
+        label: t('terminal:overview.removeAgent', { defaultValue: 'Remove agent' }),
+        icon: '🗑',
+        danger: true,
+        onClick: () => store.removeAgent(agent.id),
+      },
+    ];
+  }, [agentContextMenu, agents, expandedAgents, t]);
 
   // Keep the active agent card centered in the overview scroll container when selection changes.
   useEffect(() => {
@@ -742,6 +776,14 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
         onClose={() => setAreaContextMenu(null)}
       />
 
+      <ContextMenu
+        isOpen={agentContextMenu !== null}
+        position={agentContextMenu?.position ?? { x: 0, y: 0 }}
+        worldPosition={{ x: 0, z: 0 }}
+        actions={agentContextMenuActions}
+        onClose={() => setAgentContextMenu(null)}
+      />
+
     </div>
   );
 }
@@ -767,6 +809,7 @@ interface AgentCardProps {
   onToggle: () => void;
   onSelect: () => void;
   onClearContext: () => void;
+  onContextMenu: (position: { x: number; y: number }) => void;
 }
 
 /** Unified subagent entry combining live store data and tool execution history */
@@ -796,6 +839,7 @@ function AgentCard({
   onToggle,
   onSelect,
   onClearContext,
+  onContextMenu,
 }: AgentCardProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const customClasses = useCustomAgentClassesArray();
@@ -973,7 +1017,11 @@ function AgentCard({
         } : undefined}
       >
         {/* Card Header - always visible */}
-        <div className="aop-agent-header">
+        <div className="aop-agent-header" onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onContextMenu({ x: e.clientX, y: e.clientY });
+        }}>
         <button
           type="button"
           className="aop-expand-icon"
