@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.10.0] - 2026-03-10
+
+### Added
+- **Git panel enhancements** - Expanded GuakeGitPanel with advanced diff viewing and tree navigation modes
+- **Branch widget** - New BranchWidget component for file explorer branch display
+- **Multi-repo branch support** - useGitBranch hook now supports multiple repository directories
+- **Git server routes** - Extended file server routes for git branch and status operations
+- **Storage utilities** - New storage utility helpers
+- **Spawn modal options** - Extended SpawnModal with additional configuration options
+
+### Changed
+- **Boss context** - Improved BossContext component with updated messaging
+- **Boss service** - Updated boss message service with refined delegation instructions
+- **Markdown rendering** - Enhanced MarkdownComponents with improved rendering
+- **Git panel styles** - New comprehensive git panel stylesheet with tree view support
+- **History panel styles** - Additional history panel styling improvements
+
 ## [1.9.0] - 2026-03-10
 
 ### Added
