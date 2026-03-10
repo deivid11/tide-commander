@@ -1,0 +1,267 @@
+// =============================================================================
+// Guake Terminal - Area Buildings Panel
+// =============================================================================
+
+@use 'sass:color';
+@use '../../variables' as *;
+
+.guake-terminal.with-buildings-panel {
+  .guake-content {
+    margin-right: var(--guake-side-panel-width);
+  }
+
+  // When both git and buildings panels are open, they share the same column
+  // Only apply content margin once (git panel rule already handles it)
+  &.with-git-panel .guake-content {
+    margin-right: var(--guake-side-panel-width);
+  }
+}
+
+.guake-buildings-panel {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--guake-side-panel-width);
+  background: rgba($dracula-bg-darker, 0.98);
+  border-left: 2px solid $dracula-orange;
+  display: flex;
+  flex-direction: column;
+  z-index: 201;
+  overflow: hidden;
+}
+
+// When both git and buildings panels are open, split vertically
+.guake-terminal.with-git-panel.with-buildings-panel {
+  .guake-git-panel {
+    bottom: 50%;
+    border-bottom: 1px solid $dracula-current;
+  }
+
+  .guake-buildings-panel {
+    top: 50%;
+    border-top: 1px solid $dracula-current;
+  }
+}
+
+.guake-buildings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  background: rgba($dracula-bg, 0.95);
+  border-bottom: 1px solid $dracula-current;
+  flex-shrink: 0;
+}
+
+.guake-buildings-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: $dracula-orange;
+  font-weight: 600;
+  font-size: 13px;
+  min-width: 0;
+}
+
+.guake-buildings-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.guake-buildings-count {
+  font-size: 11px;
+  color: $dracula-comment;
+  background: rgba($dracula-current, 0.5);
+  padding: 1px 6px;
+  border-radius: 8px;
+}
+
+.guake-buildings-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.guake-buildings-add {
+  background: none;
+  border: 1px solid rgba($dracula-orange, 0.4);
+  color: $dracula-orange;
+  cursor: pointer;
+  padding: 2px 8px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+  line-height: 1;
+
+  &:hover {
+    color: $dracula-fg;
+    background: rgba($dracula-orange, 0.2);
+    border-color: $dracula-orange;
+  }
+}
+
+.guake-buildings-close {
+  background: none;
+  border: none;
+  color: $dracula-comment;
+  cursor: pointer;
+  padding: 4px 8px;
+  font-size: 13px;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+
+  &:hover {
+    color: $dracula-fg;
+    background: rgba($dracula-current, 0.5);
+  }
+}
+
+.guake-buildings-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.guake-buildings-empty {
+  text-align: center;
+  color: $dracula-comment;
+  font-size: 12px;
+  padding: 24px 16px;
+  font-style: italic;
+}
+
+.guake-building-item {
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  margin-bottom: 4px;
+  border: 1px solid transparent;
+
+  &:hover {
+    background: rgba($dracula-current, 0.4);
+    border-color: rgba($dracula-current, 0.6);
+  }
+
+  &.running {
+    border-left: 3px solid $dracula-green;
+  }
+
+  &.error {
+    border-left: 3px solid $dracula-red;
+  }
+
+  &.stopped {
+    border-left: 3px solid $dracula-comment;
+    opacity: 0.7;
+  }
+
+  &.starting, &.stopping {
+    border-left: 3px solid $dracula-yellow;
+  }
+}
+
+.guake-building-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.guake-building-type-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.guake-building-name {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 500;
+  color: $dracula-fg;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.guake-building-status {
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.guake-building-detail {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  padding-left: 22px;
+  font-size: 11px;
+
+  .detail-label {
+    color: $dracula-comment;
+    font-weight: 500;
+  }
+
+  .detail-value {
+    color: $dracula-cyan;
+  }
+}
+
+.guake-building-urls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+  padding-left: 22px;
+}
+
+.guake-building-link {
+  font-size: 11px;
+  color: $dracula-cyan;
+  text-decoration: none;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba($dracula-cyan, 0.08);
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: rgba($dracula-cyan, 0.2);
+    color: lighten($dracula-cyan, 10%);
+  }
+}
+
+.guake-building-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+  padding-left: 22px;
+}
+
+.guake-building-action {
+  background: none;
+  border: 1px solid rgba($dracula-current, 0.5);
+  color: $dracula-comment;
+  cursor: pointer;
+  padding: 2px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+
+  &.start:hover {
+    color: $dracula-green;
+    border-color: $dracula-green;
+    background: rgba($dracula-green, 0.1);
+  }
+
+  &.restart:hover {
+    color: $dracula-yellow;
+    border-color: $dracula-yellow;
+    background: rgba($dracula-yellow, 0.1);
+  }
+
+  &.stop:hover {
+    color: $dracula-red;
+    border-color: $dracula-red;
+    background: rgba($dracula-red, 0.1);
+  }
+}

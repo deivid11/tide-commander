@@ -42,6 +42,7 @@ interface AppModalsProps {
   spawnAreaId: string | null;
   explorerFolderPath: string | null;
   contextMenuActions: ContextMenuAction[];
+  buildingInitialPosition: { x: number; z: number } | null;
 
   // Config
   sceneConfig: SceneConfig;
@@ -92,6 +93,7 @@ export function AppModals({
   spawnAreaId,
   explorerFolderPath,
   contextMenuActions,
+  buildingInitialPosition,
   sceneConfig,
   onConfigChange,
   onToolChange,
@@ -145,6 +147,7 @@ export function AppModals({
         isOpen={buildingModal.isOpen}
         onClose={buildingModal.close}
         buildingId={buildingModal.data}
+        initialPosition={buildingInitialPosition || undefined}
       />
 
       <SpawnModal

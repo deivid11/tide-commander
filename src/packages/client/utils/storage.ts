@@ -63,6 +63,9 @@ export const STORAGE_KEYS = {
   GIT_PANEL_VIEW_MODE: 'guake-git-view-mode',
   GIT_PANEL_FOLDER_IDX: 'guake-git-folder-idx',
 
+  // Buildings Panel
+  BUILDINGS_PANEL_OPEN: 'guake-buildings-panel-open',
+
   // Agent notifications
   UNSEEN_AGENTS: 'tide-unseen-agents',
 } as const;
