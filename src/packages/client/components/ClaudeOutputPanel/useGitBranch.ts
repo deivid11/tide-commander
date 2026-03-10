@@ -80,7 +80,7 @@ export function useGitBranches(
       cancelled = true;
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [dirsKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [dirsKey]);
 
   return branches;
 }

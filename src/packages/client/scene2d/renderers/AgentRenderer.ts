@@ -228,7 +228,7 @@ export class AgentRenderer extends BaseRenderer {
     const labelScale = indicatorScale * indicatorZoomFactor;
     const labelY = screenPos.y + screenRadius + 12 * indicatorZoomFactor;
     const nameTagScale = indicatorScale * nameplateZoomFactor;
-    const labelFontSize = Math.max(7, 13 * labelScale);
+    const _labelFontSize = Math.max(7, 13 * labelScale);
     const nameLabelFontSize = Math.max(7, 13 * nameTagScale);
 
     this.ctx.font = `bold ${nameLabelFontSize}px "Segoe UI", Arial, sans-serif`;

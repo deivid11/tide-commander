@@ -156,7 +156,7 @@ function TreeNodeView({ node, depth, expandedDirs, onToggleDir, onFileClick, rep
 // ==========================================================================
 
 export function GuakeGitPanel({ agentId, agents, onClose }: GuakeGitPanelProps) {
-  const { t } = useTranslation(['terminal', 'common']);
+  const { t: _t } = useTranslation(['terminal', 'common']);
   const areas = useAreas();
 
   const [repos, setRepos] = useState<RepoStatus[]>([]);
@@ -164,7 +164,7 @@ export function GuakeGitPanel({ agentId, agents, onClose }: GuakeGitPanelProps) 
   const [expandedRepos, setExpandedRepos] = useState<Set<string>>(new Set());
   const [expandedTreeDirs, setExpandedTreeDirs] = useState<Set<string>>(new Set());
   const [modalState, setModalState] = useState<ModalState>(null);
-  const [diffLoading, setDiffLoading] = useState(false);
+  const [_diffLoading, setDiffLoading] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('flat');
 
   // Compute area directories for this agent
@@ -229,7 +229,7 @@ export function GuakeGitPanel({ agentId, agents, onClose }: GuakeGitPanelProps) 
     } finally {
       setLoading(false);
     }
-  }, [areaDirs]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [areaDirs]);
 
   useEffect(() => {
     refresh();
@@ -341,7 +341,7 @@ export function GuakeGitPanel({ agentId, agents, onClose }: GuakeGitPanelProps) 
       }
       setExpandedTreeDirs(allDirs);
     }
-  }, [viewMode, repos]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [viewMode, repos]);
 
   // ========================================================================
   // RENDER

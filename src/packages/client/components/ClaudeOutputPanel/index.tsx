@@ -74,7 +74,6 @@ import {
   AgentResponseModalWrapper,
   type BashModalState,
 } from './TerminalModals';
-import { HistoryLine } from './HistoryLine';
 import { VirtualizedOutputList } from './VirtualizedOutputList';
 import { AgentDebugPanel } from './AgentDebugPanel';
 import { GuakeGitPanel } from './GuakeGitPanel';
