@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.11.0] - 2026-03-10
+
+### Added
+- **Area buildings panel** - New AreaBuildingsPanel component for viewing area buildings in the terminal
+- **Buildings panel styles** - Comprehensive layout and styling for buildings panel
+- **Modal stack hook** - New useModalStack hook for layered modal management
+- **Terminal header toggle** - Buildings panel toggle in TerminalHeader
+
+### Changed
+- **Agent overview panel** - Extended with additional features and information display
+- **App and AppModals** - Integrated new buildings panel
+- **Git panel styles** - Additional styling refinements
+- **Storage utilities** - New helper additions
+
 ## [1.10.0] - 2026-03-10
 
 ### Added
