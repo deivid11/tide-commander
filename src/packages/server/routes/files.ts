@@ -1300,7 +1300,7 @@ router.get('/git-branch', async (req: Request, res: Response) => {
     }
 
     res.json({ branch });
-  } catch (err: any) {
+  } catch {
     res.json({ branch: null });
   }
 });
