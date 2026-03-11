@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.13.1] - 2026-03-11
+
+### Fixed
+- **Terminal building auth** - Pass auth token to terminal iframe and WebSocket connections so terminal buildings work when authentication is enabled
+
 ## [1.13.0] - 2026-03-11
 
 ### Added
