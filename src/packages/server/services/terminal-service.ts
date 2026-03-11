@@ -153,6 +153,10 @@ export async function startTerminal(building: Building): Promise<{ success: bool
     try {
       const tmuxOpts = [
         `tmux set-option -t ${tmuxSession} mouse on`,
+        // Allow OSC 52 clipboard (ttyd/xterm.js use this for copy)
+        `tmux set-option -t ${tmuxSession} set-clipboard on`,
+        // Copy selection to clipboard via OSC 52 escape sequence
+        `tmux set-option -t ${tmuxSession} -s copy-command 'true'`,
         // Subtle dark status bar matching Commander's theme
         `tmux set-option -t ${tmuxSession} status-style 'bg=#1a1a2e,fg=#a9b1d6'`,
         `tmux set-option -t ${tmuxSession} status-left '#[fg=#6272a4]#{session_name} '`,
@@ -160,6 +164,8 @@ export async function startTerminal(building: Building): Promise<{ success: bool
         `tmux set-option -t ${tmuxSession} status-left-length 20`,
         `tmux set-option -t ${tmuxSession} window-status-current-style 'fg=#8be9fd'`,
         `tmux set-option -t ${tmuxSession} window-status-style 'fg=#6272a4'`,
+        // Allow terminal override for clipboard passthrough
+        `tmux set-option -t ${tmuxSession} -sa terminal-features ',xterm-256color:clipboard'`,
       ];
       execSync(tmuxOpts.join(' && '));
     } catch {

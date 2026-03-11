@@ -132,6 +132,31 @@
   // No transition - show instantly
 }
 
+// Horizontal resize handle for side panels
+.guake-side-panel-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  cursor: ew-resize;
+  z-index: 202;
+  background: transparent;
+  transition: background 0.15s ease;
+
+  &.left {
+    left: calc(var(--guake-side-panel-width) - 2px);
+  }
+
+  &.right {
+    right: calc(var(--guake-side-panel-width) - 2px);
+  }
+
+  &:hover,
+  &:active {
+    background: rgba($dracula-cyan, 0.3);
+  }
+}
+
 .guake-empty {
   padding: 30px;
   text-align: center;

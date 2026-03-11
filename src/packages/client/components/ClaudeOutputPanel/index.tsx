@@ -40,8 +40,10 @@ import {
 import {
   STORAGE_KEYS,
   getStorageBoolean,
+  getStorageNumber,
   getStorageString,
   setStorageBoolean,
+  setStorageNumber,
 } from '../../utils/storage';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 
@@ -238,6 +240,43 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
   const { terminalHeight, terminalRef, handleResizeStart } = useTerminalResize();
   const { mobileOverviewHeight, handleResizeMouseDown: handleOverviewResizeMouseDown, handleResizeTouchStart: handleOverviewResizeTouchStart } = useMobileOverviewResize();
   const keyboard = useKeyboardHeight();
+
+  // Side panel width (shared by overview, git, buildings, debug panels)
+  const [sidePanelWidth, setSidePanelWidth] = useState(() => {
+    const saved = getStorageNumber(STORAGE_KEYS.SIDE_PANEL_WIDTH, 420);
+    return Math.max(280, Math.min(700, saved));
+  });
+  const sidePanelResizeRef = useRef<{ startX: number; startW: number } | null>(null);
+
+  const handleSidePanelResizeStart = useCallback((e: React.MouseEvent, side: 'left' | 'right') => {
+    e.preventDefault();
+    sidePanelResizeRef.current = { startX: e.clientX, startW: sidePanelWidth };
+    document.body.style.cursor = 'ew-resize';
+    document.body.style.userSelect = 'none';
+    store.setTerminalResizing(true);
+    let lastWidth = sidePanelWidth;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      if (!sidePanelResizeRef.current) return;
+      const dx = moveEvent.clientX - sidePanelResizeRef.current.startX;
+      // For left-side panels (overview): dragging right = shrink, dragging left = grow
+      // For right-side panels (git/buildings): dragging left = grow, dragging right = shrink
+      const delta = side === 'left' ? -dx : dx;
+      lastWidth = Math.max(280, Math.min(700, sidePanelResizeRef.current.startW + delta));
+      setSidePanelWidth(lastWidth);
+    };
+    const onMouseUp = () => {
+      sidePanelResizeRef.current = null;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      store.setTerminalResizing(false);
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      setStorageNumber(STORAGE_KEYS.SIDE_PANEL_WIDTH, lastWidth);
+    };
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  }, [sidePanelWidth]);
   const outputs = useAgentOutputs(activeAgentId);
 
   // Use snapshot outputs if viewing a snapshot, otherwise use agent outputs
@@ -1465,7 +1504,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     <div
       ref={terminalRef}
       className={`guake-terminal ${isOpen ? 'open' : 'collapsed'} ${isFullscreen && isOpen ? 'fullscreen' : ''} ${debugPanelOpen && isOpen ? 'with-debug-panel' : ''} ${gitPanelOpen && isOpen ? 'with-git-panel' : ''} ${buildingsPanelOpen && isOpen ? 'with-buildings-panel' : ''} ${overviewPanelOpen && isOpen ? 'with-overview-panel' : ''} ${draggingOver ? 'drag-over' : ''} ${mobileSwipeCloseOffset > 0 ? 'mobile-swipe-close-active' : ''} ${isMobileSwipeClosing ? 'mobile-swipe-close-closing' : ''}`}
-      style={{ '--terminal-height': `${terminalHeight}%`, '--mobile-swipe-close-offset': `${mobileSwipeCloseOffset}px`, ...(mobileOverviewHeight > 0 ? { '--guake-mobile-overview-height': `${mobileOverviewHeight}px` } : {}) } as React.CSSProperties}
+      style={{ '--terminal-height': `${terminalHeight}%`, '--mobile-swipe-close-offset': `${mobileSwipeCloseOffset}px`, '--guake-side-panel-width': `${sidePanelWidth}px`, ...(mobileOverviewHeight > 0 ? { '--guake-mobile-overview-height': `${mobileOverviewHeight}px` } : {}) } as React.CSSProperties}
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -1493,6 +1532,11 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
         <AreaBuildingsPanel agentId={activeAgentId} onClose={() => setBuildingsPanelOpen(false)} />
       )}
 
+      {/* Right-side panel resize handle */}
+      {!isSnapshotView && (debugPanelOpen || gitPanelOpen || buildingsPanelOpen) && isOpen && (
+        <div className="guake-side-panel-resize right" onMouseDown={(e) => handleSidePanelResizeStart(e, 'right')} />
+      )}
+
       {/* Agent Overview Panel */}
       {!isSnapshotView && overviewPanelOpen && isOpen && activeAgentId && (
         <AgentOverviewPanel
@@ -1505,6 +1549,11 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
           agentListRef={agentListRef}
           twoFingerState={twoFingerSelector}
         />
+      )}
+
+      {/* Overview panel resize handle (left side) */}
+      {!isSnapshotView && overviewPanelOpen && isOpen && activeAgentId && (
+        <div className="guake-side-panel-resize left" onMouseDown={(e) => handleSidePanelResizeStart(e, 'left')} />
       )}
 
       {/* Mobile resize handle between overview and terminal */}

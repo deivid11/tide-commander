@@ -24,8 +24,18 @@ const log = createLogger('TerminalProxy');
 
 const TERMINAL_PATH_PREFIX = '/api/terminal/';
 
-// Shared proxy instance
+// Shared proxy instances
 let proxy: httpProxy | null = null;
+let htmlProxy: httpProxy | null = null;
+
+// Custom CSS injected into ttyd index HTML for scrollbar styling
+const CUSTOM_CSS = `<style>
+.xterm-viewport::-webkit-scrollbar{width:6px}
+.xterm-viewport::-webkit-scrollbar-track{background:transparent}
+.xterm-viewport::-webkit-scrollbar-thumb{background:rgba(98,114,164,.4);border-radius:3px}
+.xterm-viewport::-webkit-scrollbar-thumb:hover{background:rgba(98,114,164,.7)}
+.xterm-viewport{scrollbar-width:thin;scrollbar-color:rgba(98,114,164,.4) transparent}
+</style>`;
 
 function getProxy(): httpProxy {
   if (!proxy) {
@@ -44,6 +54,43 @@ function getProxy(): httpProxy {
     });
   }
   return proxy;
+}
+
+/**
+ * Separate proxy for HTML index pages only, with selfHandleResponse
+ * so we can buffer and modify the response to inject custom CSS.
+ */
+function getHtmlProxy(): httpProxy {
+  if (!htmlProxy) {
+    htmlProxy = httpProxy.createProxyServer({
+      changeOrigin: true,
+      xfwd: false,
+      selfHandleResponse: true,
+    });
+
+    htmlProxy.on('proxyRes', (proxyRes, _req, res) => {
+      const chunks: Buffer[] = [];
+      proxyRes.on('data', (chunk: Buffer) => chunks.push(chunk));
+      proxyRes.on('end', () => {
+        let body = Buffer.concat(chunks).toString('utf-8');
+        body = body.replace('</head>', CUSTOM_CSS + '</head>');
+        const headers = { ...proxyRes.headers };
+        delete headers['content-length'];
+        delete headers['content-encoding'];
+        (res as any).writeHead(proxyRes.statusCode || 200, headers);
+        (res as any).end(body);
+      });
+    });
+
+    htmlProxy.on('error', (err, _req, res) => {
+      log.error(`HTML proxy error: ${err.message}`);
+      if (res && 'writeHead' in res && !res.writableEnded) {
+        (res as any).writeHead(502, { 'Content-Type': 'application/json' });
+        (res as any).end(JSON.stringify({ error: 'Terminal not available' }));
+      }
+    });
+  }
+  return htmlProxy;
 }
 
 /**
@@ -79,6 +126,8 @@ function getTargetUrl(buildingId: string): string | null {
 export function setupTerminalHttpProxy(app: Express): void {
   const p = getProxy();
 
+  const hp = getHtmlProxy();
+
   // Use a full-path route pattern so Express doesn't interfere with the API router
   app.use('/api/terminal', (req, res) => {
     // req.url here has been stripped of '/api/terminal', so it's like '/buildingId/...'
@@ -100,7 +149,15 @@ export function setupTerminalHttpProxy(app: Express): void {
     // Restore the full path so ttyd receives it with the base-path prefix
     req.url = fullPath;
 
-    p.web(req, res, { target });
+    // For index pages, use the HTML proxy that injects custom CSS
+    const isIndexPage = fullPath.endsWith('/');
+    if (isIndexPage) {
+      // Request uncompressed so we can do string replacement
+      delete req.headers['accept-encoding'];
+      hp.web(req, res, { target });
+    } else {
+      p.web(req, res, { target });
+    }
   });
 
   log.log('Terminal HTTP proxy initialized');
