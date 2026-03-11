@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.13.0] - 2026-03-11
+
+### Added
+- **Terminal proxy enhancements** - Extended terminal proxy with additional capabilities
+- **Output panel features** - New ClaudeOutputPanel functionality
+- **Guake terminal styles** - Additional base styles for guake terminal
+
+### Changed
+- **Terminal service** - Extended terminal service with new functionality
+- **Storage utilities** - Additional storage helper methods
+
 ## [1.12.0] - 2026-03-10
 
 ### Added
