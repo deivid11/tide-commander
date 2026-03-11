@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.13.2] - 2026-03-11
+
+### Fixed
+- **Guake bottom terminal auth** - Pass auth token to the guake-style bottom terminal iframe (v1.13.1 only fixed the modal terminal)
+
 ## [1.13.1] - 2026-03-11
 
 ### Fixed
