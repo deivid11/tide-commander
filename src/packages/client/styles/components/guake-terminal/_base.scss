@@ -360,3 +360,84 @@
   flex: 1;
   word-break: break-all;
 }
+
+// =============================================================================
+// Bottom Embedded Terminal Panel
+// =============================================================================
+
+.guake-bottom-terminal-resize {
+  height: 5px;
+  cursor: ns-resize;
+  background: transparent;
+  flex-shrink: 0;
+  position: relative;
+
+  &::after {
+    content: '';
+    position: absolute;
+    left: 30%;
+    right: 30%;
+    top: 2px;
+    height: 1px;
+    background: $dracula-comment;
+    opacity: 0.4;
+  }
+
+  &:hover::after {
+    opacity: 0.8;
+    background: $dracula-cyan;
+  }
+}
+
+.guake-bottom-terminal {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid rgba($dracula-comment, 0.2);
+  background: $bg-primary;
+  min-height: 120px;
+}
+
+.guake-bottom-terminal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 10px;
+  background: rgba($dracula-current, 0.6);
+  flex-shrink: 0;
+  height: 28px;
+}
+
+.guake-bottom-terminal-title {
+  font-size: 11px;
+  color: $dracula-fg;
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+.guake-bottom-terminal-close {
+  background: none;
+  border: none;
+  color: $dracula-comment;
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  border-radius: 3px;
+
+  &:hover {
+    color: $dracula-red;
+    background: rgba($dracula-red, 0.1);
+  }
+}
+
+.guake-bottom-terminal-iframe {
+  flex: 1;
+  width: 100%;
+  border: none;
+  background: #1a1a2e;
+  // Ensure iframe receives all pointer/wheel events
+  pointer-events: auto;
+  // Prevent parent scroll containers from intercepting wheel events
+  overscroll-behavior: contain;
+}

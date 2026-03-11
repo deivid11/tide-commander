@@ -193,17 +193,54 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-top: 4px;
+  margin-top: 3px;
   padding-left: 22px;
   font-size: 11px;
+  min-width: 0;
 
   .detail-label {
     color: $dracula-comment;
     font-weight: 500;
+    flex-shrink: 0;
   }
 
   .detail-value {
     color: $dracula-cyan;
+
+    &.detail-dim {
+      color: $dracula-comment;
+      font-style: italic;
+    }
+
+    &.detail-ok {
+      color: $dracula-green;
+    }
+
+    &.detail-err {
+      color: $dracula-red;
+    }
+
+    &.detail-warn {
+      color: $dracula-yellow;
+    }
+
+    &.detail-mono {
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 10px;
+    }
+
+    &.detail-ports {
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 10px;
+      color: $dracula-purple;
+    }
+
+    &.detail-ellipsis {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
   }
 }
 
@@ -263,5 +300,11 @@
     color: $dracula-red;
     border-color: $dracula-red;
     background: rgba($dracula-red, 0.1);
+  }
+
+  &.terminal-below:hover {
+    color: $dracula-cyan;
+    border-color: $dracula-cyan;
+    background: rgba($dracula-cyan, 0.1);
   }
 }

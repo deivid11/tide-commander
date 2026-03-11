@@ -123,6 +123,7 @@ export interface FileViewerProps {
   onRevealInTree?: (path: string) => void;
   scrollToLine?: number;
   onSearchStateChange?: (isSearchActive: boolean) => void;
+  onFileEdited?: (path: string) => void;
 }
 
 export interface SearchResultsProps {

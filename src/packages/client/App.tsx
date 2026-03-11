@@ -70,6 +70,7 @@ import {
 } from './hooks';
 import { loadConfig, saveConfig } from './app/sceneConfig';
 import { buildContextMenuActions } from './app/contextMenuActions';
+// getApiBaseUrl removed - terminal iframe uses relative paths for remote access compatibility
 
 // Import scene lifecycle to ensure it initializes
 import './app/sceneLifecycle';
@@ -117,6 +118,7 @@ function AppContent() {
   } | null>(null);
   const [pm2LogsModalBuildingId, setPm2LogsModalBuildingId] = useState<string | null>(null);
   const [bossLogsModalBuildingId, setBossLogsModalBuildingId] = useState<string | null>(null);
+  const [terminalModalBuildingId, setTerminalModalBuildingId] = useState<string | null>(null);
   const [databasePanelBuildingId, _setDatabasePanelBuildingId] = useState<string | null>(null);
   const setDatabasePanelBuildingId = useCallback((id: string | null) => {
     _setDatabasePanelBuildingId(id);
@@ -126,6 +128,8 @@ function AppContent() {
   }, []);
   const closeDatabasePanel = useCallback(() => setDatabasePanelBuildingId(null), [setDatabasePanelBuildingId]);
   const { handleMouseDown: handleDatabasePanelBackdropMouseDown, handleClick: handleDatabasePanelBackdropClick } = useModalClose(closeDatabasePanel);
+  const closeTerminalModal = useCallback(() => setTerminalModalBuildingId(null), []);
+  const { handleMouseDown: handleTerminalBackdropMouseDown, handleClick: handleTerminalBackdropClick } = useModalClose(closeTerminalModal);
   // Ref to access current popup state in callbacks
   const buildingPopupRef = useRef(buildingPopup);
   buildingPopupRef.current = buildingPopup;
@@ -328,6 +332,7 @@ function AppContent() {
   useModalStackRegistration('pm2-logs-modal', pm2LogsModalBuildingId !== null, () => setPm2LogsModalBuildingId(null));
   useModalStackRegistration('boss-logs-modal', bossLogsModalBuildingId !== null, () => setBossLogsModalBuildingId(null));
   useModalStackRegistration('database-panel', databasePanelBuildingId !== null, closeDatabasePanel);
+  useModalStackRegistration('terminal-modal', terminalModalBuildingId !== null, closeTerminalModal);
 
   // Close tools modals when guake terminal transitions from open to closed
   const prevTerminalOpen = useRef(terminalOpen);
@@ -538,6 +543,8 @@ function AppContent() {
         setDatabasePanelBuildingId(detail.buildingId);
       } else if (building.type === 'folder' && building.folderPath) {
         store.openFileExplorer(building.folderPath);
+      } else if (building.type === 'terminal' && building.terminalStatus?.url) {
+        setTerminalModalBuildingId(detail.buildingId);
       } else {
         buildingModal.open(detail.buildingId);
       }
@@ -558,15 +565,26 @@ function AppContent() {
       buildingModal.open(null);
     };
 
+    const handleOpenIframeModal = (event: Event) => {
+      const detail = (event as CustomEvent<{ url: string; title?: string; buildingId?: string }>).detail;
+      if (detail?.buildingId) {
+        setTerminalModalBuildingId(detail.buildingId);
+      } else if (detail?.url) {
+        setIframeModalUrl(detail.url);
+      }
+    };
+
     window.addEventListener('tide:open-spawn-modal', handleOpenSpawnModal as EventListener);
     window.addEventListener('tide:building-action', handleBuildingAction as EventListener);
     window.addEventListener('tide:building-edit', handleBuildingEdit as EventListener);
     window.addEventListener('tide:building-create', handleBuildingCreate as EventListener);
+    window.addEventListener('tide:open-iframe-modal', handleOpenIframeModal as EventListener);
     return () => {
       window.removeEventListener('tide:open-spawn-modal', handleOpenSpawnModal as EventListener);
       window.removeEventListener('tide:building-action', handleBuildingAction as EventListener);
       window.removeEventListener('tide:building-edit', handleBuildingEdit as EventListener);
       window.removeEventListener('tide:building-create', handleBuildingCreate as EventListener);
+      window.removeEventListener('tide:open-iframe-modal', handleOpenIframeModal as EventListener);
     };
   }, [spawnModal, buildingModal]);
 
@@ -1035,6 +1053,37 @@ function AppContent() {
               <DatabasePanel
                 building={building}
                 onClose={closeDatabasePanel}
+              />
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Terminal Modal */}
+      {terminalModalBuildingId && (() => {
+        const building = buildings.get(terminalModalBuildingId);
+        if (!building || !building.terminalStatus?.url) return null;
+        return (
+          <div
+            className="modal-overlay visible"
+            onMouseDown={handleTerminalBackdropMouseDown}
+            onClick={handleTerminalBackdropClick}
+          >
+            <div className="terminal-modal-container">
+              <div className="terminal-modal-header">
+                <span className="terminal-modal-title">Terminal - {building.name}</span>
+                <button className="terminal-modal-close" onClick={closeTerminalModal}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
+              <iframe
+                src={building.terminalStatus.url}
+                className="terminal-modal-iframe"
+                title={`Terminal - ${building.name}`}
+                allow="clipboard-read; clipboard-write"
               />
             </div>
           </div>

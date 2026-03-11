@@ -50,8 +50,10 @@
 
     &--tables {
       flex: 1;
-      overflow: auto;
+      overflow: hidden;
       border-bottom: none;
+      display: flex;
+      flex-direction: column;
     }
   }
 
@@ -178,9 +180,62 @@
     opacity: 0.8;
   }
 
+  &__table-filter {
+    position: relative;
+    margin-bottom: 8px;
+  }
+
+  &__table-filter-input {
+    width: 100%;
+    padding: 6px 28px 6px 10px;
+    background: $bg-tertiary;
+    border: 1px solid $border-color;
+    border-radius: 4px;
+    color: $text-primary;
+    font-size: 0.8em;
+    box-sizing: border-box;
+
+    &::placeholder {
+      color: $text-secondary;
+      opacity: 0.6;
+    }
+
+    &:focus {
+      outline: none;
+      border-color: $accent-blue;
+    }
+  }
+
+  &__table-filter-clear {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: $text-secondary;
+    cursor: pointer;
+    padding: 2px 6px;
+    font-size: 1em;
+    line-height: 1;
+
+    &:hover {
+      color: $text-primary;
+    }
+  }
+
   &__tables {
     display: flex;
     flex-direction: column;
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  &__tables-empty {
+    padding: 8px 10px;
+    font-size: 0.8em;
+    color: $text-secondary;
+    font-style: italic;
   }
 
   &__table {

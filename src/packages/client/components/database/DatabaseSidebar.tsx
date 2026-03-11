@@ -39,10 +39,12 @@ export const DatabaseSidebar: React.FC<DatabaseSidebarProps> = ({
   const dbState = useDatabaseState(building.id);
   const [expandedTables, setExpandedTables] = useState<Set<string>>(new Set());
   const [dbSearch, setDbSearch] = useState('');
+  const [tableSearch, setTableSearch] = useState('');
   const [dbDropdownOpen, setDbDropdownOpen] = useState(false);
   const [selectedTableName, setSelectedTableName] = useState<string | null>(null);
   const dbSearchRef = useRef<HTMLInputElement>(null);
   const dbDropdownRef = useRef<HTMLDivElement>(null);
+  const tableSearchRef = useRef<HTMLInputElement>(null);
 
   // Get databases for active connection
   const databases = activeConnectionId
@@ -66,6 +68,13 @@ export const DatabaseSidebar: React.FC<DatabaseSidebarProps> = ({
     const q = dbSearch.toLowerCase();
     return databases.filter(db => db.toLowerCase().includes(q));
   }, [databases, dbSearch]);
+
+  // Filter tables by search text
+  const filteredTables = useMemo(() => {
+    if (!tableSearch.trim()) return tables;
+    const q = tableSearch.toLowerCase();
+    return tables.filter(t => t.name.toLowerCase().includes(q));
+  }, [tables, tableSearch]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -101,9 +110,10 @@ export const DatabaseSidebar: React.FC<DatabaseSidebarProps> = ({
     }
   }, [building.id, activeConnectionId, activeDatabase, tables.length]);
 
-  // Reset selected table when context changes
+  // Reset selected table and search when context changes
   useEffect(() => {
     setSelectedTableName(null);
+    setTableSearch('');
   }, [activeConnectionId, activeDatabase]);
 
   // Toggle table expansion
@@ -264,10 +274,49 @@ export const DatabaseSidebar: React.FC<DatabaseSidebarProps> = ({
       {tables.length > 0 && (
         <div className="database-sidebar__section database-sidebar__section--tables">
           <div className="database-sidebar__section-title">
-            {t('terminal:database.tablesCount', { count: tables.length })}
+            {tableSearch.trim()
+              ? t('terminal:database.tablesCount', { count: filteredTables.length }) + ` / ${tables.length}`
+              : t('terminal:database.tablesCount', { count: tables.length })}
+          </div>
+          <div className="database-sidebar__table-filter">
+            <input
+              ref={tableSearchRef}
+              className="database-sidebar__table-filter-input"
+              type="text"
+              value={tableSearch}
+              placeholder={t('terminal:database.filterTables')}
+              onChange={(e) => setTableSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  if (tableSearch) {
+                    setTableSearch('');
+                  } else {
+                    tableSearchRef.current?.blur();
+                  }
+                  e.stopPropagation();
+                }
+              }}
+            />
+            {tableSearch && (
+              <button
+                className="database-sidebar__table-filter-clear"
+                onClick={() => {
+                  setTableSearch('');
+                  tableSearchRef.current?.focus();
+                }}
+                title="Clear filter"
+              >
+                &times;
+              </button>
+            )}
           </div>
           <div className="database-sidebar__tables">
-            {tables.map(table => {
+            {tableSearch.trim() && filteredTables.length === 0 && (
+              <div className="database-sidebar__tables-empty">
+                {t('terminal:database.noTablesMatch')}
+              </div>
+            )}
+            {filteredTables.map(table => {
               const isExpanded = expandedTables.has(table.name);
               const schema = isExpanded ? getTableSchema(table.name) : null;
 

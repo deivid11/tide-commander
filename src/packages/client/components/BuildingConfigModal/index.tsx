@@ -22,6 +22,7 @@ import { DockerConfigPanel } from './DockerConfigPanel';
 import { DatabaseConfigPanel } from './DatabaseConfigPanel';
 import { BossConfigPanel } from './BossConfigPanel';
 import { ServerCommandsPanel } from './ServerCommandsPanel';
+import { TerminalConfigPanel } from './TerminalConfigPanel';
 import { BuildingLogsPanel } from './BuildingLogsPanel';
 
 interface BuildingConfigModalProps {
@@ -93,6 +94,12 @@ export function BuildingConfigModal({
   const [dbConnections, setDbConnections] = useState<DatabaseConnection[]>([]);
   const [activeDbConnectionId, setActiveDbConnectionId] = useState<string | undefined>(undefined);
 
+  // Terminal state
+  const [terminalShell, setTerminalShell] = useState('');
+  const [terminalPort, setTerminalPort] = useState('');
+  const [terminalSaveSession, setTerminalSaveSession] = useState(false);
+  const [terminalArgs, setTerminalArgs] = useState('');
+
   const nameInputRef = useRef<HTMLInputElement>(null);
   const bossLogsContainerRef = useRef<HTMLDivElement>(null);
   const logsContainerRef = useRef<HTMLDivElement>(null);
@@ -141,6 +148,10 @@ export function BuildingConfigModal({
         setSubordinateBuildingIds(building.subordinateBuildingIds || []);
         setDbConnections(building.database?.connections || []);
         setActiveDbConnectionId(building.database?.activeConnectionId);
+        setTerminalShell(building.terminal?.shell || '');
+        setTerminalPort(building.terminal?.port ? String(building.terminal.port) : '');
+        setTerminalSaveSession(building.terminal?.saveSession || false);
+        setTerminalArgs(building.terminal?.args || '');
       } else {
         setName('New Server');
         setType('server');
@@ -178,6 +189,10 @@ export function BuildingConfigModal({
         setSubordinateBuildingIds([]);
         setDbConnections([]);
         setActiveDbConnectionId(undefined);
+        setTerminalShell('');
+        setTerminalPort('');
+        setTerminalSaveSession(false);
+        setTerminalArgs('');
       }
 
       setTimeout(() => nameInputRef.current?.focus(), 100);
@@ -263,6 +278,13 @@ export function BuildingConfigModal({
       database: type === 'database' && dbConnections.length > 0 ? {
         connections: dbConnections,
         activeConnectionId: activeDbConnectionId,
+      } : undefined,
+      terminal: type === 'terminal' ? {
+        enabled: true,
+        shell: terminalShell || undefined,
+        port: terminalPort ? parseInt(terminalPort, 10) : undefined,
+        saveSession: terminalSaveSession || undefined,
+        args: terminalArgs || undefined,
       } : undefined,
     };
 
@@ -555,6 +577,31 @@ export function BuildingConfigModal({
                 isEditMode={isEditMode}
                 building={building ?? null}
                 handleCommand={handleCommand}
+              />
+            )}
+
+            {/* Terminal Configuration Section */}
+            {type === 'terminal' && (
+              <TerminalConfigPanel
+                terminalShell={terminalShell}
+                setTerminalShell={setTerminalShell}
+                terminalPort={terminalPort}
+                setTerminalPort={setTerminalPort}
+                terminalSaveSession={terminalSaveSession}
+                setTerminalSaveSession={setTerminalSaveSession}
+                terminalArgs={terminalArgs}
+                setTerminalArgs={setTerminalArgs}
+                isEditMode={isEditMode}
+                building={building ?? null}
+                handleCommand={handleCommand}
+                onOpenTerminal={() => {
+                  if (building?.id) {
+                    window.dispatchEvent(new CustomEvent('tide:open-iframe-modal', { detail: { buildingId: building.id } }));
+                  }
+                }}
+                onOpenBelow={(bid) => {
+                  window.dispatchEvent(new CustomEvent('tide:open-bottom-terminal', { detail: { buildingId: bid } }));
+                }}
               />
             )}
 

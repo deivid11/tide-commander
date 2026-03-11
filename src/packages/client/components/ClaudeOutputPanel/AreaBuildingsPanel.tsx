@@ -33,6 +33,35 @@ interface BuildingContextMenuState {
   position: { x: number; y: number };
 }
 
+/** Format bytes to human-readable string */
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)}KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(0)}MB`;
+  return `${(bytes / 1024 / 1024 / 1024).toFixed(1)}GB`;
+}
+
+/** Format uptime from start timestamp to human-readable duration */
+function formatUptime(startTs: number): string {
+  const seconds = Math.floor((Date.now() - startTs) / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
+  return `${Math.floor(seconds / 86400)}d ${Math.floor((seconds % 86400) / 3600)}h`;
+}
+
+/** Shorten a filesystem path for display */
+function shortenPath(path: string): string {
+  const parts = path.replace(/\/$/, '').split('/');
+  if (parts.length <= 2) return path;
+  return `.../${parts.slice(-2).join('/')}`;
+}
+
+/** Format port list */
+function formatPorts(ports: number[]): string {
+  return ports.map(p => `:${p}`).join(' ');
+}
+
 export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const buildings = useBuildings();
@@ -107,7 +136,7 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
     if (!building) return [];
 
     const actions: ContextMenuAction[] = [];
-    const isRunnable = building.type === 'server' || building.type === 'docker';
+    const isRunnable = building.type === 'server' || building.type === 'docker' || building.type === 'terminal';
     const isRunning = building.status === 'running';
     const isBoss = building.type === 'boss';
 
@@ -117,10 +146,12 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
       label: building.type === 'database' ? 'Open Database' :
              building.type === 'folder' ? 'Open Folder' :
              building.type === 'boss' ? 'View Boss Logs' :
+             building.type === 'terminal' ? 'Open Terminal' :
              (building.type === 'server' && building.pm2?.enabled) ? 'View PM2 Logs' :
              'Open',
       icon: building.type === 'database' ? '🗄️' :
             building.type === 'folder' ? '📁' :
+            building.type === 'terminal' ? '💻' :
             '👁️',
       onClick: () => handleBuildingClick(building.id),
     });
@@ -233,6 +264,7 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
           pm2: building.pm2,
           docker: building.docker,
           database: building.database,
+          terminal: building.terminal,
           urls: building.urls,
           subordinateBuildingIds: building.subordinateBuildingIds,
         });
@@ -271,6 +303,217 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
     return actions;
   }, [contextMenu, buildings, handleBuildingClick, getAreaPosition]);
 
+  /** Render type-specific detail rows for a building */
+  const renderBuildingDetails = useCallback((building: Building) => {
+    const details: React.ReactNode[] = [];
+
+    // -- PM2 runtime details (server with PM2) --
+    if (building.pm2Status) {
+      const pm2 = building.pm2Status;
+      const parts: React.ReactNode[] = [];
+      if (pm2.status) parts.push(<span key="st" className="detail-value">{pm2.status}</span>);
+      if (pm2.memory !== undefined) parts.push(<span key="mem" className="detail-value">{formatBytes(pm2.memory)}</span>);
+      if (pm2.cpu !== undefined) parts.push(<span key="cpu" className="detail-value">{pm2.cpu.toFixed(1)}%</span>);
+      if (pm2.uptime) parts.push(<span key="up" className="detail-value detail-dim">{formatUptime(pm2.uptime)}</span>);
+      if (parts.length > 0) {
+        details.push(
+          <div key="pm2" className="guake-building-detail">
+            <span className="detail-label">PM2</span>
+            {parts}
+          </div>
+        );
+      }
+      // Ports
+      if (pm2.ports && pm2.ports.length > 0) {
+        details.push(
+          <div key="pm2-ports" className="guake-building-detail">
+            <span className="detail-label">Ports</span>
+            <span className="detail-value detail-ports">{formatPorts(pm2.ports)}</span>
+          </div>
+        );
+      }
+      // Restarts (only if > 0)
+      if (pm2.restarts && pm2.restarts > 0) {
+        details.push(
+          <div key="pm2-restarts" className="guake-building-detail">
+            <span className="detail-label">Restarts</span>
+            <span className="detail-value detail-warn">{pm2.restarts}</span>
+          </div>
+        );
+      }
+    }
+
+    // -- Docker runtime details --
+    if (building.dockerStatus) {
+      const docker = building.dockerStatus;
+      const parts: React.ReactNode[] = [];
+      if (docker.status) parts.push(<span key="st" className="detail-value">{docker.status}</span>);
+      if (docker.health && docker.health !== 'none') {
+        const healthClass = docker.health === 'healthy' ? 'detail-ok' : docker.health === 'unhealthy' ? 'detail-err' : '';
+        parts.push(<span key="h" className={`detail-value ${healthClass}`}>{docker.health}</span>);
+      }
+      if (docker.memory !== undefined) {
+        const memStr = docker.memoryLimit
+          ? `${formatBytes(docker.memory)}/${formatBytes(docker.memoryLimit)}`
+          : formatBytes(docker.memory);
+        parts.push(<span key="mem" className="detail-value">{memStr}</span>);
+      }
+      if (docker.cpu !== undefined) parts.push(<span key="cpu" className="detail-value">{docker.cpu.toFixed(1)}%</span>);
+      if (parts.length > 0) {
+        details.push(
+          <div key="docker" className="guake-building-detail">
+            <span className="detail-label">Docker</span>
+            {parts}
+          </div>
+        );
+      }
+      // Docker image
+      if (docker.image) {
+        details.push(
+          <div key="docker-img" className="guake-building-detail">
+            <span className="detail-label">Image</span>
+            <span className="detail-value detail-mono">{docker.image}</span>
+          </div>
+        );
+      }
+      // Docker ports
+      if (docker.ports && docker.ports.length > 0) {
+        const portStr = docker.ports.map(p => `${p.host}:${p.container}`).join(' ');
+        details.push(
+          <div key="docker-ports" className="guake-building-detail">
+            <span className="detail-label">Ports</span>
+            <span className="detail-value detail-ports">{portStr}</span>
+          </div>
+        );
+      }
+      // Docker compose services
+      if (docker.services && docker.services.length > 0) {
+        details.push(
+          <div key="docker-svc" className="guake-building-detail">
+            <span className="detail-label">Services</span>
+            <span className="detail-value">{docker.services.length} svc</span>
+          </div>
+        );
+      }
+    }
+
+    // -- Database details --
+    if (building.type === 'database' && building.database) {
+      const db = building.database;
+      const activeConn = db.activeConnectionId
+        ? db.connections.find(c => c.id === db.activeConnectionId)
+        : db.connections[0];
+      if (activeConn) {
+        details.push(
+          <div key="db-conn" className="guake-building-detail">
+            <span className="detail-label">{activeConn.engine.toUpperCase()}</span>
+            <span className="detail-value detail-mono">{activeConn.host}:{activeConn.port}</span>
+          </div>
+        );
+        if (db.activeDatabase || activeConn.database) {
+          details.push(
+            <div key="db-name" className="guake-building-detail">
+              <span className="detail-label">DB</span>
+              <span className="detail-value">{db.activeDatabase || activeConn.database}</span>
+            </div>
+          );
+        }
+      }
+      if (db.connections.length > 1) {
+        details.push(
+          <div key="db-count" className="guake-building-detail">
+            <span className="detail-label">Connections</span>
+            <span className="detail-value">{db.connections.length}</span>
+          </div>
+        );
+      }
+    }
+
+    // -- Boss building: subordinate summary --
+    if (building.type === 'boss' && building.subordinateBuildingIds && building.subordinateBuildingIds.length > 0) {
+      const subs = building.subordinateBuildingIds;
+      let runningCount = 0;
+      let errorCount = 0;
+      for (const subId of subs) {
+        const sub = buildings.get(subId);
+        if (sub?.status === 'running') runningCount++;
+        if (sub?.status === 'error') errorCount++;
+      }
+      const summaryParts: string[] = [];
+      summaryParts.push(`${runningCount}/${subs.length} up`);
+      if (errorCount > 0) summaryParts.push(`${errorCount} err`);
+      details.push(
+        <div key="boss-subs" className="guake-building-detail">
+          <span className="detail-label">Subs</span>
+          <span className={`detail-value ${errorCount > 0 ? 'detail-err' : runningCount === subs.length ? 'detail-ok' : ''}`}>
+            {summaryParts.join(', ')}
+          </span>
+        </div>
+      );
+    }
+
+    // -- Terminal runtime details --
+    if (building.terminalStatus) {
+      const term = building.terminalStatus;
+      details.push(
+        <div key="terminal" className="guake-building-detail">
+          <span className="detail-label">Terminal</span>
+          <span className="detail-value detail-ports">:{term.port}</span>
+        </div>
+      );
+      if (term.tmuxSession) {
+        details.push(
+          <div key="terminal-session" className="guake-building-detail">
+            <span className="detail-label">Session</span>
+            <span className="detail-value detail-mono">{term.tmuxSession}</span>
+          </div>
+        );
+      }
+    }
+
+    // -- Folder path & git changes --
+    if (building.type === 'folder' && building.folderPath) {
+      details.push(
+        <div key="folder-path" className="guake-building-detail">
+          <span className="detail-label">Path</span>
+          <span className="detail-value detail-mono" title={building.folderPath}>{shortenPath(building.folderPath)}</span>
+        </div>
+      );
+      if (building.gitChangesCount !== undefined && building.gitChangesCount > 0) {
+        details.push(
+          <div key="folder-git" className="guake-building-detail">
+            <span className="detail-label">Git</span>
+            <span className="detail-value detail-warn">{building.gitChangesCount} changes</span>
+          </div>
+        );
+      }
+    }
+
+    // -- Working directory (for server/docker, only if no PM2/Docker status shown) --
+    if (building.cwd && building.type !== 'folder' && !building.pm2Status && !building.dockerStatus) {
+      details.push(
+        <div key="cwd" className="guake-building-detail">
+          <span className="detail-label">Dir</span>
+          <span className="detail-value detail-mono" title={building.cwd}>{shortenPath(building.cwd)}</span>
+        </div>
+      );
+    }
+
+    // -- Last error --
+    if (building.lastError && building.status === 'error') {
+      details.push(
+        <div key="error" className="guake-building-detail">
+          <span className="detail-label detail-err">Err</span>
+          <span className="detail-value detail-err detail-ellipsis" title={building.lastError}>
+            {building.lastError.length > 40 ? building.lastError.slice(0, 40) + '...' : building.lastError}
+          </span>
+        </div>
+      );
+    }
+
+    return details;
+  }, [buildings]);
+
   return (
     <div className="guake-buildings-panel">
       <div className="guake-buildings-header">
@@ -306,7 +549,7 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
           areaBuildings.map((building) => {
             const typeConfig = BUILDING_TYPES[building.type];
             const statusIcon = STATUS_ICONS[building.status] || '❓';
-            const isRunnable = building.type === 'server' || building.type === 'docker';
+            const isRunnable = building.type === 'server' || building.type === 'docker' || building.type === 'terminal';
             const isRunning = building.status === 'running';
 
             return (
@@ -326,24 +569,8 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
                   </span>
                 </div>
 
-                {/* PM2 status info */}
-                {building.pm2Status && (
-                  <div className="guake-building-detail">
-                    <span className="detail-label">PM2</span>
-                    <span className="detail-value">{building.pm2Status.status}</span>
-                    {building.pm2Status.memory !== undefined && (
-                      <span className="detail-value">{Math.round(building.pm2Status.memory / 1024 / 1024)}MB</span>
-                    )}
-                  </div>
-                )}
-
-                {/* Docker status info */}
-                {building.dockerStatus && (
-                  <div className="guake-building-detail">
-                    <span className="detail-label">Docker</span>
-                    <span className="detail-value">{building.dockerStatus.status}</span>
-                  </div>
-                )}
+                {/* Rich detail rows */}
+                {renderBuildingDetails(building)}
 
                 {/* URLs */}
                 {building.urls && building.urls.length > 0 && (
@@ -391,6 +618,18 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
                         >
                           ⏹
                         </button>
+                        {building.type === 'terminal' && building.terminalStatus?.url && (
+                          <button
+                            className="guake-building-action terminal-below"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.dispatchEvent(new CustomEvent('tide:open-bottom-terminal', { detail: { buildingId: building.id } }));
+                            }}
+                            title="Open terminal below"
+                          >
+                            ⬇
+                          </button>
+                        )}
                       </>
                     )}
                   </div>

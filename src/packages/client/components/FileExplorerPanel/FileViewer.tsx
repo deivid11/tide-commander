@@ -6,7 +6,7 @@
  * Markdown files can be rendered or viewed as source code.
  */
 
-import React, { useEffect, useRef, memo, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useRef, memo, useState, useCallback, useMemo, lazy, Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -18,6 +18,9 @@ import { useStore } from '../../store';
 import { useLessNavigation, type SelectionRange, type VisualMode } from '../../hooks/useLessNavigation';
 import { SearchBar } from './SearchBar';
 import { KeybindingsHelp } from './KeybindingsHelp';
+
+// Lazy-load the editor to avoid loading CodeMirror until needed
+const LazyEmbeddedEditor = lazy(() => import('./EmbeddedEditor').then(m => ({ default: m.EmbeddedEditor })));
 
 // ============================================================================
 // CONSTANTS
@@ -40,10 +43,14 @@ function FileViewerHeader({
   file,
   rightContent,
   onRevealInTree,
+  editMode,
+  onToggleEdit,
 }: {
   file: FileData;
   rightContent?: React.ReactNode;
   onRevealInTree?: (path: string) => void;
+  editMode?: boolean;
+  onToggleEdit?: () => void;
 }) {
   const { t } = useTranslation(['terminal', 'common']);
   const [openEditorStatus, setOpenEditorStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
@@ -90,6 +97,17 @@ function FileViewerHeader({
         </span>
       </div>
       <div className="file-viewer-header-right">
+        {onToggleEdit && file.fileType === 'text' && (
+          <button
+            className={`file-viewer-edit-btn${editMode ? ' active' : ''}`}
+            onClick={onToggleEdit}
+            title={editMode ? t('terminal:fileExplorer.exitEdit') : t('terminal:fileExplorer.editFile')}
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M11.013 1.427a1.75 1.75 0 012.474 0l1.086 1.086a1.75 1.75 0 010 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 01-.927-.928l.929-3.25a1.75 1.75 0 01.445-.758l8.61-8.61zm1.414 1.06a.25.25 0 00-.354 0L3.463 11.1a.25.25 0 00-.064.108l-.558 1.953 1.953-.558a.25.25 0 00.108-.064l8.61-8.61a.25.25 0 000-.354l-1.086-1.086z" />
+            </svg>
+          </button>
+        )}
         <button
           className={`file-viewer-open-editor-btn ${openEditorStatus}`}
           onClick={handleOpenInEditor}
@@ -280,7 +298,7 @@ function VisualSelectionOverlay({
  * Text file viewer with syntax highlighting and line numbers
  * Supports vim/less-style keyboard navigation via useLessNavigation hook
  */
-function TextFileViewer({ file, onRevealInTree, scrollToLine, onSearchStateChange }: { file: FileData; onRevealInTree?: (path: string) => void; scrollToLine?: number; onSearchStateChange?: (isSearchActive: boolean) => void }) {
+function TextFileViewer({ file, onRevealInTree, scrollToLine, onSearchStateChange, editMode, onToggleEdit }: { file: FileData; onRevealInTree?: (path: string) => void; scrollToLine?: number; onSearchStateChange?: (isSearchActive: boolean) => void; editMode?: boolean; onToggleEdit?: () => void }) {
   const codeRef = useRef<HTMLElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -339,7 +357,7 @@ function TextFileViewer({ file, onRevealInTree, scrollToLine, onSearchStateChang
 
   return (
     <>
-      <FileViewerHeader file={file} onRevealInTree={onRevealInTree} />
+      <FileViewerHeader file={file} onRevealInTree={onRevealInTree} editMode={editMode} onToggleEdit={onToggleEdit} />
       <div className="file-viewer-content-wrapper" ref={contentRef}>
         <div className="file-viewer-code-with-lines" ref={wrapperRef}>
           <div className="file-viewer-line-gutter" aria-hidden="true">
@@ -420,11 +438,15 @@ function MarkdownFileViewer({
   onRevealInTree,
   renderMarkdown,
   onToggleRender,
+  editMode,
+  onToggleEdit,
 }: {
   file: FileData;
   onRevealInTree?: (path: string) => void;
   renderMarkdown: boolean;
   onToggleRender: () => void;
+  editMode?: boolean;
+  onToggleEdit?: () => void;
 }) {
   const codeRef = useRef<HTMLElement>(null);
   const markdownContentRef = useRef<HTMLDivElement>(null);
@@ -568,7 +590,7 @@ function MarkdownFileViewer({
 
   return (
     <>
-      <FileViewerHeader file={file} onRevealInTree={onRevealInTree} rightContent={headerButtons} />
+      <FileViewerHeader file={file} onRevealInTree={onRevealInTree} rightContent={headerButtons} editMode={editMode} onToggleEdit={onToggleEdit} />
       <div className="file-viewer-content-wrapper" ref={contentRef}>
         {renderMarkdown ? (
           <div className="file-viewer-markdown-wrapper">
@@ -617,11 +639,15 @@ function PlantUmlFileViewer({
   onRevealInTree,
   renderPlantUml,
   onToggleRender,
+  editMode,
+  onToggleEdit,
 }: {
   file: FileData;
   onRevealInTree?: (path: string) => void;
   renderPlantUml: boolean;
   onToggleRender: () => void;
+  editMode?: boolean;
+  onToggleEdit?: () => void;
 }) {
   const { t } = useTranslation(['terminal']);
   const codeRef = useRef<HTMLElement>(null);
@@ -708,7 +734,7 @@ function PlantUmlFileViewer({
 
   return (
     <>
-      <FileViewerHeader file={file} onRevealInTree={onRevealInTree} rightContent={headerButtons} />
+      <FileViewerHeader file={file} onRevealInTree={onRevealInTree} rightContent={headerButtons} editMode={editMode} onToggleEdit={onToggleEdit} />
       <div className="file-viewer-content-wrapper" ref={contentRef}>
         {renderPlantUml ? (
           <div className="file-viewer-diagram-wrapper">
@@ -894,11 +920,15 @@ function BinaryFileViewer({ file, onRevealInTree }: { file: FileData; onRevealIn
 // FILE VIEWER COMPONENT
 // ============================================================================
 
-function FileViewerComponent({ file, loading, error, onRevealInTree, scrollToLine, onSearchStateChange }: FileViewerProps) {
+function FileViewerComponent({ file, loading, error, onRevealInTree, scrollToLine, onSearchStateChange, onFileEdited }: FileViewerProps) {
   const { t } = useTranslation(['terminal', 'common']);
   // Global markdown render preference (persisted to localStorage)
   const [renderMarkdown, toggleRenderMarkdown] = useMarkdownRenderPreference();
   const [renderPlantUml, toggleRenderPlantUml] = usePlantUmlRenderPreference();
+  const [editMode, setEditMode] = useState(false);
+  useEffect(() => { setEditMode(false); }, [file?.path]);
+  const handleSave = useCallback(async (newContent: string) => { if (!file) return; const resp = await authFetch(apiUrl('/api/files/write'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: file.path, content: newContent }) }); if (!resp.ok) { const errData = await resp.json().catch(() => ({ error: 'Save failed' })); throw new Error(errData.error || 'Save failed'); } }, [file]);
+  const toggleEdit = useCallback(() => { setEditMode(prev => { if (prev && file) { onFileEdited?.(file.path); } return !prev; }); }, [file, onFileEdited]);
 
   // Loading state
   if (loading) {
@@ -925,6 +955,23 @@ function FileViewerComponent({ file, loading, error, onRevealInTree, scrollToLin
   const isMarkdown = fileType === 'text' && isMarkdownFile(file.extension);
   const isPlantUml = fileType === 'text' && isPlantUmlFile(file.extension);
 
+  // Edit mode — show embedded editor for text files
+  if (editMode && fileType === 'text' && file.content != null) {
+    return (
+      <div className="file-viewer-content">
+        <FileViewerHeader file={file} onRevealInTree={onRevealInTree} editMode onToggleEdit={toggleEdit} />
+        <Suspense fallback={<div className="file-viewer-placeholder">{t('common:status.loading')}</div>}>
+          <LazyEmbeddedEditor
+            content={file.content}
+            extension={file.extension}
+            onSave={handleSave}
+            onCancel={toggleEdit}
+          />
+        </Suspense>
+      </div>
+    );
+  }
+
   return (
     <div className="file-viewer-content">
       {fileType === 'text' && isMarkdown && (
@@ -933,6 +980,8 @@ function FileViewerComponent({ file, loading, error, onRevealInTree, scrollToLin
           onRevealInTree={onRevealInTree}
           renderMarkdown={renderMarkdown}
           onToggleRender={toggleRenderMarkdown}
+          editMode={editMode}
+          onToggleEdit={toggleEdit}
         />
       )}
       {fileType === 'text' && isPlantUml && !isMarkdown && (
@@ -941,9 +990,11 @@ function FileViewerComponent({ file, loading, error, onRevealInTree, scrollToLin
           onRevealInTree={onRevealInTree}
           renderPlantUml={renderPlantUml}
           onToggleRender={toggleRenderPlantUml}
+          editMode={editMode}
+          onToggleEdit={toggleEdit}
         />
       )}
-      {fileType === 'text' && !isMarkdown && !isPlantUml && <TextFileViewer file={file} onRevealInTree={onRevealInTree} scrollToLine={scrollToLine} onSearchStateChange={onSearchStateChange} />}
+      {fileType === 'text' && !isMarkdown && !isPlantUml && <TextFileViewer file={file} onRevealInTree={onRevealInTree} scrollToLine={scrollToLine} onSearchStateChange={onSearchStateChange} editMode={editMode} onToggleEdit={toggleEdit} />}
       {fileType === 'image' && <ImageFileViewer file={file} onRevealInTree={onRevealInTree} />}
       {fileType === 'pdf' && <PdfFileViewer file={file} onRevealInTree={onRevealInTree} />}
       {fileType === 'binary' && <BinaryFileViewer file={file} onRevealInTree={onRevealInTree} />}
