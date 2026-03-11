@@ -458,6 +458,62 @@
   }
 }
 
+// Right-aligned group in the status bar (terminals + theme selector)
+.guake-status-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+// Terminal toggle buttons in the status bar
+.guake-status-terminals {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.guake-status-terminal-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 22px;
+  font-size: 13px;
+  line-height: 1;
+  border: 1px solid rgba($dracula-current, 0.6);
+  border-radius: 4px;
+  background: transparent;
+  color: $dracula-comment;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  padding: 0;
+
+  &:hover {
+    color: $dracula-cyan;
+    border-color: $dracula-cyan;
+    background: rgba($dracula-cyan, 0.1);
+  }
+
+  &.active {
+    color: $dracula-cyan;
+    border-color: $dracula-cyan;
+    background: rgba($dracula-cyan, 0.15);
+    box-shadow: 0 0 6px rgba($dracula-cyan, 0.3);
+  }
+
+  &.offline {
+    opacity: 0.4;
+    cursor: default;
+
+    &:hover {
+      color: $dracula-comment;
+      border-color: rgba($dracula-current, 0.6);
+      background: transparent;
+    }
+  }
+}
+
 .guake-agent-link {
   position: relative;
   width: 28px;

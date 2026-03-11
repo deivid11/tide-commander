@@ -19,6 +19,18 @@ interface TerminalInstance {
   tmuxSession?: string;
 }
 
+// Callback invoked when a ttyd process exits (buildingId, exitCode)
+type TerminalExitCallback = (buildingId: string, code: number | null) => void;
+let onExitCallback: TerminalExitCallback | null = null;
+
+/**
+ * Register a callback to be notified when any ttyd process exits.
+ * Used by building-service to immediately broadcast status changes.
+ */
+export function onTerminalExit(cb: TerminalExitCallback): void {
+  onExitCallback = cb;
+}
+
 // Map of buildingId -> running terminal instance
 const instances = new Map<string, TerminalInstance>();
 
@@ -55,6 +67,35 @@ function findFreePort(): Promise<number> {
 
     tryPort(BASE_PORT);
   });
+}
+
+/**
+ * Check if a tmux session is still alive.
+ * Returns true if session exists, false if it has been destroyed.
+ */
+function isTmuxSessionAlive(sessionName: string): boolean {
+  try {
+    execSync(`tmux has-session -t ${sessionName} 2>/dev/null`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Kill a ttyd instance whose backing session (tmux) has died.
+ * ttyd stays alive after its child exits and keeps accepting reconnections
+ * that immediately fail, causing an infinite error loop on the client.
+ */
+function killOrphanedTtyd(buildingId: string, instance: TerminalInstance): void {
+  log.log(`Killing orphaned ttyd for ${buildingId} (tmux session "${instance.tmuxSession}" is gone)`);
+  try {
+    process.kill(instance.pid, 'SIGTERM');
+  } catch { /* already dead */ }
+  instances.delete(buildingId);
+  if (onExitCallback) {
+    onExitCallback(buildingId, null);
+  }
 }
 
 /**
@@ -202,10 +243,13 @@ export async function startTerminal(building: Building): Promise<{ success: bool
 
   instances.set(building.id, instance);
 
-  // Handle unexpected exit
+  // Handle process exit - clean up and notify listeners immediately
   proc.on('exit', (code) => {
     log.log(`ttyd process for ${building.name} exited with code ${code}`);
     instances.delete(building.id);
+    if (onExitCallback) {
+      onExitCallback(building.id, code);
+    }
   });
 
   log.log(`Terminal started for ${building.name} (PID: ${proc.pid}, port: ${port})`);
@@ -248,7 +292,8 @@ export async function restartTerminal(building: Building): Promise<{ success: bo
 }
 
 /**
- * Get terminal status for a building
+ * Get terminal status for a building.
+ * Returns null (and cleans up) if ttyd is dead or its tmux session is gone.
  */
 export function getTerminalStatus(building: Building): TerminalStatus | null {
   const instance = instances.get(building.id);
@@ -263,6 +308,12 @@ export function getTerminalStatus(building: Building): TerminalStatus | null {
     return null;
   }
 
+  // Check tmux session health (same orphan detection as isTerminalRunning)
+  if (instance.tmuxSession && !isTmuxSessionAlive(instance.tmuxSession)) {
+    killOrphanedTtyd(building.id, instance);
+    return null;
+  }
+
   return {
     pid: instance.pid,
     port: instance.port,
@@ -272,7 +323,9 @@ export function getTerminalStatus(building: Building): TerminalStatus | null {
 }
 
 /**
- * Check if terminal is running for a building
+ * Check if terminal is running for a building.
+ * For tmux-backed terminals, also verifies the tmux session is alive.
+ * If ttyd is running but the tmux session is dead, kills the orphaned ttyd.
  */
 export function isTerminalRunning(buildingId: string): boolean {
   const instance = instances.get(buildingId);
@@ -280,11 +333,20 @@ export function isTerminalRunning(buildingId: string): boolean {
 
   try {
     process.kill(instance.pid, 0);
-    return true;
   } catch {
     instances.delete(buildingId);
     return false;
   }
+
+  // ttyd is alive — but if it's backed by tmux, check that the session still exists.
+  // When the user types 'exit', the tmux session is destroyed but ttyd stays alive,
+  // accepting reconnections that immediately fail (infinite error loop).
+  if (instance.tmuxSession && !isTmuxSessionAlive(instance.tmuxSession)) {
+    killOrphanedTtyd(buildingId, instance);
+    return false;
+  }
+
+  return true;
 }
 
 /**
@@ -323,6 +385,7 @@ export function cleanupAllTerminals(): void {
 
 /**
  * Poll terminal status - check if ttyd processes are still alive
+ * and that their backing tmux sessions (if any) still exist.
  */
 export function pollTerminalStatuses(): Map<string, TerminalStatus> {
   const statuses = new Map<string, TerminalStatus>();
@@ -330,16 +393,24 @@ export function pollTerminalStatuses(): Map<string, TerminalStatus> {
   for (const [buildingId, instance] of instances) {
     try {
       process.kill(instance.pid, 0);
-      statuses.set(buildingId, {
-        pid: instance.pid,
-        port: instance.port,
-        url: `/api/terminal/${buildingId}/`,
-        tmuxSession: instance.tmuxSession,
-      });
     } catch {
       // Process died
       instances.delete(buildingId);
+      continue;
     }
+
+    // Check tmux session health
+    if (instance.tmuxSession && !isTmuxSessionAlive(instance.tmuxSession)) {
+      killOrphanedTtyd(buildingId, instance);
+      continue;
+    }
+
+    statuses.set(buildingId, {
+      pid: instance.pid,
+      port: instance.port,
+      url: `/api/terminal/${buildingId}/`,
+      tmuxSession: instance.tmuxSession,
+    });
   }
 
   return statuses;

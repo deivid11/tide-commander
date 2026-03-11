@@ -29,6 +29,7 @@
     color: $text-secondary;
     text-transform: uppercase;
     letter-spacing: 0.5px;
+    flex-shrink: 0;
   }
 
   &__toggle {
@@ -47,6 +48,7 @@
   &__section {
     padding: 12px;
     border-bottom: 1px solid $border-color;
+    flex-shrink: 0;
 
     &--tables {
       flex: 1;
@@ -64,6 +66,7 @@
     margin-bottom: 8px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
+    flex-shrink: 0;
   }
 
   &__select {
@@ -183,6 +186,7 @@
   &__table-filter {
     position: relative;
     margin-bottom: 8px;
+    flex-shrink: 0;
   }
 
   &__table-filter-input {
@@ -240,6 +244,7 @@
 
   &__table {
     overflow: hidden;
+    flex-shrink: 0;
   }
 
   &__table-header {

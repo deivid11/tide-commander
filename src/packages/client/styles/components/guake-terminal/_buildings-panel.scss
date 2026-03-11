@@ -244,6 +244,20 @@
   }
 }
 
+.guake-building-port-link {
+  color: $dracula-purple;
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 0.15s ease;
+  font-family: inherit;
+  font-size: inherit;
+
+  &:hover {
+    color: color.adjust($dracula-purple, $lightness: 15%);
+    text-decoration: underline;
+  }
+}
+
 .guake-building-urls {
   display: flex;
   flex-wrap: wrap;
