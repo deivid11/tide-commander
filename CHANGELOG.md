@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.14.0] - 2026-03-11
+
+### Added
+- **Area visibility filter** - Filter agent overview panel by specific areas with a dropdown selector
+- **File content endpoint** - New server route for fetching file contents
+- **Context menus in Git panel** - Right-click actions in the GuakeGitPanel
+- **Syntax highlighting in Git panel** - Use shared syntax highlighting for file previews
+
+### Changed
+- **Agent overview panel** - Persist area filter preferences in saved config
+- **DiffViewer** - Simplified component implementation
+- **Mobile responsive styles** - Improved layout and spacing for mobile viewports
+- **Building panel styles** - Enhanced styling for guake terminal buildings panel
+- **Git panel styles** - Extended styles for git panel interactions
+- **Overview panel styles** - Additional styling for agent overview panel
+- **Terminal service** - Minor adjustments to terminal service
+
 ## [1.13.2] - 2026-03-11
 
 ### Fixed
