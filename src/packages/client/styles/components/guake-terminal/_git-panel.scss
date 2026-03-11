@@ -167,14 +167,14 @@
 
 // File list
 .guake-git-file-list {
-  padding: 2px 0;
+  padding: 1px 0;
 }
 
 .guake-git-file {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 12px 4px 30px;
+  padding: 2px 12px 2px 30px;
   cursor: pointer;
   font-size: 12px;
   font-family: $font-mono;
@@ -661,4 +661,62 @@
 @keyframes pulse-fetch {
   0%, 100% { opacity: 0.5; }
   50% { opacity: 1; }
+}
+
+// =============================================================================
+// Mobile responsive - full width overlay
+// =============================================================================
+
+@media (max-width: 768px) {
+  .guake-terminal.with-git-panel {
+    .guake-content {
+      margin-right: 0;
+    }
+  }
+
+  .guake-git-panel {
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-width: 100%;
+    border-left: none;
+    border-bottom: 2px solid $dracula-green;
+    z-index: 205;
+  }
+
+  // Hide resize handle on mobile
+  .guake-side-panel-resize.right {
+    display: none;
+  }
+
+  // When both git and buildings panels open on mobile, stack vertically
+  .guake-terminal.with-git-panel.with-buildings-panel {
+    .guake-git-panel {
+      bottom: 50%;
+    }
+
+    .guake-buildings-panel {
+      top: 50%;
+    }
+  }
+
+  .guake-git-header {
+    padding: 8px 12px;
+  }
+
+  .guake-git-file {
+    padding: 6px 10px 6px 24px;
+    min-height: 36px;
+  }
+
+  .guake-git-repo-header {
+    padding: 8px 10px;
+    min-height: 36px;
+  }
+
+  .guake-git-diff-modal {
+    width: 100vw;
+    height: 90vh;
+    border-radius: 0;
+  }
 }

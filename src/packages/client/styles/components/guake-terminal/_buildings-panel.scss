@@ -308,3 +308,60 @@
     background: rgba($dracula-cyan, 0.1);
   }
 }
+
+// =============================================================================
+// Mobile responsive - full width overlay
+// =============================================================================
+
+@media (max-width: 768px) {
+  .guake-terminal.with-buildings-panel {
+    .guake-content {
+      margin-right: 0;
+    }
+
+    &.with-git-panel .guake-content {
+      margin-right: 0;
+    }
+  }
+
+  .guake-buildings-panel {
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-width: 100%;
+    border-left: none;
+    border-bottom: 2px solid $dracula-orange;
+    z-index: 205;
+  }
+
+  .guake-buildings-header {
+    padding: 8px 12px;
+  }
+
+  .guake-building-item {
+    padding: 10px 12px;
+    min-height: 40px;
+  }
+
+  .guake-building-actions {
+    gap: 6px;
+
+    .guake-building-action {
+      min-width: 36px;
+      min-height: 32px;
+      padding: 4px 10px;
+      font-size: 13px;
+    }
+  }
+
+  .guake-buildings-add {
+    min-width: 32px;
+    min-height: 32px;
+    font-size: 16px;
+  }
+
+  .guake-buildings-close {
+    min-width: 32px;
+    min-height: 32px;
+  }
+}

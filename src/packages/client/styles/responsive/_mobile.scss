@@ -251,8 +251,15 @@
     }
 
     // Save vertical space when overview panel is open on mobile.
+    // Header meta is already hidden globally on mobile; just reduce padding further.
     .guake-terminal.with-overview-panel .guake-header {
-      display: none !important;
+      padding-top: 4px;
+      padding-bottom: 4px;
+      min-height: 36px;
+
+      .guake-mobile-title-context {
+        display: none;
+      }
     }
 
     // Ensure guake-content fills terminal and has proper flex layout
@@ -505,6 +512,11 @@
     }
   }
 
+  // Hide side panel resize handles on mobile (no drag resize on touch)
+  .guake-side-panel-resize {
+    display: none !important;
+  }
+
   // Guake content fills available space
   // Override .collapsed class transforms that hide content
   .guake-content {
@@ -671,11 +683,12 @@
   // Guake header adjustments - compact mobile design
   .guake-header {
     display: flex !important;
-    padding: 4px 6px;
+    align-items: center;
+    padding: 6px 8px;
     flex-wrap: nowrap;
-    gap: 4px;
+    gap: 6px;
     height: auto;
-    min-height: 40px;
+    min-height: 44px;
     max-height: none;
     background: rgba($dracula-bg, 0.98);
     position: relative;
@@ -687,34 +700,63 @@
   }
 
   .guake-header-left {
-    flex: 1;
+    flex: 1 1 0;
     min-width: 0;
     display: flex;
-    align-items: flex-start;
-    gap: 10px;
+    align-items: center;
+    gap: 6px;
     overflow: hidden;
+  }
+
+  .guake-header-meta {
+    display: none;
   }
 
   .guake-title-btn,
   .guake-title-with-provider {
     min-width: 0;
     max-width: 100%;
-    align-items: flex-start;
+    align-items: center;
+    padding: 4px 8px;
+    gap: 8px;
+    border-radius: 10px;
+  }
+
+  .guake-agent-avatar {
+    width: 28px;
+    height: 28px;
+    font-size: 14px;
+    border-radius: 8px;
+    flex-shrink: 0;
   }
 
   .guake-title-block {
     min-width: 0;
+    gap: 1px;
+  }
+
+  .guake-title-main-row {
+    gap: 6px;
   }
 
   .guake-title {
     font-size: 13px;
     font-weight: 700;
     white-space: nowrap;
-    letter-spacing: 0.5px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: 0.3px;
     background: linear-gradient(135deg, var(--accent-pink) 0%, var(--accent-purple) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+  }
+
+  .guake-title-task-chip {
+    max-width: 100px;
+    font-size: 9px;
+    padding: 0 5px;
+    min-height: 16px;
   }
 
   .guake-mobile-title-context {
@@ -722,8 +764,21 @@
     font-size: 9px;
     line-height: 1.2;
     color: $dracula-comment;
-    margin-top: 1px;
-    max-width: min(56vw, 240px);
+    margin-top: 0;
+    max-width: min(50vw, 200px);
+  }
+
+  .guake-title-accessory {
+    gap: 4px;
+
+    .guake-provider-icon {
+      width: 14px;
+      height: 14px;
+    }
+
+    .guake-title-info {
+      display: none;
+    }
   }
 
   .guake-status-line {
@@ -755,9 +810,16 @@
     height: 5px;
   }
 
+  .guake-detached-badge {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    font-size: 11px;
+  }
+
   .guake-actions {
     flex-shrink: 0;
-    gap: 6px;
+    gap: 4px;
     display: flex;
     align-items: center;
   }
@@ -778,19 +840,19 @@
     display: flex !important;
   }
 
-  // Mobile close button - circular style
+  // Mobile close button - circular style with proper tap target
   .guake-close-btn {
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
-    width: 24px !important;
-    height: 24px !important;
-    min-width: 24px !important;
-    max-width: 24px !important;
+    width: 30px !important;
+    height: 30px !important;
+    min-width: 30px !important;
+    max-width: 30px !important;
     padding: 0 !important;
     border-radius: 50% !important;
     border: 1px solid;
-    font-size: 11px !important;
+    font-size: 12px !important;
     font-weight: 600;
     line-height: 1 !important;
     cursor: pointer;
@@ -819,13 +881,13 @@
   }
 
   .guake-mobile-more-btn {
-    width: 24px !important;
-    height: 24px !important;
-    min-width: 24px !important;
-    max-width: 24px !important;
+    width: 30px !important;
+    height: 30px !important;
+    min-width: 30px !important;
+    max-width: 30px !important;
     padding: 0 !important;
     border-radius: 50% !important;
-    font-size: 14px !important;
+    font-size: 16px !important;
     line-height: 1 !important;
     box-sizing: border-box !important;
   }

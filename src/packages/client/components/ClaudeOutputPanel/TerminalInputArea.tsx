@@ -237,6 +237,7 @@ export const TerminalInputArea = memo(function TerminalInputArea({
   const internalTextareaRef = useRef<HTMLTextAreaElement>(null);
   const inputRef = externalInputRef || internalInputRef;
   const textareaRef = externalTextareaRef || internalTextareaRef;
+  const inputContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const prevUseTextareaRef = useRef(useTextarea);
   const cursorPositionRef = useRef<number>(0);
@@ -256,6 +257,14 @@ export const TerminalInputArea = memo(function TerminalInputArea({
   // re-rendering the entire TerminalInputArea every second.
   const lastPrompt = useLastPrompt(selectedAgentId);
   const isWorking = selectedAgent.status === 'working';
+
+  const focusGuakeInputContainer = useCallback(() => {
+    const container = inputContainerRef.current;
+    const activeInput = useTextarea ? textareaRef.current : inputRef.current;
+
+    container?.focus({ preventScroll: true });
+    activeInput?.focus({ preventScroll: true });
+  }, [inputRef, textareaRef, useTextarea]);
 
   // Speech-to-text hook - automatically send transcribed text to agent
   const { recording, transcribing, toggleRecording } = useSTT({
@@ -398,15 +407,15 @@ export const TerminalInputArea = memo(function TerminalInputArea({
       requestAnimationFrame(() => {
         const pos = cursorPositionRef.current;
         if (useTextarea && textareaRef.current) {
-          textareaRef.current.focus();
+          focusGuakeInputContainer();
           textareaRef.current.setSelectionRange(pos, pos);
         } else if (!useTextarea && inputRef.current) {
-          inputRef.current.focus();
+          focusGuakeInputContainer();
           inputRef.current.setSelectionRange(pos, pos);
         }
       });
     }
-  }, [useTextarea]);
+  }, [focusGuakeInputContainer, inputRef, textareaRef, useTextarea]);
 
   // Track previous isOpen state for transition detection
   const prevIsOpenRef = useRef(false);
@@ -432,15 +441,11 @@ export const TerminalInputArea = memo(function TerminalInputArea({
     if (isOpen && (!wasOpen || selectedAgentId) && !shouldSuppressAutofocus) {
       // Small delay to ensure terminal animation has started
       const timeoutId = setTimeout(() => {
-        if (useTextarea && textareaRef.current) {
-          textareaRef.current.focus();
-        } else if (inputRef.current) {
-          inputRef.current.focus();
-        }
+        focusGuakeInputContainer();
       }, 50);
       return () => clearTimeout(timeoutId);
     }
-  }, [isOpen, selectedAgentId, useTextarea]);
+  }, [focusGuakeInputContainer, isOpen, selectedAgentId, useTextarea]);
 
   // Remove a pasted text and its placeholder from the command
   const removePastedText = (id: number) => {
@@ -828,7 +833,12 @@ export const TerminalInputArea = memo(function TerminalInputArea({
               style={{ display: 'none' }}
               accept="*"
             />
-            <div className="guake-input-container" onAuxClick={handleContainerAuxClick}>
+            <div
+              ref={inputContainerRef}
+              className="guake-input-container"
+              tabIndex={-1}
+              onAuxClick={handleContainerAuxClick}
+            >
               <button
                 className="guake-attach-btn"
                 onClick={() => fileInputRef.current?.click()}

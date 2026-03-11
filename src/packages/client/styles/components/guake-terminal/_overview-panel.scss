@@ -197,6 +197,79 @@
         }
       }
     }
+
+    // Area filter dropdown
+    .aop-area-filter {
+      position: relative;
+
+      .aop-area-filter-caret {
+        margin-left: 3px;
+        font-size: 9px;
+        opacity: 0.7;
+      }
+    }
+
+    .aop-area-filter-dropdown {
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
+      z-index: 100;
+      min-width: 180px;
+      max-width: 260px;
+      max-height: 280px;
+      overflow-y: auto;
+      background: var(--bg-primary);
+      border: 1px solid color-mix(in srgb, var(--accent-cyan) 30%, transparent);
+      border-radius: $radius-sm;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+      padding: 4px 0;
+      scrollbar-width: thin;
+    }
+
+    .aop-area-filter-option {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      cursor: pointer;
+      font-size: 12px;
+      font-family: $font-mono;
+      color: var(--text-secondary);
+      transition: background 0.1s;
+
+      &:hover {
+        background: color-mix(in srgb, var(--accent-cyan) 10%, transparent);
+        color: var(--text-primary);
+      }
+
+      input[type="checkbox"] {
+        width: 13px;
+        height: 13px;
+        flex-shrink: 0;
+        accent-color: var(--accent-cyan);
+        cursor: pointer;
+      }
+    }
+
+    .aop-area-filter-color {
+      width: 10px;
+      height: 10px;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+
+    .aop-area-filter-name {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
+
+    .aop-area-filter-divider {
+      height: 1px;
+      margin: 3px 8px;
+      background: var(--border-color);
+    }
   }
 
   // Agent list (scrollable)
@@ -1104,6 +1177,16 @@
         flex: 0 0 auto;
         padding: 4px 9px;
         font-size: 10px;
+      }
+
+      .aop-area-filter-dropdown {
+        max-height: 200px;
+        min-width: 160px;
+      }
+
+      .aop-area-filter-option {
+        padding: 6px 10px;
+        min-height: 32px;
       }
     }
 

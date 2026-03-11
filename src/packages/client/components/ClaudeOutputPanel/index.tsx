@@ -1922,15 +1922,17 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
       {isOpen && !isFullscreen && <div className="guake-resize-handle" onMouseDown={handleResizeStart} title={t('common:rightPanel.dragToResize')} />}
 
       {/* Terminal handle */}
-      <div
-        className={`guake-handle ${isFullscreen && isOpen ? 'fullscreen' : ''}`}
-        onClick={() => { if (isOpen) store.toggleTerminal(); }}
-        onDoubleClick={() => { if (!isOpen) store.toggleTerminal(); }}
-        style={{ top: isOpen ? (isFullscreen ? 'calc(100vh - 72px)' : `min(${terminalHeight}%, calc(100vh - 72px))`) : '0' }}
-      >
-        <span className="guake-handle-icon">{isOpen ? '▲' : '▼'}</span>
-        <span className="guake-handle-text">{activeAgent.name}</span>
-      </div>
+      {!(isOpen && isFullscreen) && (
+        <div
+          className="guake-handle"
+          onClick={() => { if (isOpen) store.toggleTerminal(); }}
+          onDoubleClick={() => { if (!isOpen) store.toggleTerminal(); }}
+          style={{ top: isOpen ? `min(${terminalHeight}%, calc(100vh - 72px))` : '0' }}
+        >
+          <span className="guake-handle-icon">{isOpen ? '▲' : '▼'}</span>
+          <span className="guake-handle-text">{activeAgent.name}</span>
+        </div>
+      )}
 
       {/* Modals */}
       {imageModal && <ImageModal url={imageModal.url} name={imageModal.name} onClose={() => setImageModal(null)} />}

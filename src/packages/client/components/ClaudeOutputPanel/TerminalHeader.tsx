@@ -567,6 +567,24 @@ export const TerminalHeader = memo(function TerminalHeader({
                     {overviewPanelOpen ? t('terminal:header.hideOverview') : t('terminal:header.showOverview')}
                   </button>
                 )}
+                {setGitPanelOpen && (
+                  <button
+                    className={`guake-mobile-menu-item ${gitPanelOpen ? 'active' : ''}`}
+                    onClick={() => { setGitPanelOpen(!gitPanelOpen); closeMobileMenu(); }}
+                  >
+                    <span className="guake-mobile-menu-icon">🌿</span>
+                    {gitPanelOpen ? 'Hide Git Changes' : 'Show Git Changes'}
+                  </button>
+                )}
+                {setBuildingsPanelOpen && (
+                  <button
+                    className={`guake-mobile-menu-item ${buildingsPanelOpen ? 'active' : ''}`}
+                    onClick={() => { setBuildingsPanelOpen(!buildingsPanelOpen); closeMobileMenu(); }}
+                  >
+                    <span className="guake-mobile-menu-icon">🏗️</span>
+                    {buildingsPanelOpen ? 'Hide Buildings' : 'Show Buildings'}
+                  </button>
+                )}
                 <button
                   className={`guake-mobile-menu-item ${debugPanelOpen ? 'active' : ''}`}
                   onClick={() => { handleDebugToggle(); closeMobileMenu(); }}

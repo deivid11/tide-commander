@@ -135,7 +135,7 @@ export async function startTerminal(building: Building): Promise<{ success: bool
       return { success: false, error: 'tmux is not installed (required for session persistence)' };
     }
 
-    tmuxSession = config.sessionName || `tide-term-${building.id.slice(0, 8)}`;
+    tmuxSession = config.sessionName || `tide-${building.id.replace(/^building_/, '').slice(0, 16)}`;
 
     // Create or attach to tmux session
     try {

@@ -36,6 +36,7 @@ interface AopConfig {
   sameAreaOnly: boolean; // only show agents in the same area as the active agent
   showSubagents: boolean; // show subagents section in expanded cards
   showRecentActivity: boolean; // show recent activity section in expanded cards
+  visibleAreaIds: string[] | null; // null = all areas visible; string[] = only these area IDs
 }
 
 interface AgentOverviewPanelProps {
@@ -155,6 +156,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     sameAreaOnly: false,
     showSubagents: true,
     showRecentActivity: true,
+    visibleAreaIds: null,
   }), []);
 
   const [expandedAgents, setExpandedAgents] = useState<Set<string>>(() =>
@@ -169,6 +171,11 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
   const [sameAreaOnly, setSameAreaOnly] = useState(savedConfig.sameAreaOnly);
   const [showSubagents, setShowSubagents] = useState(savedConfig.showSubagents);
   const [showRecentActivity, setShowRecentActivity] = useState(savedConfig.showRecentActivity);
+  const [visibleAreaIds, setVisibleAreaIds] = useState<Set<string> | null>(
+    savedConfig.visibleAreaIds ? new Set(savedConfig.visibleAreaIds) : null
+  );
+  const [areaFilterOpen, setAreaFilterOpen] = useState(false);
+  const areaFilterRef = useRef<HTMLDivElement>(null);
   const [isMobileViewport, setIsMobileViewport] = useState<boolean>(() =>
     typeof window !== 'undefined' ? window.matchMedia('(max-width: 768px)').matches : false
   );
@@ -208,6 +215,18 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     return () => media.removeEventListener('change', onChange);
   }, []);
 
+  // Close area filter dropdown on outside click
+  useEffect(() => {
+    if (!areaFilterOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (areaFilterRef.current && !areaFilterRef.current.contains(e.target as Node)) {
+        setAreaFilterOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [areaFilterOpen]);
+
   // Focus overview search with Alt+Shift+F when panel is open.
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -237,8 +256,40 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
       sameAreaOnly,
       showSubagents,
       showRecentActivity,
+      visibleAreaIds: visibleAreaIds ? Array.from(visibleAreaIds) : null,
     } as AopConfig);
-  }, [groupByArea, sortMode, filterMode, allExpanded, sameAreaOnly, showSubagents, showRecentActivity]);
+  }, [groupByArea, sortMode, filterMode, allExpanded, sameAreaOnly, showSubagents, showRecentActivity, visibleAreaIds]);
+
+  // List of non-archived areas for the filter dropdown
+  const availableAreas = useMemo(() => {
+    const result: { id: string; name: string; color: string }[] = [];
+    for (const [, area] of areas) {
+      if (!area.archived) result.push({ id: area.id, name: area.name, color: area.color });
+    }
+    return result;
+  }, [areas]);
+
+  // Area filter helpers
+  const isAllAreasVisible = visibleAreaIds === null;
+  const toggleAreaVisibility = useCallback((areaId: string) => {
+    setVisibleAreaIds(prev => {
+      if (prev === null) {
+        // Switch from "all" to "all except this one"
+        const ids = new Set(availableAreas.map(a => a.id));
+        ids.add('__unassigned__');
+        ids.delete(areaId);
+        return ids;
+      }
+      const next = new Set(prev);
+      if (next.has(areaId)) next.delete(areaId);
+      else next.add(areaId);
+      // If all areas + unassigned are now selected, switch back to null (= "all")
+      if (next.size >= availableAreas.length + 1) return null;
+      return next;
+    });
+  }, [availableAreas]);
+
+  const setAllAreasVisible = useCallback(() => setVisibleAreaIds(null), []);
 
   // Map agent -> area info (color + name) for badge display
   const agentAreaInfo = useMemo(() => {
@@ -388,7 +439,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     });
   }, [sortMode, toolsByAgent, agentsWithUnseenOutput]);
 
-  // Build area groups (or flat list)
+  // Build area groups (or flat list), applying the area visibility filter
   const areaGroups = useMemo(() => {
     if (!groupByArea) {
       // Flat list: single group with no area
@@ -412,18 +463,21 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
 
     for (const [areaId, area] of areas) {
       if (area.archived) continue;
+      // Apply area visibility filter
+      if (visibleAreaIds && !visibleAreaIds.has(areaId)) continue;
       const areaAgents = agentsByAreaId.get(areaId) || [];
       if (areaAgents.length > 0) {
         groups.push({ area, agents: sortAgents(areaAgents) });
       }
     }
 
-    if (unassignedAgents.length > 0) {
+    // Unassigned agents: show when no filter or when filter explicitly allows __unassigned__
+    if (unassignedAgents.length > 0 && (!visibleAreaIds || visibleAreaIds.has('__unassigned__'))) {
       groups.push({ area: null, agents: sortAgents(unassignedAgents) });
     }
 
     return groups;
-  }, [areas, filteredAgents, sortAgents, groupByArea]);
+  }, [areas, filteredAgents, sortAgents, groupByArea, visibleAreaIds]);
 
   const renderAgentCards = useCallback((groupAgents: Agent[]) => {
     const isUnreadAgent = (agent: Agent) => agentsWithUnseenOutput.has(agent.id);
@@ -684,6 +738,44 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
         <button onClick={() => setGroupByArea(v => !v)} className={`action-btn action-btn--toggle${groupByArea ? ' active' : ''}`} title={t('terminal:overview.areas')}>
           {t('terminal:overview.areas')}
         </button>
+        {groupByArea && availableAreas.length > 0 && (
+          <div className="aop-area-filter" ref={areaFilterRef}>
+            <button
+              className={`action-btn action-btn--toggle${!isAllAreasVisible ? ' active' : ''}`}
+              onClick={() => setAreaFilterOpen(v => !v)}
+              title="Filter areas"
+            >
+              {isAllAreasVisible ? 'All areas' : `${visibleAreaIds!.size} areas`}
+              <span className="aop-area-filter-caret">{areaFilterOpen ? '▴' : '▾'}</span>
+            </button>
+            {areaFilterOpen && (
+              <div className="aop-area-filter-dropdown">
+                <label className="aop-area-filter-option" onClick={setAllAreasVisible}>
+                  <input type="checkbox" checked={isAllAreasVisible} readOnly />
+                  <span className="aop-area-filter-color" style={{ background: '#6272a4' }} />
+                  <span>All</span>
+                </label>
+                <div className="aop-area-filter-divider" />
+                {availableAreas.map(area => {
+                  const checked = isAllAreasVisible || (visibleAreaIds?.has(area.id) ?? false);
+                  return (
+                    <label key={area.id} className="aop-area-filter-option" onClick={(e) => { e.preventDefault(); toggleAreaVisibility(area.id); }}>
+                      <input type="checkbox" checked={checked} readOnly />
+                      <span className="aop-area-filter-color" style={{ background: area.color }} />
+                      <span className="aop-area-filter-name">{area.name}</span>
+                    </label>
+                  );
+                })}
+                <div className="aop-area-filter-divider" />
+                <label className="aop-area-filter-option" onClick={(e) => { e.preventDefault(); toggleAreaVisibility('__unassigned__'); }}>
+                  <input type="checkbox" checked={isAllAreasVisible || (visibleAreaIds?.has('__unassigned__') ?? false)} readOnly />
+                  <span className="aop-area-filter-color" style={{ background: '#6272a4' }} />
+                  <span className="aop-area-filter-name">Unassigned</span>
+                </label>
+              </div>
+            )}
+          </div>
+        )}
         <button onClick={() => setSameAreaOnly(v => !v)} className={`action-btn action-btn--toggle${sameAreaOnly ? ' active' : ''}`} title={t('terminal:overview.sameAreaOnly')}>
           {t('terminal:overview.sameAreaOnly')}
         </button>

@@ -2,23 +2,7 @@ import React, { useEffect, useRef, useMemo, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import Prism from 'prismjs';
-import 'prismjs/components/prism-typescript';
-import 'prismjs/components/prism-javascript';
-import 'prismjs/components/prism-jsx';
-import 'prismjs/components/prism-tsx';
-import 'prismjs/components/prism-css';
-import 'prismjs/components/prism-scss';
-import 'prismjs/components/prism-json';
-import 'prismjs/components/prism-yaml';
-import 'prismjs/components/prism-markdown';
-import 'prismjs/components/prism-python';
-import 'prismjs/components/prism-bash';
-import 'prismjs/components/prism-rust';
-import 'prismjs/components/prism-go';
-import 'prismjs/components/prism-sql';
-import 'prismjs/components/prism-toml';
-import 'prismjs/components/prism-docker';
+import { highlightCode } from './FileExplorerPanel/syntaxHighlighting';
 
 interface DiffViewerProps {
   originalContent: string;
@@ -54,19 +38,7 @@ interface ChangeBlock {
 // Highlight a single line using Prism
 function highlightLine(line: string, language: string): string {
   if (!line) return '';
-  const grammar = Prism.languages[language];
-  if (!grammar) return escapeHtml(line);
-  return Prism.highlight(line, grammar, language);
-}
-
-// Escape HTML for safe rendering
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
+  return highlightCode(line, language || 'plaintext');
 }
 
 // Compute diff lines and alignment points for intelligent scroll sync
@@ -79,11 +51,7 @@ function computeDiff(original: string, modified: string, language: string): {
   const originalLines = original.split('\n');
   const modifiedLines = modified.split('\n');
 
-  const prismLang = language === 'tsx' ? 'tsx' :
-                    language === 'typescript' ? 'typescript' :
-                    language === 'javascript' ? 'javascript' :
-                    language === 'jsx' ? 'jsx' :
-                    language || 'plaintext';
+  const prismLang = language || 'plaintext';
 
   // Build LCS table
   const m = originalLines.length;

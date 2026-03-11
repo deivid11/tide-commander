@@ -2491,4 +2491,35 @@ router.post('/git-fetch', async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/files/delete - Delete a file from disk
+router.post('/delete', (req: Request, res: Response) => {
+  try {
+    const filePath = (req.body as { path?: string }).path;
+    if (!filePath || typeof filePath !== 'string') {
+      res.status(400).json({ error: 'Missing path parameter' });
+      return;
+    }
+    if (!path.isAbsolute(filePath)) {
+      res.status(400).json({ error: 'Path must be absolute' });
+      return;
+    }
+    if (!fs.existsSync(filePath)) {
+      res.status(404).json({ error: 'File not found' });
+      return;
+    }
+
+    const stat = fs.statSync(filePath);
+    if (stat.isDirectory()) {
+      res.status(400).json({ error: 'Cannot delete directories' });
+      return;
+    }
+
+    fs.unlinkSync(filePath);
+    res.json({ success: true });
+  } catch (err: any) {
+    log.error(' Failed to delete file:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

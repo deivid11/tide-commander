@@ -14,12 +14,14 @@ import { useAreas } from '../../store';
 import { DiffViewer } from '../DiffViewer';
 import { GIT_STATUS_CONFIG } from '../FileExplorerPanel/constants';
 import { getIconForExtension, buildGitTree } from '../FileExplorerPanel/fileUtils';
+import { getLanguageForExtension } from '../FileExplorerPanel/syntaxHighlighting';
 import type { GitTreeNode } from '../FileExplorerPanel/fileUtils';
 import type { GitStatus, GitFileStatus, GitFileStatusType, TreeNode } from '../FileExplorerPanel/types';
 import type { Agent } from '../../../shared/types';
 import { useFileTree } from '../FileExplorerPanel/useFileTree';
 import { TreeNodeItem } from '../FileExplorerPanel/TreeNodeItem';
 import type { BranchInfo } from './useGitBranch';
+import { ContextMenu, type ContextMenuAction } from '../ContextMenu';
 
 // ==========================================================================
 // TYPES
@@ -65,14 +67,7 @@ type PanelMode = 'changes' | 'explorer';
 
 function getLanguageForFile(filename: string): string {
   const ext = filename.lastIndexOf('.') >= 0 ? filename.substring(filename.lastIndexOf('.')) : '';
-  const map: Record<string, string> = {
-    '.ts': 'typescript', '.tsx': 'tsx', '.js': 'javascript', '.jsx': 'jsx',
-    '.css': 'css', '.scss': 'scss', '.json': 'json', '.yaml': 'yaml', '.yml': 'yaml',
-    '.md': 'markdown', '.mdx': 'markdown', '.py': 'python', '.sh': 'bash',
-    '.rs': 'rust', '.go': 'go', '.sql': 'sql', '.toml': 'toml',
-    '.html': 'markup', '.xml': 'markup', '.svg': 'markup',
-  };
-  return map[ext] || 'plaintext';
+  return getLanguageForExtension(ext);
 }
 
 function isPositionInArea(pos: { x: number; z: number }, area: { center: { x: number; z: number }; width: number; height: number; type: string }): boolean {
@@ -103,10 +98,11 @@ interface TreeNodeProps {
   expandedDirs: Set<string>;
   onToggleDir: (path: string) => void;
   onFileClick: (file: GitFileStatus, repoDir: string) => void;
+  onContextMenu?: (e: React.MouseEvent, file: GitFileStatus, repoDir: string) => void;
   repoDir: string;
 }
 
-function TreeNodeView({ node, depth, expandedDirs, onToggleDir, onFileClick, repoDir }: TreeNodeProps) {
+function TreeNodeView({ node, depth, expandedDirs, onToggleDir, onFileClick, onContextMenu, repoDir }: TreeNodeProps) {
   if (node.isDirectory) {
     const isExpanded = expandedDirs.has(node.path);
     const folderIconSrc = isExpanded
@@ -116,7 +112,7 @@ function TreeNodeView({ node, depth, expandedDirs, onToggleDir, onFileClick, rep
       <>
         <div
           className="guake-git-file guake-git-tree-dir"
-          style={{ paddingLeft: `${12 + depth * 16}px` }}
+          style={{ paddingLeft: `${12 + depth * 20}px` }}
           onClick={() => onToggleDir(node.path)}
         >
           <span className="guake-git-repo-arrow" style={{ marginRight: 4 }}>
@@ -134,6 +130,7 @@ function TreeNodeView({ node, depth, expandedDirs, onToggleDir, onFileClick, rep
             expandedDirs={expandedDirs}
             onToggleDir={onToggleDir}
             onFileClick={onFileClick}
+            onContextMenu={onContextMenu}
             repoDir={repoDir}
           />
         ))}
@@ -149,8 +146,9 @@ function TreeNodeView({ node, depth, expandedDirs, onToggleDir, onFileClick, rep
     <div
       className="guake-git-file"
       data-status={file.status}
-      style={{ paddingLeft: `${12 + depth * 16}px` }}
+      style={{ paddingLeft: `${28 + depth * 20}px` }}
       onClick={() => onFileClick(file, repoDir)}
+      onContextMenu={onContextMenu ? (e) => onContextMenu(e, file, repoDir) : undefined}
       title={file.path}
     >
       {iconSrc && <img src={iconSrc} alt="" className="guake-git-file-icon" />}
@@ -201,6 +199,11 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
     setStorage(STORAGE_KEYS.GIT_PANEL_FOLDER_IDX, idx);
   }, []);
   const [explorerSelectedPath, setExplorerSelectedPath] = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    isOpen: boolean;
+    position: { x: number; y: number };
+    actions: ContextMenuAction[];
+  } | null>(null);
   const hasAutoExpanded = React.useRef(false);
   const prevAgentIdRef = React.useRef(agentId);
 
@@ -478,6 +481,182 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
   }, []);
 
   const closeModal = useCallback(() => setModalState(null), []);
+  const closeContextMenu = useCallback(() => setContextMenu(null), []);
+
+  // Context menu for git-changed files (Changes tab)
+  const handleGitFileContextMenu = useCallback((e: React.MouseEvent, file: GitFileStatus, repoDir: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const fullPath = file.path.startsWith('/') ? file.path : `${repoDir.replace(/\/$/, '')}/${file.path}`;
+    const actions: ContextMenuAction[] = [];
+
+    // View diff/content
+    actions.push({
+      id: 'view',
+      label: hasDiff(file.status) ? 'View Diff' : 'View File',
+      icon: hasDiff(file.status) ? '📊' : '📄',
+      onClick: () => handleFileClick(file, repoDir),
+    });
+
+    actions.push({ id: 'div1', label: '', divider: true, onClick: () => {} });
+
+    // Copy paths
+    actions.push({
+      id: 'copy-path',
+      label: 'Copy Full Path',
+      icon: '🧷',
+      onClick: () => { navigator.clipboard.writeText(fullPath); },
+    });
+    actions.push({
+      id: 'copy-rel',
+      label: 'Copy Relative Path',
+      icon: '📋',
+      onClick: () => { navigator.clipboard.writeText(file.path); },
+    });
+
+    // Open in editor
+    if (file.status !== 'deleted') {
+      actions.push({ id: 'div2', label: '', divider: true, onClick: () => {} });
+      actions.push({
+        id: 'open-editor',
+        label: 'Open in Editor',
+        icon: '✏️',
+        onClick: async () => {
+          try {
+            await authFetch(apiUrl('/api/files/open-in-editor'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ path: fullPath }),
+            });
+          } catch { /* skip */ }
+        },
+      });
+    }
+
+    // Discard changes
+    if (file.status === 'modified' || file.status === 'deleted' || file.status === 'renamed') {
+      actions.push({ id: 'div3', label: '', divider: true, onClick: () => {} });
+      actions.push({
+        id: 'discard',
+        label: 'Discard Changes',
+        icon: '↩️',
+        danger: true,
+        onClick: async () => {
+          try {
+            await authFetch(apiUrl('/api/files/git-discard'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ path: fullPath }),
+            });
+            refresh();
+          } catch { /* skip */ }
+        },
+      });
+    }
+
+    // Delete file
+    if (file.status !== 'deleted') {
+      if (!(file.status === 'modified' || file.status === 'renamed')) {
+        actions.push({ id: 'div-del', label: '', divider: true, onClick: () => {} });
+      }
+      actions.push({
+        id: 'delete',
+        label: 'Delete File',
+        icon: '🗑️',
+        danger: true,
+        onClick: async () => {
+          try {
+            await authFetch(apiUrl('/api/files/delete'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ path: fullPath }),
+            });
+            refresh();
+          } catch { /* skip */ }
+        },
+      });
+    }
+
+    setContextMenu({ isOpen: true, position: { x: e.clientX, y: e.clientY }, actions });
+  }, [handleFileClick, refresh]);
+
+  // Context menu for explorer tree nodes
+  const handleExplorerContextMenu = useCallback((e: React.MouseEvent, node: TreeNode) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const actions: ContextMenuAction[] = [];
+
+    if (!node.isDirectory) {
+      // View file
+      actions.push({
+        id: 'view',
+        label: 'View File',
+        icon: '📄',
+        onClick: () => handleExplorerFileSelect(node),
+      });
+      actions.push({ id: 'div1', label: '', divider: true, onClick: () => {} });
+    }
+
+    // Copy path
+    actions.push({
+      id: 'copy-path',
+      label: 'Copy Full Path',
+      icon: '🧷',
+      onClick: () => { navigator.clipboard.writeText(node.path); },
+    });
+
+    if (explorerFolder) {
+      const relPath = node.path.startsWith(explorerFolder)
+        ? node.path.slice(explorerFolder.replace(/\/$/, '').length + 1)
+        : node.path;
+      actions.push({
+        id: 'copy-rel',
+        label: 'Copy Relative Path',
+        icon: '📋',
+        onClick: () => { navigator.clipboard.writeText(relPath); },
+      });
+    }
+
+    if (!node.isDirectory) {
+      actions.push({ id: 'div2', label: '', divider: true, onClick: () => {} });
+      actions.push({
+        id: 'open-editor',
+        label: 'Open in Editor',
+        icon: '✏️',
+        onClick: async () => {
+          try {
+            await authFetch(apiUrl('/api/files/open-in-editor'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ path: node.path }),
+            });
+          } catch { /* skip */ }
+        },
+      });
+
+      // Delete file
+      actions.push({ id: 'div-del', label: '', divider: true, onClick: () => {} });
+      actions.push({
+        id: 'delete',
+        label: 'Delete File',
+        icon: '🗑️',
+        danger: true,
+        onClick: async () => {
+          try {
+            await authFetch(apiUrl('/api/files/delete'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ path: node.path }),
+            });
+            fileTree.loadTree();
+            refresh();
+          } catch { /* skip */ }
+        },
+      });
+    }
+
+    setContextMenu({ isOpen: true, position: { x: e.clientX, y: e.clientY }, actions });
+  }, [handleExplorerFileSelect, explorerFolder, fileTree, refresh]);
 
   const totalFiles = repos.reduce((sum, r) => sum + r.gitStatus.files.length, 0);
 
@@ -660,6 +839,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                           className="guake-git-file"
                           data-status={file.status}
                           onClick={() => handleFileClick(file, dir)}
+                          onContextMenu={(e) => handleGitFileContextMenu(e, file, dir)}
                           title={file.path}
                         >
                           {iconSrc && <img src={iconSrc} alt="" className="guake-git-file-icon" />}
@@ -686,6 +866,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                         expandedDirs={expandedTreeDirs}
                         onToggleDir={toggleTreeDir}
                         onFileClick={handleFileClick}
+                        onContextMenu={handleGitFileContextMenu}
                         repoDir={dir}
                       />
                     ))}
@@ -741,6 +922,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                   expandedPaths={fileTree.expandedPaths}
                   onSelect={handleExplorerFileSelect}
                   onToggle={fileTree.togglePath}
+                  onContextMenu={handleExplorerContextMenu}
                   searchQuery=""
                 />
               ))}
@@ -749,6 +931,17 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
         )}
       </div>
     </div>
+
+    {/* Context Menu */}
+    {contextMenu && (
+      <ContextMenu
+        isOpen={contextMenu.isOpen}
+        position={contextMenu.position}
+        worldPosition={{ x: 0, z: 0 }}
+        actions={contextMenu.actions}
+        onClose={closeContextMenu}
+      />
+    )}
     </>
   );
 }
