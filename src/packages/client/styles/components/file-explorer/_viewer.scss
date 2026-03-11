@@ -181,6 +181,33 @@
   }
 }
 
+.file-viewer-edit-btn {
+  background: transparent;
+  border: 1px solid $border-color;
+  color: $text-muted;
+  width: 28px;
+  height: 28px;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all $transition-fast;
+  margin-right: 4px;
+
+  &:hover {
+    background: rgba($dracula-purple, 0.15);
+    border-color: $dracula-purple;
+    color: $dracula-purple;
+  }
+
+  &.active {
+    background: rgba($dracula-purple, 0.2);
+    border-color: $dracula-purple;
+    color: $dracula-purple;
+  }
+}
+
 .file-viewer-open-editor-btn {
   background: transparent;
   border: 1px solid $border-color;
@@ -229,6 +256,33 @@
   }
   to {
     transform: rotate(360deg);
+  }
+}
+
+.file-viewer-edit-btn {
+  background: transparent;
+  border: 1px solid $border-color;
+  color: $text-muted;
+  width: 28px;
+  height: 28px;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all $transition-fast;
+  margin-right: 4px;
+
+  &:hover {
+    background: rgba($dracula-green, 0.15);
+    border-color: $dracula-green;
+    color: $dracula-green;
+  }
+
+  &.active {
+    background: rgba($dracula-green, 0.2);
+    border-color: $dracula-green;
+    color: $dracula-green;
   }
 }
 

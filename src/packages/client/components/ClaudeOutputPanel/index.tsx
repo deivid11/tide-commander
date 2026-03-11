@@ -35,6 +35,7 @@ import {
   useOverviewPanelOpen,
   usePermissionRequests,
   useAreas,
+  useBuildings,
 } from '../../store';
 import {
   STORAGE_KEYS,
@@ -196,6 +197,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
 
   // Get area folders for the active agent
   const areas = useAreas();
+  const buildings = useBuildings();
   const agentAreaDirectories = useMemo(() => {
     if (!activeAgentId) return null;
     const matchedAreaIds = new Set<string>();
@@ -310,6 +312,99 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
   // Agent overview panel state (persisted in store across agent switches)
   const overviewPanelOpen = useOverviewPanelOpen();
   const setOverviewPanelOpen = useCallback((open: boolean) => store.setOverviewPanelOpen(open), []);
+
+  // Bottom embedded terminal panel - persisted per area in localStorage
+  const [bottomTerminalBuildingId, setBottomTerminalBuildingId] = useState<string | null>(null);
+  const [bottomTerminalHeight, setBottomTerminalHeight] = useState(() => {
+    try {
+      const h = localStorage.getItem('tide:bottom-terminal-height');
+      return h ? Math.max(120, Math.min(600, Number(h))) : 250;
+    } catch { return 250; }
+  });
+  const bottomTerminalResizeRef = useRef<{ startY: number; startH: number } | null>(null);
+  const bottomTerminalMapRef = useRef<Map<string, string>>(new Map());
+
+  // Load per-area bottom terminal map from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('tide:bottom-terminals');
+      if (saved) {
+        const entries = JSON.parse(saved) as [string, string][];
+        bottomTerminalMapRef.current = new Map(entries);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  // Helper to persist the map
+  const persistBottomTerminals = useCallback(() => {
+    try {
+      const entries = Array.from(bottomTerminalMapRef.current.entries());
+      localStorage.setItem('tide:bottom-terminals', JSON.stringify(entries));
+    } catch { /* ignore */ }
+  }, []);
+
+  // When active agent changes, restore or hide bottom terminal based on area
+  useEffect(() => {
+    if (!activeAgentId) {
+      setBottomTerminalBuildingId(null);
+      return;
+    }
+    const area = store.getAreaForAgent(activeAgentId);
+    if (!area) {
+      setBottomTerminalBuildingId(null);
+      return;
+    }
+    const saved = bottomTerminalMapRef.current.get(area.id);
+    setBottomTerminalBuildingId(saved || null);
+  }, [activeAgentId]);
+
+  // Wrap setBottomTerminalBuildingId to also save per area
+  const setBottomTerminal = useCallback((buildingId: string | null) => {
+    setBottomTerminalBuildingId(buildingId);
+    if (!activeAgentId) return;
+    const area = store.getAreaForAgent(activeAgentId);
+    if (!area) return;
+    if (buildingId) {
+      bottomTerminalMapRef.current.set(area.id, buildingId);
+    } else {
+      bottomTerminalMapRef.current.delete(area.id);
+    }
+    persistBottomTerminals();
+  }, [activeAgentId, persistBottomTerminals]);
+
+  // Listen for open-bottom-terminal events
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ buildingId: string }>).detail;
+      if (detail?.buildingId) {
+        setBottomTerminal(detail.buildingId);
+      }
+    };
+    window.addEventListener('tide:open-bottom-terminal', handler as EventListener);
+    return () => window.removeEventListener('tide:open-bottom-terminal', handler as EventListener);
+  }, [setBottomTerminal]);
+
+  // Bottom terminal resize handler
+  const handleBottomTerminalResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    bottomTerminalResizeRef.current = { startY: e.clientY, startH: bottomTerminalHeight };
+    let lastHeight = bottomTerminalHeight;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      if (!bottomTerminalResizeRef.current) return;
+      const dy = bottomTerminalResizeRef.current.startY - moveEvent.clientY;
+      lastHeight = Math.max(120, Math.min(600, bottomTerminalResizeRef.current.startH + dy));
+      setBottomTerminalHeight(lastHeight);
+    };
+    const onMouseUp = () => {
+      bottomTerminalResizeRef.current = null;
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      try { localStorage.setItem('tide:bottom-terminal-height', String(lastHeight)); } catch { /* ignore */ }
+    };
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  }, [bottomTerminalHeight]);
 
   // Completion indicator state
   const [showCompletion, setShowCompletion] = useState(false);
@@ -1733,6 +1828,44 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
           })()}
           <ThemeSelector />
         </div>
+
+        {/* Bottom embedded terminal panel */}
+        {bottomTerminalBuildingId && (() => {
+          const termBuilding = buildings.get(bottomTerminalBuildingId);
+          if (!termBuilding?.terminalStatus?.url) return null;
+          return (
+            <>
+              <div
+                className="guake-bottom-terminal-resize"
+                onMouseDown={handleBottomTerminalResizeStart}
+              />
+              <div
+                className="guake-bottom-terminal"
+                style={{ height: bottomTerminalHeight }}
+                onWheel={(e) => e.stopPropagation()}
+              >
+                <div className="guake-bottom-terminal-header">
+                  <span className="guake-bottom-terminal-title">Terminal - {termBuilding.name}</span>
+                  <button
+                    className="guake-bottom-terminal-close"
+                    onClick={() => setBottomTerminal(null)}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
+                <iframe
+                  src={termBuilding.terminalStatus.url}
+                  className="guake-bottom-terminal-iframe"
+                  title={`Terminal - ${termBuilding.name}`}
+                  allow="clipboard-read; clipboard-write"
+                />
+              </div>
+            </>
+          );
+        })()}
       </div>
 
       {/* Resize handle */}

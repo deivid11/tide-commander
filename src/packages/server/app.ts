@@ -13,6 +13,7 @@ import routes from './routes/index.js';
 import { logger } from './utils/logger.js';
 import { authMiddleware, isAuthEnabled, getAuthTokenPreview } from './auth/index.js';
 import { recordRequestTiming } from './routes/perf.js';
+import { setupTerminalHttpProxy } from './services/terminal-proxy.js';
 
 // Temp directory for uploads (same as in files.ts)
 const UPLOADS_DIR = path.join(os.tmpdir(), 'tide-commander-uploads');
@@ -62,6 +63,10 @@ export function createApp(): Express {
 
   // Serve uploaded files statically
   app.use('/uploads', express.static(UPLOADS_DIR));
+
+  // Terminal proxy (must be before API routes to avoid 404 catch-all)
+  // Auth is already applied above via app.use('/api', authMiddleware)
+  setupTerminalHttpProxy(app);
 
   // API routes
   app.use('/api', routes);

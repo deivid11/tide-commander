@@ -1538,7 +1538,7 @@ export function FileExplorerPanel({
                   language={EXTENSION_TO_LANGUAGE[selectedFile.extension] || 'plaintext'}
                 />
               ) : (
-                <FileViewer file={selectedFile} loading={fileLoading} error={fileError} onRevealInTree={handleRevealInTree} scrollToLine={scrollToLine} onSearchStateChange={setIsFileSearchActive} />
+                <FileViewer file={selectedFile} loading={fileLoading} error={fileError} onRevealInTree={handleRevealInTree} scrollToLine={scrollToLine} onSearchStateChange={setIsFileSearchActive} onFileEdited={loadFile} />
               )}
             </>
           )}

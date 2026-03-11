@@ -5,7 +5,7 @@ import type { DatabaseConfig } from './database-types.js';
 // ============================================================================
 
 // Building types - different kinds of buildings
-export type BuildingType = 'server' | 'link' | 'database' | 'docker' | 'monitor' | 'folder' | 'boss';
+export type BuildingType = 'server' | 'link' | 'database' | 'docker' | 'monitor' | 'folder' | 'boss' | 'terminal';
 
 export const BUILDING_TYPES: Record<BuildingType, { icon: string; color: string; description: string }> = {
   server: { icon: '🖥️', color: '#4aff9e', description: 'Service with start/stop commands and logs' },
@@ -15,6 +15,7 @@ export const BUILDING_TYPES: Record<BuildingType, { icon: string; color: string;
   monitor: { icon: '📊', color: '#ff4a9e', description: 'System metrics and monitoring' },
   folder: { icon: '📁', color: '#ffd700', description: 'Folder shortcut - opens file explorer on click' },
   boss: { icon: '👑', color: '#ffd700', description: 'Boss building - manages multiple buildings with unified controls' },
+  terminal: { icon: '💻', color: '#a855f7', description: 'Interactive web terminal via ttyd' },
 };
 
 // Building status
@@ -188,6 +189,27 @@ export interface DockerStatus {
 }
 
 // ============================================================================
+// Terminal Configuration (ttyd)
+// ============================================================================
+
+export interface TerminalConfig {
+  enabled: boolean;
+  shell?: string;            // Shell to use (default: user's $SHELL or bash)
+  port?: number;             // ttyd port (auto-assigned if not set)
+  args?: string;             // Extra ttyd args (e.g., "--writable")
+  saveSession?: boolean;     // Whether to persist/restore session (tmux-based)
+  sessionName?: string;      // tmux session name (auto-generated from building id)
+}
+
+// Terminal runtime status (not persisted, updated at runtime)
+export interface TerminalStatus {
+  pid?: number;              // ttyd process PID
+  port?: number;             // Actual port ttyd is listening on
+  url?: string;              // Full URL (http://localhost:{port})
+  tmuxSession?: string;      // tmux session name if saveSession enabled
+}
+
+// ============================================================================
 // Building Interface
 // ============================================================================
 
@@ -247,6 +269,12 @@ export interface Building {
 
   // Database configuration (for database type)
   database?: DatabaseConfig;
+
+  // Terminal configuration (for terminal type)
+  terminal?: TerminalConfig;
+
+  // Terminal runtime status (not persisted, populated at runtime)
+  terminalStatus?: TerminalStatus;
 
   // Timestamps
   createdAt: number;

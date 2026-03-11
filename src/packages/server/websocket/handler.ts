@@ -3,7 +3,7 @@
  * Real-time communication with clients
  */
 
-import { Server as HttpServer, IncomingMessage } from 'http';
+import { Server as HttpServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import type { ClientMessage, ServerMessage } from '../../shared/types.js';
 import {
@@ -304,23 +304,27 @@ function handleClientMessage(ws: WebSocket, message: ClientMessage): void {
 // ============================================================================
 
 export function init(server: HttpServer): WebSocketServer {
-  const wss = new WebSocketServer({
-    server,
-    path: '/ws',
-    verifyClient: (info: { origin: string; secure: boolean; req: IncomingMessage }, callback) => {
-      if (!isAuthEnabled()) {
-        callback(true);
-        return;
-      }
+  // Use noServer mode so we can manually route upgrade events.
+  // This allows the terminal proxy to handle /api/terminal/*/ws upgrades
+  // without the main WSS intercepting and rejecting them.
+  const wss = new WebSocketServer({ noServer: true });
 
-      const isValid = validateWebSocketAuth(info.req);
-      if (!isValid) {
+  // Handle upgrade events for /ws path only
+  server.on('upgrade', (request, socket, head) => {
+    const pathname = request.url?.split('?')[0];
+    if (pathname === '/ws') {
+      // Auth check (verifyClient is not used in noServer mode)
+      if (isAuthEnabled() && !validateWebSocketAuth(request)) {
         log.log('[WS] Connection rejected: invalid or missing auth token');
-        callback(false, 401, 'Unauthorized');
+        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+        socket.destroy();
         return;
       }
-      callback(true);
-    },
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        wss.emit('connection', ws, request);
+      });
+    }
+    // Other paths (like /api/terminal/*/ws) are handled by the terminal proxy
   });
 
   wss.on('connection', (ws) => {

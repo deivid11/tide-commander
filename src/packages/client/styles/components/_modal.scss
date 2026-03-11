@@ -1155,6 +1155,58 @@
   flex-direction: column;
 }
 
+// Terminal Modal - full-screen embedded ttyd terminal
+.terminal-modal-container {
+  width: 100%;
+  max-width: calc(100vw - 28px);
+  height: min(94vh, 1200px);
+  background: #1e1e1e;
+  border: 1px solid $border-color;
+  border-radius: $radius-xl;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.terminal-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: rgba(0, 0, 0, 0.4);
+  border-bottom: 1px solid $border-color;
+  flex-shrink: 0;
+}
+
+.terminal-modal-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: $text-secondary;
+}
+
+.terminal-modal-close {
+  background: none;
+  border: none;
+  color: $text-secondary;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: $text-primary;
+  }
+}
+
+.terminal-modal-iframe {
+  flex: 1;
+  width: 100%;
+  border: none;
+  background: #000;
+}
+
 // Codex configuration section styling
 .codex-config-section {
   padding: 14px;

@@ -13,6 +13,7 @@ import { agentService, runtimeService, supervisorService, bossService, skillServ
 import * as websocket from './websocket/handler.js';
 import { getDataDir } from './data/index.js';
 import { logger, closeFileLogging, getLogFilePath } from './utils/logger.js';
+import { setupTerminalWsProxy } from './services/terminal-proxy.js';
 
 // Configuration
 const PORT = process.env.PORT || 6200;
@@ -94,6 +95,10 @@ async function main(): Promise<void> {
   // Initialize WebSocket
   const wss = websocket.init(server);
 
+  // Set up terminal WebSocket proxy for ttyd buildings
+  // (HTTP proxy is set up in app.ts before API routes)
+  setupTerminalWsProxy(server);
+
   // Set up skill hot-reload (must be after websocket init to have broadcast available)
   skillService.setupSkillHotReload(agentService, runtimeService, websocket.broadcast);
 
@@ -102,6 +107,9 @@ async function main(): Promise<void> {
 
   // Start Docker status polling for buildings
   buildingService.startDockerStatusPolling(websocket.broadcast);
+
+  // Start terminal (ttyd) status polling for buildings
+  buildingService.startTerminalStatusPolling(websocket.broadcast);
 
   // Start server
   server.on('error', (err: NodeJS.ErrnoException) => {
@@ -143,6 +151,8 @@ async function main(): Promise<void> {
       bossService.shutdown();
       buildingService.stopPM2StatusPolling();
       buildingService.stopDockerStatusPolling();
+      buildingService.stopTerminalStatusPolling();
+      buildingService.cleanupAllTerminals();
       await runtimeService.shutdown();
       agentService.flushPersistAgents();
       wss.clients.forEach((client) => client.terminate());

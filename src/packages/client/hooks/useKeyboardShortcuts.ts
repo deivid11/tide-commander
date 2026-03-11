@@ -37,7 +37,7 @@ export function useKeyboardShortcuts({
     const handleKeyDown = (e: KeyboardEvent) => {
       const shortcuts = store.getShortcuts();
       const target = e.target as HTMLElement;
-      const isInputFocused = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
+      const isInputFocused = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.getAttribute('contenteditable') === 'true' || !!target.closest('.cm-editor');
 
       // Escape to deselect or close modal/terminal/drawing mode
       const deselectShortcut = shortcuts.find(s => s.id === 'deselect-all');

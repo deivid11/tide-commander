@@ -11,6 +11,7 @@ import { loadBuildings, saveBuildings } from '../data/index.js';
 import { createLogger } from '../utils/index.js';
 import * as pm2Service from './pm2-service.js';
 import * as dockerService from './docker-service.js';
+import * as terminalService from './terminal-service.js';
 
 const log = createLogger('BuildingService');
 const execAsync = promisify(exec);
@@ -442,6 +443,105 @@ async function executeCustomCommand(
 }
 
 /**
+ * Execute a terminal (ttyd) command for a building
+ */
+async function executeTerminalCommand(
+  building: Building,
+  command: BuildingCommand,
+  broadcast: BroadcastFn
+): Promise<BuildingCommandResult> {
+  const buildingId = building.id;
+
+  switch (command) {
+    case 'start': {
+      updateBuildingStatus(buildingId, 'starting', broadcast);
+      const result = await terminalService.startTerminal(building);
+
+      if (result.success) {
+        // Check status after short delay to confirm
+        setTimeout(() => {
+          const status = terminalService.getTerminalStatus(building);
+          if (status) {
+            updateBuildingStatus(buildingId, 'running', broadcast, {
+              terminalStatus: status,
+            });
+          } else {
+            updateBuildingStatus(buildingId, 'error', broadcast, {
+              lastError: 'ttyd process exited unexpectedly',
+            });
+          }
+        }, 1000);
+        log.log(`Building ${building.name}: terminal start initiated`);
+      } else {
+        updateBuildingStatus(buildingId, 'error', broadcast, { lastError: result.error });
+        log.error(`Building ${building.name}: terminal start failed: ${result.error}`);
+      }
+      return result;
+    }
+
+    case 'stop': {
+      updateBuildingStatus(buildingId, 'stopping', broadcast);
+      const result = await terminalService.stopTerminal(building);
+
+      if (result.success) {
+        updateBuildingStatus(buildingId, 'stopped', broadcast, { terminalStatus: undefined });
+        log.log(`Building ${building.name}: terminal stopped`);
+      } else {
+        updateBuildingStatus(buildingId, 'error', broadcast, { lastError: result.error });
+        log.error(`Building ${building.name}: terminal stop failed: ${result.error}`);
+      }
+      return result;
+    }
+
+    case 'restart': {
+      updateBuildingStatus(buildingId, 'starting', broadcast);
+      const result = await terminalService.restartTerminal(building);
+
+      if (result.success) {
+        setTimeout(() => {
+          const status = terminalService.getTerminalStatus(building);
+          if (status) {
+            updateBuildingStatus(buildingId, 'running', broadcast, {
+              terminalStatus: status,
+            });
+          } else {
+            updateBuildingStatus(buildingId, 'error', broadcast, {
+              lastError: 'ttyd process exited after restart',
+            });
+          }
+        }, 1000);
+        log.log(`Building ${building.name}: terminal restart initiated`);
+      } else {
+        updateBuildingStatus(buildingId, 'error', broadcast, { lastError: result.error });
+        log.error(`Building ${building.name}: terminal restart failed: ${result.error}`);
+      }
+      return result;
+    }
+
+    case 'healthCheck': {
+      const status = terminalService.getTerminalStatus(building);
+      const isHealthy = !!status;
+      updateBuildingStatus(buildingId, isHealthy ? 'running' : 'error', broadcast, {
+        lastHealthCheck: Date.now(),
+        terminalStatus: status || undefined,
+        lastError: isHealthy ? undefined : 'ttyd process not running',
+      });
+      log.log(`Building ${building.name}: terminal health check: ${isHealthy ? 'passed' : 'failed'}`);
+      return { success: isHealthy };
+    }
+
+    case 'delete': {
+      await terminalService.cleanupTerminal(building, true);
+      log.log(`Building ${building.name}: terminal cleaned up`);
+      return { success: true };
+    }
+
+    default:
+      return { success: false, error: `Unknown command: ${command}` };
+  }
+}
+
+/**
  * Execute a building command - routes to PM2 or custom command handler
  */
 export async function executeCommand(
@@ -465,6 +565,11 @@ export async function executeCommand(
     // Route to Docker if enabled
     if (building.docker?.enabled) {
       return executeDockerCommand(building, command, broadcast);
+    }
+
+    // Route to Terminal if enabled
+    if (building.terminal?.enabled) {
+      return executeTerminalCommand(building, command, broadcast);
     }
 
     // Otherwise use custom commands
@@ -917,6 +1022,64 @@ function hasDockerConfigChanged(oldBuilding: Building, newBuilding: Building): b
   }
 
   return false;
+}
+
+// ============================================================================
+// Terminal Status Polling
+// ============================================================================
+
+let terminalPollInterval: NodeJS.Timeout | null = null;
+
+/**
+ * Start polling terminal (ttyd) status
+ */
+export function startTerminalStatusPolling(broadcast: BroadcastFn, intervalMs: number = 10000): void {
+  if (terminalPollInterval) {
+    log.log('Terminal status polling already running');
+    return;
+  }
+
+  log.log(`Starting terminal status polling (interval: ${intervalMs}ms)`);
+  terminalPollInterval = setInterval(() => pollTerminalStatus(broadcast), intervalMs);
+}
+
+/**
+ * Stop terminal status polling
+ */
+export function stopTerminalStatusPolling(): void {
+  if (terminalPollInterval) {
+    clearInterval(terminalPollInterval);
+    terminalPollInterval = null;
+    log.log('Terminal status polling stopped');
+  }
+}
+
+/**
+ * Poll terminal statuses and sync with buildings
+ */
+function pollTerminalStatus(broadcast: BroadcastFn): void {
+  const buildings = loadBuildings().filter(b => b.terminal?.enabled);
+
+  if (buildings.length === 0) return;
+
+  const statuses = terminalService.pollTerminalStatuses();
+
+  for (const building of buildings) {
+    const status = statuses.get(building.id);
+
+    if (status && building.status !== 'running') {
+      updateBuildingStatus(building.id, 'running', broadcast, { terminalStatus: status });
+    } else if (!status && (building.status === 'running' || building.status === 'starting')) {
+      updateBuildingStatus(building.id, 'stopped', broadcast, { terminalStatus: undefined });
+    }
+  }
+}
+
+/**
+ * Cleanup all terminals (called on server shutdown)
+ */
+export function cleanupAllTerminals(): void {
+  terminalService.cleanupAllTerminals();
 }
 
 /**

@@ -2132,6 +2132,34 @@ router.post('/open-in-editor', async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/files/write - Write content to an existing file
+router.post('/write', async (req: Request, res: Response) => {
+  try {
+    const { path: filePath, content } = req.body as { path?: string; content?: string };
+    if (!filePath) { res.status(400).json({ error: 'Missing path parameter' }); return; }
+    if (typeof content !== 'string') { res.status(400).json({ error: 'Missing content parameter' }); return; }
+    if (!path.isAbsolute(filePath)) { res.status(400).json({ error: 'Path must be absolute' }); return; }
+    if (filePath.includes('..')) { res.status(400).json({ error: 'Path traversal not allowed' }); return; }
+    if (!fs.existsSync(filePath)) { res.status(404).json({ error: 'File not found' }); return; }
+
+    const stat = fs.statSync(filePath);
+    if (stat.isDirectory()) { res.status(400).json({ error: 'Cannot write to a directory' }); return; }
+
+    // Limit write size to 2MB
+    const MAX_WRITE_SIZE = 2 * 1024 * 1024;
+    if (Buffer.byteLength(content, 'utf-8') > MAX_WRITE_SIZE) {
+      res.status(400).json({ error: 'Content exceeds maximum size (2MB)' });
+      return;
+    }
+
+    fs.writeFileSync(filePath, content, 'utf-8');
+    res.json({ success: true });
+  } catch (err: any) {
+    log.error(' Failed to write file:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/files/by-path - Load and return a file by its path (for clipboard paste)
 router.post('/by-path', async (req: Request, res: Response) => {
   try {

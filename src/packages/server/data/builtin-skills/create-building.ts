@@ -414,6 +414,29 @@ ${BT3}
 - ${BT}database${BT} field: the PDB/service name (e.g., "ORCLPDB1")
 - Host: typically 127.0.0.1 for local Oracle XE/Docker instances
 
+### Terminal Building (ttyd Web Terminal)
+
+${BT3}bash
+jq '.buildings += [{
+  "name": "Dev Terminal",
+  "type": "terminal",
+  "style": "desktop",
+  "color": "#a855f7",
+  "position": {"x": -8.0, "z": 1.5},
+  "cwd": "/home/riven/d/my-project",
+  "terminal": {
+    "enabled": true,
+    "shell": "/bin/zsh",
+    "saveSession": true
+  },
+  "id": "building_1707471234569_devterm",
+  "status": "stopped",
+  "createdAt": 1707471234569
+}]' ~/.local/share/tide-commander/buildings.json > /tmp/b.json && mv /tmp/b.json ~/.local/share/tide-commander/buildings.json
+${BT3}
+
+Key: Requires ${BT}ttyd${BT} installed. ${BT}saveSession: true${BT} uses tmux for session persistence (requires ${BT}tmux${BT}). Port auto-assigned from 7681+. Click running terminal building to open in browser.
+
 ## Step 3: Verify
 
 ${BT3}bash

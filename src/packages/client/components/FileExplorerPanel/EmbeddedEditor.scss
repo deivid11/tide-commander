@@ -1,0 +1,134 @@
+/**
+ * EmbeddedEditor Styles
+ * Matches the dark theme of the file explorer panel
+ */
+@use '../../styles/variables' as *;
+
+.embedded-editor {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+
+  &__toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 12px;
+    background: $bg-secondary;
+    border-bottom: 1px solid $border-color;
+    gap: 8px;
+    flex-shrink: 0;
+    min-height: 28px;
+  }
+
+  &__toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  &__toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  &__status {
+    font-size: 0.75em;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+
+    &--saving {
+      color: $text-secondary;
+    }
+
+    &--saved {
+      color: $accent-green;
+    }
+
+    &--error {
+      color: $accent-red;
+      max-width: 250px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  &__shortcut-hint {
+    font-size: 0.7em;
+    color: $text-secondary;
+    opacity: 0.6;
+  }
+
+  &__btn {
+    padding: 4px 12px;
+    border: 1px solid $border-color;
+    border-radius: 4px;
+    font-size: 0.8em;
+    cursor: pointer;
+    transition: all 0.15s ease;
+
+    &--close {
+      background: transparent;
+      color: $text-secondary;
+
+      &:hover {
+        color: $text-primary;
+        border-color: $text-secondary;
+      }
+    }
+  }
+
+  &__container {
+    flex: 1;
+    overflow: hidden;
+    min-height: 0;
+
+    // CodeMirror overrides to match our theme
+    .cm-editor {
+      height: 100%;
+      font-family: $font-mono;
+      font-size: 13px;
+
+      &.cm-focused {
+        outline: none;
+      }
+    }
+
+    .cm-scroller {
+      overflow: auto;
+      font-family: $font-mono;
+    }
+
+    .cm-gutters {
+      border-right: 1px solid $border-color;
+    }
+
+    .cm-activeLineGutter {
+      background: rgba($accent-blue, 0.08);
+    }
+
+    .cm-activeLine {
+      background: rgba($accent-blue, 0.05);
+    }
+
+    .cm-cursor {
+      border-left-color: $accent-blue;
+    }
+
+    .cm-selectionBackground {
+      background: rgba($accent-blue, 0.2) !important;
+    }
+
+    .cm-matchingBracket {
+      background: rgba($accent-green, 0.2);
+      outline: 1px solid rgba($accent-green, 0.4);
+    }
+  }
+}

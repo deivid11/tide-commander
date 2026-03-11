@@ -65,6 +65,15 @@ export default defineConfig({
       'Pragma': 'no-cache',
       'Expires': '0',
     },
+    proxy: {
+      // Proxy terminal building traffic to the backend so relative iframe URLs
+      // work in dev mode (port 5173 -> backend port)
+      '/api/terminal': {
+        target: `http://127.0.0.1:${SERVER_PORT}`,
+        changeOrigin: true,
+        ws: true,
+      },
+    },
     hmr: {
       overlay: false, // Reduces memory overhead from error overlay
     },
