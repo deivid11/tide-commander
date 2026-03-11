@@ -44,6 +44,7 @@ import {
   getStorageString,
   setStorageBoolean,
   setStorageNumber,
+  authUrl,
 } from '../../utils/storage';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 
@@ -1906,7 +1907,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
                   </button>
                 </div>
                 <iframe
-                  src={termBuilding.terminalStatus.url}
+                  src={authUrl(termBuilding.terminalStatus.url)}
                   className="guake-bottom-terminal-iframe"
                   title={`Terminal - ${termBuilding.name}`}
                   allow="clipboard-read; clipboard-write"
