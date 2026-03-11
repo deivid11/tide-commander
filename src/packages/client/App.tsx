@@ -70,7 +70,7 @@ import {
 } from './hooks';
 import { loadConfig, saveConfig } from './app/sceneConfig';
 import { buildContextMenuActions } from './app/contextMenuActions';
-// getApiBaseUrl removed - terminal iframe uses relative paths for remote access compatibility
+import { authUrl } from './utils/storage';
 
 // Import scene lifecycle to ensure it initializes
 import './app/sceneLifecycle';
@@ -1080,7 +1080,7 @@ function AppContent() {
                 </button>
               </div>
               <iframe
-                src={building.terminalStatus.url}
+                src={authUrl(building.terminalStatus.url)}
                 className="terminal-modal-iframe"
                 title={`Terminal - ${building.name}`}
                 allow="clipboard-read; clipboard-write"

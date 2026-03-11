@@ -37,6 +37,26 @@ const CUSTOM_CSS = `<style>
 .xterm-viewport{scrollbar-width:thin;scrollbar-color:rgba(98,114,164,.4) transparent}
 </style>`;
 
+// Script injected into ttyd HTML to forward auth token on WebSocket connections.
+// ttyd's JS constructs ws:// URLs from window.location.pathname, dropping query params.
+// This patches the WebSocket constructor to re-append the token so the WS upgrade passes auth.
+const AUTH_WS_SCRIPT = `<script>
+(function(){
+  var t=new URLSearchParams(location.search).get('token');
+  if(!t)return;
+  var O=WebSocket;
+  window.WebSocket=function(u,p){
+    try{var o=new URL(u,location.origin);o.searchParams.set('token',t);u=o.toString()}catch(e){}
+    return p!==undefined?new O(u,p):new O(u);
+  };
+  window.WebSocket.prototype=O.prototype;
+  window.WebSocket.CONNECTING=O.CONNECTING;
+  window.WebSocket.OPEN=O.OPEN;
+  window.WebSocket.CLOSING=O.CLOSING;
+  window.WebSocket.CLOSED=O.CLOSED;
+})();
+</script>`;
+
 function getProxy(): httpProxy {
   if (!proxy) {
     proxy = httpProxy.createProxyServer({
@@ -73,7 +93,7 @@ function getHtmlProxy(): httpProxy {
       proxyRes.on('data', (chunk: Buffer) => chunks.push(chunk));
       proxyRes.on('end', () => {
         let body = Buffer.concat(chunks).toString('utf-8');
-        body = body.replace('</head>', CUSTOM_CSS + '</head>');
+        body = body.replace('</head>', AUTH_WS_SCRIPT + CUSTOM_CSS + '</head>');
         const headers = { ...proxyRes.headers };
         delete headers['content-length'];
         delete headers['content-encoding'];
