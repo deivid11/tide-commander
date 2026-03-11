@@ -70,6 +70,9 @@ function getProxy(): httpProxy {
       if (res && 'writeHead' in res && !res.writableEnded) {
         (res as any).writeHead(502, { 'Content-Type': 'application/json' });
         (res as any).end(JSON.stringify({ error: 'Terminal not available' }));
+      } else if (res && 'destroy' in res) {
+        // WebSocket proxy error - res is a Socket, destroy it to stop retries
+        (res as any).destroy();
       }
     });
   }
@@ -215,7 +218,16 @@ export function setupTerminalWsProxy(server: HttpServer): void {
 
     const target = getTargetUrl(buildingId);
     if (!target) {
-      socket.write('HTTP/1.1 404 Not Found\r\n\r\n');
+      // Send a proper WebSocket close handshake instead of raw 404.
+      // A raw 404 causes ttyd's client JS to retry aggressively in a loop.
+      // Accepting the upgrade then immediately closing with code 1001 (Going Away)
+      // tells the client the server is shutting down and discourages rapid retries.
+      socket.write(
+        'HTTP/1.1 410 Gone\r\n' +
+        'Content-Type: text/plain\r\n' +
+        'Connection: close\r\n\r\n' +
+        'Terminal process has exited'
+      );
       socket.destroy();
       return;
     }

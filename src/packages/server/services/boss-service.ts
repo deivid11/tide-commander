@@ -400,7 +400,7 @@ IMPORTANT: You MUST respond with ONLY a JSON object. No explanations, no markdow
 ## Selection Rules
 1. **Strongly prefer idle agents** - If a capable idle agent exists, choose them. Do not select a working agent merely because they touched nearby code or have somewhat related context
 2. Match agent class to task type (scout=explore, builder=code, debugger=fix, architect=plan, warrior=refactor, support=docs/tests)
-3. **Prefer lower context usage** - Agents with lower contextPercent can work faster and more efficiently. When choosing between agents of similar capability, prefer the one with lower context usage. Avoid agents with >80% context usage entirely
+3. **Do not over-prefer ultra-low context usage** - Treat agents under roughly 20% contextPercent as unusually cold for normal assignment and avoid choosing them unless there is a stronger reason such as a uniquely good class match, a very small task, or no better option. Treat roughly 20-60% as the healthy low-context range. An agent at 25% is not "really low" and should not be preferred on that basis alone. Avoid agents with >80% context usage entirely
 4. Consider recent work context only as a secondary tiebreaker, mainly among idle capable agents
 5. For general questions or status queries, pick any idle agent
 6. Assume the delegating boss can include enough repo paths, summaries, constraints, and handoff notes for another capable idle agent to pick up the task quickly

@@ -57,9 +57,11 @@ function shortenPath(path: string): string {
   return `.../${parts.slice(-2).join('/')}`;
 }
 
-/** Format port list */
-function formatPorts(ports: number[]): string {
-  return ports.map(p => `:${p}`).join(' ');
+/** Build the base URL for opening exposed services on the commander host */
+function getServiceUrl(port: number): string {
+  const proto = window.location.protocol; // 'http:' or 'https:'
+  const host = window.location.hostname;
+  return `${proto}//${host}:${port}`;
 }
 
 export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps) {
@@ -328,7 +330,21 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
         details.push(
           <div key="pm2-ports" className="guake-building-detail">
             <span className="detail-label">Ports</span>
-            <span className="detail-value detail-ports">{formatPorts(pm2.ports)}</span>
+            <span className="detail-value detail-ports">
+              {pm2.ports.map((p, i) => (
+                <a
+                  key={p}
+                  className="guake-building-port-link"
+                  href={getServiceUrl(p)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  title={`Open :${p} in browser`}
+                >
+                  :{p}{i < pm2.ports!.length - 1 ? ' ' : ''}
+                </a>
+              ))}
+            </span>
           </div>
         );
       }
@@ -378,11 +394,24 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
       }
       // Docker ports
       if (docker.ports && docker.ports.length > 0) {
-        const portStr = docker.ports.map(p => `${p.host}:${p.container}`).join(' ');
         details.push(
           <div key="docker-ports" className="guake-building-detail">
             <span className="detail-label">Ports</span>
-            <span className="detail-value detail-ports">{portStr}</span>
+            <span className="detail-value detail-ports">
+              {docker.ports.map((p, i) => (
+                <a
+                  key={`${p.host}-${p.container}`}
+                  className="guake-building-port-link"
+                  href={getServiceUrl(p.host)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  title={`Open :${p.host} in browser`}
+                >
+                  {p.host}:{p.container}{i < docker.ports!.length - 1 ? ' ' : ''}
+                </a>
+              ))}
+            </span>
           </div>
         );
       }
@@ -458,7 +487,22 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
       details.push(
         <div key="terminal" className="guake-building-detail">
           <span className="detail-label">Terminal</span>
-          <span className="detail-value detail-ports">:{term.port}</span>
+          <span className="detail-value detail-ports">
+            {term.port ? (
+              <a
+                className="guake-building-port-link"
+                href={getServiceUrl(term.port)}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                title={`Open :${term.port} in browser`}
+              >
+                :{term.port}
+              </a>
+            ) : (
+              <span>—</span>
+            )}
+          </span>
         </div>
       );
       if (term.tmuxSession) {

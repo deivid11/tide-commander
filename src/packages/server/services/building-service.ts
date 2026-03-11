@@ -1039,6 +1039,12 @@ export function startTerminalStatusPolling(broadcast: BroadcastFn, intervalMs: n
     return;
   }
 
+  // Register immediate exit callback so clients are notified without waiting for the poll
+  terminalService.onTerminalExit((buildingId, code) => {
+    log.log(`Terminal process exited for building ${buildingId} (code ${code}), broadcasting status update`);
+    updateBuildingStatus(buildingId, 'stopped', broadcast, { terminalStatus: undefined });
+  });
+
   log.log(`Starting terminal status polling (interval: ${intervalMs}ms)`);
   terminalPollInterval = setInterval(() => pollTerminalStatus(broadcast), intervalMs);
 }

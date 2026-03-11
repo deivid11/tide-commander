@@ -234,6 +234,24 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
       .map((dir) => ({ areaId: area.id, areaName: area.name, dir })));
   }, [activeAgentId, areas, agents]);
 
+  // Terminal buildings in the active agent's area (for status-bar toggle buttons)
+  const areaTerminalBuildings = useMemo(() => {
+    if (!activeAgentId) return [];
+    const area = store.getAreaForAgent(activeAgentId);
+    if (!area) return [];
+    const result: { id: string; name: string; hasUrl: boolean }[] = [];
+    for (const building of buildings.values()) {
+      if (building.type === 'terminal' && store.isPositionInArea(building.position, area)) {
+        result.push({
+          id: building.id,
+          name: building.name,
+          hasUrl: !!building.terminalStatus?.url,
+        });
+      }
+    }
+    return result;
+  }, [activeAgentId, buildings, areas]);
+
   // Fetch git branch names for area directories
   const { branches: areaBranches, fetchRemote: fetchGitRemote, fetchingDirs: gitFetchingDirs } = useGitBranches(agentAreaDirectories);
 
@@ -1876,7 +1894,33 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
               </span>
             );
           })()}
-          <ThemeSelector />
+          <span className="guake-status-right">
+            {/* Terminal toggle buttons for area terminal buildings */}
+            {areaTerminalBuildings.length > 0 && (
+              <span className="guake-status-terminals">
+                {areaTerminalBuildings.map((tb) => {
+                  const isActive = bottomTerminalBuildingId === tb.id;
+                  return (
+                    <button
+                      key={tb.id}
+                      className={`guake-status-terminal-btn ${isActive ? 'active' : ''} ${!tb.hasUrl ? 'offline' : ''}`}
+                      title={`${isActive ? 'Hide' : 'Show'} terminal: ${tb.name}${!tb.hasUrl ? ' (not running)' : ''}`}
+                      onClick={() => {
+                        if (isActive) {
+                          setBottomTerminal(null);
+                        } else {
+                          window.dispatchEvent(new CustomEvent('tide:open-bottom-terminal', { detail: { buildingId: tb.id } }));
+                        }
+                      }}
+                    >
+                      💻
+                    </button>
+                  );
+                })}
+              </span>
+            )}
+            <ThemeSelector />
+          </span>
         </div>
 
         {/* Bottom embedded terminal panel */}
