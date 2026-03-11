@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.12.0] - 2026-03-10
+
+### Added
+- **Terminal service** - Server-side terminal management with terminal-service and terminal-proxy
+- **Embedded editor** - CodeMirror-based embedded editor in file explorer panel
+- **Terminal config panel** - New TerminalConfigPanel for building configuration
+- **Building types extensions** - Expanded shared building types
+- **File routes** - Additional server file route endpoints
+- **WebSocket terminal support** - WebSocket handler extensions for terminal communication
+- **Database sidebar improvements** - Enhanced DatabaseSidebar with redesigned layout and styling
+- **Modal styles** - New modal component styling
+- **Keyboard shortcuts update** - Updated keyboard shortcut bindings
+- **Vite config updates** - Build configuration adjustments
+
+### Changed
+- **AreaBuildingsPanel** - Expanded with additional building management features
+- **Building service** - Extended building service capabilities
+- **Create building skill** - Updated builtin skill for building creation
+- **File explorer** - Updated FileViewer, types, and viewer styles
+- **Guake terminal styles** - Updated base and buildings panel styles
+- **Server app and index** - Server initialization updates
+
+### Fixed
+- **Lint errors** - Removed invalid eslint-disable-next-line and unused IncomingMessage import
+
 ## [1.11.0] - 2026-03-10
 
 ### Added
