@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.15.0] - 2026-03-11
+
+### Added
+- **Clickable port links** - Building port numbers are now clickable links that open the service in a new browser tab
+- **Terminal status bar buttons** - Toggle buttons in the guake status bar for area terminal buildings
+- **Orphaned ttyd cleanup** - Detect and kill ttyd processes whose backing tmux session has died
+- **Terminal exit callbacks** - Immediate status broadcast when terminal processes exit
+- **Extended editor language support** - Added PHP and additional file extension mappings to EmbeddedEditor
+
+### Changed
+- **Terminal service** - Added tmux session health checks and orphan detection
+- **Building service** - Extended with terminal exit event integration
+- **Terminal proxy** - Enhanced proxy capabilities
+- **Guake header styles** - New styling for guake terminal header
+- **Buildings panel styles** - Clickable port link styling
+- **Database sidebar** - Minor style adjustments
+
 ## [1.14.0] - 2026-03-11
 
 ### Added
