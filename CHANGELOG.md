@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.16.0] - 2026-03-12
+
+### Added
+- **Git diff file navigation** - Previous/next arrows to navigate between changed files in the diff modal
+- **File delete action** - Delete files directly from the git panel with confirmation dialog
+- **Terminal auto-start** - Clicking an offline terminal status bar button automatically starts the terminal
+- **Terminal starting placeholder** - Shows "Starting terminal..." while the terminal boots up
+
+### Changed
+- **Terminal auto-close** - Bottom terminal panel auto-closes when the terminal process stops
+- **Git panel styles** - Extended styling for navigation arrows, delete confirmation, and context menus
+- **Header styles** - Additional guake terminal header styling
+- **Base guake styles** - Extended base styling for terminal components
+
 ## [1.15.1] - 2026-03-11
 
 ### Changed
