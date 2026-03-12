@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { store } from '../store';
-import { SceneManager } from '../scene/SceneManager';
+import type { SceneManager } from '../scene/SceneManager';
 
 /**
  * Hook to subscribe to selection changes and update scene visuals.

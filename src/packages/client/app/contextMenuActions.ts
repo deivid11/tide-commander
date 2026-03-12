@@ -1,5 +1,5 @@
 import { store } from '../store';
-import { SceneManager } from '../scene/SceneManager';
+import type { SceneManager } from '../scene/SceneManager';
 import type { ContextMenuAction } from '../components/ContextMenu';
 import type { ToastType } from '../components/Toast';
 import type { Agent, DrawingArea as Area, Building } from '../../shared/types';

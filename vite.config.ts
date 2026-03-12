@@ -83,9 +83,14 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    // Pre-bundle heavy dependencies to reduce dev server memory usage
-    include: ['react', 'react-dom', 'three', 'zustand'],
-    // Exclude large deps that don't need pre-bundling
+    // Pre-bundle heavy dependencies to reduce dev server startup and page load
+    include: [
+      'react', 'react-dom', 'three', 'zustand',
+      'prismjs',
+      'react-markdown', 'remark-gfm',
+      'i18next', 'react-i18next', 'i18next-http-backend', 'i18next-browser-languagedetector',
+      'fuse.js',
+    ],
     exclude: [],
   },
   build: {

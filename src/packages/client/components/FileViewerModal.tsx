@@ -2,31 +2,12 @@ import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import Prism from 'prismjs';
 import { DiffViewer } from './DiffViewer';
 import { apiUrl, authFetch } from '../utils/storage';
 import { useModalClose } from '../hooks';
 import { parseFilePathReference } from '../utils/filePaths';
 import { ModalPortal } from './shared/ModalPortal';
-import 'prismjs/components/prism-typescript';
-import 'prismjs/components/prism-javascript';
-import 'prismjs/components/prism-jsx';
-import 'prismjs/components/prism-tsx';
-import 'prismjs/components/prism-python';
-import 'prismjs/components/prism-rust';
-import 'prismjs/components/prism-go';
-import 'prismjs/components/prism-java';
-import 'prismjs/components/prism-c';
-import 'prismjs/components/prism-cpp';
-import 'prismjs/components/prism-css';
-import 'prismjs/components/prism-scss';
-import 'prismjs/components/prism-json';
-import 'prismjs/components/prism-yaml';
-import 'prismjs/components/prism-bash';
-import 'prismjs/components/prism-sql';
-import 'prismjs/components/prism-markdown';
-import 'prismjs/components/prism-toml';
-import 'prismjs/components/prism-docker';
+import { getLanguageForExtension, ensureLanguageLoaded, Prism } from './FileExplorerPanel/syntaxHighlighting';
 
 interface FileViewerModalProps {
   isOpen: boolean;
@@ -129,42 +110,6 @@ function reconstructOriginalFromUnifiedDiff(currentContent: string, diffText: st
   }
 }
 
-// Language mapping for syntax highlighting hints
-const EXTENSION_LANGUAGES: Record<string, string> = {
-  '.ts': 'typescript',
-  '.tsx': 'typescript',
-  '.js': 'javascript',
-  '.jsx': 'javascript',
-  '.py': 'python',
-  '.rb': 'ruby',
-  '.go': 'go',
-  '.rs': 'rust',
-  '.java': 'java',
-  '.c': 'c',
-  '.cpp': 'cpp',
-  '.h': 'c',
-  '.hpp': 'cpp',
-  '.css': 'css',
-  '.scss': 'scss',
-  '.less': 'less',
-  '.html': 'html',
-  '.xml': 'xml',
-  '.json': 'json',
-  '.yaml': 'yaml',
-  '.yml': 'yaml',
-  '.md': 'markdown',
-  '.sql': 'sql',
-  '.sh': 'bash',
-  '.bash': 'bash',
-  '.zsh': 'bash',
-  '.fish': 'fish',
-  '.ps1': 'powershell',
-  '.dockerfile': 'dockerfile',
-  '.toml': 'toml',
-  '.ini': 'ini',
-  '.env': 'bash',
-  '.gitignore': 'gitignore',
-};
 
 const MARKDOWN_EXTENSIONS = ['.md', '.mdx', '.markdown'];
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.ico', '.svg'];
@@ -183,6 +128,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
   const [copyOriginalStatus, setCopyOriginalStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [fetchedUnifiedDiff, setFetchedUnifiedDiff] = useState<string | null>(null);
   const [fetchedOriginalContent, setFetchedOriginalContent] = useState<string | null>(null);
+  const [languageReady, setLanguageReady] = useState(false);
   const markdownContentRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -374,9 +320,21 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     fetchOriginal();
   }, [fileData, editData, originalContent, originalFromDiff, fetchedOriginalContent, hasEditStrings, hasUnifiedDiff, effectivePath]);
 
+  // Ensure the Prism language for the current file is loaded (handles lazy languages like PHP)
+  useEffect(() => {
+    if (!fileData) return;
+    const lang = getLanguageForExtension(fileData.extension);
+    if (lang === 'plaintext' || lang in Prism.languages) {
+      setLanguageReady(true);
+      return;
+    }
+    setLanguageReady(false);
+    ensureLanguageLoaded(lang).then(() => setLanguageReady(true));
+  }, [fileData]);
+
   const highlightedLines = useMemo(() => {
     if (!fileData || showDiffView || showUnifiedDiffView || MARKDOWN_EXTENSIONS.includes(fileData.extension)) return [];
-    const codeLanguage = EXTENSION_LANGUAGES[fileData.extension] || 'text';
+    const codeLanguage = getLanguageForExtension(fileData.extension);
     const grammar = Prism.languages[codeLanguage];
     const escapeHtml = (value: string) => value
       .replace(/&/g, '&amp;')
@@ -386,7 +344,8 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
       if (!grammar) return escapeHtml(line || ' ');
       return Prism.highlight(line || ' ', grammar, codeLanguage);
     });
-  }, [fileData, showDiffView, showUnifiedDiffView]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fileData, showDiffView, showUnifiedDiffView, languageReady]);
 
   // When a specific line is requested, center it in view.
   useEffect(() => {
@@ -669,7 +628,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
   const isMarkdown = fileData && MARKDOWN_EXTENSIONS.includes(fileData.extension);
   const isImage = fileData && IMAGE_EXTENSIONS.includes(fileData.extension);
   const isPdf = fileData && PDF_EXTENSIONS.includes(fileData.extension);
-  const language = isImage ? 'Image' : isPdf ? 'PDF' : (fileData ? EXTENSION_LANGUAGES[fileData.extension] || 'text' : 'text');
+  const language = isImage ? 'Image' : isPdf ? 'PDF' : (fileData ? getLanguageForExtension(fileData.extension) : 'text');
   const imageUrl = isImage ? apiUrl(`/api/files/binary?path=${encodeURIComponent(effectivePath)}`) : null;
   const pdfUrl = isPdf ? apiUrl(`/api/files/binary?path=${encodeURIComponent(effectivePath)}`) : null;
 

@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { store } from '../store';
 import { matchesShortcut } from '../store/shortcuts';
-import { SceneManager } from '../scene/SceneManager';
+import type { SceneManager } from '../scene/SceneManager';
 import { closeTopModal } from './useModalStack';
 import type { UseModalState, UseModalStateWithId } from './index';
 

@@ -32,20 +32,22 @@ import { AgentHoverPopup } from './components/AgentHoverPopup';
 import { BuildingActionPopup } from './components/BuildingActionPopup';
 import { BossBuildingActionPopup } from './components/BossBuildingActionPopup';
 import { DatabaseBuildingActionPopup } from './components/DatabaseBuildingActionPopup';
-import { DatabasePanel } from './components/database';
-import { PM2LogsModal } from './components/PM2LogsModal';
-import { DockerLogsModal } from './components/DockerLogsModal';
-import { BossLogsModal } from './components/BossLogsModal';
 import { FPSMeter } from './components/FPSMeter';
-import { Scene2DCanvas } from './components/Scene2DCanvas';
-import { DashboardView } from './components/DashboardView';
+
+// Lazy-load heavy components that are conditionally rendered
+const DatabasePanel = React.lazy(() => import('./components/database').then(m => ({ default: m.DatabasePanel })));
+const PM2LogsModal = React.lazy(() => import('./components/PM2LogsModal').then(m => ({ default: m.PM2LogsModal })));
+const DockerLogsModal = React.lazy(() => import('./components/DockerLogsModal').then(m => ({ default: m.DockerLogsModal })));
+const BossLogsModal = React.lazy(() => import('./components/BossLogsModal').then(m => ({ default: m.BossLogsModal })));
+const Scene2DCanvas = React.lazy(() => import('./components/Scene2DCanvas').then(m => ({ default: m.Scene2DCanvas })));
+const DashboardView = React.lazy(() => import('./components/DashboardView').then(m => ({ default: m.DashboardView })));
 import { ViewModeToggle } from './components/ViewModeToggle/ViewModeToggle';
 import { MobileFabMenu } from './components/MobileFabMenu';
 import { FloatingActionButtons } from './components/FloatingActionButtons';
 import { AppModals } from './components/AppModals';
 import { PiPWindow, AgentsPiPView } from './components/PiPWindow';
-import { IframeModal } from './components/IframeModal';
-import { SaveSnapshotModal } from './components/SaveSnapshotModal';
+const IframeModal = React.lazy(() => import('./components/IframeModal').then(m => ({ default: m.IframeModal })));
+const SaveSnapshotModal = React.lazy(() => import('./components/SaveSnapshotModal').then(m => ({ default: m.SaveSnapshotModal })));
 import { NotConnectedOverlay } from './components/NotConnectedOverlay';
 import { OnboardingModal } from './components/OnboardingModal';
 import { profileRender, useRenderCounter } from './utils/profiling';
@@ -621,6 +623,7 @@ function AppContent() {
 
       <main className="main-content">
         <div className="battlefield-container">
+          <React.Suspense fallback={null}>
           {viewMode === 'dashboard' ? (
             <DashboardView
               onSelectAgent={(agentId) => store.selectAgent(agentId)}
@@ -782,6 +785,7 @@ function AppContent() {
               <div ref={selectionBoxRef} id="selection-box"></div>
             </React.Fragment>
           )}
+          </React.Suspense>
           {sceneLoading && (
             <div className="scene-loading-overlay">
               <div className="scene-loading-overlay__spinner" />

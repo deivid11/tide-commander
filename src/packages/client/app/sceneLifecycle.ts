@@ -1,4 +1,4 @@
-import { SceneManager } from '../scene/SceneManager';
+import type { SceneManager } from '../scene/SceneManager';
 import { disconnect, clearCallbacks } from '../websocket';
 
 // Session storage key to track if we had an active WebGL context

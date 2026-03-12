@@ -1,22 +1,25 @@
-import React, { Profiler, useEffect } from 'react';
+import React, { Suspense, Profiler, useEffect } from 'react';
 import { store, useStore } from '../store';
-import { SpawnModal } from './SpawnModal';
-import { BossSpawnModal } from './BossSpawnModal';
-import { SubordinateAssignmentModal } from './SubordinateAssignmentModal';
-import { Toolbox, type SceneConfig } from './toolbox';
-import { BuildingConfigModal } from './BuildingConfigModal';
-import { CommanderView } from './CommanderView';
-import { SupervisorPanel } from './SupervisorPanel';
-import { FileExplorerPanel } from './FileExplorerPanel';
-import { Spotlight } from './Spotlight';
-import { ControlsModal } from './ControlsModal';
-import { SkillsPanel } from './SkillsPanel';
-import { AgentEditModal } from './AgentEditModal';
+import { type SceneConfig } from './toolbox';
 import { ContextMenu, type ContextMenuAction } from './ContextMenu';
-import { SnapshotManager } from './SnapshotManager';
-import { RestoreArchivedAreaModal } from './RestoreArchivedAreaModal';
 import { profileRender } from '../utils/profiling';
 import type { UseModalState, UseModalStateWithId, UseContextMenu } from '../hooks';
+
+// Lazy-load heavy modal components (only loaded when first opened)
+const SpawnModal = React.lazy(() => import('./SpawnModal').then(m => ({ default: m.SpawnModal })));
+const BossSpawnModal = React.lazy(() => import('./BossSpawnModal').then(m => ({ default: m.BossSpawnModal })));
+const SubordinateAssignmentModal = React.lazy(() => import('./SubordinateAssignmentModal').then(m => ({ default: m.SubordinateAssignmentModal })));
+const Toolbox = React.lazy(() => import('./toolbox').then(m => ({ default: m.Toolbox })));
+const BuildingConfigModal = React.lazy(() => import('./BuildingConfigModal').then(m => ({ default: m.BuildingConfigModal })));
+const CommanderView = React.lazy(() => import('./CommanderView').then(m => ({ default: m.CommanderView })));
+const SupervisorPanel = React.lazy(() => import('./SupervisorPanel').then(m => ({ default: m.SupervisorPanel })));
+const FileExplorerPanel = React.lazy(() => import('./FileExplorerPanel').then(m => ({ default: m.FileExplorerPanel })));
+const Spotlight = React.lazy(() => import('./Spotlight').then(m => ({ default: m.Spotlight })));
+const ControlsModal = React.lazy(() => import('./ControlsModal').then(m => ({ default: m.ControlsModal })));
+const SkillsPanel = React.lazy(() => import('./SkillsPanel').then(m => ({ default: m.SkillsPanel })));
+const AgentEditModal = React.lazy(() => import('./AgentEditModal').then(m => ({ default: m.AgentEditModal })));
+const SnapshotManager = React.lazy(() => import('./SnapshotManager').then(m => ({ default: m.SnapshotManager })));
+const RestoreArchivedAreaModal = React.lazy(() => import('./RestoreArchivedAreaModal').then(m => ({ default: m.RestoreArchivedAreaModal })));
 
 interface AppModalsProps {
   // Modal states
@@ -130,7 +133,7 @@ export function AppModals({
   const selectedBuildingCount = state.selectedBuildingIds.size;
 
   return (
-    <>
+    <Suspense fallback={null}>
       {/* Toolbox sidebar overlay */}
       <Toolbox
         config={sceneConfig}
@@ -377,6 +380,6 @@ export function AppModals({
         actions={contextMenuActions}
         onClose={contextMenu.close}
       />
-    </>
+    </Suspense>
   );
 }

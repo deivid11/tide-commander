@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { store } from '../store';
 import { setCallbacks, clearSceneCallbacks } from '../websocket';
-import { SceneManager } from '../scene/SceneManager';
+import type { SceneManager } from '../scene/SceneManager';
 import {
   getPersistedScene,
   getPersistedCanvas,
@@ -337,7 +337,7 @@ export function useSceneSetup({
       const canvas = canvasRef.current;
       const selectionBox = selectionBoxRef.current;
 
-      const initScene = () => {
+      const initScene = async () => {
         // Check if effect was cleaned up before RAF executed
         if (isCleanedUp) {
           console.log('[Tide] Effect cleaned up before scene init, skipping');
@@ -370,7 +370,14 @@ export function useSceneSetup({
         markWebGLActive();
 
         try {
-          const scene = new SceneManager(canvas, selectionBox);
+          // Dynamic import: loads Three.js + scene code only when 3D mode is first used
+          const { SceneManager: SceneManagerClass } = await import('../scene/SceneManager');
+          // Re-check cleanup after async import
+          if (isCleanedUp) {
+            onSceneLoadingChange?.(false);
+            return;
+          }
+          const scene = new SceneManagerClass(canvas, selectionBox);
           sceneRef.current = scene;
           setPersistedScene(scene);
           setPersistedCanvas(canvas);
@@ -428,7 +435,7 @@ export function useSceneSetup({
 
       // Use requestAnimationFrame to ensure DOM layout is complete
       // This prevents WebGL context creation failures in production builds
-      initRafIdRef.current = requestAnimationFrame(initScene);
+      initRafIdRef.current = requestAnimationFrame(() => void initScene());
     }
 
     // Set up scene-specific websocket callbacks for visual effects

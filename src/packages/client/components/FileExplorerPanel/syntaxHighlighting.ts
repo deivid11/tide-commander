@@ -2,6 +2,7 @@
  * Syntax highlighting utilities for FileExplorerPanel
  *
  * Centralizes Prism.js imports and highlighting logic.
+ * Core languages are loaded eagerly; rare languages are loaded on-demand.
  */
 
 import Prism from 'prismjs';
@@ -12,58 +13,80 @@ import Prism from 'prismjs';
 // Base language (required by many others)
 import 'prismjs/components/prism-clike';
 
-// Languages that extend clike (must come after clike)
+// Core languages loaded eagerly (most commonly used)
 import 'prismjs/components/prism-javascript';
-import 'prismjs/components/prism-c';
-import 'prismjs/components/prism-java';
-import 'prismjs/components/prism-csharp';
-import 'prismjs/components/prism-go';
-import 'prismjs/components/prism-kotlin';
-import 'prismjs/components/prism-groovy';
-import 'prismjs/components/prism-ruby';
-
-// Languages that extend other languages (must come after their parents)
 import 'prismjs/components/prism-typescript'; // extends javascript
 import 'prismjs/components/prism-jsx'; // extends javascript
 import 'prismjs/components/prism-tsx'; // extends jsx/typescript
-import 'prismjs/components/prism-cpp'; // extends c
-import 'prismjs/components/prism-scala'; // extends java
-
-// Markup and templating (required by PHP and other templating languages)
-import 'prismjs/components/prism-markup-templating';
-
-// Languages that need markup-templating
-import 'prismjs/components/prism-php'; // requires markup-templating
-
-// Independent languages (no dependencies)
 import 'prismjs/components/prism-css';
-import 'prismjs/components/prism-scss';
 import 'prismjs/components/prism-json';
 import 'prismjs/components/prism-yaml';
-import 'prismjs/components/prism-markdown';
 import 'prismjs/components/prism-python';
 import 'prismjs/components/prism-bash';
+import 'prismjs/components/prism-markdown';
+import 'prismjs/components/prism-go';
 import 'prismjs/components/prism-rust';
 import 'prismjs/components/prism-sql';
-import 'prismjs/components/prism-toml';
-import 'prismjs/components/prism-docker';
-import 'prismjs/components/prism-swift';
-import 'prismjs/components/prism-lua';
-import 'prismjs/components/prism-perl';
-import 'prismjs/components/prism-r';
-import 'prismjs/components/prism-haskell';
-import 'prismjs/components/prism-elixir';
-import 'prismjs/components/prism-erlang';
-import 'prismjs/components/prism-clojure';
-import 'prismjs/components/prism-graphql';
-import 'prismjs/components/prism-nginx';
-import 'prismjs/components/prism-vim';
-import 'prismjs/components/prism-diff';
-import 'prismjs/components/prism-ini';
-import 'prismjs/components/prism-powershell';
-import 'prismjs/components/prism-makefile';
 
 import { EXTENSION_TO_LANGUAGE } from './constants';
+
+// On-demand language loaders — imported only when first needed
+const LAZY_LANGUAGE_LOADERS: Record<string, () => Promise<unknown>> = {
+  c: () => import('prismjs/components/prism-c'),
+  cpp: () => import('prismjs/components/prism-c').then(() => import('prismjs/components/prism-cpp')),
+  java: () => import('prismjs/components/prism-java'),
+  scala: () => import('prismjs/components/prism-java').then(() => import('prismjs/components/prism-scala')),
+  csharp: () => import('prismjs/components/prism-csharp'),
+  kotlin: () => import('prismjs/components/prism-kotlin'),
+  groovy: () => import('prismjs/components/prism-groovy'),
+  ruby: () => import('prismjs/components/prism-ruby'),
+  php: () => import('prismjs/components/prism-markup-templating').then(() => import('prismjs/components/prism-php')),
+  scss: () => import('prismjs/components/prism-scss'),
+  toml: () => import('prismjs/components/prism-toml'),
+  docker: () => import('prismjs/components/prism-docker'),
+  swift: () => import('prismjs/components/prism-swift'),
+  lua: () => import('prismjs/components/prism-lua'),
+  perl: () => import('prismjs/components/prism-perl'),
+  r: () => import('prismjs/components/prism-r'),
+  haskell: () => import('prismjs/components/prism-haskell'),
+  elixir: () => import('prismjs/components/prism-elixir'),
+  erlang: () => import('prismjs/components/prism-erlang'),
+  clojure: () => import('prismjs/components/prism-clojure'),
+  graphql: () => import('prismjs/components/prism-graphql'),
+  nginx: () => import('prismjs/components/prism-nginx'),
+  vim: () => import('prismjs/components/prism-vim'),
+  diff: () => import('prismjs/components/prism-diff'),
+  ini: () => import('prismjs/components/prism-ini'),
+  powershell: () => import('prismjs/components/prism-powershell'),
+  makefile: () => import('prismjs/components/prism-makefile'),
+};
+
+// Track in-flight loads to avoid duplicate imports
+const loadingLanguages = new Map<string, Promise<unknown>>();
+
+/**
+ * Ensure a Prism language is loaded. Returns immediately if already available.
+ */
+export async function ensureLanguageLoaded(language: string): Promise<boolean> {
+  if (language in Prism.languages) return true;
+
+  const loader = LAZY_LANGUAGE_LOADERS[language];
+  if (!loader) return false;
+
+  let promise = loadingLanguages.get(language);
+  if (!promise) {
+    promise = loader();
+    loadingLanguages.set(language, promise);
+  }
+  try {
+    await promise;
+    return language in Prism.languages;
+  } catch {
+    return false;
+  } finally {
+    loadingLanguages.delete(language);
+  }
+}
 
 /**
  * Highlight a code element using Prism.js
