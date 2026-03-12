@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.15.1] - 2026-03-11
+
+### Changed
+- **Lazy-loaded components** - Heavy modals and panels are now loaded on-demand via React.lazy, reducing initial bundle from ~2.4MB to ~1.3MB
+- **On-demand syntax highlighting** - Rare Prism.js languages loaded only when needed, core languages remain eagerly loaded
+- **Consolidated Prism imports** - FileViewerModal now uses shared syntax highlighting module
+
+### Fixed
+- **Lint error** - Removed invalid eslint-disable comment referencing missing rule
+
 ## [1.15.0] - 2026-03-11
 
 ### Added
