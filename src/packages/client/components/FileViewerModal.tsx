@@ -344,7 +344,6 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
       if (!grammar) return escapeHtml(line || ' ');
       return Prism.highlight(line || ' ', grammar, codeLanguage);
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fileData, showDiffView, showUnifiedDiffView, languageReady]);
 
   // When a specific line is requested, center it in view.
