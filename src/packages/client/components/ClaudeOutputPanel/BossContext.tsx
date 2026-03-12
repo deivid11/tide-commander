@@ -454,7 +454,7 @@ interface DelegatedTaskMessageProps {
 }
 
 export function DelegatedTaskMessage({ bossName, bossId, taskCommand }: DelegatedTaskMessageProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(true);
   const truncatedCommand = taskCommand.length > 80 ? taskCommand.slice(0, 80) + '...' : taskCommand;
 
   return (

@@ -466,3 +466,13 @@
   // Prevent parent scroll containers from intercepting wheel events
   overscroll-behavior: contain;
 }
+
+.guake-bottom-terminal-starting {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.85rem;
+  background: #1a1a2e;
+}

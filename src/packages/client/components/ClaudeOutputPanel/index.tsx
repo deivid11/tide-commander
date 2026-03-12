@@ -442,6 +442,26 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     return () => window.removeEventListener('tide:open-bottom-terminal', handler as EventListener);
   }, [setBottomTerminal]);
 
+  // Track whether the bottom terminal previously had a URL.
+  // When a running terminal stops (URL disappears), auto-close the panel
+  // so the user doesn't get stuck on a "Starting terminal..." placeholder.
+  const bottomTerminalHadUrlRef = useRef(false);
+  useEffect(() => {
+    if (!bottomTerminalBuildingId) {
+      bottomTerminalHadUrlRef.current = false;
+      return;
+    }
+    const building = buildings.get(bottomTerminalBuildingId);
+    const hasUrl = !!building?.terminalStatus?.url;
+    if (hasUrl) {
+      bottomTerminalHadUrlRef.current = true;
+    } else if (bottomTerminalHadUrlRef.current) {
+      // Terminal was running but lost its URL — it stopped
+      setBottomTerminal(null);
+      bottomTerminalHadUrlRef.current = false;
+    }
+  }, [bottomTerminalBuildingId, buildings, setBottomTerminal]);
+
   // Bottom terminal resize handler
   const handleBottomTerminalResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -1904,11 +1924,14 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
                     <button
                       key={tb.id}
                       className={`guake-status-terminal-btn ${isActive ? 'active' : ''} ${!tb.hasUrl ? 'offline' : ''}`}
-                      title={`${isActive ? 'Hide' : 'Show'} terminal: ${tb.name}${!tb.hasUrl ? ' (not running)' : ''}`}
+                      title={`${isActive ? 'Hide' : 'Show'} terminal: ${tb.name}${!tb.hasUrl ? ' (starting...)' : ''}`}
                       onClick={() => {
-                        if (isActive) {
+                        if (isActive && tb.hasUrl) {
                           setBottomTerminal(null);
                         } else {
+                          if (!tb.hasUrl) {
+                            store.sendBuildingCommand(tb.id, 'start');
+                          }
                           window.dispatchEvent(new CustomEvent('tide:open-bottom-terminal', { detail: { buildingId: tb.id } }));
                         }
                       }}
@@ -1926,7 +1949,31 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
         {/* Bottom embedded terminal panel */}
         {bottomTerminalBuildingId && (() => {
           const termBuilding = buildings.get(bottomTerminalBuildingId);
-          if (!termBuilding?.terminalStatus?.url) return null;
+          if (!termBuilding) return null;
+          if (!termBuilding.terminalStatus?.url) {
+            return (
+              <div
+                className="guake-bottom-terminal"
+                style={{ height: bottomTerminalHeight }}
+              >
+                <div className="guake-bottom-terminal-header">
+                  <span className="guake-bottom-terminal-title">Terminal - {termBuilding.name} (starting...)</span>
+                  <button
+                    className="guake-bottom-terminal-close"
+                    onClick={() => setBottomTerminal(null)}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
+                <div className="guake-bottom-terminal-starting">
+                  <span>Starting terminal...</span>
+                </div>
+              </div>
+            );
+          }
           return (
             <>
               <div

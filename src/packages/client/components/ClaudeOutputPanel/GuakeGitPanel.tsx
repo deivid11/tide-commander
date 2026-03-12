@@ -204,6 +204,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
     position: { x: number; y: number };
     actions: ContextMenuAction[];
   } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ path: string; name: string } | null>(null);
   const hasAutoExpanded = React.useRef(false);
   const prevAgentIdRef = React.useRef(agentId);
 
@@ -480,8 +481,85 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
     }
   }, []);
 
+  // Build a flat ordered list of all changed files across repos (for modal navigation).
+  // Order matches the visual rendering: flat view uses natural file order,
+  // tree view uses the sorted tree structure (dirs first, alphabetical).
+  const allChangedFiles = useMemo(() => {
+    const list: { file: GitFileStatus; repoDir: string }[] = [];
+
+    const collectTreeFiles = (nodes: GitTreeNode[], files: GitFileStatus[], repoDir: string) => {
+      for (const node of nodes) {
+        if (node.isDirectory) {
+          collectTreeFiles(node.children, files, repoDir);
+        } else {
+          const file = files.find(f => f.path === node.path);
+          if (file) list.push({ file, repoDir });
+        }
+      }
+    };
+
+    for (const repo of repos) {
+      if (!expandedRepos.has(repo.dir)) continue;
+      if (viewMode === 'tree') {
+        const tree = buildGitTree(repo.gitStatus.files);
+        collectTreeFiles(tree, repo.gitStatus.files, repo.dir);
+      } else {
+        for (const file of repo.gitStatus.files) {
+          list.push({ file, repoDir: repo.dir });
+        }
+      }
+    }
+    return list;
+  }, [repos, viewMode, expandedRepos]);
+
+  // Navigate to previous/next file in the modal
+  const navigateModal = useCallback(async (direction: -1 | 1) => {
+    if (!modalState) return;
+    const currentPath = modalState.data.filePath;
+    const idx = allChangedFiles.findIndex(({ file, repoDir }) => {
+      const fullPath = file.path.startsWith('/') ? file.path : `${repoDir.replace(/\/$/, '')}/${file.path}`;
+      return fullPath === currentPath;
+    });
+    if (idx < 0) return;
+    const nextIdx = idx + direction;
+    if (nextIdx < 0 || nextIdx >= allChangedFiles.length) return;
+    const { file, repoDir } = allChangedFiles[nextIdx];
+    await handleFileClick(file, repoDir);
+  }, [modalState, allChangedFiles, handleFileClick]);
+
+  // Current file index in the list (for disabling arrows at edges)
+  const currentFileIndex = useMemo(() => {
+    if (!modalState) return -1;
+    const currentPath = modalState.data.filePath;
+    return allChangedFiles.findIndex(({ file, repoDir }) => {
+      const fullPath = file.path.startsWith('/') ? file.path : `${repoDir.replace(/\/$/, '')}/${file.path}`;
+      return fullPath === currentPath;
+    });
+  }, [modalState, allChangedFiles]);
+
   const closeModal = useCallback(() => setModalState(null), []);
   const closeContextMenu = useCallback(() => setContextMenu(null), []);
+
+  // Delete file with confirmation dialog
+  const executeDelete = useCallback(async (filePath: string) => {
+    try {
+      const res = await authFetch(apiUrl('/api/files/delete'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: filePath }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('Delete failed:', data.error);
+      }
+      refresh();
+      if (panelMode === 'explorer') fileTree.loadTree();
+    } catch (err) {
+      console.error('Delete request failed:', err);
+    } finally {
+      setPendingDelete(null);
+    }
+  }, [refresh, panelMode, fileTree]);
 
   // Context menu for git-changed files (Changes tab)
   const handleGitFileContextMenu = useCallback((e: React.MouseEvent, file: GitFileStatus, repoDir: string) => {
@@ -564,21 +642,12 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
         label: 'Delete File',
         icon: '🗑️',
         danger: true,
-        onClick: async () => {
-          try {
-            await authFetch(apiUrl('/api/files/delete'), {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ path: fullPath }),
-            });
-            refresh();
-          } catch { /* skip */ }
-        },
+        onClick: () => setPendingDelete({ path: fullPath, name: file.name }),
       });
     }
 
     setContextMenu({ isOpen: true, position: { x: e.clientX, y: e.clientY }, actions });
-  }, [handleFileClick, refresh]);
+  }, [handleFileClick]);
 
   // Context menu for explorer tree nodes
   const handleExplorerContextMenu = useCallback((e: React.MouseEvent, node: TreeNode) => {
@@ -641,22 +710,12 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
         label: 'Delete File',
         icon: '🗑️',
         danger: true,
-        onClick: async () => {
-          try {
-            await authFetch(apiUrl('/api/files/delete'), {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ path: node.path }),
-            });
-            fileTree.loadTree();
-            refresh();
-          } catch { /* skip */ }
-        },
+        onClick: () => setPendingDelete({ path: node.path, name: node.name }),
       });
     }
 
     setContextMenu({ isOpen: true, position: { x: e.clientX, y: e.clientY }, actions });
-  }, [handleExplorerFileSelect, explorerFolder, fileTree, refresh]);
+  }, [handleExplorerFileSelect, explorerFolder]);
 
   const totalFiles = repos.reduce((sum, r) => sum + r.gitStatus.files.length, 0);
 
@@ -698,47 +757,75 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
   // ========================================================================
   return (
     <>
-    {/* Diff Modal */}
-    {modalState?.type === 'diff' && (
-      <div className="guake-git-diff-modal-overlay" onClick={closeModal}>
-        <div className="guake-git-diff-modal" onClick={(e) => e.stopPropagation()}>
-          <div className="guake-git-diff-modal-header">
-            <span className="guake-git-diff-filename" title={modalState.data.filePath}>
-              {modalState.data.fileName}
-            </span>
-            <button className="guake-git-close" onClick={closeModal} title="Close (Esc)">×</button>
-          </div>
-          <div className="guake-git-diff-content">
-            <DiffViewer
-              originalContent={modalState.data.originalContent}
-              modifiedContent={modalState.data.modifiedContent}
-              filename={modalState.data.fileName}
-              language={modalState.data.language}
-            />
+    {/* Delete Confirmation */}
+    {pendingDelete && (
+      <div className="guake-git-diff-modal-overlay" onClick={() => setPendingDelete(null)}>
+        <div className="guake-git-delete-confirm" onClick={(e) => e.stopPropagation()}>
+          <p>Delete <strong>{pendingDelete.name}</strong>?</p>
+          <p className="guake-git-delete-path">{pendingDelete.path}</p>
+          <div className="guake-git-delete-actions">
+            <button className="guake-git-delete-cancel" onClick={() => setPendingDelete(null)}>Cancel</button>
+            <button className="guake-git-delete-btn" onClick={() => executeDelete(pendingDelete.path)}>Delete</button>
           </div>
         </div>
       </div>
     )}
 
-    {/* Content Modal (for added/untracked files — uses DiffViewer with empty original for syntax highlighting) */}
-    {modalState?.type === 'content' && (
+    {/* Diff / Content Modal */}
+    {modalState && (
       <div className="guake-git-diff-modal-overlay" onClick={closeModal}>
         <div className="guake-git-diff-modal" onClick={(e) => e.stopPropagation()}>
           <div className="guake-git-diff-modal-header">
+            {panelMode === 'changes' && (
+              <div className="guake-git-diff-nav">
+                <button
+                  className="guake-git-diff-nav-btn"
+                  onClick={() => navigateModal(-1)}
+                  disabled={currentFileIndex <= 0}
+                  title="Previous file"
+                >
+                  ‹
+                </button>
+                <button
+                  className="guake-git-diff-nav-btn"
+                  onClick={() => navigateModal(1)}
+                  disabled={currentFileIndex < 0 || currentFileIndex >= allChangedFiles.length - 1}
+                  title="Next file"
+                >
+                  ›
+                </button>
+                {currentFileIndex >= 0 && (
+                  <span className="guake-git-diff-nav-counter">
+                    {currentFileIndex + 1} / {allChangedFiles.length}
+                  </span>
+                )}
+              </div>
+            )}
             <span className="guake-git-diff-filename" title={modalState.data.filePath}>
-              {modalState.data.fileName}
-              {modalState.isNewFile && <span className="guake-git-content-badge">new file</span>}
+              {modalState.data.filePath}
+              {modalState.type === 'content' && modalState.isNewFile && (
+                <span className="guake-git-content-badge">new file</span>
+              )}
             </span>
             <button className="guake-git-close" onClick={closeModal} title="Close (Esc)">×</button>
           </div>
           <div className="guake-git-diff-content">
-            <DiffViewer
-              originalContent=""
-              modifiedContent={modalState.data.content}
-              filename={modalState.data.fileName}
-              language={modalState.data.language}
-              initialModifiedOnly
-            />
+            {modalState.type === 'diff' ? (
+              <DiffViewer
+                originalContent={modalState.data.originalContent}
+                modifiedContent={modalState.data.modifiedContent}
+                filename={modalState.data.fileName}
+                language={modalState.data.language}
+              />
+            ) : (
+              <DiffViewer
+                originalContent=""
+                modifiedContent={modalState.data.content}
+                filename={modalState.data.fileName}
+                language={modalState.data.language}
+                initialModifiedOnly
+              />
+            )}
           </div>
         </div>
       </div>

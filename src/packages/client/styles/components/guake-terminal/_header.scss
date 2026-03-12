@@ -503,13 +503,14 @@
   }
 
   &.offline {
-    opacity: 0.4;
-    cursor: default;
+    opacity: 0.55;
+    cursor: pointer;
 
     &:hover {
-      color: $dracula-comment;
-      border-color: rgba($dracula-current, 0.6);
-      background: transparent;
+      opacity: 0.85;
+      color: $dracula-orange;
+      border-color: rgba($dracula-orange, 0.5);
+      background: rgba($dracula-orange, 0.1);
     }
   }
 }

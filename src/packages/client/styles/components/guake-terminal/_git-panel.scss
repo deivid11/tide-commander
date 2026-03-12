@@ -312,6 +312,49 @@
   background: rgba($dracula-bg, 0.95);
   border-bottom: 1px solid $dracula-current;
   flex-shrink: 0;
+  gap: 12px;
+}
+
+.guake-git-diff-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.guake-git-diff-nav-btn {
+  background: transparent;
+  border: 1px solid $dracula-current;
+  color: $dracula-fg;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.1s, border-color 0.1s;
+
+  &:hover:not(:disabled) {
+    background: rgba($dracula-purple, 0.2);
+    border-color: $dracula-purple;
+  }
+
+  &:disabled {
+    opacity: 0.3;
+    cursor: default;
+  }
+}
+
+.guake-git-diff-nav-counter {
+  font-size: 11px;
+  color: $dracula-comment;
+  font-family: $font-mono;
+  margin-left: 4px;
+  white-space: nowrap;
 }
 
 .guake-git-diff-filename {
@@ -323,6 +366,72 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+}
+
+// Delete confirmation dialog
+.guake-git-delete-confirm {
+  background: $dracula-bg-darker;
+  border: 1px solid $dracula-red;
+  border-radius: 8px;
+  padding: 20px 24px;
+  max-width: 480px;
+  width: 90vw;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  animation: guake-git-slide-up 0.15s ease;
+  text-align: center;
+
+  p {
+    margin: 0 0 8px;
+    color: $dracula-fg;
+    font-size: 14px;
+
+    strong {
+      color: $dracula-red;
+    }
+  }
+
+  .guake-git-delete-path {
+    font-size: 11px;
+    color: $dracula-comment;
+    font-family: $font-mono;
+    word-break: break-all;
+    margin-bottom: 16px;
+  }
+}
+
+.guake-git-delete-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+.guake-git-delete-cancel {
+  background: transparent;
+  border: 1px solid $dracula-current;
+  color: $dracula-fg;
+  padding: 6px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+
+  &:hover {
+    background: rgba($dracula-current, 0.3);
+  }
+}
+
+.guake-git-delete-btn {
+  background: rgba($dracula-red, 0.2);
+  border: 1px solid $dracula-red;
+  color: $dracula-red;
+  padding: 6px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+
+  &:hover {
+    background: rgba($dracula-red, 0.35);
+  }
 }
 
 .guake-git-diff-content {
