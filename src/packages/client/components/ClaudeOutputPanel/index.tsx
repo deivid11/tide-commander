@@ -1136,18 +1136,18 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     historyLoaderHandleScrollRef.current(keyboard.keyboardScrollLockRef);
   }, [outputScrollRef, keyboard.keyboardScrollLockRef]);
 
-  // Auto-scroll on new output (only if user hasn't scrolled up)
+  // Auto-scroll on new output (only if user hasn't scrolled up).
+  // We intentionally do NOT re-check isAtBottom inside the RAF — the virtualizer may
+  // have remeasured items between when this effect fires and the RAF executes, growing
+  // scrollHeight and making the container appear "not at bottom" even though we should
+  // still be tracking the tail.
   const lastOutputLength = outputs.length > 0 ? outputs[outputs.length - 1]?.text?.length || 0 : 0;
   useEffect(() => {
     if (keyboard.keyboardScrollLockRef.current) return;
     if (isUserScrolledUpRef.current) return;
     requestAnimationFrame(() => {
       if (outputScrollRef.current) {
-        const { scrollTop, scrollHeight, clientHeight } = outputScrollRef.current;
-        const isAtBottom = scrollHeight - scrollTop - clientHeight < 150;
-        if (isAtBottom) {
-          outputScrollRef.current.scrollTop = scrollHeight;
-        }
+        outputScrollRef.current.scrollTop = outputScrollRef.current.scrollHeight;
       }
     });
   }, [outputs.length, lastOutputLength, keyboard.keyboardScrollLockRef, outputScrollRef]);

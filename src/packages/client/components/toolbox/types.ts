@@ -46,7 +46,8 @@ export interface AnimationConfig {
 
 export interface SceneConfig {
   characterScale: number;
-  indicatorScale: number;
+  scale2d: number;
+  scale3d: number;
   show2DTaskLabels: boolean;
   gridVisible: boolean;
   timeMode: TimeMode;

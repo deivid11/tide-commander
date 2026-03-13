@@ -24,7 +24,7 @@ export interface RenderLoopCallbacks {
   onHandleMovementCompletions: (completedMovements: string[]) => void;
   onUpdateIdleTimers: () => void;
   onUpdateBossSubordinateLines: () => void;
-  onUpdateIndicatorScales: (camera: THREE.PerspectiveCamera, agentMeshes: Map<string, AgentMeshData>, indicatorScale: number) => void;
+  onUpdateIndicatorScales: (camera: THREE.PerspectiveCamera, agentMeshes: Map<string, AgentMeshData>, scale3d: number) => void;
   onUpdateNotificationBadges?: () => void; // Update visual badges for unseen agents
   onUpdateCameraSmoothing?: (deltaTime: number) => void; // Smooth zoom interpolation
 }
@@ -56,7 +56,7 @@ export class RenderLoop {
   private idleFpsLimit = 10;
 
   // Indicator scaling
-  private indicatorScale = 1.0;
+  private scale3d = 1.0;
   private lastCameraDistanceForScale = 0;
   private lastIndicatorScaleUpdate = 0;
   private static readonly INDICATOR_SCALE_UPDATE_INTERVAL = 100;
@@ -90,8 +90,8 @@ export class RenderLoop {
     console.log(`[Tide] Power saving ${enabled ? 'enabled' : 'disabled'}`);
   }
 
-  setIndicatorScale(scale: number): void {
-    this.indicatorScale = scale;
+  setScale3D(scale: number): void {
+    this.scale3d = scale;
   }
 
   setHasActiveMovements(checker: () => boolean): void {
@@ -263,7 +263,7 @@ export class RenderLoop {
     if (shouldUpdateScales) {
       this.lastCameraDistanceForScale = cameraDistance;
       this.lastIndicatorScaleUpdate = now;
-      this.callbacks.onUpdateIndicatorScales(camera, this.deps.getAgentMeshes(), this.indicatorScale);
+      this.callbacks.onUpdateIndicatorScales(camera, this.deps.getAgentMeshes(), this.scale3d);
     }
 
     // Render (uses post-processing if enabled)

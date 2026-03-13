@@ -59,10 +59,10 @@ export class AgentRenderer extends BaseRenderer {
     return `${name.slice(0, 10)}..`;
   }
 
-  drawAgent(agent: Agent2DData, isSelected: boolean, isMoving: boolean, indicatorScale: number, showTaskLabels: boolean): void {
+  drawAgent(agent: Agent2DData, isSelected: boolean, isMoving: boolean, scale2d: number, showTaskLabels: boolean): void {
     const { x, z } = agent.position;
     const baseRadius = agent.isBoss ? 0.7 : 0.5;
-    const radius = baseRadius;
+    const radius = baseRadius * scale2d;
 
     const zoom = this.camera.getZoom();
     const indicatorZoomFactor = get2DIndicatorZoomFactor(zoom);
@@ -260,9 +260,9 @@ export class AgentRenderer extends BaseRenderer {
     }
 
     // ========== NAME TAG ==========
-    const labelScale = indicatorScale * indicatorZoomFactor;
+    const labelScale = scale2d * indicatorZoomFactor;
     const labelY = screenPos.y + screenRadius + 12 * indicatorZoomFactor;
-    const nameTagScale = indicatorScale * nameplateZoomFactor;
+    const nameTagScale = scale2d * nameplateZoomFactor;
 
     if (showNameplate) {
       const nameLabelFontSize = Math.max(4.5, 13 * nameTagScale);

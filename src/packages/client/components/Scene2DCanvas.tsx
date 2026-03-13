@@ -22,7 +22,7 @@ interface Scene2DCanvasProps {
   onGroundClick?: (worldPos: { x: number; z: number }) => void;
   onMoveCommand?: (agentIds: string[], targetPos: { x: number; z: number }) => void;
   onAreaDoubleClick?: (areaId: string) => void;
-  indicatorScale?: number;
+  scale2d?: number;
   showTaskLabels?: boolean;
   showGrid?: boolean;
   fpsLimit?: number;
@@ -43,7 +43,7 @@ export function Scene2DCanvas({
   onGroundClick,
   onMoveCommand,
   onAreaDoubleClick,
-  indicatorScale = 1.0,
+  scale2d = 1.0,
   showTaskLabels = true,
   showGrid = true,
   fpsLimit = 0,
@@ -57,7 +57,7 @@ export function Scene2DCanvas({
     updateAgent: _updateAgent,
     createMoveOrderEffect: _createMoveOrderEffect,
     showToolBubble: _showToolBubble,
-    setIndicatorScale,
+    setScale2D,
     setTaskLabelsVisible,
     setGridVisible,
     setDrawingTool,
@@ -90,10 +90,10 @@ export function Scene2DCanvas({
     };
   }, [setDrawingTool, scene]);
 
-  // Apply indicator scale
+  // Apply 2D scale
   useEffect(() => {
-    setIndicatorScale(indicatorScale);
-  }, [indicatorScale, setIndicatorScale]);
+    setScale2D(scale2d);
+  }, [scale2d, setScale2D]);
 
   useEffect(() => {
     setTaskLabelsVisible(showTaskLabels);

@@ -336,11 +336,11 @@ export class SceneManager {
     }
   }
 
-  private updateIndicatorScales(camera: THREE.PerspectiveCamera, agentMeshes: Map<string, AgentMeshData>, indicatorScale: number): void {
+  private updateIndicatorScales(camera: THREE.PerspectiveCamera, agentMeshes: Map<string, AgentMeshData>, scale3d: number): void {
     // Scale agent indicators
     for (const [, meshData] of agentMeshes) {
       const distance = camera.position.distanceTo(meshData.group.position);
-      const scale = Math.max(0.5, Math.min(2.5, distance / 15)) * indicatorScale;
+      const scale = Math.max(0.5, Math.min(2.5, distance / 15)) * scale3d;
       const isBoss = meshData.group.userData.isBoss === true;
 
       // New separate sprites (statusBar + nameLabelSprite)
@@ -356,7 +356,7 @@ export class SceneManager {
           : (2560 / 4096);
         const distScale = Math.max(0.5, Math.min(2.5, distance / 15));
         const zoomFactor = Math.max(0.8, Math.min(1.2, distScale));
-        const indicatorZoom = zoomFactor * indicatorScale;
+        const indicatorZoom = zoomFactor * scale3d;
         statusBar.scale.set(baseScale * indicatorZoom, baseScale * aspectRatio * indicatorZoom, 1);
       }
 
@@ -372,10 +372,10 @@ export class SceneManager {
         const aspectRatio = typeof nameLabelSprite.userData.aspectRatio === 'number'
           ? nameLabelSprite.userData.aspectRatio
           : (1024 / 4096);
-        // Separate distance-based zoom from indicatorScale so both apply correctly
+        // Separate distance-based zoom from the user-configured 3D scale so both apply correctly
         const distScale = Math.max(0.5, Math.min(2.5, distance / 15));
         const zoomFactor = hasTaskLabel ? Math.max(0.8, Math.min(1.2, distScale)) : distScale;
-        const labelScale = zoomFactor * indicatorScale;
+        const labelScale = zoomFactor * scale3d;
         nameLabelSprite.scale.set(baseScale * labelScale, baseScale * aspectRatio * labelScale, 1);
       }
 
@@ -410,7 +410,7 @@ export class SceneManager {
     // Scale building labels (same behavior as agent labels)
     for (const [, meshData] of this.buildingManager.getBuildingMeshData()) {
       const distance = camera.position.distanceTo(meshData.group.position);
-      const scale = Math.max(0.5, Math.min(2.5, distance / 15)) * indicatorScale;
+      const scale = Math.max(0.5, Math.min(2.5, distance / 15)) * scale3d;
 
       const buildingLabel = meshData.group.getObjectByName('buildingLabel') as THREE.Sprite;
       if (buildingLabel) {
@@ -560,7 +560,7 @@ export class SceneManager {
   // ============================================
 
   setCharacterScale(scale: number): void { this.agentManager.setCharacterScale(scale); this.selectionManager.setCharacterScale(scale); }
-  setIndicatorScale(scale: number): void { this.renderLoop.setIndicatorScale(scale); this.effectsManager.setIndicatorScale(scale); }
+  setScale3D(scale: number): void { this.renderLoop.setScale3D(scale); this.effectsManager.setScale3D(scale); }
   setFpsLimit(limit: number): void { this.renderLoop.setFpsLimit(limit); }
   setPowerSaving(enabled: boolean): void { this.renderLoop.setPowerSaving(enabled); }
   setGridVisible(visible: boolean): void { this.battlefield.setGridVisible(visible); }

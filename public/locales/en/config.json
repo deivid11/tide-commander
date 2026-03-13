@@ -69,7 +69,8 @@
   },
   "scene": {
     "characterSize": "Character Size",
-    "indicatorScale": "Indicator Scale",
+    "scale2d": "2D Scale",
+    "scale3d": "3D Scale",
     "time": "Time"
   },
   "time": {

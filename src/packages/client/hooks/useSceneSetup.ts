@@ -391,7 +391,7 @@ export function useSceneSetup({
           // Apply saved config
           const savedConfig = loadConfig();
           scene.setCharacterScale(savedConfig.characterScale);
-          scene.setIndicatorScale(savedConfig.indicatorScale);
+          scene.setScale3D(savedConfig.scale3d);
           scene.setGridVisible(savedConfig.gridVisible);
           scene.setTimeMode(savedConfig.timeMode);
           scene.setTerrainConfig(savedConfig.terrain);

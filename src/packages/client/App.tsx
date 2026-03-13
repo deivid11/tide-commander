@@ -372,7 +372,7 @@ function AppContent() {
     setSceneConfig(config);
     saveConfig(config);
     sceneRef.current?.setCharacterScale(config.characterScale);
-    sceneRef.current?.setIndicatorScale(config.indicatorScale);
+    sceneRef.current?.setScale3D(config.scale3d);
     sceneRef.current?.setGridVisible(config.gridVisible);
     sceneRef.current?.setTimeMode(config.timeMode);
     sceneRef.current?.setTerrainConfig(config.terrain);
@@ -774,7 +774,7 @@ function AppContent() {
                 // Persist the final position to store and server
                 store.updateBuildingPosition(buildingId, endPos);
               }}
-              indicatorScale={sceneConfig.indicatorScale}
+              scale2d={sceneConfig.scale2d}
               showTaskLabels={sceneConfig.show2DTaskLabels}
               showGrid={sceneConfig.gridVisible}
               fpsLimit={sceneConfig.fpsLimit}
