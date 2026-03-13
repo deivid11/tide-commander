@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.19.0] - 2026-03-13
+
+### Changed
+- **2D agent renderer** - Refactored layout, improved indicator scaling and positioning
+- **Indicator scale utilities** - Updated scaling calculations for better visual consistency
+- **Swipe navigation** - Enhanced touch swipe handling in the output panel
+- **AgentRenderer tests** - Updated tests to match refactored renderer
+
 ## [1.18.0] - 2026-03-12
 
 ### Added
