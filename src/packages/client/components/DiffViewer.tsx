@@ -327,7 +327,6 @@ export function DiffViewer({ originalContent, modifiedContent, filename, languag
 
   const { leftLines, rightLines, alignments, changeBlocks } = useMemo(
     () => computeDiff(originalContent, modifiedContent, language),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [originalContent, modifiedContent, language, langReady]
   );
 
