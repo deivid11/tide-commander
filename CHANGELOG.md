@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.18.0] - 2026-03-12
+
+### Added
+- **Stable agent sort ordering** - Bucket-based sorting prevents scroll jumping when agent statuses change frequently
+- **Terminal header desktop kebab menu** - Context actions and toggles accessible via dropdown menu on desktop
+- **Area-colored agent icon border** - Terminal header shows area color on the agent icon
+
+### Changed
+- **Agent overview sort logic** - Full re-sort only on agent set changes; preserves order within buckets
+- **Terminal header styles** - Extended styling for desktop menu, area indicators, and responsive layout
+
+### Fixed
+- **ESLint compliance** - Removed invalid eslint-disable comment in AgentOverviewPanel
+
 ## [1.17.0] - 2026-03-12
 
 ### Added
