@@ -186,7 +186,7 @@ describe('Command Handler', () => {
       await handleSendCommand(mockCtx, { agentId: 'boss-1', command: 'deploy app' }, mockBuildBossMessage);
 
       expect(mockBuildBossMessage).toHaveBeenCalledWith('boss-1', 'deploy app');
-      expect(runtimeService.sendCommand).toHaveBeenCalledWith('boss-1', 'boss context message', 'boss system prompt');
+      expect(runtimeService.sendCommand).toHaveBeenCalledWith('boss-1', 'boss context message', 'boss system prompt', undefined, undefined);
     });
 
     it('routes regular agent commands with custom config', async () => {
