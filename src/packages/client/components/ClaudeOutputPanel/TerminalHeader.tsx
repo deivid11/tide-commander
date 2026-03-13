@@ -6,11 +6,11 @@
 
 import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { store, useSupervisor, useSettings, useLastPrompt, useSubagentsForAgent, useCustomAgentClass } from '../../store';
+import { store, useSupervisor, useSettings, useLastPrompt, useSubagentsForAgent, useCustomAgentClass, useAreas } from '../../store';
 import { STORAGE_KEYS, setStorageString } from '../../utils/storage';
 import { agentDebugger } from '../../services/agentDebugger';
 import { Tooltip } from '../shared/Tooltip';
-import { WorkingIndicator } from '../shared/WorkingIndicator';
+
 import type { Agent, AgentAnalysis } from '../../../shared/types';
 import { BUILT_IN_AGENT_CLASSES } from '../../../shared/types';
 import type { ViewMode } from './types';
@@ -170,6 +170,19 @@ export const TerminalHeader = memo(function TerminalHeader({
     || (BUILT_IN_AGENT_CLASSES as Record<string, { icon: string }>)[selectedAgent.class]?.icon
     || '🤖';
 
+  // Find the area this agent belongs to (for colored border)
+  const areas = useAreas();
+  const agentArea = React.useMemo(() => {
+    for (const area of areas.values()) {
+      if (area.assignedAgentIds?.includes(selectedAgentId)) return area;
+    }
+    return null;
+  }, [areas, selectedAgentId]);
+
+  // Desktop kebab menu state (for context actions + less-used toggles)
+  const [desktopMenuOpen, setDesktopMenuOpen] = useState(false);
+  const desktopMenuRef = useRef<HTMLDivElement>(null);
+
   // Mobile overflow menu state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileThemeExpanded, setMobileThemeExpanded] = useState(false);
@@ -182,6 +195,10 @@ export const TerminalHeader = memo(function TerminalHeader({
       : t('terminal:header.advancedView');
   const viewModeIcon = viewMode === 'simple' ? '○' : viewMode === 'chat' ? '◐' : '◉';
 
+  const closeDesktopMenu = useCallback(() => {
+    setDesktopMenuOpen(false);
+  }, []);
+
   const closeMobileMenu = useCallback(() => {
     setMobileMenuOpen(false);
     setMobileThemeExpanded(false);
@@ -192,6 +209,18 @@ export const TerminalHeader = memo(function TerminalHeader({
     applyTheme(theme);
     setCurrentTheme(themeId);
   };
+
+  // Close desktop kebab menu on outside click
+  useEffect(() => {
+    if (!desktopMenuOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (desktopMenuRef.current && !desktopMenuRef.current.contains(e.target as Node)) {
+        closeDesktopMenu();
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [desktopMenuOpen, closeDesktopMenu]);
 
   // Close menu on outside click
   useEffect(() => {
@@ -213,12 +242,10 @@ export const TerminalHeader = memo(function TerminalHeader({
     <div
       className={`guake-header ${sortedAgents.length > 1 ? 'has-multiple-agents' : ''} ${swipeOffset > 0.1 ? 'swiping-right' : ''} ${swipeOffset < -0.1 ? 'swiping-left' : ''}`}
       ref={headerRef}
+      style={agentArea ? { borderBottomColor: `color-mix(in srgb, ${agentArea.color} 50%, var(--border-color))` } as React.CSSProperties : undefined}
     >
       <div className="guake-header-left">
         <div className="guake-header-title-row">
-          {selectedAgent.status === 'working' && (
-            <WorkingIndicator detached={selectedAgent.isDetached} />
-          )}
           {selectedAgent.isDetached && (
             <Tooltip
               content={
@@ -251,8 +278,8 @@ export const TerminalHeader = memo(function TerminalHeader({
               <span className="guake-title-block">
                 <span className="guake-title-main-row">
                   <span className="guake-title">{selectedAgent.name}</span>
-                  {selectedAgent.taskLabel && (
-                    <span className="guake-title-task-chip">{selectedAgent.taskLabel}</span>
+                  {(selectedAgent.taskLabel || lastInput) && (
+                    <span className="guake-title-task-chip">{selectedAgent.taskLabel || lastInput}</span>
                   )}
                 </span>
                 {mobileHeaderContext && (
@@ -266,7 +293,6 @@ export const TerminalHeader = memo(function TerminalHeader({
                   className="guake-provider-icon"
                   title={selectedAgent.provider === 'codex' ? 'Codex Agent' : 'Claude Agent'}
                 />
-                <span className="guake-title-info">Info</span>
               </span>
             </button>
           ) : (
@@ -275,8 +301,8 @@ export const TerminalHeader = memo(function TerminalHeader({
               <span className="guake-title-block">
                 <span className="guake-title-main-row">
                   <span className="guake-title">{selectedAgent.name}</span>
-                  {selectedAgent.taskLabel && (
-                    <span className="guake-title-task-chip">{selectedAgent.taskLabel}</span>
+                  {(selectedAgent.taskLabel || lastInput) && (
+                    <span className="guake-title-task-chip">{selectedAgent.taskLabel || lastInput}</span>
                   )}
                 </span>
                 {mobileHeaderContext && (
@@ -295,20 +321,17 @@ export const TerminalHeader = memo(function TerminalHeader({
           )}
         </div>
         <div className="guake-header-meta">
-          {(lastInput || agentAnalysis || selectedAgent.taskLabel) && (
+          {agentAnalysis && (
             <span
               className="guake-status-line"
-              title={`${selectedAgent.taskLabel ? `📋 ${selectedAgent.taskLabel}\n` : ''}${lastInput || 'No task'}${agentAnalysis ? `\n\n🎖️ ${agentAnalysis.statusDescription}\n${agentAnalysis.recentWorkSummary}` : ''}`}
+              title={`${agentAnalysis.statusDescription}\n${agentAnalysis.recentWorkSummary}`}
             >
-              {agentAnalysis && (
-                <span
-                  className="guake-supervisor-badge"
-                  style={{ color: progressColors[agentAnalysis.progress] || '#888' }}
-                >
-                  {agentAnalysis.progress.replace('_', ' ')}
-                </span>
-              )}
-              {lastInput && <span className="guake-last-input">{lastInput}</span>}
+              <span
+                className="guake-supervisor-badge"
+                style={{ color: progressColors[agentAnalysis.progress] || '#888' }}
+              >
+                {agentAnalysis.progress.replace('_', ' ')}
+              </span>
             </span>
           )}
           {subagents.filter(s => s.status === 'spawning' || s.status === 'working').length > 0 && (
@@ -330,28 +353,8 @@ export const TerminalHeader = memo(function TerminalHeader({
         </div>
       </div>
       <div className="guake-actions">
+        {/* Primary actions - always visible on desktop */}
         <div className="guake-action-cluster guake-action-cluster--compact hide-on-mobile">
-          {!isSnapshotView && onSaveSnapshot && outputsLength > 0 && (
-            <Tooltip
-              content={
-                <>
-                  <div className="tide-tooltip__title">{t('terminal:header.saveSnapshot')}</div>
-                  <div className="tide-tooltip__text">
-                    {t('terminal:header.saveSnapshotDesc')}
-                  </div>
-                </>
-              }
-              position="bottom"
-            >
-              <button
-                className="guake-icon-action guake-snapshot-btn"
-                onClick={onSaveSnapshot}
-                title={t('terminal:header.saveSnapshot')}
-              >
-                <span className="guake-action-icon">⭐</span>
-              </button>
-            </Tooltip>
-          )}
           {!isSnapshotView && (
             <>
               <button
@@ -390,24 +393,6 @@ export const TerminalHeader = memo(function TerminalHeader({
               <span className="guake-action-icon">🌿</span>
             </button>
           )}
-          {!isSnapshotView && setBuildingsPanelOpen && (
-            <button
-              className={`guake-icon-action guake-buildings-toggle ${buildingsPanelOpen ? 'active' : ''}`}
-              onClick={() => setBuildingsPanelOpen(!buildingsPanelOpen)}
-              title={buildingsPanelOpen ? 'Hide Area Buildings' : 'Show Area Buildings'}
-            >
-              <span className="guake-action-icon">🏗️</span>
-            </button>
-          )}
-          {!isSnapshotView && (
-            <button
-              className={`guake-icon-action guake-debug-toggle ${debugPanelOpen ? 'active' : ''}`}
-              onClick={handleDebugToggle}
-              title={debugPanelOpen ? t('terminal:header.hideDebug') : t('terminal:header.showDebug')}
-            >
-              <span className="guake-action-icon">🐛</span>
-            </button>
-          )}
           <button
             className={`guake-icon-action guake-fullscreen-toggle ${isFullscreen ? 'active' : ''}`}
             onClick={onToggleFullscreen}
@@ -423,65 +408,84 @@ export const TerminalHeader = memo(function TerminalHeader({
             <span className="guake-action-icon">🔍</span>
           </button>
         </div>
-        <button
-          className={`guake-view-toggle hide-on-mobile ${viewMode !== 'simple' ? 'active' : ''} view-mode-${viewMode}`}
-          onClick={handleViewModeToggle}
-          title={
-            viewMode === 'simple'
-              ? t('terminal:header.simpleViewDesc')
-              : viewMode === 'chat'
-                ? t('terminal:header.chatViewDesc')
-                : t('terminal:header.advancedViewDesc')
-          }
-        >
-          <span className="guake-view-toggle__icon">{viewModeIcon}</span>
-          <span className="guake-view-toggle__label">{viewModeLabel}</span>
-        </button>
+        {/* Desktop kebab menu - view toggle + context actions + less-used toggles */}
         {!isSnapshotView && (
-          <div className="guake-action-cluster guake-action-cluster--context hide-on-mobile">
-            <Tooltip content={t('terminal:header.collapseContext')} position="bottom">
-              <button
-                className="guake-icon-action guake-context-btn"
-                onClick={() => setContextConfirm('collapse')}
-                title={t('terminal:header.collapseContextDesc')}
-                aria-label={t('terminal:header.collapseContext')}
-                disabled={selectedAgent.status !== 'idle'}
-              >
-                <span className="guake-action-icon">📦</span>
-              </button>
-            </Tooltip>
-            <Tooltip content={t('terminal:header.clearContext')} position="bottom">
-              <button
-                className="guake-icon-action guake-context-btn danger"
-                onClick={() => setContextConfirm('clear')}
-                title={t('terminal:header.clearContextDesc')}
-                aria-label={t('terminal:header.clearContext')}
-              >
-                <span className="guake-action-icon">🧹</span>
-              </button>
-            </Tooltip>
-            <Tooltip content={t('terminal:header.removeAgent')} position="bottom">
-              <button
-                className="guake-icon-action guake-remove-agent-btn"
-                onClick={handleRemoveAgent}
-                title={t('terminal:header.removeAgentDesc')}
-                aria-label={t('terminal:header.removeAgent')}
-              >
-                <span className="guake-action-icon">❌</span>
-              </button>
-            </Tooltip>
-            {/* Boss-only: Clear all subordinates' context */}
-            {hasSubordinates && (
-              <Tooltip content={t('terminal:header.clearAllSubordinates')} position="bottom">
+          <div className="guake-desktop-more hide-on-mobile" ref={desktopMenuRef}>
+            <button
+              className={`guake-desktop-more-btn ${desktopMenuOpen ? 'active' : ''}`}
+              onClick={() => setDesktopMenuOpen(!desktopMenuOpen)}
+              title={t('terminal:header.moreActions', 'More actions')}
+            >
+              ⋮
+            </button>
+            {desktopMenuOpen && (
+              <div className="guake-desktop-menu">
                 <button
-                  className="guake-icon-action guake-context-btn danger"
-                  onClick={() => setContextConfirm('clear-subordinates')}
-                  title={t('terminal:header.clearAllSubordinatesDesc')}
-                  aria-label={t('terminal:header.clearAllSubordinates')}
+                  className="guake-desktop-menu-item"
+                  onClick={() => { handleViewModeToggle(); closeDesktopMenu(); }}
                 >
-                  <span className="guake-action-icon">👑</span>
+                  <span className="guake-desktop-menu-icon">{viewModeIcon}</span>
+                  View: {viewModeLabel}
                 </button>
-              </Tooltip>
+                {onSaveSnapshot && outputsLength > 0 && (
+                  <button
+                    className="guake-desktop-menu-item"
+                    onClick={() => { onSaveSnapshot(); closeDesktopMenu(); }}
+                  >
+                    <span className="guake-desktop-menu-icon">⭐</span>
+                    {t('terminal:header.saveSnapshot')}
+                  </button>
+                )}
+                {setBuildingsPanelOpen && (
+                  <button
+                    className={`guake-desktop-menu-item ${buildingsPanelOpen ? 'active' : ''}`}
+                    onClick={() => { setBuildingsPanelOpen(!buildingsPanelOpen); closeDesktopMenu(); }}
+                  >
+                    <span className="guake-desktop-menu-icon">🏗️</span>
+                    {buildingsPanelOpen ? 'Hide Buildings' : 'Show Buildings'}
+                  </button>
+                )}
+                <button
+                  className={`guake-desktop-menu-item ${debugPanelOpen ? 'active' : ''}`}
+                  onClick={() => { handleDebugToggle(); closeDesktopMenu(); }}
+                >
+                  <span className="guake-desktop-menu-icon">🐛</span>
+                  {debugPanelOpen ? t('terminal:header.hideDebug') : t('terminal:header.showDebug')}
+                </button>
+                <div className="guake-desktop-menu-divider" />
+                <button
+                  className="guake-desktop-menu-item"
+                  onClick={() => { setContextConfirm('collapse'); closeDesktopMenu(); }}
+                  disabled={selectedAgent.status !== 'idle'}
+                >
+                  <span className="guake-desktop-menu-icon">📦</span>
+                  {t('terminal:header.collapseContext')}
+                </button>
+                <button
+                  className="guake-desktop-menu-item danger"
+                  onClick={() => { setContextConfirm('clear'); closeDesktopMenu(); }}
+                >
+                  <span className="guake-desktop-menu-icon">🧹</span>
+                  {t('terminal:header.clearContext')}
+                </button>
+                {hasSubordinates && (
+                  <button
+                    className="guake-desktop-menu-item danger"
+                    onClick={() => { setContextConfirm('clear-subordinates'); closeDesktopMenu(); }}
+                  >
+                    <span className="guake-desktop-menu-icon">👑</span>
+                    {t('terminal:header.clearAllSubordinates')}
+                  </button>
+                )}
+                <div className="guake-desktop-menu-divider" />
+                <button
+                  className="guake-desktop-menu-item danger"
+                  onClick={() => { handleRemoveAgent(); closeDesktopMenu(); }}
+                >
+                  <span className="guake-desktop-menu-icon">❌</span>
+                  {t('terminal:header.removeAgent')}
+                </button>
+              </div>
             )}
           </div>
         )}

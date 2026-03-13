@@ -194,6 +194,8 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
   const internalAgentListRef = useRef<HTMLDivElement>(null);
   const agentListRef = externalAgentListRef || internalAgentListRef;
   const hasCenteredActiveRef = useRef(false);
+  /** Tracks the last stable sort order (agent IDs) per sort key, to avoid re-sorting on every tick. */
+  const prevSortOrderRef = useRef<Map<string, string[]>>(new Map());
 
   // Two-finger state comes from the parent (detected on terminal, applied here)
   const twoFingerSelector = twoFingerState || { isActive: false, hoveredAgentId: null };
@@ -399,53 +401,105 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     return [result, contexts] as const;
   }, [agents, filterMode, searchQuery, sameAreaOnly, agentToAreaId, activeAgentId, fileChanges]);
 
-  // Sort agents within groups
-  const sortAgents = useCallback((list: Agent[]) => {
-    return [...list].sort((a, b) => {
-      // Boss agents always first within each group, regardless of sort mode
-      const aIsBoss = !!(a.isBoss || a.class === 'boss');
-      const bIsBoss = !!(b.isBoss || b.class === 'boss');
-      if (aIsBoss !== bIsBoss) return aIsBoss ? -1 : 1;
+  // Sort agents within groups — uses stable ordering to prevent scroll-jumping.
+  // A full re-sort only happens when the agent set changes (add/remove) or when
+  // sort-critical properties change (status bucket, boss flag). Within the same
+  // bucket, previously-established order is preserved to avoid DOM churn.
+  const sortAgents = useCallback((list: Agent[], groupKey: string = '__default__') => {
+    const currentIds = new Set(list.map(a => a.id));
+    const prevOrder = prevSortOrderRef.current.get(groupKey);
 
-      if (sortMode === 'name') return a.name.localeCompare(b.name);
+    // Determine if we need a full re-sort: new/removed agents, or first render for this group
+    const needsFullSort = !prevOrder
+      || prevOrder.length !== list.length
+      || prevOrder.some(id => !currentIds.has(id));
+
+    // Build a sort-bucket key for each agent to detect bucket changes
+    const getBucketKey = (agent: Agent): string => {
+      const isBoss = !!(agent.isBoss || agent.class === 'boss');
+      if (sortMode === 'name') return `${isBoss ? '0' : '1'}`;
       if (sortMode === 'status') {
-        // 1. Working/waiting agents always first
         const statusOrder = ['working', 'waiting_input', 'waiting_permission', 'error', 'idle', 'stopped'];
-        const statusCmp = statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status);
-        if (statusCmp !== 0) return statusCmp;
+        const statusIdx = statusOrder.indexOf(agent.status);
+        const unread = agentsWithUnseenOutput.has(agent.id) ? '0' : '1';
+        return `${isBoss ? '0' : '1'}-${statusIdx}-${unread}`;
+      }
+      // 'recent' mode
+      return `${isBoss ? '0' : '1'}`;
+    };
 
-        // 2. Within same status: unread notifications first
-        const aUnread = agentsWithUnseenOutput.has(a.id);
-        const bUnread = agentsWithUnseenOutput.has(b.id);
-        if (aUnread !== bUnread) return aUnread ? -1 : 1;
-
-        // 3. Within working: sort by name for stable ordering
-        if (a.status === 'working' && b.status === 'working') {
-          return a.name.localeCompare(b.name);
+    // Check if any agent changed sort bucket since last order
+    let bucketChanged = false;
+    if (prevOrder && !needsFullSort) {
+      const prevBuckets = prevSortOrderRef.current.get(groupKey + '__buckets');
+      if (prevBuckets) {
+        for (const agent of list) {
+          const idx = prevOrder.indexOf(agent.id);
+          if (idx >= 0 && prevBuckets[idx] !== getBucketKey(agent)) {
+            bucketChanged = true;
+            break;
+          }
         }
+      } else {
+        bucketChanged = true;
+      }
+    }
 
-        // 4. Within idle: taskLabel first, then most recently active
-        if (a.status === 'idle' && b.status === 'idle') {
-          const aHasTask = !!a.taskLabel;
-          const bHasTask = !!b.taskLabel;
-          if (aHasTask !== bHasTask) return aHasTask ? -1 : 1;
+    let sorted: Agent[];
+    if (needsFullSort || bucketChanged) {
+      // Full sort
+      sorted = [...list].sort((a, b) => {
+        const aIsBoss = !!(a.isBoss || a.class === 'boss');
+        const bIsBoss = !!(b.isBoss || b.class === 'boss');
+        if (aIsBoss !== bIsBoss) return aIsBoss ? -1 : 1;
+
+        if (sortMode === 'name') return a.name.localeCompare(b.name);
+        if (sortMode === 'status') {
+          const statusOrder = ['working', 'waiting_input', 'waiting_permission', 'error', 'idle', 'stopped'];
+          const statusCmp = statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status);
+          if (statusCmp !== 0) return statusCmp;
+
+          const aUnread = agentsWithUnseenOutput.has(a.id);
+          const bUnread = agentsWithUnseenOutput.has(b.id);
+          if (aUnread !== bUnread) return aUnread ? -1 : 1;
+
+          if (a.status === 'working' && b.status === 'working') {
+            return a.name.localeCompare(b.name);
+          }
+
+          if (a.status === 'idle' && b.status === 'idle') {
+            const aHasTask = !!a.taskLabel;
+            const bHasTask = !!b.taskLabel;
+            if (aHasTask !== bHasTask) return aHasTask ? -1 : 1;
+            return (b.lastActivity || 0) - (a.lastActivity || 0);
+          }
+
           return (b.lastActivity || 0) - (a.lastActivity || 0);
         }
+        const aTime = (toolsByAgent.get(a.id) || [])[0]?.timestamp || 0;
+        const bTime = (toolsByAgent.get(b.id) || [])[0]?.timestamp || 0;
+        return bTime - aTime;
+      });
+    } else {
+      // Stable: reuse previous order
+      const agentMap = new Map(list.map(a => [a.id, a]));
+      sorted = prevOrder!.map(id => agentMap.get(id)!).filter(Boolean);
+    }
 
-        // 5. Most recently active first
-        return (b.lastActivity || 0) - (a.lastActivity || 0);
-      }
-      const aTime = (toolsByAgent.get(a.id) || [])[0]?.timestamp || 0;
-      const bTime = (toolsByAgent.get(b.id) || [])[0]?.timestamp || 0;
-      return bTime - aTime;
-    });
+    // Cache the order and bucket keys for next comparison
+    const sortedIds = sorted.map(a => a.id);
+    const sortedBuckets = sorted.map(a => getBucketKey(a));
+    prevSortOrderRef.current.set(groupKey, sortedIds);
+    prevSortOrderRef.current.set(groupKey + '__buckets', sortedBuckets);
+
+    return sorted;
   }, [sortMode, toolsByAgent, agentsWithUnseenOutput]);
 
   // Build area groups (or flat list), applying the area visibility filter
   const areaGroups = useMemo(() => {
     if (!groupByArea) {
       // Flat list: single group with no area
-      return [{ area: null, agents: sortAgents(filteredAgents) }] as AreaGroup[];
+      return [{ area: null, agents: sortAgents(filteredAgents, '__flat__') }] as AreaGroup[];
     }
 
     const agentsByAreaId = new Map<string, Agent[]>();
@@ -469,13 +523,13 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
       if (visibleAreaIds && !visibleAreaIds.has(areaId)) continue;
       const areaAgents = agentsByAreaId.get(areaId) || [];
       if (areaAgents.length > 0) {
-        groups.push({ area, agents: sortAgents(areaAgents) });
+        groups.push({ area, agents: sortAgents(areaAgents, `area_${areaId}`) });
       }
     }
 
     // Unassigned agents: show when no filter or when filter explicitly allows __unassigned__
     if (unassignedAgents.length > 0 && (!visibleAreaIds || visibleAreaIds.has('__unassigned__'))) {
-      groups.push({ area: null, agents: sortAgents(unassignedAgents) });
+      groups.push({ area: null, agents: sortAgents(unassignedAgents, '__unassigned__') });
     }
 
     return groups;
@@ -634,28 +688,35 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     ];
   }, [agentContextMenu, agents, expandedAgents, t]);
 
-  // Keep the active agent card centered in the overview scroll container when selection changes.
+  // Keep the active agent card centered in the overview scroll container when the
+  // selected agent changes.  We intentionally depend only on activeAgentId (not on
+  // areaGroups) so that routine data updates don't hijack the user's scroll position.
   useEffect(() => {
     const container = agentListRef.current;
     if (!container) return;
 
-    const activeCard = container.querySelector<HTMLElement>('.aop-agent-card.active');
-    if (!activeCard) return;
+    // Small delay so React can flush the DOM update before we measure.
+    const raf = requestAnimationFrame(() => {
+      const activeCard = container.querySelector<HTMLElement>('.aop-agent-card.active');
+      if (!activeCard) return;
 
-    const containerRect = container.getBoundingClientRect();
-    const activeRect = activeCard.getBoundingClientRect();
-    const offsetWithinContainer = activeRect.top - containerRect.top;
-    const targetTop = container.scrollTop + offsetWithinContainer - ((containerRect.height - activeRect.height) / 2);
-    const clampedTargetTop = Math.max(0, targetTop);
-    const delta = Math.abs(container.scrollTop - clampedTargetTop);
-    if (delta < 2) return;
+      const containerRect = container.getBoundingClientRect();
+      const activeRect = activeCard.getBoundingClientRect();
+      const offsetWithinContainer = activeRect.top - containerRect.top;
+      const targetTop = container.scrollTop + offsetWithinContainer - ((containerRect.height - activeRect.height) / 2);
+      const clampedTargetTop = Math.max(0, targetTop);
+      const delta = Math.abs(container.scrollTop - clampedTargetTop);
+      if (delta < 2) return;
 
-    container.scrollTo({
-      top: clampedTargetTop,
-      behavior: hasCenteredActiveRef.current ? 'smooth' : 'auto',
+      container.scrollTo({
+        top: clampedTargetTop,
+        behavior: hasCenteredActiveRef.current ? 'smooth' : 'auto',
+      });
+      hasCenteredActiveRef.current = true;
     });
-    hasCenteredActiveRef.current = true;
-  }, [activeAgentId, areaGroups]);
+
+    return () => cancelAnimationFrame(raf);
+  }, [activeAgentId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className={`agent-overview-panel${isMobileViewport && mobileFiltersCollapsed ? ' mobile-filters-collapsed' : ''}`}>
