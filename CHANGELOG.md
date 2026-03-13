@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.17.0] - 2026-03-12
+
+### Added
+- **Boss instructions builtin skill** - Extracted boss agent instructions from boss-message-service into a dedicated builtin skill for cleaner separation
+- **File read endpoint** - New server route for reading file contents
+- **DiffViewer lazy language loading** - Ensure syntax highlighting languages are loaded before rendering diffs
+- **New/deleted file detection** - DiffViewer now detects and handles added and deleted files
+
+### Changed
+- **Boss message service** - Simplified to only contain dynamic context; static instructions moved to builtin skill
+- **Runtime listeners** - Refactored boss delegation and event handling
+- **Command/boss handlers** - Boss agents now receive custom agent config with skills
+- **Overview panel styles** - Extended styling for agent overview panel
+- **Storage utils** - Additional storage helper
+
+### Fixed
+- **ESLint compliance** - Removed invalid eslint-disable comment for non-existent rule
+- **Boss command test** - Updated test to match new sendCommand signature
+
 ## [1.16.0] - 2026-03-12
 
 ### Added
