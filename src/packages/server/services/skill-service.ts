@@ -305,7 +305,7 @@ export function unassignSkillFromAgent(skillId: string, agentId: string): Skill 
  * Get all skills assigned to a specific agent
  * Includes skills assigned directly AND skills assigned to the agent's class
  */
-export function getSkillsForAgent(agentId: string, agentClass: AgentClass): Skill[] {
+export function getSkillsForAgent(agentId: string, agentClass: AgentClass, isBoss?: boolean): Skill[] {
   return Array.from(skills.values()).filter(skill => {
     if (!skill.enabled) return false;
 
@@ -314,6 +314,9 @@ export function getSkillsForAgent(agentId: string, agentClass: AgentClass): Skil
 
     // Check class assignment (supports '*' wildcard for all classes)
     if (skill.assignedAgentClasses.includes('*') || skill.assignedAgentClasses.includes(agentClass)) return true;
+
+    // Auto-include boss-instructions for boss agents regardless of their class
+    if (isBoss && skill.id === 'builtin-boss-instructions') return true;
 
     return false;
   });
@@ -347,8 +350,8 @@ function injectAuthIntoSkillContent(content: string): string {
  * Build the skill instruction content for an agent's system prompt
  * Returns markdown text that should be appended to the system prompt
  */
-export function buildSkillPromptContent(agentId: string, agentClass: AgentClass): string {
-  const agentSkills = getSkillsForAgent(agentId, agentClass);
+export function buildSkillPromptContent(agentId: string, agentClass: AgentClass, isBoss?: boolean): string {
+  const agentSkills = getSkillsForAgent(agentId, agentClass, isBoss);
 
   if (agentSkills.length === 0) {
     return '';
@@ -381,8 +384,8 @@ ${sections.join('\n\n---\n\n')}
  * Get the allowed tools for all skills assigned to an agent
  * Returns a deduplicated list of tool permissions
  */
-export function getAllowedToolsForAgent(agentId: string, agentClass: AgentClass): string[] {
-  const agentSkills = getSkillsForAgent(agentId, agentClass);
+export function getAllowedToolsForAgent(agentId: string, agentClass: AgentClass, isBoss?: boolean): string[] {
+  const agentSkills = getSkillsForAgent(agentId, agentClass, isBoss);
   const tools = new Set<string>();
 
   for (const skill of agentSkills) {

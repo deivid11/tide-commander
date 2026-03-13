@@ -3,10 +3,11 @@
  * Handles boss agent operations including spawning, subordinate management, and delegation
  */
 
-import { agentService, runtimeService, bossService } from '../../services/index.js';
+import { agentService, runtimeService, bossService, skillService, customClassService } from '../../services/index.js';
 import { createLogger } from '../../utils/index.js';
 import type { HandlerContext } from './types.js';
 import { buildCustomAgentConfig } from './command-handler.js';
+import { getBuiltinSkillId } from '../../data/builtin-skills/index.js';
 import type { AgentProvider, CodexConfig } from '../../../shared/types.js';
 
 const log = createLogger('BossHandler');
@@ -41,7 +42,7 @@ export async function handleSpawnBossAgent(
       undefined, // sessionId - bosses start fresh
       payload.useChrome,
       payload.permissionMode as any,
-      payload.initialSkillIds,
+      undefined, // initialSkillIds handled separately below
       true, // isBoss flag
       payload.model as any,
       payload.codexModel as any,
@@ -49,6 +50,20 @@ export async function handleSpawnBossAgent(
       payload.provider,
       payload.codexConfig
     );
+
+    // Assign initial skills if provided (same pattern as agent-handler)
+    // Always include boss-instructions skill regardless of agent class
+    const bossSkillId = getBuiltinSkillId('boss-instructions');
+    const initialSkillIds = payload.initialSkillIds || [];
+    const classDefaultSkills = customClassService.getClassDefaultSkillIds(agent.class);
+    const allSkillIds = [...new Set([bossSkillId, ...initialSkillIds, ...classDefaultSkills])];
+
+    if (allSkillIds.length > 0) {
+      log.log(`Assigning ${allSkillIds.length} skills to boss ${agent.name}`);
+      for (const skillId of allSkillIds) {
+        skillService.assignSkillToAgent(skillId, agent.id);
+      }
+    }
 
     // Assign initial subordinates if provided
     if (payload.subordinateIds && payload.subordinateIds.length > 0) {

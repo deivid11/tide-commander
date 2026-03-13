@@ -20,6 +20,7 @@ import { createBuilding } from './create-building.js';
 import { releasePipeline } from './release-pipeline.js';
 import { taskLabel } from './task-label.js';
 import { reportTaskToBoss } from './report-task-to-boss.js';
+import { bossInstructions } from './boss-instructions.js';
 
 // Re-export types
 export type { BuiltinSkillDefinition } from './types.js';
@@ -39,6 +40,7 @@ export const BUILTIN_SKILLS: BuiltinSkillDefinition[] = [
   releasePipeline,
   taskLabel,
   reportTaskToBoss,
+  bossInstructions,
 ];
 
 /**

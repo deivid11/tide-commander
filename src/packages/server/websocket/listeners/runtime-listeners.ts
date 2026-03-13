@@ -41,8 +41,22 @@ function sanitizeParsedContextStats(stats: ContextStats): ContextStats {
 
 export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
   const pendingBashCommands = new Map<string, string>();
+  // Accumulate all text emitted during a boss agent's turn so we can parse
+  // delegation/spawn blocks even when the boss calls a tool after outputting them
+  // (resultText in step_complete only contains the final text, not earlier text blocks).
+  const bossAccumulatedText = new Map<string, string>();
 
   runtimeService.on('event', (agentId, event) => {
+    // Accumulate text for boss agents to ensure delegation blocks are captured
+    // even when the boss calls tools after outputting the delegation
+    if (event.type === 'text' && event.text && !event.parentToolUseId) {
+      const agent = agentService.getAgent(agentId);
+      if (agent?.isBoss || agent?.class === 'boss') {
+        const prev = bossAccumulatedText.get(agentId) || '';
+        bossAccumulatedText.set(agentId, prev + event.text);
+      }
+    }
+
     if (event.type === 'init') {
       ctx.sendActivity(agentId, `Session initialized (${event.model})`);
     } else if (event.type === 'tool_start') {
@@ -187,11 +201,18 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
       }
     }
 
-    if (event.type === 'step_complete' && event.resultText) {
+    if (event.type === 'step_complete') {
       const agent = agentService.getAgent(agentId);
       if (agent?.isBoss || agent?.class === 'boss') {
-        parseBossDelegation(agentId, agent.name, event.resultText, ctx.broadcast);
-        parseBossSpawn(agentId, agent.name, event.resultText, ctx.broadcast, ctx.sendActivity);
+        // Use accumulated text from the full turn (covers delegation blocks emitted
+        // before tool calls), falling back to resultText for simpler responses.
+        const accumulated = bossAccumulatedText.get(agentId);
+        const textForParsing = accumulated || event.resultText;
+        bossAccumulatedText.delete(agentId);
+        if (textForParsing) {
+          parseBossDelegation(agentId, agent.name, textForParsing, ctx.broadcast);
+          parseBossSpawn(agentId, agent.name, textForParsing, ctx.broadcast, ctx.sendActivity);
+        }
       }
     }
 

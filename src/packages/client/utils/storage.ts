@@ -314,6 +314,7 @@ export async function authFetch(input: RequestInfo | URL, init?: RequestInit): P
   return fetch(input, {
     ...init,
     headers,
+    cache: 'no-store',
   });
 }
 

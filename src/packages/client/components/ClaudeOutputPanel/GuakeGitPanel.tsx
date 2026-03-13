@@ -204,7 +204,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
     position: { x: number; y: number };
     actions: ContextMenuAction[];
   } | null>(null);
-  const [pendingDelete, setPendingDelete] = useState<{ path: string; name: string } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ path: string; name: string; status: GitFileStatusType; repoDir: string } | null>(null);
   const hasAutoExpanded = React.useRef(false);
   const prevAgentIdRef = React.useRef(agentId);
 
@@ -541,16 +541,28 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
   const closeContextMenu = useCallback(() => setContextMenu(null), []);
 
   // Delete file with confirmation dialog
-  const executeDelete = useCallback(async (filePath: string) => {
+  const executeDelete = useCallback(async (pending: { path: string; name: string; status: GitFileStatusType; repoDir: string }) => {
     try {
       const res = await authFetch(apiUrl('/api/files/delete'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: filePath }),
+        body: JSON.stringify({ path: pending.path }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({ error: 'Unknown error' }));
         console.error('Delete failed:', data.error);
+      } else if (pending.status === 'added') {
+        // File was staged in git index — unstage it so it doesn't linger as AD
+        try {
+          await authFetch(apiUrl('/api/files/git-discard'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              files: [{ path: pending.path, status: 'added' }],
+              directory: pending.repoDir,
+            }),
+          });
+        } catch { /* best effort */ }
       }
       refresh();
       if (panelMode === 'explorer') fileTree.loadTree();
@@ -624,7 +636,10 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
             await authFetch(apiUrl('/api/files/git-discard'), {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ path: fullPath }),
+              body: JSON.stringify({
+                files: [{ path: fullPath, status: file.status }],
+                directory: repoDir,
+              }),
             });
             refresh();
           } catch { /* skip */ }
@@ -642,7 +657,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
         label: 'Delete File',
         icon: '🗑️',
         danger: true,
-        onClick: () => setPendingDelete({ path: fullPath, name: file.name }),
+        onClick: () => setPendingDelete({ path: fullPath, name: file.name, status: file.status, repoDir }),
       });
     }
 
@@ -710,7 +725,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
         label: 'Delete File',
         icon: '🗑️',
         danger: true,
-        onClick: () => setPendingDelete({ path: node.path, name: node.name }),
+        onClick: () => setPendingDelete({ path: node.path, name: node.name, status: (node.gitStatus as GitFileStatusType) || 'untracked', repoDir: explorerFolder || '' }),
       });
     }
 
@@ -765,7 +780,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
           <p className="guake-git-delete-path">{pendingDelete.path}</p>
           <div className="guake-git-delete-actions">
             <button className="guake-git-delete-cancel" onClick={() => setPendingDelete(null)}>Cancel</button>
-            <button className="guake-git-delete-btn" onClick={() => executeDelete(pendingDelete.path)}>Delete</button>
+            <button className="guake-git-delete-btn" onClick={() => executeDelete(pendingDelete)}>Delete</button>
           </div>
         </div>
       </div>

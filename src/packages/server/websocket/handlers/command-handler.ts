@@ -66,7 +66,7 @@ export function buildCustomAgentConfig(agentId: string, agentClass: string): { n
 
   const agent = agentService.getAgent(agentId);
   const classInstructions = customClassService.getClassInstructions(agentClass);
-  const skillsContent = skillService.buildSkillPromptContent(agentId, agentClass);
+  const skillsContent = skillService.buildSkillPromptContent(agentId, agentClass, agent?.isBoss);
   const customInstructions = agent?.customInstructions;
 
   // Always include agent identity header so agents know their ID
@@ -179,7 +179,10 @@ async function handleBossCommand(
   try {
     // Boss agents get context injected in the user message with delimiters
     const { message: bossMessage, systemPrompt } = await buildBossMessage(agentId, command);
-    runtimeService.sendCommand(agentId, bossMessage, systemPrompt);
+    // Also build customAgentConfig so boss gets its assigned skills (e.g. boss-instructions)
+    const agent = agentService.getAgent(agentId);
+    const customAgentConfig = agent ? buildCustomAgentConfig(agentId, agent.class) : undefined;
+    runtimeService.sendCommand(agentId, bossMessage, systemPrompt, undefined, customAgentConfig);
   } catch (err: any) {
     log.error(` Boss ${agentName}: failed to build boss message:`, err);
     // Fallback to sending raw command

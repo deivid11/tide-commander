@@ -41,6 +41,14 @@ interface TreeNode {
 
 const router = Router();
 
+// Prevent browser from caching git-related GET responses (status, diff, branch, etc.)
+// Without this, browsers may serve stale cached data — e.g. deleted files still appearing.
+router.use('/git-*path', (_req: Request, res: Response, next: import('express').NextFunction) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  next();
+});
+
 // GET /api/files/read - Read file contents
 router.get('/read', async (req: Request, res: Response) => {
   try {
@@ -890,6 +898,7 @@ router.get('/git-status', async (req: Request, res: Response) => {
     }
 
     const files: GitFileStatus[] = [];
+    const orphanedIndexFiles: string[] = []; // AD files: staged add but deleted from disk
     const lines = statusOutput.replace(/\n$/, '').split('\n').filter(Boolean);
 
     for (const line of lines) {
@@ -921,6 +930,11 @@ router.get('/git-status', async (req: Request, res: Response) => {
 
         if (conflictCodes.includes(xyCode)) {
           status = 'conflict';
+        } else if (xyCode === 'AD') {
+          // File was staged (git add) but then deleted from disk.
+          // Auto-unstage the orphaned index entry and skip it.
+          orphanedIndexFiles.push(filePart);
+          continue;
         } else if (indexStatus === '?' || workTreeStatus === '?') {
           status = 'untracked';
         } else if (indexStatus === 'A' || workTreeStatus === 'A') {
@@ -942,6 +956,20 @@ router.get('/git-status', async (req: Request, res: Response) => {
       });
     }
 
+    // Auto-unstage orphaned AD files (staged add but file deleted from disk)
+    if (orphanedIndexFiles.length > 0) {
+      try {
+        const quotedPaths = orphanedIndexFiles.map(p => `"${p}"`).join(' ');
+        execSync(`git rm --cached --ignore-unmatch ${quotedPaths}`, {
+          cwd: gitRoot,
+          encoding: 'utf-8',
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+      } catch {
+        // Best effort — if unstaging fails, files are simply excluded from results
+      }
+    }
+
     // Sort by status priority: modified > added > deleted > untracked
     const statusOrder: Record<string, number> = { conflict: 0, modified: 1, added: 2, deleted: 3, renamed: 4, untracked: 5 };
     files.sort((a, b) => {
@@ -961,6 +989,7 @@ router.get('/git-status', async (req: Request, res: Response) => {
       // Ignore
     }
 
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     res.json({
       isGitRepo: true,
       branch,

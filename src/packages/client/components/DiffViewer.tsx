@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useMemo, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { highlightCode } from './FileExplorerPanel/syntaxHighlighting';
+import { highlightCode, ensureLanguageLoaded } from './FileExplorerPanel/syntaxHighlighting';
 
 interface DiffViewerProps {
   originalContent: string;
@@ -262,6 +262,18 @@ export function DiffViewer({ originalContent, modifiedContent, filename, languag
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [copyHtmlStatus, setCopyHtmlStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [viewOnlyModified, setViewOnlyModified] = useState(initialModifiedOnly);
+  const [langReady, setLangReady] = useState(0);
+
+  // Ensure lazy-loaded languages (e.g. PHP) are available before highlighting
+  useEffect(() => {
+    if (language && language !== 'plaintext') {
+      ensureLanguageLoaded(language).then(() => setLangReady(v => v + 1));
+    }
+  }, [language]);
+
+  // Detect new (added) or deleted files
+  const isNewFile = !originalContent;
+  const isDeletedFile = !modifiedContent;
 
   // Check if file is markdown
   const isMarkdown = useMemo(() => {
@@ -315,7 +327,8 @@ export function DiffViewer({ originalContent, modifiedContent, filename, languag
 
   const { leftLines, rightLines, alignments, changeBlocks } = useMemo(
     () => computeDiff(originalContent, modifiedContent, language),
-    [originalContent, modifiedContent, language]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [originalContent, modifiedContent, language, langReady]
   );
 
   // Paint connector gutter canvas - called outside React render cycle for performance
@@ -406,7 +419,7 @@ export function DiffViewer({ originalContent, modifiedContent, filename, languag
 
   // Wire up canvas painting on scroll and resize
   useEffect(() => {
-    if (viewOnlyModified) return;
+    if (viewOnlyModified || isNewFile || isDeletedFile) return;
 
     const canvas = canvasRef.current;
     const left = leftRef.current;
@@ -430,7 +443,7 @@ export function DiffViewer({ originalContent, modifiedContent, filename, languag
         cancelAnimationFrame(connectorRafRef.current);
       }
     };
-  }, [viewOnlyModified, paintConnector]);
+  }, [viewOnlyModified, isNewFile, isDeletedFile, paintConnector]);
 
   // Compute boundary line indices for horizontal hunk markers
   const { leftBoundaries, rightBoundaries } = useMemo(() => {
@@ -653,13 +666,15 @@ export function DiffViewer({ originalContent, modifiedContent, filename, languag
           {stats.removed > 0 && <span className="diff-stat removed">-{stats.removed}</span>}
         </div>
         <div className="diff-viewer-actions">
-          <button
-            className={`diff-toggle-btn ${viewOnlyModified ? 'active' : ''}`}
-            onClick={() => setViewOnlyModified(!viewOnlyModified)}
-            title={viewOnlyModified ? 'Show diff view' : 'View only modified'}
-          >
-            {viewOnlyModified ? t('terminal:diffViewer.showDiff') : t('terminal:diffViewer.modifiedOnly')}
-          </button>
+          {!isNewFile && !isDeletedFile && (
+            <button
+              className={`diff-toggle-btn ${viewOnlyModified ? 'active' : ''}`}
+              onClick={() => setViewOnlyModified(!viewOnlyModified)}
+              title={viewOnlyModified ? 'Show diff view' : 'View only modified'}
+            >
+              {viewOnlyModified ? t('terminal:diffViewer.showDiff') : t('terminal:diffViewer.modifiedOnly')}
+            </button>
+          )}
           <button
             className={`diff-copy-btn ${copyStatus}`}
             onClick={handleCopyModified}
@@ -679,9 +694,9 @@ export function DiffViewer({ originalContent, modifiedContent, filename, languag
         </div>
       </div>
 
-      <div className={`diff-viewer-panels ${viewOnlyModified ? 'modified-only' : ''}`}>
-        {/* Original (Left) - hidden when viewOnlyModified */}
-        {!viewOnlyModified && (
+      <div className={`diff-viewer-panels ${(viewOnlyModified || isNewFile || isDeletedFile) ? 'modified-only' : ''}`}>
+        {/* Original (Left) - hidden when viewOnlyModified or new file */}
+        {!viewOnlyModified && !isNewFile && (
           <div className="diff-panel diff-panel-original">
             <div className="diff-panel-header">
               <span className="diff-panel-label">{t('terminal:diffViewer.originalHead')}</span>
@@ -707,44 +722,46 @@ export function DiffViewer({ originalContent, modifiedContent, filename, languag
         )}
 
         {/* Connector gutter between panels (canvas for performance) */}
-        {!viewOnlyModified && (
+        {!viewOnlyModified && !isNewFile && !isDeletedFile && (
           <div className="diff-connector-gutter">
             <canvas ref={canvasRef} />
           </div>
         )}
 
-        {/* Modified (Right) */}
-        <div className="diff-panel diff-panel-modified">
-          <div className="diff-panel-header">
-            <span className="diff-panel-label">{viewOnlyModified ? t('terminal:diffViewer.modifiedContent') : t('terminal:diffViewer.modifiedWorking')}</span>
-          </div>
-          {viewOnlyModified && isMarkdown ? (
-            // Render markdown when in modified-only view
-            <div className="diff-panel-content diff-markdown-content" ref={markdownContentRef}>
-              <div className="markdown-content">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{modifiedContent}</ReactMarkdown>
+        {/* Modified (Right) - hidden when deleted file */}
+        {!isDeletedFile && (
+          <div className="diff-panel diff-panel-modified">
+            <div className="diff-panel-header">
+              <span className="diff-panel-label">{(viewOnlyModified || isNewFile) ? t('terminal:diffViewer.modifiedContent') : t('terminal:diffViewer.modifiedWorking')}</span>
+            </div>
+            {viewOnlyModified && isMarkdown ? (
+              // Render markdown when in modified-only view
+              <div className="diff-panel-content diff-markdown-content" ref={markdownContentRef}>
+                <div className="markdown-content">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{modifiedContent}</ReactMarkdown>
+                </div>
               </div>
-            </div>
-          ) : (
-            <div className="diff-panel-content" ref={rightRef}>
-              {rightLines.map((line, idx) => {
-                const boundary = rightBoundaries.get(idx);
-                const boundaryClass = boundary === 'both' ? 'diff-hunk-top diff-hunk-bottom'
-                  : boundary === 'top' ? 'diff-hunk-top'
-                  : boundary === 'bottom' ? 'diff-hunk-bottom' : '';
-                return (
-                  <div key={idx} className={`diff-line diff-line-${line.type} ${boundaryClass}`}>
-                    <span className="diff-line-num">{line.num}</span>
-                    <span
-                      className="diff-line-content"
-                      dangerouslySetInnerHTML={{ __html: line.highlighted || '&nbsp;' }}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+            ) : (
+              <div className="diff-panel-content" ref={rightRef}>
+                {rightLines.map((line, idx) => {
+                  const boundary = rightBoundaries.get(idx);
+                  const boundaryClass = boundary === 'both' ? 'diff-hunk-top diff-hunk-bottom'
+                    : boundary === 'top' ? 'diff-hunk-top'
+                    : boundary === 'bottom' ? 'diff-hunk-bottom' : '';
+                  return (
+                    <div key={idx} className={`diff-line diff-line-${line.type} ${boundaryClass}`}>
+                      <span className="diff-line-num">{line.num}</span>
+                      <span
+                        className="diff-line-content"
+                        dangerouslySetInnerHTML={{ __html: line.highlighted || '&nbsp;' }}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
