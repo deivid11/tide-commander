@@ -716,7 +716,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     });
 
     return () => cancelAnimationFrame(raf);
-  }, [activeAgentId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeAgentId]);
 
   return (
     <div className={`agent-overview-panel${isMobileViewport && mobileFiltersCollapsed ? ' mobile-filters-collapsed' : ''}`}>
