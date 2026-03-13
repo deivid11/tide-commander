@@ -7,7 +7,7 @@ import { store } from '../../store';
 import { getDisplayContextInfo } from '../../utils/context';
 import { TOOL_ICONS } from '../../utils/outputRendering';
 import { BaseRenderer } from './BaseRenderer';
-import { get2DIndicatorZoomFactor, get2DNameplateZoomFactor } from '../utils/indicatorScale';
+import { get2DAgentDetailLevel, get2DIndicatorZoomFactor, get2DNameplateZoomFactor } from '../utils/indicatorScale';
 
 const STATUS_COLORS: Record<string, { color: string; glow: string; darkColor: string }> = {
   idle: { color: '#4aff9e', glow: 'rgba(74, 255, 158, 0.6)', darkColor: '#2a9a5e' },
@@ -51,6 +51,14 @@ export class AgentRenderer extends BaseRenderer {
     return '🤖';
   }
 
+  private getDisplayName(name: string, detailLevel: 'full' | 'reduced' | 'compact' | 'minimal'): string {
+    if (detailLevel !== 'compact' || name.length <= 12) {
+      return name;
+    }
+
+    return `${name.slice(0, 10)}..`;
+  }
+
   drawAgent(agent: Agent2DData, isSelected: boolean, isMoving: boolean, indicatorScale: number, showTaskLabels: boolean): void {
     const { x, z } = agent.position;
     const baseRadius = agent.isBoss ? 0.7 : 0.5;
@@ -59,6 +67,14 @@ export class AgentRenderer extends BaseRenderer {
     const zoom = this.camera.getZoom();
     const indicatorZoomFactor = get2DIndicatorZoomFactor(zoom);
     const nameplateZoomFactor = get2DNameplateZoomFactor(zoom, showTaskLabels && Boolean(agent.taskLabel));
+    const detailLevel = get2DAgentDetailLevel(zoom);
+    const showNameplate = detailLevel !== 'minimal';
+    const showManaBar = detailLevel === 'full';
+    const showPercentText = detailLevel === 'full';
+    const showSecondaryBadges = detailLevel === 'full';
+    const showNotificationBadge = detailLevel === 'full' || detailLevel === 'reduced';
+    const showStatusDot = detailLevel === 'compact' || detailLevel === 'minimal';
+    const displayName = this.getDisplayName(agent.name, detailLevel);
 
     const walkSpeed = 8;
     const walkPhase = this.animationTime * walkSpeed;
@@ -192,7 +208,7 @@ export class AgentRenderer extends BaseRenderer {
     this.ctx.restore();
 
     // ========== CLASS EMOJI ==========
-    const emojiFontSize = Math.max(12 * indicatorZoomFactor, screenRadius * 1.1);
+    const emojiFontSize = Math.max(6, Math.max(10 * indicatorZoomFactor, screenRadius * 1.1));
     this.ctx.font = `${emojiFontSize}px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif`;
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
@@ -200,11 +216,30 @@ export class AgentRenderer extends BaseRenderer {
 
     // ========== BOSS CROWN ==========
     if (agent.isBoss) {
-      const crownSize = Math.max(10 * indicatorZoomFactor, screenRadius * 0.6);
+      const crownSize = Math.max(6, Math.max(8 * indicatorZoomFactor, screenRadius * 0.6));
       this.ctx.font = `${crownSize}px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", serif`;
       this.ctx.textAlign = 'center';
       this.ctx.textBaseline = 'bottom';
       this.ctx.fillText('👑', screenPos.x, screenPos.y - screenRadius - 2);
+    }
+
+    if (showStatusDot) {
+      const statusDotRadius = Math.max(1.5, 3.2 * indicatorZoomFactor);
+      const statusDotX = screenPos.x + screenRadius * 0.6;
+      const statusDotY = screenPos.y - screenRadius * 0.6;
+
+      this.ctx.beginPath();
+      this.ctx.arc(statusDotX, statusDotY, statusDotRadius + 1.5, 0, Math.PI * 2);
+      this.ctx.fillStyle = this.hexToRgba(statusConfig.color, 0.28);
+      this.ctx.fill();
+
+      this.ctx.beginPath();
+      this.ctx.arc(statusDotX, statusDotY, statusDotRadius, 0, Math.PI * 2);
+      this.ctx.fillStyle = statusConfig.color;
+      this.ctx.fill();
+      this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+      this.ctx.lineWidth = 1;
+      this.ctx.stroke();
     }
 
     // ========== DUST PARTICLES ==========
@@ -228,116 +263,129 @@ export class AgentRenderer extends BaseRenderer {
     const labelScale = indicatorScale * indicatorZoomFactor;
     const labelY = screenPos.y + screenRadius + 12 * indicatorZoomFactor;
     const nameTagScale = indicatorScale * nameplateZoomFactor;
-    const _labelFontSize = Math.max(7, 13 * labelScale);
-    const nameLabelFontSize = Math.max(7, 13 * nameTagScale);
 
-    this.ctx.font = `bold ${nameLabelFontSize}px "Segoe UI", Arial, sans-serif`;
-    const nameWidth = this.ctx.measureText(agent.name).width;
-    const namePadding = 6 * nameplateZoomFactor;
-    const nameHeight = nameLabelFontSize + 4 * nameplateZoomFactor;
-    const hasProviderDot = agent.provider === 'claude' || agent.provider === 'codex';
-    const dotSize = hasProviderDot ? nameLabelFontSize * 0.45 : 0;
-    const dotGap = hasProviderDot ? nameLabelFontSize * 0.3 : 0;
-    const providerBlock = dotSize + dotGap;
-    const totalTagWidth = nameWidth + providerBlock + namePadding * 2;
-    const textX = screenPos.x + providerBlock / 2;
+    if (showNameplate) {
+      const nameLabelFontSize = Math.max(4.5, 13 * nameTagScale);
 
-    const nameTagGradient = this.ctx.createLinearGradient(
-      screenPos.x - totalTagWidth / 2, labelY - nameHeight / 2,
-      screenPos.x - totalTagWidth / 2, labelY + nameHeight / 2
-    );
-    nameTagGradient.addColorStop(0, 'rgba(30, 30, 40, 0.95)');
-    nameTagGradient.addColorStop(1, 'rgba(20, 20, 30, 0.95)');
+      this.ctx.font = `bold ${nameLabelFontSize}px "Segoe UI", Arial, sans-serif`;
+      const nameWidth = this.ctx.measureText(displayName).width;
+      const namePadding = Math.max(2, 6 * nameplateZoomFactor);
+      const nameHeight = nameLabelFontSize + Math.max(2, 4 * nameplateZoomFactor);
+      const hasProviderDot = detailLevel === 'full' && (agent.provider === 'claude' || agent.provider === 'codex');
+      const dotSize = hasProviderDot ? nameLabelFontSize * 0.45 : 0;
+      const dotGap = hasProviderDot ? nameLabelFontSize * 0.3 : 0;
+      const providerBlock = dotSize + dotGap;
+      const totalTagWidth = nameWidth + providerBlock + namePadding * 2;
+      const textX = screenPos.x + providerBlock / 2;
 
-    this.ctx.beginPath();
-    this.roundedRectScreen(
-      screenPos.x - totalTagWidth / 2,
-      labelY - nameHeight / 2,
-      totalTagWidth,
-      nameHeight,
-      4
-    );
-    this.ctx.fillStyle = nameTagGradient;
-    this.ctx.fill();
+      const nameTagGradient = this.ctx.createLinearGradient(
+        screenPos.x - totalTagWidth / 2, labelY - nameHeight / 2,
+        screenPos.x - totalTagWidth / 2, labelY + nameHeight / 2
+      );
+      nameTagGradient.addColorStop(0, 'rgba(30, 30, 40, 0.95)');
+      nameTagGradient.addColorStop(1, 'rgba(20, 20, 30, 0.95)');
 
-    this.ctx.strokeStyle = this.hexToRgba(bodyColor, 0.6);
-    this.ctx.lineWidth = 1.5;
-    this.ctx.stroke();
-
-    if (hasProviderDot) {
-      const dotX = screenPos.x - totalTagWidth / 2 + namePadding + dotSize / 2;
-      const dotY = labelY;
-      const providerColor = agent.provider === 'codex' ? '#4a9eff' : '#ff9e4a';
       this.ctx.beginPath();
-      this.ctx.arc(dotX, dotY, dotSize / 2, 0, Math.PI * 2);
-      this.ctx.fillStyle = providerColor;
+      this.roundedRectScreen(
+        screenPos.x - totalTagWidth / 2,
+        labelY - nameHeight / 2,
+        totalTagWidth,
+        nameHeight,
+        Math.max(2, 4 * nameplateZoomFactor)
+      );
+      this.ctx.fillStyle = nameTagGradient;
       this.ctx.fill();
-      this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
-      this.ctx.lineWidth = Math.max(1, dotSize * 0.12);
-      this.ctx.stroke();
-    }
 
-    this.ctx.fillStyle = bodyColor;
-    this.ctx.textAlign = 'center';
-    this.ctx.textBaseline = 'middle';
-    this.ctx.font = `bold ${nameLabelFontSize}px "Segoe UI", Arial, sans-serif`;
-    this.ctx.fillText(agent.name, textX, labelY);
+      this.ctx.strokeStyle = this.hexToRgba(bodyColor, 0.6);
+      this.ctx.lineWidth = Math.max(0.75, 1.5 * nameplateZoomFactor);
+      this.ctx.stroke();
+
+      if (hasProviderDot) {
+        const dotX = screenPos.x - totalTagWidth / 2 + namePadding + dotSize / 2;
+        const dotY = labelY;
+        const providerColor = agent.provider === 'codex' ? '#4a9eff' : '#ff9e4a';
+        this.ctx.beginPath();
+        this.ctx.arc(dotX, dotY, dotSize / 2, 0, Math.PI * 2);
+        this.ctx.fillStyle = providerColor;
+        this.ctx.fill();
+        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+        this.ctx.lineWidth = Math.max(0.75, dotSize * 0.12);
+        this.ctx.stroke();
+      }
+
+      this.ctx.fillStyle = bodyColor;
+      this.ctx.textAlign = 'center';
+      this.ctx.textBaseline = 'middle';
+      this.ctx.font = `bold ${nameLabelFontSize}px "Segoe UI", Arial, sans-serif`;
+      this.ctx.fillText(displayName, textX, labelY);
+    }
 
     // ========== CONTEXT/MANA BAR ==========
     const contextPercent = getDisplayContextInfo(agent).freePercent;
     const manaPercent = Math.max(0, Math.min(100, contextPercent)) / 100;
+    const barBaseY = labelY + (showNameplate ? Math.max(2.5, (13 * nameTagScale + Math.max(2, 4 * nameplateZoomFactor)) / 2) : 0);
+    const barY = barBaseY + 8 * indicatorZoomFactor;
+    const barWidth = 76 * indicatorZoomFactor;
+    const barHeight = 7 * indicatorZoomFactor;
+    const barRadius = Math.max(1, 2.2 * indicatorZoomFactor);
 
-    const barY = labelY + nameHeight / 2 + 8 * indicatorZoomFactor;
-    const barWidth = 100 * indicatorZoomFactor;
-    const barHeight = 14 * indicatorZoomFactor;
+    if (showManaBar) {
+      this.ctx.beginPath();
+      this.roundedRectScreen(screenPos.x - barWidth / 2, barY, barWidth, barHeight, barRadius);
+      this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+      this.ctx.fill();
 
-    this.ctx.beginPath();
-    this.roundedRectScreen(screenPos.x - barWidth / 2, barY, barWidth, barHeight, 4);
-    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    this.ctx.fill();
+      if (manaPercent > 0) {
+        let barStartColor: string, barEndColor: string;
+        if (manaPercent > 0.5) {
+          barStartColor = '#6a9a78';
+          barEndColor = '#4a7a58';
+        } else if (manaPercent > 0.2) {
+          barStartColor = '#c89858';
+          barEndColor = '#a87838';
+        } else {
+          barStartColor = '#c85858';
+          barEndColor = '#a83838';
+        }
 
-    if (manaPercent > 0) {
-      let barStartColor: string, barEndColor: string;
-      if (manaPercent > 0.5) {
-        barStartColor = '#6a9a78';
-        barEndColor = '#4a7a58';
-      } else if (manaPercent > 0.2) {
-        barStartColor = '#c89858';
-        barEndColor = '#a87838';
-      } else {
-        barStartColor = '#c85858';
-        barEndColor = '#a83838';
+        const barGradient = this.ctx.createLinearGradient(
+          screenPos.x - barWidth / 2, barY,
+          screenPos.x - barWidth / 2 + barWidth * manaPercent, barY
+        );
+        barGradient.addColorStop(0, barStartColor);
+        barGradient.addColorStop(1, barEndColor);
+
+        this.ctx.beginPath();
+        this.roundedRectScreen(
+          screenPos.x - barWidth / 2,
+          barY,
+          barWidth * manaPercent,
+          barHeight,
+          barRadius
+        );
+        this.ctx.fillStyle = barGradient;
+        this.ctx.fill();
       }
 
-      const barGradient = this.ctx.createLinearGradient(
-        screenPos.x - barWidth / 2, barY,
-        screenPos.x - barWidth / 2 + barWidth * manaPercent, barY
-      );
-      barGradient.addColorStop(0, barStartColor);
-      barGradient.addColorStop(1, barEndColor);
-
       this.ctx.beginPath();
-      this.roundedRectScreen(screenPos.x - barWidth / 2, barY, barWidth * manaPercent, barHeight, 4);
-      this.ctx.fillStyle = barGradient;
-      this.ctx.fill();
+      this.roundedRectScreen(screenPos.x - barWidth / 2, barY, barWidth, barHeight, barRadius);
+      this.ctx.strokeStyle = 'rgba(100, 150, 150, 0.6)';
+      this.ctx.lineWidth = Math.max(0.75, 1.5 * indicatorZoomFactor);
+      this.ctx.stroke();
+
+      if (showPercentText) {
+        const percentText = `${Math.round(contextPercent)}%`;
+        const percentFontSize = Math.max(4.5, 10 * indicatorZoomFactor);
+        this.ctx.font = `bold ${percentFontSize}px "Segoe UI", Arial, sans-serif`;
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText(percentText, screenPos.x, barY + barHeight / 2);
+      }
     }
 
-    this.ctx.beginPath();
-    this.roundedRectScreen(screenPos.x - barWidth / 2, barY, barWidth, barHeight, 4);
-    this.ctx.strokeStyle = 'rgba(100, 150, 150, 0.6)';
-    this.ctx.lineWidth = 1.5;
-    this.ctx.stroke();
-
-    const percentText = `${Math.round(contextPercent)}%`;
-    const percentFontSize = Math.max(6, 10 * indicatorZoomFactor);
-    this.ctx.font = `bold ${percentFontSize}px "Segoe UI", Arial, sans-serif`;
-    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-    this.ctx.textAlign = 'center';
-    this.ctx.textBaseline = 'middle';
-    this.ctx.fillText(percentText, screenPos.x, barY + barHeight / 2);
-
     // ========== IDLE TIMER BADGE ==========
-    if (agent.status === 'idle' && agent.lastActivity > 0) {
+    if (showSecondaryBadges && agent.status === 'idle' && agent.lastActivity > 0) {
       const idleSeconds = Math.floor((Date.now() - agent.lastActivity) / 1000);
       if (idleSeconds >= 5) {
         const idleText = this.formatIdleTime(idleSeconds);
@@ -358,7 +406,7 @@ export class AgentRenderer extends BaseRenderer {
           timerIcon = '⏳';
         }
 
-        const timerFontSize = Math.max(6, 9 * labelScale);
+        const timerFontSize = Math.max(4.5, 9 * labelScale);
         this.ctx.font = `bold ${timerFontSize}px "Segoe UI Emoji", "Apple Color Emoji", Arial`;
         const timerContent = `${timerIcon} ${idleText}`;
         const timerWidth = this.ctx.measureText(timerContent).width;
@@ -387,7 +435,7 @@ export class AgentRenderer extends BaseRenderer {
     this.effect.updateAgentTool(agent.id, agent.currentTool);
     const toolAnim = this.effect.getToolAnimation(agent.id);
 
-    if (toolAnim && toolAnim.opacity > 0.01) {
+    if (showSecondaryBadges && toolAnim && toolAnim.opacity > 0.01) {
       const toolIcon = TOOL_ICONS[toolAnim.tool] || TOOL_ICONS.default;
       const toolY = barY + barHeight + 10 * indicatorZoomFactor;
       const opacity = toolAnim.opacity;
@@ -397,7 +445,7 @@ export class AgentRenderer extends BaseRenderer {
         : opacity;
       const scale = 0.8 + 0.2 * scaleProgress;
 
-      const toolFontSize = Math.max(6, 10 * labelScale) * scale;
+      const toolFontSize = Math.max(4.5, 10 * labelScale) * scale;
       this.ctx.font = `bold ${toolFontSize}px "Segoe UI Emoji", "Apple Color Emoji", Arial`;
       const toolContent = `${toolIcon} ${toolAnim.tool}`;
       const toolTextWidth = this.ctx.measureText(toolContent).width;
@@ -429,8 +477,8 @@ export class AgentRenderer extends BaseRenderer {
     }
 
     // ========== TASK LABEL BADGE ==========
-    if (showTaskLabels && agent.taskLabel) {
-      const taskFontSize = Math.max(9, 15 * labelScale);
+    if (showSecondaryBadges && showTaskLabels && agent.taskLabel) {
+      const taskFontSize = Math.max(5, 15 * labelScale);
       this.ctx.font = `bold italic ${taskFontSize}px "Segoe UI", Arial, sans-serif`;
       const taskText = agent.taskLabel.length > 30 ? agent.taskLabel.substring(0, 28) + '..' : agent.taskLabel;
       const taskWidth = this.ctx.measureText(taskText).width;
@@ -456,7 +504,7 @@ export class AgentRenderer extends BaseRenderer {
     }
 
     // ========== UNSEEN OUTPUT NOTIFICATION BADGE ==========
-    if (this.frameUnseenOutput?.has(agent.id)) {
+    if (showNotificationBadge && this.frameUnseenOutput?.has(agent.id)) {
       const badgeRadius = 10 * indicatorZoomFactor;
       const badgeX = screenPos.x + screenRadius * 0.7;
       const badgeY = screenPos.y - screenRadius * 0.7;

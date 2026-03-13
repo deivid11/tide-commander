@@ -165,6 +165,11 @@ export function useSwipeNavigation({
     });
 
     const sortAgents = (list: Agent[]) => [...list].sort((a, b) => {
+      // Boss agents always first (matches AgentOverviewPanel sort order)
+      const aIsBoss = !!(a.isBoss || a.class === 'boss');
+      const bIsBoss = !!(b.isBoss || b.class === 'boss');
+      if (aIsBoss !== bIsBoss) return aIsBoss ? -1 : 1;
+
       if (aopConfig.sortMode === 'name') return a.name.localeCompare(b.name);
       if (aopConfig.sortMode === 'status') {
         // 1. Working/waiting agents always first
@@ -182,11 +187,8 @@ export function useSwipeNavigation({
           return a.name.localeCompare(b.name);
         }
 
-        // 4. Within idle: boss agents first, then taskLabel, then most recently active
+        // 4. Within idle: taskLabel first, then most recently active
         if (a.status === 'idle' && b.status === 'idle') {
-          const aIsBoss = !!a.isBoss;
-          const bIsBoss = !!b.isBoss;
-          if (aIsBoss !== bIsBoss) return aIsBoss ? -1 : 1;
           const aHasTask = !!a.taskLabel;
           const bHasTask = !!b.taskLabel;
           if (aHasTask !== bHasTask) return aHasTask ? -1 : 1;
