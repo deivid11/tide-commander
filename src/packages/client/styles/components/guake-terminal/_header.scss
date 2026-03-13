@@ -13,7 +13,7 @@
   justify-content: space-between;
   gap: 10px;
   flex-wrap: nowrap;
-  padding: 10px 16px;
+  padding: 6px 16px;
   background:
     linear-gradient(180deg,
       color-mix(in srgb, var(--bg-secondary) 98%, transparent),
@@ -41,7 +41,7 @@
   align-items: center;
   gap: 10px;
   min-width: 0;
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   overflow: hidden;
 }
 
@@ -51,14 +51,14 @@
   flex-wrap: nowrap;
   gap: 8px;
   min-width: 0;
-  flex: 1 1 280px;
+  flex: 0 1 auto;
   overflow: hidden;
 }
 
 .guake-title {
   color: var(--text-primary);
   font-weight: 700;
-  font-size: 15px;
+  font-size: 14px;
   font-family: $font-family;
   line-height: 1.15;
 }
@@ -67,10 +67,10 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 28px;
+  height: 28px;
   flex-shrink: 0;
-  border-radius: 11px;
+  border-radius: 9px;
   background:
     linear-gradient(145deg,
       color-mix(in srgb, var(--accent-pink) 22%, var(--bg-primary)),
@@ -79,7 +79,7 @@
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.07),
     0 8px 18px rgba(0, 0, 0, 0.18);
-  font-size: 17px;
+  font-size: 14px;
 }
 
 .guake-title-block {
@@ -101,13 +101,13 @@
   display: inline-flex;
   align-items: center;
   max-width: 240px;
-  min-height: 22px;
-  padding: 0 8px;
+  min-height: 18px;
+  padding: 0 7px;
   border-radius: 999px;
   background: color-mix(in srgb, var(--accent-cyan) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent-cyan) 24%, transparent);
   color: var(--accent-cyan);
-  font-size: 10px;
+  font-size: 11px;
   font-family: $font-mono;
   font-weight: 700;
   letter-spacing: 0.02em;
@@ -131,13 +131,14 @@
 .guake-title-btn {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   width: auto;
-  max-width: min(100%, 460px);
+  max-width: 100%;
   min-width: 0;
-  padding: 8px 10px;
+  flex: 1;
+  padding: 5px 12px;
   border: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
-  border-radius: 14px;
+  border-radius: 10px;
   background: color-mix(in srgb, var(--bg-primary) 70%, transparent);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
   cursor: pointer;
@@ -304,12 +305,12 @@
   align-items: center;
   justify-content: center;
   font-size: 12px;
-  width: 34px;
-  height: 34px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   background: rgba($dracula-orange, 0.15);
   border: 1px solid rgba($dracula-orange, 0.4);
-  border-radius: 11px;
+  border-radius: 9px;
   color: $dracula-orange;
   animation: guake-detached-pulse 2s ease-in-out infinite;
   cursor: help;
@@ -647,8 +648,8 @@
 
 // Provider icon in header (next to agent name)
 .guake-provider-icon {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   display: inline-block;
   flex-shrink: 0;
   object-fit: contain;
@@ -661,9 +662,10 @@
   align-items: center;
   gap: 12px;
   min-width: 0;
-  width: min(100%, 420px);
-  padding: 8px 10px;
-  border-radius: 14px;
+  width: 100%;
+  flex: 1;
+  padding: 5px 12px;
+  border-radius: 10px;
   border: 1px solid color-mix(in srgb, var(--border-color) 78%, transparent);
   background: color-mix(in srgb, var(--bg-primary) 68%, transparent);
 }
@@ -706,9 +708,9 @@
   display: flex;
   align-items: center;
   flex-wrap: nowrap;
-  gap: 6px;
-  padding: 4px;
-  border-radius: 14px;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 10px;
   border: 1px solid color-mix(in srgb, var(--border-color) 80%, transparent);
   background: color-mix(in srgb, var(--bg-primary) 72%, transparent);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
@@ -718,10 +720,10 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   padding: 0;
-  border-radius: 10px;
+  border-radius: 8px;
   border: 1px solid transparent;
   background: transparent;
   color: var(--text-secondary);
@@ -759,10 +761,10 @@
 .guake-view-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  min-height: 40px;
-  padding: 0 14px;
-  border-radius: 14px;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 10px;
   border: 1px solid color-mix(in srgb, var(--border-color) 84%, transparent);
   background: color-mix(in srgb, var(--bg-primary) 72%, transparent);
   color: var(--text-secondary);
@@ -1161,6 +1163,124 @@
 }
 
 // =============================================================================
+// Desktop Kebab Menu (context actions + less-used toggles)
+// =============================================================================
+
+.guake-desktop-more {
+  position: relative;
+}
+
+.guake-desktop-more-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 80%, transparent);
+  background: color-mix(in srgb, var(--bg-primary) 72%, transparent);
+  color: var(--text-secondary);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.18s ease;
+
+  &:hover {
+    background: color-mix(in srgb, var(--accent-cyan) 12%, transparent);
+    border-color: color-mix(in srgb, var(--accent-cyan) 26%, transparent);
+    color: var(--accent-cyan);
+  }
+
+  &.active {
+    background: color-mix(in srgb, var(--accent-purple) 14%, transparent);
+    border-color: color-mix(in srgb, var(--accent-purple) 34%, transparent);
+    color: var(--accent-purple);
+  }
+}
+
+.guake-desktop-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 1000;
+  min-width: 210px;
+  background: color-mix(in srgb, var(--bg-secondary) 98%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-color) 90%, transparent);
+  border-radius: $radius-md;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  padding: 6px 0;
+  animation: guake-desktop-menu-in 0.12s ease-out;
+}
+
+@keyframes guake-desktop-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.guake-desktop-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 14px;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-family: $font-mono;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.1s ease;
+  text-align: left;
+  white-space: nowrap;
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent-cyan) 10%, transparent);
+    color: var(--accent-cyan);
+  }
+
+  &.active {
+    color: var(--accent-cyan);
+    background: color-mix(in srgb, var(--accent-cyan) 8%, transparent);
+  }
+
+  &.danger {
+    color: var(--accent-red);
+
+    &:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--accent-red) 10%, transparent);
+      color: var(--accent-red);
+    }
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+.guake-desktop-menu-icon {
+  font-size: 14px;
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.guake-desktop-menu-divider {
+  height: 1px;
+  margin: 4px 10px;
+  background: color-mix(in srgb, var(--border-color) 50%, transparent);
+}
+
+// =============================================================================
 // Mobile More-Actions Menu
 // =============================================================================
 
@@ -1451,7 +1571,7 @@
 
   .guake-title-btn,
   .guake-title-with-provider {
-    max-width: 360px;
+    max-width: 100%;
   }
 
   .guake-status-line {
@@ -1476,7 +1596,7 @@
 
 @media (max-width: 980px) {
   .guake-header-meta {
-    flex: 0 1 220px;
+    flex: 0 1 auto;
   }
 
   .guake-status-line {
