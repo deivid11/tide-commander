@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.20.0] - 2026-03-13
+
+### Added
+- **Scene performance settings** - Configurable FPS cap, idle throttling, and render quality options in Settings
+- **Virtualized output improvements** - Better scroll behavior and rendering performance for large output lists
+
+### Changed
+- **2D scene renderer** - Optimized render loop and effects manager for lower CPU usage
+- **Scene manager** - Improved lifecycle and cleanup of scene resources
+- **Config section** - Added scene performance controls to the settings UI
+
 ## [1.19.0] - 2026-03-13
 
 ### Changed
