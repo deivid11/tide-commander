@@ -882,13 +882,13 @@ export class EffectsManager {
   // Reference to camera for zoom-based scaling
   private camera: THREE.Camera | null = null;
   // User-configurable indicator scale
-  private indicatorScale = 1.0;
+  private scale3d = 1.0;
 
   /**
    * Set user-configurable indicator scale.
    */
-  setIndicatorScale(scale: number): void {
-    this.indicatorScale = scale;
+  setScale3D(scale: number): void {
+    this.scale3d = scale;
   }
 
   /**
@@ -927,7 +927,7 @@ export class EffectsManager {
    * Calculate zoom-based scale factor for an effect at a position.
    */
   private calculateZoomScale(position: THREE.Vector3): number {
-    if (!this.camera) return this.indicatorScale;
+    if (!this.camera) return this.scale3d;
 
     const distance = this.camera.position.distanceTo(position);
     const baseDistance = 15;
@@ -937,7 +937,7 @@ export class EffectsManager {
     const zoomScale = Math.max(0.5, Math.min(2.5, distance / baseDistance));
 
     // Apply user's indicator scale setting
-    return zoomScale * this.indicatorScale;
+    return zoomScale * this.scale3d;
   }
 
   /**

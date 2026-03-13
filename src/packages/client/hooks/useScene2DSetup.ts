@@ -206,8 +206,8 @@ export function useScene2DSetup(
     sceneRef.current?.showToolBubble(agentId, toolName);
   }, []);
 
-  const setIndicatorScale = useCallback((scale: number) => {
-    sceneRef.current?.setIndicatorScale(scale);
+  const setScale2D = useCallback((scale: number) => {
+    sceneRef.current?.setScale2D(scale);
   }, []);
 
   const setTaskLabelsVisible = useCallback((visible: boolean) => {
@@ -232,7 +232,7 @@ export function useScene2DSetup(
     updateAgent,
     createMoveOrderEffect,
     showToolBubble,
-    setIndicatorScale,
+    setScale2D,
     setTaskLabelsVisible,
     setGridVisible,
     setDrawingTool,

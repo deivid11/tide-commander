@@ -193,6 +193,8 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   // Ref for allItems count so scrollToBottom can read it without being recreated
   const allItemsCountRef = useRef(allItems.length);
   allItemsCountRef.current = allItems.length;
+  // Track virtual content height to detect remeasurement changes
+  const prevTotalSizeRef = useRef(0);
 
   // Create virtualizer
   // initialRect prevents the first render from having outerSize=0 (which yields
@@ -281,6 +283,29 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
       isProgrammaticScrollRef.current = false;
     });
   }, [allItems.length, shouldAutoScroll, scrollToBottom]);
+
+  // Auto-scroll when virtualizer remeasures items and total content height grows.
+  // The item-count effect above only fires when new items are added, but the
+  // virtualizer can also grow the content when it measures actual heights that
+  // exceed the estimates (e.g. during streaming or after initial render).
+  // Without this, the scroll "jumps up" because the content grows under the viewport
+  // but nothing pushes scrollTop to follow.
+  const totalSize = virtualizer.getTotalSize();
+  useEffect(() => {
+    const prev = prevTotalSizeRef.current;
+    prevTotalSizeRef.current = totalSize;
+
+    if (!shouldAutoScroll) return;
+    if (pinToBottom) return; // pinToBottom has its own RAF loop
+    if (totalSize <= prev) return; // only care about growth
+    if (totalSize - prev < 2) return; // ignore sub-pixel changes
+
+    isProgrammaticScrollRef.current = true;
+    scrollToBottom();
+    requestAnimationFrame(() => {
+      isProgrammaticScrollRef.current = false;
+    });
+  }, [totalSize, shouldAutoScroll, pinToBottom, scrollToBottom]);
 
   // Detect scroll to top for loading more history
   const handleScroll = useCallback(() => {

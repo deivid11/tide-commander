@@ -498,9 +498,14 @@ export function ConfigSection({ config, onChange, searchQuery = '' }: ConfigSect
           <span className="config-value">{config.characterScale.toFixed(1)}x</span>
         </div>
         <div className="config-row">
-          <span className="config-label"><HighlightText text={t('config:scene.indicatorScale')} query={searchQuery} /></span>
-          <input type="range" className="config-slider" min="0.3" max="2.0" step="0.1" value={config.indicatorScale} onChange={(e) => onChange({ ...config, indicatorScale: parseFloat(e.target.value) })} />
-          <span className="config-value">{config.indicatorScale.toFixed(1)}x</span>
+          <span className="config-label"><HighlightText text={t('config:scene.scale2d', { defaultValue: '2D Scale' })} query={searchQuery} /></span>
+          <input type="range" className="config-slider" min="0.3" max="2.0" step="0.1" value={config.scale2d} onChange={(e) => onChange({ ...config, scale2d: parseFloat(e.target.value) })} />
+          <span className="config-value">{config.scale2d.toFixed(1)}x</span>
+        </div>
+        <div className="config-row">
+          <span className="config-label"><HighlightText text={t('config:scene.scale3d', { defaultValue: '3D Scale' })} query={searchQuery} /></span>
+          <input type="range" className="config-slider" min="0.3" max="2.0" step="0.1" value={config.scale3d} onChange={(e) => onChange({ ...config, scale3d: parseFloat(e.target.value) })} />
+          <span className="config-value">{config.scale3d.toFixed(1)}x</span>
         </div>
         <div className="config-row">
           <span className="config-label"><HighlightText text={t('config:scene.show2DTaskLabels', { defaultValue: 'Show 2D task labels' })} query={searchQuery} /></span>

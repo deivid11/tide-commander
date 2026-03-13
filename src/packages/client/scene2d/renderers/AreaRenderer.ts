@@ -1,5 +1,6 @@
 import type { Area2DData } from '../Scene2D';
 import type { Scene2DCamera } from '../Scene2DCamera';
+import { get2DDistanceScale } from '../utils/indicatorScale';
 import { BaseRenderer } from './BaseRenderer';
 
 export class AreaRenderer extends BaseRenderer {
@@ -313,9 +314,10 @@ export class AreaRenderer extends BaseRenderer {
     position: 'top' | 'center'
   ): void {
     const ctx = this.ctx;
-    const fontSize = 11 / zoom;
-    const padding = 6 / zoom;
-    const offsetY = position === 'top' ? -8 / zoom : 0;
+    const labelScale = get2DDistanceScale(zoom);
+    const fontSize = (11 * labelScale) / zoom;
+    const padding = (6 * labelScale) / zoom;
+    const offsetY = position === 'top' ? (-8 * labelScale) / zoom : 0;
 
     ctx.font = `bold ${fontSize}px "Segoe UI", Arial, sans-serif`;
     const textMetrics = ctx.measureText(label);
@@ -326,7 +328,7 @@ export class AreaRenderer extends BaseRenderer {
     const bgHeight = textHeight + padding;
     const bgX = x - bgWidth / 2;
     const bgY = y + offsetY - bgHeight / 2;
-    const borderRadius = 4 / zoom;
+    const borderRadius = (4 * labelScale) / zoom;
 
     const bgGradient = ctx.createLinearGradient(bgX, bgY, bgX, bgY + bgHeight);
     bgGradient.addColorStop(0, this.hexToRgba(this.darkenColor(baseColor, 0.7), 0.9));
@@ -338,7 +340,7 @@ export class AreaRenderer extends BaseRenderer {
     ctx.fill();
 
     ctx.strokeStyle = this.hexToRgba(baseColor, 0.8);
-    ctx.lineWidth = 1.5 / zoom;
+    ctx.lineWidth = (1.5 * labelScale) / zoom;
     ctx.beginPath();
     this.roundedRect(bgX, bgY, bgWidth, bgHeight, borderRadius);
     ctx.stroke();

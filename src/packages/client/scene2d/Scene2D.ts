@@ -153,7 +153,7 @@ export class Scene2D {
   private callbacks: Scene2DCallbacks = {};
 
   // Configuration
-  private indicatorScale = 0.7;
+  private scale2d = 0.7;
   private showTaskLabels = true;
   private showGrid = true;
   private gridSize = 30; // World units
@@ -545,7 +545,7 @@ export class Scene2D {
       if (!this.isPointVisible(agent.position.x, agent.position.z, 2.5)) continue;
       const isSelected = this.selectedAgentIds.has(agent.id);
       const isMoving = this.movements.has(agent.id);
-      this.renderer.drawAgent(agent, isSelected, isMoving, this.indicatorScale, this.showTaskLabels);
+      this.renderer.drawAgent(agent, isSelected, isMoving, this.scale2d, this.showTaskLabels);
     }
 
     // Effects
@@ -1354,8 +1354,8 @@ export class Scene2D {
   // Configuration
   // ============================================
 
-  setIndicatorScale(scale: number): void {
-    this.indicatorScale = scale;
+  setScale2D(scale: number): void {
+    this.scale2d = scale;
     this.needsRender = true;
   }
 

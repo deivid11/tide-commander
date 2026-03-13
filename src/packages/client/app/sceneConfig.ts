@@ -36,13 +36,18 @@ export const DEFAULT_ANIMATIONS = {
 // Default FPS limit (0 = unlimited)
 export const DEFAULT_FPS_LIMIT = 0;
 
+type StoredSceneConfig = Partial<SceneConfig> & {
+  indicatorScale?: number;
+};
+
 /**
  * Load scene configuration from localStorage
  */
 export function loadConfig(): SceneConfig {
   const defaultConfig: SceneConfig = {
     characterScale: 2.0,
-    indicatorScale: 0.7,
+    scale2d: 0.7,
+    scale3d: 0.7,
     show2DTaskLabels: true,
     gridVisible: false,
     timeMode: 'day',
@@ -52,11 +57,13 @@ export function loadConfig(): SceneConfig {
     fpsLimit: DEFAULT_FPS_LIMIT,
   };
 
-  const stored = getStorage<Partial<SceneConfig> | null>(STORAGE_KEYS.CONFIG, null);
+  const stored = getStorage<StoredSceneConfig | null>(STORAGE_KEYS.CONFIG, null);
   if (stored) {
+    const legacyScale = stored.indicatorScale;
     return {
       characterScale: stored.characterScale ?? defaultConfig.characterScale,
-      indicatorScale: stored.indicatorScale ?? defaultConfig.indicatorScale,
+      scale2d: stored.scale2d ?? legacyScale ?? defaultConfig.scale2d,
+      scale3d: stored.scale3d ?? legacyScale ?? defaultConfig.scale3d,
       show2DTaskLabels: stored.show2DTaskLabels ?? defaultConfig.show2DTaskLabels,
       gridVisible: stored.gridVisible ?? defaultConfig.gridVisible,
       timeMode: stored.timeMode ?? defaultConfig.timeMode,
