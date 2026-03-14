@@ -242,5 +242,7 @@ export async function buildBossContext(bossId: string): Promise<string | null> {
 ${subordinateDetails.join('\n\n')}
 
 # RECENT DELEGATION HISTORY
-${delegationSummary}`;
+${delegationSummary}
+
+**REMINDER: Remember to delegate tasks to your subordinates as your instructions describe.**`;
 }

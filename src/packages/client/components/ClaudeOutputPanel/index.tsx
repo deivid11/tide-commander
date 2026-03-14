@@ -36,6 +36,7 @@ import {
   usePermissionRequests,
   useAreas,
   useBuildings,
+  useStore,
 } from '../../store';
 import {
   STORAGE_KEYS,
@@ -47,6 +48,11 @@ import {
   authUrl,
 } from '../../utils/storage';
 import { resolveAgentFileReference } from '../../utils/filePaths';
+import { ansiToHtml } from '../../utils/ansiToHtml';
+import { ContextMenu } from '../ContextMenu';
+import type { ContextMenuAction } from '../ContextMenu';
+import { ModalPortal } from '../shared/ModalPortal';
+import { DatabasePanelInline } from '../database/DatabasePanelInline';
 
 // Import types
 import type { ViewMode, EnrichedHistoryMessage } from './types';
@@ -144,6 +150,46 @@ function isPositionInArea(
 
   return false;
 }
+
+/** A single bottom panel descriptor */
+type BottomPanelType = 'terminal' | 'pm2-logs' | 'database';
+
+interface BottomPanel {
+  id: string;
+  type: BottomPanelType;
+  buildingId: string;
+}
+
+type SplitDirection = 'horizontal' | 'vertical';
+
+let nextPanelId = 1;
+function makePanelId(): string {
+  return `bp-${nextPanelId++}`;
+}
+
+/** Inline PM2 log viewer for the bottom panel */
+const BottomPm2LogContent = memo(function BottomPm2LogContent({ buildingId }: { buildingId: string }) {
+  const { streamingBuildingLogs } = useStore();
+  const logs = streamingBuildingLogs.get(buildingId) || '';
+  const logRef = useRef<HTMLPreElement>(null);
+
+  // Auto-scroll to bottom when new logs arrive
+  useEffect(() => {
+    if (logRef.current) {
+      logRef.current.scrollTop = logRef.current.scrollHeight;
+    }
+  }, [logs]);
+
+  const html = useMemo(() => logs ? ansiToHtml(logs) : 'Waiting for logs...', [logs]);
+
+  return (
+    <pre
+      ref={logRef}
+      className="guake-bottom-pm2-logs"
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  );
+});
 
 export interface GuakeOutputPanelProps {
   /** Callback when user clicks star button to save snapshot */
@@ -247,6 +293,34 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
           name: building.name,
           hasUrl: !!building.terminalStatus?.url,
         });
+      }
+    }
+    return result;
+  }, [activeAgentId, buildings, areas]);
+
+  // PM2 server buildings in the active agent's area (for status-bar log buttons)
+  const areaPm2Buildings = useMemo(() => {
+    if (!activeAgentId) return [];
+    const area = store.getAreaForAgent(activeAgentId);
+    if (!area) return [];
+    const result: { id: string; name: string }[] = [];
+    for (const building of buildings.values()) {
+      if (building.type === 'server' && building.pm2?.enabled && store.isPositionInArea(building.position, area)) {
+        result.push({ id: building.id, name: building.name });
+      }
+    }
+    return result;
+  }, [activeAgentId, buildings, areas]);
+
+  // Database buildings in the active agent's area (for status-bar database buttons)
+  const areaDatabaseBuildings = useMemo(() => {
+    if (!activeAgentId) return [];
+    const area = store.getAreaForAgent(activeAgentId);
+    if (!area) return [];
+    const result: { id: string; name: string }[] = [];
+    for (const building of buildings.values()) {
+      if (building.type === 'database' && building.database && store.isPositionInArea(building.position, area)) {
+        result.push({ id: building.id, name: building.name });
       }
     }
     return result;
@@ -371,8 +445,14 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
   const overviewPanelOpen = useOverviewPanelOpen();
   const setOverviewPanelOpen = useCallback((open: boolean) => store.setOverviewPanelOpen(open), []);
 
-  // Bottom embedded terminal panel - persisted per area in localStorage
-  const [bottomTerminalBuildingId, setBottomTerminalBuildingId] = useState<string | null>(null);
+  // Bottom split panels - supports multiple panels (terminal + PM2 logs side by side)
+  const [bottomPanels, setBottomPanels] = useState<BottomPanel[]>([]);
+  const [splitDirection, setSplitDirection] = useState<SplitDirection>(() => {
+    try {
+      const saved = localStorage.getItem('tide:bottom-split-direction');
+      return (saved === 'vertical' ? 'vertical' : 'horizontal') as SplitDirection;
+    } catch { return 'horizontal' as SplitDirection; }
+  });
   const [bottomTerminalHeight, setBottomTerminalHeight] = useState(() => {
     try {
       const h = localStorage.getItem('tide:bottom-terminal-height');
@@ -380,87 +460,282 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     } catch { return 250; }
   });
   const bottomTerminalResizeRef = useRef<{ startY: number; startH: number } | null>(null);
-  const bottomTerminalMapRef = useRef<Map<string, string>>(new Map());
+  // Split panel ratios (flex values for each panel, default equal)
+  const [splitRatios, setSplitRatios] = useState<number[]>([1]);
+  const splitResizeRef = useRef<{ index: number; startPos: number; startRatios: number[] } | null>(null);
+  const bottomPanelsContainerRef = useRef<HTMLDivElement>(null);
 
-  // Load per-area bottom terminal map from localStorage on mount
+  // Split context menu state
+  const [splitContextMenu, setSplitContextMenu] = useState<{
+    position: { x: number; y: number };
+    buildingId: string;
+    type: BottomPanelType;
+  } | null>(null);
+
+  // Derived: quick access to which building IDs are in bottom panels
+  const bottomPanelBuildingIds = useMemo(() => new Set(bottomPanels.map(p => p.buildingId)), [bottomPanels]);
+
+  // Load per-area bottom panels map from localStorage on mount
+  const bottomPanelsMapRef = useRef<Map<string, Array<{ type: BottomPanelType; buildingId: string }>>>(new Map());
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('tide:bottom-terminals');
+      const saved = localStorage.getItem('tide:bottom-panels-v2');
       if (saved) {
-        const entries = JSON.parse(saved) as [string, string][];
-        bottomTerminalMapRef.current = new Map(entries);
+        const entries = JSON.parse(saved) as [string, Array<{ type: BottomPanelType; buildingId: string }>][];
+        bottomPanelsMapRef.current = new Map(entries);
+      } else {
+        // Migrate from old format (single terminal per area)
+        const old = localStorage.getItem('tide:bottom-terminals');
+        if (old) {
+          const oldEntries = JSON.parse(old) as [string, string][];
+          for (const [areaId, buildingId] of oldEntries) {
+            bottomPanelsMapRef.current.set(areaId, [{ type: 'terminal', buildingId }]);
+          }
+        }
       }
     } catch { /* ignore */ }
   }, []);
 
-  // Helper to persist the map
-  const persistBottomTerminals = useCallback(() => {
+  // Helper to persist the panels for the current area
+  const persistBottomPanels = useCallback((panels: BottomPanel[]) => {
+    if (!activeAgentId) return;
+    const area = store.getAreaForAgent(activeAgentId);
+    if (!area) return;
     try {
-      const entries = Array.from(bottomTerminalMapRef.current.entries());
-      localStorage.setItem('tide:bottom-terminals', JSON.stringify(entries));
+      if (panels.length > 0) {
+        bottomPanelsMapRef.current.set(area.id, panels.map(p => ({ type: p.type, buildingId: p.buildingId })));
+      } else {
+        bottomPanelsMapRef.current.delete(area.id);
+      }
+      const entries = Array.from(bottomPanelsMapRef.current.entries());
+      localStorage.setItem('tide:bottom-panels-v2', JSON.stringify(entries));
     } catch { /* ignore */ }
-  }, []);
+  }, [activeAgentId]);
 
-  // When active agent changes, restore or hide bottom terminal based on area
+  // Open a single panel (replaces all) - backward compatible behavior
+  const openBottomPanel = useCallback((buildingId: string, type: BottomPanelType) => {
+    setBottomPanels(prev => {
+      // Stop streaming for any PM2 panels being removed
+      for (const p of prev) {
+        if (p.type === 'pm2-logs') {
+          store.stopLogStreaming(p.buildingId);
+        }
+      }
+      const newPanels = [{ id: makePanelId(), type, buildingId }];
+      persistBottomPanels(newPanels);
+      return newPanels;
+    });
+  }, [persistBottomPanels]);
+
+  // Add a panel via split (horizontal or vertical)
+  const splitBottomPanel = useCallback((buildingId: string, type: BottomPanelType, direction: SplitDirection) => {
+    setSplitDirection(direction);
+    try { localStorage.setItem('tide:bottom-split-direction', direction); } catch { /* ignore */ }
+    setBottomPanels(prev => {
+      if (prev.length >= 4) return prev; // max 4 panels
+      // Don't add duplicate building
+      if (prev.some(p => p.buildingId === buildingId)) return prev;
+      const newPanels = [...prev, { id: makePanelId(), type, buildingId }];
+      persistBottomPanels(newPanels);
+      return newPanels;
+    });
+  }, [persistBottomPanels]);
+
+  // Close a specific panel by panel id
+  const closeBottomPanel = useCallback((panelId: string) => {
+    setBottomPanels(prev => {
+      const panel = prev.find(p => p.id === panelId);
+      if (panel?.type === 'pm2-logs') {
+        store.stopLogStreaming(panel.buildingId);
+      }
+      const newPanels = prev.filter(p => p.id !== panelId);
+      persistBottomPanels(newPanels);
+      return newPanels;
+    });
+  }, [persistBottomPanels]);
+
+  // Close all bottom panels
+  const closeAllBottomPanels = useCallback(() => {
+    setBottomPanels(prev => {
+      for (const p of prev) {
+        if (p.type === 'pm2-logs') {
+          store.stopLogStreaming(p.buildingId);
+        }
+      }
+      persistBottomPanels([]);
+      return [];
+    });
+  }, [persistBottomPanels]);
+
+  // When active agent changes, restore or hide bottom panels based on area
   useEffect(() => {
     if (!activeAgentId) {
-      setBottomTerminalBuildingId(null);
+      setBottomPanels([]);
       return;
     }
     const area = store.getAreaForAgent(activeAgentId);
     if (!area) {
-      setBottomTerminalBuildingId(null);
+      setBottomPanels([]);
       return;
     }
-    const saved = bottomTerminalMapRef.current.get(area.id);
-    setBottomTerminalBuildingId(saved || null);
+    const savedPanels = bottomPanelsMapRef.current.get(area.id);
+    if (savedPanels && savedPanels.length > 0) {
+      setBottomPanels(savedPanels.map(p => ({ id: makePanelId(), type: p.type, buildingId: p.buildingId })));
+    } else {
+      setBottomPanels([]);
+    }
   }, [activeAgentId]);
 
-  // Wrap setBottomTerminalBuildingId to also save per area
-  const setBottomTerminal = useCallback((buildingId: string | null) => {
-    setBottomTerminalBuildingId(buildingId);
-    if (!activeAgentId) return;
-    const area = store.getAreaForAgent(activeAgentId);
-    if (!area) return;
-    if (buildingId) {
-      bottomTerminalMapRef.current.set(area.id, buildingId);
-    } else {
-      bottomTerminalMapRef.current.delete(area.id);
-    }
-    persistBottomTerminals();
-  }, [activeAgentId, persistBottomTerminals]);
-
-  // Listen for open-bottom-terminal events
+  // Listen for open-bottom-terminal events (single open, replaces all)
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent<{ buildingId: string }>).detail;
       if (detail?.buildingId) {
-        setBottomTerminal(detail.buildingId);
+        openBottomPanel(detail.buildingId, 'terminal');
       }
     };
     window.addEventListener('tide:open-bottom-terminal', handler as EventListener);
     return () => window.removeEventListener('tide:open-bottom-terminal', handler as EventListener);
-  }, [setBottomTerminal]);
+  }, [openBottomPanel]);
 
-  // Track whether the bottom terminal previously had a URL.
-  // When a running terminal stops (URL disappears), auto-close the panel
-  // so the user doesn't get stuck on a "Starting terminal..." placeholder.
-  const bottomTerminalHadUrlRef = useRef(false);
+  // Listen for open-bottom-pm2-logs events (single open, replaces all)
   useEffect(() => {
-    if (!bottomTerminalBuildingId) {
-      bottomTerminalHadUrlRef.current = false;
-      return;
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ buildingId: string }>).detail;
+      if (detail?.buildingId) {
+        openBottomPanel(detail.buildingId, 'pm2-logs');
+      }
+    };
+    window.addEventListener('tide:open-bottom-pm2-logs', handler as EventListener);
+    return () => window.removeEventListener('tide:open-bottom-pm2-logs', handler as EventListener);
+  }, [openBottomPanel]);
+
+  // Listen for open-bottom-database events (single open, replaces all)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ buildingId: string }>).detail;
+      if (detail?.buildingId) {
+        openBottomPanel(detail.buildingId, 'database');
+      }
+    };
+    window.addEventListener('tide:open-bottom-database', handler as EventListener);
+    return () => window.removeEventListener('tide:open-bottom-database', handler as EventListener);
+  }, [openBottomPanel]);
+
+  // Listen for split-bottom-panel events
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ buildingId: string; type: BottomPanelType; direction: SplitDirection }>).detail;
+      if (detail?.buildingId && detail?.type && detail?.direction) {
+        if (bottomPanels.length === 0) {
+          openBottomPanel(detail.buildingId, detail.type);
+        } else {
+          splitBottomPanel(detail.buildingId, detail.type, detail.direction);
+        }
+      }
+    };
+    window.addEventListener('tide:split-bottom-panel', handler as EventListener);
+    return () => window.removeEventListener('tide:split-bottom-panel', handler as EventListener);
+  }, [bottomPanels.length, openBottomPanel, splitBottomPanel]);
+
+  // Keep split ratios in sync with panel count
+  useEffect(() => {
+    setSplitRatios(prev => {
+      if (prev.length === bottomPanels.length) return prev;
+      if (bottomPanels.length <= 1) return [1];
+      // When adding a panel, give equal space
+      if (bottomPanels.length > prev.length) {
+        return Array(bottomPanels.length).fill(1);
+      }
+      // When removing, redistribute equally
+      return Array(bottomPanels.length).fill(1);
+    });
+  }, [bottomPanels.length]);
+
+  // Handle split divider drag
+  const handleSplitResizeStart = useCallback((e: React.MouseEvent, dividerIndex: number) => {
+    e.preventDefault();
+    const isHorizontal = splitDirection === 'horizontal';
+    splitResizeRef.current = {
+      index: dividerIndex,
+      startPos: isHorizontal ? e.clientX : e.clientY,
+      startRatios: [...splitRatios],
+    };
+    document.body.style.cursor = isHorizontal ? 'col-resize' : 'row-resize';
+    document.body.style.userSelect = 'none';
+    // Disable pointer events on iframes during resize so they don't steal mouse events
+    const iframes = bottomPanelsContainerRef.current?.querySelectorAll('iframe');
+    iframes?.forEach(f => (f as HTMLElement).style.pointerEvents = 'none');
+
+    const container = bottomPanelsContainerRef.current;
+    const totalSize = container
+      ? (isHorizontal ? container.offsetWidth : container.offsetHeight)
+      : 1;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const ref = splitResizeRef.current;
+      if (!ref || !container) return;
+      const pos = isHorizontal ? moveEvent.clientX : moveEvent.clientY;
+      const delta = pos - ref.startPos;
+      const totalRatio = ref.startRatios.reduce((a, b) => a + b, 0);
+      const deltaRatio = (delta / totalSize) * totalRatio;
+
+      const newRatios = [...ref.startRatios];
+      const minRatio = 0.1 * totalRatio; // 10% minimum
+      newRatios[dividerIndex] = Math.max(minRatio, ref.startRatios[dividerIndex] + deltaRatio);
+      newRatios[dividerIndex + 1] = Math.max(minRatio, ref.startRatios[dividerIndex + 1] - deltaRatio);
+      setSplitRatios(newRatios);
+    };
+    const onMouseUp = () => {
+      splitResizeRef.current = null;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      iframes?.forEach(f => (f as HTMLElement).style.pointerEvents = '');
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  }, [splitDirection, splitRatios]);
+
+  // Start PM2 log streaming for newly added PM2 panels
+  const prevPm2PanelIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const currentPm2Ids = new Set(
+      bottomPanels.filter(p => p.type === 'pm2-logs').map(p => p.buildingId)
+    );
+    // Start streaming for newly added
+    for (const id of currentPm2Ids) {
+      if (!prevPm2PanelIdsRef.current.has(id)) {
+        store.startLogStreaming(id, 200);
+      }
     }
-    const building = buildings.get(bottomTerminalBuildingId);
-    const hasUrl = !!building?.terminalStatus?.url;
-    if (hasUrl) {
-      bottomTerminalHadUrlRef.current = true;
-    } else if (bottomTerminalHadUrlRef.current) {
-      // Terminal was running but lost its URL — it stopped
-      setBottomTerminal(null);
-      bottomTerminalHadUrlRef.current = false;
+    prevPm2PanelIdsRef.current = currentPm2Ids;
+  }, [bottomPanels]);
+
+  // Track which terminal panels had URLs (for auto-close on stop)
+  const terminalHadUrlRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const terminalPanels = bottomPanels.filter(p => p.type === 'terminal');
+    for (const panel of terminalPanels) {
+      const building = buildings.get(panel.buildingId);
+      const hasUrl = !!building?.terminalStatus?.url;
+      if (hasUrl) {
+        terminalHadUrlRef.current.add(panel.buildingId);
+      } else if (terminalHadUrlRef.current.has(panel.buildingId)) {
+        // Terminal stopped — remove this panel
+        terminalHadUrlRef.current.delete(panel.buildingId);
+        closeBottomPanel(panel.id);
+      }
     }
-  }, [bottomTerminalBuildingId, buildings, setBottomTerminal]);
+    // Clean up refs for panels that no longer exist
+    const activeBuildingIds = new Set(terminalPanels.map(p => p.buildingId));
+    for (const id of terminalHadUrlRef.current) {
+      if (!activeBuildingIds.has(id)) {
+        terminalHadUrlRef.current.delete(id);
+      }
+    }
+  }, [bottomPanels, buildings, closeBottomPanel]);
 
   // Bottom terminal resize handler
   const handleBottomTerminalResizeStart = useCallback((e: React.MouseEvent) => {
@@ -1403,7 +1678,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
       // Modals are rendered through portals under document.body.
       // Any modal interaction should never count as an outside click for Guake.
       const isInModal = !!target.closest(
-        '.modal-overlay, .modal, .image-modal-overlay, .image-modal, .bash-modal-overlay, .bash-modal, .agent-info-modal-overlay, .agent-info-modal, .agent-response-modal, .pasted-text-modal-overlay, .pasted-text-modal, .file-viewer-overlay, .file-viewer-modal, .context-view-modal, .guake-context-confirm-overlay, .guake-context-confirm-modal, .pm2-logs-modal-overlay, .pm2-logs-modal, .database-panel-modal'
+        '.modal-overlay, .modal, .image-modal-overlay, .image-modal, .bash-modal-overlay, .bash-modal, .agent-info-modal-overlay, .agent-info-modal, .agent-response-modal, .pasted-text-modal-overlay, .pasted-text-modal, .file-viewer-overlay, .file-viewer-modal, .context-view-modal, .guake-context-confirm-overlay, .guake-context-confirm-modal, .pm2-logs-modal-overlay, .pm2-logs-modal, .database-panel-modal, .context-menu'
       );
 
       return !!isInTerminal || !!isAgentBar || isInModal;
@@ -1919,20 +2194,29 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
             {areaTerminalBuildings.length > 0 && (
               <span className="guake-status-terminals">
                 {areaTerminalBuildings.map((tb) => {
-                  const isActive = bottomTerminalBuildingId === tb.id;
+                  const isActive = bottomPanelBuildingIds.has(tb.id);
                   return (
                     <button
                       key={tb.id}
                       className={`guake-status-terminal-btn ${isActive ? 'active' : ''} ${!tb.hasUrl ? 'offline' : ''}`}
                       title={`${isActive ? 'Hide' : 'Show'} terminal: ${tb.name}${!tb.hasUrl ? ' (starting...)' : ''}`}
                       onClick={() => {
-                        if (isActive && tb.hasUrl) {
-                          setBottomTerminal(null);
+                        if (isActive) {
+                          // Close just this panel
+                          const panel = bottomPanels.find(p => p.buildingId === tb.id);
+                          if (panel) closeBottomPanel(panel.id);
                         } else {
                           if (!tb.hasUrl) {
                             store.sendBuildingCommand(tb.id, 'start');
                           }
-                          window.dispatchEvent(new CustomEvent('tide:open-bottom-terminal', { detail: { buildingId: tb.id } }));
+                          openBottomPanel(tb.id, 'terminal');
+                        }
+                      }}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (!bottomPanelBuildingIds.has(tb.id)) {
+                          setSplitContextMenu({ position: { x: e.clientX, y: e.clientY }, buildingId: tb.id, type: 'terminal' });
                         }
                       }}
                     >
@@ -1942,71 +2226,227 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
                 })}
               </span>
             )}
+            {/* PM2 log toggle buttons for area server buildings */}
+            {areaPm2Buildings.length > 0 && (
+              <span className="guake-status-terminals">
+                {areaPm2Buildings.map((sb) => {
+                  const isActive = bottomPanelBuildingIds.has(sb.id);
+                  return (
+                    <button
+                      key={sb.id}
+                      className={`guake-status-terminal-btn ${isActive ? 'active' : ''}`}
+                      title={`${isActive ? 'Hide' : 'Show'} logs: ${sb.name}`}
+                      onClick={() => {
+                        if (isActive) {
+                          const panel = bottomPanels.find(p => p.buildingId === sb.id);
+                          if (panel) closeBottomPanel(panel.id);
+                        } else {
+                          openBottomPanel(sb.id, 'pm2-logs');
+                        }
+                      }}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (!bottomPanelBuildingIds.has(sb.id)) {
+                          setSplitContextMenu({ position: { x: e.clientX, y: e.clientY }, buildingId: sb.id, type: 'pm2-logs' });
+                        }
+                      }}
+                    >
+                      📜
+                    </button>
+                  );
+                })}
+              </span>
+            )}
+            {/* Database toggle buttons for area database buildings */}
+            {areaDatabaseBuildings.length > 0 && (
+              <span className="guake-status-terminals">
+                {areaDatabaseBuildings.map((db) => {
+                  const isActive = bottomPanelBuildingIds.has(db.id);
+                  return (
+                    <button
+                      key={db.id}
+                      className={`guake-status-terminal-btn ${isActive ? 'active' : ''}`}
+                      title={`${isActive ? 'Hide' : 'Show'} database: ${db.name}`}
+                      onClick={() => {
+                        if (isActive) {
+                          const panel = bottomPanels.find(p => p.buildingId === db.id);
+                          if (panel) closeBottomPanel(panel.id);
+                        } else {
+                          openBottomPanel(db.id, 'database');
+                        }
+                      }}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (!bottomPanelBuildingIds.has(db.id)) {
+                          setSplitContextMenu({ position: { x: e.clientX, y: e.clientY }, buildingId: db.id, type: 'database' });
+                        }
+                      }}
+                    >
+                      🗄️
+                    </button>
+                  );
+                })}
+              </span>
+            )}
             <ThemeSelector />
           </span>
         </div>
 
-        {/* Bottom embedded terminal panel */}
-        {bottomTerminalBuildingId && (() => {
-          const termBuilding = buildings.get(bottomTerminalBuildingId);
-          if (!termBuilding) return null;
-          if (!termBuilding.terminalStatus?.url) {
-            return (
-              <div
-                className="guake-bottom-terminal"
-                style={{ height: bottomTerminalHeight }}
-              >
-                <div className="guake-bottom-terminal-header">
-                  <span className="guake-bottom-terminal-title">Terminal - {termBuilding.name} (starting...)</span>
-                  <button
-                    className="guake-bottom-terminal-close"
-                    onClick={() => setBottomTerminal(null)}
-                  >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                  </button>
-                </div>
-                <div className="guake-bottom-terminal-starting">
-                  <span>Starting terminal...</span>
-                </div>
-              </div>
-            );
+        {/* Split context menu — portaled to body to escape overflow:hidden + backdrop-filter */}
+        {(() => {
+          const splitActions: ContextMenuAction[] = [];
+          if (splitContextMenu) {
+            splitActions.push({
+              id: 'open',
+              label: 'Open',
+              icon: '⬇',
+              onClick: () => openBottomPanel(splitContextMenu.buildingId, splitContextMenu.type),
+            });
+            if (bottomPanels.length > 0) {
+              splitActions.push({
+                id: 'split-right',
+                label: 'Split Right',
+                icon: '↔',
+                onClick: () => splitBottomPanel(splitContextMenu.buildingId, splitContextMenu.type, 'horizontal'),
+              });
+              splitActions.push({
+                id: 'split-below',
+                label: 'Split Below',
+                icon: '↕',
+                onClick: () => splitBottomPanel(splitContextMenu.buildingId, splitContextMenu.type, 'vertical'),
+              });
+            }
           }
           return (
-            <>
-              <div
-                className="guake-bottom-terminal-resize"
-                onMouseDown={handleBottomTerminalResizeStart}
+            <ModalPortal>
+              <ContextMenu
+                isOpen={splitContextMenu !== null}
+                position={splitContextMenu?.position || { x: 0, y: 0 }}
+                worldPosition={{ x: 0, z: 0 }}
+                actions={splitActions}
+                onClose={() => setSplitContextMenu(null)}
               />
-              <div
-                className="guake-bottom-terminal"
-                style={{ height: bottomTerminalHeight }}
-                onWheel={(e) => e.stopPropagation()}
-              >
-                <div className="guake-bottom-terminal-header">
-                  <span className="guake-bottom-terminal-title">Terminal - {termBuilding.name}</span>
-                  <button
-                    className="guake-bottom-terminal-close"
-                    onClick={() => setBottomTerminal(null)}
-                  >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                  </button>
-                </div>
-                <iframe
-                  src={authUrl(termBuilding.terminalStatus.url)}
-                  className="guake-bottom-terminal-iframe"
-                  title={`Terminal - ${termBuilding.name}`}
-                  allow="clipboard-read; clipboard-write"
-                />
-              </div>
-            </>
+            </ModalPortal>
           );
         })()}
+
+        {/* Bottom panels area */}
+        {bottomPanels.length > 0 && (
+          <>
+            <div
+              className="guake-bottom-terminal-resize"
+              onMouseDown={handleBottomTerminalResizeStart}
+            />
+            <div
+              ref={bottomPanelsContainerRef}
+              className={`guake-bottom-panels-container ${splitDirection}`}
+              style={{ height: bottomTerminalHeight }}
+              onWheel={(e) => e.stopPropagation()}
+            >
+              {bottomPanels.map((panel, panelIndex) => {
+                const building = buildings.get(panel.buildingId);
+                if (!building) return null;
+                const ratio = splitRatios[panelIndex] ?? 1;
+
+                const panelContent = (() => {
+                  if (panel.type === 'terminal') {
+                    if (!building.terminalStatus?.url) {
+                      return (
+                        <div key={panel.id} className="guake-bottom-panel" style={{ flex: ratio }}>
+                          <div className="guake-bottom-terminal-header">
+                            <span className="guake-bottom-terminal-title">💻 {building.name} (starting...)</span>
+                            <button className="guake-bottom-terminal-close" onClick={() => closeBottomPanel(panel.id)}>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                              </svg>
+                            </button>
+                          </div>
+                          <div className="guake-bottom-terminal-starting"><span>Starting terminal...</span></div>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div key={panel.id} className="guake-bottom-panel" style={{ flex: ratio }}>
+                        <div className="guake-bottom-terminal-header">
+                          <span className="guake-bottom-terminal-title">💻 {building.name}</span>
+                          <button className="guake-bottom-terminal-close" onClick={() => closeBottomPanel(panel.id)}>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                            </svg>
+                          </button>
+                        </div>
+                        <iframe
+                          src={authUrl(building.terminalStatus.url)}
+                          className="guake-bottom-terminal-iframe"
+                          title={`Terminal - ${building.name}`}
+                          allow="clipboard-read; clipboard-write"
+                        />
+                      </div>
+                    );
+                  }
+
+                  if (panel.type === 'pm2-logs') {
+                    return (
+                      <div key={panel.id} className="guake-bottom-panel" style={{ flex: ratio }}>
+                        <div className="guake-bottom-terminal-header">
+                          <span className="guake-bottom-terminal-title">📜 {building.name}</span>
+                          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                            <button
+                              className="guake-bottom-terminal-close"
+                              onClick={() => store.clearStreamingLogs(panel.buildingId)}
+                              title="Clear logs"
+                            >
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
+                              </svg>
+                            </button>
+                            <button className="guake-bottom-terminal-close" onClick={() => closeBottomPanel(panel.id)}>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                        <BottomPm2LogContent buildingId={panel.buildingId} />
+                      </div>
+                    );
+                  }
+
+                  // database panel (compact inline version)
+                  return (
+                    <div key={panel.id} className="guake-bottom-panel" style={{ flex: ratio }}>
+                      <div className="guake-bottom-terminal-header">
+                        <span className="guake-bottom-terminal-title">🗄️ {building.name}</span>
+                        <button className="guake-bottom-terminal-close" onClick={() => closeBottomPanel(panel.id)}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                          </svg>
+                        </button>
+                      </div>
+                      <DatabasePanelInline building={building} />
+                    </div>
+                  );
+                })();
+
+                // Insert resize divider before each panel except the first
+                if (panelIndex > 0) {
+                  return (
+                    <React.Fragment key={panel.id}>
+                      <div
+                        className={`guake-split-divider ${splitDirection}`}
+                        onMouseDown={(e) => handleSplitResizeStart(e, panelIndex - 1)}
+                      />
+                      {panelContent}
+                    </React.Fragment>
+                  );
+                }
+                return panelContent;
+              })}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Resize handle */}

@@ -669,9 +669,48 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
                               e.stopPropagation();
                               window.dispatchEvent(new CustomEvent('tide:open-bottom-terminal', { detail: { buildingId: building.id } }));
                             }}
-                            title="Open terminal below"
+                            onContextMenu={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              window.dispatchEvent(new CustomEvent('tide:split-bottom-panel', { detail: { buildingId: building.id, type: 'terminal', direction: 'horizontal' } }));
+                            }}
+                            title="Open terminal below (right-click to split)"
                           >
                             ⬇
+                          </button>
+                        )}
+                        {building.type === 'server' && building.pm2?.enabled && (
+                          <button
+                            className="guake-building-action terminal-below"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.dispatchEvent(new CustomEvent('tide:open-bottom-pm2-logs', { detail: { buildingId: building.id } }));
+                            }}
+                            onContextMenu={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              window.dispatchEvent(new CustomEvent('tide:split-bottom-panel', { detail: { buildingId: building.id, type: 'pm2-logs', direction: 'horizontal' } }));
+                            }}
+                            title="Show logs below (right-click to split)"
+                          >
+                            📜
+                          </button>
+                        )}
+                        {building.type === 'database' && building.database && (
+                          <button
+                            className="guake-building-action-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.dispatchEvent(new CustomEvent('tide:open-bottom-database', { detail: { buildingId: building.id } }));
+                            }}
+                            onContextMenu={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              window.dispatchEvent(new CustomEvent('tide:split-bottom-panel', { detail: { buildingId: building.id, type: 'database', direction: 'horizontal' } }));
+                            }}
+                            title="Show database below (right-click to split)"
+                          >
+                            🗄️
                           </button>
                         )}
                       </>
