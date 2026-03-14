@@ -555,7 +555,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
   }, [persistBottomPanels]);
 
   // Close all bottom panels
-  const closeAllBottomPanels = useCallback(() => {
+  const _closeAllBottomPanels = useCallback(() => {
     setBottomPanels(prev => {
       for (const p of prev) {
         if (p.type === 'pm2-logs') {
