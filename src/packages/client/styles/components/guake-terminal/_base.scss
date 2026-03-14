@@ -476,3 +476,82 @@
   font-size: 0.85rem;
   background: #1a1a2e;
 }
+
+.guake-bottom-pm2-logs {
+  flex: 1;
+  width: 100%;
+  margin: 0;
+  padding: 6px 10px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: #1a1a2e;
+  color: rgba(255, 255, 255, 0.85);
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+  overscroll-behavior: contain;
+}
+
+// =============================================================================
+// Split Bottom Panels
+// =============================================================================
+
+.guake-bottom-panels-container {
+  flex-shrink: 0;
+  display: flex;
+  border-top: 1px solid rgba($dracula-comment, 0.2);
+  background: $bg-primary;
+  min-height: 120px;
+
+  &.horizontal {
+    flex-direction: row;
+
+    .guake-bottom-panel {
+      min-width: 0;
+    }
+  }
+
+  &.vertical {
+    flex-direction: column;
+
+    .guake-bottom-panel {
+      min-height: 0;
+    }
+  }
+}
+
+.guake-bottom-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.guake-split-divider {
+  flex-shrink: 0;
+  background: rgba($dracula-comment, 0.3);
+  position: relative;
+  z-index: 2;
+  transition: background 0.15s ease;
+
+  &.horizontal {
+    width: 4px;
+    cursor: col-resize;
+
+    &:hover, &:active {
+      background: rgba($dracula-cyan, 0.5);
+    }
+  }
+
+  &.vertical {
+    height: 4px;
+    cursor: row-resize;
+
+    &:hover, &:active {
+      background: rgba($dracula-cyan, 0.5);
+    }
+  }
+}
+
+

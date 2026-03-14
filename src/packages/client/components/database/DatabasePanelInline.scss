@@ -1,0 +1,163 @@
+/**
+ * DatabasePanelInline - Compact styles for bottom split panel
+ */
+@use '../../styles/variables' as *;
+
+.db-inline {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: $bg-primary;
+  color: $text-primary;
+  overflow: hidden;
+
+  &__toolbar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 6px;
+    background: $bg-secondary;
+    border-bottom: 1px solid $border-color;
+    flex-shrink: 0;
+  }
+
+  &__connection-badge {
+    font-size: 11px;
+    color: $text-secondary;
+    padding: 2px 6px;
+    background: $bg-tertiary;
+    border-radius: 3px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  &__select {
+    background: $bg-tertiary;
+    border: 1px solid $border-color;
+    border-radius: 3px;
+    color: $text-primary;
+    font-size: 11px;
+    padding: 3px 4px;
+    min-width: 0;
+    max-width: 160px;
+    cursor: pointer;
+
+    &:focus {
+      outline: none;
+      border-color: $accent-blue;
+    }
+
+    &--tables {
+      max-width: 130px;
+    }
+  }
+
+  &__run {
+    flex-shrink: 0;
+    background: $accent-blue;
+    border: none;
+    border-radius: 3px;
+    color: white;
+    font-size: 11px;
+    padding: 3px 8px;
+    cursor: pointer;
+    line-height: 1;
+
+    &:hover:not(:disabled) {
+      filter: brightness(1.15);
+    }
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+  }
+
+  &__editor {
+    flex-shrink: 0;
+    border-bottom: 1px solid $border-color;
+    position: relative;
+    min-height: 34px;
+    max-height: 80px;
+    overflow: hidden;
+  }
+
+  // Shared styles for both textarea and highlight overlay
+  &__textarea,
+  &__highlight {
+    width: 100%;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 12px;
+    line-height: 1.4;
+    padding: 4px 8px;
+    margin: 0;
+    border: none;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow: auto;
+    min-height: 34px;
+    max-height: 80px;
+  }
+
+  &__highlight {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: $bg-primary;
+    color: $text-primary;
+    pointer-events: none;
+    z-index: 0;
+
+    // Prism SQL token colors (dracula-like theme)
+    .token {
+      &.keyword { color: #ff79c6; font-weight: 500; }
+      &.string { color: #f1fa8c; }
+      &.number { color: #bd93f9; }
+      &.operator { color: #ff79c6; }
+      &.punctuation { color: #6272a4; }
+      &.function { color: #50fa7b; }
+      &.comment { color: #6272a4; font-style: italic; }
+      &.boolean { color: #bd93f9; }
+      &.variable { color: #8be9fd; }
+    }
+  }
+
+  &__textarea {
+    position: relative;
+    z-index: 1;
+    background: transparent;
+    color: transparent;
+    caret-color: $text-primary;
+    resize: none;
+    outline: none;
+
+    &::placeholder {
+      color: $text-secondary;
+      opacity: 0.5;
+    }
+
+    // Selection needs to be visible
+    &::selection {
+      background: rgba(100, 150, 200, 0.3);
+      color: transparent;
+    }
+  }
+
+  &__results {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  &__empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: $text-secondary;
+    font-size: 12px;
+    padding: 8px;
+  }
+}
