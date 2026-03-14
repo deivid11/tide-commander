@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.21.0] - 2026-03-13
+
+### Added
+- **Database panel** - Inline database panel for building actions in the bottom panel
+- **PM2 logs panel** - Open PM2 logs directly in the bottom panel from building actions
+- **Split panel support** - Right-click building actions to split horizontally into the bottom panel
+
+### Changed
+- **Boss delegation reminder** - Added reminder in boss context to encourage task delegation to subordinates
+
+### Fixed
+- **Unused variable lint warning** - Prefixed unused `closeAllBottomPanels` to pass strict lint checks
+
 ## [1.20.0] - 2026-03-13
 
 ### Added
