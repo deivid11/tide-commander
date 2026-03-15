@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.22.0] - 2026-03-14
+
+### Added
+- **Device performance detection** - Automatic hardware capability detection for adaptive rendering quality
+- **Scene rendering optimizations** - Improved render loop, scene core, and effects manager for better performance on lower-end devices
+
 ## [1.21.0] - 2026-03-13
 
 ### Added
