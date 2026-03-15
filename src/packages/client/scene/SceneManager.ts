@@ -20,6 +20,7 @@ import { CameraManager } from './CameraManager';
 import { SceneCore } from './SceneCore';
 import { SelectionManager } from './SelectionManager';
 import { InputEventHandlers } from './InputEventHandlers';
+import { getScenePerformanceProfile } from '../utils/devicePerformance';
 
 /**
  * Main scene orchestrator that coordinates all subsystems.
@@ -55,6 +56,7 @@ export class SceneManager {
   private proceduralBodiesCache = new Map<string, THREE.Object3D>();
   private proceduralBodiesDirty = true;
   private lastTimeUpdate = 0;
+  private performanceProfile = getScenePerformanceProfile();
 
   constructor(canvas: HTMLCanvasElement, selectionBox: HTMLDivElement) {
     // Initialize core systems
@@ -337,9 +339,18 @@ export class SceneManager {
   }
 
   private updateIndicatorScales(camera: THREE.PerspectiveCamera, agentMeshes: Map<string, AgentMeshData>, scale3d: number): void {
+    const frustum = new THREE.Frustum();
+    const projectionMatrix = new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    frustum.setFromProjectionMatrix(projectionMatrix);
+    const visibilitySphere = new THREE.Sphere();
+
     // Scale agent indicators
     for (const [, meshData] of agentMeshes) {
       const distance = camera.position.distanceTo(meshData.group.position);
+      const inView = frustum.intersectsSphere(visibilitySphere.set(meshData.group.position, 2.5));
+      const showStatusUi = inView && distance <= this.performanceProfile.maxStatusSpriteDistance;
+      const showNameUi = inView && distance <= this.performanceProfile.maxNameSpriteDistance;
+      const showBadgeUi = inView && distance <= this.performanceProfile.maxBadgeDistance;
       const scale = Math.max(0.5, Math.min(2.5, distance / 15)) * scale3d;
       const isBoss = meshData.group.userData.isBoss === true;
 
@@ -348,74 +359,107 @@ export class SceneManager {
       const nameLabelSprite = meshData.group.getObjectByName('nameLabelSprite') as THREE.Sprite;
 
       if (statusBar) {
-        const baseScale = typeof statusBar.userData.baseIndicatorScale === 'number'
-          ? statusBar.userData.baseIndicatorScale
-          : (isBoss ? 2.0 : 1.6);
-        const aspectRatio = typeof statusBar.userData.aspectRatio === 'number'
-          ? statusBar.userData.aspectRatio
-          : (2560 / 4096);
-        const distScale = Math.max(0.5, Math.min(2.5, distance / 15));
-        const zoomFactor = Math.max(0.8, Math.min(1.2, distScale));
-        const indicatorZoom = zoomFactor * scale3d;
-        statusBar.scale.set(baseScale * indicatorZoom, baseScale * aspectRatio * indicatorZoom, 1);
+        statusBar.visible = showStatusUi;
+        if (showStatusUi) {
+          const baseScale = typeof statusBar.userData.baseIndicatorScale === 'number'
+            ? statusBar.userData.baseIndicatorScale
+            : (isBoss ? 2.0 : 1.6);
+          const aspectRatio = typeof statusBar.userData.aspectRatio === 'number'
+            ? statusBar.userData.aspectRatio
+            : (2560 / 4096);
+          const distScale = Math.max(0.5, Math.min(2.5, distance / 15));
+          const zoomFactor = Math.max(0.8, Math.min(1.2, distScale));
+          const indicatorZoom = zoomFactor * scale3d;
+          statusBar.scale.set(baseScale * indicatorZoom, baseScale * aspectRatio * indicatorZoom, 1);
+        }
       }
 
       if (nameLabelSprite) {
-        const rawBaseScale = typeof nameLabelSprite.userData.baseIndicatorScale === 'number'
-          ? nameLabelSprite.userData.baseIndicatorScale
-          : (isBoss ? 1.5 : 1.25);
-        // Only clamp for name-only sprites; task-label sprites use their own larger scale
-        const hasTaskLabel = rawBaseScale > 2;
-        const baseScale = hasTaskLabel
-          ? rawBaseScale
-          : Math.max(isBoss ? 1.35 : 1.1, Math.min(isBoss ? 1.65 : 1.35, rawBaseScale));
-        const aspectRatio = typeof nameLabelSprite.userData.aspectRatio === 'number'
-          ? nameLabelSprite.userData.aspectRatio
-          : (1024 / 4096);
-        // Separate distance-based zoom from the user-configured 3D scale so both apply correctly
-        const distScale = Math.max(0.5, Math.min(2.5, distance / 15));
-        const zoomFactor = hasTaskLabel ? Math.max(0.8, Math.min(1.2, distScale)) : distScale;
-        const labelScale = zoomFactor * scale3d;
-        nameLabelSprite.scale.set(baseScale * labelScale, baseScale * aspectRatio * labelScale, 1);
+        nameLabelSprite.visible = showNameUi;
+        if (showNameUi) {
+          const rawBaseScale = typeof nameLabelSprite.userData.baseIndicatorScale === 'number'
+            ? nameLabelSprite.userData.baseIndicatorScale
+            : (isBoss ? 1.5 : 1.25);
+          // Only clamp for name-only sprites; task-label sprites use their own larger scale
+          const hasTaskLabel = rawBaseScale > 2;
+          const baseScale = hasTaskLabel
+            ? rawBaseScale
+            : Math.max(isBoss ? 1.35 : 1.1, Math.min(isBoss ? 1.65 : 1.35, rawBaseScale));
+          const aspectRatio = typeof nameLabelSprite.userData.aspectRatio === 'number'
+            ? nameLabelSprite.userData.aspectRatio
+            : (1024 / 4096);
+          // Separate distance-based zoom from the user-configured 3D scale so both apply correctly
+          const distScale = Math.max(0.5, Math.min(2.5, distance / 15));
+          const zoomFactor = hasTaskLabel ? Math.max(0.8, Math.min(1.2, distScale)) : distScale;
+          const labelScale = zoomFactor * scale3d;
+          nameLabelSprite.scale.set(baseScale * labelScale, baseScale * aspectRatio * labelScale, 1);
+        }
       }
 
       // Combined UI sprite (legacy - single sprite for all UI elements)
       const combinedUI = meshData.group.getObjectByName('combinedUI') as THREE.Sprite;
       if (combinedUI) {
-        const baseScale = typeof combinedUI.userData.baseIndicatorScale === 'number'
-          ? combinedUI.userData.baseIndicatorScale
-          : (isBoss ? 3.0 : 2.4);
-        const aspectRatio = typeof combinedUI.userData.aspectRatio === 'number'
-          ? combinedUI.userData.aspectRatio
-          : (1024 / 2048);
-        combinedUI.scale.set(baseScale * scale, baseScale * aspectRatio * scale, 1);
+        combinedUI.visible = showStatusUi;
+        if (showStatusUi) {
+          const baseScale = typeof combinedUI.userData.baseIndicatorScale === 'number'
+            ? combinedUI.userData.baseIndicatorScale
+            : (isBoss ? 3.0 : 2.4);
+          const aspectRatio = typeof combinedUI.userData.aspectRatio === 'number'
+            ? combinedUI.userData.aspectRatio
+            : (1024 / 2048);
+          combinedUI.scale.set(baseScale * scale, baseScale * aspectRatio * scale, 1);
+        }
       }
 
       // Very old legacy sprites (fallback for oldest agents)
       if (!statusBar && !combinedUI) {
         const nameLabel = meshData.group.getObjectByName('nameLabel') as THREE.Sprite;
         if (nameLabel) {
-          const baseHeight = 0.3 * scale;
-          nameLabel.scale.set(baseHeight * (nameLabel.userData.aspectRatio || 2), baseHeight, 1);
+          nameLabel.visible = showNameUi;
+          if (showNameUi) {
+            const baseHeight = 0.3 * scale;
+            nameLabel.scale.set(baseHeight * (nameLabel.userData.aspectRatio || 2), baseHeight, 1);
+          }
         }
 
         const manaBar = meshData.group.getObjectByName('manaBar') as THREE.Sprite;
-        if (manaBar) manaBar.scale.set(0.9, 0.14, 1); // Fixed size, no scaling
+        if (manaBar) {
+          manaBar.visible = showStatusUi;
+          if (showStatusUi) {
+            manaBar.scale.set(0.9, 0.14, 1); // Fixed size, no scaling
+          }
+        }
 
         const idleTimer = meshData.group.getObjectByName('idleTimer') as THREE.Sprite;
-        if (idleTimer) idleTimer.scale.set(0.9 * scale, 0.14 * scale, 1);
+        if (idleTimer) {
+          idleTimer.visible = showStatusUi;
+          if (showStatusUi) {
+            idleTimer.scale.set(0.9 * scale, 0.14 * scale, 1);
+          }
+        }
+      }
+
+      for (const child of meshData.group.children) {
+        if (child instanceof THREE.Sprite && child.userData.isNotificationBadge) {
+          child.visible = showBadgeUi;
+        }
       }
     }
 
     // Scale building labels (same behavior as agent labels)
     for (const [, meshData] of this.buildingManager.getBuildingMeshData()) {
       const distance = camera.position.distanceTo(meshData.group.position);
+      const showLabel = frustum.intersectsSphere(visibilitySphere.set(meshData.group.position, 3)) &&
+        distance <= this.performanceProfile.maxBuildingLabelDistance;
       const scale = Math.max(0.5, Math.min(2.5, distance / 15)) * scale3d;
 
       const buildingLabel = meshData.group.getObjectByName('buildingLabel') as THREE.Sprite;
       if (buildingLabel) {
-        const baseHeight = 0.3 * scale;
-        buildingLabel.scale.set(baseHeight * (buildingLabel.userData.aspectRatio || 2), baseHeight, 1);
+        buildingLabel.visible = showLabel;
+        if (showLabel) {
+          const baseHeight = 0.3 * scale;
+          buildingLabel.scale.set(baseHeight * (buildingLabel.userData.aspectRatio || 2), baseHeight, 1);
+        }
       }
     }
 

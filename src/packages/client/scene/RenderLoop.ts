@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { fpsTracker } from '../utils/profiling';
 import { saveCameraState } from '../utils/camera';
+import { getScenePerformanceProfile } from '../utils/devicePerformance';
 import { CAMERA_SAVE_INTERVAL } from './config';
 import { store } from '../store';
 import type { AgentMeshData } from './characters';
@@ -57,9 +58,10 @@ export class RenderLoop {
 
   // Indicator scaling
   private scale3d = 1.0;
+  private performanceProfile = getScenePerformanceProfile();
   private lastCameraDistanceForScale = 0;
   private lastIndicatorScaleUpdate = 0;
-  private static readonly INDICATOR_SCALE_UPDATE_INTERVAL = 100;
+  private lastNotificationBadgeUpdate = 0;
 
   // Animation frame
   private animationFrameId: number | null = null;
@@ -184,7 +186,12 @@ export class RenderLoop {
     }
 
     // FPS limiting
-    const effectiveFpsLimit = (this.powerSavingEnabled && this.isIdle) ? this.idleFpsLimit : this.fpsLimit;
+    let effectiveFpsLimit = (this.powerSavingEnabled && this.isIdle) ? this.idleFpsLimit : this.fpsLimit;
+    if (this.performanceProfile.maxFps > 0) {
+      effectiveFpsLimit = effectiveFpsLimit > 0
+        ? Math.min(effectiveFpsLimit, this.performanceProfile.maxFps)
+        : this.performanceProfile.maxFps;
+    }
     const effectiveFrameInterval = effectiveFpsLimit > 0 ? 1000 / effectiveFpsLimit : this.frameInterval;
 
     if (effectiveFrameInterval > 0) {
@@ -250,7 +257,11 @@ export class RenderLoop {
     }
 
     // Update notification badges
-    this.callbacks.onUpdateNotificationBadges?.();
+    const badgeInterval = this.performanceProfile.notificationBadgeUpdateInterval;
+    if (badgeInterval === 0 || now - this.lastNotificationBadgeUpdate >= badgeInterval) {
+      this.callbacks.onUpdateNotificationBadges?.();
+      this.lastNotificationBadgeUpdate = now;
+    }
 
     // Update boss-subordinate lines
     this.callbacks.onUpdateBossSubordinateLines();
@@ -258,7 +269,8 @@ export class RenderLoop {
     // Update indicator scales
     const cameraDistance = camera.position.length();
     const cameraMoved = Math.abs(cameraDistance - this.lastCameraDistanceForScale) > 0.5;
-    const shouldUpdateScales = cameraMoved || (now - this.lastIndicatorScaleUpdate > RenderLoop.INDICATOR_SCALE_UPDATE_INTERVAL);
+    const shouldUpdateScales = cameraMoved ||
+      (now - this.lastIndicatorScaleUpdate > this.performanceProfile.indicatorUpdateInterval);
 
     if (shouldUpdateScales) {
       this.lastCameraDistanceForScale = cameraDistance;

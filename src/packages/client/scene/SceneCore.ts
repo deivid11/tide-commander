@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { PostProcessing } from './PostProcessing';
+import { getScenePerformanceProfile } from '../utils/devicePerformance';
 
 /**
  * Manages Three.js scene and renderer initialization.
@@ -11,6 +12,7 @@ export class SceneCore {
   private canvas: HTMLCanvasElement;
   private postProcessing: PostProcessing | null = null;
   private camera: THREE.Camera | null = null;
+  private performanceProfile = getScenePerformanceProfile();
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -70,14 +72,14 @@ export class SceneCore {
    * Enable or disable post-processing.
    */
   setPostProcessingEnabled(enabled: boolean): void {
-    this.postProcessing?.setEnabled(enabled);
+    this.postProcessing?.setEnabled(enabled && !this.performanceProfile.isConstrained);
   }
 
   /**
    * Check if post-processing is enabled.
    */
   isPostProcessingEnabled(): boolean {
-    return this.postProcessing?.isEnabled() ?? false;
+    return !this.performanceProfile.isConstrained && (this.postProcessing?.isEnabled() ?? false);
   }
 
   /**
@@ -144,7 +146,7 @@ export class SceneCore {
     try {
       renderer = new THREE.WebGLRenderer({
         canvas: this.canvas,
-        antialias: true,
+        antialias: this.performanceProfile.antialias,
         powerPreference: 'high-performance',
         failIfMajorPerformanceCaveat: false,
       });
@@ -162,9 +164,9 @@ export class SceneCore {
     }
 
     renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.performanceProfile.maxPixelRatio));
+    renderer.shadowMap.enabled = this.performanceProfile.enableShadows;
+    renderer.shadowMap.type = this.performanceProfile.enableShadows ? THREE.PCFSoftShadowMap : THREE.BasicShadowMap;
     return renderer;
   }
 

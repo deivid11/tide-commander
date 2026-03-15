@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { TOOL_ICONS } from '../../utils/outputRendering';
+import { getScenePerformanceProfile } from '../../utils/devicePerformance';
 
 /**
  * Move order effect data.
@@ -109,6 +110,8 @@ export class EffectsManager {
 
   // Track if scene needs redraw (dirty flag)
   private _needsUpdate = false;
+  private performanceProfile = getScenePerformanceProfile();
+  private tempProjectedPosition = new THREE.Vector3();
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -646,6 +649,8 @@ export class EffectsManager {
    * Optimized: uses sprite pool to avoid allocation.
    */
   createDelegationEffect(bossId: string, subordinateId: string): void {
+    if (this.performanceProfile.reduceTransientEffects) return;
+
     const bossGroup = this.agentMeshes.get(bossId);
     const subGroup = this.agentMeshes.get(subordinateId);
 
@@ -689,6 +694,8 @@ export class EffectsManager {
    * Create a speech bubble effect above an agent.
    */
   createSpeechBubble(agentId: string, toolName: string, toolInput?: Record<string, unknown>): void {
+    if (this.performanceProfile.reduceTransientEffects) return;
+
     const agentGroup = this.agentMeshes.get(agentId);
     if (!agentGroup) return;
 
@@ -940,6 +947,19 @@ export class EffectsManager {
     return zoomScale * this.scale3d;
   }
 
+  private shouldRenderOverlay(position: THREE.Vector3, maxDistance = this.performanceProfile.overlayEffectDistance): boolean {
+    if (!this.camera) return true;
+    if (this.camera.position.distanceTo(position) > maxDistance) return false;
+
+    this.tempProjectedPosition.copy(position).project(this.camera);
+    return this.tempProjectedPosition.z >= -1 &&
+      this.tempProjectedPosition.z <= 1 &&
+      this.tempProjectedPosition.x >= -1.2 &&
+      this.tempProjectedPosition.x <= 1.2 &&
+      this.tempProjectedPosition.y >= -1.2 &&
+      this.tempProjectedPosition.y <= 1.2;
+  }
+
   /**
    * Update sleeping effects animation.
    */
@@ -954,8 +974,11 @@ export class EffectsManager {
 
       // Calculate zoom-based scale
       const zoomScale = this.calculateZoomScale(agentGroup.position);
+      const isVisible = this.shouldRenderOverlay(agentGroup.position);
 
       for (const sprite of effect.sprites) {
+        sprite.visible = isVisible;
+        if (!isVisible) continue;
         // Follow agent position
         sprite.position.x = agentGroup.position.x + 0.25 * zoomScale;
         sprite.position.z = agentGroup.position.z;
@@ -991,8 +1014,11 @@ export class EffectsManager {
 
       // Calculate zoom-based scale
       const zoomScale = this.calculateZoomScale(agentGroup.position);
+      const isVisible = this.shouldRenderOverlay(agentGroup.position);
 
       for (const sprite of effect.sprites) {
+        sprite.visible = isVisible;
+        if (!isVisible) continue;
         // Follow agent position
         sprite.position.x = agentGroup.position.x + 0.25 * zoomScale;
         sprite.position.z = agentGroup.position.z;
@@ -1182,6 +1208,8 @@ export class EffectsManager {
    * Create a subagent indicator sprite near the parent agent.
    */
   addSubagentEffect(subagentId: string, parentAgentId: string, name: string, subagentType: string): void {
+    if (this.performanceProfile.reduceTransientEffects) return;
+
     const agentGroup = this.agentMeshes.get(parentAgentId);
     if (!agentGroup) {
       console.warn(`[EffectsManager] Cannot add subagent effect: parent agent ${parentAgentId} not found`);
