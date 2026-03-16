@@ -54,6 +54,176 @@
   position: relative;
 }
 
+// CodeMirror read-only viewer fills the content wrapper
+.file-viewer-cm-readonly {
+  overflow: hidden;
+  outline: none;
+
+  .cm-editor {
+    height: 100%;
+    font-size: 13px;
+    background-color: #181820;
+
+    &.cm-focused {
+      outline: none;
+    }
+  }
+
+  .cm-scroller {
+    overflow: auto;
+  }
+
+  .cm-gutters {
+    background-color: #181820;
+    border-right: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  // Search panel styling
+  .cm-panels {
+    background-color: #181820;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .cm-search.cm-panel {
+    padding: 5px 8px;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 5px;
+    background-color: #181820;
+    font-family: $font-mono;
+    font-size: 12px;
+    color: $text-muted;
+    white-space: nowrap;
+
+    // Search text input
+    .cm-textfield {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 4px;
+      color: $text-primary;
+      font-family: $font-mono;
+      font-size: 12px;
+      padding: 4px 8px;
+      outline: none;
+      min-width: 200px;
+
+      &:focus {
+        border-color: rgba($accent-purple, 0.6);
+        box-shadow: 0 0 0 1px rgba($accent-purple, 0.15);
+      }
+
+      &::placeholder {
+        color: rgba(255, 255, 255, 0.25);
+      }
+    }
+
+    // Next / Previous / All buttons
+    .cm-button {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+      color: $text-muted;
+      font-family: $font-mono;
+      font-size: 11px;
+      padding: 3px 10px;
+      cursor: pointer;
+      transition: all 0.12s ease;
+      text-transform: capitalize;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.1);
+        color: $text-primary;
+        border-color: rgba(255, 255, 255, 0.2);
+      }
+
+      &:active {
+        background: rgba(255, 255, 255, 0.15);
+      }
+    }
+
+    // Toggle labels (match case, regexp, by word)
+    label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: rgba(255, 255, 255, 0.35);
+      font-size: 11px;
+      cursor: pointer;
+      padding: 2px 4px;
+      border-radius: 3px;
+      transition: color 0.12s ease;
+
+      &:hover {
+        color: $text-secondary;
+
+        input[type="checkbox"]::before {
+          border-color: rgba(255, 255, 255, 0.3);
+        }
+      }
+
+      // Style native checkbox as a mini toggle switch
+      input[type="checkbox"] {
+        appearance: none;
+        -webkit-appearance: none;
+        position: relative;
+        width: 28px;
+        height: 16px;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        flex-shrink: 0;
+
+        // Thumb
+        &::before {
+          content: '';
+          position: absolute;
+          top: 2px;
+          left: 2px;
+          width: 10px;
+          height: 10px;
+          background: rgba(255, 255, 255, 0.35);
+          border-radius: 50%;
+          transition: all 0.15s ease;
+        }
+
+        &:checked {
+          background: rgba($dracula-green, 0.25);
+          border-color: rgba($dracula-green, 0.5);
+
+          &::before {
+            left: 14px;
+            background: $dracula-green;
+          }
+        }
+      }
+    }
+
+    // Close button
+    button[name="close"] {
+      background: none;
+      border: none;
+      color: rgba(255, 255, 255, 0.3);
+      font-size: 16px;
+      padding: 0 4px;
+      cursor: pointer;
+      margin-left: auto;
+      line-height: 1;
+      transition: color 0.12s ease;
+
+      &:hover {
+        color: $text-primary;
+      }
+    }
+
+    br {
+      display: none;
+    }
+  }
+}
+
 .file-viewer-header {
   display: flex;
   justify-content: space-between;

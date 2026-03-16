@@ -1,24 +1,33 @@
 /**
  * FileViewer - File content viewer with syntax highlighting
  *
- * Displays file content with Prism.js syntax highlighting.
+ * Displays file content with CodeMirror 6 (read-only) for text files.
  * Supports text files, images, PDFs, and binary downloads.
  * Markdown files can be rendered or viewed as source code.
  */
 
-import React, { useEffect, useRef, memo, useState, useCallback, useMemo, lazy, Suspense } from 'react';
+import React, { useEffect, useRef, memo, useState, useCallback, lazy, Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { FileViewerProps, FileData } from './types';
 import { formatFileSize } from './fileUtils';
-import { highlightElement, getLanguageForExtension } from './syntaxHighlighting';
+import { highlightElement, getLanguageForExtension, ensureLanguageLoaded } from './syntaxHighlighting';
 import { apiUrl, authFetch } from '../../utils/storage';
 import { copyRichContentToClipboard, copyTextToClipboard } from '../../utils/clipboard';
 import { useStore } from '../../store';
-import { useLessNavigation, type SelectionRange, type VisualMode } from '../../hooks/useLessNavigation';
+import { useLessNavigation } from '../../hooks/useLessNavigation';
 import { SearchBar } from './SearchBar';
 import { KeybindingsHelp } from './KeybindingsHelp';
+
+// CodeMirror imports for read-only viewer
+import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection } from '@codemirror/view';
+import { EditorState } from '@codemirror/state';
+import { defaultKeymap } from '@codemirror/commands';
+import { syntaxHighlighting, defaultHighlightStyle, bracketMatching, foldGutter, foldKeymap } from '@codemirror/language';
+import { search, searchKeymap, highlightSelectionMatches, openSearchPanel } from '@codemirror/search';
+import { oneDark } from '@codemirror/theme-one-dark';
+import { getLanguageExtension } from './cm-languages';
 
 // Lazy-load the editor to avoid loading CodeMirror until needed
 const LazyEmbeddedEditor = lazy(() => import('./EmbeddedEditor').then(m => ({ default: m.EmbeddedEditor })));
@@ -225,207 +234,100 @@ function toSvgDataUrl(svg: string): string {
 }
 
 /**
- * Visual selection overlay - renders highlighted regions for vim visual mode
- * Positioned absolutely inside the <pre> element using em/ch units
+ * Text file viewer using CodeMirror 6 in read-only mode.
+ * Uses CM's built-in search (Ctrl+F / Cmd+F) instead of a custom search bar.
  */
-function VisualSelectionOverlay({
-  selection,
-  visualMode,
-  lines,
-}: {
-  selection: SelectionRange;
-  visualMode: VisualMode;
-  lines: string[];
-}) {
-  if (visualMode === 'none') return null;
+function TextFileViewer({ file, onRevealInTree, scrollToLine, onSearchStateChange: _onSearchStateChange, editMode, onToggleEdit }: { file: FileData; onRevealInTree?: (path: string) => void; scrollToLine?: number; onSearchStateChange?: (isSearchActive: boolean) => void; editMode?: boolean; onToggleEdit?: () => void }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const viewRef = useRef<EditorView | null>(null);
 
-  const { anchorLine, anchorCol, headLine, headCol } = selection;
+  // Create / recreate the read-only CodeMirror instance when file changes
+  useEffect(() => {
+    if (!containerRef.current) return;
 
-  // Normalize: startLine/col is always the earlier position
-  let startLine: number, startCol: number, endLine: number, endCol: number;
-  if (anchorLine < headLine || (anchorLine === headLine && anchorCol <= headCol)) {
-    startLine = anchorLine; startCol = anchorCol;
-    endLine = headLine; endCol = headCol;
-  } else {
-    startLine = headLine; startCol = headCol;
-    endLine = anchorLine; endCol = anchorCol;
-  }
+    const langExt = getLanguageExtension(file.extension);
 
-  const overlays: React.ReactNode[] = [];
+    const extensions: import('@codemirror/state').Extension[] = [
+      EditorState.readOnly.of(true),
+      lineNumbers(),
+      highlightActiveLineGutter(),
+      foldGutter(),
+      drawSelection(),
+      bracketMatching(),
+      highlightActiveLine(),
+      highlightSelectionMatches(),
+      syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+      oneDark,
+      search({ top: true }),
+      keymap.of([
+        ...defaultKeymap,
+        ...searchKeymap,
+        ...foldKeymap,
+      ]),
+    ];
 
-  for (let l = startLine; l <= endLine; l++) {
-    const lineText = lines[l - 1] || '';
-    let colStart: number;
-    let colEnd: number;
+    if (langExt) {
+      extensions.push(langExt);
+    }
 
-    if (visualMode === 'line') {
-      colStart = 0;
-      // Use line length or at least 1 char width so empty lines still show
-      colEnd = Math.max(lineText.length, 1);
-    } else {
-      // char mode
-      if (l === startLine && l === endLine) {
-        colStart = startCol;
-        colEnd = endCol + 1;
-      } else if (l === startLine) {
-        colStart = startCol;
-        colEnd = lineText.length;
-      } else if (l === endLine) {
-        colStart = 0;
-        colEnd = endCol + 1;
-      } else {
-        colStart = 0;
-        colEnd = lineText.length;
+    const state = EditorState.create({
+      doc: file.content,
+      extensions,
+    });
+
+    const view = new EditorView({
+      state,
+      parent: containerRef.current,
+    });
+
+    viewRef.current = view;
+
+    return () => {
+      view.destroy();
+      viewRef.current = null;
+    };
+  }, [file.path, file.content, file.extension]);
+
+  // Scroll to target line when scrollToLine changes
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view || !scrollToLine) return;
+
+    requestAnimationFrame(() => {
+      const line = view.state.doc.line(Math.min(scrollToLine, view.state.doc.lines));
+      view.dispatch({
+        effects: EditorView.scrollIntoView(line.from, { y: 'center' }),
+      });
+    });
+  }, [scrollToLine]);
+
+  // Handle Ctrl+F on the wrapper since read-only CM may not always have focus
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+      e.preventDefault();
+      e.stopPropagation();
+      const view = viewRef.current;
+      if (view) {
+        view.focus();
+        openSearchPanel(view);
+        // Ensure the search input gets focus after the panel renders
+        requestAnimationFrame(() => {
+          const input = view.dom.querySelector<HTMLInputElement>('.cm-search input[main-field]');
+          if (input) input.focus();
+        });
       }
     }
-
-    overlays.push(
-      <span
-        key={l}
-        className="file-viewer-visual-selection"
-        style={{
-          top: `${(l - 1) * 1.5}em`,
-          left: `${colStart}ch`,
-          width: `${Math.max(colEnd - colStart, 0.5)}ch`,
-        }}
-      />
-    );
-  }
-
-  return <>{overlays}</>;
-}
-
-/**
- * Text file viewer with syntax highlighting and line numbers
- * Supports vim/less-style keyboard navigation via useLessNavigation hook
- */
-function TextFileViewer({ file, onRevealInTree, scrollToLine, onSearchStateChange, editMode, onToggleEdit }: { file: FileData; onRevealInTree?: (path: string) => void; scrollToLine?: number; onSearchStateChange?: (isSearchActive: boolean) => void; editMode?: boolean; onToggleEdit?: () => void }) {
-  const codeRef = useRef<HTMLElement>(null);
-  const wrapperRef = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
-
-  // Setup less-style keyboard navigation with search
-  const navigation = useLessNavigation({
-    containerRef: contentRef as React.RefObject<HTMLDivElement>,
-    isEnabled: true,
-    content: file.content,
-  });
-
-  // Notify parent when search state changes
-  useEffect(() => {
-    onSearchStateChange?.(navigation.searchActive);
-  }, [navigation.searchActive, onSearchStateChange]);
-
-  useEffect(() => {
-    if (codeRef.current) {
-      highlightElement(codeRef.current);
-    }
-  }, [file]);
-
-  // Search highlight overlays (rendered as absolutely positioned spans, no DOM mutation)
-  const searchHighlights = useMemo(() => {
-    if (navigation.searchMatches.length === 0) return null;
-    return navigation.searchMatches.map((match, idx) => (
-      <span
-        key={`${match.line}-${match.column}-${idx}`}
-        className={`search-highlight-overlay${idx === navigation.currentMatchIndex ? ' current' : ''}`}
-        style={{
-          top: `${(match.line - 1) * 1.5}em`,
-          left: `${match.column}ch`,
-          width: `${match.length}ch`,
-        }}
-      />
-    ));
-  }, [navigation.searchMatches, navigation.currentMatchIndex]);
-
-  // Scroll to target line
-  useEffect(() => {
-    if (!scrollToLine || !wrapperRef.current || !codeRef.current) return;
-
-    // Wait for rendering
-    requestAnimationFrame(() => {
-      const pre = codeRef.current?.parentElement;
-      if (!pre) return;
-      const lineHeight = parseFloat(getComputedStyle(pre).lineHeight) || 19.5;
-      const targetTop = (scrollToLine - 1) * lineHeight;
-      wrapperRef.current?.scrollTo({ top: Math.max(0, targetTop - 100), behavior: 'smooth' });
-    });
-  }, [scrollToLine, file]);
-
-  const language = getLanguageForExtension(file.extension);
-  const contentLines = file.content.split('\n');
-  const lineCount = contentLines.length;
+  }, []);
 
   return (
     <>
       <FileViewerHeader file={file} onRevealInTree={onRevealInTree} editMode={editMode} onToggleEdit={onToggleEdit} />
-      <div className="file-viewer-content-wrapper" ref={contentRef}>
-        <div className="file-viewer-code-with-lines" ref={wrapperRef}>
-          <div className="file-viewer-line-gutter" aria-hidden="true">
-            {Array.from({ length: lineCount }, (_, i) => (
-              <div key={i + 1} className={`file-viewer-line-num${scrollToLine === i + 1 ? ' highlighted' : ''}${navigation.cursorModeActive && navigation.cursorLine === i + 1 ? ' cursor-line' : ''}`}>{i + 1}</div>
-            ))}
-          </div>
-          <pre className="file-viewer-pre" style={{ position: 'relative' }}>
-            <code ref={codeRef} className={`language-${language}`}>
-              {file.content}
-            </code>
-            {/* Overlay container - matches <pre> padding so overlays align with text */}
-            <div className="file-viewer-overlay-anchor" aria-hidden="true">
-              {/* Search match highlights (overlay-based, no DOM mutation) */}
-              {searchHighlights}
-              {/* Visual selection overlay */}
-              {navigation.visualMode !== 'none' && navigation.selection && (
-                <VisualSelectionOverlay
-                  selection={navigation.selection}
-                  visualMode={navigation.visualMode}
-                  lines={contentLines}
-                />
-              )}
-              {/* Block cursor positioned at cursorLine:cursorCol (only visible in cursor mode) */}
-              {navigation.cursorModeActive && (
-                <span
-                  className={`file-viewer-block-cursor${navigation.visualMode !== 'none' ? ' visual-active' : ''}`}
-                  style={{
-                    top: `${(navigation.cursorLine - 1) * 1.5}em`,
-                    left: `${navigation.cursorCol}ch`,
-                  }}
-                />
-              )}
-            </div>
-          </pre>
-        </div>
-        {/* Scroll position indicator with cursor line:col and mode */}
-        <div className="file-viewer-scroll-indicator" title={`Line ${navigation.cursorLine} Col ${navigation.cursorCol} of ${navigation.totalLines} (${navigation.scrollPercentage}%)`}>
-          {navigation.visualMode !== 'none' && (
-            <>
-              <span className="indicator-mode">{navigation.visualMode === 'line' ? 'V-LINE' : 'VISUAL'}</span>
-              <span className="indicator-separator">·</span>
-            </>
-          )}
-          {navigation.cursorModeActive && (
-            <>
-              <span className="indicator-position">{navigation.cursorLine}:{navigation.cursorCol + 1}</span>
-              <span className="indicator-separator">·</span>
-            </>
-          )}
-          <span className="indicator-percentage">{navigation.scrollPercentage === 100 ? 'END' : navigation.scrollPercentage === 0 ? 'TOP' : `${navigation.scrollPercentage}%`}</span>
-        </div>
-        {/* Search bar */}
-        {navigation.searchActive && (
-          <SearchBar
-            query={navigation.searchQuery}
-            onQueryChange={navigation.setSearchQuery}
-            matchCount={navigation.searchMatches.length}
-            currentIndex={navigation.currentMatchIndex}
-            onNext={navigation.nextMatch}
-            onPrev={navigation.prevMatch}
-            onClose={navigation.clearSearch}
-          />
-        )}
-      </div>
-      {/* Keybindings help overlay */}
-      {navigation.helpActive && <KeybindingsHelp onClose={navigation.toggleHelp} />}
+      <div
+        className="file-viewer-content-wrapper file-viewer-cm-readonly"
+        ref={containerRef}
+        tabIndex={0}
+        onKeyDown={handleKeyDown}
+      />
     </>
   );
 }
@@ -468,7 +370,12 @@ function MarkdownFileViewer({
   useEffect(() => {
     // Apply syntax highlighting when showing source code
     if (!renderMarkdown && codeRef.current) {
-      highlightElement(codeRef.current);
+      const lang = getLanguageForExtension(file.extension);
+      ensureLanguageLoaded(lang).then(() => {
+        if (codeRef.current) {
+          highlightElement(codeRef.current);
+        }
+      });
     }
   }, [file, renderMarkdown]);
 
@@ -657,7 +564,12 @@ function PlantUmlFileViewer({
 
   useEffect(() => {
     if (!renderPlantUml && codeRef.current) {
-      highlightElement(codeRef.current);
+      const lang = getLanguageForExtension(file.extension);
+      ensureLanguageLoaded(lang).then(() => {
+        if (codeRef.current) {
+          highlightElement(codeRef.current);
+        }
+      });
     }
   }, [file, renderPlantUml]);
 
