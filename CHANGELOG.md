@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.23.0] - 2026-03-16
+
+### Added
+- **Overview panel improvements** - Enhanced agent overview with better filtering and stable sort ordering
+- **File viewer enhancements** - Improved FileViewer and FileViewerModal components
+- **Clipboard utility** - New clipboard helper module
+- **Log retention utility** - New log retention management module
+
+### Changed
+- **Terminal input area** - Updated terminal input handling
+- **Guake terminal styles** - Refreshed base and overview panel styles
+- **Buildings store** - Updated building state management
+- **Device performance** - Refined performance detection logic
+
 ## [1.22.0] - 2026-03-14
 
 ### Added
