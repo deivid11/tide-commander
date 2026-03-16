@@ -14,6 +14,7 @@ import type { FileViewerProps, FileData } from './types';
 import { formatFileSize } from './fileUtils';
 import { highlightElement, getLanguageForExtension } from './syntaxHighlighting';
 import { apiUrl, authFetch } from '../../utils/storage';
+import { copyRichContentToClipboard, copyTextToClipboard } from '../../utils/clipboard';
 import { useStore } from '../../store';
 import { useLessNavigation, type SelectionRange, type VisualMode } from '../../hooks/useLessNavigation';
 import { SearchBar } from './SearchBar';
@@ -482,16 +483,7 @@ function MarkdownFileViewer({
     try {
       const html = markdownContentRef.current.innerHTML;
       const plainText = markdownContentRef.current.innerText;
-
-      const htmlBlob = new Blob([html], { type: 'text/html' });
-      const textBlob = new Blob([plainText], { type: 'text/plain' });
-
-      await navigator.clipboard.write([
-        new ClipboardItem({
-          'text/html': htmlBlob,
-          'text/plain': textBlob,
-        }),
-      ]);
+      await copyRichContentToClipboard(html, plainText);
 
       setCopyRichTextStatus('copied');
       setTimeout(() => setCopyRichTextStatus('idle'), 2000);
@@ -511,7 +503,7 @@ function MarkdownFileViewer({
 
     try {
       const html = markdownContentRef.current.innerHTML;
-      await navigator.clipboard.writeText(html);
+      await copyTextToClipboard(html);
       setCopyHtmlStatus('copied');
       setTimeout(() => setCopyHtmlStatus('idle'), 2000);
     } catch {
@@ -523,7 +515,7 @@ function MarkdownFileViewer({
   // Copy as markdown source
   const handleCopyMarkdown = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(file.content);
+      await copyTextToClipboard(file.content);
       setCopyMarkdownStatus('copied');
       setTimeout(() => setCopyMarkdownStatus('idle'), 2000);
     } catch {
@@ -535,7 +527,7 @@ function MarkdownFileViewer({
   // Copy original file content (plain text)
   const handleCopyOriginal = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(file.content);
+      await copyTextToClipboard(file.content);
       setCopyOriginalStatus('copied');
       setTimeout(() => setCopyOriginalStatus('idle'), 2000);
     } catch {

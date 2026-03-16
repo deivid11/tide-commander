@@ -48,6 +48,7 @@ export function getScenePerformanceProfile(): ScenePerformanceProfile {
   const isLowMemory = (nav.deviceMemory ?? Infinity) <= 4;
   const isLowCpu = (nav.hardwareConcurrency ?? Infinity) <= 6;
   const isConstrained = isMobile || isLowMemory || isLowCpu;
+  const canAffordHigherQuality = !isLowMemory && (nav.hardwareConcurrency ?? Infinity) >= 8;
 
   if (!isConstrained) {
     return {
@@ -71,17 +72,17 @@ export function getScenePerformanceProfile(): ScenePerformanceProfile {
   return {
     isMobile,
     isConstrained: true,
-    maxPixelRatio: 1.25,
-    antialias: false,
+    maxPixelRatio: canAffordHigherQuality ? 1.75 : 1.5,
+    antialias: canAffordHigherQuality,
     enableShadows: false,
     maxFps: 30,
     indicatorUpdateInterval: 250,
     notificationBadgeUpdateInterval: 400,
-    maxStatusSpriteDistance: 18,
-    maxNameSpriteDistance: 12,
-    maxBadgeDistance: 10,
-    maxBuildingLabelDistance: 16,
-    overlayEffectDistance: 16,
+    maxStatusSpriteDistance: 20,
+    maxNameSpriteDistance: 14,
+    maxBadgeDistance: 11,
+    maxBuildingLabelDistance: 18,
+    overlayEffectDistance: 18,
     reduceTransientEffects: true,
   };
 }

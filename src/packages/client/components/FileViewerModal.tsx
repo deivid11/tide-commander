@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { DiffViewer } from './DiffViewer';
 import { apiUrl, authFetch } from '../utils/storage';
+import { copyRichContentToClipboard, copyTextToClipboard } from '../utils/clipboard';
 import { useModalClose } from '../hooks';
 import { parseFilePathReference } from '../utils/filePaths';
 import { ModalPortal } from './shared/ModalPortal';
@@ -547,16 +548,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     try {
       const html = markdownContentRef.current.innerHTML;
       const plainText = markdownContentRef.current.innerText;
-
-      const htmlBlob = new Blob([html], { type: 'text/html' });
-      const textBlob = new Blob([plainText], { type: 'text/plain' });
-
-      await navigator.clipboard.write([
-        new ClipboardItem({
-          'text/html': htmlBlob,
-          'text/plain': textBlob,
-        }),
-      ]);
+      await copyRichContentToClipboard(html, plainText);
 
       setCopyRichTextStatus('copied');
       setTimeout(() => setCopyRichTextStatus('idle'), 2000);
@@ -575,7 +567,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
 
     try {
       const html = markdownContentRef.current.innerHTML;
-      await navigator.clipboard.writeText(html);
+      await copyTextToClipboard(html);
       setCopyHtmlStatus('copied');
       setTimeout(() => setCopyHtmlStatus('idle'), 2000);
     } catch {
@@ -592,7 +584,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     }
 
     try {
-      await navigator.clipboard.writeText(fileData.content);
+      await copyTextToClipboard(fileData.content);
       setCopyMarkdownStatus('copied');
       setTimeout(() => setCopyMarkdownStatus('idle'), 2000);
     } catch {
@@ -609,7 +601,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     }
 
     try {
-      await navigator.clipboard.writeText(fileData.content);
+      await copyTextToClipboard(fileData.content);
       setCopyOriginalStatus('copied');
       setTimeout(() => setCopyOriginalStatus('idle'), 2000);
     } catch {

@@ -200,7 +200,7 @@ export interface TerminalInputAreaProps {
 export const TerminalInputArea = memo(function TerminalInputArea({
   selectedAgent,
   selectedAgentId,
-  isOpen,
+  isOpen: _isOpen,
   command,
   setCommand,
   forceTextarea: _forceTextarea,
@@ -417,35 +417,25 @@ export const TerminalInputArea = memo(function TerminalInputArea({
     }
   }, [focusGuakeInputContainer, inputRef, textareaRef, useTextarea]);
 
-  // Track previous isOpen state for transition detection
+  // Track previous open state so agent switches can keep the main guake input focused.
   const prevIsOpenRef = useRef(false);
 
-  // Autofocus input when terminal opens or agent changes while open
   useEffect(() => {
     const wasOpen = prevIsOpenRef.current;
-    prevIsOpenRef.current = isOpen;
+    prevIsOpenRef.current = _isOpen;
+
     const isTouchDevice = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
-
-    // Check if this selection was from a swipe gesture (consumes and clears the flag)
-    // If so, don't autofocus to prevent keyboard from popping up on mobile
     const wasSwipe = store.consumeSwipeSelectionFlag();
-
-    // Check if this selection was from a direct click on agent bar (consumes and clears the flag)
-    // If so, don't autofocus to prevent keyboard from popping up on mobile
     const wasDirectClick = store.consumeDirectClickSelectionFlag();
-
-    // Focus when terminal opens (transition from closed to open)
-    // or when agent changes while terminal is already open.
-    // Suppress only on touch devices to avoid opening the virtual keyboard.
     const shouldSuppressAutofocus = isTouchDevice && (wasSwipe || wasDirectClick);
-    if (isOpen && (!wasOpen || selectedAgentId) && !shouldSuppressAutofocus) {
-      // Small delay to ensure terminal animation has started
+
+    if (_isOpen && (!wasOpen || selectedAgentId) && !shouldSuppressAutofocus) {
       const timeoutId = setTimeout(() => {
         focusGuakeInputContainer();
       }, 50);
       return () => clearTimeout(timeoutId);
     }
-  }, [focusGuakeInputContainer, isOpen, selectedAgentId, useTextarea]);
+  }, [_isOpen, focusGuakeInputContainer, selectedAgentId]);
 
   // Remove a pasted text and its placeholder from the command
   const removePastedText = (id: number) => {

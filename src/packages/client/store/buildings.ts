@@ -5,6 +5,7 @@
  */
 
 import type { ClientMessage, Building, ExistingDockerContainer, ExistingComposeProject } from '../../shared/types';
+import { readBottomPm2LogRetention, trimLogBufferByLines } from '../utils/logRetention';
 import type { StoreState } from './types';
 
 export interface BuildingActions {
@@ -329,18 +330,8 @@ export function createBuildingActions(
     appendStreamingLogChunk(buildingId: string, chunk: string): void {
       setState((state) => {
         const existingLogs = state.streamingBuildingLogs.get(buildingId) || '';
-        // Limit buffer size to prevent memory issues (keep last 500KB)
-        const maxSize = 500 * 1024;
-        let newLogs = existingLogs + chunk;
-        if (newLogs.length > maxSize) {
-          // Find a newline near the start to cut cleanly
-          const cutPoint = newLogs.indexOf('\n', newLogs.length - maxSize);
-          if (cutPoint > 0) {
-            newLogs = newLogs.slice(cutPoint + 1);
-          } else {
-            newLogs = newLogs.slice(-maxSize);
-          }
-        }
+        const retentionLimit = readBottomPm2LogRetention();
+        const newLogs = trimLogBufferByLines(existingLogs + chunk, retentionLimit);
         const newStreamingLogs = new Map(state.streamingBuildingLogs);
         newStreamingLogs.set(buildingId, newLogs);
         state.streamingBuildingLogs = newStreamingLogs;

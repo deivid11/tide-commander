@@ -15,6 +15,7 @@
 
 import React, { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo, memo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   useAgents,
   useAgent,
@@ -48,6 +49,12 @@ import {
   authUrl,
 } from '../../utils/storage';
 import { resolveAgentFileReference } from '../../utils/filePaths';
+import {
+  BOTTOM_PM2_LOG_RETENTION_OPTIONS,
+  readBottomPm2LogRetention,
+  trimLogBufferByLines,
+  writeBottomPm2LogRetention,
+} from '../../utils/logRetention';
 import { ansiToHtml } from '../../utils/ansiToHtml';
 import { ContextMenu } from '../ContextMenu';
 import type { ContextMenuAction } from '../ContextMenu';
@@ -158,6 +165,7 @@ interface BottomPanel {
   id: string;
   type: BottomPanelType;
   buildingId: string;
+  areaId?: string;
 }
 
 type SplitDirection = 'horizontal' | 'vertical';
@@ -168,25 +176,185 @@ function makePanelId(): string {
 }
 
 /** Inline PM2 log viewer for the bottom panel */
-const BottomPm2LogContent = memo(function BottomPm2LogContent({ buildingId }: { buildingId: string }) {
+const BottomPm2LogContent = memo(function BottomPm2LogContent({
+  buildingId,
+  filterText,
+  maxRetention,
+}: {
+  buildingId: string;
+  filterText: string;
+  maxRetention: number | null;
+}) {
   const { streamingBuildingLogs } = useStore();
   const logs = streamingBuildingLogs.get(buildingId) || '';
-  const logRef = useRef<HTMLPreElement>(null);
+  const logRef = useRef<HTMLDivElement>(null);
+  const isUserScrolledUpRef = useRef(false);
+  const previousScrollHeightRef = useRef(0);
+  const normalizedFilter = filterText.trim().toLowerCase();
+  const bottomThreshold = 30;
 
-  // Auto-scroll to bottom when new logs arrive
-  useEffect(() => {
-    if (logRef.current) {
-      logRef.current.scrollTop = logRef.current.scrollHeight;
+  const updateStickToBottom = useCallback(() => {
+    const el = logRef.current;
+    if (!el) return;
+
+    const isNearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - bottomThreshold;
+    isUserScrolledUpRef.current = !isNearBottom;
+  }, []);
+
+  const retainedLogs = useMemo(() => trimLogBufferByLines(logs, maxRetention), [logs, maxRetention]);
+
+  useLayoutEffect(() => {
+    const el = logRef.current;
+    if (!el) return;
+
+    const previousScrollHeight = previousScrollHeightRef.current;
+    const nextScrollHeight = el.scrollHeight;
+
+    if (isUserScrolledUpRef.current) {
+      const removedHeight = previousScrollHeight - nextScrollHeight;
+      if (removedHeight > 0) {
+        el.scrollTop = Math.max(0, el.scrollTop - removedHeight);
+      }
+    } else {
+      el.scrollTop = nextScrollHeight;
     }
-  }, [logs]);
 
-  const html = useMemo(() => logs ? ansiToHtml(logs) : 'Waiting for logs...', [logs]);
+    previousScrollHeightRef.current = el.scrollHeight;
+  }, [retainedLogs, normalizedFilter]);
+
+  const visibleLogs = useMemo(() => {
+    if (!retainedLogs) return '';
+    if (!normalizedFilter) return retainedLogs;
+
+    return retainedLogs
+      .split('\n')
+      .filter((line) => line.toLowerCase().includes(normalizedFilter))
+      .join('\n');
+  }, [retainedLogs, normalizedFilter]);
+
+  const visibleLines = useMemo(() => (
+    visibleLogs ? visibleLogs.split('\n') : []
+  ), [visibleLogs]);
+
+  const lineHtml = useMemo(() => (
+    visibleLines.map((line) => ansiToHtml(line || ' '))
+  ), [visibleLines]);
+
+  const emptyMessage = useMemo(() => {
+    if (!retainedLogs) return 'Waiting for logs...';
+    if (normalizedFilter && !visibleLogs) return 'No log lines match the current filter.';
+    return null;
+  }, [retainedLogs, normalizedFilter, visibleLogs]);
+
+  const virtualizer = useVirtualizer({
+    count: lineHtml.length,
+    getScrollElement: () => logRef.current,
+    estimateSize: () => 20,
+    overscan: 12,
+    measureElement: (element) => element.getBoundingClientRect().height,
+  });
+
+  const virtualItems = virtualizer.getVirtualItems();
 
   return (
-    <pre
+    <div
       ref={logRef}
       className="guake-bottom-pm2-logs"
-      dangerouslySetInnerHTML={{ __html: html }}
+      onScroll={updateStickToBottom}
+    >
+      {emptyMessage ? (
+        <div className="guake-bottom-pm2-logs-empty">{emptyMessage}</div>
+      ) : (
+        <div
+          className="guake-bottom-pm2-logs-inner"
+          style={{ height: virtualizer.getTotalSize() }}
+        >
+          {virtualItems.map((virtualItem) => (
+            <div
+              key={virtualItem.key}
+              ref={virtualizer.measureElement}
+              className="guake-bottom-pm2-log-line"
+              data-index={virtualItem.index}
+              style={{ transform: `translateY(${virtualItem.start}px)` }}
+              dangerouslySetInnerHTML={{ __html: lineHtml[virtualItem.index] }}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+});
+
+const BottomTerminalIframe = memo(function BottomTerminalIframe({
+  src,
+  title,
+}: {
+  src: string;
+  title: string;
+}) {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  // Defer src assignment so the UI paints first, then the iframe loads in the background
+  const [deferredSrc, setDeferredSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Wait for idle time before loading the iframe to avoid blocking the main thread
+    if ('requestIdleCallback' in window) {
+      const id = (window as unknown as { requestIdleCallback: (cb: () => void) => number }).requestIdleCallback(() => setDeferredSrc(src));
+      return () => (window as unknown as { cancelIdleCallback: (id: number) => void }).cancelIdleCallback(id);
+    }
+    // Fallback: defer by two animation frames so layout/paint complete first
+    let cancelled = false;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (!cancelled) setDeferredSrc(src);
+      });
+    });
+    return () => { cancelled = true; };
+  }, [src]);
+
+  const suppressIframeFocus = useCallback(() => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+    if (document.activeElement === iframe) iframe.blur();
+    try { iframe.contentWindow?.blur(); } catch { /* cross-origin */ }
+  }, []);
+
+  const restoreGuakeInputFocus = useCallback(() => {
+    const container = document.querySelector('.guake-input-container') as HTMLDivElement | null;
+    const input = container?.querySelector('textarea, input') as HTMLTextAreaElement | HTMLInputElement | null;
+    container?.focus({ preventScroll: true });
+    input?.focus({ preventScroll: true });
+  }, []);
+
+  useEffect(() => {
+    if (!deferredSrc) return;
+    const startedAt = Date.now();
+    const handleFocusSteal = () => {
+      if (Date.now() - startedAt > 1500) return;
+      suppressIframeFocus();
+      restoreGuakeInputFocus();
+    };
+    window.addEventListener('focus', handleFocusSteal, true);
+    document.addEventListener('focusin', handleFocusSteal, true);
+    return () => {
+      window.removeEventListener('focus', handleFocusSteal, true);
+      document.removeEventListener('focusin', handleFocusSteal, true);
+    };
+  }, [restoreGuakeInputFocus, suppressIframeFocus, deferredSrc]);
+
+  return (
+    <iframe
+      ref={iframeRef}
+      src={deferredSrc ?? undefined}
+      className="guake-bottom-terminal-iframe"
+      title={title}
+      allow="clipboard-read; clipboard-write"
+      loading="lazy"
+      tabIndex={-1}
+      onLoad={() => {
+        suppressIframeFocus();
+        restoreGuakeInputFocus();
+      }}
     />
   );
 });
@@ -447,6 +615,8 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
 
   // Bottom split panels - supports multiple panels (terminal + PM2 logs side by side)
   const [bottomPanels, setBottomPanels] = useState<BottomPanel[]>([]);
+  const [bottomPanelFilters, setBottomPanelFilters] = useState<Record<string, string>>({});
+  const [bottomPm2LogRetention, setBottomPm2LogRetention] = useState<number | null>(() => readBottomPm2LogRetention());
   const [splitDirection, setSplitDirection] = useState<SplitDirection>(() => {
     try {
       const saved = localStorage.getItem('tide:bottom-split-direction');
@@ -472,24 +642,34 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     type: BottomPanelType;
   } | null>(null);
 
+  // Track which area's bottom panels are currently visible
+  const [activeBottomAreaId, setActiveBottomAreaId] = useState<string | null>(null);
+
   // Derived: quick access to which building IDs are in bottom panels
-  const bottomPanelBuildingIds = useMemo(() => new Set(bottomPanels.map(p => p.buildingId)), [bottomPanels]);
+  // Only show building IDs from the active area for button state
+  const activeAreaPanels = useMemo(() => bottomPanels.filter(p => p.areaId === activeBottomAreaId), [bottomPanels, activeBottomAreaId]);
+  const bottomPanelBuildingIds = useMemo(() => new Set(activeAreaPanels.map(p => p.buildingId)), [activeAreaPanels]);
 
   // Load per-area bottom panels map from localStorage on mount
-  const bottomPanelsMapRef = useRef<Map<string, Array<{ type: BottomPanelType; buildingId: string }>>>(new Map());
+  const bottomPanelsMapRef = useRef<Map<string, Array<{ id: string; type: BottomPanelType; buildingId: string }>>>(new Map());
   useEffect(() => {
     try {
       const saved = localStorage.getItem('tide:bottom-panels-v2');
       if (saved) {
-        const entries = JSON.parse(saved) as [string, Array<{ type: BottomPanelType; buildingId: string }>][];
-        bottomPanelsMapRef.current = new Map(entries);
+        const entries = JSON.parse(saved) as [string, Array<{ id?: string; type: BottomPanelType; buildingId: string }>][];
+        bottomPanelsMapRef.current = new Map(
+          entries.map(([areaId, panels]) => [
+            areaId,
+            panels.map(p => ({ id: p.id ?? makePanelId(), type: p.type, buildingId: p.buildingId })),
+          ])
+        );
       } else {
         // Migrate from old format (single terminal per area)
         const old = localStorage.getItem('tide:bottom-terminals');
         if (old) {
           const oldEntries = JSON.parse(old) as [string, string][];
           for (const [areaId, buildingId] of oldEntries) {
-            bottomPanelsMapRef.current.set(areaId, [{ type: 'terminal', buildingId }]);
+            bottomPanelsMapRef.current.set(areaId, [{ id: makePanelId(), type: 'terminal', buildingId }]);
           }
         }
       }
@@ -503,7 +683,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     if (!area) return;
     try {
       if (panels.length > 0) {
-        bottomPanelsMapRef.current.set(area.id, panels.map(p => ({ type: p.type, buildingId: p.buildingId })));
+        bottomPanelsMapRef.current.set(area.id, panels.map(p => ({ id: p.id, type: p.type, buildingId: p.buildingId })));
       } else {
         bottomPanelsMapRef.current.delete(area.id);
       }
@@ -512,50 +692,74 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     } catch { /* ignore */ }
   }, [activeAgentId]);
 
-  // Open a single panel (replaces all) - backward compatible behavior
+  // Helper: get the current area ID for the active agent
+  const getActiveAreaId = useCallback((): string | null => {
+    if (!activeAgentId) return null;
+    const area = store.getAreaForAgent(activeAgentId);
+    return area?.id ?? null;
+  }, [activeAgentId]);
+
   const openBottomPanel = useCallback((buildingId: string, type: BottomPanelType) => {
+    const areaId = getActiveAreaId();
+    setBottomPanelFilters({});
     setBottomPanels(prev => {
-      // Stop streaming for any PM2 panels being removed
+      // Stop streaming for PM2 panels in the same area being removed
       for (const p of prev) {
-        if (p.type === 'pm2-logs') {
+        if (p.areaId === areaId && p.type === 'pm2-logs') {
           store.stopLogStreaming(p.buildingId);
         }
       }
-      const newPanels = [{ id: makePanelId(), type, buildingId }];
-      persistBottomPanels(newPanels);
+      // Remove old panels from this area, keep panels from other areas
+      const otherAreaPanels = prev.filter(p => p.areaId !== areaId);
+      const newPanel: BottomPanel = { id: makePanelId(), type, buildingId, areaId: areaId ?? undefined };
+      const newPanels = [...otherAreaPanels, newPanel];
+      persistBottomPanels([newPanel]);
       return newPanels;
     });
-  }, [persistBottomPanels]);
+  }, [persistBottomPanels, getActiveAreaId]);
 
   // Add a panel via split (horizontal or vertical)
   const splitBottomPanel = useCallback((buildingId: string, type: BottomPanelType, direction: SplitDirection) => {
+    const areaId = getActiveAreaId();
     setSplitDirection(direction);
     try { localStorage.setItem('tide:bottom-split-direction', direction); } catch { /* ignore */ }
     setBottomPanels(prev => {
-      if (prev.length >= 4) return prev; // max 4 panels
-      // Don't add duplicate building
-      if (prev.some(p => p.buildingId === buildingId)) return prev;
-      const newPanels = [...prev, { id: makePanelId(), type, buildingId }];
-      persistBottomPanels(newPanels);
+      const areaPanels = prev.filter(p => p.areaId === areaId);
+      if (areaPanels.length >= 4) return prev; // max 4 panels per area
+      // Don't add duplicate building in same area
+      if (areaPanels.some(p => p.buildingId === buildingId)) return prev;
+      const newPanel: BottomPanel = { id: makePanelId(), type, buildingId, areaId: areaId ?? undefined };
+      const newPanels = [...prev, newPanel];
+      persistBottomPanels(areaPanels.concat(newPanel));
       return newPanels;
     });
-  }, [persistBottomPanels]);
+  }, [persistBottomPanels, getActiveAreaId]);
 
   // Close a specific panel by panel id
   const closeBottomPanel = useCallback((panelId: string) => {
+    setBottomPanelFilters((prev) => {
+      if (!(panelId in prev)) return prev;
+      const next = { ...prev };
+      delete next[panelId];
+      return next;
+    });
     setBottomPanels(prev => {
       const panel = prev.find(p => p.id === panelId);
       if (panel?.type === 'pm2-logs') {
         store.stopLogStreaming(panel.buildingId);
       }
       const newPanels = prev.filter(p => p.id !== panelId);
-      persistBottomPanels(newPanels);
+      const areaId = panel?.areaId;
+      if (areaId) {
+        persistBottomPanels(newPanels.filter(p => p.areaId === areaId));
+      }
       return newPanels;
     });
   }, [persistBottomPanels]);
 
   // Close all bottom panels
   const _closeAllBottomPanels = useCallback(() => {
+    setBottomPanelFilters({});
     setBottomPanels(prev => {
       for (const p of prev) {
         if (p.type === 'pm2-logs') {
@@ -567,23 +771,37 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     });
   }, [persistBottomPanels]);
 
-  // When active agent changes, restore or hide bottom panels based on area
+  // When active agent changes, update active area and load panels from saved map if needed
   useEffect(() => {
     if (!activeAgentId) {
-      setBottomPanels([]);
+      setActiveBottomAreaId(null);
       return;
     }
     const area = store.getAreaForAgent(activeAgentId);
     if (!area) {
-      setBottomPanels([]);
+      setActiveBottomAreaId(null);
       return;
     }
-    const savedPanels = bottomPanelsMapRef.current.get(area.id);
-    if (savedPanels && savedPanels.length > 0) {
-      setBottomPanels(savedPanels.map(p => ({ id: makePanelId(), type: p.type, buildingId: p.buildingId })));
-    } else {
-      setBottomPanels([]);
-    }
+    setActiveBottomAreaId(area.id);
+
+    // Check if we already have panels for this area in state
+    setBottomPanels(prev => {
+      const existingForArea = prev.filter(p => p.areaId === area.id);
+      if (existingForArea.length > 0) return prev; // Already mounted, nothing to do
+
+      // Load from saved map
+      const savedPanels = bottomPanelsMapRef.current.get(area.id);
+      if (!savedPanels || savedPanels.length === 0) return prev;
+
+      const newPanels = savedPanels.map((panel) => ({
+        id: panel.id,
+        type: panel.type,
+        buildingId: panel.buildingId,
+        areaId: area.id,
+      }));
+
+      return [...prev, ...newPanels];
+    });
   }, [activeAgentId]);
 
   // Listen for open-bottom-terminal events (single open, replaces all)
@@ -627,7 +845,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     const handler = (e: Event) => {
       const detail = (e as CustomEvent<{ buildingId: string; type: BottomPanelType; direction: SplitDirection }>).detail;
       if (detail?.buildingId && detail?.type && detail?.direction) {
-        if (bottomPanels.length === 0) {
+        if (activeAreaPanels.length === 0) {
           openBottomPanel(detail.buildingId, detail.type);
         } else {
           splitBottomPanel(detail.buildingId, detail.type, detail.direction);
@@ -636,21 +854,21 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     };
     window.addEventListener('tide:split-bottom-panel', handler as EventListener);
     return () => window.removeEventListener('tide:split-bottom-panel', handler as EventListener);
-  }, [bottomPanels.length, openBottomPanel, splitBottomPanel]);
+  }, [activeAreaPanels.length, openBottomPanel, splitBottomPanel]);
 
-  // Keep split ratios in sync with panel count
+  // Keep split ratios in sync with active area panel count
   useEffect(() => {
     setSplitRatios(prev => {
-      if (prev.length === bottomPanels.length) return prev;
-      if (bottomPanels.length <= 1) return [1];
+      if (prev.length === activeAreaPanels.length) return prev;
+      if (activeAreaPanels.length <= 1) return [1];
       // When adding a panel, give equal space
-      if (bottomPanels.length > prev.length) {
-        return Array(bottomPanels.length).fill(1);
+      if (activeAreaPanels.length > prev.length) {
+        return Array(activeAreaPanels.length).fill(1);
       }
       // When removing, redistribute equally
-      return Array(bottomPanels.length).fill(1);
+      return Array(activeAreaPanels.length).fill(1);
     });
-  }, [bottomPanels.length]);
+  }, [activeAreaPanels.length]);
 
   // Handle split divider drag
   const handleSplitResizeStart = useCallback((e: React.MouseEvent, dividerIndex: number) => {
@@ -2304,7 +2522,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
               icon: '⬇',
               onClick: () => openBottomPanel(splitContextMenu.buildingId, splitContextMenu.type),
             });
-            if (bottomPanels.length > 0) {
+            if (activeAreaPanels.length > 0) {
               splitActions.push({
                 id: 'split-right',
                 label: 'Split Right',
@@ -2332,8 +2550,8 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
           );
         })()}
 
-        {/* Bottom panels area */}
-        {bottomPanels.length > 0 && (
+        {/* Bottom panels area - active area panels visible, others hidden to keep iframes alive */}
+        {activeAreaPanels.length > 0 && (
           <>
             <div
               className="guake-bottom-terminal-resize"
@@ -2345,7 +2563,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
               style={{ height: bottomTerminalHeight }}
               onWheel={(e) => e.stopPropagation()}
             >
-              {bottomPanels.map((panel, panelIndex) => {
+              {activeAreaPanels.map((panel, panelIndex) => {
                 const building = buildings.get(panel.buildingId);
                 if (!building) return null;
                 const ratio = splitRatios[panelIndex] ?? 1;
@@ -2377,22 +2595,57 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
                             </svg>
                           </button>
                         </div>
-                        <iframe
+                        <BottomTerminalIframe
                           src={authUrl(building.terminalStatus.url)}
-                          className="guake-bottom-terminal-iframe"
                           title={`Terminal - ${building.name}`}
-                          allow="clipboard-read; clipboard-write"
                         />
                       </div>
                     );
                   }
 
                   if (panel.type === 'pm2-logs') {
+                    const filterValue = bottomPanelFilters[panel.id] || '';
                     return (
                       <div key={panel.id} className="guake-bottom-panel" style={{ flex: ratio }}>
                         <div className="guake-bottom-terminal-header">
                           <span className="guake-bottom-terminal-title">📜 {building.name}</span>
-                          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                          <div className="guake-bottom-terminal-controls">
+                            <input
+                              type="text"
+                              className="guake-bottom-terminal-filter"
+                              value={filterValue}
+                              onChange={(e) => {
+                                const nextValue = e.target.value;
+                                setBottomPanelFilters((prev) => {
+                                  if (!nextValue.trim()) {
+                                    if (!(panel.id in prev)) return prev;
+                                    const next = { ...prev };
+                                    delete next[panel.id];
+                                    return next;
+                                  }
+                                  return { ...prev, [panel.id]: nextValue };
+                                });
+                              }}
+                              placeholder="Filter logs"
+                              aria-label={`Filter logs for ${building.name}`}
+                              spellCheck={false}
+                            />
+                            <select
+                              className="guake-bottom-terminal-retention"
+                              value={bottomPm2LogRetention === null ? 'unlimited' : String(bottomPm2LogRetention)}
+                              onChange={(e) => {
+                                const nextValue = e.target.value === 'unlimited' ? null : Number(e.target.value);
+                                setBottomPm2LogRetention(nextValue);
+                                writeBottomPm2LogRetention(nextValue);
+                              }}
+                              aria-label={`Max log retention for ${building.name}`}
+                            >
+                              {BOTTOM_PM2_LOG_RETENTION_OPTIONS.map((option) => (
+                                <option key={option === null ? 'unlimited' : option} value={option === null ? 'unlimited' : String(option)}>
+                                  {option === null ? 'Unlimited' : `${option.toLocaleString()} lines`}
+                                </option>
+                              ))}
+                            </select>
                             <button
                               className="guake-bottom-terminal-close"
                               onClick={() => store.clearStreamingLogs(panel.buildingId)}
@@ -2409,7 +2662,11 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
                             </button>
                           </div>
                         </div>
-                        <BottomPm2LogContent buildingId={panel.buildingId} />
+                        <BottomPm2LogContent
+                          buildingId={panel.buildingId}
+                          filterText={filterValue}
+                          maxRetention={bottomPm2LogRetention}
+                        />
                       </div>
                     );
                   }
@@ -2446,6 +2703,24 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
               })}
             </div>
           </>
+        )}
+        {/* Keep inactive terminal iframes alive (hidden) to avoid remount lag */}
+        {bottomPanels.some(p => p.areaId !== activeBottomAreaId && p.type === 'terminal') && (
+          <div style={{ display: 'none' }}>
+            {bottomPanels
+              .filter(p => p.areaId !== activeBottomAreaId && p.type === 'terminal')
+              .map(panel => {
+                const building = buildings.get(panel.buildingId);
+                if (!building?.terminalStatus?.url) return null;
+                return (
+                  <BottomTerminalIframe
+                    key={panel.id}
+                    src={authUrl(building.terminalStatus.url)}
+                    title={`Terminal - ${building.name}`}
+                  />
+                );
+              })}
+          </div>
         )}
       </div>
 

@@ -175,6 +175,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     savedConfig.visibleAreaIds ? new Set(savedConfig.visibleAreaIds) : null
   );
   const [areaFilterOpen, setAreaFilterOpen] = useState(false);
+  const [areaFilterSearch, setAreaFilterSearch] = useState('');
   const areaFilterRef = useRef<HTMLDivElement>(null);
   const [isMobileViewport, setIsMobileViewport] = useState<boolean>(() =>
     typeof window !== 'undefined' ? window.matchMedia('(max-width: 768px)').matches : false
@@ -219,10 +220,11 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
 
   // Close area filter dropdown on outside click
   useEffect(() => {
-    if (!areaFilterOpen) return;
+    if (!areaFilterOpen) { setAreaFilterSearch(''); return; }
     const handleClick = (e: MouseEvent) => {
       if (areaFilterRef.current && !areaFilterRef.current.contains(e.target as Node)) {
         setAreaFilterOpen(false);
+        setAreaFilterSearch('');
       }
     };
     document.addEventListener('mousedown', handleClick);
@@ -268,6 +270,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     for (const [, area] of areas) {
       if (!area.archived) result.push({ id: area.id, name: area.name, color: area.color });
     }
+    result.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
     return result;
   }, [areas]);
 
@@ -537,7 +540,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
 
   const renderAgentCards = useCallback((groupAgents: Agent[]) => {
     const isUnreadAgent = (agent: Agent) => agentsWithUnseenOutput.has(agent.id);
-    const firstUnreadIndex = groupAgents.findIndex(agent => agentsWithUnseenOutput.has(agent.id));
+    const firstUnreadIndex = groupAgents.findIndex(agent => isUnreadAgent(agent) && agent.status !== 'working');
     const hasUnreadAgents = firstUnreadIndex >= 0;
     // Idle separator should only apply to "read idle" agents.
     const firstReadIdleIndex = groupAgents.findIndex(agent => agent.status === 'idle' && !isUnreadAgent(agent));
@@ -813,28 +816,62 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
             </button>
             {areaFilterOpen && (
               <div className="aop-area-filter-dropdown">
-                <label className="aop-area-filter-option" onClick={setAllAreasVisible}>
-                  <input type="checkbox" checked={isAllAreasVisible} readOnly />
-                  <span className="aop-area-filter-color" style={{ background: '#6272a4' }} />
-                  <span>All</span>
-                </label>
-                <div className="aop-area-filter-divider" />
-                {availableAreas.map(area => {
-                  const checked = isAllAreasVisible || (visibleAreaIds?.has(area.id) ?? false);
+                {availableAreas.length >= 5 && (
+                  <div className="aop-area-filter-search">
+                    <input
+                      type="text"
+                      placeholder="Filter areas..."
+                      value={areaFilterSearch}
+                      onChange={(e) => setAreaFilterSearch(e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                      autoFocus
+                    />
+                  </div>
+                )}
+                {(() => {
+                  const search = areaFilterSearch.toLowerCase().trim();
+                  const filtered = search
+                    ? availableAreas.filter(a => a.name.toLowerCase().includes(search))
+                    : availableAreas;
+                  const showUnassigned = !search || 'unassigned'.includes(search);
                   return (
-                    <label key={area.id} className="aop-area-filter-option" onClick={(e) => { e.preventDefault(); toggleAreaVisibility(area.id); }}>
-                      <input type="checkbox" checked={checked} readOnly />
-                      <span className="aop-area-filter-color" style={{ background: area.color }} />
-                      <span className="aop-area-filter-name">{area.name}</span>
-                    </label>
+                    <>
+                      {!search && (
+                        <>
+                          <label className="aop-area-filter-option" onClick={setAllAreasVisible}>
+                            <input type="checkbox" checked={isAllAreasVisible} readOnly />
+                            <span className="aop-area-filter-color" style={{ background: '#6272a4' }} />
+                            <span>All</span>
+                          </label>
+                          <div className="aop-area-filter-divider" />
+                        </>
+                      )}
+                      {filtered.map(area => {
+                        const checked = isAllAreasVisible || (visibleAreaIds?.has(area.id) ?? false);
+                        return (
+                          <label key={area.id} className="aop-area-filter-option" onClick={(e) => { e.preventDefault(); toggleAreaVisibility(area.id); }}>
+                            <input type="checkbox" checked={checked} readOnly />
+                            <span className="aop-area-filter-color" style={{ background: area.color }} />
+                            <span className="aop-area-filter-name">{area.name}</span>
+                          </label>
+                        );
+                      })}
+                      {showUnassigned && (
+                        <>
+                          <div className="aop-area-filter-divider" />
+                          <label className="aop-area-filter-option" onClick={(e) => { e.preventDefault(); toggleAreaVisibility('__unassigned__'); }}>
+                            <input type="checkbox" checked={isAllAreasVisible || (visibleAreaIds?.has('__unassigned__') ?? false)} readOnly />
+                            <span className="aop-area-filter-color" style={{ background: '#6272a4' }} />
+                            <span className="aop-area-filter-name">Unassigned</span>
+                          </label>
+                        </>
+                      )}
+                      {search && filtered.length === 0 && !showUnassigned && (
+                        <div className="aop-area-filter-empty">No matching areas</div>
+                      )}
+                    </>
                   );
-                })}
-                <div className="aop-area-filter-divider" />
-                <label className="aop-area-filter-option" onClick={(e) => { e.preventDefault(); toggleAreaVisibility('__unassigned__'); }}>
-                  <input type="checkbox" checked={isAllAreasVisible || (visibleAreaIds?.has('__unassigned__') ?? false)} readOnly />
-                  <span className="aop-area-filter-color" style={{ background: '#6272a4' }} />
-                  <span className="aop-area-filter-name">Unassigned</span>
-                </label>
+                })()}
               </div>
             )}
           </div>
@@ -888,6 +925,18 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
                     >
                       {areaName}
                     </span>
+                    <button
+                      type="button"
+                      className="aop-area-eye-btn"
+                      title="Hide area"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        toggleAreaVisibility(areaKey);
+                      }}
+                    >
+                      ◉
+                    </button>
                     {group.area && (() => {
                       const area = group.area;
                       return (

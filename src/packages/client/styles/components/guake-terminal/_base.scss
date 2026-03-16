@@ -427,6 +427,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   padding: 4px 10px;
   background: rgba($dracula-current, 0.6);
   flex-shrink: 0;
@@ -438,6 +439,58 @@
   color: $dracula-fg;
   font-weight: 500;
   opacity: 0.8;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.guake-bottom-terminal-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.guake-bottom-terminal-filter {
+  width: 140px;
+  height: 20px;
+  padding: 0 7px;
+  border: 1px solid rgba($dracula-comment, 0.28);
+  border-radius: 4px;
+  background: rgba($bg-primary, 0.75);
+  color: $dracula-fg;
+  font-size: 10px;
+  line-height: 1;
+  outline: none;
+  transition: border-color 120ms ease, background 120ms ease;
+
+  &::placeholder {
+    color: rgba($dracula-comment, 0.9);
+  }
+
+  &:focus {
+    border-color: rgba($dracula-cyan, 0.7);
+    background: rgba($bg-primary, 0.92);
+  }
+}
+
+.guake-bottom-terminal-retention {
+  height: 20px;
+  max-width: 120px;
+  padding: 0 22px 0 7px;
+  border: 1px solid rgba($dracula-comment, 0.28);
+  border-radius: 4px;
+  background: rgba($bg-primary, 0.75);
+  color: $dracula-fg;
+  font-size: 10px;
+  line-height: 1;
+  outline: none;
+
+  &:focus {
+    border-color: rgba($dracula-cyan, 0.7);
+    background: rgba($bg-primary, 0.92);
+  }
 }
 
 .guake-bottom-terminal-close {
@@ -480,7 +533,6 @@
 .guake-bottom-pm2-logs {
   flex: 1;
   width: 100%;
-  margin: 0;
   padding: 6px 10px;
   overflow-y: auto;
   overflow-x: hidden;
@@ -489,9 +541,26 @@
   font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
   font-size: 11px;
   line-height: 1.5;
+  overscroll-behavior: contain;
+  position: relative;
+}
+
+.guake-bottom-pm2-logs-inner {
+  position: relative;
+  width: 100%;
+}
+
+.guake-bottom-pm2-log-line {
+  position: absolute;
+  left: 0;
+  width: 100%;
   white-space: pre-wrap;
   word-break: break-all;
-  overscroll-behavior: contain;
+}
+
+.guake-bottom-pm2-logs-empty {
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 
 // =============================================================================
@@ -553,5 +622,3 @@
     }
   }
 }
-
-
