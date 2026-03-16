@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.24.0] - 2026-03-16
+
+### Added
+- **Terminal embed component** - New `TerminalEmbed` component for embedded terminal rendering
+- **Terminal service enhancements** - Improved terminal proxy and service layer
+
+### Changed
+- **Context menu improvements** - Enhanced context menu component
+- **Output panel refactoring** - Cleaned up ClaudeOutputPanel with deferred iframe loading
+- **Guake terminal styles** - Updated base and output styles
+
 ## [1.23.0] - 2026-03-16
 
 ### Added
