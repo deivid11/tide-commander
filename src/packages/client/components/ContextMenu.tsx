@@ -42,8 +42,15 @@ export const ContextMenu = memo(function ContextMenu({ isOpen, position, actions
         }
       };
 
-      // Close on scroll
-      const handleScroll = () => {
+      // Close on scroll — but only for meaningful scrolls, not xterm viewport or nested elements
+      const handleScroll = (e: Event) => {
+        const target = e.target as Element | null;
+        // Ignore scroll events from xterm viewport and other nested scrollable elements
+        if (target && (target as Node) !== document && target !== document.documentElement) {
+          if (target.classList?.contains('xterm-viewport') || target.closest?.('.guake-bottom-terminal-embed')) {
+            return;
+          }
+        }
         onClose();
       };
 

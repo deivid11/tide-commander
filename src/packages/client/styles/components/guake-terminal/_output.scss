@@ -15,29 +15,6 @@
   color: var(--text-primary);
   background: var(--bg-primary);
 
-  // Subtle background pattern for depth
-  position: relative;
-  z-index: 1;
-
-  &::before {
-    content: '';
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background:
-      repeating-linear-gradient(
-        0deg,
-        rgba(255, 255, 255, 0.02) 0px,
-        rgba(255, 255, 255, 0.02) 1px,
-        transparent 1px,
-        transparent 2px
-      );
-    pointer-events: none;
-    z-index: -1;
-  }
-
   a {
     color: var(--accent-blue);
     text-decoration: underline;

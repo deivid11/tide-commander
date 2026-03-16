@@ -7,6 +7,9 @@
 import { spawn, execSync } from 'child_process';
 import type { ChildProcess } from 'child_process';
 import { createServer } from 'net';
+import { writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import type { Building, TerminalStatus } from '../../shared/types.js';
 import { createLogger } from '../utils/index.js';
 
@@ -207,8 +210,39 @@ export async function startTerminal(building: Building): Promise<{ success: bool
         `tmux set-option -t ${tmuxSession} window-status-style 'fg=#6272a4'`,
         // Allow terminal override for clipboard passthrough
         `tmux set-option -t ${tmuxSession} -sa terminal-features ',xterm-256color:clipboard'`,
+        // Auto-copy selection to clipboard on mouse drag end (both emacs and vi copy modes)
+        `tmux bind-key -T copy-mode MouseDragEnd1Pane send-keys -X copy-selection-and-cancel`,
+        `tmux bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-selection-and-cancel`,
       ];
       execSync(tmuxOpts.join(' && '));
+
+      // Bind right-click context menu via tmux config file (complex display-menu syntax
+      // cannot be reliably escaped in JS strings)
+      const tmuxConfPath = join(tmpdir(), `tide-tmux-${tmuxSession}.conf`);
+      writeFileSync(tmuxConfPath, [
+        '# Right-click context menu (mirrors default M-MouseDown3Pane)',
+        'bind-key -T root MouseDown3Pane display-menu -T "#[align=centre]#{pane_index} (#{pane_id})" -t = -x M -y M \\',
+        '  "#{?#{m/r:(copy|view)-mode,#{pane_mode}},Go To Top,}" "<" {send-keys -X history-top} \\',
+        '  "#{?#{m/r:(copy|view)-mode,#{pane_mode}},Go To Bottom,}" ">" {send-keys -X history-bottom} \\',
+        '  "" \\',
+        '  "#{?mouse_word,Search For #[underscore]#{=/9/...:mouse_word},}" C-r {if-shell -F "#{?#{m/r:(copy|view)-mode,#{pane_mode}},0,1}" "copy-mode -t=" ; send-keys -X -t = search-backward "#{q:mouse_word}"} \\',
+        '  "#{?mouse_word,Type #[underscore]#{=/9/...:mouse_word},}" C-y {copy-mode -q ; send-keys -l "#{q:mouse_word}"} \\',
+        '  "#{?mouse_word,Copy #[underscore]#{=/9/...:mouse_word},}" c {copy-mode -q ; set-buffer "#{q:mouse_word}"} \\',
+        '  "#{?mouse_line,Copy Line,}" l {copy-mode -q ; set-buffer "#{q:mouse_line}"} \\',
+        '  "" \\',
+        '  "Horizontal Split" h {split-window -h} \\',
+        '  "Vertical Split" v {split-window -v} \\',
+        '  "" \\',
+        '  "#{?#{>:#{window_panes},1},,-}Swap Up" u {swap-pane -U} \\',
+        '  "#{?#{>:#{window_panes},1},,-}Swap Down" d {swap-pane -D} \\',
+        '  "#{?pane_marked_set,,-}Swap Marked" s {swap-pane} \\',
+        '  "" \\',
+        '  Kill X {kill-pane} \\',
+        '  Respawn R {respawn-pane -k} \\',
+        '  "#{?pane_marked,Unmark,Mark}" m {select-pane -m} \\',
+        '  "#{?#{>:#{window_panes},1},,-}#{?window_zoomed_flag,Unzoom,Zoom}" z {resize-pane -Z}',
+      ].join('\n'));
+      execSync(`tmux source-file ${tmuxConfPath}`);
     } catch {
       log.warn(`Failed to configure tmux session ${tmuxSession}`);
     }

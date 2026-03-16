@@ -57,6 +57,11 @@ const AUTH_WS_SCRIPT = `<script>
 })();
 </script>`;
 
+// Script to disable browser right-click context menu inside the terminal
+const DISABLE_CONTEXTMENU_SCRIPT = `<script>
+document.addEventListener('contextmenu',function(e){e.preventDefault()});
+</script>`;
+
 function getProxy(): httpProxy {
   if (!proxy) {
     proxy = httpProxy.createProxyServer({
@@ -96,7 +101,7 @@ function getHtmlProxy(): httpProxy {
       proxyRes.on('data', (chunk: Buffer) => chunks.push(chunk));
       proxyRes.on('end', () => {
         let body = Buffer.concat(chunks).toString('utf-8');
-        body = body.replace('</head>', AUTH_WS_SCRIPT + CUSTOM_CSS + '</head>');
+        body = body.replace('</head>', AUTH_WS_SCRIPT + DISABLE_CONTEXTMENU_SCRIPT + CUSTOM_CSS + '</head>');
         const headers = { ...proxyRes.headers };
         delete headers['content-length'];
         delete headers['content-encoding'];

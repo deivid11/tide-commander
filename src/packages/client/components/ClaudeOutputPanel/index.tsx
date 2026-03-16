@@ -46,7 +46,6 @@ import {
   getStorageString,
   setStorageBoolean,
   setStorageNumber,
-  authUrl,
 } from '../../utils/storage';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import {
@@ -102,6 +101,7 @@ import { AgentProgressIndicator } from './AgentProgressIndicator';
 import { ThemeSelector } from './ThemeSelector';
 import { Tooltip } from '../shared/Tooltip';
 import type { Agent } from '../../../shared/types';
+import TerminalEmbed from '../TerminalEmbed';
 
 const LIVE_DUPLICATE_WINDOW_MS = 10_000;
 const HISTORY_OUTPUT_DUPLICATE_WINDOW_MS = 30_000;
@@ -285,7 +285,7 @@ const BottomPm2LogContent = memo(function BottomPm2LogContent({
   );
 });
 
-const BottomTerminalIframe = memo(function BottomTerminalIframe({
+const _BottomTerminalIframe = memo(function BottomTerminalIframe({
   src,
   title,
 }: {
@@ -293,23 +293,18 @@ const BottomTerminalIframe = memo(function BottomTerminalIframe({
   title: string;
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [loaded, setLoaded] = useState(false);
   // Defer src assignment so the UI paints first, then the iframe loads in the background
   const [deferredSrc, setDeferredSrc] = useState<string | null>(null);
 
   useEffect(() => {
-    // Wait for idle time before loading the iframe to avoid blocking the main thread
-    if ('requestIdleCallback' in window) {
-      const id = (window as unknown as { requestIdleCallback: (cb: () => void) => number }).requestIdleCallback(() => setDeferredSrc(src));
-      return () => (window as unknown as { cancelIdleCallback: (id: number) => void }).cancelIdleCallback(id);
-    }
-    // Fallback: defer by two animation frames so layout/paint complete first
-    let cancelled = false;
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        if (!cancelled) setDeferredSrc(src);
-      });
-    });
-    return () => { cancelled = true; };
+    setLoaded(false);
+    setDeferredSrc(null);
+    // Delay iframe src assignment so the UI transition/animation completes first.
+    // requestIdleCallback fires too soon; use a fixed 400ms delay to let the
+    // area-switch paint settle before xterm.js starts blocking the main thread.
+    const timer = setTimeout(() => setDeferredSrc(src), 400);
+    return () => clearTimeout(timer);
   }, [src]);
 
   const suppressIframeFocus = useCallback(() => {
@@ -343,19 +338,25 @@ const BottomTerminalIframe = memo(function BottomTerminalIframe({
   }, [restoreGuakeInputFocus, suppressIframeFocus, deferredSrc]);
 
   return (
-    <iframe
-      ref={iframeRef}
-      src={deferredSrc ?? undefined}
-      className="guake-bottom-terminal-iframe"
-      title={title}
-      allow="clipboard-read; clipboard-write"
-      loading="lazy"
-      tabIndex={-1}
-      onLoad={() => {
-        suppressIframeFocus();
-        restoreGuakeInputFocus();
-      }}
-    />
+    <>
+      {!loaded && (
+        <div className="guake-bottom-terminal-starting"><span>Loading terminal...</span></div>
+      )}
+      <iframe
+        ref={iframeRef}
+        src={deferredSrc ?? undefined}
+        className={`guake-bottom-terminal-iframe${loaded ? '' : ' iframe-loading'}`}
+        title={title}
+        allow="clipboard-read; clipboard-write"
+        loading="lazy"
+        tabIndex={-1}
+        onLoad={() => {
+          setLoaded(true);
+          suppressIframeFocus();
+          restoreGuakeInputFocus();
+        }}
+      />
+    </>
   );
 });
 
@@ -2595,9 +2596,9 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
                             </svg>
                           </button>
                         </div>
-                        <BottomTerminalIframe
-                          src={authUrl(building.terminalStatus.url)}
-                          title={`Terminal - ${building.name}`}
+                        <TerminalEmbed
+                          terminalUrl={building.terminalStatus.url}
+                          visible={true}
                         />
                       </div>
                     );
@@ -2704,24 +2705,20 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
             </div>
           </>
         )}
-        {/* Keep inactive terminal iframes alive (hidden) to avoid remount lag */}
-        {bottomPanels.some(p => p.areaId !== activeBottomAreaId && p.type === 'terminal') && (
-          <div style={{ display: 'none' }}>
-            {bottomPanels
-              .filter(p => p.areaId !== activeBottomAreaId && p.type === 'terminal')
-              .map(panel => {
-                const building = buildings.get(panel.buildingId);
-                if (!building?.terminalStatus?.url) return null;
-                return (
-                  <BottomTerminalIframe
-                    key={panel.id}
-                    src={authUrl(building.terminalStatus.url)}
-                    title={`Terminal - ${building.name}`}
-                  />
-                );
-              })}
-          </div>
-        )}
+        {/* Keep inactive terminal embeds alive (hidden, not initialized until visible) */}
+        {bottomPanels
+          .filter(p => p.areaId !== activeBottomAreaId && p.type === 'terminal')
+          .map(panel => {
+            const building = buildings.get(panel.buildingId);
+            if (!building?.terminalStatus?.url) return null;
+            return (
+              <TerminalEmbed
+                key={panel.id}
+                terminalUrl={building.terminalStatus.url}
+                visible={false}
+              />
+            );
+          })}
       </div>
 
       {/* Resize handle */}

@@ -72,7 +72,7 @@ import {
 } from './hooks';
 import { loadConfig, saveConfig } from './app/sceneConfig';
 import { buildContextMenuActions } from './app/contextMenuActions';
-import { authUrl } from './utils/storage';
+import TerminalEmbed from './components/TerminalEmbed';
 
 // Import scene lifecycle to ensure it initializes
 import './app/sceneLifecycle';
@@ -1083,11 +1083,9 @@ function AppContent() {
                   </svg>
                 </button>
               </div>
-              <iframe
-                src={authUrl(building.terminalStatus.url)}
-                className="terminal-modal-iframe"
-                title={`Terminal - ${building.name}`}
-                allow="clipboard-read; clipboard-write"
+              <TerminalEmbed
+                terminalUrl={building.terminalStatus.url}
+                visible={true}
               />
             </div>
           </div>
