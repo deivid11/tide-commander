@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.25.0] - 2026-03-16
+
+### Added
+- **CodeMirror language modules** - Extracted language loading into dedicated `cm-languages.ts` module
+
+### Changed
+- **EmbeddedEditor refactoring** - Simplified editor component by extracting language logic
+- **FileViewer improvements** - Streamlined file viewer with better code organization
+- **File explorer styles** - Enhanced viewer styling with 170+ lines of new SCSS
+
 ## [1.24.0] - 2026-03-16
 
 ### Added
