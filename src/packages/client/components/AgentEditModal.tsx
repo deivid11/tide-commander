@@ -41,6 +41,8 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
   const [workdir, setWorkdir] = useState<string>(agent.cwd);
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set());
   const [skillSearch, setSkillSearch] = useState('');
+  const [editingInstructions, setEditingInstructions] = useState(false);
+  const [instructionsText, setInstructionsText] = useState('');
 
   // Get skills currently assigned to this agent
   const _currentAgentSkills = useMemo(() => {
@@ -144,6 +146,13 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
   const selectedCustomClass = useMemo(() => {
     return customClasses.find(c => c.id === selectedClass);
   }, [customClasses, selectedClass]);
+
+  useEffect(() => {
+    if (selectedCustomClass) {
+      setInstructionsText(selectedCustomClass.instructions || '');
+      setEditingInstructions(false);
+    }
+  }, [selectedCustomClass?.id]);
 
   const previewAgentClass = useMemo((): BuiltInAgentClass => {
     const customClass = customClasses.find(c => c.id === selectedClass);
@@ -302,16 +311,53 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
             </div>
           </div>
 
-          {/* Custom Class Instructions Notice */}
-          {selectedCustomClass?.instructions && (
+          {/* Custom Class Instructions */}
+          {selectedCustomClass && (
             <div className="custom-class-notice">
-              <div className="custom-class-notice-header">
+              <div className="custom-class-notice-header" onClick={() => setEditingInstructions(!editingInstructions)} style={{ cursor: 'pointer' }}>
                 <span>📋</span>
-                <span>{t('terminal:spawn.hasCustomInstructions')}</span>
+                <span>{selectedCustomClass.instructions ? t('terminal:spawn.hasCustomInstructions') : 'Add custom instructions'}</span>
+                <span style={{ marginLeft: 'auto', fontSize: 11, opacity: 0.6 }}>{editingInstructions ? '▲' : '▼'}</span>
               </div>
-              <div className="custom-class-notice-info">
-                {t('terminal:spawn.instructionsInjected', { count: selectedCustomClass.instructions.length })}
-              </div>
+              {!editingInstructions && selectedCustomClass.instructions && (
+                <div className="custom-class-notice-info">
+                  {t('terminal:spawn.instructionsInjected', { count: selectedCustomClass.instructions.length })}
+                </div>
+              )}
+              {editingInstructions && (
+                <div className="custom-class-instructions-editor">
+                  <textarea
+                    value={instructionsText}
+                    onChange={(e) => setInstructionsText(e.target.value)}
+                    placeholder="CLAUDE.md instructions for this agent class..."
+                    rows={6}
+                    style={{ width: '100%', resize: 'vertical', fontFamily: 'monospace', fontSize: 12, background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4, color: 'var(--text-primary)', padding: '6px 8px', outline: 'none' }}
+                  />
+                  <div style={{ display: 'flex', gap: 6, marginTop: 4, justifyContent: 'flex-end' }}>
+                    <button
+                      onClick={() => {
+                        store.updateCustomAgentClass(selectedCustomClass.id, { instructions: instructionsText });
+                        setEditingInstructions(false);
+                      }}
+                      style={{ padding: '2px 10px', borderRadius: 4, fontSize: 11, cursor: 'pointer', background: 'rgba(0,200,200,0.2)', color: 'var(--accent-cyan)', border: '1px solid rgba(0,200,200,0.3)' }}
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={() => {
+                        setInstructionsText(selectedCustomClass.instructions || '');
+                        setEditingInstructions(false);
+                      }}
+                      style={{ padding: '2px 10px', borderRadius: 4, fontSize: 11, cursor: 'pointer', background: 'transparent', color: 'var(--text-secondary)', border: '1px solid rgba(255,255,255,0.1)' }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>
+                    These instructions are injected as system prompt for all agents of this class.
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
