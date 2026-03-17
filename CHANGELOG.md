@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.28.0] - 2026-03-17
+
+### Added
+- **Inline instructions editor** - Edit custom agent class instructions directly from the Agent Edit Modal with collapsible editor, save/cancel controls
+
 ## [1.27.0] - 2026-03-17
 
 ### Added
