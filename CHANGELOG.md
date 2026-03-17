@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.27.0] - 2026-03-17
+
+### Added
+- **Agent overview enhancements** - Extended AgentOverviewPanel with new display features
+- **Area editor updates** - New area configuration options in AreaEditor component
+- **Backend prompt improvements** - Enhanced Claude and Codex backend prompt building
+- **Common types expansion** - New shared type definitions
+
+### Changed
+- **Tool renderers** - Updated ToolRenderers component
+- **File content handling** - Improved useFileContent hook
+- **File viewer modal** - Streamlined FileViewerModal component
+- **Data section** - Updated DataSection toolbox component
+- **Overview panel styles** - Enhanced overview panel SCSS styling
+- **Config translations** - Updated English config locale
+
 ## [1.26.0] - 2026-03-17
 
 ### Added
