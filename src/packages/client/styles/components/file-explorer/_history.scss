@@ -1,0 +1,551 @@
+// =============================================================================
+// Git History Bottom Panel
+// =============================================================================
+// Horizontal table layout for commit list, resizable bottom panel.
+
+@use '../../variables' as *;
+
+// ---------------------------------------------------------------------------
+// Bottom panel container & resize handle
+// ---------------------------------------------------------------------------
+
+.git-history-bottom-panel {
+  flex-shrink: 0;
+  overflow: hidden;
+  border-top: 1px solid $border-color;
+  display: flex;
+  flex-direction: column;
+}
+
+.git-history-resize-handle {
+  height: 4px;
+  cursor: ns-resize;
+  background: transparent;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 5;
+
+  &:hover,
+  &:active {
+    background: rgba($dracula-purple, 0.4);
+  }
+}
+
+// Toggle button in header
+.file-explorer-history-toggle {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: $radius-sm;
+  color: $text-muted;
+  font-size: 14px;
+  padding: 2px 6px;
+  cursor: pointer;
+  margin-left: auto;
+  transition: all $transition-fast;
+  line-height: 1;
+
+  &:hover {
+    color: $text-primary;
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  &.active {
+    color: $dracula-purple;
+    border-color: rgba($dracula-purple, 0.3);
+    background: rgba($dracula-purple, 0.1);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Panel internals
+// ---------------------------------------------------------------------------
+
+.gh-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: $bg-secondary;
+}
+
+// ---------------------------------------------------------------------------
+// Toolbar
+// ---------------------------------------------------------------------------
+
+.gh-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+  min-height: 28px;
+}
+
+.gh-toolbar-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: $text-secondary;
+  white-space: nowrap;
+}
+
+.gh-toolbar-count {
+  font-size: 10px;
+  color: $text-muted;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 1px 5px;
+  border-radius: 8px;
+  min-width: 20px;
+  text-align: center;
+}
+
+.gh-search-input {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: $radius-sm;
+  color: $text-primary;
+  font-size: 11px;
+  padding: 2px 6px;
+  flex: 1;
+  min-width: 80px;
+  max-width: 200px;
+
+  &::placeholder {
+    color: $text-muted;
+  }
+
+  &:focus {
+    outline: none;
+    border-color: rgba($dracula-purple, 0.4);
+  }
+}
+
+.gh-filter-toggle {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: $radius-sm;
+  color: $text-muted;
+  font-size: 12px;
+  padding: 1px 4px;
+  cursor: pointer;
+  line-height: 1;
+
+  &:hover {
+    color: $text-primary;
+  }
+
+  &.active {
+    color: $dracula-purple;
+  }
+
+  &.has-filters {
+    color: $dracula-orange;
+  }
+}
+
+.gh-reset-btn {
+  background: rgba($dracula-red, 0.1);
+  border: 1px solid rgba($dracula-red, 0.25);
+  border-radius: $radius-sm;
+  color: $dracula-red;
+  font-size: 9px;
+  padding: 1px 6px;
+  cursor: pointer;
+  white-space: nowrap;
+
+  &:hover {
+    background: rgba($dracula-red, 0.2);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Expandable filter row
+// ---------------------------------------------------------------------------
+
+.gh-filters-row {
+  display: flex;
+  gap: 4px;
+  padding: 4px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+
+.gh-filter-select,
+.gh-filter-input {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: $radius-sm;
+  color: $text-primary;
+  font-size: 10px;
+  padding: 2px 5px;
+  min-width: 0;
+  flex: 1;
+
+  &::placeholder {
+    color: $text-muted;
+  }
+
+  &:focus {
+    outline: none;
+    border-color: rgba($dracula-purple, 0.4);
+  }
+
+  option {
+    background: $bg-tertiary;
+    color: $text-primary;
+  }
+}
+
+.gh-date-input {
+  max-width: 110px;
+  flex: 0 1 110px;
+
+  &::-webkit-calendar-picker-indicator {
+    filter: invert(0.7);
+    cursor: pointer;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Body: commits + files side by side
+// ---------------------------------------------------------------------------
+
+.gh-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+// ---------------------------------------------------------------------------
+// Commit table section
+// ---------------------------------------------------------------------------
+
+.gh-commits-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+// Grid template shared by header and rows
+%gh-grid-row {
+  display: grid;
+  grid-template-columns: 60px 1fr 120px 120px;
+  align-items: center;
+  padding: 0 8px;
+}
+
+.gh-header-row {
+  @extend %gh-grid-row;
+  height: 22px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.15);
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  color: $text-muted;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.gh-commit-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+// Table column styles (grid children)
+.gh-col-hash {
+  font-family: monospace;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gh-col-message {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.gh-col-author {
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gh-col-date {
+  font-size: 11px;
+  font-family: monospace;
+  text-align: right;
+  white-space: nowrap;
+}
+
+// ---------------------------------------------------------------------------
+// Commit row
+// ---------------------------------------------------------------------------
+
+.gh-row {
+  @extend %gh-grid-row;
+  height: 28px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+  transition: background $transition-fast;
+
+  .gh-col-hash {
+    color: $dracula-comment;
+  }
+
+  .gh-col-author {
+    color: $text-secondary;
+  }
+
+  .gh-col-date {
+    color: $text-muted;
+  }
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  &.selected {
+    background: rgba($dracula-purple, 0.12);
+    border-left: 2px solid $dracula-purple;
+    padding-left: 6px;
+  }
+}
+
+.gh-subject {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  color: $text-primary;
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+// Ref badges (inline, compact)
+.gh-badge {
+  font-size: 9px;
+  padding: 0 3px;
+  border-radius: 2px;
+  font-weight: 600;
+  line-height: 14px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.gh-badge-head {
+  background: rgba($dracula-red, 0.18);
+  color: $dracula-red;
+  border: 1px solid rgba($dracula-red, 0.25);
+}
+
+.gh-badge-branch {
+  background: rgba($dracula-green, 0.12);
+  color: $dracula-green;
+  border: 1px solid rgba($dracula-green, 0.2);
+}
+
+.gh-badge-tag {
+  background: rgba($dracula-yellow, 0.12);
+  color: $dracula-yellow;
+  border: 1px solid rgba($dracula-yellow, 0.2);
+}
+
+// ---------------------------------------------------------------------------
+// Files detail panel (right side)
+// ---------------------------------------------------------------------------
+
+.gh-files-section {
+  width: 340px;
+  flex-shrink: 0;
+  border-left: 1px solid $border-color;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.gh-files-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+  min-height: 22px;
+}
+
+.gh-files-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: $text-secondary;
+}
+
+.gh-files-commit-info {
+  font-size: 10px;
+  font-family: monospace;
+  color: $dracula-comment;
+}
+
+.gh-files-list {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.gh-file-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  cursor: pointer;
+  font-size: 11px;
+  height: 24px;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  &.selected {
+    background: rgba($dracula-purple, 0.1);
+  }
+}
+
+.gh-file-status {
+  width: 12px;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.gh-file-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.gh-file-name {
+  color: $text-primary;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+}
+
+.gh-file-dir {
+  color: $text-muted;
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+// ---------------------------------------------------------------------------
+// State messages
+// ---------------------------------------------------------------------------
+
+.gh-state-msg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-size: 11px;
+  color: $text-muted;
+  padding: 12px;
+
+  &.gh-error {
+    color: $dracula-red;
+  }
+}
+
+.gh-loading-more {
+  padding: 6px;
+  text-align: center;
+  font-size: 10px;
+  color: $text-muted;
+}
+
+.gh-files-loading,
+.gh-files-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-size: 11px;
+  color: $text-muted;
+  padding: 12px;
+}
+
+// ---------------------------------------------------------------------------
+// Commit diff header (in viewer panel)
+// ---------------------------------------------------------------------------
+
+.commit-diff-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: rgba($dracula-purple, 0.08);
+  border-bottom: 1px solid rgba($dracula-purple, 0.2);
+  flex-shrink: 0;
+}
+
+.commit-diff-file {
+  font-family: monospace;
+  font-size: 12px;
+  color: $dracula-cyan;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commit-diff-hash {
+  font-family: monospace;
+  font-size: 11px;
+  color: $dracula-comment;
+  flex-shrink: 0;
+}
+
+.commit-diff-close {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: $radius-sm;
+  color: $text-muted;
+  width: 22px;
+  height: 22px;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all $transition-fast;
+
+  &:hover {
+    background: rgba($dracula-red, 0.15);
+    border-color: rgba($dracula-red, 0.3);
+    color: $dracula-red;
+  }
+}
+
+.commit-diff-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-size: 12px;
+  color: $text-muted;
+}

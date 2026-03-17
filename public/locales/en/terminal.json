@@ -451,7 +451,22 @@
     "files": "Files",
     "content": "Content",
     "matchesInFiles": "{{matches}} in {{files}} files",
-    "moreMatches": "and {{count}} more matches"
+    "moreMatches": "and {{count}} more matches",
+    "gitHistory": {
+      "title": "History",
+      "allBranches": "All branches",
+      "allAuthors": "All authors",
+      "branchFilter": "Filter by branch",
+      "authorFilter": "Filter by author",
+      "searchPlaceholder": "Search commits...",
+      "pathFilter": "Filter by path...",
+      "since": "Since date",
+      "until": "Until date",
+      "resetFilters": "Reset",
+      "noCommits": "No commits found",
+      "selectCommit": "Select a commit to see changed files",
+      "noFiles": "No changed files"
+    }
   },
   "snapshot": {
     "title": "Snapshots",

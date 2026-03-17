@@ -42,6 +42,10 @@ export function useKeyboardShortcuts({
       // Escape to deselect or close modal/terminal/drawing mode
       const deselectShortcut = shortcuts.find(s => s.id === 'deselect-all');
       if (matchesShortcut(e, deselectShortcut)) {
+        // If the Escape came from within a terminal embed (xterm.js), let the terminal
+        // consume it (e.g. vim, tmux copy-mode) — don't close the panel.
+        if (target.closest('.guake-bottom-terminal-embed')) return;
+
         // Always close the top-most modal first (including image modal inside terminal).
         if (closeTopModal()) {
           e.preventDefault();

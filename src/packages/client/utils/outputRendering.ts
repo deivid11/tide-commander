@@ -23,6 +23,10 @@ export const TOOL_ICONS: Record<string, string> = {
   ListFiles: '📂',
   SearchFiles: '🔎',
   ExecuteCommand: '⚙️',
+  // Codex subagent collab tools
+  spawn_agent: '🧬',
+  send_input: '📨',
+  wait: '⏳',
   default: '⚡',
 };
 
@@ -52,6 +56,10 @@ const TOOL_NAME_TRANSLATION_KEYS: Record<string, string> = {
   ListFiles: 'tools:display.toolNames.listFiles',
   SearchFiles: 'tools:display.toolNames.searchFiles',
   ExecuteCommand: 'tools:display.toolNames.executeCommand',
+  // Codex subagent collab tools
+  spawn_agent: 'tools:display.toolNames.spawnAgent',
+  send_input: 'tools:display.toolNames.sendInput',
+  wait: 'tools:display.toolNames.wait',
 };
 
 /**

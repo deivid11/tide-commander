@@ -713,16 +713,17 @@ export async function executeQuery(
                      trimmedQuery.startsWith('describe') ||
                      trimmedQuery.startsWith('explain');
 
-    // SHOW statements are read-only but don't support LIMIT clause
+    // These statements are read-only but don't support LIMIT clause
     const isShowStatement = trimmedQuery.startsWith('show');
+    const isMetadataStatement = trimmedQuery.startsWith('describe') || trimmedQuery.startsWith('explain');
 
     if (connection.engine === 'mysql') {
       const pool = await getMySQLPool(connection, database);
 
       if (isSelect) {
-        // Add LIMIT if not present (but not for SHOW statements)
+        // Add LIMIT if not present (but not for SHOW/DESCRIBE/EXPLAIN statements)
         let limitedQuery = query;
-        if (!isShowStatement && !trimmedQuery.includes(' limit ')) {
+        if (!isShowStatement && !isMetadataStatement && !trimmedQuery.includes(' limit ')) {
           limitedQuery = `${query.trim().replace(/;$/, '')} LIMIT ${limit}`;
         }
 
@@ -744,9 +745,9 @@ export async function executeQuery(
       const pool = await getPgPool(connection, database);
 
       if (isSelect) {
-        // Add LIMIT if not present (but not for SHOW statements)
+        // Add LIMIT if not present (but not for SHOW/DESCRIBE/EXPLAIN statements)
         let limitedQuery = query;
-        if (!isShowStatement && !trimmedQuery.includes(' limit ')) {
+        if (!isShowStatement && !isMetadataStatement && !trimmedQuery.includes(' limit ')) {
           limitedQuery = `${query.trim().replace(/;$/, '')} LIMIT ${limit}`;
         }
 
@@ -769,9 +770,9 @@ export async function executeQuery(
       const conn = await pool.getConnection();
       try {
         if (isSelect) {
-          // Add FETCH FIRST for Oracle 12c+ if no ROWNUM/FETCH present (but not for SHOW statements)
+          // Add FETCH FIRST for Oracle 12c+ if no ROWNUM/FETCH present (but not for SHOW/DESCRIBE/EXPLAIN statements)
           let limitedQuery = query;
-          if (!isShowStatement && !trimmedQuery.includes('rownum') && !trimmedQuery.includes('fetch ')) {
+          if (!isShowStatement && !isMetadataStatement && !trimmedQuery.includes('rownum') && !trimmedQuery.includes('fetch ')) {
             limitedQuery = `${query.trim().replace(/;$/, '')} FETCH FIRST ${limit} ROWS ONLY`;
           }
 

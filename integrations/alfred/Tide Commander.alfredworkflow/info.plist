@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>bundleid</key>
+	<string>org.riven.tide.alfred</string>
+	<key>category</key>
+	<string>Productivity</string>
+	<key>connections</key>
+	<dict>
+		<key>2D25B3A0-4D1E-4C6F-8A3B-1A2B3C4D5E6F</key>
+		<array>
+			<dict>
+				<key>destinationuid</key>
+				<string>3E36C4B1-5E2F-5D7G-9B4C-2B3C4D5E6F7G</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+		</array>
+	</dict>
+	<key>createdby</key>
+	<string>Tide Commander</string>
+	<key>description</key>
+	<string>Search and focus Tide Commander agents from Alfred</string>
+	<key>disabled</key>
+	<false/>
+	<key>name</key>
+	<string>Tide Commander</string>
+	<key>objects</key>
+	<array>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>alfredfiltersresults</key>
+				<false/>
+				<key>alfredfiltersresultsmatchmode</key>
+				<integer>0</integer>
+				<key>argumenttrimmode</key>
+				<integer>0</integer>
+				<key>argumenttype</key>
+				<integer>1</integer>
+				<key>escaping</key>
+				<integer>102</integer>
+				<key>keyword</key>
+				<string>tide</string>
+				<key>queuedelaycustom</key>
+				<integer>3</integer>
+				<key>queuedelayimmediatelyalinitially</key>
+				<true/>
+				<key>queuedelaymode</key>
+				<integer>0</integer>
+				<key>queuemode</key>
+				<integer>1</integer>
+				<key>runningsubtext</key>
+				<string>Searching agents...</string>
+				<key>script</key>
+				<string>./search_agents.sh "{query}"</string>
+				<key>scriptargtype</key>
+				<integer>0</integer>
+				<key>scriptfile</key>
+				<string></string>
+				<key>subtext</key>
+				<string>Search Tide Commander agents</string>
+				<key>title</key>
+				<string>Tide Commander</string>
+				<key>type</key>
+				<integer>0</integer>
+				<key>withspace</key>
+				<true/>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.input.scriptfilter</string>
+			<key>uid</key>
+			<string>2D25B3A0-4D1E-4C6F-8A3B-1A2B3C4D5E6F</string>
+			<key>version</key>
+			<integer>3</integer>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>concurrently</key>
+				<false/>
+				<key>escaping</key>
+				<integer>102</integer>
+				<key>script</key>
+				<string>./focus_agent.sh "{query}"</string>
+				<key>scriptargtype</key>
+				<integer>0</integer>
+				<key>scriptfile</key>
+				<string></string>
+				<key>type</key>
+				<integer>0</integer>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.action.script</string>
+			<key>uid</key>
+			<string>3E36C4B1-5E2F-5D7G-9B4C-2B3C4D5E6F7G</string>
+			<key>version</key>
+			<integer>2</integer>
+		</dict>
+	</array>
+	<key>readme</key>
+	<string>Search and focus Tide Commander agents.
+
+Keywords: tide, agent
+
+Usage:
+  tide [query]  - Search agents by name, class, status, or area
+  agent [query] - Same as above
+
+Select an agent to focus the Tide Commander window and open that agent.
+
+Configuration:
+  Set TIDE_API_BASE environment variable to override the default API URL (http://localhost:5174/api).
+  Set TIDE_AUTH_TOKEN if your server requires authentication.</string>
+	<key>uidata</key>
+	<dict>
+		<key>2D25B3A0-4D1E-4C6F-8A3B-1A2B3C4D5E6F</key>
+		<dict>
+			<key>xpos</key>
+			<integer>150</integer>
+			<key>ypos</key>
+			<integer>200</integer>
+		</dict>
+		<key>3E36C4B1-5E2F-5D7G-9B4C-2B3C4D5E6F7G</key>
+		<dict>
+			<key>xpos</key>
+			<integer>500</integer>
+			<key>ypos</key>
+			<integer>200</integer>
+		</dict>
+	</dict>
+	<key>userconfigurationconfig</key>
+	<array>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>default</key>
+				<string>http://localhost:5174/api</string>
+				<key>placeholder</key>
+				<string>http://localhost:5174/api</string>
+				<key>required</key>
+				<false/>
+				<key>trim</key>
+				<true/>
+			</dict>
+			<key>description</key>
+			<string>Tide Commander API base URL</string>
+			<key>label</key>
+			<string>API Base URL</string>
+			<key>type</key>
+			<string>textfield</string>
+			<key>variable</key>
+			<string>TIDE_API_BASE</string>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>default</key>
+				<string></string>
+				<key>placeholder</key>
+				<string>Leave empty if no auth required</string>
+				<key>required</key>
+				<false/>
+				<key>trim</key>
+				<true/>
+			</dict>
+			<key>description</key>
+			<string>Authentication token for the API</string>
+			<key>label</key>
+			<string>Auth Token</string>
+			<key>type</key>
+			<string>textfield</string>
+			<key>variable</key>
+			<string>TIDE_AUTH_TOKEN</string>
+		</dict>
+	</array>
+	<key>version</key>
+	<string>1.0.0</string>
+	<key>webaddress</key>
+	<string>https://github.com/riven/tide-commander</string>
+</dict>
+</plist>
