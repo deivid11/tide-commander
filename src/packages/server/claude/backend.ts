@@ -15,6 +15,7 @@ import type {
 import { createLogger, sanitizeUnicode } from '../utils/index.js';
 import { TIDE_COMMANDER_APPENDED_PROMPT } from '../prompts/tide-commander.js';
 import { getSystemPrompt, isEchoPromptEnabled } from '../services/system-prompt-service.js';
+import { loadAreas } from '../data/index.js';
 
 const log = createLogger('Backend');
 
@@ -50,6 +51,19 @@ function buildAppendedProjectInstructions(config: BackendConfig): string {
       '## System-Level Custom Prompt',
       systemLevelPrompt
     );
+  }
+
+  // Area-level prompt (per-area instructions for agents assigned to this area)
+  if (config.agentId) {
+    const areas = loadAreas();
+    const agentArea = areas.find(a => a.assignedAgentIds.includes(config.agentId!));
+    const areaPrompt = agentArea?.prompt?.trim();
+    if (areaPrompt) {
+      sections.push(
+        `## Area-Level Prompt (${agentArea!.name})`,
+        areaPrompt
+      );
+    }
   }
 
   const customPrompt = config.customAgent?.definition?.prompt?.trim();

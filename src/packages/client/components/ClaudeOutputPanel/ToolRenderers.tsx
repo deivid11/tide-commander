@@ -824,15 +824,17 @@ export function ToolSearchInput({ content, agentName }: ToolSearchInputProps) {
   );
 }
 
-export function UnknownToolInput({ toolName, content }: UnknownToolInputProps) {
+export function UnknownToolInput({ toolName: _toolName, content }: UnknownToolInputProps) {
   const [expanded, setExpanded] = useState(false);
+
+  // Don't render if content is empty or just '{}'
+  if (!content || content.trim() === '{}') return null;
+
   const preview = content.length > 220 ? `${content.slice(0, 220)}...` : content;
 
   return (
     <div className="unknown-tool-input">
       <div className="unknown-tool-header">
-        <span className="unknown-tool-badge">Fallback</span>
-        <span className="unknown-tool-name">{toolName}</span>
         <button
           type="button"
           className="unknown-tool-toggle"

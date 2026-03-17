@@ -20,6 +20,7 @@ export interface DrawingArea {
   zIndex: number;   // stacking order (higher = on top)
   assignedAgentIds: string[];
   directories: string[];  // Associated directory paths
+  prompt?: string;        // Area-level system prompt for assigned agents
   directoryGitCounts?: number[];  // Git pending changes count per directory (runtime only)
   // Logo/image overlay
   logo?: {

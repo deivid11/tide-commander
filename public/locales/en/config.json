@@ -234,7 +234,10 @@
     "posTopLeft": "Top-Left",
     "posTopRight": "Top-Right",
     "posBottomLeft": "Bot-Left",
-    "posBottomRight": "Bot-Right"
+    "posBottomRight": "Bot-Right",
+    "prompt": "Prompt",
+    "promptPlaceholder": "System prompt for agents in this area...",
+    "promptHint": "Injected into agents in this area. Takes effect on next context refresh."
   },
   "buildings": {
     "title": "Buildings ({{count}})",

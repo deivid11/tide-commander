@@ -163,6 +163,8 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     savedConfig.allExpanded ? new Set(agents.map(a => a.id)) : new Set()
   );
   const [collapsedAreas, setCollapsedAreas] = useState<Set<string>>(new Set());
+  const [editingPromptAreaId, setEditingPromptAreaId] = useState<string | null>(null);
+  const [editingPromptText, setEditingPromptText] = useState('');
   const [sortMode, setSortMode] = useState<SortMode>(savedConfig.sortMode);
   const [filterMode, setFilterMode] = useState<FilterMode>(savedConfig.filterMode);
   const [searchQuery, setSearchQuery] = useState('');
@@ -937,6 +939,26 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
                     >
                       ◉
                     </button>
+                    {group.area && (
+                      <button
+                        type="button"
+                        className="aop-area-eye-btn"
+                        title="Edit area prompt"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          const area = group.area!;
+                          if (editingPromptAreaId === area.id) {
+                            setEditingPromptAreaId(null);
+                          } else {
+                            setEditingPromptText(area.prompt || '');
+                            setEditingPromptAreaId(area.id);
+                          }
+                        }}
+                      >
+                        ✎
+                      </button>
+                    )}
                     {group.area && (() => {
                       const area = group.area;
                       return (
@@ -959,6 +981,35 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
                       );
                     })()}
                     <span className="aop-area-count">{group.agents.length}</span>
+                  </div>
+                )}
+                {editingPromptAreaId === areaKey && group.area && (
+                  <div className="aop-area-prompt-editor" onClick={(e) => e.stopPropagation()}>
+                    <textarea
+                      className="aop-area-prompt-textarea"
+                      value={editingPromptText}
+                      onChange={(e) => setEditingPromptText(e.target.value)}
+                      placeholder="System prompt for agents in this area..."
+                      rows={3}
+                      autoFocus
+                    />
+                    <div className="aop-area-prompt-actions">
+                      <button
+                        className="aop-area-prompt-save"
+                        onClick={() => {
+                          store.updateArea(group.area!.id, { prompt: editingPromptText });
+                          setEditingPromptAreaId(null);
+                        }}
+                      >
+                        Save
+                      </button>
+                      <button
+                        className="aop-area-prompt-cancel"
+                        onClick={() => setEditingPromptAreaId(null)}
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   </div>
                 )}
                 {(!groupByArea || !isCollapsed) && (

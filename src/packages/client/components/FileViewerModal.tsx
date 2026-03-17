@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { DiffViewer } from './DiffViewer';
-import { apiUrl, authFetch } from '../utils/storage';
+import { apiUrl, authFetch, getAuthToken } from '../utils/storage';
 import { copyRichContentToClipboard, copyTextToClipboard } from '../utils/clipboard';
 import { useModalClose } from '../hooks';
 import { parseFilePathReference } from '../utils/filePaths';
@@ -620,8 +620,9 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
   const isImage = fileData && IMAGE_EXTENSIONS.includes(fileData.extension);
   const isPdf = fileData && PDF_EXTENSIONS.includes(fileData.extension);
   const language = isImage ? 'Image' : isPdf ? 'PDF' : (fileData ? getLanguageForExtension(fileData.extension) : 'text');
-  const imageUrl = isImage ? apiUrl(`/api/files/binary?path=${encodeURIComponent(effectivePath)}`) : null;
-  const pdfUrl = isPdf ? apiUrl(`/api/files/binary?path=${encodeURIComponent(effectivePath)}`) : null;
+  const authToken = getAuthToken();
+  const imageUrl = isImage ? apiUrl(`/api/files/binary?path=${encodeURIComponent(effectivePath)}${authToken ? `&token=${encodeURIComponent(authToken)}` : ''}`) : null;
+  const pdfUrl = isPdf ? apiUrl(`/api/files/binary?path=${encodeURIComponent(effectivePath)}${authToken ? `&token=${encodeURIComponent(authToken)}` : ''}`) : null;
 
   if (!isOpen) return null;
 

@@ -25,9 +25,10 @@ export function DataSection() {
   useEffect(() => {
     authFetch(apiUrl('/api/config/categories'))
       .then(res => res.json())
-      .then((cats: ConfigCategory[]) => {
-        setCategories(cats);
-        setSelectedExport(new Set(cats.map(c => c.id)));
+      .then((cats: ConfigCategory[] | unknown) => {
+        const arr = Array.isArray(cats) ? cats : [];
+        setCategories(arr);
+        setSelectedExport(new Set(arr.map(c => c.id)));
       })
       .catch(err => console.error('Failed to fetch config categories:', err));
   }, []);
@@ -117,8 +118,9 @@ export function DataSection() {
       }
 
       const preview = await response.json();
-      setImportPreview(preview);
-      setSelectedImport(new Set(preview.categories.map((c: ConfigCategory) => c.id)));
+      const previewCats = Array.isArray(preview.categories) ? preview.categories : [];
+      setImportPreview({ ...preview, categories: previewCats });
+      setSelectedImport(new Set(previewCats.map((c: ConfigCategory) => c.id)));
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || 'Failed to read config file' });
       setImportFile(null);
