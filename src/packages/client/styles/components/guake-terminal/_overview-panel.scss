@@ -433,6 +433,67 @@
     }
   }
 
+  .aop-area-prompt-editor {
+    padding: 6px 10px 8px;
+    background: rgba(0, 0, 0, 0.2);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .aop-area-prompt-textarea {
+    width: 100%;
+    min-height: 50px;
+    padding: 6px 8px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-family: monospace;
+    font-size: 11px;
+    line-height: 1.4;
+    resize: vertical;
+    outline: none;
+
+    &:focus {
+      border-color: var(--accent-cyan);
+    }
+  }
+
+  .aop-area-prompt-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 4px;
+    justify-content: flex-end;
+  }
+
+  .aop-area-prompt-save,
+  .aop-area-prompt-cancel {
+    padding: 2px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: background 0.15s;
+  }
+
+  .aop-area-prompt-save {
+    background: rgba(var(--accent-cyan-rgb, 0, 200, 200), 0.2);
+    color: var(--accent-cyan);
+    border-color: rgba(var(--accent-cyan-rgb, 0, 200, 200), 0.3);
+
+    &:hover {
+      background: rgba(var(--accent-cyan-rgb, 0, 200, 200), 0.3);
+    }
+  }
+
+  .aop-area-prompt-cancel {
+    background: transparent;
+    color: var(--text-secondary);
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+  }
+
   .aop-area-content {
     margin-left: 10px;
     padding: 4px 6px 2px;

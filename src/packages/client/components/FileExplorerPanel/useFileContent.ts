@@ -7,7 +7,7 @@
 
 import { useState, useCallback } from 'react';
 import type { FileData, FileType, UseFileContentReturn } from './types';
-import { apiUrl, authFetch } from '../../utils/storage';
+import { apiUrl, authFetch, getAuthToken } from '../../utils/storage';
 
 // File extensions that can be displayed as text
 const TEXT_EXTENSIONS = new Set([
@@ -126,7 +126,7 @@ export function useFileContent(): UseFileContentReturn {
           size: info.size,
           modified: info.modified,
           fileType: 'pdf',
-          dataUrl: apiUrl(`/api/files/binary?path=${encodeURIComponent(filePath)}`)
+          dataUrl: apiUrl(`/api/files/binary?path=${encodeURIComponent(filePath)}&token=${encodeURIComponent(getAuthToken())}`)
         });
         return;
       }
@@ -150,7 +150,7 @@ export function useFileContent(): UseFileContentReturn {
           size: info.size,
           modified: info.modified,
           fileType: 'binary',
-          dataUrl: apiUrl(`/api/files/binary?path=${encodeURIComponent(filePath)}&download=true`)
+          dataUrl: apiUrl(`/api/files/binary?path=${encodeURIComponent(filePath)}&download=true&token=${encodeURIComponent(getAuthToken())}`)
         });
         return;
       }
@@ -175,7 +175,7 @@ export function useFileContent(): UseFileContentReturn {
               size: info.size,
               modified: info.modified,
               fileType: 'binary',
-              dataUrl: apiUrl(`/api/files/binary?path=${encodeURIComponent(filePath)}&download=true`)
+              dataUrl: apiUrl(`/api/files/binary?path=${encodeURIComponent(filePath)}&download=true&token=${encodeURIComponent(getAuthToken())}`)
             });
             return;
           }

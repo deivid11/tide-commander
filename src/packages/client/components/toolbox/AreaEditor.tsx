@@ -25,6 +25,7 @@ interface AreaEditorProps {
 export function AreaEditor({ area, onClose, onOpenFolder }: AreaEditorProps) {
   const { t } = useTranslation(['config', 'common']);
   const [name, setName] = useState(area.name);
+  const [prompt, setPrompt] = useState(area.prompt || '');
   const [isAddingFolder, setIsAddingFolder] = useState(false);
   const [newFolderPath, setNewFolderPath] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -34,6 +35,10 @@ export function AreaEditor({ area, onClose, onOpenFolder }: AreaEditorProps) {
     setName(area.name);
   }, [area.id, area.name]);
 
+  useEffect(() => {
+    setPrompt(area.prompt || '');
+  }, [area.id, area.prompt]);
+
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newName = e.target.value;
     setName(newName);
@@ -42,6 +47,12 @@ export function AreaEditor({ area, onClose, onOpenFolder }: AreaEditorProps) {
 
   const handleColorSelect = (color: string) => {
     store.updateArea(area.id, { color });
+  };
+
+  const handlePromptChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newPrompt = e.target.value;
+    setPrompt(newPrompt);
+    store.updateArea(area.id, { prompt: newPrompt });
   };
 
   const handleAddFolder = () => {
@@ -369,6 +380,24 @@ export function AreaEditor({ area, onClose, onOpenFolder }: AreaEditorProps) {
               {t('config:areas.addFolder')}
             </button>
           )}
+        </div>
+      </div>
+
+      {/* Area Prompt */}
+      <div className="area-editor-row" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+        <div className="area-editor-label" style={{ marginBottom: 6 }}>
+          {t('config:areas.prompt', 'Prompt')}
+        </div>
+        <textarea
+          className="area-editor-input"
+          value={prompt}
+          onChange={handlePromptChange}
+          placeholder={t('config:areas.promptPlaceholder', 'System prompt for agents in this area...')}
+          rows={4}
+          style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }}
+        />
+        <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>
+          {t('config:areas.promptHint', 'This prompt is injected into agents assigned to this area. Takes effect on next context refresh.')}
         </div>
       </div>
 

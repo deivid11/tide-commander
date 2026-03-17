@@ -5,6 +5,7 @@ import type { CLIBackend, BackendConfig, StandardEvent } from '../claude/types.j
 import { CodexJsonEventParser } from './json-event-parser.js';
 import { TIDE_COMMANDER_APPENDED_PROMPT } from '../prompts/tide-commander.js';
 import { isEchoPromptEnabled, getCodexBinaryPath } from '../services/system-prompt-service.js';
+import { loadAreas } from '../data/index.js';
 
 interface CodexRawEvent {
   type?: string;
@@ -31,6 +32,16 @@ function buildCodexPrompt(config: BackendConfig): string {
   const systemPrompt = config.systemPrompt?.trim();
   if (systemPrompt) {
     injectedSections.push(`## System Context\n${systemPrompt}`);
+  }
+
+  // Area-level prompt (per-area instructions for agents assigned to this area)
+  if (config.agentId) {
+    const areas = loadAreas();
+    const agentArea = areas.find(a => a.assignedAgentIds.includes(config.agentId!));
+    const areaPrompt = agentArea?.prompt?.trim();
+    if (areaPrompt) {
+      injectedSections.push(`## Area-Level Prompt (${agentArea!.name})\n${areaPrompt}`);
+    }
   }
 
   injectedSections.push(TIDE_COMMANDER_APPENDED_PROMPT);
