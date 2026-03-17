@@ -93,6 +93,41 @@ export interface GitStatus {
 export type ViewMode = 'files' | 'git' | 'compare';
 
 // ============================================================================
+// GIT HISTORY TYPES
+// ============================================================================
+
+export interface GitCommitRef {
+  branches: string[];
+  tags: string[];
+  isHead: boolean;
+}
+
+export interface GitCommit {
+  hash: string;
+  shortHash: string;
+  author: string;
+  authorEmail: string;
+  date: string;
+  subject: string;
+  refs: GitCommitRef;
+}
+
+export interface GitHistoryFilters {
+  branch: string;
+  author: string;
+  since: string;
+  until: string;
+  searchPath: string;
+  search: string;
+}
+
+export interface GitCommitFile {
+  path: string;
+  status: GitFileStatusType;
+  oldPath?: string;
+}
+
+// ============================================================================
 // COMPONENT PROPS
 // ============================================================================
 

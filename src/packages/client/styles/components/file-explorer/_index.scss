@@ -47,6 +47,9 @@
 // Branch comparison view
 @forward 'compare';
 
+// Git history log view
+@forward 'history';
+
 // Git branch widget
 @forward 'branch';
 

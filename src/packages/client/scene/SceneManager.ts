@@ -229,7 +229,7 @@ export class SceneManager {
       onAgentHover: (id: string | null, pos: { x: number; y: number } | null) => this.inputEventHandlers.handleAgentHover(id, pos),
       onGroundClick: () => this.inputEventHandlers.handleGroundClick(),
       onMoveCommand: (pos: THREE.Vector3, ids: string[]) => this.inputEventHandlers.handleMoveCommand(pos, ids),
-      onSelectionBox: (agents: string[], buildings: string[]) => this.inputEventHandlers.handleSelectionBox(agents, buildings),
+      onSelectionBox: (agents: string[], buildings: string[], shiftKey?: boolean) => this.inputEventHandlers.handleSelectionBox(agents, buildings, shiftKey),
       onDrawStart: (pos: { x: number; z: number }) => this.drawingManager.startDrawing(pos),
       onDrawMove: (pos: { x: number; z: number }) => this.drawingManager.updateDrawing(pos),
       onDrawEnd: (pos: { x: number; z: number }) => this.drawingManager.finishDrawing(pos),

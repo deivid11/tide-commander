@@ -33,7 +33,9 @@ export class InputEventHandlers {
   }
 
   handleAgentClick(agentId: string, shiftKey: boolean): void {
+    console.log('[InputEventHandlers] handleAgentClick', { agentId, shiftKey });
     if (shiftKey) {
+      console.log('[InputEventHandlers] addToSelection', agentId);
       store.addToSelection(agentId);
     } else {
       store.selectAgent(agentId);
@@ -65,19 +67,33 @@ export class InputEventHandlers {
     });
   }
 
-  handleSelectionBox(agentIds: string[], buildingIds: string[]): void {
-    if (agentIds.length > 0) {
-      store.selectMultiple(agentIds);
+  handleSelectionBox(agentIds: string[], buildingIds: string[], shiftKey?: boolean): void {
+    if (shiftKey) {
+      // Merge with existing selection
+      for (const id of agentIds) {
+        store.addToSelection(id);
+      }
+      if (buildingIds.length > 0) {
+        // Merge new buildings with existing selection
+        const existing = Array.from(store.getState().selectedBuildingIds);
+        const merged = [...new Set([...existing, ...buildingIds])];
+        store.selectMultipleBuildings(merged);
+        this.deps.buildingManager.highlightBuildings(merged);
+      }
     } else {
-      store.selectAgent(null);
-    }
+      if (agentIds.length > 0) {
+        store.selectMultiple(agentIds);
+      } else {
+        store.selectAgent(null);
+      }
 
-    if (buildingIds.length > 0) {
-      store.selectMultipleBuildings(buildingIds);
-      this.deps.buildingManager.highlightBuildings(buildingIds);
-    } else {
-      store.selectBuilding(null);
-      this.deps.buildingManager.highlightBuilding(null);
+      if (buildingIds.length > 0) {
+        store.selectMultipleBuildings(buildingIds);
+        this.deps.buildingManager.highlightBuildings(buildingIds);
+      } else {
+        store.selectBuilding(null);
+        this.deps.buildingManager.highlightBuilding(null);
+      }
     }
 
     this.deps.refreshSelectionVisuals();

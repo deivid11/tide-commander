@@ -10,7 +10,7 @@ export interface InputCallbacks {
   onAgentHover?: (agentId: string | null, screenPos: ScreenPosition | null) => void;
   onGroundClick: () => void;
   onMoveCommand: (position: THREE.Vector3, agentIds: string[]) => void;
-  onSelectionBox: (agentIds: string[], buildingIds: string[]) => void;
+  onSelectionBox: (agentIds: string[], buildingIds: string[], shiftKey?: boolean) => void;
   // Drawing callbacks
   onDrawStart?: (pos: { x: number; z: number }) => void;
   onDrawMove?: (pos: { x: number; z: number }) => void;

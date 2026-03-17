@@ -33,6 +33,7 @@ import { useFileExplorerStorage } from './useFileExplorerStorage';
 import { useTreePanelResize } from './useTreePanelResize';
 import { useMobileTreeResize } from './useMobileTreeResize';
 import { useGitBranches } from './useGitBranches';
+import { useGitHistory } from './useGitHistory';
 import { useToast } from '../Toast';
 
 // Components
@@ -44,6 +45,7 @@ import { FileTabs } from './FileTabs';
 import { BranchWidget } from './BranchWidget';
 import { ConflictResolver } from './ConflictResolver';
 import { BranchComparison } from './BranchComparison';
+import { GitHistory } from './GitHistory';
 import { ContextMenu } from '../ContextMenu';
 import type { ContextMenuAction } from '../ContextMenu';
 
@@ -158,6 +160,8 @@ export function FileExplorerPanel({
     mergeContinue,
   } = useGitBranches();
 
+  const gitHistory = useGitHistory();
+
   const { showToast } = useToast();
 
   const {
@@ -197,6 +201,18 @@ export function FileExplorerPanel({
   const [treePanelCollapsed, setTreePanelCollapsed] = useState(false);
   const [stagingPaths, setStagingPaths] = useState<Set<string>>(new Set());
   const [isFileSearchActive, setIsFileSearchActive] = useState(false);
+  const [gitHistoryOpen, setGitHistoryOpen] = useState(false);
+  const [gitHistoryHeight, setGitHistoryHeight] = useState(250);
+  const gitHistoryResizeRef = useRef<{ startY: number; startHeight: number } | null>(null);
+  const [commitDiff, setCommitDiff] = useState<{
+    filename: string;
+    extension: string;
+    filePath: string;
+    hash: string;
+    beforeContent: string;
+    afterContent: string;
+  } | null>(null);
+  const [commitDiffLoading, setCommitDiffLoading] = useState(false);
   const [fileTreeContextMenu, setFileTreeContextMenu] = useState<{
     isOpen: boolean;
     position: { x: number; y: number };
@@ -1225,6 +1241,63 @@ export function FileExplorerPanel({
   }, []);
 
   // -------------------------------------------------------------------------
+  // GIT HISTORY COMMIT DIFF
+  // -------------------------------------------------------------------------
+
+  const handleCommitFileSelect = useCallback(async (filePath: string, commitHash: string) => {
+    if (!currentFolder) return;
+    setCommitDiffLoading(true);
+    try {
+      const params = new URLSearchParams({
+        path: currentFolder,
+        hash: commitHash,
+        file: filePath,
+      });
+      const res = await authFetch(apiUrl(`/api/files/git-commit-file-diff?${params}`));
+      const data = await res.json();
+      if (res.ok) {
+        setCommitDiff(data);
+      } else {
+        setCommitDiff(null);
+      }
+    } catch (err) {
+      console.error('[FileExplorer] commit diff fetch error:', err);
+      setCommitDiff(null);
+    } finally {
+      setCommitDiffLoading(false);
+    }
+  }, [currentFolder]);
+
+  const handleCloseCommitDiff = useCallback(() => {
+    setCommitDiff(null);
+  }, []);
+
+  // -------------------------------------------------------------------------
+  // GIT HISTORY PANEL RESIZE
+  // -------------------------------------------------------------------------
+
+  const handleGitHistoryResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    gitHistoryResizeRef.current = { startY: e.clientY, startHeight: gitHistoryHeight };
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!gitHistoryResizeRef.current) return;
+      const delta = gitHistoryResizeRef.current.startY - ev.clientY;
+      const newHeight = Math.max(120, Math.min(600, gitHistoryResizeRef.current.startHeight + delta));
+      setGitHistoryHeight(newHeight);
+    };
+
+    const onMouseUp = () => {
+      gitHistoryResizeRef.current = null;
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  }, [gitHistoryHeight]);
+
+  // -------------------------------------------------------------------------
   // RENDER
   // -------------------------------------------------------------------------
 
@@ -1315,6 +1388,15 @@ export function FileExplorerPanel({
             </div>
           )}
         </div>
+        {gitStatus?.isGitRepo && (
+          <button
+            className={`file-explorer-history-toggle ${gitHistoryOpen ? 'active' : ''}`}
+            onClick={() => setGitHistoryOpen(!gitHistoryOpen)}
+            title={t('terminal:fileExplorer.gitHistory.title')}
+          >
+            ⏱
+          </button>
+        )}
         <button className="file-explorer-panel-close" onClick={onClose}>
           ×
         </button>
@@ -1519,6 +1601,23 @@ export function FileExplorerPanel({
               currentBranch={gitStatus?.branch || 'HEAD'}
               mergingBranch={mergingBranch || 'incoming'}
             />
+          ) : commitDiff ? (
+            <>
+              {/* Commit Diff Header */}
+              <div className="commit-diff-header">
+                <span className="commit-diff-file">{commitDiff.filePath}</span>
+                <span className="commit-diff-hash">{commitDiff.hash.slice(0, 8)}</span>
+                <button className="commit-diff-close" onClick={handleCloseCommitDiff}>×</button>
+              </div>
+              <DiffViewer
+                originalContent={commitDiff.beforeContent}
+                modifiedContent={commitDiff.afterContent}
+                filename={commitDiff.filename}
+                language={EXTENSION_TO_LANGUAGE[commitDiff.extension] || 'plaintext'}
+              />
+            </>
+          ) : commitDiffLoading ? (
+            <div className="commit-diff-loading">{t('common:status.loading')}</div>
           ) : (
             <>
               {/* File Tabs */}
@@ -1544,6 +1643,26 @@ export function FileExplorerPanel({
           )}
         </div>
       </div>
+
+      {/* Git History Bottom Panel */}
+      {gitHistoryOpen && (
+        <>
+          <div
+            className="git-history-resize-handle"
+            onMouseDown={handleGitHistoryResizeStart}
+          />
+          <div
+            className="git-history-bottom-panel"
+            style={{ height: gitHistoryHeight }}
+          >
+            <GitHistory
+              history={gitHistory}
+              currentFolder={currentFolder}
+              onFileSelect={handleCommitFileSelect}
+            />
+          </div>
+        </>
+      )}
 
       {renameDialog.isOpen && renameDialog.node && (
         <div className="file-explorer-rename-overlay" onClick={handleCloseRenameDialog}>

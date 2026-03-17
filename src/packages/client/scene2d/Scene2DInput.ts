@@ -411,11 +411,16 @@ export class Scene2DInput {
         Math.pow(x - this.mouseDownX, 2) + Math.pow(y - this.mouseDownY, 2)
       );
 
+      console.log('[2D Scene] mouseUp click check', { clickDuration, distFromStart, shiftKey: e.shiftKey, wasSelecting, wasPanning });
       // Only treat as click if relatively quick and didn't move much
       // Allow up to 500ms for click (increased from 300 for better double-click detection)
       if (clickDuration < 500 && distFromStart < 10) {
         this.handleClick(x, y, e.shiftKey);
+      } else {
+        console.log('[2D Scene] mouseUp REJECTED as click', { clickDuration, distFromStart });
       }
+    } else {
+      console.log('[2D Scene] mouseUp NOT a click candidate', { wasPanning, wasSelecting, button: e.button });
     }
 
     this.isMouseDown = false;
@@ -1025,6 +1030,7 @@ export class Scene2DInput {
     const agent = this.scene.getAgentAtScreenPos(screenX, screenY);
     const building = this.scene.getBuildingAtScreenPos(screenX, screenY);
     const now = Date.now();
+    console.log('[2D Scene] handleClick', { agentId: agent?.id, buildingId: building?.id, shiftKey });
 
     if (agent) {
       // Check for double-click

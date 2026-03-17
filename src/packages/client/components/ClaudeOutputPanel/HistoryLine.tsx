@@ -15,7 +15,7 @@ import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
 import { createMarkdownComponents } from './MarkdownComponents';
-import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions, parseDelegatedTaskMessage, DelegatedTaskMessage, parseTaskReportMessage, TaskReportHeader } from './BossContext';
+import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions, parseDelegatedTaskMessage, DelegatedTaskMessage, parseTaskReportMessage, TaskReportHeader, parseSubagentNotification, SubagentNotificationDisplay } from './BossContext';
 import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, ExitPlanModeInput, ToolSearchInput, isToolSearchContent } from './ToolRenderers';
 import { highlightText, renderContentWithImages, renderUserPromptContent } from './contentRendering';
 import { useTTS } from '../../hooks/useTTS';
@@ -795,6 +795,28 @@ export const HistoryLine = memo(function HistoryLine({
               originalTask={taskReportParsed.originalTask}
               summary={taskReportParsed.summary}
             />
+          </span>
+        </div>
+      );
+    }
+
+    // Check for <subagent_notification> tags (Codex collab)
+    const subagentNotif = parseSubagentNotification(displayMessage.trim());
+    if (subagentNotif.hasNotification) {
+      return (
+        <div className={className}>
+          {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+          <span className="history-content">
+            <SubagentNotificationDisplay agentId={subagentNotif.agentId} status={subagentNotif.status} />
+            {subagentNotif.contentWithoutNotification && (
+              <span className="user-prompt-text">
+                {highlight ? (
+                  <div>{highlightText(subagentNotif.contentWithoutNotification, highlight)}</div>
+                ) : (
+                  renderUserPromptContent(subagentNotif.contentWithoutNotification, onImageClick, onFileClick)
+                )}
+              </span>
+            )}
           </span>
         </div>
       );

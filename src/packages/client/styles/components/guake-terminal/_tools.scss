@@ -2042,3 +2042,218 @@
     transform: rotate(360deg);
   }
 }
+
+// =============================================================================
+// Codex Subagent Collab Tools (spawn_agent, send_input, wait)
+// =============================================================================
+
+.output-collab-tool {
+  position: relative;
+
+  &.output-collab-spawn_agent {
+    border-left-color: var(--accent-green);
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--accent-green) 8%, var(--tool-use-bg) 92%),
+      var(--tool-use-bg)
+    );
+  }
+
+  &.output-collab-send_input {
+    border-left-color: var(--accent-cyan);
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--accent-cyan) 8%, var(--tool-use-bg) 92%),
+      var(--tool-use-bg)
+    );
+  }
+
+  &.output-collab-wait {
+    border-left-color: var(--accent-yellow);
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--accent-yellow) 8%, var(--tool-use-bg) 92%),
+      var(--tool-use-bg)
+    );
+  }
+
+  .collab-tool-name {
+    text-transform: none;
+    font-weight: 700;
+    letter-spacing: 0;
+  }
+
+  .collab-thread-ids {
+    font-family: $font-mono;
+    font-size: 10px;
+    color: var(--text-muted);
+    background: color-mix(in srgb, var(--bg-tertiary) 70%, transparent);
+    padding: 1px 6px;
+    border-radius: 3px;
+    letter-spacing: 0.3px;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .collab-prompt-preview {
+    font-family: $font-mono;
+    font-size: 11px;
+    color: var(--text-secondary);
+    opacity: 0.85;
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+
+    &::before {
+      content: '›';
+      margin-right: 6px;
+      color: var(--text-muted);
+      opacity: 0.6;
+    }
+  }
+}
+
+// Collab tool results in history view
+.output-collab-result {
+  padding: 4px 12px;
+  margin: 2px 0;
+  font-family: $font-mono;
+  font-size: 11px;
+  border-left: 2px solid var(--text-muted);
+  border-radius: 0 $radius-sm $radius-sm 0;
+  background: color-mix(in srgb, var(--bg-tertiary) 40%, transparent);
+
+  .collab-result-status {
+    font-weight: 600;
+
+    &.status-completed {
+      color: var(--accent-green);
+    }
+
+    &.status-pending_init,
+    &.status-in_progress {
+      color: var(--accent-yellow);
+    }
+
+    &.status-failed {
+      color: var(--accent-red);
+    }
+  }
+
+  .collab-result-thread {
+    color: var(--text-muted);
+    font-size: 10px;
+    margin-right: 6px;
+  }
+
+  .collab-result-message {
+    color: var(--text-secondary);
+    display: block;
+    margin-top: 2px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 120px;
+    overflow-y: auto;
+    line-height: 1.4;
+  }
+}
+
+// =============================================================================
+// Subagent Notification (Codex <subagent_notification> in user messages)
+// =============================================================================
+
+.subagent-notification {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px 12px;
+  margin: 4px 0;
+  border-radius: $radius-sm;
+  font-family: $font-mono;
+  font-size: 12px;
+  border-left: 3px solid var(--text-muted);
+  background: color-mix(in srgb, var(--bg-tertiary) 50%, transparent);
+
+  &--error {
+    border-left-color: var(--accent-red);
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--accent-red) 10%, var(--bg-secondary) 90%),
+      var(--bg-secondary)
+    );
+  }
+
+  &--completed {
+    border-left-color: var(--accent-green);
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--accent-green) 8%, var(--bg-secondary) 92%),
+      var(--bg-secondary)
+    );
+  }
+
+  &--info {
+    border-left-color: var(--accent-cyan);
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--accent-cyan) 8%, var(--bg-secondary) 92%),
+      var(--bg-secondary)
+    );
+  }
+
+  &__icon {
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+
+  &__label {
+    font-weight: 700;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+  }
+
+  &__id {
+    font-size: 10px;
+    color: var(--text-muted);
+    background: color-mix(in srgb, var(--bg-tertiary) 70%, transparent);
+    padding: 1px 6px;
+    border-radius: 3px;
+    letter-spacing: 0.3px;
+    flex-shrink: 0;
+  }
+
+  &__status {
+    font-weight: 600;
+    font-size: 11px;
+    flex-shrink: 0;
+
+    .subagent-notification--error & {
+      color: var(--accent-red);
+    }
+
+    .subagent-notification--completed & {
+      color: var(--accent-green);
+    }
+
+    .subagent-notification--info & {
+      color: var(--accent-cyan);
+    }
+  }
+
+  &__message {
+    font-size: 11px;
+    color: var(--text-secondary);
+    opacity: 0.85;
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}

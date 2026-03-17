@@ -18,6 +18,11 @@ interface CodexItemChange {
   kind?: string; // 'Add' | 'Delete' | 'Update'
 }
 
+interface CodexCollabAgentState {
+  status?: string;
+  message?: string | null;
+}
+
 interface CodexItem {
   id?: string;
   type?: string;
@@ -29,6 +34,12 @@ interface CodexItem {
   status?: string;
   action?: CodexItemAction;
   changes?: CodexItemChange[];
+  // collab_tool_call fields (subagent orchestration)
+  tool?: string;                 // 'spawn_agent' | 'send_input' | 'wait'
+  sender_thread_id?: string;
+  receiver_thread_ids?: string[];
+  prompt?: string | null;
+  agents_states?: Record<string, CodexCollabAgentState>;
 }
 
 interface CodexUsage {
@@ -137,6 +148,20 @@ function parseChanges(changes: unknown): CodexItemChange[] | undefined {
     }));
 }
 
+function parseCollabAgentStates(value: unknown): Record<string, CodexCollabAgentState> | undefined {
+  if (!isObject(value)) return undefined;
+  const result: Record<string, CodexCollabAgentState> = {};
+  for (const [key, val] of Object.entries(value)) {
+    if (isObject(val)) {
+      result[key] = {
+        status: asString(val.status),
+        message: val.message === null ? null : asString(val.message),
+      };
+    }
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
 function parseItem(item: unknown): CodexItem | undefined {
   if (!isObject(item)) return undefined;
   return {
@@ -150,6 +175,12 @@ function parseItem(item: unknown): CodexItem | undefined {
     status: asString(item.status),
     action: parseAction(item.action),
     changes: parseChanges(item.changes),
+    // collab_tool_call fields
+    tool: asString(item.tool),
+    sender_thread_id: asString(item.sender_thread_id),
+    receiver_thread_ids: asStringArray(item.receiver_thread_ids),
+    prompt: item.prompt === null ? null : asString(item.prompt),
+    agents_states: parseCollabAgentStates(item.agents_states),
   };
 }
 
@@ -501,6 +532,10 @@ export class CodexJsonEventParser {
       ];
     }
 
+    if (item.type === 'collab_tool_call') {
+      return this.parseCollabToolStarted(item);
+    }
+
     return [this.buildUnknownEventFallback(`Unhandled Codex item.started type: ${item.type}`, item)];
   }
 
@@ -559,7 +594,76 @@ export class CodexJsonEventParser {
       return this.parseFileChange(item);
     }
 
+    if (item.type === 'collab_tool_call') {
+      return this.parseCollabToolCompleted(item);
+    }
+
     return [this.buildUnknownEventFallback(`Unhandled Codex item.completed type: ${item.type}`, item)];
+  }
+
+  private parseCollabToolStarted(item: CodexItem): RuntimeEvent[] {
+    const toolName = item.tool || 'collab_tool';
+    if (item.id) {
+      this.activeToolByItemId.set(item.id, toolName);
+    }
+    return [{
+      type: 'tool_start',
+      toolName,
+      toolInput: this.buildCollabToolInput(item),
+    }];
+  }
+
+  private parseCollabToolCompleted(item: CodexItem): RuntimeEvent[] {
+    const toolName = item.tool || (item.id ? (this.activeToolByItemId.get(item.id) ?? 'collab_tool') : 'collab_tool');
+    if (item.id) {
+      this.activeToolByItemId.delete(item.id);
+    }
+    return [{
+      type: 'tool_result',
+      toolName,
+      toolOutput: this.buildCollabToolOutput(item),
+    }];
+  }
+
+  private buildCollabToolInput(item: CodexItem): Record<string, unknown> {
+    const input: Record<string, unknown> = {
+      tool: item.tool,
+      status: item.status,
+    };
+    if (item.prompt) {
+      input.prompt = item.prompt;
+    }
+    if (item.receiver_thread_ids && item.receiver_thread_ids.length > 0) {
+      input.receiver_thread_ids = item.receiver_thread_ids;
+    }
+    if (item.sender_thread_id) {
+      input.sender_thread_id = item.sender_thread_id;
+    }
+    return input;
+  }
+
+  private buildCollabToolOutput(item: CodexItem): string {
+    const parts: string[] = [];
+    if (item.status) {
+      parts.push(`Status: ${item.status}`);
+    }
+    if (item.receiver_thread_ids && item.receiver_thread_ids.length > 0) {
+      const shortIds = item.receiver_thread_ids.map(id => id.slice(-8));
+      parts.push(`Threads: ${shortIds.join(', ')}`);
+    }
+    if (item.agents_states) {
+      for (const [threadId, state] of Object.entries(item.agents_states)) {
+        const shortId = threadId.slice(-8);
+        const stateStr = state.status || 'unknown';
+        if (state.message) {
+          const preview = state.message.length > 200 ? state.message.slice(0, 197) + '...' : state.message;
+          parts.push(`[${shortId}] ${stateStr}: ${preview}`);
+        } else {
+          parts.push(`[${shortId}] ${stateStr}`);
+        }
+      }
+    }
+    return parts.join('\n');
   }
 
   private parseTurnCompleted(usage?: CodexUsage): RuntimeEvent[] {

@@ -45,7 +45,10 @@
       "attemptCompletion": "AttemptCompletion",
       "listFiles": "ListFiles",
       "searchFiles": "SearchFiles",
-      "executeCommand": "ExecuteCommand"
+      "executeCommand": "ExecuteCommand",
+      "spawnAgent": "Spawn Agent",
+      "sendInput": "Send Input",
+      "wait": "Wait"
     }
   },
   "metadata": {

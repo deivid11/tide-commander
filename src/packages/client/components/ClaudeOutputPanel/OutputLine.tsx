@@ -9,7 +9,7 @@ import { filterCostText } from '../../utils/formatting';
 import { TOOL_ICONS, extractExecWrappedCommand, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, splitCommandForFileLinks } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
-import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, DelegatedTaskHeader, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions, parseDelegatedTaskMessage, DelegatedTaskMessage, parseTaskReportMessage, TaskReportHeader } from './BossContext';
+import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, DelegatedTaskHeader, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions, parseDelegatedTaskMessage, DelegatedTaskMessage, parseTaskReportMessage, TaskReportHeader, parseSubagentNotification, SubagentNotificationDisplay } from './BossContext';
 import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, ExitPlanModeInput, UnknownToolInput, ToolSearchInput, isToolSearchContent } from './ToolRenderers';
 import { renderContentWithImages, renderUserPromptContent } from './contentRendering';
 import { ansiToHtml } from '../../utils/ansiToHtml';
@@ -280,6 +280,16 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       } else {
         toolKeyParamOrFallback = payloadToolName === 'ExitPlanMode' ? 'Plan ready' : 'Entering plan mode';
       }
+    } else if (payloadToolName === 'spawn_agent' || payloadToolName === 'send_input' || payloadToolName === 'wait') {
+      const prompt = input.prompt as string | undefined;
+      const receiverIds = input.receiver_thread_ids as string[] | undefined;
+      if (prompt) {
+        toolKeyParamOrFallback = prompt.length > 100 ? prompt.slice(0, 97) + '...' : prompt;
+      } else if (receiverIds && receiverIds.length > 0) {
+        toolKeyParamOrFallback = `waiting on ${receiverIds.length} thread(s)`;
+      } else if (payloadToolName === 'wait') {
+        toolKeyParamOrFallback = 'waiting for subagents';
+      }
     } else if (payloadToolName === 'TodoWrite' && Array.isArray(input.todos)) {
       const todos = input.todos as Array<{ status?: string }>;
       const done = todos.filter(t => t.status === 'completed').length;
@@ -407,6 +417,22 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       );
     }
 
+    // Check for <subagent_notification> tags (Codex collab)
+    const subagentNotif = parseSubagentNotification(userMessage.trim());
+    if (subagentNotif.hasNotification) {
+      return (
+        <div className="output-line output-user">
+          <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
+          <SubagentNotificationDisplay agentId={subagentNotif.agentId} status={subagentNotif.status} />
+          {subagentNotif.contentWithoutNotification && (
+            <span className="history-content user-prompt-text">
+              {renderUserPromptContent(subagentNotif.contentWithoutNotification, onImageClick, onFileClick)}
+            </span>
+          )}
+        </div>
+      );
+    }
+
     // Check if this user prompt matches a delegated task (text matches taskCommand)
     const isDelegatedTask = delegation && text.trim() === delegation.taskCommand.trim();
 
@@ -451,6 +477,10 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       'EnterPlanMode',
       'web_search',
       'ToolSearch',
+      // Codex subagent collab tools
+      'spawn_agent',
+      'send_input',
+      'wait',
     ]);
 
     // Special case: TodoWrite shows the task list inline
@@ -520,6 +550,38 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
           <span className="output-tool-icon">⚡</span>
           <span className="output-tool-name">ToolSearch</span>
           <ToolSearchInput content={toolSearchContent} agentName={agentName} />
+        </div>
+      );
+    }
+
+    // Codex subagent collab tools: spawn_agent, send_input, wait
+    const collabTools = ['spawn_agent', 'send_input', 'wait'];
+    if (collabTools.includes(toolName)) {
+      const collabInput = payloadToolInput as Record<string, unknown> | undefined;
+      const prompt = collabInput?.prompt as string | undefined;
+      const receiverIds = collabInput?.receiver_thread_ids as string[] | undefined;
+      const promptPreview = prompt
+        ? (prompt.length > 120 ? prompt.slice(0, 117) + '...' : prompt)
+        : undefined;
+
+      const collabLabel = toolName === 'spawn_agent' ? 'Spawn Agent'
+        : toolName === 'send_input' ? 'Send Input'
+        : 'Wait';
+
+      return (
+        <div className={`output-line output-tool-use output-collab-tool output-collab-${toolName} ${isStreaming ? 'output-streaming' : ''}`}>
+          <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
+          {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+          <span className="output-tool-icon">{icon}</span>
+          <span className="output-tool-name collab-tool-name">{collabLabel}</span>
+          {receiverIds && receiverIds.length > 0 && (
+            <span className="collab-thread-ids">
+              {receiverIds.map(id => id.slice(-8)).join(', ')}
+            </span>
+          )}
+          {promptPreview && (
+            <span className="collab-prompt-preview" title={prompt}>{promptPreview}</span>
+          )}
         </div>
       );
     }

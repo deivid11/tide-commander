@@ -11,7 +11,7 @@ import { EditorState } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { syntaxHighlighting, defaultHighlightStyle, indentOnInput, bracketMatching, foldGutter, foldKeymap } from '@codemirror/language';
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
-import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
+import { search, searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 import { oneDark } from '@codemirror/theme-one-dark';
 import type { Extension } from '@codemirror/state';
 import { getLanguageExtension } from './cm-languages';
@@ -107,6 +107,7 @@ export const EmbeddedEditor: React.FC<EmbeddedEditorProps> = ({
       closeBrackets(),
       highlightActiveLine(),
       highlightSelectionMatches(),
+      search({ top: true }),
       syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
       oneDark,
       EditorView.lineWrapping,

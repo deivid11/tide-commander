@@ -2115,6 +2115,83 @@ router.get('/git-show', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/files/git-commit-file-diff - Get before/after content for a file in a commit
+router.get('/git-commit-file-diff', async (req: Request, res: Response) => {
+  try {
+    const dirPath = req.query.path as string;
+    const hash = req.query.hash as string;
+    const filePath = req.query.file as string;
+
+    if (!dirPath || !hash || !filePath) {
+      res.status(400).json({ error: 'Missing path, hash, or file parameter' });
+      return;
+    }
+
+    if (!path.isAbsolute(dirPath)) {
+      res.status(400).json({ error: 'Path must be absolute' });
+      return;
+    }
+
+    let gitRoot: string;
+    try {
+      gitRoot = execSync('git rev-parse --show-toplevel', {
+        cwd: dirPath,
+        encoding: 'utf-8',
+      }).trim();
+    } catch {
+      res.status(400).json({ error: 'Not in a git repository' });
+      return;
+    }
+
+    const relativePath = resolveGitRelativePath(gitRoot, filePath);
+    if (!relativePath) {
+      res.status(400).json({ error: 'File path is outside the git repository' });
+      return;
+    }
+
+    const filename = path.basename(relativePath);
+    const extension = path.extname(relativePath).toLowerCase();
+
+    // Get file content after the commit
+    let afterContent = '';
+    try {
+      afterContent = execSync(`git show "${hash}:${relativePath}"`, {
+        cwd: gitRoot,
+        encoding: 'utf-8',
+        maxBuffer: 10 * 1024 * 1024,
+      });
+    } catch {
+      // File doesn't exist at this commit (was deleted)
+      afterContent = '';
+    }
+
+    // Get file content before the commit (parent)
+    let beforeContent = '';
+    try {
+      beforeContent = execSync(`git show "${hash}~1:${relativePath}"`, {
+        cwd: gitRoot,
+        encoding: 'utf-8',
+        maxBuffer: 10 * 1024 * 1024,
+      });
+    } catch {
+      // File doesn't exist before this commit (was added)
+      beforeContent = '';
+    }
+
+    res.json({
+      filename,
+      extension,
+      filePath: relativePath,
+      hash,
+      beforeContent,
+      afterContent,
+    });
+  } catch (err: any) {
+    log.error(' Failed to get commit file diff:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/files/open-in-editor - Open file in specified or default editor
 router.post('/open-in-editor', async (req: Request, res: Response) => {
   try {
@@ -2547,6 +2624,407 @@ router.post('/delete', (req: Request, res: Response) => {
     res.json({ success: true });
   } catch (err: any) {
     log.error(' Failed to delete file:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================
+// Git History Endpoints
+// ============================================================
+
+function shellEscape(value: string): string {
+  return `'${value.replace(/'/g, `'\"'\"'`)}'`;
+}
+
+function resolveGitRootOrThrow(dirPath: string): string | null {
+  try {
+    return execSync('git rev-parse --show-toplevel', {
+      cwd: dirPath,
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    }).trim();
+  } catch {
+    return null;
+  }
+}
+
+function resolveGitRelativePath(gitRoot: string, inputPath: string): string | null {
+  const resolvedPath = path.isAbsolute(inputPath)
+    ? path.resolve(inputPath)
+    : path.resolve(gitRoot, inputPath);
+  const relativePath = path.relative(gitRoot, resolvedPath);
+
+  if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+    return null;
+  }
+
+  return relativePath.split(path.sep).join('/');
+}
+
+function parseGitRefs(refsValue: string): { branches: string[]; tags: string[]; isHead: boolean } {
+  const branches: string[] = [];
+  const tags: string[] = [];
+  let isHead = false;
+
+  const normalizedRefs = refsValue.trim().replace(/^\((.*)\)$/, '$1');
+  if (!normalizedRefs) {
+    return { branches, tags, isHead };
+  }
+
+  for (const rawPart of normalizedRefs.split(',')) {
+    const part = rawPart.trim();
+    if (!part) {
+      continue;
+    }
+    if (part === 'HEAD') {
+      isHead = true;
+      continue;
+    }
+    if (part.startsWith('HEAD -> ')) {
+      isHead = true;
+      branches.push(part.slice('HEAD -> '.length).trim());
+      continue;
+    }
+    if (part.startsWith('tag: ')) {
+      tags.push(part.slice('tag: '.length).trim());
+      continue;
+    }
+    branches.push(part);
+  }
+
+  return { branches, tags, isHead };
+}
+
+function buildGitLogFilterArgs(params: {
+  branch?: string;
+  author?: string;
+  since?: string;
+  until?: string;
+  search?: string;
+  searchPath?: string;
+}) {
+  const revision = params.branch?.trim() || 'HEAD';
+  const args = [shellEscape(revision)];
+
+  if (params.author?.trim()) {
+    args.push(`--author=${shellEscape(params.author.trim())}`);
+  }
+  if (params.since?.trim()) {
+    args.push(`--since=${shellEscape(params.since.trim())}`);
+  }
+  if (params.until?.trim()) {
+    args.push(`--until=${shellEscape(params.until.trim())}`);
+  }
+  if (params.search?.trim()) {
+    args.push(`--grep=${shellEscape(params.search.trim())}`);
+  }
+  if (params.searchPath) {
+    args.push('--', shellEscape(params.searchPath));
+  }
+
+  return args;
+}
+
+// GET /api/files/git-log - Commit history with pagination and filters
+router.get('/git-log', async (req: Request, res: Response) => {
+  try {
+    const dirPath = req.query.path as string;
+    if (!dirPath) { res.status(400).json({ error: 'Missing path parameter' }); return; }
+    if (!path.isAbsolute(dirPath)) { res.status(400).json({ error: 'Path must be absolute' }); return; }
+    if (!fs.existsSync(dirPath)) { res.status(404).json({ error: 'Directory not found' }); return; }
+
+    const gitRoot = resolveGitRootOrThrow(dirPath);
+    if (!gitRoot) {
+      res.status(400).json({ error: 'Not in a git repository' });
+      return;
+    }
+
+    const parsedLimit = Number.parseInt(req.query.limit as string, 10);
+    const parsedOffset = Number.parseInt(req.query.offset as string, 10);
+    const limit = Number.isFinite(parsedLimit) ? parsedLimit : 50;
+    const offset = Number.isFinite(parsedOffset) ? parsedOffset : 0;
+    if (limit <= 0) { res.status(400).json({ error: 'Limit must be greater than 0' }); return; }
+    if (offset < 0) { res.status(400).json({ error: 'Offset must be 0 or greater' }); return; }
+
+    const branch = req.query.branch as string | undefined;
+    const author = req.query.author as string | undefined;
+    const since = req.query.since as string | undefined;
+    const until = req.query.until as string | undefined;
+    const search = req.query.search as string | undefined;
+    const searchPathInput = req.query.searchPath as string | undefined;
+
+    let searchPath: string | undefined;
+    if (searchPathInput) {
+      const resolvedSearchPath = resolveGitRelativePath(gitRoot, searchPathInput);
+      if (!resolvedSearchPath) {
+        res.status(400).json({ error: 'searchPath is outside the git repository' });
+        return;
+      }
+      searchPath = resolvedSearchPath;
+    }
+
+    const filterArgs = buildGitLogFilterArgs({ branch, author, since, until, search, searchPath });
+    const logFormat = '%H%x00%h%x00%an%x00%ae%x00%aI%x00%s%x00%D';
+    const logCommand = [
+      'git log',
+      `--format=${shellEscape(logFormat)}`,
+      `--skip=${offset}`,
+      `--max-count=${limit}`,
+      ...filterArgs,
+    ].join(' ');
+
+    let logOutput = '';
+    try {
+      logOutput = execSync(logCommand, {
+        cwd: gitRoot,
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+        maxBuffer: 10 * 1024 * 1024,
+      });
+    } catch (err: any) {
+      const stderr = err.stderr?.toString() || err.message || '';
+      if (stderr.includes('does not have any commits yet')) {
+        res.json({ commits: [], total: 0, hasMore: false });
+        return;
+      }
+      if (stderr.includes('unknown revision') || stderr.includes('bad revision') || stderr.includes('ambiguous argument')) {
+        res.status(400).json({ error: stderr.trim() || 'Invalid branch or revision' });
+        return;
+      }
+      throw err;
+    }
+
+    const lines = logOutput ? logOutput.trim().split('\n').filter(l => l) : [];
+    const commits: Array<{
+      hash: string;
+      shortHash: string;
+      author: string;
+      authorEmail: string;
+      date: string;
+      subject: string;
+      refs: { branches: string[]; tags: string[]; isHead: boolean };
+    }> = [];
+
+    for (const line of lines) {
+      const fields = line.split('\x00');
+      if (fields.length < 6) continue;
+      commits.push({
+        hash: fields[0] || '',
+        shortHash: fields[1] || '',
+        author: fields[2] || '',
+        authorEmail: fields[3] || '',
+        date: fields[4] || '',
+        subject: fields[5] || '',
+        refs: parseGitRefs(fields[6] || ''),
+      });
+    }
+
+    let total = 0;
+    try {
+      const countCommand = ['git rev-list --count', ...filterArgs].join(' ');
+      total = Number.parseInt(execSync(countCommand, {
+        cwd: gitRoot,
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+        maxBuffer: 10 * 1024 * 1024,
+      }).trim(), 10) || 0;
+    } catch {
+      total = offset + commits.length;
+    }
+
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.json({ commits, total, hasMore: offset + commits.length < total });
+  } catch (err: any) {
+    log.error(' Failed to get git log:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/files/git-commit-files - Files changed in a specific commit
+router.get('/git-commit-files', async (req: Request, res: Response) => {
+  try {
+    const dirPath = req.query.path as string;
+    const hash = req.query.hash as string;
+    if (!dirPath) { res.status(400).json({ error: 'Missing path parameter' }); return; }
+    if (!path.isAbsolute(dirPath)) { res.status(400).json({ error: 'Path must be absolute' }); return; }
+    if (!fs.existsSync(dirPath)) { res.status(404).json({ error: 'Directory not found' }); return; }
+    if (!hash) { res.status(400).json({ error: 'Missing hash parameter' }); return; }
+    if (!/^[0-9a-f]{4,40}$/i.test(hash)) { res.status(400).json({ error: 'Invalid commit hash format' }); return; }
+
+    const gitRoot = resolveGitRootOrThrow(dirPath);
+    if (!gitRoot) {
+      res.status(400).json({ error: 'Not in a git repository' });
+      return;
+    }
+
+    let parentLine = '';
+    try {
+      parentLine = execSync(`git rev-list --parents -n 1 ${shellEscape(hash)}`, {
+        cwd: gitRoot,
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+        maxBuffer: 10 * 1024 * 1024,
+      }).trim();
+    } catch (err: any) {
+      const stderr = err.stderr?.toString() || err.message || '';
+      if (stderr.includes('unknown revision') || stderr.includes('bad object') || stderr.includes('ambiguous argument')) {
+        res.status(404).json({ error: 'Commit not found' });
+        return;
+      }
+      throw err;
+    }
+
+    const parentCount = parentLine ? parentLine.split(/\s+/).length - 1 : 0;
+    const diffTreeCommand = parentCount === 0
+      ? `git diff-tree --no-commit-id -r --name-status --root ${shellEscape(hash)}`
+      : `git diff-tree --no-commit-id -r --name-status ${shellEscape(hash)}`;
+
+    const output = execSync(diffTreeCommand, {
+      cwd: gitRoot,
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+      maxBuffer: 10 * 1024 * 1024,
+    });
+
+    const files: Array<{ path: string; status: 'modified' | 'added' | 'deleted' | 'renamed'; oldPath?: string }> = [];
+    for (const line of output.split('\n').filter(Boolean)) {
+      const parts = line.split('\t');
+      const statusCode = parts[0] || '';
+
+      if (statusCode.startsWith('R') && parts.length >= 3) {
+        files.push({
+          path: parts[2],
+          status: 'renamed',
+          oldPath: parts[1],
+        });
+        continue;
+      }
+
+      if (parts.length < 2) {
+        continue;
+      }
+
+      let status: 'modified' | 'added' | 'deleted' | 'renamed' = 'modified';
+      if (statusCode.startsWith('A')) status = 'added';
+      else if (statusCode.startsWith('D')) status = 'deleted';
+      else if (statusCode.startsWith('R')) status = 'renamed';
+
+      files.push({
+        path: parts[1],
+        status,
+      });
+    }
+
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.json({ files });
+  } catch (err: any) {
+    log.error(' Failed to get commit files:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/files/git-branches-list - Simple branch list for filters
+router.get('/git-branches-list', async (req: Request, res: Response) => {
+  try {
+    const dirPath = req.query.path as string;
+    if (!dirPath) { res.status(400).json({ error: 'Missing path parameter' }); return; }
+    if (!path.isAbsolute(dirPath)) { res.status(400).json({ error: 'Path must be absolute' }); return; }
+    if (!fs.existsSync(dirPath)) { res.status(404).json({ error: 'Directory not found' }); return; }
+
+    const gitRoot = resolveGitRootOrThrow(dirPath);
+    if (!gitRoot) {
+      res.status(400).json({ error: 'Not in a git repository' });
+      return;
+    }
+
+    let currentBranch = 'HEAD';
+    try {
+      currentBranch = execSync('git branch --show-current', {
+        cwd: gitRoot,
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      }).trim() || 'HEAD';
+    } catch {
+      currentBranch = 'HEAD';
+    }
+
+    const branches: Array<{ name: string; isCurrent: boolean; isRemote: boolean }> = [];
+
+    try {
+      const localOutput = execSync(
+        "git branch --format='%(refname:short)' --sort=refname",
+        { cwd: gitRoot, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], maxBuffer: 10 * 1024 * 1024 }
+      );
+      for (const branchName of localOutput.split('\n').map(line => line.trim()).filter(Boolean)) {
+        branches.push({ name: branchName, isCurrent: branchName === currentBranch, isRemote: false });
+      }
+    } catch {
+      // Ignore local branch listing errors and continue with empty result.
+    }
+
+    try {
+      const remoteOutput = execSync(
+        "git branch -r --format='%(refname:short)' --sort=refname",
+        { cwd: gitRoot, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], maxBuffer: 10 * 1024 * 1024 }
+      );
+      for (const branchName of remoteOutput.split('\n').map(line => line.trim()).filter(Boolean)) {
+        if (branchName.includes('/HEAD')) {
+          continue;
+        }
+        branches.push({ name: branchName, isCurrent: false, isRemote: true });
+      }
+    } catch {
+      // No remotes configured.
+    }
+
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.json({ branches, currentBranch });
+  } catch (err: any) {
+    log.error(' Failed to get git branches list:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/files/git-authors - Unique author list for filter dropdown
+router.get('/git-authors', async (req: Request, res: Response) => {
+  try {
+    const dirPath = req.query.path as string;
+    if (!dirPath) { res.status(400).json({ error: 'Missing path parameter' }); return; }
+    if (!path.isAbsolute(dirPath)) { res.status(400).json({ error: 'Path must be absolute' }); return; }
+    if (!fs.existsSync(dirPath)) { res.status(404).json({ error: 'Directory not found' }); return; }
+
+    const gitRoot = resolveGitRootOrThrow(dirPath);
+    if (!gitRoot) {
+      res.status(400).json({ error: 'Not in a git repository' });
+      return;
+    }
+
+    let output = '';
+    try {
+      output = execSync('git log --format=%an | sort -u', {
+        cwd: gitRoot,
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+        maxBuffer: 10 * 1024 * 1024,
+      });
+    } catch (err: any) {
+      const stderr = err.stderr?.toString() || err.message || '';
+      if (stderr.includes('does not have any commits yet')) {
+        res.json({ authors: [] });
+        return;
+      }
+      throw err;
+    }
+
+    const authors = output.split('\n').map(authorName => authorName.trim()).filter(Boolean);
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.json({ authors });
+  } catch (err: any) {
+    log.error(' Failed to get git authors:', err);
     res.status(500).json({ error: err.message });
   }
 });

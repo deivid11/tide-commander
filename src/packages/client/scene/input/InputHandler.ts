@@ -135,7 +135,7 @@ export class InputHandler {
       onSelectionBoxEnd: (x, y) => {
         this.isDragging = false;
         this.selectionBox.classList.remove('active');
-        this.selectAgentsInBox(this.dragStart, { x, y });
+        this.selectAgentsInBox(this.dragStart, { x, y }, false);
       },
     });
 
@@ -595,9 +595,22 @@ export class InputHandler {
       if (this.isDragging) {
         this.isDragging = false;
         this.selectionBox.classList.remove('active');
-        this.selectAgentsInBox(this.dragStart, this.dragCurrent);
+        // If the drag was very small (e.g. trackpad micro-movement), treat as a click
+        const dragDist = Math.sqrt(
+          Math.pow(this.dragCurrent.x - this.dragStart.x, 2) +
+          Math.pow(this.dragCurrent.y - this.dragStart.y, 2)
+        );
+        console.log('[3D InputHandler] pointerUp isDragging', { dragDist, shiftKey: event.shiftKey, ctrlKey: event.ctrlKey });
+        if (dragDist < 15) {
+          this.handleSingleClick(event);
+        } else {
+          this.selectAgentsInBox(this.dragStart, this.dragCurrent, event.shiftKey);
+        }
       } else if (!event.ctrlKey) {
+        console.log('[3D InputHandler] pointerUp singleClick', { shiftKey: event.shiftKey, ctrlKey: event.ctrlKey });
         this.handleSingleClick(event);
+      } else {
+        console.log('[3D InputHandler] pointerUp BLOCKED by ctrlKey', { shiftKey: event.shiftKey, ctrlKey: event.ctrlKey, metaKey: event.metaKey });
       }
 
       // Reset the pointer down flag
@@ -986,6 +999,7 @@ export class InputHandler {
   // --- Click Handlers ---
 
   private handleSingleClick(event: PointerEvent): void {
+    console.log('[3D InputHandler] handleSingleClick', { shiftKey: event.shiftKey, pointerType: event.pointerType, button: event.button });
     // Check for folder icon click first (takes priority)
     const folderIconMesh = this.raycaster.checkFolderIconClick(event);
     if (folderIconMesh) {
@@ -998,12 +1012,14 @@ export class InputHandler {
     }
 
     const agentId = this.raycaster.findAgentAtPosition(event);
+    console.log('[3D InputHandler] handleSingleClick agentId:', agentId, 'shiftKey:', event.shiftKey);
 
     if (agentId) {
       const clickType = this.agentClickDetector.handleClick(agentId);
       if (clickType === 'double') {
         this.callbacks.onAgentDoubleClick(agentId);
       } else {
+        console.log('[3D InputHandler] calling onAgentClick', { agentId, shiftKey: event.shiftKey });
         this.callbacks.onAgentClick(agentId, event.shiftKey);
       }
       return;
@@ -1062,7 +1078,8 @@ export class InputHandler {
 
   private selectAgentsInBox(
     start: { x: number; y: number },
-    end: { x: number; y: number }
+    end: { x: number; y: number },
+    shiftKey: boolean = false
   ): void {
     const _rect = this.canvas.getBoundingClientRect();
     const boxLeft = Math.min(start.x, end.x);
@@ -1102,7 +1119,7 @@ export class InputHandler {
       }
     }
 
-    this.callbacks.onSelectionBox(agentsInBox, buildingsInBox);
+    this.callbacks.onSelectionBox(agentsInBox, buildingsInBox, shiftKey);
   }
 
   // --- Hover Detection ---

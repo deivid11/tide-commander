@@ -69,6 +69,48 @@ function debounce<T extends (...args: unknown[]) => void>(fn: T, ms: number): T 
 
 const log = (...args: unknown[]) => console.log('[TerminalEmbed]', ...args);
 
+/**
+ * Copy text to clipboard with fallback for environments where
+ * navigator.clipboard.writeText fails (e.g. no user activation on macOS).
+ */
+function copyToClipboard(text: string): void {
+  log('copyToClipboard called, text:', text.slice(0, 50));
+  log('navigator.clipboard available:', !!navigator.clipboard);
+  log('document.hasFocus:', document.hasFocus());
+
+  // Try async clipboard API first
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).then(
+      () => log('clipboard.writeText SUCCESS'),
+      (err) => {
+        log('clipboard.writeText FAILED:', err?.message || err);
+        execCommandFallback(text);
+      }
+    );
+  } else {
+    log('navigator.clipboard not available, using fallback');
+    execCommandFallback(text);
+  }
+}
+
+function execCommandFallback(text: string): void {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.left = '-9999px';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  try {
+    const ok = document.execCommand('copy');
+    log('execCommand fallback:', ok ? 'SUCCESS' : 'FAILED');
+  } catch (e) {
+    log('execCommand fallback error', e);
+  }
+  document.body.removeChild(ta);
+}
+
 const TerminalEmbed = memo(function TerminalEmbed({ terminalUrl, visible }: TerminalEmbedProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
@@ -183,14 +225,26 @@ const TerminalEmbed = memo(function TerminalEmbed({ terminalUrl, visible }: Term
       // Copy selection to clipboard via xterm's onSelectionChange
       // (for Shift+click native xterm.js selection)
       term.onSelectionChange(() => {
+        log('>>> onSelectionChange FIRED', { hasSelection: term!.hasSelection() });
         const text = term!.hasSelection() ? term!.getSelection() : '';
         if (!text) return;
-        navigator.clipboard.writeText(text).catch(() => {});
+        log('onSelectionChange copying text:', text.slice(0, 50));
+        copyToClipboard(text);
+      });
+
+      // Log mouse events on the terminal container to diagnose trackpad selection issues
+      containerRef.current.addEventListener('mousedown', (e) => {
+        log('mousedown', { button: e.button, shiftKey: e.shiftKey, metaKey: e.metaKey, ctrlKey: e.ctrlKey });
+      });
+      containerRef.current.addEventListener('mouseup', (e) => {
+        log('mouseup', { button: e.button, shiftKey: e.shiftKey, hasSel: term!.hasSelection() });
       });
 
       // Handle OSC 52 clipboard sequences from tmux
       // When tmux copies text (yellow selection), it sends OSC 52 with base64-encoded text
+      log('Registering OSC 52 handler');
       term.parser.registerOscHandler(52, (data: string) => {
+        log('>>> OSC 52 received', { dataLength: data.length, data: data.slice(0, 80) });
         const parts = data.split(';');
         const b64 = parts.length > 1 ? parts.slice(1).join(';') : parts[0];
         if (b64) {
@@ -198,7 +252,8 @@ const TerminalEmbed = memo(function TerminalEmbed({ terminalUrl, visible }: Term
             // Decode base64 as UTF-8 (atob only handles Latin-1, corrupts multi-byte chars like ❯)
             const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
             const text = new TextDecoder().decode(bytes);
-            navigator.clipboard.writeText(text).catch(() => {});
+            log('OSC 52 decoded:', text.slice(0, 50));
+            copyToClipboard(text);
           } catch { /* invalid base64 */ }
         }
         return false;

@@ -182,6 +182,45 @@ export function parseTaskReportMessage(content: string): ParsedTaskReport {
 }
 
 // ============================================================================
+// Subagent Notification Parsing (Codex collab notifications)
+// ============================================================================
+
+export interface ParsedSubagentNotification {
+  hasNotification: boolean;
+  agentId: string;
+  status: Record<string, string>;  // e.g. { errored: "message" } or { completed: "message" }
+  contentWithoutNotification: string;
+}
+
+/**
+ * Parse <subagent_notification> tags from Codex collab messages.
+ * These appear in user messages when a subagent reports status.
+ */
+export function parseSubagentNotification(content: string): ParsedSubagentNotification {
+  const match = content.match(/<subagent_notification>\s*([\s\S]*?)\s*<\/subagent_notification>/);
+  if (!match) {
+    return { hasNotification: false, agentId: '', status: {}, contentWithoutNotification: content };
+  }
+
+  try {
+    const parsed = JSON.parse(match[1].trim());
+    const agentId = parsed.agent_id || '';
+    const status: Record<string, string> = {};
+    if (parsed.status && typeof parsed.status === 'object') {
+      for (const [key, val] of Object.entries(parsed.status)) {
+        status[key] = typeof val === 'string' ? val : JSON.stringify(val);
+      }
+    }
+
+    const contentWithout = content.replace(/<subagent_notification>\s*[\s\S]*?<\/subagent_notification>\s*/g, '').trim();
+
+    return { hasNotification: true, agentId, status, contentWithoutNotification: contentWithout };
+  } catch {
+    return { hasNotification: false, agentId: '', status: {}, contentWithoutNotification: content };
+  }
+}
+
+// ============================================================================
 // Delegation Block Parsing
 // ============================================================================
 
@@ -526,6 +565,45 @@ export function TaskReportHeader({ agentName, agentId, status, originalTask, sum
             <span className="task-report-detail-value">{originalTask}</span>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// Subagent Notification Component (Codex collab)
+// ============================================================================
+
+interface SubagentNotificationDisplayProps {
+  agentId: string;
+  status: Record<string, string>;
+}
+
+export function SubagentNotificationDisplay({ agentId, status }: SubagentNotificationDisplayProps) {
+  const statusEntries = Object.entries(status);
+  const isError = statusEntries.some(([key]) => key === 'errored' || key === 'error' || key === 'failed');
+  const isCompleted = statusEntries.some(([key]) => key === 'completed');
+  const shortAgentId = agentId.slice(-12);
+
+  // Extract a clean error message (strip URLs and repetitive prefix)
+  const statusMessage = statusEntries.map(([, val]) => val).join('; ');
+  const cleanMessage = statusMessage
+    .replace(/Visit https?:\/\/[^\s]+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return (
+    <div className={`subagent-notification ${isError ? 'subagent-notification--error' : isCompleted ? 'subagent-notification--completed' : 'subagent-notification--info'}`}>
+      <span className="subagent-notification__icon">
+        {isError ? '⚠' : isCompleted ? '✓' : '🧬'}
+      </span>
+      <span className="subagent-notification__label">Subagent</span>
+      <span className="subagent-notification__id">{shortAgentId}</span>
+      <span className="subagent-notification__status">
+        {statusEntries.map(([key]) => key).join(', ')}
+      </span>
+      {cleanMessage && (
+        <span className="subagent-notification__message" title={statusMessage}>{cleanMessage}</span>
       )}
     </div>
   );
