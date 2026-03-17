@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.26.0] - 2026-03-17
+
+### Added
+- **Git history panel** - New GitHistory component with virtualized commit list and file diff viewer
+- **Boss context component** - New BossContext component for boss agent context display
+- **Alfred integration** - Alfred workflow for searching and focusing agents
+- **File routes expansion** - Extended file API routes with git history and diff endpoints
+- **Codex parser improvements** - Enhanced JSON event parser with additional event handling
+
+### Changed
+- **Output panel enhancements** - Improved HistoryLine and OutputLine components
+- **Terminal embed updates** - Enhanced TerminalEmbed with better protocol handling
+- **Keyboard shortcuts** - Added new shortcut bindings
+- **Scene input handling** - Updated input event handlers and 2D scene input
+- **Boss instructions** - Reorganized builtin boss skill instructions
+- **Database service** - Updated database service layer
+- **File explorer styles** - New history panel styles, updated editor and index styles
+
 ## [1.25.0] - 2026-03-16
 
 ### Added
