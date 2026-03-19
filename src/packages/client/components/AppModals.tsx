@@ -20,6 +20,8 @@ const SkillsPanel = React.lazy(() => import('./SkillsPanel').then(m => ({ defaul
 const AgentEditModal = React.lazy(() => import('./AgentEditModal').then(m => ({ default: m.AgentEditModal })));
 const SnapshotManager = React.lazy(() => import('./SnapshotManager').then(m => ({ default: m.SnapshotManager })));
 const RestoreArchivedAreaModal = React.lazy(() => import('./RestoreArchivedAreaModal').then(m => ({ default: m.RestoreArchivedAreaModal })));
+const IntegrationsPanel = React.lazy(() => import('./IntegrationsPanel').then(m => ({ default: m.IntegrationsPanel })));
+const MonitoringModal = React.lazy(() => import('./MonitoringModal').then(m => ({ default: m.MonitoringModal })));
 
 interface AppModalsProps {
   // Modal states
@@ -33,6 +35,8 @@ interface AppModalsProps {
   spotlightModal: UseModalState;
   controlsModal: UseModalState;
   skillsModal: UseModalState;
+  integrationsModal: UseModalState<string | undefined>;
+  monitoringModal: UseModalState;
   buildingModal: UseModalState<string | null>;
   agentEditModal: UseModalState<string>;
   snapshotsModal: UseModalState;
@@ -86,6 +90,8 @@ export function AppModals({
   spotlightModal,
   controlsModal,
   skillsModal,
+  integrationsModal,
+  monitoringModal,
   buildingModal,
   agentEditModal,
   snapshotsModal,
@@ -143,6 +149,8 @@ export function AppModals({
         onClose={toolboxModal.close}
         onOpenBuildingModal={(buildingId) => buildingModal.open(buildingId || null)}
         onOpenAreaExplorer={onOpenAreaExplorer}
+        onOpenIntegrationsModal={(id) => integrationsModal.open(id)}
+        onOpenMonitoringModal={() => monitoringModal.open()}
       />
 
       {/* Building Config Modal */}
@@ -313,6 +321,7 @@ export function AppModals({
         onOpenPM2LogsModal={onOpenPM2LogsModal}
         onOpenBossLogsModal={onOpenBossLogsModal}
         onOpenDatabasePanel={onOpenDatabasePanel}
+        onOpenMonitoringModal={() => monitoringModal.open()}
       />
 
       {/* Controls Modal (Keyboard & Mouse) */}
@@ -325,6 +334,19 @@ export function AppModals({
       <SkillsPanel
         isOpen={skillsModal.isOpen}
         onClose={skillsModal.close}
+      />
+
+      {/* Integrations Modal */}
+      <IntegrationsPanel
+        isOpen={integrationsModal.isOpen}
+        onClose={integrationsModal.close}
+        initialTab={integrationsModal.data}
+      />
+
+      {/* Monitoring Modal */}
+      <MonitoringModal
+        isOpen={monitoringModal.isOpen}
+        onClose={monitoringModal.close}
       />
 
       {/* Restore Archived Area Modal */}

@@ -43,6 +43,7 @@ export interface SpotlightProps {
   onOpenPM2LogsModal: (buildingId: string) => void;
   onOpenBossLogsModal: (buildingId: string) => void;
   onOpenDatabasePanel: (buildingId: string) => void;
+  onOpenMonitoringModal?: () => void;
 }
 
 // Options for the useSpotlightSearch hook
@@ -57,6 +58,7 @@ export interface UseSpotlightSearchOptions {
   onOpenPM2LogsModal: (buildingId: string) => void;
   onOpenBossLogsModal: (buildingId: string) => void;
   onOpenDatabasePanel: (buildingId: string) => void;
+  onOpenMonitoringModal?: () => void;
 }
 
 // Return type for useSpotlightSearch hook

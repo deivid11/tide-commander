@@ -65,4 +65,6 @@ export interface ToolboxProps {
   onClose: () => void;
   onOpenBuildingModal?: (buildingId?: string) => void;
   onOpenAreaExplorer?: (areaId: string) => void;
+  onOpenIntegrationsModal?: (integrationId?: string) => void;
+  onOpenMonitoringModal?: () => void;
 }

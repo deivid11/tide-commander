@@ -8,6 +8,7 @@ node_modules/
 
 # Build output
 dist/
+dist-stable/
 dist-landing/
 dist-app/
 deploy-landing.sh

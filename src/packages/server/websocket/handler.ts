@@ -13,10 +13,12 @@ import {
   permissionService,
   runtimeService,
   skillService,
+  triggerService,
+  workflowService,
 } from '../services/index.js';
 import { loadAreas, loadBuildings } from '../data/index.js';
 import { logger } from '../utils/index.js';
-import { setNotificationBroadcast, setExecBroadcast, setFocusAgentBroadcast, setAgentsBroadcast } from '../routes/index.js';
+import { setNotificationBroadcast, setExecBroadcast, setFocusAgentBroadcast, setAgentsBroadcast, setTriggerBroadcast } from '../routes/index.js';
 import { validateWebSocketAuth, isAuthEnabled } from '../auth/index.js';
 import { incrementWsSent, incrementWsReceived, setWsClientsCount } from '../routes/perf.js';
 import type { HandlerContext, MessageHandler } from './handlers/types.js';
@@ -93,6 +95,22 @@ import {
 import { handlePermissionResponse } from './handlers/permission-handler.js';
 import { handleSendNotification } from './handlers/notification-handler.js';
 import { handleSyncAreas, handleSyncBuildings } from './handlers/sync-handler.js';
+import {
+  handleCreateTrigger,
+  handleUpdateTrigger,
+  handleDeleteTrigger,
+  handleFireTrigger,
+} from './handlers/trigger-handler.js';
+import {
+  handleCreateWorkflowDef,
+  handleUpdateWorkflowDef,
+  handleDeleteWorkflowDef,
+  handleStartWorkflow,
+  handlePauseWorkflow,
+  handleResumeWorkflow,
+  handleCancelWorkflow,
+  handleManualTransition,
+} from './handlers/workflow-handler.js';
 import { setupServiceListeners } from './listeners/index.js';
 
 const log = logger.ws;
@@ -285,6 +303,18 @@ const messageHandlers = {
   create_snapshot: noopHandler,
   delete_snapshot: noopHandler,
   restore_snapshot: noopHandler,
+  create_trigger: handleCreateTrigger,
+  update_trigger: handleUpdateTrigger,
+  delete_trigger: handleDeleteTrigger,
+  fire_trigger: handleFireTrigger,
+  create_workflow_def: handleCreateWorkflowDef,
+  update_workflow_def: handleUpdateWorkflowDef,
+  delete_workflow_def: handleDeleteWorkflowDef,
+  start_workflow: handleStartWorkflow,
+  pause_workflow: handlePauseWorkflow,
+  resume_workflow: handleResumeWorkflow,
+  cancel_workflow: handleCancelWorkflow,
+  manual_transition: handleManualTransition,
 } satisfies MessageHandlerMap;
 
 function handleClientMessage(ws: WebSocket, message: ClientMessage): void {
@@ -351,6 +381,12 @@ export function init(server: HttpServer): WebSocketServer {
     const secrets = secretsService.getAllSecrets();
     ws.send(JSON.stringify({ type: 'secrets_update', payload: secrets }));
 
+    const triggers = triggerService.getAllTriggers();
+    ws.send(JSON.stringify({ type: 'triggers_update', payload: triggers }));
+
+    const workflowDefs = workflowService.listDefinitions();
+    ws.send(JSON.stringify({ type: 'workflow_definitions_update', payload: workflowDefs }));
+
     const pendingPermissions = permissionService.getPendingRequests();
     if (pendingPermissions.length > 0) {
       log.log(`Sending ${pendingPermissions.length} pending permission requests`);
@@ -397,6 +433,7 @@ export function init(server: HttpServer): WebSocketServer {
   setExecBroadcast(broadcast);
   setFocusAgentBroadcast(broadcast);
   setAgentsBroadcast(broadcast);
+  setTriggerBroadcast(broadcast);
 
   log.log('Handler initialized');
   return wss;

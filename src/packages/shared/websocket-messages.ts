@@ -1343,6 +1343,223 @@ export interface TablesListMessage extends WSMessage {
 }
 
 // ============================================================================
+// Trigger Messages
+// ============================================================================
+
+import type { Trigger } from './trigger-types.js';
+
+// Triggers sync message (Server -> Client) - sent on connect
+export interface TriggersUpdateMessage extends WSMessage {
+  type: 'triggers_update';
+  payload: Trigger[];
+}
+
+// Trigger created message (Server -> Client)
+export interface TriggerCreatedMessage extends WSMessage {
+  type: 'trigger_created';
+  payload: Trigger;
+}
+
+// Trigger updated message (Server -> Client)
+export interface TriggerUpdatedMessage extends WSMessage {
+  type: 'trigger_updated';
+  payload: Trigger;
+}
+
+// Trigger deleted message (Server -> Client)
+export interface TriggerDeletedMessage extends WSMessage {
+  type: 'trigger_deleted';
+  payload: { id: string };
+}
+
+// Trigger fired notification (Server -> Client)
+export interface TriggerFiredMessage extends WSMessage {
+  type: 'trigger_fired';
+  payload: {
+    triggerId: string;
+    agentId: string;
+    timestamp: number;
+  };
+}
+
+// Trigger error notification (Server -> Client)
+export interface TriggerErrorMessage extends WSMessage {
+  type: 'trigger_error';
+  payload: {
+    triggerId: string;
+    error: string;
+  };
+}
+
+// Create trigger (Client -> Server)
+export interface CreateTriggerMessage extends WSMessage {
+  type: 'create_trigger';
+  payload: Omit<Trigger, 'id' | 'createdAt' | 'updatedAt' | 'fireCount'>;
+}
+
+// Update trigger (Client -> Server)
+export interface UpdateTriggerMessage extends WSMessage {
+  type: 'update_trigger';
+  payload: { id: string; updates: Partial<Trigger> };
+}
+
+// Delete trigger (Client -> Server)
+export interface DeleteTriggerMessage extends WSMessage {
+  type: 'delete_trigger';
+  payload: { id: string };
+}
+
+// Fire trigger manually (Client -> Server)
+export interface FireTriggerMessage extends WSMessage {
+  type: 'fire_trigger';
+  payload: { id: string; variables?: Record<string, string> };
+}
+
+// ============================================================================
+// Workflow Messages
+// ============================================================================
+
+import type {
+  WorkflowDefinition,
+  CreateWorkflowPayload,
+  UpdateWorkflowPayload,
+} from './workflow-types.js';
+import type {
+  WorkflowInstanceRow,
+  WorkflowStepLogRow,
+  VariableChangeRow,
+} from './event-types.js';
+
+// Workflow definitions sync (Server -> Client) - sent on connect
+export interface WorkflowDefinitionsUpdateMessage extends WSMessage {
+  type: 'workflow_definitions_update';
+  payload: WorkflowDefinition[];
+}
+
+// Workflow definition created (Server -> Client)
+export interface WorkflowDefinitionCreatedMessage extends WSMessage {
+  type: 'workflow_definition_created';
+  payload: WorkflowDefinition;
+}
+
+// Workflow definition updated (Server -> Client)
+export interface WorkflowDefinitionUpdatedMessage extends WSMessage {
+  type: 'workflow_definition_updated';
+  payload: WorkflowDefinition;
+}
+
+// Workflow definition deleted (Server -> Client)
+export interface WorkflowDefinitionDeletedMessage extends WSMessage {
+  type: 'workflow_definition_deleted';
+  payload: { id: string };
+}
+
+// Workflow instance created (Server -> Client)
+export interface WorkflowInstanceCreatedMessage extends WSMessage {
+  type: 'workflow_instance_created';
+  payload: WorkflowInstanceRow;
+}
+
+// Workflow instance updated (Server -> Client)
+export interface WorkflowInstanceUpdatedMessage extends WSMessage {
+  type: 'workflow_instance_updated';
+  payload: WorkflowInstanceRow;
+}
+
+// Workflow state changed (Server -> Client)
+export interface WorkflowStateChangedMessage extends WSMessage {
+  type: 'workflow_state_changed';
+  payload: {
+    instanceId: string;
+    fromState: string;
+    toState: string;
+    transition: string;
+    stepLogId: number;
+  };
+}
+
+// Workflow step progress update (Server -> Client)
+export interface WorkflowStepUpdateMessage extends WSMessage {
+  type: 'workflow_step_update';
+  payload: {
+    instanceId: string;
+    step: WorkflowStepLogRow;
+  };
+}
+
+// Workflow variable changed (Server -> Client)
+export interface WorkflowVariableChangedMessage extends WSMessage {
+  type: 'workflow_variable_changed';
+  payload: {
+    instanceId: string;
+    change: VariableChangeRow;
+  };
+}
+
+// Workflow completed (Server -> Client)
+export interface WorkflowCompletedMessage extends WSMessage {
+  type: 'workflow_completed';
+  payload: { instanceId: string };
+}
+
+// Workflow error (Server -> Client)
+export interface WorkflowErrorMessage extends WSMessage {
+  type: 'workflow_error';
+  payload: { instanceId: string; error: string };
+}
+
+// Create workflow definition (Client -> Server)
+export interface CreateWorkflowDefMessage extends WSMessage {
+  type: 'create_workflow_def';
+  payload: CreateWorkflowPayload;
+}
+
+// Update workflow definition (Client -> Server)
+export interface UpdateWorkflowDefMessage extends WSMessage {
+  type: 'update_workflow_def';
+  payload: { id: string; updates: UpdateWorkflowPayload };
+}
+
+// Delete workflow definition (Client -> Server)
+export interface DeleteWorkflowDefMessage extends WSMessage {
+  type: 'delete_workflow_def';
+  payload: { id: string };
+}
+
+// Start workflow (Client -> Server)
+export interface StartWorkflowMessage extends WSMessage {
+  type: 'start_workflow';
+  payload: {
+    workflowDefId: string;
+    initialVariables?: Record<string, unknown>;
+  };
+}
+
+// Pause workflow (Client -> Server)
+export interface PauseWorkflowMessage extends WSMessage {
+  type: 'pause_workflow';
+  payload: { instanceId: string };
+}
+
+// Resume workflow (Client -> Server)
+export interface ResumeWorkflowMessage extends WSMessage {
+  type: 'resume_workflow';
+  payload: { instanceId: string };
+}
+
+// Cancel workflow (Client -> Server)
+export interface CancelWorkflowMessage extends WSMessage {
+  type: 'cancel_workflow';
+  payload: { instanceId: string };
+}
+
+// Manual transition (Client -> Server)
+export interface ManualTransitionMessage extends WSMessage {
+  type: 'manual_transition';
+  payload: { instanceId: string; transitionId: string };
+}
+
+// ============================================================================
 // Message Union Types
 // ============================================================================
 
@@ -1427,7 +1644,24 @@ export type ServerMessage =
   | SubagentStartedMessage
   | SubagentOutputMessage
   | SubagentCompletedMessage
-  | SubagentStreamMessage;
+  | SubagentStreamMessage
+  | TriggersUpdateMessage
+  | TriggerCreatedMessage
+  | TriggerUpdatedMessage
+  | TriggerDeletedMessage
+  | TriggerFiredMessage
+  | TriggerErrorMessage
+  | WorkflowDefinitionsUpdateMessage
+  | WorkflowDefinitionCreatedMessage
+  | WorkflowDefinitionUpdatedMessage
+  | WorkflowDefinitionDeletedMessage
+  | WorkflowInstanceCreatedMessage
+  | WorkflowInstanceUpdatedMessage
+  | WorkflowStateChangedMessage
+  | WorkflowStepUpdateMessage
+  | WorkflowVariableChangedMessage
+  | WorkflowCompletedMessage
+  | WorkflowErrorMessage;
 
 export type ClientMessage =
   | SpawnAgentMessage
@@ -1499,4 +1733,16 @@ export type ClientMessage =
   | RequestSnapshotDetailsMessage
   | CreateSnapshotMessage
   | DeleteSnapshotMessage
-  | RestoreSnapshotMessage;
+  | RestoreSnapshotMessage
+  | CreateTriggerMessage
+  | UpdateTriggerMessage
+  | DeleteTriggerMessage
+  | FireTriggerMessage
+  | CreateWorkflowDefMessage
+  | UpdateWorkflowDefMessage
+  | DeleteWorkflowDefMessage
+  | StartWorkflowMessage
+  | PauseWorkflowMessage
+  | ResumeWorkflowMessage
+  | CancelWorkflowMessage
+  | ManualTransitionMessage;

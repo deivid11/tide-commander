@@ -27,6 +27,7 @@ export function Spotlight({
   onOpenPM2LogsModal,
   onOpenBossLogsModal,
   onOpenDatabasePanel,
+  onOpenMonitoringModal,
 }: SpotlightProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
@@ -44,6 +45,7 @@ export function Spotlight({
       onOpenPM2LogsModal,
       onOpenBossLogsModal,
       onOpenDatabasePanel,
+      onOpenMonitoringModal,
     });
 
   resultsLengthRef.current = results.length;

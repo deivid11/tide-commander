@@ -8,6 +8,7 @@ import { CollapsibleSection } from './CollapsibleSection';
 import { SecretsSection } from './SecretsSection';
 import { DataSection } from './DataSection';
 import { AboutSection, ThemeSelector } from './AboutSection';
+import { IntegrationStatusPanel } from './IntegrationStatusPanel';
 import { SystemPromptModal } from '../SystemPromptModal';
 import { fetchEchoPromptSetting, updateEchoPromptSetting, fetchCodexBinaryPath, updateCodexBinaryPath } from '../../api/system-settings';
 import { BUILTIN_AGENT_NAMES } from '../../scene/config';
@@ -27,6 +28,8 @@ interface ConfigSectionProps {
   config: SceneConfig;
   onChange: (config: SceneConfig) => void;
   searchQuery?: string;
+  onOpenIntegrationsModal?: (integrationId?: string) => void;
+  onOpenMonitoringModal?: () => void;
 }
 
 const TIME_MODE_OPTIONS: { value: TimeMode; label: string; icon: string }[] = [
@@ -187,6 +190,8 @@ const SETTINGS_SECTIONS = [
   { id: 'secrets', title: 'Secrets', keywords: ['secrets', 'api', 'key', 'password', 'credentials', 'env', 'environment'] },
   { id: 'systemPrompt', title: 'System Prompt', keywords: ['system', 'prompt', 'global', 'instructions', 'ai', 'agent', 'rules', 'guidelines'] },
   { id: 'data', title: 'Data', keywords: ['export', 'import', 'backup', 'restore', 'save', 'load', 'json'] },
+  { id: 'integrations', title: 'Integrations', keywords: ['integrations', 'plugins', 'gmail', 'slack', 'jira', 'calendar', 'docx', 'email', 'config', 'setup'] },
+  { id: 'monitoring', title: 'Monitoring', keywords: ['monitoring', 'logs', 'triggers', 'events', 'history', 'workflow', 'traces', 'audit', 'timeline'] },
   { id: 'experimental', title: 'Experimental', keywords: ['experimental', '2d', 'view', 'voice', 'assistant', 'speech', 'tts', 'text to speech', 'echo', 'prompt', 'duplicate'] },
   { id: 'about', title: 'About', keywords: ['about', 'version', 'update', 'credits', 'github', 'releases'] },
 ];
@@ -205,7 +210,7 @@ const LANGUAGE_OPTIONS: { value: string; label: string; icon: string }[] = [
   { value: 'it', label: 'Italiano', icon: '🇮🇹' },
 ];
 
-export function ConfigSection({ config, onChange, searchQuery = '' }: ConfigSectionProps) {
+export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegrationsModal, onOpenMonitoringModal }: ConfigSectionProps) {
   const { t } = useTranslation(['config', 'common']);
   const state = useStore();
   const [historyLimit, setHistoryLimit] = useState(state.settings.historyLimit);
@@ -633,6 +638,28 @@ export function ConfigSection({ config, onChange, searchQuery = '' }: ConfigSect
       {shouldShowSection('data') && (
       <CollapsibleSection title={t('config:sections.data')} storageKey="data" defaultOpen={false} forceOpen={isSearching && shouldShowSection('data')}>
         <DataSection />
+      </CollapsibleSection>
+      )}
+
+      {shouldShowSection('integrations') && (
+      <CollapsibleSection title="Integrations" storageKey="integrations" defaultOpen={false} forceOpen={isSearching && shouldShowSection('integrations')}>
+        <IntegrationStatusPanel onOpenModal={(id) => onOpenIntegrationsModal?.(id)} />
+      </CollapsibleSection>
+      )}
+
+      {shouldShowSection('monitoring') && (
+      <CollapsibleSection title="Monitoring" storageKey="monitoring" defaultOpen={false} forceOpen={isSearching && shouldShowSection('monitoring')}>
+        <div className="config-row">
+          <span className="config-label"><HighlightText text="View event logs, trigger history, workflow traces, and system stats" query={searchQuery} /></span>
+        </div>
+        <div className="config-row">
+          <button
+            className="config-button"
+            onClick={() => onOpenMonitoringModal?.()}
+          >
+            Open Monitoring & Logs
+          </button>
+        </div>
       </CollapsibleSection>
       )}
 

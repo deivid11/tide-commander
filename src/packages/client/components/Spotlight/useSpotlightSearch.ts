@@ -28,6 +28,7 @@ export function useSpotlightSearch({
   onOpenPM2LogsModal,
   onOpenBossLogsModal,
   onOpenDatabasePanel,
+  onOpenMonitoringModal,
 }: UseSpotlightSearchOptions): SpotlightSearchState {
   // Granular selectors — only re-render when the specific slice changes
   const agents = useAgents();
@@ -67,6 +68,8 @@ export function useSpotlightSearch({
   onOpenBossLogsModalRef.current = onOpenBossLogsModal;
   const onOpenDatabasePanelRef = useRef(onOpenDatabasePanel);
   onOpenDatabasePanelRef.current = onOpenDatabasePanel;
+  const onOpenMonitoringModalRef = useRef(onOpenMonitoringModal);
+  onOpenMonitoringModalRef.current = onOpenMonitoringModal;
 
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -141,6 +144,17 @@ export function useSpotlightSearch({
         action: () => {
           onCloseRef.current();
           onOpenSupervisorRef.current();
+        },
+      },
+      {
+        id: 'cmd-monitoring',
+        type: 'command',
+        title: 'Monitoring & Logs',
+        subtitle: 'Triggers, workflows, events',
+        icon: '📊',
+        action: () => {
+          onCloseRef.current();
+          onOpenMonitoringModalRef.current?.();
         },
       },
     ];

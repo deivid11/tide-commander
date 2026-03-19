@@ -9,11 +9,15 @@ import { createServer as createHttpsServer } from 'https';
 import fs from 'node:fs';
 import type { Socket } from 'node:net';
 import { createApp } from './app.js';
-import { agentService, runtimeService, supervisorService, bossService, skillService, customClassService, secretsService, buildingService } from './services/index.js';
+import { agentService, runtimeService, supervisorService, bossService, skillService, customClassService, secretsService, buildingService, eventRetentionService, triggerService, workflowService } from './services/index.js';
 import * as websocket from './websocket/handler.js';
 import { getDataDir } from './data/index.js';
-import { logger, closeFileLogging, getLogFilePath } from './utils/logger.js';
+import { initEventDb, closeEventDb } from './data/event-db.js';
+import * as eventQueries from './data/event-queries.js';
+import { logger, closeFileLogging, getLogFilePath, createLogger } from './utils/logger.js';
 import { setupTerminalWsProxy } from './services/terminal-proxy.js';
+import { initIntegrations, shutdownIntegrations, getIntegrationTriggerHandlers } from './integrations/integration-registry.js';
+import type { IntegrationContext } from '../shared/integration-types.js';
 
 // Configuration
 const PORT = process.env.PORT || 6200;
@@ -60,6 +64,10 @@ process.on('SIGPIPE', () => {
 });
 
 async function main(): Promise<void> {
+  // Initialize event database FIRST — before any service that logs events
+  initEventDb();
+  eventRetentionService.init();
+
   // Initialize services
   agentService.initAgents();
   runtimeService.init();
@@ -68,6 +76,59 @@ async function main(): Promise<void> {
   skillService.initSkills();
   customClassService.initCustomClasses();
   secretsService.initSecrets();
+  triggerService.initTriggers();
+  workflowService.initWorkflows();
+
+  // Initialize integration plugins
+  const integrationCtx: IntegrationContext = {
+    eventDb: {
+      logTriggerFire: eventQueries.logTriggerFire as (...args: unknown[]) => unknown,
+      logSlackMessage: eventQueries.logSlackMessage as (...args: unknown[]) => unknown,
+      logEmailMessage: eventQueries.logEmailMessage as (...args: unknown[]) => unknown,
+      logApprovalEvent: eventQueries.logApprovalEvent as (...args: unknown[]) => unknown,
+      logDocumentGeneration: eventQueries.logDocumentGeneration as (...args: unknown[]) => unknown,
+      logCalendarAction: eventQueries.logCalendarAction as (...args: unknown[]) => unknown,
+      logJiraTicketAction: eventQueries.logJiraTicketAction as (...args: unknown[]) => unknown,
+      logAudit: eventQueries.logAudit as (...args: unknown[]) => unknown,
+    },
+    sendAgentMessage: async (agentId: string, message: string) => {
+      await runtimeService.sendCommand(agentId, message);
+    },
+    broadcast: (message: unknown) => {
+      websocket.broadcast(message as never);
+    },
+    secrets: {
+      get: (key: string) => {
+        const secret = secretsService.getSecretByKey(key);
+        return secret?.value;
+      },
+      set: (key: string, value: string) => {
+        const existing = secretsService.getSecretByKey(key);
+        if (existing) {
+          secretsService.updateSecret(existing.id, { value });
+        } else {
+          secretsService.createSecret({ key, value, name: key });
+        }
+      },
+    },
+    serverConfig: {
+      port: Number(PORT),
+      host: String(HOST),
+      authToken: process.env.AUTH_TOKEN,
+      baseUrl: `http://localhost:${PORT}`,
+    },
+    log: {
+      info: (msg: string, ...args: unknown[]) => createLogger('Integration').log(msg, ...args),
+      warn: (msg: string, ...args: unknown[]) => createLogger('Integration').warn(msg, ...args),
+      error: (msg: string, ...args: unknown[]) => createLogger('Integration').error(msg, ...args),
+    },
+  };
+  await initIntegrations(integrationCtx);
+
+  // Register integration trigger handlers (Slack, Jira, etc.) with the trigger service
+  for (const handler of getIntegrationTriggerHandlers()) {
+    triggerService.registerHandler(handler);
+  }
 
   logger.server.log(`Data directory: ${getDataDir()}`);
   logger.server.log(`Log file: ${getLogFilePath()}`);
@@ -147,14 +208,19 @@ async function main(): Promise<void> {
     forceShutdownTimer.unref();
 
     try {
+      triggerService.shutdown();
+      workflowService.shutdown();
+      await shutdownIntegrations();
       supervisorService.shutdown();
       bossService.shutdown();
+      eventRetentionService.shutdown();
       buildingService.stopPM2StatusPolling();
       buildingService.stopDockerStatusPolling();
       buildingService.stopTerminalStatusPolling();
       buildingService.cleanupAllTerminals();
       await runtimeService.shutdown();
       agentService.flushPersistAgents();
+      closeEventDb();
       wss.clients.forEach((client) => client.terminate());
       await new Promise<void>((resolve) => wss.close(() => resolve()));
       sockets.forEach((socket) => socket.destroy());

@@ -93,6 +93,8 @@ function AppContent() {
   const spotlightModal = useModalState();
   const controlsModal = useModalState();
   const skillsModal = useModalState();
+  const integrationsModal = useModalState<string | undefined>();
+  const monitoringModal = useModalState();
   const buildingModal = useModalState<string | null>();
   const agentEditModal = useModalState<string>();
   const snapshotsModal = useModalState();
@@ -317,6 +319,8 @@ function AppContent() {
   useModalStackRegistration('spotlight-modal', spotlightModal.isOpen, spotlightModal.close);
   useModalStackRegistration('controls-modal', controlsModal.isOpen, controlsModal.close);
   useModalStackRegistration('skills-modal', skillsModal.isOpen, skillsModal.close);
+  useModalStackRegistration('integrations-modal', integrationsModal.isOpen, integrationsModal.close);
+  useModalStackRegistration('monitoring-modal', monitoringModal.isOpen, monitoringModal.close);
   useModalStackRegistration('building-modal', buildingModal.isOpen, buildingModal.close);
   useModalStackRegistration('agent-edit-modal', agentEditModal.isOpen, agentEditModal.close);
   useModalStackRegistration('snapshots-modal', snapshotsModal.isOpen, snapshotsModal.close);
@@ -1171,6 +1175,8 @@ function AppContent() {
         spotlightModal={spotlightModal}
         controlsModal={controlsModal}
         skillsModal={skillsModal}
+        integrationsModal={integrationsModal}
+        monitoringModal={monitoringModal}
         buildingModal={buildingModal}
         buildingInitialPosition={buildingInitialPosition}
         agentEditModal={agentEditModal}

@@ -10,7 +10,7 @@ import { BuildingEditor } from './BuildingEditor';
 import { AreaEditor } from './AreaEditor';
 import { ConfigSection } from './ConfigSection';
 
-export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose, onOpenBuildingModal, onOpenAreaExplorer }: ToolboxProps) {
+export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose, onOpenBuildingModal, onOpenAreaExplorer, onOpenIntegrationsModal, onOpenMonitoringModal }: ToolboxProps) {
   const { t } = useTranslation(['config', 'common']);
   const state = useStore();
   const areasArray = Array.from(state.areas.values());
@@ -225,7 +225,7 @@ export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose,
           })()}
 
           {/* Config Section */}
-          <ConfigSection config={config} onChange={onConfigChange} searchQuery={searchQuery} />
+          <ConfigSection config={config} onChange={onConfigChange} searchQuery={searchQuery} onOpenIntegrationsModal={onOpenIntegrationsModal} onOpenMonitoringModal={onOpenMonitoringModal} />
         </div>
       </aside>
     </>
