@@ -111,6 +111,18 @@ async function main(): Promise<void> {
           }
         } else {
           const result = secretsService.createSecret({ key, value, name: key });
+          // If key already exists error, try to find and update it
+          if ('error' in result && result.error.includes('already exists')) {
+            const retry = secretsService.getSecretByKey(key);
+            if (retry) {
+              const updateResult = secretsService.updateSecret(retry.id, { value });
+              if (updateResult && 'error' in updateResult) {
+                throw new Error(updateResult.error);
+              }
+              return;
+            }
+          }
+          // Otherwise throw the original error
           if ('error' in result) {
             throw new Error(result.error);
           }
