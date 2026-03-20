@@ -3,7 +3,7 @@
  * ConfigField[] for OAuth credentials, polling interval, and approval defaults.
  */
 
-import type { ConfigField } from '../../../shared/integration-types.js';
+import type { ConfigField, IntegrationStatus } from '../../../shared/integration-types.js';
 
 export const gmailConfigSchema: ConfigField[] = [
   {
@@ -52,13 +52,11 @@ export interface GmailConfig {
   defaultApprovalKeywords: string[];
 }
 
-export interface GmailStatus {
+export interface GmailStatus extends IntegrationStatus {
   configured: boolean;
   authenticated: boolean;
   emailAddress?: string;
   pollingActive: boolean;
-  lastPollAt?: number;
-  lastError?: string;
 }
 
 export interface EmailAttachment {

@@ -32,6 +32,13 @@ export interface InputCallbacks {
   onBuildingDragStart?: (buildingId: string, pos: { x: number; z: number }) => void;
   onBuildingDragMove?: (buildingId: string, pos: { x: number; z: number }) => void;
   onBuildingDragEnd?: (buildingId: string, pos: { x: number; z: number }) => void;
+  // Workflow callbacks
+  onWorkflowClick?: (workflowId: string, screenPos: ScreenPosition) => void;
+  onWorkflowDoubleClick?: (workflowId: string) => void;
+  onWorkflowHover?: (workflowId: string | null, screenPos: ScreenPosition | null) => void;
+  onWorkflowDragStart?: (workflowId: string, pos: { x: number; z: number }) => void;
+  onWorkflowDragMove?: (workflowId: string, pos: { x: number; z: number }) => void;
+  onWorkflowDragEnd?: (workflowId: string, pos: { x: number; z: number }) => void;
   // Context menu callback (right-click on ground, agent, area, or building)
   onContextMenu?: (
     screenPos: { x: number; y: number },
@@ -91,6 +98,16 @@ export type BuildingAtPositionGetter = (pos: { x: number; z: number }) => { id: 
  * Building positions getter for drag selection.
  */
 export type BuildingPositionsGetter = () => Map<string, THREE.Vector3>;
+
+/**
+ * Workflow at position getter function type.
+ */
+export type WorkflowAtPositionGetter = (pos: { x: number; z: number }) => { id: string } | null;
+
+/**
+ * Workflow positions getter for drag selection.
+ */
+export type WorkflowPositionsGetter = () => Map<string, THREE.Vector3>;
 
 /**
  * 2D screen position.

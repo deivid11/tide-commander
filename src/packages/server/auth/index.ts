@@ -100,11 +100,17 @@ export function extractTokenFromWebSocket(req: IncomingMessage): string | null {
 
 /**
  * Express middleware for authenticating HTTP requests
- * Allows unauthenticated access to /api/health for status checks
+ * Allows unauthenticated access to /api/health for status checks and OAuth callbacks
  */
 export function authMiddleware(req: Request, res: Response, next: NextFunction): void {
   // Always allow health check
   if (req.path === '/health' || req.path === '/api/health') {
+    return next();
+  }
+
+  // Allow OAuth callback endpoints (these receive redirects from external providers)
+  // Both Gmail and Calendar use the same callback endpoint at /email/auth/callback
+  if (req.path === '/email/auth/callback' || req.path === '/calendar/auth/callback' || req.path.match(/^\/\w+\/auth\/(callback|code)/)) {
     return next();
   }
 

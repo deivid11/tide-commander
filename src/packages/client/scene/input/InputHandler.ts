@@ -22,6 +22,8 @@ import type {
   AreaAtPositionGetter,
   BuildingAtPositionGetter,
   BuildingPositionsGetter,
+  WorkflowAtPositionGetter,
+  WorkflowPositionsGetter,
   FolderIconMeshesGetter,
   GroundPosition,
 } from './types';
@@ -35,6 +37,8 @@ export type {
   AreaAtPositionGetter,
   BuildingAtPositionGetter,
   BuildingPositionsGetter,
+  WorkflowAtPositionGetter,
+  WorkflowPositionsGetter,
 };
 
 /**
@@ -57,6 +61,7 @@ export class InputHandler {
   private agentClickDetector: DoubleClickDetector<string>;
   private agentTapDetector: DoubleClickDetector<string>;
   private buildingClickDetector: DoubleClickDetector<string>;
+  private workflowClickDetector: DoubleClickDetector<string>;
   private areaClickDetector: DoubleClickDetector<string>;
 
   // Drag selection state
@@ -81,11 +86,18 @@ export class InputHandler {
   private areaAtPositionGetter: AreaAtPositionGetter = () => null;
   private buildingAtPositionGetter: BuildingAtPositionGetter = () => null;
   private buildingPositionsGetter: BuildingPositionsGetter = () => new Map();
+  private workflowAtPositionGetter: WorkflowAtPositionGetter = () => null;
+  private workflowPositionsGetter: WorkflowPositionsGetter = () => new Map();
 
   // Building drag state
   private isDraggingBuilding = false;
   private draggingBuildingId: string | null = null;
   private buildingDragStartPos: GroundPosition | null = null;
+
+  // Workflow drag state
+  private isDraggingWorkflow = false;
+  private draggingWorkflowId: string | null = null;
+  private workflowDragStartPos: GroundPosition | null = null;
 
 
   // Hover state for agent tooltip
@@ -100,6 +112,11 @@ export class InputHandler {
   private hoveredBuildingId: string | null = null;
   private buildingHoverTimer: ReturnType<typeof setTimeout> | null = null;
   private static readonly BUILDING_HOVER_DELAY = 5000; // 5 seconds
+
+  // Hover state for workflow tooltip
+  private hoveredWorkflowId: string | null = null;
+  private workflowHoverTimer: ReturnType<typeof setTimeout> | null = null;
+  private static readonly WORKFLOW_HOVER_DELAY = 5000; // 5 seconds
 
 
   constructor(
@@ -158,6 +175,7 @@ export class InputHandler {
     this.agentClickDetector = new DoubleClickDetector(300);
     this.agentTapDetector = new DoubleClickDetector(450); // Touch needs longer threshold
     this.buildingClickDetector = new DoubleClickDetector(300);
+    this.workflowClickDetector = new DoubleClickDetector(300);
     this.areaClickDetector = new DoubleClickDetector(300);
 
     // Touch gesture handler
@@ -224,6 +242,19 @@ export class InputHandler {
     this.buildingPositionsGetter = getter;
   }
 
+  /**
+   * Set the workflow at position getter.
+   */
+  setWorkflowAtPositionGetter(getter: WorkflowAtPositionGetter): void {
+    this.workflowAtPositionGetter = getter;
+  }
+
+  /**
+   * Set the workflow positions getter (for drag selection).
+   */
+  setWorkflowPositionsGetter(getter: WorkflowPositionsGetter): void {
+    this.workflowPositionsGetter = getter;
+  }
 
   /**
    * Raycast to ground and return world position.
@@ -250,11 +281,13 @@ export class InputHandler {
     this.agentClickDetector.dispose();
     this.agentTapDetector.dispose();
     this.buildingClickDetector.dispose();
+    this.workflowClickDetector.dispose();
     this.areaClickDetector.dispose();
     this.touchHandler.dispose();
     this.trackpadHandler.dispose();
     this.clearHoverTimer();
     this.clearBuildingHoverTimer();
+    this.clearWorkflowHoverTimer();
     window.removeEventListener('blur', this.onWindowBlur);
     document.removeEventListener('visibilitychange', this.onVisibilityChange);
     document.removeEventListener('keydown', this.onKeyDown, true);
@@ -401,7 +434,7 @@ export class InputHandler {
         return;
       }
 
-      // Check building click (mouse only for drag)
+      // Check building/workflow click (mouse only for drag)
       const groundPos = this.raycaster.raycastGroundFromEvent(event);
       if (groundPos) {
         const building = this.buildingAtPositionGetter(groundPos);
@@ -409,6 +442,13 @@ export class InputHandler {
           this.draggingBuildingId = building.id;
           this.buildingDragStartPos = groundPos;
           this.isDraggingBuilding = false;
+          return;
+        }
+        const workflow = this.workflowAtPositionGetter(groundPos);
+        if (workflow && !isTouch) {
+          this.draggingWorkflowId = workflow.id;
+          this.workflowDragStartPos = groundPos;
+          this.isDraggingWorkflow = false;
           return;
         }
       }
@@ -486,6 +526,26 @@ export class InputHandler {
 
           if (this.isDraggingBuilding) {
             this.callbacks.onBuildingDragMove?.(this.draggingBuildingId, groundPos);
+          }
+        }
+        return;
+      }
+
+      // Handle workflow drag
+      if (this.draggingWorkflowId && this.workflowDragStartPos) {
+        const groundPos = this.raycaster.raycastGroundFromEvent(event);
+        if (groundPos) {
+          const dx = groundPos.x - this.workflowDragStartPos.x;
+          const dz = groundPos.z - this.workflowDragStartPos.z;
+          const distance = Math.sqrt(dx * dx + dz * dz);
+
+          if (!this.isDraggingWorkflow && distance > 0.2) {
+            this.isDraggingWorkflow = true;
+            this.callbacks.onWorkflowDragStart?.(this.draggingWorkflowId, this.workflowDragStartPos);
+          }
+
+          if (this.isDraggingWorkflow) {
+            this.callbacks.onWorkflowDragMove?.(this.draggingWorkflowId, groundPos);
           }
         }
         return;
@@ -592,6 +652,23 @@ export class InputHandler {
         return;
       }
 
+      if (this.draggingWorkflowId) {
+        const workflowId = this.draggingWorkflowId;
+        const groundPos = this.raycaster.raycastGroundFromEvent(event);
+        const screenPos = { x: event.clientX, y: event.clientY };
+
+        if (this.isDraggingWorkflow && groundPos) {
+          this.callbacks.onWorkflowDragEnd?.(workflowId, groundPos);
+        } else {
+          this.handleWorkflowClick(workflowId, screenPos);
+        }
+
+        this.draggingWorkflowId = null;
+        this.workflowDragStartPos = null;
+        this.isDraggingWorkflow = false;
+        return;
+      }
+
       if (this.isDragging) {
         this.isDragging = false;
         this.selectionBox.classList.remove('active');
@@ -639,6 +716,7 @@ export class InputHandler {
     // Clear hover states when mouse leaves the canvas
     this.clearHoverState();
     this.clearBuildingHoverState();
+    this.clearWorkflowHoverState();
   };
 
   private onWindowBlur = (): void => {
@@ -773,6 +851,7 @@ export class InputHandler {
     // Clear hover states
     this.clearHoverState();
     this.clearBuildingHoverState();
+    this.clearWorkflowHoverState();
     // Cancel any active drag selection
     if (this.isDragging) {
       this.isDragging = false;
@@ -914,6 +993,14 @@ export class InputHandler {
         return;
       }
 
+      // Check for workflow tap
+      const workflow = this.workflowAtPositionGetter(groundPos);
+      if (workflow) {
+        const screenPos = { x: clientX, y: clientY };
+        this.handleWorkflowClick(workflow.id, screenPos);
+        return;
+      }
+
       // Check for area tap (single tap selects, double tap opens area settings)
       const area = this.areaAtPositionGetter(groundPos);
       if (area) {
@@ -960,6 +1047,19 @@ export class InputHandler {
           { x: clientX, y: clientY },
           groundPos,
           { type: 'building', id: buildingAtPos.id }
+        );
+      }
+      return;
+    }
+
+    // Check if long-pressing on a workflow - show context menu
+    const workflowAtPos = this.workflowAtPositionGetter?.(groundPos);
+    if (workflowAtPos) {
+      if (this.callbacks.onContextMenu) {
+        this.callbacks.onContextMenu(
+          { x: clientX, y: clientY },
+          groundPos,
+          { type: 'building', id: workflowAtPos.id }
         );
       }
       return;
@@ -1062,6 +1162,16 @@ export class InputHandler {
     }
   }
 
+  private handleWorkflowClick(workflowId: string, screenPos?: { x: number; y: number }): void {
+    const clickType = this.workflowClickDetector.handleClick(workflowId);
+    if (clickType === 'double') {
+      this.callbacks.onWorkflowDoubleClick?.(workflowId);
+    } else {
+      const pos = screenPos || { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+      this.callbacks.onWorkflowClick?.(workflowId, pos);
+    }
+  }
+
   // --- Selection Box ---
 
   private updateSelectionBox(): void {
@@ -1152,6 +1262,26 @@ export class InputHandler {
     const building = groundPos ? this.buildingAtPositionGetter(groundPos) : null;
     const buildingId = building?.id ?? null;
 
+    // Handle workflow hover detection (5 second delay)
+    const workflow = groundPos ? this.workflowAtPositionGetter(groundPos) : null;
+    const workflowId = workflow?.id ?? null;
+
+    if (workflowId !== this.hoveredWorkflowId) {
+      this.clearWorkflowHoverTimer();
+
+      if (this.hoveredWorkflowId !== null) {
+        this.callbacks.onWorkflowHover?.(null, null);
+      }
+
+      this.hoveredWorkflowId = workflowId;
+
+      if (workflowId) {
+        this.workflowHoverTimer = setTimeout(() => {
+          this.triggerWorkflowHoverCallback();
+        }, InputHandler.WORKFLOW_HOVER_DELAY);
+      }
+    }
+
     if (buildingId !== this.hoveredBuildingId) {
       // Building changed - clear any pending timer and notify immediately with null
       this.clearBuildingHoverTimer();
@@ -1214,6 +1344,32 @@ export class InputHandler {
     if (this.hoveredBuildingId !== null) {
       this.hoveredBuildingId = null;
       this.callbacks.onBuildingHover?.(null, null);
+    }
+  }
+
+  private triggerWorkflowHoverCallback(): void {
+    if (this.hoveredWorkflowId && this.callbacks.onWorkflowHover) {
+      const workflowPositions = this.workflowPositionsGetter();
+      const position = workflowPositions.get(this.hoveredWorkflowId);
+      if (position) {
+        const screenPos = this.raycaster.projectToScreen(position);
+        this.callbacks.onWorkflowHover(this.hoveredWorkflowId, screenPos);
+      }
+    }
+  }
+
+  private clearWorkflowHoverTimer(): void {
+    if (this.workflowHoverTimer) {
+      clearTimeout(this.workflowHoverTimer);
+      this.workflowHoverTimer = null;
+    }
+  }
+
+  private clearWorkflowHoverState(): void {
+    this.clearWorkflowHoverTimer();
+    if (this.hoveredWorkflowId !== null) {
+      this.hoveredWorkflowId = null;
+      this.callbacks.onWorkflowHover?.(null, null);
     }
   }
 

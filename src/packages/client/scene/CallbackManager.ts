@@ -20,6 +20,9 @@ export class CallbackManager {
   ) => void) | null = null;
   private onGroundClickCallback: (() => void) | null = null;
   private onAreaDoubleClickCallback: ((areaId: string) => void) | null = null;
+  private onWorkflowClickCallback: ((workflowId: string, screenPos: { x: number; y: number }) => void) | null = null;
+  private onWorkflowDoubleClickCallback: ((workflowId: string) => void) | null = null;
+  private onWorkflowHoverCallback: ((workflowId: string | null, screenPos: { x: number; y: number } | null) => void) | null = null;
 
   // ============================================
   // Callback Setters
@@ -69,6 +72,18 @@ export class CallbackManager {
     this.onAreaDoubleClickCallback = callback;
   }
 
+  setOnWorkflowClick(callback: (workflowId: string, screenPos: { x: number; y: number }) => void): void {
+    this.onWorkflowClickCallback = callback;
+  }
+
+  setOnWorkflowDoubleClick(callback: (workflowId: string) => void): void {
+    this.onWorkflowDoubleClickCallback = callback;
+  }
+
+  setOnWorkflowHover(callback: (workflowId: string | null, screenPos: { x: number; y: number } | null) => void): void {
+    this.onWorkflowHoverCallback = callback;
+  }
+
   // ============================================
   // Callback Triggers
   // ============================================
@@ -109,5 +124,17 @@ export class CallbackManager {
 
   triggerAreaDoubleClick(areaId: string): void {
     this.onAreaDoubleClickCallback?.(areaId);
+  }
+
+  triggerWorkflowClick(workflowId: string, screenPos: { x: number; y: number }): void {
+    this.onWorkflowClickCallback?.(workflowId, screenPos);
+  }
+
+  triggerWorkflowDoubleClick(workflowId: string): void {
+    this.onWorkflowDoubleClickCallback?.(workflowId);
+  }
+
+  triggerWorkflowHover(workflowId: string | null, screenPos: { x: number; y: number } | null): void {
+    this.onWorkflowHoverCallback?.(workflowId, screenPos);
   }
 }

@@ -29,6 +29,7 @@ import { createSecretActions, type SecretActions } from './secrets';
 import { createDatabaseActions, type DatabaseActions } from './database';
 import { createSnapshotActions, type SnapshotActions } from './snapshots';
 import { createSubagentActions, type SubagentActions } from './subagents';
+import { createWorkflowActions, type WorkflowActions, DEFAULT_WORKFLOW_STATE } from './workflows';
 import { evictHistoryCache } from '../components/ClaudeOutputPanel/useHistoryLoader';
 
 // Import shortcuts
@@ -198,6 +199,7 @@ class Store
   private databaseActions: DatabaseActions;
   private snapshotActions: SnapshotActions;
   private subagentActions: SubagentActions;
+  private workflowActions: WorkflowActions;
 
   constructor() {
     // Initialize state
@@ -275,7 +277,8 @@ class Store
       agentsWithUnseenOutput: this.loadUnseenAgents(),
       commanderExpandRequest: null,
       latestNotificationAgentId: null,
-    };
+      ...DEFAULT_WORKFLOW_STATE,
+    } as StoreState;
 
     // Helper functions for domain modules
     const getState = () => this.state;
@@ -300,6 +303,7 @@ class Store
     this.databaseActions = createDatabaseActions(getState, setState, notify, getSendMessage);
     this.snapshotActions = createSnapshotActions(getState, setState, notify);
     this.subagentActions = createSubagentActions(getState, setState, notify);
+    this.workflowActions = createWorkflowActions(getState, setState, notify, getSendMessage);
   }
 
   private loadSettings(): Settings {
@@ -958,6 +962,41 @@ class Store
   setDockerContainersList(...args: Parameters<BuildingActions['setDockerContainersList']>) { return this.buildingActions.setDockerContainersList(...args); }
   getDockerContainersList() { return this.buildingActions.getDockerContainersList(); }
   getDockerComposeProjectsList() { return this.buildingActions.getDockerComposeProjectsList(); }
+
+  // ============================================================================
+  // Workflow Actions (delegated)
+  // ============================================================================
+
+  setWorkflowDefinitionsFromServer(...args: Parameters<WorkflowActions['setWorkflowDefinitionsFromServer']>) { return this.workflowActions.setWorkflowDefinitionsFromServer(...args); }
+  addWorkflowDefinitionFromServer(...args: Parameters<WorkflowActions['addWorkflowDefinitionFromServer']>) { return this.workflowActions.addWorkflowDefinitionFromServer(...args); }
+  updateWorkflowDefinitionFromServer(...args: Parameters<WorkflowActions['updateWorkflowDefinitionFromServer']>) { return this.workflowActions.updateWorkflowDefinitionFromServer(...args); }
+  removeWorkflowDefinitionFromServer(...args: Parameters<WorkflowActions['removeWorkflowDefinitionFromServer']>) { return this.workflowActions.removeWorkflowDefinitionFromServer(...args); }
+  createWorkflowDefinition(...args: Parameters<WorkflowActions['createWorkflowDefinition']>) { return this.workflowActions.createWorkflowDefinition(...args); }
+  updateWorkflowDefinition(...args: Parameters<WorkflowActions['updateWorkflowDefinition']>) { return this.workflowActions.updateWorkflowDefinition(...args); }
+  deleteWorkflowDefinition(...args: Parameters<WorkflowActions['deleteWorkflowDefinition']>) { return this.workflowActions.deleteWorkflowDefinition(...args); }
+  moveWorkflow(...args: Parameters<WorkflowActions['moveWorkflow']>) { return this.workflowActions.moveWorkflow(...args); }
+  setWorkflowInstancesFromServer(...args: Parameters<WorkflowActions['setWorkflowInstancesFromServer']>) { return this.workflowActions.setWorkflowInstancesFromServer(...args); }
+  updateWorkflowInstanceFromServer(...args: Parameters<WorkflowActions['updateWorkflowInstanceFromServer']>) { return this.workflowActions.updateWorkflowInstanceFromServer(...args); }
+  removeWorkflowInstanceFromServer(...args: Parameters<WorkflowActions['removeWorkflowInstanceFromServer']>) { return this.workflowActions.removeWorkflowInstanceFromServer(...args); }
+  startWorkflow(...args: Parameters<WorkflowActions['startWorkflow']>) { return this.workflowActions.startWorkflow(...args); }
+  pauseWorkflow(...args: Parameters<WorkflowActions['pauseWorkflow']>) { return this.workflowActions.pauseWorkflow(...args); }
+  resumeWorkflow(...args: Parameters<WorkflowActions['resumeWorkflow']>) { return this.workflowActions.resumeWorkflow(...args); }
+  cancelWorkflow(...args: Parameters<WorkflowActions['cancelWorkflow']>) { return this.workflowActions.cancelWorkflow(...args); }
+  manualTransition(...args: Parameters<WorkflowActions['manualTransition']>) { return this.workflowActions.manualTransition(...args); }
+  selectWorkflow(...args: Parameters<WorkflowActions['selectWorkflow']>) { return this.workflowActions.selectWorkflow(...args); }
+  openWorkflowDetail(...args: Parameters<WorkflowActions['openWorkflowDetail']>) { return this.workflowActions.openWorkflowDetail(...args); }
+  closeWorkflowDetail() { return this.workflowActions.closeWorkflowDetail(); }
+  navigateToExecution(...args: Parameters<WorkflowActions['navigateToExecution']>) { return this.workflowActions.navigateToExecution(...args); }
+  navigateToStep(...args: Parameters<WorkflowActions['navigateToStep']>) { return this.workflowActions.navigateToStep(...args); }
+  navigateBack() { return this.workflowActions.navigateBack(); }
+  getWorkflowModelStatus(...args: Parameters<WorkflowActions['getWorkflowModelStatus']>) { return this.workflowActions.getWorkflowModelStatus(...args); }
+  addWorkflowChatMessage(...args: Parameters<WorkflowActions['addWorkflowChatMessage']>) { return this.workflowActions.addWorkflowChatMessage(...args); }
+  setWorkflowChatScope(...args: Parameters<WorkflowActions['setWorkflowChatScope']>) { return this.workflowActions.setWorkflowChatScope(...args); }
+  setWorkflowChatLoading(...args: Parameters<WorkflowActions['setWorkflowChatLoading']>) { return this.workflowActions.setWorkflowChatLoading(...args); }
+  clearWorkflowChat() { return this.workflowActions.clearWorkflowChat(); }
+  getWorkflowDefinition(...args: Parameters<WorkflowActions['getWorkflowDefinition']>) { return this.workflowActions.getWorkflowDefinition(...args); }
+  getWorkflowInstances(...args: Parameters<WorkflowActions['getWorkflowInstances']>) { return this.workflowActions.getWorkflowInstances(...args); }
+  getAllWorkflowDefinitions() { return this.workflowActions.getAllWorkflowDefinitions(); }
 
   // ============================================================================
   // Permission Actions (delegated)

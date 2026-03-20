@@ -16,6 +16,7 @@ import type {
 import type { BuiltinSkillDefinition } from '../data/builtin-skills/types.js';
 import { createLogger } from '../utils/logger.js';
 import { slackPlugin } from './slack/index.js';
+import { gmailPlugin } from './gmail/index.js';
 import { docxPlugin } from './docx/index.js';
 import { jiraPlugin } from './jira/index.js';
 import { googleCalendarPlugin } from './google-calendar/index.js';
@@ -28,7 +29,7 @@ const log = createLogger('Integrations');
 // Add new plugins here as they are implemented.
 const ALL_PLUGINS: IntegrationPlugin[] = [
   slackPlugin,
-  // gmailPlugin,
+  gmailPlugin,
   googleCalendarPlugin,
   docxPlugin,
   jiraPlugin,
