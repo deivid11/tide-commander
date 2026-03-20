@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.29.0] - 2026-03-19
+
+### Added
+- **Restart button** - Added restart button to bottom terminal panel for buildings
+
+### Changed
+- **Buildings panel compact layout** - Reduced padding and spacing throughout for denser display
+- **PM2 details simplified** - Only show ports for PM2 buildings, removed verbose stats
+- **Header status bar wrapping** - Status bar now wraps on smaller widths
+- **Vite dev server** - Allow all hosts for dev server access
+
+### Removed
+- Unused `formatUptime` helper function
+
 ## [1.28.0] - 2026-03-17
 
 ### Added
