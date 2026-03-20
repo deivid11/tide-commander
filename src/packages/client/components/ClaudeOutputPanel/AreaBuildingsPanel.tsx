@@ -41,14 +41,6 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024 / 1024 / 1024).toFixed(1)}GB`;
 }
 
-/** Format uptime from start timestamp to human-readable duration */
-function formatUptime(startTs: number): string {
-  const seconds = Math.floor((Date.now() - startTs) / 1000);
-  if (seconds < 60) return `${seconds}s`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
-  return `${Math.floor(seconds / 86400)}d ${Math.floor((seconds % 86400) / 3600)}h`;
-}
 
 /** Shorten a filesystem path for display */
 function shortenPath(path: string): string {
@@ -309,23 +301,9 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
   const renderBuildingDetails = useCallback((building: Building) => {
     const details: React.ReactNode[] = [];
 
-    // -- PM2 runtime details (server with PM2) --
+    // -- PM2 runtime details (server with PM2) - only show ports --
     if (building.pm2Status) {
       const pm2 = building.pm2Status;
-      const parts: React.ReactNode[] = [];
-      if (pm2.status) parts.push(<span key="st" className="detail-value">{pm2.status}</span>);
-      if (pm2.memory !== undefined) parts.push(<span key="mem" className="detail-value">{formatBytes(pm2.memory)}</span>);
-      if (pm2.cpu !== undefined) parts.push(<span key="cpu" className="detail-value">{pm2.cpu.toFixed(1)}%</span>);
-      if (pm2.uptime) parts.push(<span key="up" className="detail-value detail-dim">{formatUptime(pm2.uptime)}</span>);
-      if (parts.length > 0) {
-        details.push(
-          <div key="pm2" className="guake-building-detail">
-            <span className="detail-label">PM2</span>
-            {parts}
-          </div>
-        );
-      }
-      // Ports
       if (pm2.ports && pm2.ports.length > 0) {
         details.push(
           <div key="pm2-ports" className="guake-building-detail">
@@ -345,15 +323,6 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
                 </a>
               ))}
             </span>
-          </div>
-        );
-      }
-      // Restarts (only if > 0)
-      if (pm2.restarts && pm2.restarts > 0) {
-        details.push(
-          <div key="pm2-restarts" className="guake-building-detail">
-            <span className="detail-label">Restarts</span>
-            <span className="detail-value detail-warn">{pm2.restarts}</span>
           </div>
         );
       }

@@ -48,7 +48,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 16px;
+  padding: 6px 12px;
   background: rgba($dracula-bg, 0.95);
   border-bottom: 1px solid $dracula-current;
   flex-shrink: 0;
@@ -121,7 +121,7 @@
 .guake-buildings-body {
   flex: 1;
   overflow-y: auto;
-  padding: 8px;
+  padding: 4px 6px;
 }
 
 .guake-buildings-empty {
@@ -133,11 +133,11 @@
 }
 
 .guake-building-item {
-  padding: 8px 10px;
-  border-radius: 6px;
+  padding: 4px 8px;
+  border-radius: 4px;
   cursor: pointer;
   transition: background 0.15s ease;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
   border: 1px solid transparent;
 
   &:hover {
@@ -166,7 +166,7 @@
 .guake-building-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .guake-building-type-icon {
@@ -193,7 +193,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-top: 3px;
+  margin-top: 2px;
   padding-left: 22px;
   font-size: 11px;
   min-width: 0;
@@ -262,7 +262,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  margin-top: 4px;
+  margin-top: 2px;
   padding-left: 22px;
 }
 
@@ -284,7 +284,7 @@
 .guake-building-actions {
   display: flex;
   gap: 4px;
-  margin-top: 6px;
+  margin-top: 3px;
   padding-left: 22px;
 }
 
