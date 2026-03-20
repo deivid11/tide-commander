@@ -95,6 +95,7 @@ function AppContent() {
   const skillsModal = useModalState();
   const integrationsModal = useModalState<string | undefined>();
   const monitoringModal = useModalState();
+  const workflowEditorModal = useModalState();
   const buildingModal = useModalState<string | null>();
   const agentEditModal = useModalState<string>();
   const snapshotsModal = useModalState();
@@ -321,6 +322,7 @@ function AppContent() {
   useModalStackRegistration('skills-modal', skillsModal.isOpen, skillsModal.close);
   useModalStackRegistration('integrations-modal', integrationsModal.isOpen, integrationsModal.close);
   useModalStackRegistration('monitoring-modal', monitoringModal.isOpen, monitoringModal.close);
+  useModalStackRegistration('workflow-editor-modal', workflowEditorModal.isOpen, workflowEditorModal.close);
   useModalStackRegistration('building-modal', buildingModal.isOpen, buildingModal.close);
   useModalStackRegistration('agent-edit-modal', agentEditModal.isOpen, agentEditModal.close);
   useModalStackRegistration('snapshots-modal', snapshotsModal.isOpen, snapshotsModal.close);
@@ -1177,6 +1179,7 @@ function AppContent() {
         skillsModal={skillsModal}
         integrationsModal={integrationsModal}
         monitoringModal={monitoringModal}
+        workflowEditorModal={workflowEditorModal}
         buildingModal={buildingModal}
         buildingInitialPosition={buildingInitialPosition}
         agentEditModal={agentEditModal}

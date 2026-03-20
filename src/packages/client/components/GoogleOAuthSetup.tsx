@@ -1,68 +1,50 @@
 /**
- * Gmail OAuth Setup Component
- *
- * Custom settings component for the Gmail integration.
- * Handles the OAuth2 consent flow:
- *  1. User enters OAuth Client ID and Client Secret (or they're pre-filled from config)
- *  2. Component fetches the consent URL from the server
- *  3. User clicks the link to authorize in Google
- *  4. OAuth callback saves the refresh token on the server
- *  5. Component polls for status until authentication is confirmed
+ * Google OAuth Setup Component
+ * Shared OAuth component for Gmail and Google Calendar integrations.
+ * Handles the OAuth2 consent flow for Google services.
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { IntegrationInfo } from '../../shared/integration-types.js';
 import { apiUrl, authFetch } from '../utils/storage';
 
-interface GmailOAuthSetupProps {
+interface GoogleOAuthSetupProps {
   integration: IntegrationInfo;
   onSave: (config: Record<string, unknown>) => Promise<void>;
   onCancel: () => void;
 }
 
-interface GmailAuthStatus {
+interface GoogleAuthStatus {
   configured: boolean;
   authenticated: boolean;
   emailAddress?: string;
-  pollingActive?: boolean;
-  lastPollAt?: number;
-  lastError?: string;
 }
 
-export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSetupProps) {
+export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthSetupProps) {
   const [clientId, setClientId] = useState(
-    (integration.values.clientId as string) || ''
+    (integration.values.GOOGLE_CLIENT_ID as string) || ''
   );
   const [clientSecret, setClientSecret] = useState('');
-  const [pollingInterval, setPollingInterval] = useState(
-    String(integration.values.pollingIntervalMs ?? 30000)
-  );
-  const [approvalKeywords, setApprovalKeywords] = useState(
-    (integration.values.defaultApprovalKeywords as string) || 'approved,aprobado,autorizado,yes,ok'
-  );
-
   const [authUrl, setAuthUrl] = useState<string | null>(null);
-  const [authStatus, setAuthStatus] = useState<GmailAuthStatus | null>(null);
+  const [authStatus, setAuthStatus] = useState<GoogleAuthStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
   const [step, setStep] = useState<'credentials' | 'authorize' | 'connected'>(
     integration.status.connected ? 'connected' : 'credentials'
   );
 
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const wasConnectedRef = useRef(integration.status.connected);
 
-  // Fetch current Gmail auth status
+  // Fetch current Google auth status
   const fetchStatus = useCallback(async () => {
     try {
-      const resp = await authFetch(apiUrl('/api/email/status'));
+      const endpoint = integration.id === 'gmail' ? '/api/email/status' : '/api/calendar/status';
+      const resp = await authFetch(apiUrl(endpoint));
       if (resp.ok) {
-        const data = (await resp.json()) as GmailAuthStatus;
+        const data = (await resp.json()) as GoogleAuthStatus;
         setAuthStatus(data);
         if (data.authenticated) {
           setStep('connected');
-          // Stop polling once connected
           if (pollTimerRef.current) {
             clearInterval(pollTimerRef.current);
             pollTimerRef.current = null;
@@ -70,27 +52,9 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
         }
       }
     } catch (err) {
-      console.error('Failed to fetch Gmail status:', err);
-      // Status check is best-effort
+      console.error('Failed to fetch Google auth status:', err);
     }
-  }, []);
-
-  // Update step only when connection status actually changes
-  useEffect(() => {
-    const isNowConnected = integration.status.connected;
-    const wasConnected = wasConnectedRef.current;
-
-    // If we just became connected, move to the connected step
-    if (isNowConnected && !wasConnected && step !== 'connected') {
-      setStep('connected');
-    }
-    // If we became disconnected, go back to credentials
-    else if (!isNowConnected && wasConnected && step === 'connected') {
-      setStep('credentials');
-    }
-
-    wasConnectedRef.current = isNowConnected;
-  }, [integration.status.connected]);
+  }, [integration.id]);
 
   useEffect(() => {
     fetchStatus();
@@ -101,7 +65,6 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
     };
   }, [fetchStatus]);
 
-  // Save credentials and get OAuth URL
   const handleSaveCredentials = async () => {
     if (!clientId.trim()) {
       setError('Client ID is required');
@@ -112,22 +75,21 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
     setError(null);
 
     try {
-      // Save credentials first
       const config: Record<string, unknown> = {
-        clientId: clientId.trim(),
-        pollingIntervalMs: parseInt(pollingInterval) || 30000,
-        defaultApprovalKeywords: approvalKeywords,
+        GOOGLE_CLIENT_ID: clientId.trim(),
       };
       if (clientSecret.trim()) {
-        config.clientSecret = clientSecret.trim();
+        config.GOOGLE_CLIENT_SECRET = clientSecret.trim();
       }
-      console.log('Saving Gmail config...', config);
+
+      console.log('Saving Google OAuth config...', config);
       await onSave(config);
       console.log('Config saved successfully');
 
       // Fetch the OAuth consent URL
       console.log('Fetching OAuth URL...');
-      const resp = await authFetch(apiUrl('/api/email/auth/url'));
+      const endpoint = integration.id === 'gmail' ? '/api/email/auth/url' : '/api/calendar/auth/url';
+      const resp = await authFetch(apiUrl(endpoint));
       console.log('OAuth URL response:', resp.status);
       if (!resp.ok) {
         const data = await resp.json().catch(() => ({}));
@@ -135,15 +97,14 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
       }
       const data = (await resp.json()) as { url: string };
       console.log('Received OAuth URL:', data);
-      console.log('Setting authUrl to:', data.url);
       if (!data.url) {
         throw new Error('OAuth URL is empty');
       }
       setAuthUrl(data.url);
       console.log('AuthUrl state updated');
-      setError(null);  // Clear any previous errors
+      setError(null);
       setStep('authorize');
-      console.log('Step updated to authorize', { step: 'authorize' });
+      console.log('Step updated to authorize');
 
       // Start polling for auth completion
       if (pollTimerRef.current) {
@@ -160,66 +121,32 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
     }
   };
 
-  // Save non-credential settings
-  const handleSaveSettings = async () => {
-    setSaving(true);
-    setError(null);
-    try {
-      await onSave({
-        pollingIntervalMs: parseInt(pollingInterval) || 30000,
-        defaultApprovalKeywords: approvalKeywords,
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save settings');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // Disconnect / revoke
-  const handleDisconnect = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      await onSave({ refreshToken: '' });
-      setAuthStatus(null);
-      setAuthUrl(null);
-      setStep('credentials');
-      await fetchStatus();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to disconnect');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
-    <div className="gmail-oauth-setup">
+    <div className="google-oauth-setup">
       {error && (
-        <div className="gmail-oauth-error">{error}</div>
+        <div className="google-oauth-error">{error}</div>
       )}
 
-      {/* Step 1: Enter OAuth Credentials */}
       {step === 'credentials' && (
-        <div className="gmail-oauth-section">
-          <h4 className="gmail-oauth-section-title">Google OAuth Credentials</h4>
-          <p className="gmail-oauth-help">
+        <div className="google-oauth-section">
+          <h4 className="google-oauth-section-title">Google OAuth Credentials</h4>
+          <p className="google-oauth-help">
             Create OAuth2 credentials in the{' '}
             <a
               href="https://console.cloud.google.com/apis/credentials"
               target="_blank"
               rel="noopener noreferrer"
-              className="gmail-oauth-link"
+              className="google-oauth-link"
             >
               Google Cloud Console
             </a>
-            . Enable the Gmail API and (optionally) the Calendar API. Set the redirect URI to:{' '}
-            <code className="gmail-oauth-code">
-              {apiUrl('/api/email/auth/callback')}
+            . Enable the Gmail and Calendar APIs. Set the redirect URI to:{' '}
+            <code className="google-oauth-code">
+              {apiUrl(integration.id === 'gmail' ? '/api/email/auth/callback' : '/api/calendar/auth/callback')}
             </code>
           </p>
 
-          <div className="gmail-oauth-field">
+          <div className="google-oauth-field">
             <label className="integration-field-label">
               OAuth Client ID <span className="integration-field-required">*</span>
             </label>
@@ -232,7 +159,7 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
             />
           </div>
 
-          <div className="gmail-oauth-field">
+          <div className="google-oauth-field">
             <label className="integration-field-label">
               OAuth Client Secret <span className="integration-field-required">*</span>
             </label>
@@ -240,36 +167,10 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
               type="password"
               className="integration-field-input"
               value={clientSecret}
-              placeholder={integration.values.clientSecret ? '(saved)' : 'Enter client secret'}
+              placeholder={integration.values.GOOGLE_CLIENT_SECRET ? '(saved)' : 'Enter client secret'}
               onChange={(e) => setClientSecret(e.target.value)}
               autoComplete="off"
             />
-          </div>
-
-          <div className="gmail-oauth-field">
-            <label className="integration-field-label">Polling Interval (ms)</label>
-            <input
-              type="number"
-              className="integration-field-input"
-              value={pollingInterval}
-              onChange={(e) => setPollingInterval(e.target.value)}
-            />
-            <span className="integration-field-description">
-              How often to check for new emails. Default: 30000 (30s).
-            </span>
-          </div>
-
-          <div className="gmail-oauth-field">
-            <label className="integration-field-label">Approval Keywords</label>
-            <textarea
-              className="integration-field-input integration-field-textarea"
-              value={approvalKeywords}
-              onChange={(e) => setApprovalKeywords(e.target.value)}
-              rows={2}
-            />
-            <span className="integration-field-description">
-              Comma-separated keywords that indicate email approval.
-            </span>
           </div>
 
           <div className="integration-form-actions">
@@ -288,12 +189,11 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
         </div>
       )}
 
-      {/* Step 2: OAuth Authorization */}
       {step === 'authorize' && (
-        <div className="gmail-oauth-section">
-          <h4 className="gmail-oauth-section-title">Authorize Gmail Access</h4>
-          <p className="gmail-oauth-help">
-            Click the link below to authorize Tide Commander to access your Gmail account.
+        <div className="google-oauth-section">
+          <h4 className="google-oauth-section-title">Authorize Google Access</h4>
+          <p className="google-oauth-help">
+            Click the link below to authorize Tide Commander to access your Google account.
             After granting access, you will be redirected back and the connection will be established automatically.
           </p>
 
@@ -302,14 +202,14 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
               href={authUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="gmail-oauth-authorize-btn"
+              className="google-oauth-authorize-btn"
             >
               Authorize with Google
             </a>
           )}
 
-          <div className="gmail-oauth-waiting">
-            <span className="gmail-oauth-spinner" />
+          <div className="google-oauth-waiting">
+            <span className="google-oauth-spinner" />
             <span>Waiting for authorization to complete...</span>
           </div>
 
@@ -331,77 +231,42 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
         </div>
       )}
 
-      {/* Step 3: Connected */}
       {step === 'connected' && (
-        <div className="gmail-oauth-section">
-          <h4 className="gmail-oauth-section-title">Gmail Connected</h4>
+        <div className="google-oauth-section">
+          <h4 className="google-oauth-section-title">Google Connected</h4>
 
-          <div className="gmail-oauth-connected-info">
-            <span className="gmail-oauth-connected-badge">Connected</span>
+          <div className="google-oauth-connected-info">
+            <span className="google-oauth-connected-badge">Connected</span>
             {authStatus?.emailAddress && (
-              <span className="gmail-oauth-email">{authStatus.emailAddress}</span>
+              <span className="google-oauth-email">{authStatus.emailAddress}</span>
             )}
           </div>
 
-          {authStatus?.pollingActive && (
-            <p className="gmail-oauth-help">
-              Email polling is active.
-              {authStatus.lastPollAt && (
-                <> Last checked: {new Date(authStatus.lastPollAt).toLocaleTimeString()}</>
-              )}
-            </p>
-          )}
-
-          <div className="gmail-oauth-field">
-            <label className="integration-field-label">Polling Interval (ms)</label>
-            <input
-              type="number"
-              className="integration-field-input"
-              value={pollingInterval}
-              onChange={(e) => setPollingInterval(e.target.value)}
-            />
-          </div>
-
-          <div className="gmail-oauth-field">
-            <label className="integration-field-label">Approval Keywords</label>
-            <textarea
-              className="integration-field-input integration-field-textarea"
-              value={approvalKeywords}
-              onChange={(e) => setApprovalKeywords(e.target.value)}
-              rows={2}
-            />
-          </div>
+          <p className="google-oauth-help">
+            Your Google account has been successfully connected.
+          </p>
 
           <div className="integration-form-actions">
-            <button type="button" className="integration-btn cancel" onClick={onCancel}>
+            <button
+              type="button"
+              className="integration-btn cancel"
+              onClick={async () => {
+                // Refresh parent panel before closing
+                await onSave({});
+                onCancel();
+              }}
+            >
               Close
-            </button>
-            <button
-              type="button"
-              className="integration-btn"
-              style={{ backgroundColor: '#f38ba8', color: '#1e1e2e' }}
-              onClick={handleDisconnect}
-              disabled={loading}
-            >
-              {loading ? 'Disconnecting...' : 'Disconnect'}
-            </button>
-            <button
-              type="button"
-              className="integration-btn save"
-              onClick={handleSaveSettings}
-              disabled={saving}
-            >
-              {saving ? 'Saving...' : 'Save Settings'}
             </button>
           </div>
         </div>
       )}
 
       <style>{`
-        .gmail-oauth-setup {
+        .google-oauth-setup {
           padding: 0;
         }
-        .gmail-oauth-error {
+        .google-oauth-error {
           background: linear-gradient(135deg, rgba(243, 139, 168, 0.2) 0%, rgba(243, 139, 168, 0.08) 100%);
           border-left: 3px solid #f38ba8;
           color: #f38ba8;
@@ -411,39 +276,39 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
           font-size: 13px;
           font-weight: 500;
         }
-        .gmail-oauth-section {
+        .google-oauth-section {
           background: linear-gradient(180deg, rgba(45, 49, 69, 0.4) 0%, rgba(30, 30, 46, 0.2) 100%);
           border: 1px solid rgba(137, 180, 250, 0.15);
           border-radius: 12px;
           padding: 28px;
           backdrop-filter: blur(10px);
         }
-        .gmail-oauth-section-title {
+        .google-oauth-section-title {
           margin: 0 0 16px 0;
           color: #cdd6f4;
           font-size: 18px;
           font-weight: 700;
           letter-spacing: -0.5px;
         }
-        .gmail-oauth-help {
+        .google-oauth-help {
           color: #a6adc8;
           font-size: 13px;
           line-height: 1.6;
           margin: 0 0 20px 0;
           font-weight: 400;
         }
-        .gmail-oauth-link {
+        .google-oauth-link {
           color: #89b4fa;
           text-decoration: none;
           border-bottom: 1.5px solid rgba(137, 180, 250, 0.4);
           transition: all 0.2s ease;
           font-weight: 500;
         }
-        .gmail-oauth-link:hover {
+        .google-oauth-link:hover {
           color: #a8c5ff;
           border-bottom-color: #89b4fa;
         }
-        .gmail-oauth-code {
+        .google-oauth-code {
           background: rgba(137, 180, 250, 0.15);
           color: #89b4fa;
           padding: 4px 10px;
@@ -453,7 +318,7 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
           font-weight: 500;
           font-family: 'Monaco', 'Menlo', monospace;
         }
-        .gmail-oauth-field {
+        .google-oauth-field {
           margin-bottom: 18px;
         }
         .integration-field-label {
@@ -484,23 +349,7 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
           background: rgba(30, 30, 46, 0.8);
           box-shadow: 0 0 0 3px rgba(137, 180, 250, 0.15);
         }
-        .integration-field-input::placeholder {
-          color: #6c7086;
-        }
-        .integration-field-textarea {
-          resize: vertical;
-          min-height: 80px;
-          font-family: 'Monaco', 'Menlo', monospace;
-          font-size: 12px;
-        }
-        .integration-field-description {
-          display: block;
-          margin-top: 7px;
-          color: #7f849c;
-          font-size: 12px;
-          font-weight: 400;
-        }
-        .gmail-oauth-authorize-btn {
+        .google-oauth-authorize-btn {
           display: inline-block;
           background: linear-gradient(135deg, #89b4fa 0%, #7aa3f0 100%);
           color: #1e1e2e;
@@ -516,15 +365,12 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
           box-shadow: 0 4px 12px rgba(137, 180, 250, 0.25);
           letter-spacing: 0.3px;
         }
-        .gmail-oauth-authorize-btn:hover {
+        .google-oauth-authorize-btn:hover {
           transform: translateY(-2px);
           box-shadow: 0 6px 16px rgba(137, 180, 250, 0.35);
           background: linear-gradient(135deg, #a8c5ff 0%, #8eb8ff 100%);
         }
-        .gmail-oauth-authorize-btn:active {
-          transform: translateY(0);
-        }
-        .gmail-oauth-waiting {
+        .google-oauth-waiting {
           display: flex;
           align-items: center;
           gap: 12px;
@@ -537,20 +383,20 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
           border-left: 3px solid #89b4fa;
           font-weight: 500;
         }
-        .gmail-oauth-spinner {
+        .google-oauth-spinner {
           display: inline-block;
           width: 16px;
           height: 16px;
           border: 2.5px solid rgba(137, 180, 250, 0.25);
           border-top-color: #89b4fa;
           border-radius: 50%;
-          animation: gmail-spin 0.8s linear infinite;
+          animation: google-spin 0.8s linear infinite;
           flex-shrink: 0;
         }
-        @keyframes gmail-spin {
+        @keyframes google-spin {
           to { transform: rotate(360deg); }
         }
-        .gmail-oauth-connected-info {
+        .google-oauth-connected-info {
           display: flex;
           align-items: center;
           gap: 14px;
@@ -560,7 +406,7 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
           border-radius: 10px;
           border-left: 3px solid #a6e3a1;
         }
-        .gmail-oauth-connected-badge {
+        .google-oauth-connected-badge {
           background: linear-gradient(135deg, rgba(166, 227, 161, 0.3) 0%, rgba(166, 227, 161, 0.15) 100%);
           color: #a6e3a1;
           padding: 6px 14px;
@@ -572,7 +418,7 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
           border: 1px solid rgba(166, 227, 161, 0.3);
           flex-shrink: 0;
         }
-        .gmail-oauth-email {
+        .google-oauth-email {
           color: #cdd6f4;
           font-size: 14px;
           font-weight: 600;

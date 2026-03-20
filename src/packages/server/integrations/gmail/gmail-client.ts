@@ -126,8 +126,9 @@ export function getStatus(): GmailStatus {
     authenticated: Boolean(gmail && authenticatedEmail),
     emailAddress: authenticatedEmail,
     pollingActive: pollingTimer !== null,
-    lastPollAt,
-    lastError,
+    connected: Boolean(gmail && authenticatedEmail),
+    lastChecked: lastPollAt || Date.now(),
+    error: lastError,
   };
 }
 

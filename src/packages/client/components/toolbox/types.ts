@@ -67,4 +67,5 @@ export interface ToolboxProps {
   onOpenAreaExplorer?: (areaId: string) => void;
   onOpenIntegrationsModal?: (integrationId?: string) => void;
   onOpenMonitoringModal?: () => void;
+  onOpenWorkflowEditor?: () => void;
 }

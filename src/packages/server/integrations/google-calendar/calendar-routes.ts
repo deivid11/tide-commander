@@ -119,4 +119,89 @@ router.post('/working-days', (req: Request, res: Response) => {
   }
 });
 
+// GET /api/calendar/status — Get Google Calendar auth status
+router.get('/status', (req: Request, res: Response) => {
+  const status = calendarClient.getStatus();
+  res.json(status);
+});
+
+// GET /api/calendar/auth/url — Get OAuth authorization URL
+router.get('/auth/url', (req: Request, res: Response) => {
+  try {
+    const authUrl = calendarClient.getAuthUrl();
+    res.json({ url: authUrl });
+  } catch (err) {
+    log.error(`Failed to get calendar auth URL: ${err}`);
+    res.status(500).json({ error: `Failed to get auth URL: ${err instanceof Error ? err.message : err}` });
+  }
+});
+
+// GET /api/calendar/auth/callback — Handle OAuth callback from Google
+router.get('/auth/callback', async (req: Request, res: Response) => {
+  try {
+    const code = req.query.code as string | undefined;
+    const error = req.query.error as string | undefined;
+
+    if (error) {
+      const errorDescription = req.query.error_description as string | undefined;
+      log.warn(`OAuth consent denied: ${error} - ${errorDescription}`);
+      const errorMsg = errorDescription || error;
+      res.send(`
+        <html>
+          <head><title>Calendar Authorization Failed</title></head>
+          <body>
+            <h1>Authorization Denied</h1>
+            <p>You denied access to your Google Calendar: ${errorMsg}</p>
+            <p><a href="/">Return to the app</a></p>
+          </body>
+        </html>
+      `);
+      return;
+    }
+
+    if (!code) {
+      res.status(400).send('Missing authorization code');
+      return;
+    }
+
+    log.log(`Google Calendar OAuth callback received, processing code...`);
+    await calendarClient.handleAuthCallback(code);
+    log.log('Google Calendar OAuth callback completed successfully');
+
+    res.send(`
+      <html>
+        <head>
+          <title>Calendar Authorization Successful</title>
+          <script>
+            if (window.opener) {
+              window.opener.postMessage({ type: 'calendar-auth-success' }, '*');
+              setTimeout(() => window.close(), 1000);
+            } else {
+              setTimeout(() => { window.location.href = '/?calendar-auth=success'; }, 2000);
+            }
+          </script>
+        </head>
+        <body style="font-family: sans-serif; padding: 40px; text-align: center;">
+          <h1>Calendar Authorization Successful!</h1>
+          <p>Your Google Calendar has been connected.</p>
+          <p>Closing this window or redirecting you to the app...</p>
+        </body>
+      </html>
+    `);
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    log.error(`Google Calendar auth callback error: ${errorMsg}`, err);
+    res.status(500).send(`
+      <html>
+        <head><title>Calendar Authorization Failed</title></head>
+        <body style="font-family: sans-serif; padding: 40px;">
+          <h1>Authorization Failed</h1>
+          <p><strong>Error:</strong> ${errorMsg}</p>
+          <p><a href="/">Return to the app and try again</a></p>
+        </body>
+      </html>
+    `);
+  }
+});
+
 export default router;

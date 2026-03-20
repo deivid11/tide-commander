@@ -68,4 +68,8 @@ export const googleCalendarPlugin: IntegrationPlugin = {
     if (!integrationCtx) throw new Error('Google Calendar not initialized');
     await setConfigValues(config, integrationCtx.secrets);
   },
+
+  getCustomSettingsComponent() {
+    return 'google-oauth';
+  },
 };

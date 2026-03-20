@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import type { IntegrationInfo, ConfigField } from '../../shared/integration-types.js';
 import { apiUrl, authFetch } from '../utils/storage';
 
 // ─── Custom Settings Components Registry ───
 const customComponents: Record<string, React.LazyExoticComponent<React.ComponentType<CustomSettingsProps>>> = {
   'gmail-oauth': lazy(() => import('./GmailOAuthSetup').then((m) => ({ default: m.GmailOAuthSetup }))),
+  'google-oauth': lazy(() => import('./GoogleOAuthSetup').then((m) => ({ default: m.GoogleOAuthSetup }))),
 };
 
 interface CustomSettingsProps {
@@ -377,6 +378,7 @@ export function IntegrationsPanel({ isOpen, onClose, initialTab }: IntegrationsM
   const [activeTab, setActiveTab] = useState<string | null>(initialTab || null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const activeTabRef = useRef<string | null>(initialTab || null);
 
   const fetchIntegrations = useCallback(async () => {
     try {
@@ -385,15 +387,19 @@ export function IntegrationsPanel({ isOpen, onClose, initialTab }: IntegrationsM
       const data = await response.json();
       setIntegrations(data);
       setError(null);
-      if (!activeTab && data.length > 0) {
-        setActiveTab(initialTab || data[0].id);
-      }
+
+      // Preserve the currently active tab. Only set to first tab on initial load if no tab is selected.
+      setActiveTab((prevActiveTab) => {
+        const tabToUse = prevActiveTab || initialTab || (data.length > 0 ? data[0].id : null);
+        activeTabRef.current = tabToUse;
+        return tabToUse;
+      });
     } catch (err) {
       setError(`Failed to load integrations: ${err}`);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [initialTab]);
 
   useEffect(() => {
     if (isOpen) {
@@ -403,7 +409,7 @@ export function IntegrationsPanel({ isOpen, onClose, initialTab }: IntegrationsM
     }
   }, [isOpen, initialTab]);
 
-  const handleSave = async (integrationId: string, config: Record<string, unknown>) => {
+  const handleSave = useCallback(async (integrationId: string, config: Record<string, unknown>) => {
     const response = await authFetch(apiUrl(`/api/integrations/${integrationId}/config`), {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -414,7 +420,7 @@ export function IntegrationsPanel({ isOpen, onClose, initialTab }: IntegrationsM
       throw new Error(data.error || `HTTP ${response.status}`);
     }
     await fetchIntegrations();
-  };
+  }, [fetchIntegrations]);
 
   if (!isOpen) return null;
 
@@ -510,6 +516,7 @@ export function IntegrationsPanel({ isOpen, onClose, initialTab }: IntegrationsM
                     {active.customComponent && customComponents[active.customComponent] ? (
                       <Suspense fallback={<div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Loading...</div>}>
                         {React.createElement(customComponents[active.customComponent], {
+                          key: active.id,
                           integration: active,
                           onSave: (config: Record<string, unknown>) => handleSave(active.id, config),
                           onCancel: onClose,

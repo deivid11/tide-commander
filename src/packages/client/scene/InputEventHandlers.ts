@@ -5,6 +5,7 @@ import type { MovementAnimator } from './animation';
 import type { EffectsManager } from './animation';
 import type { DrawingManager } from './drawing';
 import type { BuildingManager } from './buildings';
+import type { WorkflowModelManager } from './workflows';
 import type { CallbackManager } from './CallbackManager';
 import type { RenderLoop } from './RenderLoop';
 import type { InputHandler } from './input';
@@ -15,6 +16,7 @@ export interface InputEventDependencies {
   effectsManager: EffectsManager;
   drawingManager: DrawingManager;
   buildingManager: BuildingManager;
+  workflowManager: WorkflowModelManager;
   callbackManager: CallbackManager;
   renderLoop: RenderLoop;
   inputHandler: InputHandler;
@@ -46,7 +48,9 @@ export class InputEventHandlers {
   handleGroundClick(): void {
     store.selectAgent(null);
     store.selectBuilding(null);
+    store.selectWorkflow(null);
     this.deps.buildingManager.highlightBuilding(null);
+    this.deps.workflowManager.highlightWorkflow(null);
     this.deps.refreshSelectionVisuals();
     this.deps.callbackManager.triggerGroundClick();
   }
@@ -167,5 +171,24 @@ export class InputEventHandlers {
     screenPos: { x: number; y: number } | null
   ): void {
     this.deps.callbackManager.triggerBuildingHover(buildingId, screenPos);
+  }
+
+  handleWorkflowClick(workflowId: string, screenPos: { x: number; y: number } = { x: 0, y: 0 }): void {
+    store.selectWorkflow(workflowId);
+    this.deps.workflowManager.highlightWorkflow(workflowId);
+    this.deps.callbackManager.triggerWorkflowClick(workflowId, screenPos);
+  }
+
+  handleWorkflowDoubleClick(workflowId: string): void {
+    store.selectWorkflow(workflowId);
+    this.deps.workflowManager.highlightWorkflow(workflowId);
+    this.deps.callbackManager.triggerWorkflowDoubleClick(workflowId);
+  }
+
+  handleWorkflowHover(
+    workflowId: string | null,
+    screenPos: { x: number; y: number } | null
+  ): void {
+    this.deps.callbackManager.triggerWorkflowHover(workflowId, screenPos);
   }
 }

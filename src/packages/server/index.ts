@@ -105,9 +105,15 @@ async function main(): Promise<void> {
       set: (key: string, value: string) => {
         const existing = secretsService.getSecretByKey(key);
         if (existing) {
-          secretsService.updateSecret(existing.id, { value });
+          const result = secretsService.updateSecret(existing.id, { value });
+          if (result && 'error' in result) {
+            throw new Error(result.error);
+          }
         } else {
-          secretsService.createSecret({ key, value, name: key });
+          const result = secretsService.createSecret({ key, value, name: key });
+          if ('error' in result) {
+            throw new Error(result.error);
+          }
         }
       },
     },

@@ -22,6 +22,7 @@ const SnapshotManager = React.lazy(() => import('./SnapshotManager').then(m => (
 const RestoreArchivedAreaModal = React.lazy(() => import('./RestoreArchivedAreaModal').then(m => ({ default: m.RestoreArchivedAreaModal })));
 const IntegrationsPanel = React.lazy(() => import('./IntegrationsPanel').then(m => ({ default: m.IntegrationsPanel })));
 const MonitoringModal = React.lazy(() => import('./MonitoringModal').then(m => ({ default: m.MonitoringModal })));
+const WorkflowEditorPanel = React.lazy(() => import('./WorkflowEditorPanel').then(m => ({ default: m.WorkflowEditorPanel })));
 
 interface AppModalsProps {
   // Modal states
@@ -37,6 +38,7 @@ interface AppModalsProps {
   skillsModal: UseModalState;
   integrationsModal: UseModalState<string | undefined>;
   monitoringModal: UseModalState;
+  workflowEditorModal: UseModalState;
   buildingModal: UseModalState<string | null>;
   agentEditModal: UseModalState<string>;
   snapshotsModal: UseModalState;
@@ -92,6 +94,7 @@ export function AppModals({
   skillsModal,
   integrationsModal,
   monitoringModal,
+  workflowEditorModal,
   buildingModal,
   agentEditModal,
   snapshotsModal,
@@ -151,6 +154,7 @@ export function AppModals({
         onOpenAreaExplorer={onOpenAreaExplorer}
         onOpenIntegrationsModal={(id) => integrationsModal.open(id)}
         onOpenMonitoringModal={() => monitoringModal.open()}
+        onOpenWorkflowEditor={() => workflowEditorModal.open()}
       />
 
       {/* Building Config Modal */}
@@ -347,6 +351,12 @@ export function AppModals({
       <MonitoringModal
         isOpen={monitoringModal.isOpen}
         onClose={monitoringModal.close}
+      />
+
+      {/* Workflow Editor */}
+      <WorkflowEditorPanel
+        isOpen={workflowEditorModal.isOpen}
+        onClose={workflowEditorModal.close}
       />
 
       {/* Restore Archived Area Modal */}

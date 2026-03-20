@@ -8,9 +8,16 @@
 import { google, calendar_v3 } from 'googleapis';
 import type { IntegrationContext, IntegrationStatus } from '../../../shared/integration-types.js';
 import type { CalendarActionEvent } from '../../../shared/event-types.js';
-import { loadConfig } from './calendar-config.js';
+import { loadConfig, updateConfig } from './calendar-config.js';
 
 // ─── Types ───
+
+export interface CalendarStatus {
+  authenticated: boolean;
+  connected: boolean;
+  lastChecked: number;
+  error?: string;
+}
 
 export interface CalendarEvent {
   eventId: string;
@@ -73,7 +80,7 @@ export async function init(integrationCtx: IntegrationContext): Promise<void> {
     return;
   }
 
-  const oauth2Client = new google.auth.OAuth2(clientId, clientSecret);
+  oauth2Client = new google.auth.OAuth2(clientId, clientSecret, `${ctx.serverConfig.baseUrl}${REDIRECT_PATH}`);
   oauth2Client.setCredentials({ refresh_token: refreshToken });
 
   calendarApi = google.calendar({ version: 'v3', auth: oauth2Client });
@@ -86,7 +93,7 @@ export async function shutdown(): Promise<void> {
 
 // ─── Status ───
 
-export function getStatus(): IntegrationStatus {
+export function getStatus(): CalendarStatus {
   const config = loadConfig();
   const hasCredentials = !!(
     ctx?.secrets.get('GOOGLE_CLIENT_ID') &&
@@ -95,6 +102,7 @@ export function getStatus(): IntegrationStatus {
   );
 
   return {
+    authenticated: Boolean(calendarApi && hasCredentials),
     connected: config.enabled && hasCredentials && calendarApi !== null,
     lastChecked: Date.now(),
     error: !hasCredentials && config.enabled ? 'Missing OAuth credentials' : undefined,
@@ -300,6 +308,60 @@ export function calculateWorkingDays(
 }
 
 // ─── Helpers ───
+
+// ─── OAuth ───
+
+// Combined scopes for both Gmail and Calendar (shared OAuth client)
+const SCOPES = [
+  'https://www.googleapis.com/auth/gmail.send',
+  'https://www.googleapis.com/auth/gmail.readonly',
+  'https://www.googleapis.com/auth/gmail.modify',
+  'https://www.googleapis.com/auth/calendar',
+];
+const REDIRECT_PATH = '/api/calendar/auth/callback'; // Calendar's own callback
+
+let oauth2Client: InstanceType<typeof google.auth.OAuth2> | null = null;
+let authenticatedEmail: string | undefined;
+
+export function getAuthUrl(): string {
+  if (!oauth2Client) {
+    const clientId = ctx?.secrets.get('GOOGLE_CLIENT_ID');
+    const clientSecret = ctx?.secrets.get('GOOGLE_CLIENT_SECRET');
+    if (!clientId || !clientSecret || !ctx) {
+      throw new Error('Google Calendar OAuth not configured');
+    }
+    oauth2Client = new google.auth.OAuth2(
+      clientId,
+      clientSecret,
+      `${ctx.serverConfig.baseUrl}${REDIRECT_PATH}`
+    );
+  }
+  return oauth2Client.generateAuthUrl({
+    access_type: 'offline',
+    scope: SCOPES,
+    prompt: 'consent',
+  });
+}
+
+export async function handleAuthCallback(code: string): Promise<void> {
+  if (!oauth2Client || !ctx) throw new Error('Google Calendar OAuth not initialized');
+
+  const { tokens } = await oauth2Client.getToken(code);
+  oauth2Client.setCredentials(tokens);
+
+  if (tokens.refresh_token) {
+    ctx.secrets.set('GOOGLE_REFRESH_TOKEN', tokens.refresh_token);
+  }
+
+  calendarApi = google.calendar({ version: 'v3', auth: oauth2Client });
+
+  const profile = await calendarApi.calendarList.list({ maxResults: 1 });
+
+  // Auto-enable the integration after successful OAuth
+  updateConfig({ enabled: true });
+
+  ctx.log.info(`Google Calendar OAuth complete. Calendar initialized.`);
+}
 
 function mapGoogleEvent(data: calendar_v3.Schema$Event): CalendarEvent {
   return {

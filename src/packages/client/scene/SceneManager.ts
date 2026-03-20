@@ -11,6 +11,7 @@ import { Battlefield } from './environment';
 import { InputHandler } from './input';
 import { DrawingManager } from './drawing';
 import { BuildingManager } from './buildings';
+import { WorkflowModelManager } from './workflows';
 
 // Import extracted managers
 import { AgentManager } from './AgentManager';
@@ -48,6 +49,7 @@ export class SceneManager {
   private inputHandler: InputHandler;
   private drawingManager: DrawingManager;
   private buildingManager: BuildingManager;
+  private workflowManager: WorkflowModelManager;
 
   // State
   private resizeObserver: ResizeObserver | null = null;
@@ -72,6 +74,7 @@ export class SceneManager {
     this.battlefield = new Battlefield(this.sceneCore.getScene());
     this.drawingManager = new DrawingManager(this.sceneCore.getScene());
     this.buildingManager = new BuildingManager(this.sceneCore.getScene());
+    this.workflowManager = new WorkflowModelManager(this.sceneCore.getScene());
 
     // Initialize agent manager
     this.agentManager = new AgentManager(
@@ -149,6 +152,7 @@ export class SceneManager {
       effectsManager: this.effectsManager,
       drawingManager: this.drawingManager,
       buildingManager: this.buildingManager,
+      workflowManager: this.workflowManager,
       callbackManager: this.callbackManager,
       renderLoop: this.renderLoop,
       inputHandler: this.inputHandler,
@@ -254,6 +258,12 @@ export class SceneManager {
       onBuildingDragStart: () => {},
       onBuildingDragMove: (id: string, pos: { x: number; z: number }) => this.buildingManager.setBuildingPosition(id, pos),
       onBuildingDragEnd: (id: string, pos: { x: number; z: number }) => store.updateBuildingPosition(id, pos),
+      onWorkflowClick: (id: string, screenPos: { x: number; y: number }) => this.inputEventHandlers.handleWorkflowClick(id, screenPos),
+      onWorkflowDoubleClick: (id: string) => this.inputEventHandlers.handleWorkflowDoubleClick(id),
+      onWorkflowHover: (id: string | null, pos: { x: number; y: number } | null) => this.inputEventHandlers.handleWorkflowHover(id, pos),
+      onWorkflowDragStart: () => {},
+      onWorkflowDragMove: (id: string, pos: { x: number; z: number }) => this.workflowManager.setWorkflowPosition(id, pos),
+      onWorkflowDragEnd: (id: string, pos: { x: number; z: number }) => store.moveWorkflow(id, pos),
       onContextMenu: (screenPos: { x: number; y: number }, worldPos: { x: number; z: number }, target: { type: 'ground' | 'agent' | 'area' | 'building'; id?: string }) => this.callbackManager.triggerContextMenu(screenPos, worldPos, target),
       onActivity: () => this.renderLoop.markActivity(),
       onToggleTerminal: () => store.toggleTerminal(),
@@ -275,6 +285,19 @@ export class SceneManager {
     this.inputHandler.setBuildingPositionsGetter(() => {
       const positions = new Map<string, THREE.Vector3>();
       for (const [id, data] of this.buildingManager.getBuildingMeshData()) {
+        positions.set(id, data.group.position.clone());
+      }
+      return positions;
+    });
+    this.inputHandler.setWorkflowAtPositionGetter((pos) => {
+      const state = store.getState() as import('../store/types').StoreState & import('../store/workflows').WorkflowStoreState;
+      const defs = state.workflowDefinitions ?? new Map();
+      const def = this.workflowManager.getWorkflowAtPosition(pos, defs);
+      return def ? { id: def.id } : null;
+    });
+    this.inputHandler.setWorkflowPositionsGetter(() => {
+      const positions = new Map<string, THREE.Vector3>();
+      for (const [id, data] of this.workflowManager.getWorkflowMeshData()) {
         positions.set(id, data.group.position.clone());
       }
       return positions;
@@ -319,6 +342,8 @@ export class SceneManager {
     const completedMovements = this.movementAnimator.update(this.agentManager.getAgentMeshes(), deltaTime);
     this.effectsManager.update();
     this.buildingManager.update(deltaTime);
+    const wfState = store.getState() as import('../store/types').StoreState & import('../store/workflows').WorkflowStoreState;
+    this.workflowManager.update(deltaTime, wfState.workflowDefinitions ?? new Map());
     return completedMovements;
   }
 
@@ -463,6 +488,23 @@ export class SceneManager {
       }
     }
 
+    // Scale workflow labels (same behavior as building labels)
+    for (const [, meshData] of this.workflowManager.getWorkflowMeshData()) {
+      const distance = camera.position.distanceTo(meshData.group.position);
+      const showLabel = frustum.intersectsSphere(visibilitySphere.set(meshData.group.position, 3)) &&
+        distance <= this.performanceProfile.maxBuildingLabelDistance;
+      const scale = Math.max(0.5, Math.min(2.5, distance / 15)) * scale3d;
+
+      const workflowLabel = meshData.group.getObjectByName('buildingLabel') as THREE.Sprite;
+      if (workflowLabel) {
+        workflowLabel.visible = showLabel;
+        if (showLabel) {
+          const baseHeight = 0.3 * scale;
+          workflowLabel.scale.set(baseHeight * (workflowLabel.userData.aspectRatio || 2), baseHeight, 1);
+        }
+      }
+    }
+
     this.effectsManager.updateWithCamera(camera);
   }
 
@@ -571,6 +613,26 @@ export class SceneManager {
   setOnBuildingClick(callback: (buildingId: string, screenPos: { x: number; y: number }) => void): void { this.callbackManager.setOnBuildingClick(callback); }
   setOnBuildingDoubleClick(callback: (buildingId: string) => void): void { this.callbackManager.setOnBuildingDoubleClick(callback); }
 
+  // ============================================
+  // Public API - Workflows
+  // ============================================
+
+  addWorkflow(def: import('../../shared/workflow-types').WorkflowDefinition): void { this.workflowManager.addWorkflow(def); }
+  removeWorkflow(workflowId: string): void { this.workflowManager.removeWorkflow(workflowId); }
+  updateWorkflow(def: import('../../shared/workflow-types').WorkflowDefinition): void { this.workflowManager.updateWorkflow(def); }
+  syncWorkflows(): void {
+    const state = store.getState() as import('../store/types').StoreState & import('../store/workflows').WorkflowStoreState;
+    this.workflowManager.syncFromDefinitions(state.workflowDefinitions ?? new Map());
+  }
+  highlightWorkflow(workflowId: string | null): void { this.workflowManager.highlightWorkflow(workflowId); }
+  setOnWorkflowClick(callback: (workflowId: string, screenPos: { x: number; y: number }) => void): void { this.callbackManager.setOnWorkflowClick(callback); }
+  setOnWorkflowDoubleClick(callback: (workflowId: string) => void): void { this.callbackManager.setOnWorkflowDoubleClick(callback); }
+  setWorkflowStatusProvider(provider: (workflowId: string) => import('../../shared/workflow-types').WorkflowModelStatus): void { this.workflowManager.setStatusProvider(provider); }
+
+  setOnWorkflowHover(callback: (workflowId: string | null, screenPos: { x: number; y: number } | null) => void): void {
+    this.callbackManager.setOnWorkflowHover(callback);
+  }
+
   setOnContextMenu(callback: (screenPos: { x: number; y: number }, worldPos: { x: number; z: number }, target: { type: 'ground' | 'agent' | 'area' | 'building'; id?: string }) => void): void {
     this.callbackManager.setOnContextMenu(callback);
   }
@@ -617,6 +679,7 @@ export class SceneManager {
     if (config.brightness !== undefined) {
       this.drawingManager.setBrightness(config.brightness);
       this.buildingManager.setBrightness(config.brightness);
+      this.workflowManager.setBrightness(config.brightness);
       this.agentManager.setBrightness(config.brightness);
     }
   }
@@ -754,6 +817,7 @@ export class SceneManager {
     this.inputHandler.dispose();
     this.drawingManager.dispose();
     this.buildingManager.dispose();
+    this.workflowManager.dispose();
     this.effectsManager.dispose();
     this.agentManager.dispose();
     this.selectionManager.dispose();
