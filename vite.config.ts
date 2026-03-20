@@ -57,6 +57,7 @@ export default defineConfig({
   server: {
     host: VITE_HOST,
     port: Number(VITE_PORT),
+    allowedHosts: true,
     https: getDevHttpsOptions(),
     // Disable bfcache in dev mode to prevent memory leaks on reload
     // This is especially important for Brave browser which aggressively caches pages

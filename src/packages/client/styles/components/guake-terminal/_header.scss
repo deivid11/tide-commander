@@ -346,10 +346,12 @@
   display: flex;
   align-items: center;
   justify-content: flex-start;
+  flex-wrap: wrap;
+  row-gap: 4px;
+  column-gap: 12px;
   padding: 6px 18px;
   background: rgba($dracula-bg-darker, 0.95);
   border-top: 1px solid $dracula-current;
-  gap: 12px;
 
   // Hide on mobile devices
   @media (max-width: 768px) {

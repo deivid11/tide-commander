@@ -2656,6 +2656,15 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
                                 <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
                               </svg>
                             </button>
+                            <button
+                              className="guake-bottom-terminal-close"
+                              onClick={() => store.sendBuildingCommand(panel.buildingId, 'restart')}
+                              title="Restart"
+                            >
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M1 4v6h6" /><path d="M3.51 15a9 9 0 105.64-11.36L3 10" />
+                              </svg>
+                            </button>
                             <button className="guake-bottom-terminal-close" onClick={() => closeBottomPanel(panel.id)}>
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
