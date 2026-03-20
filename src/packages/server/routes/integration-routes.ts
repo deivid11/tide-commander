@@ -85,8 +85,9 @@ router.patch('/:id/config', async (req: Request<{ id: string }>, res: Response) 
       status: plugin.getStatus(),
     });
   } catch (err) {
-    log.error(`Failed to update integration config ${req.params.id}: ${err}`);
-    res.status(500).json({ error: 'Failed to update integration config' });
+    const message = err instanceof Error ? err.message : String(err);
+    log.error(`Failed to update integration config ${req.params.id}: ${message}`);
+    res.status(500).json({ error: message });
   }
 });
 
