@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.32.0] - 2026-03-23
+
+### Added
+- **Directory context menu in Git Changes** - Right-click directories to discard or stage all files within them
+
 ## [1.31.0] - 2026-03-23
 
 ### Added
