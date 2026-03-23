@@ -126,6 +126,7 @@ interface GitTreeNodeItemProps {
   checkedFiles?: Set<string>;
   onToggleCheck?: (path: string) => void;
   onContextMenu?: (event: React.MouseEvent, file: GitFileStatus, status: GitFileStatusType) => void;
+  onDirContextMenu?: (event: React.MouseEvent, node: GitTreeNode) => void;
 }
 
 const GIT_TREE_INDENT = 16; // px per depth level
@@ -143,6 +144,7 @@ const GitTreeNodeItem = memo(function GitTreeNodeItem({
   checkedFiles,
   onToggleCheck,
   onContextMenu,
+  onDirContextMenu,
 }: GitTreeNodeItemProps) {
   const { t } = useTranslation(['terminal']);
   const indent = depth * GIT_TREE_INDENT;
@@ -208,6 +210,11 @@ const GitTreeNodeItem = memo(function GitTreeNodeItem({
         className={`tree-node directory ${isExpanded ? 'expanded' : ''}`}
         style={{ paddingLeft: `${indent + GIT_TREE_BASE_PAD}px` }}
         onClick={() => onToggleDir(node.path)}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onDirContextMenu?.(e, node);
+        }}
       >
         <span className={`tree-arrow ${isExpanded ? 'expanded' : ''}`}>▸</span>
         <img
@@ -236,6 +243,7 @@ const GitTreeNodeItem = memo(function GitTreeNodeItem({
               checkedFiles={checkedFiles}
               onToggleCheck={onToggleCheck}
               onContextMenu={onContextMenu}
+              onDirContextMenu={onDirContextMenu}
             />
           ))}
         </div>
@@ -265,6 +273,7 @@ interface GitMergedGroupProps {
   checkedFiles?: Set<string>;
   onToggleCheck?: (path: string) => void;
   onContextMenu?: (event: React.MouseEvent, file: GitFileStatus, status: GitFileStatusType) => void;
+  onDirContextMenu?: (event: React.MouseEvent, node: GitTreeNode) => void;
 }
 
 const GitMergedGroup = memo(function GitMergedGroup({
@@ -284,6 +293,7 @@ const GitMergedGroup = memo(function GitMergedGroup({
   checkedFiles,
   onToggleCheck,
   onContextMenu,
+  onDirContextMenu,
 }: GitMergedGroupProps) {
   const { t } = useTranslation(['terminal']);
   if (files.length === 0) return null;
@@ -330,6 +340,7 @@ const GitMergedGroup = memo(function GitMergedGroup({
               checkedFiles={checkedFiles}
               onToggleCheck={onToggleCheck}
               onContextMenu={onContextMenu}
+              onDirContextMenu={onDirContextMenu}
             />
           ))}
         </div>
@@ -396,6 +407,12 @@ function GitChangesComponent({
     position: { x: number; y: number };
     file: GitFileStatus;
     status: GitFileStatusType;
+  } | null>(null);
+
+  const [gitDirContextMenu, setGitDirContextMenu] = useState<{
+    isOpen: boolean;
+    position: { x: number; y: number };
+    node: GitTreeNode;
   } | null>(null);
 
   const handleGitFileContextMenu = useCallback((
@@ -541,6 +558,71 @@ function GitChangesComponent({
 
     return actions;
   }, [gitFileContextMenu, onFileSelect, onStageFiles, onConflictOpen, onRevealInTree, handleDiscardFile, handleCopyFullPath, handleCopyRelativePath, t]);
+
+  // Directory context menu
+  const handleGitDirContextMenu = useCallback((
+    event: React.MouseEvent,
+    node: GitTreeNode,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setGitDirContextMenu({
+      isOpen: true,
+      position: { x: event.clientX, y: event.clientY },
+      node,
+    });
+  }, []);
+
+  const collectFilesFromNode = useCallback((node: GitTreeNode): GitFileStatus[] => {
+    if (!node.isDirectory && node.file) return [node.file];
+    return node.children.flatMap(child => collectFilesFromNode(child));
+  }, []);
+
+  const handleDiscardDir = useCallback(async (node: GitTreeNode) => {
+    if (!currentFolder) return;
+    const files = collectFilesFromNode(node);
+    if (files.length === 0) return;
+    try {
+      const res = await authFetch(apiUrl('/api/files/git-discard'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          files: files.map(f => ({ path: f.path, status: f.status })),
+          directory: currentFolder,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast('success', 'Discarded', `Reverted ${files.length} file(s) in ${node.name}`);
+        onRefresh();
+      } else {
+        showToast('error', 'Discard Failed', data.error || 'Could not discard changes');
+      }
+    } catch {
+      showToast('error', 'Discard Failed', 'Network error');
+    }
+  }, [currentFolder, collectFilesFromNode, onRefresh, showToast]);
+
+  const gitDirContextActions = useMemo((): ContextMenuAction[] => {
+    if (!gitDirContextMenu) return [];
+    const { node } = gitDirContextMenu;
+    const files = collectFilesFromNode(node);
+    return [
+      {
+        id: 'discard-dir',
+        label: `Discard Changes (${files.length} files)`,
+        icon: '↩️',
+        danger: true,
+        onClick: () => { void handleDiscardDir(node); },
+      },
+      {
+        id: 'stage-dir',
+        label: `Stage All (${files.length} files)`,
+        icon: '➕',
+        onClick: () => { void onStageFiles(files.map(f => f.path)); },
+      },
+    ];
+  }, [gitDirContextMenu, collectFilesFromNode, handleDiscardDir, onStageFiles]);
 
   const toggleDir = useCallback((dirPath: string) => {
     setExpandedDirs(prev => {
@@ -879,6 +961,7 @@ function GitChangesComponent({
           checkedFiles={checkedFiles}
           onToggleCheck={handleToggleCheck}
           onContextMenu={handleGitFileContextMenu}
+          onDirContextMenu={handleGitDirContextMenu}
         />
 
         {/* Changes group (modified + added + deleted + renamed) */}
@@ -896,6 +979,7 @@ function GitChangesComponent({
           checkedFiles={checkedFiles}
           onToggleCheck={handleToggleCheck}
           onContextMenu={handleGitFileContextMenu}
+          onDirContextMenu={handleGitDirContextMenu}
         />
 
         {/* Unversioned files (untracked) */}
@@ -916,6 +1000,7 @@ function GitChangesComponent({
           checkedFiles={checkedFiles}
           onToggleCheck={handleToggleCheck}
           onContextMenu={handleGitFileContextMenu}
+          onDirContextMenu={handleGitDirContextMenu}
         />
       </div>
 
@@ -1004,6 +1089,17 @@ function GitChangesComponent({
           worldPosition={{ x: 0, z: 0 }}
           actions={gitFileContextActions}
           onClose={() => setGitFileContextMenu(null)}
+        />
+      )}
+
+      {/* Git directory context menu */}
+      {gitDirContextMenu && (
+        <ContextMenu
+          isOpen={gitDirContextMenu.isOpen}
+          position={gitDirContextMenu.position}
+          worldPosition={{ x: 0, z: 0 }}
+          actions={gitDirContextActions}
+          onClose={() => setGitDirContextMenu(null)}
         />
       )}
     </div>
