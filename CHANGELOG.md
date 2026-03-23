@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.31.0] - 2026-03-23
+
+### Added
+- **Trigger Manager UI** - Wired TriggerManagerPanel into the Toolbox for direct trigger creation and management from the UI
+- **Integration skills visibility** - Made all 5 integration skills (Slack, Gmail, Google Calendar, Jira, Document Generator) discoverable in the skill management system
+- **Trigger Designer skill** - New built-in skill with comprehensive documentation for trigger creation including webhook, cron, Slack, email, and Jira trigger types
+- **Gmail trigger handler** - Added email-based workflow trigger handler for Gmail integration
+
 ## [1.30.0] - 2026-03-23
 
 ### Added
