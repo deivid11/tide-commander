@@ -210,7 +210,7 @@ export class JiraClient {
       startAt: String(opts?.startAt ?? 0),
     });
 
-    return (await this.request('GET', `/rest/api/3/search?${params}`)) as JiraSearchResult;
+    return (await this.request('GET', `/rest/api/3/search/jql?${params}`)) as JiraSearchResult;
   }
 
   // ─── Service Desk (optional) ───
