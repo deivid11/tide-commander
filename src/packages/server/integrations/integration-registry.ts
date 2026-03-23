@@ -9,7 +9,6 @@ import type {
   IntegrationPlugin,
   IntegrationContext,
   IntegrationStatus,
-  ConfigField,
   TriggerHandler,
   IntegrationInfo,
 } from '../../shared/integration-types.js';

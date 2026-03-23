@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.29.2] - 2026-03-23
+
+### Fixed
+- **Integration configuration saving** - Fixed silent failures in secrets storage where createSecret() and updateSecret() errors were not being propagated
+- **Key normalization in secrets lookup** - Fixed getSecretByKey() to normalize lookup keys before comparison, preventing "key already exists" errors on update
+- **Error message visibility** - Changed integration config API to return actual error messages instead of generic responses
+- **Jira search endpoint** - Updated Jira client to use new /rest/api/3/search/jql endpoint (migrated from deprecated /rest/api/3/search)
+
+### Improved
+- **Error handling** - Added proper error propagation in integration configuration flow to surface issues to users
+
 ## [1.29.0] - 2026-03-19
 
 ### Added

@@ -8,7 +8,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { apiUrl, authFetch } from '../utils/storage';
 import type {
-  TimelineEntry, AuditLogEntry, AuditCategory, AuditLevel,
+  TimelineEntry, AuditCategory,
 } from '../../shared/event-types';
 
 interface EventLogViewerProps {
@@ -44,13 +44,6 @@ const CATEGORY_LABELS: Record<string, string> = {
   variable_change: 'Variable',
   approval: 'Approval',
   audit: 'Audit',
-};
-
-const LEVEL_COLORS: Record<AuditLevel, string> = {
-  debug: '#6c7086',
-  info: '#89b4fa',
-  warn: '#f9e2af',
-  error: '#f38ba8',
 };
 
 type TimeRange = '1h' | '6h' | '24h' | '7d' | 'all';

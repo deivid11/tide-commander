@@ -9,15 +9,12 @@
  * Includes a persistent chat panel for conversational audit.
  */
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ModalPortal } from './shared/ModalPortal';
-import { apiUrl, authFetch } from '../utils/storage';
 import type {
   WorkflowDefinition,
-  WorkflowState,
   WorkflowModelStatus,
   ChatMessage,
-  SourceRef,
 } from '../../shared/workflow-types';
 import type { WorkflowInstanceRow, WorkflowDetailLevel } from '../store/workflows';
 
