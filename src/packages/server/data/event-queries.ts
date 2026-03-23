@@ -4,7 +4,7 @@
  * Each integration calls these instead of writing raw SQL.
  */
 
-import { insertOne, queryMany, queryOne, execute, transaction } from './event-db.js';
+import { insertOne, queryMany, queryOne, execute } from './event-db.js';
 import type {
   TriggerFireEvent,
   SlackMessageEvent,

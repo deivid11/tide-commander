@@ -150,14 +150,6 @@ router.post('/webhook/:triggerId', async (req: Request<{ triggerId: string }>, r
     }
   }
 
-  // Build event and extract variables
-  const event: ExternalEvent = {
-    source: 'webhook',
-    type: 'webhook_received',
-    data: req.body,
-    timestamp: Date.now(),
-  };
-
   // Extract fields from payload
   const variables: Record<string, string> = {
     'trigger.name': trigger.name,

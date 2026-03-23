@@ -34,14 +34,6 @@ function getConfigValue(key: keyof JiraConfig): string | undefined {
   return ctx.secrets.get(key) || undefined;
 }
 
-function isFullyConfigured(): boolean {
-  return Boolean(
-    getConfigValue('jira_base_url') &&
-    getConfigValue('jira_email') &&
-    getConfigValue('jira_api_token')
-  );
-}
-
 function reconfigure(): void {
   if (!ctx || !client) return;
 

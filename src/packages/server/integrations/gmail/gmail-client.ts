@@ -12,7 +12,6 @@ import type {
   EmailMessage,
   EmailThread,
   ApprovalStatus,
-  EmailAttachment,
 } from './gmail-config.js';
 
 // Gmail API scopes

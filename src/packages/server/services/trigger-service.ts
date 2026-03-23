@@ -78,7 +78,7 @@ export function initTriggers(): void {
 
 export function shutdown(): void {
   // Stop all cron jobs
-  for (const [id, job] of cronJobs) {
+  for (const [, job] of cronJobs) {
     cronService.stop(job);
   }
   cronJobs.clear();
@@ -504,7 +504,7 @@ function stopCronJob(triggerId: string): void {
 
 function restartCronJobs(): void {
   // Stop all existing cron jobs
-  for (const [id, job] of cronJobs) {
+  for (const [, job] of cronJobs) {
     cronService.stop(job);
   }
   cronJobs.clear();

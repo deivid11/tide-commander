@@ -12,10 +12,8 @@ import { apiUrl, authFetch } from '../utils/storage';
 import { useAgents } from '../store';
 import type {
   WorkflowDefinition, WorkflowState, WorkflowTransition,
-  WorkflowAction, WorkflowCondition, WorkflowStateType,
+  WorkflowAction, WorkflowStateType,
   WorkflowVariableSchema, WorkflowVariableType,
-  CreateWorkflowPayload,
-  CC_WORKFLOW_STATES as CC_STATES_TYPE,
 } from '../../shared/workflow-types';
 import { CC_WORKFLOW_STATES, CC_WORKFLOW_VARIABLES } from '../../shared/workflow-types';
 
@@ -231,7 +229,6 @@ function WorkflowEditor({
   const [sidePanel, setSidePanel] = useState<'none' | 'state' | 'transition' | 'variables' | 'settings'>('none');
   const [drawingFrom, setDrawingFrom] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [canvasOffset, setCanvasOffset] = useState({ x: 0, y: 0 });
   const canvasRef = useRef<HTMLDivElement>(null);
   const agentsMap = useAgents();
   const agents = useMemo(() => Array.from(agentsMap.values()).map((a) => ({ id: a.id, name: a.name })), [agentsMap]);
@@ -519,7 +516,6 @@ function EditorCanvas({
 
   // Get center point for a state
   const cx = (s: WorkflowState) => (s.position?.x ?? 0) + STATE_W / 2;
-  const cy = (s: WorkflowState) => (s.position?.y ?? 0) + STATE_H / 2;
 
   return (
     <div style={{ position: 'relative', width: maxX, height: maxY, minWidth: '100%', minHeight: '100%' }}>

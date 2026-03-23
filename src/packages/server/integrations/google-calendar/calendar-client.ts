@@ -6,7 +6,7 @@
  */
 
 import { google, calendar_v3 } from 'googleapis';
-import type { IntegrationContext, IntegrationStatus } from '../../../shared/integration-types.js';
+import type { IntegrationContext } from '../../../shared/integration-types.js';
 import type { CalendarActionEvent } from '../../../shared/event-types.js';
 import { loadConfig, updateConfig } from './calendar-config.js';
 
@@ -321,7 +321,6 @@ const SCOPES = [
 const REDIRECT_PATH = '/api/calendar/auth/callback'; // Calendar's own callback
 
 let oauth2Client: InstanceType<typeof google.auth.OAuth2> | null = null;
-let authenticatedEmail: string | undefined;
 
 export function getAuthUrl(): string {
   if (!oauth2Client) {
@@ -354,8 +353,6 @@ export async function handleAuthCallback(code: string): Promise<void> {
   }
 
   calendarApi = google.calendar({ version: 'v3', auth: oauth2Client });
-
-  const profile = await calendarApi.calendarList.list({ maxResults: 1 });
 
   // Auto-enable the integration after successful OAuth
   updateConfig({ enabled: true });

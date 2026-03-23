@@ -60,14 +60,6 @@ const CATEGORY_LABELS: Record<string, string> = {
   audit: 'Audit',
 };
 
-// Categories that belong to each tab
-const TAB_CATEGORIES: Record<TabId, string[]> = {
-  triggers: ['trigger'],
-  workflows: ['step', 'variable_change', 'workflow'],
-  messages: ['slack', 'email', 'approval'],
-  stats: [],
-};
-
 export function MonitoringModal({ isOpen, onClose }: MonitoringModalProps) {
   const [activeTab, setActiveTab] = useState<TabId>('triggers');
   const [entries, setEntries] = useState<TimelineEntry[]>([]);
@@ -285,8 +277,6 @@ export function MonitoringModal({ isOpen, onClose }: MonitoringModalProps) {
               loading={loading}
               error={error}
               entries={filtered}
-              totalCount={entries.length}
-              search={search}
               expandedId={expandedId}
               onToggleExpand={(id) => setExpandedId(expandedId === id ? null : id)}
             />
@@ -313,16 +303,12 @@ function EventListContent({
   loading,
   error,
   entries,
-  totalCount,
-  search,
   expandedId,
   onToggleExpand,
 }: {
   loading: boolean;
   error: string | null;
   entries: TimelineEntry[];
-  totalCount: number;
-  search: string;
   expandedId: string | null;
   onToggleExpand: (id: string) => void;
 }) {

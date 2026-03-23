@@ -13,8 +13,6 @@ import type {
   WorkflowHistoryEntry,
   ChatMessage,
   WorkflowChatScope,
-  CreateWorkflowPayload,
-  UpdateWorkflowPayload,
 } from '../../shared/workflow-types';
 import type { StoreState } from './types';
 

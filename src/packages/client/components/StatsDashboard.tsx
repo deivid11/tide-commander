@@ -22,7 +22,6 @@ interface IntegrationStatusInfo {
 export function StatsDashboard({ isOpen, onClose }: StatsDashboardProps) {
   const [stats, setStats] = useState<EventStats | null>(null);
   const [integrations, setIntegrations] = useState<IntegrationStatusInfo[]>([]);
-  const [recentTriggers, setRecentTriggers] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 

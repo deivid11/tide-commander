@@ -323,7 +323,7 @@ async function enterState(
     });
 
     try {
-      await executeAction(instance, state.action, stepLogId, def);
+      await executeAction(instance, state.action, stepLogId);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       log.error(`Action failed in state ${stateId}: ${errorMsg}`);
@@ -352,7 +352,6 @@ async function executeAction(
   instance: WorkflowInstanceRow,
   action: WorkflowAction,
   stepLogId: number,
-  def: WorkflowDefinition
 ): Promise<void> {
   switch (action.type) {
     case 'agent_task': {
