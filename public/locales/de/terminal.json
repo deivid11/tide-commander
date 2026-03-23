@@ -982,6 +982,7 @@
     "dbUsername": "Benutzername",
     "dbPassword": "Passwort",
     "dbDefaultDatabase": "Standarddatenbank",
+    "dbFilepath": "Datenbankdatei",
     "helpDbSsl": "Verschlüsselte SSL/TLS-Verbindung aktivieren. Erforderlich für die meisten Cloud-gehosteten Datenbanken und für Produktion empfohlen.",
     "dbAfterSaving": "Nach dem Speichern das Datenbank-Panel öffnen um Abfragen auszuführen und Daten zu erkunden.",
     "colorDefault": "Standard",

@@ -7,6 +7,7 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Building, DatabaseConnection } from '../../../shared/types';
+import { DATABASE_ENGINES } from '../../../shared/types';
 import { store, useDatabaseState } from '../../store';
 import './DatabaseSidebar.scss';
 
@@ -183,7 +184,7 @@ export const DatabaseSidebar: React.FC<DatabaseSidebarProps> = ({
           ) : (
             connections.map(conn => (
               <option key={conn.id} value={conn.id}>
-                {conn.engine === 'mysql' ? '🐬' : '🐘'} {conn.name}
+                {DATABASE_ENGINES[conn.engine]?.icon ?? '🗄️'} {conn.name}
               </option>
             ))
           )}

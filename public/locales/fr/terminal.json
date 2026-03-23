@@ -982,6 +982,7 @@
     "dbUsername": "Nom d'utilisateur",
     "dbPassword": "Mot de passe",
     "dbDefaultDatabase": "Base de données par défaut",
+    "dbFilepath": "Fichier de base de données",
     "helpDbSsl": "Activer la connexion chiffrée SSL/TLS. Requis pour la plupart des bases de données hébergées dans le cloud et recommandé en production.",
     "dbAfterSaving": "Après l'enregistrement, ouvrez le panneau de base de données pour exécuter des requêtes et explorer vos données.",
     "colorDefault": "Par défaut",

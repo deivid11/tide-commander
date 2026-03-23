@@ -6,6 +6,8 @@
 import mysql from 'mysql2/promise';
 import pg from 'pg';
 import oracledb from 'oracledb';
+import Database from 'better-sqlite3';
+import mssql from 'mssql';
 import type {
   DatabaseConnection,
   DatabaseEngine,
@@ -23,6 +25,8 @@ import { loadQueryHistory, saveQueryHistory } from '../data/index.js';
 const mysqlPools = new Map<string, mysql.Pool>();
 const pgPools = new Map<string, pg.Pool>();
 const oraclePools = new Map<string, oracledb.Pool>();
+const sqliteDbs = new Map<string, Database.Database>();
+const mssqlPools = new Map<string, mssql.ConnectionPool>();
 
 // Note: oracledb 6.0+ uses thin mode by default, which doesn't require Oracle Instant Client
 
@@ -136,6 +140,63 @@ async function getOraclePool(connection: DatabaseConnection): Promise<oracledb.P
 }
 
 /**
+ * Get or create a SQLite database connection
+ */
+function getSQLiteDb(connection: DatabaseConnection): Database.Database {
+  const key = connection.id;
+
+  if (sqliteDbs.has(key)) {
+    return sqliteDbs.get(key)!;
+  }
+
+  const filepath = connection.filepath || connection.database || ':memory:';
+  const db = new Database(filepath, { readonly: false, fileMustExist: false });
+
+  // Enable WAL mode for better concurrency
+  db.pragma('journal_mode = WAL');
+  // Enable foreign keys
+  db.pragma('foreign_keys = ON');
+
+  sqliteDbs.set(key, db);
+  return db;
+}
+
+/**
+ * Get or create a SQL Server connection pool
+ */
+async function getMSSQLPool(connection: DatabaseConnection, database?: string): Promise<mssql.ConnectionPool> {
+  const key = getConnectionKey(connection, database);
+
+  if (mssqlPools.has(key)) {
+    const existing = mssqlPools.get(key)!;
+    if (existing.connected) return existing;
+    // Pool disconnected, remove and recreate
+    mssqlPools.delete(key);
+  }
+
+  const config: mssql.config = {
+    server: connection.host,
+    port: connection.port,
+    user: connection.username,
+    password: connection.password,
+    database: database || connection.database,
+    options: {
+      encrypt: connection.ssl ?? false,
+      trustServerCertificate: !connection.ssl,
+    },
+    pool: {
+      max: 5,
+      min: 0,
+      idleTimeoutMillis: 30000,
+    },
+  };
+
+  const pool = await new mssql.ConnectionPool(config).connect();
+  mssqlPools.set(key, pool);
+  return pool;
+}
+
+/**
  * Test a database connection
  */
 export async function testConnection(
@@ -166,6 +227,15 @@ export async function testConnection(
       } finally {
         await conn.close();
       }
+    } else if (connection.engine === 'sqlite') {
+      const db = getSQLiteDb(connection);
+      const row = db.prepare('SELECT sqlite_version() as version').get() as { version: string };
+      return { success: true, serverVersion: `SQLite ${row.version}` };
+    } else if (connection.engine === 'mssql') {
+      const pool = await getMSSQLPool(connection);
+      const result = await pool.request().query('SELECT @@VERSION as version');
+      const version = result.recordset[0]?.version?.split('\n')[0] || 'SQL Server';
+      return { success: true, serverVersion: version };
     }
     return { success: false, error: 'Unsupported database engine' };
   } catch (error) {
@@ -238,6 +308,17 @@ export async function listDatabases(connection: DatabaseConnection): Promise<str
       } finally {
         await conn.close();
       }
+    } else if (connection.engine === 'sqlite') {
+      // SQLite: each file is a database; list attached databases
+      const db = getSQLiteDb(connection);
+      const rows = db.prepare('PRAGMA database_list').all() as Array<{ name: string }>;
+      return rows.map(r => r.name);
+    } else if (connection.engine === 'mssql') {
+      const pool = await getMSSQLPool(connection);
+      const result = await pool.request().query(
+        "SELECT name FROM sys.databases WHERE state_desc = 'ONLINE' ORDER BY name"
+      );
+      return result.recordset.map((r: { name: string }) => r.name);
     }
     return [];
   } catch (error) {
@@ -340,6 +421,42 @@ export async function listTables(
       } finally {
         await conn.close();
       }
+    } else if (connection.engine === 'sqlite') {
+      const db = getSQLiteDb(connection);
+      const rows = db.prepare(`
+        SELECT name, type
+        FROM sqlite_master
+        WHERE type IN ('table', 'view') AND name NOT LIKE 'sqlite_%'
+        ORDER BY name
+      `).all() as Array<{ name: string; type: string }>;
+
+      return rows.map(r => ({
+        name: r.name,
+        type: r.type as 'table' | 'view',
+      }));
+    } else if (connection.engine === 'mssql') {
+      const pool = await getMSSQLPool(connection, database);
+      const result = await pool.request().query(`
+        SELECT
+          t.TABLE_NAME as name,
+          t.TABLE_TYPE as type,
+          p.rows as row_count,
+          SUM(a.total_pages) * 8 * 1024 as size
+        FROM INFORMATION_SCHEMA.TABLES t
+        LEFT JOIN sys.tables st ON st.name = t.TABLE_NAME
+        LEFT JOIN sys.partitions p ON st.object_id = p.object_id AND p.index_id IN (0, 1)
+        LEFT JOIN sys.allocation_units a ON p.partition_id = a.container_id
+        WHERE t.TABLE_SCHEMA = 'dbo'
+        GROUP BY t.TABLE_NAME, t.TABLE_TYPE, p.rows
+        ORDER BY t.TABLE_NAME
+      `);
+
+      return result.recordset.map((r: { name: string; type: string; row_count: number; size: number }) => ({
+        name: r.name,
+        type: r.type === 'VIEW' ? 'view' as const : 'table' as const,
+        rows: r.row_count || undefined,
+        size: r.size || undefined,
+      }));
     }
     return [];
   } catch (error) {
@@ -680,6 +797,177 @@ export async function getTableSchema(
       } finally {
         await conn.close();
       }
+    } else if (connection.engine === 'sqlite') {
+      const db = getSQLiteDb(connection);
+
+      // Get columns via PRAGMA
+      const colRows = db.prepare(`PRAGMA table_info("${table}")`).all() as Array<{
+        cid: number;
+        name: string;
+        type: string;
+        notnull: number;
+        dflt_value: string | null;
+        pk: number;
+      }>;
+
+      for (const col of colRows) {
+        columns.push({
+          name: col.name,
+          type: col.type || 'TEXT',
+          nullable: col.notnull === 0,
+          defaultValue: col.dflt_value ?? undefined,
+          primaryKey: col.pk > 0,
+          autoIncrement: col.pk > 0 && col.type.toUpperCase() === 'INTEGER',
+        });
+      }
+
+      // Get indexes
+      const idxRows = db.prepare(`PRAGMA index_list("${table}")`).all() as Array<{
+        seq: number;
+        name: string;
+        unique: number;
+        origin: string;
+      }>;
+
+      for (const idx of idxRows) {
+        const idxCols = db.prepare(`PRAGMA index_info("${idx.name}")`).all() as Array<{
+          seqno: number;
+          cid: number;
+          name: string;
+        }>;
+
+        indexes.push({
+          name: idx.name,
+          columns: idxCols.map(c => c.name),
+          unique: idx.unique === 1,
+          type: idx.origin === 'pk' ? 'PRIMARY KEY' : undefined,
+        });
+      }
+
+      // Get foreign keys
+      const fkRows = db.prepare(`PRAGMA foreign_key_list("${table}")`).all() as Array<{
+        id: number;
+        seq: number;
+        table: string;
+        from: string;
+        to: string;
+        on_update: string;
+        on_delete: string;
+      }>;
+
+      // Group foreign keys by id
+      const fkGroups = new Map<number, typeof fkRows>();
+      for (const fk of fkRows) {
+        if (!fkGroups.has(fk.id)) fkGroups.set(fk.id, []);
+        fkGroups.get(fk.id)!.push(fk);
+      }
+
+      for (const [id, fks] of fkGroups) {
+        const sorted = fks.sort((a, b) => a.seq - b.seq);
+        foreignKeys.push({
+          name: `fk_${table}_${id}`,
+          columns: sorted.map(f => f.from),
+          referencedTable: sorted[0].table,
+          referencedColumns: sorted.map(f => f.to),
+          onDelete: sorted[0].on_delete !== 'NO ACTION' ? sorted[0].on_delete : undefined,
+          onUpdate: sorted[0].on_update !== 'NO ACTION' ? sorted[0].on_update : undefined,
+        });
+      }
+    } else if (connection.engine === 'mssql') {
+      const pool = await getMSSQLPool(connection, database);
+
+      // Get columns
+      const colResult = await pool.request()
+        .input('table', mssql.NVarChar, table)
+        .query(`
+          SELECT
+            c.COLUMN_NAME as name,
+            c.DATA_TYPE + CASE
+              WHEN c.CHARACTER_MAXIMUM_LENGTH IS NOT NULL THEN '(' + CAST(c.CHARACTER_MAXIMUM_LENGTH AS VARCHAR) + ')'
+              WHEN c.NUMERIC_PRECISION IS NOT NULL AND c.DATA_TYPE NOT IN ('int','bigint','smallint','tinyint','float','real','bit')
+                THEN '(' + CAST(c.NUMERIC_PRECISION AS VARCHAR) + ',' + CAST(ISNULL(c.NUMERIC_SCALE,0) AS VARCHAR) + ')'
+              ELSE ''
+            END as type,
+            c.IS_NULLABLE as nullable,
+            c.COLUMN_DEFAULT as defaultValue,
+            CASE WHEN pk.COLUMN_NAME IS NOT NULL THEN 1 ELSE 0 END as primaryKey,
+            COLUMNPROPERTY(OBJECT_ID(c.TABLE_SCHEMA + '.' + c.TABLE_NAME), c.COLUMN_NAME, 'IsIdentity') as isIdentity
+          FROM INFORMATION_SCHEMA.COLUMNS c
+          LEFT JOIN (
+            SELECT ku.COLUMN_NAME
+            FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc
+            JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE ku ON tc.CONSTRAINT_NAME = ku.CONSTRAINT_NAME
+            WHERE tc.TABLE_NAME = @table AND tc.CONSTRAINT_TYPE = 'PRIMARY KEY'
+          ) pk ON c.COLUMN_NAME = pk.COLUMN_NAME
+          WHERE c.TABLE_NAME = @table AND c.TABLE_SCHEMA = 'dbo'
+          ORDER BY c.ORDINAL_POSITION
+        `);
+
+      for (const col of colResult.recordset) {
+        columns.push({
+          name: col.name,
+          type: col.type,
+          nullable: col.nullable === 'YES',
+          defaultValue: col.defaultValue ?? undefined,
+          primaryKey: col.primaryKey === 1,
+          autoIncrement: col.isIdentity === 1,
+        });
+      }
+
+      // Get indexes
+      const idxResult = await pool.request()
+        .input('table', mssql.NVarChar, table)
+        .query(`
+          SELECT
+            i.name as name,
+            STRING_AGG(c.name, ',') WITHIN GROUP (ORDER BY ic.key_ordinal) as columns,
+            i.is_unique as isUnique,
+            i.type_desc as type
+          FROM sys.indexes i
+          JOIN sys.index_columns ic ON i.object_id = ic.object_id AND i.index_id = ic.index_id
+          JOIN sys.columns c ON ic.object_id = c.object_id AND ic.column_id = c.column_id
+          WHERE i.object_id = OBJECT_ID(@table) AND i.name IS NOT NULL
+          GROUP BY i.name, i.is_unique, i.type_desc
+        `);
+
+      for (const idx of idxResult.recordset) {
+        indexes.push({
+          name: idx.name,
+          columns: idx.columns.split(','),
+          unique: idx.isUnique,
+          type: idx.type,
+        });
+      }
+
+      // Get foreign keys
+      const fkResult = await pool.request()
+        .input('table', mssql.NVarChar, table)
+        .query(`
+          SELECT
+            fk.name as name,
+            STRING_AGG(cp.name, ',') WITHIN GROUP (ORDER BY fkc.constraint_column_id) as columns,
+            OBJECT_NAME(fk.referenced_object_id) as referencedTable,
+            STRING_AGG(cr.name, ',') WITHIN GROUP (ORDER BY fkc.constraint_column_id) as referencedColumns,
+            fk.delete_referential_action_desc as onDelete,
+            fk.update_referential_action_desc as onUpdate
+          FROM sys.foreign_keys fk
+          JOIN sys.foreign_key_columns fkc ON fk.object_id = fkc.constraint_object_id
+          JOIN sys.columns cp ON fkc.parent_object_id = cp.object_id AND fkc.parent_column_id = cp.column_id
+          JOIN sys.columns cr ON fkc.referenced_object_id = cr.object_id AND fkc.referenced_column_id = cr.column_id
+          WHERE fk.parent_object_id = OBJECT_ID(@table)
+          GROUP BY fk.name, fk.referenced_object_id, fk.delete_referential_action_desc, fk.update_referential_action_desc
+        `);
+
+      for (const fk of fkResult.recordset) {
+        foreignKeys.push({
+          name: fk.name,
+          columns: fk.columns.split(','),
+          referencedTable: fk.referencedTable,
+          referencedColumns: fk.referencedColumns.split(','),
+          onDelete: fk.onDelete !== 'NO_ACTION' ? fk.onDelete : undefined,
+          onUpdate: fk.onUpdate !== 'NO_ACTION' ? fk.onUpdate : undefined,
+        });
+      }
     }
   } catch (error) {
     console.error('Error getting table schema:', error);
@@ -796,6 +1084,59 @@ export async function executeQuery(
         }
       } finally {
         await conn.close();
+      }
+    } else if (connection.engine === 'sqlite') {
+      const db = getSQLiteDb(connection);
+
+      if (isSelect) {
+        let limitedQuery = query;
+        if (!isShowStatement && !isMetadataStatement && !trimmedQuery.includes(' limit ')) {
+          limitedQuery = `${query.trim().replace(/;$/, '')} LIMIT ${limit}`;
+        }
+
+        const stmt = db.prepare(limitedQuery);
+        rows = stmt.all() as Record<string, unknown>[];
+
+        // Extract field info from column names
+        const colNames = stmt.columns();
+        fields = colNames.map(col => ({
+          name: col.name,
+          type: col.type || 'TEXT',
+          table: col.table || undefined,
+        }));
+      } else {
+        const result = db.prepare(query).run();
+        affectedRows = result.changes;
+      }
+    } else if (connection.engine === 'mssql') {
+      const pool = await getMSSQLPool(connection, database);
+
+      if (isSelect) {
+        // SQL Server uses TOP instead of LIMIT
+        let limitedQuery = query;
+        if (!isShowStatement && !isMetadataStatement && !trimmedQuery.includes(' top ') && !trimmedQuery.includes(' offset ')) {
+          // Insert TOP after SELECT
+          limitedQuery = query.trim().replace(/;$/, '');
+          limitedQuery = limitedQuery.replace(/^(select\s+)(distinct\s+)?/i, `$1$2TOP ${limit} `);
+        }
+
+        const result = await pool.request().query(limitedQuery);
+        rows = result.recordset;
+
+        if (result.recordset.columns) {
+          fields = Object.entries(result.recordset.columns).map(([name, col]) => {
+            const c = col as mssql.IColumnMetadata[string];
+            const sqlType = typeof c.type === 'function' ? c.type() : c.type;
+            return {
+              name,
+              type: getMSSQLTypeName((sqlType as { declaration?: string })?.declaration),
+              table: undefined,
+            };
+          });
+        }
+      } else {
+        const result = await pool.request().query(query);
+        affectedRows = result.rowsAffected?.reduce((a, b) => a + b, 0);
       }
     }
 
@@ -939,6 +1280,20 @@ export async function closeConnection(connectionId: string): Promise<void> {
       oraclePools.delete(key);
     }
   }
+
+  for (const [key, db] of sqliteDbs.entries()) {
+    if (key === connectionId || key.startsWith(connectionId + ':')) {
+      db.close();
+      sqliteDbs.delete(key);
+    }
+  }
+
+  for (const [key, pool] of mssqlPools.entries()) {
+    if (key === connectionId || key.startsWith(connectionId + ':')) {
+      await pool.close();
+      mssqlPools.delete(key);
+    }
+  }
 }
 
 /**
@@ -959,6 +1314,24 @@ export async function closeAllConnections(): Promise<void> {
     await pool.close(0);
   }
   oraclePools.clear();
+
+  for (const db of sqliteDbs.values()) {
+    db.close();
+  }
+  sqliteDbs.clear();
+
+  for (const pool of mssqlPools.values()) {
+    await pool.close();
+  }
+  mssqlPools.clear();
+}
+
+/**
+ * Get MSSQL type name from declaration
+ */
+function getMSSQLTypeName(declaration: string | undefined): string {
+  if (!declaration) return 'unknown';
+  return declaration.toLowerCase();
 }
 
 /**

@@ -133,107 +133,130 @@ export function DatabaseConfigPanel({
             </div>
           </div>
 
-          <div className="db-connection-row">
-            <div className="db-field db-field--grow">
-              <label>{t('terminal:building.dbHost')}</label>
-              <input
-                type="text"
-                className="form-input"
-                value={conn.host}
-                onChange={(e) => {
-                  const newConns = [...dbConnections];
-                  newConns[index] = { ...conn, host: e.target.value };
-                  setDbConnections(newConns);
-                }}
-                placeholder="localhost"
-              />
-            </div>
-            <div className="db-field db-field--small">
-              <label>{t('terminal:building.dbPort')}</label>
-              <input
-                type="number"
-                className="form-input"
-                value={conn.port}
-                onChange={(e) => {
-                  const newConns = [...dbConnections];
-                  newConns[index] = { ...conn, port: parseInt(e.target.value) || DATABASE_ENGINES[conn.engine].defaultPort };
-                  setDbConnections(newConns);
-                }}
-              />
-            </div>
-          </div>
-
-          <div className="db-connection-row">
-            <div className="db-field">
-              <label>{t('terminal:building.dbUsername')}</label>
-              <input
-                type="text"
-                className="form-input"
-                value={conn.username}
-                onChange={(e) => {
-                  const newConns = [...dbConnections];
-                  newConns[index] = { ...conn, username: e.target.value };
-                  setDbConnections(newConns);
-                }}
-                placeholder="root"
-              />
-            </div>
-            <div className="db-field">
-              <label>{t('terminal:building.dbPassword')}</label>
-              <input
-                type="password"
-                className="form-input"
-                value={conn.password || ''}
-                onChange={(e) => {
-                  const newConns = [...dbConnections];
-                  newConns[index] = { ...conn, password: e.target.value || undefined };
-                  setDbConnections(newConns);
-                }}
-                placeholder="Optional"
-              />
-            </div>
-          </div>
-
-          <div className="db-connection-row">
-            <div className="db-field db-field--grow">
-              <label>{t('terminal:building.dbDefaultDatabase')}</label>
-              <input
-                type="text"
-                className="form-input"
-                value={conn.database || ''}
-                onChange={(e) => {
-                  const newConns = [...dbConnections];
-                  newConns[index] = { ...conn, database: e.target.value || undefined };
-                  setDbConnections(newConns);
-                }}
-                placeholder="Optional - select after connecting"
-              />
-            </div>
-            <div className="db-field db-field--small">
-              <label>
-                SSL
-                <HelpTooltip
-                  text={t('terminal:building.helpDbSsl')}
-                  position="top"
-                  size="sm"
-                />
-              </label>
-              <label className="toggle-switch toggle-switch--small">
+          {conn.engine === 'sqlite' ? (
+            /* SQLite: file path only */
+            <div className="db-connection-row">
+              <div className="db-field db-field--grow">
+                <label>{t('terminal:building.dbFilepath')}</label>
                 <input
-                  type="checkbox"
-                  checked={conn.ssl || false}
+                  type="text"
+                  className="form-input"
+                  value={conn.filepath || ''}
                   onChange={(e) => {
                     const newConns = [...dbConnections];
-                    newConns[index] = { ...conn, ssl: e.target.checked };
+                    newConns[index] = { ...conn, filepath: e.target.value || undefined };
                     setDbConnections(newConns);
                   }}
+                  placeholder="/path/to/database.db"
                 />
-                <span className="toggle-track">
-                  <span className="toggle-thumb" />
-                </span>
-              </label>
+              </div>
             </div>
-          </div>
+          ) : (
+            /* Network databases: host, port, credentials */
+            <>
+              <div className="db-connection-row">
+                <div className="db-field db-field--grow">
+                  <label>{t('terminal:building.dbHost')}</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={conn.host}
+                    onChange={(e) => {
+                      const newConns = [...dbConnections];
+                      newConns[index] = { ...conn, host: e.target.value };
+                      setDbConnections(newConns);
+                    }}
+                    placeholder="localhost"
+                  />
+                </div>
+                <div className="db-field db-field--small">
+                  <label>{t('terminal:building.dbPort')}</label>
+                  <input
+                    type="number"
+                    className="form-input"
+                    value={conn.port}
+                    onChange={(e) => {
+                      const newConns = [...dbConnections];
+                      newConns[index] = { ...conn, port: parseInt(e.target.value) || DATABASE_ENGINES[conn.engine].defaultPort };
+                      setDbConnections(newConns);
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="db-connection-row">
+                <div className="db-field">
+                  <label>{t('terminal:building.dbUsername')}</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={conn.username}
+                    onChange={(e) => {
+                      const newConns = [...dbConnections];
+                      newConns[index] = { ...conn, username: e.target.value };
+                      setDbConnections(newConns);
+                    }}
+                    placeholder="root"
+                  />
+                </div>
+                <div className="db-field">
+                  <label>{t('terminal:building.dbPassword')}</label>
+                  <input
+                    type="password"
+                    className="form-input"
+                    value={conn.password || ''}
+                    onChange={(e) => {
+                      const newConns = [...dbConnections];
+                      newConns[index] = { ...conn, password: e.target.value || undefined };
+                      setDbConnections(newConns);
+                    }}
+                    placeholder="Optional"
+                  />
+                </div>
+              </div>
+
+              <div className="db-connection-row">
+                <div className="db-field db-field--grow">
+                  <label>{t('terminal:building.dbDefaultDatabase')}</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={conn.database || ''}
+                    onChange={(e) => {
+                      const newConns = [...dbConnections];
+                      newConns[index] = { ...conn, database: e.target.value || undefined };
+                      setDbConnections(newConns);
+                    }}
+                    placeholder="Optional - select after connecting"
+                  />
+                </div>
+                <div className="db-field db-field--small">
+                  <label>
+                    SSL
+                    <HelpTooltip
+                      text={t('terminal:building.helpDbSsl')}
+                      position="top"
+                      size="sm"
+                    />
+                  </label>
+                  <label className="toggle-switch toggle-switch--small">
+                    <input
+                      type="checkbox"
+                      checked={conn.ssl || false}
+                      onChange={(e) => {
+                        const newConns = [...dbConnections];
+                        newConns[index] = { ...conn, ssl: e.target.checked };
+                        setDbConnections(newConns);
+                      }}
+                    />
+                    <span className="toggle-track">
+                      <span className="toggle-thumb" />
+                    </span>
+                  </label>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       ))}
 
