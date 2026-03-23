@@ -66,7 +66,8 @@ export function getSecret(id: string): Secret | undefined {
 }
 
 export function getSecretByKey(key: string): Secret | undefined {
-  return Array.from(secrets.values()).find(s => s.key === key);
+  const normalizedKey = normalizeKey(key);
+  return Array.from(secrets.values()).find(s => s.key === normalizedKey);
 }
 
 export function getAllSecrets(): Secret[] {
