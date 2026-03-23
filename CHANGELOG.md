@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.30.0] - 2026-03-23
+
+### Added
+- **SQLite database support** - Full SQLite integration using better-sqlite3 with file-based connections, WAL mode, and schema introspection via PRAGMAs
+- **SQL Server (MSSQL) database support** - Full SQL Server integration with connection pooling, schema introspection via sys.* catalog views, and TOP N query limiting
+
+### Changed
+- **Database engine icons** - Fixed hardcoded MySQL/PostgreSQL icons in popup and sidebar to dynamically use the registered engine icon from DATABASE_ENGINES registry
+- **Database config panel** - Conditionally shows filepath input for SQLite or host/port/credentials for network databases
+
 ## [1.29.2] - 2026-03-23
 
 ### Fixed
