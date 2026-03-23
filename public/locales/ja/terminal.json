@@ -982,6 +982,7 @@
     "dbUsername": "ユーザー名",
     "dbPassword": "パスワード",
     "dbDefaultDatabase": "デフォルトデータベース",
+    "dbFilepath": "データベースファイル",
     "helpDbSsl": "暗号化されたSSL/TLS接続を有効にします。ほとんどのクラウドホストデータベースと本番環境で推奨されます。",
     "dbAfterSaving": "保存後、データベースパネルを開いてクエリを実行しデータを探索してください。",
     "colorDefault": "デフォルト",

@@ -1024,6 +1024,7 @@
     "dbUsername": "Username",
     "dbPassword": "Password",
     "dbDefaultDatabase": "Default Database",
+    "dbFilepath": "Database File",
     "helpDbSsl": "Enable encrypted SSL/TLS connection. Required for most cloud-hosted databases and recommended for production.",
     "dbAfterSaving": "After saving, open the database panel to run queries and explore your data.",
     "colorDefault": "Default",

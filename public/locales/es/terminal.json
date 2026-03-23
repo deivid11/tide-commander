@@ -982,6 +982,7 @@
     "dbUsername": "Usuario",
     "dbPassword": "Contraseña",
     "dbDefaultDatabase": "Base de Datos Predeterminada",
+    "dbFilepath": "Archivo de base de datos",
     "helpDbSsl": "Habilitar conexión SSL/TLS encriptada. Requerido para la mayoría de bases de datos en la nube.",
     "dbAfterSaving": "Después de guardar, abre el panel de base de datos para ejecutar consultas y explorar tus datos.",
     "colorDefault": "Predeterminado",

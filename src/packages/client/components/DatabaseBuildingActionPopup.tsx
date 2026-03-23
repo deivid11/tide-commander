@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback, useMemo, memo, useEffect } from '
 import { useTranslation } from 'react-i18next';
 import { store, useDatabaseState } from '../store';
 import type { Building } from '../../shared/types';
+import { DATABASE_ENGINES } from '../../shared/types';
 
 interface DatabaseBuildingActionPopupProps {
   building: Building;
@@ -146,10 +147,14 @@ export const DatabaseBuildingActionPopup = memo(function DatabaseBuildingActionP
             return (
               <div key={conn.id} className="database-connection-item">
                 <span className="conn-engine">
-                  {conn.engine === 'mysql' ? '🐬' : '🐘'}
+                  {DATABASE_ENGINES[conn.engine]?.icon ?? '🗄️'}
                 </span>
                 <span className="conn-name">{conn.name}</span>
-                <span className="conn-host">{conn.host}:{conn.port}</span>
+                <span className="conn-host">
+                  {conn.engine === 'sqlite'
+                    ? (conn.filepath || conn.database || ':memory:')
+                    : `${conn.host}:${conn.port}`}
+                </span>
                 {status && (
                   <span className={`conn-status ${status.connected ? 'connected' : 'disconnected'}`}>
                     {status.connected ? '●' : '○'}

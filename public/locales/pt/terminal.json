@@ -982,6 +982,7 @@
     "dbUsername": "Usuario",
     "dbPassword": "Senha",
     "dbDefaultDatabase": "Banco de Dados Padrao",
+    "dbFilepath": "Arquivo do banco de dados",
     "helpDbSsl": "Ativar conexao criptografada SSL/TLS. Obrigatorio para a maioria dos bancos hospedados na nuvem e recomendado para producao.",
     "dbAfterSaving": "Apos salvar, abra o painel de banco de dados para executar consultas e explorar seus dados.",
     "colorDefault": "Padrao",

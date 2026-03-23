@@ -982,6 +982,7 @@
     "dbUsername": "Nome utente",
     "dbPassword": "Password",
     "dbDefaultDatabase": "Database predefinito",
+    "dbFilepath": "File database",
     "helpDbSsl": "Abilita connessione crittografata SSL/TLS. Richiesta per la maggior parte dei database in cloud e raccomandata per la produzione.",
     "dbAfterSaving": "Dopo il salvataggio, apri il pannello database per eseguire query ed esplorare i tuoi dati.",
     "colorDefault": "Predefinito",

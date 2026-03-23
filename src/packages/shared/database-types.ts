@@ -3,12 +3,14 @@
 // ============================================================================
 
 // Supported database engines
-export type DatabaseEngine = 'mysql' | 'postgresql' | 'oracle';
+export type DatabaseEngine = 'mysql' | 'postgresql' | 'oracle' | 'sqlite' | 'mssql';
 
 export const DATABASE_ENGINES: Record<DatabaseEngine, { label: string; icon: string; defaultPort: number }> = {
   mysql: { label: 'MySQL', icon: '🐬', defaultPort: 3306 },
   postgresql: { label: 'PostgreSQL', icon: '🐘', defaultPort: 5432 },
   oracle: { label: 'Oracle', icon: '🔶', defaultPort: 1521 },
+  sqlite: { label: 'SQLite', icon: '🪶', defaultPort: 0 },
+  mssql: { label: 'SQL Server', icon: '🔷', defaultPort: 1433 },
 };
 
 // Database connection configuration
@@ -21,6 +23,7 @@ export interface DatabaseConnection {
   username: string;
   password?: string;               // Optional - can use env vars
   database?: string;               // Default database to connect to
+  filepath?: string;               // File path for SQLite databases
   ssl?: boolean;                   // Use SSL/TLS
   sslConfig?: {
     rejectUnauthorized?: boolean;
