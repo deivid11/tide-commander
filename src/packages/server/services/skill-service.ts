@@ -10,6 +10,7 @@ import type { Skill, AgentClass, Agent } from '../../shared/types.js';
 import { loadSkills, saveSkills } from '../data/index.js';
 import { createLogger, generateId, generateSlug } from '../utils/index.js';
 import { BUILTIN_SKILLS, createBuiltinSkill, isBuiltinSkillId } from '../data/builtin-skills.js';
+import { getIntegrationSkills } from '../integrations/integration-registry.js';
 import { getAuthToken } from '../auth/index.js';
 
 const log = createLogger('SkillService');
@@ -73,6 +74,47 @@ export function initSkills(): void {
     persistSkills();
   } catch (err) {
     log.error(' Failed to load skills:', err);
+  }
+}
+
+/**
+ * Load integration skills (slack, gmail, jira, calendar, docx).
+ * Must be called AFTER initIntegrations() so the plugin registry is populated.
+ */
+export function loadIntegrationSkills(): void {
+  try {
+    const storedSkills = loadSkills();
+    const storedSkillMap = new Map<string, Skill>();
+    for (const skill of storedSkills) {
+      storedSkillMap.set(skill.id, skill);
+    }
+
+    let count = 0;
+    for (const definition of getIntegrationSkills()) {
+      const integrationSkill = createBuiltinSkill(definition);
+      const integrationId = integrationSkill.id;
+
+      const storedVersion = storedSkillMap.get(integrationId);
+      if (storedVersion && (storedVersion.assignedAgentIds.length > 0 || storedVersion.assignedAgentClasses.length > 0)) {
+        const restoredSkill: Skill = {
+          ...integrationSkill,
+          assignedAgentIds: storedVersion.assignedAgentIds,
+          assignedAgentClasses: storedVersion.assignedAgentClasses,
+          enabled: storedVersion.enabled,
+        };
+        skills.set(integrationId, restoredSkill);
+      } else {
+        skills.set(integrationId, integrationSkill);
+      }
+      count++;
+    }
+
+    if (count > 0) {
+      log.log(` Loaded ${count} integration skills`);
+      persistSkills();
+    }
+  } catch (err) {
+    log.error(' Failed to load integration skills:', err);
   }
 }
 
@@ -622,6 +664,7 @@ export function isBuiltinSkill(skillOrId: string | Skill): boolean {
 // Export skill service as a singleton-like object for consistency
 export const skillService = {
   init: initSkills,
+  loadIntegrationSkills,
   persist: persistSkills,
   subscribe,
   getSkill,

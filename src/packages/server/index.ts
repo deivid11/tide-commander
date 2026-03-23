@@ -143,6 +143,9 @@ async function main(): Promise<void> {
   };
   await initIntegrations(integrationCtx);
 
+  // Load integration skills now that plugins are initialized
+  skillService.loadIntegrationSkills();
+
   // Register integration trigger handlers (Slack, Jira, etc.) with the trigger service
   for (const handler of getIntegrationTriggerHandlers()) {
     triggerService.registerHandler(handler);

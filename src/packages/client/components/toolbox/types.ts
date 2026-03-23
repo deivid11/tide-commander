@@ -68,4 +68,5 @@ export interface ToolboxProps {
   onOpenIntegrationsModal?: (integrationId?: string) => void;
   onOpenMonitoringModal?: () => void;
   onOpenWorkflowEditor?: () => void;
+  onOpenTriggerManager?: () => void;
 }

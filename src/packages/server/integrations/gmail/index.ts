@@ -9,6 +9,7 @@ import * as gmailClient from './gmail-client.js';
 import gmailRoutes from './gmail-routes.js';
 import { gmailSkill } from './gmail-skill.js';
 import { gmailConfigSchema } from './gmail-config.js';
+import { gmailTriggerHandler } from './gmail-trigger-handler.js';
 
 let integrationCtx: IntegrationContext | null = null;
 
@@ -36,7 +37,7 @@ export const gmailPlugin: IntegrationPlugin = {
   },
 
   getTriggerHandler() {
-    return null;
+    return gmailTriggerHandler;
   },
 
   getStatus() {

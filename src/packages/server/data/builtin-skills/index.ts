@@ -22,6 +22,7 @@ import { taskLabel } from './task-label.js';
 import { reportTaskToBoss } from './report-task-to-boss.js';
 import { bossInstructions } from './boss-instructions.js';
 import { workflowDesigner } from './workflow-designer.js';
+import { triggerDesigner } from './trigger-designer.js';
 
 // Re-export types
 export type { BuiltinSkillDefinition } from './types.js';
@@ -43,6 +44,7 @@ export const BUILTIN_SKILLS: BuiltinSkillDefinition[] = [
   reportTaskToBoss,
   bossInstructions,
   workflowDesigner,
+  triggerDesigner,
 ];
 
 /**

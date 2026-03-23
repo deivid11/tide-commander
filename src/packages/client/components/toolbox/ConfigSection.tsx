@@ -31,6 +31,7 @@ interface ConfigSectionProps {
   onOpenIntegrationsModal?: (integrationId?: string) => void;
   onOpenMonitoringModal?: () => void;
   onOpenWorkflowEditor?: () => void;
+  onOpenTriggerManager?: () => void;
 }
 
 const TIME_MODE_OPTIONS: { value: TimeMode; label: string; icon: string }[] = [
@@ -192,7 +193,8 @@ const SETTINGS_SECTIONS = [
   { id: 'systemPrompt', title: 'System Prompt', keywords: ['system', 'prompt', 'global', 'instructions', 'ai', 'agent', 'rules', 'guidelines'] },
   { id: 'data', title: 'Data', keywords: ['export', 'import', 'backup', 'restore', 'save', 'load', 'json'] },
   { id: 'integrations', title: 'Integrations', keywords: ['integrations', 'plugins', 'gmail', 'slack', 'jira', 'calendar', 'docx', 'email', 'config', 'setup'] },
-  { id: 'workflows', title: 'Workflows', keywords: ['workflow', 'automation', 'state machine', 'editor', 'trigger', 'actions', 'transitions', 'pipeline'] },
+  { id: 'workflows', title: 'Workflows', keywords: ['workflow', 'automation', 'state machine', 'editor', 'actions', 'transitions', 'pipeline'] },
+  { id: 'triggers', title: 'Triggers', keywords: ['trigger', 'event', 'webhook', 'cron', 'slack', 'email', 'jira', 'matching', 'fire'] },
   { id: 'monitoring', title: 'Monitoring', keywords: ['monitoring', 'logs', 'triggers', 'events', 'history', 'workflow', 'traces', 'audit', 'timeline'] },
   { id: 'experimental', title: 'Experimental', keywords: ['experimental', '2d', 'view', 'voice', 'assistant', 'speech', 'tts', 'text to speech', 'echo', 'prompt', 'duplicate'] },
   { id: 'about', title: 'About', keywords: ['about', 'version', 'update', 'credits', 'github', 'releases'] },
@@ -212,7 +214,7 @@ const LANGUAGE_OPTIONS: { value: string; label: string; icon: string }[] = [
   { value: 'it', label: 'Italiano', icon: '🇮🇹' },
 ];
 
-export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegrationsModal, onOpenMonitoringModal, onOpenWorkflowEditor }: ConfigSectionProps) {
+export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegrationsModal, onOpenMonitoringModal, onOpenWorkflowEditor, onOpenTriggerManager }: ConfigSectionProps) {
   const { t } = useTranslation(['config', 'common']);
   const state = useStore();
   const [historyLimit, setHistoryLimit] = useState(state.settings.historyLimit);
@@ -660,6 +662,22 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
             onClick={() => onOpenWorkflowEditor?.()}
           >
             Open Workflow Editor
+          </button>
+        </div>
+      </CollapsibleSection>
+      )}
+
+      {shouldShowSection('triggers') && (
+      <CollapsibleSection title="Triggers" storageKey="triggers" defaultOpen={false} forceOpen={isSearching && shouldShowSection('triggers')}>
+        <div className="config-row">
+          <span className="config-label"><HighlightText text="Create and manage event-driven triggers that fire agents with templates" query={searchQuery} /></span>
+        </div>
+        <div className="config-row">
+          <button
+            className="config-button"
+            onClick={() => onOpenTriggerManager?.()}
+          >
+            Open Trigger Manager
           </button>
         </div>
       </CollapsibleSection>

@@ -23,6 +23,7 @@ const RestoreArchivedAreaModal = React.lazy(() => import('./RestoreArchivedAreaM
 const IntegrationsPanel = React.lazy(() => import('./IntegrationsPanel').then(m => ({ default: m.IntegrationsPanel })));
 const MonitoringModal = React.lazy(() => import('./MonitoringModal').then(m => ({ default: m.MonitoringModal })));
 const WorkflowEditorPanel = React.lazy(() => import('./WorkflowEditorPanel').then(m => ({ default: m.WorkflowEditorPanel })));
+const TriggerManagerPanel = React.lazy(() => import('./TriggerManagerPanel').then(m => ({ default: m.TriggerManagerPanel })));
 
 interface AppModalsProps {
   // Modal states
@@ -39,6 +40,7 @@ interface AppModalsProps {
   integrationsModal: UseModalState<string | undefined>;
   monitoringModal: UseModalState;
   workflowEditorModal: UseModalState;
+  triggerManagerModal: UseModalState;
   buildingModal: UseModalState<string | null>;
   agentEditModal: UseModalState<string>;
   snapshotsModal: UseModalState;
@@ -95,6 +97,7 @@ export function AppModals({
   integrationsModal,
   monitoringModal,
   workflowEditorModal,
+  triggerManagerModal,
   buildingModal,
   agentEditModal,
   snapshotsModal,
@@ -155,6 +158,7 @@ export function AppModals({
         onOpenIntegrationsModal={(id) => integrationsModal.open(id)}
         onOpenMonitoringModal={() => monitoringModal.open()}
         onOpenWorkflowEditor={() => workflowEditorModal.open()}
+        onOpenTriggerManager={() => triggerManagerModal.open()}
       />
 
       {/* Building Config Modal */}
@@ -357,6 +361,12 @@ export function AppModals({
       <WorkflowEditorPanel
         isOpen={workflowEditorModal.isOpen}
         onClose={workflowEditorModal.close}
+      />
+
+      {/* Trigger Manager Panel */}
+      <TriggerManagerPanel
+        isOpen={triggerManagerModal.isOpen}
+        onClose={triggerManagerModal.close}
       />
 
       {/* Restore Archived Area Modal */}
