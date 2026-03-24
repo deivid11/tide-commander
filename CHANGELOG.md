@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.32.2] - 2026-03-23
+
+### Fixed
+- **AgentBar scroll** - Use dominant axis for wheel events, supporting both trackpad swipes and vertical scroll
+- **Overscroll navigation** - Only block horizontal overscroll on canvas elements, allowing native horizontal scroll in panels
+
 ## [1.32.1] - 2026-03-23
 
 ### Fixed
