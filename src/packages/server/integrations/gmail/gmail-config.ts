@@ -7,11 +7,24 @@ import type { ConfigField, IntegrationStatus } from '../../../shared/integration
 
 export const gmailConfigSchema: ConfigField[] = [
   {
+    key: 'authMethod',
+    label: 'Authentication Method',
+    type: 'select',
+    description: 'Choose OAuth2 (browser login) or Service Account (domain-wide delegation)',
+    required: false,
+    defaultValue: 'oauth2',
+    options: [
+      { label: 'OAuth2', value: 'oauth2' },
+      { label: 'Service Account', value: 'service_account' },
+    ],
+    group: 'Authentication',
+  },
+  {
     key: 'clientId',
     label: 'Google OAuth Client ID',
     type: 'text',
     description: 'OAuth2 client ID from Google Cloud Console',
-    required: true,
+    required: false,
     secret: true,
     group: 'Authentication',
   },
@@ -20,8 +33,25 @@ export const gmailConfigSchema: ConfigField[] = [
     label: 'Google OAuth Client Secret',
     type: 'password',
     description: 'OAuth2 client secret from Google Cloud Console',
-    required: true,
+    required: false,
     secret: true,
+    group: 'Authentication',
+  },
+  {
+    key: 'serviceAccountJson',
+    label: 'Service Account JSON',
+    type: 'textarea',
+    description: 'Full JSON content of the Google service account key file',
+    required: false,
+    secret: true,
+    group: 'Authentication',
+  },
+  {
+    key: 'impersonateEmail',
+    label: 'Impersonate Email',
+    type: 'email',
+    description: 'Email address to impersonate via domain-wide delegation (required for service account)',
+    required: false,
     group: 'Authentication',
   },
   {
@@ -45,9 +75,12 @@ export const gmailConfigSchema: ConfigField[] = [
 ];
 
 export interface GmailConfig {
+  authMethod: 'oauth2' | 'service_account';
   clientId: string;
   clientSecret: string;
   refreshToken?: string;
+  serviceAccountJson?: string;
+  impersonateEmail?: string;
   pollingIntervalMs: number;
   defaultApprovalKeywords: string[];
 }

@@ -16,7 +16,7 @@ let integrationCtx: IntegrationContext | null = null;
 export const gmailPlugin: IntegrationPlugin = {
   id: 'gmail',
   name: 'Gmail',
-  description: 'Email sending, receiving, and approval checking via Gmail',
+  description: 'Send and receive emails through Gmail. Supports OAuth 2.0 and Service Account authentication.',
   routePrefix: '/email',
 
   async init(ctx: IntegrationContext) {
@@ -51,15 +51,21 @@ export const gmailPlugin: IntegrationPlugin = {
   getConfig() {
     if (!integrationCtx) {
       return {
+        authMethod: 'oauth2',
         clientId: '',
         clientSecret: '',
+        serviceAccountJson: '',
+        impersonateEmail: '',
         pollingIntervalMs: 30000,
         defaultApprovalKeywords: 'approved,aprobado,autorizado,yes,ok',
       };
     }
     return {
+      authMethod: gmailClient.getConfig().authMethod || 'oauth2',
       clientId: integrationCtx.secrets.get('GOOGLE_CLIENT_ID') || '',
       clientSecret: integrationCtx.secrets.get('GOOGLE_CLIENT_SECRET') || '',
+      serviceAccountJson: integrationCtx.secrets.get('GOOGLE_SERVICE_ACCOUNT_JSON') || '',
+      impersonateEmail: integrationCtx.secrets.get('GOOGLE_IMPERSONATE_EMAIL') || '',
       pollingIntervalMs: gmailClient.getConfig().pollingIntervalMs,
       defaultApprovalKeywords: gmailClient.getConfig().defaultApprovalKeywords.join(','),
     };
@@ -70,6 +76,9 @@ export const gmailPlugin: IntegrationPlugin = {
 
     const updates: Record<string, string | number | string[]> = {};
 
+    if (config.authMethod !== undefined) {
+      updates.authMethod = config.authMethod as string;
+    }
     if (config.clientId) {
       updates.clientId = config.clientId as string;
       integrationCtx.secrets.set('GOOGLE_CLIENT_ID', config.clientId as string);
@@ -77,6 +86,14 @@ export const gmailPlugin: IntegrationPlugin = {
     if (config.clientSecret) {
       updates.clientSecret = config.clientSecret as string;
       integrationCtx.secrets.set('GOOGLE_CLIENT_SECRET', config.clientSecret as string);
+    }
+    if (config.serviceAccountJson) {
+      updates.serviceAccountJson = config.serviceAccountJson as string;
+      integrationCtx.secrets.set('GOOGLE_SERVICE_ACCOUNT_JSON', config.serviceAccountJson as string);
+    }
+    if (config.impersonateEmail) {
+      updates.impersonateEmail = config.impersonateEmail as string;
+      integrationCtx.secrets.set('GOOGLE_IMPERSONATE_EMAIL', config.impersonateEmail as string);
     }
     if (config.pollingIntervalMs) {
       updates.pollingIntervalMs = config.pollingIntervalMs as number;
@@ -90,6 +107,12 @@ export const gmailPlugin: IntegrationPlugin = {
     }
 
     gmailClient.updateConfig(updates);
+
+    // Re-initialize authentication when auth method or credentials change
+    if (config.authMethod !== undefined || config.serviceAccountJson || config.clientId) {
+      gmailClient.shutdown();
+      await gmailClient.init(integrationCtx);
+    }
   },
 
   getCustomSettingsComponent() {

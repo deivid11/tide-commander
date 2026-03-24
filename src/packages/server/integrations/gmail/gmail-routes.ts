@@ -116,6 +116,11 @@ router.get('/status', (req: Request, res: Response) => {
 // GET /api/email/auth/url — Get OAuth authorization URL
 router.get('/auth/url', (req: Request, res: Response) => {
   try {
+    const currentConfig = gmailClient.getConfig();
+    if (currentConfig.authMethod === 'service_account') {
+      res.status(400).json({ error: 'OAuth flow is not used with service account authentication. Configure service account JSON and impersonate email instead.' });
+      return;
+    }
     const authUrl = gmailClient.getAuthUrl();
     res.json({ url: authUrl });
   } catch (err) {
