@@ -162,14 +162,21 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
     return () => clearInterval(interval);
   }, [settings.experimental2DView]);
 
-  // Redirect vertical wheel events to horizontal scroll on the scroll wrapper
+  // Handle wheel events on the scroll wrapper:
+  // - Horizontal trackpad swipes → apply deltaX directly
+  // - Vertical scroll → convert to horizontal scroll via deltaY
   useEffect(() => {
     const scroller = scrollRef.current;
     if (!scroller) return;
     const onWheel = (e: WheelEvent) => {
       if (scroller.scrollWidth <= scroller.clientWidth) return;
       e.preventDefault();
-      scroller.scrollLeft += e.deltaY;
+      // Use whichever axis is dominant
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+        scroller.scrollLeft += e.deltaX;
+      } else {
+        scroller.scrollLeft += e.deltaY;
+      }
     };
     scroller.addEventListener('wheel', onWheel, { passive: false });
     return () => scroller.removeEventListener('wheel', onWheel);

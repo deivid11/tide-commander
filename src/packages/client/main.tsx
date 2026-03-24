@@ -11,11 +11,26 @@ initializeTheme();
 
 // Prevent horizontal trackpad overscroll from triggering browser back/forward navigation.
 // CSS overscroll-behavior alone is insufficient on some platforms (e.g. Chrome on Linux).
-// We intercept wheel events at the document level and prevent default for horizontal scrolls
-// that would otherwise bubble up to the browser's navigation gesture handler.
+// Only block horizontal swipes that land on the scene canvas — all other elements
+// (scrollable divs, panels, etc.) should retain native horizontal scroll behavior.
 document.addEventListener('wheel', (e: WheelEvent) => {
-  // Only block horizontal-dominant gestures (two-finger swipe left/right)
   if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && Math.abs(e.deltaX) > 0) {
+    const target = e.target as Element;
+    // Only block horizontal overscroll for canvas elements (3D/2D scene)
+    // and elements with no scrollable ancestor (bare app background).
+    if (target.tagName === 'CANVAS') {
+      e.preventDefault();
+      return;
+    }
+    // For non-canvas targets, check if ANY ancestor can scroll horizontally.
+    // If none can, block the gesture to prevent browser navigation.
+    let el = target as HTMLElement | null;
+    while (el && el !== document.documentElement) {
+      if (el.scrollWidth > el.clientWidth) {
+        return; // scrollable element found — let the browser handle it
+      }
+      el = el.parentElement;
+    }
     e.preventDefault();
   }
 }, { passive: false });
