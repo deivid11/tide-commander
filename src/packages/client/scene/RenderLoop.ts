@@ -167,8 +167,9 @@ export class RenderLoop {
 
     const canvas = this.deps.getCanvas();
     if (!canvas.isConnected) {
-      console.warn('[RenderLoop] Canvas disconnected from DOM - stopping animation loop');
-      this.animationFrameId = null;
+      // Canvas temporarily detached (React reconciliation, StrictMode remount, view switch).
+      // Keep the loop alive so rendering resumes automatically once the canvas reattaches.
+      this.animationFrameId = requestAnimationFrame(this.animate);
       return;
     }
 

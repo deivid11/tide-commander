@@ -669,6 +669,7 @@ export class SceneManager {
   setScale3D(scale: number): void { this.renderLoop.setScale3D(scale); this.effectsManager.setScale3D(scale); }
   setFpsLimit(limit: number): void { this.renderLoop.setFpsLimit(limit); }
   setPowerSaving(enabled: boolean): void { this.renderLoop.setPowerSaving(enabled); }
+  ensureRenderLoopRunning(): void { this.renderLoop.start(); }
   setGridVisible(visible: boolean): void { this.battlefield.setGridVisible(visible); }
   setDebugTime(hour: number | null): void { this.battlefield.setDebugTime(hour); }
   setTimeMode(mode: string): void { this.battlefield.setTimeMode(mode); }

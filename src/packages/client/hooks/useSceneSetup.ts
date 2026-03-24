@@ -302,6 +302,7 @@ export function useSceneSetup({
         sceneRef.current = currentPersistedScene;
         if (isSameCanvas) {
           console.log('[Tide] Reusing existing scene (StrictMode remount)');
+          currentPersistedScene.ensureRenderLoopRunning();
         } else {
           console.log('[Tide] Reattaching persisted scene to new canvas');
           currentPersistedScene.reattach(canvasRef.current, selectionBoxRef.current);
