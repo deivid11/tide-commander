@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.33.0] - 2026-03-24
+
+### Added
+- **Gmail service account auth** - Support for Google service account authentication with domain-wide delegation alongside existing OAuth2 flow
+
 ## [1.32.2] - 2026-03-23
 
 ### Fixed
