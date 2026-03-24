@@ -27,6 +27,7 @@ const REDIRECT_PATH = '/api/email/auth/callback';
 
 let ctx: IntegrationContext | null = null;
 let config: GmailConfig = {
+  authMethod: 'oauth2',
   clientId: '',
   clientSecret: '',
   pollingIntervalMs: 30000,
@@ -48,31 +49,70 @@ export async function init(context: IntegrationContext): Promise<void> {
   ctx = context;
   loadConfig();
 
-  if (!config.clientId || !config.clientSecret) {
-    ctx.log.info('Gmail not configured (missing OAuth credentials)');
-    return;
-  }
+  // Reset state on reinit
+  gmail = null;
+  oauth2Client = null;
+  authenticatedEmail = undefined;
+  lastError = undefined;
 
-  oauth2Client = new google.auth.OAuth2(
-    config.clientId,
-    config.clientSecret,
-    `${ctx.serverConfig.baseUrl}${REDIRECT_PATH}`
-  );
+  const authMethod = config.authMethod || 'oauth2';
 
-  // Load refresh token from secrets
-  const refreshToken = ctx.secrets.get('GOOGLE_REFRESH_TOKEN') || config.refreshToken;
-  if (refreshToken) {
-    oauth2Client.setCredentials({ refresh_token: refreshToken });
-    gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+  if (authMethod === 'service_account') {
+    // ── Service Account authentication via domain-wide delegation ──
+    if (!config.serviceAccountJson || !config.impersonateEmail) {
+      ctx.log.info('Gmail not configured (missing service account credentials)');
+      return;
+    }
 
     try {
+      const sa = JSON.parse(config.serviceAccountJson) as { client_email: string; private_key: string };
+      const jwtClient = new google.auth.JWT({
+        email: sa.client_email,
+        key: sa.private_key,
+        scopes: SCOPES,
+        subject: config.impersonateEmail,
+      });
+
+      gmail = google.gmail({ version: 'v1', auth: jwtClient });
+
       const profile = await gmail.users.getProfile({ userId: 'me' });
       authenticatedEmail = profile.data.emailAddress ?? undefined;
       lastHistoryId = profile.data.historyId ?? undefined;
-      ctx.log.info(`Gmail authenticated as ${authenticatedEmail}`);
+      lastError = undefined;
+      ctx.log.info(`Gmail authenticated via service account as ${authenticatedEmail}`);
     } catch (err) {
-      lastError = `Authentication failed: ${err}`;
-      ctx.log.error('Gmail authentication failed', err);
+      lastError = `Service account authentication failed: ${err}`;
+      ctx.log.error('Gmail service account authentication failed', err);
+    }
+  } else {
+    // ── OAuth2 authentication ──
+    if (!config.clientId || !config.clientSecret) {
+      ctx.log.info('Gmail not configured (missing OAuth credentials)');
+      return;
+    }
+
+    oauth2Client = new google.auth.OAuth2(
+      config.clientId,
+      config.clientSecret,
+      `${ctx.serverConfig.baseUrl}${REDIRECT_PATH}`
+    );
+
+    // Load refresh token from secrets
+    const refreshToken = ctx.secrets.get('GOOGLE_REFRESH_TOKEN') || config.refreshToken;
+    if (refreshToken) {
+      oauth2Client.setCredentials({ refresh_token: refreshToken });
+      gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+
+      try {
+        const profile = await gmail.users.getProfile({ userId: 'me' });
+        authenticatedEmail = profile.data.emailAddress ?? undefined;
+        lastHistoryId = profile.data.historyId ?? undefined;
+        lastError = undefined;
+        ctx.log.info(`Gmail authenticated as ${authenticatedEmail}`);
+      } catch (err) {
+        lastError = `Authentication failed: ${err}`;
+        ctx.log.error('Gmail authentication failed', err);
+      }
     }
   }
 }
@@ -82,16 +122,23 @@ function loadConfig(): void {
   const clientId = ctx.secrets.get('GOOGLE_CLIENT_ID') || '';
   const clientSecret = ctx.secrets.get('GOOGLE_CLIENT_SECRET') || '';
   const refreshToken = ctx.secrets.get('GOOGLE_REFRESH_TOKEN');
+  const serviceAccountJson = ctx.secrets.get('GOOGLE_SERVICE_ACCOUNT_JSON') || undefined;
+  const impersonateEmail = ctx.secrets.get('GOOGLE_IMPERSONATE_EMAIL') || undefined;
 
   config = {
     ...config,
     clientId,
     clientSecret,
     refreshToken: refreshToken || undefined,
+    serviceAccountJson,
+    impersonateEmail,
   };
 }
 
 export function updateConfig(updates: Partial<GmailConfig>): void {
+  if (updates.authMethod !== undefined) {
+    config.authMethod = updates.authMethod;
+  }
   if (updates.clientId !== undefined) {
     config.clientId = updates.clientId;
     ctx?.secrets.set('GOOGLE_CLIENT_ID', updates.clientId);
@@ -99,6 +146,14 @@ export function updateConfig(updates: Partial<GmailConfig>): void {
   if (updates.clientSecret !== undefined) {
     config.clientSecret = updates.clientSecret;
     ctx?.secrets.set('GOOGLE_CLIENT_SECRET', updates.clientSecret);
+  }
+  if (updates.serviceAccountJson !== undefined) {
+    config.serviceAccountJson = updates.serviceAccountJson;
+    ctx?.secrets.set('GOOGLE_SERVICE_ACCOUNT_JSON', updates.serviceAccountJson);
+  }
+  if (updates.impersonateEmail !== undefined) {
+    config.impersonateEmail = updates.impersonateEmail;
+    ctx?.secrets.set('GOOGLE_IMPERSONATE_EMAIL', updates.impersonateEmail);
   }
   if (updates.pollingIntervalMs !== undefined) {
     config.pollingIntervalMs = updates.pollingIntervalMs;
@@ -120,8 +175,10 @@ export function shutdown(): void {
 // ─── Status ───
 
 export function getStatus(): GmailStatus {
+  const oauthConfigured = Boolean(config.clientId && config.clientSecret);
+  const serviceAccountConfigured = Boolean(config.serviceAccountJson && config.impersonateEmail);
   return {
-    configured: Boolean(config.clientId && config.clientSecret),
+    configured: oauthConfigured || serviceAccountConfigured,
     authenticated: Boolean(gmail && authenticatedEmail),
     emailAddress: authenticatedEmail,
     pollingActive: pollingTimer !== null,
@@ -132,7 +189,9 @@ export function getStatus(): GmailStatus {
 }
 
 export function isConfigured(): boolean {
-  return Boolean(config.clientId && config.clientSecret);
+  const oauthConfigured = Boolean(config.clientId && config.clientSecret);
+  const serviceAccountConfigured = Boolean(config.serviceAccountJson && config.impersonateEmail);
+  return oauthConfigured || serviceAccountConfigured;
 }
 
 // ─── OAuth2 ───
