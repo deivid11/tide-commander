@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.32.1] - 2026-03-23
+
+### Fixed
+- **Render loop resilience** - Keep render loop alive during canvas detach in React StrictMode remounts instead of stopping animation
+
 ## [1.32.0] - 2026-03-23
 
 ### Added
