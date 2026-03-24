@@ -74,7 +74,7 @@ export function getScenePerformanceProfile(): ScenePerformanceProfile {
     isConstrained: true,
     maxPixelRatio: canAffordHigherQuality ? 1.75 : 1.5,
     antialias: canAffordHigherQuality,
-    enableShadows: false,
+    enableShadows: !isMobile,
     maxFps: 30,
     indicatorUpdateInterval: 250,
     notificationBadgeUpdateInterval: 400,
