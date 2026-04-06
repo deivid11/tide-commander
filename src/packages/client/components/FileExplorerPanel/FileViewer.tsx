@@ -14,7 +14,7 @@ import type { FileViewerProps, FileData } from './types';
 import { formatFileSize } from './fileUtils';
 import { highlightElement, getLanguageForExtension, ensureLanguageLoaded } from './syntaxHighlighting';
 import { apiUrl, authFetch } from '../../utils/storage';
-import { copyRichContentToClipboard, copyTextToClipboard } from '../../utils/clipboard';
+import { copyRichContentToClipboard, copyTextToClipboard, inlineStylesForRichCopy } from '../../utils/clipboard';
 import { useStore } from '../../store';
 import { useLessNavigation } from '../../hooks/useLessNavigation';
 import { SearchBar } from './SearchBar';
@@ -388,7 +388,8 @@ function MarkdownFileViewer({
     }
 
     try {
-      const html = markdownContentRef.current.innerHTML;
+      const rawHtml = markdownContentRef.current.innerHTML;
+      const html = inlineStylesForRichCopy(rawHtml);
       const plainText = markdownContentRef.current.innerText;
       await copyRichContentToClipboard(html, plainText);
 
