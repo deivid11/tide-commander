@@ -382,6 +382,7 @@ function MarkdownFileViewer({
   // Copy as rich text (for pasting into Word, Docs with formatting)
   const handleCopyRichText = useCallback(async () => {
     if (!markdownContentRef.current) {
+      console.error('Copy Rich Text: markdown content ref is not available');
       setCopyRichTextStatus('error');
       setTimeout(() => setCopyRichTextStatus('idle'), 2000);
       return;
@@ -395,7 +396,8 @@ function MarkdownFileViewer({
 
       setCopyRichTextStatus('copied');
       setTimeout(() => setCopyRichTextStatus('idle'), 2000);
-    } catch {
+    } catch (err) {
+      console.error('Copy Rich Text failed:', err);
       setCopyRichTextStatus('error');
       setTimeout(() => setCopyRichTextStatus('idle'), 2000);
     }
@@ -404,6 +406,7 @@ function MarkdownFileViewer({
   // Copy as HTML tags (for pasting into Google Docs source, HTML editors)
   const handleCopyHtml = useCallback(async () => {
     if (!markdownContentRef.current) {
+      console.error('Copy HTML: markdown content ref is not available');
       setCopyHtmlStatus('error');
       setTimeout(() => setCopyHtmlStatus('idle'), 2000);
       return;
@@ -414,7 +417,8 @@ function MarkdownFileViewer({
       await copyTextToClipboard(html);
       setCopyHtmlStatus('copied');
       setTimeout(() => setCopyHtmlStatus('idle'), 2000);
-    } catch {
+    } catch (err) {
+      console.error('Copy HTML failed:', err);
       setCopyHtmlStatus('error');
       setTimeout(() => setCopyHtmlStatus('idle'), 2000);
     }

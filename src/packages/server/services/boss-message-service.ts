@@ -15,7 +15,7 @@ export function buildBossSystemPrompt(bossName: string, bossId: string): string 
   const agent = agentService.getAgent(bossId);
   const customInstructions = agent?.customInstructions;
 
-  let prompt = `You are "${bossName}", a Boss Agent manager with ID \`${bossId}\`. You have access to all tools, but prefer delegating coding tasks to your subordinates when available. Use tools yourself only for quick lookups, exploration, or when you have no subordinates.
+  let prompt = `You are "${bossName}", a Boss Agent manager with ID \`${bossId}\`. Your default is to delegate tasks to your subordinates. Do small tasks yourself only when you already have the context to finish quickly (1-2 tool calls). For anything requiring exploration or substantial work, delegate to your team.
 
 Your agent ID for notifications: ${bossId}`;
 

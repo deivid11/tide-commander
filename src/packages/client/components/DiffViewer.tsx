@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { highlightCode, ensureLanguageLoaded } from './FileExplorerPanel/syntaxHighlighting';
+import { copyRichContentToClipboard, copyTextToClipboard, inlineStylesForRichCopy } from '../utils/clipboard';
 
 interface DiffViewerProps {
   originalContent: string;
@@ -285,23 +286,18 @@ export function DiffViewer({ originalContent, modifiedContent, filename, languag
     try {
       // For markdown in rendered view, copy as rich text
       if (isMarkdown && viewOnlyModified && markdownContentRef.current) {
-        const html = markdownContentRef.current.innerHTML;
+        const rawHtml = markdownContentRef.current.innerHTML;
+        const html = inlineStylesForRichCopy(rawHtml);
         const plainText = markdownContentRef.current.innerText;
-        const htmlBlob = new Blob([html], { type: 'text/html' });
-        const textBlob = new Blob([plainText], { type: 'text/plain' });
-        await navigator.clipboard.write([
-          new ClipboardItem({
-            'text/html': htmlBlob,
-            'text/plain': textBlob,
-          }),
-        ]);
+        await copyRichContentToClipboard(html, plainText);
       } else {
         // For code or diff view, copy as plain text
-        await navigator.clipboard.writeText(modifiedContent);
+        await copyTextToClipboard(modifiedContent);
       }
       setCopyStatus('copied');
       setTimeout(() => setCopyStatus('idle'), 2000);
-    } catch {
+    } catch (err) {
+      console.error('Copy modified content failed:', err);
       setCopyStatus('error');
       setTimeout(() => setCopyStatus('idle'), 2000);
     }
@@ -310,16 +306,18 @@ export function DiffViewer({ originalContent, modifiedContent, filename, languag
   // Copy HTML tags as plain text (for pasting into Google Docs source, HTML editors, etc.)
   const handleCopyAsHtml = useCallback(async () => {
     if (!markdownContentRef.current) {
+      console.error('Copy HTML: markdown content ref is not available');
       setCopyHtmlStatus('error');
       setTimeout(() => setCopyHtmlStatus('idle'), 2000);
       return;
     }
     try {
       const html = markdownContentRef.current.innerHTML;
-      await navigator.clipboard.writeText(html);
+      await copyTextToClipboard(html);
       setCopyHtmlStatus('copied');
       setTimeout(() => setCopyHtmlStatus('idle'), 2000);
-    } catch {
+    } catch (err) {
+      console.error('Copy HTML failed:', err);
       setCopyHtmlStatus('error');
       setTimeout(() => setCopyHtmlStatus('idle'), 2000);
     }
