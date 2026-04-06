@@ -31,16 +31,18 @@ export function Tooltip({
   content,
   children,
   position = 'top',
-  delay = 300,
+  delay = 150,
   maxWidth = 280,
   disabled = false,
   className = '',
 }: TooltipProps) {
   const [isVisible, setIsVisible] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   const [coords, setCoords] = useState({ top: 0, left: 0 });
   const triggerRef = useRef<HTMLSpanElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const fadeOutRef = useRef<NodeJS.Timeout | null>(null);
 
   const calculatePosition = useCallback(() => {
     if (!triggerRef.current || !tooltipRef.current) return;
@@ -91,7 +93,12 @@ export function Tooltip({
 
   const showTooltip = useCallback(() => {
     if (disabled) return;
+    if (fadeOutRef.current) {
+      clearTimeout(fadeOutRef.current);
+      fadeOutRef.current = null;
+    }
     timeoutRef.current = setTimeout(() => {
+      setIsMounted(true);
       setIsVisible(true);
     }, delay);
   }, [delay, disabled]);
@@ -102,27 +109,30 @@ export function Tooltip({
       timeoutRef.current = null;
     }
     setIsVisible(false);
+    // Keep mounted for fade-out animation (100ms)
+    fadeOutRef.current = setTimeout(() => {
+      setIsMounted(false);
+    }, 100);
   }, []);
 
   useEffect(() => {
-    if (isVisible) {
+    if (isMounted && isVisible) {
       // Small delay to ensure tooltip is rendered before calculating position
       requestAnimationFrame(calculatePosition);
     }
-  }, [isVisible, calculatePosition]);
+  }, [isMounted, isVisible, calculatePosition]);
 
   useEffect(() => {
     return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      if (fadeOutRef.current) clearTimeout(fadeOutRef.current);
     };
   }, []);
 
-  const tooltip = isVisible && content && createPortal(
+  const tooltip = isMounted && content && createPortal(
     <div
       ref={tooltipRef}
-      className={`tide-tooltip tide-tooltip--${position} ${className}`}
+      className={`tide-tooltip tide-tooltip--${position} ${isVisible ? 'tide-tooltip--visible' : 'tide-tooltip--hiding'} ${className}`}
       style={{
         position: 'absolute',
         top: coords.top,

@@ -20,6 +20,7 @@ import { useRenderCounter } from '../utils/profiling';
 import { useAgentOrder } from '../hooks';
 import { useNpmVersionStatus } from '../hooks/useNpmVersionStatus';
 import { hasPendingSceneChanges, refreshScene } from '../hooks/useSceneSetup';
+import { Tooltip } from './shared/Tooltip';
 
 interface AgentBarProps {
   onFocusAgent?: (agentId: string) => void;
@@ -573,56 +574,61 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
         )}
         {/* HMR Refresh button - only shows when there are pending 3D scene changes */}
         {hasPendingHmrChanges && (
-          <button
-            className="agent-bar-hmr-refresh"
-            onClick={refreshScene}
-            title="Refresh 3D Scene (HMR changes pending)"
-          >
-            ↻
-          </button>
+          <Tooltip content="Refresh 3D Scene (HMR changes pending)" position="bottom">
+            <button
+              className="agent-bar-hmr-refresh"
+              onClick={refreshScene}
+            >
+              ↻
+            </button>
+          </Tooltip>
         )}
       </div>
 
       <div className="agent-bar-list" ref={listRef}>
         {/* New Agent button */}
-        <button
-          className="agent-bar-spawn-btn"
-          onClick={onSpawnClick}
-          title={t('common:agentBar.spawnNewAgent')}
-        >
-          <span className="agent-bar-spawn-icon">+</span>
-          <span className="agent-bar-spawn-label">{t('common:agentBar.newAgent')}</span>
-        </button>
+        <Tooltip content={t('common:agentBar.spawnNewAgent')} position="bottom">
+          <button
+            className="agent-bar-spawn-btn"
+            onClick={onSpawnClick}
+          >
+            <span className="agent-bar-spawn-icon">+</span>
+            <span className="agent-bar-spawn-label">{t('common:agentBar.newAgent')}</span>
+          </button>
+        </Tooltip>
 
         {/* New Boss button */}
-        <button
-          className="agent-bar-spawn-btn agent-bar-boss-btn"
-          onClick={onSpawnBossClick}
-          title={t('common:agentBar.spawnBoss')}
-        >
-          <span className="agent-bar-spawn-icon">👑</span>
-          <span className="agent-bar-spawn-label">{t('common:agentBar.newBoss')}</span>
-        </button>
+        <Tooltip content={t('common:agentBar.spawnBoss')} position="bottom">
+          <button
+            className="agent-bar-spawn-btn agent-bar-boss-btn"
+            onClick={onSpawnBossClick}
+          >
+            <span className="agent-bar-spawn-icon">👑</span>
+            <span className="agent-bar-spawn-label">{t('common:agentBar.newBoss')}</span>
+          </button>
+        </Tooltip>
 
         {/* New Building button */}
-        <button
-          className="agent-bar-spawn-btn agent-bar-building-btn"
-          onClick={onNewBuildingClick}
-          title={t('common:agentBar.addNewBuilding')}
-        >
-          <span className="agent-bar-spawn-icon">🏢</span>
-          <span className="agent-bar-spawn-label">{t('common:agentBar.newBuilding')}</span>
-        </button>
+        <Tooltip content={t('common:agentBar.addNewBuilding')} position="bottom">
+          <button
+            className="agent-bar-spawn-btn agent-bar-building-btn"
+            onClick={onNewBuildingClick}
+          >
+            <span className="agent-bar-spawn-icon">🏢</span>
+            <span className="agent-bar-spawn-label">{t('common:agentBar.newBuilding')}</span>
+          </button>
+        </Tooltip>
 
         {/* New Area button */}
-        <button
-          className="agent-bar-spawn-btn agent-bar-area-btn"
-          onClick={onNewAreaClick}
-          title={t('common:agentBar.drawNewArea')}
-        >
-          <span className="agent-bar-spawn-icon">🔲</span>
-          <span className="agent-bar-spawn-label">{t('common:agentBar.newArea')}</span>
-        </button>
+        <Tooltip content={t('common:agentBar.drawNewArea')} position="bottom">
+          <button
+            className="agent-bar-spawn-btn agent-bar-area-btn"
+            onClick={onNewAreaClick}
+          >
+            <span className="agent-bar-spawn-icon">🔲</span>
+            <span className="agent-bar-spawn-label">{t('common:agentBar.newArea')}</span>
+          </button>
+        </Tooltip>
         {/* Agents grouped by area */}
         {agentGroups.map((group) => {
           const groupAgents = group.agents;

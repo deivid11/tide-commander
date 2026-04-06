@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { highlightCode, ensureLanguageLoaded } from './FileExplorerPanel/syntaxHighlighting';
 import { copyRichContentToClipboard, copyTextToClipboard, inlineStylesForRichCopy } from '../utils/clipboard';
+import { Tooltip } from './shared/Tooltip';
 
 interface DiffViewerProps {
   originalContent: string;
@@ -636,25 +637,27 @@ export function DiffViewer({ originalContent, modifiedContent, filename, languag
         <div className="diff-viewer-nav">
           {diffHunks.length > 0 && (
             <>
-              <button
-                className="diff-nav-btn"
-                onClick={goToPrevHunk}
-                disabled={currentHunkIndex === 0}
-                title="Previous change (Up)"
-              >
-                ↑
-              </button>
+              <Tooltip content="Previous change (Up)" position="bottom">
+                <button
+                  className="diff-nav-btn"
+                  onClick={goToPrevHunk}
+                  disabled={currentHunkIndex === 0}
+                >
+                  ↑
+                </button>
+              </Tooltip>
               <span className="diff-nav-counter">
                 {currentHunkIndex + 1} / {diffHunks.length}
               </span>
-              <button
-                className="diff-nav-btn"
-                onClick={goToNextHunk}
-                disabled={currentHunkIndex === diffHunks.length - 1}
-                title="Next change (Down)"
-              >
-                ↓
-              </button>
+              <Tooltip content="Next change (Down)" position="bottom">
+                <button
+                  className="diff-nav-btn"
+                  onClick={goToNextHunk}
+                  disabled={currentHunkIndex === diffHunks.length - 1}
+                >
+                  ↓
+                </button>
+              </Tooltip>
             </>
           )}
         </div>
@@ -664,29 +667,32 @@ export function DiffViewer({ originalContent, modifiedContent, filename, languag
         </div>
         <div className="diff-viewer-actions">
           {!isNewFile && !isDeletedFile && (
-            <button
-              className={`diff-toggle-btn ${viewOnlyModified ? 'active' : ''}`}
-              onClick={() => setViewOnlyModified(!viewOnlyModified)}
-              title={viewOnlyModified ? 'Show diff view' : 'View only modified'}
-            >
-              {viewOnlyModified ? t('terminal:diffViewer.showDiff') : t('terminal:diffViewer.modifiedOnly')}
-            </button>
+            <Tooltip content={viewOnlyModified ? 'Show diff view' : 'View only modified'} position="bottom">
+              <button
+                className={`diff-toggle-btn ${viewOnlyModified ? 'active' : ''}`}
+                onClick={() => setViewOnlyModified(!viewOnlyModified)}
+              >
+                {viewOnlyModified ? t('terminal:diffViewer.showDiff') : t('terminal:diffViewer.modifiedOnly')}
+              </button>
+            </Tooltip>
           )}
-          <button
-            className={`diff-copy-btn ${copyStatus}`}
-            onClick={handleCopyModified}
-            title={isMarkdown && viewOnlyModified ? 'Copy as rich text' : 'Copy modified content'}
-          >
-            {copyStatus === 'copied' ? `✓ ${t('terminal:diffViewer.copied')}` : copyStatus === 'error' ? `✗ ${t('terminal:diffViewer.errorCopy')}` : (isMarkdown && viewOnlyModified ? t('terminal:diffViewer.copyRichText') : t('common:buttons.copy'))}
-          </button>
-          {isMarkdown && viewOnlyModified && (
+          <Tooltip content={isMarkdown && viewOnlyModified ? 'Copy as rich text' : 'Copy modified content'} position="bottom">
             <button
-              className={`diff-copy-btn ${copyHtmlStatus}`}
-              onClick={handleCopyAsHtml}
-              title="Copy as HTML tags (for Google Docs, HTML editors)"
+              className={`diff-copy-btn ${copyStatus}`}
+              onClick={handleCopyModified}
             >
-              {copyHtmlStatus === 'copied' ? `✓ ${t('terminal:diffViewer.copied')}` : copyHtmlStatus === 'error' ? `✗ ${t('terminal:diffViewer.errorCopy')}` : t('terminal:diffViewer.copyHtml')}
+              {copyStatus === 'copied' ? `✓ ${t('terminal:diffViewer.copied')}` : copyStatus === 'error' ? `✗ ${t('terminal:diffViewer.errorCopy')}` : (isMarkdown && viewOnlyModified ? t('terminal:diffViewer.copyRichText') : t('common:buttons.copy'))}
             </button>
+          </Tooltip>
+          {isMarkdown && viewOnlyModified && (
+            <Tooltip content="Copy as HTML tags (for Google Docs, HTML editors)" position="bottom">
+              <button
+                className={`diff-copy-btn ${copyHtmlStatus}`}
+                onClick={handleCopyAsHtml}
+              >
+                {copyHtmlStatus === 'copied' ? `✓ ${t('terminal:diffViewer.copied')}` : copyHtmlStatus === 'error' ? `✗ ${t('terminal:diffViewer.errorCopy')}` : t('terminal:diffViewer.copyHtml')}
+              </button>
+            </Tooltip>
           )}
         </div>
       </div>

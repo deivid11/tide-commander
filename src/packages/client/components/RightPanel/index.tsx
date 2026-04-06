@@ -13,6 +13,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useRightPanelResize } from './useRightPanelResize';
 import { TabContent } from './TabContent';
+import { Tooltip } from '../shared/Tooltip';
 import type { RightPanelTab } from './types';
 import {
   RIGHT_PANEL_TABS,
@@ -182,28 +183,30 @@ export function RightPanel({
         )}
 
         {/* Collapse/expand edge button */}
-        <button
-          className={`right-panel__collapse-btn ${isCollapsed ? 'right-panel__collapse-btn--collapsed' : ''}`}
-          onClick={handleToggleCollapse}
-          title={isCollapsed ? t('rightPanel.expandPanel') : t('rightPanel.collapsePanel')}
-        >
-          <span className="right-panel__collapse-icon">
-            {isCollapsed ? '◀' : '▶'}
-          </span>
-        </button>
+        <Tooltip content={isCollapsed ? t('rightPanel.expandPanel') : t('rightPanel.collapsePanel')} position="left">
+          <button
+            className={`right-panel__collapse-btn ${isCollapsed ? 'right-panel__collapse-btn--collapsed' : ''}`}
+            onClick={handleToggleCollapse}
+          >
+            <span className="right-panel__collapse-icon">
+              {isCollapsed ? '◀' : '▶'}
+            </span>
+          </button>
+        </Tooltip>
 
         {/* Panel content wrapper - animated */}
         <div className="right-panel__content">
           {/* Mobile header: swipe handle + close button */}
           <div className="right-panel__mobile-header">
             <div className="right-panel__swipe-handle" />
-            <button
-              className="right-panel__mobile-close"
-              onClick={handleToggleCollapse}
-              title={t('rightPanel.closePanel')}
-            >
-              ✕
-            </button>
+            <Tooltip content={t('rightPanel.closePanel')} position="bottom">
+              <button
+                className="right-panel__mobile-close"
+                onClick={handleToggleCollapse}
+              >
+                ✕
+              </button>
+            </Tooltip>
           </div>
 
           {/* Tab bar */}

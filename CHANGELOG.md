@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.34.2] - 2026-04-06
+
+### Changed
+- **Tooltip component migration** - Replaced native `title` attributes with shared Tooltip component across AgentBar, FloatingActionButtons, DiffViewer, and RightPanel for consistent styled tooltips
+- **Tooltip styling** - Updated tooltip styles and positioning for better visual consistency
+- **Guake header styling** - Refined header layout styles
+
 ## [1.34.1] - 2026-04-06
 
 ### Changed
