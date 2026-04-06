@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.34.1] - 2026-04-06
+
+### Changed
+- **Rich copy styling** - Enhanced clipboard inline styles with GitHub-like theme, Google Docs table compatibility, and proper font stacks
+- **Boss delegation instructions** - Refined boss agent instructions to prioritize delegation by default, with clearer guidelines for when to act directly vs delegate
+- **Copy error logging** - Added console.error logging to clipboard copy failure handlers across DiffViewer, FileViewer, and FileViewerModal
+- **DiffViewer clipboard** - Refactored to use shared clipboard utilities instead of direct navigator.clipboard calls
+- **FileViewerModal copy buttons** - Hide rich text copy buttons in highlight view mode
+
 ## [1.34.0] - 2026-04-06
 
 ### Added

@@ -540,6 +540,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
 
   const handleCopyAsRichText = useCallback(async () => {
     if (!markdownContentRef.current) {
+      console.error('Copy Rich Text: markdown content ref is not available');
       setCopyRichTextStatus('error');
       setTimeout(() => setCopyRichTextStatus('idle'), 2000);
       return;
@@ -553,7 +554,8 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
 
       setCopyRichTextStatus('copied');
       setTimeout(() => setCopyRichTextStatus('idle'), 2000);
-    } catch {
+    } catch (err) {
+      console.error('Copy Rich Text failed:', err);
       setCopyRichTextStatus('error');
       setTimeout(() => setCopyRichTextStatus('idle'), 2000);
     }
@@ -561,6 +563,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
 
   const handleCopyAsHtml = useCallback(async () => {
     if (!markdownContentRef.current) {
+      console.error('Copy HTML: markdown content ref is not available');
       setCopyHtmlStatus('error');
       setTimeout(() => setCopyHtmlStatus('idle'), 2000);
       return;
@@ -571,7 +574,8 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
       await copyTextToClipboard(html);
       setCopyHtmlStatus('copied');
       setTimeout(() => setCopyHtmlStatus('idle'), 2000);
-    } catch {
+    } catch (err) {
+      console.error('Copy HTML failed:', err);
       setCopyHtmlStatus('error');
       setTimeout(() => setCopyHtmlStatus('idle'), 2000);
     }
@@ -645,7 +649,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
             <span className="file-viewer-filename">{fileData?.filename || effectivePath.split('/').pop()}</span>
           </div>
           <div className="file-viewer-header-buttons">
-            {isMarkdown && fileData && !showDiffView && !showUnifiedDiffView && (
+            {isMarkdown && fileData && !showDiffView && !showUnifiedDiffView && !showHighlightView && (
               <>
                 <button
                   className={`file-viewer-copy-html-btn ${copyRichTextStatus}`}
