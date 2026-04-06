@@ -71,6 +71,9 @@ export const STORAGE_KEYS = {
 
   // Agent notifications
   UNSEEN_AGENTS: 'tide-unseen-agents',
+
+  // Pending messages (queued when offline)
+  PENDING_MESSAGES: 'tide-pending-messages',
 } as const;
 
 export const BACKEND_URL_CHANGE_EVENT = 'tide-backend-url-change';

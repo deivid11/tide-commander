@@ -656,3 +656,138 @@
     border-color: $dracula-red;
   }
 }
+
+// =============================================================================
+// Inline Discard Button (per-file, appears on hover)
+// =============================================================================
+
+.git-discard-btn {
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  color: $text-muted;
+  width: 20px;
+  height: 20px;
+  border-radius: $radius-sm;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  opacity: 0;
+  transition: all $transition-fast;
+  margin-left: auto;
+
+  .git-file-item:hover & {
+    opacity: 0.5;
+  }
+
+  &:hover {
+    opacity: 1 !important;
+    color: $dracula-red;
+    background: rgba($dracula-red, 0.12);
+    border-color: rgba($dracula-red, 0.35);
+  }
+}
+
+// Discard All button in group header
+.git-discard-all-btn {
+  background: transparent;
+  border: 1px solid rgba($dracula-red, 0.3);
+  color: rgba($dracula-red, 0.7);
+  padding: 2px 8px;
+  border-radius: $radius-sm;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all $transition-fast;
+  margin-left: auto;
+  white-space: nowrap;
+
+  &:hover {
+    background: rgba($dracula-red, 0.15);
+    border-color: $dracula-red;
+    color: $dracula-red;
+  }
+}
+
+// Discard confirmation overlay
+.git-discard-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: git-discard-fade-in 0.12s ease;
+}
+
+@keyframes git-discard-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.git-discard-confirm {
+  background: $bg-secondary;
+  border: 1px solid $dracula-red;
+  border-radius: 8px;
+  padding: 20px 24px;
+  max-width: 420px;
+  width: 90vw;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  text-align: center;
+
+  p {
+    margin: 0 0 6px;
+    color: $text-primary;
+    font-size: 13px;
+
+    strong {
+      color: $dracula-red;
+    }
+  }
+}
+
+.git-discard-confirm-hint {
+  font-size: 11px;
+  color: $text-muted;
+  margin-bottom: 14px;
+}
+
+.git-discard-confirm-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.git-discard-confirm-cancel {
+  background: transparent;
+  border: 1px solid $border-color;
+  color: $text-primary;
+  padding: 5px 18px;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  font-size: 12px;
+
+  &:hover {
+    background: rgba($border-color, 0.3);
+  }
+}
+
+.git-discard-confirm-btn {
+  background: rgba($dracula-red, 0.2);
+  border: 1px solid $dracula-red;
+  color: $dracula-red;
+  padding: 5px 18px;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+
+  &:hover {
+    background: rgba($dracula-red, 0.35);
+  }
+}

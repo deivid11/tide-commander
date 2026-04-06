@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.34.0] - 2026-04-06
+
+### Added
+- **Inline discard button** - Per-file discard/delete button on hover in both Git Changes panel and Guake Git panel with confirmation dialogs
+- **Pending message queue** - WebSocket messages are queued in localStorage when disconnected and automatically flushed on reconnect, preventing lost commands
+- **Rich copy inline styles** - Clipboard rich-text copies now inline CSS styles for correct rendering in external apps (Word, Google Docs, email)
+
+### Changed
+- **Escape key handling** - Improved modal escape key behavior using `stopImmediatePropagation` and modal stack registration to prevent closing parent panels
+- **Agent CWD tooltip** - Added full path tooltip on truncated agent working directory display in guake header
+
 ## [1.33.0] - 2026-03-24
 
 ### Added

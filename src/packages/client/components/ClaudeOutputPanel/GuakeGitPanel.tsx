@@ -22,6 +22,7 @@ import { useFileTree } from '../FileExplorerPanel/useFileTree';
 import { TreeNodeItem } from '../FileExplorerPanel/TreeNodeItem';
 import type { BranchInfo } from './useGitBranch';
 import { ContextMenu, type ContextMenuAction } from '../ContextMenu';
+import { useModalStackRegistration } from '../../hooks/useModalStack';
 
 // ==========================================================================
 // TYPES
@@ -99,10 +100,11 @@ interface TreeNodeProps {
   onToggleDir: (path: string) => void;
   onFileClick: (file: GitFileStatus, repoDir: string) => void;
   onContextMenu?: (e: React.MouseEvent, file: GitFileStatus, repoDir: string) => void;
+  onDiscard?: (e: React.MouseEvent, file: GitFileStatus, repoDir: string) => void;
   repoDir: string;
 }
 
-function TreeNodeView({ node, depth, expandedDirs, onToggleDir, onFileClick, onContextMenu, repoDir }: TreeNodeProps) {
+function TreeNodeView({ node, depth, expandedDirs, onToggleDir, onFileClick, onContextMenu, onDiscard, repoDir }: TreeNodeProps) {
   if (node.isDirectory) {
     const isExpanded = expandedDirs.has(node.path);
     const folderIconSrc = isExpanded
@@ -131,6 +133,7 @@ function TreeNodeView({ node, depth, expandedDirs, onToggleDir, onFileClick, onC
             onToggleDir={onToggleDir}
             onFileClick={onFileClick}
             onContextMenu={onContextMenu}
+            onDiscard={onDiscard}
             repoDir={repoDir}
           />
         ))}
@@ -156,6 +159,15 @@ function TreeNodeView({ node, depth, expandedDirs, onToggleDir, onFileClick, onC
       <span className="guake-git-file-status" style={{ color: cfg.color, marginLeft: 'auto' }} title={cfg.label}>
         {cfg.icon}
       </span>
+      {onDiscard && (
+        <button
+          className="guake-git-discard-btn"
+          title={file.status === 'untracked' || file.status === 'added' ? 'Delete file' : 'Discard changes'}
+          onClick={(e) => onDiscard(e, file, repoDir)}
+        >
+          ↩
+        </button>
+      )}
     </div>
   );
 }
@@ -573,6 +585,36 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
     }
   }, [refresh, panelMode, fileTree]);
 
+  // Inline discard for a single file (with confirmation via pendingDiscard state)
+  const [pendingDiscard, setPendingDiscard] = useState<{ path: string; name: string; status: GitFileStatusType; repoDir: string } | null>(null);
+  const executeDiscard = useCallback(async (pending: { path: string; name: string; status: GitFileStatusType; repoDir: string }) => {
+    try {
+      await authFetch(apiUrl('/api/files/git-discard'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          files: [{ path: pending.path, status: pending.status }],
+          directory: pending.repoDir,
+        }),
+      });
+      refresh();
+    } catch { /* skip */ } finally {
+      setPendingDiscard(null);
+    }
+  }, [refresh]);
+
+  const handleInlineDiscard = useCallback((e: React.MouseEvent, file: GitFileStatus, repoDir: string) => {
+    e.stopPropagation();
+    const fullPath = file.path.startsWith('/') ? file.path : `${repoDir.replace(/\/$/, '')}/${file.path}`;
+    if (file.status === 'untracked' || file.status === 'added') {
+      // For untracked/added: delete file
+      setPendingDelete({ path: fullPath, name: file.name, status: file.status, repoDir });
+    } else {
+      // For modified/deleted/renamed: discard changes
+      setPendingDiscard({ path: fullPath, name: file.name, status: file.status, repoDir });
+    }
+  }, []);
+
   // Context menu for git-changed files (Changes tab)
   const handleGitFileContextMenu = useCallback((e: React.MouseEvent, file: GitFileStatus, repoDir: string) => {
     e.preventDefault();
@@ -734,18 +776,33 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
 
   const totalFiles = repos.reduce((sum, r) => sum + r.gitStatus.files.length, 0);
 
-  // Close modal on Escape
+  // Close modal on Escape — use stopImmediatePropagation so the global
+  // useKeyboardShortcuts capture-phase listener (also on document) doesn't
+  // also fire and close the guake terminal itself.
   useEffect(() => {
-    if (!modalState) return;
+    if (!modalState && !pendingDelete && !pendingDiscard) return;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        e.stopPropagation();
-        closeModal();
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        if (pendingDiscard) {
+          setPendingDiscard(null);
+        } else if (pendingDelete) {
+          setPendingDelete(null);
+        } else {
+          closeModal();
+        }
       }
     };
     document.addEventListener('keydown', onKeyDown, true);
     return () => document.removeEventListener('keydown', onKeyDown, true);
-  }, [modalState, closeModal]);
+  }, [modalState, closeModal, pendingDelete, pendingDiscard]);
+
+  // Register git modals on the modal stack so other Escape handlers
+  // (e.g. useKeyboardShortcuts) know a modal is open and skip closing the terminal.
+  useModalStackRegistration('guake-git-diff-modal', modalState !== null, closeModal);
+  useModalStackRegistration('guake-git-delete-confirm', pendingDelete !== null, () => setPendingDelete(null));
+  useModalStackRegistration('guake-git-discard-confirm', pendingDiscard !== null, () => setPendingDiscard(null));
 
   // Auto-expand tree dirs on first tree view
   useEffect(() => {
@@ -781,6 +838,20 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
           <div className="guake-git-delete-actions">
             <button className="guake-git-delete-cancel" onClick={() => setPendingDelete(null)}>Cancel</button>
             <button className="guake-git-delete-btn" onClick={() => executeDelete(pendingDelete)}>Delete</button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Discard Confirmation */}
+    {pendingDiscard && (
+      <div className="guake-git-diff-modal-overlay" onClick={() => setPendingDiscard(null)}>
+        <div className="guake-git-delete-confirm" onClick={(e) => e.stopPropagation()}>
+          <p>Discard changes to <strong>{pendingDiscard.name}</strong>?</p>
+          <p className="guake-git-delete-path">{pendingDiscard.path}</p>
+          <div className="guake-git-delete-actions">
+            <button className="guake-git-delete-cancel" onClick={() => setPendingDiscard(null)}>Cancel</button>
+            <button className="guake-git-delete-btn" onClick={() => executeDiscard(pendingDiscard)}>Discard</button>
           </div>
         </div>
       </div>
@@ -952,6 +1023,13 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                           <span className="guake-git-file-status" style={{ color: cfg.color }} title={cfg.label}>
                             {cfg.icon}
                           </span>
+                          <button
+                            className="guake-git-discard-btn"
+                            title={file.status === 'untracked' || file.status === 'added' ? 'Delete file' : 'Discard changes'}
+                            onClick={(e) => handleInlineDiscard(e, file, dir)}
+                          >
+                            ↩
+                          </button>
                         </div>
                       );
                     })}
@@ -969,6 +1047,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                         onToggleDir={toggleTreeDir}
                         onFileClick={handleFileClick}
                         onContextMenu={handleGitFileContextMenu}
+                        onDiscard={handleInlineDiscard}
                         repoDir={dir}
                       />
                     ))}

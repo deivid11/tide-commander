@@ -34,6 +34,7 @@ interface GitFileItemProps {
   isChecked?: boolean;
   onToggleCheck?: (path: string) => void;
   onContextMenu?: (event: React.MouseEvent, file: GitFileStatus, status: GitFileStatusType) => void;
+  onDiscard?: (file: GitFileStatus, status: GitFileStatusType) => void;
 }
 
 const GitFileItem = memo(function GitFileItem({
@@ -46,6 +47,7 @@ const GitFileItem = memo(function GitFileItem({
   isChecked,
   onToggleCheck,
   onContextMenu,
+  onDiscard,
 }: GitFileItemProps) {
   const { t } = useTranslation(['terminal']);
   const status = file.status;
@@ -106,6 +108,18 @@ const GitFileItem = memo(function GitFileItem({
           {isStaging ? '...' : '+'}
         </button>
       )}
+      {onDiscard && (
+        <button
+          className="git-discard-btn"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDiscard(file, status);
+          }}
+          title={status === 'untracked' || status === 'added' ? 'Delete file' : 'Discard changes'}
+        >
+          ↩
+        </button>
+      )}
     </div>
   );
 });
@@ -127,10 +141,11 @@ interface GitTreeNodeItemProps {
   onToggleCheck?: (path: string) => void;
   onContextMenu?: (event: React.MouseEvent, file: GitFileStatus, status: GitFileStatusType) => void;
   onDirContextMenu?: (event: React.MouseEvent, node: GitTreeNode) => void;
+  onDiscard?: (file: GitFileStatus, status: GitFileStatusType) => void;
 }
 
-const GIT_TREE_INDENT = 16; // px per depth level
-const GIT_TREE_BASE_PAD = 52; // px base padding (enough room for checkbox via negative margin)
+const GIT_TREE_INDENT = 16; // Matches the main file tree indent
+const GIT_TREE_FILE_PAD = 22; // Arrow slot (16px) + gap so file icons align with folder icons
 
 const GitTreeNodeItem = memo(function GitTreeNodeItem({
   node,
@@ -145,6 +160,7 @@ const GitTreeNodeItem = memo(function GitTreeNodeItem({
   onToggleCheck,
   onContextMenu,
   onDirContextMenu,
+  onDiscard,
 }: GitTreeNodeItemProps) {
   const { t } = useTranslation(['terminal']);
   const indent = depth * GIT_TREE_INDENT;
@@ -160,7 +176,7 @@ const GitTreeNodeItem = memo(function GitTreeNodeItem({
           e.preventDefault();
           onContextMenu?.(e, node.file!, fileStatus);
         }}
-        style={{ paddingLeft: `${indent + GIT_TREE_BASE_PAD}px`, cursor: fileStatus === 'deleted' ? 'not-allowed' : 'pointer' }}
+        style={{ paddingLeft: `${indent + GIT_TREE_FILE_PAD}px`, cursor: fileStatus === 'deleted' ? 'not-allowed' : 'pointer' }}
         title={node.file!.path}
       >
         {onToggleCheck && (
@@ -198,6 +214,18 @@ const GitTreeNodeItem = memo(function GitTreeNodeItem({
             {stagingPaths?.has(node.path) ? '...' : '+'}
           </button>
         )}
+        {onDiscard && (
+          <button
+            className="git-discard-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDiscard(node.file!, fileStatus);
+            }}
+            title={fileStatus === 'untracked' || fileStatus === 'added' ? 'Delete file' : 'Discard changes'}
+          >
+            ↩
+          </button>
+        )}
       </div>
     );
   }
@@ -208,7 +236,7 @@ const GitTreeNodeItem = memo(function GitTreeNodeItem({
     <div className="tree-node-wrapper">
       <div
         className={`tree-node directory ${isExpanded ? 'expanded' : ''}`}
-        style={{ paddingLeft: `${indent + GIT_TREE_BASE_PAD}px` }}
+        style={{ paddingLeft: `${indent}px` }}
         onClick={() => onToggleDir(node.path)}
         onContextMenu={(e) => {
           e.preventDefault();
@@ -244,6 +272,7 @@ const GitTreeNodeItem = memo(function GitTreeNodeItem({
               onToggleCheck={onToggleCheck}
               onContextMenu={onContextMenu}
               onDirContextMenu={onDirContextMenu}
+              onDiscard={onDiscard}
             />
           ))}
         </div>
@@ -274,6 +303,8 @@ interface GitMergedGroupProps {
   onToggleCheck?: (path: string) => void;
   onContextMenu?: (event: React.MouseEvent, file: GitFileStatus, status: GitFileStatusType) => void;
   onDirContextMenu?: (event: React.MouseEvent, node: GitTreeNode) => void;
+  onDiscardFile?: (file: GitFileStatus, status: GitFileStatusType) => void;
+  onDiscardAll?: () => void;
 }
 
 const GitMergedGroup = memo(function GitMergedGroup({
@@ -294,6 +325,8 @@ const GitMergedGroup = memo(function GitMergedGroup({
   onToggleCheck,
   onContextMenu,
   onDirContextMenu,
+  onDiscardFile,
+  onDiscardAll,
 }: GitMergedGroupProps) {
   const { t } = useTranslation(['terminal']);
   if (files.length === 0) return null;
@@ -322,6 +355,18 @@ const GitMergedGroup = memo(function GitMergedGroup({
             {isStagingAll ? '...' : t('terminal:fileExplorer.stageAll')}
           </button>
         )}
+        {onDiscardAll && (
+          <button
+            className="git-discard-all-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDiscardAll();
+            }}
+            title={hasUntracked ? `Delete all ${files.length} files` : `Discard all ${files.length} changes`}
+          >
+            ↩ All
+          </button>
+        )}
       </div>
 
       {viewMode === 'tree' ? (
@@ -341,6 +386,7 @@ const GitMergedGroup = memo(function GitMergedGroup({
               onToggleCheck={onToggleCheck}
               onContextMenu={onContextMenu}
               onDirContextMenu={onDirContextMenu}
+              onDiscard={onDiscardFile}
             />
           ))}
         </div>
@@ -358,6 +404,7 @@ const GitMergedGroup = memo(function GitMergedGroup({
               isChecked={checkedFiles?.has(file.path)}
               onToggleCheck={onToggleCheck}
               onContextMenu={onContextMenu}
+              onDiscard={onDiscardFile}
             />
           ))}
         </div>
@@ -414,6 +461,38 @@ function GitChangesComponent({
     position: { x: number; y: number };
     node: GitTreeNode;
   } | null>(null);
+
+  // Inline discard confirmation
+  const [pendingInlineDiscard, setPendingInlineDiscard] = useState<{ files: GitFileStatus[]; label: string } | null>(null);
+
+  const handleInlineDiscardFile = useCallback((file: GitFileStatus, _status: GitFileStatusType) => {
+    setPendingInlineDiscard({ files: [file], label: file.name });
+  }, []);
+
+  const executeInlineDiscard = useCallback(async () => {
+    if (!pendingInlineDiscard || !currentFolder) return;
+    try {
+      const res = await authFetch(apiUrl('/api/files/git-discard'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          files: pendingInlineDiscard.files.map(f => ({ path: f.path, status: f.status })),
+          directory: currentFolder,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast('success', 'Discarded', `Reverted ${pendingInlineDiscard.files.length} file(s)`);
+        onRefresh();
+      } else {
+        showToast('error', 'Discard Failed', data.error || 'Could not discard changes');
+      }
+    } catch {
+      showToast('error', 'Discard Failed', 'Network error');
+    } finally {
+      setPendingInlineDiscard(null);
+    }
+  }, [pendingInlineDiscard, currentFolder, onRefresh, showToast]);
 
   const handleGitFileContextMenu = useCallback((
     event: React.MouseEvent,
@@ -689,6 +768,22 @@ function GitChangesComponent({
     }
   }, [gitStatus?.files]);
 
+  // Discard All handlers for section headers
+  const handleDiscardAllChanges = useCallback(() => {
+    if (changesFiles.length === 0) return;
+    setPendingInlineDiscard({ files: changesFiles, label: `${changesFiles.length} changed files` });
+  }, [changesFiles]);
+
+  const handleDiscardAllUntracked = useCallback(() => {
+    if (untrackedFiles.length === 0) return;
+    setPendingInlineDiscard({ files: untrackedFiles, label: `${untrackedFiles.length} unversioned files` });
+  }, [untrackedFiles]);
+
+  const handleDiscardAllConflicts = useCallback(() => {
+    if (conflictFiles.length === 0) return;
+    setPendingInlineDiscard({ files: conflictFiles, label: `${conflictFiles.length} conflicted files` });
+  }, [conflictFiles]);
+
   const hasConflicts = conflictFiles.length > 0;
 
   // Auto-clear commit status
@@ -962,6 +1057,8 @@ function GitChangesComponent({
           onToggleCheck={handleToggleCheck}
           onContextMenu={handleGitFileContextMenu}
           onDirContextMenu={handleGitDirContextMenu}
+          onDiscardFile={handleInlineDiscardFile}
+          onDiscardAll={handleDiscardAllConflicts}
         />
 
         {/* Changes group (modified + added + deleted + renamed) */}
@@ -980,6 +1077,8 @@ function GitChangesComponent({
           onToggleCheck={handleToggleCheck}
           onContextMenu={handleGitFileContextMenu}
           onDirContextMenu={handleGitDirContextMenu}
+          onDiscardFile={handleInlineDiscardFile}
+          onDiscardAll={handleDiscardAllChanges}
         />
 
         {/* Unversioned files (untracked) */}
@@ -1001,6 +1100,8 @@ function GitChangesComponent({
           onToggleCheck={handleToggleCheck}
           onContextMenu={handleGitFileContextMenu}
           onDirContextMenu={handleGitDirContextMenu}
+          onDiscardFile={handleInlineDiscardFile}
+          onDiscardAll={handleDiscardAllUntracked}
         />
       </div>
 
@@ -1101,6 +1202,27 @@ function GitChangesComponent({
           actions={gitDirContextActions}
           onClose={() => setGitDirContextMenu(null)}
         />
+      )}
+
+      {/* Inline discard confirmation overlay */}
+      {pendingInlineDiscard && (
+        <div className="git-discard-confirm-overlay" onClick={() => setPendingInlineDiscard(null)}>
+          <div className="git-discard-confirm" onClick={(e) => e.stopPropagation()}>
+            <p>
+              {pendingInlineDiscard.files.some(f => f.status === 'untracked' || f.status === 'added')
+                ? <>Delete <strong>{pendingInlineDiscard.label}</strong>?</>
+                : <>Discard changes to <strong>{pendingInlineDiscard.label}</strong>?</>
+              }
+            </p>
+            <p className="git-discard-confirm-hint">This cannot be undone.</p>
+            <div className="git-discard-confirm-actions">
+              <button className="git-discard-confirm-cancel" onClick={() => setPendingInlineDiscard(null)}>Cancel</button>
+              <button className="git-discard-confirm-btn" onClick={executeInlineDiscard}>
+                {pendingInlineDiscard.files.some(f => f.status === 'untracked' || f.status === 'added') ? 'Delete' : 'Discard'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

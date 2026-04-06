@@ -4,7 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { DiffViewer } from './DiffViewer';
 import { apiUrl, authFetch, getAuthToken } from '../utils/storage';
-import { copyRichContentToClipboard, copyTextToClipboard } from '../utils/clipboard';
+import { copyRichContentToClipboard, copyTextToClipboard, inlineStylesForRichCopy } from '../utils/clipboard';
 import { useModalClose } from '../hooks';
 import { parseFilePathReference } from '../utils/filePaths';
 import { ModalPortal } from './shared/ModalPortal';
@@ -546,7 +546,8 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     }
 
     try {
-      const html = markdownContentRef.current.innerHTML;
+      const rawHtml = markdownContentRef.current.innerHTML;
+      const html = inlineStylesForRichCopy(rawHtml);
       const plainText = markdownContentRef.current.innerText;
       await copyRichContentToClipboard(html, plainText);
 

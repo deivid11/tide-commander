@@ -19,7 +19,7 @@ import {
 } from './state';
 import { cb } from './callbacks';
 import { handleServerMessage } from './handlers';
-import { sendMessage, extractAgentId } from './send';
+import { sendMessage, extractAgentId, flushPendingMessages } from './send';
 
 // Register connect() so send.ts can trigger it without a circular import
 setConnectFn(() => connect());
@@ -157,6 +157,9 @@ export function connect(): void {
 
     // Sync server URL to native foreground service for background notifications
     syncConnectionToNative(configuredUrl, authToken);
+
+    // Flush any messages that were queued while disconnected
+    flushPendingMessages();
   };
 
   newSocket.onmessage = (event) => {
