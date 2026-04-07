@@ -40,6 +40,12 @@ router.get('/', (_req: Request, res: Response) => {
   res.json(triggers);
 });
 
+// All matchers evaluated against a specific source message (must be before /:id)
+router.get('/matchers/by-source/:sourceType/:sourceId', (req: Request<{ sourceType: string; sourceId: string }>, res: Response) => {
+  const matchers = triggerService.getMatchersBySource(req.params.sourceType, req.params.sourceId);
+  res.json({ matchers });
+});
+
 // Get single trigger
 router.get('/:id', (req: Request<{ id: string }>, res: Response) => {
   const trigger = triggerService.getTrigger(req.params.id);
@@ -256,6 +262,26 @@ router.get('/:id/events', (req: Request<{ id: string }>, res: Response) => {
   const limit = parseInt(req.query.limit as string) || 50;
   const events = triggerService.getTriggerEvents(req.params.id, limit);
   res.json(events);
+});
+
+// ─── Matcher Execution Debugging ───
+
+// List all matchers that ran for a specific trigger event
+router.get('/events/:eventId/matchers', (req: Request<{ eventId: string }>, res: Response) => {
+  const eventId = parseInt(req.params.eventId);
+  if (isNaN(eventId)) {
+    res.status(400).json({ error: 'Invalid eventId' });
+    return;
+  }
+  const matchers = triggerService.getMatchersByEvent(eventId);
+  res.json({ matchers });
+});
+
+// Matcher history for a trigger (across all events)
+router.get('/:triggerId/matcher-history', (req: Request<{ triggerId: string }>, res: Response) => {
+  const limit = parseInt(req.query.limit as string) || 100;
+  const matchers = triggerService.getMatcherHistoryByTrigger(req.params.triggerId, limit);
+  res.json({ matchers });
 });
 
 // ─── Helper ───

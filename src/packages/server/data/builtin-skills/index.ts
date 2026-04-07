@@ -23,6 +23,7 @@ import { reportTaskToBoss } from './report-task-to-boss.js';
 import { bossInstructions } from './boss-instructions.js';
 import { workflowDesigner } from './workflow-designer.js';
 import { triggerDesigner } from './trigger-designer.js';
+import { workflowBuilder } from './workflow-builder.js';
 
 // Re-export types
 export type { BuiltinSkillDefinition } from './types.js';
@@ -45,6 +46,7 @@ export const BUILTIN_SKILLS: BuiltinSkillDefinition[] = [
   bossInstructions,
   workflowDesigner,
   triggerDesigner,
+  workflowBuilder,
 ];
 
 /**

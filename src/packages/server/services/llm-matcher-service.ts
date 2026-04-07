@@ -3,9 +3,9 @@
  * Evaluates whether events match triggers using LLM-powered semantic matching,
  * and extracts structured variables from unstructured event content.
  *
- * Uses Anthropic's API with Haiku by default (fast, cheap classification).
- * Temperature 0 for deterministic results.
- * 5-second timeout — match treated as false on timeout (fail-safe).
+ * Uses the Anthropic SDK to call Claude (requires TC_ANTHROPIC_API_KEY environment variable).
+ * Haiku by default (fast, cheap classification).
+ * 15-second timeout — match treated as false on timeout (fail-safe).
  */
 
 import Anthropic from '@anthropic-ai/sdk';
@@ -14,11 +14,13 @@ import { createLogger } from '../utils/logger.js';
 
 const log = createLogger('LLMMatcher');
 
-// Model mapping: short names to full model IDs
+const TIMEOUT_MS = 15_000;
+
+// Model mapping — use latest available model IDs
 const MODEL_MAP: Record<string, string> = {
   haiku: 'claude-haiku-4-5-20251001',
-  sonnet: 'claude-sonnet-4-6',
-  opus: 'claude-opus-4-6',
+  sonnet: 'claude-sonnet-4-6-20250514',
+  opus: 'claude-opus-4-6-20250514',
 };
 
 function resolveModel(model?: string): string {
@@ -26,14 +28,35 @@ function resolveModel(model?: string): string {
   return MODEL_MAP[model] || model;
 }
 
-// Lazy-initialized client
-let client: Anthropic | null = null;
+/**
+ * Execute a prompt via the Anthropic SDK.
+ * Returns the raw text response.
+ */
+async function callAnthropicAPI(prompt: string, model: string): Promise<{ text: string; durationMs: number }> {
+  const startTime = Date.now();
 
-function getClient(): Anthropic {
-  if (!client) {
-    client = new Anthropic();
+  const client = new Anthropic({
+    apiKey: process.env.TC_ANTHROPIC_API_KEY,
+    timeout: TIMEOUT_MS,
+  });
+
+  try {
+    const message = await client.messages.create({
+      model,
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    const durationMs = Date.now() - startTime;
+    const text = message.content
+      .filter(block => block.type === 'text')
+      .map(block => (block as { type: 'text'; text: string }).text)
+      .join('\n');
+
+    return { text, durationMs };
+  } catch (err) {
+    throw err;
   }
-  return client;
 }
 
 // ─── LLM Match ───
@@ -44,10 +67,8 @@ export async function llmMatch(
 ): Promise<LLMMatchResult> {
   const startTime = Date.now();
   const model = resolveModel(config.model);
-  const temperature = config.temperature ?? 0;
-  const maxTokens = config.maxTokens ?? 150;
 
-  const systemPrompt = `You are an event classifier. Your job is to decide whether an incoming event matches a given condition.
+  const prompt = `You are an event classifier. Your job is to decide whether an incoming event matches a given condition.
 
 EVENT:
 ---
@@ -68,21 +89,7 @@ Respond ONLY with valid JSON (no markdown, no explanation outside JSON):
 }`;
 
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-
-    const response = await getClient().messages.create({
-      model,
-      max_tokens: maxTokens,
-      temperature,
-      messages: [{ role: 'user', content: systemPrompt }],
-    }, { signal: controller.signal });
-
-    clearTimeout(timeout);
-
-    const durationMs = Date.now() - startTime;
-    const text = response.content[0]?.type === 'text' ? response.content[0].text : '';
-    const tokensUsed = (response.usage?.input_tokens || 0) + (response.usage?.output_tokens || 0);
+    const { text, durationMs } = await callAnthropicAPI(prompt, model);
 
     try {
       // Extract JSON from response (handle potential markdown wrapping)
@@ -97,7 +104,7 @@ Respond ONLY with valid JSON (no markdown, no explanation outside JSON):
         confidence: typeof parsed.confidence === 'number' ? parsed.confidence : (parsed.match ? 1.0 : 0.0),
         durationMs,
         model,
-        tokensUsed,
+        tokensUsed: 0,
       };
     } catch (parseErr) {
       log.error('Failed to parse LLM match response:', text);
@@ -107,33 +114,20 @@ Respond ONLY with valid JSON (no markdown, no explanation outside JSON):
         confidence: 0,
         durationMs,
         model,
-        tokensUsed,
+        tokensUsed: 0,
       };
     }
   } catch (err) {
     const durationMs = Date.now() - startTime;
+    const reason = err instanceof Error ? err.message : 'unknown';
 
-    if (err instanceof Error && err.name === 'AbortError') {
-      log.warn('LLM match timed out after 5s');
-      return {
-        match: false,
-        reason: 'LLM call timed out (5s)',
-        confidence: 0,
-        durationMs,
-        model,
-        tokensUsed: 0,
-      };
+    if (reason.includes('timed out') || reason.includes('timeout')) {
+      log.warn(`LLM match timed out after ${TIMEOUT_MS}ms`);
+      return { match: false, reason: `LLM call timed out (${TIMEOUT_MS}ms)`, confidence: 0, durationMs, model, tokensUsed: 0 };
     }
 
     log.error('LLM match error:', err);
-    return {
-      match: false,
-      reason: `LLM error: ${err instanceof Error ? err.message : 'unknown'}`,
-      confidence: 0,
-      durationMs,
-      model,
-      tokensUsed: 0,
-    };
+    return { match: false, reason: `LLM error: ${reason}`, confidence: 0, durationMs, model, tokensUsed: 0 };
   }
 }
 
@@ -148,7 +142,7 @@ export async function llmExtractVariables(
 
   const variableList = config.variables.map(v => `- ${v}`).join('\n');
 
-  const systemPrompt = `You are a data extractor. Extract specific variables from the event below.
+  const prompt = `You are a data extractor. Extract specific variables from the event below.
 
 EVENT:
 ---
@@ -173,21 +167,7 @@ Respond ONLY with valid JSON (no markdown, no explanation outside JSON):
 }`;
 
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-
-    const response = await getClient().messages.create({
-      model,
-      max_tokens: 300,
-      temperature: 0,
-      messages: [{ role: 'user', content: systemPrompt }],
-    }, { signal: controller.signal });
-
-    clearTimeout(timeout);
-
-    const durationMs = Date.now() - startTime;
-    const text = response.content[0]?.type === 'text' ? response.content[0].text : '';
-    const tokensUsed = (response.usage?.input_tokens || 0) + (response.usage?.output_tokens || 0);
+    const { text, durationMs } = await callAnthropicAPI(prompt, model);
 
     try {
       const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -201,47 +181,29 @@ Respond ONLY with valid JSON (no markdown, no explanation outside JSON):
         variables[v] = parsed.variables?.[v] ?? '';
       }
 
-      return {
-        variables,
-        reason: parsed.reason || '',
-        durationMs,
-        model,
-        tokensUsed,
-      };
+      return { variables, reason: parsed.reason || '', durationMs, model, tokensUsed: 0 };
     } catch (parseErr) {
       log.error('Failed to parse LLM extract response:', text);
-      // Return empty variables on parse failure
       const variables: Record<string, string> = {};
-      for (const v of config.variables) {
-        variables[v] = '';
-      }
+      for (const v of config.variables) { variables[v] = ''; }
       return {
         variables,
         reason: `Parse error: ${parseErr instanceof Error ? parseErr.message : 'unknown'}`,
-        durationMs,
-        model,
-        tokensUsed,
+        durationMs, model, tokensUsed: 0,
       };
     }
   } catch (err) {
     const durationMs = Date.now() - startTime;
     const variables: Record<string, string> = {};
-    for (const v of config.variables) {
-      variables[v] = '';
-    }
+    for (const v of config.variables) { variables[v] = ''; }
+    const reason = err instanceof Error ? err.message : 'unknown';
 
-    if (err instanceof Error && err.name === 'AbortError') {
-      log.warn('LLM extract timed out after 5s');
-      return { variables, reason: 'LLM call timed out (5s)', durationMs, model, tokensUsed: 0 };
+    if (reason.includes('timed out') || reason.includes('timeout')) {
+      log.warn(`LLM extract timed out after ${TIMEOUT_MS}ms`);
+      return { variables, reason: `LLM call timed out (${TIMEOUT_MS}ms)`, durationMs, model, tokensUsed: 0 };
     }
 
     log.error('LLM extract error:', err);
-    return {
-      variables,
-      reason: `LLM error: ${err instanceof Error ? err.message : 'unknown'}`,
-      durationMs,
-      model,
-      tokensUsed: 0,
-    };
+    return { variables, reason: `LLM error: ${reason}`, durationMs, model, tokensUsed: 0 };
   }
 }

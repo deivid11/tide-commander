@@ -80,6 +80,7 @@ export async function init(context: IntegrationContext): Promise<void> {
       lastHistoryId = profile.data.historyId ?? undefined;
       lastError = undefined;
       ctx.log.info(`Gmail authenticated via service account as ${authenticatedEmail}`);
+      startPolling();
     } catch (err) {
       lastError = `Service account authentication failed: ${err}`;
       ctx.log.error('Gmail service account authentication failed', err);
@@ -109,6 +110,7 @@ export async function init(context: IntegrationContext): Promise<void> {
         lastHistoryId = profile.data.historyId ?? undefined;
         lastError = undefined;
         ctx.log.info(`Gmail authenticated as ${authenticatedEmail}`);
+        startPolling();
       } catch (err) {
         lastError = `Authentication failed: ${err}`;
         ctx.log.error('Gmail authentication failed', err);
@@ -379,6 +381,7 @@ function parseGmailMessage(msg: gmail_v1.Schema$Message): EmailMessage {
   const subject = getHeader('Subject');
   const date = msg.internalDate ? parseInt(msg.internalDate, 10) : Date.now();
   const inReplyTo = getHeader('In-Reply-To') || undefined;
+  const rfc822MessageId = getHeader('Message-ID') || getHeader('Message-Id') || undefined;
 
   // Extract body
   let body = '';
@@ -418,6 +421,7 @@ function parseGmailMessage(msg: gmail_v1.Schema$Message): EmailMessage {
   return {
     messageId: msg.id || '',
     threadId: msg.threadId || '',
+    rfc822MessageId,
     from,
     to,
     cc,

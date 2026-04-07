@@ -647,6 +647,9 @@ interface WorkflowInstanceDbRow {
   active_trigger_ids: string;
   active_timers: string;
   error: string | null;
+  agent_id: string | null;
+  trigger_id: string | null;
+  trigger_data_json: string | null;
   created_at: number;
   updated_at: number;
   completed_at: number | null;
@@ -663,6 +666,9 @@ function workflowRowToInstance(row: WorkflowInstanceDbRow): WorkflowInstanceRow 
     activeTriggerIds: fromJson<string[]>(row.active_trigger_ids) ?? [],
     activeTimers: fromJson<string[]>(row.active_timers) ?? [],
     error: row.error ?? undefined,
+    agentId: row.agent_id ?? undefined,
+    triggerId: row.trigger_id ?? undefined,
+    triggerData: fromJson<Record<string, unknown>>(row.trigger_data_json) ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     completedAt: row.completed_at ?? undefined,
@@ -680,6 +686,9 @@ export function insertWorkflowInstance(instance: WorkflowInstanceRow): void {
     active_trigger_ids: JSON.stringify(instance.activeTriggerIds),
     active_timers: JSON.stringify(instance.activeTimers),
     error: instance.error ?? null,
+    agent_id: instance.agentId ?? null,
+    trigger_id: instance.triggerId ?? null,
+    trigger_data_json: instance.triggerData ? JSON.stringify(instance.triggerData) : null,
     created_at: instance.createdAt,
     updated_at: instance.updatedAt,
     completed_at: instance.completedAt ?? null,
@@ -696,6 +705,9 @@ export function updateWorkflowInstance(id: string, updates: Partial<WorkflowInst
   if (updates.activeTriggerIds !== undefined) { setClauses.push('active_trigger_ids = ?'); params.push(JSON.stringify(updates.activeTriggerIds)); }
   if (updates.activeTimers !== undefined) { setClauses.push('active_timers = ?'); params.push(JSON.stringify(updates.activeTimers)); }
   if (updates.error !== undefined) { setClauses.push('error = ?'); params.push(updates.error); }
+  if (updates.agentId !== undefined) { setClauses.push('agent_id = ?'); params.push(updates.agentId); }
+  if (updates.triggerId !== undefined) { setClauses.push('trigger_id = ?'); params.push(updates.triggerId); }
+  if (updates.triggerData !== undefined) { setClauses.push('trigger_data_json = ?'); params.push(JSON.stringify(updates.triggerData)); }
   if (updates.updatedAt !== undefined) { setClauses.push('updated_at = ?'); params.push(updates.updatedAt); }
   if (updates.completedAt !== undefined) { setClauses.push('completed_at = ?'); params.push(updates.completedAt); }
 
@@ -772,6 +784,7 @@ interface StepLogDbRow {
   duration_ms: number | null;
   status: string;
   error: string | null;
+  agent_summary: string | null;
 }
 
 function stepLogRowToModel(row: StepLogDbRow): WorkflowStepLogRow {
@@ -788,6 +801,7 @@ function stepLogRowToModel(row: StepLogDbRow): WorkflowStepLogRow {
     promptSent: row.prompt_sent ?? undefined,
     agentResponse: row.agent_response ?? undefined,
     agentReasoning: row.agent_reasoning ?? undefined,
+    agentSummary: row.agent_summary ?? undefined,
     triggerId: row.trigger_id ?? undefined,
     triggerPayload: fromJson(row.trigger_payload),
     variablesBefore: fromJson(row.variables_before),
@@ -813,6 +827,7 @@ export function insertStepLog(step: WorkflowStepLogRow): number {
     prompt_sent: step.promptSent ?? null,
     agent_response: step.agentResponse ?? null,
     agent_reasoning: step.agentReasoning ?? null,
+    agent_summary: step.agentSummary ?? null,
     trigger_id: step.triggerId ?? null,
     trigger_payload: toJson(step.triggerPayload),
     variables_before: toJson(step.variablesBefore),
@@ -831,6 +846,7 @@ export function updateStepLog(id: number, updates: Partial<WorkflowStepLogRow>):
 
   if (updates.agentResponse !== undefined) { setClauses.push('agent_response = ?'); params.push(updates.agentResponse); }
   if (updates.agentReasoning !== undefined) { setClauses.push('agent_reasoning = ?'); params.push(updates.agentReasoning); }
+  if (updates.agentSummary !== undefined) { setClauses.push('agent_summary = ?'); params.push(updates.agentSummary); }
   if (updates.variablesAfter !== undefined) { setClauses.push('variables_after = ?'); params.push(toJson(updates.variablesAfter)); }
   if (updates.exitedAt !== undefined) { setClauses.push('exited_at = ?'); params.push(updates.exitedAt); }
   if (updates.durationMs !== undefined) { setClauses.push('duration_ms = ?'); params.push(updates.durationMs); }

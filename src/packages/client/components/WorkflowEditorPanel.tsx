@@ -230,6 +230,8 @@ function WorkflowEditor({
   const [drawingFrom, setDrawingFrom] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const workflowRef = useRef(workflow);
+  workflowRef.current = workflow;
   const agentsMap = useAgents();
   const agents = useMemo(() => Array.from(agentsMap.values()).map((a) => ({ id: a.id, name: a.name })), [agentsMap]);
 
@@ -319,9 +321,12 @@ function WorkflowEditor({
   };
 
   // ─── Drag ───
+  // Uses workflowRef to avoid stale closure: mousemove listeners capture this
+  // callback at mousedown time, so it must read fresh state from the ref.
 
-  const handleStateDrag = (stateId: string, dx: number, dy: number) => {
-    updateStates(workflow.states.map((s) => {
+  const handleStateDrag = useCallback((stateId: string, dx: number, dy: number) => {
+    const current = workflowRef.current;
+    const newStates = current.states.map((s) => {
       if (s.id !== stateId) return s;
       const pos = s.position || { x: 0, y: 0 };
       return {
@@ -331,8 +336,9 @@ function WorkflowEditor({
           y: Math.round((pos.y + dy) / GRID_SNAP) * GRID_SNAP,
         },
       };
-    }));
-  };
+    });
+    onChange({ ...current, states: newStates, updatedAt: Date.now() });
+  }, [onChange]);
 
   // ─── Canvas click to create transition ───
 
@@ -482,32 +488,63 @@ function EditorCanvas({
   onTransitionClick: (id: string) => void;
   selectedTransitionId: string | null;
 }) {
-  const dragRef = useRef<{ id: string; startX: number; startY: number } | null>(null);
+  // Ref to always call the latest onStateDrag, avoiding stale closure in event listeners
+  const onStateDragRef = useRef(onStateDrag);
+  onStateDragRef.current = onStateDrag;
+  // Flag to suppress onClick after a drag
+  const wasDraggingRef = useRef(false);
 
   const handleMouseDown = (e: React.MouseEvent, stateId: string) => {
     if (e.button !== 0) return;
     e.stopPropagation();
-    dragRef.current = { id: stateId, startX: e.clientX, startY: e.clientY };
 
+    const target = e.currentTarget as HTMLElement;
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let totalDx = 0;
+    let totalDy = 0;
+    let dragging = false;
+
+    // Use CSS transform for visual feedback (no React re-renders during drag)
     const handleMouseMove = (ev: MouseEvent) => {
-      if (!dragRef.current) return;
-      const dx = ev.clientX - dragRef.current.startX;
-      const dy = ev.clientY - dragRef.current.startY;
-      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
-        onStateDrag(dragRef.current.id, dx, dy);
-        dragRef.current.startX = ev.clientX;
-        dragRef.current.startY = ev.clientY;
+      totalDx = ev.clientX - startX;
+      totalDy = ev.clientY - startY;
+      if (!dragging && (Math.abs(totalDx) > 3 || Math.abs(totalDy) > 3)) {
+        dragging = true;
+        target.style.zIndex = '100';
+        target.style.cursor = 'grabbing';
+      }
+      if (dragging) {
+        target.style.transform = `translate(${totalDx}px, ${totalDy}px)`;
       }
     };
 
     const handleMouseUp = () => {
-      dragRef.current = null;
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
+      // Reset visual transform
+      target.style.transform = '';
+      target.style.zIndex = '';
+      target.style.cursor = '';
+      if (dragging) {
+        wasDraggingRef.current = true;
+        // Commit final position to React state (single update on drop)
+        onStateDragRef.current(stateId, totalDx, totalDy);
+      }
     };
 
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
+  };
+
+  const handleClick = (e: React.MouseEvent, stateId: string) => {
+    e.stopPropagation();
+    // Suppress click if we just finished dragging
+    if (wasDraggingRef.current) {
+      wasDraggingRef.current = false;
+      return;
+    }
+    onStateClick(stateId);
   };
 
   // Calculate SVG bounds
@@ -596,7 +633,7 @@ function EditorCanvas({
               transition: 'box-shadow 0.15s',
             }}
             onMouseDown={(e) => handleMouseDown(e, state.id)}
-            onClick={(e) => { e.stopPropagation(); onStateClick(state.id); }}
+            onClick={(e) => handleClick(e, state.id)}
           >
             {isInitial && (
               <div style={{ position: 'absolute', top: -8, left: 8, fontSize: 9, color: '#a6e3a1', fontWeight: 600, background: '#1e1e2e', padding: '0 4px', borderRadius: 3 }}>

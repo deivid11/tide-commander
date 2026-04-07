@@ -5,7 +5,8 @@
 @use 'sass:color';
 @use '../../variables' as *;
 
-.guake-terminal.with-git-panel {
+.guake-terminal.with-git-panel,
+.guake-terminal.with-workflow-panel {
   .guake-content {
     margin-right: var(--guake-side-panel-width);
   }
@@ -808,7 +809,8 @@
 // =============================================================================
 
 @media (max-width: 768px) {
-  .guake-terminal.with-git-panel {
+  .guake-terminal.with-git-panel,
+  .guake-terminal.with-workflow-panel {
     .guake-content {
       margin-right: 0;
     }

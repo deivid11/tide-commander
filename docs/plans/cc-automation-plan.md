@@ -4558,3 +4558,144 @@ Phase 6: Workflow Engine ◄────────┴────┴───�
 - Workflow definition editor (state machine designer, opened from Workflow Detail View)
 - Event/audit log viewer (cross-cutting, reads from SQLite)
 - Stats dashboard (aggregate counts from SQLite)
+
+---
+
+## Implementation Status & Improvements (v1.30.0)
+
+### Skill-Oriented Architecture for Agent Usability
+
+The core philosophy is: **agents should never need to read source code to use a feature**. Instead, we provide **markdown-based skills** that document exactly how to use integrations and tools.
+
+Every agent receives skills in their system prompt at startup. Skills contain:
+- **Clear instructions** — step-by-step markdown guide
+- **Curl examples** — ready-to-use API calls with proper auth header injection
+- **Design guidance** — best practices and patterns
+- **Template variables** — what data is available in which context
+
+#### Built-in Skills Catalog
+
+**Core Skills** (shipped with Tide Commander):
+- `boss-instructions` — How to delegate tasks and manage agent teams
+- `workflow-designer` — Create, edit, and manage workflow state machines
+- `trigger-designer` — Create and manage event-driven triggers ✅ NEW
+- `git-captain` — Git workflow automation (commit, push, branching)
+- `streaming-exec` — Execute long-running commands with real-time output
+- Plus 8 more core skills (task-label, report-task-to-boss, server-logs, etc.)
+
+**Integration Skills** (auto-loaded from plugins, now visible in UI):
+- `slack-messaging` — Send/receive messages, list channels, resolve users
+- `gmail-email` — Send emails, read messages, check approvals
+- `google-calendar` — Create/update events, calculate working days
+- `document-generator` — List templates, generate docs, convert to PDF
+- `jira-service-desk` — Create/update/transition tickets, search issues
+
+All skills are discoverable in the skills management panel and automatically injected into agents when they spawn.
+
+### Phase 0: SQLite Event Store ✅ COMPLETE
+
+**Status:** Fully implemented and stable
+
+- Database: `~/.local/share/tide-commander/events.db` (better-sqlite3)
+- Schema: 11 tables tracking trigger fires, Slack messages, emails, approvals, documents, workflows, audit logs
+- Queries: `src/packages/server/data/event-queries.ts` — 1,285 lines of pre-built query functions
+- API: Exposed via `/api/events/` endpoints for log viewers and audit trails
+
+All 8 phases use the event store for logging and audit purposes.
+
+### Phase 1: Trigger System ✅ COMPLETE
+
+**Status:** Fully implemented with UI integration
+
+- **Core:** `src/packages/server/services/trigger-service.ts` — 833 lines, full CRUD, state machine
+- **Types:** Webhook, cron, slack, email, jira, manual
+- **Matching:** Structural, LLM, hybrid modes with extraction templates
+- **Rate Limiting:** 10 fires/min default, configurable per trigger
+- **UI Integration:** `TriggerManagerPanel` now wired into Toolbox
+  - Users can access "Trigger Manager" button from Toolbox > Triggers section
+  - CRUD operations, test matching, fire history all available in UI
+  - No code reading required—full feature access via UI
+
+**Files:**
+- `src/packages/client/components/TriggerManagerPanel.tsx` — 400+ lines of full-featured trigger UI
+- `src/packages/client/components/AppModals.tsx` — TriggerManagerPanel imported and rendered
+- `src/packages/client/components/toolbox/*` — Wiring (Toolbox.tsx, ConfigSection.tsx, types.ts)
+- `src/packages/client/App.tsx` — Modal state management and registration
+
+### Phases 2-5b: Integration Plugins ✅ COMPLETE
+
+**Status:** All 5 integrations (Slack, Gmail, Google Calendar, DOCX, Jira) fully implemented with skill documentation
+
+- Each integration is a self-contained plugin
+- Each provides a **built-in skill** with comprehensive curl-based API documentation
+- Integration skills are **now visible and discoverable** in the skill management UI
+- No agent needs to read code—skills teach them how to use each integration
+
+**Integration Skills Loading:**
+- Modified `src/packages/server/services/skill-service.ts` to load integration skills from registry
+- Integration skills now appear in `/api/skills` endpoint
+- Skills are included in agent system prompts at startup
+
+### Phase 6: Workflow Engine ✅ COMPLETE
+
+**Status:** Fully implemented with 3D visualization
+
+- State machine execution, persistence, variable management
+- Workflow 3D models render in 3D scene
+- WorkflowEditorPanel wired into UI for creation and editing
+- Full event logging to SQLite
+
+### New Feature: Trigger Designer Skill
+
+**Added in v1.30.0:**
+
+A new built-in skill (`trigger-designer`) that teaches agents how to create and manage triggers without reading code.
+
+**File:** `src/packages/server/data/builtin-skills/trigger-designer.ts` — 350+ lines
+
+**Includes:**
+- Comprehensive guide to all trigger types (webhook, cron, slack, email, jira, manual)
+- Curl examples for creating triggers with all matching modes
+- Common cron expressions and their meanings
+- Pattern matching and testing endpoints
+- Template variable reference
+- Rate limiting guidance
+- Webhook security best practices
+
+**Design Guidelines:**
+- Names should be action-oriented ("Daily Report Generator", "P1 Incident Responder")
+- Prompts should be specific and use available template variables
+- Start with structural matching for simple patterns, use LLM for complex semantic matching
+- Implement proper rate limiting to prevent loops
+- Always test pattern matching before enabling triggers
+
+### Implementation Approach: Skills Over Code Reading
+
+**Philosophy:** Agents are knowledge workers, not code readers.
+
+Every feature (triggers, integrations, workflows) comes with:
+1. **A skill** — markdown instructions injected into agent system prompt
+2. **A UI** — users can access and configure the feature without code
+3. **REST API** — agents call endpoints via curl commands
+4. **Auto-injected auth** — skill-service adds X-Auth-Token header automatically
+
+This means:
+- New agents immediately know how to use triggers, integrations, and workflows
+- No documentation to maintain separately from the code
+- Skills are version-controlled and tested alongside implementation
+- Easy to add new integrations—just implement the plugin interface + write a skill
+
+### Phase Completion Summary
+
+| Phase | Status | Key Files | Skills |
+|-------|--------|-----------|--------|
+| Phase 0 | ✅ | event-db.ts, event-queries.ts | N/A (infrastructure) |
+| Phase 1 | ✅ | trigger-service.ts, TriggerManagerPanel.tsx | `trigger-designer` |
+| Phase 2 | ✅ | slack/ plugin, slack-routes.ts | `slack-messaging` |
+| Phase 3 | ✅ | gmail/ plugin, gmail-routes.ts | `gmail-email` |
+| Phase 4 | ✅ | docx/ plugin, docx-engine.ts | `document-generator` |
+| Phase 5 | ✅ | google-calendar/ plugin, calendar-routes.ts | `google-calendar` |
+| Phase 5b | ✅ | jira/ plugin, jira-routes.ts | `jira-service-desk` |
+| Phase 6 | ✅ | workflow-service.ts, WorkflowEditorPanel.tsx | `workflow-designer` |
+
+All phases are production-ready and integrated with the skill-oriented architecture.

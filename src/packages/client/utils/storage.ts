@@ -66,6 +66,9 @@ export const STORAGE_KEYS = {
   // Buildings Panel
   BUILDINGS_PANEL_OPEN: 'guake-buildings-panel-open',
 
+  // Workflow Panel
+  WORKFLOW_PANEL_OPEN: 'guake-workflow-panel-open',
+
   // Side panel width (shared by overview, git, buildings, debug panels)
   SIDE_PANEL_WIDTH: 'guake-side-panel-width',
 

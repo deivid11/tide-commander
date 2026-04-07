@@ -6,6 +6,7 @@
 
 import { Router, type Request, type Response } from 'express';
 import * as workflowService from '../services/workflow-service.js';
+import * as workflowExecutor from '../services/workflow-executor.js';
 import * as workflowChatService from '../services/workflow-chat-service.js';
 import type { WorkflowChatScope } from '../../shared/workflow-types.js';
 
@@ -141,7 +142,38 @@ router.patch('/instances/:id/cancel', (req: Request, res: Response) => {
   res.json(instance);
 });
 
-// ─── Manual Transition ───
+// ─── Explicit Transition (agent-driven) ───
+
+router.put('/instances/:id/transition', async (req: Request, res: Response) => {
+  try {
+    const { targetStateId, reason } = req.body as { targetStateId: string; reason?: string };
+    if (!targetStateId) {
+      res.status(400).json({ error: 'targetStateId is required' });
+      return;
+    }
+    const instance = await workflowService.transitionTo(
+      req.params.id as string,
+      targetStateId,
+      reason
+    );
+    res.json(instance);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Transition failed';
+    res.status(400).json({ error: msg });
+  }
+});
+
+router.get('/instances/:id/available-transitions', (req: Request, res: Response) => {
+  try {
+    const transitions = workflowService.getAvailableTransitions(req.params.id as string);
+    res.json({ transitions });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Failed to get transitions';
+    res.status(400).json({ error: msg });
+  }
+});
+
+// ─── Legacy Manual Transition (event-based) ───
 
 router.post('/instances/:id/transition', async (req: Request, res: Response) => {
   try {
@@ -195,6 +227,95 @@ router.post('/instances/:id/event', async (req: Request, res: Response) => {
   }
 });
 
+// ─── Trigger Routing (workflow-executor) ───
+
+router.post('/trigger', async (req: Request, res: Response) => {
+  try {
+    const { triggerId, triggerData, agentId } = req.body as {
+      triggerId: string;
+      triggerData?: Record<string, unknown>;
+      agentId?: string;
+    };
+
+    if (!triggerId) {
+      res.status(400).json({ error: 'triggerId is required' });
+      return;
+    }
+
+    await workflowExecutor.handleTrigger({
+      triggerId,
+      triggerData: triggerData ?? {},
+      agentId,
+    });
+
+    res.json({ routed: true, triggerId });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Trigger routing failed';
+    res.status(500).json({ error: msg });
+  }
+});
+
+// ─── Agent Complete with Reasoning (workflow-executor) ───
+
+router.post('/instances/:id/agent-complete', async (req: Request, res: Response) => {
+  try {
+    const { agentResponse, agentReasoning, agentSummary, variables, triggerId, transitionId } = req.body as {
+      agentResponse?: string;
+      agentReasoning?: string;
+      agentSummary?: string;
+      variables?: Record<string, unknown>;
+      triggerId?: string;
+      transitionId?: string;
+    };
+
+    const instance = await workflowExecutor.transitionInstance(
+      req.params.id as string,
+      'agent_complete',
+      { agentResponse, agentReasoning, agentSummary, variables },
+      { triggerId, transitionId }
+    );
+
+    if (!instance) {
+      res.status(404).json({ error: 'Instance not found' });
+      return;
+    }
+
+    res.json(instance);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Agent complete failed';
+    res.status(400).json({ error: msg });
+  }
+});
+
+// ─── Bind Agent to Instance (workflow-executor) ───
+
+router.post('/instances/:id/bind-agent', (req: Request, res: Response) => {
+  try {
+    const { agentId, stateId } = req.body as { agentId: string; stateId?: string };
+
+    if (!agentId) {
+      res.status(400).json({ error: 'agentId is required' });
+      return;
+    }
+
+    const result = workflowExecutor.executeInstanceState(
+      req.params.id as string,
+      stateId || workflowService.getInstance(req.params.id as string)?.currentStateId || '',
+      agentId
+    );
+
+    res.json({
+      instanceId: result.instance.id,
+      stateId: result.state.id,
+      stateName: result.state.name,
+      currentStepId: result.currentStep?.id,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Bind agent failed';
+    res.status(400).json({ error: msg });
+  }
+});
+
 // ============================================================================
 // History & Audit (reads from SQLite)
 // ============================================================================
@@ -223,7 +344,7 @@ router.get('/instances/:id/variables', (req: Request, res: Response) => {
 });
 
 router.get('/instances/:id/reasoning', (req: Request, res: Response) => {
-  const steps = workflowService.getInstanceReasoning(req.params.id as string);
+  const steps = workflowExecutor.getReasoningChain(req.params.id as string);
   res.json({ steps });
 });
 

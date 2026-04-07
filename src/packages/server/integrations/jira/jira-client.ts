@@ -202,15 +202,21 @@ export class JiraClient {
 
   async searchIssues(
     jql: string,
-    opts?: { maxResults?: number; startAt?: number }
+    opts?: { maxResults?: number; startAt?: number; fields?: string[] }
   ): Promise<JiraSearchResult> {
-    const params = new URLSearchParams({
+    // Use POST /rest/api/3/search which returns full issue fields by default
+    // (the newer /search/jql endpoint only returns IDs unless fields are explicit)
+    const body: Record<string, unknown> = {
       jql,
-      maxResults: String(opts?.maxResults ?? 25),
-      startAt: String(opts?.startAt ?? 0),
-    });
+      maxResults: opts?.maxResults ?? 25,
+      startAt: opts?.startAt ?? 0,
+      fields: opts?.fields ?? [
+        'summary', 'status', 'priority', 'assignee', 'issuetype',
+        'project', 'created', 'updated', 'labels',
+      ],
+    };
 
-    return (await this.request('GET', `/rest/api/3/search/jql?${params}`)) as JiraSearchResult;
+    return (await this.request('POST', '/rest/api/3/search', body)) as JiraSearchResult;
   }
 
   // ─── Service Desk (optional) ───

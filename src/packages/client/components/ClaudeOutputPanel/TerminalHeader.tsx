@@ -65,6 +65,12 @@ export interface TerminalHeaderProps {
   buildingsPanelOpen?: boolean;
   /** Toggle buildings panel */
   setBuildingsPanelOpen?: (open: boolean) => void;
+  /** Workflow panel open state */
+  workflowPanelOpen?: boolean;
+  /** Toggle workflow panel */
+  setWorkflowPanelOpen?: (open: boolean) => void;
+  /** Whether this agent owns a workflow */
+  hasWorkflow?: boolean;
 }
 
 export const TerminalHeader = memo(function TerminalHeader({
@@ -100,6 +106,9 @@ export const TerminalHeader = memo(function TerminalHeader({
   setGitPanelOpen,
   buildingsPanelOpen = false,
   setBuildingsPanelOpen,
+  workflowPanelOpen = false,
+  setWorkflowPanelOpen,
+  hasWorkflow = false,
 }: TerminalHeaderProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const supervisor = useSupervisor();
@@ -393,6 +402,15 @@ export const TerminalHeader = memo(function TerminalHeader({
               <span className="guake-action-icon">🌿</span>
             </button>
           )}
+          {!isSnapshotView && hasWorkflow && setWorkflowPanelOpen && (
+            <button
+              className={`guake-icon-action guake-workflow-toggle ${workflowPanelOpen ? 'active' : ''}`}
+              onClick={() => setWorkflowPanelOpen(!workflowPanelOpen)}
+              title={workflowPanelOpen ? 'Hide Workflow' : 'Show Workflow'}
+            >
+              <span className="guake-action-icon">🔄</span>
+            </button>
+          )}
           <button
             className={`guake-icon-action guake-fullscreen-toggle ${isFullscreen ? 'active' : ''}`}
             onClick={onToggleFullscreen}
@@ -578,6 +596,15 @@ export const TerminalHeader = memo(function TerminalHeader({
                   >
                     <span className="guake-mobile-menu-icon">🌿</span>
                     {gitPanelOpen ? 'Hide Git Changes' : 'Show Git Changes'}
+                  </button>
+                )}
+                {hasWorkflow && setWorkflowPanelOpen && (
+                  <button
+                    className={`guake-mobile-menu-item ${workflowPanelOpen ? 'active' : ''}`}
+                    onClick={() => { setWorkflowPanelOpen(!workflowPanelOpen); closeMobileMenu(); }}
+                  >
+                    <span className="guake-mobile-menu-icon">🔄</span>
+                    {workflowPanelOpen ? 'Hide Workflow' : 'Show Workflow'}
                   </button>
                 )}
                 {setBuildingsPanelOpen && (

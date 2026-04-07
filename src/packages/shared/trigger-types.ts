@@ -131,6 +131,21 @@ export interface LLMExtractResult {
   tokensUsed: number;
 }
 
+// ─── Matcher Execution (debugging) ───
+
+export interface MatcherExecution {
+  matcherType: 'structural' | 'llm' | 'extraction';
+  matcherName: string;
+  executedAt: number;
+  matched: boolean;
+  confidence?: number;
+  reason?: string;
+  resultJson?: unknown;
+  sourceType?: string;
+  sourceId?: string;
+  sourceTimestamp?: number;
+}
+
 // ─── Trigger Fire Options ───
 
 export interface TriggerFireOptions {
@@ -138,6 +153,7 @@ export interface TriggerFireOptions {
   llmMatchResult?: LLMMatchResult;
   llmExtractResult?: LLMExtractResult;
   workflowInstanceId?: string;
+  matcherExecutions?: MatcherExecution[];
 }
 
 // ─── Trigger Listener (pub-sub) ───
@@ -183,4 +199,5 @@ export interface TestMatchResult {
   llmMatch?: LLMMatchResult;
   extractedVariables: Record<string, string>;
   wouldFire: boolean;
+  matcherExecutions?: MatcherExecution[];
 }

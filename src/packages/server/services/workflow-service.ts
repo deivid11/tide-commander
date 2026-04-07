@@ -220,13 +220,7 @@ export async function resumeWorkflow(instanceId: string): Promise<WorkflowInstan
   const updated = eventQueries.getWorkflowInstance(instanceId)!;
   emit({ instanceId, eventType: 'state_changed', data: updated });
 
-  // Re-evaluate transitions (a trigger might have fired while paused)
-  const def = workflowStore.getDefinition(updated.workflowDefId);
-  if (def) {
-    await evaluateTransitions(updated, def);
-  }
-
-  return eventQueries.getWorkflowInstance(instanceId)!;
+  return updated;
 }
 
 export function cancelWorkflow(instanceId: string): WorkflowInstanceRow | null {
@@ -340,12 +334,6 @@ async function enterState(
 
   // Set up timeout transitions
   setupTimeoutTransitions(instance, state, def);
-
-  // Evaluate auto-transitions (e.g. set_variables actions can trigger variable_check)
-  const freshInstance = eventQueries.getWorkflowInstance(instance.id);
-  if (freshInstance && freshInstance.status === 'running') {
-    await evaluateTransitions(freshInstance, def);
-  }
 }
 
 async function executeAction(
@@ -423,7 +411,7 @@ async function executeAction(
   }
 }
 
-async function evaluateTransitions(
+export async function evaluateTransitions(
   instance: WorkflowInstanceRow,
   def: WorkflowDefinition
 ): Promise<void> {
@@ -597,6 +585,7 @@ export async function notifyEvent(params: {
       eventQueries.updateStepLog(currentStep.id!, {
         agentResponse: params.data.agentResponse as string | undefined,
         agentReasoning: params.data.agentReasoning as string | undefined,
+        agentSummary: params.data.agentSummary as string | undefined,
       });
     }
   }
@@ -646,6 +635,76 @@ export async function notifyEvent(params: {
       return;
     }
   }
+}
+
+// ─── Explicit Transition (agent-driven) ───
+
+export async function transitionTo(
+  instanceId: string,
+  targetStateId: string,
+  reason?: string
+): Promise<WorkflowInstanceRow> {
+  const instance = eventQueries.getWorkflowInstance(instanceId);
+  if (!instance) throw new Error(`Workflow instance not found: ${instanceId}`);
+  if (instance.status !== 'running') throw new Error(`Instance ${instanceId} is not running (status: ${instance.status})`);
+
+  const def = workflowStore.getDefinition(instance.workflowDefId);
+  if (!def) throw new Error(`Workflow definition not found: ${instance.workflowDefId}`);
+
+  const state = def.states.find(s => s.id === instance.currentStateId);
+  if (!state) throw new Error(`Current state not found: ${instance.currentStateId}`);
+
+  // Find a transition that targets the requested state
+  const transition = state.transitions.find(t => t.targetStateId === targetStateId);
+  if (!transition) {
+    const validTargets = state.transitions.map(t => t.targetStateId).join(', ');
+    throw new Error(`No transition from "${state.name}" to "${targetStateId}". Valid targets: ${validTargets}`);
+  }
+
+  log.log(`Explicit transition: ${instance.currentStateId} → ${targetStateId} (reason: ${reason ?? 'none'})`);
+
+  // Log the reason in audit
+  eventQueries.logAudit({
+    category: 'workflow',
+    action: 'explicit_transition',
+    workflowInstanceId: instanceId,
+    details: { from: instance.currentStateId, to: targetStateId, transitionId: transition.id, reason },
+    level: 'info',
+    createdAt: Date.now(),
+  });
+
+  await handleTransition(instance, transition, def);
+  return eventQueries.getWorkflowInstance(instanceId)!;
+}
+
+export function getAvailableTransitions(instanceId: string): Array<{
+  id: string;
+  name: string;
+  targetStateId: string;
+  targetStateName: string;
+  conditionType: string;
+  condition: WorkflowCondition;
+}> {
+  const instance = eventQueries.getWorkflowInstance(instanceId);
+  if (!instance) throw new Error(`Workflow instance not found: ${instanceId}`);
+
+  const def = workflowStore.getDefinition(instance.workflowDefId);
+  if (!def) throw new Error(`Workflow definition not found: ${instance.workflowDefId}`);
+
+  const state = def.states.find(s => s.id === instance.currentStateId);
+  if (!state) return [];
+
+  return state.transitions.map(t => {
+    const targetState = def.states.find(s => s.id === t.targetStateId);
+    return {
+      id: t.id,
+      name: t.name,
+      targetStateId: t.targetStateId,
+      targetStateName: targetState?.name ?? 'unknown',
+      conditionType: t.condition.type,
+      condition: t.condition,
+    };
+  });
 }
 
 // ─── Variable Updates (called by agents via API) ───
@@ -733,11 +792,12 @@ export function getInstanceReasoning(instanceId: string): Array<{
   promptSent?: string;
   agentResponse?: string;
   agentReasoning?: string;
+  agentSummary?: string;
   durationMs?: number;
 }> {
   const steps = eventQueries.getStepsByInstance(instanceId);
   return steps
-    .filter((s) => s.promptSent || s.agentResponse)
+    .filter((s) => s.promptSent || s.agentResponse || s.agentSummary)
     .map((s) => ({
       stateId: s.toStateId,
       stateName: s.toStateName,
@@ -745,6 +805,7 @@ export function getInstanceReasoning(instanceId: string): Array<{
       promptSent: s.promptSent,
       agentResponse: s.agentResponse,
       agentReasoning: s.agentReasoning,
+      agentSummary: s.agentSummary,
       durationMs: s.durationMs,
     }));
 }

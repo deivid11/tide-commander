@@ -13,7 +13,7 @@ import * as crypto from 'crypto';
 import type {
   Trigger, CronTrigger, TriggerListener, TriggerListenerEvent,
   TriggerFireOptions, TriggerHandler, TriggerDefinition, ExternalEvent,
-  LLMMatchResult, LLMExtractResult, TestMatchResult,
+  LLMMatchResult, LLMExtractResult, TestMatchResult, MatcherExecution,
 } from '../../shared/trigger-types.js';
 import { loadTriggers, saveTriggers as saveTriggersSync, saveTriggersAsync } from '../data/trigger-store.js';
 import { insertOne, queryMany, execute } from '../data/event-db.js';
@@ -207,27 +207,58 @@ async function evaluateEvent(handler: TriggerHandler, event: ExternalEvent): Pro
     t => t.type === handler.triggerType && t.enabled
   );
 
+  // Extract source info from the event for per-message debugging
+  const sourceType = event.source;
+  const sourceId = extractSourceId(event);
+  const sourceTimestamp = event.timestamp;
+
   for (const trigger of triggersOfType) {
     try {
       let matched = false;
+      let structuralPassed = true;
       let llmResult: LLMMatchResult | undefined;
       let llmExtractResult: LLMExtractResult | undefined;
+      const matcherExecutions: MatcherExecution[] = [];
+
+      const sourceInfo = { sourceType, sourceId, sourceTimestamp };
 
       // Step 1: Structural matching
       if (trigger.matchMode === 'structural' || trigger.matchMode === 'hybrid') {
         const structuralResult = handler.structuralMatch(trigger, event);
+
+        matcherExecutions.push({
+          matcherType: 'structural',
+          matcherName: `${trigger.type}_structural`,
+          executedAt: Date.now(),
+          matched: structuralResult,
+          reason: structuralResult ? 'Structural match passed' : 'Structural match failed',
+          resultJson: { triggerType: trigger.type, matchMode: trigger.matchMode },
+          ...sourceInfo,
+        });
+
         if (trigger.matchMode === 'structural') {
           matched = structuralResult;
         } else {
           // hybrid: structural must pass before LLM is called
-          if (!structuralResult) continue;
+          structuralPassed = structuralResult;
+          if (!structuralResult) matched = false;
         }
       }
 
-      // Step 2: LLM matching
-      if (trigger.matchMode === 'llm' || trigger.matchMode === 'hybrid') {
+      // Step 2: LLM matching (skip if hybrid structural failed)
+      if (structuralPassed && (trigger.matchMode === 'llm' || trigger.matchMode === 'hybrid')) {
         if (!trigger.llmMatch) {
           log.warn(`Trigger ${trigger.name} has matchMode=${trigger.matchMode} but no llmMatch config`);
+          matcherExecutions.push({
+            matcherType: 'llm',
+            matcherName: 'llm_match',
+            executedAt: Date.now(),
+            matched: false,
+            reason: 'No llmMatch config defined',
+            ...sourceInfo,
+          });
+          // Log non-match executions and skip to next trigger
+          logMatcherExecutions(null, trigger.id, matcherExecutions);
           continue;
         }
         const formatted = handler.formatEventForLLM(event);
@@ -236,11 +267,31 @@ async function evaluateEvent(handler: TriggerHandler, event: ExternalEvent): Pro
         // Check confidence threshold
         const minConfidence = trigger.llmMatch.minConfidence ?? 0.0;
         matched = llmResult.match && llmResult.confidence >= minConfidence;
+
+        matcherExecutions.push({
+          matcherType: 'llm',
+          matcherName: 'llm_match',
+          executedAt: Date.now(),
+          matched,
+          confidence: llmResult.confidence,
+          reason: llmResult.reason,
+          resultJson: {
+            model: llmResult.model,
+            tokensUsed: llmResult.tokensUsed,
+            durationMs: llmResult.durationMs,
+            minConfidence,
+          },
+          ...sourceInfo,
+        });
       }
 
-      if (!matched) continue;
+      // Log non-match executions directly (they won't go through fireTrigger)
+      if (!matched) {
+        logMatcherExecutions(null, trigger.id, matcherExecutions);
+        continue;
+      }
 
-      // Step 3: Variable extraction
+      // Step 3: Variable extraction (only on match)
       let variables: Record<string, string>;
 
       if (trigger.extractionMode === 'llm' && trigger.llmExtract) {
@@ -249,15 +300,41 @@ async function evaluateEvent(handler: TriggerHandler, event: ExternalEvent): Pro
         // Merge with structural variables as fallback
         const structuralVars = handler.extractVariables(trigger, event);
         variables = { ...structuralVars, ...llmExtractResult.variables };
+
+        matcherExecutions.push({
+          matcherType: 'extraction',
+          matcherName: 'llm_extract',
+          executedAt: Date.now(),
+          matched: Object.keys(llmExtractResult.variables).length > 0,
+          reason: llmExtractResult.reason,
+          resultJson: {
+            extractedVariables: llmExtractResult.variables,
+            model: llmExtractResult.model,
+            tokensUsed: llmExtractResult.tokensUsed,
+            durationMs: llmExtractResult.durationMs,
+          },
+          ...sourceInfo,
+        });
       } else {
         variables = handler.extractVariables(trigger, event);
+
+        matcherExecutions.push({
+          matcherType: 'extraction',
+          matcherName: 'structural_extract',
+          executedAt: Date.now(),
+          matched: Object.keys(variables).length > 0,
+          reason: `Extracted ${Object.keys(variables).length} variables`,
+          resultJson: { extractedVariables: variables },
+          ...sourceInfo,
+        });
       }
 
-      // Step 4: Fire the trigger
+      // Step 4: Fire the trigger (matcher executions linked after trigger_event created)
       await fireTrigger(trigger.id, variables, {
         rawPayload: event.data,
         llmMatchResult: llmResult,
         llmExtractResult: llmExtractResult,
+        matcherExecutions,
       });
     } catch (err) {
       log.error(`Error evaluating trigger ${trigger.name} for event:`, err);
@@ -266,6 +343,30 @@ async function evaluateEvent(handler: TriggerHandler, event: ExternalEvent): Pro
       emit('trigger_error', { triggerId: trigger.id, error: errorMsg });
     }
   }
+}
+
+/**
+ * Extract a stable identifier from an external event's data.
+ * Each integration stores its message ID in a different field.
+ */
+function extractSourceId(event: ExternalEvent): string | undefined {
+  if (!event.data || typeof event.data !== 'object') return undefined;
+  const data = event.data as Record<string, unknown>;
+
+  // Slack: ts or thread_ts
+  if (data.ts) return String(data.ts);
+  if (data.event_ts) return String(data.event_ts);
+  // Email: messageId or id
+  if (data.messageId) return String(data.messageId);
+  // Jira: issue key or id
+  if (data.issue && typeof data.issue === 'object') {
+    const issue = data.issue as Record<string, unknown>;
+    if (issue.key) return String(issue.key);
+  }
+  // Webhook: try id field
+  if (data.id) return String(data.id);
+
+  return undefined;
 }
 
 // ─── Test Match (dry run — no fire, no SQLite log) ───
@@ -281,10 +382,21 @@ export async function testMatch(triggerId: string, event: ExternalEvent): Promis
   let structuralResult: boolean | undefined;
   let llmResult: LLMMatchResult | undefined;
   let wouldFire = false;
+  const matcherExecutions: MatcherExecution[] = [];
 
   // Structural matching
   if (trigger.matchMode === 'structural' || trigger.matchMode === 'hybrid') {
     structuralResult = effectiveHandler.structuralMatch(trigger, event);
+
+    matcherExecutions.push({
+      matcherType: 'structural',
+      matcherName: `${trigger.type}_structural`,
+      executedAt: Date.now(),
+      matched: structuralResult,
+      reason: structuralResult ? 'Structural match passed' : 'Structural match failed',
+      resultJson: { triggerType: trigger.type, matchMode: trigger.matchMode },
+    });
+
     if (trigger.matchMode === 'structural') {
       wouldFire = structuralResult;
     } else if (!structuralResult) {
@@ -293,6 +405,7 @@ export async function testMatch(triggerId: string, event: ExternalEvent): Promis
         structuralMatch: structuralResult,
         extractedVariables: {},
         wouldFire: false,
+        matcherExecutions,
       };
     }
   }
@@ -304,6 +417,21 @@ export async function testMatch(triggerId: string, event: ExternalEvent): Promis
       llmResult = await llmMatch(formatted, trigger.llmMatch);
       const minConfidence = trigger.llmMatch.minConfidence ?? 0.0;
       wouldFire = llmResult.match && llmResult.confidence >= minConfidence;
+
+      matcherExecutions.push({
+        matcherType: 'llm',
+        matcherName: 'llm_match',
+        executedAt: Date.now(),
+        matched: wouldFire,
+        confidence: llmResult.confidence,
+        reason: llmResult.reason,
+        resultJson: {
+          model: llmResult.model,
+          tokensUsed: llmResult.tokensUsed,
+          durationMs: llmResult.durationMs,
+          minConfidence,
+        },
+      });
     }
   }
 
@@ -314,8 +442,31 @@ export async function testMatch(triggerId: string, event: ExternalEvent): Promis
     const extractResult = await llmExtractVariables(formatted, trigger.llmExtract);
     const structuralVars = effectiveHandler.extractVariables(trigger, event);
     extractedVariables = { ...structuralVars, ...extractResult.variables };
+
+    matcherExecutions.push({
+      matcherType: 'extraction',
+      matcherName: 'llm_extract',
+      executedAt: Date.now(),
+      matched: Object.keys(extractResult.variables).length > 0,
+      reason: extractResult.reason,
+      resultJson: {
+        extractedVariables: extractResult.variables,
+        model: extractResult.model,
+        tokensUsed: extractResult.tokensUsed,
+        durationMs: extractResult.durationMs,
+      },
+    });
   } else {
     extractedVariables = effectiveHandler.extractVariables(trigger, event);
+
+    matcherExecutions.push({
+      matcherType: 'extraction',
+      matcherName: 'structural_extract',
+      executedAt: Date.now(),
+      matched: Object.keys(extractedVariables).length > 0,
+      reason: `Extracted ${Object.keys(extractedVariables).length} variables`,
+      resultJson: { extractedVariables },
+    });
   }
 
   return {
@@ -323,6 +474,7 @@ export async function testMatch(triggerId: string, event: ExternalEvent): Promis
     llmMatch: llmResult,
     extractedVariables,
     wouldFire,
+    matcherExecutions,
   };
 }
 
@@ -369,6 +521,11 @@ export async function fireTrigger(
       error: null,
       duration_ms: null,
     });
+
+    // Log matcher executions linked to this trigger event
+    if (opts?.matcherExecutions && eventId > 0) {
+      logMatcherExecutions(eventId, trigger.id, opts.matcherExecutions);
+    }
   } catch (err) {
     log.error('Failed to log trigger fire to SQLite:', err);
     eventId = -1;
@@ -401,6 +558,16 @@ export async function fireTrigger(
 
     emit('trigger_fired', { triggerId: id, agentId: trigger.agentId, timestamp: startTime });
     log.log(`Fired trigger ${trigger.name} -> agent ${trigger.agentId}`);
+
+    // Route to workflow instances that are waiting for this trigger
+    try {
+      const { handleTrigger } = await import('./workflow-executor.js');
+      await handleTrigger({
+        triggerId: id,
+        triggerData: variables as Record<string, unknown>,
+        agentId: trigger.agentId,
+      });
+    } catch { /* workflow routing is best-effort */ }
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : 'Unknown error';
     updateTrigger(id, { status: 'error', lastError: errorMsg });
@@ -537,6 +704,52 @@ export function getAllTriggerEvents(limit: number = 100): unknown[] {
   return queryMany(
     'SELECT * FROM trigger_events ORDER BY fired_at DESC LIMIT ?',
     [limit]
+  );
+}
+
+// ─── Matcher Execution Logging (debugging) ───
+
+function logMatcherExecutions(triggerEventId: number | null, triggerId: string, executions: MatcherExecution[]): void {
+  for (const exec of executions) {
+    try {
+      insertOne('matcher_executions', {
+        trigger_event_id: triggerEventId,
+        trigger_id: triggerId,
+        matcher_type: exec.matcherType,
+        matcher_name: exec.matcherName,
+        executed_at: exec.executedAt,
+        matched: exec.matched ? 1 : 0,
+        confidence: exec.confidence ?? null,
+        reason: exec.reason ?? null,
+        result_json: exec.resultJson ? JSON.stringify(exec.resultJson) : null,
+        source_type: exec.sourceType ?? null,
+        source_id: exec.sourceId ?? null,
+        source_timestamp: exec.sourceTimestamp ?? null,
+      });
+    } catch (err) {
+      log.error(`Failed to log matcher execution: ${err}`);
+    }
+  }
+}
+
+export function getMatchersByEvent(triggerEventId: number): unknown[] {
+  return queryMany(
+    'SELECT * FROM matcher_executions WHERE trigger_event_id = ? ORDER BY executed_at ASC',
+    [triggerEventId]
+  );
+}
+
+export function getMatcherHistoryByTrigger(triggerId: string, limit: number = 100): unknown[] {
+  return queryMany(
+    'SELECT * FROM matcher_executions WHERE trigger_id = ? ORDER BY executed_at DESC LIMIT ?',
+    [triggerId, limit]
+  );
+}
+
+export function getMatchersBySource(sourceType: string, sourceId: string): unknown[] {
+  return queryMany(
+    'SELECT * FROM matcher_executions WHERE source_type = ? AND source_id = ? ORDER BY executed_at ASC',
+    [sourceType, sourceId]
   );
 }
 

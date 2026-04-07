@@ -41,6 +41,8 @@ import {
 } from '../../store';
 import {
   STORAGE_KEYS,
+  apiUrl,
+  authFetch,
   getStorageBoolean,
   getStorageNumber,
   getStorageString,
@@ -95,6 +97,7 @@ import { AgentDebugPanel } from './AgentDebugPanel';
 import { GuakeGitPanel } from './GuakeGitPanel';
 import { AgentOverviewPanel } from './AgentOverviewPanel';
 import { AreaBuildingsPanel } from './AreaBuildingsPanel';
+import { WorkflowPanel } from '../WorkflowPanel';
 import { useTwoFingerSelector } from '../../hooks/useTwoFingerSelector';
 import { agentDebugger } from '../../services/agentDebugger';
 import { AgentProgressIndicator } from './AgentProgressIndicator';
@@ -609,6 +612,31 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     setBuildingsPanelOpenRaw(open);
     setStorageBoolean(STORAGE_KEYS.BUILDINGS_PANEL_OPEN, open);
   }, []);
+
+  // Workflow panel state (persisted in localStorage)
+  const [workflowPanelOpen, setWorkflowPanelOpenRaw] = useState(() => getStorageBoolean(STORAGE_KEYS.WORKFLOW_PANEL_OPEN, false));
+  const setWorkflowPanelOpen = useCallback((open: boolean) => {
+    setWorkflowPanelOpenRaw(open);
+    setStorageBoolean(STORAGE_KEYS.WORKFLOW_PANEL_OPEN, open);
+  }, []);
+
+  // Check if active agent owns a workflow via API (store not populated via WebSocket yet)
+  const [hasWorkflowForAgent, setHasWorkflowForAgent] = useState(false);
+  useEffect(() => {
+    if (!activeAgentId) { setHasWorkflowForAgent(false); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await authFetch(apiUrl('/api/workflows/definitions'));
+        if (cancelled || !res.ok) return;
+        const defs = await res.json();
+        const found = (defs as Array<{ states: Array<{ action?: { type: string; agentId?: string } }> }>)
+          .some(def => def.states.some(s => s.action?.type === 'agent_task' && s.action?.agentId === activeAgentId));
+        if (!cancelled) setHasWorkflowForAgent(found);
+      } catch { if (!cancelled) setHasWorkflowForAgent(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [activeAgentId]);
 
   // Agent overview panel state (persisted in store across agent switches)
   const overviewPanelOpen = useOverviewPanelOpen();
@@ -2036,7 +2064,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
   return (
     <div
       ref={terminalRef}
-      className={`guake-terminal ${isOpen ? 'open' : 'collapsed'} ${isFullscreen && isOpen ? 'fullscreen' : ''} ${debugPanelOpen && isOpen ? 'with-debug-panel' : ''} ${gitPanelOpen && isOpen ? 'with-git-panel' : ''} ${buildingsPanelOpen && isOpen ? 'with-buildings-panel' : ''} ${overviewPanelOpen && isOpen ? 'with-overview-panel' : ''} ${draggingOver ? 'drag-over' : ''} ${mobileSwipeCloseOffset > 0 ? 'mobile-swipe-close-active' : ''} ${isMobileSwipeClosing ? 'mobile-swipe-close-closing' : ''}`}
+      className={`guake-terminal ${isOpen ? 'open' : 'collapsed'} ${isFullscreen && isOpen ? 'fullscreen' : ''} ${debugPanelOpen && isOpen ? 'with-debug-panel' : ''} ${gitPanelOpen && isOpen ? 'with-git-panel' : ''} ${buildingsPanelOpen && isOpen ? 'with-buildings-panel' : ''} ${workflowPanelOpen && isOpen ? 'with-workflow-panel' : ''} ${overviewPanelOpen && isOpen ? 'with-overview-panel' : ''} ${draggingOver ? 'drag-over' : ''} ${mobileSwipeCloseOffset > 0 ? 'mobile-swipe-close-active' : ''} ${isMobileSwipeClosing ? 'mobile-swipe-close-closing' : ''}`}
       style={{ '--terminal-height': `${terminalHeight}%`, '--mobile-swipe-close-offset': `${mobileSwipeCloseOffset}px`, '--guake-side-panel-width': `${sidePanelWidth}px`, ...(mobileOverviewHeight > 0 ? { '--guake-mobile-overview-height': `${mobileOverviewHeight}px` } : {}) } as React.CSSProperties}
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
@@ -2065,8 +2093,13 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
         <AreaBuildingsPanel agentId={activeAgentId} onClose={() => setBuildingsPanelOpen(false)} />
       )}
 
+      {/* Workflow Panel */}
+      {!isSnapshotView && workflowPanelOpen && isOpen && activeAgentId && (
+        <WorkflowPanel agentId={activeAgentId} onClose={() => setWorkflowPanelOpen(false)} />
+      )}
+
       {/* Right-side panel resize handle */}
-      {!isSnapshotView && (debugPanelOpen || gitPanelOpen || buildingsPanelOpen) && isOpen && (
+      {!isSnapshotView && (debugPanelOpen || gitPanelOpen || buildingsPanelOpen || workflowPanelOpen) && isOpen && (
         <div className="guake-side-panel-resize right" onMouseDown={(e) => handleSidePanelResizeStart(e, 'right')} />
       )}
 
@@ -2117,6 +2150,9 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
           setGitPanelOpen={setGitPanelOpen}
           buildingsPanelOpen={buildingsPanelOpen}
           setBuildingsPanelOpen={setBuildingsPanelOpen}
+          workflowPanelOpen={workflowPanelOpen}
+          setWorkflowPanelOpen={setWorkflowPanelOpen}
+          hasWorkflow={hasWorkflowForAgent}
           overviewPanelOpen={overviewPanelOpen}
           setOverviewPanelOpen={setOverviewPanelOpen}
           agentInfoOpen={agentInfoOpen}

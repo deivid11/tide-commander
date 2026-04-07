@@ -5,16 +5,20 @@
  * Reuses EventLogViewer filtering/display logic and StatsDashboard for stats.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useSyncExternalStore, useMemo } from 'react';
+import { store } from '../store';
 import { apiUrl, authFetch } from '../utils/storage';
 import type { TimelineEntry, EventStats } from '../../shared/event-types';
+import type { WorkflowDefinition } from '../../shared/workflow-types';
+import type { WorkflowInstanceRow, WorkflowStoreState } from '../store/workflows';
+import type { StoreState } from '../store/types';
 
 interface MonitoringModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-type TabId = 'triggers' | 'workflows' | 'messages' | 'stats';
+type TabId = 'triggers' | 'workflows' | 'instances' | 'messages' | 'stats';
 type TimeRange = '1h' | '6h' | '24h' | '7d' | 'all';
 
 interface IntegrationStatusInfo {
@@ -26,6 +30,7 @@ interface IntegrationStatusInfo {
 const TABS: { id: TabId; label: string; icon: string }[] = [
   { id: 'triggers', label: 'Triggers', icon: '\u26A1' },
   { id: 'workflows', label: 'Workflows', icon: '\u2699\uFE0F' },
+  { id: 'instances', label: 'Instances', icon: '\uD83D\uDD04' },
   { id: 'messages', label: 'Messages', icon: '\uD83D\uDCAC' },
   { id: 'stats', label: 'Stats', icon: '\uD83D\uDCCA' },
 ];
@@ -68,13 +73,15 @@ export function MonitoringModal({ isOpen, onClose }: MonitoringModalProps) {
   const [timeRange, setTimeRange] = useState<TimeRange>('24h');
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [matcherResults, setMatcherResults] = useState<Record<string, unknown[] | null>>({});
+  const [loadingMatchers, setLoadingMatchers] = useState(false);
 
   // Stats tab state
   const [stats, setStats] = useState<EventStats | null>(null);
   const [integrations, setIntegrations] = useState<IntegrationStatusInfo[]>([]);
 
   const fetchEvents = useCallback(async () => {
-    if (activeTab === 'stats') return;
+    if (activeTab === 'stats' || activeTab === 'instances') return;
     setLoading(true);
     try {
       const now = Date.now();
@@ -229,8 +236,8 @@ export function MonitoringModal({ isOpen, onClose }: MonitoringModalProps) {
           ))}
         </div>
 
-        {/* Filters (for non-stats tabs) */}
-        {activeTab !== 'stats' && (
+        {/* Filters (for event tabs only) */}
+        {activeTab !== 'stats' && activeTab !== 'instances' && (
           <div style={S.filters}>
             <div style={{ display: 'flex', gap: 4 }}>
               {(['1h', '6h', '24h', '7d', 'all'] as TimeRange[]).map((range) => (
@@ -272,19 +279,60 @@ export function MonitoringModal({ isOpen, onClose }: MonitoringModalProps) {
               connectedCount={connectedCount}
               onRefresh={fetchStats}
             />
+          ) : activeTab === 'instances' ? (
+            <InstanceMonitorTab />
           ) : (
             <EventListContent
               loading={loading}
               error={error}
               entries={filtered}
               expandedId={expandedId}
-              onToggleExpand={(id) => setExpandedId(expandedId === id ? null : id)}
+              matcherResults={matcherResults}
+              loadingMatchers={loadingMatchers}
+              onToggleExpand={async (id, entry) => {
+                if (expandedId === id) {
+                  setExpandedId(null);
+                  return;
+                }
+                setExpandedId(id);
+                // Fetch matchers
+                if (!matcherResults[id]) {
+                  setLoadingMatchers(true);
+                  try {
+                    let url = '';
+                    if (entry?.type === 'trigger' && entry?.data?.id) {
+                      // Matchers for a fired trigger event
+                      url = `/api/triggers/events/${entry.data.id}/matchers`;
+                    } else if (entry && ['slack', 'email', 'approval'].includes(entry.type)) {
+                      // Matchers for a message - evaluate ALL triggers against this source
+                      const data = entry.data as unknown as Record<string, unknown>;
+                      // Use message-specific IDs (ts for Slack, messageId for Email) not the database row ID
+                      const sourceId = (data.ts || data.messageId || data.email_id) as string;
+                      if (sourceId && entry.type) {
+                        url = `/api/triggers/matchers/by-source/${entry.type}/${encodeURIComponent(sourceId)}`;
+                      }
+                    }
+
+                    if (url) {
+                      const resp = await authFetch(apiUrl(url));
+                      if (resp.ok) {
+                        const data = await resp.json();
+                        setMatcherResults(prev => ({ ...prev, [id]: data.matchers || [] }));
+                      }
+                    }
+                  } catch (err) {
+                    console.error('Failed to fetch matchers:', err);
+                  } finally {
+                    setLoadingMatchers(false);
+                  }
+                }
+              }}
             />
           )}
         </div>
 
         {/* Footer */}
-        {activeTab !== 'stats' && (
+        {activeTab !== 'stats' && activeTab !== 'instances' && (
           <div style={S.footer}>
             <span style={{ color: '#6c7086', fontSize: 11 }}>
               {filtered.length} event{filtered.length !== 1 ? 's' : ''} shown
@@ -304,13 +352,17 @@ function EventListContent({
   error,
   entries,
   expandedId,
+  matcherResults,
+  loadingMatchers,
   onToggleExpand,
 }: {
   loading: boolean;
   error: string | null;
   entries: TimelineEntry[];
   expandedId: string | null;
-  onToggleExpand: (id: string) => void;
+  matcherResults: Record<string, unknown[] | null>;
+  loadingMatchers: boolean;
+  onToggleExpand: (id: string, entry?: TimelineEntry) => void;
 }) {
   if (loading) return <div style={{ color: '#a6adc8', padding: 20 }}>Loading events...</div>;
   if (error) return <div style={{ color: '#f38ba8', padding: 20 }}>{error}</div>;
@@ -339,7 +391,7 @@ function EventListContent({
               borderLeft: `3px solid ${color}`,
               background: isExpanded ? 'rgba(137,180,250,0.05)' : 'transparent',
             }}
-            onClick={() => onToggleExpand(key)}
+            onClick={() => onToggleExpand(key, entry)}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ ...S.tag, background: `${color}22`, color }}>
@@ -352,9 +404,75 @@ function EventListContent({
             </div>
 
             {isExpanded && (
-              <pre style={S.detail}>
-                {JSON.stringify(entry.data, null, 2)}
-              </pre>
+              <>
+                <pre style={S.detail}>
+                  {JSON.stringify(entry.data, null, 2)}
+                </pre>
+                {matcherResults[key] && (
+                  <div style={{ marginTop: 12, borderTop: '1px solid #313244', paddingTop: 12 }}>
+                    <div style={{ color: '#a6adc8', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+                      {entry.type === 'trigger' ? 'Matcher Results' : 'Trigger Evaluations'}
+                    </div>
+                    {loadingMatchers ? (
+                      <div style={{ color: '#6c7086', fontSize: 12 }}>Loading matchers...</div>
+                    ) : (matcherResults[key] as unknown[])?.length === 0 ? (
+                      <div style={{ color: '#6c7086', fontSize: 12 }}>No matchers evaluated</div>
+                    ) : (
+                      (() => {
+                        const matchers = matcherResults[key] as Record<string, unknown>[];
+                        // Group by trigger_id for message views
+                        if (entry.type !== 'trigger') {
+                          const byTrigger = new Map<string, Record<string, unknown>[]>();
+                          for (const m of matchers) {
+                            const tId = String(m.trigger_id || 'unknown');
+                            if (!byTrigger.has(tId)) byTrigger.set(tId, []);
+                            byTrigger.get(tId)!.push(m);
+                          }
+                          return Array.from(byTrigger.entries()).map(([tId, ms]) => (
+                            <div key={tId} style={{ marginBottom: 12 }}>
+                              <div style={{ color: '#cdd6f4', fontSize: 11, fontWeight: 500, marginBottom: 6, paddingBottom: 4, borderBottom: '1px solid #45475a' }}>
+                                Trigger: {String(ms[0]?.trigger_name || tId)}
+                              </div>
+                              {ms.map((m, idx) => {
+                                const matched = m.matched === 1 || m.matched === true;
+                                const matchColor = matched ? '#a6e3a1' : '#f38ba8';
+                                const confidence = (m.confidence as number | null) ?? null;
+                                const matcherName = String(m.matcher_name || 'unknown');
+                                const reason = m.reason ? String(m.reason) : '';
+                                return (
+                                  <div key={idx} style={{ display: 'flex', gap: 8, padding: '6px 10px', background: '#313244', borderRadius: 4, marginBottom: 4, fontSize: 11 }}>
+                                    <span style={{ color: matchColor, fontWeight: 600, minWidth: 50 }}>{matched ? '✓' : '✗'}</span>
+                                    <span style={{ color: '#cdd6f4', flex: 1 }}>{matcherName}</span>
+                                    {confidence !== null && <span style={{ color: '#a6adc8' }}>({(confidence * 100).toFixed(0)}%)</span>}
+                                    {reason && <span style={{ color: '#6c7086', fontSize: 10 }}>{reason}</span>}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ));
+                        } else {
+                          // Flat list for trigger events
+                          return matchers.map((m, idx) => {
+                            const matched = m.matched === 1 || m.matched === true;
+                            const matchColor = matched ? '#a6e3a1' : '#f38ba8';
+                            const confidence = (m.confidence as number | null) ?? null;
+                            const matcherName = String(m.matcher_name || 'unknown');
+                            const reason = m.reason ? String(m.reason) : '';
+                            return (
+                              <div key={idx} style={{ display: 'flex', gap: 8, padding: '6px 10px', background: '#313244', borderRadius: 4, marginBottom: 4, fontSize: 11 }}>
+                                <span style={{ color: matchColor, fontWeight: 600, minWidth: 50 }}>{matched ? '✓ MATCH' : '✗ FAIL'}</span>
+                                <span style={{ color: '#cdd6f4', flex: 1 }}>{matcherName}</span>
+                                {confidence !== null && <span style={{ color: '#a6adc8' }}>({(confidence * 100).toFixed(0)}%)</span>}
+                                {reason && <span style={{ color: '#6c7086', fontSize: 10 }}>{reason}</span>}
+                              </div>
+                            );
+                          });
+                        }
+                      })()
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </div>
         );
@@ -493,6 +611,352 @@ function getEntrySummary(entry: TimelineEntry): string {
 function truncate(str: string | undefined, max: number): string {
   if (!str) return '';
   return str.length > max ? str.slice(0, max) + '...' : str;
+}
+
+// ─── Instance Monitor Tab ───
+
+const INSTANCE_STATUS_COLORS: Record<string, string> = {
+  running: '#a6e3a1',
+  paused: '#f9e2af',
+  completed: '#89b4fa',
+  failed: '#f38ba8',
+  cancelled: '#6c7086',
+};
+
+const STATE_TYPE_COLORS: Record<string, string> = {
+  action: '#89b4fa',
+  wait: '#f9e2af',
+  decision: '#cba6f7',
+  end: '#6c7086',
+};
+
+type InstanceStatusFilter = 'all' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled';
+
+// Memoized snapshot to prevent infinite re-renders.
+// useSyncExternalStore compares by reference (Object.is), so getSnapshot
+// must return the same object when the underlying data hasn't changed.
+let _cachedWorkflowSnap: { definitions: Map<string, WorkflowDefinition>; instances: Map<string, WorkflowInstanceRow> } | null = null;
+let _prevDefs: Map<string, WorkflowDefinition> | undefined;
+let _prevInsts: Map<string, WorkflowInstanceRow> | undefined;
+
+function getWorkflowSnapshot() {
+  const state = store.getState() as StoreState & WorkflowStoreState;
+  const defs = state.workflowDefinitions ?? new Map<string, WorkflowDefinition>();
+  const insts = state.workflowInstances ?? new Map<string, WorkflowInstanceRow>();
+  if (_cachedWorkflowSnap && _prevDefs === defs && _prevInsts === insts) {
+    return _cachedWorkflowSnap;
+  }
+  _prevDefs = defs;
+  _prevInsts = insts;
+  _cachedWorkflowSnap = { definitions: defs, instances: insts };
+  return _cachedWorkflowSnap;
+}
+
+function useWorkflowStore() {
+  return useSyncExternalStore(
+    (cb) => store.subscribe(cb),
+    getWorkflowSnapshot,
+    getWorkflowSnapshot
+  );
+}
+
+function InstanceMonitorTab() {
+  const { definitions, instances } = useWorkflowStore();
+  const [statusFilter, setStatusFilter] = useState<InstanceStatusFilter>('all');
+  const [defFilter, setDefFilter] = useState<string>('all');
+  const [search, setSearch] = useState('');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedStepIdx, setExpandedStepIdx] = useState<number | null>(null);
+  const [debugId, setDebugId] = useState<string | null>(null);
+
+  const allInstances = useMemo(() => Array.from(instances.values()), [instances]);
+  const allDefs = useMemo(() => Array.from(definitions.values()), [definitions]);
+
+  const filtered = useMemo(() => {
+    return allInstances
+      .filter((inst) => {
+        if (statusFilter !== 'all' && inst.status !== statusFilter) return false;
+        if (defFilter !== 'all' && inst.workflowDefId !== defFilter) return false;
+        if (search) {
+          const s = search.toLowerCase();
+          return inst.workflowName.toLowerCase().includes(s) ||
+            inst.id.toLowerCase().includes(s) ||
+            JSON.stringify(inst.variables).toLowerCase().includes(s);
+        }
+        return true;
+      })
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+  }, [allInstances, statusFilter, defFilter, search]);
+
+  const expandedInstance = expandedId ? instances.get(expandedId) : null;
+  const debugInstance = debugId ? instances.get(debugId) : null;
+
+  // Debug view
+  if (debugInstance) {
+    const def = definitions.get(debugInstance.workflowDefId);
+    const currentState = def?.states.find(s => s.id === debugInstance.currentStateId);
+    const statusColor = INSTANCE_STATUS_COLORS[debugInstance.status] || '#6c7086';
+
+    // Split variables
+    const wiVars: Record<string, unknown> = {};
+    const userVars: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(debugInstance.variables)) {
+      if (key.startsWith('wi_')) wiVars[key] = val;
+      else userVars[key] = val;
+    }
+
+    return (
+      <div style={{ padding: '12px 0' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          <button style={{ ...S.refreshBtn, fontSize: 12 }} onClick={() => setDebugId(null)}>Back</button>
+          <span style={{ color: '#cdd6f4', fontSize: 13, fontWeight: 500 }}>Debug: {debugInstance.workflowName}</span>
+          <span style={{ ...S.tag, background: `${statusColor}22`, color: statusColor }}>{debugInstance.status}</span>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8, marginBottom: 16 }}>
+          <DebugCell label="ID" value={debugInstance.id} />
+          <DebugCell label="Def ID" value={debugInstance.workflowDefId} />
+          <DebugCell label="Current State" value={currentState?.name || debugInstance.currentStateId} />
+          <DebugCell label="State Type" value={currentState?.type || 'unknown'} />
+          <DebugCell label="Created" value={fmtFull(debugInstance.createdAt)} />
+          <DebugCell label="Updated" value={fmtFull(debugInstance.updatedAt)} />
+          {debugInstance.completedAt && <DebugCell label="Completed" value={fmtFull(debugInstance.completedAt)} />}
+          {debugInstance.error && <DebugCell label="Error" value={debugInstance.error} color="#f38ba8" />}
+          <DebugCell label="Steps" value={String(debugInstance.history?.length ?? 0)} />
+        </div>
+
+        {Object.keys(userVars).length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ color: '#a6adc8', fontSize: 11, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: 1, marginBottom: 6 }}>User Variables</div>
+            <pre style={S.detail}>{JSON.stringify(userVars, null, 2)}</pre>
+          </div>
+        )}
+
+        {Object.keys(wiVars).length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ color: '#a6adc8', fontSize: 11, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: 1, marginBottom: 6 }}>Internal Variables (wi_*)</div>
+            <pre style={S.detail}>{JSON.stringify(wiVars, null, 2)}</pre>
+          </div>
+        )}
+
+        {currentState && currentState.transitions.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ color: '#a6adc8', fontSize: 11, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: 1, marginBottom: 6 }}>Available Transitions</div>
+            {currentState.transitions.map(t => (
+              <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 10px', background: '#313244', borderRadius: 4, marginBottom: 4 }}>
+                <span style={{ color: '#cdd6f4', fontSize: 12 }}>{t.name}</span>
+                <span style={{ color: '#6c7086', fontSize: 10 }}>{t.condition.type} &rarr; {def?.states.find(s => s.id === t.targetStateId)?.name || t.targetStateId}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div>
+          <div style={{ color: '#a6adc8', fontSize: 11, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: 1, marginBottom: 6 }}>Raw JSON</div>
+          <pre style={{ ...S.detail, maxHeight: 400 }}>{JSON.stringify(debugInstance, null, 2)}</pre>
+        </div>
+      </div>
+    );
+  }
+
+  // Timeline view for expanded instance
+  if (expandedInstance) {
+    const def = definitions.get(expandedInstance.workflowDefId);
+    const statusColor = INSTANCE_STATUS_COLORS[expandedInstance.status] || '#6c7086';
+
+    return (
+      <div style={{ padding: '12px 0' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <button style={{ ...S.refreshBtn, fontSize: 12 }} onClick={() => { setExpandedId(null); setExpandedStepIdx(null); }}>Back</button>
+          <span style={{ color: '#cdd6f4', fontSize: 13, fontWeight: 500 }}>{expandedInstance.workflowName}</span>
+          <span style={{ color: '#6c7086', fontSize: 10, fontFamily: 'monospace' }}>({expandedInstance.id.slice(0, 8)})</span>
+          <span style={{ ...S.tag, background: `${statusColor}22`, color: statusColor }}>{expandedInstance.status}</span>
+          <div style={{ flex: 1 }} />
+          <button style={{ ...S.refreshBtn, fontFamily: 'monospace', fontSize: 10 }} onClick={() => setDebugId(expandedInstance.id)}>{'{..}'}</button>
+        </div>
+
+        <div style={{ display: 'flex', gap: 16, color: '#6c7086', fontSize: 11, marginBottom: 12 }}>
+          <span>Created: {fmtFull(expandedInstance.createdAt)}</span>
+          <span>Updated: {fmtFull(expandedInstance.updatedAt)}</span>
+          {expandedInstance.error && <span style={{ color: '#f38ba8' }}>Error: {expandedInstance.error}</span>}
+        </div>
+
+        <div style={{ color: '#a6adc8', fontSize: 11, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: 1, marginBottom: 8 }}>
+          Timeline ({expandedInstance.history.length} step{expandedInstance.history.length !== 1 ? 's' : ''})
+        </div>
+
+        {expandedInstance.history.length === 0 && (
+          <div style={{ color: '#6c7086', fontSize: 12, padding: 16 }}>No steps recorded yet.</div>
+        )}
+
+        {expandedInstance.history.map((entry, idx) => {
+          const state = def?.states.find(s => s.id === entry.toStateId);
+          const isExpanded = expandedStepIdx === idx;
+          const stateColor = state ? STATE_TYPE_COLORS[state.type] || '#6c7086' : '#6c7086';
+
+          return (
+            <div
+              key={idx}
+              style={{
+                padding: '10px 12px',
+                borderLeft: `3px solid ${stateColor}`,
+                borderBottom: '1px solid #313244',
+                cursor: 'pointer',
+                background: isExpanded ? 'rgba(137,180,250,0.05)' : 'transparent',
+                marginLeft: 8,
+              }}
+              onClick={() => setExpandedStepIdx(isExpanded ? null : idx)}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: stateColor, flexShrink: 0 }} />
+                <span style={{ color: '#cdd6f4', fontSize: 12, fontWeight: 500 }}>{state?.name || entry.toStateId}</span>
+                {state && <span style={{ ...S.tag, background: `${stateColor}22`, color: stateColor }}>{state.type}</span>}
+                {entry.transitionName && <span style={{ color: '#6c7086', fontSize: 10 }}>via "{entry.transitionName}"</span>}
+                <div style={{ flex: 1 }} />
+                <span style={{ color: '#6c7086', fontSize: 10, whiteSpace: 'nowrap' }}>{fmtFull(entry.timestamp)}</span>
+              </div>
+
+              {isExpanded && (
+                <div style={{ marginTop: 8, paddingLeft: 20 }}>
+                  {entry.fromStateId && (
+                    <div style={{ color: '#6c7086', fontSize: 11, marginBottom: 2 }}>
+                      <span style={{ fontWeight: 600, fontSize: 10, textTransform: 'uppercase' as const }}>From: </span>
+                      <span style={{ fontFamily: 'monospace' }}>{entry.fromStateId}</span>
+                    </div>
+                  )}
+                  {entry.details && (
+                    <div style={{ marginTop: 6 }}>
+                      <div style={{ color: '#6c7086', fontSize: 10, fontWeight: 600, textTransform: 'uppercase' as const, marginBottom: 4 }}>Agent Reasoning / Summary</div>
+                      <div style={{ padding: 10, background: '#181825', borderRadius: 6, border: '1px solid #313244', fontSize: 12, color: '#cdd6f4', lineHeight: 1.5, whiteSpace: 'pre-wrap' as const }}>{entry.details}</div>
+                    </div>
+                  )}
+                  {state?.description && (
+                    <div style={{ marginTop: 6, color: '#a6adc8', fontSize: 11 }}>
+                      <span style={{ color: '#6c7086', fontWeight: 600, fontSize: 10, textTransform: 'uppercase' as const }}>Description: </span>{state.description}
+                    </div>
+                  )}
+                  {entry.variables && Object.keys(entry.variables).length > 0 && (
+                    <div style={{ marginTop: 6 }}>
+                      <div style={{ color: '#6c7086', fontSize: 10, fontWeight: 600, textTransform: 'uppercase' as const, marginBottom: 4 }}>Variables at this step</div>
+                      <pre style={S.detail}>{JSON.stringify(entry.variables, null, 2)}</pre>
+                    </div>
+                  )}
+                  {state?.action && (
+                    <div style={{ marginTop: 6 }}>
+                      <div style={{ color: '#6c7086', fontSize: 10, fontWeight: 600, textTransform: 'uppercase' as const, marginBottom: 4 }}>Action ({state.action.type})</div>
+                      <pre style={S.detail}>{JSON.stringify(state.action, null, 2)}</pre>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // Instance list view
+  return (
+    <div style={{ padding: '12px 0' }}>
+      {/* Filters */}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' as const }}>
+        <select
+          style={{ background: '#313244', border: '1px solid #45475a', borderRadius: 6, padding: '5px 10px', color: '#cdd6f4', fontSize: 12, outline: 'none' }}
+          value={defFilter}
+          onChange={(e) => setDefFilter(e.target.value)}
+        >
+          <option value="all">All Workflows</option>
+          {allDefs.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+        </select>
+
+        <div style={{ display: 'flex', gap: 4 }}>
+          {(['all', 'running', 'paused', 'completed', 'failed', 'cancelled'] as InstanceStatusFilter[]).map((sf) => (
+            <button
+              key={sf}
+              style={{
+                ...S.timeBtn,
+                background: statusFilter === sf ? (sf === 'all' ? '#89b4fa' : INSTANCE_STATUS_COLORS[sf] || '#89b4fa') : 'transparent',
+                color: statusFilter === sf ? '#1e1e2e' : '#a6adc8',
+                borderColor: statusFilter === sf ? 'transparent' : '#45475a',
+                textTransform: 'capitalize' as const,
+              }}
+              onClick={() => setStatusFilter(sf)}
+            >{sf}</button>
+          ))}
+        </div>
+
+        <input
+          style={S.searchInput}
+          placeholder="Search instances..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+
+        <span style={{ color: '#6c7086', fontSize: 11 }}>
+          {filtered.length}/{allInstances.length}
+        </span>
+      </div>
+
+      {/* Instance List */}
+      {filtered.length === 0 ? (
+        <div style={{ color: '#6c7086', textAlign: 'center', padding: 40 }}>
+          No workflow instances found.
+        </div>
+      ) : (
+        filtered.map((inst) => {
+          const def = definitions.get(inst.workflowDefId);
+          const statusColor = INSTANCE_STATUS_COLORS[inst.status] || '#6c7086';
+          const currentState = def?.states.find(s => s.id === inst.currentStateId);
+          const stateTypeColor = currentState ? STATE_TYPE_COLORS[currentState.type] || '#6c7086' : '#6c7086';
+
+          return (
+            <div
+              key={inst.id}
+              style={{ ...S.eventRow, display: 'flex', alignItems: 'center', gap: 12, borderLeft: `3px solid ${statusColor}` }}
+              onClick={() => setExpandedId(inst.id)}
+            >
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ color: '#cdd6f4', fontSize: 13, fontWeight: 500 }}>{inst.workflowName}</span>
+                  <span style={{ ...S.tag, background: `${statusColor}22`, color: statusColor }}>{inst.status}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
+                  <span style={{ color: '#6c7086', fontSize: 10, fontFamily: 'monospace' }}>{inst.id.slice(0, 8)}</span>
+                  {currentState && <span style={{ color: stateTypeColor, fontSize: 10 }}>@ {currentState.name}</span>}
+                  <span style={{ color: '#45475a', fontSize: 10 }}>{(inst.history?.length ?? 0)} step{(inst.history?.length ?? 0) !== 1 ? 's' : ''}</span>
+                </div>
+              </div>
+              <span style={{ color: '#6c7086', fontSize: 10, whiteSpace: 'nowrap' }}>{fmtTime(inst.updatedAt)}</span>
+              <button
+                style={{ background: 'transparent', border: '1px solid #45475a', borderRadius: 4, padding: '3px 6px', color: '#6c7086', fontSize: 10, fontFamily: 'monospace', cursor: 'pointer' }}
+                onClick={(e) => { e.stopPropagation(); setDebugId(inst.id); }}
+                title="Debug view"
+              >{'{..}'}</button>
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
+function DebugCell({ label, value, color }: { label: string; value: string; color?: string }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 2, padding: '8px 10px', background: '#313244', borderRadius: 6 }}>
+      <span style={{ color: '#6c7086', fontSize: 10, textTransform: 'uppercase' as const, letterSpacing: 0.5 }}>{label}</span>
+      <span style={{ color: color || '#cdd6f4', fontSize: 12, fontFamily: 'monospace', wordBreak: 'break-all' as const }}>{value}</span>
+    </div>
+  );
+}
+
+function fmtTime(ts: number): string {
+  return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function fmtFull(ts: number): string {
+  const d = new Date(ts);
+  return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
 }
 
 // ─── Styles ───

@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.35.0] - 2026-04-07
+
+### Added
+- **Workflow-as-Agent architecture** - New agent-driven workflow execution system with state machine engine, eager instance processing, and per-step reasoning capture
+- **Workflow executor service** - State machine executor with enterState/executeAction/evaluateTransitions/handleTransition lifecycle and SQLite-backed instance persistence
+- **Workflow builder skill** - Built-in skill for agents to design and manage workflow definitions with full state/transition/variable documentation
+- **Workflow instance monitor** - New Instances tab in MonitoringModal showing live workflow instance status, history timeline, and step-by-step reasoning
+- **Workflow panel** - Dedicated panel for viewing workflow status, timeline, and instance details within agent chat
+- **LLM-powered trigger matching** - Semantic event matching using Anthropic SDK with configurable model selection (Haiku/Sonnet/Opus) and variable extraction
+- **Trigger routes expansion** - New API endpoints for trigger management and LLM matcher execution tracking
+- **Database migrations** - Schema additions for workflow agent binding, matcher execution logs, and matcher message source tracking
+
+### Changed
+- **Workflow editor drag performance** - Replaced per-mousemove React state updates with direct DOM manipulation (CSS transform) during drag for smooth, lag-free interaction
+- **Workflow designer skill** - Expanded workflow designer documentation with state machine concepts and agent binding
+- **Jira integration** - Improved Jira client error handling and route structure
+- **Trigger service** - Enhanced trigger evaluation pipeline with LLM matcher integration and event formatting
+
+### Fixed
+- **Workflow editor stale closure** - Fixed drag-and-drop nodes snapping back to original positions by using ref-based callbacks instead of stale closures
+- **Monitoring modal infinite loop** - Fixed useSyncExternalStore snapshot memoization causing infinite re-renders in instances tab
+- **LLM matcher API key conflict** - Renamed ANTHROPIC_API_KEY to TC_ANTHROPIC_API_KEY to prevent Claude Code CLI from switching to API key billing
+
 ## [1.34.2] - 2026-04-06
 
 ### Changed

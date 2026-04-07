@@ -171,6 +171,161 @@ curl -s -X POST "http://localhost:{{PORT}}/api/workflows/instances/INSTANCE_ID/e
 | \`helix\` | DNA-like double spiral |
 | \`clockwork\` | Mechanical gears and cogs |
 
+## Get Instance Details
+
+\`\`\`bash
+curl -s -H "X-Auth-Token: {{AUTH_TOKEN}}" "http://localhost:{{PORT}}/api/workflows/instances/INSTANCE_ID"
+\`\`\`
+
+Response includes current state, variables, status, and execution progress.
+
+## List All Instances (with filtering)
+
+\`\`\`bash
+curl -s -H "X-Auth-Token: {{AUTH_TOKEN}}" "http://localhost:{{PORT}}/api/workflows/instances?workflowDefId=WORKFLOW_ID&status=running&limit=50"
+\`\`\`
+
+Filters available: \`workflowDefId\`, \`status\` (running, paused, completed, failed, cancelled), \`limit\`, \`offset\`
+
+## Pause a Running Instance
+
+Stop a workflow instance temporarily. All timers are suspended, state is preserved.
+
+\`\`\`bash
+curl -s -X PATCH "http://localhost:{{PORT}}/api/workflows/instances/INSTANCE_ID/pause" \\
+  -H "X-Auth-Token: {{AUTH_TOKEN}}"
+\`\`\`
+
+## Resume a Paused Instance
+
+Continue a paused workflow from where it left off.
+
+\`\`\`bash
+curl -s -X PATCH "http://localhost:{{PORT}}/api/workflows/instances/INSTANCE_ID/resume" \\
+  -H "X-Auth-Token: {{AUTH_TOKEN}}"
+\`\`\`
+
+## Cancel a Running Instance
+
+Terminate a workflow instance and mark it as cancelled.
+
+\`\`\`bash
+curl -s -X PATCH "http://localhost:{{PORT}}/api/workflows/instances/INSTANCE_ID/cancel" \\
+  -H "X-Auth-Token: {{AUTH_TOKEN}}"
+\`\`\`
+
+## Get Instance Execution Timeline
+
+View a chronological trace of state transitions, including timestamps and conditions that triggered each transition.
+
+\`\`\`bash
+curl -s -H "X-Auth-Token: {{AUTH_TOKEN}}" "http://localhost:{{PORT}}/api/workflows/instances/INSTANCE_ID/timeline"
+\`\`\`
+
+## Get Instance Steps
+
+View detailed information about each state execution: agent assignments, outcomes, variable changes.
+
+\`\`\`bash
+curl -s -H "X-Auth-Token: {{AUTH_TOKEN}}" "http://localhost:{{PORT}}/api/workflows/instances/INSTANCE_ID/steps"
+\`\`\`
+
+## Get Variable Change History
+
+Track all changes to a specific workflow variable (or all variables).
+
+\`\`\`bash
+curl -s -H "X-Auth-Token: {{AUTH_TOKEN}}" "http://localhost:{{PORT}}/api/workflows/instances/INSTANCE_ID/variables?variableName=release_name"
+\`\`\`
+
+Omit \`variableName\` to see history of all variables.
+
+## Get Instance Reasoning Trace
+
+View the decision-making logic and Claude reasoning for each workflow step (if available).
+
+\`\`\`bash
+curl -s -H "X-Auth-Token: {{AUTH_TOKEN}}" "http://localhost:{{PORT}}/api/workflows/instances/INSTANCE_ID/reasoning"
+\`\`\`
+
+## Trigger Manual Transition
+
+Force a workflow to transition via a specific transition ID. Useful for manual approvals or overrides.
+
+\`\`\`bash
+curl -s -X POST "http://localhost:{{PORT}}/api/workflows/instances/INSTANCE_ID/transition" \\
+  -H "Content-Type: application/json" \\
+  -H "X-Auth-Token: {{AUTH_TOKEN}}" \\
+  -d '{ "transitionId": "t1" }'
+\`\`\`
+
+## Get Conversational Explanation of Workflow
+
+Ask Claude AI questions about a workflow definition, execution trace, or design.
+
+\`\`\`bash
+curl -s -X POST "http://localhost:{{PORT}}/api/workflows/WORKFLOW_ID/chat" \\
+  -H "Content-Type: application/json" \\
+  -H "X-Auth-Token: {{AUTH_TOKEN}}" \\
+  -d '{
+    "message": "Why did the workflow transition to the error state?",
+    "scope": {
+      "type": "instance",
+      "instanceId": "INSTANCE_ID"
+    },
+    "conversationHistory": []
+  }'
+\`\`\`
+
+Scope types: \`definition\`, \`instance\`
+
+## Troubleshooting Common Issues
+
+### Workflow Stuck in a State
+
+1. Get timeline to see last state: \`GET /instances/INSTANCE_ID/timeline\`
+2. Check variable history: \`GET /instances/INSTANCE_ID/variables\`
+3. Pause the instance: \`PATCH /instances/INSTANCE_ID/pause\`
+4. Fix any issues manually or via variable update
+5. Resume: \`PATCH /instances/INSTANCE_ID/resume\`
+6. Or manually transition: \`POST /instances/INSTANCE_ID/transition\` with correct transitionId
+
+### Agent Task Not Completing
+
+1. Get steps to see agent's task: \`GET /instances/INSTANCE_ID/steps\`
+2. Check reasoning trace: \`GET /instances/INSTANCE_ID/reasoning\`
+3. Pause the instance while debugging
+4. Contact the assigned agent or check agent logs
+5. Manually transition once resolved
+
+### Variable Not Updating
+
+1. Check variable history: \`GET /instances/INSTANCE_ID/variables?variableName=YOUR_VAR\`
+2. Use PATCH /variables endpoint to set correct value if needed
+3. Verify agents in action states are using correct variable names in prompts
+4. Use {{variable_name}} syntax (double braces) in promptTemplate
+
+### Timeout Issues
+
+- If a wait state is timing out incorrectly, check the \`afterMs\` value in the wait action config
+- Get timeline to confirm timeout fired: \`GET /instances/INSTANCE_ID/timeline\`
+- Pause and manually transition if needed
+
+## Instance Lifecycle State Diagram
+
+A workflow instance flows through these states:
+
+\`\`\`
+idle → running ──→ completed
+       ↓    ↑
+     paused─┘
+       ↓
+    cancelled
+
+       ↓
+     failed ← (if agent/trigger error)
+\`\`\`
+
 ## Design Guidelines
 
 1. **State naming**: Use descriptive, action-oriented names ("Collect Requirements", "Generate Report")
@@ -179,5 +334,7 @@ curl -s -X POST "http://localhost:{{PORT}}/api/workflows/instances/INSTANCE_ID/e
 4. **Skills**: Assign only the skills each state needs (slack-messaging, email-gmail, jira-service-desk, document-generator, google-calendar)
 5. **Error handling**: Add timeout transitions on wait states. Consider error/escalation states
 6. **Position**: Place workflow models near related buildings/agents in the work area
+7. **Monitoring**: Use the chat API and timeline queries during development to understand execution flow
+8. **Debugging**: When instances get stuck, use pause/resume and manual transitions as escape hatches
 `,
 };

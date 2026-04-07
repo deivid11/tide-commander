@@ -102,6 +102,7 @@ export interface EmailAttachment {
 export interface EmailMessage {
   messageId: string;
   threadId: string;
+  rfc822MessageId?: string;
   from: string;
   to: string[];
   cc?: string[];

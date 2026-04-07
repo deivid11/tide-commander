@@ -230,15 +230,34 @@ export function createJiraRoutes(client: JiraClient, ctx: IntegrationContext): R
     try {
       const jql = req.query.jql as string;
       if (!jql) {
-        res.status(400).json({ error: 'jql query parameter is required' });
+        res.status(400).json({ error: 'jql query parameter is required. Jira Cloud requires bounded queries - always include a filter like project = X, created >= -30d, or similar.' });
         return;
       }
 
       const maxResults = parseInt(req.query.maxResults as string) || 25;
       const startAt = parseInt(req.query.startAt as string) || 0;
+      const fieldsParam = req.query.fields as string | undefined;
+      const fields = fieldsParam ? fieldsParam.split(',').map(f => f.trim()) : undefined;
 
-      const result = await client.searchIssues(jql, { maxResults, startAt });
-      res.json(result);
+      const result = await client.searchIssues(jql, { maxResults, startAt, fields });
+
+      // Return a clean, agent-friendly response with key fields inline
+      const issues = result.issues.map(issue => ({
+        key: issue.key,
+        id: issue.id,
+        summary: issue.fields.summary,
+        status: issue.fields.status?.name,
+        priority: issue.fields.priority?.name,
+        assignee: issue.fields.assignee?.displayName,
+        issueType: issue.fields.issuetype?.name,
+        project: issue.fields.project?.key,
+        created: issue.fields.created,
+        updated: issue.fields.updated,
+        labels: issue.fields.labels,
+        self: issue.self,
+      }));
+
+      res.json({ issues, total: result.total, startAt: result.startAt, maxResults: result.maxResults });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Search failed';
       res.status(500).json({ error: message });

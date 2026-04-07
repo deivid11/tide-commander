@@ -168,6 +168,9 @@ export interface WorkflowInstanceRow {
   activeTriggerIds: string[];
   activeTimers: string[];
   error?: string;
+  agentId?: string;
+  triggerId?: string;
+  triggerData?: Record<string, unknown>;
   createdAt: number;
   updatedAt: number;
   completedAt?: number;
@@ -188,6 +191,7 @@ export interface WorkflowStepLogRow {
   promptSent?: string;
   agentResponse?: string;
   agentReasoning?: string;
+  agentSummary?: string;
   triggerId?: string;
   triggerPayload?: unknown;
   variablesBefore?: Record<string, unknown>;
