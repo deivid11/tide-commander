@@ -350,7 +350,8 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
   }
 
   // Handle session continuation message with special rendering
-  const isSessionContinuation = text.includes('This session is being continued from a previous conversation that ran out of context');
+  // Use startsWith to avoid false positives when the agent's response merely mentions the phrase
+  const isSessionContinuation = text.startsWith('This session is being continued from a previous conversation that ran out of context');
   if (isSessionContinuation) {
     return (
       <div

@@ -114,7 +114,8 @@ export const HistoryLine = memo(function HistoryLine({
   }
 
   // Handle session continuation message with special rendering
-  const isSessionContinuation = content.includes('This session is being continued from a previous conversation that ran out of context');
+  // Use startsWith to avoid false positives when the agent's response merely mentions the phrase
+  const isSessionContinuation = content.startsWith('This session is being continued from a previous conversation that ran out of context');
   if (isSessionContinuation) {
     return (
       <div
