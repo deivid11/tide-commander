@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.35.1] - 2026-04-08
+
+### Fixed
+- **Session continuation false positives** - Changed `.includes()` to `.startsWith()` for detecting Claude Code session continuation messages, preventing normal assistant output from being incorrectly collapsed into "Session continued from previous context" alerts
+
 ## [1.35.0] - 2026-04-07
 
 ### Added
