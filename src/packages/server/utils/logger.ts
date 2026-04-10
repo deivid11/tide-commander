@@ -162,16 +162,6 @@ export function getLogFilePath(): string {
   return currentLogFilePath || path.join(fileLogConfig.directory, fileLogConfig.filename);
 }
 
-/**
- * Enable or disable file logging
- */
-export function setFileLoggingEnabled(enabled: boolean): void {
-  fileLogConfig.enabled = enabled;
-  if (enabled && !isInitialized) {
-    initFileLogging();
-  }
-}
-
 // ============================================
 // ANSI Colors for Console Output
 // ============================================
@@ -221,71 +211,16 @@ function formatTimestamp(): string {
   });
 }
 
-interface CallerInfo {
-  file: string;
-  line: number;
-  column: number;
-}
-
-function _getCallerInfo(): CallerInfo | null {
-  const err = new Error();
-  const stack = err.stack?.split('\n');
-
-  if (!stack || stack.length < 5) return null;
-
-  // Stack trace format: "    at functionName (file:line:column)"
-  // We need to skip: Error, formatMessage, log/error/warn method, and get the actual caller
-  // Index 0: "Error"
-  // Index 1: getCallerInfo
-  // Index 2: formatMessage
-  // Index 3: log/error/warn
-  // Index 4: actual caller
-  const callerLine = stack[4];
-
-  if (!callerLine) return null;
-
-  // Match patterns like:
-  // "    at functionName (/path/to/file.ts:123:45)"
-  // "    at /path/to/file.ts:123:45"
-  const match = callerLine.match(/at\s+(?:.*?\s+\()?(.+?):(\d+):(\d+)\)?$/);
-
-  if (!match) return null;
-
-  let filePath = match[1];
-
-  // Clean up the path - show only the relevant part
-  // Remove everything before src/packages/server
-  const serverIndex = filePath.indexOf('src/packages/server');
-  if (serverIndex !== -1) {
-    filePath = filePath.slice(serverIndex + 'src/packages/server/'.length);
-  } else {
-    // Fallback: just show filename
-    filePath = filePath.split('/').pop() || filePath;
-  }
-
-  return {
-    file: filePath,
-    line: parseInt(match[2], 10),
-    column: parseInt(match[3], 10),
-  };
-}
-
 function formatMessage(level: LogLevel, context: string, message: string, ...args: unknown[]): string {
   const { label, color } = levelConfig[level];
   const timestamp = formatTimestamp();
   const pid = process.pid;
-  // PERF: Disabled stack trace extraction - creates Error object + regex on every log call
-  // const caller = _getCallerInfo();
-  const _caller = null;
 
   const appName = `${colors.green}[Tide]${colors.reset}`;
   const pidStr = `${colors.dim}${pid}${colors.reset}`;
   const timestampStr = `${colors.dim}${timestamp}${colors.reset}`;
   const levelStr = `${color}${colors.bright}${label.padStart(7)}${colors.reset}`;
   const contextStr = `${colors.yellow}[${context}]${colors.reset}`;
-
-  // Format caller info (disabled for performance - caller is always null)
-  const callerStr = '';
 
   let formattedMessage = message;
   if (args.length > 0) {
@@ -302,7 +237,7 @@ function formatMessage(level: LogLevel, context: string, message: string, ...arg
     formattedMessage = `${message} ${colors.cyan}${argsStr}${colors.reset}`;
   }
 
-  return `${appName} ${pidStr}  - ${timestampStr}  ${levelStr} ${contextStr} ${callerStr} ${formattedMessage}`;
+  return `${appName} ${pidStr}  - ${timestampStr}  ${levelStr} ${contextStr} ${formattedMessage}`;
 }
 
 class Logger {

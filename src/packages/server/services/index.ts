@@ -23,4 +23,3 @@ export * as triggerService from './trigger-service.js';
 export * as fileTrackerService from './fileTracker.js';
 export * as workflowService from './workflow-service.js';
 export * as workflowChatService from './workflow-chat-service.js';
-export { buildBossSystemPrompt } from './boss-service.js';

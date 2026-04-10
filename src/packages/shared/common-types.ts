@@ -98,15 +98,6 @@ export interface Skill {
 // Stored skill (on disk) - same as Skill but explicitly typed
 export interface StoredSkill extends Skill {}
 
-// Skill summary for UI lists
-interface _SkillSummary {
-  id: string;
-  name: string;
-  slug: string;
-  description: string;
-  enabled: boolean;
-  assignedCount: number;           // Number of agents using this skill
-}
 
 // Skill update data for UI notification
 export interface SkillUpdateData {

@@ -22,7 +22,7 @@ function notifyListeners() {
  * Register a modal on the stack when it opens.
  * Returns an unregister function to call when the modal closes.
  */
-export function registerModal(id: string, close: () => void): () => void {
+function registerModal(id: string, close: () => void): () => void {
   // Remove any existing entry with same ID (shouldn't happen, but be safe)
   const existingIndex = modalStack.findIndex(m => m.id === id);
   if (existingIndex !== -1) {
@@ -59,10 +59,6 @@ export function closeTopModal(): boolean {
 /**
  * Check if there are any modals open
  */
-export function hasOpenModals(): boolean {
-  return modalStack.length > 0;
-}
-
 /**
  * Check if there are any modals above a given modal on the stack.
  * Used by the terminal click-outside handler to avoid closing the terminal
@@ -129,22 +125,3 @@ export function useModalStackRegistration(
   }, [id, isOpen]);
 }
 
-/**
- * Hook to subscribe to stack changes (for debugging or UI updates)
- */
-export function useModalStackSize(): number {
-  const [, forceUpdate] = React.useState({});
-
-  useEffect(() => {
-    const listener = () => forceUpdate({});
-    stackListeners.add(listener);
-    return () => {
-      stackListeners.delete(listener);
-    };
-  }, []);
-
-  return modalStack.length;
-}
-
-// Need React import for useModalStackSize
-import React from 'react';

@@ -237,49 +237,6 @@ export async function gatherSubordinateContext(bossId: string): Promise<Subordin
   }));
 }
 
-/**
- * Build the system prompt for a boss agent
- * Includes information about subordinates and their current status
- */
-export async function buildBossSystemPrompt(bossId: string, bossName: string): Promise<string> {
-  const subordinates = await gatherSubordinateContext(bossId);
-
-  let prompt = `You are ${bossName}, a boss agent managing a team of developer agents.
-
-Your role is to:
-1. Answer questions about your team and their status
-2. Delegate coding tasks to the most appropriate subordinate
-3. Coordinate work across your team
-
-YOUR SUBORDINATES:
-`;
-
-  if (subordinates.length === 0) {
-    prompt += '\nYou currently have no subordinates assigned.\n';
-  } else {
-    for (const sub of subordinates) {
-      prompt += `\n- ${sub.name} (${sub.class}): ${sub.status}`;
-      if (sub.currentTask) {
-        prompt += `\n  Current task: ${sub.currentTask}`;
-      }
-      if (sub.lastAssignedTask) {
-        prompt += `\n  Last assigned: ${sub.lastAssignedTask}`;
-      }
-      if (sub.recentSupervisorSummary) {
-        prompt += `\n  Recent work: ${sub.recentSupervisorSummary}`;
-      }
-      prompt += `\n  Context: ${sub.contextPercent}% used`;
-    }
-  }
-
-  prompt += `
-
-When asked about your team, provide clear information about each subordinate's status and work.
-When given a coding task, analyze which subordinate is best suited and respond with your delegation decision.`;
-
-  return prompt;
-}
-
 // ============================================================================
 // Delegation Logic
 // ============================================================================

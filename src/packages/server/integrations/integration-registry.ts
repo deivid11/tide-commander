@@ -4,11 +4,9 @@
  * Each plugin is explicitly registered — no dynamic scanning.
  */
 
-import type { Express } from 'express';
 import type {
   IntegrationPlugin,
   IntegrationContext,
-  IntegrationStatus,
   TriggerHandler,
   IntegrationInfo,
 } from '../../shared/integration-types.js';
@@ -78,13 +76,6 @@ export function getPlugin(id: string): IntegrationPlugin | undefined {
 
 // ─── Wiring Helpers ───
 
-/** Mount all integration routes on the Express app. */
-export function mountIntegrationRoutes(app: Express): void {
-  for (const plugin of plugins.values()) {
-    app.use(`/api${plugin.routePrefix}`, plugin.getRoutes() as import('express').Router);
-  }
-}
-
 /** Collect all integration skills for the skill service. */
 export function getIntegrationSkills(): BuiltinSkillDefinition[] {
   return Array.from(plugins.values()).flatMap(
@@ -97,15 +88,6 @@ export function getIntegrationTriggerHandlers(): TriggerHandler[] {
   return Array.from(plugins.values())
     .map((p) => p.getTriggerHandler())
     .filter((h): h is TriggerHandler => h !== null);
-}
-
-/** Get all integration statuses (for the UI). */
-export function getIntegrationStatuses(): { id: string; name: string; status: IntegrationStatus }[] {
-  return Array.from(plugins.values()).map((p) => ({
-    id: p.id,
-    name: p.name,
-    status: p.getStatus(),
-  }));
 }
 
 /** Get all config schemas (for the generic settings UI). */

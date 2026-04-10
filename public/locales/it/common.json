@@ -8,7 +8,7 @@
     "remove": "Rimuovi",
     "apply": "Applica",
     "ok": "OK",
-    "yes": "S\u00ec",
+    "yes": "Sì",
     "no": "No",
     "edit": "Modifica",
     "add": "Aggiungi",
@@ -50,7 +50,7 @@
     "reloadPage": "Ricarica pagina",
     "viewDetails": "Visualizza dettagli",
     "hideDetails": "Nascondi dettagli",
-    "showMore": "Mostra di pi\u00f9",
+    "showMore": "Mostra di più",
     "showLess": "Mostra di meno",
     "settings": "Impostazioni"
   },
@@ -92,7 +92,7 @@
     "session": "Sessione",
     "description": "Descrizione",
     "tags": "Tag",
-    "priority": "Priorit\u00e0",
+    "priority": "Priorità",
     "created": "Creato",
     "updated": "Aggiornato",
     "version": "Versione",
@@ -112,12 +112,12 @@
     "selected": "Selezionato",
     "language": "Lingua",
     "tokens": "Token",
-    "uptime": "Tempo di attivit\u00e0",
-    "task": "Attivit\u00e0",
+    "uptime": "Tempo di attività",
+    "task": "Attività",
     "cwd": "CWD",
     "context": "Contesto",
     "usage": "Utilizzo",
-    "tasks": "Attivit\u00e0",
+    "tasks": "Attività",
     "configuration": "Configurazione",
     "permission": "Permesso",
     "summary": "Riepilogo",
@@ -135,7 +135,7 @@
     "color": "Colore"
   },
   "search": {
-    "spotlightPlaceholder": "Agente, comando, file, attivit\u00e0..."
+    "spotlightPlaceholder": "Agente, comando, file, attività..."
   },
   "viewMode": {
     "labels": {
@@ -155,22 +155,8 @@
     "hide": "Nascondi",
     "deployBoss": "Distribuisci Boss",
     "deploy": "Distribuisci",
-    "createDirectory": "Crea directory",
-    "enable": "Abilita",
-    "disable": "Disabilita",
     "fetchUsage": "Recupera utilizzo",
-    "generateReport": "Genera rapporto",
-    "viewFile": "Visualizza file",
-    "saveAssignments": "Salva assegnazioni",
-    "createSkill": "Crea skill",
-    "createClass": "Crea classe",
-    "restoreFiles": "Ripristina file",
-    "exportSnapshot": "Esporta snapshot",
-    "saveSnapshot": "Salva snapshot",
-    "run": "Esegui",
-    "connect": "Connetti",
-    "disconnect": "Disconnetti",
-    "execute": "Esegui"
+    "run": "Esegui"
   },
   "time": {
     "justNow": "adesso",
@@ -188,14 +174,14 @@
   },
   "confirm": {
     "areYouSure": "Sei sicuro?",
-    "cannotBeUndone": "Questa azione non pu\u00f2 essere annullata.",
+    "cannotBeUndone": "Questa azione non può essere annullata.",
     "terminateAgent": "Sei sicuro di voler terminare questo agente?",
     "removeAgent": "Rimuovere {{name}} dalla vista?",
     "deleteBuilding": "Eliminare questo edificio?",
     "clearPatterns": "Cancellare tutti i pattern di permesso memorizzati?"
   },
   "errors": {
-    "genericError": "Si \u00e8 verificato un errore",
+    "genericError": "Si è verificato un errore",
     "networkError": "Errore di rete",
     "notFound": "Non trovato",
     "unauthorized": "Non autorizzato",
@@ -206,7 +192,7 @@
   },
   "unitPanel": {
     "focusOnAgent": "Inquadra agente",
-    "editProperties": "Modifica propriet\u00e0 agente",
+    "editProperties": "Modifica proprietà agente",
     "callSubordinates": "Chiama subordinati",
     "collapseContext": "Comprimi contesto",
     "clearContext": "Cancella contesto",
@@ -214,7 +200,7 @@
     "clickToRename": "Clicca per rinominare",
     "permissions": "Permessi",
     "allowedPatterns": "Pattern consentiti",
-    "noPatterns": "Nessun pattern memorizzato. Clicca \u2713+ durante l'approvazione per memorizzare.",
+    "noPatterns": "Nessun pattern memorizzato. Clicca ✓+ durante l'approvazione per memorizzare.",
     "resumeSession": "Riprendi sessione",
     "clickToCopy": "Clicca per copiare",
     "session": "Sessione",
@@ -227,23 +213,23 @@
     "unlinkSubordinate": "Scollega subordinato",
     "delegationHistory": "Cronologia deleghe",
     "analyzingRequest": "Analisi richiesta...",
-    "noDelegationHistory": "Nessuna cronologia deleghe. Invia comandi a questo boss per delegare attivit\u00e0.",
+    "noDelegationHistory": "Nessuna cronologia deleghe. Invia comandi a questo boss per delegare attività.",
     "linkToBoss": "Collega al Boss",
     "selectBoss": "Seleziona un Boss",
     "goToBoss": "Vai al boss",
     "unlinkFromBoss": "Scollega dal boss",
     "remainingContext": "Contesto rimanente",
     "notRetrievedYet": "Non ancora recuperato",
-    "timeSinceActivity": "Tempo dall'ultima attivit\u00e0",
+    "timeSinceActivity": "Tempo dall'ultima attività",
     "using": "In uso:",
     "lastPrompt": "Ultimo prompt",
     "lastResponse": "Ultima risposta",
     "collapseContextTitle": "Comprimi contesto",
     "clearContextTitle": "Cancella contesto",
     "collapseContextMsg": "Comprimere il contesto della conversazione per <strong>{{name}}</strong>?",
-    "collapseContextNote": "Questo riassumer\u00e0 la conversazione per risparmiare token preservando le informazioni importanti.",
+    "collapseContextNote": "Questo riassumerà la conversazione per risparmiare token preservando le informazioni importanti.",
     "clearContextMsg": "Cancellare tutto il contesto per <strong>{{name}}</strong>?",
-    "clearContextNote": "Questo avvier\u00e0 una nuova sessione al prossimo comando. Tutta la cronologia della conversazione andr\u00e0 persa.",
+    "clearContextNote": "Questo avvierà una nuova sessione al prossimo comando. Tutta la cronologia della conversazione andrà persa.",
     "collapseBtn": "Comprimi",
     "clearContextBtn": "Cancella contesto",
     "removePattern": "Rimuovi questo pattern",
@@ -310,7 +296,7 @@
     "directory": "Directory",
     "used": "utilizzato",
     "tool": "Strumento",
-    "assignedTask": "Attivit\u00e0 assegnata",
+    "assignedTask": "Attività assegnata",
     "lastQuery": "Ultima query",
     "supervisor": "Supervisore"
   },
@@ -335,7 +321,7 @@
     "controls": "Controlli",
     "manageSkills": "Gestisci skill",
     "pipNotSupported": "PiP non supportato in questo browser",
-    "closePip": "Chiudi agenti in modalit\u00e0 PiP",
-    "openPip": "Apri agenti in modalit\u00e0 PiP"
+    "closePip": "Chiudi agenti in modalità PiP",
+    "openPip": "Apri agenti in modalità PiP"
   }
 }

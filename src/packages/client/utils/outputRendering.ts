@@ -743,9 +743,3 @@ export function parseToolInput(text: string): string | null {
   if (!text.startsWith('Tool input:')) return null;
   return text.replace('Tool input:', '').trim();
 }
-
-/**
- * Status colors for agent indicators (Dracula theme)
- * @deprecated Use getAgentStatusColor from utils/colors.ts instead
- */
-export { getAgentStatusColor as getStatusColor } from './colors';

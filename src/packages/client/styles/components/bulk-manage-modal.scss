@@ -1,3 +1,4 @@
+@use "sass:color";
 @use '../variables' as *;
 
 // Bulk Manage Modal
@@ -124,7 +125,7 @@
   text-decoration: underline;
 
   &:hover {
-    color: lighten($accent-blue, 10%);
+    color: color.adjust($accent-blue, $lightness: 10%);
   }
 }
 

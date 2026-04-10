@@ -97,31 +97,6 @@ export function logTriggerFire(event: TriggerFireEvent): number {
   });
 }
 
-export function getTriggerHistory(triggerId: string, opts?: { limit?: number; offset?: number }): TriggerFireEvent[] {
-  const limit = opts?.limit ?? 50;
-  const offset = opts?.offset ?? 0;
-  const rows = queryMany<TriggerEventRow>(
-    'SELECT * FROM trigger_events WHERE trigger_id = ? ORDER BY fired_at DESC LIMIT ? OFFSET ?',
-    [triggerId, limit, offset]
-  );
-  return rows.map(triggerRowToEvent);
-}
-
-export function getTriggerHistoryByWorkflow(workflowInstanceId: string): TriggerFireEvent[] {
-  const rows = queryMany<TriggerEventRow>(
-    'SELECT * FROM trigger_events WHERE workflow_instance_id = ? ORDER BY fired_at DESC',
-    [workflowInstanceId]
-  );
-  return rows.map(triggerRowToEvent);
-}
-
-export function countTriggerFires(triggerId: string, since?: number): number {
-  const row = since
-    ? queryOne<{ count: number }>('SELECT COUNT(*) as count FROM trigger_events WHERE trigger_id = ? AND fired_at >= ?', [triggerId, since])
-    : queryOne<{ count: number }>('SELECT COUNT(*) as count FROM trigger_events WHERE trigger_id = ?', [triggerId]);
-  return row?.count ?? 0;
-}
-
 export function updateTriggerEventStatus(eventId: number, status: string, error?: string, durationMs?: number): void {
   execute(
     'UPDATE trigger_events SET status = ?, error = ?, duration_ms = ? WHERE id = ?',
@@ -182,44 +157,6 @@ export function logSlackMessage(msg: SlackMessageEvent): number {
     raw_event: toJson(msg.rawEvent),
     received_at: msg.receivedAt,
   });
-}
-
-export function getSlackMessagesByChannel(channelId: string, opts?: { limit?: number; since?: number }): SlackMessageEvent[] {
-  const limit = opts?.limit ?? 50;
-  const params: unknown[] = [channelId];
-  let sql = 'SELECT * FROM slack_messages WHERE channel_id = ?';
-  if (opts?.since) {
-    sql += ' AND received_at >= ?';
-    params.push(opts.since);
-  }
-  sql += ' ORDER BY received_at DESC LIMIT ?';
-  params.push(limit);
-  return queryMany<SlackMessageRow>(sql, params).map(slackRowToEvent);
-}
-
-export function getSlackMessagesByThread(channelId: string, threadTs: string): SlackMessageEvent[] {
-  const rows = queryMany<SlackMessageRow>(
-    'SELECT * FROM slack_messages WHERE channel_id = ? AND (thread_ts = ? OR ts = ?) ORDER BY received_at ASC',
-    [channelId, threadTs, threadTs]
-  );
-  return rows.map(slackRowToEvent);
-}
-
-export function getSlackMessagesByWorkflow(workflowInstanceId: string): SlackMessageEvent[] {
-  const rows = queryMany<SlackMessageRow>(
-    'SELECT * FROM slack_messages WHERE workflow_instance_id = ? ORDER BY received_at ASC',
-    [workflowInstanceId]
-  );
-  return rows.map(slackRowToEvent);
-}
-
-export function getSlackMessagesByAgent(agentId: string, opts?: { limit?: number }): SlackMessageEvent[] {
-  const limit = opts?.limit ?? 50;
-  const rows = queryMany<SlackMessageRow>(
-    'SELECT * FROM slack_messages WHERE agent_id = ? ORDER BY received_at DESC LIMIT ?',
-    [agentId, limit]
-  );
-  return rows.map(slackRowToEvent);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -289,46 +226,6 @@ export function logEmailMessage(msg: EmailMessageEvent): number {
   });
 }
 
-export function getEmailsByThread(threadId: string): EmailMessageEvent[] {
-  const rows = queryMany<EmailMessageRow>(
-    'SELECT * FROM email_messages WHERE thread_id = ? ORDER BY received_at ASC',
-    [threadId]
-  );
-  return rows.map(emailRowToEvent);
-}
-
-export function getEmailsByWorkflow(workflowInstanceId: string): EmailMessageEvent[] {
-  const rows = queryMany<EmailMessageRow>(
-    'SELECT * FROM email_messages WHERE workflow_instance_id = ? ORDER BY received_at ASC',
-    [workflowInstanceId]
-  );
-  return rows.map(emailRowToEvent);
-}
-
-export function getRecentEmails(opts?: { limit?: number; direction?: string; since?: number }): EmailMessageEvent[] {
-  const limit = opts?.limit ?? 50;
-  const params: unknown[] = [];
-  const conditions: string[] = [];
-
-  if (opts?.direction) {
-    conditions.push('direction = ?');
-    params.push(opts.direction);
-  }
-  if (opts?.since) {
-    conditions.push('received_at >= ?');
-    params.push(opts.since);
-  }
-
-  let sql = 'SELECT * FROM email_messages';
-  if (conditions.length > 0) {
-    sql += ' WHERE ' + conditions.join(' AND ');
-  }
-  sql += ' ORDER BY received_at DESC LIMIT ?';
-  params.push(limit);
-
-  return queryMany<EmailMessageRow>(sql, params).map(emailRowToEvent);
-}
-
 // ═══════════════════════════════════════════════════════════════
 // APPROVAL EVENTS
 // ═══════════════════════════════════════════════════════════════
@@ -370,22 +267,6 @@ export function logApprovalEvent(event: ApprovalEvent): number {
     workflow_instance_id: event.workflowInstanceId ?? null,
     recorded_at: event.recordedAt,
   });
-}
-
-export function getApprovalsByThread(threadId: string): ApprovalEvent[] {
-  const rows = queryMany<ApprovalEventRow>(
-    'SELECT * FROM email_approval_events WHERE thread_id = ? ORDER BY recorded_at ASC',
-    [threadId]
-  );
-  return rows.map(approvalRowToEvent);
-}
-
-export function getApprovalsByWorkflow(workflowInstanceId: string): ApprovalEvent[] {
-  const rows = queryMany<ApprovalEventRow>(
-    'SELECT * FROM email_approval_events WHERE workflow_instance_id = ? ORDER BY recorded_at ASC',
-    [workflowInstanceId]
-  );
-  return rows.map(approvalRowToEvent);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -432,32 +313,6 @@ export function logDocumentGeneration(gen: DocumentGenerationEvent): number {
     workflow_instance_id: gen.workflowInstanceId ?? null,
     generated_at: gen.generatedAt,
   });
-}
-
-export function getDocGenByWorkflow(workflowInstanceId: string): DocumentGenerationEvent[] {
-  const rows = queryMany<DocGenRow>(
-    'SELECT * FROM document_generations WHERE workflow_instance_id = ? ORDER BY generated_at DESC',
-    [workflowInstanceId]
-  );
-  return rows.map(docGenRowToEvent);
-}
-
-export function getDocGenByTemplate(templateId: string, opts?: { limit?: number }): DocumentGenerationEvent[] {
-  const limit = opts?.limit ?? 50;
-  const rows = queryMany<DocGenRow>(
-    'SELECT * FROM document_generations WHERE template_id = ? ORDER BY generated_at DESC LIMIT ?',
-    [templateId, limit]
-  );
-  return rows.map(docGenRowToEvent);
-}
-
-export function getRecentDocGenerations(opts?: { limit?: number }): DocumentGenerationEvent[] {
-  const limit = opts?.limit ?? 50;
-  const rows = queryMany<DocGenRow>(
-    'SELECT * FROM document_generations ORDER BY generated_at DESC LIMIT ?',
-    [limit]
-  );
-  return rows.map(docGenRowToEvent);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -507,22 +362,6 @@ export function logCalendarAction(log: CalendarActionEvent): number {
     workflow_instance_id: log.workflowInstanceId ?? null,
     recorded_at: log.recordedAt,
   });
-}
-
-export function getCalendarLogsByEvent(eventId: string): CalendarActionEvent[] {
-  const rows = queryMany<CalendarLogRow>(
-    'SELECT * FROM calendar_event_logs WHERE event_id = ? ORDER BY recorded_at ASC',
-    [eventId]
-  );
-  return rows.map(calendarRowToEvent);
-}
-
-export function getCalendarLogsByWorkflow(workflowInstanceId: string): CalendarActionEvent[] {
-  const rows = queryMany<CalendarLogRow>(
-    'SELECT * FROM calendar_event_logs WHERE workflow_instance_id = ? ORDER BY recorded_at ASC',
-    [workflowInstanceId]
-  );
-  return rows.map(calendarRowToEvent);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -590,47 +429,6 @@ export function logJiraTicketAction(log: JiraTicketLogEvent): number {
     workflow_instance_id: log.workflowInstanceId ?? null,
     recorded_at: log.recordedAt,
   });
-}
-
-export function getJiraLogsByTicket(ticketKey: string): JiraTicketLogEvent[] {
-  const rows = queryMany<JiraLogRow>(
-    'SELECT * FROM jira_ticket_logs WHERE ticket_key = ? ORDER BY recorded_at ASC',
-    [ticketKey]
-  );
-  return rows.map(jiraRowToEvent);
-}
-
-export function getJiraLogsByProject(projectKey: string, opts?: { limit?: number }): JiraTicketLogEvent[] {
-  const limit = opts?.limit ?? 50;
-  const rows = queryMany<JiraLogRow>(
-    'SELECT * FROM jira_ticket_logs WHERE project_key = ? ORDER BY recorded_at DESC LIMIT ?',
-    [projectKey, limit]
-  );
-  return rows.map(jiraRowToEvent);
-}
-
-export function getJiraLogsByWorkflow(workflowInstanceId: string): JiraTicketLogEvent[] {
-  const rows = queryMany<JiraLogRow>(
-    'SELECT * FROM jira_ticket_logs WHERE workflow_instance_id = ? ORDER BY recorded_at ASC',
-    [workflowInstanceId]
-  );
-  return rows.map(jiraRowToEvent);
-}
-
-export function getRecentJiraActions(opts?: { limit?: number; action?: string }): JiraTicketLogEvent[] {
-  const limit = opts?.limit ?? 50;
-  if (opts?.action) {
-    const rows = queryMany<JiraLogRow>(
-      'SELECT * FROM jira_ticket_logs WHERE action = ? ORDER BY recorded_at DESC LIMIT ?',
-      [opts.action, limit]
-    );
-    return rows.map(jiraRowToEvent);
-  }
-  const rows = queryMany<JiraLogRow>(
-    'SELECT * FROM jira_ticket_logs ORDER BY recorded_at DESC LIMIT ?',
-    [limit]
-  );
-  return rows.map(jiraRowToEvent);
 }
 
 // ═══════════════════════════════════════════════════════════════

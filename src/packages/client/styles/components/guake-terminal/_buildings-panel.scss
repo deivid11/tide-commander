@@ -277,7 +277,7 @@
 
   &:hover {
     background: rgba($dracula-cyan, 0.2);
-    color: lighten($dracula-cyan, 10%);
+    color: color.adjust($dracula-cyan, $lightness: 10%);
   }
 }
 

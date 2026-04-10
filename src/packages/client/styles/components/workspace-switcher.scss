@@ -1,3 +1,4 @@
+@use "sass:color";
 @use '../variables' as *;
 
 // ============================================================================
@@ -288,7 +289,7 @@
   color: #fff;
 
   &:hover {
-    background: lighten($accent-blue, 8%);
+    background: color.adjust($accent-blue, $lightness: 8%);
   }
 }
 
@@ -297,7 +298,7 @@
   color: $text-secondary;
 
   &:hover {
-    background: lighten($bg-tertiary, 5%);
+    background: color.adjust($bg-tertiary, $lightness: 5%);
   }
 }
 

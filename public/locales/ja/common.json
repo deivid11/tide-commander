@@ -155,22 +155,8 @@
     "hide": "非表示",
     "deployBoss": "ボスを配置",
     "deploy": "配置",
-    "createDirectory": "ディレクトリを作成",
-    "enable": "有効化",
-    "disable": "無効化",
     "fetchUsage": "使用量を取得",
-    "generateReport": "レポートを生成",
-    "viewFile": "ファイルを表示",
-    "saveAssignments": "割り当てを保存",
-    "createSkill": "スキルを作成",
-    "createClass": "クラスを作成",
-    "restoreFiles": "ファイルを復元",
-    "exportSnapshot": "スナップショットをエクスポート",
-    "saveSnapshot": "スナップショットを保存",
-    "run": "実行",
-    "connect": "接続",
-    "disconnect": "切断",
-    "execute": "実行"
+    "run": "実行"
   },
   "time": {
     "justNow": "たった今",

@@ -5,16 +5,16 @@
 
 // ─── Enums / Unions ───
 
-export type TriggerType = 'webhook' | 'email' | 'slack' | 'jira' | 'cron';
-export type MatchMode = 'structural' | 'llm' | 'hybrid';
-export type TriggerEventStatus = 'fired' | 'delivered' | 'failed';
+type TriggerType = 'webhook' | 'email' | 'slack' | 'jira' | 'cron';
+type MatchMode = 'structural' | 'llm' | 'hybrid';
+type TriggerEventStatus = 'fired' | 'delivered' | 'failed';
 export type MessageDirection = 'inbound' | 'outbound';
 export type CalendarAction = 'created' | 'updated' | 'deleted';
 export type JiraAction = 'created' | 'updated' | 'transitioned' | 'commented';
-export type WorkflowInstanceStatus = 'running' | 'paused' | 'completed' | 'failed' | 'cancelled';
-export type WorkflowStepStatus = 'entered' | 'executing' | 'completed' | 'failed' | 'skipped';
+type WorkflowInstanceStatus = 'running' | 'paused' | 'completed' | 'failed' | 'cancelled';
+type WorkflowStepStatus = 'entered' | 'executing' | 'completed' | 'failed' | 'skipped';
 export type AuditCategory = 'trigger' | 'slack' | 'email' | 'calendar' | 'document' | 'jira' | 'workflow' | 'system';
-export type AuditLevel = 'debug' | 'info' | 'warn' | 'error';
+type AuditLevel = 'debug' | 'info' | 'warn' | 'error';
 
 // ─── Trigger Events ───
 

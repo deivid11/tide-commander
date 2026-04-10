@@ -36,6 +36,12 @@ interface Bounds {
   maxZ: number;
 }
 
+interface RowSpan {
+  minX: number;
+  maxX: number;
+  z: number;
+}
+
 /**
  * Get usable bounds for an area (with padding), clamped to positive dimensions.
  */
@@ -95,36 +101,121 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 /**
- * Place a row of agents centered horizontally within bounds, clamped.
+ * Get the usable horizontal span for a row at a given z position.
  */
-function placeRow(
-  agents: Agent[],
-  z: number,
-  bounds: Bounds,
-): OrganizedAgent[] {
-  if (agents.length === 0) return [];
-  const width = bounds.maxX - bounds.minX;
-
-  let spacing: number;
-  if (agents.length === 1) {
-    spacing = 0;
-  } else {
-    // Calculate ideal spacing, shrink to fit if needed
-    spacing = Math.max(MIN_SPACING, Math.min(PREFERRED_SPACING, width / (agents.length - 1)));
-  }
-
-  const totalWidth = spacing * (agents.length - 1);
-  const startX = (bounds.minX + bounds.maxX) / 2 - totalWidth / 2;
+function getRowSpan(area: DrawingArea, bounds: Bounds, z: number): RowSpan {
   const clampedZ = clamp(z, bounds.minZ, bounds.maxZ);
 
-  return agents.map((agent, i) => ({
-    agentId: agent.id,
+  if (area.type === 'circle' && area.radius) {
+    const usableRadius = Math.max(0, area.radius - PADDING);
+    const dz = clampedZ - area.center.z;
+    const horizontalRadius = Math.sqrt(Math.max(0, usableRadius * usableRadius - dz * dz));
+    const minX = clamp(area.center.x - horizontalRadius, bounds.minX, bounds.maxX);
+    const maxX = clamp(area.center.x + horizontalRadius, bounds.minX, bounds.maxX);
+    return { minX, maxX, z: clampedZ };
+  }
+
+  return {
+    minX: bounds.minX,
+    maxX: bounds.maxX,
+    z: clampedZ,
+  };
+}
+
+function getRowCapacity(area: DrawingArea, bounds: Bounds, z: number): number {
+  const span = getRowSpan(area, bounds, z);
+  const width = Math.max(0, span.maxX - span.minX);
+  return width <= 0 ? 1 : Math.max(1, Math.floor(width / MIN_SPACING) + 1);
+}
+
+function getRowZPositions(bounds: Bounds, rowCount: number): number[] {
+  if (rowCount <= 0) return [];
+
+  if (rowCount === 1) {
+    return [(bounds.minZ + bounds.maxZ) / 2];
+  }
+
+  const usableHeight = Math.max(0, bounds.maxZ - bounds.minZ);
+  const spacing = usableHeight <= 0
+    ? 0
+    : Math.min(PREFERRED_SPACING, usableHeight / (rowCount - 1));
+
+  return Array.from({ length: rowCount }, (_, index) => bounds.minZ + index * spacing);
+}
+
+function placeItemsInSpan<T extends string>(
+  ids: T[],
+  area: DrawingArea,
+  bounds: Bounds,
+  z: number,
+  align: 'center' | 'end' = 'center',
+): Array<{ id: T; position: { x: number; z: number } }> {
+  if (ids.length === 0) return [];
+
+  const span = getRowSpan(area, bounds, z);
+  const width = Math.max(0, span.maxX - span.minX);
+
+  let spacing: number;
+  if (ids.length === 1) {
+    spacing = 0;
+  } else {
+    spacing = width <= 0 ? 0 : Math.min(PREFERRED_SPACING, width / (ids.length - 1));
+  }
+
+  const totalWidth = spacing * Math.max(0, ids.length - 1);
+  const startX = align === 'end'
+    ? span.maxX - totalWidth
+    : (span.minX + span.maxX) / 2 - totalWidth / 2;
+
+  return ids.map((id, index) => ({
+    id,
     position: {
-      x: clamp(startX + i * spacing, bounds.minX, bounds.maxX),
-      y: 0,
-      z: clampedZ,
+      x: clamp(startX + index * spacing, span.minX, span.maxX),
+      z: span.z,
     },
   }));
+}
+
+function tryPackGroupsIntoRows<T>(
+  area: DrawingArea,
+  bounds: Bounds,
+  groups: T[][],
+): Array<{ items: T[]; z: number }> | null {
+  const nonEmptyGroups = groups.filter(group => group.length > 0);
+  if (nonEmptyGroups.length === 0) return [];
+
+  const totalItems = nonEmptyGroups.reduce((sum, group) => sum + group.length, 0);
+
+  for (let rowCount = nonEmptyGroups.length; rowCount <= totalItems; rowCount++) {
+    const rowZPositions = getRowZPositions(bounds, rowCount);
+    const packed: Array<{ items: T[]; z: number }> = [];
+    let rowIndex = 0;
+    let failed = false;
+
+    for (const group of nonEmptyGroups) {
+      let cursor = 0;
+
+      while (cursor < group.length) {
+        if (rowIndex >= rowZPositions.length) {
+          failed = true;
+          break;
+        }
+
+        const z = rowZPositions[rowIndex];
+        const capacity = getRowCapacity(area, bounds, z);
+        const take = Math.min(capacity, group.length - cursor);
+        packed.push({ items: group.slice(cursor, cursor + take), z });
+        cursor += take;
+        rowIndex++;
+      }
+
+      if (failed) break;
+    }
+
+    if (!failed) return packed;
+  }
+
+  return null;
 }
 
 /**
@@ -140,6 +231,7 @@ function getBuildingsInArea(area: DrawingArea): Building[] {
  * Returns the building positions and the remaining agent bounds (with building space excluded).
  */
 function placeBuildingsAndShrinkBounds(
+  area: DrawingArea,
   buildings: Building[],
   bounds: Bounds,
 ): { buildingLayout: OrganizedBuilding[]; agentBounds: Bounds } {
@@ -147,29 +239,55 @@ function placeBuildingsAndShrinkBounds(
     return { buildingLayout: [], agentBounds: bounds };
   }
 
-  const width = bounds.maxX - bounds.minX;
-  const buildingSpacing = Math.max(MIN_SPACING, Math.min(PREFERRED_SPACING, width / buildings.length));
-  const buildingRowHeight = PREFERRED_SPACING;
+  const fullHeight = Math.max(0, bounds.maxZ - bounds.minZ);
 
-  // Place buildings along the top edge (minZ), right-aligned
-  const totalBuildingWidth = buildingSpacing * (buildings.length - 1);
-  const startX = bounds.maxX - totalBuildingWidth;
+  for (let buildingRows = 1; buildingRows <= buildings.length; buildingRows++) {
+    const reservedHeight = fullHeight <= 0
+      ? 0
+      : Math.min(fullHeight, Math.max(MIN_SPACING, (buildingRows - 1) * PREFERRED_SPACING + MIN_SPACING));
+    const buildingBounds: Bounds = {
+      ...bounds,
+      maxZ: Math.min(bounds.maxZ, bounds.minZ + reservedHeight),
+    };
+    const packedRows = tryPackGroupsIntoRows(area, buildingBounds, [buildings]);
+    if (!packedRows) continue;
 
-  const buildingLayout: OrganizedBuilding[] = buildings.map((b, i) => ({
-    buildingId: b.id,
-    position: {
-      x: clamp(startX + i * buildingSpacing, bounds.minX, bounds.maxX),
-      z: clamp(bounds.minZ, bounds.minZ, bounds.maxZ),
-    },
+    const buildingLayout = packedRows.flatMap(row =>
+      placeItemsInSpan(
+        row.items.map(building => building.id),
+        area,
+        buildingBounds,
+        row.z,
+        'end',
+      ).map(item => ({
+        buildingId: item.id,
+        position: item.position,
+      }))
+    );
+
+    const nextMinZ = Math.min(bounds.maxZ, buildingBounds.maxZ + MIN_SPACING);
+    const agentBounds: Bounds = {
+      ...bounds,
+      minZ: nextMinZ,
+    };
+
+    return { buildingLayout, agentBounds };
+  }
+
+  // Fall back to keeping agents centered while pinning buildings as tightly as possible inside the area.
+  const fallbackZ = bounds.minZ;
+  const buildingLayout = placeItemsInSpan(
+    buildings.map(building => building.id),
+    area,
+    bounds,
+    fallbackZ,
+    'end',
+  ).map(item => ({
+    buildingId: item.id,
+    position: item.position,
   }));
 
-  // Shrink agent bounds: push minZ down to make room for buildings
-  const agentBounds: Bounds = {
-    ...bounds,
-    minZ: Math.min(bounds.minZ + buildingRowHeight, bounds.maxZ),
-  };
-
-  return { buildingLayout, agentBounds };
+  return { buildingLayout, agentBounds: bounds };
 }
 
 /**
@@ -178,14 +296,11 @@ function placeBuildingsAndShrinkBounds(
  */
 export function calculateLayout(area: DrawingArea, agents: Agent[], buildings: Building[]): LayoutResult {
   const fullBounds = getAreaBounds(area);
-  const { buildingLayout, agentBounds } = placeBuildingsAndShrinkBounds(buildings, fullBounds);
+  const { buildingLayout, agentBounds } = placeBuildingsAndShrinkBounds(area, buildings, fullBounds);
 
   if (agents.length === 0) {
     return { organized: [], buildings: buildingLayout };
   }
-
-  const usableHeight = agentBounds.maxZ - agentBounds.minZ;
-  const usableWidth = agentBounds.maxX - agentBounds.minX;
 
   // Separate into hierarchy groups
   const bosses: Agent[] = [];
@@ -206,49 +321,33 @@ export function calculateLayout(area: DrawingArea, agents: Agent[], buildings: B
     }
   }
 
-  // Calculate max agents per row - adapt to fit
-  const maxPerRow = usableWidth <= 0
-    ? agents.length
-    : Math.max(1, Math.floor(usableWidth / MIN_SPACING) + 1);
-
-  // Build rows: bosses first, then subs per boss, then regulars
-  const rows: Agent[][] = [];
-
-  for (let i = 0; i < bosses.length; i += maxPerRow) {
-    rows.push(bosses.slice(i, i + maxPerRow));
-  }
+  const groups: Agent[][] = [];
+  if (bosses.length > 0) groups.push(bosses);
   for (const boss of bosses) {
     const subs = subordinatesByBoss.get(boss.id) || [];
-    for (let i = 0; i < subs.length; i += maxPerRow) {
-      rows.push(subs.slice(i, i + maxPerRow));
-    }
+    if (subs.length > 0) groups.push(subs);
   }
-  for (let i = 0; i < regulars.length; i += maxPerRow) {
-    rows.push(regulars.slice(i, i + maxPerRow));
-  }
+  if (regulars.length > 0) groups.push(regulars);
 
-  if (rows.length === 0) {
+  if (groups.length === 0) {
     return { organized: [], buildings: buildingLayout };
   }
 
-  // Calculate row spacing - shrink to fit within bounds
-  let rowSpacing: number;
-  if (rows.length === 1) {
-    rowSpacing = 0;
-  } else {
-    rowSpacing = Math.max(MIN_SPACING, Math.min(PREFERRED_SPACING, usableHeight / (rows.length - 1)));
-  }
+  const packedRows = tryPackGroupsIntoRows(area, agentBounds, groups)
+    ?? tryPackGroupsIntoRows(area, fullBounds, groups)
+    ?? [];
 
-  // Start from top of agent bounds
-  const startZ = rows.length === 1
-    ? (agentBounds.minZ + agentBounds.maxZ) / 2
-    : agentBounds.minZ;
-
-  const organized: OrganizedAgent[] = [];
-  for (let r = 0; r < rows.length; r++) {
-    const z = startZ + r * rowSpacing;
-    organized.push(...placeRow(rows[r], z, agentBounds));
-  }
+  const organized: OrganizedAgent[] = packedRows.flatMap(row =>
+    placeItemsInSpan(
+      row.items.map(agent => agent.id),
+      area,
+      packedRows.length > 0 ? agentBounds : fullBounds,
+      row.z,
+    ).map(item => ({
+      agentId: item.id,
+      position: { x: item.position.x, y: 0, z: item.position.z },
+    }))
+  );
 
   return { organized, buildings: buildingLayout };
 }

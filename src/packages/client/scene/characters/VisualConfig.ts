@@ -496,51 +496,6 @@ export class VisualConfig {
   }
 
   /**
-   * @deprecated Use createStatusBarSprite and createNameLabelSprite instead
-   */
-  createCombinedUISprite(
-    name: string,
-    color: number,
-    remainingPercent: number,
-    status: string,
-    lastActivity: number,
-    isBoss: boolean
-  ): THREE.Sprite {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d')!;
-
-    canvas.width = 4096;
-    canvas.height = 2048;
-
-    this.drawCombinedUI(ctx, canvas.width, canvas.height, name, color, remainingPercent, status, lastActivity, isBoss);
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.minFilter = THREE.LinearMipmapLinearFilter;
-    texture.magFilter = THREE.LinearFilter;
-    texture.generateMipmaps = true;
-    texture.anisotropy = 16;
-    texture.needsUpdate = true;
-
-    const material = new THREE.SpriteMaterial({
-      map: texture,
-      transparent: true,
-      depthTest: false,
-      depthWrite: false,
-    });
-
-    const sprite = new THREE.Sprite(material);
-    sprite.position.y = isBoss ? 3.2 : 2.2;
-    const baseScale = isBoss ? 3.0 : 2.4;
-    const aspectRatio = canvas.height / canvas.width;
-    sprite.scale.set(baseScale, baseScale * aspectRatio, 1);
-    sprite.name = 'combinedUI';
-    sprite.userData.baseIndicatorScale = baseScale;
-    sprite.userData.aspectRatio = aspectRatio;
-
-    return sprite;
-  }
-
-  /**
    * Draw all UI elements on a single canvas.
    */
   drawCombinedUI(
@@ -711,68 +666,6 @@ export class VisualConfig {
       ctx.fillStyle = colors.text;
       ctx.fillText(`⏱ ${idleText}`, width / 2, idleBgY + idleBgHeight / 2);
     }
-  }
-
-  /**
-   * @deprecated Use createCombinedUISprite instead for better performance
-   */
-  createNameLabel(name: string, color: number, isBoss: boolean = false): THREE.Sprite {
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d')!;
-
-    const fontSize = 72;
-    const padding = 32;
-    const bgHeight = 100;
-    const canvasHeight = 256;
-
-    canvas.width = 2048;
-    canvas.height = canvasHeight;
-    context.font = `bold ${fontSize}px Arial`;
-    const measuredWidth = context.measureText(name).width;
-
-    const minCanvasWidth = 512;
-    const requiredWidth = measuredWidth + padding * 2 + 16;
-    canvas.width = Math.max(minCanvasWidth, requiredWidth);
-
-    context.clearRect(0, 0, canvas.width, canvas.height);
-    context.font = `bold ${fontSize}px Arial`;
-
-    const bgWidth = measuredWidth + padding * 2;
-    const bgX = (canvas.width - bgWidth) / 2;
-    const bgY = (canvas.height - bgHeight) / 2;
-
-    context.fillStyle = 'rgba(0, 0, 0, 0.8)';
-    context.beginPath();
-    context.roundRect(bgX, bgY, bgWidth, bgHeight, 12);
-    context.fill();
-
-    context.fillStyle = `#${color.toString(16).padStart(6, '0')}`;
-    context.textAlign = 'center';
-    context.textBaseline = 'middle';
-    context.fillText(name, canvas.width / 2, canvas.height / 2);
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.minFilter = THREE.LinearFilter;
-    texture.magFilter = THREE.LinearFilter;
-    texture.needsUpdate = true;
-
-    const material = new THREE.SpriteMaterial({
-      map: texture,
-      transparent: true,
-      depthTest: false,
-    });
-
-    const sprite = new THREE.Sprite(material);
-    sprite.position.y = isBoss ? -0.2 : -0.3;
-    const baseHeight = isBoss ? 0.75 : 0.6;
-    const baseWidth = isBoss ? 1.5 : 1.2;
-    const widthScale = baseWidth * (canvas.width / 512);
-    sprite.scale.set(widthScale, baseHeight, 1);
-    sprite.name = 'nameLabel';
-    sprite.renderOrder = 1200;
-    sprite.userData.aspectRatio = canvas.width / canvas.height;
-
-    return sprite;
   }
 
   /**

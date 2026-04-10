@@ -2,7 +2,6 @@
  * MonitoringModal
  * Tab-based monitoring interface for viewing trigger history, workflow traces,
  * message logs, and system statistics.
- * Reuses EventLogViewer filtering/display logic and StatsDashboard for stats.
  */
 
 import React, { useState, useEffect, useCallback, useSyncExternalStore, useMemo } from 'react';

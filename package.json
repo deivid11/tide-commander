@@ -17,7 +17,6 @@
   ],
   "scripts": {
     "dev": "PORT=5174 LISTEN_ALL_INTERFACES=1 concurrently \"bun run dev:client\" \"bun run dev:server\"",
-    "dev:5174": "PORT=5174 LISTEN_ALL_INTERFACES=1 concurrently \"bun run dev:client\" \"bun run dev:server\"",
     "dev:client": "vite",
     "dev:server": "tsx watch src/packages/server/index.ts",
     "dev:landing": "vite --open /src/packages/landing/index.html",
@@ -69,10 +68,8 @@
     "@xterm/xterm": "^6.0.0",
     "archiver": "^7.0.1",
     "better-sqlite3": "^12.8.0",
-    "chokidar": "^5.0.0",
     "codemirror": "^6.0.2",
     "cors": "^2.8.5",
-    "croner": "^10.0.1",
     "docxtemplater": "^3.68.3",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",

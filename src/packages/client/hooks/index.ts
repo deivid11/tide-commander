@@ -14,11 +14,9 @@ export type UseModalStateWithId = ModalStateWithId;
 export type UseContextMenu = ContextMenuState;
 export {
   useModalStackRegistration,
-  useModalStackSize,
   closeTopModal,
   closeAllModalsExcept,
-  hasOpenModals,
-  registerModal,
+  hasModalsAbove,
 } from './useModalStack';
 export { useSwipeGesture, type SwipeGestureOptions } from './useSwipeGesture';
 export { useTwoFingerSelector, type TwoFingerSelectorOptions, type TwoFingerSelectorState } from './useTwoFingerSelector';
