@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.36.1] - 2026-04-10
+
+### Changed
+- **Dead code cleanup** - Removed unused components (RightPanel, SidebarTreeView, EventLogViewer, SnapshotViewer, StatsDashboard, WorkflowDetailView, WorkflowInstanceMonitor), hooks (useSnapshots), server modules (work-plan-service, event-queries, snapshots, workflow-builder skill), and dependencies (chokidar, croner)
+- **Area layout service** - Improved layout persistence logic
+- **Logger** - Cleaned up logging utilities
+
+### Removed
+- Unused `dev:5174` npm script (duplicate of `dev`)
+- Legacy dashboard view files and right panel components
+- Sidebar tree view component library (unused)
+
 ## [1.36.0] - 2026-04-10
 
 ### Added
