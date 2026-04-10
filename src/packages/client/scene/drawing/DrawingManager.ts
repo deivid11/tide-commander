@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { DrawingArea, DrawingTool } from '../../../shared/types';
 import { store } from '../../store';
+import { isAreaVisibleInWorkspace } from '../../components/WorkspaceSwitcher';
 import { apiUrl, authUrl } from '../../utils/storage';
 
 /**
@@ -1078,17 +1079,17 @@ export class DrawingManager {
   syncFromStore(): void {
     const state = store.getState();
 
-    // Remove meshes for deleted OR archived areas
+    // Remove meshes for deleted, archived, or workspace-hidden areas
     for (const areaId of this.areaMeshes.keys()) {
       const area = state.areas.get(areaId);
-      if (!area || area.archived) {
+      if (!area || area.archived || !isAreaVisibleInWorkspace(areaId)) {
         this.removeAreaMesh(areaId);
       }
     }
 
-    // Add/update meshes for visible (non-archived) areas only
+    // Add/update meshes for visible (non-archived, in-workspace) areas only
     for (const area of state.areas.values()) {
-      if (!area.archived) {
+      if (!area.archived && isAreaVisibleInWorkspace(area.id)) {
         this.renderArea(area);
       }
     }

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Agent, CustomAgentClass, AnimationMapping } from '../../shared/types';
 import { store } from '../store';
+import { isAgentVisibleInWorkspace, getActiveWorkspaceState } from '../components/WorkspaceSwitcher';
 import { CharacterLoader, CharacterFactory, type AgentMeshData } from './characters';
 import { MovementAnimator, EffectsManager, ANIMATIONS } from './animation';
 import { ProceduralAnimator, type ProceduralAnimationState } from './animation/ProceduralAnimator';
@@ -494,6 +495,11 @@ export class AgentManager {
     if (store.isAgentInArchivedArea(agent.id)) {
       return;
     }
+    // Don't add agents outside the active workspace
+    if (getActiveWorkspaceState()) {
+      const area = store.getAreaForAgent(agent.id);
+      if (!isAgentVisibleInWorkspace(area?.id ?? null)) return;
+    }
 
     if (!this.modelsReady) {
       console.log(`[AgentManager] Queueing agent ${agent.name} (models not ready, pending count: ${this.pendingAgents.length})`);
@@ -672,8 +678,16 @@ export class AgentManager {
     this.proceduralAnimator.clear();
     this.effectsManager.clear();
 
-    // Filter out agents that are in archived areas
-    const visibleAgents = agents.filter(agent => !store.isAgentInArchivedArea(agent.id));
+    // Filter out agents that are in archived areas or outside active workspace
+    const activeWs = getActiveWorkspaceState();
+    const visibleAgents = agents.filter(agent => {
+      if (store.isAgentInArchivedArea(agent.id)) return false;
+      if (activeWs) {
+        const area = store.getAreaForAgent(agent.id);
+        if (!isAgentVisibleInWorkspace(area?.id ?? null)) return false;
+      }
+      return true;
+    });
 
     console.log(`[AgentManager] syncAgents: adding ${visibleAgents.length} visible agents (filtered from ${agents.length}, ${agents.length - visibleAgents.length} in archived areas)`);
     for (const agent of visibleAgents) {

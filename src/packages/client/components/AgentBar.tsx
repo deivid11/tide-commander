@@ -21,6 +21,7 @@ import { useAgentOrder } from '../hooks';
 import { useNpmVersionStatus } from '../hooks/useNpmVersionStatus';
 import { hasPendingSceneChanges, refreshScene } from '../hooks/useSceneSetup';
 import { Tooltip } from './shared/Tooltip';
+import { useWorkspaceFilter, isAgentVisibleInWorkspace } from './WorkspaceSwitcher';
 
 interface AgentBarProps {
   onFocusAgent?: (agentId: string) => void;
@@ -137,6 +138,7 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
   const settings = useSettings();
   const customClasses = useCustomAgentClassesArray();
   const agentsWithUnseenOutput = useAgentsWithUnseenOutput();
+  const [activeWorkspace] = useWorkspaceFilter();
   const [hasPendingHmrChanges, setHasPendingHmrChanges] = useState(false);
 
   useRenderCounter('AgentBar');
@@ -207,9 +209,17 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
   // Filter out agents in archived areas
   const baseAgents = useMemo(() =>
     Array.from(agentsMap.values())
-      .filter(agent => !store.isAgentInArchivedArea(agent.id))
+      .filter(agent => {
+        if (store.isAgentInArchivedArea(agent.id)) return false;
+        // Filter by active workspace
+        if (activeWorkspace) {
+          const area = store.getAreaForAgent(agent.id);
+          if (!isAgentVisibleInWorkspace(area?.id ?? null)) return false;
+        }
+        return true;
+      })
       .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)),
-    [agentsMap, areas] // Re-run when areas change (archived state may change)
+    [agentsMap, areas, activeWorkspace] // Re-run when areas or workspace change
   );
 
   // Use the reorder hook for persistent ordering

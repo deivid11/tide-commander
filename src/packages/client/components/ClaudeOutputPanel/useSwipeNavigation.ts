@@ -12,6 +12,7 @@ import { useSwipeGesture } from '../../hooks';
 import { STORAGE_KEYS, getStorage } from '../../utils/storage';
 import type { VibrationIntensity } from '../../utils/haptics';
 import type { Agent } from '../../../shared/types';
+import { getActiveWorkspaceState, isAgentVisibleInWorkspace } from '../WorkspaceSwitcher';
 
 export interface UseSwipeNavigationProps {
   agents: Map<string, Agent>;
@@ -81,8 +82,16 @@ export function useSwipeNavigation({
     // Each group preserves custom drag-reorder from useAgentOrder.
     if (!overviewPanelOpen && isAgentBarVisible()) {
       // 1. Build base agents (non-archived, sorted by createdAt) — same as AgentBar
+      const activeWs = getActiveWorkspaceState();
       const baseAgents = allAgents
-        .filter(agent => !store.isAgentInArchivedArea(agent.id))
+        .filter(agent => {
+          if (store.isAgentInArchivedArea(agent.id)) return false;
+          if (activeWs) {
+            const area = store.getAreaForAgent(agent.id);
+            if (!isAgentVisibleInWorkspace(area?.id ?? null)) return false;
+          }
+          return true;
+        })
         .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
 
       // 2. Apply saved custom order — same as useAgentOrder hook

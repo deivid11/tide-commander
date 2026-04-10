@@ -8,6 +8,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { loadAreas, ensureAreaLogosDir, getAreaLogosDir, deleteAreaLogo } from '../data/index.js';
+import { organizeArea, organizeAllAreas } from '../services/area-layout-service.js';
 import { createLogger } from '../utils/logger.js';
 
 const log = createLogger('Areas');
@@ -151,6 +152,30 @@ router.delete('/:areaId/logo', (_req: Request, res: Response) => {
   } catch (err: any) {
     log.error(' Failed to delete logo:', err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/areas/organize-all - Organize agents in all areas
+router.post('/organize-all', (_req: Request, res: Response) => {
+  try {
+    const results = organizeAllAreas();
+    res.json({ results });
+  } catch (err: any) {
+    log.error(' Failed to organize all areas:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/areas/:id/organize - Organize agents within a single area
+router.post('/:areaId/organize', (req: Request, res: Response) => {
+  try {
+    const { areaId } = req.params;
+    const result = organizeArea(String(areaId));
+    res.json(result);
+  } catch (err: any) {
+    log.error(` Failed to organize area ${req.params.areaId}:`, err);
+    const status = err.message?.includes('not found') ? 404 : 500;
+    res.status(status).json({ error: err.message });
   }
 });
 

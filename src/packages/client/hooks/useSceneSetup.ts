@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { store } from '../store';
 import { setCallbacks, clearSceneCallbacks } from '../websocket';
+import { subscribeToWorkspaceChanges } from '../components/WorkspaceSwitcher';
 import type { SceneManager } from '../scene/SceneManager';
 import {
   getPersistedScene,
@@ -508,8 +509,20 @@ export function useSceneSetup({
       },
     });
 
+    // Re-sync 3D scene when workspace changes (e.g., switching to 'All')
+    const unsubWorkspace = subscribeToWorkspaceChanges(() => {
+      if (sceneRef.current) {
+        sceneRef.current.syncAreas();
+        sceneRef.current.syncBuildings();
+        const agents = Array.from(store.getState().agents.values());
+        sceneRef.current.syncAgents(agents);
+      }
+    });
+
     // Cleanup when canvas unmounts (mode switch to 2D or page unload)
     return () => {
+      unsubWorkspace();
+
       // Mark as cleaned up to prevent pending RAF from running
       isCleanedUp = true;
 

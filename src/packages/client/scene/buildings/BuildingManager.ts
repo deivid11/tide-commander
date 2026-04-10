@@ -5,8 +5,9 @@
  */
 
 import * as THREE from 'three';
-import type { Building, BuildingStyle } from '../../../shared/types';
+import type { Building, BuildingStyle, DrawingArea } from '../../../shared/types';
 import { store } from '../../store';
+import { isAreaVisibleInWorkspace, getActiveWorkspaceState } from '../../components/WorkspaceSwitcher';
 
 // Import from decomposed modules
 import type { BuildingMeshData } from './types';
@@ -362,20 +363,65 @@ export class BuildingManager {
   }
 
   /**
+   * Check if a building should be visible given the current workspace filter.
+   * A building is hidden if it's spatially inside a non-visible area.
+   * Buildings not inside any area remain visible.
+   */
+  private isBuildingVisibleInWorkspace(building: Building, areas: Map<string, DrawingArea>): boolean {
+    if (!getActiveWorkspaceState()) return true; // no workspace active — show all
+
+    for (const area of areas.values()) {
+      if (area.archived) continue;
+      if (this.isPointInsideArea(building.position.x, building.position.z, area)) {
+        return isAreaVisibleInWorkspace(area.id);
+      }
+    }
+
+    return true; // not inside any area — show it
+  }
+
+  /**
+   * Check if a point is inside an area.
+   */
+  private isPointInsideArea(x: number, z: number, area: DrawingArea): boolean {
+    if (area.type === 'rectangle' && area.width && area.height) {
+      const halfW = area.width / 2;
+      const halfH = area.height / 2;
+      return (
+        x >= area.center.x - halfW &&
+        x <= area.center.x + halfW &&
+        z >= area.center.z - halfH &&
+        z <= area.center.z + halfH
+      );
+    }
+
+    if (area.type === 'circle' && area.radius) {
+      const dx = x - area.center.x;
+      const dz = z - area.center.z;
+      return dx * dx + dz * dz <= area.radius * area.radius;
+    }
+
+    return false;
+  }
+
+  /**
    * Sync buildings from store.
    */
   syncFromStore(): void {
     const state = store.getState();
 
-    // Remove meshes for deleted buildings
+    // Remove meshes for deleted or workspace-hidden buildings
     for (const buildingId of this.buildingMeshes.keys()) {
-      if (!state.buildings.has(buildingId)) {
+      const building = state.buildings.get(buildingId);
+      if (!building || !this.isBuildingVisibleInWorkspace(building, state.areas)) {
         this.removeBuilding(buildingId);
       }
     }
 
-    // Add/update meshes for existing buildings
+    // Add/update meshes for visible buildings
     for (const building of state.buildings.values()) {
+      if (!this.isBuildingVisibleInWorkspace(building, state.areas)) continue;
+
       if (this.buildingMeshes.has(building.id)) {
         this.updateBuilding(building);
       } else {

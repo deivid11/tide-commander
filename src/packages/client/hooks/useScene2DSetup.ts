@@ -7,6 +7,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { Scene2D } from '../scene2d';
 import { store } from '../store';
+import { isAgentVisibleInWorkspace, getActiveWorkspaceState, subscribeToWorkspaceChanges } from '../components/WorkspaceSwitcher';
 import type { Agent } from '../../shared/types';
 
 interface UseScene2DSetupOptions {
@@ -132,9 +133,12 @@ export function useScene2DSetup(
         }
       } else {
         // Check for position changes and animate them
+        const activeWs = getActiveWorkspaceState();
         for (const agent of newState.agents.values()) {
-          // Skip agents in archived areas
-          if (store.isAgentInArchivedArea(agent.id)) {
+          // Skip agents in archived areas or outside workspace
+          const shouldHide = store.isAgentInArchivedArea(agent.id) ||
+            (activeWs && !isAgentVisibleInWorkspace(store.getAreaForAgent(agent.id)?.id ?? null));
+          if (shouldHide) {
             // Remove from scene if it was previously visible
             if (prevAgentPositions.has(agent.id)) {
               scene.removeAgent(agent.id);
@@ -163,9 +167,10 @@ export function useScene2DSetup(
           }
         }
 
-        // Remove agents that no longer exist or are in archived areas
+        // Remove agents that no longer exist, are in archived areas, or outside workspace
         for (const id of prevAgentPositions.keys()) {
-          if (!newState.agents.has(id) || store.isAgentInArchivedArea(id)) {
+          const wsHidden = activeWs && !isAgentVisibleInWorkspace(store.getAreaForAgent(id)?.id ?? null);
+          if (!newState.agents.has(id) || store.isAgentInArchivedArea(id) || wsHidden) {
             scene.removeAgent(id);
             prevAgentPositions.delete(id);
           }
@@ -178,8 +183,16 @@ export function useScene2DSetup(
       scene.setSelectedBuildings(newState.selectedBuildingIds);
     });
 
+    // Re-sync 2D scene when workspace changes (e.g., switching to 'All')
+    const unsubWorkspace = subscribeToWorkspaceChanges(() => {
+      scene.syncAreas();
+      scene.syncBuildings();
+      scene.syncAgents(Array.from(store.getState().agents.values()));
+    });
+
     return () => {
       unsubscribe();
+      unsubWorkspace();
       scene.dispose();
       sceneRef.current = null;
       // Clean up global reference

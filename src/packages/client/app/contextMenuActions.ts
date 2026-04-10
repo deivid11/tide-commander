@@ -3,6 +3,8 @@ import type { SceneManager } from '../scene/SceneManager';
 import type { ContextMenuAction } from '../components/ContextMenu';
 import type { ToastType } from '../components/Toast';
 import type { Agent, DrawingArea as Area, Building } from '../../shared/types';
+import { organizeArea } from '../api/area-layout';
+import type { OrganizeResult } from '../api/area-layout';
 
 export interface ContextMenuTarget {
   type: 'ground' | 'agent' | 'area' | 'building';
@@ -22,6 +24,33 @@ export interface ContextMenuCallbacks {
   setSpawnPosition: (pos: { x: number; z: number }) => void;
   openRestoreArchivedModal: (worldPos: { x: number; z: number }) => void;
   sceneRef: React.RefObject<SceneManager | null>;
+}
+
+/**
+ * Apply organize results: update agent positions in the store so the scene animates them.
+ */
+export function applyOrganizeResult(
+  result: OrganizeResult,
+  sceneRef: React.RefObject<SceneManager | null>
+): void {
+  const state = store.getState();
+  for (const entry of result.organized) {
+    const agent = state.agents.get(entry.agentId);
+    if (agent) {
+      const updated = { ...agent, position: entry.position };
+      store.updateAgent(updated);
+      // Trigger animated movement in the 3D/2D scene
+      sceneRef.current?.updateAgent(updated, true);
+    }
+  }
+
+  for (const entry of result.buildings) {
+    const building = state.buildings.get(entry.buildingId);
+    if (!building) continue;
+
+    store.updateBuilding(entry.buildingId, { position: entry.position });
+    sceneRef.current?.updateBuilding({ ...building, position: entry.position });
+  }
 }
 
 /**
@@ -133,6 +162,25 @@ export function buildContextMenuActions(
           callbacks.sceneRef.current?.syncAreas();
         },
       });
+      // Auto-organize agents within this area
+      if (area.assignedAgentIds.length > 0) {
+        actions.push({
+          id: 'organize-area',
+          label: 'Organize Area',
+          icon: '✨',
+          onClick: () => {
+            organizeArea(target.id!)
+              .then((result) => {
+                applyOrganizeResult(result, callbacks.sceneRef);
+                callbacks.showToast('success', 'Area Organized', `Arranged ${result.organized.length} agent${result.organized.length !== 1 ? 's' : ''} in "${area.name}"`);
+              })
+              .catch((err) => {
+                console.error('organize area error:', err);
+                callbacks.showToast('error', 'Organize Failed', err.message || 'Failed to organize area');
+              });
+          },
+        });
+      }
       actions.push({ id: 'divider-area', label: '', divider: true, onClick: () => {} });
       actions.push({
         id: 'archive-area',

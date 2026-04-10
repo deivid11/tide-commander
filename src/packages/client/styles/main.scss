@@ -22,6 +22,7 @@
 @use 'components/file-explorer/index' as file-explorer;
 @use 'components/diff-viewer';
 @use 'components/agent-bar';
+@use 'components/workspace-switcher';
 @use 'components/bottom-toolbar';
 @use 'components/supervisor-panel';
 @use 'components/spotlight';
@@ -38,6 +39,7 @@
 @use 'components/snapshots';
 @use 'components/not-connected';
 @use 'components/onboarding';
+@use 'components/bulk-manage-modal';
 
 // Responsive styles (must be last to override component styles)
 @use 'responsive/index' as responsive;

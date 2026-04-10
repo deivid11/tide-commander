@@ -9,7 +9,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { agentService, runtimeService, bossMessageService } from '../services/index.js';
-import { getClaudeProjectDir } from '../data/index.js';
+import { getClaudeProjectDir, loadAreas, saveAreas } from '../data/index.js';
+import { getAllCustomClasses } from '../services/custom-class-service.js';
 // Session listing is done inline for performance
 import { createLogger } from '../utils/logger.js';
 import { buildCustomAgentConfig } from '../websocket/handlers/command-handler.js';
@@ -326,6 +327,234 @@ router.get('/', (_req: Request, res: Response) => {
 router.get('/simple', (_req: Request, res: Response) => {
   const agents = agentService.getAllAgents();
   res.json(agents.map(agent => ({ id: agent.id, name: agent.name })));
+});
+
+// ============================================================================
+// Bulk Operations Routes
+// NOTE: Must be defined BEFORE /:id routes to prevent "bulk" being interpreted as an ID
+// ============================================================================
+
+// POST /api/agents/bulk/delete - Delete multiple agents by IDs
+router.post('/bulk/delete', async (req: Request, res: Response) => {
+  try {
+    const { agentIds } = req.body as { agentIds?: string[] };
+
+    if (!Array.isArray(agentIds) || agentIds.length === 0) {
+      res.status(400).json({ error: 'agentIds must be a non-empty array of strings' });
+      return;
+    }
+
+    const deleted: string[] = [];
+    const failed: string[] = [];
+
+    for (const agentId of agentIds) {
+      try {
+        const agent = agentService.getAgent(agentId);
+        if (!agent) {
+          failed.push(agentId);
+          continue;
+        }
+        await runtimeService.stopAgent(agentId);
+        const success = agentService.deleteAgent(agentId);
+        if (success) {
+          deleted.push(agentId);
+        } else {
+          failed.push(agentId);
+        }
+      } catch (err) {
+        log.error(` Bulk delete failed for agent ${agentId}:`, err);
+        failed.push(agentId);
+      }
+    }
+
+    log.log(`Bulk delete: ${deleted.length} deleted, ${failed.length} failed`);
+    res.json({ deleted, failed });
+  } catch (err: any) {
+    log.error(' Bulk delete failed:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/agents/bulk/stop - Stop multiple agents
+router.post('/bulk/stop', async (req: Request, res: Response) => {
+  try {
+    const { agentIds } = req.body as { agentIds?: string[] };
+
+    if (!Array.isArray(agentIds) || agentIds.length === 0) {
+      res.status(400).json({ error: 'agentIds must be a non-empty array of strings' });
+      return;
+    }
+
+    const stopped: string[] = [];
+    const failed: string[] = [];
+
+    for (const agentId of agentIds) {
+      try {
+        const agent = agentService.getAgent(agentId);
+        if (!agent) {
+          failed.push(agentId);
+          continue;
+        }
+        await runtimeService.stopAgent(agentId);
+        agentService.updateAgent(agentId, {
+          status: 'idle',
+          currentTask: undefined,
+          currentTool: undefined,
+        });
+        stopped.push(agentId);
+      } catch (err) {
+        log.error(` Bulk stop failed for agent ${agentId}:`, err);
+        failed.push(agentId);
+      }
+    }
+
+    log.log(`Bulk stop: ${stopped.length} stopped, ${failed.length} failed`);
+    res.json({ stopped, failed });
+  } catch (err: any) {
+    log.error(' Bulk stop failed:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/agents/bulk/clear-context - Clear context/reset session for multiple agents
+router.post('/bulk/clear-context', async (req: Request, res: Response) => {
+  try {
+    const { agentIds } = req.body as { agentIds?: string[] };
+
+    if (!Array.isArray(agentIds) || agentIds.length === 0) {
+      res.status(400).json({ error: 'agentIds must be a non-empty array of strings' });
+      return;
+    }
+
+    const cleared: string[] = [];
+    const failed: string[] = [];
+
+    for (const agentId of agentIds) {
+      try {
+        const agent = agentService.getAgent(agentId);
+        if (!agent) {
+          failed.push(agentId);
+          continue;
+        }
+        await runtimeService.stopAgent(agentId);
+        agentService.updateAgent(agentId, {
+          status: 'idle',
+          currentTask: undefined,
+          taskLabel: undefined,
+          currentTool: undefined,
+          lastAssignedTask: undefined,
+          lastAssignedTaskTime: undefined,
+          sessionId: undefined,
+          tokensUsed: 0,
+          contextUsed: 0,
+          contextStats: undefined,
+        });
+        cleared.push(agentId);
+      } catch (err) {
+        log.error(` Bulk clear-context failed for agent ${agentId}:`, err);
+        failed.push(agentId);
+      }
+    }
+
+    log.log(`Bulk clear-context: ${cleared.length} cleared, ${failed.length} failed`);
+    res.json({ cleared, failed });
+  } catch (err: any) {
+    log.error(' Bulk clear-context failed:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/agents/bulk/move-area - Move multiple agents to an area
+router.post('/bulk/move-area', async (req: Request, res: Response) => {
+  try {
+    const { agentIds, areaId } = req.body as { agentIds?: string[]; areaId?: string | null };
+
+    if (!Array.isArray(agentIds) || agentIds.length === 0) {
+      res.status(400).json({ error: 'agentIds must be a non-empty array of strings' });
+      return;
+    }
+
+    const areas = loadAreas();
+    const moved: string[] = [];
+    const failed: string[] = [];
+
+    for (const agentId of agentIds) {
+      try {
+        const agent = agentService.getAgent(agentId);
+        if (!agent) {
+          failed.push(agentId);
+          continue;
+        }
+
+        // Remove agent from all areas first
+        for (const area of areas) {
+          area.assignedAgentIds = area.assignedAgentIds.filter(id => id !== agentId);
+        }
+
+        // Add to target area if specified
+        if (areaId) {
+          const targetArea = areas.find(a => a.id === areaId);
+          if (!targetArea) {
+            failed.push(agentId);
+            continue;
+          }
+          if (!targetArea.assignedAgentIds.includes(agentId)) {
+            targetArea.assignedAgentIds.push(agentId);
+          }
+        }
+
+        moved.push(agentId);
+      } catch (err) {
+        log.error(` Bulk move-area failed for agent ${agentId}:`, err);
+        failed.push(agentId);
+      }
+    }
+
+    // Save areas once after all moves
+    if (moved.length > 0) {
+      saveAreas(areas);
+    }
+
+    log.log(`Bulk move-area: ${moved.length} moved to ${areaId || 'none'}, ${failed.length} failed`);
+    res.json({ moved, failed });
+  } catch (err: any) {
+    log.error(' Bulk move-area failed:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/agents/bulk/filters - Return available filter values
+router.get('/bulk/filters', (_req: Request, res: Response) => {
+  try {
+    const agents = agentService.getAllAgents();
+    const areas = loadAreas();
+    const customClasses = getAllCustomClasses();
+
+    // Collect unique statuses from agents
+    const statuses = [...new Set(agents.map(a => a.status))];
+
+    // Collect unique providers
+    const providers = [...new Set(agents.map(a => a.provider))];
+
+    // Collect unique models
+    const models = [...new Set(agents.map(a => a.model).filter(Boolean))] as string[];
+
+    // Collect all classes (built-in + custom)
+    const builtInClasses = ['scout', 'builder', 'debugger', 'architect', 'warrior', 'support', 'boss'];
+    const customClassIds = customClasses.map(c => c.id);
+    const classes = [...new Set([...builtInClasses, ...customClassIds, ...agents.map(a => a.class)])];
+
+    res.json({
+      statuses,
+      areas: areas.map(a => ({ id: a.id, name: a.name })),
+      providers,
+      models,
+      classes,
+    });
+  } catch (err: any) {
+    log.error(' Failed to get bulk filters:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // POST /api/agents - Create new agent

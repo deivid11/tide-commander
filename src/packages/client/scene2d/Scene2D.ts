@@ -9,6 +9,7 @@
 
 import type { Agent, Building, DrawingArea, BuiltInAgentClass, ContextStats } from '../../shared/types';
 import { store } from '../store';
+import { isAgentVisibleInWorkspace, isAreaVisibleInWorkspace, getActiveWorkspaceState } from '../components/WorkspaceSwitcher';
 import { Scene2DRenderer } from './Scene2DRenderer';
 import { Scene2DInput } from './Scene2DInput';
 import { Scene2DCamera } from './Scene2DCamera';
@@ -139,6 +140,9 @@ export class Scene2D {
   private static readonly IDLE_FPS_LIMIT = 8;
   private static readonly WORKING_FPS_LIMIT = 15;
   private static readonly MAX_DPR = 1.25;
+  private static readonly AGENT_MOVE_ANIMATION_DURATION_MS = 500;
+  private static readonly AGENT_MOVE_ANIMATION_THRESHOLD = 0.5;
+  private static readonly AGENT_MOVE_SNAP_DISTANCE = 0.01;
   private currentDpr = 1;
 
   // Movements (for animation)
@@ -471,18 +475,24 @@ export class Scene2D {
 
     for (const [agentId, movement] of this.movements) {
       const elapsed = now - movement.startTime;
-      const linearProgress = Math.min(1, elapsed / movement.duration);
-
-      // Use ease-out cubic for smooth deceleration (feels like walking/stopping)
-      const progress = 1 - Math.pow(1 - linearProgress, 3);
-
       const agent = this.agents.get(agentId);
-      if (agent) {
-        agent.position.x = movement.startPos.x + (movement.endPos.x - movement.startPos.x) * progress;
-        agent.position.z = movement.startPos.z + (movement.endPos.z - movement.startPos.z) * progress;
+      if (!agent) {
+        completedIds.push(agentId);
+        continue;
       }
 
-      if (linearProgress >= 1) {
+      const progress = Math.min(1, elapsed / movement.duration);
+      agent.position.x = movement.startPos.x + (movement.endPos.x - movement.startPos.x) * progress;
+      agent.position.z = movement.startPos.z + (movement.endPos.z - movement.startPos.z) * progress;
+
+      const remainingDistance = Math.hypot(
+        movement.endPos.x - agent.position.x,
+        movement.endPos.z - agent.position.z
+      );
+
+      if (progress >= 1 || remainingDistance <= Scene2D.AGENT_MOVE_SNAP_DISTANCE) {
+        agent.position.x = movement.endPos.x;
+        agent.position.z = movement.endPos.z;
         completedIds.push(agentId);
       }
     }
@@ -659,6 +669,19 @@ export class Scene2D {
     this.markDirty();
   }
 
+  private startAgentMovement(
+    agentId: string,
+    startPos: { x: number; z: number },
+    endPos: { x: number; z: number }
+  ): void {
+    this.movements.set(agentId, {
+      startPos: { ...startPos },
+      endPos: { ...endPos },
+      startTime: performance.now(),
+      duration: Scene2D.AGENT_MOVE_ANIMATION_DURATION_MS,
+    });
+  }
+
   removeAgent(agentId: string): void {
     this.agents.delete(agentId);
     this.movements.delete(agentId);
@@ -676,47 +699,27 @@ export class Scene2D {
     const classConfig = AGENT_CLASS_CONFIG[agent.class as BuiltInAgentClass];
     const color = classConfig?.color ?? 0xffffff;
 
-    // Check if there's an active movement animation
     const currentMovement = this.movements.get(agent.id);
+    const currentTarget = currentMovement?.endPos ?? existing.position;
+    const targetChanged = Math.hypot(
+      currentTarget.x - agent.position.x,
+      currentTarget.z - agent.position.z
+    ) > Scene2D.AGENT_MOVE_SNAP_DISTANCE;
 
-    // If there's an active movement, check if the incoming position matches the target
-    // Use a small epsilon for floating point comparison
-    const epsilon = 0.01;
-    let positionChanged: boolean;
-
-    if (currentMovement) {
-      // Compare incoming position with movement's end position
-      const dx = Math.abs(currentMovement.endPos.x - agent.position.x);
-      const dz = Math.abs(currentMovement.endPos.z - agent.position.z);
-      positionChanged = dx > epsilon || dz > epsilon;
-    } else {
-      // No active movement - compare with existing position
-      const dx = Math.abs(existing.position.x - agent.position.x);
-      const dz = Math.abs(existing.position.z - agent.position.z);
-      positionChanged = dx > epsilon || dz > epsilon;
-    }
-
-    if (positionChanged && animatePosition) {
-      // Start movement animation from current visual position to new target
-      const distance = Math.sqrt(
-        Math.pow(agent.position.x - existing.position.x, 2) +
-        Math.pow(agent.position.z - existing.position.z, 2)
+    if (targetChanged) {
+      const visualDistance = Math.hypot(
+        agent.position.x - existing.position.x,
+        agent.position.z - existing.position.z
       );
-      // Walking speed: ~2 units per second for a natural walking pace
-      const duration = (distance / 2) * 1000;
 
-      this.movements.set(agent.id, {
-        startPos: { x: existing.position.x, z: existing.position.z },
-        endPos: { x: agent.position.x, z: agent.position.z },
-        startTime: performance.now(),
-        duration: Math.max(500, Math.min(duration, 3000)), // 500ms min, 3s max
-      });
-    } else if (positionChanged && !animatePosition && !currentMovement) {
-      // Instant teleport - only if not currently animating
-      existing.position.x = agent.position.x;
-      existing.position.z = agent.position.z;
+      if (animatePosition && visualDistance > Scene2D.AGENT_MOVE_ANIMATION_THRESHOLD) {
+        this.startAgentMovement(agent.id, existing.position, { x: agent.position.x, z: agent.position.z });
+      } else {
+        this.movements.delete(agent.id);
+        existing.position.x = agent.position.x;
+        existing.position.z = agent.position.z;
+      }
     }
-    // If there's an active movement or position hasn't changed, preserve current animation
 
     // Update other properties
     existing.name = agent.name;
@@ -738,19 +741,26 @@ export class Scene2D {
   }
 
   syncAgents(agents: Agent[]): void {
-    // Remove agents that no longer exist or are in archived areas
+    // Remove agents that no longer exist, are in archived areas, or outside workspace
     const agentIds = new Set(agents.map(a => a.id));
+    const activeWs = getActiveWorkspaceState();
     for (const id of this.agents.keys()) {
       if (!agentIds.has(id) || store.isAgentInArchivedArea(id)) {
         this.removeAgent(id);
+      } else if (activeWs) {
+        const area = store.getAreaForAgent(id);
+        if (!isAgentVisibleInWorkspace(area?.id ?? null)) this.removeAgent(id);
       }
     }
 
-    // Add/update agents (skip those in archived areas)
+    // Add/update agents (skip those in archived areas or outside workspace)
     for (const agent of agents) {
-      if (!store.isAgentInArchivedArea(agent.id)) {
-        this.updateAgent(agent, false);
+      if (store.isAgentInArchivedArea(agent.id)) continue;
+      if (activeWs) {
+        const area = store.getAreaForAgent(agent.id);
+        if (!isAgentVisibleInWorkspace(area?.id ?? null)) continue;
       }
+      this.updateAgent(agent, true);
     }
   }
 
@@ -801,19 +811,50 @@ export class Scene2D {
   syncBuildings(): void {
     this.markStaticDirty();
     const state = store.getState();
-    const buildingIds = new Set(state.buildings.keys());
+    const wsActive = !!getActiveWorkspaceState();
 
-    // Remove buildings that no longer exist
+    // Remove buildings that no longer exist or are hidden by workspace
     for (const id of this.buildings.keys()) {
-      if (!buildingIds.has(id)) {
+      const building = state.buildings.get(id);
+      if (!building || (wsActive && this.isBuildingHiddenByWorkspace(building, state.areas))) {
         this.removeBuilding(id);
       }
     }
 
-    // Add/update buildings
+    // Add/update visible buildings
     for (const building of state.buildings.values()) {
+      if (wsActive && this.isBuildingHiddenByWorkspace(building, state.areas)) continue;
       this.updateBuilding(building);
     }
+  }
+
+  /**
+   * Check if a building is hidden by the current workspace filter.
+   * A building is hidden if it's spatially inside an area that is not visible.
+   */
+  private isBuildingHiddenByWorkspace(building: Building, areas: Map<string, DrawingArea>): boolean {
+    for (const area of areas.values()) {
+      if (area.archived) continue;
+      if (area.type === 'rectangle' && area.width && area.height) {
+        const halfW = area.width / 2;
+        const halfH = area.height / 2;
+        if (
+          building.position.x >= area.center.x - halfW &&
+          building.position.x <= area.center.x + halfW &&
+          building.position.z >= area.center.z - halfH &&
+          building.position.z <= area.center.z + halfH
+        ) {
+          return !isAreaVisibleInWorkspace(area.id);
+        }
+      } else if (area.type === 'circle' && area.radius) {
+        const dx = building.position.x - area.center.x;
+        const dz = building.position.z - area.center.z;
+        if (dx * dx + dz * dz <= area.radius * area.radius) {
+          return !isAreaVisibleInWorkspace(area.id);
+        }
+      }
+    }
+    return false; // not inside any area — visible
   }
 
   // ============================================
@@ -827,8 +868,9 @@ export class Scene2D {
     this.markStaticDirty();
 
     for (const area of state.areas.values()) {
-      // Skip archived areas - they should not be rendered
+      // Skip archived areas and areas outside the active workspace
       if (area.archived) continue;
+      if (!isAreaVisibleInWorkspace(area.id)) continue;
 
       const hasDirectories = area.directories && area.directories.length > 0;
       const logo = area.logo?.filename ? {
@@ -1228,18 +1270,7 @@ export class Scene2D {
       // Animate the movement in 2D
       const agent = this.agents.get(subId);
       if (agent) {
-        const distance = Math.sqrt(
-          Math.pow(targetPos.x - agent.position.x, 2) +
-          Math.pow(targetPos.z - agent.position.z, 2)
-        );
-        const duration = (distance / 2) * 1000; // Walking speed ~2 units/sec
-
-        this.movements.set(subId, {
-          startPos: { x: agent.position.x, z: agent.position.z },
-          endPos: { x: targetPos.x, z: targetPos.z },
-          startTime: performance.now(),
-          duration: Math.max(500, Math.min(duration, 3000)),
-        });
+        this.startAgentMovement(subId, agent.position, targetPos);
       }
     });
   }

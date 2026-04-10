@@ -6,8 +6,8 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import type { Agent, AgentClass, PermissionMode, ClaudeModel, AgentProvider, CodexConfig, CodexModel } from '../../shared/types.js';
-import { loadAgents, saveAgents, saveAgentsAsync, getDataDir } from '../data/index.js';
+import type { Agent, AgentClass, PermissionMode, ClaudeModel, AgentProvider, CodexConfig, CodexModel, DrawingArea } from '../../shared/types.js';
+import { loadAgents, saveAgents, saveAgentsAsync, getDataDir, loadAreas, saveAreas } from '../data/index.js';
 import {
   listSessions,
   getSessionSummary,
@@ -387,10 +387,80 @@ export async function createAgent(
 
   log.log(`✅ Agent ${name} (${id}) created successfully in ${cwd}`);
 
+  // Reconcile area assignment based on initial position
+  reconcileAgentAreaAssignment(id, { x: agent.position.x, z: agent.position.z });
+
   emit('created', agent);
   log.log('  Event emitted: created');
 
   return agent;
+}
+
+/**
+ * Check if a point is inside a drawing area.
+ */
+function isPositionInArea(pos: { x: number; z: number }, area: DrawingArea): boolean {
+  if (area.archived) return false;
+  if (area.type === 'rectangle' && area.width && area.height) {
+    const halfW = area.width / 2;
+    const halfH = area.height / 2;
+    return (
+      pos.x >= area.center.x - halfW &&
+      pos.x <= area.center.x + halfW &&
+      pos.z >= area.center.z - halfH &&
+      pos.z <= area.center.z + halfH
+    );
+  }
+  if (area.type === 'circle' && area.radius) {
+    const dx = pos.x - area.center.x;
+    const dz = pos.z - area.center.z;
+    return dx * dx + dz * dz <= area.radius * area.radius;
+  }
+  return false;
+}
+
+/**
+ * Reconcile an agent's area assignment based on its physical position.
+ * Adds the agent to the area it's inside (if any) and removes it from others.
+ */
+function reconcileAgentAreaAssignment(agentId: string, position: { x: number; z: number }): void {
+  try {
+    const areas = loadAreas();
+    let changed = false;
+
+    // Find which area the agent is inside (by position)
+    let containingAreaId: string | null = null;
+    for (const area of areas) {
+      if (isPositionInArea(position, area)) {
+        containingAreaId = area.id;
+        break;
+      }
+    }
+
+    for (const area of areas) {
+      const isAssigned = area.assignedAgentIds.includes(agentId);
+      if (area.id === containingAreaId) {
+        // Agent is inside this area — ensure assigned
+        if (!isAssigned) {
+          area.assignedAgentIds.push(agentId);
+          changed = true;
+        }
+      } else {
+        // Agent is NOT inside this area — ensure unassigned
+        if (isAssigned) {
+          area.assignedAgentIds = area.assignedAgentIds.filter(id => id !== agentId);
+          changed = true;
+        }
+      }
+    }
+
+    if (changed) {
+      saveAreas(areas);
+    }
+  } catch (err) {
+    // Non-critical — don't let area reconciliation break agent updates
+    log.error(` Area reconciliation failed for agent ${agentId}:`, err);
+  }
 }
 
 export function updateAgent(id: string, updates: Partial<Agent>, updateActivity = true): Agent | null {
@@ -438,6 +508,11 @@ export function updateAgent(id: string, updates: Partial<Agent>, updateActivity 
   agents.set(id, agent);
   debouncedPersistAgents();
 
+  // Reconcile area assignment when position changes
+  if (updates.position) {
+    reconcileAgentAreaAssignment(id, { x: agent.position.x, z: agent.position.z });
+  }
+
   // Debug logging for sessionId changes
   if (sessionIdBefore !== agent.sessionId) {
     log.warn(`🔑 [SESSION CHANGE] Agent ${agent.name} (${id}): sessionId changed from "${sessionIdBefore}" to "${agent.sessionId}". Updates had sessionId: ${hasSessionIdInUpdates}, updates keys: ${Object.keys(updates).join(', ')}`);
@@ -453,6 +528,22 @@ export function deleteAgent(id: string): boolean {
 
   agents.delete(id);
   persistAgents();
+
+  // Clean up area assignments for this agent
+  try {
+    const areas = loadAreas();
+    let changed = false;
+    for (const area of areas) {
+      const idx = area.assignedAgentIds.indexOf(id);
+      if (idx !== -1) {
+        area.assignedAgentIds.splice(idx, 1);
+        changed = true;
+      }
+    }
+    if (changed) saveAreas(areas);
+  } catch {
+    // Non-critical
+  }
 
   // Clean up skill assignments for this agent (deferred import to avoid circular dependency)
   setImmediate(async () => {

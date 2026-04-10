@@ -12,13 +12,15 @@
   overflow: hidden;
 }
 
-// View mode toggle (3D / 2D / Dashboard) positioned top-center
-.app-view-mode-toggle {
+// Top bar container - holds ViewModeToggle + WorkspaceSwitcher
+.app-top-bar {
   position: fixed;
   top: 12px;
   left: 12px;
   z-index: 150;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 8px;
 
   // On mobile: hide in terminal view, show (repositioned) in 3D/2D view
   @media (max-width: 768px) {
@@ -26,12 +28,42 @@
       display: none !important;
     }
 
-    // Reposition to the right of the FAB toggle button (44px + 12px left + 8px gap)
     .app.mobile-view-3d & {
       left: 64px;
       top: 12px;
       z-index: 999;
     }
+  }
+}
+
+.app-view-mode-toggle {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.app-organize-all-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: $text-primary;
+  font-family: $font-family;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+
+  &:hover:not(:disabled) {
+    background: rgba(0, 0, 0, 0.75);
+    border-color: $accent-blue;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 }
 

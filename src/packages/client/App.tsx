@@ -33,6 +33,7 @@ import { BuildingActionPopup } from './components/BuildingActionPopup';
 import { BossBuildingActionPopup } from './components/BossBuildingActionPopup';
 import { DatabaseBuildingActionPopup } from './components/DatabaseBuildingActionPopup';
 import { FPSMeter } from './components/FPSMeter';
+import { WorkspaceSwitcher, useWorkspaceSwitching } from './components/WorkspaceSwitcher';
 
 // Lazy-load heavy components that are conditionally rendered
 const DatabasePanel = React.lazy(() => import('./components/database').then(m => ({ default: m.DatabasePanel })));
@@ -71,7 +72,8 @@ import {
   subscribeToSceneRefresh,
 } from './hooks';
 import { loadConfig, saveConfig } from './app/sceneConfig';
-import { buildContextMenuActions } from './app/contextMenuActions';
+import { buildContextMenuActions, applyOrganizeResult } from './app/contextMenuActions';
+import { organizeAllAreas } from './api/area-layout';
 import TerminalEmbed from './components/TerminalEmbed';
 
 // Import scene lifecycle to ensure it initializes
@@ -107,6 +109,8 @@ function AppContent() {
   const contextMenu = useContextMenu();
   const pip = useDocumentPiP(); // Document Picture-in-Picture for agents view
   const [iframeModalUrl, setIframeModalUrl] = useState<string | null>(null);
+  const isWorkspaceSwitching = useWorkspaceSwitching();
+  const [isOrganizing, setIsOrganizing] = useState(false);
 
   const [spawnPosition, setSpawnPosition] = useState<{ x: number; z: number } | null>(null);
   const [buildingInitialPosition, setBuildingInitialPosition] = useState<{ x: number; z: number } | null>(null);
@@ -626,11 +630,40 @@ function AppContent() {
       {/* FPS Meter */}
       <FPSMeter visible={settings.showFPS} position="bottom-right" />
 
-      {/* View Mode Toggle (3D / 2D / Dashboard) */}
-      <ViewModeToggle className="app-view-mode-toggle" />
+      {/* View Mode Toggle (3D / 2D / Dashboard) + Workspace Switcher + Organize */}
+      <div className="app-top-bar">
+        <ViewModeToggle className="app-view-mode-toggle" />
+        <WorkspaceSwitcher />
+        <button
+          className="app-organize-all-btn"
+          disabled={isOrganizing}
+          title="Auto-organize all agents in their areas"
+          onClick={() => {
+            setIsOrganizing(true);
+            organizeAllAreas()
+              .then((result) => {
+                applyOrganizeResult(result, sceneRef);
+                showToast('success', 'Organized', `Arranged ${result.organized.length} agent${result.organized.length !== 1 ? 's' : ''}`);
+              })
+              .catch((err) => {
+                console.error('organize all error:', err);
+                showToast('error', 'Organize Failed', err.message || 'Failed to organize');
+              })
+              .finally(() => setIsOrganizing(false));
+          }}
+        >
+          {isOrganizing ? '⏳' : '✨'} Organize
+        </button>
+      </div>
 
       <main className="main-content">
         <div className="battlefield-container">
+          {isWorkspaceSwitching && (
+            <div className="workspace-switch-overlay">
+              <div className="workspace-switch-spinner" />
+              <span className="workspace-switch-text">Switching workspace...</span>
+            </div>
+          )}
           <React.Suspense fallback={null}>
           {viewMode === 'dashboard' ? (
             <DashboardView

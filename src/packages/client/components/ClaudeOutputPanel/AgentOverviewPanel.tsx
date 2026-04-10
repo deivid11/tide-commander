@@ -26,6 +26,8 @@ import type { ToolExecution, ClaudeOutput } from '../../store/types';
 import type { TwoFingerSelectorState } from '../../hooks/useTwoFingerSelector';
 import { ContextMenu } from '../ContextMenu';
 import type { ContextMenuAction } from '../ContextMenu';
+import { useWorkspaceFilter, isAgentVisibleInWorkspace } from '../WorkspaceSwitcher';
+import { BulkManageModal } from '../BulkManageModal';
 
 /** Persisted config shape for the overview panel */
 interface AopConfig {
@@ -131,7 +133,15 @@ interface AreaGroup {
 
 export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agentListRef: externalAgentListRef, twoFingerState }: AgentOverviewPanelProps) {
   const { t } = useTranslation(['terminal', 'common']);
-  const agents = useAgentsArray();
+  const allAgents = useAgentsArray();
+  const [activeWorkspace] = useWorkspaceFilter();
+  const agents = useMemo(() => {
+    if (!activeWorkspace) return allAgents;
+    return allAgents.filter(a => {
+      const area = store.getAreaForAgent(a.id);
+      return isAgentVisibleInWorkspace(area?.id ?? null);
+    });
+  }, [allAgents, activeWorkspace]);
   const agentsWithUnseenOutput = useAgentsWithUnseenOutput();
   const toolExecutions = useToolExecutions();
   const subagents = useSubagents();
@@ -178,6 +188,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
   );
   const [areaFilterOpen, setAreaFilterOpen] = useState(false);
   const [areaFilterSearch, setAreaFilterSearch] = useState('');
+  const [bulkManageOpen, setBulkManageOpen] = useState(false);
   const areaFilterRef = useRef<HTMLDivElement>(null);
   const [isMobileViewport, setIsMobileViewport] = useState<boolean>(() =>
     typeof window !== 'undefined' ? window.matchMedia('(max-width: 768px)').matches : false
@@ -451,7 +462,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     }
 
     let sorted: Agent[];
-    if (needsFullSort || bucketChanged) {
+    if (needsFullSort || bucketChanged || sortMode === 'recent') {
       // Full sort
       sorted = [...list].sort((a, b) => {
         const aIsBoss = !!(a.isBoss || a.class === 'boss');
@@ -481,8 +492,8 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
 
           return (b.lastActivity || 0) - (a.lastActivity || 0);
         }
-        const aTime = (toolsByAgent.get(a.id) || [])[0]?.timestamp || 0;
-        const bTime = (toolsByAgent.get(b.id) || [])[0]?.timestamp || 0;
+        const aTime = (toolsByAgent.get(a.id) || [])[0]?.timestamp || a.lastActivity || 0;
+        const bTime = (toolsByAgent.get(b.id) || [])[0]?.timestamp || b.lastActivity || 0;
         return bTime - aTime;
       });
     } else {
@@ -887,6 +898,9 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
         <button onClick={() => setShowRecentActivity(v => !v)} className={`action-btn action-btn--toggle${showRecentActivity ? ' active' : ''}`} title={t('terminal:overview.recentActivity')}>
           Activity
         </button>
+        <button onClick={() => setBulkManageOpen(true)} className="action-btn" title="Bulk manage agents">
+          Bulk Manage
+        </button>
       </div>
 
       {/* Agent List grouped by area */}
@@ -1038,6 +1052,8 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
         actions={agentContextMenuActions}
         onClose={() => setAgentContextMenu(null)}
       />
+
+      <BulkManageModal isOpen={bulkManageOpen} onClose={() => setBulkManageOpen(false)} />
 
     </div>
   );

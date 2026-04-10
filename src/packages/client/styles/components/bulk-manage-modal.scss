@@ -1,0 +1,370 @@
+@use '../variables' as *;
+
+// Bulk Manage Modal
+.bulk-manage-modal {
+  width: 900px;
+  max-width: 95vw;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  background: $bg-secondary;
+  border: 1px solid $border-color;
+  border-radius: $radius-xl;
+  overflow: hidden;
+  position: relative;
+
+  .modal-header {
+    padding: 14px 20px;
+    margin-bottom: 0;
+    border-bottom: 1px solid $border-color;
+    font-size: 16px;
+    font-weight: 600;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+
+    h2 {
+      margin: 0;
+      font-size: 16px;
+    }
+  }
+
+  .modal-footer {
+    padding: 12px 20px;
+    border-top: 1px solid $border-color;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+  }
+}
+
+// Filters
+.bulk-filters {
+  padding: 12px 20px;
+  border-bottom: 1px solid $border-color;
+}
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.bulk-filter-select {
+  padding: 6px 10px;
+  background: $bg-tertiary;
+  color: $text-primary;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  font-size: 12px;
+  outline: none;
+  cursor: pointer;
+  min-width: 100px;
+
+  &:focus {
+    border-color: $accent-blue;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.bulk-filter-search {
+  padding: 6px 10px;
+  background: $bg-tertiary;
+  color: $text-primary;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  font-size: 12px;
+  outline: none;
+  flex: 1;
+  min-width: 120px;
+
+  &:focus {
+    border-color: $accent-blue;
+  }
+
+  &::placeholder {
+    color: $text-muted;
+  }
+}
+
+// Count bar
+.bulk-count-bar {
+  padding: 8px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid $border-color;
+  font-size: 12px;
+}
+
+.bulk-count {
+  color: $text-secondary;
+}
+
+.bulk-select-controls {
+  display: flex;
+  gap: 12px;
+}
+
+.bulk-link-btn {
+  background: none;
+  border: none;
+  color: $accent-blue;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+
+  &:hover {
+    color: lighten($accent-blue, 10%);
+  }
+}
+
+// Alerts
+.bulk-alert {
+  margin: 8px 20px 0;
+  padding: 8px 12px;
+  border-radius: $radius-sm;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+
+  .alert-icon {
+    flex-shrink: 0;
+    font-weight: bold;
+  }
+
+  &.bulk-alert-error {
+    background: rgba($accent-red, 0.1);
+    border: 1px solid rgba($accent-red, 0.25);
+    color: $accent-red;
+  }
+
+  &.bulk-alert-success {
+    background: rgba($dracula-green, 0.1);
+    border: 1px solid rgba($dracula-green, 0.25);
+    color: $dracula-green;
+  }
+}
+
+// Agent list
+.bulk-agent-list {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  padding: 0;
+}
+
+.bulk-empty {
+  padding: 48px 24px;
+  text-align: center;
+  color: $text-muted;
+  font-size: 13px;
+}
+
+.bulk-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+
+  thead {
+    position: sticky;
+    top: 0;
+    background: $bg-secondary;
+    z-index: 1;
+
+    th {
+      padding: 8px 12px;
+      text-align: left;
+      font-weight: 600;
+      color: $text-secondary;
+      border-bottom: 1px solid $border-color;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      white-space: nowrap;
+    }
+  }
+
+  tbody tr {
+    cursor: pointer;
+    transition: background $transition-fast;
+
+    &:hover {
+      background: rgba($accent-blue, 0.05);
+    }
+
+    &.selected {
+      background: rgba($accent-blue, 0.1);
+    }
+
+    td {
+      padding: 8px 12px;
+      border-bottom: 1px solid rgba($border-color, 0.5);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  }
+
+  .col-check {
+    width: 36px;
+    text-align: center;
+
+    input[type='checkbox'] {
+      cursor: pointer;
+      accent-color: $accent-blue;
+    }
+  }
+
+  .col-name {
+    max-width: 200px;
+    font-weight: 500;
+    color: $text-primary;
+  }
+
+  .col-class {
+    max-width: 120px;
+    color: $text-secondary;
+  }
+
+  .col-status {
+    width: 90px;
+  }
+
+  .col-idle {
+    width: 60px;
+    color: $text-muted;
+    text-align: right;
+  }
+
+  .col-area {
+    width: 120px;
+  }
+}
+
+// Status badges
+.bulk-status {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+
+  &.bulk-status-working {
+    background: rgba($dracula-green, 0.15);
+    color: $dracula-green;
+  }
+
+  &.bulk-status-idle {
+    background: rgba($text-muted, 0.15);
+    color: $text-secondary;
+  }
+
+  &.bulk-status-error {
+    background: rgba($accent-red, 0.15);
+    color: $accent-red;
+  }
+
+  &.bulk-status-stopped {
+    background: rgba($text-muted, 0.1);
+    color: $text-muted;
+  }
+
+  &.bulk-status-waiting_input,
+  &.bulk-status-waiting_permission {
+    background: rgba($dracula-yellow, 0.15);
+    color: $dracula-yellow;
+  }
+}
+
+// Area badge
+.bulk-area-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  border: 1px solid;
+  color: $text-secondary;
+}
+
+.bulk-area-none {
+  color: $text-muted;
+}
+
+// Footer override for bulk modal
+.bulk-footer {
+  flex-wrap: wrap;
+
+  .footer-buttons-left,
+  .footer-buttons-right {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+}
+
+// Confirmation overlay
+.bulk-confirm-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  border-radius: $radius-xl;
+}
+
+.bulk-confirm-box {
+  background: $bg-secondary;
+  border: 1px solid $border-color;
+  border-radius: $radius-lg;
+  padding: 24px;
+  max-width: 400px;
+  text-align: center;
+
+  p {
+    margin: 0 0 16px;
+    color: $text-primary;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+}
+
+.bulk-confirm-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+// Responsive
+@media (max-width: 768px) {
+  .bulk-manage-modal {
+    width: 95vw;
+  }
+
+  .filter-row {
+    flex-direction: column;
+  }
+
+  .bulk-filter-select,
+  .bulk-filter-search {
+    width: 100%;
+  }
+
+  .bulk-footer {
+    flex-direction: column;
+    gap: 8px;
+  }
+}
