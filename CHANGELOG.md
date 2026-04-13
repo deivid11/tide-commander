@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.37.0] - 2026-04-13
+
+### Added
+- **Turn state tracking** - Agent processes now track whether they are mid-turn or waiting for input, enabling smarter stdin message routing
+- **Spawn Agent context menu** - Right-click an area to spawn a new agent directly into it
+- **Area directory inference** - SpawnModal uses area directories for cwd when spawning into an area, falling back to member agent cwds
+
+### Changed
+- **Stdin message routing** - Improved logging and routing logic when sending messages to running agents via stdin reuse
+- **Process diagnostics** - Turn state now displayed in runner process state dumps
+
 ## [1.36.1] - 2026-04-10
 
 ### Changed
