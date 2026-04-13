@@ -6,7 +6,7 @@ const BT3 = '```';
 export const createBuilding: BuiltinSkillDefinition = {
   slug: 'create-building',
   name: 'Create Building',
-  description: 'Create and manage buildings in Tide Commander with full control over configuration and placement',
+  description: 'Create and manage buildings and areas in Tide Commander with full control over configuration and placement',
   allowedTools: ['Bash(jq:*)', 'Bash(curl:*)', 'Bash(cat:*)'],
   content: `# Create Building Skill
 
@@ -578,5 +578,95 @@ ${BT3}
 - Refresh Tide Commander UI to see new buildings
 - Check "pm2 list" to verify building started correctly
 - Position buildings inside their designated area (check areas.json for coordinates)
+
+---
+
+## Area Management
+
+Areas are project zones on the battlefield that group agents and buildings. File: ~/.local/share/tide-commander/areas.json
+
+### Area Schema (DrawingArea)
+
+**CRITICAL: Follow this schema exactly. Incorrect fields will crash the application.**
+
+${BT3}typescript
+{
+  "id": string,                    // Unique ID (e.g., "my-project-area")
+  "name": string,                  // Display name
+  "type": "rectangle" | "circle",  // REQUIRED - shape type
+  "center": { "x": number, "z": number },  // REQUIRED - center position (NOT flat x/z)
+  "width": number,                 // Rectangle only - width in world units
+  "height": number,                // Rectangle only - height in world units (NOT "depth")
+  "radius": number,                // Circle only - radius in world units
+  "color": string,                 // Hex color (e.g., "#4a90d9")
+  "zIndex": number,                // Stacking order (0 = bottom, higher = on top)
+  "assignedAgentIds": string[],    // Agent IDs assigned to this area
+  "directories": string[],        // Associated directory paths
+  "prompt": string                 // Optional - area-level system prompt for assigned agents
+}
+${BT3}
+
+**Common mistakes to avoid:**
+- Do NOT use flat ${BT}"x"${BT} and ${BT}"z"${BT} at root level — use ${BT}"center": {"x": ..., "z": ...}${BT}
+- Do NOT use ${BT}"depth"${BT} — use ${BT}"height"${BT}
+- Do NOT omit ${BT}"type"${BT} — always specify ${BT}"rectangle"${BT} or ${BT}"circle"${BT}
+
+### Create a Rectangle Area
+
+${BT3}bash
+jq '.areas += [{
+  "id": "my-project-area",
+  "name": "My Project",
+  "type": "rectangle",
+  "center": {"x": 0, "z": 0},
+  "width": 12,
+  "height": 10,
+  "color": "#4a90d9",
+  "zIndex": 0,
+  "assignedAgentIds": [],
+  "directories": []
+}]' ~/.local/share/tide-commander/areas.json > /tmp/a.json && mv /tmp/a.json ~/.local/share/tide-commander/areas.json
+${BT3}
+
+### Create a Circle Area
+
+${BT3}bash
+jq '.areas += [{
+  "id": "ops-area",
+  "name": "Operations",
+  "type": "circle",
+  "center": {"x": 10, "z": -5},
+  "radius": 6,
+  "color": "#d94a4a",
+  "zIndex": 0,
+  "assignedAgentIds": [],
+  "directories": []
+}]' ~/.local/share/tide-commander/areas.json > /tmp/a.json && mv /tmp/a.json ~/.local/share/tide-commander/areas.json
+${BT3}
+
+### List Existing Areas
+
+${BT3}bash
+jq '.areas | map({id, name, type, center, width, height, radius})' ~/.local/share/tide-commander/areas.json
+${BT3}
+
+### Assign Agents to an Area
+
+${BT3}bash
+jq '(.areas[] | select(.id == "my-project-area")).assignedAgentIds += ["agent-id-here"]' ~/.local/share/tide-commander/areas.json > /tmp/a.json && mv /tmp/a.json ~/.local/share/tide-commander/areas.json
+${BT3}
+
+### Add Area-Level Prompt
+
+${BT3}bash
+jq '(.areas[] | select(.id == "my-project-area")).prompt = "Always run tests before committing"' ~/.local/share/tide-commander/areas.json > /tmp/a.json && mv /tmp/a.json ~/.local/share/tide-commander/areas.json
+${BT3}
+
+### Verify
+
+${BT3}bash
+jq empty ~/.local/share/tide-commander/areas.json && echo "Valid JSON"
+jq '.areas | length' ~/.local/share/tide-commander/areas.json
+${BT3}
 `,
 };

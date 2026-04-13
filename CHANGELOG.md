@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.37.2] - 2026-04-13
+
+### Added
+- **Area creation skill** - Create Building skill now includes full area management docs with schema, examples, and common mistakes to avoid
+
+### Fixed
+- **Resilient area loading** - Server and client now validate area data on load, skipping malformed entries with a logged error instead of crashing
+
 ## [1.37.1] - 2026-04-13
 
 ### Added

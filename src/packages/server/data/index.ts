@@ -246,12 +246,37 @@ export async function saveAgentsAsync(agents: Agent[]): Promise<void> {
 }
 
 /**
+ * Validate that an area has the required fields to avoid crashes from malformed data.
+ */
+function isValidArea(area: any): area is DrawingArea {
+  return (
+    area &&
+    typeof area.id === 'string' &&
+    typeof area.center === 'object' &&
+    area.center !== null &&
+    typeof area.center.x === 'number' &&
+    typeof area.center.z === 'number' &&
+    (area.type === 'rectangle' || area.type === 'circle')
+  );
+}
+
+/**
  * Load drawing areas from disk
  */
 export function loadAreas(): DrawingArea[] {
   ensureDataDir();
   const data = safeReadJsonSync<{ areas: DrawingArea[] }>(AREAS_FILE, 'Areas');
-  return data?.areas || [];
+  const raw = data?.areas || [];
+  const valid: DrawingArea[] = [];
+  for (const area of raw) {
+    if (isValidArea(area)) {
+      valid.push(area);
+    } else {
+      const a = area as any;
+      log.error(` Skipping malformed area "${a?.id ?? a?.name ?? 'unknown'}": missing required fields (center, type)`);
+    }
+  }
+  return valid;
 }
 
 /**

@@ -237,15 +237,18 @@ export function createAreaActions(
         const newAreas = new Map<string, DrawingArea>();
         for (let i = 0; i < areasArray.length; i++) {
           const area = areasArray[i];
-          // Migration: ensure directories array exists for old areas
+          // Skip malformed areas that would crash rendering
+          if (!area.center || typeof area.center.x !== 'number' || typeof area.center.z !== 'number' || !area.type) {
+            console.error(`[Areas] Skipping malformed area "${area?.id ?? area?.name ?? 'unknown'}": missing center or type`);
+            continue;
+          }
+          // Ensure defaults for optional fields
           if (!area.directories) {
             area.directories = [];
           }
-          // Migration: ensure zIndex exists for old areas
           if (area.zIndex === undefined || area.zIndex === null) {
             area.zIndex = i;
           }
-          // Migration: ensure archived defaults to false for old areas
           if (area.archived === undefined) {
             area.archived = false;
           }
