@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.37.1] - 2026-04-13
+
+### Added
+- **Configurable tab title** - New setting in General section to customize the browser tab title (defaults to "Tide Commander" when empty)
+- **i18n support** - Tab title setting translated across all 10 supported languages
+
 ## [1.37.0] - 2026-04-13
 
 ### Added

@@ -29,6 +29,8 @@
     "stt": "音声認識",
     "externalEditor": "外部エディタ",
     "externalEditorPlaceholder": "例: subl, code, nvim (空欄でシステムデフォルト)",
+    "tabTitle": "タブタイトル",
+    "tabTitlePlaceholder": "カスタムブラウザタブタイトル（デフォルト: Tide Commander）",
     "language": "言語",
     "compactView": "コンパクト表示",
     "autoScroll": "自動スクロール",

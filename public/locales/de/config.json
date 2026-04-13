@@ -29,6 +29,8 @@
     "stt": "Sprache-zu-Text",
     "externalEditor": "Externer Editor",
     "externalEditorPlaceholder": "z.B. subl, code, nvim (leer lassen für Systemstandard)",
+    "tabTitle": "Tab-Titel",
+    "tabTitlePlaceholder": "Benutzerdefinierter Browser-Tab-Titel (Standard: Tide Commander)",
     "language": "Sprache",
     "compactView": "Kompakte Ansicht",
     "autoScroll": "Automatisches Scrollen",

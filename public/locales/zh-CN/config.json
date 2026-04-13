@@ -29,6 +29,8 @@
     "stt": "语音转文字",
     "externalEditor": "外部编辑器",
     "externalEditorPlaceholder": "例如：subl, code, nvim（留空使用系统默认）",
+    "tabTitle": "标签页标题",
+    "tabTitlePlaceholder": "自定义浏览器标签页标题（默认：Tide Commander）",
     "language": "语言",
     "compactView": "紧凑视图",
     "autoScroll": "自动滚动",

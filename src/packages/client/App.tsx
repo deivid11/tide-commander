@@ -249,6 +249,11 @@ function AppContent() {
   useAreaHighlight(sceneRef, selectedAreaId);
   usePowerSaving(sceneRef, settings.powerSaving);
 
+  // Configurable browser tab title
+  useEffect(() => {
+    document.title = settings.tabTitle?.trim() || 'Tide Commander';
+  }, [settings.tabTitle]);
+
   // POC: allow external launchers (e.g. KRunner) to deep-link into an agent terminal.
   // Supported query params:
   // - agentId=<id>

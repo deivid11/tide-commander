@@ -29,6 +29,8 @@
     "stt": "Reconnaissance vocale",
     "externalEditor": "Éditeur externe",
     "externalEditorPlaceholder": "ex. : subl, code, nvim (laisser vide pour le défaut système)",
+    "tabTitle": "Titre de l'onglet",
+    "tabTitlePlaceholder": "Titre personnalisé de l'onglet (par défaut : Tide Commander)",
     "language": "Langue",
     "compactView": "Vue compacte",
     "autoScroll": "Défilement automatique",

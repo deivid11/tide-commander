@@ -29,6 +29,8 @@
     "stt": "Распознавание речи",
     "externalEditor": "Внешний редактор",
     "externalEditorPlaceholder": "напр., subl, code, nvim (оставьте пустым для системного по умолчанию)",
+    "tabTitle": "Заголовок вкладки",
+    "tabTitlePlaceholder": "Пользовательский заголовок вкладки браузера (по умолчанию: Tide Commander)",
     "language": "Язык",
     "compactView": "Компактный вид",
     "autoScroll": "Автопрокрутка",

@@ -119,6 +119,8 @@ export interface Settings {
   externalEditorCommand?: string; // e.g., 'subl', 'code', 'nvim' (empty = system default)
   // Vibration intensity for gestures: 0=off, 1=ultra light, 2=very light, 3=light, 4=medium, 5=heavy
   vibrationIntensity: number;
+  // Custom browser tab title (empty = default "Tide Commander")
+  tabTitle?: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -133,6 +135,7 @@ export const DEFAULT_SETTINGS: Settings = {
   experimentalEchoPrompt: false,
   externalEditorCommand: '',
   vibrationIntensity: 1,
+  tabTitle: '',
 };
 
 // Supervisor state

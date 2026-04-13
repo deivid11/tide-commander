@@ -29,6 +29,8 @@
     "stt": "Fala para Texto",
     "externalEditor": "Editor Externo",
     "externalEditorPlaceholder": "ex., subl, code, nvim (deixe vazio para o padrao do sistema)",
+    "tabTitle": "Título da aba",
+    "tabTitlePlaceholder": "Título personalizado da aba do navegador (padrão: Tide Commander)",
     "language": "Idioma",
     "compactView": "Visualizacao Compacta",
     "autoScroll": "Rolagem Automatica",

@@ -29,6 +29,8 @@
     "stt": "स्पीच-टू-टेक्स्ट",
     "externalEditor": "बाहरी संपादक",
     "externalEditorPlaceholder": "जैसे, subl, code, nvim (सिस्टम डिफ़ॉल्ट के लिए खाली छोड़ें)",
+    "tabTitle": "टैब शीर्षक",
+    "tabTitlePlaceholder": "कस्टम ब्राउज़र टैब शीर्षक (डिफ़ॉल्ट: Tide Commander)",
     "language": "भाषा",
     "compactView": "कॉम्पैक्ट दृश्य",
     "autoScroll": "ऑटो स्क्रॉल",

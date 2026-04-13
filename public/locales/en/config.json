@@ -29,6 +29,8 @@
     "stt": "Speech-to-Text",
     "externalEditor": "External Editor",
     "externalEditorPlaceholder": "e.g., subl, code, nvim (leave empty for system default)",
+    "tabTitle": "Tab Title",
+    "tabTitlePlaceholder": "Custom browser tab title (default: Tide Commander)",
     "language": "Language",
     "compactView": "Compact View",
     "autoScroll": "Auto Scroll",

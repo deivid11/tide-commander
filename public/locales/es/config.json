@@ -29,6 +29,8 @@
     "stt": "Voz a texto",
     "externalEditor": "Editor externo",
     "externalEditorPlaceholder": "ej., subl, code, nvim (dejar vacio para el predeterminado)",
+    "tabTitle": "Título de pestaña",
+    "tabTitlePlaceholder": "Título personalizado de la pestaña (predeterminado: Tide Commander)",
     "language": "Idioma",
     "compactView": "Vista compacta",
     "autoScroll": "Desplazamiento automatico",

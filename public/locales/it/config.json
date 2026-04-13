@@ -29,6 +29,8 @@
     "stt": "Riconoscimento vocale",
     "externalEditor": "Editor esterno",
     "externalEditorPlaceholder": "es. subl, code, nvim (lascia vuoto per il predefinito di sistema)",
+    "tabTitle": "Titolo scheda",
+    "tabTitlePlaceholder": "Titolo personalizzato della scheda del browser (predefinito: Tide Commander)",
     "language": "Lingua",
     "compactView": "Vista compatta",
     "autoScroll": "Scorrimento automatico",

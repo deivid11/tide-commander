@@ -181,7 +181,7 @@ function HighlightText({ text, query }: { text: string; query: string }) {
 
 // Define searchable settings configuration (English keywords for search matching)
 const SETTINGS_SECTIONS = [
-  { id: 'general', title: 'General', keywords: ['history', 'hide costs', 'grid', 'fps', 'power saving', 'performance', 'limit', 'editor', 'external editor', 'language', 'idioma', '语言', 'vibration', 'haptic', 'intensity'] },
+  { id: 'general', title: 'General', keywords: ['history', 'hide costs', 'grid', 'fps', 'power saving', 'performance', 'limit', 'editor', 'external editor', 'language', 'idioma', '语言', 'vibration', 'haptic', 'intensity', 'tab title'] },
   { id: 'agentNames', title: 'Agent Names', keywords: ['agent', 'names', 'custom', 'characters', 'rename'] },
   { id: 'appearance', title: 'Appearance', keywords: ['theme', 'appearance', 'color', 'dark', 'light', 'style', 'look'] },
   { id: 'connection', title: 'Connection', keywords: ['backend', 'url', 'auth', 'token', 'reconnect', 'server', 'api', 'connect', 'codex', 'binary', 'path'] },
@@ -406,6 +406,10 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
         <div className="config-row">
           <span className="config-label"><HighlightText text={t('config:general.externalEditor')} query={searchQuery} /></span>
           <input type="text" className="config-input" placeholder={t('config:general.externalEditorPlaceholder')} value={state.settings.externalEditorCommand || ''} onChange={(e) => store.updateSettings({ externalEditorCommand: e.target.value })} />
+        </div>
+        <div className="config-row">
+          <span className="config-label"><HighlightText text={t('config:general.tabTitle')} query={searchQuery} /></span>
+          <input type="text" className="config-input" placeholder={t('config:general.tabTitlePlaceholder')} value={state.settings.tabTitle || ''} onChange={(e) => store.updateSettings({ tabTitle: e.target.value })} />
         </div>
         <div className="config-group">
           <span className="config-label"><HighlightText text={t('config:general.language')} query={searchQuery} /></span>
