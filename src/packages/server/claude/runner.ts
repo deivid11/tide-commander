@@ -156,6 +156,24 @@ export class ClaudeRunner {
       this.restartPolicy.maybeAutoRestart(agentId, activeProcess, null, null);
     });
 
+    // Track turn state transitions based on events
+    this.bus.on('runner.event', ({ agentId, event }) => {
+      const activeProcess = this.activeProcesses.get(agentId);
+      if (!activeProcess) return;
+
+      if (event.type === 'init') {
+        // Process just initialized or started a new turn - it's processing
+        activeProcess.turnState = 'processing';
+      } else if (event.type === 'step_complete') {
+        // Turn completed - process is now waiting for the next stdin message
+        activeProcess.turnState = 'waiting_for_input';
+        log.log(`🔄 [TURN] Agent ${agentId}: Turn complete, now waiting for input (stdin reuse ready)`);
+      } else if (event.type === 'text' || event.type === 'tool_start' || event.type === 'thinking') {
+        // Actively processing
+        activeProcess.turnState = 'processing';
+      }
+    });
+
     this.bus.on('runner.process_closed', ({ agentId, pid, code, signal }) => {
       const wasTracked = this.activeProcesses.has(agentId);
       const trackedProcess = this.activeProcesses.get(agentId);
@@ -226,6 +244,7 @@ export class ClaudeRunner {
     lastActivitySec: number;
     hasError: boolean;
     stdinWritable: boolean;
+    turnState: string;
   }> {
     const now = Date.now();
     return Array.from(this.activeProcesses.entries()).map(([agentId, proc]) => ({
@@ -235,6 +254,7 @@ export class ClaudeRunner {
       lastActivitySec: proc.lastActivityTime ? (now - proc.lastActivityTime) / 1000 : -1,
       hasError: !!proc.lastError,
       stdinWritable: !!(proc.process.stdin && proc.process.stdin.writable),
+      turnState: proc.turnState || 'unknown',
     }));
   }
 
@@ -251,7 +271,8 @@ export class ClaudeRunner {
     for (const proc of state) {
       const errorStr = proc.hasError ? ' ❌ERROR' : '';
       const stdinStr = proc.stdinWritable ? ' ✅stdin' : ' ❌stdin';
-      log.log(`   ${proc.agentId.slice(0, 8)}: PID=${proc.pid} runtime=${proc.runtimeSec.toFixed(1)}s activity=${proc.lastActivitySec >= 0 ? `${proc.lastActivitySec.toFixed(1)}s` : 'none'}${stdinStr}${errorStr}`);
+      const turnStr = ` turn=${proc.turnState}`;
+      log.log(`   ${proc.agentId.slice(0, 8)}: PID=${proc.pid} runtime=${proc.runtimeSec.toFixed(1)}s activity=${proc.lastActivitySec >= 0 ? `${proc.lastActivitySec.toFixed(1)}s` : 'none'}${stdinStr}${turnStr}${errorStr}`);
     }
   }
 
@@ -276,19 +297,45 @@ export class ClaudeRunner {
       return false;
     }
 
+    const turnState = activeProcess.turnState || 'processing';
+    const messageLen = message.length;
+
+    if (turnState === 'processing') {
+      // Agent is mid-turn: write to stdin buffer, Claude Code will process after current turn
+      // NOTE: SIGINT kills the process entirely, so we can't interrupt - just queue via stdin
+      log.log(`⚡ [SEND_MESSAGE] Agent ${agentId} is mid-turn (turnState=${turnState}), writing to stdin buffer (${messageLen} chars) - will be processed after current turn`);
+      return this.writeToStdin(agentId, activeProcess, message);
+    }
+
+    // Agent is waiting for input: send directly via stdin (immediate processing)
+    log.log(`📨 [SEND_MESSAGE] Agent ${agentId} is idle (turnState=${turnState}), sending directly via stdin (${messageLen} chars)`);
+    return this.writeToStdin(agentId, activeProcess, message);
+  }
+
+  /**
+   * Write a message directly to the process stdin (no turn state checks)
+   */
+  private writeToStdin(agentId: string, activeProcess: ActiveProcess, message: string): boolean {
+    const stdin = activeProcess.process.stdin;
+    if (!stdin || !stdin.writable) {
+      log.error(`❌ [WRITE_STDIN] stdin not writable for ${agentId}`);
+      return false;
+    }
+
     const stdinInput = this.backend.formatStdinInput(message);
     const messageLen = message.length;
 
     stdin.write(stdinInput + '\n', 'utf8', (err) => {
       if (err) {
-        log.error(`❌ [SEND_MESSAGE] Failed to write ${messageLen} chars to stdin for ${agentId}: ${err.message}`);
+        log.error(`❌ [WRITE_STDIN] Failed to write ${messageLen} chars to stdin for ${agentId}: ${err.message}`);
         activeProcess.lastError = {
           type: 'stdin_write_error',
           message: err.message,
           timestamp: Date.now(),
         };
       } else {
-        log.log(`✅ [SEND_MESSAGE] Successfully wrote ${messageLen} chars to ${agentId}`);
+        log.log(`✅ [WRITE_STDIN] Successfully wrote ${messageLen} chars to ${agentId}`);
+        activeProcess.turnState = 'processing';
       }
     });
 
@@ -345,6 +392,10 @@ export class ClaudeRunner {
 
   getSessionId(agentId: string): string | undefined {
     return this.activeProcesses.get(agentId)?.sessionId;
+  }
+
+  getTurnState(agentId: string): 'processing' | 'waiting_for_input' | undefined {
+    return this.activeProcesses.get(agentId)?.turnState;
   }
 
   hasRecentActivity(agentId: string, withinMs: number): boolean {

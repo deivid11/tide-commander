@@ -102,6 +102,7 @@ export class RunnerProcessLifecycle {
       process: childProcess,
       lastRequest: request,
       restartCount: 0,
+      turnState: 'processing',
     };
     this.activeProcesses.set(agentId, activeProcess);
 

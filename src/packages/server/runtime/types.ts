@@ -39,6 +39,8 @@ export interface RuntimeRunner {
   onNextActivity(agentId: string, callback: () => void): void;
   /** Whether this runner's backend supports stdin-based follow-up messages */
   supportsStdin(): boolean;
+  /** Get the current turn state of a process (processing vs waiting for input) */
+  getTurnState?(agentId: string): 'processing' | 'waiting_for_input' | undefined;
 }
 
 export interface RuntimeProvider {

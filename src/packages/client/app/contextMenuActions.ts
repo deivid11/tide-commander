@@ -143,6 +143,18 @@ export function buildContextMenuActions(
           },
         });
       }
+      actions.push({
+        id: 'spawn-in-area',
+        label: 'Spawn Agent',
+        icon: '🤖',
+        onClick: () => {
+          window.dispatchEvent(
+            new CustomEvent('tide:open-spawn-modal', {
+              detail: { areaId: target.id },
+            })
+          );
+        },
+      });
       actions.push({ id: 'divider-area-layer', label: '', divider: true, onClick: () => {} });
       actions.push({
         id: 'bring-to-front',

@@ -263,6 +263,8 @@ export interface ActiveProcess {
     message: string;
     timestamp: number;
   };
+  // Turn state: tracks whether the process is mid-turn or waiting for stdin input
+  turnState?: 'processing' | 'waiting_for_input';
 }
 
 // Process death info for diagnostics

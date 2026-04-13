@@ -139,13 +139,17 @@ export function createRuntimeCommandExecution(deps: RuntimeCommandExecutionDeps)
       throw new Error(`Runtime provider not initialized: ${agent.provider}`);
     }
 
-    if (runner.isRunning(agentId) && !forceNewSession) {
+    const processRunning = runner.isRunning(agentId);
+    if (processRunning && !forceNewSession) {
       if (runner.supportsStdin()) {
+        const turnState = runner.getTurnState?.(agentId) || 'unknown';
+        log.log(`[sendCommand] Agent ${agentId}: Process alive, reusing via stdin (turnState=${turnState}, cmd=${command.substring(0, 60)})`);
         const sent = runner.sendMessage(agentId, command);
         if (sent) {
           notifyCommandStarted(agentId, command);
           const isSystemMessage = command.startsWith('[System:');
           const updateData: Record<string, unknown> = {
+            status: 'working' as const,
             taskCount: (agent.taskCount || 0) + 1,
           };
           if (!isSystemMessage) {
@@ -174,10 +178,13 @@ export function createRuntimeCommandExecution(deps: RuntimeCommandExecutionDeps)
 
           return;
         }
+        log.warn(`[sendCommand] Agent ${agentId}: stdin sendMessage returned false, falling through to respawn`);
       } else {
         log.log(`[sendCommand] Agent ${agentId} (${agent.provider}): backend does not support stdin, stopping current process to respawn with resume`);
         await runner.stop(agentId);
       }
+    } else if (!processRunning) {
+      log.log(`[sendCommand] Agent ${agentId}: Process not running, spawning new (sessionId=${agent.sessionId || 'none'})`);
     }
 
     agentService.updateAgent(agentId, { taskCount: (agent.taskCount || 0) + 1 });
