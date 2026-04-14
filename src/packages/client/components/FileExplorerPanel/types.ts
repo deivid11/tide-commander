@@ -290,6 +290,9 @@ export interface MergeResult {
   output?: string;
   error?: string;
   conflicts?: string[];
+  stashed?: boolean;
+  stashConflicts?: string[];
+  message?: string;
 }
 
 export interface ConflictVersions {

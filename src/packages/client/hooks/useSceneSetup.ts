@@ -394,10 +394,10 @@ export function useSceneSetup({
           const savedConfig = loadConfig();
           scene.setCharacterScale(savedConfig.characterScale);
           scene.setScale3D(savedConfig.scale3d);
-          scene.setGridVisible(savedConfig.gridVisible);
           scene.setTimeMode(savedConfig.timeMode);
           scene.setTerrainConfig(savedConfig.terrain);
           scene.setFloorStyle(savedConfig.terrain.floorStyle, true);
+          scene.setGridVisible(savedConfig.gridVisible);
           scene.setAgentModelStyle(savedConfig.modelStyle);
           scene.setIdleAnimation(savedConfig.animations.idleAnimation);
           scene.setWorkingAnimation(savedConfig.animations.workingAnimation);

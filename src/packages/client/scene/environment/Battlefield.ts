@@ -67,6 +67,9 @@ export class Battlefield {
   // Track terrain visibility for resize recreation
   private terrainVisibility = { trees: true, bushes: true, house: true, lamps: true, grass: true };
 
+  // Track grid visibility so resize can preserve it
+  private gridVisible = true;
+
   constructor(scene: THREE.Scene) {
     this.scene = scene;
   }
@@ -75,6 +78,7 @@ export class Battlefield {
    * Set grid visibility.
    */
   setGridVisible(visible: boolean): void {
+    this.gridVisible = visible;
     if (this.gridHelper) {
       this.gridHelper.visible = visible;
     }
@@ -632,6 +636,7 @@ export class Battlefield {
     const divisions = Math.round(this.currentSize / 2);
     this.gridHelper = new THREE.GridHelper(this.currentSize, divisions, 0x2a2a3a, 0x1a1a2a);
     this.gridHelper.position.y = 0.01;
+    this.gridHelper.visible = this.gridVisible;
     this.scene.add(this.gridHelper);
   }
 

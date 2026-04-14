@@ -390,10 +390,10 @@ function AppContent() {
     saveConfig(config);
     sceneRef.current?.setCharacterScale(config.characterScale);
     sceneRef.current?.setScale3D(config.scale3d);
-    sceneRef.current?.setGridVisible(config.gridVisible);
     sceneRef.current?.setTimeMode(config.timeMode);
     sceneRef.current?.setTerrainConfig(config.terrain);
     sceneRef.current?.setFloorStyle(config.terrain.floorStyle);
+    sceneRef.current?.setGridVisible(config.gridVisible);
     sceneRef.current?.setAgentModelStyle(config.modelStyle);
     sceneRef.current?.setIdleAnimation(config.animations.idleAnimation);
     sceneRef.current?.setWorkingAnimation(config.animations.workingAnimation);

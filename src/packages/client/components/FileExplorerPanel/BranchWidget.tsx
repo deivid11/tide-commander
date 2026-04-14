@@ -145,7 +145,15 @@ export const BranchWidget = memo(function BranchWidget({
     if (!currentFolder || operationInProgress) return;
     const result = await pullFromRemote(currentFolder);
     if (result.success) {
-      setStatusMessage({ type: 'success', text: t('terminal:fileExplorer.pullComplete') });
+      if (result.stashConflicts && result.stashConflicts.length > 0) {
+        setStatusMessage({ type: 'error', text: `Pull succeeded but stash pop had conflicts: ${result.stashConflicts.length} file(s). Resolve manually.` });
+        onPullConflicts?.(result.stashConflicts);
+        setShowDropdown(false);
+      } else if (result.stashed) {
+        setStatusMessage({ type: 'success', text: 'Pull complete. Local changes were auto-stashed and restored.' });
+      } else {
+        setStatusMessage({ type: 'success', text: t('terminal:fileExplorer.pullComplete') });
+      }
       onBranchChanged();
       loadBranches(currentFolder);
     } else if (result.conflicts && result.conflicts.length > 0) {
