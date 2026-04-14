@@ -357,6 +357,21 @@ export function waitForReply(params: WaitForReplyParams): Promise<SlackMessage |
   });
 }
 
+// ─── Channel Management ───
+
+export async function joinChannel(channel: string): Promise<{ id: string; name: string }> {
+  if (!webClient) throw new Error('Slack not connected');
+
+  const result = await webClient.conversations.join({ channel });
+  const ch = result.channel as { id: string; name: string } | undefined;
+  if (!ch) throw new Error(`Failed to join channel ${channel}`);
+
+  // Update cache
+  channelNameCache.set(ch.id, ch.name);
+
+  return { id: ch.id, name: ch.name };
+}
+
 // ─── Lookup ───
 
 export async function listChannels(): Promise<SlackChannel[]> {
@@ -466,6 +481,71 @@ export async function findUserByName(displayName: string): Promise<SlackUser | n
   }
 
   return null;
+}
+
+// ─── Direct Messages ───
+
+export async function openDmChannel(userId: string): Promise<string> {
+  if (!webClient) throw new Error('Slack not connected');
+
+  const result = await webClient.conversations.open({ users: userId });
+  const channelId = (result.channel as { id: string })?.id;
+  if (!channelId) throw new Error(`Failed to open DM channel with user ${userId}`);
+  return channelId;
+}
+
+export interface SendDmParams {
+  userId: string;
+  text: string;
+  agentId?: string;
+  workflowInstanceId?: string;
+}
+
+export async function sendDm(params: SendDmParams): Promise<{ ts: string; channel: string }> {
+  const dmChannel = await openDmChannel(params.userId);
+  return sendMessage({
+    channel: dmChannel,
+    text: params.text,
+    agentId: params.agentId,
+    workflowInstanceId: params.workflowInstanceId,
+  });
+}
+
+export async function searchUsers(query: string): Promise<SlackUser[]> {
+  if (!webClient) throw new Error('Slack not connected');
+
+  const result = await webClient.users.list({ limit: 500 });
+  const lower = query.toLowerCase();
+  const matches: SlackUser[] = [];
+
+  for (const u of result.members || []) {
+    if (u.deleted || u.is_bot) continue;
+    const profile = u.profile as { display_name?: string; email?: string } | undefined;
+    const name = (u.name as string) || '';
+    const realName = (u.real_name as string) || '';
+    const displayName = profile?.display_name || '';
+    const email = profile?.email || '';
+
+    if (
+      name.toLowerCase().includes(lower) ||
+      realName.toLowerCase().includes(lower) ||
+      displayName.toLowerCase().includes(lower) ||
+      email.toLowerCase().includes(lower)
+    ) {
+      const user: SlackUser = {
+        id: u.id as string,
+        name,
+        realName,
+        displayName: displayName || name,
+        email,
+        isBot: false,
+      };
+      userCache.set(user.id, user);
+      matches.push(user);
+    }
+  }
+
+  return matches;
 }
 
 // ─── Event Subscription (for triggers) ───

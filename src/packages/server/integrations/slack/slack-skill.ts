@@ -26,6 +26,27 @@ To reply in a thread, add \`"threadTs":"THREAD_TIMESTAMP"\`.
 
 To track which agent sent the message, add \`"agentId":"YOUR_AGENT_ID"\`.
 
+## Send a Direct Message
+
+\`\`\`bash
+curl -s -X POST http://localhost:5174/api/slack/dm \\
+  -H "Content-Type: application/json" \\
+  -d '{"userId":"U0123456789","text":"Your message here"}'
+\`\`\`
+
+Required: \`userId\` (Slack user ID), \`text\`.
+Optional: \`agentId\`, \`workflowInstanceId\`.
+
+Use the search endpoint below to find a user's ID by name or email.
+
+## Search Users
+
+\`\`\`bash
+curl -s "http://localhost:5174/api/slack/users/search?q=john"
+\`\`\`
+
+Searches by name, display name, real name, or email. Returns matching users with their IDs.
+
 ## Read Channel Messages
 
 \`\`\`bash
@@ -54,6 +75,16 @@ Optional body fields:
 - \`fromUsers\`: Array of Slack user IDs to filter replies
 - \`messagePattern\`: Regex to match reply text
 - \`timeoutMs\`: Timeout in ms (default 300000 = 5 min)
+
+## Join a Channel
+
+\`\`\`bash
+curl -s -X POST http://localhost:5174/api/slack/channels/join \\
+  -H "Content-Type: application/json" \\
+  -d '{"channel":"CHANNEL_ID"}'
+\`\`\`
+
+The bot must join a channel before it can read messages or post in it. Use the list endpoint to find channel IDs.
 
 ## List Channels
 
