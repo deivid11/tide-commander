@@ -111,7 +111,41 @@ router.get('/channels', async (_req: Request, res: Response) => {
   }
 });
 
-// GET /api/slack/users/:userId — Resolve a user
+// POST /api/slack/channels/join — Join a channel
+router.post('/channels/join', async (req: Request, res: Response) => {
+  try {
+    const { channel } = req.body;
+    if (!channel) {
+      res.status(400).json({ error: 'channel is required' });
+      return;
+    }
+
+    const result = await slackClient.joinChannel(channel);
+    res.json({ success: true, channel: result });
+  } catch (err) {
+    log.error(`Slack join channel error: ${err}`);
+    res.status(500).json({ error: `Failed to join channel: ${err instanceof Error ? err.message : err}` });
+  }
+});
+
+// GET /api/slack/users/search?q=... — Search users by name or email
+router.get('/users/search', async (req: Request, res: Response) => {
+  try {
+    const query = req.query.q as string;
+    if (!query) {
+      res.status(400).json({ error: 'q query param is required' });
+      return;
+    }
+
+    const users = await slackClient.searchUsers(query);
+    res.json({ users });
+  } catch (err) {
+    log.error(`Slack user search error: ${err}`);
+    res.status(500).json({ error: `Failed to search users: ${err instanceof Error ? err.message : err}` });
+  }
+});
+
+// GET /api/slack/users/:userId — Resolve a user by ID
 router.get('/users/:userId', async (req: Request<{ userId: string }>, res: Response) => {
   try {
     const user = await slackClient.resolveUser(req.params.userId);
@@ -119,6 +153,23 @@ router.get('/users/:userId', async (req: Request<{ userId: string }>, res: Respo
   } catch (err) {
     log.error(`Slack user resolve error: ${err}`);
     res.status(500).json({ error: `Failed to resolve user: ${err instanceof Error ? err.message : err}` });
+  }
+});
+
+// POST /api/slack/dm — Send a direct message to a user
+router.post('/dm', async (req: Request, res: Response) => {
+  try {
+    const { userId, text, agentId, workflowInstanceId } = req.body;
+    if (!userId || !text) {
+      res.status(400).json({ error: 'userId and text are required' });
+      return;
+    }
+
+    const result = await slackClient.sendDm({ userId, text, agentId, workflowInstanceId });
+    res.json({ success: true, ts: result.ts, channel: result.channel });
+  } catch (err) {
+    log.error(`Slack DM error: ${err}`);
+    res.status(500).json({ error: `Failed to send DM: ${err instanceof Error ? err.message : err}` });
   }
 });
 

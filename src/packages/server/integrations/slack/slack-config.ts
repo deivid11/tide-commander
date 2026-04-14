@@ -85,7 +85,7 @@ export const slackConfigSchema: ConfigField[] = [
     key: 'SLACK_BOT_TOKEN',
     label: 'Bot Token',
     type: 'password',
-    description: 'Slack Bot User OAuth Token (xoxb-...)',
+    description: 'Slack Bot User OAuth Token (xoxb-...). Found in the "OAuth & Permissions" section of your Slack app. Required scopes: channels:history, channels:read, chat:write, groups:history, groups:read, im:history, im:read, users:read.',
     placeholder: 'xoxb-...',
     required: true,
     secret: true,

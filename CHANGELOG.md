@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.38.0] - 2026-04-14
+
+### Added
+- **Slack DM support** - New `/api/slack/dm` endpoint for sending direct messages to users by Slack user ID
+- **Slack user search** - New `/api/slack/users/search?q=` endpoint to find users by name, display name, or email
+- **Slack join channel** - New `/api/slack/channels/join` endpoint for the bot to join channels before reading or posting
+
+### Fixed
+- **Slack auto-connect on config save** - Saving Slack config with valid tokens and enabled state now automatically connects (previously required server restart)
+
 ## [1.37.2] - 2026-04-13
 
 ### Added

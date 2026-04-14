@@ -64,5 +64,22 @@ export const slackPlugin: IntegrationPlugin = {
   async setConfig(config: Record<string, unknown>) {
     if (!integrationCtx) throw new Error('Slack not initialized');
     await setConfigValues(config, integrationCtx.secrets);
+
+    // Auto-connect or disconnect based on new config state
+    const updated = loadConfig();
+    const botToken = integrationCtx.secrets.get('SLACK_BOT_TOKEN');
+    const appToken = integrationCtx.secrets.get('SLACK_APP_TOKEN');
+
+    if (updated.enabled && botToken && appToken) {
+      // Tokens + enabled: (re)connect
+      try {
+        await slackClient.reconnect();
+      } catch {
+        // Error is already captured in config status by reconnect()
+      }
+    } else if (!updated.enabled && slackClient.isConnected()) {
+      // Disabled: disconnect
+      await slackClient.disconnect();
+    }
   },
 };
