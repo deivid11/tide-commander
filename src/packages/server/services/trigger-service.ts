@@ -63,8 +63,16 @@ function emit(event: TriggerListenerEvent, data: unknown): void {
 
 export function initTriggers(): void {
   const stored = loadTriggers();
-  for (const trigger of stored) {
-    triggers.set(trigger.id, trigger);
+  let needsPersist = false;
+  for (const raw of stored) {
+    const normalized = normalizeTriggerPayload(raw as unknown as Record<string, unknown>) as unknown as Trigger;
+    // Detect if normalization changed anything
+    if (JSON.stringify(normalized) !== JSON.stringify(raw)) needsPersist = true;
+    triggers.set(normalized.id, normalized);
+  }
+  if (needsPersist) {
+    debouncedPersist();
+    log.log('Normalized legacy trigger field names on load');
   }
 
   // Register built-in webhook handler
@@ -117,6 +125,76 @@ export function registerHandler(handler: TriggerHandler): void {
   });
 }
 
+// ─── Payload Normalization ───
+// The trigger-designer skill and API clients may use flat/legacy field names.
+// Normalize to the canonical typed structure before storing.
+
+function normalizeTriggerPayload(data: Record<string, unknown>): Record<string, unknown> {
+  const d = { ...data };
+
+  // matchingMode → matchMode
+  if ('matchingMode' in d && !('matchMode' in d)) {
+    d.matchMode = d.matchingMode;
+    delete d.matchingMode;
+  }
+
+  // Ensure config sub-object exists
+  if (!d.config || typeof d.config !== 'object') {
+    d.config = {};
+  }
+  const config = { ...(d.config as Record<string, unknown>) };
+
+  // Slack: slackChannelId → config.channelId
+  if (d.type === 'slack') {
+    if ('slackChannelId' in d && !('channelId' in config)) {
+      config.channelId = d.slackChannelId;
+      delete d.slackChannelId;
+    }
+    if ('slackUserFilter' in d && !('userFilter' in config)) {
+      config.userFilter = d.slackUserFilter;
+      delete d.slackUserFilter;
+    }
+    if ('slackMessagePattern' in d && !('messagePattern' in config)) {
+      config.messagePattern = d.slackMessagePattern;
+      delete d.slackMessagePattern;
+    }
+  }
+
+  // Cron: cronExpression → config.expression, cronTimezone → config.timezone
+  if (d.type === 'cron') {
+    if ('cronExpression' in d && !('expression' in config)) {
+      config.expression = d.cronExpression;
+      delete d.cronExpression;
+    }
+    if ('cronTimezone' in d && !('timezone' in config)) {
+      config.timezone = d.cronTimezone;
+      delete d.cronTimezone;
+    }
+  }
+
+  // Email: emailSubjectKeywords → config.subjectPattern
+  if (d.type === 'email') {
+    if ('emailSubjectKeywords' in d && !('subjectPattern' in config)) {
+      const keywords = d.emailSubjectKeywords;
+      if (Array.isArray(keywords) && keywords.length > 0) {
+        config.subjectPattern = keywords.map((k: string) => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+      }
+      delete d.emailSubjectKeywords;
+    }
+  }
+
+  // Jira: jiraProject → config.projectKey, jiraPriority → config (unused but clean up)
+  if (d.type === 'jira') {
+    if ('jiraProject' in d && !('projectKey' in config)) {
+      config.projectKey = d.jiraProject;
+      delete d.jiraProject;
+    }
+  }
+
+  d.config = config;
+  return d;
+}
+
 // ─── CRUD ───
 
 export function getTrigger(id: string): Trigger | undefined {
@@ -130,12 +208,13 @@ export function getAllTriggers(): Trigger[] {
 export function createTrigger(data: Omit<Trigger, 'id' | 'createdAt' | 'updatedAt' | 'fireCount'>): Trigger {
   const id = crypto.randomBytes(8).toString('hex');
   const now = Date.now();
+  const normalized = normalizeTriggerPayload(data as Record<string, unknown>);
 
   const trigger: Trigger = {
-    ...data,
+    ...normalized,
     id,
     fireCount: 0,
-    status: data.enabled ? 'enabled' : 'disabled',
+    status: (normalized.enabled ?? data.enabled) ? 'enabled' : 'disabled',
     createdAt: now,
     updatedAt: now,
   } as Trigger;
@@ -157,10 +236,10 @@ export function createTrigger(data: Omit<Trigger, 'id' | 'createdAt' | 'updatedA
 export function updateTrigger(id: string, updates: Partial<Trigger>): Trigger | null {
   const existing = triggers.get(id);
   if (!existing) return null;
+  const normalized = normalizeTriggerPayload({ ...existing, ...updates } as Record<string, unknown>);
 
   const updated: Trigger = {
-    ...existing,
-    ...updates,
+    ...normalized,
     id: existing.id, // Never overwrite id
     createdAt: existing.createdAt, // Never overwrite createdAt
     updatedAt: Date.now(),

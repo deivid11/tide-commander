@@ -34,7 +34,13 @@ const INTEGRATION_DESCRIPTIONS: Record<string, string> = {
 
 const INTEGRATION_REQUIREMENTS: Record<string, string[]> = {
   gmail: ['Google Cloud Console project', 'OAuth 2.0 credentials (Client ID & Secret)', 'Gmail API enabled'],
-  slack: ['Slack App with Bot Token', 'Signing Secret for webhook verification', 'Required scopes: chat:write, channels:read'],
+  slack: [
+    'Slack App with Bot Token and App-Level Token (Socket Mode)',
+    'Enable Socket Mode in your app settings under "Socket Mode"',
+    'Enable Events in the "Event Subscriptions" section of your app config',
+    'Subscribe to bot events: message.channels, message.groups, message.im',
+    'Required Bot Token scopes: channels:history, channels:read, chat:write, groups:history, groups:read, im:history, im:read, users:read',
+  ],
   jira: ['Jira Cloud instance URL', 'API Token (from Atlassian account)', 'Account email address'],
   'google-calendar': ['Google Cloud Console project', 'OAuth 2.0 credentials', 'Calendar API enabled'],
   docx: ['No external credentials required', 'Templates directory (optional)'],

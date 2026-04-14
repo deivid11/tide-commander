@@ -55,8 +55,9 @@ curl -s -X POST "http://localhost:{{PORT}}/api/triggers" \\
   "description": "Fire agent when external system posts event",
   "type": "webhook",
   "agentId": "AGENT_ID",
-  "matchingMode": "structural",
+  "matchMode": "structural",
   "extractionMode": "none",
+  "config": { "method": "POST" },
   "promptTemplate": "Process external event: {{eventType}} - {{eventData}}",
   "enabled": true,
   "rateLimit": 10
@@ -80,8 +81,8 @@ curl -s -X POST "http://localhost:{{PORT}}/api/triggers" \\
   "description": "Fire at 9 AM every weekday",
   "type": "cron",
   "agentId": "AGENT_ID",
-  "cronExpression": "0 9 * * 1-5",
-  "matchingMode": "structural",
+  "matchMode": "structural",
+  "config": { "expression": "0 9 * * 1-5", "timezone": "UTC" },
   "promptTemplate": "Generate daily status report",
   "enabled": true
 }
@@ -109,10 +110,10 @@ curl -s -X POST "http://localhost:{{PORT}}/api/triggers" \\
   "name": "Slack Approval Processor",
   "description": "Fire when approval request posted in #requests",
   "type": "slack",
-  "slackChannelId": "C0123456789",
   "agentId": "AGENT_ID",
-  "matchingMode": "hybrid",
-  "promptTemplate": "Process approval request: {{message_text}}",
+  "matchMode": "structural",
+  "config": { "channelId": "C0123456789" },
+  "promptTemplate": "Process approval request from @{{slack.user}}: {{slack.message}}",
   "enabled": true
 }
 EOF
@@ -130,8 +131,8 @@ curl -s -X POST "http://localhost:{{PORT}}/api/triggers" \\
   "description": "Fire for emails with 'urgent' in subject",
   "type": "email",
   "agentId": "AGENT_ID",
-  "emailSubjectKeywords": ["urgent", "critical"],
-  "matchingMode": "llm",
+  "matchMode": "llm",
+  "config": { "subjectPattern": "urgent|critical" },
   "promptTemplate": "Handle customer inquiry from {{sender}}: {{subject}}\\n\\n{{body}}",
   "enabled": true
 }
@@ -150,9 +151,8 @@ curl -s -X POST "http://localhost:{{PORT}}/api/triggers" \\
   "description": "Fire when P1 ticket created",
   "type": "jira",
   "agentId": "AGENT_ID",
-  "jiraProject": "INCIDENT",
-  "jiraPriority": "Highest",
-  "matchingMode": "structural",
+  "matchMode": "structural",
+  "config": { "projectKey": "INCIDENT", "events": ["jira:issue_created"] },
   "promptTemplate": "Respond to P1 incident {{ticket_key}}: {{summary}}",
   "enabled": true
 }
@@ -231,15 +231,25 @@ Returns recent firing events and their results.
 
 Depending on trigger type, these variables are available in prompts:
 
-- \`{{eventType}}\` - Type of event (webhook, cron, slack, etc)
-- \`{{eventTime}}\` - When the event occurred
-- \`{{eventData}}\` - Full event payload (webhook)
-- \`{{message_text}}\` - Message content (slack, email)
-- \`{{sender}}\` - Who sent the message
+### Slack triggers
+- \`{{slack.user}}\` - Username of the sender
+- \`{{slack.userId}}\` - Slack user ID
+- \`{{slack.message}}\` - Message text
+- \`{{slack.channel}}\` - Channel ID
+- \`{{slack.threadTs}}\` - Thread timestamp
+
+### Webhook triggers
+- \`{{eventType}}\` - Type of event
+- \`{{eventData}}\` - Full event payload
+
+### Email triggers
+- \`{{sender}}\` - Who sent the email
 - \`{{subject}}\` - Email subject
 - \`{{body}}\` - Email body
+
+### Jira triggers
 - \`{{ticket_key}}\` - Jira ticket ID
-- \`{{summary}}\` - Jira issue summary
+- \`{{summary}}\` - Issue summary
 - \`{{priority}}\` - Priority level
 
 ## Design Guidelines

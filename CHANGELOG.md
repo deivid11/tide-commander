@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.38.1] - 2026-04-14
+
+### Fixed
+- **Trigger field name mismatch** - Triggers created via the API with legacy field names (`matchingMode`, `slackChannelId`) are now auto-normalized to the correct structure (`matchMode`, `config.channelId`), fixing triggers that silently failed to fire
+- **Trigger normalization on load** - Existing triggers with legacy field names are auto-healed on server startup
+
+### Changed
+- **Trigger designer skill** - Updated all examples to use correct field names (`matchMode`, `config` sub-object) and accurate template variables (`{{slack.user}}`, `{{slack.message}}`)
+- **Slack integration instructions** - Added setup steps for Socket Mode, Event Subscriptions, and required bot event subscriptions
+
 ## [1.38.0] - 2026-04-14
 
 ### Added
