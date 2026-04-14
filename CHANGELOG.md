@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.39.0] - 2026-04-14
+
+### Added
+- **Area spawn agent** - "Spawn Agent" option in area right-click menu with area center positioning and directory-based default cwd
+- **Git pull auto-stash** - Git pull now auto-stashes local changes before pulling and restores them after, with conflict reporting in the UI
+
+### Fixed
+- **Grid config persistence** - Grid configuration now persists on refresh by tracking visibility state and reordering initialization calls
+- **Commander View scroll** - Fixed scroll-up bug by releasing pinToBottom after scroll stabilizes and enhancing pin cancel behavior
+
+### Changed
+- **Release pipeline skill** - Added sub-agent delegation model for parallel execution of quality gates and builds
+
 ## [1.38.1] - 2026-04-14
 
 ### Fixed
