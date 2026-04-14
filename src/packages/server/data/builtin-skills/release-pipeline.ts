@@ -20,11 +20,27 @@ export const releasePipeline: BuiltinSkillDefinition = {
 
 Full release workflow for Tide Commander. Runs quality checks, builds web app + APK artifacts, bumps the version, updates the changelog, tags, pushes, creates a GitHub release with APKs attached, and publishes publicly to npm.
 
+## Execution Model: Sub-Agent Delegation
+
+**MANDATORY**: You are the pipeline orchestrator. You MUST delegate pipeline work to sub-agents using the Claude Code \`Agent\` tool. Do NOT run build/lint/test/release commands yourself. Your role is to:
+
+1. **Coordinate** — decide which phase to run next based on previous results
+2. **Delegate** — spawn sub-agents with clear, self-contained task descriptions
+3. **Gate** — check each sub-agent's result before proceeding
+4. **Parallelize** — run independent tasks concurrently by spawning multiple Agents in the same response
+5. **Report** — summarize the overall pipeline result to the user
+
+Each sub-agent prompt MUST include:
+- The exact commands to run (copy them from the phase descriptions below)
+- The working directory (use the current project root)
+- Clear success/failure criteria so the sub-agent can report a definitive result
+- Instructions to use the Streaming Exec API (\`curl -s -X POST -H "X-Auth-Token: abcd" http://localhost:5174/api/exec ...\`) for long-running commands
+
 ## Core Principles
 
-1. **Fail fast** - If any quality gate fails, STOP and report to the user. Do NOT attempt to fix issues automatically.
+1. **Fail fast** — If any sub-agent reports failure, STOP the pipeline and report to the user. Do NOT attempt to fix issues automatically.
 2. **Never force push** to shared branches (main, master, develop)
-3. **Never auto-resolve conflicts** - report them to the user
+3. **Never auto-resolve conflicts** — report them to the user
 4. **Always verify** the current branch before any operation
 5. **NEVER add Co-Authored-By trailers** to commits
 
@@ -34,7 +50,9 @@ Full release workflow for Tide Commander. Runs quality checks, builds web app + 
 
 When asked to "release", "ship", "publish", "do a full release", or similar:
 
-### Phase 1: Pre-Flight Checks
+### Phase 1: Pre-Flight Checks (run yourself)
+
+This phase is lightweight — run it directly, no sub-agent needed.
 
 \`\`\`bash
 # Verify branch and clean state
@@ -54,95 +72,75 @@ git pull --rebase origin $(git branch --show-current)
 
 ---
 
-### Phase 2: Quality Gates (ALL must pass)
+### Phase 2: Quality Gates (delegate to parallel sub-agents)
 
-Run each gate sequentially. If ANY gate fails, STOP and report the failure to the user. Do NOT try to fix issues.
+Spawn **3 sub-agents in parallel** using the Agent tool. Send all 3 Agent calls in a single response so they run concurrently:
 
-Use the Streaming Exec API for all long-running commands so the user can see live output:
-
-\`\`\`bash
-curl -s -X POST http://localhost:5174/api/exec \\
-  -H "Content-Type: application/json" \\
-  -d '{"agentId":"YOUR_AGENT_ID","command":"COMMAND"}'
+**Sub-agent 1 — ESLint:**
+\`\`\`
+Agent({
+  description: "Run ESLint check",
+  prompt: "Run ESLint on the Tide Commander project and report pass/fail. Use the Streaming Exec API: curl -s -X POST -H 'X-Auth-Token: abcd' http://localhost:5174/api/exec -H 'Content-Type: application/json' -d '{\"agentId\":\"YOUR_AGENT_ID\",\"command\":\"npm run lint\"}'. Check the output and exitCode. Report PASS if zero warnings and zero errors, otherwise report FAIL with the lint output. Do not attempt to fix any issues."
+})
 \`\`\`
 
-#### Gate 1: ESLint (zero warnings)
-
-\`\`\`bash
-curl -s -X POST http://localhost:5174/api/exec \\
-  -H "Content-Type: application/json" \\
-  -d '{"agentId":"YOUR_AGENT_ID","command":"npm run lint"}'
+**Sub-agent 2 — TypeScript Type Check:**
+\`\`\`
+Agent({
+  description: "Run TypeScript type check",
+  prompt: "Run TypeScript type checking on the Tide Commander project and report pass/fail. Use the Streaming Exec API: curl -s -X POST -H 'X-Auth-Token: abcd' http://localhost:5174/api/exec -H 'Content-Type: application/json' -d '{\"agentId\":\"YOUR_AGENT_ID\",\"command\":\"npm run lint:types\"}'. Check the output and exitCode. Report PASS if zero type errors, otherwise report FAIL with the errors. Do not attempt to fix any issues."
+})
 \`\`\`
 
-Check the output. If there are **any warnings or errors**, STOP and report them to the user.
-
-#### Gate 2: TypeScript Type Check (zero errors)
-
-\`\`\`bash
-curl -s -X POST http://localhost:5174/api/exec \\
-  -H "Content-Type: application/json" \\
-  -d '{"agentId":"YOUR_AGENT_ID","command":"npm run lint:types"}'
+**Sub-agent 3 — Tests:**
+\`\`\`
+Agent({
+  description: "Run test suite",
+  prompt: "Run the test suite for the Tide Commander project and report pass/fail. Use the Streaming Exec API: curl -s -X POST -H 'X-Auth-Token: abcd' http://localhost:5174/api/exec -H 'Content-Type: application/json' -d '{\"agentId\":\"YOUR_AGENT_ID\",\"command\":\"npm test\"}'. Check the output and exitCode. Report PASS if all tests pass, otherwise report FAIL with the failing test details. Do not attempt to fix any issues."
+})
 \`\`\`
 
-If there are type errors, STOP and report them.
-
-#### Gate 3: Tests (all passing)
-
-\`\`\`bash
-curl -s -X POST http://localhost:5174/api/exec \\
-  -H "Content-Type: application/json" \\
-  -d '{"agentId":"YOUR_AGENT_ID","command":"npm test"}'
-\`\`\`
-
-If any tests fail, STOP and report them.
+**After all 3 return:** Check each result. If ANY sub-agent reported FAIL, STOP the pipeline and report all failures to the user. Only proceed to Phase 3 if all 3 reported PASS.
 
 ---
 
-### Phase 3: Build
+### Phase 3: Build (delegate to sub-agents)
 
-#### Build Web App
+First spawn a sub-agent for the web build. The APK builds depend on the web build output, so they must run after.
 
-\`\`\`bash
-curl -s -X POST http://localhost:5174/api/exec \\
-  -H "Content-Type: application/json" \\
-  -d '{"agentId":"YOUR_AGENT_ID","command":"npm run build"}'
+**Sub-agent — Web Build:**
+\`\`\`
+Agent({
+  description: "Build web app",
+  prompt: "Build the Tide Commander web app and report pass/fail. Use the Streaming Exec API: curl -s -X POST -H 'X-Auth-Token: abcd' http://localhost:5174/api/exec -H 'Content-Type: application/json' -d '{\"agentId\":\"YOUR_AGENT_ID\",\"command\":\"npm run build\"}'. Report PASS if exitCode is 0, otherwise report FAIL with the build error output."
+})
 \`\`\`
 
-If the build fails, STOP and report the error.
+**If web build PASSED**, spawn **2 sub-agents in parallel** for APK builds (send both Agent calls in one response):
 
-#### Build Android Debug APK
-
-After the web build succeeds, always build the debug APK. This runs \`npx cap sync android\` + \`gradlew assembleDebug\`:
-
-\`\`\`bash
-curl -s -X POST http://localhost:5174/api/exec \\
-  -H "Content-Type: application/json" \\
-  -d '{"agentId":"YOUR_AGENT_ID","command":"make apk"}'
+**Sub-agent — Debug APK:**
+\`\`\`
+Agent({
+  description: "Build debug APK",
+  prompt: "Build the Android debug APK for Tide Commander. Use the Streaming Exec API: curl -s -X POST -H 'X-Auth-Token: abcd' http://localhost:5174/api/exec -H 'Content-Type: application/json' -d '{\"agentId\":\"YOUR_AGENT_ID\",\"command\":\"make apk\"}'. This runs npx cap sync android + gradlew assembleDebug. Output APK: android/app/build/outputs/apk/debug/app-debug.apk. Report PASS if exitCode is 0, otherwise report FAIL with the error."
+})
 \`\`\`
 
-Output APK location: \`android/app/build/outputs/apk/debug/app-debug.apk\`
-
-If the APK build fails, STOP and report the error.
-
-#### Build Android Non-Dev Debug APK (signing-safe artifact)
-
-Build a non-dev debug APK using bundled assets:
-
-\`\`\`bash
-curl -s -X POST http://localhost:5174/api/exec \\
-  -H "Content-Type: application/json" \\
-  -d '{"agentId":"YOUR_AGENT_ID","command":"make apk-release-nondev"}'
+**Sub-agent — Non-Dev Debug APK:**
+\`\`\`
+Agent({
+  description: "Build non-dev debug APK",
+  prompt: "Build the Android non-dev debug APK (signing-safe artifact) for Tide Commander. Use the Streaming Exec API: curl -s -X POST -H 'X-Auth-Token: abcd' http://localhost:5174/api/exec -H 'Content-Type: application/json' -d '{\"agentId\":\"YOUR_AGENT_ID\",\"command\":\"make apk-release-nondev\"}'. Output APK: android/app/build/outputs/apk/debug/app-debug.apk. Report PASS if exitCode is 0, otherwise report FAIL with the error."
+})
 \`\`\`
 
-Output APK location: \`android/app/build/outputs/apk/debug/app-debug.apk\`
-
-If the non-dev debug APK build fails, STOP and report the error.
+**If any build sub-agent reported FAIL**, STOP and report the error.
 
 ---
 
-### Phase 4: Version Bump
+### Phase 4: Version Bump (run yourself)
 
-#### Determine Version Type
+This phase requires judgment and is sequential — run it directly.
 
 Read the current version:
 \`\`\`bash
@@ -156,15 +154,16 @@ Rules for automatic selection:
 - **minor** (0.X.0): At least one \`feat:\` or \`add:\` commit, or new files/modules/skills added - no breaking changes
 - **major** (X.0.0): Commits containing \`BREAKING CHANGE\` in the body, or \`feat!:\` / \`fix!:\` prefix indicating breaking API/behavior changes
 
-#### Bump the Version
-
+Bump the version:
 \`\`\`bash
 npm version <patch|minor|major> --no-git-tag-version
 \`\`\`
 
 ---
 
-### Phase 5: Update Changelog
+### Phase 5: Update Changelog (run yourself)
+
+This phase requires reading commits and writing markdown — run it directly.
 
 Read recent commits since the last tag:
 
@@ -194,7 +193,9 @@ Only include sections that have entries. Write concise, user-facing descriptions
 
 ---
 
-### Phase 6: Commit, Tag, Push
+### Phase 6: Commit, Tag, Push (run yourself)
+
+This phase is sequential git operations — run it directly.
 
 #### Stage and Commit
 
@@ -233,58 +234,45 @@ git push origin v<VERSION>
 
 ---
 
-### Phase 7: Public Release (GitHub + npm)
+### Phase 7: Public Release (delegate to sub-agent)
 
-Create the GitHub release using the \`gh\` CLI:
+Spawn a sub-agent to handle the GitHub release, APK attachment, and npm publish:
 
-\`\`\`bash
-gh release create v<VERSION> --title "v<VERSION>" --notes "<RELEASE_NOTES>"
+**Sub-agent — GitHub Release + npm Publish:**
+\`\`\`
+Agent({
+  description: "Create GitHub release and publish to npm",
+  prompt: "Create the GitHub release for Tide Commander v<VERSION> and publish to npm. Steps:
+
+1. Create the GitHub release:
+   gh release create v<VERSION> --title 'v<VERSION>' --notes '<RELEASE_NOTES>'
+
+   Release notes format:
+   ## What's New
+   ### Added
+   - Feature descriptions
+   ### Changed
+   - Changes and improvements
+   ### Fixed
+   - Bug fixes
+   ## Technical Details
+   - Implementation notes
+
+2. Attach APK artifacts:
+   gh release upload v<VERSION> android/app/build/outputs/apk/debug/app-debug.apk --clobber
+
+3. Check if the publish workflow was triggered by the tag push:
+   gh run list --workflow publish.yml --limit 5
+
+   If the workflow is running or completed successfully, report that. If it is unavailable or failed, run manual publish:
+   npm whoami
+   npm publish --provenance --access public
+
+Report PASS with the release URL if everything succeeded, or FAIL with the specific error (gh error, npm auth, 2FA, version exists, provenance, etc)."
+})
 \`\`\`
 
-**Release notes format:**
-\`\`\`markdown
-## What's New
-
-### Added
-- Feature descriptions
-
-### Changed
-- Changes and improvements
-
-### Fixed
-- Bug fixes
-
-## Technical Details
-- Implementation notes
-- Architecture changes
-\`\`\`
-
-#### Attach APK Artifacts to Release
-
-Attach APK artifacts to the GitHub release:
-
-\`\`\`bash
-gh release upload v<VERSION> android/app/build/outputs/apk/debug/app-debug.apk --clobber
-\`\`\`
-
-#### Publish to npm (public)
-
-Preferred path: pushing tag \`v<VERSION>\` triggers the trusted publish workflow in \`.github/workflows/publish.yml\`.
-
-Verify publish workflow completion:
-
-\`\`\`bash
-gh run list --workflow publish.yml --limit 5
-\`\`\`
-
-If workflow is unavailable or user asks for manual publish, run:
-
-\`\`\`bash
-npm whoami
-npm publish --provenance --access public
-\`\`\`
-
-If publish fails, STOP and report exact error (auth, 2FA, version exists, provenance, etc).
+**If the sub-agent reported FAIL**, STOP and report the error to the user.
 
 ---
 
@@ -296,19 +284,19 @@ The skill also supports running individual phases:
 
 When asked to "check quality", "run checks", "lint and test", or "pre-release check":
 
-Run Phase 2 only (lint, type-check, tests). Report results without proceeding further.
+Run Phase 2 only using parallel sub-agents as described above. Report results without proceeding further.
 
 ### Build Only
 
 When asked to "build", "build everything", or "build apk":
 
-Run Phase 3 only. Skip version bump and release.
+Run Phase 3 only using sub-agents as described above. Skip version bump and release.
 
 ### Tag and Release Only
 
 When asked to "tag", "create release", or "push release" (when version is already bumped):
 
-Skip Phases 2-4, run Phases 5-7 only.
+Skip Phases 2-4, run Phases 5-7 (Phases 5-6 directly, Phase 7 via sub-agent).
 
 ---
 
@@ -323,27 +311,29 @@ Skip Phases 2-4, run Phases 5-7 only.
 - **npm publish failure**: STOP, report exact publish error (auth, 2FA, version exists, provenance)
 - **Git conflicts**: STOP, list conflicting files, ask user to resolve manually
 - **Push rejected**: STOP, report the rejection reason (likely needs pull first)
+- **Sub-agent failure**: If a sub-agent fails to run or returns an ambiguous result, treat it as a FAIL and report to the user
 
-**Critical rule**: When any step fails, do NOT proceed to subsequent steps. Report the failure clearly and wait for user instructions.
+**Critical rule**: When any step or sub-agent fails, do NOT proceed to subsequent steps. Report the failure clearly and wait for user instructions.
 
 ---
 
 ## Quick Reference
 
-| Phase | Command | Gate |
-|-------|---------|------|
-| Lint | \`npm run lint\` | Zero warnings |
-| Types | \`npm run lint:types\` | Zero errors |
-| Tests | \`npm test\` | All passing |
-| Build | \`npm run build\` | Exit code 0 |
-| APK Debug | \`make apk\` | Exit code 0 |
-| APK Non-Dev Debug | \`make apk-release-nondev\` | Exit code 0 |
-| Version | \`npm version <type> --no-git-tag-version\` | - |
-| Tag | \`git tag -a v<VER> -m "..."\` | - |
-| Push | \`git push origin <branch> && git push origin v<VER>\` | - |
-| GH Release | \`gh release create v<VER> --notes "..."\` | - |
-| Attach APKs | \`gh release upload v<VER> <apk-path> --clobber\` | - |
-| npm Publish | \`npm publish --provenance --access public\` | Exit code 0 |
+| Phase | Command | Gate | Execution |
+|-------|---------|------|-----------|
+| Lint | \`npm run lint\` | Zero warnings | Sub-agent (parallel) |
+| Types | \`npm run lint:types\` | Zero errors | Sub-agent (parallel) |
+| Tests | \`npm test\` | All passing | Sub-agent (parallel) |
+| Build | \`npm run build\` | Exit code 0 | Sub-agent |
+| APK Debug | \`make apk\` | Exit code 0 | Sub-agent (parallel) |
+| APK Non-Dev Debug | \`make apk-release-nondev\` | Exit code 0 | Sub-agent (parallel) |
+| Version | \`npm version <type> --no-git-tag-version\` | - | Direct |
+| Changelog | Edit \`CHANGELOG.md\` | - | Direct |
+| Tag | \`git tag -a v<VER> -m "..."\` | - | Direct |
+| Push | \`git push origin <branch> && git push origin v<VER>\` | - | Direct |
+| GH Release | \`gh release create v<VER> --notes "..."\` | - | Sub-agent |
+| Attach APKs | \`gh release upload v<VER> <apk-path> --clobber\` | - | Sub-agent |
+| npm Publish | \`npm publish --provenance --access public\` | Exit code 0 | Sub-agent |
 
 ---
 
