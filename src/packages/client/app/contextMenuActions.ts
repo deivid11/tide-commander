@@ -150,7 +150,7 @@ export function buildContextMenuActions(
         onClick: () => {
           window.dispatchEvent(
             new CustomEvent('tide:open-spawn-modal', {
-              detail: { areaId: target.id },
+              detail: { areaId: target.id, position: { x: area.center.x, z: area.center.z } },
             })
           );
         },

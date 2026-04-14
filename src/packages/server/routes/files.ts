@@ -1537,33 +1537,91 @@ router.post('/git-pull', async (req: Request, res: Response) => {
       return;
     }
 
-    try {
+    const buildPullCmd = () => {
       let cmd = 'git pull --no-rebase';
       if (remote) cmd += ` "${remote}"`;
       if (branch) cmd += ` "${branch}"`;
-      const output = execSync(cmd, { cwd: gitRoot, encoding: 'utf-8', timeout: 30000, maxBuffer: 10 * 1024 * 1024 });
+      return cmd;
+    };
+
+    const parseConflicts = (text: string): string[] => {
+      const conflicts: string[] = [];
+      const conflictRegex = /CONFLICT \([^)]+\): Merge conflict in (.+)/g;
+      let match;
+      while ((match = conflictRegex.exec(text)) !== null) {
+        conflicts.push(path.join(gitRoot, match[1].trim()));
+      }
+      const bothRegex = /CONFLICT \([^)]+\):.+?(?:both modified|both added):\s*(.+)/g;
+      while ((match = bothRegex.exec(text)) !== null) {
+        const conflictPath = path.join(gitRoot, match[1].trim());
+        if (!conflicts.includes(conflictPath)) {
+          conflicts.push(conflictPath);
+        }
+      }
+      return conflicts;
+    };
+
+    const execOpts = { cwd: gitRoot, encoding: 'utf-8' as const, timeout: 30000, maxBuffer: 10 * 1024 * 1024 };
+
+    try {
+      const output = execSync(buildPullCmd(), execOpts);
       res.json({ success: true, output: output.trim() });
     } catch (err: any) {
       const stderr = err.stderr?.toString() || '';
       const stdout = err.stdout?.toString() || '';
       const combined = stdout + '\n' + stderr;
 
-      if (combined.includes('CONFLICT') || combined.includes('Automatic merge failed')) {
-        // Parse conflict file paths from output (same as merge endpoint)
-        const conflicts: string[] = [];
-        const conflictRegex = /CONFLICT \([^)]+\): Merge conflict in (.+)/g;
-        let match;
-        while ((match = conflictRegex.exec(combined)) !== null) {
-          conflicts.push(path.join(gitRoot, match[1].trim()));
+      // Check if failure is due to local changes conflicting with incoming
+      const needsStash = combined.includes('Your local changes') ||
+        combined.includes('untracked working tree files would be overwritten');
+
+      if (needsStash) {
+        // Auto-stash local changes and retry
+        try {
+          execSync('git stash push --include-untracked -m "auto-stash before pull"', execOpts);
+        } catch (stashErr: any) {
+          res.status(500).json({ success: false, error: 'Failed to stash local changes: ' + (stashErr.stderr?.toString() || stashErr.message) });
+          return;
         }
-        const bothRegex = /CONFLICT \([^)]+\):.+?(?:both modified|both added):\s*(.+)/g;
-        while ((match = bothRegex.exec(combined)) !== null) {
-          const conflictPath = path.join(gitRoot, match[1].trim());
-          if (!conflicts.includes(conflictPath)) {
-            conflicts.push(conflictPath);
+
+        // Retry pull
+        try {
+          const pullOutput = execSync(buildPullCmd(), execOpts);
+
+          // Restore stashed changes
+          try {
+            execSync('git stash pop', execOpts);
+            res.json({ success: true, output: pullOutput.trim(), stashed: true, message: 'Local changes were auto-stashed and restored.' });
+          } catch (popErr: any) {
+            const popStderr = popErr.stderr?.toString() || '';
+            const popStdout = popErr.stdout?.toString() || '';
+            const popCombined = popStdout + '\n' + popStderr;
+            const stashConflicts = parseConflicts(popCombined);
+            res.json({
+              success: true,
+              output: pullOutput.trim(),
+              stashed: true,
+              stashConflicts: stashConflicts.length > 0 ? stashConflicts : undefined,
+              message: 'Pull succeeded but stash pop had conflicts. Resolve manually.',
+            });
+          }
+        } catch (retryErr: any) {
+          // Pull failed even after stash — restore stash and report error
+          try { execSync('git stash pop', execOpts); } catch { /* best effort */ }
+          const retryStderr = retryErr.stderr?.toString() || '';
+          const retryStdout = retryErr.stdout?.toString() || '';
+          const retryCombined = retryStdout + '\n' + retryStderr;
+
+          if (retryCombined.includes('CONFLICT') || retryCombined.includes('Automatic merge failed')) {
+            res.json({ success: false, output: retryCombined.trim(), conflicts: parseConflicts(retryCombined), stashed: true });
+          } else if (retryCombined.includes('ETIMEDOUT') || retryCombined.includes('Could not resolve')) {
+            res.status(504).json({ success: false, error: 'Network error. Check your connection.' });
+          } else {
+            res.status(500).json({ success: false, error: (retryStderr || retryStdout).trim() || retryErr.message });
           }
         }
-        res.json({ success: false, output: combined.trim(), conflicts });
+      } else if (combined.includes('CONFLICT') || combined.includes('Automatic merge failed')) {
+        res.json({ success: false, output: combined.trim(), conflicts: parseConflicts(combined) });
       } else if (combined.includes('ETIMEDOUT') || combined.includes('Could not resolve')) {
         res.status(504).json({ success: false, error: 'Network error. Check your connection.' });
       } else {

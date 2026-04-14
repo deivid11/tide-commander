@@ -212,6 +212,49 @@ export function AgentPanel({
     prevLoadingRef.current = history?.loading;
   }, [history?.loading]);
 
+  // Release pinning once scroll container stabilises at the bottom.
+  // Without this, the RAF loop in VirtualizedOutputList keeps
+  // isProgrammaticScrollRef permanently true, preventing user-scroll
+  // detection from ever cancelling the pin.
+  useEffect(() => {
+    if (!pinToBottom) return;
+
+    const container = outputRef.current;
+    if (!container) return;
+
+    const start = performance.now();
+    let stableFrames = 0;
+    let lastScrollHeight = -1;
+    let rafId: number;
+
+    const tick = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      const atBottom = scrollHeight - scrollTop - clientHeight <= 2;
+      const heightStable = Math.abs(scrollHeight - lastScrollHeight) <= 1;
+
+      if (heightStable && atBottom) {
+        stableFrames += 1;
+      } else {
+        stableFrames = 0;
+      }
+      lastScrollHeight = scrollHeight;
+
+      if (stableFrames >= 3) {
+        setPinToBottom(false);
+        return;
+      }
+      // Hard cap to avoid pinning forever.
+      if (performance.now() - start > 5000) {
+        setPinToBottom(false);
+        return;
+      }
+      rafId = requestAnimationFrame(tick);
+    };
+
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, [pinToBottom]);
+
   // Re-enable auto-scroll when new outputs arrive and user is at bottom
   useEffect(() => {
     if (!isUserScrolledUpRef.current) {
@@ -289,7 +332,11 @@ export function AgentPanel({
     setResponseModalContent(content);
   }, []);
 
-  const handlePinCancel = useCallback(() => setPinToBottom(false), []);
+  const handlePinCancel = useCallback(() => {
+    setPinToBottom(false);
+    isUserScrolledUpRef.current = true;
+    setShouldAutoScroll(false);
+  }, []);
 
   const handleCloseImageModal = useCallback(() => setImageModal(null), []);
   const handleCloseBashModal = useCallback(() => setBashModal(null), []);
