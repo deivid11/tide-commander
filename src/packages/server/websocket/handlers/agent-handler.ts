@@ -66,6 +66,7 @@ export async function handleSpawnAgent(
     position?: { x: number; y: number; z: number };
     initialSkillIds?: string[];
     model?: string;
+    effort?: string;
     customInstructions?: string;
   }
 ): Promise<void> {
@@ -97,7 +98,8 @@ export async function handleSpawnAgent(
       payload.codexModel as any,
       payload.customInstructions,
       payload.provider,
-      payload.codexConfig
+      payload.codexConfig,
+      payload.effort as any
     );
 
     log.log('Agent created successfully:', {
@@ -525,7 +527,8 @@ function buildStatsFromTrackedData(agent: Agent): ContextStats {
   // Do NOT prefer agent.contextStats here — those can become stale when previous
   // fallback calls save their (potentially wrong) output back to agent.contextStats
   // via broadcastContextStats, creating a self-reinforcing feedback loop.
-  const defaultContextLimit = (agent.provider ?? 'claude') === 'codex' ? 258400 : 200000;
+  const defaultContextLimit = (agent.provider ?? 'claude') === 'codex' ? 258400
+    : (agent.provider ?? 'claude') === 'opencode' ? 200000 : 200000;
   const contextLimit = Math.max(1, Math.round(agent.contextLimit || defaultContextLimit));
   const rawContextUsed = Math.max(0, Math.round(agent.contextUsed || 0));
   // Guard: contextUsed can never exceed contextLimit. Values above the limit are
@@ -540,7 +543,7 @@ function buildStatsFromTrackedData(agent: Agent): ContextStats {
 
   const usedPercent = Math.min(100, Math.round((contextUsed / contextLimit) * 100));
   const freeTokens = Math.max(0, contextLimit - contextUsed);
-  const model = agent.model || agent.codexModel || 'unknown';
+  const model = agent.model || agent.codexModel || agent.opencodeModel || 'unknown';
 
   return {
     model,
@@ -608,6 +611,8 @@ export async function handleRequestContextStats(
 
   const isClaudeProvider = (agent.provider ?? 'claude') === 'claude';
   const isCodexProvider = (agent.provider ?? 'claude') === 'codex';
+  const isOpencodeProvider = (agent.provider ?? 'claude') === 'opencode';
+  const isCodexLikeProvider = isCodexProvider || isOpencodeProvider;
 
   // For Claude agents with an active session, fetch real context stats from the CLI
   if (isClaudeProvider && agent.sessionId) {
@@ -641,7 +646,7 @@ export async function handleRequestContextStats(
     }
   }
 
-  if (isCodexProvider && agent.sessionId) {
+  if (isCodexLikeProvider && agent.sessionId) {
     const codexSnapshot = agentService.getCodexContextSnapshotFromSession(agent.sessionId);
     if (codexSnapshot) {
       const contextLimit = Math.max(1, codexSnapshot.contextLimit);
@@ -649,7 +654,7 @@ export async function handleRequestContextStats(
       const usedPercent = Math.min(100, Math.round((contextUsed / contextLimit) * 100));
       const freeTokens = Math.max(0, contextLimit - contextUsed);
       const stats: ContextStats = {
-        model: agent.codexModel || agent.model || 'codex',
+        model: agent.codexModel || agent.opencodeModel || agent.model || 'codex',
         contextWindow: contextLimit,
         totalTokens: contextUsed,
         usedPercent,
@@ -671,7 +676,9 @@ export async function handleRequestContextStats(
   // Fallback: generate from tracked data
   const latestAgent = agentService.getAgent(payload.agentId) || agent;
   const stats = buildStatsFromTrackedData(latestAgent);
-  const label = latestAgent.provider === 'codex' ? 'estimated from turn usage' : 'tracked from token usage';
+  const label = latestAgent.provider === 'codex' ? 'estimated from turn usage'
+    : latestAgent.provider === 'opencode' ? 'estimated from turn usage'
+    : 'tracked from token usage';
   broadcastContextStats(ctx, payload.agentId, stats, label);
 }
 
@@ -740,7 +747,9 @@ export async function handleUpdateAgentProperties(
       provider?: AgentProvider;
       codexConfig?: CodexConfig;
       model?: string;
+      effort?: string;
       codexModel?: string;
+      opencodeModel?: string;
       useChrome?: boolean;
       skillIds?: string[];
       cwd?: string;
@@ -764,14 +773,20 @@ export async function handleUpdateAgentProperties(
     updates.codexModel !== undefined
       ? agentService.sanitizeCodexModel(updates.codexModel)
       : undefined;
+  const normalizedUpdatedOpencodeModel =
+    updates.opencodeModel !== undefined
+      ? agentService.sanitizeOpencodeModel(updates.opencodeModel)
+      : undefined;
 
   // Track if model changed (requires hot restart to apply new model while preserving context)
   const modelChanged = updates.model !== undefined && normalizedUpdatedModel !== agent.model;
   const codexModelChanged = updates.codexModel !== undefined && normalizedUpdatedCodexModel !== agent.codexModel;
+  const opencodeModelChanged = updates.opencodeModel !== undefined && normalizedUpdatedOpencodeModel !== agent.opencodeModel;
   const providerChanged = updates.provider !== undefined && updates.provider !== agent.provider;
   const classChanged = updates.class !== undefined && updates.class !== agent.class;
   const codexConfigChanged = updates.codexConfig !== undefined
     && JSON.stringify(updates.codexConfig || {}) !== JSON.stringify(agent.codexConfig || {});
+  const effortChanged = updates.effort !== undefined && updates.effort !== (agent.effort || undefined);
   const sessionId = agent.sessionId; // Save before update
 
   // Track if Chrome flag changed (requires hot restart to add/remove --chrome flag)
@@ -822,6 +837,14 @@ export async function handleUpdateAgentProperties(
     agentUpdates.codexModel = normalizedUpdatedCodexModel as any;
   }
 
+  if (updates.opencodeModel !== undefined) {
+    agentUpdates.opencodeModel = normalizedUpdatedOpencodeModel as any;
+  }
+
+  if (updates.effort !== undefined) {
+    agentUpdates.effort = updates.effort as any;
+  }
+
   if (updates.useChrome !== undefined) {
     agentUpdates.useChrome = updates.useChrome;
   }
@@ -843,7 +866,7 @@ export async function handleUpdateAgentProperties(
 
   // If model changed, do a hot restart: stop process, resume with new model
   // This preserves context by using --resume with the existing sessionId
-  if ((modelChanged || codexModelChanged || providerChanged || codexConfigChanged || classChanged) && sessionId) {
+  if ((modelChanged || codexModelChanged || opencodeModelChanged || providerChanged || codexConfigChanged || classChanged) && sessionId) {
     const reason = providerChanged
       ? `runtime changed to ${updates.provider}`
       : classChanged
@@ -852,6 +875,8 @@ export async function handleUpdateAgentProperties(
         ? 'Codex config changed'
         : codexModelChanged
           ? `Codex model changed to ${updates.codexModel}`
+        : opencodeModelChanged
+          ? `OpenCode model changed to ${updates.opencodeModel}`
         : `model changed to ${updates.model}`;
     log.log(`Agent ${agent.name}: ${reason}, hot restarting with --resume to preserve context`);
     try {
@@ -865,7 +890,7 @@ export async function handleUpdateAgentProperties(
     } catch (err) {
       log.error(`Failed to hot restart agent ${agent.name} after runtime config change:`, err);
     }
-  } else if ((modelChanged || codexModelChanged || providerChanged || codexConfigChanged || classChanged) && !sessionId) {
+  } else if ((modelChanged || codexModelChanged || opencodeModelChanged || providerChanged || codexConfigChanged || classChanged) && !sessionId) {
     const reason = providerChanged
       ? `runtime changed to ${updates.provider}`
       : classChanged
@@ -874,13 +899,15 @@ export async function handleUpdateAgentProperties(
         ? 'Codex config changed'
         : codexModelChanged
           ? `Codex model changed to ${updates.codexModel}`
+        : opencodeModelChanged
+          ? `OpenCode model changed to ${updates.opencodeModel}`
         : `model changed to ${updates.model}`;
     log.log(`Agent ${agent.name}: ${reason}, will apply on next session start`);
   }
 
   // If Chrome flag changed, do a hot restart to add/remove --chrome flag
   // Only restart if model didn't already trigger a restart
-  if (useChromeChanged && !modelChanged && !codexModelChanged && !providerChanged && !codexConfigChanged && sessionId) {
+  if (useChromeChanged && !modelChanged && !codexModelChanged && !opencodeModelChanged && !providerChanged && !codexConfigChanged && sessionId) {
     const chromeStatus = updates.useChrome ? 'enabled' : 'disabled';
     log.log(`Agent ${agent.name}: Chrome ${chromeStatus}, hot restarting with --resume to apply change`);
     try {
@@ -900,10 +927,29 @@ export async function handleUpdateAgentProperties(
     } catch (err) {
       log.error(`Failed to hot restart agent ${agent.name} after Chrome change:`, err);
     }
-  } else if (useChromeChanged && !providerChanged && !codexConfigChanged && !codexModelChanged && !sessionId) {
+  } else if (useChromeChanged && !providerChanged && !codexConfigChanged && !codexModelChanged && !opencodeModelChanged && !sessionId) {
     // No existing session, chrome flag will apply on next start
     const chromeStatus = updates.useChrome ? 'enabled' : 'disabled';
     log.log(`Agent ${agent.name}: Chrome ${chromeStatus}, will apply on next session start`);
+  }
+
+  // If effort changed, hot restart to apply new --effort flag
+  if (effortChanged && !modelChanged && !codexModelChanged && !opencodeModelChanged && !providerChanged && !codexConfigChanged && !classChanged && !useChromeChanged && sessionId) {
+    const effortLabel = updates.effort || 'default';
+    log.log(`Agent ${agent.name}: effort changed to ${effortLabel}, hot restarting with --resume to apply change`);
+    try {
+      await runtimeService.stopAgent(agentId);
+      agentService.updateAgent(agentId, {
+        status: 'idle',
+        currentTask: undefined,
+        currentTool: undefined,
+      }, false);
+      ctx.sendActivity(agentId, `Effort set to ${effortLabel} - context preserved`);
+    } catch (err) {
+      log.error(`Failed to hot restart agent ${agent.name} after effort change:`, err);
+    }
+  } else if (effortChanged && !sessionId) {
+    log.log(`Agent ${agent.name}: effort changed to ${updates.effort || 'default'}, will apply on next session start`);
   }
 
   // If cwd changed, stop the process and clear the session
@@ -952,7 +998,7 @@ export async function handleUpdateAgentProperties(
 
     // If skills changed and we didn't already hot restart for model/chrome/cwd change, do it now
     // Skills are injected into the system prompt, so we need to restart to apply them
-    if (skillsChanged && !modelChanged && !codexModelChanged && !providerChanged && !codexConfigChanged && !classChanged && !useChromeChanged && !cwdChanged && sessionId) {
+    if (skillsChanged && !modelChanged && !codexModelChanged && !opencodeModelChanged && !providerChanged && !codexConfigChanged && !classChanged && !useChromeChanged && !cwdChanged && sessionId) {
       log.log(`Agent ${agent.name}: Skills changed, hot restarting with --resume to apply new system prompt`);
       try {
         // Stop the current Claude process

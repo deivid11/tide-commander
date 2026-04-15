@@ -355,6 +355,8 @@ export function SingleAgentPanel({
             onClick={async () => {
               const resumeCmd = agent.provider === 'codex'
                 ? `codex resume ${agent.sessionId}`
+                : agent.provider === 'opencode'
+                ? `opencode resume ${agent.sessionId}`
                 : `claude --resume ${agent.sessionId}`;
               try {
                 await navigator.clipboard.writeText(resumeCmd);
@@ -364,7 +366,7 @@ export function SingleAgentPanel({
               }
             }}
           >
-            {agent.provider === 'codex' ? 'codex resume' : 'claude --resume'} {agent.sessionId}
+            {agent.provider === 'codex' ? 'codex resume' : agent.provider === 'opencode' ? 'opencode resume' : 'claude --resume'} {agent.sessionId}
           </div>
         </div>
       ) : (

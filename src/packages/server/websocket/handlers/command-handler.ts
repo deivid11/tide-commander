@@ -204,7 +204,7 @@ async function handleRegularAgentCommand(
   ctx: HandlerContext,
   agentId: string,
   command: string,
-  agent: { id: string; name: string; class: string; provider?: 'claude' | 'codex'; contextUsed?: number; contextLimit?: number }
+  agent: { id: string; name: string; class: string; provider?: 'claude' | 'codex' | 'opencode'; contextUsed?: number; contextLimit?: number }
 ): Promise<void> {
   // Note: /context, /cost, /compact are intercepted at the handleSendCommand level
   // so they never reach here. This function only handles actual commands to send to the agent.

@@ -78,7 +78,7 @@ export const HistoryLine = memo(function HistoryLine({
   // For Task tool_use messages, show the subagent name instead of parent agent
   const parentAgentName = agentId ? store.getState().agents.get(agentId)?.name : null;
   const provider = agentId ? store.getState().agents.get(agentId)?.provider : undefined;
-  const assistantRoleLabel = provider === 'codex' ? 'Codex' : 'Claude';
+  const assistantRoleLabel = provider === 'codex' ? 'Codex' : provider === 'opencode' ? 'OpenCode' : 'Claude';
   const subagentNameFromInput = (type === 'tool_use' && (toolName === 'Task' || toolName === 'Agent') && message.toolInput)
     ? ((message.toolInput.name as string) || (message.toolInput.description as string) || null)
     : null;
@@ -101,8 +101,8 @@ export const HistoryLine = memo(function HistoryLine({
         <span className="history-role">
           {provider && (
             <img
-              src={provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
-              alt={provider}
+              src={provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : provider === 'opencode' ? `${import.meta.env.BASE_URL}assets/opencode.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
+              alt=""
               className="history-role-icon"
             />
           )}
@@ -852,10 +852,10 @@ export const HistoryLine = memo(function HistoryLine({
         <span className="history-role">
           {!isSystemMessage && provider && (
             <img
-              src={provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
-              alt={provider}
+              src={provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : provider === 'opencode' ? `${import.meta.env.BASE_URL}assets/opencode.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
+              alt=""
               className="history-role-icon"
-              title={provider === 'codex' ? t('terminal:history.codexAgent') : t('terminal:history.claudeAgent')}
+              title={provider === 'codex' ? t('terminal:history.codexAgent') : provider === 'opencode' ? 'OpenCode Agent' : t('terminal:history.claudeAgent')}
             />
           )}
           {assistantOrSystemRoleLabel}
@@ -903,10 +903,10 @@ export const HistoryLine = memo(function HistoryLine({
       <span className={`history-role ${isUser ? 'history-role-chip' : ''}`}>
         {!isUser && !isSystemMessage && provider && (
           <img
-            src={provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
-            alt={provider}
+            src={provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : provider === 'opencode' ? `${import.meta.env.BASE_URL}assets/opencode.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
+            alt=""
             className="history-role-icon"
-            title={provider === 'codex' ? t('terminal:history.codexAgent') : t('terminal:history.claudeAgent')}
+            title={provider === 'codex' ? t('terminal:history.codexAgent') : provider === 'opencode' ? 'OpenCode Agent' : t('terminal:history.claudeAgent')}
           />
         )}
         {isUser ? t('common:labels.you') : assistantOrSystemRoleLabel}

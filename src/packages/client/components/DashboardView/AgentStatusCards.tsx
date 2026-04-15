@@ -68,7 +68,7 @@ export const AgentCard = React.memo(({
         <span className="dash-card__name">{agent.name}</span>
         <span className="dash-card__class">{icon} {agent.class}</span>
         <span className={`dash-card__provider dash-card__provider--${agent.provider}`}>
-          {agent.provider === 'codex' ? '🔸' : '🤖'} {agent.provider}
+          {agent.provider === 'codex' ? '🔸' : agent.provider === 'opencode' ? '🟢' : '🤖'} {agent.provider}
         </span>
         {hasUnseen && (
           <span

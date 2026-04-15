@@ -4,7 +4,8 @@
  * Handles agent management: CRUD operations, selection, movement, etc.
  */
 
-import type { Agent, AgentClass, PermissionMode, ClaudeModel, CodexModel, AgentProvider, CodexConfig, ClientMessage, ContextStats } from '../../shared/types';
+import type { Agent, AgentClass, PermissionMode, ClaudeModel, ClaudeEffort, CodexModel, AgentProvider, CodexConfig, ClientMessage, ContextStats } from '../../shared/types';
+// Note: opencodeModel is a free-form string (e.g., 'minimax/MiniMax-M1-80k')
 import type { StoreState, Activity } from './types';
 import { perf } from '../utils/profiling';
 import { apiUrl, authFetch } from '../utils/storage';
@@ -83,7 +84,9 @@ export interface AgentActions {
     codexConfig?: CodexConfig,
     codexModel?: CodexModel,
     model?: ClaudeModel,
-    customInstructions?: string
+    customInstructions?: string,
+    effort?: ClaudeEffort,
+    opencodeModel?: string
   ): void;
   createDirectoryAndSpawn(path: string, name: string, agentClass: AgentClass): void;
   sendCommand(agentId: string, command: string): void;
@@ -104,7 +107,9 @@ export interface AgentActions {
       provider?: AgentProvider;
       codexConfig?: CodexConfig;
       codexModel?: CodexModel;
+      opencodeModel?: string;
       model?: ClaudeModel;
+      effort?: ClaudeEffort;
       useChrome?: boolean;
       skillIds?: string[];
       cwd?: string;
@@ -366,7 +371,9 @@ export function createAgentActions(
       codexConfig?: CodexConfig,
       codexModel?: CodexModel,
       model?: ClaudeModel,
-      customInstructions?: string
+      customInstructions?: string,
+      effort?: ClaudeEffort,
+      opencodeModel?: string
     ): void {
       logAgentStore('[Store] spawnAgent called with:', {
         name,
@@ -381,6 +388,8 @@ export function createAgentActions(
         codexConfig,
         codexModel,
         model,
+        effort,
+        opencodeModel,
         customInstructions: customInstructions ? `${customInstructions.length} chars` : undefined,
       });
 
@@ -399,7 +408,9 @@ export function createAgentActions(
           provider,
           codexConfig,
           codexModel,
+          opencodeModel,
           model,
+          effort,
           customInstructions,
         },
       };
@@ -582,7 +593,9 @@ export function createAgentActions(
         provider?: AgentProvider;
         codexConfig?: CodexConfig;
         codexModel?: CodexModel;
+        opencodeModel?: string;
         model?: ClaudeModel;
+        effort?: ClaudeEffort;
         useChrome?: boolean;
         skillIds?: string[];
         cwd?: string;
@@ -602,6 +615,9 @@ export function createAgentActions(
           if (updates.model !== undefined) {
             updatedAgent.model = updates.model;
           }
+          if (updates.effort !== undefined) {
+            updatedAgent.effort = updates.effort;
+          }
           if (updates.provider !== undefined) {
             updatedAgent.provider = updates.provider;
           }
@@ -610,6 +626,9 @@ export function createAgentActions(
           }
           if (updates.codexModel !== undefined) {
             updatedAgent.codexModel = updates.codexModel;
+          }
+          if (updates.opencodeModel !== undefined) {
+            (updatedAgent as any).opencodeModel = updates.opencodeModel;
           }
           if (updates.useChrome !== undefined) {
             updatedAgent.useChrome = updates.useChrome;

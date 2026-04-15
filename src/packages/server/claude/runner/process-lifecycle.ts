@@ -50,6 +50,7 @@ export class RunnerProcessLifecycle {
       workingDir,
       sessionId,
       model,
+      effort,
       useChrome,
       permissionMode = 'bypass',
       systemPrompt,
@@ -63,6 +64,7 @@ export class RunnerProcessLifecycle {
       agentId,
       sessionId: forceNewSession ? undefined : sessionId,
       model,
+      effort,
       workingDir,
       permissionMode,
       useChrome,
@@ -138,7 +140,7 @@ export class RunnerProcessLifecycle {
 
     if (this.backend.requiresStdinInput() && childProcess.stdin) {
       const stdinInput = this.backend.formatStdinInput(prompt);
-      log.log(`📤 [STDIN] Sending initial prompt (${prompt.length} chars) to agent ${agentId}`);
+      log.log(`📤 [STDIN] Sending initial prompt (${stdinInput.length} chars) to agent ${agentId}`);
       childProcess.stdin.write(stdinInput + '\n', 'utf8', (err) => {
         if (err) {
           log.error(`❌ [STDIN] Failed to write initial prompt to stdin for ${agentId}: ${err.message}`);
@@ -149,6 +151,11 @@ export class RunnerProcessLifecycle {
           };
         } else {
           log.log(`✅ [STDIN] Initial prompt sent successfully to ${agentId}`);
+          // Some backends (e.g. opencode) need stdin closed to signal EOF
+          if (this.backend.shouldCloseStdinAfterPrompt?.()) {
+            childProcess.stdin.end();
+            log.log(`🔒 [STDIN] Closed stdin after prompt for ${agentId}`);
+          }
         }
       });
     } else {

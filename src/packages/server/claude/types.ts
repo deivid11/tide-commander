@@ -83,6 +83,7 @@ export interface BackendConfig {
   agentId?: string;  // Used for prompt file naming
   sessionId?: string;
   model?: string;
+  effort?: string;  // Reasoning effort level (low, medium, high, max)
   workingDir: string;
   permissionMode?: 'bypass' | 'interactive';
   prompt?: string;
@@ -205,6 +206,13 @@ export interface CLIBackend {
 
   // Format stdin input for the CLI
   formatStdinInput(prompt: string): string;
+
+  // Whether to close stdin after sending the initial prompt (e.g. opencode reads until EOF)
+  shouldCloseStdinAfterPrompt?(): boolean;
+
+  // Whether this backend supports resuming a session after the process dies
+  // (used by recovery store to decide if orphaned agents can be auto-resumed)
+  supportsSessionResume?(): boolean;
 }
 
 // Runner request
@@ -214,6 +222,7 @@ export interface RunnerRequest {
   workingDir: string;
   sessionId?: string;
   model?: string;
+  effort?: string;  // Reasoning effort level (low, medium, high, max)
   useChrome?: boolean;
   permissionMode?: 'bypass' | 'interactive';
   systemPrompt?: string;

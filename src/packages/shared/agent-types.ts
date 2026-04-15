@@ -63,7 +63,10 @@ export const PERMISSION_MODES: Record<PermissionMode, { label: string; descripti
 };
 
 // Agent runtime provider
-export type AgentProvider = 'claude' | 'codex';
+export type AgentProvider = 'claude' | 'codex' | 'opencode';
+
+// OpenCode model - uses provider/model format (e.g. 'minimax/MiniMax-M1-80k')
+export type OpencodeModel = string;
 
 // Codex CLI execution controls
 export type CodexApprovalMode = 'untrusted' | 'on-failure' | 'on-request' | 'never';
@@ -124,6 +127,16 @@ export const CLAUDE_MODELS: Record<ClaudeModel, { label: string; description: st
   sonnet: { label: 'Sonnet', description: 'Balanced performance and cost (recommended)', icon: '⚡' },
   opus: { label: 'Opus', description: 'Most capable, higher cost', icon: '🧠' },
   haiku: { label: 'Haiku', description: 'Fast and economical', icon: '🚀' },
+};
+
+// Claude Effort Level - how much reasoning effort Claude puts into responses
+export type ClaudeEffort = 'low' | 'medium' | 'high' | 'max';
+
+export const CLAUDE_EFFORTS: Record<ClaudeEffort, { label: string; description: string; icon: string }> = {
+  low: { label: 'Low', description: 'Minimal reasoning, fastest responses', icon: '🏃' },
+  medium: { label: 'Medium', description: 'Balanced reasoning effort', icon: '⚖️' },
+  high: { label: 'High', description: 'Deep reasoning for complex tasks (default)', icon: '🔬' },
+  max: { label: 'Max', description: 'Maximum reasoning, most thorough', icon: '🧠' },
 };
 
 // ============================================================================
@@ -197,8 +210,10 @@ export interface Agent {
   useChrome?: boolean; // Start with --chrome flag
   permissionMode: PermissionMode; // How permissions are handled
   model?: ClaudeModel; // Claude model to use (sonnet, opus, haiku)
+  effort?: ClaudeEffort; // Reasoning effort level (low, medium, high, max)
   codexModel?: CodexModel; // Codex model to use (for provider='codex')
   codexConfig?: CodexConfig; // Codex CLI config (only for provider='codex')
+  opencodeModel?: OpencodeModel; // OpenCode model to use (for provider='opencode')
 
   // Resources
   tokensUsed: number;

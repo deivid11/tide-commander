@@ -297,10 +297,10 @@ export const TerminalHeader = memo(function TerminalHeader({
               </span>
               <span className="guake-title-accessory">
                 <img
-                  src={selectedAgent.provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
+                  src={selectedAgent.provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : selectedAgent.provider === 'opencode' ? `${import.meta.env.BASE_URL}assets/opencode.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
                   alt={selectedAgent.provider}
                   className="guake-provider-icon"
-                  title={selectedAgent.provider === 'codex' ? 'Codex Agent' : 'Claude Agent'}
+                  title={selectedAgent.provider === 'codex' ? 'Codex Agent' : selectedAgent.provider === 'opencode' ? 'OpenCode Agent' : 'Claude Agent'}
                 />
               </span>
             </button>
@@ -320,10 +320,10 @@ export const TerminalHeader = memo(function TerminalHeader({
               </span>
               <span className="guake-title-accessory">
                 <img
-                  src={selectedAgent.provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
+                  src={selectedAgent.provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : selectedAgent.provider === 'opencode' ? `${import.meta.env.BASE_URL}assets/opencode.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
                   alt={selectedAgent.provider}
                   className="guake-provider-icon"
-                  title={selectedAgent.provider === 'codex' ? 'Codex Agent' : 'Claude Agent'}
+                  title={selectedAgent.provider === 'codex' ? 'Codex Agent' : selectedAgent.provider === 'opencode' ? 'OpenCode Agent' : 'Claude Agent'}
                 />
               </span>
             </div>
@@ -425,6 +425,13 @@ export const TerminalHeader = memo(function TerminalHeader({
           >
             <span className="guake-action-icon">🔍</span>
           </button>
+          <button
+            className="guake-icon-action danger"
+            onClick={() => setContextConfirm('clear')}
+            title={t('terminal:header.clearContext')}
+          >
+            <span className="guake-action-icon">🧹</span>
+          </button>
         </div>
         {/* Desktop kebab menu - view toggle + context actions + less-used toggles */}
         {!isSnapshotView && (
@@ -478,13 +485,6 @@ export const TerminalHeader = memo(function TerminalHeader({
                 >
                   <span className="guake-desktop-menu-icon">📦</span>
                   {t('terminal:header.collapseContext')}
-                </button>
-                <button
-                  className="guake-desktop-menu-item danger"
-                  onClick={() => { setContextConfirm('clear'); closeDesktopMenu(); }}
-                >
-                  <span className="guake-desktop-menu-icon">🧹</span>
-                  {t('terminal:header.clearContext')}
                 </button>
                 {hasSubordinates && (
                   <button

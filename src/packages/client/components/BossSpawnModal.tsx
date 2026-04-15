@@ -471,6 +471,14 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                     <img src={`${import.meta.env.BASE_URL}assets/codex.ico`} alt="Codex" className="spawn-provider-icon" />
                     <span>Codex</span>
                   </button>
+                  <button
+                    className={`spawn-select-btn spawn-select-btn--opencode ${selectedProvider === 'opencode' ? 'selected' : ''}`}
+                    onClick={() => setSelectedProvider('opencode')}
+                    title="Use OpenCode CLI (multi-provider)"
+                  >
+                    <span>🟢</span>
+                    <span>OpenCode</span>
+                  </button>
                 </div>
               </div>
               <div className="spawn-field">
@@ -523,6 +531,13 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                       </button>
                     ))}
                   </div>
+                ) : selectedProvider === 'opencode' ? (
+                  <input
+                    type="text"
+                    className="spawn-input"
+                    defaultValue="minimax/MiniMax-M1-80k"
+                    placeholder="provider/model (e.g., minimax/MiniMax-M1-80k)"
+                  />
                 ) : (
                   <div className="spawn-inline-hint">{t('terminal:spawn.codex.configuration')}</div>
                 )}

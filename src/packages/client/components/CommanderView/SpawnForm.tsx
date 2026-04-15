@@ -142,6 +142,13 @@ export function SpawnForm({ currentArea, onClose }: SpawnFormProps) {
                 <span className="commander-spawn-class-icon">⚙️</span>
                 <span>Codex</span>
               </button>
+              <button
+                className={`commander-spawn-class ${selectedProvider === 'opencode' ? 'selected' : ''}`}
+                onClick={() => setSelectedProvider('opencode')}
+              >
+                <span className="commander-spawn-class-icon">🟢</span>
+                <span>OpenCode</span>
+              </button>
             </div>
           </div>
         </div>

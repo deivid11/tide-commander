@@ -22,7 +22,7 @@ function clampPercent(value: number): number {
 }
 
 export function getDisplayContextInfo(agent: DisplayContextAgent): DisplayContextInfo {
-  const defaultContextLimit = agent.provider === 'codex'
+  const defaultContextLimit = agent.provider === 'codex' || agent.provider === 'opencode'
     ? DEFAULT_CODEX_CONTEXT_LIMIT
     : DEFAULT_CLAUDE_CONTEXT_LIMIT;
   const trackedWindow = Math.max(1, Math.round(agent.contextLimit || defaultContextLimit));

@@ -746,6 +746,16 @@
     border-color: color-mix(in srgb, var(--accent-cyan) 34%, transparent);
     color: var(--accent-cyan);
   }
+
+  &.danger {
+    color: var(--accent-red);
+
+    &:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--accent-red) 12%, transparent);
+      border-color: color-mix(in srgb, var(--accent-red) 26%, transparent);
+      color: var(--accent-red);
+    }
+  }
 }
 
 .guake-action-icon {

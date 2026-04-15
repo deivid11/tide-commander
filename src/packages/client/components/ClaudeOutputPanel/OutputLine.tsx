@@ -318,7 +318,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
   const parentAgentName = agentId ? store.getState().agents.get(agentId)?.name : null;
   const agentName = output.subagentName || parentAgentName;
   const provider = agentId ? store.getState().agents.get(agentId)?.provider : undefined;
-  const assistantRoleLabel = provider === 'codex' ? 'Codex' : 'Claude';
+  const assistantRoleLabel = provider === 'codex' ? 'Codex' : provider === 'opencode' ? 'OpenCode' : 'Claude';
 
   // All hooks must be called before any conditional returns (Rules of Hooks)
   const [sessionExpanded, setSessionExpanded] = useState(false);
@@ -1110,10 +1110,10 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
           <span className="output-role">
             {provider && (
               <img
-                src={provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
-                alt={provider}
+                src={provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : provider === 'opencode' ? `${import.meta.env.BASE_URL}assets/opencode.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
+                alt=""
                 className="output-role-icon"
-                title={provider === 'codex' ? 'Codex Agent' : 'Claude Agent'}
+                title={provider === 'codex' ? 'Codex Agent' : provider === 'opencode' ? 'OpenCode Agent' : 'Claude Agent'}
               />
             )}
             {assistantRoleLabel}
@@ -1161,10 +1161,10 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         <span className="output-role">
           {isClaudeMessage && provider && (
             <img
-              src={provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
-              alt={provider}
+              src={provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : provider === 'opencode' ? `${import.meta.env.BASE_URL}assets/opencode.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
+              alt=""
               className="output-role-icon"
-              title={provider === 'codex' ? 'Codex Agent' : 'Claude Agent'}
+              title={provider === 'codex' ? 'Codex Agent' : provider === 'opencode' ? 'OpenCode Agent' : 'Claude Agent'}
             />
           )}
           {outputRoleLabel}

@@ -145,6 +145,11 @@ export class ClaudeBackend implements CLIBackend {
       args.push('--model', config.model);
     }
 
+    // Reasoning effort level
+    if (config.effort) {
+      args.push('--effort', config.effort);
+    }
+
     // Chrome browser mode
     if (config.useChrome) {
       args.push('--chrome');

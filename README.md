@@ -2,7 +2,7 @@
   <img src="https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/tide-commander-logo.png" alt="Tide Commander" width="400" />
 </p>
 
-<p align="center"><strong>A visual multi-agent orchestrator for Claude Code and Codex</strong></p>
+<p align="center"><strong>A visual multi-agent orchestrator for Claude Code, Codex, and OpenCode</strong></p>
 
 ![Tide Commander Preview](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/preview-3d.png)
 
@@ -10,14 +10,16 @@
 [![Watch the demo](https://img.shields.io/badge/YouTube-Watch%20Demo-red?style=for-the-badge&logo=youtube)](https://www.youtube.com/watch?v=r1Op_xfhqOM)
 [![npm version](https://img.shields.io/npm/v/tide-commander?style=for-the-badge&logo=npm)](https://www.npmjs.com/package/tide-commander)
 
-Tide Commander is a Claude Code and Codex orchestrator and manager that lets you deploy, control, and monitor multiple AI coding agents from a single visual interface. Spawn agents, assign tasks, and watch them work in real-time on an RTS-inspired 3D battlefield — or switch to a lightweight 2D canvas or a metrics dashboard.
+Tide Commander is a Claude Code, Codex, and OpenCode orchestrator and manager that lets you deploy, control, and monitor multiple AI coding agents from a single visual interface. Spawn agents, assign tasks, and watch them work in real-time on an RTS-inspired 3D battlefield — or switch to a lightweight 2D canvas or a metrics dashboard.
 
 ## 🚀 Getting Started 
 
 Requirements:
 - Node.js 18+
-- Claude Code CLI (`claude` command available in PATH)
-- OpenAI Codex CLI compatibility
+- At least one supported CLI provider:
+  - **Claude Code** — `claude` command in PATH
+  - **Codex** — `codex` command in PATH (OpenAI Codex CLI)
+  - **OpenCode** — `opencode` command in PATH ([opencode CLI](https://github.com/nicholasgriffintn/opencode))
 
 Install and run:
 
@@ -201,8 +203,8 @@ AI coding orchestration and multi-agent management features:
 - 🎮 **3D Battlefield** - Visual command center with Three.js (also has a lightweight 2D canvas mode)
 - 🎯 **RTS Controls** - Click to select, right-click to move, number keys for quick selection
 - 📡 **Real-time Activity Feed** - Watch your agents work in real-time
-- 🤹 **Multi-Agent Management** - Spawn and control multiple Claude/Codex instances simultaneously
-- 💾 **Session Persistence** - Agents resume their Claude Code or Codex sessions across restarts
+- 🤹 **Multi-Agent Management** - Spawn and control multiple Claude/Codex/OpenCode instances simultaneously
+- 💾 **Session Persistence** - Agents resume their Claude Code, Codex, or OpenCode sessions across restarts
 - 📊 **Context Tracking** - Mana bar visualization showing agent context usage
 - 📁 **File Explorer** - Built-in file browser with git diff viewer for uncommitted changes
 
@@ -287,7 +289,7 @@ Shortcuts are fully customizable in Settings.
 
 ### Overview
 
-Tide Commander is a Claude Code and Codex-compatible orchestrator that provides a visual interface for managing multiple AI coding CLI instances simultaneously. Each "agent" you spawn is a real CLI process running in the background, and you can send commands to them and watch their output in real-time.
+Tide Commander is a Claude Code, Codex, and OpenCode-compatible orchestrator that provides a visual interface for managing multiple AI coding CLI instances simultaneously. Each "agent" you spawn is a real CLI process running in the background, and you can send commands to them and watch their output in real-time.
 
 ### Core Components
 
@@ -300,13 +302,15 @@ Tide Commander is a Claude Code and Codex-compatible orchestrator that provides 
 **⚙️ Backend (Node.js + Express)**
 - REST API for agent CRUD operations
 - WebSocket server for real-time event streaming
-- Process manager that spawns and controls Claude and Codex CLI instances
+- Process manager that spawns and controls Claude, Codex, and OpenCode CLI instances
 
-**🤖 CLI Integration (Claude + Codex)**
+**🤖 CLI Integration (Claude + Codex + OpenCode)**
 - Claude agents run `claude` with `--output-format stream-json` and use stdin for follow-up messages
 - Codex agents run `codex exec --experimental-json` and resume via session-based command args
-- Events (tool usage, text output, errors) are parsed from stdout for both providers
+- OpenCode agents run `opencode run --format json` for NDJSON streaming and resume via `-s <sessionId>`
+- Events (tool usage, text output, errors) are parsed from stdout for all providers
 - Sessions are persisted and can be resumed
+- OpenCode reads `.claude/CLAUDE.md` natively (like Claude Code)
 
 ### Architecture
 
@@ -412,7 +416,7 @@ docker run -p 5174:5174 \
   tide-commander
 ```
 
-> Note: The Docker container still needs `claude` CLI accessible inside the container for agent processes to work.
+> Note: The Docker container needs at least one CLI (`claude`, `codex`, or `opencode`) accessible inside the container for agent processes to work.
 
 ## 📱 Android APK (Optional)
 
@@ -447,6 +451,7 @@ To configure which server the app connects to, set `LISTEN_ALL_INTERFACES=1` on 
 **"Claude Code CLI not found"**
 - Ensure `claude` is in your PATH
 - Run `which claude` to verify installation
+- For OpenCode agents, ensure `opencode` is in your PATH (`which opencode`)
 
 **WebSocket disconnects**
 - Check that the server is running (default port 6200, or your configured `PORT`)
@@ -465,6 +470,7 @@ Planned features and improvements — contributions and feedback welcome:
 - [ ] **Test Coverage** — Unit, integration, and E2E tests (currently minimal)
 - [x] **Multilingual Support** — i18n with 10 languages (EN, ES, FR, DE, IT, PT, RU, ZH, JA, HI)
 - [x] **Codex Integration** — Compatible with OpenAI Codex CLI alongside Claude Code
+- [x] **OpenCode Integration** — Compatible with OpenCode CLI as a third provider
 - [ ] **Buildings Plugin System** — External plugin API for community-built building types
 - [x] **API Documentation** — OpenAPI/Swagger spec for the REST and WebSocket APIs
 - [ ] **Observability** — Error tracking, logging aggregation, and performance monitoring

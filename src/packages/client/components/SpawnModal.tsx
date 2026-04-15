@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next';
 import { store, useAgents, useSkillsArray, useCustomAgentClassesArray, useCustomAgentNames } from '../store';
 import { AGENT_CLASS_CONFIG, BUILTIN_AGENT_NAMES, CHARACTER_MODELS } from '../scene/config';
-import type { AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, CodexModel, AgentProvider, CodexConfig } from '../../shared/types';
-import { PERMISSION_MODES, CLAUDE_MODELS, CODEX_MODELS } from '../../shared/types';
+import type { AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, ClaudeEffort, CodexModel, AgentProvider, CodexConfig } from '../../shared/types';
+import { PERMISSION_MODES, CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS } from '../../shared/types';
 import { STORAGE_KEYS, getStorageString, setStorageString, apiUrl, authFetch } from '../utils/storage';
 import { ModelPreview } from './ModelPreview';
 import { HelpTooltip } from './shared/Tooltip';
@@ -80,7 +80,9 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
   });
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set());
   const [selectedModel, setSelectedModel] = useState<ClaudeModel>('opus'); // Default to opus
+  const [selectedEffort, setSelectedEffort] = useState<ClaudeEffort | undefined>('high'); // Default: high (matches CLI default)
   const [selectedCodexModel, setSelectedCodexModel] = useState<CodexModel>('gpt-5.3-codex');
+  const [opencodeModel, setOpencodeModel] = useState<string>('minimax/MiniMax-M1-80k');
   const [customInstructions, setCustomInstructions] = useState('');
   const [skillSearch, setSkillSearch] = useState('');
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -345,6 +347,13 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
     }
   }, [selectedClass]);
 
+  // Boss class should default to opus model
+  useEffect(() => {
+    if (selectedClass === 'boss') {
+      setSelectedModel('opus');
+    }
+  }, [selectedClass]);
+
   const handleSpawn = () => {
     console.log('[SpawnModal] handleSpawn called');
     setHasError(false);
@@ -392,6 +401,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
       provider: selectedProvider,
       codexConfig: selectedProvider === 'codex' ? codexConfig : undefined,
       codexModel: selectedProvider === 'codex' ? selectedCodexModel : undefined,
+      opencodeModel: selectedProvider === 'opencode' ? opencodeModel : undefined,
       initialSkillIds,
       model: selectedProvider === 'claude' ? selectedModel : undefined,
       customInstructions: trimmedInstructions ? `${trimmedInstructions.length} chars` : undefined,
@@ -413,7 +423,9 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
       selectedProvider === 'codex' ? codexConfig : undefined,
       selectedProvider === 'codex' ? selectedCodexModel : undefined,
       selectedProvider === 'claude' ? selectedModel : undefined,
-      trimmedInstructions
+      trimmedInstructions,
+      selectedProvider === 'claude' ? selectedEffort : undefined,
+      selectedProvider === 'opencode' ? opencodeModel : undefined
     );
   };
 
@@ -644,6 +656,14 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                     <img src={`${import.meta.env.BASE_URL}assets/codex.ico`} alt="Codex" className="spawn-provider-icon" />
                     <span>Codex</span>
                   </button>
+                  <button
+                    className={`spawn-select-btn spawn-select-btn--opencode ${selectedProvider === 'opencode' ? 'selected' : ''}`}
+                    onClick={() => setSelectedProvider('opencode')}
+                    title="Use OpenCode CLI (multi-provider)"
+                  >
+                    <span>🟢</span>
+                    <span>OpenCode</span>
+                  </button>
                 </div>
               </div>
               <div className="spawn-field">
@@ -712,10 +732,42 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                       </button>
                     ))}
                   </div>
+                ) : selectedProvider === 'opencode' ? (
+                  <input
+                    type="text"
+                    className="spawn-input"
+                    value={opencodeModel}
+                    onChange={(e) => setOpencodeModel(e.target.value)}
+                    placeholder="provider/model (e.g., minimax/MiniMax-M1-80k)"
+                  />
                 ) : (
                   <div className="spawn-inline-hint">{t('terminal:spawn.chooseCodexModel')}</div>
                 )}
               </div>
+              {selectedProvider === 'claude' && (
+                <div className="spawn-field">
+                  <label className="spawn-label">Effort</label>
+                  <div className="spawn-select-row spawn-select-row--effort">
+                    <button
+                      className={`spawn-select-btn spawn-select-btn--compact ${selectedEffort === undefined ? 'selected' : ''}`}
+                      onClick={() => setSelectedEffort(undefined)}
+                      title="Use default effort level"
+                    >
+                      <span>Default</span>
+                    </button>
+                    {(Object.keys(CLAUDE_EFFORTS) as ClaudeEffort[]).map((level) => (
+                      <button
+                        key={level}
+                        className={`spawn-select-btn spawn-select-btn--compact ${selectedEffort === level ? 'selected' : ''}`}
+                        onClick={() => setSelectedEffort(level)}
+                        title={CLAUDE_EFFORTS[level].description}
+                      >
+                        <span>{CLAUDE_EFFORTS[level].label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="spawn-field">
                 <label className="spawn-label">{t('terminal:spawn.browser')}</label>
                 <div className="spawn-form-row spawn-options-row">

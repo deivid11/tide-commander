@@ -184,7 +184,7 @@ const SETTINGS_SECTIONS = [
   { id: 'general', title: 'General', keywords: ['history', 'hide costs', 'grid', 'fps', 'power saving', 'performance', 'limit', 'editor', 'external editor', 'language', 'idioma', '语言', 'vibration', 'haptic', 'intensity', 'tab title'] },
   { id: 'agentNames', title: 'Agent Names', keywords: ['agent', 'names', 'custom', 'characters', 'rename'] },
   { id: 'appearance', title: 'Appearance', keywords: ['theme', 'appearance', 'color', 'dark', 'light', 'style', 'look'] },
-  { id: 'connection', title: 'Connection', keywords: ['backend', 'url', 'auth', 'token', 'reconnect', 'server', 'api', 'connect', 'codex', 'binary', 'path'] },
+  { id: 'connection', title: 'Connection', keywords: ['backend', 'url', 'auth', 'token', 'reconnect', 'server', 'api', 'connect', 'codex', 'opencode', 'binary', 'path'] },
   { id: 'scene', title: 'Scene', keywords: ['character', 'size', 'indicator', 'scale', 'time', 'dawn', 'day', 'dusk', 'night', 'auto'] },
   { id: 'terrain', title: 'Terrain', keywords: ['trees', 'bushes', 'house', 'lamps', 'grass', 'clouds', 'fog', 'brightness', 'floor', 'sky', 'color', 'environment', 'battlefield', 'size', 'grid'] },
   { id: 'modelStyle', title: 'Agent Model Style', keywords: ['saturation', 'roughness', 'metalness', 'glow', 'emissive', 'reflections', 'wireframe', 'color mode', 'material', 'shader'] },

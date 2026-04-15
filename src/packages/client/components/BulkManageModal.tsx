@@ -23,7 +23,7 @@ export interface BulkManageModalProps {
 
 type StatusFilter = 'all' | 'idle' | 'working' | 'error' | 'stopped';
 type IdleTimeFilter = 'any' | '>1h' | '>6h' | '>1d' | '>3d' | '>7d' | '>30d';
-type ProviderFilter = 'all' | 'claude' | 'codex';
+type ProviderFilter = 'all' | 'claude' | 'codex' | 'opencode';
 type ModelFilter = 'all' | 'opus' | 'sonnet' | 'haiku';
 
 type ConfirmAction = 'delete' | 'clear-context' | null;
@@ -279,6 +279,7 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                 <option value="all">All Providers</option>
                 <option value="claude">Claude</option>
                 <option value="codex">Codex</option>
+                <option value="opencode">OpenCode</option>
               </select>
 
               <select

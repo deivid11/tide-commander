@@ -36,6 +36,7 @@ vi.mock('../claude/session-loader.js', () => ({
 vi.mock('../runtime/index.js', () => ({
   createClaudeRuntimeProvider: vi.fn(() => ({ createRunner: mockCreateRunner })),
   createCodexRuntimeProvider: vi.fn(() => ({ createRunner: mockCreateRunner })),
+  createOpencodeRuntimeProvider: vi.fn(() => ({ createRunner: mockCreateRunner })),
 }));
 
 describe('runtime-service codex detached behavior', () => {
