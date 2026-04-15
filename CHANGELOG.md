@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.40.3] - 2026-04-15
+
+### Fixed
+- **Boss agent spawn validation** - Boss agents can now spawn custom agent classes (e.g. growey, espeon), not just built-in classes. The hardcoded class whitelist now dynamically includes all registered custom classes
+- **Boss spawn instructions** - Updated boss instructions to inform boss agents they can use any registered agent class, not just the 6 built-in ones
+- **PM2 foreground lifecycle** - Fixed startup race when PM2 restarts the process: instead of sending a duplicate SIGTERM, the new process now waits for the old one to exit gracefully
+
 ## [1.40.2] - 2026-04-14
 
 ### Fixed

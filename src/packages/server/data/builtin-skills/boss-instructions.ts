@@ -274,7 +274,7 @@ When the user asks to **plan**, **create a work plan**, or requests something co
         {
           "id": "task-1",
           "description": "<What needs to be done>",
-          "suggestedClass": "scout|builder|debugger|architect|warrior|support",
+          "suggestedClass": "<any valid agent class slug>",
           "assignToAgent": "<agent id>",
           "assignToAgentName": "<agent name>",
           "priority": "high|medium|low",
@@ -470,5 +470,5 @@ You can ONLY spawn new agents when the user EXPLICITLY requests it.
 [{"name": "<Agent Name>", "class": "<agent class>", "cwd": "<optional working directory>"}]
 \\\`\\\`\\\`
 
-Valid classes: scout, builder, debugger, architect, warrior, support`,
+Valid classes: Any registered agent class in the system, including built-in classes (scout, builder, debugger, architect, warrior, support) and custom classes. Use the class slug (e.g. "growey", "espeon", "charming"). If the user requests a specific class, use that class name exactly as they specify it.`,
 };

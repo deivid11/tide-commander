@@ -740,7 +740,19 @@ async function main(): Promise<void> {
     || options.foreground === true;
 
   if (existingPid && isRunning(existingPid)) {
-    if (hasStartupOverrides) {
+    if (runInForeground) {
+      // In foreground mode (PM2 managed), the process manager handles lifecycle.
+      // The old process is already being killed by PM2 — just wait for it to exit
+      // and clear the stale PID file instead of trying to send another SIGTERM.
+      const stopped = await waitForProcessExit(existingPid);
+      if (!stopped) {
+        // Force kill as last resort — PM2's SIGTERM may not have been enough
+        try { process.kill(existingPid, 'SIGKILL'); } catch {}
+        await waitForProcessExit(existingPid, 3000);
+      }
+      clearPidFile();
+      clearServerMeta();
+    } else if (hasStartupOverrides) {
       try {
         process.kill(existingPid, 'SIGTERM');
       } catch (error) {

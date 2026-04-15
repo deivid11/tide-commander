@@ -35,6 +35,10 @@ vi.mock('./command-handler.js', () => ({
   buildCustomAgentConfig: vi.fn(() => undefined),
 }));
 
+vi.mock('../../services/custom-class-service.js', () => ({
+  getAllCustomClasses: vi.fn(() => []),
+}));
+
 import { agentService, runtimeService, bossService } from '../../services/index.js';
 import { getLastBossCommand } from './command-handler.js';
 

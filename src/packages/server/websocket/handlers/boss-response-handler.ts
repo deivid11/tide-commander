@@ -4,7 +4,9 @@
  */
 
 import type { AgentClass, DelegationDecision, ServerMessage } from '../../../shared/types.js';
+import { BUILT_IN_AGENT_CLASSES } from '../../../shared/agent-types.js';
 import { agentService, runtimeService, bossService, workPlanService } from '../../services/index.js';
+import { getAllCustomClasses } from '../../services/custom-class-service.js';
 import { logger } from '../../utils/index.js';
 import { getLastBossCommand, buildCustomAgentConfig } from './command-handler.js';
 
@@ -369,7 +371,9 @@ export async function parseBossSpawn(
 
     const boss = agentService.getAgent(bossId);
     const bossCwd = boss?.cwd || process.cwd();
-    const validClasses = ['scout', 'builder', 'debugger', 'architect', 'warrior', 'support'];
+    const builtInClassIds = Object.keys(BUILT_IN_AGENT_CLASSES).filter(c => c !== 'boss');
+    const customClassIds = getAllCustomClasses().map(c => c.id);
+    const validClasses = [...builtInClassIds, ...customClassIds];
 
     for (const spawnRequest of spawns) {
       const { name, class: agentClass, cwd } = spawnRequest;
