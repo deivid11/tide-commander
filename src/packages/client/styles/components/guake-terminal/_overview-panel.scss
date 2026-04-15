@@ -198,6 +198,37 @@
       }
     }
 
+    .workspace-switcher {
+      flex-shrink: 0;
+
+      .workspace-switcher-trigger {
+        padding: 2px 7px;
+        background: color-mix(in srgb, var(--text-muted) 10%, transparent);
+        border: 1px solid color-mix(in srgb, var(--text-muted) 25%, transparent);
+        border-radius: $radius-sm;
+        color: var(--text-muted);
+        font-family: $font-mono;
+        font-size: 12px;
+        box-shadow: none;
+
+        &:hover {
+          background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+          border-color: color-mix(in srgb, var(--accent-cyan) 40%, transparent);
+          color: var(--accent-cyan);
+        }
+      }
+
+      .workspace-switcher-label {
+        max-width: 120px;
+      }
+
+      .workspace-switcher-arrow {
+        font-size: 9px;
+        color: currentColor;
+        opacity: 0.7;
+      }
+    }
+
     // Area filter dropdown
     .aop-area-filter {
       position: relative;

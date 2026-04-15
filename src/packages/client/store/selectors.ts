@@ -1105,6 +1105,14 @@ export function useOverviewPanelOpen(): boolean {
   return useSelector(useCallback((state: StoreState) => state.overviewPanelOpen, []));
 }
 
+export function useSplitPaneAgentIds(): string[] {
+  return useSelector(useCallback((state: StoreState) => state.splitPaneAgentIds, []));
+}
+
+export function useSplitOrientation(): 'horizontal' | 'vertical' {
+  return useSelector(useCallback((state: StoreState) => state.splitOrientation, []));
+}
+
 // ============================================================================
 // UNSEEN OUTPUT SELECTORS
 // ============================================================================

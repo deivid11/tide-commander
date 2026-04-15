@@ -160,6 +160,8 @@ export {
   useSubagentsMapForAgent,
   useViewMode,
   useOverviewPanelOpen,
+  useSplitPaneAgentIds,
+  useSplitOrientation,
   useAgentsWithUnseenOutput,
 } from './selectors';
 
@@ -276,6 +278,8 @@ class Store
         return (saved === '2d' || saved === '3d' || saved === 'dashboard') ? saved as StoreState['viewMode'] : '3d';
       })(),
       overviewPanelOpen: getStorageBoolean(STORAGE_KEYS.AOP_OPEN, false),
+      splitPaneAgentIds: this.loadSplitPaneAgentIds(),
+      splitOrientation: this.loadSplitOrientation(),
       agentsWithUnseenOutput: this.loadUnseenAgents(),
       commanderExpandRequest: null,
       latestNotificationAgentId: null,
@@ -486,6 +490,52 @@ class Store
   setOverviewPanelOpen(open: boolean): void {
     this.state.overviewPanelOpen = open;
     setStorageBoolean(STORAGE_KEYS.AOP_OPEN, open);
+    this.notify();
+  }
+
+  // ============================================================================
+  // Split Pane State
+  // ============================================================================
+
+  private loadSplitPaneAgentIds(): string[] {
+    const stored = getStorage<string[]>(STORAGE_KEYS.SPLIT_PANE_AGENT_IDS, []);
+    return Array.isArray(stored) ? stored : [];
+  }
+
+  private saveSplitPaneAgentIds(): void {
+    setStorage(STORAGE_KEYS.SPLIT_PANE_AGENT_IDS, this.state.splitPaneAgentIds);
+  }
+
+  private loadSplitOrientation(): 'horizontal' | 'vertical' {
+    const stored = getStorageString(STORAGE_KEYS.SPLIT_PANE_ORIENTATION, 'horizontal');
+    return stored === 'vertical' ? 'vertical' : 'horizontal';
+  }
+
+  addSplitPane(agentId: string): void {
+    if (this.state.splitPaneAgentIds.includes(agentId)) return;
+    if (this.state.splitPaneAgentIds.length >= 4) return;
+    this.state.splitPaneAgentIds = [...this.state.splitPaneAgentIds, agentId];
+    this.saveSplitPaneAgentIds();
+    this.notify();
+  }
+
+  removeSplitPane(agentId: string): void {
+    if (!this.state.splitPaneAgentIds.includes(agentId)) return;
+    this.state.splitPaneAgentIds = this.state.splitPaneAgentIds.filter(id => id !== agentId);
+    this.saveSplitPaneAgentIds();
+    this.notify();
+  }
+
+  clearSplitPanes(): void {
+    if (this.state.splitPaneAgentIds.length === 0) return;
+    this.state.splitPaneAgentIds = [];
+    this.saveSplitPaneAgentIds();
+    this.notify();
+  }
+
+  toggleSplitOrientation(): void {
+    this.state.splitOrientation = this.state.splitOrientation === 'horizontal' ? 'vertical' : 'horizontal';
+    setStorageString(STORAGE_KEYS.SPLIT_PANE_ORIENTATION, this.state.splitOrientation);
     this.notify();
   }
 

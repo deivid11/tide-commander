@@ -1,0 +1,174 @@
+// =============================================================================
+// Split Terminal Layout
+// =============================================================================
+// Styles for the split terminal pane feature that allows viewing
+// multiple agent terminals side by side or stacked via drag-and-drop.
+// =============================================================================
+
+@use '../../variables' as *;
+
+// Container for all split panes
+.split-terminal-layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+
+  &.single {
+    flex-direction: column;
+  }
+
+  &.multi {
+    flex-direction: column;
+  }
+
+  // Drop zone visual indicator
+  &.drop-zone-active {
+    &::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border: 2px dashed rgba($dracula-cyan, 0.6);
+      background: rgba($dracula-cyan, 0.05);
+      border-radius: 4px;
+      z-index: 10;
+      pointer-events: none;
+    }
+  }
+}
+
+// Toolbar with orientation toggle (visible in split mode only)
+.split-toolbar {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  height: 22px;
+  padding: 0 6px;
+  background: rgba($dracula-comment, 0.1);
+  border-bottom: 1px solid rgba($dracula-comment, 0.15);
+}
+
+.split-orientation-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid rgba($dracula-comment, 0.3);
+  border-radius: 3px;
+  background: rgba($dracula-comment, 0.1);
+  color: rgba($dracula-fg, 0.6);
+  font-size: 8px;
+  cursor: pointer;
+  transition: background 0.1s ease, border-color 0.1s ease;
+
+  &:hover {
+    background: rgba($dracula-cyan, 0.15);
+    border-color: rgba($dracula-cyan, 0.4);
+    color: $dracula-cyan;
+  }
+}
+
+.split-orientation-icon {
+  display: flex;
+  gap: 1px;
+  line-height: 1;
+  white-space: pre;
+
+  &.horizontal {
+    flex-direction: row;
+    font-size: 6px;
+    letter-spacing: 1px;
+  }
+
+  &.vertical {
+    flex-direction: column;
+    font-size: 5px;
+    line-height: 0.9;
+  }
+}
+
+// Inner flex container for the actual panes
+.split-panes-container {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+
+  &.horizontal {
+    flex-direction: row;
+  }
+
+  &.vertical {
+    flex-direction: column;
+  }
+}
+
+// Individual split pane
+.split-terminal-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+// Small header bar per split pane showing agent name + close button
+.split-pane-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  height: 24px;
+  padding: 0 8px;
+  background: rgba($dracula-comment, 0.15);
+  border-bottom: 1px solid rgba($dracula-comment, 0.2);
+  font-size: 11px;
+  color: rgba($dracula-fg, 0.7);
+  user-select: none;
+}
+
+.split-pane-agent-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.split-pane-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-left: 4px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: rgba($dracula-fg, 0.5);
+  font-size: 11px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.1s ease, color 0.1s ease;
+
+  &:hover {
+    background: rgba($dracula-red, 0.2);
+    color: $dracula-red;
+  }
+}
+
+// Responsive: force vertical on narrow screens
+@media (max-width: 768px) {
+  .split-panes-container.horizontal {
+    flex-direction: column;
+
+    .guake-split-divider.horizontal {
+      width: 100%;
+      height: 4px;
+      cursor: row-resize;
+    }
+  }
+}

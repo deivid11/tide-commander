@@ -272,6 +272,10 @@ export interface StoreState {
   viewMode: '2d' | '3d' | 'dashboard';
   // Agent overview panel open state (persists across agent switches)
   overviewPanelOpen: boolean;
+  // Split terminal pane agent IDs (empty = single pane mode)
+  splitPaneAgentIds: string[];
+  // Split terminal orientation
+  splitOrientation: 'horizontal' | 'vertical';
   // Agents with unseen output (completed work but user hasn't viewed)
   agentsWithUnseenOutput: Set<string>;
   // Request to expand an agent in the commander view (set from notification clicks)

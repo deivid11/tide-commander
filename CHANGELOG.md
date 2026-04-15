@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.41.0] - 2026-04-15
+
+### Added
+- **Split terminal layout** - View up to 4 agent terminals side by side with `SplitTerminalLayout` and `AgentTerminalPane` components, persisted across sessions
+- **Split pane store actions** - Add/remove/clear/toggle split panes with horizontal/vertical orientation support and localStorage persistence
+- **Overview panel styling** - Enhanced agent overview panel styles for split layout context
+
+### Changed
+- **ClaudeOutputPanel refactor** - Extracted self-contained `AgentTerminalPane` component from monolithic panel (~770 lines removed), delegating history, output, input, and search to the pane
+
 ## [1.40.5] - 2026-04-15
 
 ### Fixed
