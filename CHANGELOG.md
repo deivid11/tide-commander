@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.40.4] - 2026-04-15
+
+### Added
+- **Tmux process persistence** - Agent CLI processes can optionally run inside tmux sessions (`TIDE_USE_TMUX=1`) so they survive server restarts; includes tmux-helper module, file-tailing stdout pipeline, and tmux-aware recovery/reconnection
+- **Tmux mode setting** - New API endpoints and system-prompt-service functions to toggle tmux mode via Settings UI
+- **Reconnection grace period** - When WebSocket connection drops, a non-blocking "Reconnecting..." toast shows for 10s before the full overlay appears
+- **History loader reconnect support** - On reconnect, existing conversation history stays on screen while fresh data loads in the background to avoid flicker
+
+### Fixed
+- **Notification suppression refinement** - Post-notification gate now allows step_complete, usage_snapshot, error, and compacting events through while suppressing text/tool output, preventing missed idle transitions
+- **Stdout pipeline tests** - Extended test coverage for notification suppression and tmux log tailing
+
+### Changed
+- **Recovery store** - Persists tmux session names, log offsets, and provider info to enable cross-restart reconnection
+- **Process lifecycle** - Tmux-aware spawn path with initial stdin piping and launcher process handling
+- **Runner diagnostics** - Resolves real PID from tmux pane for debug tools
+
 ## [1.40.3] - 2026-04-15
 
 ### Fixed

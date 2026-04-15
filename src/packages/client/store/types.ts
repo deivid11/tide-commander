@@ -121,6 +121,8 @@ export interface Settings {
   vibrationIntensity: number;
   // Custom browser tab title (empty = default "Tide Commander")
   tabTitle?: string;
+  // tmux process persistence (server-synced)
+  tmuxMode: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -136,6 +138,7 @@ export const DEFAULT_SETTINGS: Settings = {
   externalEditorCommand: '',
   vibrationIntensity: 1,
   tabTitle: '',
+  tmuxMode: false,
 };
 
 // Supervisor state
@@ -181,6 +184,8 @@ export interface StoreState {
   bossStreamingLogs: Map<string, Array<{ subordinateId: string; subordinateName: string; chunk: string; timestamp: number; isError?: boolean }>>;
   // Agent outputs per agent
   agentOutputs: Map<string, AgentOutput[]>;
+  // Agents currently compacting context
+  compactingAgents: Set<string>;
   // Last prompt per agent
   lastPrompts: Map<string, LastPrompt>;
   // Tool execution history

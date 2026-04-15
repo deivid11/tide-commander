@@ -23,6 +23,7 @@ import {
   useTerminalOpen,
   useLastPrompts,
   useAgentOutputs,
+  useAgentCompacting,
   useMobileView,
   store,
   useReconnectCount,
@@ -543,6 +544,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     document.addEventListener('mouseup', onMouseUp);
   }, [sidePanelWidth]);
   const outputs = useAgentOutputs(activeAgentId);
+  const isCompacting = useAgentCompacting(activeAgentId);
 
   // Use snapshot outputs if viewing a snapshot, otherwise use agent outputs
   const displayOutputs = useMemo(() => {
@@ -2265,6 +2267,15 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
                     // (the spinner flag is intentionally delayed and may never toggle true on fast loads).
                     isLoadingHistory={historyLoader.fetchingHistory}
                   />
+                )}
+                {/* Context compaction indicator */}
+                {!isAgentSwitching && isCompacting && (
+                  <div className="compacting-indicator">
+                    <div className="compacting-bar">
+                      <div className="compacting-bar-fill" />
+                    </div>
+                    <span className="compacting-label">Compacting context...</span>
+                  </div>
                 )}
                 {/* Boss agent progress indicators */}
                 {!isAgentSwitching && isBoss && activeTaskProgress.length > 0 && (

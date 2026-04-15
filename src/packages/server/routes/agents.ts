@@ -15,7 +15,7 @@ import { getAllCustomClasses } from '../services/custom-class-service.js';
 import { createLogger } from '../utils/logger.js';
 import { buildCustomAgentConfig } from '../websocket/handlers/command-handler.js';
 import { clearDelegation, getBossForSubordinate } from '../websocket/handlers/boss-response-handler.js';
-import { getSystemPrompt, setSystemPrompt, clearSystemPrompt, isEchoPromptEnabled, setEchoPromptEnabled, getCodexBinaryPath, setCodexBinaryPath } from '../services/system-prompt-service.js';
+import { getSystemPrompt, setSystemPrompt, clearSystemPrompt, isEchoPromptEnabled, setEchoPromptEnabled, getCodexBinaryPath, setCodexBinaryPath, isTmuxModeEnabled, setTmuxModeEnabled } from '../services/system-prompt-service.js';
 import type { ServerMessage } from '../../shared/types.js';
 
 const log = createLogger('Routes');
@@ -900,6 +900,34 @@ router.post('/system-settings/codex-binary', (req: Request, res: Response) => {
     res.json({ success: true, path: binaryPath });
   } catch (err: any) {
     log.error(' Failed to set codex binary path:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/system-settings/tmux-mode - Get tmux mode setting
+router.get('/system-settings/tmux-mode', (_req: Request, res: Response) => {
+  try {
+    const enabled = isTmuxModeEnabled();
+    res.json({ enabled });
+  } catch (err: any) {
+    log.error(' Failed to get tmux mode setting:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/system-settings/tmux-mode - Update tmux mode setting
+router.post('/system-settings/tmux-mode', (req: Request, res: Response) => {
+  try {
+    const { enabled } = req.body;
+    if (typeof enabled !== 'boolean') {
+      res.status(400).json({ error: 'enabled must be a boolean' });
+      return;
+    }
+    setTmuxModeEnabled(enabled);
+    log.log(` Tmux mode setting updated: enabled=${enabled}`);
+    res.json({ success: true, enabled });
+  } catch (err: any) {
+    log.error(' Failed to set tmux mode setting:', err);
     res.status(500).json({ error: err.message });
   }
 });

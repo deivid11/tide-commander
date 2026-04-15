@@ -4,6 +4,32 @@ import { RunnerInternalEventBus } from './internal-events.js';
 import { RunnerStdoutPipeline } from './stdout-pipeline.js';
 
 describe('RunnerStdoutPipeline', () => {
+  function createPipeline() {
+    const backend: CLIBackend = {
+      name: 'test-backend',
+      buildArgs: vi.fn(() => []),
+      parseEvent: vi.fn(() => null),
+      extractSessionId: vi.fn(() => null),
+      getExecutablePath: vi.fn(() => 'test-bin'),
+      detectInstallation: vi.fn(() => null),
+      requiresStdinInput: vi.fn(() => false),
+      formatStdinInput: vi.fn((prompt: string) => prompt),
+    };
+
+    const callbacks: RunnerCallbacks = {
+      onEvent: vi.fn(),
+      onOutput: vi.fn(),
+      onSessionId: vi.fn(),
+      onComplete: vi.fn(),
+      onError: vi.fn(),
+    };
+
+    const bus = new RunnerInternalEventBus();
+    const pipeline = new RunnerStdoutPipeline({ backend, callbacks, bus });
+
+    return { backend, callbacks, bus, pipeline };
+  }
+
   it('emits activity/session events and forwards parsed events', () => {
     const parsedEvent: StandardEvent = {
       type: 'text',
@@ -60,31 +86,93 @@ describe('RunnerStdoutPipeline', () => {
   });
 
   it('forwards non-json lines as raw output', () => {
-    const backend: CLIBackend = {
-      name: 'test-backend',
-      buildArgs: vi.fn(() => []),
-      parseEvent: vi.fn(() => null),
-      extractSessionId: vi.fn(() => null),
-      getExecutablePath: vi.fn(() => 'test-bin'),
-      detectInstallation: vi.fn(() => null),
-      requiresStdinInput: vi.fn(() => false),
-      formatStdinInput: vi.fn((prompt: string) => prompt),
-    };
-
-    const callbacks: RunnerCallbacks = {
-      onEvent: vi.fn(),
-      onOutput: vi.fn(),
-      onSessionId: vi.fn(),
-      onComplete: vi.fn(),
-      onError: vi.fn(),
-    };
-
-    const bus = new RunnerInternalEventBus();
-    const pipeline = new RunnerStdoutPipeline({ backend, callbacks, bus });
+    const { callbacks, pipeline } = createPipeline();
 
     (pipeline as any).processLine('agent-2', 'not-json');
 
     expect(callbacks.onOutput).toHaveBeenCalledWith('agent-2', '[raw] not-json');
     expect(callbacks.onEvent).not.toHaveBeenCalled();
+  });
+
+  it('suppresses output-producing events after notification curl', () => {
+    const { callbacks, pipeline } = createPipeline();
+
+    (pipeline as any).handleEvent('agent-3', {
+      type: 'tool_start',
+      toolName: 'Bash',
+      toolInput: { command: 'curl -s http://localhost:5174/api/notify' },
+    } satisfies StandardEvent);
+    (pipeline as any).handleEvent('agent-3', {
+      type: 'text',
+      text: 'should not be emitted',
+    } satisfies StandardEvent);
+    (pipeline as any).handleEvent('agent-3', {
+      type: 'tool_start',
+      toolName: 'Read',
+      toolInput: { file_path: 'src/packages/server/claude/runner/stdout-pipeline.ts' },
+    } satisfies StandardEvent);
+
+    expect(callbacks.onOutput).toHaveBeenCalledTimes(2);
+    expect(callbacks.onOutput).toHaveBeenNthCalledWith(
+      1,
+      'agent-3',
+      'Using tool: Bash',
+      false,
+      undefined,
+      undefined,
+      {
+        toolName: 'Bash',
+        toolInput: { command: 'curl -s http://localhost:5174/api/notify' },
+      },
+    );
+    expect(callbacks.onOutput).toHaveBeenNthCalledWith(
+      2,
+      'agent-3',
+      'Tool input: {\"command\":\"curl -s http://localhost:5174/api/notify\"}',
+      false,
+      undefined,
+      undefined,
+    );
+  });
+
+  it('allows passthrough events after notification curl and resets on init', () => {
+    const { callbacks, pipeline } = createPipeline();
+
+    (pipeline as any).handleEvent('agent-4', {
+      type: 'tool_start',
+      toolName: 'Bash',
+      toolInput: { command: 'curl -s http://localhost:5174/api/notify' },
+    } satisfies StandardEvent);
+    (pipeline as any).handleEvent('agent-4', {
+      type: 'usage_snapshot',
+    } satisfies StandardEvent);
+    (pipeline as any).handleEvent('agent-4', {
+      type: 'step_complete',
+      resultText: 'final result',
+      tokens: { input: 1, output: 2 },
+      cost: 0.25,
+    } satisfies StandardEvent);
+    (pipeline as any).handleEvent('agent-4', {
+      type: 'error',
+      errorMessage: 'still surfaced',
+    } satisfies StandardEvent);
+    (pipeline as any).handleEvent('agent-4', {
+      type: 'init',
+      sessionId: 'session-456',
+      model: 'gpt-test',
+    } satisfies StandardEvent);
+    (pipeline as any).handleEvent('agent-4', {
+      type: 'text',
+      text: 'emitted after reset',
+    } satisfies StandardEvent);
+
+    expect(callbacks.onEvent).toHaveBeenCalledTimes(6);
+    expect(callbacks.onOutput).toHaveBeenCalledWith('agent-4', 'final result', false, undefined, undefined);
+    expect(callbacks.onOutput).toHaveBeenCalledWith('agent-4', 'Tokens: 1 in, 2 out', false, undefined, undefined);
+    expect(callbacks.onOutput).toHaveBeenCalledWith('agent-4', 'Cost: $0.2500', false, undefined, undefined);
+    expect(callbacks.onSessionId).not.toHaveBeenCalled();
+    expect(callbacks.onError).toHaveBeenCalledWith('agent-4', 'still surfaced');
+    expect(callbacks.onOutput).toHaveBeenCalledWith('agent-4', 'Session started: session-456 (gpt-test)');
+    expect(callbacks.onOutput).toHaveBeenCalledWith('agent-4', 'emitted after reset', undefined, undefined, undefined);
   });
 });

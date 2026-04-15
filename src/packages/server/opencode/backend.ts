@@ -11,6 +11,7 @@ import { getSystemPrompt, isEchoPromptEnabled } from '../services/system-prompt-
 import { loadAreas } from '../data/index.js';
 import { createLogger } from '../utils/logger.js';
 
+// Backend adapter for OpenCode CLI sessions.
 const log = createLogger('OpencodeBackend');
 
 interface OpencodeRawEvent {
@@ -141,6 +142,7 @@ export class OpencodeBackend implements CLIBackend {
     // Return the full prompt cached during buildArgs (includes system prompt, agent instructions, etc.)
     const fullPrompt = this.pendingStdinPrompt || _prompt;
     this.pendingStdinPrompt = undefined;
+
     return fullPrompt;
   }
 }

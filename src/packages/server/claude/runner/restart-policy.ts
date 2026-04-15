@@ -60,6 +60,16 @@ export class RunnerRestartPolicy {
       return;
     }
 
+    // If the process had completed its turn and was waiting for new input,
+    // its exit is a normal completion — not a crash.  This is especially
+    // important for backends like Codex that exit after each task rather
+    // than staying resident for stdin-based follow-ups.
+    if (activeProcess.turnState === 'waiting_for_input') {
+      log.log(`🔄 [AUTO-RESTART] Process ${agentId} exited after completing its turn (turnState=waiting_for_input), not restarting`);
+      this.callbacks.onComplete(agentId, true);
+      return;
+    }
+
     const restartCount = activeProcess.restartCount || 0;
     const lastRestartTime = activeProcess.lastRestartTime || 0;
     const timeSinceLastRestart = Date.now() - lastRestartTime;

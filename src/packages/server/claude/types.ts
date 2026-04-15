@@ -19,7 +19,8 @@ export interface StandardEvent {
     | 'block_start'
     | 'block_end'
     | 'context_stats'   // Response from /context command
-    | 'usage_stats';    // Response from /usage command
+    | 'usage_stats'     // Response from /usage command
+    | 'compacting';     // Context compaction in progress
   blockType?: 'text' | 'thinking';
   sessionId?: string;
   text?: string;
@@ -274,6 +275,12 @@ export interface ActiveProcess {
   };
   // Turn state: tracks whether the process is mid-turn or waiting for stdin input
   turnState?: 'processing' | 'waiting_for_input';
+  // tmux session name when running in tmux mode (TIDE_USE_TMUX=1)
+  tmuxSession?: string;
+  // tmux log file path for stdout tailing
+  tmuxLogFile?: string;
+  // tmux file tailer handle
+  tmuxTailer?: import('./runner/tmux-helper.js').TmuxFileTailer;
 }
 
 // Process death info for diagnostics

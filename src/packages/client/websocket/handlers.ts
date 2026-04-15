@@ -227,6 +227,12 @@ export function handleServerMessage(message: ServerMessage): void {
       break;
     }
 
+    case 'compacting_status': {
+      const { agentId, active } = message.payload as { agentId: string; active: boolean };
+      store.setAgentCompacting(agentId, active);
+      break;
+    }
+
     case 'error': {
       const errorPayload = message.payload as { message: string };
       console.error('[WebSocket] Error from server:', errorPayload.message);

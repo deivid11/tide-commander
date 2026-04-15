@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import react from '@vitejs/plugin-react';
 import pkg from './package.json';
 
+// Vite config for local Tide Commander development.
 // Port configuration - can be overridden via environment variables
 const SERVER_PORT = process.env.PORT || 6200;
 const VITE_PORT = process.env.VITE_PORT || 5173;

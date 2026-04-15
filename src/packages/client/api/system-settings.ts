@@ -127,3 +127,38 @@ export async function updateCodexBinaryPath(binaryPath: string): Promise<void> {
     throw new Error(`Failed to update codex binary path: ${response.statusText}`);
   }
 }
+
+/**
+ * Get the current tmux mode setting
+ */
+export async function fetchTmuxModeSetting(): Promise<boolean> {
+  const token = getAuthToken();
+  const response = await fetch(`${getApiBaseUrl()}/api/agents/system-settings/tmux-mode`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch tmux mode setting: ${response.statusText}`);
+  }
+  const data = await response.json();
+  return data.enabled || false;
+}
+
+/**
+ * Update the tmux mode setting
+ */
+export async function updateTmuxModeSetting(enabled: boolean): Promise<void> {
+  const token = getAuthToken();
+  const response = await fetch(`${getApiBaseUrl()}/api/agents/system-settings/tmux-mode`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({ enabled }),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to update tmux mode setting: ${response.statusText}`);
+  }
+}

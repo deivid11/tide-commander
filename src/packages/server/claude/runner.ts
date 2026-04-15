@@ -13,6 +13,9 @@ import type {
 import { ClaudeBackend } from './backend.js';
 import { createLogger } from '../utils/logger.js';
 import { isProcessRunning } from '../data/index.js';
+import { sendToTmux, hasTmuxSession, tmuxSessionName, getTmuxPanePid } from './runner/tmux-helper.js';
+import type { RunningProcessInfo } from '../data/index.js';
+import { spawn } from 'child_process';
 import * as agentService from '../services/agent-service.js';
 import { RunnerInternalEventBus } from './runner/internal-events.js';
 import { RunnerStdoutPipeline } from './runner/stdout-pipeline.js';
@@ -63,6 +66,9 @@ export class ClaudeRunner {
       backend: this.backend,
       activeProcesses: this.activeProcesses,
       run: (request) => this.run(request),
+      reconnectTmux: (agentId, logFile, offset, savedProcess) => {
+        this.reconnectToTmuxSession(agentId, logFile, offset, savedProcess);
+      },
     });
 
     this.lifecycle = new RunnerProcessLifecycle({
@@ -260,15 +266,26 @@ export class ClaudeRunner {
     turnState: string;
   }> {
     const now = Date.now();
-    return Array.from(this.activeProcesses.entries()).map(([agentId, proc]) => ({
-      agentId,
-      pid: proc.process.pid,
-      runtimeSec: (now - proc.startTime) / 1000,
-      lastActivitySec: proc.lastActivityTime ? (now - proc.lastActivityTime) / 1000 : -1,
-      hasError: !!proc.lastError,
-      stdinWritable: !!(proc.process.stdin && proc.process.stdin.writable),
-      turnState: proc.turnState || 'unknown',
-    }));
+    return Array.from(this.activeProcesses.entries()).map(([agentId, proc]) => {
+      // For tmux processes, the launcher PID exits quickly — resolve the real
+      // PID from the tmux pane so witr/debug tools can find the process.
+      let pid = proc.process.pid;
+      if (proc.tmuxSession) {
+        const panePid = getTmuxPanePid(agentId);
+        if (panePid) {
+          pid = panePid;
+        }
+      }
+      return {
+        agentId,
+        pid,
+        runtimeSec: (now - proc.startTime) / 1000,
+        lastActivitySec: proc.lastActivityTime ? (now - proc.lastActivityTime) / 1000 : -1,
+        hasError: !!proc.lastError,
+        stdinWritable: !!(proc.process.stdin && proc.process.stdin.writable),
+        turnState: proc.turnState || 'unknown',
+      };
+    });
   }
 
   logProcessDiagnostics(): void {
@@ -298,6 +315,17 @@ export class ClaudeRunner {
     if (!activeProcess) {
       log.error(`❌ [SEND_MESSAGE] No active process for agent ${agentId}`);
       return false;
+    }
+
+    // tmux mode: send via tmux send-keys
+    if (activeProcess.tmuxSession) {
+      const stdinInput = this.backend.formatStdinInput(message);
+      log.log(`📨 [SEND_MESSAGE] Agent ${agentId} (tmux mode), sending via tmux send-keys (${stdinInput.length} chars)`);
+      const ok = sendToTmux(agentId, stdinInput);
+      if (ok) {
+        activeProcess.turnState = 'processing';
+      }
+      return ok;
     }
 
     const stdin = activeProcess.process.stdin;
@@ -355,6 +383,48 @@ export class ClaudeRunner {
     return true;
   }
 
+  /**
+   * Reconnect to a live tmux session after a server restart.
+   * Creates a minimal ActiveProcess and starts tailing the log file from the saved offset.
+   */
+  private reconnectToTmuxSession(agentId: string, logFile: string, offset: number, savedProcess?: RunningProcessInfo): void {
+    const sessionName = tmuxSessionName(agentId);
+    log.log(`🔄 [TMUX] Reconnecting to tmux session ${sessionName} for agent ${agentId}, log offset=${offset}`);
+
+    // Create a dummy child process (we don't own the real one — tmux does)
+    const dummyProcess = spawn('true', [], { stdio: 'ignore' });
+    dummyProcess.unref();
+
+    const activeProcess: ActiveProcess = {
+      agentId,
+      sessionId: savedProcess?.sessionId,
+      startTime: savedProcess?.startTime ?? Date.now(),
+      process: dummyProcess,
+      lastRequest: savedProcess?.lastRequest as RunnerRequest | undefined,
+      restartCount: 0,
+      turnState: 'waiting_for_input',
+      tmuxSession: sessionName,
+      tmuxLogFile: logFile,
+      isReconnected: true,
+    };
+    this.activeProcesses.set(agentId, activeProcess);
+
+    // Resume tailing the log file from where we left off
+    const tailer = this.stdoutPipeline.handleTmuxLog(agentId, logFile, offset);
+    activeProcess.tmuxTailer = tailer;
+
+    // Ensure the agent status reflects that we're connected
+    const agent = agentService.getAgent(agentId);
+    if (agent && agent.status === 'working') {
+      // Keep it as working — it was mid-task when the server restarted
+    } else if (agent) {
+      // Set to idle — the tmux session is alive but waiting for input
+      agentService.updateAgent(agentId, { status: 'idle' });
+    }
+
+    log.log(`✅ [TMUX] Reconnected to tmux session ${sessionName} for agent ${agentId}`);
+  }
+
   interrupt(agentId: string): boolean {
     return this.lifecycle.interrupt(agentId);
   }
@@ -385,6 +455,19 @@ export class ClaudeRunner {
     const activeProcess = this.activeProcesses.get(agentId);
     if (!activeProcess) {
       return false;
+    }
+
+    // tmux mode: check if the tmux session still exists
+    if (activeProcess.tmuxSession) {
+      const alive = hasTmuxSession(agentId);
+      if (!alive) {
+        // Stop tailer if running
+        activeProcess.tmuxTailer?.stop();
+        this.activeProcesses.delete(agentId);
+        this.lastStderr.delete(agentId);
+        return false;
+      }
+      return true;
     }
 
     const pid = activeProcess.process.pid;

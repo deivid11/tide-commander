@@ -46,7 +46,19 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
   // (resultText in step_complete only contains the final text, not earlier text blocks).
   const bossAccumulatedText = new Map<string, string>();
 
+  // Track agents currently in compacting state so we can clear it when they resume
+  const compactingAgents = new Set<string>();
+
   runtimeService.on('event', (agentId, event) => {
+    // Clear compacting state when agent resumes with new output after compaction
+    if (compactingAgents.has(agentId) && event.type !== 'compacting') {
+      compactingAgents.delete(agentId);
+      ctx.broadcast({
+        type: 'compacting_status',
+        payload: { agentId, active: false },
+      } as any);
+    }
+
     // Accumulate text for boss agents to ensure delegation blocks are captured
     // even when the boss calls tools after outputting the delegation
     if (event.type === 'text' && event.text && !event.parentToolUseId) {
@@ -57,7 +69,14 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
       }
     }
 
-    if (event.type === 'init') {
+    if (event.type === 'compacting') {
+      compactingAgents.add(agentId);
+      ctx.broadcast({
+        type: 'compacting_status',
+        payload: { agentId, active: true },
+      } as any);
+      ctx.sendActivity(agentId, 'Compacting context...');
+    } else if (event.type === 'init') {
       ctx.sendActivity(agentId, `Session initialized (${event.model})`);
     } else if (event.type === 'tool_start') {
       const details = formatToolActivity(event.toolName, event.toolInput);

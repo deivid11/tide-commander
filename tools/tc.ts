@@ -1,4 +1,8 @@
 #!/usr/bin/env tsx
+// Tide Commander CLI helper.
+// Command-line entrypoint for agent operations.
+// Kept intentionally lightweight for local tooling.
+// Safe place for minimal TypeScript edits.
 /**
  * tc - Minimal CLI client for Tide Commander
  *

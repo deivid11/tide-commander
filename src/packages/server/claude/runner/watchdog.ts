@@ -2,6 +2,7 @@ import type { ActiveProcess, ProcessDeathInfo } from '../types.js';
 import { createLogger } from '../../utils/logger.js';
 import { isProcessRunning } from '../../data/index.js';
 import type { RunnerInternalEventBus } from './internal-events.js';
+import { hasTmuxSession } from './tmux-helper.js';
 
 const log = createLogger('Runner');
 
@@ -32,6 +33,33 @@ export class RunnerWatchdog {
     }
 
     for (const [agentId, activeProcess] of this.activeProcesses) {
+      // tmux mode: the launcher PID exits immediately — check the tmux session instead
+      if (activeProcess.tmuxSession) {
+        if (!hasTmuxSession(agentId)) {
+          log.error(`🐕 [WATCHDOG] Agent ${agentId}: tmux session ${activeProcess.tmuxSession} no longer exists!`);
+          activeProcess.tmuxTailer?.stop();
+          this.recordDeath({
+            agentId,
+            pid: activeProcess.process.pid ?? 0,
+            exitCode: null,
+            signal: null,
+            runtime: Date.now() - activeProcess.startTime,
+            wasTracked: true,
+            timestamp: Date.now(),
+            stderr: this.lastStderr.get(agentId),
+          });
+          this.activeProcesses.delete(agentId);
+          this.lastStderr.delete(agentId);
+          this.bus.emit({
+            type: 'runner.watchdog_missing_process',
+            agentId,
+            pid: activeProcess.process.pid ?? 0,
+            activeProcess,
+          });
+        }
+        continue;
+      }
+
       const pid = activeProcess.process.pid;
       if (!pid) continue;
 
@@ -138,3 +166,4 @@ export class RunnerWatchdog {
     }
   }
 }
+

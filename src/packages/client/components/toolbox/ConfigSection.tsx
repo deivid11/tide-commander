@@ -10,7 +10,7 @@ import { DataSection } from './DataSection';
 import { AboutSection, ThemeSelector } from './AboutSection';
 import { IntegrationStatusPanel } from './IntegrationStatusPanel';
 import { SystemPromptModal } from '../SystemPromptModal';
-import { fetchEchoPromptSetting, updateEchoPromptSetting, fetchCodexBinaryPath, updateCodexBinaryPath } from '../../api/system-settings';
+import { fetchEchoPromptSetting, updateEchoPromptSetting, fetchCodexBinaryPath, updateCodexBinaryPath, fetchTmuxModeSetting, updateTmuxModeSetting } from '../../api/system-settings';
 import { BUILTIN_AGENT_NAMES } from '../../scene/config';
 import type {
   SceneConfig,
@@ -181,7 +181,7 @@ function HighlightText({ text, query }: { text: string; query: string }) {
 
 // Define searchable settings configuration (English keywords for search matching)
 const SETTINGS_SECTIONS = [
-  { id: 'general', title: 'General', keywords: ['history', 'hide costs', 'grid', 'fps', 'power saving', 'performance', 'limit', 'editor', 'external editor', 'language', 'idioma', '语言', 'vibration', 'haptic', 'intensity', 'tab title'] },
+  { id: 'general', title: 'General', keywords: ['history', 'hide costs', 'grid', 'fps', 'power saving', 'performance', 'limit', 'editor', 'external editor', 'language', 'idioma', '语言', 'vibration', 'haptic', 'intensity', 'tab title', 'tmux', 'process persistence'] },
   { id: 'agentNames', title: 'Agent Names', keywords: ['agent', 'names', 'custom', 'characters', 'rename'] },
   { id: 'appearance', title: 'Appearance', keywords: ['theme', 'appearance', 'color', 'dark', 'light', 'style', 'look'] },
   { id: 'connection', title: 'Connection', keywords: ['backend', 'url', 'auth', 'token', 'reconnect', 'server', 'api', 'connect', 'codex', 'opencode', 'binary', 'path'] },
@@ -238,6 +238,15 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
     fetchEchoPromptSetting().then((enabled) => {
       if (enabled !== state.settings.experimentalEchoPrompt) {
         store.updateSettings({ experimentalEchoPrompt: enabled });
+      }
+    }).catch(() => { /* ignore fetch errors on mount */ });
+  }, []);
+
+  // Sync tmux mode setting from server on mount
+  useEffect(() => {
+    fetchTmuxModeSetting().then((enabled) => {
+      if (enabled !== state.settings.tmuxMode) {
+        store.updateSettings({ tmuxMode: enabled });
       }
     }).catch(() => { /* ignore fetch errors on mount */ });
   }, []);
@@ -385,6 +394,17 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
         <div className="config-row">
           <span className="config-label" title="Experimental: Reduce FPS when idle to save power"><HighlightText text={t('config:general.powerSaving')} query={searchQuery} /> ⚡</span>
           <Toggle checked={state.settings.powerSaving} onChange={(checked) => store.updateSettings({ powerSaving: checked })} />
+        </div>
+        <div className="config-row">
+          <span className="config-label" title="Wrap agent processes in tmux sessions so they survive server restarts (requires tmux installed)"><HighlightText text={t('config:general.tmuxMode')} query={searchQuery} /></span>
+          <Toggle checked={state.settings.tmuxMode} onChange={async (checked) => {
+            store.updateSettings({ tmuxMode: checked });
+            try {
+              await updateTmuxModeSetting(checked);
+            } catch (err) {
+              console.error('Failed to sync tmux mode setting to server:', err);
+            }
+          }} />
         </div>
         <div className="config-row">
           <span className="config-label"><HighlightText text={t('config:general.vibrationIntensity')} query={searchQuery} /></span>

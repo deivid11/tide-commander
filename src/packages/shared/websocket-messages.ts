@@ -105,6 +105,15 @@ export interface ContextUpdateMessage extends WSMessage {
   };
 }
 
+// Context compaction status (active/finished)
+export interface CompactingStatusMessage extends WSMessage {
+  type: 'compacting_status';
+  payload: {
+    agentId: string;
+    active: boolean;
+  };
+}
+
 export interface ErrorMessage extends WSMessage {
   type: 'error';
   payload: { message: string };
@@ -1661,7 +1670,8 @@ export type ServerMessage =
   | WorkflowStepUpdateMessage
   | WorkflowVariableChangedMessage
   | WorkflowCompletedMessage
-  | WorkflowErrorMessage;
+  | WorkflowErrorMessage
+  | CompactingStatusMessage;
 
 export type ClientMessage =
   | SpawnAgentMessage

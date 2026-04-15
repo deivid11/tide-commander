@@ -3,6 +3,7 @@ import { StringDecoder } from 'string_decoder';
 import type { CLIBackend, RunnerCallbacks, StandardEvent } from '../types.js';
 import type { RunnerInternalEventBus } from './internal-events.js';
 import { createLogger } from '../../utils/logger.js';
+import { createFileTailer, type TmuxFileTailer } from './tmux-helper.js';
 
 const log = createLogger('Runner');
 
@@ -70,6 +71,21 @@ export class RunnerStdoutPipeline {
     });
   }
 
+  /**
+   * tmux mode: tail a log file instead of reading process.stdout.
+   * Lines are processed identically to the pipe-based path.
+   */
+  handleTmuxLog(agentId: string, logFile: string, startOffset?: number): TmuxFileTailer {
+    const tailer = createFileTailer(logFile, (line) => {
+      this.processLine(agentId, line);
+    });
+    if (startOffset !== undefined) {
+      tailer.setOffset(startOffset);
+    }
+    tailer.start();
+    return tailer;
+  }
+
   private processLine(agentId: string, line: string): void {
     try {
       const rawEvent = JSON.parse(line);
@@ -106,12 +122,17 @@ export class RunnerStdoutPipeline {
   }
 
   private handleEvent(agentId: string, event: StandardEvent): void {
-    // After notification is sent, suppress ALL further events from the agentic loop.
+    // After notification is sent, suppress output-producing events from the agentic loop.
     // This prevents status flickering (working → idle → working) caused by OpenCode
     // giving the model additional turns after the completion notification.
-    // Only 'init' events (new user message) can reset this gate.
-    if (this.notificationSent.has(agentId) && event.type !== 'init') {
-      return;
+    // Allow through: init (resets gate), step_complete (needed for idle transition),
+    // usage_snapshot (context tracking), error (always important).
+    if (this.notificationSent.has(agentId)) {
+      const passthrough = event.type === 'init' || event.type === 'step_complete'
+        || event.type === 'usage_snapshot' || event.type === 'error' || event.type === 'compacting';
+      if (!passthrough) {
+        return;
+      }
     }
 
     const now = Date.now();
@@ -223,6 +244,11 @@ export class RunnerStdoutPipeline {
         if (event.contextStatsRaw) {
           this.callbacks.onOutput(agentId, event.contextStatsRaw, false, undefined, event.uuid);
         }
+        break;
+
+      case 'compacting':
+        // Emit as output so runtime-listeners can broadcast it to clients
+        this.callbacks.onOutput(agentId, '[System] Compacting context...', false, undefined, event.uuid);
         break;
 
       default:

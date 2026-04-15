@@ -11,11 +11,13 @@ export function NotConnectedOverlay() {
   const [dismissed, setDismissed] = useState(false);
   const [copied, setCopied] = useState(false);
   const [gracePeriod, setGracePeriod] = useState(true);
+  const [reconnecting, setReconnecting] = useState(false);
   const [backendUrlDraft, setBackendUrlDraft] = useState(() => getBackendUrl());
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
   const [connectStatus, setConnectStatus] = useState<string | null>(null);
   const mountedRef = useRef(true);
+  const wasConnectedRef = useRef(false);
 
   const waitForWsConnected = useCallback((timeoutMs: number = 7000): Promise<boolean> => {
     if (store.getState().isConnected) {
@@ -42,10 +44,31 @@ export function NotConnectedOverlay() {
     });
   }, []);
 
+  // Initial grace period (3s on first load)
   useEffect(() => {
     const timer = setTimeout(() => setGracePeriod(false), 3000);
     return () => clearTimeout(timer);
   }, []);
+
+  // Reconnection grace period: when connection drops after being connected,
+  // show a small "Reconnecting..." toast for 10 seconds before showing the full overlay.
+  useEffect(() => {
+    if (isConnected) {
+      wasConnectedRef.current = true;
+      setReconnecting(false);
+      return;
+    }
+    // Connection just dropped and we were previously connected
+    if (wasConnectedRef.current) {
+      setGracePeriod(true);
+      setReconnecting(true);
+      const timer = setTimeout(() => {
+        setGracePeriod(false);
+        setReconnecting(false);
+      }, 10000);
+      return () => clearTimeout(timer);
+    }
+  }, [isConnected]);
 
   useEffect(() => {
     return () => {
@@ -146,7 +169,19 @@ export function NotConnectedOverlay() {
     setDismissed(true);
   }, []);
 
-  if (isConnected || dismissed || gracePeriod) return null;
+  if (isConnected || dismissed) return null;
+
+  // During reconnection grace period, show a small non-blocking toast
+  if (gracePeriod && reconnecting) {
+    return (
+      <div className="reconnecting-toast">
+        <span className="reconnecting-spinner" />
+        Reconnecting...
+      </div>
+    );
+  }
+
+  if (gracePeriod) return null;
 
   return (
     <div className="not-connected-overlay">

@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import { resolve } from 'path';
 import { cpSync, copyFileSync, existsSync } from 'fs';
 
+// Landing site build configuration.
 export default defineConfig({
   root: resolve(__dirname, 'src/packages/landing'),
   publicDir: false,

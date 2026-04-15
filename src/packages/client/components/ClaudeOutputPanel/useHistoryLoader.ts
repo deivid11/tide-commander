@@ -233,28 +233,33 @@ export function useHistoryLoader({
     const fetchSeq = fetchSeqRef.current;
     setFetchingHistory(true);
 
-    // If we have cached history for this agent, show it immediately
-    // instead of blanking the screen while waiting for the network fetch.
-    const cached = historyCache.get(selectedAgentId);
-    if (cached) {
-      historyCacheTouch(selectedAgentId);
-      setHistory(cached.messages);
-      historyLengthRef.current = cached.messages.length;
-      setHasMore(cached.hasMore);
-      hasMoreRef.current = cached.hasMore;
-      setTotalCount(cached.totalCount);
-    } else {
-      // Clear existing history immediately on any new load to avoid briefly showing
-      // the previous agent's conversation (which can also cause scroll glitches).
-      setHistory([]);
-      historyLengthRef.current = 0;
-      setHasMore(false);
-      hasMoreRef.current = false;
-      setTotalCount(0);
+    // On reconnect, keep current history on screen to avoid flicker.
+    // Fresh data will replace it once the fetch completes.
+    if (!isReconnect) {
+      // If we have cached history for this agent, show it immediately
+      // instead of blanking the screen while waiting for the network fetch.
+      const cached = historyCache.get(selectedAgentId);
+      if (cached) {
+        historyCacheTouch(selectedAgentId);
+        setHistory(cached.messages);
+        historyLengthRef.current = cached.messages.length;
+        setHasMore(cached.hasMore);
+        hasMoreRef.current = cached.hasMore;
+        setTotalCount(cached.totalCount);
+      } else {
+        // Clear existing history immediately on any new load to avoid briefly showing
+        // the previous agent's conversation (which can also cause scroll glitches).
+        setHistory([]);
+        historyLengthRef.current = 0;
+        setHasMore(false);
+        hasMoreRef.current = false;
+        setTotalCount(0);
+      }
     }
 
     // Only show loading after a delay to avoid flash for quick loads
-    if (!isSessionEstablishment) {
+    // On reconnect, skip the loading indicator entirely to avoid UI disruption
+    if (!isSessionEstablishment && !isReconnect) {
       loadingTimerRef.current = setTimeout(() => {
         setLoadingHistory(true);
       }, 150); // Only show loading if fetch takes longer than 150ms

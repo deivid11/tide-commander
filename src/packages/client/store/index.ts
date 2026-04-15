@@ -91,6 +91,7 @@ export {
   useBossAgents,
   useSubordinateAgents,
   useAgentOutputs,
+  useAgentCompacting,
   useLastPrompt,
   useLastPrompts,
   useActivities,
@@ -219,6 +220,7 @@ class Store
       streamingBuildingIds: new Set(),
       bossStreamingLogs: new Map(),
       agentOutputs: new Map(),
+      compactingAgents: new Set(),
       lastPrompts: new Map(),
       toolExecutions: [],
       fileChanges: [],
@@ -829,6 +831,12 @@ class Store
   updateAgent(...args: Parameters<AgentActions['updateAgent']>) { return this.agentActions.updateAgent(...args); }
   updateAgentContextStats(...args: Parameters<AgentActions['updateAgentContextStats']>) { return this.agentActions.updateAgentContextStats(...args); }
   updateAgentContext(...args: Parameters<AgentActions['updateAgentContext']>) { return this.agentActions.updateAgentContext(...args); }
+  setAgentCompacting(agentId: string, active: boolean): void {
+    const next = new Set(this.state.compactingAgents);
+    if (active) { next.add(agentId); } else { next.delete(agentId); }
+    this.state.compactingAgents = next;
+    this.notify();
+  }
   removeAgent(...args: Parameters<AgentActions['removeAgent']>) { return this.agentActions.removeAgent(...args); }
   selectAgent(...args: Parameters<AgentActions['selectAgent']>) { return this.agentActions.selectAgent(...args); }
   addToSelection(...args: Parameters<AgentActions['addToSelection']>) { return this.agentActions.addToSelection(...args); }

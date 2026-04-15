@@ -25,6 +25,7 @@
     "showFPS": "Show FPS",
     "fpsLimit": "FPS Limit",
     "powerSaving": "Power Saving",
+    "tmuxMode": "Tmux Process Persistence",
     "tts": "Text-to-Speech",
     "stt": "Speech-to-Text",
     "externalEditor": "External Editor",

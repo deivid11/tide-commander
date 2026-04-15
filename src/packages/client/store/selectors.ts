@@ -278,6 +278,18 @@ export function useAgentOutputs(agentId: string | null): AgentOutput[] {
 }
 
 /**
+ * Whether a specific agent is currently compacting context.
+ */
+export function useAgentCompacting(agentId: string | null): boolean {
+  return useSelector(
+    useCallback(
+      (state: StoreState) => agentId ? state.compactingAgents.has(agentId) : false,
+      [agentId]
+    ),
+  );
+}
+
+/**
  * Get last prompt for a specific agent.
  */
 export function useLastPrompt(agentId: string | null): LastPrompt | undefined {

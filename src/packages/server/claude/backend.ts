@@ -338,6 +338,15 @@ export class ClaudeBackend implements CLIBackend {
     if (event.subtype === 'task_started' && event.task_id) {
       log.log(`parseSystemEvent: task_started - task_id=${event.task_id}, tool_use_id=${(event as any).tool_use_id}`);
     }
+    // Context compaction status
+    if (event.subtype === 'status' && (event as any).status === 'compacting') {
+      log.log(`parseSystemEvent: compacting status received, session_id=${event.session_id}`);
+      return {
+        type: 'compacting',
+        sessionId: event.session_id,
+        uuid: event.uuid,
+      };
+    }
     return null;
   }
 

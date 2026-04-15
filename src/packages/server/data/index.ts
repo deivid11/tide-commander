@@ -664,6 +664,9 @@ export interface RunningProcessInfo {
   stderrFile?: string;  // File where Claude writes stderr
   lastRequest?: unknown; // Last request for auto-restart (serialized)
   agentStatus?: string; // Agent status at persist time - only 'working' agents should be resumed
+  tmuxSession?: string; // tmux session name (when using TIDE_USE_TMUX)
+  tmuxLogOffset?: number; // byte offset into the tmux log file for resuming
+  provider?: string; // Runtime provider ('claude', 'codex', 'opencode')
 }
 
 interface RunningProcessesData {
@@ -713,6 +716,12 @@ export function clearRunningProcesses(): void {
     if (fs.existsSync(RUNNING_PROCESSES_FILE)) {
       fs.unlinkSync(RUNNING_PROCESSES_FILE);
       log.log(' Cleared running processes file');
+    }
+    // Also remove the .bak file to prevent safeReadJsonSync from resurrecting stale data
+    const bakFile = RUNNING_PROCESSES_FILE + '.bak';
+    if (fs.existsSync(bakFile)) {
+      fs.unlinkSync(bakFile);
+      log.log(' Cleared running processes backup file');
     }
   } catch (err) {
     log.error(' Failed to clear running processes file:', err);

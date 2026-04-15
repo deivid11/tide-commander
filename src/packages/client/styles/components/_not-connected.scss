@@ -200,3 +200,36 @@
     background: color.adjust($accent-blue, $lightness: 8%);
   }
 }
+
+// Small non-blocking toast shown during server reconnection
+.reconnecting-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  background: $bg-tertiary;
+  border: 1px solid $border-color;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  color: $text-secondary;
+  animation: not-connected-fade-in 0.3s ease-out;
+  pointer-events: none;
+}
+
+.reconnecting-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid $border-color;
+  border-top-color: $text-secondary;
+  border-radius: 50%;
+  animation: reconnecting-spin 0.8s linear infinite;
+}
+
+@keyframes reconnecting-spin {
+  to { transform: rotate(360deg); }
+}

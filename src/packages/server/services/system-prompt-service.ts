@@ -204,3 +204,48 @@ export function clearCodexBinaryPath(): void {
     throw error;
   }
 }
+
+// ============================================================================
+// Tmux Mode Setting
+// ============================================================================
+
+const TMUX_MODE_FILE = path.join(DATA_DIR, 'tmux-mode-setting.json');
+
+interface TmuxModeSetting {
+  enabled: boolean;
+  updatedAt: number;
+}
+
+/**
+ * Check if tmux mode is enabled
+ */
+export function isTmuxModeEnabled(): boolean {
+  ensureDataDir();
+  try {
+    if (fs.existsSync(TMUX_MODE_FILE)) {
+      const data: TmuxModeSetting = JSON.parse(fs.readFileSync(TMUX_MODE_FILE, 'utf-8'));
+      return data.enabled;
+    }
+  } catch (error: any) {
+    log.error(` Failed to load tmux mode setting: ${error.message}`);
+  }
+  return false;
+}
+
+/**
+ * Set tmux mode enabled/disabled
+ */
+export function setTmuxModeEnabled(enabled: boolean): void {
+  ensureDataDir();
+  const data: TmuxModeSetting = {
+    enabled,
+    updatedAt: Date.now(),
+  };
+  try {
+    fs.writeFileSync(TMUX_MODE_FILE, JSON.stringify(data, null, 2), 'utf-8');
+    log.log(` Tmux mode setting updated: enabled=${enabled}`);
+  } catch (error: any) {
+    log.error(` Failed to save tmux mode setting: ${error.message}`);
+    throw error;
+  }
+}

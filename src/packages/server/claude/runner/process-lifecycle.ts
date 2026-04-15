@@ -5,6 +5,13 @@ import type { RunnerStdoutPipeline } from './stdout-pipeline.js';
 import type { RunnerInternalEventBus } from './internal-events.js';
 import type { RunnerRecoveryStore } from './recovery-store.js';
 import { createLogger } from '../../utils/logger.js';
+import {
+  isTmuxEnabled,
+  checkTmuxAvailability,
+  spawnInTmux,
+  killTmuxSession,
+  interruptTmuxSession,
+} from './tmux-helper.js';
 
 const log = createLogger('Runner');
 
@@ -80,15 +87,80 @@ export class RunnerProcessLifecycle {
 
     const isWindows = process.platform === 'win32';
     const extraEnv = this.backend.getExtraEnv?.() ?? {};
+    const env = {
+      ...process.env,
+      LANG: 'en_US.UTF-8',
+      LC_ALL: 'en_US.UTF-8',
+      TIDE_SERVER: `http://localhost:${process.env.TIDE_PORT || process.env.PORT || 5174}`,
+      ...extraEnv,
+    };
+
+    // ---- tmux mode ----
+    checkTmuxAvailability();
+    const useTmux = !isWindows && isTmuxEnabled();
+
+    if (useTmux) {
+      // For backends that need stdin input (e.g. claude --print --input-format stream-json),
+      // pass the initial prompt directly into the shell command so it's available on stdin
+      // immediately at process start — avoids the race where the CLI checks stdin before
+      // tmux send-keys can deliver the prompt.
+      let initialStdin: string | undefined;
+      if (this.backend.requiresStdinInput()) {
+        initialStdin = this.backend.formatStdinInput(prompt);
+        log.log(`📤 [TMUX-STDIN] Passing initial prompt (${initialStdin.length} chars) via shell pipe for agent ${agentId}`);
+      }
+
+      const tmuxResult = spawnInTmux(executable, args, {
+        agentId,
+        cwd: workingDir,
+        env,
+        initialStdin,
+        closeStdinAfterPrompt: this.backend.shouldCloseStdinAfterPrompt?.() ?? false,
+      });
+
+      const activeProcess: ActiveProcess = {
+        agentId,
+        sessionId,
+        startTime: Date.now(),
+        process: tmuxResult.launcherProcess,
+        lastRequest: request,
+        restartCount: 0,
+        turnState: 'processing',
+        tmuxSession: tmuxResult.sessionName,
+        tmuxLogFile: tmuxResult.logFile,
+      };
+      this.activeProcesses.set(agentId, activeProcess);
+
+      // Use file-tailing stdout pipeline for tmux mode
+      const tailer = this.stdoutPipeline.handleTmuxLog(agentId, tmuxResult.logFile);
+      activeProcess.tmuxTailer = tailer;
+
+      // The tmux launcher process exits quickly — we don't listen to its close
+      // as the real process lives inside the tmux session.
+      tmuxResult.launcherProcess.on('error', (err) => {
+        this.bus.emit({
+          type: 'runner.process_spawn_error',
+          agentId,
+          error: err,
+        });
+      });
+
+      // Emit spawned event after a short delay (tmux session takes a moment)
+      setTimeout(() => {
+        this.bus.emit({
+          type: 'runner.process_spawned',
+          agentId,
+          pid: tmuxResult.launcherProcess.pid,
+        });
+      }, 600);
+
+      return;
+    }
+
+    // ---- normal pipe mode ----
     const childProcess = spawn(executable, args, {
       cwd: workingDir,
-      env: {
-        ...process.env,
-        LANG: 'en_US.UTF-8',
-        LC_ALL: 'en_US.UTF-8',
-        TIDE_SERVER: `http://localhost:${process.env.TIDE_PORT || process.env.PORT || 5174}`,
-        ...extraEnv,
-      },
+      env,
       shell: isWindows ? true : false,
       detached: isWindows ? false : true,
     });
@@ -169,6 +241,11 @@ export class RunnerProcessLifecycle {
       return false;
     }
 
+    // tmux mode: send C-c via tmux
+    if (activeProcess.tmuxSession) {
+      return interruptTmuxSession(agentId);
+    }
+
     const pid = activeProcess.process.pid;
     if (!pid) {
       return false;
@@ -192,9 +269,22 @@ export class RunnerProcessLifecycle {
     const pid = activeProcess.process.pid;
     log.log(`🛑 Stopping agent ${agentId} (pid ${pid})`);
 
+    // Stop tmux tailer if active
+    if (activeProcess.tmuxTailer) {
+      activeProcess.tmuxTailer.stop();
+    }
+
     this.activeProcesses.delete(agentId);
     this.activityCallbacks.delete(agentId);
 
+    // tmux mode: kill the tmux session and clean up
+    if (activeProcess.tmuxSession) {
+      killTmuxSession(agentId);
+      this.callbacks.onComplete(agentId, false);
+      return;
+    }
+
+    // Normal pipe mode
     if (pid) {
       try {
         process.kill(-pid, 'SIGINT');
