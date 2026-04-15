@@ -26,7 +26,7 @@ import type { ToolExecution, ClaudeOutput } from '../../store/types';
 import type { TwoFingerSelectorState } from '../../hooks/useTwoFingerSelector';
 import { ContextMenu } from '../ContextMenu';
 import type { ContextMenuAction } from '../ContextMenu';
-import { useWorkspaceFilter, isAgentVisibleInWorkspace } from '../WorkspaceSwitcher';
+import { WorkspaceSwitcher, useWorkspaceFilter, isAgentVisibleInWorkspace } from '../WorkspaceSwitcher';
 import { BulkManageModal } from '../BulkManageModal';
 
 /** Persisted config shape for the overview panel */
@@ -814,6 +814,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
         <button onClick={collapseAll} className="action-btn" title={t('common:buttons.collapse')}>
           {t('common:buttons.collapse')}
         </button>
+        <WorkspaceSwitcher />
         <button onClick={() => setGroupByArea(v => !v)} className={`action-btn action-btn--toggle${groupByArea ? ' active' : ''}`} title={t('terminal:overview.areas')}>
           {t('terminal:overview.areas')}
         </button>
@@ -1277,6 +1278,15 @@ function AgentCard({
       <div
         className={`aop-agent-card ${isBossAgent ? 'boss' : ''} ${isActive ? 'active' : ''} ${agent.status} ${hasPendingRead ? 'unread' : ''}${isTwoFingerHovered ? ' two-finger-hover' : ''}`}
         data-agent-id={agent.id}
+        draggable
+        onDragStart={(e) => {
+          e.dataTransfer.setData('application/x-agent-id', agent.id);
+          e.dataTransfer.effectAllowed = 'copy';
+          (e.currentTarget as HTMLElement).style.opacity = '0.5';
+        }}
+        onDragEnd={(e) => {
+          (e.currentTarget as HTMLElement).style.opacity = '';
+        }}
         onClick={handleSelect}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}

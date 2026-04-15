@@ -14,6 +14,7 @@
  */
 
 import React, { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo, memo } from 'react';
+// NOTE: useLayoutEffect used by BottomPm2LogContent and remaining parent effects
 import { useTranslation } from 'react-i18next';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
@@ -21,21 +22,12 @@ import {
   useAgent,
   useSelectedAgentIds,
   useTerminalOpen,
-  useLastPrompts,
-  useAgentOutputs,
-  useAgentCompacting,
   useMobileView,
   store,
-  useReconnectCount,
-  useHistoryRefreshTrigger,
-  useAgentTaskProgress,
-  useExecTasks,
-  useSubagentsMapForAgent,
   useFileViewerPath,
   useContextModalAgentId,
   useCurrentSnapshot,
   useOverviewPanelOpen,
-  usePermissionRequests,
   useAreas,
   useBuildings,
   useStore,
@@ -64,25 +56,18 @@ import { ModalPortal } from '../shared/ModalPortal';
 import { DatabasePanelInline } from '../database/DatabasePanelInline';
 
 // Import types
-import type { ViewMode, EnrichedHistoryMessage } from './types';
+import type { ViewMode } from './types';
 
 // Import extracted hooks
 import { useKeyboardHeight } from './useKeyboardHeight';
 import { useTerminalResize } from './useTerminalResize';
 import { useMobileOverviewResize } from './useMobileOverviewResize';
 import { useSwipeNavigation } from './useSwipeNavigation';
-import { useHistoryLoader } from './useHistoryLoader';
-import { useSearchHistory } from './useSearchHistory';
-import { useTerminalInput } from './useTerminalInput';
-import { useMessageNavigation } from './useMessageNavigation';
 import { useGitBranches } from './useGitBranch';
-import { useFilteredOutputsWithLogging } from '../shared/useFilteredOutputs';
-import { parseBossContext, parseInjectedInstructions } from './BossContext';
 import { useModalStackRegistration, hasModalsAbove } from '../../hooks/useModalStack';
 
 // Import extracted components
-import { TerminalHeader, SearchBar } from './TerminalHeader';
-import { TerminalInputArea } from './TerminalInputArea';
+import { TerminalHeader } from './TerminalHeader';
 import {
   ImageModal,
   BashModal,
@@ -93,50 +78,22 @@ import {
   AgentResponseModalWrapper,
   type BashModalState,
 } from './TerminalModals';
-import { VirtualizedOutputList } from './VirtualizedOutputList';
 import { AgentDebugPanel } from './AgentDebugPanel';
 import { GuakeGitPanel } from './GuakeGitPanel';
 import { AgentOverviewPanel } from './AgentOverviewPanel';
+import { type AgentTerminalPaneHandle } from './AgentTerminalPane';
+import { SplitTerminalLayout } from './SplitTerminalLayout';
 import { AreaBuildingsPanel } from './AreaBuildingsPanel';
 import { WorkflowPanel } from '../WorkflowPanel';
 import { useTwoFingerSelector } from '../../hooks/useTwoFingerSelector';
 import { agentDebugger } from '../../services/agentDebugger';
-import { AgentProgressIndicator } from './AgentProgressIndicator';
 import { ThemeSelector } from './ThemeSelector';
 import { Tooltip } from '../shared/Tooltip';
 import type { Agent } from '../../../shared/types';
 import TerminalEmbed from '../TerminalEmbed';
 
-const LIVE_DUPLICATE_WINDOW_MS = 10_000;
-const HISTORY_OUTPUT_DUPLICATE_WINDOW_MS = 30_000;
-const HISTORY_ASSISTANT_OUTPUT_DUPLICATE_WINDOW_MS = 120_000;
 const MOBILE_CLOSE_SWIPE_MAX_OFFSET_PX = 128;
 const MOBILE_CLOSE_SWIPE_RELEASE_MS = 95;
-
-function normalizeUserMessage(text: string): string {
-  const parsedBoss = parseBossContext(text);
-  const parsedInjected = parseInjectedInstructions(parsedBoss.userMessage);
-  return parsedInjected.userMessage.trim().replace(/\r\n/g, '\n');
-}
-
-function normalizeAssistantMessage(text: string): string {
-  return text.trim().replace(/\r\n/g, '\n');
-}
-
-function isToolOrSystemOutput(text: string): boolean {
-  return text.startsWith('Using tool:')
-    || text.startsWith('Tool input:')
-    || text.startsWith('Tool result:')
-    || text.startsWith('Bash output:')
-    || text.startsWith('Session started:')
-    || text.startsWith('[thinking]')
-    || text.startsWith('Tokens:')
-    || text.startsWith('Cost:')
-    || text.startsWith('Context (estimated from Codex turn usage):')
-    || text.startsWith('🔄 [System]')
-    || text.startsWith('📋 [System]')
-    || text.startsWith('[System]');
-}
 
 function isPositionInArea(
   pos: { x: number; z: number },
@@ -375,9 +332,6 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
   const agents = useAgents();
   const selectedAgentIds = useSelectedAgentIds();
   const terminalOpen = useTerminalOpen();
-  const lastPrompts = useLastPrompts();
-  const reconnectCount = useReconnectCount();
-  const historyRefreshTrigger = useHistoryRefreshTrigger();
   const mobileView = useMobileView();
   const fileViewerPath = useFileViewerPath();
   const contextModalAgentId = useContextModalAgentId();
@@ -415,7 +369,6 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
 
   const activeAgent = selectedAgent ?? (isSnapshotView ? snapshotAgent : null);
   const activeAgentId = selectedAgentId ?? (isSnapshotView ? currentSnapshot?.agentId ?? null : null);
-  const hasSessionId = !!activeAgent?.sessionId && !isSnapshotView;
 
   // Get area folders for the active agent
   const areas = useAreas();
@@ -543,29 +496,12 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
   }, [sidePanelWidth]);
-  const outputs = useAgentOutputs(activeAgentId);
-  const isCompacting = useAgentCompacting(activeAgentId);
 
-  // Use snapshot outputs if viewing a snapshot, otherwise use agent outputs
-  const displayOutputs = useMemo(() => {
-    if (!(isSnapshotView && currentSnapshot)) return outputs;
-    return currentSnapshot.outputs.map((output: any) => ({
-      text: output.text || '',
-      timestamp: output.timestamp,
-      isStreaming: false,
-      isUserPrompt: false,
-    }));
-  }, [isSnapshotView, currentSnapshot, outputs]);
-
-  // Shared ref for output scroll container (used by history loader and swipe)
-  const outputScrollRef = useRef<HTMLDivElement>(null);
+  // Ref for the AgentTerminalPane (exposes per-agent scroll, history, search, input)
+  const paneRef = useRef<AgentTerminalPaneHandle>(null);
 
   // Ref for the agent overview list (shared with two-finger selector)
   const agentListRef = useRef<HTMLDivElement>(null);
-
-  // Refs for terminal input elements (shared with message navigation for focus-on-type)
-  const terminalInputRef = useRef<HTMLInputElement>(null);
-  const terminalTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   // View mode state
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
@@ -1008,17 +944,6 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     document.addEventListener('mouseup', onMouseUp);
   }, [bottomTerminalHeight]);
 
-  // Completion indicator state
-  const [showCompletion, setShowCompletion] = useState(false);
-  const [completionElapsed, setCompletionElapsed] = useState<number | null>(null);
-  const prevStatusRef = useRef<string | null>(null);
-  const completionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // History fade-in state
-  const [historyFadeIn, setHistoryFadeIn] = useState(false);
-  const [pinToBottom, setPinToBottom] = useState(false);
-  const [isAgentSwitching, setIsAgentSwitching] = useState(false);
-
   // Drag-and-drop file attach
   const [draggingOver, setDraggingOver] = useState(false);
   const dragCounterRef = useRef(0);
@@ -1091,28 +1016,16 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     });
   }, []);
 
-  // History loader hook
-  const historyLoader = useHistoryLoader({
-    selectedAgentId: activeAgentId,
-    hasSessionId,
-    reconnectCount,
-    historyRefreshTrigger,
-    lastPrompts,
-    outputScrollRef,
-  });
-
-  // Search hook initialized below after dedupedHistory/dedupedOutputs are computed
-
   // Swipe navigation hook (horizontal agent switching)
+  // Uses paneRef for output ref and loading state from the pane
   const swipe = useSwipeNavigation({
     agents,
     selectedAgentId: activeAgentId,
     isOpen,
     overviewPanelOpen,
-    // Use in-flight flag so swipe-in animation waits even when the UI loading flag is delayed
-    loadingHistory: historyLoader.fetchingHistory,
+    loadingHistory: paneRef.current?.historyLoader.fetchingHistory ?? false,
     hasModalOpen: !!(imageModal || bashModal || responseModalContent || fileViewerPath || contextModalAgentId),
-    outputRef: outputScrollRef,
+    outputRef: paneRef.current?.outputScrollRef ?? { current: null },
   });
 
   // Mouse back/forward button gestures for agent history navigation (scoped to guake terminal)
@@ -1155,44 +1068,11 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
   }, []);
   const twoFingerEnabled = typeof window !== 'undefined' && window.innerWidth <= 768 && overviewPanelOpen && isOpen;
   const twoFingerSelector = useTwoFingerSelector({
-    gestureRef: outputScrollRef,
+    gestureRef: paneRef.current?.outputScrollRef ?? { current: null },
     agentListRef,
     enabled: twoFingerEnabled,
     onSelect: handleTwoFingerSelect,
   });
-
-  // Terminal input hook
-  const terminalInput = useTerminalInput({ selectedAgentId });
-
-  // Get pending permission requests - subscribe to store changes so we see new permissions
-  const permissionRequests = usePermissionRequests();
-  const pendingPermissions = useMemo(() => {
-    if (isSnapshotView || !activeAgentId) return [];
-    return Array.from(permissionRequests.values()).filter(
-      (r) => r.agentId === activeAgentId && r.status === 'pending'
-    );
-  }, [isSnapshotView, activeAgentId, permissionRequests]);
-
-  // Check if selected agent is a boss
-  const isBoss = activeAgent?.class === 'boss' || activeAgent?.isBoss;
-  const agentTaskProgress = useAgentTaskProgress(!isSnapshotView && isBoss ? activeAgentId : null);
-  const activeTaskProgress = useMemo(
-    () => Array.from(agentTaskProgress.values()).filter((progress) => progress.status === 'working'),
-    [agentTaskProgress]
-  );
-  const completedTaskProgressIds = useMemo(
-    () => Array.from(agentTaskProgress.values())
-      .filter((progress) => progress.status === 'completed' || progress.status === 'failed')
-      .map((progress) => progress.agentId),
-    [agentTaskProgress]
-  );
-  const [agentProgressCollapsed, setAgentProgressCollapsed] = useState(true);
-
-  // Get exec tasks for the selected agent
-  const execTasks = useExecTasks(!isSnapshotView ? activeAgentId : null);
-
-  // Get subagents for inline activity display (scoped to active agent to avoid re-renders from other agents)
-  const subagents = useSubagentsMapForAgent(!isSnapshotView ? activeAgentId : null);
 
   // Auto-enable debugger when panel opens
   useEffect(() => {
@@ -1208,238 +1088,17 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     }
   }, [isOpen]);
 
-  useEffect(() => {
-    if (!activeAgentId || !isBoss || isSnapshotView || completedTaskProgressIds.length === 0) {
-      return;
-    }
-
-    const dismissTimer = window.setTimeout(() => {
-      completedTaskProgressIds.forEach((subordinateId) => {
-        store.clearAgentTaskProgress(activeAgentId, subordinateId);
-      });
-    }, 300);
-
-    return () => window.clearTimeout(dismissTimer);
-  }, [activeAgentId, isBoss, isSnapshotView, completedTaskProgressIds]);
-
-  // Detect completion state
-  useEffect(() => {
-    const currentStatus = activeAgent?.status;
-    const prevStatus = prevStatusRef.current;
-
-    if (prevStatus === 'working' && currentStatus === 'idle') {
-      if (completionTimerRef.current) clearTimeout(completionTimerRef.current);
-      // Capture elapsed time from last prompt
-      const prompt = activeAgentId ? lastPrompts.get(activeAgentId) : undefined;
-      setCompletionElapsed(prompt?.timestamp ? Date.now() - prompt.timestamp : null);
-      setShowCompletion(true);
-      completionTimerRef.current = setTimeout(() => {
-        setShowCompletion(false);
-        setCompletionElapsed(null);
-        completionTimerRef.current = null;
-      }, 4000);
-    } else if (currentStatus === 'working') {
-      if (completionTimerRef.current) {
-        clearTimeout(completionTimerRef.current);
-        completionTimerRef.current = null;
-      }
-      setShowCompletion(false);
-      setCompletionElapsed(null);
-    }
-
-    prevStatusRef.current = currentStatus || null;
-
-    return () => {
-      if (completionTimerRef.current) clearTimeout(completionTimerRef.current);
-    };
-  }, [activeAgent?.status]);
-
-  // Memoized filtered history
-  const filteredHistory = useMemo((): EnrichedHistoryMessage[] => {
-    const { history } = historyLoader;
-    const toolResultMap = new Map<string, string>();
-    for (const msg of history) {
-      if (msg.type === 'tool_result' && msg.toolUseId) {
-        toolResultMap.set(msg.toolUseId, msg.content);
-      }
-    }
-
-    const enrichHistory = (messages: typeof history): EnrichedHistoryMessage[] => {
-      return messages.map((msg) => {
-        if (msg.type === 'tool_use' && msg.toolName === 'Bash' && msg.toolUseId) {
-          const bashOutput = toolResultMap.get(msg.toolUseId);
-          let bashCommand: string | undefined;
-          try {
-            const input = msg.toolInput || (msg.content ? JSON.parse(msg.content) : {});
-            bashCommand = input.command;
-          } catch { /* ignore */ }
-          return { ...msg, _bashOutput: bashOutput, _bashCommand: bashCommand };
-        }
-        return msg as EnrichedHistoryMessage;
-      });
-    };
-
-    return enrichHistory(history);
-  }, [historyLoader.history, viewMode]);
-
-  // Filtered outputs
-  const filteredOutputs = useFilteredOutputsWithLogging({ outputs: displayOutputs, viewMode });
-
-  // Remove accidental duplicate user prompts from history (same normalized text, emitted within a short window)
-  const dedupedHistory = useMemo((): EnrichedHistoryMessage[] => {
-    const result: EnrichedHistoryMessage[] = [];
-    const seenAssistantKeys = new Set<string>();
-    const seenUserUuidKeys = new Set<string>();
-    let lastUserKey: string | null = null;
-    let lastUserTs = 0;
-
-    for (const msg of filteredHistory) {
-      if (msg.type === 'assistant') {
-        const assistantKey = msg.uuid
-          ? `uuid:${msg.uuid}:${normalizeAssistantMessage(msg.content)}`
-          : `sig:${msg.timestamp}:${normalizeAssistantMessage(msg.content)}`;
-        if (seenAssistantKeys.has(assistantKey)) {
-          continue;
-        }
-        seenAssistantKeys.add(assistantKey);
-        result.push(msg);
-        continue;
-      }
-
-      if (msg.type !== 'user') {
-        result.push(msg);
-        continue;
-      }
-
-      const key = normalizeUserMessage(msg.content);
-      const userUuidKey = msg.uuid ? `uuid:${msg.uuid}:${key}` : null;
-      if (userUuidKey && seenUserUuidKeys.has(userUuidKey)) {
-        continue;
-      }
-      const ts = msg.timestamp ? new Date(msg.timestamp).getTime() : 0;
-      if (lastUserKey === key && Math.abs(ts - lastUserTs) <= LIVE_DUPLICATE_WINDOW_MS) {
-        continue;
-      }
-
-      result.push(msg);
-      if (userUuidKey) {
-        seenUserUuidKeys.add(userUuidKey);
-      }
-      lastUserKey = key;
-      lastUserTs = ts;
-    }
-
-    return result;
-  }, [filteredHistory]);
-
-  // Remove live user prompts that are duplicates of very recent history/live prompts
-  const dedupedOutputs = useMemo(() => {
-    const latestHistoryUserTsByKey = new Map<string, number>();
-    const historyAssistantUuidSet = new Set<string>();
-    const latestHistoryAssistantTsByKey = new Map<string, number>();
-    for (const msg of dedupedHistory) {
-      const ts = msg.timestamp ? new Date(msg.timestamp).getTime() : 0;
-      if (msg.type === 'user') {
-        const key = normalizeUserMessage(msg.content);
-        const prev = latestHistoryUserTsByKey.get(key) ?? 0;
-        if (ts > prev) latestHistoryUserTsByKey.set(key, ts);
-        continue;
-      }
-      if (msg.type !== 'assistant') continue;
-      if (msg.uuid) {
-        historyAssistantUuidSet.add(msg.uuid);
-      }
-      const key = normalizeAssistantMessage(msg.content);
-      const prev = latestHistoryAssistantTsByKey.get(key) ?? 0;
-      if (ts > prev) latestHistoryAssistantTsByKey.set(key, ts);
-    }
-
-    const result: typeof filteredOutputs = [];
-    let lastLiveUserKey: string | null = null;
-    let lastLiveUserTs = 0;
-
-    for (const output of filteredOutputs) {
-      if (!output.isUserPrompt) {
-        if (!output.isStreaming && !isToolOrSystemOutput(output.text)) {
-          if (output.uuid && historyAssistantUuidSet.has(output.uuid)) {
-            continue;
-          }
-          const key = normalizeAssistantMessage(output.text);
-          const ts = output.timestamp || 0;
-          const historyTs = latestHistoryAssistantTsByKey.get(key);
-          if (historyTs && Math.abs(ts - historyTs) <= HISTORY_ASSISTANT_OUTPUT_DUPLICATE_WINDOW_MS) {
-            continue;
-          }
-        }
-        result.push(output);
-        continue;
-      }
-
-      const key = normalizeUserMessage(output.text);
-      const ts = output.timestamp || 0;
-      const latestHistoryTs = latestHistoryUserTsByKey.get(key);
-
-      // Duplicate of freshly-loaded history copy of the same user prompt
-      if (latestHistoryTs && ts >= latestHistoryTs && ts - latestHistoryTs <= HISTORY_OUTPUT_DUPLICATE_WINDOW_MS) {
-        continue;
-      }
-
-      // Duplicate command_started events that occasionally arrive twice
-      if (lastLiveUserKey === key && Math.abs(ts - lastLiveUserTs) <= LIVE_DUPLICATE_WINDOW_MS) {
-        continue;
-      }
-
-      result.push(output);
-      lastLiveUserKey = key;
-      lastLiveUserTs = ts;
-    }
-
-    return result;
-  }, [filteredOutputs, dedupedHistory]);
-
-  // Combined items for client-side search
-  const allSearchItems = useMemo(
-    () => [...dedupedHistory, ...dedupedOutputs],
-    [dedupedHistory, dedupedOutputs]
-  );
-
-  // Search hook (client-side, WhatsApp-style navigation)
-  // Loads all remaining history pages when search activates for full-conversation coverage
-  const search = useSearchHistory({
-    selectedAgentId: activeAgentId,
-    isOpen,
-    allItems: allSearchItems,
-    viewMode,
-    hasMoreHistory: historyLoader.hasMore,
-    loadAllHistory: historyLoader.loadAllHistory,
-    loadingMore: historyLoader.loadingMore,
-  });
-
-  // Total navigable messages count (history + live outputs)
-  const totalNavigableMessages = dedupedHistory.length + dedupedOutputs.length;
-
-  // Message navigation hook (Alt+J/K)
-  const messageNav = useMessageNavigation({
-    totalMessages: totalNavigableMessages,
-    isOpen,
-    hasModalOpen: !!(imageModal || bashModal || responseModalContent || fileViewerPath),
-    scrollContainerRef: outputScrollRef,
-    selectedAgentId: activeAgentId,
-    inputRef: terminalInputRef,
-    textareaRef: terminalTextareaRef,
-    useTextarea: terminalInput.useTextarea,
-  });
-
-  // Auto-update bash modal when output arrives
+  // Auto-update bash modal when output arrives (reads deduped history from pane)
   useEffect(() => {
     if (!bashModal?.isLive || !bashModal.command) return;
-    for (const output of dedupedOutputs) {
-      if (output._bashCommand === bashModal.command && output._bashOutput) {
-        setBashModal({ command: bashModal.command, output: output._bashOutput, isLive: false });
+    const dedupedHistory = paneRef.current?.getDedupedHistory() ?? [];
+    for (const msg of dedupedHistory) {
+      if (msg._bashCommand === bashModal.command && msg._bashOutput) {
+        setBashModal({ command: bashModal.command, output: msg._bashOutput, isLive: false });
         return;
       }
     }
-  }, [bashModal, dedupedOutputs]);
+  }, [bashModal]);
 
   // Memoized callbacks
   const handleImageClick = useCallback((url: string, name: string) => {
@@ -1467,29 +1126,9 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     setAgentInfoOpen(prev => !prev);
   }, []);
 
-  // Scroll handling - track if user scrolled up to disable auto-scroll
-  const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
+  // Mobile swipe-close state (parent-only, not part of per-agent pane)
   const [mobileSwipeCloseOffset, setMobileSwipeCloseOffset] = useState(0);
   const [isMobileSwipeClosing, setIsMobileSwipeClosing] = useState(false);
-  const isUserScrolledUpRef = useRef(false);
-  const pendingSelectionScrollRef = useRef(false);
-  // Grace period after agent switch - don't detect user scroll during this time
-  const agentSwitchGraceRef = useRef(false);
-
-  const handleUserScrollUp = useCallback(() => {
-    // Don't disable auto-scroll during grace period after agent switch
-    if (agentSwitchGraceRef.current) return;
-    isUserScrolledUpRef.current = true;
-    setShouldAutoScroll(false);
-  }, []);
-
-  const handlePinCancel = useCallback(() => setPinToBottom(false), []);
-
-  // Reset auto-scroll when user sends a message so terminal scrolls to bottom
-  const handleSendCommand = useCallback(() => {
-    isUserScrolledUpRef.current = false;
-    setShouldAutoScroll(true);
-  }, []);
 
   const handleMobileSwipeClose = useCallback(() => {
     if (typeof window === 'undefined' || window.innerWidth > 768) return;
@@ -1510,19 +1149,10 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     setMobileSwipeCloseOffset(offset);
   }, [isMobileSwipeClosing]);
 
-  // Reset auto-scroll when agent changes (NOT on new outputs - that would override user scroll-up)
+  // Reset mobile swipe close offset on agent change
   useEffect(() => {
-    setShouldAutoScroll(true);
     setMobileSwipeCloseOffset(0);
     setIsMobileSwipeClosing(false);
-    isUserScrolledUpRef.current = false;
-    pendingSelectionScrollRef.current = true;
-    // Start grace period - for 3 seconds after agent change, don't detect user scroll
-    agentSwitchGraceRef.current = true;
-    const timeout = setTimeout(() => {
-      agentSwitchGraceRef.current = false;
-    }, 3000);
-    return () => clearTimeout(timeout);
   }, [activeAgentId]);
 
   useEffect(() => {
@@ -1614,118 +1244,6 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     return () => window.removeEventListener('popstate', handlePopState);
   }, [isOpen, agents, selectedAgentId, updateAgentNavigationAvailability]);
 
-  useEffect(() => {
-    if (!pendingSelectionScrollRef.current) return;
-    if (!activeAgentId) return;
-    if (isAgentSwitching) return;
-    if (historyLoader.fetchingHistory) return;
-
-    let rafId = 0;
-    let rafId2 = 0;
-    rafId = requestAnimationFrame(() => {
-      rafId2 = requestAnimationFrame(() => {
-        if (outputScrollRef.current) {
-          outputScrollRef.current.scrollTop = outputScrollRef.current.scrollHeight;
-        }
-        pendingSelectionScrollRef.current = false;
-      });
-    });
-
-    return () => {
-      cancelAnimationFrame(rafId);
-      cancelAnimationFrame(rafId2);
-    };
-  }, [activeAgentId, isAgentSwitching, historyLoader.fetchingHistory, historyLoader.historyLoadVersion]);
-
-  // Keep historyLoader.handleScroll in a ref so handleScroll callback stays stable
-  const historyLoaderHandleScrollRef = useRef(historyLoader.handleScroll);
-  historyLoaderHandleScrollRef.current = historyLoader.handleScroll;
-
-  const handleScroll = useCallback(() => {
-    if (!outputScrollRef.current) return;
-    if (keyboard.keyboardScrollLockRef.current) return;
-
-    const { scrollTop, scrollHeight, clientHeight } = outputScrollRef.current;
-    const isAtBottom = scrollHeight - scrollTop - clientHeight < 150;
-
-    // Only track user scroll state outside of grace period
-    if (!agentSwitchGraceRef.current) {
-      isUserScrolledUpRef.current = !isAtBottom;
-
-      if (isAtBottom) {
-        setShouldAutoScroll(true);
-      }
-    }
-
-    historyLoaderHandleScrollRef.current(keyboard.keyboardScrollLockRef);
-  }, [outputScrollRef, keyboard.keyboardScrollLockRef]);
-
-  // Auto-scroll on new output (only if user hasn't scrolled up).
-  // We intentionally do NOT re-check isAtBottom inside the RAF — the virtualizer may
-  // have remeasured items between when this effect fires and the RAF executes, growing
-  // scrollHeight and making the container appear "not at bottom" even though we should
-  // still be tracking the tail.
-  const lastOutputLength = outputs.length > 0 ? outputs[outputs.length - 1]?.text?.length || 0 : 0;
-  useEffect(() => {
-    if (keyboard.keyboardScrollLockRef.current) return;
-    if (isUserScrolledUpRef.current) return;
-    requestAnimationFrame(() => {
-      if (outputScrollRef.current) {
-        outputScrollRef.current.scrollTop = outputScrollRef.current.scrollHeight;
-      }
-    });
-  }, [outputs.length, lastOutputLength, keyboard.keyboardScrollLockRef, outputScrollRef]);
-
-  // Hide content immediately when agent changes (useLayoutEffect to avoid flicker).
-  // For cached agents: skip isAgentSwitching entirely — content stays visible and
-  // VirtualizedOutputList remounts via key={activeAgentId} with cached data.
-  // For non-cached agents: hide content while history fetches.
-  const prevSelectedAgentIdRef = useRef<string | null>(null);
-  useLayoutEffect(() => {
-    const prev = prevSelectedAgentIdRef.current;
-    const changed = prev !== null && prev !== selectedAgentId;
-
-    if (changed) {
-      // Always hide content during switch — the VirtualizedOutputList remounts via
-      // key={activeAgentId} and needs a few frames to rebuild + scroll to bottom.
-      // Content is revealed by the fade-in after scroll stabilises.
-      setHistoryFadeIn(false);
-
-      const hasCached = selectedAgentId ? historyLoader.hasCachedHistory(selectedAgentId) : false;
-      if (!hasCached) {
-        // No cache: also show loading indicator while history fetches
-        setIsAgentSwitching(true);
-      }
-
-      if (store.getState().currentSnapshot) {
-        store.setCurrentSnapshot(null);
-      }
-    } else if (!selectedAgentId) {
-      setHistoryFadeIn(false);
-    }
-
-    prevSelectedAgentIdRef.current = selectedAgentId;
-  }, [selectedAgentId]);
-
-  // Keep Guake output empty while agent switch is still settling (history fetch/cache rebind).
-  useEffect(() => {
-    if (!isAgentSwitching) return;
-    if (historyLoader.fetchingHistory) return;
-    const raf = requestAnimationFrame(() => {
-      // Reset scroll position before VirtualizedOutputList remounts so the
-      // virtualizer doesn't initialise at a stale offset (which can cause it
-      // to calculate zero visible items until the user scrolls).
-      if (outputScrollRef.current) {
-        outputScrollRef.current.scrollTop = outputScrollRef.current.scrollHeight;
-      }
-      setIsAgentSwitching(false);
-    });
-    return () => cancelAnimationFrame(raf);
-  }, [isAgentSwitching, historyLoader.fetchingHistory, historyLoader.historyLoadVersion]);
-
-  // Track when we need to scroll and fade in (to avoid stale closure issues)
-  const pendingFadeInRef = useRef(false);
-
   // Clear unseen badge when terminal is open and agent is visible
   useEffect(() => {
     if (isOpen && selectedAgentId) {
@@ -1733,108 +1251,16 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     }
   }, [isOpen, selectedAgentId]);
 
-  // Mark pending fade-in when agent changes
-  useEffect(() => {
-    pendingFadeInRef.current = true;
-    setPinToBottom(true);
-  }, [activeAgentId, reconnectCount]);
-
-  // If history fetching starts after agent selection (e.g., session establishment),
-  // ensure we still perform the post-load scroll.
-  useEffect(() => {
-    if (historyLoader.fetchingHistory) {
-      pendingFadeInRef.current = true;
-      setPinToBottom(true);
+  // Clear snapshot when agent changes
+  const prevSelectedAgentIdRef = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    const prev = prevSelectedAgentIdRef.current;
+    const changed = prev !== null && prev !== selectedAgentId;
+    if (changed && store.getState().currentSnapshot) {
+      store.setCurrentSnapshot(null);
     }
-  }, [historyLoader.fetchingHistory]);
-
-  // Release pinning once the scroll container stabilizes at the bottom after a load.
-  useEffect(() => {
-    if (!pinToBottom) return;
-    if (!isOpen) return;
-    if (historyLoader.fetchingHistory) return;
-
-    const container = outputScrollRef.current;
-    if (!container) return;
-
-    let rafId: number | null = null;
-    const start = performance.now();
-    let stableFrames = 0;
-    let lastScrollHeight = -1;
-
-    const isAtBottom = () => {
-      const { scrollTop, scrollHeight, clientHeight } = container;
-      return scrollHeight - scrollTop - clientHeight <= 2;
-    };
-
-    const tick = () => {
-      const now = performance.now();
-      const currentScrollHeight = container.scrollHeight;
-      const heightStable = Math.abs(currentScrollHeight - lastScrollHeight) <= 1;
-      const atBottom = isAtBottom();
-
-      if (heightStable && atBottom) {
-        stableFrames += 1;
-      } else {
-        stableFrames = 0;
-      }
-
-      lastScrollHeight = currentScrollHeight;
-
-      // If we've been stable at the bottom for a few frames, stop pinning.
-      // VirtualizedOutputList's RAF loop handles the active scrolling;
-      // this loop only observes when it's safe to release.
-      if (stableFrames >= 3) {
-        setPinToBottom(false);
-        rafId = null;
-        return;
-      }
-
-      // Hard cap so we don't pin forever on pathological content.
-      if (now - start > 8000) {
-        setPinToBottom(false);
-        rafId = null;
-        return;
-      }
-
-      rafId = requestAnimationFrame(tick);
-    };
-
-    rafId = requestAnimationFrame(tick);
-    return () => {
-      if (rafId !== null) cancelAnimationFrame(rafId);
-    };
-  }, [pinToBottom, isOpen, historyLoader.fetchingHistory, historyLoader.historyLoadVersion]);
-
-  // After content loads: fade in once scroll has stabilized.
-  // Primary path: pinToBottom transitions true→false when stabilization loop completes.
-  const prevPinToBottomRef = useRef(false);
-  useEffect(() => {
-    if (prevPinToBottomRef.current && !pinToBottom && pendingFadeInRef.current) {
-      // Scroll stabilization just completed — safe to show content
-      pendingFadeInRef.current = false;
-      setHistoryFadeIn(true);
-    }
-    prevPinToBottomRef.current = pinToBottom;
-  }, [pinToBottom]);
-
-  // Fallback: if pinToBottom was never activated or was already false when
-  // history finished loading, trigger fade-in once fetch completes.
-  useEffect(() => {
-    if (!isOpen) return;
-    if (!pendingFadeInRef.current) return;
-    if (pinToBottom) return; // Wait for stabilization loop instead
-    if (historyLoader.fetchingHistory) return; // Wait for fetch to complete
-
-    // Pin was never active or already released — content is ready
-    const rafId = requestAnimationFrame(() => {
-      if (pendingFadeInRef.current) {
-        pendingFadeInRef.current = false;
-        setHistoryFadeIn(true);
-      }
-    });
-    return () => cancelAnimationFrame(rafId);
-  }, [historyLoader.historyLoadVersion, isOpen, pinToBottom, historyLoader.fetchingHistory]);
+    prevSelectedAgentIdRef.current = selectedAgentId;
+  }, [selectedAgentId]);
 
   // Keyboard shortcut to toggle terminal
   useEffect(() => {
@@ -1893,16 +1319,16 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
         } else if (imageModal) {
           e.stopImmediatePropagation();
           setImageModal(null);
-        } else if (search.searchMode) {
+        } else if (paneRef.current?.search.searchMode) {
           e.stopImmediatePropagation();
-          search.closeSearch();
+          paneRef.current.search.closeSearch();
         }
       }
     };
     // Use capture phase to handle before message navigation
     document.addEventListener('keydown', handleKeyDown, true);
     return () => document.removeEventListener('keydown', handleKeyDown, true);
-  }, [imageModal, bashModal, responseModalContent, search, fileViewerPath, contextModalAgentId]);
+  }, [imageModal, bashModal, responseModalContent, fileViewerPath, contextModalAgentId]);
 
   // Refs to track state in event handlers
   const isOpenRef = useRef(isOpen);
@@ -2056,9 +1482,9 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     if (!files.length) return;
 
     for (const file of files) {
-      const attached = await terminalInput.uploadFile(file);
+      const attached = await paneRef.current?.terminalInput.uploadFile(file);
       if (attached) {
-        terminalInput.setAttachedFiles((prev) => [...prev, attached]);
+        paneRef.current?.terminalInput.setAttachedFiles((prev) => [...prev, attached]);
       }
     }
   };
@@ -2141,9 +1567,9 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
           swipeOffset={swipe.swipeOffset}
           viewMode={viewMode}
           setViewMode={setViewMode}
-          searchMode={search.searchMode}
-          toggleSearch={search.toggleSearch}
-          closeSearch={search.closeSearch}
+          searchMode={paneRef.current?.search.searchMode ?? false}
+          toggleSearch={paneRef.current?.search.toggleSearch ?? (() => {})}
+          closeSearch={paneRef.current?.search.closeSearch ?? (() => {})}
           debugPanelOpen={debugPanelOpen}
           setDebugPanelOpen={setDebugPanelOpen}
           debuggerEnabled={debuggerEnabled}
@@ -2165,27 +1591,12 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
           onNavigateForward={handleNavigateForward}
           canNavigateBack={canNavigateBack}
           canNavigateForward={canNavigateForward}
-          outputsLength={dedupedHistory.length + dedupedOutputs.length}
+          outputsLength={paneRef.current?.outputsLength ?? 0}
           setContextConfirm={setContextConfirm}
           headerRef={swipe.headerRef}
           onSaveSnapshot={isSnapshotView ? undefined : onSaveSnapshot}
           isSnapshotView={isSnapshotView}
         />
-
-        {/* Search bar */}
-        {search.searchMode && (
-          <SearchBar
-            searchInputRef={search.searchInputRef}
-            searchQuery={search.searchQuery}
-            setSearchQuery={search.setSearchQuery}
-            closeSearch={search.closeSearch}
-            matchCount={search.matchIndices.length}
-            currentMatch={search.currentMatch}
-            navigateNext={search.navigateNext}
-            navigatePrev={search.navigatePrev}
-            loadingFullHistory={search.loadingFullHistory}
-          />
-        )}
 
         {/* Swipe container */}
         <div
@@ -2215,151 +1626,31 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
             </div>
           )}
 
-          <div className="guake-output" ref={outputScrollRef} onScroll={handleScroll}>
-              <div className={`guake-history-content ${historyFadeIn ? 'fade-in' : ''}`}>
-                {isAgentSwitching && (
-                  <div className="guake-empty loading">{t('terminal:empty.loadingConversation')}<span className="loading-dots"><span></span><span></span><span></span></span></div>
-                )}
-                {!isAgentSwitching && historyLoader.loadingHistory && historyLoader.history.length === 0 && outputs.length === 0 && (
-                  <div className="guake-empty loading">{t('terminal:empty.loadingConversation')}<span className="loading-dots"><span></span><span></span><span></span></span></div>
-                )}
-                {!isAgentSwitching && !historyLoader.loadingHistory && historyLoader.history.length === 0 && displayOutputs.length === 0 && activeAgent.status !== 'working' && (
-                  <div className="guake-empty">{t('terminal:empty.noOutput')}</div>
-                )}
-                {!isAgentSwitching && historyLoader.hasMore && !search.searchMode && (
-                  <div className="guake-load-more">
-                    {historyLoader.loadingMore ? (
-                      <span>{t('terminal:empty.loadingOlder')}</span>
-                    ) : (
-                      <button onClick={historyLoader.loadMoreHistory}>
-                        {t('terminal:empty.loadMore', { count: historyLoader.totalCount - historyLoader.history.length })}
-                      </button>
-                    )}
-                  </div>
-                )}
-                {/* Virtualized rendering - only renders visible items + overscan buffer */}
-                {!isAgentSwitching && (
-                  <VirtualizedOutputList
-                    key={activeAgentId}
-                    historyMessages={dedupedHistory}
-                    liveOutputs={dedupedOutputs}
-                    agentId={activeAgentId}
-                    execTasks={execTasks}
-                    subagents={subagents}
-                    viewMode={viewMode}
-                    searchHighlight={search.highlightQuery}
-                    searchActiveIndex={search.scrollToIndex}
-                    selectedMessageIndex={messageNav.selectedIndex}
-                    isMessageSelected={messageNav.isSelected}
-                    onImageClick={handleImageClick}
-                    onFileClick={handleFileClick}
-                    onBashClick={handleBashClick}
-                    onViewMarkdown={handleViewMarkdown}
-                    scrollContainerRef={outputScrollRef}
-                    onScrollTopReached={historyLoader.loadMoreHistory}
-                    isLoadingMore={historyLoader.loadingMore}
-                    hasMore={historyLoader.hasMore}
-                    shouldAutoScroll={shouldAutoScroll}
-                    onUserScroll={handleUserScrollUp}
-                    pinToBottom={pinToBottom}
-                    onPinCancel={handlePinCancel}
-                    // Use in-flight flag so the virtualized list can reliably detect load completion
-                    // (the spinner flag is intentionally delayed and may never toggle true on fast loads).
-                    isLoadingHistory={historyLoader.fetchingHistory}
-                  />
-                )}
-                {/* Context compaction indicator */}
-                {!isAgentSwitching && isCompacting && (
-                  <div className="compacting-indicator">
-                    <div className="compacting-bar">
-                      <div className="compacting-bar-fill" />
-                    </div>
-                    <span className="compacting-label">Compacting context...</span>
-                  </div>
-                )}
-                {/* Boss agent progress indicators */}
-                {!isAgentSwitching && isBoss && activeTaskProgress.length > 0 && (
-                  <div className={`agent-progress-container ${agentProgressCollapsed ? 'collapsed' : 'expanded'}`}>
-                    <div
-                      className="agent-progress-container-header"
-                      onClick={() => setAgentProgressCollapsed((previous) => !previous)}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault();
-                          setAgentProgressCollapsed((previous) => !previous);
-                        }
-                      }}
-                    >
-                      <span className="progress-crown">👑</span>
-                      <span>{t('terminal:empty.subordinateProgress')}</span>
-                      <span className="progress-count">{t('terminal:empty.activeCount', { count: activeTaskProgress.length })}</span>
-                      <span className="agent-progress-container-toggle">{agentProgressCollapsed ? '▶' : '▼'}</span>
-                    </div>
-                    {!agentProgressCollapsed && activeTaskProgress.map((progress) => (
-                      <AgentProgressIndicator
-                        key={progress.agentId}
-                        progress={progress}
-                        defaultExpanded={progress.status === 'working'}
-                        onAgentClick={(agentId) => {
-                          store.selectAgent(agentId);
-                          store.setTerminalOpen(true);
-                        }}
-                        onDismiss={(subordinateId) => {
-                          if (activeAgentId) {
-                            store.clearAgentTaskProgress(activeAgentId, subordinateId);
-                          }
-                        }}
-                        onFileClick={handleFileClick}
-                        onBashClick={handleBashClick}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-          </div>
+          <SplitTerminalLayout
+            activeAgentId={activeAgentId}
+            activeAgent={activeAgent}
+            paneRef={paneRef}
+            viewMode={viewMode}
+            isOpen={isOpen}
+            isSnapshotView={isSnapshotView}
+            currentSnapshot={currentSnapshot}
+            onImageClick={handleImageClick}
+            onFileClick={handleFileClick}
+            onBashClick={handleBashClick}
+            onViewMarkdown={handleViewMarkdown}
+            keyboard={keyboard}
+            onSaveSnapshot={isSnapshotView ? undefined : onSaveSnapshot}
+            canSwipeClose={
+              isMobileWidth
+              && mobileView === 'terminal'
+              && !(paneRef.current?.search.searchMode)
+              && !(paneRef.current?.historyLoader.fetchingHistory)
+            }
+            onSwipeCloseOffsetChange={handleMobileSwipeCloseOffsetChange}
+            onSwipeClose={handleMobileSwipeClose}
+            hasModalOpen={!!(imageModal || bashModal || responseModalContent || fileViewerPath)}
+          />
         </div>
-
-        <TerminalInputArea
-          selectedAgent={activeAgent}
-          selectedAgentId={activeAgentId}
-          isOpen={isOpen}
-          command={terminalInput.command}
-          setCommand={terminalInput.setCommand}
-          forceTextarea={terminalInput.forceTextarea}
-          setForceTextarea={terminalInput.setForceTextarea}
-          useTextarea={terminalInput.useTextarea}
-          attachedFiles={terminalInput.attachedFiles}
-          setAttachedFiles={terminalInput.setAttachedFiles}
-          removeAttachedFile={terminalInput.removeAttachedFile}
-          uploadFile={terminalInput.uploadFile}
-          pastedTexts={terminalInput.pastedTexts}
-          expandPastedTexts={terminalInput.expandPastedTexts}
-          incrementPastedCount={terminalInput.incrementPastedCount}
-          setPastedTexts={terminalInput.setPastedTexts}
-          resetPastedCount={terminalInput.resetPastedCount}
-          handleInputFocus={keyboard.handleInputFocus}
-          handleInputBlur={keyboard.handleInputBlur}
-          pendingPermissions={pendingPermissions}
-          showCompletion={showCompletion}
-          completionElapsed={completionElapsed}
-          onImageClick={handleImageClick}
-          inputRef={terminalInputRef}
-          textareaRef={terminalTextareaRef}
-          isSnapshotView={isSnapshotView}
-          onClearHistory={historyLoader.clearHistory}
-          onSendCommand={handleSendCommand}
-          canSwipeClose={
-            isMobileWidth
-            && mobileView === 'terminal'
-            && !isAgentSwitching
-            && !search.searchMode
-            && !historyLoader.fetchingHistory
-          }
-          onSwipeCloseOffsetChange={handleMobileSwipeCloseOffsetChange}
-          onSwipeClose={handleMobileSwipeClose}
-        />
 
         {/* Agent Status Bar (CWD + Context) */}
         <div className="guake-agent-status-bar">
@@ -2802,7 +2093,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
           selectedAgentId={activeAgentId}
           subordinateCount={activeAgent?.subordinateIds?.length || 0}
           onClose={() => setContextConfirm(null)}
-          onClearHistory={historyLoader.clearHistory}
+          onClearHistory={paneRef.current?.historyLoader.clearHistory ?? (() => {})}
         />
       )}
       <ContextModalFromGuake />

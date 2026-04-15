@@ -57,6 +57,10 @@ export const STORAGE_KEYS = {
   AOP_OPEN: 'tide-aop-open',
   MOBILE_OVERVIEW_HEIGHT: 'tide-mobile-overview-height',
 
+  // Split Terminal Panes
+  SPLIT_PANE_AGENT_IDS: 'tide-split-pane-agent-ids',
+  SPLIT_PANE_ORIENTATION: 'tide-split-pane-orientation',
+
   // Git Panel
   GIT_PANEL_OPEN: 'guake-git-panel-open',
   GIT_PANEL_MODE: 'guake-git-panel-mode',
