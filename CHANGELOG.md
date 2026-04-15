@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.40.5] - 2026-04-15
+
+### Fixed
+- **History refresh flicker** - Removed history cache eviction on `triggerHistoryRefresh`, stale cache is now shown instantly while fresh data loads in the background, eliminating blank-then-repopulate flicker in the output panel
+
 ## [1.40.4] - 2026-04-15
 
 ### Added

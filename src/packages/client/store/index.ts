@@ -30,7 +30,7 @@ import { createDatabaseActions, type DatabaseActions } from './database';
 import { createSnapshotActions, type SnapshotActions } from './snapshots';
 import { createSubagentActions, type SubagentActions } from './subagents';
 import { createWorkflowActions, type WorkflowActions, DEFAULT_WORKFLOW_STATE } from './workflows';
-import { evictHistoryCache } from '../components/ClaudeOutputPanel/useHistoryLoader';
+
 
 // Import shortcuts
 import { ShortcutConfig, DEFAULT_SHORTCUTS } from './shortcuts';
@@ -423,7 +423,11 @@ class Store
    * if the affected agent is currently selected in the terminal.
    */
   triggerHistoryRefresh(agentId: string): void {
-    evictHistoryCache(agentId);
+    // NOTE: Do NOT evict the history cache here. The stale cache is shown
+    // instantly while the fresh fetch loads in the background, preventing
+    // a visible blank-then-repopulate flicker in the output panel.
+    // The fetch will update the cache when it completes.
+
     // Only trigger an immediate re-fetch if this agent is currently viewed
     if (this.state.selectedAgentIds.has(agentId)) {
       this.state.historyRefreshTrigger++;
