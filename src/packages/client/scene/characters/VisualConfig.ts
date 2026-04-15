@@ -89,7 +89,7 @@ export class VisualConfig {
   }
 
   private getProviderBadgeImage(provider?: string): HTMLImageElement | null {
-    if (provider !== 'claude' && provider !== 'codex') {
+    if (provider !== 'claude' && provider !== 'codex' && provider !== 'opencode') {
       return null;
     }
 
@@ -104,7 +104,7 @@ export class VisualConfig {
 
     const image = new Image();
     image.decoding = 'async';
-    image.src = provider === 'codex' ? '/assets/codex.png' : '/assets/claude.png';
+    image.src = provider === 'codex' ? '/assets/codex.png' : provider === 'opencode' ? '/assets/opencode.png' : '/assets/claude.png';
     image.onload = () => {
       this.providerBadgeVersion += 1;
     };
@@ -295,7 +295,7 @@ export class VisualConfig {
       } else {
         const fallbackX = badgeX + badgeSize / 2;
         const fallbackY = nameY;
-        const providerColor = provider === 'codex' ? '#4a9eff' : '#ff9e4a';
+        const providerColor = provider === 'codex' ? '#4a9eff' : provider === 'opencode' ? '#10b981' : '#ff9e4a';
         ctx.beginPath();
         ctx.arc(fallbackX, fallbackY, badgeSize / 2, 0, Math.PI * 2);
         ctx.fillStyle = providerColor;

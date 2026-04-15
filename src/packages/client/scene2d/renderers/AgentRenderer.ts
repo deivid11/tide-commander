@@ -271,7 +271,7 @@ export class AgentRenderer extends BaseRenderer {
       const nameWidth = this.ctx.measureText(displayName).width;
       const namePadding = Math.max(2, 6 * nameplateZoomFactor);
       const nameHeight = nameLabelFontSize + Math.max(2, 4 * nameplateZoomFactor);
-      const hasProviderDot = detailLevel === 'full' && (agent.provider === 'claude' || agent.provider === 'codex');
+      const hasProviderDot = detailLevel === 'full' && (agent.provider === 'claude' || agent.provider === 'codex' || agent.provider === 'opencode');
       const dotSize = hasProviderDot ? nameLabelFontSize * 0.45 : 0;
       const dotGap = hasProviderDot ? nameLabelFontSize * 0.3 : 0;
       const providerBlock = dotSize + dotGap;
@@ -303,7 +303,7 @@ export class AgentRenderer extends BaseRenderer {
       if (hasProviderDot) {
         const dotX = screenPos.x - totalTagWidth / 2 + namePadding + dotSize / 2;
         const dotY = labelY;
-        const providerColor = agent.provider === 'codex' ? '#4a9eff' : '#ff9e4a';
+        const providerColor = agent.provider === 'codex' ? '#4a9eff' : agent.provider === 'opencode' ? '#10b981' : '#ff9e4a';
         this.ctx.beginPath();
         this.ctx.arc(dotX, dotY, dotSize / 2, 0, Math.PI * 2);
         this.ctx.fillStyle = providerColor;

@@ -1313,10 +1313,10 @@ function AgentCard({
           />
         )}
         <img
-          src={agent.provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
+          src={agent.provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : agent.provider === 'opencode' ? `${import.meta.env.BASE_URL}assets/opencode.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
           alt={agent.provider}
           className="aop-provider-icon"
-          title={agent.provider === 'codex' ? 'Codex Agent' : 'Claude Agent'}
+          title={agent.provider === 'codex' ? 'Codex Agent' : agent.provider === 'opencode' ? 'OpenCode Agent' : 'Claude Agent'}
         />
         <span
           className="aop-agent-name"

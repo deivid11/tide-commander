@@ -8,3 +8,4 @@ export type {
 } from './types.js';
 export { createClaudeRuntimeProvider } from './claude-runtime-provider.js';
 export { createCodexRuntimeProvider } from './codex-runtime-provider.js';
+export { createOpencodeRuntimeProvider } from './opencode-runtime-provider.js';

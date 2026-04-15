@@ -18,6 +18,14 @@ export class RunnerStdoutPipeline {
   private bus: RunnerInternalEventBus;
   private activeSubagentName: Map<string, string> = new Map();
   private textEmittedInTurn: Set<string> = new Set();
+  // Track last emitted text per agent to suppress consecutive identical outputs
+  // (OpenCode's agentic loop can re-emit the same text in the next turn after a tool call)
+  private lastEmittedText: Map<string, string> = new Map();
+  // Track agents that have sent a completion notification.
+  // OpenCode's agentic loop gives the model another turn after tool calls, causing infinite
+  // loops (respond → notify → respond → notify → ...). Once the notification is sent,
+  // suppress all further text/tool output until a new user message arrives.
+  private notificationSent: Set<string> = new Set();
 
   constructor(deps: StdoutPipelineDeps) {
     this.backend = deps.backend;
@@ -106,11 +114,27 @@ export class RunnerStdoutPipeline {
 
     switch (event.type) {
       case 'init':
+        this.lastEmittedText.delete(agentId);
+        this.notificationSent.delete(agentId);
         this.callbacks.onOutput(agentId, `Session started: ${event.sessionId} (${event.model})`);
         break;
 
       case 'text':
         if (event.text) {
+          // After notification is sent, suppress all further text (prevents OpenCode loop)
+          if (this.notificationSent.has(agentId)) {
+            log.log(`[text] Suppressing post-notification text for agent ${agentId.slice(0, 4)}`);
+            this.textEmittedInTurn.add(agentId);
+            break;
+          }
+          // Suppress consecutive identical text (extra safety for OpenCode agentic loop)
+          const prevText = this.lastEmittedText.get(agentId);
+          if (prevText && prevText === event.text.trim()) {
+            log.log(`[text] Suppressing duplicate text for agent ${agentId.slice(0, 4)}`);
+            this.textEmittedInTurn.add(agentId);
+            break;
+          }
+          this.lastEmittedText.set(agentId, event.text.trim());
           this.callbacks.onOutput(agentId, event.text, event.isStreaming, undefined, event.uuid);
           this.textEmittedInTurn.add(agentId);
         }
@@ -125,6 +149,16 @@ export class RunnerStdoutPipeline {
       case 'tool_start': {
         if ((event.toolName === 'Task' || event.toolName === 'Agent') && event.subagentName) {
           this.activeSubagentName.set(agentId, event.subagentName);
+        }
+        // Detect notification curl calls to prevent OpenCode agentic loop.
+        // After notification is sent, suppress all further output for this agent.
+        if (this.notificationSent.has(agentId)) {
+          log.log(`[tool_start] Suppressing post-notification tool for agent ${agentId.slice(0, 4)}`);
+          break;
+        }
+        if (event.toolName === 'Bash' && this.isNotificationCurl(event.toolInput)) {
+          this.notificationSent.add(agentId);
+          log.log(`[tool_start] Notification detected for agent ${agentId.slice(0, 4)} - will suppress subsequent turns`);
         }
         // Skip output for subagent internal tools (shown in inline activity panel instead)
         if (event.parentToolUseId) {
@@ -145,8 +179,8 @@ export class RunnerStdoutPipeline {
         // Skip output for subagent internal tools (shown in inline activity panel)
         if (!event.parentToolUseId) {
           const toolResultSubName = this.activeSubagentName.get(agentId);
-          if (event.toolName === 'Bash' && event.toolOutput) {
-            this.callbacks.onOutput(agentId, `Bash output:\n${event.toolOutput}`, false, toolResultSubName, event.uuid);
+          if (event.toolName === 'Bash') {
+            this.callbacks.onOutput(agentId, `Bash output:\n${event.toolOutput || '(no output)'}`, false, toolResultSubName, event.uuid);
           }
         }
         if (event.toolName === 'Task' || event.toolName === 'Agent') {
@@ -196,6 +230,11 @@ export class RunnerStdoutPipeline {
       default:
         break;
     }
+  }
+
+  private isNotificationCurl(toolInput?: Record<string, unknown>): boolean {
+    const cmd = typeof toolInput?.command === 'string' ? toolInput.command : '';
+    return cmd.includes('/api/notify');
   }
 
   private isLikelyErrorResultText(resultText?: string): boolean {

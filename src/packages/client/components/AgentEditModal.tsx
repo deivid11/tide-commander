@@ -8,8 +8,8 @@ import { useTranslation } from 'react-i18next';
 import { store, useSkillsArray, useCustomAgentClassesArray } from '../store';
 import { ModelPreview } from './ModelPreview';
 import { FolderInput } from './shared/FolderInput';
-import type { Agent, AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, CodexModel, AgentProvider, CodexConfig } from '../../shared/types';
-import { BUILT_IN_AGENT_CLASSES, PERMISSION_MODES, CLAUDE_MODELS, CODEX_MODELS } from '../../shared/types';
+import type { Agent, AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, ClaudeEffort, CodexModel, AgentProvider, CodexConfig } from '../../shared/types';
+import { BUILT_IN_AGENT_CLASSES, PERMISSION_MODES, CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS } from '../../shared/types';
 import { apiUrl } from '../utils/storage';
 import { useModalClose } from '../hooks';
 
@@ -36,7 +36,9 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
     search: false,
   });
   const [selectedModel, setSelectedModel] = useState<ClaudeModel>(agent.model || 'sonnet');
+  const [selectedEffort, setSelectedEffort] = useState<ClaudeEffort | undefined>(agent.effort);
   const [selectedCodexModel, setSelectedCodexModel] = useState<CodexModel>(agent.codexModel || 'gpt-5.3-codex');
+  const [opencodeModel, setOpencodeModel] = useState<string>((agent as any).opencodeModel || 'minimax/MiniMax-M1-80k');
   const [useChrome, setUseChrome] = useState<boolean>(agent.useChrome || false);
   const [workdir, setWorkdir] = useState<string>(agent.cwd);
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set());
@@ -76,7 +78,9 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
         search: false,
       });
       setSelectedModel(agent.model || 'sonnet');
+      setSelectedEffort(agent.effort);
       setSelectedCodexModel(agent.codexModel || 'gpt-5.3-codex');
+      setOpencodeModel((agent as any).opencodeModel || 'minimax/MiniMax-M1-80k');
       setUseChrome(agent.useChrome || false);
       setWorkdir(agent.cwd);
       const directlyAssigned = allSkills
@@ -170,8 +174,10 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
     if (permissionMode !== agent.permissionMode) return true;
     if (selectedProvider !== (agent.provider || 'claude')) return true;
     if (selectedProvider === 'claude' && selectedModel !== (agent.model || 'sonnet')) return true;
+    if (selectedProvider === 'claude' && selectedEffort !== (agent.effort || undefined)) return true;
     if (selectedProvider === 'codex' && selectedCodexModel !== (agent.codexModel || 'gpt-5.3-codex')) return true;
     if (selectedProvider === 'codex' && JSON.stringify(codexConfig || {}) !== JSON.stringify(agent.codexConfig || {})) return true;
+    if (selectedProvider === 'opencode' && opencodeModel !== ((agent as any).opencodeModel || 'minimax/MiniMax-M1-80k')) return true;
     if (useChrome !== (agent.useChrome || false)) return true;
     if (workdir !== agent.cwd) return true;
 
@@ -185,7 +191,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
     if (currentDirectSkills !== newSkills) return true;
 
     return false;
-  }, [agentName, selectedClass, permissionMode, selectedProvider, selectedModel, selectedCodexModel, codexConfig, useChrome, workdir, selectedSkillIds, agent, allSkills]);
+  }, [agentName, selectedClass, permissionMode, selectedProvider, selectedModel, selectedEffort, selectedCodexModel, codexConfig, opencodeModel, useChrome, workdir, selectedSkillIds, agent, allSkills]);
 
   // Handle save
   const handleSave = () => {
@@ -196,7 +202,9 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
       provider?: AgentProvider;
       codexConfig?: CodexConfig;
       codexModel?: CodexModel;
+      opencodeModel?: string;
       model?: ClaudeModel;
+      effort?: ClaudeEffort;
       useChrome?: boolean;
       skillIds?: string[];
       cwd?: string;
@@ -226,8 +234,16 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
       updates.codexModel = selectedCodexModel;
     }
 
+    if (selectedProvider === 'opencode' && opencodeModel !== ((agent as any).opencodeModel || 'minimax/MiniMax-M1-80k')) {
+      updates.opencodeModel = opencodeModel;
+    }
+
     if (selectedProvider === 'claude' && selectedModel !== (agent.model || 'sonnet')) {
       updates.model = selectedModel;
+    }
+
+    if (selectedProvider === 'claude' && selectedEffort !== (agent.effort || undefined)) {
+      updates.effort = selectedEffort;
     }
 
     if (useChrome !== (agent.useChrome || false)) {
@@ -396,6 +412,13 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                     <span>⚙️</span>
                     <span>Codex</span>
                   </button>
+                  <button
+                    className={`spawn-select-btn spawn-select-btn--opencode ${selectedProvider === 'opencode' ? 'selected' : ''}`}
+                    onClick={() => setSelectedProvider('opencode')}
+                  >
+                    <span>🟢</span>
+                    <span>OpenCode</span>
+                  </button>
                 </div>
               </div>
               <div className="spawn-field">
@@ -416,7 +439,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
               </div>
             </div>
 
-            {/* Row 3: Model */}
+            {/* Row 3: Model + Effort */}
             <div className="spawn-form-row">
               <div className="spawn-field">
                 <label className="spawn-label">{t('common:labels.model')}</label>
@@ -448,10 +471,42 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                       </button>
                     ))}
                   </div>
+                ) : selectedProvider === 'opencode' ? (
+                  <input
+                    type="text"
+                    className="spawn-input"
+                    value={opencodeModel}
+                    onChange={(e) => setOpencodeModel(e.target.value)}
+                    placeholder="provider/model (e.g., minimax/MiniMax-M1-80k)"
+                  />
                 ) : (
                   <div className="spawn-inline-hint">{t('terminal:spawn.codex.configuration')}</div>
                 )}
               </div>
+              {selectedProvider === 'claude' && (
+                <div className="spawn-field">
+                  <label className="spawn-label">Effort</label>
+                  <div className="spawn-select-row spawn-select-row--effort">
+                    <button
+                      className={`spawn-select-btn spawn-select-btn--compact ${selectedEffort === undefined ? 'selected' : ''}`}
+                      onClick={() => setSelectedEffort(undefined)}
+                      title="Use default effort level"
+                    >
+                      <span>Default</span>
+                    </button>
+                    {(Object.keys(CLAUDE_EFFORTS) as ClaudeEffort[]).map((level) => (
+                      <button
+                        key={level}
+                        className={`spawn-select-btn spawn-select-btn--compact ${selectedEffort === level ? 'selected' : ''}`}
+                        onClick={() => setSelectedEffort(level)}
+                        title={CLAUDE_EFFORTS[level].description}
+                      >
+                        <span>{CLAUDE_EFFORTS[level].label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {selectedProvider === 'codex' && (
@@ -510,8 +565,8 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
               </div>
             )}
 
-            {/* Model change notice */}
-            {selectedProvider === 'claude' && selectedModel !== (agent.model || 'sonnet') && (
+            {/* Model/effort change notice */}
+            {selectedProvider === 'claude' && (selectedModel !== (agent.model || 'sonnet') || selectedEffort !== (agent.effort || undefined)) && (
               <div className="model-change-notice">
                 {t('terminal:spawn.contextPreserved')}
               </div>

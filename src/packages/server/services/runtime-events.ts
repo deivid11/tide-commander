@@ -49,6 +49,7 @@ interface RuntimeEventsDeps {
     systemPrompt?: string,
     forceNewSession?: boolean
   ) => Promise<void>;
+  isAgentProcessActive?: (agentId: string) => boolean;
 }
 
 export interface RuntimeRunnerCallbacks {
@@ -88,8 +89,9 @@ function estimateTokensFromText(text: string | undefined): number {
   return Math.max(1, Math.ceil(normalized.length / 4));
 }
 
-function getDefaultContextWindow(provider: 'claude' | 'codex' | undefined): number {
-  return provider === 'codex' ? DEFAULT_CODEX_CONTEXT_WINDOW : DEFAULT_CLAUDE_CONTEXT_WINDOW;
+function getDefaultContextWindow(provider: 'claude' | 'codex' | 'opencode' | undefined): number {
+  if (provider === 'codex') return DEFAULT_CODEX_CONTEXT_WINDOW;
+  return DEFAULT_CLAUDE_CONTEXT_WINDOW;
 }
 
 function updateCodexRollingContextEstimate(agentId: string, turnGrowth: number): number {
@@ -206,6 +208,7 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
     emitError,
     parseUsageOutput,
     executeCommand,
+    isAgentProcessActive,
   } = deps;
 
   function handleEvent(agentId: string, event: RuntimeEvent): void {
@@ -214,16 +217,25 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
       return;
     }
 
+    // Guard: after stop() is called, the process is removed from activeProcesses
+    // but may still flush buffered stdout events. Ignore events that would set
+    // the agent back to 'working' if its process is no longer tracked.
+    const processActive = !isAgentProcessActive || isAgentProcessActive(agentId);
+
     switch (event.type) {
       case 'init':
-        agentService.updateAgent(agentId, { status: 'working' });
+        if (processActive) {
+          agentService.updateAgent(agentId, { status: 'working' });
+        }
         break;
 
       case 'tool_start':
-        agentService.updateAgent(agentId, {
-          status: 'working',
-          currentTool: event.toolName,
-        });
+        if (processActive) {
+          agentService.updateAgent(agentId, {
+            status: 'working',
+            currentTool: event.toolName,
+          });
+        }
         if (handleTaskToolStart(agentId, event, log)) {
           emitEvent(agentId, {
             ...event,

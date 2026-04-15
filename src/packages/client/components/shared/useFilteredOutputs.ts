@@ -189,8 +189,8 @@ export function useFilteredOutputs({
         let bashOutput: string | undefined;
         let bashCommand: string | undefined;
 
-        // Look ahead for tool input and output
-        for (let j = i + 1; j < outputs.length && j <= i + 5; j++) {
+        // Look ahead for tool input and output (use generous window; breaks at next "Using tool:")
+        for (let j = i + 1; j < outputs.length && j <= i + 20; j++) {
           const nextOutput = outputs[j];
           if (nextOutput.text.startsWith('Tool input:')) {
             const inputJson = nextOutput.text.replace('Tool input:', '').trim();

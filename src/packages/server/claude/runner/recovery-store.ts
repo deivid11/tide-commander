@@ -74,7 +74,8 @@ export class RunnerRecoveryStore {
       }
 
       log.log(`❌ Process for agent ${savedProcess.agentId} (PID ${savedProcess.pid}) is no longer running`);
-      if (!this.backend.requiresStdinInput() && savedProcess.sessionId && savedProcess.lastRequest) {
+      const canResume = this.backend.supportsSessionResume?.() ?? !this.backend.requiresStdinInput();
+      if (canResume && savedProcess.sessionId && savedProcess.lastRequest) {
         // Only resume agents that were actively working when persisted.
         // Idle agents with live processes (e.g. Codex waiting for stdin) should not be resumed.
         if (savedProcess.agentStatus && savedProcess.agentStatus !== 'working') {

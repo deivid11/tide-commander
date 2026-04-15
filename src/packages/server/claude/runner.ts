@@ -13,6 +13,7 @@ import type {
 import { ClaudeBackend } from './backend.js';
 import { createLogger } from '../utils/logger.js';
 import { isProcessRunning } from '../data/index.js';
+import * as agentService from '../services/agent-service.js';
 import { RunnerInternalEventBus } from './runner/internal-events.js';
 import { RunnerStdoutPipeline } from './runner/stdout-pipeline.js';
 import { RunnerProcessLifecycle } from './runner/process-lifecycle.js';
@@ -214,6 +215,18 @@ export class ClaudeRunner {
 
       if (!wasTracked && (signal === 'SIGINT' || signal === 'SIGTERM')) {
         log.log(`⏭️ [EXIT] Agent ${agentId}: Skipping onComplete - process was explicitly stopped (signal=${signal})`);
+        // Belt-and-suspenders: ensure the agent ends up idle even if stale
+        // stdout events (buffered before the process died) set it back to working.
+        const currentAgent = agentService.getAgent(agentId);
+        if (currentAgent && currentAgent.status === 'working') {
+          log.log(`⚠️ [EXIT] Agent ${agentId}: Was still 'working' after explicit stop - forcing idle`);
+          agentService.updateAgent(agentId, {
+            status: 'idle',
+            currentTask: undefined,
+            currentTool: undefined,
+            isDetached: false,
+          });
+        }
       } else {
         this.callbacks.onComplete(agentId, code === 0);
       }

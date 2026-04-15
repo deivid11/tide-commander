@@ -286,6 +286,11 @@
     color: $dracula-green;
     background: rgba($dracula-green, 0.15);
   }
+
+  &.opencode {
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.15);
+  }
 }
 
 .agent-panel-id {

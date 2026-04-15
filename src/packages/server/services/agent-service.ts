@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import type { Agent, AgentClass, PermissionMode, ClaudeModel, AgentProvider, CodexConfig, CodexModel, DrawingArea } from '../../shared/types.js';
+import type { Agent, AgentClass, PermissionMode, ClaudeModel, ClaudeEffort, AgentProvider, CodexConfig, CodexModel, OpencodeModel, DrawingArea } from '../../shared/types.js';
 import { loadAgents, saveAgents, saveAgentsAsync, getDataDir, loadAreas, saveAreas } from '../data/index.js';
 import {
   listSessions,
@@ -22,6 +22,7 @@ const log = logger.agent;
 const CLAUDE_MODELS = new Set<ClaudeModel>(['sonnet', 'opus', 'haiku']);
 const DEFAULT_CLAUDE_CONTEXT_LIMIT = 200000;
 const DEFAULT_CODEX_CONTEXT_LIMIT = 258400;
+const DEFAULT_OPENCODE_CONTEXT_LIMIT = 200000;
 
 interface CodexContextSnapshot {
   contextUsed: number;
@@ -29,7 +30,9 @@ interface CodexContextSnapshot {
 }
 
 function getDefaultContextLimit(provider: AgentProvider | undefined): number {
-  return provider === 'codex' ? DEFAULT_CODEX_CONTEXT_LIMIT : DEFAULT_CLAUDE_CONTEXT_LIMIT;
+  if (provider === 'codex') return DEFAULT_CODEX_CONTEXT_LIMIT;
+  if (provider === 'opencode') return DEFAULT_OPENCODE_CONTEXT_LIMIT;
+  return DEFAULT_CLAUDE_CONTEXT_LIMIT;
 }
 
 // In-memory agent storage
@@ -69,6 +72,12 @@ export function sanitizeCodexModel(model: unknown): CodexModel | undefined {
   if (typeof model !== 'string') return undefined;
   const trimmed = model.trim();
   return trimmed.length > 0 ? (trimmed as CodexModel) : undefined;
+}
+
+export function sanitizeOpencodeModel(model: unknown): OpencodeModel | undefined {
+  if (typeof model !== 'string') return undefined;
+  const trimmed = model.trim();
+  return trimmed.length > 0 ? (trimmed as OpencodeModel) : undefined;
 }
 
 function findFileRecursively(rootDir: string, pattern: string): string | null {
@@ -225,6 +234,7 @@ export function initAgents(): void {
         model: sanitizeModelForProvider(stored.provider ?? 'claude', stored.model), // Restore only valid Claude model
         codexModel: sanitizeCodexModel(stored.codexModel),
         codexConfig: stored.codexConfig,
+        opencodeModel: sanitizeOpencodeModel(stored.opencodeModel),
         // Boss field - fallback to checking class for backward compatibility
         isBoss: stored.isBoss ?? stored.class === 'boss',
       };
@@ -311,7 +321,9 @@ export async function createAgent(
   codexModel?: CodexModel,
   customInstructions?: string,
   provider: AgentProvider = 'claude',
-  codexConfig?: CodexConfig
+  codexConfig?: CodexConfig,
+  effort?: ClaudeEffort,
+  opencodeModel?: OpencodeModel
 ): Promise<Agent> {
   log.log('🎆 [CREATE_AGENT] Starting agent creation:', {
     name,
@@ -355,8 +367,10 @@ export async function createAgent(
     useChrome,
     permissionMode,
     model: sanitizeModelForProvider(provider, model),
+    effort: provider === 'claude' ? effort : undefined,
     codexModel: provider === 'codex' ? sanitizeCodexModel(codexModel) : undefined,
     codexConfig,
+    opencodeModel: provider === 'opencode' ? sanitizeOpencodeModel(opencodeModel) : undefined,
     tokensUsed: 0,
     contextUsed: 0,
     contextLimit: getDefaultContextLimit(provider),

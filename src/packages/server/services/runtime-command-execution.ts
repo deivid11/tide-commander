@@ -113,7 +113,10 @@ export function createRuntimeCommandExecution(deps: RuntimeCommandExecutionDeps)
       sessionId: agent.sessionId,
       model: agent.provider === 'claude'
         ? agentService.sanitizeModelForProvider(agent.provider, agent.model)
-        : agentService.sanitizeCodexModel(agent.codexModel),
+        : agent.provider === 'opencode'
+          ? agentService.sanitizeOpencodeModel(agent.opencodeModel)
+          : agentService.sanitizeCodexModel(agent.codexModel),
+      effort: agent.provider === 'claude' ? agent.effort : undefined,
       useChrome: agent.useChrome,
       permissionMode: agent.permissionMode,
       codexConfig: agent.codexConfig,

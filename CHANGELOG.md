@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.40.1] - 2026-04-14
+
+### Added
+- **OpenCode provider integration** - New agent provider supporting OpenCode CLI with multi-provider model selection (e.g. minimax/MiniMax-M1-80k), full runtime provider, JSON event parser, spawn/edit UI, and backend wiring
+- **Claude effort level** - Configurable reasoning effort (low/medium/high/max) for Claude agents in spawn and edit modals
+- **Boss class defaults to Opus** - Boss agents now auto-select the opus model on spawn
+
+### Fixed
+- **OpenCode agentic loop suppression** - Prevent infinite output loops after notification curl by tracking notification-sent state and suppressing duplicate text in the stdout pipeline
+- **Lint warning** - Fixed unused `isOpencodeProvider` variable by introducing `isCodexLikeProvider` for shared codex/opencode context stats path
+- **Test mock** - Added missing `createOpencodeRuntimeProvider` export to runtime mock in runtime-service tests
+
+### Changed
+- **Agent types** - Extended `AgentProvider` to include `'opencode'`, added `OpencodeModel` type and `opencodeModel` field on Agent interface
+- **Terminal header styling** - Updated guake terminal header styles for provider indicators
+- **Context stats** - Opencode agents now share the codex context stats path for session snapshots
+
 ## [1.39.0] - 2026-04-14
 
 ### Added

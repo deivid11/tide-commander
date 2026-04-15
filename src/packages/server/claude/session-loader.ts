@@ -20,7 +20,7 @@ const PROJECTS_DIR = path.join(CLAUDE_DIR, 'projects');
 const CODEX_DIR = path.join(os.homedir(), '.codex');
 const CODEX_SESSIONS_DIR = path.join(CODEX_DIR, 'sessions');
 
-type SessionProvider = 'claude' | 'codex';
+type SessionProvider = 'claude' | 'codex' | 'opencode';
 
 interface ResolvedSessionFile {
   provider: SessionProvider;
@@ -1078,12 +1078,15 @@ export async function getSessionActivityStatus(
 const PROVIDER_PROCESS_PATTERNS: Record<SessionProvider, string> = {
   claude: '(claude$|/claude( |$)|claude\\.cmd|claude\\.exe)',
   codex: '(codex($| )|/codex( |$)|codex\\.cmd|codex\\.exe|codex\\.js|@openai/codex)',
+  opencode: '(opencode($| )|/opencode( |$)|opencode\\.cmd|opencode\\.exe)',
 };
 
 type ExecSyncFn = typeof import('child_process').execSync;
 
 function providerDisplayName(provider: SessionProvider): string {
-  return provider === 'codex' ? 'Codex' : 'Claude';
+  if (provider === 'codex') return 'Codex';
+  if (provider === 'opencode') return 'OpenCode';
+  return 'Claude';
 }
 
 function getProviderProcessPids(provider: SessionProvider, execSync: ExecSyncFn): string[] {
@@ -1286,6 +1289,25 @@ export async function killClaudeProcessInCwd(cwd: string): Promise<boolean> {
  */
 export async function killCodexProcessInCwd(cwd: string): Promise<boolean> {
   return killProviderProcessInCwd(cwd, 'codex');
+}
+
+/**
+ * Check if there's an OpenCode process running in a specific directory.
+ */
+export async function isOpencodeProcessRunningInCwd(cwd: string): Promise<boolean> {
+  return isProviderProcessRunningInCwd(cwd, 'opencode');
+}
+
+export async function findOpencodeProcessPidInCwd(cwd: string): Promise<number | undefined> {
+  return findProviderProcessPidInCwd(cwd, 'opencode');
+}
+
+/**
+ * Kill any OpenCode process running in the specified directory.
+ * Returns true if a process was found and killed.
+ */
+export async function killOpencodeProcessInCwd(cwd: string): Promise<boolean> {
+  return killProviderProcessInCwd(cwd, 'opencode');
 }
 
 export async function loadToolHistory(
