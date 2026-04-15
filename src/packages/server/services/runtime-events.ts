@@ -435,7 +435,8 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
         }
         agentService.updateAgent(agentId, updates);
 
-        if (!isCodexProvider) {
+        const isOpencodeProvider = (agent.provider ?? 'claude') === 'opencode';
+        if (!isCodexProvider && !isOpencodeProvider) {
           setTimeout(() => {
             log.log(`[step_complete] Setting status to idle for agent ${agentId} (lastTask: ${agent.lastAssignedTask})`);
             agentService.updateAgent(agentId, {
@@ -445,7 +446,7 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
             });
           }, 200);
         } else {
-          log.log(`[step_complete] Codex agent ${agentId} will be set idle on process completion`);
+          log.log(`[step_complete] ${isCodexProvider ? 'Codex' : 'OpenCode'} agent ${agentId} will be set idle on process completion`);
         }
 
         // Real-time context tracking via usage_snapshot events replaces automatic /context refresh.

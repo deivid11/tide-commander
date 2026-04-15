@@ -106,6 +106,14 @@ export class RunnerStdoutPipeline {
   }
 
   private handleEvent(agentId: string, event: StandardEvent): void {
+    // After notification is sent, suppress ALL further events from the agentic loop.
+    // This prevents status flickering (working → idle → working) caused by OpenCode
+    // giving the model additional turns after the completion notification.
+    // Only 'init' events (new user message) can reset this gate.
+    if (this.notificationSent.has(agentId) && event.type !== 'init') {
+      return;
+    }
+
     const now = Date.now();
     this.bus.emit({ type: 'runner.activity', agentId, timestamp: now });
     this.bus.emit({ type: 'runner.event', agentId, event });
@@ -121,12 +129,6 @@ export class RunnerStdoutPipeline {
 
       case 'text':
         if (event.text) {
-          // After notification is sent, suppress all further text (prevents OpenCode loop)
-          if (this.notificationSent.has(agentId)) {
-            log.log(`[text] Suppressing post-notification text for agent ${agentId.slice(0, 4)}`);
-            this.textEmittedInTurn.add(agentId);
-            break;
-          }
           // Suppress consecutive identical text (extra safety for OpenCode agentic loop)
           const prevText = this.lastEmittedText.get(agentId);
           if (prevText && prevText === event.text.trim()) {
@@ -150,12 +152,8 @@ export class RunnerStdoutPipeline {
         if ((event.toolName === 'Task' || event.toolName === 'Agent') && event.subagentName) {
           this.activeSubagentName.set(agentId, event.subagentName);
         }
-        // Detect notification curl calls to prevent OpenCode agentic loop.
-        // After notification is sent, suppress all further output for this agent.
-        if (this.notificationSent.has(agentId)) {
-          log.log(`[tool_start] Suppressing post-notification tool for agent ${agentId.slice(0, 4)}`);
-          break;
-        }
+        // Detect notification curl — mark agent so the top-level gate in handleEvent
+        // suppresses all subsequent agentic loop turns (text, tools, status flips).
         if (event.toolName === 'Bash' && this.isNotificationCurl(event.toolInput)) {
           this.notificationSent.add(agentId);
           log.log(`[tool_start] Notification detected for agent ${agentId.slice(0, 4)} - will suppress subsequent turns`);

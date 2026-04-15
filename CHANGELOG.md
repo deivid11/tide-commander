@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.40.2] - 2026-04-14
+
+### Fixed
+- **OpenCode notification loop suppression** - Moved post-notification gate to top-level `handleEvent` to suppress all event types (including status flips), preventing working/idle flickering after task completion
+- **OpenCode idle status timing** - OpenCode agents now skip the immediate idle-on-step-complete timeout like Codex agents, preventing premature status changes during agentic loop turns
+
 ## [1.40.1] - 2026-04-14
 
 ### Added
