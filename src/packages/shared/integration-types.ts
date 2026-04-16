@@ -92,6 +92,7 @@ export interface IntegrationContext {
     logApprovalEvent: (...args: unknown[]) => unknown;
     logDocumentGeneration: (...args: unknown[]) => unknown;
     logCalendarAction: (...args: unknown[]) => unknown;
+    logDriveAction: (...args: unknown[]) => unknown;
     logJiraTicketAction: (...args: unknown[]) => unknown;
     logAudit: (...args: unknown[]) => unknown;
   };

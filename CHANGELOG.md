@@ -15,6 +15,19 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 - **Gmail status field naming** - Frontend now reads `lastChecked`/`error` from the status payload, matching the server contract
+- **Google Drive integration** - Full-featured Google Drive plugin: list/get/create/update/delete/copy/move files, create folders, search, and read file content with automatic export to text/CSV/PDF. Files can be created directly as native Google Docs from plain text or HTML.
+- **Shared Drives (Team Drives) support** - Every Drive file operation accepts `supportsAllDrives`. New endpoints to list and read metadata for Shared Drives, plus `driveId`/`includeItemsFromAllDrives` scoping for file listings.
+- **Google Docs API endpoints** - Full passthrough to the Docs API: `POST /api/drive/docs` (create), `GET /api/drive/docs/:docId` (structured document with styles, tables, inline objects, revision ID), `POST /api/drive/docs/:docId/batch-update` (generic `requests` array passthrough — every Docs mutation type supported without new server code).
+- **Find/replace text convenience endpoint** - `POST /api/drive/files/:fileId/replace-text` for filling in templates while preserving formatting (fonts, headings, tables, images).
+- **Copy-from-template endpoint** - `POST /api/drive/files/:fileId/copy` creates a new Doc from a template, optionally into a specific folder, working across My Drive and Shared Drives.
+- **Move-file endpoint** - `POST /api/drive/files/:fileId/move` relocates files between folders including across the My Drive ↔ Shared Drives boundary.
+- **Drive action event logging** - New `drive_actions` SQLite table and migration `005_drive_actions.sql` tracking create/update/delete/copy/move operations with agent and workflow instance attribution.
+- **Agent skill doc for Google Drive** - Curl-based reference for all Drive and Docs endpoints with a Docs batchUpdate request-type cheatsheet and copy-pasteable examples.
+
+### Changed
+- **Unified Google OAuth credentials** - Gmail, Calendar, and Drive now share a single OAuth flow through the secrets system. Connecting one Google service auto-enables the others when scopes overlap; `GoogleOAuthSetup` replaces the Gmail-only setup component and drives the shared-credentials banner across integrations.
+- **Integration registry** - Google Drive registered alongside Gmail and Calendar; integration context now exposes Google credentials to all three plugins uniformly.
+- **Event types + integration types** - New Drive-related event shapes; shared integration types updated for multi-service credential sharing.
 
 ## [1.48.0] - 2026-04-16
 
