@@ -30,7 +30,6 @@ export const AgentIcon = React.memo(function AgentIcon({
   const resolvedClass = classId ?? agent?.class ?? '';
   const config = getClassConfig(resolvedClass, customClasses);
 
-  const numericSize = typeof size === 'number' ? size : undefined;
   const fontSize = typeof size === 'string' ? size : `${size}px`;
 
   if (config.iconPath) {

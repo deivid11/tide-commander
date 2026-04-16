@@ -1108,7 +1108,7 @@ function AgentCard({
   subagents,
   areaInfo,
   matchContext,
-  onToggle,
+  onToggle: _onToggle,
   onSelect,
   onClearContext,
   onContextMenu,
@@ -1117,8 +1117,8 @@ function AgentCard({
   const customClasses = useCustomAgentClassesArray();
   const classConfig = getClassConfig(agent.class, customClasses);
   const isBossAgent = agent.isBoss || agent.class === 'boss';
-  const statusIcon = STATUS_ICONS[agent.status] || '❓';
-  const statusLabel = STATUS_LABEL_KEYS[agent.status] ? t(`terminal:${STATUS_LABEL_KEYS[agent.status]}`) : agent.status;
+  const _statusIcon = STATUS_ICONS[agent.status] || '❓';
+  const _statusLabel = STATUS_LABEL_KEYS[agent.status] ? t(`terminal:${STATUS_LABEL_KEYS[agent.status]}`) : agent.status;
   const recentTools = toolExecs.slice(0, isMobile ? 4 : 8);
   const lastMsg = getLastMessage(agent.id);
   const msgCount = getMessageCount(agent.id);
