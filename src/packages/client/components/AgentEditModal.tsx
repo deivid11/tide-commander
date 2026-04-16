@@ -6,10 +6,12 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { store, useSkillsArray, useCustomAgentClassesArray } from '../store';
+import { KeyCaptureInput } from './KeyCaptureInput';
 import { ModelPreview } from './ModelPreview';
 import { FolderInput } from './shared/FolderInput';
 import type { Agent, AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, ClaudeEffort, CodexModel, AgentProvider, CodexConfig } from '../../shared/types';
 import { BUILT_IN_AGENT_CLASSES, PERMISSION_MODES, CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS } from '../../shared/types';
+import { ShortcutConfig, formatShortcutString, parseShortcutString, shortcutValueToString } from '../store/shortcuts';
 import { apiUrl } from '../utils/storage';
 import { useModalClose } from '../hooks';
 
@@ -18,6 +20,8 @@ interface AgentEditModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
+
+type AgentWithShortcut = Agent & { shortcut?: string };
 
 export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) {
   const { t } = useTranslation(['terminal', 'common', 'tools']);
@@ -41,6 +45,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
   const [opencodeModel, setOpencodeModel] = useState<string>((agent as any).opencodeModel || 'minimax/MiniMax-M1-80k');
   const [useChrome, setUseChrome] = useState<boolean>(agent.useChrome || false);
   const [workdir, setWorkdir] = useState<string>(agent.cwd);
+  const [shortcut, setShortcut] = useState<string>(((agent as AgentWithShortcut).shortcut || '').trim());
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set());
   const [skillSearch, setSkillSearch] = useState('');
   const [editingInstructions, setEditingInstructions] = useState(false);
@@ -83,6 +88,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
       setOpencodeModel((agent as any).opencodeModel || 'minimax/MiniMax-M1-80k');
       setUseChrome(agent.useChrome || false);
       setWorkdir(agent.cwd);
+      setShortcut((((agent as AgentWithShortcut).shortcut) || '').trim());
       const directlyAssigned = allSkills
         .filter(s => s.assignedAgentIds.includes(agent.id))
         .map(s => s.id);
@@ -180,6 +186,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
     if (selectedProvider === 'opencode' && opencodeModel !== ((agent as any).opencodeModel || 'minimax/MiniMax-M1-80k')) return true;
     if (useChrome !== (agent.useChrome || false)) return true;
     if (workdir !== agent.cwd) return true;
+    if (shortcut !== (((agent as AgentWithShortcut).shortcut || '').trim())) return true;
 
     // Check skill changes
     const currentDirectSkills = allSkills
@@ -191,7 +198,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
     if (currentDirectSkills !== newSkills) return true;
 
     return false;
-  }, [agentName, selectedClass, permissionMode, selectedProvider, selectedModel, selectedEffort, selectedCodexModel, codexConfig, opencodeModel, useChrome, workdir, selectedSkillIds, agent, allSkills]);
+  }, [agentName, selectedClass, permissionMode, selectedProvider, selectedModel, selectedEffort, selectedCodexModel, codexConfig, opencodeModel, useChrome, workdir, shortcut, selectedSkillIds, agent, allSkills]);
 
   // Handle save
   const handleSave = () => {
@@ -208,6 +215,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
       useChrome?: boolean;
       skillIds?: string[];
       cwd?: string;
+      shortcut?: string;
     } = {};
 
     if (trimmedName && trimmedName !== agent.name) {
@@ -254,6 +262,10 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
       updates.cwd = workdir;
     }
 
+    if (shortcut !== (((agent as AgentWithShortcut).shortcut || '').trim())) {
+      updates.shortcut = shortcut;
+    }
+
     // Always send skill IDs if changed
     const currentDirectSkills = allSkills
       .filter(s => s.assignedAgentIds.includes(agent.id))
@@ -273,6 +285,19 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
   };
 
   const { handleMouseDown: handleBackdropMouseDown, handleClick: handleBackdropClick } = useModalClose(onClose);
+
+  const shortcutConfig = useMemo<ShortcutConfig>(() => {
+    const parsed = parseShortcutString(shortcut);
+    return {
+      id: `agent-terminal-shortcut-${agent.id}`,
+      name: 'Terminal Shortcut',
+      description: 'Open terminal for this agent',
+      key: parsed?.key || '',
+      modifiers: parsed?.modifiers || {},
+      enabled: true,
+      context: 'global',
+    };
+  }, [agent.id, shortcut]);
 
   if (!isOpen) return null;
 
@@ -596,6 +621,21 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                   className="spawn-input"
                   directoriesOnly={true}
                 />
+              </div>
+            </div>
+
+            <div className="spawn-form-row">
+              <div className="spawn-field">
+                <label className="spawn-label">Terminal Shortcut</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <KeyCaptureInput
+                    shortcut={shortcutConfig}
+                    onUpdate={(updates) => setShortcut(shortcutValueToString(updates))}
+                  />
+                  <div className="spawn-inline-hint">
+                    {shortcut ? `Opens this agent terminal with ${formatShortcutString(shortcut)}` : 'Capture a global shortcut for this agent terminal'}
+                  </div>
+                </div>
               </div>
             </div>
 

@@ -18,6 +18,11 @@ export interface ShortcutConfig {
   context: 'global' | 'commander' | 'toolbox';
 }
 
+export interface ShortcutValue {
+  key: string;
+  modifiers: ShortcutModifiers;
+}
+
 // Helper to create shortcut config
 function shortcut(
   id: string,
@@ -133,6 +138,110 @@ export function matchesShortcut(event: KeyboardEvent, shortcut: ShortcutConfig |
   // For special keys, compare event.key directly
   const eventKey = event.key;
   return eventKey === shortcutKey;
+}
+
+function normalizeShortcutStorageKey(key: string): string {
+  if (key === ' ' || key === 'Space') return 'space';
+  if (key.length === 1) return key.toLowerCase();
+  return key.toLowerCase();
+}
+
+function denormalizeShortcutStorageKey(key: string): string {
+  const normalized = key.trim().toLowerCase();
+
+  if (normalized === 'space') return 'Space';
+  if (normalized === 'esc') return 'Escape';
+  if (normalized === 'return') return 'Enter';
+
+  const specialKeys: Record<string, string> = {
+    escape: 'Escape',
+    enter: 'Enter',
+    tab: 'Tab',
+    backspace: 'Backspace',
+    delete: 'Delete',
+    arrowup: 'ArrowUp',
+    arrowdown: 'ArrowDown',
+    arrowleft: 'ArrowLeft',
+    arrowright: 'ArrowRight',
+    home: 'Home',
+    end: 'End',
+    pageup: 'PageUp',
+    pagedown: 'PageDown',
+  };
+
+  if (specialKeys[normalized]) {
+    return specialKeys[normalized];
+  }
+
+  return normalized;
+}
+
+export function shortcutValueToString(value: ShortcutValue | null | undefined): string {
+  if (!value?.key) return '';
+
+  const parts: string[] = [];
+  if (value.modifiers.ctrl) parts.push('ctrl');
+  if (value.modifiers.alt) parts.push('alt');
+  if (value.modifiers.shift) parts.push('shift');
+  if (value.modifiers.meta) parts.push('meta');
+  parts.push(normalizeShortcutStorageKey(value.key));
+  return parts.join('+');
+}
+
+export function parseShortcutString(shortcut: string | null | undefined): ShortcutValue | null {
+  if (!shortcut) return null;
+
+  const parts = shortcut
+    .split('+')
+    .map((part) => part.trim().toLowerCase())
+    .filter(Boolean);
+
+  if (parts.length === 0) return null;
+
+  const keyPart = parts[parts.length - 1];
+  const modifiers: ShortcutModifiers = {};
+
+  for (const modifier of parts.slice(0, -1)) {
+    if (modifier === 'ctrl' || modifier === 'control') modifiers.ctrl = true;
+    else if (modifier === 'alt' || modifier === 'option') modifiers.alt = true;
+    else if (modifier === 'shift') modifiers.shift = true;
+    else if (modifier === 'meta' || modifier === 'cmd' || modifier === 'command') modifiers.meta = true;
+  }
+
+  const key = denormalizeShortcutStorageKey(keyPart);
+  if (!key) return null;
+
+  return { key, modifiers };
+}
+
+export function formatShortcutString(shortcut: string | null | undefined): string {
+  const parsed = parseShortcutString(shortcut);
+  if (!parsed) return '';
+
+  return formatShortcut({
+    id: 'agent-shortcut-preview',
+    name: 'Agent shortcut',
+    description: 'Agent shortcut',
+    key: parsed.key,
+    modifiers: parsed.modifiers,
+    enabled: true,
+    context: 'global',
+  });
+}
+
+export function matchesShortcutString(event: KeyboardEvent, shortcut: string | null | undefined): boolean {
+  const parsed = parseShortcutString(shortcut);
+  if (!parsed) return false;
+
+  return matchesShortcut(event, {
+    id: 'agent-shortcut-match',
+    name: 'Agent shortcut',
+    description: 'Agent shortcut',
+    key: parsed.key,
+    modifiers: parsed.modifiers,
+    enabled: true,
+    context: 'global',
+  });
 }
 
 // Format shortcut for display

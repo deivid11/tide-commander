@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useStore, store, useMouseControls, useTrackpadConfig } from '../store';
-import { ShortcutConfig, formatShortcut } from '../store/shortcuts';
+import { ShortcutConfig, formatShortcut, formatShortcutString, matchesShortcutString } from '../store/shortcuts';
 import type { MouseControlConfig, CameraSensitivityConfig, TrackpadConfig } from '../store/mouseControls';
 import { formatMouseBinding, findConflictingMouseBindings } from '../store/mouseControls';
 import { KeyCaptureInput } from './KeyCaptureInput';
@@ -37,6 +37,7 @@ const MOUSE_GROUP_LABEL_KEYS: Record<string, string> = {
 };
 
 type ControlTab = 'keyboard' | 'mouse' | 'trackpad';
+type AgentWithShortcut = { id: string; name: string; shortcut?: string };
 
 export function ControlsModal({ isOpen, onClose }: ControlsModalProps) {
   const { t } = useTranslation(['terminal', 'common']);
@@ -157,6 +158,36 @@ export function ControlsModal({ isOpen, onClose }: ControlsModalProps) {
       formatShortcut(shortcut).toLowerCase().includes(query)
     );
   });
+
+  const agentTerminalShortcuts = Array.from(state.agents.values())
+    .map((agent) => agent as typeof agent & AgentWithShortcut)
+    .filter((agent) => agent.shortcut && agent.shortcut.trim().length > 0)
+    .filter((agent) => {
+      const formatted = formatShortcutString(agent.shortcut).toLowerCase();
+
+      if (findByShortcut && capturedKeys) {
+        const syntheticEvent = {
+          key: capturedKeys.key,
+          code: capturedKeys.key.length === 1 && /^[a-zA-Z]$/.test(capturedKeys.key)
+            ? `Key${capturedKeys.key.toUpperCase()}`
+            : capturedKeys.key.length === 1 && /^[0-9]$/.test(capturedKeys.key)
+              ? `Digit${capturedKeys.key}`
+              : capturedKeys.key === 'Space'
+                ? 'Space'
+                : capturedKeys.key,
+          ctrlKey: !!capturedKeys.modifiers.ctrl,
+          altKey: !!capturedKeys.modifiers.alt,
+          shiftKey: !!capturedKeys.modifiers.shift,
+          metaKey: !!capturedKeys.modifiers.meta,
+        } as KeyboardEvent;
+
+        return matchesShortcutString(syntheticEvent, agent.shortcut);
+      }
+
+      if (!searchQuery) return true;
+      const query = searchQuery.toLowerCase();
+      return agent.name.toLowerCase().includes(query) || formatted.toLowerCase().includes(query);
+    });
 
   // Group shortcuts by context
   const shortcutsByContext = filteredShortcuts.reduce(
@@ -382,7 +413,7 @@ export function ControlsModal({ isOpen, onClose }: ControlsModalProps) {
                 );
               })}
 
-              {filteredShortcuts.length === 0 && (
+              {filteredShortcuts.length === 0 && agentTerminalShortcuts.length === 0 && (
                 <div className="shortcuts-empty">
                   {findByShortcut ? (
                     capturedKeys ? (
@@ -393,6 +424,32 @@ export function ControlsModal({ isOpen, onClose }: ControlsModalProps) {
                   ) : (
                     <p>{t('terminal:controls.noShortcutsFound', { query: searchQuery })}</p>
                   )}
+                </div>
+              )}
+
+              {agentTerminalShortcuts.length > 0 && (expandedContext === 'all' || expandedContext === 'global') && (
+                <div className="shortcuts-context-group">
+                  {expandedContext === 'all' && (
+                    <div className="shortcuts-context-header">
+                      <span className="shortcuts-context-label">Agent Terminal Shortcuts</span>
+                      <span className="shortcuts-context-description">Per-agent global shortcuts that open the guake terminal</span>
+                    </div>
+                  )}
+                  <div className="shortcuts-grid">
+                    {agentTerminalShortcuts.map((agent) => (
+                      <div key={agent.id} className="shortcut-item">
+                        <div className="shortcut-item-info">
+                          <span className="shortcut-item-name">{agent.name}</span>
+                          <span className="shortcut-item-description">Open terminal for this agent</span>
+                        </div>
+                        <div className="key-capture-container">
+                          <button className="key-capture-input disabled" disabled>
+                            <span className="key-capture-value">{formatShortcutString(agent.shortcut)}</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

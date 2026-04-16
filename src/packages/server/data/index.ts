@@ -73,6 +73,10 @@ export interface StoredAgent {
   lastAssignedTaskTime?: number;  // When last task was assigned
   // Brief task label for scene display
   taskLabel?: string;
+  // Tracking board status (persisted across restarts)
+  trackingStatus?: Agent['trackingStatus'];
+  trackingStatusDetail?: string;
+  trackingStatusTimestamp?: number;
   // Boss-specific fields
   isBoss?: boolean;           // True if this agent is a boss
   subordinateIds?: string[];  // Only for boss agents
@@ -196,6 +200,9 @@ function toStoredAgents(agents: Agent[]): StoredAgent[] {
     lastAssignedTask: agent.lastAssignedTask,
     lastAssignedTaskTime: agent.lastAssignedTaskTime,
     taskLabel: agent.taskLabel,
+    trackingStatus: agent.trackingStatus,
+    trackingStatusDetail: agent.trackingStatusDetail,
+    trackingStatusTimestamp: agent.trackingStatusTimestamp,
     isBoss: agent.isBoss,
     subordinateIds: agent.subordinateIds,
     bossId: agent.bossId,

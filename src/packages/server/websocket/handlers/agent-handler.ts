@@ -813,6 +813,7 @@ export async function handleUpdateAgentProperties(
       useChrome?: boolean;
       skillIds?: string[];
       cwd?: string;
+      shortcut?: string;
     };
   }
 ): Promise<void> {
@@ -916,6 +917,10 @@ export async function handleUpdateAgentProperties(
       return;
     }
     agentUpdates.cwd = updates.cwd;
+  }
+
+  if (updates.shortcut !== undefined) {
+    agentUpdates.shortcut = updates.shortcut;
   }
 
   // Apply agent property updates if any

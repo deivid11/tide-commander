@@ -11,6 +11,8 @@ import { perf } from '../utils/profiling';
 import { apiUrl, authFetch } from '../utils/storage';
 import { evictHistoryCache } from '../components/ClaudeOutputPanel/useHistoryLoader';
 
+type AgentWithShortcut = Agent & { shortcut?: string };
+
 const verboseAgentStoreLogs =
   import.meta.env.DEV &&
   typeof window !== 'undefined' &&
@@ -117,6 +119,7 @@ export interface AgentActions {
       useChrome?: boolean;
       skillIds?: string[];
       cwd?: string;
+      shortcut?: string;
     }
   ): void;
 
@@ -676,13 +679,14 @@ export function createAgentActions(
         useChrome?: boolean;
         skillIds?: string[];
         cwd?: string;
+        shortcut?: string;
       }
     ): void {
       const state = getState();
       const agent = state.agents.get(agentId);
       if (agent) {
         setState((s) => {
-          const updatedAgent = { ...agent };
+          const updatedAgent: AgentWithShortcut = { ...agent };
           if (updates.class !== undefined) {
             updatedAgent.class = updates.class;
           }
@@ -713,6 +717,9 @@ export function createAgentActions(
           if (updates.cwd !== undefined) {
             updatedAgent.cwd = updates.cwd;
           }
+          if (updates.shortcut !== undefined) {
+            updatedAgent.shortcut = updates.shortcut;
+          }
           const newAgents = new Map(s.agents);
           newAgents.set(agentId, updatedAgent);
           s.agents = newAgents;
@@ -722,8 +729,18 @@ export function createAgentActions(
 
       getSendMessage()?.({
         type: 'update_agent_properties',
-        payload: { agentId, updates },
+        payload: { agentId, updates: updates as any },
       });
+
+      if (updates.shortcut !== undefined) {
+        authFetch(apiUrl(`/api/agents/${agentId}`), {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ shortcut: updates.shortcut }),
+        }).catch((error) => {
+          console.error('[Store] Failed to persist agent shortcut', error);
+        });
+      }
     },
 
     getTotalTokens(): number {

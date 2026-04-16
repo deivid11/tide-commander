@@ -1,5 +1,5 @@
 import type {
-  Agent, AgentClass, AgentProvider, PermissionMode, ClaudeModel, CodexModel, CodexConfig,
+  Agent, AgentClass, AgentProvider, PermissionMode, ClaudeModel, ClaudeEffort, CodexModel, CodexConfig,
   ContextStats, GlobalUsageStats, Subagent, DelegationDecision,
   WorkPlan, AnalysisRequest, ActivityNarrative, AgentAnalysis,
   SupervisorReport, SupervisorConfig, AgentSupervisorHistory,
@@ -296,7 +296,12 @@ export interface UpdateAgentPropertiesMessage extends WSMessage {
       model?: ClaudeModel;
       codexModel?: CodexModel;
       codexConfig?: CodexConfig;
+      opencodeModel?: string;
+      effort?: ClaudeEffort;
+      useChrome?: boolean;
       skillIds?: string[];  // Complete list of skill IDs to assign (replaces existing)
+      cwd?: string;
+      shortcut?: string;
     };
   };
 }

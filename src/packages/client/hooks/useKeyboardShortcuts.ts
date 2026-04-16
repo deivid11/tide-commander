@@ -1,9 +1,11 @@
 import { useEffect } from 'react';
 import { store } from '../store';
-import { matchesShortcut } from '../store/shortcuts';
+import { matchesShortcut, matchesShortcutString } from '../store/shortcuts';
 import type { SceneManager } from '../scene/SceneManager';
 import { closeTopModal } from './useModalStack';
 import type { UseModalState, UseModalStateWithId } from './index';
+
+type AgentWithShortcut = { id: string; shortcut?: string; name: string };
 
 interface UseKeyboardShortcutsOptions {
   sceneRef: React.RefObject<SceneManager | null>;
@@ -38,6 +40,7 @@ export function useKeyboardShortcuts({
       const shortcuts = store.getShortcuts();
       const target = e.target as HTMLElement;
       const isInputFocused = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.getAttribute('contenteditable') === 'true' || !!target.closest('.cm-editor');
+      const currentState = store.getState();
 
       // Escape to deselect or close modal/terminal/drawing mode
       const deselectShortcut = shortcuts.find(s => s.id === 'deselect-all');
@@ -52,7 +55,6 @@ export function useKeyboardShortcuts({
           return;
         }
 
-        const currentState = store.getState();
         // Exit drawing mode first if active
         if (currentState.activeTool === 'rectangle' || currentState.activeTool === 'circle') {
           // Handle 3D scene
@@ -268,6 +270,22 @@ export function useKeyboardShortcuts({
           return;
         }
         return;
+      }
+
+      if (!isInputFocused) {
+        const matchedAgent = Array.from(currentState.agents.values()).find((agent) => {
+          const shortcut = (agent as AgentWithShortcut).shortcut?.trim();
+          return shortcut ? matchesShortcutString(e, shortcut) : false;
+        }) as AgentWithShortcut | undefined;
+
+        if (matchedAgent) {
+          e.preventDefault();
+          e.stopPropagation();
+          store.selectAgent(matchedAgent.id);
+          store.setTerminalOpen(true);
+          sceneRef.current?.refreshSelectionVisuals();
+          return;
+        }
       }
     };
 
