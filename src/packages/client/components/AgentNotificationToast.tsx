@@ -5,7 +5,7 @@ import type { AgentNotification, AgentClass } from '../../shared/types';
 import { BUILT_IN_AGENT_CLASSES } from '../../shared/types';
 import { showNotification, openAgentTerminalFromNotification, isNativeApp } from '../utils/notifications';
 import { triggerHaptic } from '../utils/haptics';
-import { AgentIcon } from './AgentIcon';
+import { AgentIcon, getAgentIconUrl } from './AgentIcon';
 
 interface AgentNotificationContextType {
   showAgentNotification: (notification: AgentNotification) => void;
@@ -22,6 +22,13 @@ function getClassIcon(agentClass: AgentClass): string {
   const custom = customClasses.get(agentClass);
   if (custom) return custom.icon;
   return '🤖';
+}
+
+// Returns a PNG icon URL for custom classes with an uploaded iconPath; undefined otherwise.
+function getClassIconUrl(agentClass: AgentClass): string | undefined {
+  const customClasses = store.getState().customAgentClasses;
+  const custom = customClasses.get(agentClass);
+  return custom?.iconPath ? getAgentIconUrl(custom.iconPath) : undefined;
 }
 
 // Get color for agent class
@@ -115,9 +122,9 @@ function SwipeableNotification({ notification, onDismiss, onClick }: SwipeableNo
         transition,
       } as React.CSSProperties}
     >
+      <span className="agent-notification-icon"><AgentIcon classId={notification.agentClass} size={36} /></span>
       <div className="agent-notification-content">
         <div className="agent-notification-header">
-          <span className="agent-notification-icon"><AgentIcon classId={notification.agentClass} size={18} /></span>
           <span className="agent-notification-name">{notification.agentName}</span>
           <span className="agent-notification-separator">&middot;</span>
           <span className="agent-notification-title">{notification.title}</span>
@@ -189,10 +196,12 @@ export function AgentNotificationProvider({ children }: { children: React.ReactN
     // On native Android, the foreground service (WebSocketForegroundService)
     // handles notifications via its own WebSocket — skip here to avoid duplicates.
     if (!isNativeApp()) {
-      const classIcon = getClassIcon(notification.agentClass);
+      const iconUrl = getClassIconUrl(notification.agentClass);
+      const titlePrefix = iconUrl ? '' : `${getClassIcon(notification.agentClass)} `;
       showNotification({
-        title: `${classIcon} ${notification.agentName}: ${notification.title}`,
+        title: `${titlePrefix}${notification.agentName}: ${notification.title}`,
         body: notification.message,
+        icon: iconUrl,
         data: {
           type: 'agent_notification',
           agentId: notification.agentId,

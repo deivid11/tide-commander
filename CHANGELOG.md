@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.49.0] - 2026-04-16
+
+### Added
+- **Clear context from tracking board** - Per-agent and per-column "clear context" actions in the tracking board with a 3-second double-confirm safeguard
+- **Unseen output indicator** - Tracking board flags agents that have produced output the user has not yet viewed
+- **Gmail automatic polling toggle** - Connected Gmail integrations expose an explicit enable/disable control with live active/last-checked status
+- **HTTP log blacklist** - Server request logger now skips noisy polled endpoints (starting with `GET /api/files/git-status`) via a configurable blacklist
+
+### Changed
+- **Agent notification toast** - Minor refinements to toast layout and styling
+
+### Fixed
+- **Gmail status field naming** - Frontend now reads `lastChecked`/`error` from the status payload, matching the server contract
+
 ## [1.48.0] - 2026-04-16
 
 ### Added

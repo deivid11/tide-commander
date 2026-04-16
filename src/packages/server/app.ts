@@ -34,6 +34,25 @@ const PROJECT_ROOT = findProjectRoot();
 const DIST_DIR = path.join(PROJECT_ROOT, 'dist');
 const PUBLIC_DIR = path.join(PROJECT_ROOT, 'public');
 
+// Paths matched here are skipped by the HTTP request logger to reduce noise from
+// frequently-polled endpoints. Match is exact OR startsWith. Add new entries as
+// `'METHOD /path'` (method-scoped) or `'/path'` (any method).
+const HTTP_LOG_BLACKLIST: string[] = [
+  'GET /api/files/git-status',
+];
+
+function isHttpLogBlacklisted(method: string, urlPath: string): boolean {
+  const methodPath = `${method} ${urlPath}`;
+  for (const entry of HTTP_LOG_BLACKLIST) {
+    if (entry.includes(' ')) {
+      if (methodPath === entry || methodPath.startsWith(entry + '/')) return true;
+    } else {
+      if (urlPath === entry || urlPath.startsWith(entry + '/')) return true;
+    }
+  }
+  return false;
+}
+
 export function createApp(): Express {
   const app = express();
 
@@ -43,7 +62,9 @@ export function createApp(): Express {
 
   // Request logging & timing
   app.use((req: Request, res: Response, next: NextFunction) => {
-    logger.http.log(`${req.method} ${req.path}`);
+    if (!isHttpLogBlacklisted(req.method, req.path)) {
+      logger.http.log(`${req.method} ${req.path}`);
+    }
     const start = Date.now();
     res.on('finish', () => {
       recordRequestTiming(req.method, req.path, Date.now() - start);

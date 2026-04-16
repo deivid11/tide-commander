@@ -22,8 +22,8 @@ interface GmailAuthStatus {
   authenticated: boolean;
   emailAddress?: string;
   pollingActive?: boolean;
-  lastPollAt?: number;
-  lastError?: string;
+  lastChecked?: number;
+  error?: string;
 }
 
 type AuthMethod = 'oauth2' | 'service_account';
@@ -58,6 +58,7 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [togglingPolling, setTogglingPolling] = useState(false);
   const [step, setStep] = useState<'credentials' | 'authorize' | 'connected'>(
     integration.status.connected ? 'connected' : 'credentials'
   );
@@ -214,6 +215,31 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
       setError(err instanceof Error ? err.message : 'Failed to save settings');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Toggle automatic polling on/off
+  const handleTogglePolling = async () => {
+    const shouldEnable = !authStatus?.pollingActive;
+    setTogglingPolling(true);
+    setError(null);
+    try {
+      const endpoint = shouldEnable ? '/api/email/polling/start' : '/api/email/polling/stop';
+      const body = shouldEnable ? { intervalMs: parseInt(pollingInterval) || 30000 } : {};
+      const resp = await authFetch(apiUrl(endpoint), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        throw new Error((data as { error?: string }).error || `HTTP ${resp.status}`);
+      }
+      await fetchStatus();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to toggle polling');
+    } finally {
+      setTogglingPolling(false);
     }
   };
 
@@ -483,14 +509,40 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
             </span>
           </div>
 
-          {authStatus?.pollingActive && (
-            <p className="gmail-oauth-help">
-              Email polling is active.
-              {authStatus.lastPollAt && (
-                <> Last checked: {new Date(authStatus.lastPollAt).toLocaleTimeString()}</>
-              )}
-            </p>
-          )}
+          <div className="gmail-polling-toggle-row">
+            <div className="gmail-polling-toggle-info">
+              <div className="gmail-polling-toggle-label">Automatic Polling</div>
+              <div className="gmail-polling-toggle-status">
+                {authStatus?.pollingActive ? (
+                  <>
+                    <span className="gmail-polling-dot active" />
+                    Active
+                    {authStatus.lastChecked && (
+                      <span className="gmail-polling-last">
+                        — last checked {new Date(authStatus.lastChecked).toLocaleTimeString()}
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <span className="gmail-polling-dot paused" />
+                    Paused — new emails will not be ingested
+                  </>
+                )}
+              </div>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={!!authStatus?.pollingActive}
+              aria-label="Toggle automatic polling"
+              className={`gmail-polling-switch ${authStatus?.pollingActive ? 'on' : 'off'}`}
+              onClick={handleTogglePolling}
+              disabled={togglingPolling}
+            >
+              <span className="gmail-polling-switch-thumb" />
+            </button>
+          </div>
 
           <div className="gmail-oauth-field">
             <label className="integration-field-label">Polling Interval (ms)</label>
@@ -765,6 +817,91 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
           font-size: 14px;
           font-weight: 600;
           letter-spacing: 0.2px;
+        }
+        .gmail-polling-toggle-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+          margin: 0 0 20px 0;
+          padding: 14px 16px;
+          background: rgba(30, 30, 46, 0.6);
+          border: 1px solid rgba(137, 180, 250, 0.15);
+          border-radius: 10px;
+        }
+        .gmail-polling-toggle-info {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          min-width: 0;
+        }
+        .gmail-polling-toggle-label {
+          color: #cdd6f4;
+          font-size: 14px;
+          font-weight: 600;
+          letter-spacing: 0.2px;
+        }
+        .gmail-polling-toggle-status {
+          color: #a6adc8;
+          font-size: 12px;
+          font-weight: 500;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          flex-wrap: wrap;
+        }
+        .gmail-polling-last {
+          color: #7f849c;
+          font-weight: 400;
+        }
+        .gmail-polling-dot {
+          display: inline-block;
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          flex-shrink: 0;
+        }
+        .gmail-polling-dot.active {
+          background: #a6e3a1;
+          box-shadow: 0 0 6px rgba(166, 227, 161, 0.6);
+        }
+        .gmail-polling-dot.paused {
+          background: #fab387;
+        }
+        .gmail-polling-switch {
+          position: relative;
+          width: 44px;
+          height: 24px;
+          border-radius: 12px;
+          border: none;
+          cursor: pointer;
+          transition: background 0.2s ease;
+          flex-shrink: 0;
+          padding: 0;
+        }
+        .gmail-polling-switch.on {
+          background: linear-gradient(135deg, #a6e3a1 0%, #94d38f 100%);
+        }
+        .gmail-polling-switch.off {
+          background: rgba(108, 112, 134, 0.5);
+        }
+        .gmail-polling-switch:disabled {
+          opacity: 0.6;
+          cursor: wait;
+        }
+        .gmail-polling-switch-thumb {
+          position: absolute;
+          top: 2px;
+          left: 2px;
+          width: 20px;
+          height: 20px;
+          background: #ffffff;
+          border-radius: 50%;
+          transition: transform 0.2s ease;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+        }
+        .gmail-polling-switch.on .gmail-polling-switch-thumb {
+          transform: translateX(20px);
         }
         .integration-form-actions {
           display: flex;

@@ -16,9 +16,9 @@
 
 .agent-notification {
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 8px 12px;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
   background: linear-gradient(135deg, $bg-tertiary 0%, rgba($bg-secondary, 0.95) 100%);
   border: 1px solid var(--agent-color, $border-color);
   border-left: 3px solid var(--agent-color, $accent-cyan);
@@ -65,7 +65,12 @@
 }
 
 .agent-notification-icon {
-  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  font-size: 28px;
   line-height: 1;
   flex-shrink: 0;
 }
@@ -97,7 +102,6 @@
   color: $text-secondary;
   line-height: 1.4;
   word-break: break-word;
-  padding-left: 21px; // align with text after icon
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
