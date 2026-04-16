@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.43.1] - 2026-04-15
+
+### Fixed
+- **Boss spawn default model** - Changed default model from haiku to opus in boss spawn modal
+
 ## [1.43.0] - 2026-04-15
 
 ### Added
