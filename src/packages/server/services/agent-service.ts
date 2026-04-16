@@ -6,11 +6,12 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import type { Agent, AgentClass, PermissionMode, ClaudeModel, ClaudeEffort, AgentProvider, CodexConfig, CodexModel, OpencodeModel, DrawingArea } from '../../shared/types.js';
-import { loadAgents, saveAgents, saveAgentsAsync, getDataDir, loadAreas, saveAreas } from '../data/index.js';
+import type { Agent, AgentClass, PermissionMode, ClaudeModel, ClaudeEffort, AgentProvider, CodexConfig, CodexModel, OpencodeModel, DrawingArea, SessionHistoryEntry } from '../../shared/types.js';
+import { loadAgents, saveAgents, saveAgentsAsync, getDataDir, loadAreas, saveAreas, loadSessionHistory, saveSessionHistory, addSessionHistoryEntry, getSessionHistoryForAgent } from '../data/index.js';
 import {
   listSessions,
   getSessionSummary,
+  getProjectDir,
   loadSession,
   loadToolHistory,
   searchSession,
@@ -796,6 +797,53 @@ Please acknowledge this update and continue with your work.
 ---
 
 `;
+}
+
+// ============================================================================
+// Session History
+// ============================================================================
+
+let sessionHistories: Map<string, SessionHistoryEntry[]> = new Map();
+
+export function initSessionHistory(): void {
+  sessionHistories = loadSessionHistory();
+  log.log?.(` Loaded session history for ${sessionHistories.size} agents`);
+}
+
+export function shutdownSessionHistory(): void {
+  saveSessionHistory(sessionHistories);
+}
+
+/**
+ * Archive the current session for an agent before it gets cleared.
+ * Call this before setting sessionId to undefined.
+ */
+export function archiveCurrentSession(agentId: string): void {
+  const agent = agents.get(agentId);
+  if (!agent || !agent.sessionId) return;
+
+  const entry: SessionHistoryEntry = {
+    sessionId: agent.sessionId,
+    summary: agent.taskLabel || agent.lastAssignedTask || agent.currentTask || 'No description',
+    startedAt: agent.createdAt,
+    endedAt: Date.now(),
+  };
+
+  addSessionHistoryEntry(sessionHistories, agentId, entry);
+  saveSessionHistory(sessionHistories);
+  log.log?.(`Archived session ${agent.sessionId} for agent ${agent.name}`);
+}
+
+export function getAgentSessionHistory(agentId: string): SessionHistoryEntry[] {
+  const agent = agents.get(agentId);
+  const entries = getSessionHistoryForAgent(sessionHistories, agentId);
+  if (!agent) return entries;
+
+  const projectDir = getProjectDir(agent.cwd);
+  return entries.map((entry) => ({
+    ...entry,
+    fileExists: fs.existsSync(path.join(projectDir, `${entry.sessionId}.jsonl`)),
+  }));
 }
 
 // ============================================================================

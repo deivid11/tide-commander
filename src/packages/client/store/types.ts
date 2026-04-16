@@ -28,6 +28,7 @@ import type {
   ExistingDockerContainer,
   ExistingComposeProject,
   Subagent,
+  SessionHistoryEntry,
 } from '../../shared/types';
 import type { ShortcutConfig } from './shortcuts';
 import type { MouseControlsState } from './mouseControls';
@@ -188,6 +189,8 @@ export interface StoreState {
   compactingAgents: Set<string>;
   // Last prompt per agent
   lastPrompts: Map<string, LastPrompt>;
+  // Session history per agent (agentId -> archived sessions)
+  sessionHistories: Map<string, SessionHistoryEntry[]>;
   // Tool execution history
   toolExecutions: ToolExecution[];
   // File changes history

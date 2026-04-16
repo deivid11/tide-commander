@@ -216,6 +216,32 @@ export interface ClearContextMessage extends WSMessage {
   };
 }
 
+// Restore a previous session for an agent
+export interface RestoreSessionMessage extends WSMessage {
+  type: 'restore_session';
+  payload: {
+    agentId: string;
+    sessionId: string;
+  };
+}
+
+// Request session history for an agent
+export interface RequestSessionHistoryMessage extends WSMessage {
+  type: 'request_session_history';
+  payload: {
+    agentId: string;
+  };
+}
+
+// Server -> client: session history response
+export interface SessionHistoryMessage extends WSMessage {
+  type: 'session_history';
+  payload: {
+    agentId: string;
+    entries: import('./agent-types.js').SessionHistoryEntry[];
+  };
+}
+
 // Collapse context (compact the session to save tokens)
 export interface CollapseContextMessage extends WSMessage {
   type: 'collapse_context';
@@ -1671,7 +1697,8 @@ export type ServerMessage =
   | WorkflowVariableChangedMessage
   | WorkflowCompletedMessage
   | WorkflowErrorMessage
-  | CompactingStatusMessage;
+  | CompactingStatusMessage
+  | SessionHistoryMessage;
 
 export type ClientMessage =
   | SpawnAgentMessage
@@ -1681,6 +1708,8 @@ export type ClientMessage =
   | KillAgentMessage
   | StopAgentMessage
   | ClearContextMessage
+  | RestoreSessionMessage
+  | RequestSessionHistoryMessage
   | CollapseContextMessage
   | CreateDirectoryMessage
   | RemoveAgentMessage

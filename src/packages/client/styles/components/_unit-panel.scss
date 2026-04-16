@@ -541,6 +541,264 @@
   }
 }
 
+// Session History
+.unit-session-history {
+  padding: 8px;
+  background: $bg-tertiary;
+  border-radius: $radius-md;
+  margin-bottom: 12px;
+}
+
+.unit-session-history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  padding: 2px 0;
+
+  &:hover {
+    .unit-stat-label {
+      color: $text-primary;
+    }
+  }
+}
+
+.unit-session-history-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: $text-secondary;
+}
+
+.unit-session-history-count {
+  background: $accent-cyan;
+  color: $bg-primary;
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 8px;
+}
+
+.unit-session-history-list {
+  margin-top: 8px;
+}
+
+.unit-session-history-empty {
+  font-size: 10px;
+  color: $text-secondary;
+  font-style: italic;
+  padding: 4px 0;
+}
+
+.unit-session-history-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: $radius-sm;
+  margin-bottom: 4px;
+  font-size: 10px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.unit-session-history-item-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.unit-session-history-item-summary {
+  color: $text-primary;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.unit-session-history-item-date {
+  color: $text-secondary;
+  font-size: 9px;
+}
+
+.unit-session-history-item.active {
+  background: rgba($accent-cyan, 0.08);
+  border: 1px solid rgba($accent-cyan, 0.2);
+}
+
+.unit-session-history-missing {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: $accent-yellow;
+  line-height: 1;
+}
+
+.unit-session-history-restore-btn {
+  width: 22px;
+  height: 22px;
+  border: 1px solid rgba($accent-cyan, 0.3);
+  background: transparent;
+  color: $accent-cyan;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: $radius-sm;
+  transition: all $transition-fast;
+  flex-shrink: 0;
+
+  &:hover {
+    background: rgba($accent-cyan, 0.15);
+    border-color: $accent-cyan;
+  }
+
+  &:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+
+    &:hover {
+      background: transparent;
+      border-color: rgba($accent-cyan, 0.3);
+    }
+  }
+}
+
+// Session preview panel
+.unit-session-preview {
+  max-height: 260px;
+  overflow-y: auto;
+  margin: 2px 0 6px;
+  padding: 4px;
+  background: $bg-primary;
+  border-radius: $radius-sm;
+  border: 1px solid rgba($border-color, 0.5);
+
+  // Thin scrollbar
+  &::-webkit-scrollbar {
+    width: 3px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: rgba($text-secondary, 0.25);
+    border-radius: 2px;
+  }
+}
+
+.unit-session-preview-loading,
+.unit-session-preview-empty {
+  font-size: 10px;
+  color: $text-muted;
+  font-style: italic;
+  padding: 8px 6px;
+  text-align: center;
+}
+
+.unit-session-preview-msg {
+  margin-bottom: 3px;
+  border-radius: $radius-sm;
+  font-size: 10px;
+  line-height: 1.5;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+
+  // User messages — cyan left accent
+  &.user {
+    padding: 5px 8px 5px 10px;
+    border-left: 2px solid $accent-cyan;
+    background: linear-gradient(
+      135deg,
+      rgba($accent-cyan, 0.06) 0%,
+      rgba($accent-cyan, 0.02) 100%
+    );
+
+    .unit-session-preview-role-chip {
+      background: rgba($accent-cyan, 0.15);
+      color: $accent-cyan;
+      border: 1px solid rgba($accent-cyan, 0.25);
+    }
+
+    .unit-session-preview-text {
+      color: $text-primary;
+    }
+  }
+
+  // Assistant messages — green left accent
+  &.assistant {
+    padding: 5px 8px 5px 10px;
+    border-left: 2px solid $accent-green;
+    background: linear-gradient(
+      135deg,
+      rgba($accent-green, 0.05) 0%,
+      rgba($accent-green, 0.015) 100%
+    );
+
+    .unit-session-preview-role-chip {
+      background: rgba($accent-green, 0.15);
+      color: $accent-green;
+      border: 1px solid rgba($accent-green, 0.25);
+    }
+
+    .unit-session-preview-text {
+      color: $text-secondary;
+    }
+  }
+
+  // Tool use — inline compact chip
+  &.tool {
+    padding: 2px 8px 2px 10px;
+    border-left: 2px solid rgba($accent-orange, 0.4);
+    background: rgba($accent-orange, 0.04);
+  }
+}
+
+.unit-session-preview-role-chip {
+  display: inline-block;
+  font-family: $font-mono;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 999px;
+  margin-bottom: 3px;
+}
+
+.unit-session-preview-tool-chip {
+  display: inline-block;
+  font-family: $font-mono;
+  font-size: 9px;
+  font-weight: 600;
+  color: $accent-orange;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  opacity: 0.8;
+
+  &::before {
+    content: '▸ ';
+    font-size: 8px;
+    opacity: 0.6;
+  }
+}
+
+.unit-session-preview-text {
+  font-family: $font-mono;
+  font-size: 10px;
+  line-height: 1.5;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
 .unit-resume-cmd {
   padding: 8px;
   background: $bg-tertiary;

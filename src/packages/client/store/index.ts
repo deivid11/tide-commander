@@ -227,6 +227,7 @@ class Store
       agentOutputs: new Map(),
       compactingAgents: new Set(),
       lastPrompts: new Map(),
+      sessionHistories: new Map(),
       toolExecutions: [],
       fileChanges: [],
       terminalOpen: false,
@@ -921,6 +922,10 @@ class Store
   killAgent(...args: Parameters<AgentActions['killAgent']>) { return this.agentActions.killAgent(...args); }
   stopAgent(...args: Parameters<AgentActions['stopAgent']>) { return this.agentActions.stopAgent(...args); }
   clearContext(...args: Parameters<AgentActions['clearContext']>) { return this.agentActions.clearContext(...args); }
+  restoreSession(...args: Parameters<AgentActions['restoreSession']>) { return this.agentActions.restoreSession(...args); }
+  requestSessionHistory(...args: Parameters<AgentActions['requestSessionHistory']>) { return this.agentActions.requestSessionHistory(...args); }
+  setSessionHistory(...args: Parameters<AgentActions['setSessionHistory']>) { return this.agentActions.setSessionHistory(...args); }
+  getSessionHistory(...args: Parameters<AgentActions['getSessionHistory']>) { return this.agentActions.getSessionHistory(...args); }
   collapseContext(...args: Parameters<AgentActions['collapseContext']>) { return this.agentActions.collapseContext(...args); }
   removeAgentFromServer(...args: Parameters<AgentActions['removeAgentFromServer']>) { return this.agentActions.removeAgentFromServer(...args); }
   renameAgent(...args: Parameters<AgentActions['renameAgent']>) { return this.agentActions.renameAgent(...args); }

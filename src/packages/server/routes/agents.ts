@@ -10,6 +10,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { agentService, runtimeService, bossMessageService } from '../services/index.js';
 import { getClaudeProjectDir, loadAreas, saveAreas } from '../data/index.js';
+import { loadSession } from '../claude/session-loader.js';
 import { getAllCustomClasses } from '../services/custom-class-service.js';
 // Session listing is done inline for performance
 import { createLogger } from '../utils/logger.js';
@@ -680,6 +681,38 @@ router.get('/:id/history', async (req: Request<{ id: string }>, res: Response) =
     });
   } catch (err: any) {
     log.error(' Failed to load history:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/agents/:id/session-history - Get archived session history for an agent
+router.get('/:id/session-history', (_req: Request<{ id: string }>, res: Response) => {
+  try {
+    const entries = agentService.getAgentSessionHistory(_req.params.id);
+    res.json({ entries });
+  } catch (err: any) {
+    log.error(' Failed to load session history:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/agents/:id/session-preview/:sessionId - Preview messages from an archived session
+router.get('/:id/session-preview/:sessionId', async (req: Request<{ id: string; sessionId: string }>, res: Response) => {
+  try {
+    const agent = agentService.getAgent(req.params.id);
+    if (!agent) {
+      res.status(404).json({ error: 'Agent not found' });
+      return;
+    }
+    const limit = parseInt(req.query.limit as string) || 30;
+    const history = await loadSession(agent.cwd, req.params.sessionId, limit, 0);
+    if (!history) {
+      res.status(404).json({ error: 'Session not found' });
+      return;
+    }
+    res.json({ messages: history.messages, totalCount: history.totalCount });
+  } catch (err: any) {
+    log.error(' Failed to load session preview:', err);
     res.status(500).json({ error: err.message });
   }
 });

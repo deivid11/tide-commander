@@ -96,6 +96,10 @@ export interface AgentActions {
   killAgent(agentId: string): void;
   stopAgent(agentId: string): void;
   clearContext(agentId: string): void;
+  restoreSession(agentId: string, sessionId: string): void;
+  requestSessionHistory(agentId: string): void;
+  setSessionHistory(agentId: string, entries: import('../../shared/types').SessionHistoryEntry[]): void;
+  getSessionHistory(agentId: string): import('../../shared/types').SessionHistoryEntry[];
   collapseContext(agentId: string): void;
   removeAgentFromServer(agentId: string): void;
   renameAgent(agentId: string, name: string): void;
@@ -567,6 +571,62 @@ export function createAgentActions(
         }
       });
       notify();
+    },
+
+    restoreSession(agentId: string, sessionId: string): void {
+      getSendMessage()?.({
+        type: 'restore_session',
+        payload: { agentId, sessionId },
+      });
+      // Optimistic update: set sessionId and clear outputs for immediate UI parity
+      setState((state) => {
+        const agent = state.agents.get(agentId);
+        if (agent) {
+          const updatedAgent = {
+            ...agent,
+            status: 'idle' as const,
+            currentTask: undefined,
+            taskLabel: undefined,
+            currentTool: undefined,
+            sessionId,
+            tokensUsed: 0,
+            contextUsed: 0,
+            contextStats: undefined,
+          };
+          const newAgents = new Map(state.agents);
+          newAgents.set(agentId, updatedAgent);
+          state.agents = newAgents;
+        }
+
+        const newAgentOutputs = new Map(state.agentOutputs);
+        newAgentOutputs.delete(agentId);
+        state.agentOutputs = newAgentOutputs;
+
+        const newLastPrompts = new Map(state.lastPrompts);
+        newLastPrompts.delete(agentId);
+        state.lastPrompts = newLastPrompts;
+      });
+      notify();
+    },
+
+    requestSessionHistory(agentId: string): void {
+      getSendMessage()?.({
+        type: 'request_session_history',
+        payload: { agentId },
+      });
+    },
+
+    setSessionHistory(agentId: string, entries: import('../../shared/types').SessionHistoryEntry[]): void {
+      setState((state) => {
+        const newHistories = new Map(state.sessionHistories);
+        newHistories.set(agentId, entries);
+        state.sessionHistories = newHistories;
+      });
+      notify();
+    },
+
+    getSessionHistory(agentId: string): import('../../shared/types').SessionHistoryEntry[] {
+      return getState().sessionHistories.get(agentId) || [];
     },
 
     collapseContext(agentId: string): void {

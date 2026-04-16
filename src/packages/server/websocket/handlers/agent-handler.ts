@@ -214,6 +214,9 @@ export async function handleClearContext(
   const agent = agentService.getAgent(payload.agentId);
   log.log(`Agent ${agent?.name || payload.agentId}: User requested context clear`);
 
+  // Archive the current session before clearing
+  agentService.archiveCurrentSession(payload.agentId);
+
   await runtimeService.stopAgent(payload.agentId);
   agentService.updateAgent(payload.agentId, {
     status: 'idle',
@@ -233,6 +236,60 @@ export async function handleClearContext(
   ctx.sendActivity(payload.agentId, 'Context cleared - new session on next command');
 
   log.log(`Agent ${agent?.name || payload.agentId}: Context cleared, session reset`);
+}
+
+/**
+ * Handle restore_session message - restores a previous session for an agent
+ */
+export async function handleRestoreSession(
+  ctx: HandlerContext,
+  payload: { agentId: string; sessionId: string }
+): Promise<void> {
+  const agent = agentService.getAgent(payload.agentId);
+  if (!agent) {
+    ctx.sendError(`Agent not found: ${payload.agentId}`);
+    return;
+  }
+
+  log.log(`Agent ${agent.name}: Restoring session ${payload.sessionId}`);
+
+  // Archive the current session first (if any)
+  agentService.archiveCurrentSession(payload.agentId);
+
+  // Stop any running process
+  await runtimeService.stopAgent(payload.agentId);
+
+  // Set the restored session ID
+  agentService.updateAgent(payload.agentId, {
+    status: 'idle',
+    currentTask: undefined,
+    taskLabel: undefined,
+    currentTool: undefined,
+    sessionId: payload.sessionId,
+    tokensUsed: 0,
+    contextUsed: 0,
+    contextStats: undefined,
+  });
+
+  ctx.sendActivity(payload.agentId, `Session restored - will resume on next command`);
+  log.log(`Agent ${agent.name}: Session restored to ${payload.sessionId}`);
+}
+
+/**
+ * Handle request_session_history - returns archived sessions for an agent
+ */
+export function handleRequestSessionHistory(
+  ctx: HandlerContext,
+  payload: { agentId: string }
+): void {
+  const entries = agentService.getAgentSessionHistory(payload.agentId);
+  ctx.sendToClient({
+    type: 'session_history',
+    payload: {
+      agentId: payload.agentId,
+      entries,
+    },
+  });
 }
 
 /**
@@ -960,6 +1017,8 @@ export async function handleUpdateAgentProperties(
   // Claude sessions are tied to the directory they were created in
   if (cwdChanged && sessionId) {
     log.log(`Agent ${agent.name}: Working directory changed to ${updates.cwd}, clearing session (cwd change requires new session)`);
+    // Archive the current session before clearing
+    agentService.archiveCurrentSession(agentId);
     try {
       // Stop the current Claude process
       await runtimeService.stopAgent(agentId);

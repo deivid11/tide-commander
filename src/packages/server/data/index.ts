@@ -15,7 +15,7 @@ import * as path from 'path';
 import * as os from 'os';
 import * as crypto from 'crypto';
 import { execSync } from 'child_process';
-import type { Agent, DrawingArea, AgentSupervisorHistory, AgentSupervisorHistoryEntry, Building, DelegationDecision, Skill, StoredSkill, CustomAgentClass, ContextStats, Secret, StoredSecret, QueryHistoryEntry } from '../../shared/types.js';
+import type { Agent, DrawingArea, AgentSupervisorHistory, AgentSupervisorHistoryEntry, Building, DelegationDecision, Skill, StoredSkill, CustomAgentClass, ContextStats, Secret, StoredSecret, QueryHistoryEntry, SessionHistoryEntry } from '../../shared/types.js';
 import { createLogger } from '../utils/logger.js';
 
 const log = createLogger('Data');
@@ -35,10 +35,12 @@ const SKILLS_FILE = path.join(DATA_DIR, 'skills.json');
 const CUSTOM_CLASSES_FILE = path.join(DATA_DIR, 'custom-agent-classes.json');
 const RUNNING_PROCESSES_FILE = path.join(DATA_DIR, 'running-processes.json');
 const SECRETS_FILE = path.join(DATA_DIR, 'secrets.json');
+const SESSION_HISTORY_FILE = path.join(DATA_DIR, 'session-history.json');
 const AREA_LOGOS_DIR = path.join(DATA_DIR, 'area-logos');
 
 // Maximum history entries per agent
 const MAX_HISTORY_PER_AGENT = 50;
+const MAX_SESSION_HISTORY_PER_AGENT = 100;
 const MAX_DELEGATION_HISTORY_PER_BOSS = 100;
 
 // Agent with session history reference (stored on disk)
@@ -996,4 +998,64 @@ export function deleteQueryHistory(buildingId: string): void {
   } catch (err) {
     log.error(` Failed to delete query history for building ${buildingId}:`, err);
   }
+}
+
+// ============================================================================
+// Session History
+// ============================================================================
+
+interface SessionHistoryData {
+  histories: Record<string, SessionHistoryEntry[]>;
+  savedAt: number;
+  version: string;
+}
+
+export function loadSessionHistory(): Map<string, SessionHistoryEntry[]> {
+  ensureDataDir();
+  const data = safeReadJsonSync<SessionHistoryData>(SESSION_HISTORY_FILE, 'Session history');
+  if (data?.histories) {
+    log.log(` Loaded session history for ${Object.keys(data.histories).length} agents`);
+    return new Map(Object.entries(data.histories));
+  }
+  return new Map();
+}
+
+export function saveSessionHistory(histories: Map<string, SessionHistoryEntry[]>): void {
+  ensureDataDir();
+  try {
+    atomicWriteJsonSync(SESSION_HISTORY_FILE, {
+      histories: Object.fromEntries(histories),
+      savedAt: Date.now(),
+      version: '1.0.0',
+    });
+  } catch (err) {
+    log.error(' Failed to save session history:', err);
+  }
+}
+
+export function addSessionHistoryEntry(
+  histories: Map<string, SessionHistoryEntry[]>,
+  agentId: string,
+  entry: SessionHistoryEntry
+): void {
+  let agentHistory = histories.get(agentId);
+  if (!agentHistory) {
+    agentHistory = [];
+    histories.set(agentId, agentHistory);
+  }
+
+  // Add to beginning (most recent first)
+  agentHistory.unshift(entry);
+
+  // Trim to max entries
+  if (agentHistory.length > MAX_SESSION_HISTORY_PER_AGENT) {
+    agentHistory.pop();
+  }
+}
+
+export function getSessionHistoryForAgent(
+  histories: Map<string, SessionHistoryEntry[]>,
+  agentId: string
+): SessionHistoryEntry[] {
+  return histories.get(agentId) || [];
 }

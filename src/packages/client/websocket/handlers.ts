@@ -512,6 +512,15 @@ export function handleServerMessage(message: ServerMessage): void {
       break;
     }
 
+    case 'session_history': {
+      const { agentId, entries } = message.payload as {
+        agentId: string;
+        entries: import('../../shared/types').SessionHistoryEntry[];
+      };
+      store.setSessionHistory(agentId, entries);
+      break;
+    }
+
     case 'boss_spawned_agent': {
       // Boss spawned a subordinate agent - do NOT auto-select, walk to boss position
       const { agent, bossPosition } = message.payload as {

@@ -376,6 +376,9 @@ export function SingleAgentPanel({
         </div>
       )}
 
+      {/* Session History */}
+      <SessionHistorySection agentId={agent.id} />
+
       {/* Supervisor History */}
       <div className="unit-supervisor-history">
         <div className="unit-supervisor-history-header" onClick={() => setShowHistory(!showHistory)}>
@@ -558,6 +561,160 @@ const RememberedPatternsSection = memo(function RememberedPatternsSection({
                 {t('buttons.clearAll')}
               </button>
             </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+});
+
+// ============================================================================
+// SessionHistorySection Component
+// ============================================================================
+
+interface PreviewMessage {
+  type: 'user' | 'assistant' | 'tool_use' | 'tool_result';
+  content: string;
+  toolName?: string;
+}
+
+interface SessionHistorySectionProps {
+  agentId: string;
+}
+
+const SessionHistorySection = memo(function SessionHistorySection({ agentId }: SessionHistorySectionProps) {
+  const { t } = useTranslation(['common']);
+  const [collapsed, setCollapsed] = useState(true);
+  const [loaded, setLoaded] = useState(false);
+  const [previewSessionId, setPreviewSessionId] = useState<string | null>(null);
+  const [previewMessages, setPreviewMessages] = useState<PreviewMessage[]>([]);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const state = useStore();
+  const entries = state.sessionHistories.get(agentId) || [];
+
+  const handleToggle = () => {
+    const next = !collapsed;
+    setCollapsed(next);
+    if (!next && !loaded) {
+      store.requestSessionHistory(agentId);
+      setLoaded(true);
+    }
+  };
+
+  const handleRestore = (sessionId: string) => {
+    store.restoreSession(agentId, sessionId);
+    setPreviewSessionId(null);
+  };
+
+  const handlePreview = async (sessionId: string) => {
+    if (previewSessionId === sessionId) {
+      setPreviewSessionId(null);
+      return;
+    }
+    setPreviewSessionId(sessionId);
+    setPreviewLoading(true);
+    setPreviewMessages([]);
+    try {
+      const res = await authFetch(apiUrl(`/api/agents/${agentId}/session-preview/${sessionId}?limit=30`));
+      if (!res.ok) {
+        console.error(`Session preview failed: ${res.status}`);
+        setPreviewMessages([]);
+      } else {
+        const data = await res.json();
+        setPreviewMessages(data.messages || []);
+      }
+    } catch (err) {
+      console.error('Session preview error:', err);
+      setPreviewMessages([]);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const formatDate = (ts: number) => {
+    const now = Date.now();
+    const diff = now - ts;
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+    return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  };
+
+  return (
+    <div className="unit-session-history">
+      <div className="unit-session-history-header" onClick={handleToggle}>
+        <div className="unit-stat-label">{t('unitPanel.sessionHistory', 'Session History')}</div>
+        <span className="unit-session-history-toggle">
+          {entries.length > 0 && (
+            <span className="unit-session-history-count">{entries.length}</span>
+          )}
+          {collapsed ? '▶' : '▼'}
+        </span>
+      </div>
+      {!collapsed && (
+        <div className="unit-session-history-list">
+          {entries.length === 0 ? (
+            <div className="unit-session-history-empty">
+              {t('unitPanel.noSessionHistory', 'No previous sessions')}
+            </div>
+          ) : (
+            entries.map((entry) => (
+              <div key={entry.sessionId}>
+                <div className={`unit-session-history-item ${previewSessionId === entry.sessionId ? 'active' : ''}`}>
+                  {entry.fileExists === false && (
+                    <span className="unit-session-history-missing" title="Session file missing from disk">⚠</span>
+                  )}
+                  <div
+                    className="unit-session-history-item-info"
+                    onClick={() => handlePreview(entry.sessionId)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <span className="unit-session-history-item-summary" title={entry.summary}>
+                      {entry.summary.length > 60 ? entry.summary.slice(0, 60) + '...' : entry.summary}
+                    </span>
+                    <span className="unit-session-history-item-date">{formatDate(entry.endedAt)}</span>
+                  </div>
+                  <button
+                    className="unit-session-history-restore-btn"
+                    onClick={() => handleRestore(entry.sessionId)}
+                    title={t('unitPanel.restoreSession', 'Restore this session')}
+                    disabled={entry.fileExists === false}
+                  >
+                    ↩
+                  </button>
+                </div>
+                {previewSessionId === entry.sessionId && (
+                  <div className="unit-session-preview">
+                    {previewLoading ? (
+                      <div className="unit-session-preview-loading">Loading...</div>
+                    ) : previewMessages.length === 0 ? (
+                      <div className="unit-session-preview-empty">No messages found</div>
+                    ) : (
+                      previewMessages
+                        .filter((m) => m.type === 'user' || m.type === 'assistant' || m.type === 'tool_use')
+                        .map((msg, i) => {
+                          if (msg.type === 'tool_use') {
+                            return (
+                              <div key={i} className="unit-session-preview-msg tool">
+                                <span className="unit-session-preview-tool-chip">{msg.toolName || 'Tool'}</span>
+                              </div>
+                            );
+                          }
+                          const maxLen = msg.type === 'user' ? 300 : 400;
+                          const text = msg.content.length > maxLen ? msg.content.slice(0, maxLen) + '...' : msg.content;
+                          return (
+                            <div key={i} className={`unit-session-preview-msg ${msg.type}`}>
+                              <div className="unit-session-preview-role-chip">
+                                {msg.type === 'user' ? 'YOU' : 'AGENT'}
+                              </div>
+                              <div className="unit-session-preview-text">{text}</div>
+                            </div>
+                          );
+                        })
+                    )}
+                  </div>
+                )}
+              </div>
+            ))
           )}
         </div>
       )}

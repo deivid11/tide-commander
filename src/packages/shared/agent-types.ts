@@ -519,3 +519,17 @@ export interface AgentSupervisorHistory {
   agentId: string;
   entries: AgentSupervisorHistoryEntry[];
 }
+
+// ============================================================================
+// Session History
+// ============================================================================
+
+/** A single past session entry for an agent. */
+export interface SessionHistoryEntry {
+  sessionId: string;
+  summary: string;        // Brief description (from taskLabel, falls back to lastAssignedTask)
+  startedAt: number;      // Timestamp when session was first used
+  endedAt: number;        // Timestamp when session was cleared/replaced
+  messageCount?: number;  // Approximate message count at time of archival
+  fileExists?: boolean;   // Computed at request time - true if the .jsonl file still exists on disk
+}

@@ -71,6 +71,7 @@ async function main(): Promise<void> {
 
   // Initialize services
   agentService.initAgents();
+  agentService.initSessionHistory();
   runtimeService.init();
   supervisorService.init();
   bossService.init();
@@ -241,6 +242,7 @@ async function main(): Promise<void> {
       buildingService.stopTerminalStatusPolling();
       buildingService.cleanupAllTerminals();
       await runtimeService.shutdown();
+      agentService.shutdownSessionHistory();
       agentService.flushPersistAgents();
       closeEventDb();
       wss.clients.forEach((client) => client.terminate());

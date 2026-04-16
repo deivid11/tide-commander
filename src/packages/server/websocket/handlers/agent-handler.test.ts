@@ -4,6 +4,8 @@ vi.mock('../../services/index.js', () => ({
   agentService: {
     getAgent: vi.fn(),
     updateAgent: vi.fn(),
+    archiveCurrentSession: vi.fn(),
+    getAgentSessionHistory: vi.fn(() => []),
   },
   runtimeService: {
     stopAgent: vi.fn(),
