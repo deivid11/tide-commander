@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.42.0] - 2026-04-15
+
+### Added
+- **Agent tracking board** - New side panel showing agents grouped by tracking status (working, need-review, blocked, can-clear-context) with real-time updates
+- **Agent tracking skill** - Built-in skill allowing agents to update their tracking status via API, automatically pre-selected for new agents
+- **Tracking status API** - PATCH endpoint for agents to set trackingStatus and trackingStatusDetail fields
+- **Auto-reset tracking status** - When an agent enters working state, tracking status automatically resets to "working" unless explicitly set otherwise
+
 ## [1.41.0] - 2026-04-15
 
 ### Added
