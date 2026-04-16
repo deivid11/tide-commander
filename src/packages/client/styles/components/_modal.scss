@@ -175,6 +175,19 @@
 
 .class-chip-icon {
   font-size: 14px;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+
+  // When AgentIcon renders an <img> directly with this class
+  &img {
+    object-fit: cover;
+    border-radius: 3px;
+  }
 }
 
 .class-chip-name {

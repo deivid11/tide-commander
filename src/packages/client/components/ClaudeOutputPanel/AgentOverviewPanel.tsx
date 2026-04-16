@@ -1297,40 +1297,26 @@ function AgentCard({
           transition: isSwiping ? 'none' : 'transform 0.18s ease',
         } : undefined}
       >
+        {/* Left avatar — PNG icon or emoji, with provider badge */}
+        <div
+          className={`aop-card-avatar${classConfig.iconPath ? '' : ' emoji'}`}
+          style={!classConfig.iconPath ? { background: `${classConfig.color}25` } : undefined}
+        >
+          <AgentIcon agent={agent} size="100%" customClasses={customClasses} />
+          <img
+            src={agent.provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : agent.provider === 'opencode' ? `${import.meta.env.BASE_URL}assets/opencode.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
+            alt={agent.provider}
+            className="aop-provider-icon"
+            title={agent.provider === 'codex' ? 'Codex Agent' : agent.provider === 'opencode' ? 'OpenCode Agent' : 'Claude Agent'}
+          />
+        </div>
+        <div className="aop-card-content">
         {/* Card Header - always visible */}
         <div className="aop-agent-header" onContextMenu={(e) => {
           e.preventDefault();
           e.stopPropagation();
           onContextMenu({ x: e.clientX, y: e.clientY });
         }}>
-        <button
-          type="button"
-          className="aop-expand-icon"
-          aria-label={isExpanded ? 'Collapse agent' : 'Expand agent'}
-          onClick={e => {
-            e.stopPropagation();
-            onToggle();
-          }}
-        >
-          {isExpanded ? '▾' : '▸'}
-        </button>
-        <span className="aop-agent-status" title={statusLabel}>{statusIcon}</span>
-        {agent.status === 'working' && (
-          <span
-            className="aop-working-indicator"
-            aria-label={t('terminal:overview.statusLabels.working')}
-            title={t('terminal:overview.statusLabels.working')}
-          />
-        )}
-        <img
-          src={agent.provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : agent.provider === 'opencode' ? `${import.meta.env.BASE_URL}assets/opencode.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
-          alt={agent.provider}
-          className="aop-provider-icon"
-          title={agent.provider === 'codex' ? 'Codex Agent' : agent.provider === 'opencode' ? 'OpenCode Agent' : 'Claude Agent'}
-        />
-        <span className="aop-agent-class-icon" style={{ color: `color-mix(in srgb, ${classConfig.color} 60%, var(--text-muted))` }} title={agent.class || 'agent'}>
-          <AgentIcon agent={agent} size={14} />
-        </span>
         <span
           className="aop-agent-name"
           title={t('terminal:overview.clickToSwitch')}
@@ -1355,14 +1341,6 @@ function AgentCard({
         {allSubagentEntries.length > 0 && activeSubagents.length === 0 && (
           <span className="aop-subagent-count" title={t('terminal:overview.subagentsCompleted', { count: allSubagentEntries.length })} style={{ opacity: 0.5 }}>
             ⑂{allSubagentEntries.length}
-          </span>
-        )}
-        {agent.class && (
-          <span
-            className="aop-agent-class"
-            style={{ color: `color-mix(in srgb, ${classConfig.color} 65%, var(--text-muted))`, background: `${classConfig.color}10`, borderColor: `${classConfig.color}25` }}
-          >
-            {agent.class}
           </span>
         )}
         {showAreaChip && areaInfo && (
@@ -1461,7 +1439,9 @@ function AgentCard({
           </div>
         )}
 
-        {/* Context usage bar */}
+        </div>{/* end aop-card-content */}
+
+        {/* Context usage bar - spans full card width at bottom */}
         {agent.contextLimit > 0 && (
           <div
             className="aop-context-bar"

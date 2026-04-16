@@ -78,8 +78,8 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 8px;
+  gap: 5px;
+  padding: 5px;
   overflow-y: auto;
   min-height: 0;
 }
@@ -97,12 +97,12 @@
 .tracking-board-column-header {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 7px 9px;
+  gap: 5px;
+  padding: 4px 6px;
   border-bottom: 1px solid color-mix(in srgb, var(--border-color) 80%, transparent);
   background: color-mix(in srgb, var(--bg-tertiary) 65%, transparent);
   font-family: $font-mono;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -187,83 +187,117 @@
 .tracking-board-column-body {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 8px;
-  min-height: 96px;
+  gap: 3px;
+  padding: 4px;
+  min-height: 48px;
   overflow-y: auto;
 }
 
 .tracking-board-empty {
   display: grid;
   place-items: center;
-  min-height: 64px;
+  min-height: 32px;
   border: 1px dashed color-mix(in srgb, var(--border-color) 75%, transparent);
   border-radius: $radius-sm;
   color: var(--text-muted);
   font-family: $font-mono;
-  font-size: 11px;
+  font-size: 10px;
 }
 
 .tracking-board-card {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 5px;
-  padding: 8px;
+  padding: 4px 6px;
   border: 1px solid color-mix(in srgb, var(--border-color) 85%, transparent);
   border-radius: $radius-sm;
   background: color-mix(in srgb, var(--bg-primary) 88%, black 12%);
   cursor: pointer;
-  transition: border-color 0.16s ease, background 0.16s ease, transform 0.16s ease;
+  transition: border-color 0.16s ease, background 0.16s ease;
 
   &:hover {
     border-color: color-mix(in srgb, var(--accent-cyan) 45%, var(--border-color));
     background: color-mix(in srgb, var(--bg-primary) 76%, var(--accent-cyan) 8%);
-    transform: translateY(-1px);
   }
 
   &.active {
     border-color: color-mix(in srgb, var(--accent-cyan) 60%, white 10%);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-cyan) 35%, transparent);
   }
+}
+
+.tracking-board-card-avatar {
+  flex-shrink: 0;
+  width: 25px;
+  height: 25px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: auto 0;
+  font-size: 12px;
+  line-height: 1;
+  position: relative;
+
+  > img {
+    border-radius: 2px;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    aspect-ratio: 1 / 1;
+  }
+
+  > span {
+    font-size: 12px;
+    line-height: 1;
+  }
+
+  &.emoji {
+    border-radius: 4px;
+  }
+}
+
+.tracking-board-card-content {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 
 .tracking-board-card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
-}
-
-.tracking-board-card-identity {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
-.tracking-board-card-class-icon {
-  flex-shrink: 0;
-  font-size: 14px;
+  gap: 4px;
 }
 
 .tracking-board-card-name {
+  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--text-primary);
   font-weight: 600;
-  font-size: 12px;
+  font-size: 11.5px;
+}
+
+.tracking-board-card-time {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-family: $font-mono;
+  font-size: 9px;
+  white-space: nowrap;
 }
 
 .tracking-board-card-clear {
   border: none;
   background: none;
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: 11px;
   line-height: 1;
   cursor: pointer;
-  padding: 0 1px;
+  padding: 0;
 
   &:hover:not(:disabled) {
     color: var(--accent-red);
@@ -279,36 +313,25 @@
   color: var(--task-label-color, #f7c66e);
   font-family: $font-mono;
   font-size: 10px;
-  line-height: 1.3;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tracking-board-card-detail {
   color: var(--text-secondary);
-  font-size: 11px;
-  line-height: 1.35;
+  font-size: 10.5px;
+  line-height: 1.3;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   overflow: hidden;
 }
 
-.tracking-board-card-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  color: var(--text-muted);
-  font-family: $font-mono;
-  font-size: 10px;
-}
-
-.tracking-board-card-class,
-.tracking-board-card-time {
-  white-space: nowrap;
-}
 
 @media (max-width: 1100px) {
   .tracking-board-column-body {
-    min-height: 80px;
+    min-height: 40px;
   }
 }

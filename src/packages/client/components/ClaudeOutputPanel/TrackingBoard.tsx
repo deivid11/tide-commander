@@ -186,6 +186,7 @@ function TrackingBoardCard({
 }: TrackingBoardCardProps) {
   const customClasses = useCustomAgentClassesArray();
   const classConfig = getClassConfig(agent.class, customClasses);
+  const hasCustomIcon = !!classConfig.iconPath;
 
   return (
     <article
@@ -193,46 +194,41 @@ function TrackingBoardCard({
       onClick={() => onSelectAgent(agent.id)}
       title={agent.trackingStatusDetail || agent.taskLabel || agent.name}
     >
-      <div className="tracking-board-card-header">
-        <div className="tracking-board-card-identity">
-          <span
-            className="tracking-board-card-class-icon"
-            style={{ color: classConfig.color }}
-            aria-hidden="true"
-          >
-            <AgentIcon agent={agent} size={16} />
-          </span>
+      <div
+        className={`tracking-board-card-avatar${hasCustomIcon ? '' : ' emoji'}`}
+        style={hasCustomIcon ? undefined : { backgroundColor: classConfig.color ? `${classConfig.color}22` : undefined }}
+      >
+        <AgentIcon agent={agent} size="100%" customClasses={customClasses} />
+      </div>
+
+      <div className="tracking-board-card-content">
+        <div className="tracking-board-card-header">
           <span className="tracking-board-card-name">{agent.name}</span>
+          <span className="tracking-board-card-time">{timeLabel}</span>
+          <button
+            type="button"
+            className="tracking-board-card-clear"
+            onClick={(event) => {
+              event.stopPropagation();
+              void onClearStatus(agent);
+            }}
+            disabled={isClearing}
+            title="Clear tracking status"
+            aria-label="Clear tracking status"
+          >
+            ×
+          </button>
         </div>
 
-        <button
-          type="button"
-          className="tracking-board-card-clear"
-          onClick={(event) => {
-            event.stopPropagation();
-            void onClearStatus(agent);
-          }}
-          disabled={isClearing}
-          title="Clear tracking status"
-          aria-label="Clear tracking status"
-        >
-          ×
-        </button>
-      </div>
+        {agent.taskLabel && (
+          <div className="tracking-board-card-task" title={agent.taskLabel}>
+            {agent.taskLabel}
+          </div>
+        )}
 
-      {agent.taskLabel && (
-        <div className="tracking-board-card-task" title={agent.taskLabel}>
-          {agent.taskLabel}
+        <div className="tracking-board-card-detail">
+          {agent.trackingStatusDetail || agent.currentTask || 'No detail provided'}
         </div>
-      )}
-
-      <div className="tracking-board-card-detail">
-        {agent.trackingStatusDetail || agent.currentTask || 'No detail provided'}
-      </div>
-
-      <div className="tracking-board-card-footer">
-        <span className="tracking-board-card-class">{agent.class}</span>
-        <span className="tracking-board-card-time">{timeLabel}</span>
       </div>
     </article>
   );
