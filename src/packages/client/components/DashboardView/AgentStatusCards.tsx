@@ -1,10 +1,11 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Agent } from '@shared/types';
-import { getStatusColor, getAgentClassIcon, getContextPercent, getContextBarColor } from './utils';
+import { getStatusColor, getContextPercent, getContextBarColor } from './utils';
 import { formatIdleTime, formatTimeAgo } from '../../utils/formatting';
 import { getIdleTimerColor } from '../../utils/colors';
 import { useAgentsWithUnseenOutput } from '../../store';
+import { AgentIcon } from '../AgentIcon';
 
 interface AgentCardProps {
   agent: Agent;
@@ -33,7 +34,6 @@ export const AgentCard = React.memo(({
   const agentsWithUnseenOutput = useAgentsWithUnseenOutput();
   const hasUnseen = agentsWithUnseenOutput.has(agent.id);
   const statusColor = getStatusColor(agent.status);
-  const icon = getAgentClassIcon(agent.class);
   const contextPercent = getContextPercent(agent);
   const barColor = getContextBarColor(contextPercent);
   const taskPreview = agent.taskLabel ? `📋 ${agent.taskLabel}` : (agent.currentTask || agent.lastAssignedTask);
@@ -66,7 +66,7 @@ export const AgentCard = React.memo(({
       <div className="dash-card__row1">
         <span className={`dash-card__status-dot dash-card__status-dot--${statusColor}`} />
         <span className="dash-card__name">{agent.name}</span>
-        <span className="dash-card__class">{icon} {agent.class}</span>
+        <span className="dash-card__class"><AgentIcon agent={agent} size={14} /> {agent.class}</span>
         <span className={`dash-card__provider dash-card__provider--${agent.provider}`}>
           {agent.provider === 'codex' ? '🔸' : agent.provider === 'opencode' ? '🟢' : '🤖'} {agent.provider}
         </span>

@@ -10,6 +10,7 @@ import { BOSS_CONTEXT_START, BOSS_CONTEXT_END } from '../../../shared/types';
 import { store } from '../../store';
 import { createMarkdownComponents } from './MarkdownComponents';
 import type { ParsedBossContent, ParsedDelegation, ParsedBossResponse, ParsedInjectedInstructions, ParsedWorkPlanResponse, WorkPlan, WorkPlanPhase, WorkPlanTask } from './types';
+import { AgentIcon } from '../AgentIcon';
 
 // ============================================================================
 // Boss Context Parsing
@@ -629,15 +630,6 @@ const priorityEmoji: Record<string, string> = {
   low: '🟢',
 };
 
-const classEmoji: Record<string, string> = {
-  scout: '🔍',
-  builder: '🔨',
-  debugger: '🐛',
-  architect: '📐',
-  warrior: '⚔️',
-  support: '🛡️',
-};
-
 export function WorkPlanBlock({ workPlan }: WorkPlanBlockProps) {
   const { t } = useTranslation(['tools']);
   const [expandedPhases, setExpandedPhases] = useState<Set<string>>(new Set(workPlan.phases.map(p => p.id)));
@@ -699,7 +691,7 @@ export function WorkPlanBlock({ workPlan }: WorkPlanBlockProps) {
                         {priorityEmoji[task.priority]}
                       </span>
                       <span className="work-plan-task-class" title={`Suggested: ${task.suggestedClass}`}>
-                        {classEmoji[task.suggestedClass] || '👤'} {task.suggestedClass}
+                        <AgentIcon classId={task.suggestedClass} size={14} /> {task.suggestedClass}
                       </span>
                     </div>
                     <div className="work-plan-task-description">{task.description}</div>

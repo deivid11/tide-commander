@@ -7,9 +7,9 @@ import React, { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { store, useCustomAgentClassesArray } from '../../store';
 import { formatNumber } from '../../utils/formatting';
-import { getClassConfig } from '../../utils/classConfig';
 import type { Agent } from '../../../shared/types';
 import type { MultiAgentPanelProps } from './types';
+import { AgentIcon } from '../AgentIcon';
 
 // ============================================================================
 // MultiAgentPanel Component
@@ -72,8 +72,6 @@ const MultiAgentListItem = memo(function MultiAgentListItem({
   agent,
   customClasses,
 }: MultiAgentListItemProps) {
-  const cfg = getClassConfig(agent.class, customClasses);
-
   return (
     <div
       style={{
@@ -84,7 +82,7 @@ const MultiAgentListItem = memo(function MultiAgentListItem({
         fontSize: 12,
       }}
     >
-      <span>{cfg.icon}</span>
+      <AgentIcon agent={agent} size={14} customClasses={customClasses} />
       <span style={{ flex: 1 }}>{agent.name}</span>
       <span style={{ color: 'var(--text-secondary)' }}>{agent.status}</span>
     </div>

@@ -9,6 +9,7 @@ import { ModelPreview } from './ModelPreview';
 import { HelpTooltip } from './shared/Tooltip';
 import { FolderInput } from './shared/FolderInput';
 import { useModalClose } from '../hooks';
+import { AgentIcon } from './AgentIcon';
 
 interface ClaudeSession {
   sessionId: string;
@@ -564,7 +565,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                     onClick={() => setSelectedClass(customClass.id)}
                     title={customClass.description}
                   >
-                    <span className="class-chip-icon">{customClass.icon}</span>
+                    <AgentIcon classId={customClass.id} size={18} className="class-chip-icon" />
                     <span className="class-chip-name">{customClass.name}</span>
                   </button>
                 ))}
@@ -577,7 +578,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                       onClick={() => setSelectedClass(char.id)}
                       title={config.description}
                     >
-                      <span className="class-chip-icon">{config.icon}</span>
+                      <AgentIcon classId={char.id} size={18} className="class-chip-icon" />
                       <span className="class-chip-name">{char.name}</span>
                     </button>
                   );

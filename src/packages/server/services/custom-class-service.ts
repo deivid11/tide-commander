@@ -7,7 +7,7 @@ import { EventEmitter } from 'events';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { loadCustomAgentClasses, saveCustomAgentClasses } from '../data/index.js';
+import { loadCustomAgentClasses, saveCustomAgentClasses, deleteClassIcon } from '../data/index.js';
 import type { CustomAgentClass } from '../../shared/types.js';
 import { createLogger, generateSlug } from '../utils/index.js';
 
@@ -254,9 +254,15 @@ export function updateCustomClass(
  * Delete a custom agent class
  */
 export function deleteCustomClass(id: string): boolean {
-  if (!customClasses.has(id)) {
+  const existing = customClasses.get(id);
+  if (!existing) {
     log.warn(`Custom class not found: ${id}`);
     return false;
+  }
+
+  // Delete class icon file if exists
+  if (existing.iconPath) {
+    deleteClassIcon(existing.iconPath);
   }
 
   customClasses.delete(id);

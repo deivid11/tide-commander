@@ -37,6 +37,7 @@ const RUNNING_PROCESSES_FILE = path.join(DATA_DIR, 'running-processes.json');
 const SECRETS_FILE = path.join(DATA_DIR, 'secrets.json');
 const SESSION_HISTORY_FILE = path.join(DATA_DIR, 'session-history.json');
 const AREA_LOGOS_DIR = path.join(DATA_DIR, 'area-logos');
+const CLASS_ICONS_DIR = path.join(DATA_DIR, 'custom-class-icons');
 
 // Maximum history entries per agent
 const MAX_HISTORY_PER_AGENT = 50;
@@ -326,6 +327,33 @@ export function deleteAreaLogo(filename: string): void {
   if (fs.existsSync(filePath)) {
     fs.unlinkSync(filePath);
     log.log(` Deleted area logo: ${filename}`);
+  }
+}
+
+/**
+ * Ensure custom class icons directory exists
+ */
+export function ensureClassIconsDir(): void {
+  if (!fs.existsSync(CLASS_ICONS_DIR)) {
+    fs.mkdirSync(CLASS_ICONS_DIR, { recursive: true });
+  }
+}
+
+/**
+ * Get path to the custom class icons directory
+ */
+export function getClassIconsDir(): string {
+  return CLASS_ICONS_DIR;
+}
+
+/**
+ * Delete a class icon file from disk
+ */
+export function deleteClassIcon(filename: string): void {
+  const filePath = path.join(CLASS_ICONS_DIR, path.basename(filename));
+  if (fs.existsSync(filePath)) {
+    fs.unlinkSync(filePath);
+    log.log(` Deleted class icon: ${filename}`);
   }
 }
 

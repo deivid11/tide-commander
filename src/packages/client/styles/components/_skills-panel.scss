@@ -351,3 +351,78 @@
   color: $text-muted;
   font-size: 12px;
 }
+
+// Class icon upload button
+.class-icon-upload-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: $radius-md;
+  border: 1px dashed $dracula-comment;
+  background: transparent;
+  color: $text-muted;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  transition: all $transition-fast;
+
+  &:hover {
+    border-color: $dracula-purple;
+    color: $dracula-purple;
+    background: rgba($dracula-purple, 0.08);
+  }
+}
+
+.class-icon-upload-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.class-icon-upload-label {
+  font-size: 7px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+// Class icon preview (when image is uploaded)
+.class-icon-preview-container {
+  position: relative;
+  width: 36px;
+  height: 36px;
+}
+
+.class-icon-preview-img {
+  width: 36px;
+  height: 36px;
+  border-radius: $radius-md;
+  object-fit: cover;
+  border: 1px solid $dracula-comment;
+}
+
+.class-icon-preview-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: $dracula-red;
+  color: $dracula-fg;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  line-height: 1;
+  padding: 0;
+  transition: all $transition-fast;
+
+  &:hover {
+    background: color.adjust($dracula-red, $lightness: 10%);
+    transform: scale(1.1);
+  }
+}

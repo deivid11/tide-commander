@@ -5,10 +5,11 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { DrawingArea, AgentClass, AgentProvider } from '../../../shared/types';
-import { AGENT_CLASS_CONFIG, DEFAULT_NAMES, CHARACTER_MODELS } from '../../scene/config';
+import { DEFAULT_NAMES, CHARACTER_MODELS } from '../../scene/config';
 import { store } from '../../store';
 import { STORAGE_KEYS, getStorageString, setStorageString } from '../../utils/storage';
 import { FolderInput } from '../shared/FolderInput';
+import { AgentIcon } from '../AgentIcon';
 
 interface SpawnFormProps {
   currentArea: DrawingArea | null;
@@ -110,14 +111,13 @@ export function SpawnForm({ currentArea, onClose }: SpawnFormProps) {
             <label>{t('common:labels.class')}</label>
             <div className="commander-spawn-classes">
               {CHARACTER_MODELS.map(char => {
-                const config = AGENT_CLASS_CONFIG[char.id];
                 return (
                   <button
                     key={char.id}
                     className={`commander-spawn-class ${selectedClass === char.id ? 'selected' : ''}`}
                     onClick={() => setSelectedClass(char.id)}
                   >
-                    <span className="commander-spawn-class-icon">{config.icon}</span>
+                    <AgentIcon classId={char.id} size={18} className="commander-spawn-class-icon" />
                     <span>{char.name}</span>
                   </button>
                 );

@@ -6,6 +6,7 @@ import type { BuiltInAgentClass } from '../../../shared/types';
 import { store } from '../../store';
 import { getDisplayContextInfo } from '../../utils/context';
 import { TOOL_ICONS } from '../../utils/outputRendering';
+import { apiUrl, authUrl } from '../../utils/storage';
 import { BaseRenderer } from './BaseRenderer';
 import { get2DAgentDetailLevel, get2DIndicatorZoomFactor, get2DNameplateZoomFactor } from '../utils/indicatorScale';
 
@@ -22,8 +23,12 @@ export class AgentRenderer extends BaseRenderer {
   private effect: EffectRenderer;
 
   // Per-frame cached state to avoid store.getState() inside hot loop
-  private frameCustomClasses: Map<string, { icon: string }> | null = null;
+  private frameCustomClasses: Map<string, { icon: string; iconPath?: string }> | null = null;
   private frameUnseenOutput: Set<string> | null = null;
+
+  // Cache for loaded custom icon images
+  private iconImageCache = new Map<string, HTMLImageElement>();
+  private iconLoadingSet = new Set<string>();
 
   constructor(ctx: CanvasRenderingContext2D, camera: Scene2DCamera, effect: EffectRenderer) {
     super(ctx, camera);
@@ -49,6 +54,30 @@ export class AgentRenderer extends BaseRenderer {
     }
 
     return '🤖';
+  }
+
+  private getAgentIconImage(agentClass: string): HTMLImageElement | null {
+    const custom = this.frameCustomClasses?.get(agentClass);
+    if (!custom?.iconPath) return null;
+
+    const cached = this.iconImageCache.get(custom.iconPath);
+    if (cached) return cached;
+
+    // Start loading if not already in progress
+    if (!this.iconLoadingSet.has(custom.iconPath)) {
+      this.iconLoadingSet.add(custom.iconPath);
+      const img = new Image();
+      img.src = authUrl(apiUrl(`/api/custom-class-icons/${custom.iconPath}`));
+      img.onload = () => {
+        this.iconImageCache.set(custom.iconPath!, img);
+        this.iconLoadingSet.delete(custom.iconPath!);
+      };
+      img.onerror = () => {
+        this.iconLoadingSet.delete(custom.iconPath!);
+      };
+    }
+
+    return null;
   }
 
   private getDisplayName(name: string, detailLevel: 'full' | 'reduced' | 'compact' | 'minimal'): string {
@@ -207,12 +236,29 @@ export class AgentRenderer extends BaseRenderer {
 
     this.ctx.restore();
 
-    // ========== CLASS EMOJI ==========
-    const emojiFontSize = Math.max(6, Math.max(10 * indicatorZoomFactor, screenRadius * 1.1));
-    this.ctx.font = `${emojiFontSize}px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif`;
-    this.ctx.textAlign = 'center';
-    this.ctx.textBaseline = 'middle';
-    this.ctx.fillText(classEmoji, screenPos.x, screenPos.y + 1 - iconBounceOffset);
+    // ========== CLASS EMOJI / ICON IMAGE ==========
+    const iconImage = this.getAgentIconImage(agent.class);
+    if (iconImage) {
+      const iconSize = Math.max(12, screenRadius * 1.6);
+      this.ctx.save();
+      this.ctx.beginPath();
+      this.ctx.arc(screenPos.x, screenPos.y - iconBounceOffset, iconSize / 2, 0, Math.PI * 2);
+      this.ctx.clip();
+      this.ctx.drawImage(
+        iconImage,
+        screenPos.x - iconSize / 2,
+        screenPos.y - iconBounceOffset - iconSize / 2,
+        iconSize,
+        iconSize
+      );
+      this.ctx.restore();
+    } else {
+      const emojiFontSize = Math.max(6, Math.max(10 * indicatorZoomFactor, screenRadius * 1.1));
+      this.ctx.font = `${emojiFontSize}px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif`;
+      this.ctx.textAlign = 'center';
+      this.ctx.textBaseline = 'middle';
+      this.ctx.fillText(classEmoji, screenPos.x, screenPos.y + 1 - iconBounceOffset);
+    }
 
     // ========== BOSS CROWN ==========
     if (agent.isBoss) {
