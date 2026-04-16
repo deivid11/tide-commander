@@ -32,6 +32,7 @@ export interface CustomAgentClass {
   id: string;           // Unique identifier (slug)
   name: string;         // Display name
   icon: string;         // Emoji or icon
+  iconPath?: string;    // Filename of uploaded PNG icon (e.g., 'my-class-id.png')
   color: string;        // Hex color
   description: string;  // What this class does
   defaultSkillIds: string[];  // Skills automatically assigned to agents of this class

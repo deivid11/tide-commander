@@ -5,6 +5,7 @@ import type { AgentNotification, AgentClass } from '../../shared/types';
 import { BUILT_IN_AGENT_CLASSES } from '../../shared/types';
 import { showNotification, openAgentTerminalFromNotification, isNativeApp } from '../utils/notifications';
 import { triggerHaptic } from '../utils/haptics';
+import { AgentIcon } from './AgentIcon';
 
 interface AgentNotificationContextType {
   showAgentNotification: (notification: AgentNotification) => void;
@@ -51,7 +52,6 @@ function SwipeableNotification({ notification, onDismiss, onClick }: SwipeableNo
   const [dismissing, setDismissing] = useState(false);
   const swipingRef = useRef(false);
   const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-  const classIcon = getClassIcon(notification.agentClass);
   const classColor = getClassColor(notification.agentClass);
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
@@ -117,7 +117,7 @@ function SwipeableNotification({ notification, onDismiss, onClick }: SwipeableNo
     >
       <div className="agent-notification-content">
         <div className="agent-notification-header">
-          <span className="agent-notification-icon">{classIcon}</span>
+          <span className="agent-notification-icon"><AgentIcon classId={notification.agentClass} size={18} /></span>
           <span className="agent-notification-name">{notification.agentName}</span>
           <span className="agent-notification-separator">&middot;</span>
           <span className="agent-notification-title">{notification.title}</span>

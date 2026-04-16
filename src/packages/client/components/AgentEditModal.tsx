@@ -14,6 +14,7 @@ import { BUILT_IN_AGENT_CLASSES, PERMISSION_MODES, CLAUDE_MODELS, CLAUDE_EFFORTS
 import { ShortcutConfig, formatShortcutString, parseShortcutString, shortcutValueToString } from '../store/shortcuts';
 import { apiUrl } from '../utils/storage';
 import { useModalClose } from '../hooks';
+import { AgentIcon } from './AgentIcon';
 
 interface AgentEditModalProps {
   agent: Agent;
@@ -331,7 +332,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                     onClick={() => setSelectedClass(customClass.id)}
                     title={customClass.description}
                   >
-                    <span className="class-chip-icon">{customClass.icon}</span>
+                    <AgentIcon classId={customClass.id} size={18} className="class-chip-icon" />
                     <span className="class-chip-name">{customClass.name}</span>
                   </button>
                 ))}
@@ -344,7 +345,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                       onClick={() => setSelectedClass(key as AgentClass)}
                       title={config.description}
                     >
-                      <span className="class-chip-icon">{config.icon}</span>
+                      <AgentIcon classId={key} size={18} className="class-chip-icon" />
                       <span className="class-chip-name">{key.charAt(0).toUpperCase() + key.slice(1)}</span>
                     </button>
                   ))}

@@ -6,6 +6,7 @@ import { getClassConfig } from '../../utils/classConfig';
 import { formatIdleTime } from '../../utils/formatting';
 import { apiUrl, authFetch } from '../../utils/storage';
 import { useWorkspaceFilter, isAgentVisibleInWorkspace } from '../WorkspaceSwitcher';
+import { AgentIcon } from '../AgentIcon';
 
 interface TrackingBoardProps {
   activeAgentId: string;
@@ -199,7 +200,7 @@ function TrackingBoardCard({
             style={{ color: classConfig.color }}
             aria-hidden="true"
           >
-            {classConfig.icon}
+            <AgentIcon agent={agent} size={16} />
           </span>
           <span className="tracking-board-card-name">{agent.name}</span>
         </div>

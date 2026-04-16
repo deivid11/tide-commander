@@ -9,6 +9,7 @@ import React, { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { SnapshotListItem } from '../../shared/types/snapshot';
 import { BUILT_IN_AGENT_CLASSES, type BuiltInAgentClass } from '../../shared/types';
+import { AgentIcon } from './AgentIcon';
 
 export interface SnapshotManagerProps {
   /** List of all snapshots */
@@ -258,7 +259,7 @@ export function SnapshotManager({
                       style={{ color: classInfo.color }}
                       title={snapshot.agentName}
                     >
-                      {classInfo.icon}
+                      <AgentIcon classId={snapshot.agentClass} size={16} />
                     </span>
                     <span className="snapshot-card-agent-name">{snapshot.agentName}</span>
                     <span className="snapshot-card-date">{formatDate(snapshot.createdAt)}</span>

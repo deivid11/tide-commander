@@ -22,6 +22,7 @@ import { useNpmVersionStatus } from '../hooks/useNpmVersionStatus';
 import { hasPendingSceneChanges, refreshScene } from '../hooks/useSceneSetup';
 import { Tooltip } from './shared/Tooltip';
 import { useWorkspaceFilter, isAgentVisibleInWorkspace } from './WorkspaceSwitcher';
+import { AgentIcon } from './AgentIcon';
 
 interface AgentBarProps {
   onFocusAgent?: (agentId: string) => void;
@@ -67,11 +68,10 @@ interface AgentBarItemProps {
 
 const AgentBarItem = memo(function AgentBarItem({
   agent, currentIndex, agentIndex, isTouchInput, isTouchDragEnabled, isSelected, hasUnseenOutput,
-  isDragging, isDragOver, customClasses,
+  isDragging, isDragOver, customClasses: _customClasses,
   onDragStart, onDragEnd, onDragOver, onDragEnter, onDragLeave, onDrop,
   onAgentClick, onAgentDoubleClick, onTouchStart, onTouchMove, onTouchEnd, onTouchCancel, onHoverEnter, onHoverLeave, onItemRef,
 }: AgentBarItemProps) {
-  const config = useMemo(() => getClassConfig(agent.class, customClasses), [agent.class, customClasses]);
   const canDrag = !isTouchInput || isTouchDragEnabled;
 
   const handleRef = useCallback((el: HTMLDivElement | null) => {
@@ -102,7 +102,7 @@ const AgentBarItem = memo(function AgentBarItem({
         : `${agent.name} (${currentIndex + 1}) - Drag to reorder within group`}
     >
       <div className="agent-bar-avatar">
-        <span className="agent-bar-icon">{config.icon}</span>
+        <AgentIcon classId={agent.class} size={20} className="agent-bar-icon" />
         <span
           className="agent-bar-status"
           style={{ backgroundColor: getAgentStatusColor(agent.status) }}
@@ -808,7 +808,7 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
           <div className="agent-bar-tooltip" style={tooltipStyle}>
             <div className="agent-bar-tooltip-header">
               <span className="agent-bar-tooltip-icon">
-                {config.icon}
+                <AgentIcon classId={hoveredAgent.class} size={18} />
               </span>
               <span className="agent-bar-tooltip-name">
                 <img

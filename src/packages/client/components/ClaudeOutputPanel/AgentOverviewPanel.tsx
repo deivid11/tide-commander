@@ -28,6 +28,7 @@ import { ContextMenu } from '../ContextMenu';
 import type { ContextMenuAction } from '../ContextMenu';
 import { WorkspaceSwitcher, useWorkspaceFilter, isAgentVisibleInWorkspace } from '../WorkspaceSwitcher';
 import { BulkManageModal } from '../BulkManageModal';
+import { AgentIcon } from '../AgentIcon';
 
 /** Persisted config shape for the overview panel */
 interface AopConfig {
@@ -1327,6 +1328,9 @@ function AgentCard({
           className="aop-provider-icon"
           title={agent.provider === 'codex' ? 'Codex Agent' : agent.provider === 'opencode' ? 'OpenCode Agent' : 'Claude Agent'}
         />
+        <span className="aop-agent-class-icon" style={{ color: `color-mix(in srgb, ${classConfig.color} 60%, var(--text-muted))` }} title={agent.class || 'agent'}>
+          <AgentIcon agent={agent} size={14} />
+        </span>
         <span
           className="aop-agent-name"
           title={t('terminal:overview.clickToSwitch')}
@@ -1334,9 +1338,6 @@ function AgentCard({
         >
           {isBossAgent && <span className="aop-boss-crown" aria-hidden="true">👑</span>}
           {agent.name}
-        </span>
-        <span className="aop-agent-class-icon" style={{ color: `color-mix(in srgb, ${classConfig.color} 60%, var(--text-muted))` }} title={agent.class || 'agent'}>
-          {classConfig.icon}
         </span>
         {hasPendingRead && (
           <span className="aop-pending-read-indicator" title="Pending read">!</span>

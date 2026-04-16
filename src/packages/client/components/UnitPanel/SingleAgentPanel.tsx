@@ -38,6 +38,7 @@ import type {
   SubordinateBadgeProps,
   LinkToBossSectionProps,
 } from './types';
+import { AgentIcon } from '../AgentIcon';
 
 // ============================================================================
 // SingleAgentPanel Component
@@ -210,7 +211,7 @@ export function SingleAgentPanel({
       {/* Agent Header */}
       <div className="unit-panel-header">
         <div className="unit-class-icon" style={{ background: `${classConfig.color}20` }}>
-          {classConfig.icon}
+          <AgentIcon agent={agent} size={20} />
         </div>
         <div className="unit-header-info">
           {isEditingName ? (
@@ -487,7 +488,7 @@ const OtherAgentsSection = memo(function OtherAgentsSection({ currentAgentId }: 
                 }}
               >
                 <span className="unit-other-agent-icon" style={{ background: `${cc.color}20` }}>
-                  {cc.icon}
+                  <AgentIcon agent={agent} size={16} customClasses={customClasses} />
                 </span>
                 <div className="unit-other-agent-info">
                   <span className="unit-other-agent-name">{agent.name}</span>
@@ -820,7 +821,7 @@ const SupervisorHistoryItem = memo(function SupervisorHistoryItem({
         <div className="supervisor-history-item-content">
           {agent && classConfig && (
             <div className="supervisor-history-agent-line" onClick={handleAgentClick}>
-              <span className="supervisor-history-agent-icon">{classConfig.icon}</span>
+              <span className="supervisor-history-agent-icon"><AgentIcon classId={agent.class} size={14} /></span>
               <span className="supervisor-history-agent-name">{agent.name}</span>
               <span className="supervisor-history-time">{formatRelativeTime(entry.timestamp)}</span>
             </div>
@@ -890,7 +891,7 @@ const BossAgentSection = memo(function BossAgentSection({ agent }: BossAgentSect
       {/* Boss Header */}
       <div className="boss-header">
         <span className="boss-crown-icon" style={{ color: bossConfig.color }}>
-          {bossConfig.icon}
+          <AgentIcon classId="boss" size={20} />
         </span>
         <span className="boss-title">{t('unitPanel.bossAgent')}</span>
       </div>
@@ -927,7 +928,7 @@ const BossAgentSection = memo(function BossAgentSection({ agent }: BossAgentSect
                     }}
                   >
                     <span className="boss-subordinate-icon" style={{ color: subClassConfig.color }}>
-                      {subClassConfig.icon}
+                      <AgentIcon agent={sub} size={16} customClasses={customClasses} />
                     </span>
                     <div className="boss-subordinate-meta">
                       <span className="boss-subordinate-name">{sub.name}</span>
@@ -1071,7 +1072,7 @@ const SubordinateBadge = memo(function SubordinateBadge({ agentId, bossId }: Sub
   return (
     <div className="subordinate-badge">
       <span className="subordinate-badge-icon" style={{ color: bossConfig.color }}>
-        {bossConfig.icon}
+        <AgentIcon agent={boss} size={16} />
       </span>
       <span className="subordinate-badge-text">
         {t('labels.reportsTo')}: <strong>{boss.name}</strong>
@@ -1119,7 +1120,7 @@ const LinkToBossSection = memo(function LinkToBossSection({ agentId }: LinkToBos
       {!isExpanded ? (
         <button className="link-to-boss-btn" onClick={() => setIsExpanded(true)}>
           <span className="link-to-boss-icon" style={{ color: bossConfig.color }}>
-            {bossConfig.icon}
+            <AgentIcon classId="boss" size={16} />
           </span>
           <span>{t('unitPanel.linkToBoss')}</span>
         </button>
@@ -1135,7 +1136,7 @@ const LinkToBossSection = memo(function LinkToBossSection({ agentId }: LinkToBos
             {bossAgents.map((boss) => (
               <div key={boss.id} className="link-to-boss-item" onClick={() => handleLinkToBoss(boss.id)}>
                 <span className="link-to-boss-item-icon" style={{ color: bossConfig.color }}>
-                  {bossConfig.icon}
+                  <AgentIcon agent={boss} size={16} />
                 </span>
                 <span className="link-to-boss-item-name">{boss.name}</span>
                 <span className="link-to-boss-item-count">{t('unitPanel.agentsCount', { count: boss.subordinateIds?.length || 0 })}</span>

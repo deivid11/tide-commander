@@ -3,12 +3,11 @@
  */
 
 import React, { useState, useEffect, memo } from 'react';
-import { useCustomAgentClassesArray } from '../../store';
 import type { Agent } from '../../../shared/types';
 import { formatIdleTime } from '../../utils/formatting';
-import { getClassConfig } from '../../utils/classConfig';
 import { getIdleTimerColor, getAgentStatusColor } from '../../utils/colors';
 import { TOOL_ICONS } from '../../utils/outputRendering';
+import { AgentIcon } from '../AgentIcon';
 
 /**
  * Compact idle time format for small spaces (e.g., "2m", "1h", "3d")
@@ -35,10 +34,7 @@ interface GuakeAgentLinkProps {
 }
 
 export const GuakeAgentLink = memo(function GuakeAgentLink({ agent, isSelected, onClick }: GuakeAgentLinkProps) {
-  const customClasses = useCustomAgentClassesArray();
   const [, setTick] = useState(0);
-  const config = getClassConfig(agent.class, customClasses);
-
   // Update timer every second when agent is idle
   useEffect(() => {
     if (agent.status === 'idle' && agent.lastActivity > 0) {
@@ -57,7 +53,7 @@ export const GuakeAgentLink = memo(function GuakeAgentLink({ agent, isSelected, 
       onClick={onClick}
       title={`${agent.name} - ${agent.status}${agent.currentTool ? ` (${agent.currentTool})` : ''}${agent.lastActivity ? ` • Idle: ${formatIdleTime(agent.lastActivity)}` : ''}${agent.taskLabel ? `\n📋 ${agent.taskLabel}` : ''}\n📁 ${agent.cwd}${agent.lastAssignedTask ? `\n💬 ${agent.lastAssignedTask}` : ''}`}
     >
-      <span className="guake-agent-link-icon">{config.icon}</span>
+      <span className="guake-agent-link-icon"><AgentIcon agent={agent} size={16} /></span>
       <span className="guake-agent-link-status" style={{ backgroundColor: getAgentStatusColor(agent.status) }} />
       {showIdleTimer && (
         <span className="guake-agent-link-idle" style={{ color: getIdleTimerColor(agent.lastActivity) }}>

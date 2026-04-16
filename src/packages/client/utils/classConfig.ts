@@ -21,7 +21,7 @@ export function normalizeColor(color: number | string): string {
 export function getClassConfig(
   agentClass: string,
   customClasses: CustomAgentClass[]
-): { icon: string; color: string; description?: string } {
+): { icon: string; color: string; description?: string; iconPath?: string } {
   // Check built-in classes first
   const builtIn = AGENT_CLASS_CONFIG[agentClass as BuiltInAgentClass];
   if (builtIn) {
@@ -39,6 +39,7 @@ export function getClassConfig(
       icon: custom.icon,
       color: custom.color,
       description: custom.description,
+      iconPath: custom.iconPath,
     };
   }
 

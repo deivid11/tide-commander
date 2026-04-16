@@ -7,6 +7,7 @@ import { PERMISSION_MODES, AGENT_CLASSES, CLAUDE_MODELS, CODEX_MODELS } from '..
 import { STORAGE_KEYS, getStorageString, setStorageString, apiUrl } from '../utils/storage';
 import { ModelPreview } from './ModelPreview';
 import { FolderInput } from './shared/FolderInput';
+import { AgentIcon } from './AgentIcon';
 
 interface BossSpawnModalProps {
   isOpen: boolean;
@@ -347,7 +348,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
     >
       <div className="modal boss-spawn-modal">
         <div className="modal-header">
-          <span className="boss-header-icon">{bossConfig.icon}</span>
+          <AgentIcon classId="boss" size={22} className="boss-header-icon" />
           {t('terminal:spawn.deployBossTitle')}
         </div>
 
@@ -383,7 +384,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                     onClick={() => setSelectedClass(customClass.id)}
                     title={customClass.description}
                   >
-                    <span className="class-chip-icon">{customClass.icon}</span>
+                    <AgentIcon classId={customClass.id} size={18} className="class-chip-icon" />
                     <span className="class-chip-name">{customClass.name}</span>
                   </button>
                 ))}
@@ -393,7 +394,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                     onClick={() => setSelectedClass('boss')}
                     title={bossConfig.description}
                   >
-                    <span className="class-chip-icon">{bossConfig.icon}</span>
+                    <AgentIcon classId="boss" size={18} className="class-chip-icon" />
                     <span className="class-chip-name">{t('terminal:spawn.bossClassName')}</span>
                   </button>
                 )}
@@ -407,7 +408,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                       onClick={() => setSelectedClass(char.id)}
                       title={config.description}
                     >
-                      <span className="class-chip-icon">{config.icon}</span>
+                      <AgentIcon classId={char.id} size={18} className="class-chip-icon" />
                       <span className="class-chip-name">{char.name}</span>
                     </button>
                   );
@@ -688,7 +689,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                       >
                         {isSelected && <span className="subordinate-check">✓</span>}
                         <span className="subordinate-chip-icon" style={{ color: classConfig.color }}>
-                          {classConfig.icon}
+                          <AgentIcon classId={agent.class} size={16} />
                         </span>
                         <span className="subordinate-chip-name">{agent.name}</span>
                       </button>

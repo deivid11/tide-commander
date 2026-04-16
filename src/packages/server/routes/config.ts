@@ -86,6 +86,13 @@ const CONFIG_CATEGORIES: ConfigCategory[] = [
     sourceDir: 'home',
   },
   {
+    id: 'custom-class-icons',
+    name: 'Custom Class Icons',
+    description: 'PNG/JPEG/WebP icon files for custom agent classes',
+    files: ['custom-class-icons/*'],
+    sourceDir: 'data',
+  },
+  {
     id: 'hooks',
     name: 'Hooks',
     description: 'Hook scripts and settings',

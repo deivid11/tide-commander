@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.46.0] - 2026-04-16
+
+### Added
+- **Custom class icons** - Upload custom PNG/JPG/GIF/WebP/SVG icons for agent classes instead of using emoji
+- **AgentIcon component** - Unified icon component that renders custom uploaded icons or falls back to emoji across the entire UI
+- **Class icon API** - Backend routes for uploading, serving, and deleting custom class icon files
+- **2D scene icon rendering** - Custom class icons rendered as images in the 2D canvas scene with caching
+
+### Changed
+- **Icon display across UI** - Agent bars, hover popups, spawn modals, tracking board, unit panels, and all agent views now use AgentIcon for consistent icon rendering
+- **Class editor** - Icon picker now supports both emoji selection and image file upload with preview
+
 ## [1.45.0] - 2026-04-16
 
 ### Added

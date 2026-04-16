@@ -5,6 +5,7 @@ import type { Agent, AgentSupervisorHistoryEntry } from '../../shared/types';
 import { getClassConfig } from '../utils/classConfig';
 import { getAgentStatusColor } from '../utils/colors';
 import { TOOL_ICONS } from '../utils/outputRendering';
+import { AgentIcon } from './AgentIcon';
 
 interface AgentHoverPopupProps {
   agent: Agent;
@@ -102,7 +103,7 @@ export const AgentHoverPopup = memo(function AgentHoverPopup({ agent, screenPos,
     >
       <div className="agent-bar-tooltip-header">
         <span className="agent-bar-tooltip-icon">
-          {config.icon}
+          <AgentIcon agent={agent} size={18} />
         </span>
         <span className="agent-bar-tooltip-name">{agent.name}</span>
         <span

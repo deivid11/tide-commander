@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { store, useAgents, useAgent } from '../store';
 import { AGENT_CLASSES } from '../../shared/types';
+import { AgentIcon } from './AgentIcon';
 
 interface SubordinateAssignmentModalProps {
   isOpen: boolean;
@@ -86,7 +87,7 @@ export function SubordinateAssignmentModal({ isOpen, bossId, onClose }: Subordin
       <div className="modal subordinate-assignment-modal">
         <div className="modal-header">
           <span className="boss-header-icon" style={{ color: bossConfig.color }}>
-            {bossConfig.icon}
+            <AgentIcon agent={boss} size={22} />
           </span>
           {t('terminal:supervisor.manageTeam')}: {boss.name}
         </div>
@@ -128,7 +129,7 @@ export function SubordinateAssignmentModal({ isOpen, bossId, onClose }: Subordin
                       className="subordinate-icon"
                       style={{ color: classConfig.color }}
                     >
-                      {classConfig.icon}
+                      <AgentIcon agent={agent} size={18} />
                     </div>
                     <div className="subordinate-info">
                       <div className="subordinate-name">{agent.name}</div>

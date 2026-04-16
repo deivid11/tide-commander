@@ -6,16 +6,16 @@
 
 import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { store, useSupervisor, useSettings, useLastPrompt, useSubagentsForAgent, useCustomAgentClass, useAreas } from '../../store';
+import { store, useSupervisor, useSettings, useLastPrompt, useSubagentsForAgent, useAreas } from '../../store';
 import { STORAGE_KEYS, setStorageString } from '../../utils/storage';
 import { agentDebugger } from '../../services/agentDebugger';
 import { Tooltip } from '../shared/Tooltip';
 
 import type { Agent, AgentAnalysis } from '../../../shared/types';
-import { BUILT_IN_AGENT_CLASSES } from '../../../shared/types';
 import type { ViewMode } from './types';
 import { VIEW_MODES } from './types';
 import { themes, getTheme, applyTheme, getSavedTheme, type ThemeId } from '../../utils/themes';
+import { AgentIcon } from '../AgentIcon';
 
 export interface TerminalHeaderProps {
   selectedAgent: Agent;
@@ -177,14 +177,6 @@ export const TerminalHeader = memo(function TerminalHeader({
   // Check for active subagents (Claude Code Task tool subprocesses)
   const subagents = useSubagentsForAgent(selectedAgentId);
 
-  // Get agent class emoji
-  const customClass = useCustomAgentClass(
-    selectedAgent.class in BUILT_IN_AGENT_CLASSES ? null : selectedAgent.class
-  );
-  const agentEmoji = customClass?.icon
-    || (BUILT_IN_AGENT_CLASSES as Record<string, { icon: string }>)[selectedAgent.class]?.icon
-    || '🤖';
-
   // Find the area this agent belongs to (for colored border)
   const areas = useAreas();
   const agentArea = React.useMemo(() => {
@@ -289,7 +281,7 @@ export const TerminalHeader = memo(function TerminalHeader({
               onClick={onToggleAgentInfo}
               title={t('terminal:header.showAgentInfo')}
             >
-              <span className="guake-agent-avatar">{agentEmoji}</span>
+              <span className="guake-agent-avatar"><AgentIcon agent={selectedAgent} size={20} /></span>
               <span className="guake-title-block">
                 <span className="guake-title-main-row">
                   <span className="guake-title">{selectedAgent.name}</span>
@@ -312,7 +304,7 @@ export const TerminalHeader = memo(function TerminalHeader({
             </button>
           ) : (
             <div className="guake-title-with-provider">
-              <span className="guake-agent-avatar">{agentEmoji}</span>
+              <span className="guake-agent-avatar"><AgentIcon agent={selectedAgent} size={20} /></span>
               <span className="guake-title-block">
                 <span className="guake-title-main-row">
                   <span className="guake-title">{selectedAgent.name}</span>

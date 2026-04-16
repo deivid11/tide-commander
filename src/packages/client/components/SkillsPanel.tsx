@@ -8,7 +8,9 @@ import type { Skill, CustomAgentClass, AnimationMapping } from '../../shared/typ
 import { ALL_CHARACTER_MODELS } from '../scene/config';
 import { parseGlbAnimations, isValidGlbFile, formatFileSize } from '../utils/glbParser';
 import { apiUrl, authFetch } from '../utils/storage';
+import { uploadClassIcon, deleteClassIcon, getClassIconUrl } from '../api/class-icons';
 import { useModalClose } from '../hooks';
+import { AgentIcon } from './AgentIcon';
 
 type PanelTab = 'skills' | 'classes';
 
@@ -62,6 +64,11 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
   const [isUploadingModel, setIsUploadingModel] = useState(false);
   const [modelUploadError, setModelUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Class icon upload state
+  const [classIconFile, setClassIconFile] = useState<File | null>(null);
+  const [classIconPreview, setClassIconPreview] = useState<string | null>(null);
+  const iconFileInputRef = useRef<HTMLInputElement>(null);
 
   // Modal close handler for class editor
   const closeClassEditor = useCallback(() => setShowClassEditor(false), []);
@@ -197,6 +204,9 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
     setModelOffsetY(0);
     setModelOffsetZ(0);
     setModelUploadError(null);
+    // Reset icon upload state
+    setClassIconFile(null);
+    setClassIconPreview(null);
     setShowClassEditor(true);
   };
 
@@ -222,6 +232,9 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
     setModelOffsetY(customClass.modelOffset?.y || 0);
     setModelOffsetZ(customClass.modelOffset?.z || 0);
     setModelUploadError(null);
+    // Set icon upload state from existing class
+    setClassIconFile(null);
+    setClassIconPreview(customClass.iconPath ? getClassIconUrl(customClass.iconPath) : null);
     setShowClassEditor(true);
   };
 
@@ -253,17 +266,39 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
       if (customModelFile) {
         await uploadCustomModel(editingClassId);
       }
+
+      // Upload custom icon if a new file was selected
+      if (classIconFile) {
+        try {
+          const result = await uploadClassIcon(editingClassId, classIconFile);
+          store.updateCustomAgentClass(editingClassId, { iconPath: result.iconPath });
+        } catch (err) {
+          console.error('Failed to upload class icon:', err);
+        }
+      }
     } else {
       // Create new class
       store.createCustomAgentClass(classData as Omit<CustomAgentClass, 'id' | 'createdAt' | 'updatedAt'>);
 
-      // If we have a custom model to upload, predict the class ID and upload it
       // The server generates the ID using generateSlug(name), same as client-side
+      const predictedId = generateSlug(className);
+
+      // If we have a custom model to upload, predict the class ID and upload it
       if (customModelFile) {
-        const predictedId = generateSlug(className);
         // Small delay to ensure the class is created server-side first
         await new Promise(resolve => setTimeout(resolve, 100));
         await uploadCustomModel(predictedId);
+      }
+
+      // Upload custom icon if a new file was selected
+      if (classIconFile) {
+        await new Promise(resolve => setTimeout(resolve, customModelFile ? 0 : 100));
+        try {
+          const result = await uploadClassIcon(predictedId, classIconFile);
+          store.updateCustomAgentClass(predictedId, { iconPath: result.iconPath });
+        } catch (err) {
+          console.error('Failed to upload class icon:', err);
+        }
       }
     }
 
@@ -647,7 +682,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
                             fontSize: '18px',
                           }}
                         >
-                          {customClass.icon}
+                          <AgentIcon classId={customClass.id} size={18} />
                         </div>
                         <div>
                           <div style={{ fontWeight: 600, fontSize: '14px' }}>{customClass.name}</div>
@@ -1088,7 +1123,69 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
               <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
                 <div className="form-section" style={{ flex: '0 0 80px' }}>
                   <label className="form-label">{t('tools:skills.icon')}</label>
-                  <EmojiPicker value={classIcon} onChange={setClassIcon} />
+                  {classIconPreview ? (
+                    <div className="class-icon-preview-container">
+                      <img
+                        src={classIconPreview}
+                        alt="Class icon"
+                        className="class-icon-preview-img"
+                      />
+                      <button
+                        className="class-icon-preview-remove"
+                        onClick={() => {
+                          setClassIconFile(null);
+                          setClassIconPreview(null);
+                          // If editing and class had a saved iconPath, delete it from server
+                          if (editingClassId) {
+                            const existingClass = customClasses.find(c => c.id === editingClassId);
+                            if (existingClass?.iconPath) {
+                              deleteClassIcon(editingClassId).then(() => {
+                                store.updateCustomAgentClass(editingClassId, { iconPath: undefined });
+                              }).catch(err => console.error('Failed to delete class icon:', err));
+                            }
+                          }
+                        }}
+                        title="Remove icon"
+                      >
+                        &times;
+                      </button>
+                    </div>
+                  ) : (
+                    <EmojiPicker
+                      value={classIcon}
+                      onChange={(emoji) => {
+                        setClassIcon(emoji);
+                        setClassIconFile(null);
+                        setClassIconPreview(null);
+                      }}
+                    />
+                  )}
+                </div>
+                <div className="form-section" style={{ flex: '0 0 auto', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+                  <input
+                    ref={iconFileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setClassIconFile(file);
+                        setClassIcon('');
+                        const url = URL.createObjectURL(file);
+                        setClassIconPreview(url);
+                      }
+                      e.target.value = '';
+                    }}
+                  />
+                  <button
+                    className="class-icon-upload-btn"
+                    onClick={() => iconFileInputRef.current?.click()}
+                    title="Upload custom icon"
+                  >
+                    <span className="class-icon-upload-icon">+</span>
+                    <span className="class-icon-upload-label">IMG</span>
+                  </button>
                 </div>
                 <div className="form-section" style={{ flex: 1 }}>
                   <label className="form-label">{t('tools:skills.color')}</label>

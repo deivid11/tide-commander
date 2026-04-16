@@ -15,6 +15,7 @@ import { formatIdleCompact, formatRelativeTime, calculateContextInfo, getContext
 import type { Agent, AgentSupervisorHistoryEntry } from '../../../shared/types';
 import type { AgentsListProps, AgentListItemProps, GlobalSupervisorStatusProps } from './types';
 import { SupervisorHistoryItem } from './SingleAgentPanel';
+import { AgentIcon } from '../AgentIcon';
 
 // ============================================================================
 // Types
@@ -356,7 +357,7 @@ const AgentListItem = memo(function AgentListItem({ agent, area: _area, searchQu
     <div className={`agent-item ${isSelected ? 'selected' : ''} ${hasUnread ? 'unread' : ''} ${agent.status}`} onClick={handleClick}>
       {/* Icon */}
       <div className="agent-item-icon" style={{ background: `${classConfig.color}20` }}>
-        {classConfig.icon}
+        <AgentIcon agent={agent} size={18} />
         {hasUnread && <span className="agent-item-unread-dot" />}
       </div>
 
