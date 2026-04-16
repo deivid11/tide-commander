@@ -17,6 +17,7 @@ import { gmailPlugin } from './gmail/index.js';
 import { docxPlugin } from './docx/index.js';
 import { jiraPlugin } from './jira/index.js';
 import { googleCalendarPlugin } from './google-calendar/index.js';
+import { googleDrivePlugin } from './google-drive/index.js';
 
 const log = createLogger('Integrations');
 
@@ -28,6 +29,7 @@ const ALL_PLUGINS: IntegrationPlugin[] = [
   slackPlugin,
   gmailPlugin,
   googleCalendarPlugin,
+  googleDrivePlugin,
   docxPlugin,
   jiraPlugin,
 ];
