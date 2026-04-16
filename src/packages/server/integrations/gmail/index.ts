@@ -62,9 +62,11 @@ export const gmailPlugin: IntegrationPlugin = {
     }
     return {
       authMethod: gmailClient.getConfig().authMethod || 'oauth2',
-      clientId: integrationCtx.secrets.get('GOOGLE_CLIENT_ID') || '',
-      clientSecret: integrationCtx.secrets.get('GOOGLE_CLIENT_SECRET') || '',
-      serviceAccountJson: integrationCtx.secrets.get('GOOGLE_SERVICE_ACCOUNT_JSON') || '',
+      // Mask shared OAuth credentials with '********' placeholder (consistent with
+      // Calendar and Drive integrations, which share these same secrets).
+      clientId: integrationCtx.secrets.get('GOOGLE_CLIENT_ID') ? '********' : '',
+      clientSecret: integrationCtx.secrets.get('GOOGLE_CLIENT_SECRET') ? '********' : '',
+      serviceAccountJson: integrationCtx.secrets.get('GOOGLE_SERVICE_ACCOUNT_JSON') ? '********' : '',
       impersonateEmail: integrationCtx.secrets.get('GOOGLE_IMPERSONATE_EMAIL') || '',
       pollingIntervalMs: gmailClient.getConfig().pollingIntervalMs,
       defaultApprovalKeywords: gmailClient.getConfig().defaultApprovalKeywords.join(','),
@@ -79,15 +81,15 @@ export const gmailPlugin: IntegrationPlugin = {
     if (config.authMethod !== undefined) {
       updates.authMethod = config.authMethod as string;
     }
-    if (config.clientId) {
+    if (config.clientId && config.clientId !== '********') {
       updates.clientId = config.clientId as string;
       integrationCtx.secrets.set('GOOGLE_CLIENT_ID', config.clientId as string);
     }
-    if (config.clientSecret) {
+    if (config.clientSecret && config.clientSecret !== '********') {
       updates.clientSecret = config.clientSecret as string;
       integrationCtx.secrets.set('GOOGLE_CLIENT_SECRET', config.clientSecret as string);
     }
-    if (config.serviceAccountJson) {
+    if (config.serviceAccountJson && config.serviceAccountJson !== '********') {
       updates.serviceAccountJson = config.serviceAccountJson as string;
       integrationCtx.secrets.set('GOOGLE_SERVICE_ACCOUNT_JSON', config.serviceAccountJson as string);
     }

@@ -90,6 +90,7 @@ async function main(): Promise<void> {
       logApprovalEvent: eventQueries.logApprovalEvent as (...args: unknown[]) => unknown,
       logDocumentGeneration: eventQueries.logDocumentGeneration as (...args: unknown[]) => unknown,
       logCalendarAction: eventQueries.logCalendarAction as (...args: unknown[]) => unknown,
+      logDriveAction: eventQueries.logDriveAction as (...args: unknown[]) => unknown,
       logJiraTicketAction: eventQueries.logJiraTicketAction as (...args: unknown[]) => unknown,
       logAudit: eventQueries.logAudit as (...args: unknown[]) => unknown,
     },

@@ -29,6 +29,13 @@ export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthS
   const [authStatus, setAuthStatus] = useState<GoogleAuthStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showManualEdit, setShowManualEdit] = useState(false);
+
+  // Detect credentials already saved in the shared secrets store (e.g. from Gmail/Calendar)
+  const hasSharedCredentials =
+    integration.values.GOOGLE_CLIENT_ID === '********' &&
+    integration.values.GOOGLE_CLIENT_SECRET === '********';
+
   const [step, setStep] = useState<'credentials' | 'authorize' | 'connected'>(
     integration.status.connected ? 'connected' : 'credentials'
   );
@@ -38,7 +45,12 @@ export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthS
   // Fetch current Google auth status
   const fetchStatus = useCallback(async () => {
     try {
-      const endpoint = integration.id === 'gmail' ? '/api/email/status' : '/api/calendar/status';
+      const statusEndpoints: Record<string, string> = {
+        'gmail': '/api/email/status',
+        'google-calendar': '/api/calendar/status',
+        'google-drive': '/api/drive/status',
+      };
+      const endpoint = statusEndpoints[integration.id] || '/api/calendar/status';
       const resp = await authFetch(apiUrl(endpoint));
       if (resp.ok) {
         const data = (await resp.json()) as GoogleAuthStatus;
@@ -65,6 +77,45 @@ export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthS
     };
   }, [fetchStatus]);
 
+  const fetchAuthUrlAndStart = async () => {
+    const authUrlEndpoints: Record<string, string> = {
+      'gmail': '/api/email/auth/url',
+      'google-calendar': '/api/calendar/auth/url',
+      'google-drive': '/api/drive/auth/url',
+    };
+    const endpoint = authUrlEndpoints[integration.id] || '/api/calendar/auth/url';
+    const resp = await authFetch(apiUrl(endpoint));
+    if (!resp.ok) {
+      const data = await resp.json().catch(() => ({}));
+      throw new Error((data as { error?: string }).error || `HTTP ${resp.status}`);
+    }
+    const data = (await resp.json()) as { url: string };
+    if (!data.url) {
+      throw new Error('OAuth URL is empty');
+    }
+    setAuthUrl(data.url);
+    setError(null);
+    setStep('authorize');
+
+    // Start polling for auth completion
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+    }
+    pollTimerRef.current = setInterval(fetchStatus, 3000);
+  };
+
+  const handleUseSharedCredentials = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      await fetchAuthUrlAndStart();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to get OAuth URL');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSaveCredentials = async () => {
     if (!clientId.trim()) {
       setError('Client ID is required');
@@ -75,9 +126,11 @@ export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthS
     setError(null);
 
     try {
-      const config: Record<string, unknown> = {
-        GOOGLE_CLIENT_ID: clientId.trim(),
-      };
+      const config: Record<string, unknown> = {};
+      // Only send the Client ID if it was changed (not the '********' placeholder)
+      if (clientId.trim() && clientId.trim() !== '********') {
+        config.GOOGLE_CLIENT_ID = clientId.trim();
+      }
       if (clientSecret.trim()) {
         config.GOOGLE_CLIENT_SECRET = clientSecret.trim();
       }
@@ -86,32 +139,8 @@ export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthS
       await onSave(config);
       console.log('Config saved successfully');
 
-      // Fetch the OAuth consent URL
-      console.log('Fetching OAuth URL...');
-      const endpoint = integration.id === 'gmail' ? '/api/email/auth/url' : '/api/calendar/auth/url';
-      const resp = await authFetch(apiUrl(endpoint));
-      console.log('OAuth URL response:', resp.status);
-      if (!resp.ok) {
-        const data = await resp.json().catch(() => ({}));
-        throw new Error((data as { error?: string }).error || `HTTP ${resp.status}`);
-      }
-      const data = (await resp.json()) as { url: string };
-      console.log('Received OAuth URL:', data);
-      if (!data.url) {
-        throw new Error('OAuth URL is empty');
-      }
-      setAuthUrl(data.url);
-      console.log('AuthUrl state updated');
-      setError(null);
-      setStep('authorize');
-      console.log('Step updated to authorize');
-
-      // Start polling for auth completion
-      if (pollTimerRef.current) {
-        clearInterval(pollTimerRef.current);
-      }
-      pollTimerRef.current = setInterval(fetchStatus, 3000);
-      console.log('Started polling for auth completion');
+      // Fetch the OAuth consent URL and start polling
+      await fetchAuthUrlAndStart();
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to get OAuth URL';
       console.error('Error in handleSaveCredentials:', errorMsg, err);
@@ -130,62 +159,107 @@ export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthS
       {step === 'credentials' && (
         <div className="google-oauth-section">
           <h4 className="google-oauth-section-title">Google OAuth Credentials</h4>
-          <p className="google-oauth-help">
-            Create OAuth2 credentials in the{' '}
-            <a
-              href="https://console.cloud.google.com/apis/credentials"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="google-oauth-link"
-            >
-              Google Cloud Console
-            </a>
-            . Enable the Gmail and Calendar APIs. Set the redirect URI to:{' '}
-            <code className="google-oauth-code">
-              {apiUrl(integration.id === 'gmail' ? '/api/email/auth/callback' : '/api/calendar/auth/callback')}
-            </code>
-          </p>
 
-          <div className="google-oauth-field">
-            <label className="integration-field-label">
-              OAuth Client ID <span className="integration-field-required">*</span>
-            </label>
-            <input
-              type="text"
-              className="integration-field-input"
-              value={clientId}
-              placeholder="xxxx.apps.googleusercontent.com"
-              onChange={(e) => setClientId(e.target.value)}
-            />
-          </div>
+          {hasSharedCredentials && !showManualEdit ? (
+            <>
+              <div className="google-oauth-shared-banner">
+                <div className="google-oauth-shared-title">
+                  <span>{'\u2713'}</span>
+                  <span>Credentials already configured</span>
+                </div>
+                <div className="google-oauth-shared-body">
+                  Existing Google OAuth credentials (Client ID and Secret) are saved in your secrets store —
+                  they&apos;re shared between Gmail, Calendar, and Drive. You may still need to re-authorize
+                  once so the refresh token grants access to this service.
+                </div>
+              </div>
 
-          <div className="google-oauth-field">
-            <label className="integration-field-label">
-              OAuth Client Secret <span className="integration-field-required">*</span>
-            </label>
-            <input
-              type="password"
-              className="integration-field-input"
-              value={clientSecret}
-              placeholder={integration.values.GOOGLE_CLIENT_SECRET ? '(saved)' : 'Enter client secret'}
-              onChange={(e) => setClientSecret(e.target.value)}
-              autoComplete="off"
-            />
-          </div>
+              <div className="integration-form-actions">
+                <button type="button" className="integration-btn cancel" onClick={onCancel}>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="integration-btn secondary"
+                  onClick={() => setShowManualEdit(true)}
+                  disabled={loading}
+                >
+                  Edit credentials
+                </button>
+                <button
+                  type="button"
+                  className="integration-btn save"
+                  onClick={handleUseSharedCredentials}
+                  disabled={loading}
+                >
+                  {loading ? 'Loading...' : 'Authorize with existing credentials'}
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="google-oauth-help">
+                Create OAuth2 credentials in the{' '}
+                <a
+                  href="https://console.cloud.google.com/apis/credentials"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="google-oauth-link"
+                >
+                  Google Cloud Console
+                </a>
+                . Enable the relevant API (Gmail, Calendar, or Drive). Set the redirect URI to:{' '}
+                <code className="google-oauth-code">
+                  {apiUrl(
+                    integration.id === 'gmail' ? '/api/email/auth/callback' :
+                    integration.id === 'google-drive' ? '/api/drive/auth/callback' :
+                    '/api/calendar/auth/callback'
+                  )}
+                </code>
+              </p>
 
-          <div className="integration-form-actions">
-            <button type="button" className="integration-btn cancel" onClick={onCancel}>
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="integration-btn save"
-              onClick={handleSaveCredentials}
-              disabled={loading || !clientId.trim()}
-            >
-              {loading ? 'Saving...' : 'Save & Authorize'}
-            </button>
-          </div>
+              <div className="google-oauth-field">
+                <label className="integration-field-label">
+                  OAuth Client ID <span className="integration-field-required">*</span>
+                </label>
+                <input
+                  type="text"
+                  className="integration-field-input"
+                  value={clientId}
+                  placeholder="xxxx.apps.googleusercontent.com"
+                  onChange={(e) => setClientId(e.target.value)}
+                />
+              </div>
+
+              <div className="google-oauth-field">
+                <label className="integration-field-label">
+                  OAuth Client Secret <span className="integration-field-required">*</span>
+                </label>
+                <input
+                  type="password"
+                  className="integration-field-input"
+                  value={clientSecret}
+                  placeholder={integration.values.GOOGLE_CLIENT_SECRET ? '(saved)' : 'Enter client secret'}
+                  onChange={(e) => setClientSecret(e.target.value)}
+                  autoComplete="off"
+                />
+              </div>
+
+              <div className="integration-form-actions">
+                <button type="button" className="integration-btn cancel" onClick={onCancel}>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="integration-btn save"
+                  onClick={handleSaveCredentials}
+                  disabled={loading || !clientId.trim()}
+                >
+                  {loading ? 'Saving...' : 'Save & Authorize'}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -460,9 +534,42 @@ export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthS
           background: rgba(137, 180, 250, 0.15);
           border-color: #89b4fa;
         }
+        .integration-btn.secondary {
+          background: rgba(249, 226, 175, 0.1);
+          color: #f9e2af;
+          border: 1.5px solid rgba(249, 226, 175, 0.25);
+        }
+        .integration-btn.secondary:hover:not(:disabled) {
+          background: rgba(249, 226, 175, 0.18);
+          border-color: #f9e2af;
+        }
         .integration-btn:disabled {
           opacity: 0.5;
           cursor: not-allowed;
+        }
+        .google-oauth-shared-banner {
+          background: linear-gradient(135deg, rgba(166, 227, 161, 0.15) 0%, rgba(166, 227, 161, 0.05) 100%);
+          border: 1px solid rgba(166, 227, 161, 0.3);
+          border-left: 3px solid #a6e3a1;
+          border-radius: 10px;
+          padding: 16px 18px;
+          margin-bottom: 8px;
+        }
+        .google-oauth-shared-title {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          color: #a6e3a1;
+          font-size: 14px;
+          font-weight: 700;
+          letter-spacing: 0.2px;
+          margin-bottom: 8px;
+        }
+        .google-oauth-shared-body {
+          color: #a6adc8;
+          font-size: 13px;
+          line-height: 1.6;
+          font-weight: 400;
         }
       `}</style>
     </div>
