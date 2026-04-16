@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.44.0] - 2026-04-15
+
+### Added
+- **Session history** - Track past sessions per agent with summary, timestamps, and file validation
+- **Session preview** - Click any past session to preview its conversation inline (user, assistant, and tool messages)
+- **Session restore** - Switch back to a previous session directly from the history panel
+
+### Fixed
+- **Test mock for clear context** - Added missing `archiveCurrentSession` mock to agent-handler tests
+
 ## [1.43.1] - 2026-04-15
 
 ### Fixed
