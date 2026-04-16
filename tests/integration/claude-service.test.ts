@@ -6,6 +6,22 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+
+// Mock the data persistence layer so tests never write to the real agents.json.
+// Without this, createAgent/deleteAgent call saveAgents() which overwrites the
+// production data file — a latent bomb that wiped 31 agents on 2026-04-15.
+vi.mock('../../src/packages/server/data/index.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/packages/server/data/index.js')>();
+  return {
+    ...actual,
+    loadAgents: vi.fn(() => []),
+    saveAgents: vi.fn(),
+    saveAgentsAsync: vi.fn(async () => {}),
+    loadAreas: vi.fn(() => []),
+    saveAreas: vi.fn(),
+  };
+});
+
 import * as claudeService from '../../src/packages/server/services/claude-service.js';
 import * as agentService from '../../src/packages/server/services/agent-service.js';
 
