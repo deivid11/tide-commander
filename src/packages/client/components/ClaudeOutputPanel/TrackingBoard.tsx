@@ -21,6 +21,7 @@ type TrackingColumn = {
 
 const TRACKING_COLUMNS: TrackingColumn[] = [
   { key: 'working', title: 'Working', emptyLabel: 'No agents', toneClass: 'working' },
+  { key: 'waiting-subordinates', title: 'Waiting Subordinates', emptyLabel: 'No agents', toneClass: 'waiting-subordinates' },
   { key: 'need-review', title: 'Need Review', emptyLabel: 'No agents', toneClass: 'need-review' },
   { key: 'blocked', title: 'Blocked', emptyLabel: 'No agents', toneClass: 'blocked' },
   { key: 'can-clear-context', title: 'Can Clear Context', emptyLabel: 'No agents', toneClass: 'can-clear-context' },
@@ -127,12 +128,16 @@ export function TrackingBoard({ activeAgentId, onSelectAgent }: TrackingBoardPro
             {column.agents.length > 0 && (
               <button
                 type="button"
-                className="tracking-board-column-action"
+                className={`tracking-board-column-action${column.key === 'can-clear-context' ? ' tracking-board-column-action--context' : ''}`}
                 onClick={() => void handleClearColumn(column.key, column.agents)}
                 disabled={clearingColumnKey === column.key}
                 title={column.key === 'can-clear-context' ? 'Clear context and status for all agents' : 'Clear status for all agents in this column'}
               >
-                {clearingColumnKey === column.key ? 'Clearing...' : 'Clear all'}
+                {clearingColumnKey === column.key
+                  ? 'Clearing...'
+                  : column.key === 'can-clear-context'
+                    ? `Clear All (${column.agents.length})`
+                    : 'Clear all'}
               </button>
             )}
             <span className="tracking-board-column-count">{column.agents.length}</span>

@@ -15,7 +15,7 @@ export function buildBossSystemPrompt(bossName: string, bossId: string): string 
   const agent = agentService.getAgent(bossId);
   const customInstructions = agent?.customInstructions;
 
-  let prompt = `You are "${bossName}", a Boss Agent manager with ID \`${bossId}\`. Your default is to delegate tasks to your subordinates. Do small tasks yourself only when you already have the context to finish quickly (1-2 tool calls). For anything requiring exploration or substantial work, delegate to your team.
+  let prompt = `You are "${bossName}", a Boss Agent dispatcher with ID \`${bossId}\`. You NEVER do work yourself. You delegate EVERYTHING to your subordinates — no exceptions. You do not read code, write code, search code, or explore the codebase. You are a pure dispatcher: receive request, pick agent(s), delegate immediately, done. Keep your entire team busy by parallelizing aggressively.
 
 Your agent ID for notifications: ${bossId}`;
 

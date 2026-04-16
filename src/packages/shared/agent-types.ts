@@ -53,7 +53,7 @@ export interface CustomAgentClass {
 // Agent Status
 // 'orphaned' = Claude process is running but agent state is out of sync (e.g., shows idle when actually working)
 export type AgentStatus = 'idle' | 'working' | 'waiting' | 'waiting_permission' | 'error' | 'offline' | 'orphaned';
-export type AgentTrackingStatus = 'working' | 'need-review' | 'blocked' | 'can-clear-context';
+export type AgentTrackingStatus = 'working' | 'waiting-subordinates' | 'need-review' | 'blocked' | 'can-clear-context';
 
 // Permission Mode - controls how Claude asks for permissions
 export type PermissionMode = 'bypass' | 'interactive';

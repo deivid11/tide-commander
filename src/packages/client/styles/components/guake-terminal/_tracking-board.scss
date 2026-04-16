@@ -143,6 +143,20 @@
     opacity: 0.55;
     cursor: default;
   }
+
+  &--context {
+    background: color-mix(in srgb, #78e7a6 18%, transparent);
+    border-color: color-mix(in srgb, #78e7a6 40%, transparent);
+    color: #78e7a6;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 4px 9px;
+
+    &:hover:not(:disabled) {
+      background: color-mix(in srgb, #78e7a6 28%, transparent);
+      border-color: color-mix(in srgb, #78e7a6 55%, transparent);
+    }
+  }
 }
 
 .tracking-board-column-count {
@@ -152,6 +166,10 @@
 
 .tracking-board-column--working .tracking-board-column-header {
   color: #6fd4ff;
+}
+
+.tracking-board-column--waiting-subordinates .tracking-board-column-header {
+  color: #c4a5ff;
 }
 
 .tracking-board-column--need-review .tracking-board-column-header {
