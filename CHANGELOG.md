@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.45.0] - 2026-04-16
+
+### Added
+- **Per-agent keyboard shortcuts** - Assign global keyboard shortcuts to agents for instantly opening their guake terminal
+- **Shortcut capture UI** - KeyCaptureInput in agent edit modal for recording shortcut combos
+- **Agent terminal shortcuts in Controls** - View all agent shortcuts in the Controls modal keyboard section
+- **Persist tracking status** - Tracking status now saved to disk and restored across server restarts
+
+### Changed
+- **WebSocket message types** - Synced UpdateAgentPropertiesMessage with all agent update fields (effort, useChrome, cwd, shortcut, opencodeModel)
+
 ## [1.44.0] - 2026-04-15
 
 ### Added
