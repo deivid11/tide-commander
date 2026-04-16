@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.43.0] - 2026-04-15
+
+### Added
+- **Waiting-subordinates tracking status** - New tracking status for boss agents waiting on delegated tasks, with dedicated purple column in the tracking board
+- **Enhanced Clear All button** - Distinct green-styled button with agent count for the can-clear-context column
+
+### Changed
+- **Boss delegation instructions** - Rewritten to enforce pure dispatcher model: boss agents delegate everything without exception, maximize parallel delegation, zero-questions policy
+- **Agent tracking skill** - Strengthened with mandatory completion rules, trigger conditions, and critical ordering requirements (tracking status must be last action)
+
 ## [1.42.0] - 2026-04-15
 
 ### Added
