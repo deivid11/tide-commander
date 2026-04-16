@@ -177,24 +177,38 @@ export function createAgentActions(
     updateAgent(agent: Agent): void {
       const state = getState();
       const oldAgent = state.agents.get(agent.id);
-      const statusChanged = oldAgent?.status !== agent.status;
+      let normalizedAgent = agent;
+      const explicitTrackingStatus = agent.trackingStatus;
+      const shouldPreserveExplicitTrackingStatus = explicitTrackingStatus !== undefined
+        && explicitTrackingStatus !== null
+        && explicitTrackingStatus !== 'working';
+      const enteredWorkingState = oldAgent?.status !== 'working' && agent.status === 'working';
+      if (enteredWorkingState && !shouldPreserveExplicitTrackingStatus) {
+        normalizedAgent = {
+          ...agent,
+          trackingStatus: 'working',
+          trackingStatusDetail: undefined,
+          trackingStatusTimestamp: agent.trackingStatusTimestamp ?? Date.now(),
+        };
+      }
+      const statusChanged = oldAgent?.status !== normalizedAgent.status;
       if (statusChanged) {
-        logAgentStore(`[Store] Agent ${agent.name} status update: ${oldAgent?.status} → ${agent.status}`);
+        logAgentStore(`[Store] Agent ${normalizedAgent.name} status update: ${oldAgent?.status} → ${normalizedAgent.status}`);
       }
       let unseenChanged = false;
       setState((s) => {
         const newAgents = new Map(s.agents);
-        newAgents.set(agent.id, mergeFreshestContext(oldAgent, agent));
+        newAgents.set(normalizedAgent.id, mergeFreshestContext(oldAgent, normalizedAgent));
         s.agents = newAgents;
 
         // NEW: Mark agent as having unseen output when completing work
-        if (statusChanged && oldAgent?.status === 'working' && agent.status === 'idle') {
+        if (statusChanged && oldAgent?.status === 'working' && normalizedAgent.status === 'idle') {
           // Only mark if user isn't currently viewing this agent
-          const isViewing = s.terminalOpen && s.selectedAgentIds.has(agent.id);
+          const isViewing = s.terminalOpen && s.selectedAgentIds.has(normalizedAgent.id);
           if (!isViewing) {
             s.agentsWithUnseenOutput = new Set(s.agentsWithUnseenOutput);
-            s.agentsWithUnseenOutput.add(agent.id);
-            logAgentStore(`[Store] Agent ${agent.name} completed work - marked as unseen`);
+            s.agentsWithUnseenOutput.add(normalizedAgent.id);
+            logAgentStore(`[Store] Agent ${normalizedAgent.name} completed work - marked as unseen`);
             unseenChanged = true;
           }
         }
@@ -204,7 +218,7 @@ export function createAgentActions(
       }
       notify();
       if (statusChanged) {
-        logAgentStore(`[Store] Agent ${agent.name} status now in store: ${getState().agents.get(agent.id)?.status}`);
+        logAgentStore(`[Store] Agent ${normalizedAgent.name} status now in store: ${getState().agents.get(normalizedAgent.id)?.status}`);
       }
     },
 
@@ -515,6 +529,9 @@ export function createAgentActions(
             status: 'idle' as const,
             currentTask: undefined,
             taskLabel: undefined,
+            trackingStatus: undefined,
+            trackingStatusDetail: undefined,
+            trackingStatusTimestamp: undefined,
             currentTool: undefined,
             lastAssignedTask: undefined,
             lastAssignedTaskTime: undefined,

@@ -243,6 +243,40 @@ export function useSubordinateAgents(): Agent[] {
   return arrayRef.current;
 }
 
+export function selectAgentsByTrackingStatus(state: StoreState) {
+  const result = {
+    working: [] as Agent[],
+    'need-review': [] as Agent[],
+    blocked: [] as Agent[],
+    'can-clear-context': [] as Agent[],
+  };
+
+  state.agents.forEach((agent) => {
+    if (agent.trackingStatus && agent.trackingStatus in result) {
+      result[agent.trackingStatus].push(agent);
+    }
+  });
+
+  return result;
+}
+
+function shallowTrackingStatusGroupsEqual(
+  a: ReturnType<typeof selectAgentsByTrackingStatus>,
+  b: ReturnType<typeof selectAgentsByTrackingStatus>
+): boolean {
+  return shallowArrayEqual(a.working, b.working)
+    && shallowArrayEqual(a['need-review'], b['need-review'])
+    && shallowArrayEqual(a.blocked, b.blocked)
+    && shallowArrayEqual(a['can-clear-context'], b['can-clear-context']);
+}
+
+export function useAgentsByTrackingStatus(): ReturnType<typeof selectAgentsByTrackingStatus> {
+  return useSelector(
+    useCallback((state: StoreState) => selectAgentsByTrackingStatus(state), []),
+    shallowTrackingStatusGroupsEqual
+  );
+}
+
 // ============================================================================
 // OUTPUT SELECTORS
 // ============================================================================
@@ -1103,6 +1137,10 @@ export function useViewMode(): StoreState['viewMode'] {
 
 export function useOverviewPanelOpen(): boolean {
   return useSelector(useCallback((state: StoreState) => state.overviewPanelOpen, []));
+}
+
+export function useTrackingBoardVisible(): boolean {
+  return useSelector(useCallback((state: StoreState) => state.trackingBoardVisible, []));
 }
 
 export function useSplitPaneAgentIds(): string[] {

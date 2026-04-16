@@ -28,6 +28,7 @@ import {
   useContextModalAgentId,
   useCurrentSnapshot,
   useOverviewPanelOpen,
+  useTrackingBoardVisible,
   useAreas,
   useBuildings,
   useStore,
@@ -91,6 +92,7 @@ import { ThemeSelector } from './ThemeSelector';
 import { Tooltip } from '../shared/Tooltip';
 import type { Agent } from '../../../shared/types';
 import TerminalEmbed from '../TerminalEmbed';
+import { TrackingBoard } from './TrackingBoard';
 
 const MOBILE_CLOSE_SWIPE_MAX_OFFSET_PX = 128;
 const MOBILE_CLOSE_SWIPE_RELEASE_MS = 95;
@@ -369,6 +371,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
 
   const activeAgent = selectedAgent ?? (isSnapshotView ? snapshotAgent : null);
   const activeAgentId = selectedAgentId ?? (isSnapshotView ? currentSnapshot?.agentId ?? null : null);
+  const trackingBoardVisible = useTrackingBoardVisible();
 
   // Get area folders for the active agent
   const areas = useAreas();
@@ -1492,7 +1495,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
   return (
     <div
       ref={terminalRef}
-      className={`guake-terminal ${isOpen ? 'open' : 'collapsed'} ${isFullscreen && isOpen ? 'fullscreen' : ''} ${debugPanelOpen && isOpen ? 'with-debug-panel' : ''} ${gitPanelOpen && isOpen ? 'with-git-panel' : ''} ${buildingsPanelOpen && isOpen ? 'with-buildings-panel' : ''} ${workflowPanelOpen && isOpen ? 'with-workflow-panel' : ''} ${overviewPanelOpen && isOpen ? 'with-overview-panel' : ''} ${draggingOver ? 'drag-over' : ''} ${mobileSwipeCloseOffset > 0 ? 'mobile-swipe-close-active' : ''} ${isMobileSwipeClosing ? 'mobile-swipe-close-closing' : ''}`}
+      className={`guake-terminal ${isOpen ? 'open' : 'collapsed'} ${isFullscreen && isOpen ? 'fullscreen' : ''} ${debugPanelOpen && isOpen ? 'with-debug-panel' : ''} ${gitPanelOpen && isOpen ? 'with-git-panel' : ''} ${buildingsPanelOpen && isOpen ? 'with-buildings-panel' : ''} ${workflowPanelOpen && isOpen ? 'with-workflow-panel' : ''} ${trackingBoardVisible && isOpen ? 'with-tracking-board' : ''} ${overviewPanelOpen && isOpen ? 'with-overview-panel' : ''} ${draggingOver ? 'drag-over' : ''} ${mobileSwipeCloseOffset > 0 ? 'mobile-swipe-close-active' : ''} ${isMobileSwipeClosing ? 'mobile-swipe-close-closing' : ''}`}
       style={{ '--terminal-height': `${terminalHeight}%`, '--mobile-swipe-close-offset': `${mobileSwipeCloseOffset}px`, '--guake-side-panel-width': `${sidePanelWidth}px`, ...(mobileOverviewHeight > 0 ? { '--guake-mobile-overview-height': `${mobileOverviewHeight}px` } : {}) } as React.CSSProperties}
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
@@ -1526,8 +1529,36 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
         <WorkflowPanel agentId={activeAgentId} onClose={() => setWorkflowPanelOpen(false)} />
       )}
 
+      {!isSnapshotView && trackingBoardVisible && isOpen && activeAgentId && (
+        <div className="guake-tracking-board-panel">
+          <div className="guake-tracking-board-header">
+            <div className="guake-tracking-board-title">
+              <span className="guake-tracking-board-icon">▥</span>
+              <span>Tracking Board</span>
+            </div>
+            <button
+              type="button"
+              className="guake-tracking-board-close"
+              onClick={() => store.setTrackingBoardVisible(false)}
+              title="Close tracking board"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="guake-tracking-board-body">
+            <TrackingBoard
+              activeAgentId={activeAgentId}
+              onSelectAgent={(agentId) => {
+                store.setLastSelectionViaDirectClick(true);
+                store.selectAgent(agentId);
+              }}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Right-side panel resize handle */}
-      {!isSnapshotView && (debugPanelOpen || gitPanelOpen || buildingsPanelOpen || workflowPanelOpen) && isOpen && (
+      {!isSnapshotView && (debugPanelOpen || gitPanelOpen || buildingsPanelOpen || workflowPanelOpen || trackingBoardVisible) && isOpen && (
         <div className="guake-side-panel-resize right" onMouseDown={(e) => handleSidePanelResizeStart(e, 'right')} />
       )}
 
@@ -1581,6 +1612,8 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
           workflowPanelOpen={workflowPanelOpen}
           setWorkflowPanelOpen={setWorkflowPanelOpen}
           hasWorkflow={hasWorkflowForAgent}
+          trackingBoardVisible={trackingBoardVisible}
+          setTrackingBoardVisible={(open) => store.setTrackingBoardVisible(open)}
           overviewPanelOpen={overviewPanelOpen}
           setOverviewPanelOpen={setOverviewPanelOpen}
           agentInfoOpen={agentInfoOpen}

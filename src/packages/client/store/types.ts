@@ -272,6 +272,8 @@ export interface StoreState {
   viewMode: '2d' | '3d' | 'dashboard';
   // Agent overview panel open state (persists across agent switches)
   overviewPanelOpen: boolean;
+  // Agent overview tracking board visible state
+  trackingBoardVisible: boolean;
   // Split terminal pane agent IDs (empty = single pane mode)
   splitPaneAgentIds: string[];
   // Split terminal orientation

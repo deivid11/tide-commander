@@ -71,6 +71,10 @@ export interface TerminalHeaderProps {
   setWorkflowPanelOpen?: (open: boolean) => void;
   /** Whether this agent owns a workflow */
   hasWorkflow?: boolean;
+  /** Tracking board panel open state */
+  trackingBoardVisible?: boolean;
+  /** Toggle tracking board panel */
+  setTrackingBoardVisible?: (open: boolean) => void;
 }
 
 export const TerminalHeader = memo(function TerminalHeader({
@@ -109,6 +113,8 @@ export const TerminalHeader = memo(function TerminalHeader({
   workflowPanelOpen = false,
   setWorkflowPanelOpen,
   hasWorkflow = false,
+  trackingBoardVisible = false,
+  setTrackingBoardVisible,
 }: TerminalHeaderProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const supervisor = useSupervisor();
@@ -409,6 +415,15 @@ export const TerminalHeader = memo(function TerminalHeader({
               title={workflowPanelOpen ? 'Hide Workflow' : 'Show Workflow'}
             >
               <span className="guake-action-icon">🔄</span>
+            </button>
+          )}
+          {!isSnapshotView && setTrackingBoardVisible && (
+            <button
+              className={`guake-icon-action guake-tracking-board-toggle ${trackingBoardVisible ? 'active' : ''}`}
+              onClick={() => setTrackingBoardVisible(!trackingBoardVisible)}
+              title={trackingBoardVisible ? 'Hide Tracking Board' : 'Show Tracking Board'}
+            >
+              <span className="guake-action-icon">▥</span>
             </button>
           )}
           <button

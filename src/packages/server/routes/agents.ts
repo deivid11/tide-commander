@@ -575,6 +575,23 @@ router.post('/', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/agents/tracking-statuses - List all non-null tracking statuses
+// NOTE: This must be defined BEFORE /:id routes to prevent being interpreted as an ID
+router.get('/tracking-statuses', (_req: Request, res: Response) => {
+  const trackingStatuses = agentService
+    .getAllAgents()
+    .filter(agent => agent.trackingStatus != null)
+    .map(agent => ({
+      agentId: agent.id,
+      agentName: agent.name,
+      trackingStatus: agent.trackingStatus,
+      trackingStatusDetail: agent.trackingStatusDetail,
+      trackingStatusTimestamp: agent.trackingStatusTimestamp,
+    }));
+
+  res.json(trackingStatuses);
+});
+
 // GET /api/agents/:id - Get single agent
 router.get('/:id', (req: Request<{ id: string }>, res: Response) => {
   const agent = agentService.getAgent(req.params.id);
@@ -594,6 +611,13 @@ router.patch('/:id', (req: Request<{ id: string }>, res: Response) => {
   const { sessionId, ...safeUpdates } = req.body;
   if (sessionId !== undefined) {
     log.warn(`API attempted to modify sessionId for agent ${req.params.id} - blocked`);
+  }
+
+  if ('trackingStatus' in safeUpdates) {
+    safeUpdates.trackingStatusTimestamp = safeUpdates.trackingStatus == null ? undefined : Date.now();
+    if (safeUpdates.trackingStatus == null && !('trackingStatusDetail' in safeUpdates)) {
+      safeUpdates.trackingStatusDetail = undefined;
+    }
   }
 
   const updated = agentService.updateAgent(req.params.id, safeUpdates);
