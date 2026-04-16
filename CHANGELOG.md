@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.47.0] - 2026-04-16
+
+### Changed
+- **Agent card avatar layout** - Overview panel cards now show a left-side avatar with provider badge overlay instead of inline icons
+- **Tracking board compacted** - Denser card layout with avatar, smaller fonts, reduced spacing, and removed footer row
+- **AgentIcon sizing** - Supports percentage-based dimensions for flexible container-driven sizing
+- **Simplified active card styles** - Removed heavy backgrounds and box-shadows from active/boss card states
+
+### Fixed
+- **Custom icon sizing** - AgentIcon now correctly computes pixel vs percentage dimensions for uploaded PNG icons
+- **Header avatar overflow** - Agent avatar in terminal header clips image icons properly at 30px
+
 ## [1.46.0] - 2026-04-16
 
 ### Added
