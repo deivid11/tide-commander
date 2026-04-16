@@ -16,6 +16,7 @@ import type { ViewMode } from './types';
 import { VIEW_MODES } from './types';
 import { themes, getTheme, applyTheme, getSavedTheme, type ThemeId } from '../../utils/themes';
 import { AgentIcon } from '../AgentIcon';
+import { useTwoClickConfirm } from '../../hooks';
 
 export interface TerminalHeaderProps {
   selectedAgent: Agent;
@@ -33,6 +34,7 @@ export interface TerminalHeaderProps {
   setDebuggerEnabled: (enabled: boolean) => void;
   outputsLength: number;
   setContextConfirm: (action: 'collapse' | 'clear' | 'clear-subordinates' | null) => void;
+  onClearContextDirect: () => void;
   headerRef: React.RefObject<HTMLDivElement | null>;
   /** Whether we're viewing a snapshot (read-only mode) */
   isSnapshotView?: boolean;
@@ -93,6 +95,7 @@ export const TerminalHeader = memo(function TerminalHeader({
   setDebuggerEnabled,
   outputsLength,
   setContextConfirm,
+  onClearContextDirect,
   headerRef,
   isSnapshotView = false,
   onSaveSnapshot,
@@ -120,6 +123,9 @@ export const TerminalHeader = memo(function TerminalHeader({
   const supervisor = useSupervisor();
   const _settings = useSettings();
   const lastPrompt = useLastPrompt(selectedAgentId);
+  const clearContextConfirm = useTwoClickConfirm();
+  const clearContextConfirmId = `clear-context:${selectedAgentId}`;
+  const isClearContextPending = clearContextConfirm.isPending(clearContextConfirmId);
 
   const handleViewModeToggle = () => {
     const currentIndex = VIEW_MODES.indexOf(viewMode);
@@ -433,11 +439,11 @@ export const TerminalHeader = memo(function TerminalHeader({
             <span className="guake-action-icon">🔍</span>
           </button>
           <button
-            className="guake-icon-action danger"
-            onClick={() => setContextConfirm('clear')}
-            title={t('terminal:header.clearContext')}
+            className={`guake-icon-action danger${isClearContextPending ? ' confirm-pending' : ''}`}
+            onClick={() => clearContextConfirm.handleClick(clearContextConfirmId, onClearContextDirect)}
+            title={isClearContextPending ? t('terminal:header.clearContextConfirm', { defaultValue: 'Click again to confirm' }) : t('terminal:header.clearContext')}
           >
-            <span className="guake-action-icon">🧹</span>
+            <span className="guake-action-icon">{isClearContextPending ? '?' : '🧹'}</span>
           </button>
         </div>
         {/* Desktop kebab menu - view toggle + context actions + less-used toggles */}

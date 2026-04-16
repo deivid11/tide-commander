@@ -323,5 +323,9 @@
     "pipNotSupported": "此浏览器不支持画中画",
     "closePip": "关闭画中画模式中的代理",
     "openPip": "在画中画模式中打开代理"
+  },
+  "sidebar": {
+    "agentsView": "代理",
+    "trackingBoard": "跟踪面板"
   }
 }

@@ -1353,13 +1353,15 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
 
       const isInTerminal = terminalRef.current?.contains(target);
       const isAgentBar = target.closest('.agent-bar');
+      // Sidebar and its edge toggle are persistent UI; clicks there shouldn't close the terminal.
+      const isSidebar = target.closest('.sidebar, .sidebar-collapse-edge-btn');
       // Modals are rendered through portals under document.body.
       // Any modal interaction should never count as an outside click for Guake.
       const isInModal = !!target.closest(
         '.modal-overlay, .modal, .image-modal-overlay, .image-modal, .bash-modal-overlay, .bash-modal, .agent-info-modal-overlay, .agent-info-modal, .agent-response-modal, .pasted-text-modal-overlay, .pasted-text-modal, .file-viewer-overlay, .file-viewer-modal, .context-view-modal, .guake-context-confirm-overlay, .guake-context-confirm-modal, .pm2-logs-modal-overlay, .pm2-logs-modal, .database-panel-modal, .context-menu, .guake-git-diff-modal-overlay, .guake-git-delete-confirm'
       );
 
-      return !!isInTerminal || !!isAgentBar || isInModal;
+      return !!isInTerminal || !!isAgentBar || !!isSidebar || isInModal;
     };
 
     const handleMouseDown = (e: MouseEvent) => {
@@ -1626,6 +1628,10 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
           canNavigateForward={canNavigateForward}
           outputsLength={paneRef.current?.outputsLength ?? 0}
           setContextConfirm={setContextConfirm}
+          onClearContextDirect={() => {
+            store.clearContext(activeAgentId);
+            paneRef.current?.historyLoader.clearHistory();
+          }}
           headerRef={swipe.headerRef}
           onSaveSnapshot={isSnapshotView ? undefined : onSaveSnapshot}
           isSnapshotView={isSnapshotView}

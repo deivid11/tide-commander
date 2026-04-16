@@ -323,5 +323,9 @@
     "pipNotSupported": "PiP не поддерживается в этом браузере",
     "closePip": "Закрыть агентов в режиме PiP",
     "openPip": "Открыть агентов в режиме PiP"
+  },
+  "sidebar": {
+    "agentsView": "Агенты",
+    "trackingBoard": "Доска отслеживания"
   }
 }

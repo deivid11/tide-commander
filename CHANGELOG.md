@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.50.0] - 2026-04-16
+
+### Added
+- **Sidebar view toggle** - New Agents / Tracking Board toggle in the sidebar, letting the tracking board live in the left panel alongside the agent list instead of only inside the terminal header
+- **Two-click confirm hook** - Reusable `useTwoClickConfirm` hook providing a generic arm/confirm flow for destructive actions, with per-id pending state and automatic timeout
+- **Sidebar tracking board styles** - Dedicated stylesheet for the in-sidebar tracking board and view-toggle controls
+
+### Changed
+- **TrackingBoard component** - Simplified internals and shed terminal-specific styling so the board can render in both the terminal header and the sidebar
+- **AgentOverviewPanel / TerminalHeader / ClaudeOutputPanel** - Refactored to route tracking board rendering through the shared sidebar context and to share the two-click confirm hook
+- **Scene interactions** - Building placement, drawing tools, and scene raycasting updated to use the new two-click confirm flow for potentially destructive actions
+- **Release pipeline builtin skill** - Minor refinements to the bundled release pipeline skill definition
+
+### Fixed
+- **Gmail OAuth polling toggle** - Restored the missing `togglingPolling` state so the polling switch disables correctly while the toggle request is in flight
+
 ## [1.49.0] - 2026-04-16
 
 ### Added

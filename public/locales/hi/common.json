@@ -323,5 +323,9 @@
     "pipNotSupported": "इस ब्राउज़र में PiP समर्थित नहीं है",
     "closePip": "PiP मोड में एजेंट्स बंद करें",
     "openPip": "PiP मोड में एजेंट्स खोलें"
+  },
+  "sidebar": {
+    "agentsView": "एजेंट्स",
+    "trackingBoard": "ट्रैकिंग बोर्ड"
   }
 }

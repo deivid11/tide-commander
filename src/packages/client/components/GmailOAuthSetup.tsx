@@ -58,6 +58,7 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [togglingPolling, setTogglingPolling] = useState(false);
   const [showManualEdit, setShowManualEdit] = useState(false);
   const [step, setStep] = useState<'credentials' | 'authorize' | 'connected'>(
     integration.status.connected ? 'connected' : 'credentials'

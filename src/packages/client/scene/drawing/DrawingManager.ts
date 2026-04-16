@@ -1037,15 +1037,14 @@ export class DrawingManager {
   /**
    * Get area at a world position.
    * Areas are checked in reverse z-order (highest zIndex first) so topmost area is selected.
-   * Archived areas are excluded.
+   * Archived areas and areas outside the active workspace are excluded so
+   * clicks never hit zones that are not rendered.
    */
   getAreaAtPosition(pos: { x: number; z: number }): DrawingArea | null {
     const state = store.getState();
 
-    // Sort areas by zIndex descending (highest first) so we check topmost areas first
-    // Filter out archived areas
     const sortedAreas = Array.from(state.areas.values())
-      .filter((a) => !a.archived)
+      .filter((a) => !a.archived && isAreaVisibleInWorkspace(a.id))
       .sort((a, b) => (b.zIndex ?? 0) - (a.zIndex ?? 0));
 
     for (const area of sortedAreas) {

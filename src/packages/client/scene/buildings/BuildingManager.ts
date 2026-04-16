@@ -335,6 +335,8 @@ export class BuildingManager {
     const state = store.getState();
 
     for (const building of state.buildings.values()) {
+      if (!this.isBuildingVisibleInWorkspace(building, state.areas)) continue;
+
       const baseHitbox = this.getHitboxForStyle(building.style);
       const scale = building.scale || 1.0;
 

@@ -1,0 +1,113 @@
+@use 'sass:color';
+@use '../variables' as *;
+
+.sidebar-view-toggle {
+  display: flex;
+  flex-shrink: 0;
+  padding: 6px;
+  gap: 4px;
+  background: $bg-tertiary;
+  border-bottom: 1px solid $border-color;
+}
+
+.sidebar-view-toggle-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: $text-secondary;
+  font-family: $font-mono;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition:
+    background $transition-fast,
+    color $transition-fast,
+    border-color $transition-fast;
+
+  &:hover:not(.active) {
+    background: color.adjust($bg-tertiary, $lightness: 5%);
+    color: $text-primary;
+  }
+
+  &.active {
+    background: color-mix(in srgb, #{$accent-cyan} 14%, transparent);
+    border-color: color-mix(in srgb, #{$accent-cyan} 45%, transparent);
+    color: $accent-cyan;
+  }
+}
+
+.sidebar-view-toggle-icon {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.sidebar-tracking-section {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.sidebar-tracking-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  // Compact tracking board for narrower sidebar width
+  .tracking-board {
+    padding: 4px;
+    gap: 4px;
+  }
+
+  .tracking-board-column-header {
+    padding: 3px 5px;
+    font-size: 9px;
+  }
+
+  .tracking-board-column-body {
+    padding: 3px;
+    min-height: 36px;
+  }
+
+  .tracking-board-card {
+    padding: 3px 5px;
+    gap: 4px;
+  }
+
+  .tracking-board-card-avatar {
+    width: 22px;
+    height: 22px;
+  }
+
+  .tracking-board-card-name {
+    font-size: 11px;
+  }
+
+  .tracking-board-card-detail {
+    font-size: 10px;
+    -webkit-line-clamp: 2;
+  }
+
+  .tracking-board-card-task {
+    font-size: 9.5px;
+  }
+
+  .tracking-board-column-action {
+    font-size: 9px;
+    padding: 3px 6px;
+  }
+}

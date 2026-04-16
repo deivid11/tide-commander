@@ -55,12 +55,14 @@ When asked to "release", "ship", "publish", "do a full release", or similar:
 This phase is lightweight — run it directly, no sub-agent needed.
 
 \`\`\`bash
-# Verify branch and clean state
+# Verify branch and current state
 git status
 git branch --show-current
 \`\`\`
 
-- If there are uncommitted changes, list them and ask the user if they should be included.
+**Uncommitted & untracked files — ALWAYS include them in the release commit.** Do NOT ask the user whether to include them. Do NOT stash them. The release commit always bundles the current working tree (modified files + untracked files) along with the version bump and changelog. This is the intentional default for this pipeline.
+
+- List the uncommitted/untracked files so the user can see what is about to ship, but proceed without asking for confirmation.
 - If not on the expected branch (usually \`master\`), warn the user.
 
 \`\`\`bash
@@ -199,14 +201,16 @@ This phase is sequential git operations — run it directly.
 
 #### Stage and Commit
 
+Always stage the release metadata files **and** every modified/untracked file in the working tree. \`git add -A\` is mandatory — do not skip it, do not replace it with a narrower \`git add\`, and do not ask the user to confirm individual paths.
+
 \`\`\`bash
 git add package.json package-lock.json CHANGELOG.md
-git add -A  # include any other changed files
+git add -A  # MANDATORY: include all modified + untracked files in the release commit
 
 git diff --cached --stat  # show what will be committed
 \`\`\`
 
-Show the staged changes summary to the user before committing.
+Show the staged changes summary to the user for visibility, then proceed with the commit without waiting for approval on which files to include.
 
 \`\`\`bash
 git commit -m "chore(release): v<VERSION>

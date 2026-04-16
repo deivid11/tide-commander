@@ -762,6 +762,28 @@
       border-color: color-mix(in srgb, var(--accent-red) 26%, transparent);
       color: var(--accent-red);
     }
+
+    &.confirm-pending {
+      background: color-mix(in srgb, var(--accent-red) 30%, transparent);
+      border-color: color-mix(in srgb, var(--accent-red) 75%, transparent);
+      color: #ffdada;
+      animation: guake-icon-action-confirm-pulse 1s ease-in-out infinite;
+
+      &:hover:not(:disabled) {
+        background: color-mix(in srgb, var(--accent-red) 42%, transparent);
+        border-color: var(--accent-red);
+        color: #ffffff;
+      }
+    }
+  }
+}
+
+@keyframes guake-icon-action-confirm-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-red) 45%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent-red) 0%, transparent);
   }
 }
 

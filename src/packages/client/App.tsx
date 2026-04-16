@@ -24,6 +24,7 @@ import { ToastProvider, useToast } from './components/Toast';
 import { AgentNotificationProvider, useAgentNotification } from './components/AgentNotificationToast';
 import { UnitPanel } from './components/UnitPanel';
 import { ToolHistory } from './components/ToolHistory';
+import { TrackingBoard } from './components/ClaudeOutputPanel/TrackingBoard';
 import { type SceneConfig } from './components/toolbox';
 import { GuakeOutputPanel } from './components/ClaudeOutputPanel';
 import { AgentBar } from './components/AgentBar';
@@ -156,6 +157,10 @@ function AppContent() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     const saved = localStorage.getItem('tide-commander-sidebar-collapsed');
     return saved === 'true';
+  });
+  const [sidebarView, setSidebarView] = useState<'agents' | 'tracking'>(() => {
+    const saved = localStorage.getItem('tide-commander-sidebar-view');
+    return saved === 'tracking' ? 'tracking' : 'agents';
   });
   // Track if sidebar was revealed by hover (should auto-hide on mouse leave)
   const [sidebarRevealedByHover, setSidebarRevealedByHover] = useState(false);
@@ -912,7 +917,49 @@ function AppContent() {
           >
             ✕
           </button>
-          {selectedAgentIdsArray.length > 0 ? (
+          <div className="sidebar-view-toggle" role="tablist" aria-label="Sidebar view">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={sidebarView === 'agents'}
+              className={`sidebar-view-toggle-btn${sidebarView === 'agents' ? ' active' : ''}`}
+              onClick={() => {
+                setSidebarView('agents');
+                localStorage.setItem('tide-commander-sidebar-view', 'agents');
+              }}
+              title={t('common:sidebar.agentsView', { defaultValue: 'Agents' })}
+            >
+              {t('common:sidebar.agentsView', { defaultValue: 'Agents' })}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={sidebarView === 'tracking'}
+              className={`sidebar-view-toggle-btn${sidebarView === 'tracking' ? ' active' : ''}`}
+              onClick={() => {
+                setSidebarView('tracking');
+                localStorage.setItem('tide-commander-sidebar-view', 'tracking');
+              }}
+              title={t('common:sidebar.trackingBoard', { defaultValue: 'Tracking Board' })}
+            >
+              <span className="sidebar-view-toggle-icon">▥</span>
+              {t('common:sidebar.trackingBoard', { defaultValue: 'Tracking Board' })}
+            </button>
+          </div>
+          {sidebarView === 'tracking' ? (
+            <div className="sidebar-section sidebar-tracking-section">
+              <div className="sidebar-tracking-body">
+                <TrackingBoard
+                  activeAgentId={selectedAgentIdsArray[0] ?? ''}
+                  onSelectAgent={(agentId) => {
+                    store.setLastSelectionViaDirectClick(true);
+                    store.selectAgent(agentId);
+                    store.setTerminalOpen(true);
+                  }}
+                />
+              </div>
+            </div>
+          ) : selectedAgentIdsArray.length > 0 ? (
             <>
               <div className="sidebar-section unit-section">
                 <Profiler id="UnitPanel" onRender={profileRender}>

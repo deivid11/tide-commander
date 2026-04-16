@@ -323,5 +323,9 @@
     "pipNotSupported": "PiP non supportato in questo browser",
     "closePip": "Chiudi agenti in modalità PiP",
     "openPip": "Apri agenti in modalità PiP"
+  },
+  "sidebar": {
+    "agentsView": "Agenti",
+    "trackingBoard": "Bacheca di Monitoraggio"
   }
 }

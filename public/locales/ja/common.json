@@ -323,5 +323,9 @@
     "pipNotSupported": "このブラウザではPiPがサポートされていません",
     "closePip": "PiPモードのエージェントを閉じる",
     "openPip": "PiPモードでエージェントを開く"
+  },
+  "sidebar": {
+    "agentsView": "エージェント",
+    "trackingBoard": "トラッキングボード"
   }
 }

@@ -38,3 +38,4 @@ export { useAgentOrder } from './useAgentOrder';
 export { useAppUpdate } from './useAppUpdate';
 export { useModalClose } from './useModalClose';
 export { useBuildingGitStatus } from './useBuildingGitStatus';
+export { useTwoClickConfirm, type TwoClickConfirm } from './useTwoClickConfirm';

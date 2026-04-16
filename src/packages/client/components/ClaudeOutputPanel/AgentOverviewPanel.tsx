@@ -35,10 +35,7 @@ interface AopConfig {
   groupByArea: boolean;
   sortMode: SortMode;
   filterMode: FilterMode;
-  allExpanded: boolean; // true = expand all by default, false = collapse all
   sameAreaOnly: boolean; // only show agents in the same area as the active agent
-  showSubagents: boolean; // show subagents section in expanded cards
-  showRecentActivity: boolean; // show recent activity section in expanded cards
   visibleAreaIds: string[] | null; // null = all areas visible; string[] = only these area IDs
 }
 
@@ -163,16 +160,11 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     groupByArea: true,
     sortMode: 'recent',
     filterMode: 'all',
-    allExpanded: false,
     sameAreaOnly: false,
-    showSubagents: true,
-    showRecentActivity: true,
     visibleAreaIds: null,
   }), []);
 
-  const [expandedAgents, setExpandedAgents] = useState<Set<string>>(() =>
-    savedConfig.allExpanded ? new Set(agents.map(a => a.id)) : new Set()
-  );
+  const [expandedAgents, setExpandedAgents] = useState<Set<string>>(() => new Set());
   const [collapsedAreas, setCollapsedAreas] = useState<Set<string>>(new Set());
   const [editingPromptAreaId, setEditingPromptAreaId] = useState<string | null>(null);
   const [editingPromptText, setEditingPromptText] = useState('');
@@ -180,10 +172,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
   const [filterMode, setFilterMode] = useState<FilterMode>(savedConfig.filterMode);
   const [searchQuery, setSearchQuery] = useState('');
   const [groupByArea, setGroupByArea] = useState(savedConfig.groupByArea);
-  const [allExpanded, setAllExpanded] = useState(savedConfig.allExpanded);
   const [sameAreaOnly, setSameAreaOnly] = useState(savedConfig.sameAreaOnly);
-  const [showSubagents, setShowSubagents] = useState(savedConfig.showSubagents);
-  const [showRecentActivity, setShowRecentActivity] = useState(savedConfig.showRecentActivity);
   const [visibleAreaIds, setVisibleAreaIds] = useState<Set<string> | null>(
     savedConfig.visibleAreaIds ? new Set(savedConfig.visibleAreaIds) : null
   );
@@ -270,13 +259,10 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
       groupByArea,
       sortMode,
       filterMode,
-      allExpanded,
       sameAreaOnly,
-      showSubagents,
-      showRecentActivity,
       visibleAreaIds: visibleAreaIds ? Array.from(visibleAreaIds) : null,
     } as AopConfig);
-  }, [groupByArea, sortMode, filterMode, allExpanded, sameAreaOnly, showSubagents, showRecentActivity, visibleAreaIds]);
+  }, [groupByArea, sortMode, filterMode, sameAreaOnly, visibleAreaIds]);
 
   // List of non-archived areas for the filter dropdown
   const availableAreas = useMemo(() => {
@@ -580,8 +566,6 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
           isMobile={isMobileViewport}
           hasPendingRead={agentsWithUnseenOutput.has(agent.id)}
           isTwoFingerHovered={twoFingerSelector.hoveredAgentId === agent.id}
-          showSubagents={showSubagents}
-          showRecentActivity={showRecentActivity}
           showAreaChip={!groupByArea}
           toolExecs={toolsByAgent.get(agent.id) || []}
           subagents={subagentsByParent.get(agent.id) || []}
@@ -600,8 +584,6 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     expandedAgents,
     agentsWithUnseenOutput,
     twoFingerSelector.hoveredAgentId,
-    showSubagents,
-    showRecentActivity,
     groupByArea,
     toolsByAgent,
     subagentsByParent,
@@ -638,9 +620,6 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
       return next;
     });
   };
-
-  const expandAll = () => { setExpandedAgents(new Set(agents.map(a => a.id))); setAllExpanded(true); };
-  const collapseAll = () => { setExpandedAgents(new Set()); setAllExpanded(false); };
 
   const requestSpawnForArea = useCallback((area: DrawingArea) => {
     window.dispatchEvent(new CustomEvent('tide:open-spawn-modal', {
@@ -810,12 +789,6 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
       {/* Actions */}
       <div className="aop-actions">
         <WorkspaceSwitcher />
-        <button onClick={expandAll} className="action-btn" title={t('common:buttons.expand')}>
-          {t('common:buttons.expand')}
-        </button>
-        <button onClick={collapseAll} className="action-btn" title={t('common:buttons.collapse')}>
-          {t('common:buttons.collapse')}
-        </button>
         <button onClick={() => setGroupByArea(v => !v)} className={`action-btn action-btn--toggle${groupByArea ? ' active' : ''}`} title={t('terminal:overview.areas')}>
           {t('terminal:overview.areas')}
         </button>
@@ -893,12 +866,6 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
         )}
         <button onClick={() => setSameAreaOnly(v => !v)} className={`action-btn action-btn--toggle${sameAreaOnly ? ' active' : ''}`} title={t('terminal:overview.sameAreaOnly')}>
           {t('terminal:overview.sameAreaOnly')}
-        </button>
-        <button onClick={() => setShowSubagents(v => !v)} className={`action-btn action-btn--toggle${showSubagents ? ' active' : ''}`} title="Subagents">
-          Subagents
-        </button>
-        <button onClick={() => setShowRecentActivity(v => !v)} className={`action-btn action-btn--toggle${showRecentActivity ? ' active' : ''}`} title={t('terminal:overview.recentActivity')}>
-          Activity
         </button>
         <button onClick={() => setBulkManageOpen(true)} className="action-btn" title="Bulk manage agents">
           Bulk Manage
@@ -1071,8 +1038,6 @@ interface AgentCardProps {
   isMobile: boolean;
   hasPendingRead: boolean;
   isTwoFingerHovered: boolean;
-  showSubagents: boolean;
-  showRecentActivity: boolean;
   showAreaChip: boolean;
   toolExecs: ToolExecution[];
   subagents: Subagent[];
@@ -1101,8 +1066,6 @@ function AgentCard({
   isMobile,
   hasPendingRead,
   isTwoFingerHovered,
-  showSubagents,
-  showRecentActivity,
   showAreaChip,
   toolExecs,
   subagents,
@@ -1165,8 +1128,8 @@ function AgentCard({
   }, [subagents, toolExecs]);
 
   const activeSubagents = allSubagentEntries.filter(s => s.status === 'working' || s.status === 'spawning');
-  const hasVisibleSubagents = showSubagents && allSubagentEntries.length > 0;
-  const hasVisibleRecentActivity = showRecentActivity && recentTools.length > 0;
+  const hasVisibleSubagents = allSubagentEntries.length > 0;
+  const hasVisibleRecentActivity = recentTools.length > 0;
   const hasAnyVisibleSection = hasVisibleSubagents || hasVisibleRecentActivity;
   const contextUsageRatio = agent.contextLimit > 0 ? agent.contextUsed / agent.contextLimit : 0;
   const contextUsagePercent = Math.min(100, contextUsageRatio * 100);
@@ -1433,7 +1396,7 @@ function AgentCard({
               </div>
             )}
 
-            {!hasAnyVisibleSection && (showSubagents || showRecentActivity) && (
+            {!hasAnyVisibleSection && (
               <div className="aop-no-activity">{t('terminal:overview.noToolActivity')}</div>
             )}
           </div>

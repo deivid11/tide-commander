@@ -323,5 +323,9 @@
     "pipNotSupported": "PiP non supporté dans ce navigateur",
     "closePip": "Fermer les agents en mode PiP",
     "openPip": "Ouvrir les agents en mode PiP"
+  },
+  "sidebar": {
+    "agentsView": "Agents",
+    "trackingBoard": "Tableau de Suivi"
   }
 }

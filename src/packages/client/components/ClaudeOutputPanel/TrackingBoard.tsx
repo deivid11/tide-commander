@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Agent, AgentTrackingStatus } from '../../../shared/types';
 import { useAgentsByTrackingStatus, useAgentsWithUnseenOutput, useCustomAgentClassesArray, store } from '../../store';
@@ -7,6 +7,7 @@ import { formatIdleTime } from '../../utils/formatting';
 import { apiUrl, authFetch } from '../../utils/storage';
 import { useWorkspaceFilter, isAgentVisibleInWorkspace } from '../WorkspaceSwitcher';
 import { AgentIcon } from '../AgentIcon';
+import { useTwoClickConfirm } from '../../hooks';
 
 interface TrackingBoardProps {
   activeAgentId: string;
@@ -34,34 +35,7 @@ export function TrackingBoard({ activeAgentId, onSelectAgent }: TrackingBoardPro
   const groupedAgents = useAgentsByTrackingStatus();
   const agentsWithUnseenOutput = useAgentsWithUnseenOutput();
   const [clearingAgentIds, setClearingAgentIds] = useState<Set<string>>(new Set());
-  const [pendingConfirmId, setPendingConfirmId] = useState<string | null>(null);
-  const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => () => {
-    if (confirmTimerRef.current) {
-      clearTimeout(confirmTimerRef.current);
-      confirmTimerRef.current = null;
-    }
-  }, []);
-
-  const armConfirm = useCallback((id: string) => {
-    if (confirmTimerRef.current) {
-      clearTimeout(confirmTimerRef.current);
-    }
-    setPendingConfirmId(id);
-    confirmTimerRef.current = setTimeout(() => {
-      setPendingConfirmId((current) => (current === id ? null : current));
-      confirmTimerRef.current = null;
-    }, 3000);
-  }, []);
-
-  const clearConfirm = useCallback(() => {
-    if (confirmTimerRef.current) {
-      clearTimeout(confirmTimerRef.current);
-      confirmTimerRef.current = null;
-    }
-    setPendingConfirmId(null);
-  }, []);
+  const { isPending: isConfirmPending, arm: armConfirm, cancel: clearConfirm } = useTwoClickConfirm();
 
   const columns = useMemo(() => {
     return TRACKING_COLUMNS.map((column) => {
@@ -134,9 +108,6 @@ export function TrackingBoard({ activeAgentId, onSelectAgent }: TrackingBoardPro
 
     try {
       for (const agent of agents) {
-        if (columnKey === 'can-clear-context') {
-          store.clearContext(agent.id);
-        }
         await clearTrackingStatus(agent.id);
       }
     } finally {
@@ -196,9 +167,9 @@ export function TrackingBoard({ activeAgentId, onSelectAgent }: TrackingBoardPro
           <header className="tracking-board-column-header">
             <span className="tracking-board-column-indicator" />
             <span className="tracking-board-column-title">{column.title}</span>
-            {column.agents.length > 0 && column.key === 'need-review' && (() => {
+            {column.agents.length > 0 && (column.key === 'need-review' || column.key === 'can-clear-context') && (() => {
               const confirmId = `column-ctx:${column.key}`;
-              const isPending = pendingConfirmId === confirmId;
+              const isPending = isConfirmPending(confirmId);
               const isClearing = clearingContextColumnKey === column.key;
               return (
                 <button
@@ -217,9 +188,9 @@ export function TrackingBoard({ activeAgentId, onSelectAgent }: TrackingBoardPro
                   title={
                     isPending
                       ? 'Click again to confirm'
-                      : `Clear context for all ${column.agents.length} agent${column.agents.length === 1 ? '' : 's'} in Need Review`
+                      : `Clear context for all ${column.agents.length} agent${column.agents.length === 1 ? '' : 's'}`
                   }
-                  aria-label="Clear context for all agents in need review"
+                  aria-label="Clear context for all agents in this column"
                 >
                   {isClearing
                     ? 'Clearing…'
@@ -230,43 +201,19 @@ export function TrackingBoard({ activeAgentId, onSelectAgent }: TrackingBoardPro
               );
             })()}
             {column.agents.length > 0 && (() => {
-              const isCanClearCtx = column.key === 'can-clear-context';
-              const confirmId = `column:${column.key}`;
-              const isPending = isCanClearCtx && pendingConfirmId === confirmId;
               const isClearing = clearingColumnKey === column.key;
               return (
                 <button
                   type="button"
-                  className={`tracking-board-column-action${isCanClearCtx ? ' tracking-board-column-action--context' : ''}${isPending ? ' confirm-pending' : ''}`}
+                  className="tracking-board-column-action"
                   onClick={() => {
                     if (isClearing) return;
-                    if (isCanClearCtx) {
-                      if (isPending) {
-                        clearConfirm();
-                        void handleClearColumn(column.key, column.agents);
-                      } else {
-                        armConfirm(confirmId);
-                      }
-                    } else {
-                      void handleClearColumn(column.key, column.agents);
-                    }
+                    void handleClearColumn(column.key, column.agents);
                   }}
                   disabled={isClearing}
-                  title={
-                    isPending
-                      ? 'Click again to confirm'
-                      : isCanClearCtx
-                        ? 'Clear context and status for all agents'
-                        : 'Clear status for all agents in this column'
-                  }
+                  title="Clear status for all agents in this column"
                 >
-                  {isClearing
-                    ? 'Clearing...'
-                    : isPending
-                      ? 'Confirm?'
-                      : isCanClearCtx
-                        ? `Clear All Context (${column.agents.length})`
-                        : 'Clear all'}
+                  {isClearing ? 'Clearing...' : 'Clear all'}
                 </button>
               );
             })()}
@@ -285,7 +232,7 @@ export function TrackingBoard({ activeAgentId, onSelectAgent }: TrackingBoardPro
                   isClearing={clearingAgentIds.has(agent.id)}
                   hasPendingRead={agentsWithUnseenOutput.has(agent.id)}
                   showClearContext={column.key === 'need-review' || column.key === 'blocked' || column.key === 'can-clear-context'}
-                  isClearContextConfirming={pendingConfirmId === `agent-ctx:${agent.id}`}
+                  isClearContextConfirming={isConfirmPending(`agent-ctx:${agent.id}`)}
                   onSelectAgent={onSelectAgent}
                   onClearStatus={handleClearStatus}
                   onClearContext={handleClearContextAgent}

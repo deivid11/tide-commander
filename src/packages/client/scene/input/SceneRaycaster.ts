@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import type { AgentMeshData } from '../characters/CharacterFactory';
 import type { GroundPosition, ResizeHandlesGetter, FolderIconMeshesGetter } from './types';
+import { store } from '../../store';
+import { getActiveWorkspaceState, isAgentVisibleInWorkspace } from '../../components/WorkspaceSwitcher';
 
 /**
  * Handles all raycasting operations for scene interaction.
@@ -159,7 +161,8 @@ export class SceneRaycaster {
         obj = obj.parent;
       }
       if (obj && obj.userData.agentId) {
-        return obj.userData.agentId;
+        const id = obj.userData.agentId as string;
+        return this.isAgentPickable(id) ? id : null;
       }
     }
     return null;
@@ -181,10 +184,21 @@ export class SceneRaycaster {
         obj = obj.parent;
       }
       if (obj && obj.userData.agentId) {
-        return obj.userData.agentId;
+        const id = obj.userData.agentId as string;
+        return this.isAgentPickable(id) ? id : null;
       }
     }
     return null;
+  }
+
+  // Workspace membership is derived from the agent's current position, so an
+  // agent mesh can become stale (still in the scene) after it moves outside
+  // the active workspace's areas. Gate picks on the live workspace filter so
+  // invisible/foreign-workspace agents are never selected.
+  private isAgentPickable(agentId: string): boolean {
+    if (!getActiveWorkspaceState()) return true;
+    const area = store.getAreaForAgent(agentId);
+    return isAgentVisibleInWorkspace(area?.id ?? null);
   }
 
   /**
