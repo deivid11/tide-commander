@@ -80,7 +80,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
     search: false,
   });
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set());
-  const [selectedModel, setSelectedModel] = useState<ClaudeModel>('opus'); // Default to opus
+  const [selectedModel, setSelectedModel] = useState<ClaudeModel>('claude-opus-4-7'); // Default to latest Opus
   const [selectedEffort, setSelectedEffort] = useState<ClaudeEffort | undefined>('high'); // Default: high (matches CLI default)
   const [selectedCodexModel, setSelectedCodexModel] = useState<CodexModel>('gpt-5.3-codex');
   const [opencodeModel, setOpencodeModel] = useState<string>('minimax/MiniMax-M1-80k');
@@ -348,10 +348,10 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
     }
   }, [selectedClass]);
 
-  // Boss class should default to opus model
+  // Boss class should default to the latest Opus
   useEffect(() => {
     if (selectedClass === 'boss') {
-      setSelectedModel('opus');
+      setSelectedModel('claude-opus-4-7');
     }
   }, [selectedClass]);
 
@@ -707,7 +707,9 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                 </label>
                 {selectedProvider === 'claude' ? (
                   <div className="spawn-select-row">
-                    {(Object.keys(CLAUDE_MODELS) as ClaudeModel[]).map((model) => (
+                    {(Object.keys(CLAUDE_MODELS) as ClaudeModel[])
+                      .filter((model) => !CLAUDE_MODELS[model].deprecated)
+                      .map((model) => (
                       <button
                         key={model}
                         className={`spawn-select-btn ${selectedModel === model ? 'selected' : ''}`}

@@ -84,7 +84,7 @@ export interface BackendConfig {
   agentId?: string;  // Used for prompt file naming
   sessionId?: string;
   model?: string;
-  effort?: string;  // Reasoning effort level (low, medium, high, max)
+  effort?: string;  // Reasoning effort level (low, medium, high, xHigh, max)
   workingDir: string;
   permissionMode?: 'bypass' | 'interactive';
   prompt?: string;
@@ -223,7 +223,7 @@ export interface RunnerRequest {
   workingDir: string;
   sessionId?: string;
   model?: string;
-  effort?: string;  // Reasoning effort level (low, medium, high, max)
+  effort?: string;  // Reasoning effort level (low, medium, high, xHigh, max)
   useChrome?: boolean;
   permissionMode?: 'bypass' | 'interactive';
   systemPrompt?: string;

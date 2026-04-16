@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.48.0] - 2026-04-16
+
+### Added
+- **Explicit Claude model IDs** - New `claude-opus-4-7` and `claude-opus-4-6` options in the model picker so agents can be pinned to a specific Opus version instead of the rolling `opus` alias
+- **X-High reasoning effort** - New `xHigh` effort level (between `high` and `max`) supported from Opus 4.7 onward
+- **Deprecated model flagging** - `isDeprecatedClaudeModel` helper + `deprecated` flag on `CLAUDE_MODELS` entries; legacy `opus` and `claude-opus-4-6` are marked deprecated and hidden from the "new agent" picker while remaining valid for existing agents
+
+### Changed
+- **`opus` alias now resolves to Opus 4.7** - `llm-matcher-service` maps the short `opus` name to `claude-opus-4-7` (previously `claude-opus-4-6-20250514`)
+- **Codex backend skips Claude model IDs** - `shouldPassCodexModel` now treats any `claude-*` model ID as a non-Codex model so Codex agents no longer attempt to pass them through
+- **Spawn/Edit/Boss/Bulk modals** - Model dropdowns filter out deprecated entries when creating new agents
+
+### Fixed
+- **Task reports survive expired delegations** - `/api/agents/:id/report-task` falls back to `agent.bossId` when the active delegation record has already cleared, and accepts the report (with a `forwarded` flag) even if the boss agent is gone instead of returning 400
+
 ## [1.47.0] - 2026-04-16
 
 ### Changed

@@ -49,7 +49,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
     approvalMode: 'on-request',
     search: false,
   });
-  const [selectedModel, setSelectedModel] = useState<ClaudeModel>('opus');
+  const [selectedModel, setSelectedModel] = useState<ClaudeModel>('claude-opus-4-7');
   const [selectedCodexModel, setSelectedCodexModel] = useState<CodexModel>('gpt-5.3-codex');
   const [selectedSubordinates, setSelectedSubordinates] = useState<Set<string>>(new Set());
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set());
@@ -506,7 +506,9 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                 <label className="spawn-label">{t('common:labels.model')}</label>
                 {selectedProvider === 'claude' ? (
                   <div className="spawn-select-row">
-                    {(Object.keys(CLAUDE_MODELS) as ClaudeModel[]).map((model) => (
+                    {(Object.keys(CLAUDE_MODELS) as ClaudeModel[])
+                      .filter((model) => !CLAUDE_MODELS[model].deprecated)
+                      .map((model) => (
                       <button
                         key={model}
                         className={`spawn-select-btn ${selectedModel === model ? 'selected' : ''}`}

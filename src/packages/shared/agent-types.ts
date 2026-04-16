@@ -122,24 +122,43 @@ export const CODEX_MODELS: Record<CodexModel, { label: string; description: stri
   },
 };
 
-// Claude Model - which AI model to use
-export type ClaudeModel = 'sonnet' | 'opus' | 'haiku';
+// Claude Model - which AI model to use.
+// Short names ('sonnet' | 'opus' | 'haiku') are legacy aliases for the CLI's
+// latest-of-family resolution. Explicit IDs (e.g. 'claude-opus-4-7') are
+// preferred for new agents so we pin a specific version.
+export type ClaudeModel =
+  | 'sonnet'
+  | 'opus'
+  | 'haiku'
+  | 'claude-opus-4-7'
+  | 'claude-opus-4-6';
 
-export const CLAUDE_MODELS: Record<ClaudeModel, { label: string; description: string; icon: string }> = {
+export const CLAUDE_MODELS: Record<ClaudeModel, { label: string; description: string; icon: string; deprecated?: boolean }> = {
   sonnet: { label: 'Sonnet', description: 'Balanced performance and cost (recommended)', icon: '⚡' },
-  opus: { label: 'Opus', description: 'Most capable, higher cost', icon: '🧠' },
+  'claude-opus-4-7': { label: 'Opus 4.7', description: 'Latest Opus — most capable, highest cost', icon: '🧠' },
+  opus: { label: 'Opus (legacy)', description: 'Legacy alias — prefer Opus 4.7', icon: '🧠', deprecated: true },
+  'claude-opus-4-6': { label: 'Opus 4.6', description: 'Previous Opus generation (retained for existing agents)', icon: '🧠', deprecated: true },
   haiku: { label: 'Haiku', description: 'Fast and economical', icon: '🚀' },
 };
 
-// Claude Effort Level - how much reasoning effort Claude puts into responses
-export type ClaudeEffort = 'low' | 'medium' | 'high' | 'max';
+// Claude Effort Level - how much reasoning effort Claude puts into responses.
+// 'xHigh' (extra high) sits between 'high' and 'max' and is supported from
+// Opus 4.7 onward.
+export type ClaudeEffort = 'low' | 'medium' | 'high' | 'xHigh' | 'max';
 
 export const CLAUDE_EFFORTS: Record<ClaudeEffort, { label: string; description: string; icon: string }> = {
   low: { label: 'Low', description: 'Minimal reasoning, fastest responses', icon: '🏃' },
   medium: { label: 'Medium', description: 'Balanced reasoning effort', icon: '⚖️' },
   high: { label: 'High', description: 'Deep reasoning for complex tasks (default)', icon: '🔬' },
+  xHigh: { label: 'X-High', description: 'Extra-high reasoning (Opus 4.7+)', icon: '🧪' },
   max: { label: 'Max', description: 'Maximum reasoning, most thorough', icon: '🧠' },
 };
+
+// Model IDs that should be hidden from the "new agent" model picker.
+// They remain valid ClaudeModel values so existing agents keep working.
+export function isDeprecatedClaudeModel(model: ClaudeModel): boolean {
+  return CLAUDE_MODELS[model]?.deprecated === true;
+}
 
 // ============================================================================
 // Context & Usage Stats

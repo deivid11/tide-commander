@@ -24,7 +24,7 @@ export interface BulkManageModalProps {
 type StatusFilter = 'all' | 'idle' | 'working' | 'error' | 'stopped';
 type IdleTimeFilter = 'any' | '>1h' | '>6h' | '>1d' | '>3d' | '>7d' | '>30d';
 type ProviderFilter = 'all' | 'claude' | 'codex' | 'opencode';
-type ModelFilter = 'all' | 'opus' | 'sonnet' | 'haiku';
+type ModelFilter = 'all' | 'opus' | 'opus-4-7' | 'opus-4-6' | 'sonnet' | 'haiku';
 
 type ConfirmAction = 'delete' | 'clear-context' | null;
 
@@ -116,7 +116,11 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
       // Model filter
       if (modelFilter !== 'all') {
         const agentModel = agent.model || 'sonnet';
-        if (agentModel !== modelFilter) return false;
+        const matchesFilter =
+          modelFilter === 'opus-4-7' ? agentModel === 'claude-opus-4-7' :
+          modelFilter === 'opus-4-6' ? agentModel === 'claude-opus-4-6' :
+          agentModel === modelFilter;
+        if (!matchesFilter) return false;
       }
 
       // Text search
@@ -288,7 +292,9 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                 className="bulk-filter-select"
               >
                 <option value="all">All Models</option>
-                <option value="opus">Opus</option>
+                <option value="opus-4-7">Opus 4.7</option>
+                <option value="opus-4-6">Opus 4.6</option>
+                <option value="opus">Opus (legacy)</option>
                 <option value="sonnet">Sonnet</option>
                 <option value="haiku">Haiku</option>
               </select>

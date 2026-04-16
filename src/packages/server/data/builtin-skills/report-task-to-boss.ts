@@ -63,7 +63,7 @@ EOF
 - Replace \`YOUR_AGENT_ID\` with your actual agent ID from the system prompt
 - Keep the summary concise but informative (what was done, key outcomes)
 - Use \`"failed"\` status only when the task truly cannot be completed
-- This only works when you have an active delegation from a boss agent
+- Safe to call even if the active delegation window has expired — the server will still accept the report and forward it to your recorded boss when possible
 - Call this AFTER you have finished all work (not before)
 - You should still send your regular task completion notification separately`,
 };

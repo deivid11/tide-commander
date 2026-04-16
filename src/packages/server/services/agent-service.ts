@@ -20,7 +20,13 @@ import { loadSubagentHistory, type SubagentHistoryEntry } from '../claude/subage
 import { logger, generateId } from '../utils/index.js';
 
 const log = logger.agent;
-const CLAUDE_MODELS = new Set<ClaudeModel>(['sonnet', 'opus', 'haiku']);
+const CLAUDE_MODELS = new Set<ClaudeModel>([
+  'sonnet',
+  'opus',
+  'haiku',
+  'claude-opus-4-7',
+  'claude-opus-4-6',
+]);
 const DEFAULT_CLAUDE_CONTEXT_LIMIT = 200000;
 const DEFAULT_CODEX_CONTEXT_LIMIT = 258400;
 const DEFAULT_OPENCODE_CONTEXT_LIMIT = 200000;

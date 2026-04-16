@@ -795,52 +795,79 @@ router.post('/:id/report-task', async (req: Request<{ id: string }>, res: Respon
       return;
     }
 
-    // Find the boss for this subordinate (via active delegation tracking)
+    // Try active delegation tracking first, fall back to agent.bossId if delegation has cleared
     const delegation = getBossForSubordinate(subordinateId);
-    if (!delegation) {
-      res.status(400).json({ error: `No active delegation found for agent ${agent.name}. Not currently working under a boss.` });
-      return;
-    }
-
-    const bossAgent = agentService.getAgent(delegation.bossId);
-    const bossName = bossAgent?.name || delegation.bossId;
+    const resolvedBossId = delegation?.bossId || agent.bossId;
     const taskStatus = status || 'completed';
     const success = taskStatus === 'completed';
 
-    log.log(`Agent ${agent.name} reporting task ${taskStatus} to boss ${bossName}: "${(summary || '').slice(0, 80)}"`);
+    if (!resolvedBossId) {
+      log.log(`Agent ${agent.name} reported task ${taskStatus} but has no boss association. Accepting and logging: "${(summary || '').slice(0, 120)}"`);
+      res.status(200).json({
+        success: true,
+        subordinateId: agent.id,
+        subordinateName: agent.name,
+        bossId: null,
+        bossName: null,
+        taskStatus,
+        accepted: true,
+        forwarded: false,
+        reason: 'No active delegation and no recorded boss — report logged only.',
+      });
+      return;
+    }
+
+    const bossAgent = agentService.getAgent(resolvedBossId);
+    const bossName = bossAgent?.name || resolvedBossId;
+    const taskDescription = delegation?.taskDescription || '(no active delegation record — original task unknown)';
+
+    log.log(`Agent ${agent.name} reporting task ${taskStatus} to boss ${bossName}${delegation ? '' : ' (via fallback bossId, delegation already cleared)'}: "${(summary || '').slice(0, 80)}"`);
 
     // 1. Broadcast agent_task_completed to update the progress indicator on the client
     if (broadcastFn) {
       broadcastFn({
         type: 'agent_task_completed',
         payload: {
-          bossId: delegation.bossId,
+          bossId: resolvedBossId,
           subordinateId,
           success,
         },
       } as any);
     }
 
-    // 2. Clear the active delegation tracking
+    // 2. Clear the active delegation tracking (no-op if already cleared)
     clearDelegation(subordinateId);
 
-    // 3. Send a message to the boss so it knows the task finished and can decide next steps
-    const reportMessage = `[TASK REPORT from ${agent.name} (${subordinateId})]\n\nStatus: ${taskStatus === 'completed' ? 'COMPLETED' : 'FAILED'}\nOriginal task: ${delegation.taskDescription}\n${summary ? `\nSummary: ${summary}` : ''}\n\nYou may review the result, give follow-up instructions, or dismiss this agent's progress indicator.`;
+    // 3. Send a message to the boss so it knows the task finished and can decide next steps.
+    // If the boss agent is no longer available, accept the report without failing.
+    let forwarded = false;
+    if (bossAgent) {
+      const reportMessage = `[TASK REPORT from ${agent.name} (${subordinateId})]\n\nStatus: ${taskStatus === 'completed' ? 'COMPLETED' : 'FAILED'}\nOriginal task: ${taskDescription}\n${summary ? `\nSummary: ${summary}` : ''}\n\nYou may review the result, give follow-up instructions, or dismiss this agent's progress indicator.`;
 
-    if (bossAgent?.isBoss || bossAgent?.class === 'boss') {
-      const { message: bossMessage, systemPrompt } = await bossMessageService.buildBossMessage(delegation.bossId, reportMessage);
-      await runtimeService.sendCommand(delegation.bossId, bossMessage, systemPrompt);
+      try {
+        if (bossAgent.isBoss || bossAgent.class === 'boss') {
+          const { message: bossMessage, systemPrompt } = await bossMessageService.buildBossMessage(resolvedBossId, reportMessage);
+          await runtimeService.sendCommand(resolvedBossId, bossMessage, systemPrompt);
+        } else {
+          await runtimeService.sendCommand(resolvedBossId, reportMessage);
+        }
+        forwarded = true;
+      } catch (forwardErr: any) {
+        log.error(` Failed to forward task report to boss ${bossName}, accepting report anyway:`, forwardErr);
+      }
     } else {
-      await runtimeService.sendCommand(delegation.bossId, reportMessage);
+      log.log(` Boss agent ${resolvedBossId} not found — accepting report without forwarding.`);
     }
 
     res.status(200).json({
       success: true,
       subordinateId: agent.id,
       subordinateName: agent.name,
-      bossId: delegation.bossId,
+      bossId: resolvedBossId,
       bossName,
       taskStatus,
+      accepted: true,
+      forwarded,
     });
   } catch (err: any) {
     log.error(' Failed to report task to boss:', err);

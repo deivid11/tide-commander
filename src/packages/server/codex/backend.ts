@@ -14,7 +14,13 @@ interface CodexRawEvent {
 
 function shouldPassCodexModel(model: string | undefined): model is string {
   if (!model) return false;
-  if (model === 'codex' || model === 'sonnet' || model === 'opus' || model === 'haiku') {
+  if (
+    model === 'codex' ||
+    model === 'sonnet' ||
+    model === 'opus' ||
+    model === 'haiku' ||
+    model.startsWith('claude-')
+  ) {
     return false;
   }
   return true;
