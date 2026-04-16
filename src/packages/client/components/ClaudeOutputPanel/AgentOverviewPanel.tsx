@@ -808,13 +808,13 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
 
       {/* Actions */}
       <div className="aop-actions">
+        <WorkspaceSwitcher />
         <button onClick={expandAll} className="action-btn" title={t('common:buttons.expand')}>
           {t('common:buttons.expand')}
         </button>
         <button onClick={collapseAll} className="action-btn" title={t('common:buttons.collapse')}>
           {t('common:buttons.collapse')}
         </button>
-        <WorkspaceSwitcher />
         <button onClick={() => setGroupByArea(v => !v)} className={`action-btn action-btn--toggle${groupByArea ? ' active' : ''}`} title={t('terminal:overview.areas')}>
           {t('terminal:overview.areas')}
         </button>
@@ -904,7 +904,6 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
         </button>
       </div>
 
-      {/* Agent List grouped by area */}
       <div className="aop-agent-list" ref={agentListRef}>
         {areaGroups.length === 0 ? (
           <div className="aop-empty">

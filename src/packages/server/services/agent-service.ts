@@ -480,30 +480,31 @@ function reconcileAgentAreaAssignment(agentId: string, position: { x: number; z:
 export function updateAgent(id: string, updates: Partial<Agent>, updateActivity = true): Agent | null {
   const agent = agents.get(id);
   if (!agent) return null;
+  const normalizedUpdates = { ...updates };
 
   const sessionIdBefore = agent.sessionId;
-  const hasSessionIdInUpdates = 'sessionId' in updates;
+  const hasSessionIdInUpdates = 'sessionId' in normalizedUpdates;
 
   // Track pending property updates for notification on next command
   // (these are changes that affect behavior but don't require restart)
   const pending = pendingPropertyUpdates.get(id) || {};
 
-  if (updates.class !== undefined && updates.class !== agent.class) {
+  if (normalizedUpdates.class !== undefined && normalizedUpdates.class !== agent.class) {
     pending.classChanged = true;
     pending.oldClass = agent.class;
-    log.log(`Agent ${agent.name}: Class change pending (${agent.class} -> ${updates.class})`);
+    log.log(`Agent ${agent.name}: Class change pending (${agent.class} -> ${normalizedUpdates.class})`);
   }
 
-  if (updates.permissionMode !== undefined && updates.permissionMode !== agent.permissionMode) {
+  if (normalizedUpdates.permissionMode !== undefined && normalizedUpdates.permissionMode !== agent.permissionMode) {
     pending.permissionModeChanged = true;
     pending.oldPermissionMode = agent.permissionMode;
-    log.log(`Agent ${agent.name}: Permission mode change pending (${agent.permissionMode} -> ${updates.permissionMode})`);
+    log.log(`Agent ${agent.name}: Permission mode change pending (${agent.permissionMode} -> ${normalizedUpdates.permissionMode})`);
   }
 
-  if (updates.useChrome !== undefined && updates.useChrome !== agent.useChrome) {
+  if (normalizedUpdates.useChrome !== undefined && normalizedUpdates.useChrome !== agent.useChrome) {
     pending.useChromeChanged = true;
     pending.oldUseChrome = agent.useChrome;
-    log.log(`Agent ${agent.name}: Chrome mode change pending (${agent.useChrome} -> ${updates.useChrome})`);
+    log.log(`Agent ${agent.name}: Chrome mode change pending (${agent.useChrome} -> ${normalizedUpdates.useChrome})`);
   }
 
   // Note: Model changes are handled via hot restart (stop + resume with new model)
@@ -513,23 +514,38 @@ export function updateAgent(id: string, updates: Partial<Agent>, updateActivity 
     pendingPropertyUpdates.set(id, pending);
   }
 
+  const nextStatus = normalizedUpdates.status ?? agent.status;
+  const hasExplicitTrackingStatus = Object.prototype.hasOwnProperty.call(normalizedUpdates, 'trackingStatus');
+  const explicitTrackingStatus = normalizedUpdates.trackingStatus;
+  const shouldPreserveExplicitTrackingStatus = explicitTrackingStatus !== undefined
+    && explicitTrackingStatus !== null
+    && explicitTrackingStatus !== 'working';
+  const enteredWorkingState = agent.status !== 'working' && nextStatus === 'working';
+  if (enteredWorkingState && !shouldPreserveExplicitTrackingStatus) {
+    normalizedUpdates.trackingStatus = 'working';
+    normalizedUpdates.trackingStatusDetail = undefined;
+    if (!hasExplicitTrackingStatus || explicitTrackingStatus === null || explicitTrackingStatus === 'working') {
+      normalizedUpdates.trackingStatusTimestamp = Date.now();
+    }
+  }
+
   // Only update lastActivity for real activity (not position changes, etc.)
   if (updateActivity) {
-    Object.assign(agent, updates, { lastActivity: Date.now() });
+    Object.assign(agent, normalizedUpdates, { lastActivity: Date.now() });
   } else {
-    Object.assign(agent, updates);
+    Object.assign(agent, normalizedUpdates);
   }
   agents.set(id, agent);
   debouncedPersistAgents();
 
   // Reconcile area assignment when position changes
-  if (updates.position) {
+  if (normalizedUpdates.position) {
     reconcileAgentAreaAssignment(id, { x: agent.position.x, z: agent.position.z });
   }
 
   // Debug logging for sessionId changes
   if (sessionIdBefore !== agent.sessionId) {
-    log.warn(`🔑 [SESSION CHANGE] Agent ${agent.name} (${id}): sessionId changed from "${sessionIdBefore}" to "${agent.sessionId}". Updates had sessionId: ${hasSessionIdInUpdates}, updates keys: ${Object.keys(updates).join(', ')}`);
+    log.warn(`🔑 [SESSION CHANGE] Agent ${agent.name} (${id}): sessionId changed from "${sessionIdBefore}" to "${agent.sessionId}". Updates had sessionId: ${hasSessionIdInUpdates}, updates keys: ${Object.keys(normalizedUpdates).join(', ')}`);
   }
 
   emit('updated', agent);

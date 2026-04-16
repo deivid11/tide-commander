@@ -53,6 +53,7 @@ export interface CustomAgentClass {
 // Agent Status
 // 'orphaned' = Claude process is running but agent state is out of sync (e.g., shows idle when actually working)
 export type AgentStatus = 'idle' | 'working' | 'waiting' | 'waiting_permission' | 'error' | 'offline' | 'orphaned';
+export type AgentTrackingStatus = 'working' | 'need-review' | 'blocked' | 'can-clear-context';
 
 // Permission Mode - controls how Claude asks for permissions
 export type PermissionMode = 'bypass' | 'interactive';
@@ -237,6 +238,9 @@ export interface Agent {
 
   // Brief task label (max 5 words) for display in 2D/3D scenes
   taskLabel?: string;
+  trackingStatus?: AgentTrackingStatus | null;
+  trackingStatusDetail?: string;
+  trackingStatusTimestamp?: number;
 
   // Task counter - number of user messages/commands sent to this agent
   taskCount: number;

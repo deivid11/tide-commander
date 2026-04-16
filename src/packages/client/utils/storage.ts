@@ -55,6 +55,7 @@ export const STORAGE_KEYS = {
   // Agent Overview Panel
   AOP_CONFIG: 'tide-aop-config',
   AOP_OPEN: 'tide-aop-open',
+  AOP_TRACKING_BOARD_VISIBLE: 'tide-aop-tracking-board-visible',
   MOBILE_OVERVIEW_HEIGHT: 'tide-mobile-overview-height',
 
   // Split Terminal Panes

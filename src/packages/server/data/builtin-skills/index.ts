@@ -19,6 +19,7 @@ import { pm2Logs } from './pm2-logs.js';
 import { createBuilding } from './create-building.js';
 import { releasePipeline } from './release-pipeline.js';
 import { taskLabel } from './task-label.js';
+import { agentTracking } from './agent-tracking.js';
 import { reportTaskToBoss } from './report-task-to-boss.js';
 import { bossInstructions } from './boss-instructions.js';
 import { workflowDesigner } from './workflow-designer.js';
@@ -42,6 +43,7 @@ export const BUILTIN_SKILLS: BuiltinSkillDefinition[] = [
   createBuilding,
   releasePipeline,
   taskLabel,
+  agentTracking,
   reportTaskToBoss,
   bossInstructions,
   workflowDesigner,

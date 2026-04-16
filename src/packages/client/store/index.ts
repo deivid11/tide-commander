@@ -160,9 +160,12 @@ export {
   useSubagentsMapForAgent,
   useViewMode,
   useOverviewPanelOpen,
+  useTrackingBoardVisible,
   useSplitPaneAgentIds,
   useSplitOrientation,
   useAgentsWithUnseenOutput,
+  useAgentsByTrackingStatus,
+  selectAgentsByTrackingStatus,
 } from './selectors';
 
 // ============================================================================
@@ -278,6 +281,7 @@ class Store
         return (saved === '2d' || saved === '3d' || saved === 'dashboard') ? saved as StoreState['viewMode'] : '3d';
       })(),
       overviewPanelOpen: getStorageBoolean(STORAGE_KEYS.AOP_OPEN, false),
+      trackingBoardVisible: getStorageBoolean(STORAGE_KEYS.AOP_TRACKING_BOARD_VISIBLE, false),
       splitPaneAgentIds: this.loadSplitPaneAgentIds(),
       splitOrientation: this.loadSplitOrientation(),
       agentsWithUnseenOutput: this.loadUnseenAgents(),
@@ -490,6 +494,18 @@ class Store
   setOverviewPanelOpen(open: boolean): void {
     this.state.overviewPanelOpen = open;
     setStorageBoolean(STORAGE_KEYS.AOP_OPEN, open);
+    this.notify();
+  }
+
+  toggleTrackingBoard(): void {
+    this.state.trackingBoardVisible = !this.state.trackingBoardVisible;
+    setStorageBoolean(STORAGE_KEYS.AOP_TRACKING_BOARD_VISIBLE, this.state.trackingBoardVisible);
+    this.notify();
+  }
+
+  setTrackingBoardVisible(visible: boolean): void {
+    this.state.trackingBoardVisible = visible;
+    setStorageBoolean(STORAGE_KEYS.AOP_TRACKING_BOARD_VISIBLE, visible);
     this.notify();
   }
 

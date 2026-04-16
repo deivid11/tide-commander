@@ -57,7 +57,10 @@ export function initSkills(): void {
         const restoredSkill: Skill = {
           ...builtinSkill,
           assignedAgentIds: storedVersion.assignedAgentIds,
-          assignedAgentClasses: storedVersion.assignedAgentClasses,
+          assignedAgentClasses: Array.from(new Set([
+            ...builtinSkill.assignedAgentClasses,
+            ...storedVersion.assignedAgentClasses,
+          ])),
           enabled: storedVersion.enabled, // Also restore enabled state
         };
         skills.set(builtinId, restoredSkill);
