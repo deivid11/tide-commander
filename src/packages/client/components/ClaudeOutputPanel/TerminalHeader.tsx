@@ -281,7 +281,7 @@ export const TerminalHeader = memo(function TerminalHeader({
               onClick={onToggleAgentInfo}
               title={t('terminal:header.showAgentInfo')}
             >
-              <span className="guake-agent-avatar"><AgentIcon agent={selectedAgent} size={20} /></span>
+              <span className="guake-agent-avatar"><AgentIcon agent={selectedAgent} size="100%" /></span>
               <span className="guake-title-block">
                 <span className="guake-title-main-row">
                   <span className="guake-title">{selectedAgent.name}</span>
@@ -304,7 +304,7 @@ export const TerminalHeader = memo(function TerminalHeader({
             </button>
           ) : (
             <div className="guake-title-with-provider">
-              <span className="guake-agent-avatar"><AgentIcon agent={selectedAgent} size={20} /></span>
+              <span className="guake-agent-avatar"><AgentIcon agent={selectedAgent} size="100%" /></span>
               <span className="guake-title-block">
                 <span className="guake-title-main-row">
                   <span className="guake-title">{selectedAgent.name}</span>

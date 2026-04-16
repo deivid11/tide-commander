@@ -34,6 +34,7 @@ export const AgentIcon = React.memo(function AgentIcon({
   const fontSize = typeof size === 'string' ? size : `${size}px`;
 
   if (config.iconPath) {
+    const imgSize = typeof size === 'number' ? `${size}px` : size;
     return (
       <img
         src={authUrl(apiUrl(`/api/custom-class-icons/${config.iconPath}`))}
@@ -43,8 +44,8 @@ export const AgentIcon = React.memo(function AgentIcon({
           display: 'inline-block',
           verticalAlign: 'middle',
           objectFit: 'cover',
-          width: '100%',
-          height: '100%',
+          width: imgSize,
+          height: imgSize,
           ...style,
         }}
       />

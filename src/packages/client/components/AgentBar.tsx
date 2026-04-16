@@ -102,7 +102,7 @@ const AgentBarItem = memo(function AgentBarItem({
         : `${agent.name} (${currentIndex + 1}) - Drag to reorder within group`}
     >
       <div className="agent-bar-avatar">
-        <AgentIcon classId={agent.class} size={20} className="agent-bar-icon" />
+        <AgentIcon classId={agent.class} size="100%" className="agent-bar-icon" />
         <span
           className="agent-bar-status"
           style={{ backgroundColor: getAgentStatusColor(agent.status) }}

@@ -594,6 +594,62 @@
   isolation: isolate;
   cursor: pointer;
   transition: border-color 0.2s;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  min-height: 36px;
+
+  .aop-card-avatar {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px;
+    margin: auto 0 auto 3px;
+    font-size: 16px;
+    line-height: 1;
+    position: relative;
+
+    // Class icon image
+    > img:not(.aop-provider-icon) {
+      border-radius: 3px;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      aspect-ratio: 1 / 1;
+    }
+
+    // Provider badge (Claude/Codex/OpenCode) — top-right overlap
+    .aop-provider-icon {
+      position: absolute;
+      top: -3px;
+      right: -3px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 1px solid var(--bg-secondary);
+      background: var(--bg-secondary);
+      object-fit: contain;
+    }
+
+    // Emoji spans from AgentIcon
+    > span {
+      font-size: 16px;
+      line-height: 1;
+    }
+
+    &.emoji {
+      border-radius: 6px;
+    }
+  }
+
+  .aop-card-content {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+  }
 
   &.boss {
     border-left-color: #f0c040;
@@ -609,23 +665,11 @@
   &.active {
     border-color: var(--aop-selected);
     border-left-color: var(--aop-selected);
-    background: color-mix(in srgb, var(--aop-selected) 25%, var(--bg-secondary));
-    box-shadow:
-      inset 0 0 0 1px color-mix(in srgb, var(--aop-selected) 20%, transparent),
-      0 0 0 2px color-mix(in srgb, var(--aop-selected) 35%, transparent);
   }
 
   &.active.boss {
     border-color: color-mix(in srgb, #ffd700 58%, var(--aop-selected));
     border-left-color: #ffd700;
-    background: linear-gradient(
-      180deg,
-      color-mix(in srgb, #ffd700 28%, var(--bg-secondary)) 0%,
-      color-mix(in srgb, #f0c040 18%, var(--bg-secondary)) 100%
-    );
-    box-shadow:
-      inset 0 0 0 1px color-mix(in srgb, #ffd700 28%, transparent),
-      0 0 0 2px color-mix(in srgb, #ffd700 22%, transparent);
   }
 
   &.working {
@@ -683,10 +727,6 @@
   &.active.stopped {
     border-color: var(--aop-selected);
     border-left-color: var(--aop-selected);
-    background: color-mix(in srgb, var(--aop-selected) 28%, var(--bg-secondary));
-    box-shadow:
-      inset 0 0 0 1px color-mix(in srgb, var(--aop-selected) 22%, transparent),
-      0 0 0 2px color-mix(in srgb, var(--aop-selected) 38%, transparent);
   }
 
   // Two-finger scroll selector hover highlight
@@ -788,6 +828,11 @@
       line-height: 1;
       flex-shrink: 0;
       opacity: 0.95;
+      width: 16px;
+      height: 16px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .aop-agent-class {
@@ -857,7 +902,7 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    padding: 0px 9px 1px 25px; // left-align with agent name
+    padding: 0px 8px 1px 8px;
     font-family: $font-mono;
     font-size: 11px;
     border-top: 1px solid color-mix(in srgb, var(--border-color) 25%, transparent);
@@ -887,7 +932,7 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    padding: 1px 9px 1px 25px; // left-align with agent name
+    padding: 1px 8px 1px 8px;
     font-family: $font-mono;
     font-size: 11px;
     border-top: 1px solid color-mix(in srgb, var(--border-color) 40%, transparent);
@@ -932,7 +977,7 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    padding: 1px 9px 1px 25px;
+    padding: 1px 8px 1px 8px;
     font-family: $font-mono;
     font-size: 11px;
     border-top: 1px solid color-mix(in srgb, var(--border-color) 25%, transparent);
@@ -1016,8 +1061,9 @@
     }
   }
 
-  // Context usage bar (always at bottom of card)
+  // Context usage bar (always at bottom of card, spans full width)
   .aop-context-bar {
+    width: 100%;
     height: 2px;
     background: color-mix(in srgb, var(--text-muted) 10%, transparent);
     overflow: hidden;
@@ -1420,6 +1466,8 @@
 
       .aop-agent-class-icon {
         font-size: 12px;
+        width: 14px;
+        height: 14px;
       }
 
       .aop-msg-count,
