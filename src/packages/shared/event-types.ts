@@ -10,10 +10,11 @@ type MatchMode = 'structural' | 'llm' | 'hybrid';
 type TriggerEventStatus = 'fired' | 'delivered' | 'failed';
 export type MessageDirection = 'inbound' | 'outbound';
 export type CalendarAction = 'created' | 'updated' | 'deleted';
+export type DriveAction = 'created' | 'updated' | 'deleted';
 export type JiraAction = 'created' | 'updated' | 'transitioned' | 'commented';
 type WorkflowInstanceStatus = 'running' | 'paused' | 'completed' | 'failed' | 'cancelled';
 type WorkflowStepStatus = 'entered' | 'executing' | 'completed' | 'failed' | 'skipped';
-export type AuditCategory = 'trigger' | 'slack' | 'email' | 'calendar' | 'document' | 'jira' | 'workflow' | 'system';
+export type AuditCategory = 'trigger' | 'slack' | 'email' | 'calendar' | 'drive' | 'document' | 'jira' | 'workflow' | 'system';
 type AuditLevel = 'debug' | 'info' | 'warn' | 'error';
 
 // ─── Trigger Events ───
@@ -134,6 +135,20 @@ export interface CalendarActionEvent {
   recordedAt: number;
 }
 
+// ─── Drive Action Logs ───
+
+export interface DriveActionEvent {
+  id?: number;
+  fileId: string;
+  action: DriveAction;
+  fileName: string;
+  mimeType: string;
+  folderId?: string;
+  agentId?: string;
+  workflowInstanceId?: string;
+  recordedAt: number;
+}
+
 // ─── Jira Ticket Logs ───
 
 export interface JiraTicketLogEvent {
@@ -232,10 +247,10 @@ export interface AuditLogEntry {
 // ─── Timeline Entry (for workflow timeline endpoint) ───
 
 export interface TimelineEntry {
-  type: 'trigger' | 'slack' | 'email' | 'approval' | 'document' | 'calendar' | 'jira' | 'step' | 'variable_change' | 'audit';
+  type: 'trigger' | 'slack' | 'email' | 'approval' | 'document' | 'calendar' | 'drive' | 'jira' | 'step' | 'variable_change' | 'audit';
   timestamp: number;
   data: TriggerFireEvent | SlackMessageEvent | EmailMessageEvent | ApprovalEvent |
-        DocumentGenerationEvent | CalendarActionEvent | JiraTicketLogEvent |
+        DocumentGenerationEvent | CalendarActionEvent | DriveActionEvent | JiraTicketLogEvent |
         WorkflowStepLogRow | VariableChangeRow | AuditLogEntry;
 }
 

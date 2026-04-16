@@ -58,10 +58,17 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [togglingPolling, setTogglingPolling] = useState(false);
+  const [showManualEdit, setShowManualEdit] = useState(false);
   const [step, setStep] = useState<'credentials' | 'authorize' | 'connected'>(
     integration.status.connected ? 'connected' : 'credentials'
   );
+
+  // Detect credentials already saved in the shared secrets store (e.g. from Calendar/Drive).
+  // Backend returns '********' when the shared OAuth secret is present.
+  const hasSharedCredentials =
+    authMethod === 'oauth2' &&
+    integration.values.clientId === '********' &&
+    integration.values.clientSecret === '********';
 
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const wasConnectedRef = useRef(integration.status.connected);
@@ -109,6 +116,40 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
     };
   }, [fetchStatus]);
 
+  // Fetch OAuth consent URL and start polling for auth completion.
+  const fetchAuthUrlAndStart = async () => {
+    const resp = await authFetch(apiUrl('/api/email/auth/url'));
+    if (!resp.ok) {
+      const data = await resp.json().catch(() => ({}));
+      throw new Error((data as { error?: string }).error || `HTTP ${resp.status}`);
+    }
+    const data = (await resp.json()) as { url: string };
+    if (!data.url) {
+      throw new Error('OAuth URL is empty');
+    }
+    setAuthUrl(data.url);
+    setError(null);
+    setStep('authorize');
+
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+    }
+    pollTimerRef.current = setInterval(fetchStatus, 3000);
+  };
+
+  // One-click authorize using OAuth credentials already saved in the shared secrets store.
+  const handleUseSharedCredentials = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      await fetchAuthUrlAndStart();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to get OAuth URL');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Save OAuth2 credentials and get OAuth URL
   const handleSaveOAuth = async () => {
     if (!clientId.trim()) {
@@ -122,32 +163,19 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
     try {
       const config: Record<string, unknown> = {
         authMethod: 'oauth2',
-        clientId: clientId.trim(),
         pollingIntervalMs: parseInt(pollingInterval) || 30000,
         defaultApprovalKeywords: approvalKeywords,
       };
-      if (clientSecret.trim()) {
+      // Only send Client ID if it was actually changed (not the '********' placeholder)
+      if (clientId.trim() && clientId.trim() !== '********') {
+        config.clientId = clientId.trim();
+      }
+      if (clientSecret.trim() && clientSecret.trim() !== '********') {
         config.clientSecret = clientSecret.trim();
       }
       await onSave(config);
 
-      const resp = await authFetch(apiUrl('/api/email/auth/url'));
-      if (!resp.ok) {
-        const data = await resp.json().catch(() => ({}));
-        throw new Error((data as { error?: string }).error || `HTTP ${resp.status}`);
-      }
-      const data = (await resp.json()) as { url: string };
-      if (!data.url) {
-        throw new Error('OAuth URL is empty');
-      }
-      setAuthUrl(data.url);
-      setError(null);
-      setStep('authorize');
-
-      if (pollTimerRef.current) {
-        clearInterval(pollTimerRef.current);
-      }
-      pollTimerRef.current = setInterval(fetchStatus, 3000);
+      await fetchAuthUrlAndStart();
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to get OAuth URL';
       setError(errorMsg);
@@ -296,8 +324,26 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
             </div>
           </div>
 
-          {/* OAuth2 Fields */}
-          {authMethod === 'oauth2' && (
+          {/* OAuth2 — shared-credentials shortcut */}
+          {authMethod === 'oauth2' && hasSharedCredentials && !showManualEdit && (
+            <>
+              <h4 className="gmail-oauth-section-title">Google OAuth Credentials</h4>
+              <div className="gmail-oauth-shared-banner">
+                <div className="gmail-oauth-shared-title">
+                  <span>{'\u2713'}</span>
+                  <span>Credentials already configured</span>
+                </div>
+                <div className="gmail-oauth-shared-body">
+                  Existing Google OAuth credentials (Client ID and Secret) are saved in your secrets store —
+                  they&apos;re shared between Gmail, Calendar, and Drive. You may still need to re-authorize
+                  once so the refresh token grants Gmail access.
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* OAuth2 — manual credentials form */}
+          {authMethod === 'oauth2' && (!hasSharedCredentials || showManualEdit) && (
             <>
               <h4 className="gmail-oauth-section-title">Google OAuth Credentials</h4>
               <p className="gmail-oauth-help">
@@ -428,7 +474,26 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
             <button type="button" className="integration-btn cancel" onClick={onCancel}>
               Cancel
             </button>
-            {authMethod === 'oauth2' ? (
+            {authMethod === 'oauth2' && hasSharedCredentials && !showManualEdit ? (
+              <>
+                <button
+                  type="button"
+                  className="integration-btn secondary"
+                  onClick={() => setShowManualEdit(true)}
+                  disabled={loading}
+                >
+                  Edit credentials
+                </button>
+                <button
+                  type="button"
+                  className="integration-btn save"
+                  onClick={handleUseSharedCredentials}
+                  disabled={loading}
+                >
+                  {loading ? 'Loading...' : 'Authorize with existing credentials'}
+                </button>
+              </>
+            ) : authMethod === 'oauth2' ? (
               <button
                 type="button"
                 className="integration-btn save"
@@ -939,9 +1004,42 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
           background: rgba(137, 180, 250, 0.15);
           border-color: #89b4fa;
         }
+        .integration-btn.secondary {
+          background: rgba(249, 226, 175, 0.1);
+          color: #f9e2af;
+          border: 1.5px solid rgba(249, 226, 175, 0.25);
+        }
+        .integration-btn.secondary:hover:not(:disabled) {
+          background: rgba(249, 226, 175, 0.18);
+          border-color: #f9e2af;
+        }
         .integration-btn:disabled {
           opacity: 0.5;
           cursor: not-allowed;
+        }
+        .gmail-oauth-shared-banner {
+          background: linear-gradient(135deg, rgba(166, 227, 161, 0.15) 0%, rgba(166, 227, 161, 0.05) 100%);
+          border: 1px solid rgba(166, 227, 161, 0.3);
+          border-left: 3px solid #a6e3a1;
+          border-radius: 10px;
+          padding: 16px 18px;
+          margin-bottom: 8px;
+        }
+        .gmail-oauth-shared-title {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          color: #a6e3a1;
+          font-size: 14px;
+          font-weight: 700;
+          letter-spacing: 0.2px;
+          margin-bottom: 8px;
+        }
+        .gmail-oauth-shared-body {
+          color: #a6adc8;
+          font-size: 13px;
+          line-height: 1.6;
+          font-weight: 400;
         }
       `}</style>
     </div>

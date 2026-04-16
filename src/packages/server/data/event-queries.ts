@@ -12,6 +12,7 @@ import type {
   ApprovalEvent,
   DocumentGenerationEvent,
   CalendarActionEvent,
+  DriveActionEvent,
   JiraTicketLogEvent,
   WorkflowInstanceRow,
   WorkflowStepLogRow,
@@ -358,6 +359,23 @@ export function logCalendarAction(log: CalendarActionEvent): number {
     end_datetime: log.endDatetime,
     attendees: toJson(log.attendees),
     html_link: log.htmlLink ?? null,
+    agent_id: log.agentId ?? null,
+    workflow_instance_id: log.workflowInstanceId ?? null,
+    recorded_at: log.recordedAt,
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DRIVE ACTION LOGS
+// ═══════════════════════════════════════════════════════════════
+
+export function logDriveAction(log: DriveActionEvent): number {
+  return insertOne('drive_action_logs', {
+    file_id: log.fileId,
+    action: log.action,
+    file_name: log.fileName,
+    mime_type: log.mimeType,
+    folder_id: log.folderId ?? null,
     agent_id: log.agentId ?? null,
     workflow_instance_id: log.workflowInstanceId ?? null,
     recorded_at: log.recordedAt,

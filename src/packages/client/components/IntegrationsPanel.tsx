@@ -21,6 +21,7 @@ const INTEGRATION_ICONS: Record<string, string> = {
   slack: '\uD83D\uDCAC',
   jira: '\uD83D\uDCCB',
   'google-calendar': '\uD83D\uDCC5',
+  'google-drive': '\uD83D\uDCC1',
   docx: '\uD83D\uDCC4',
 };
 
@@ -29,6 +30,7 @@ const INTEGRATION_DESCRIPTIONS: Record<string, string> = {
   slack: 'Connect to Slack workspaces. Send messages, receive notifications, and integrate with channels.',
   jira: 'Manage Jira issues and projects. Create tickets, track progress, and handle service desk requests.',
   'google-calendar': 'Access Google Calendar events. Create, update, and monitor calendar entries.',
+  'google-drive': 'Read, create, and edit files in Google Drive. Search and manage folders.',
   docx: 'Generate and manipulate DOCX documents. Create reports, templates, and formatted documents.',
 };
 
@@ -43,6 +45,7 @@ const INTEGRATION_REQUIREMENTS: Record<string, string[]> = {
   ],
   jira: ['Jira Cloud instance URL', 'API Token (from Atlassian account)', 'Account email address'],
   'google-calendar': ['Google Cloud Console project', 'OAuth 2.0 credentials', 'Calendar API enabled'],
+  'google-drive': ['Google Cloud Console project', 'OAuth 2.0 credentials (Client ID & Secret)', 'Google Drive API enabled'],
   docx: ['No external credentials required', 'Templates directory (optional)'],
 };
 
