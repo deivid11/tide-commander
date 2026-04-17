@@ -4,8 +4,6 @@
     "closeSidebar": "关闭侧边栏",
     "showAgentInfo": "显示代理信息",
     "hideAgentInfo": "隐藏代理信息",
-    "saveSnapshot": "保存快照",
-    "saveSnapshotDesc": "捕获此对话以及此代理创建/修改的所有文件",
     "showOverview": "显示代理概览",
     "hideOverview": "隐藏代理概览",
     "showDebug": "显示调试面板",
@@ -98,7 +96,16 @@
     "created": "创建时间",
     "detached": "已分离",
     "yes": "是",
-    "no": "否"
+    "no": "否",
+    "injectedPrompt": "注入的提示词",
+    "injectedPromptShow": "显示",
+    "injectedPromptHide": "隐藏",
+    "injectedPromptCopy": "复制",
+    "injectedPromptCopied": "已复制",
+    "injectedPromptRefresh": "刷新",
+    "injectedPromptLoading": "正在加载提示词…",
+    "injectedPromptError": "加载提示词失败: {{error}}",
+    "injectedPromptLength": "{{chars}} 字符 · ~{{tokens}} token"
   },
   "empty": {
     "tapAgent": "点击战场上的代理以查看其终端",
@@ -432,48 +439,6 @@
     "matchesInFiles": "{{matches}} 个匹配，分布在 {{files}} 个文件中",
     "moreMatches": "还有 {{count}} 个匹配"
   },
-  "snapshot": {
-    "title": "快照",
-    "save": "保存快照",
-    "load": "加载快照",
-    "delete": "删除快照",
-    "name": "快照名称",
-    "namePlaceholder": "输入快照名称...",
-    "description": "描述",
-    "descriptionPlaceholder": "描述此快照...",
-    "noSnapshots": "暂无保存的快照",
-    "created": "创建于 {{date}}",
-    "restore": "恢复此快照？",
-    "deleteConfirm": "删除此快照？",
-    "searchPlaceholder": "搜索快照...",
-    "sortDate": "日期",
-    "sortTitle": "标题",
-    "sortAgent": "代理",
-    "loadingSnapshots": "加载快照中...",
-    "noSnapshotsMatch": "没有匹配的快照",
-    "noSnapshotsYet": "暂无快照",
-    "snapshotHint": "点击终端头部的星标按钮保存快照",
-    "restoreFiles": "恢复文件",
-    "exportSnapshot": "导出快照",
-    "deleteSnapshot": "删除快照",
-    "whatWillBeCaptured": "将捕获的内容",
-    "messages": "条消息",
-    "files": "个文件",
-    "createdLabel": "已创建",
-    "modified": "已修改",
-    "more": "+{{count}} 更多",
-    "noFilesChanged": "此对话中没有创建或修改的文件",
-    "saving": "保存中...",
-    "enterTitle": "输入此快照的标题",
-    "whatWasAccomplished": "在此对话中完成了什么？",
-    "viewingSnapshot": "查看快照",
-    "conversationMessages": "对话（{{count}} 条消息）",
-    "noConversation": "此快照中没有对话数据",
-    "fileChanges": "文件更改",
-    "createdFiles": "已创建（{{count}}）",
-    "modifiedFiles": "已修改（{{count}}）",
-    "noFileChanges": "此快照中没有文件更改"
-  },
   "database": {
     "title": "数据库",
     "query": "查询",
@@ -543,47 +508,12 @@
     "lastPage": "最后一页",
     "pageInfo": "第 {{current}} 页，共 {{total}} 页"
   },
-  "supervisor": {
-    "title": "监管者",
-    "subordinates": "下属",
-    "noSubordinates": "无下属",
-    "assignTask": "分配任务",
-    "taskHistory": "任务历史",
-    "startAll": "启动所有下属",
-    "stopAll": "停止所有下属",
-    "delegateTo": "委派给...",
-    "overview": "监管概览",
-    "active": "活跃",
-    "paused": "已暂停",
-    "auto": "自动",
-    "manual": "手动",
-    "generating": "生成中...",
-    "generatingReport": "正在生成监管报告...",
-    "noReportYet": "暂无可用的监管报告。",
-    "generateFirstReport": "生成首份报告",
-    "lastReport": "上次报告：{{time}}",
-    "autoUpdates": "任务完成后自动更新",
-    "manualUpdates": "仅手动更新",
-    "allSystemsHealthy": "所有系统正常",
-    "attentionNeeded": "需要注意",
-    "criticalIssues": "检测到严重问题",
-    "keyInsights": "关键洞察",
-    "agentStatus": "代理状态",
-    "recommendations": "建议",
-    "claudeApiUsage": "Claude API 用量",
-    "noUsageData": "暂无用量数据",
-    "fetchUsage": "获取用量",
-    "fetching": "获取中...",
-    "session": "会话",
-    "weeklyAll": "每周（全部）",
-    "weeklySonnet": "每周（Sonnet）",
-    "resets": "重置于 {{time}}",
-    "autoUpdatesOnComplete": "任务完成时自动更新",
-    "manualUpdatesOnly": "仅手动更新",
+  "team": {
     "manageTeam": "管理团队",
-    "assignSubordinates": "分配下属",
+    "selectAgents": "选择要分配为下属的代理",
     "noAgentsAvailable": "没有可分配的代理",
-    "selectAgents": "选择要分配为下属的代理"
+    "subordinates": "下属",
+    "saveTeam": "保存团队"
   },
   "context": {
     "contextWindow": "上下文窗口：{{name}}",
@@ -679,69 +609,221 @@
       "forward": "前进按钮"
     },
     "mouseBindings": {
-      "left-click-select": { "name": "选择或点击", "description": "选择代理并点击建筑或区域" },
-      "left-drag-selection": { "name": "框选", "description": "拖动以选择多个代理" },
-      "right-click-context": { "name": "右键菜单或移动", "description": "打开上下文菜单或移动已选代理" },
-      "alt-right-drag-pan": { "name": "镜头平移", "description": "按 Alt 加右键拖动平移镜头" },
-      "middle-drag-orbit": { "name": "镜头环绕", "description": "中键拖动环绕镜头" },
-      "shift-middle-drag-pan": { "name": "替代平移", "description": "按 Shift 加中键拖动进行替代平移" },
-      "wheel-zoom": { "name": "缩放", "description": "使用滚轮缩放镜头" }
+      "left-click-select": {
+        "name": "选择或点击",
+        "description": "选择代理并点击建筑或区域"
+      },
+      "left-drag-selection": {
+        "name": "框选",
+        "description": "拖动以选择多个代理"
+      },
+      "right-click-context": {
+        "name": "右键菜单或移动",
+        "description": "打开上下文菜单或移动已选代理"
+      },
+      "alt-right-drag-pan": {
+        "name": "镜头平移",
+        "description": "按 Alt 加右键拖动平移镜头"
+      },
+      "middle-drag-orbit": {
+        "name": "镜头环绕",
+        "description": "中键拖动环绕镜头"
+      },
+      "shift-middle-drag-pan": {
+        "name": "替代平移",
+        "description": "按 Shift 加中键拖动进行替代平移"
+      },
+      "wheel-zoom": {
+        "name": "缩放",
+        "description": "使用滚轮缩放镜头"
+      }
     },
     "shortcuts": {
-      "toggle-commander": { "name": "切换指挥官视图", "description": "打开或关闭指挥官视图" },
-      "toggle-commander-tab": { "name": "Tab 切换指挥官", "description": "使用 Tab 打开或关闭指挥官视图" },
-      "spawn-agent": { "name": "创建代理", "description": "打开新建代理弹窗" },
-      "select-agent-1": { "name": "选择代理 1", "description": "选择第一个代理" },
-      "select-agent-2": { "name": "选择代理 2", "description": "选择第二个代理" },
-      "select-agent-3": { "name": "选择代理 3", "description": "选择第三个代理" },
-      "select-agent-4": { "name": "选择代理 4", "description": "选择第四个代理" },
-      "select-agent-5": { "name": "选择代理 5", "description": "选择第五个代理" },
-      "select-agent-6": { "name": "选择代理 6", "description": "选择第六个代理" },
-      "select-agent-7": { "name": "选择代理 7", "description": "选择第七个代理" },
-      "select-agent-8": { "name": "选择代理 8", "description": "选择第八个代理" },
-      "select-agent-9": { "name": "选择代理 9", "description": "选择第九个代理" },
-      "delete-selected": { "name": "删除已选", "description": "移除已选择的代理" },
-      "delete-selected-backspace": { "name": "退格删除已选", "description": "移除已选择的代理" },
-      "deselect-all": { "name": "取消全选", "description": "清除代理选择" },
-      "open-terminal": { "name": "打开终端", "description": "为已选代理打开终端" },
-      "dashboard-selector-toggle": { "name": "仪表盘选择器", "description": "启用仪表盘卡片选择器" },
-      "dashboard-vim-left": { "name": "仪表盘向左", "description": "将仪表盘选择器向左移动" },
-      "dashboard-vim-down": { "name": "仪表盘向下", "description": "将仪表盘选择器向下移动" },
-      "dashboard-vim-up": { "name": "仪表盘向上", "description": "将仪表盘选择器向上移动" },
-      "dashboard-vim-right": { "name": "仪表盘向右", "description": "将仪表盘选择器向右移动" },
-      "next-agent": { "name": "下一个代理", "description": "在战场中选择下一个代理" },
-      "prev-agent": { "name": "上一个代理", "description": "在战场中选择上一个代理" },
-      "next-working-agent": { "name": "下一个工作中代理", "description": "在战场中选择下一个工作中代理" },
-      "prev-working-agent": { "name": "上一个工作中代理", "description": "在战场中选择上一个工作中代理" },
-      "next-message": { "name": "下一条消息", "description": "跳到终端下一条消息" },
-      "prev-message": { "name": "上一条消息", "description": "跳到终端上一条消息" },
-      "page-down-messages": { "name": "消息下翻页", "description": "在终端向下跳过 10 条消息" },
-      "page-up-messages": { "name": "消息上翻页", "description": "在终端向上跳过 10 条消息" },
-      "next-agent-terminal": { "name": "终端下一个代理", "description": "在终端切换到下一个代理" },
-      "prev-agent-terminal": { "name": "终端上一个代理", "description": "在终端切换到上一个代理" },
-      "activate-message": { "name": "激活消息", "description": "激活选中消息中的交互元素" },
-      "toggle-file-explorer": { "name": "切换文件浏览器", "description": "打开或关闭文件浏览器" },
-      "file-explorer-close-tab": { "name": "关闭文件标签", "description": "关闭浏览器中的活动文件标签" },
-      "toggle-spotlight": { "name": "切换搜索", "description": "打开或关闭全局搜索" },
-      "toggle-2d-view": { "name": "循环视图模式", "description": "在 3D、2D 和仪表盘视图间切换" },
-      "commander-close": { "name": "关闭指挥官", "description": "关闭指挥官视图" },
-      "commander-vim-left": { "name": "向左导航", "description": "按 Vim H 向左移动焦点" },
-      "commander-vim-down": { "name": "向下导航", "description": "按 Vim J 向下移动焦点" },
-      "commander-vim-up": { "name": "向上导航", "description": "按 Vim K 向上移动焦点" },
-      "commander-vim-right": { "name": "向右导航", "description": "按 Vim L 向右移动焦点" },
-      "commander-expand": { "name": "展开折叠", "description": "切换代理展开状态" },
-      "commander-new-agent": { "name": "新建代理", "description": "在指挥官中打开创建表单" },
-      "commander-next-tab": { "name": "下一个标签", "description": "切换到下一个区域标签" },
-      "commander-prev-tab": { "name": "上一个标签", "description": "切换到上一个区域标签" },
-      "toolbox-close": { "name": "关闭工具箱", "description": "关闭设置面板" }
+      "toggle-commander": {
+        "name": "切换指挥官视图",
+        "description": "打开或关闭指挥官视图"
+      },
+      "toggle-commander-tab": {
+        "name": "Tab 切换指挥官",
+        "description": "使用 Tab 打开或关闭指挥官视图"
+      },
+      "spawn-agent": {
+        "name": "创建代理",
+        "description": "打开新建代理弹窗"
+      },
+      "select-agent-1": {
+        "name": "选择代理 1",
+        "description": "选择第一个代理"
+      },
+      "select-agent-2": {
+        "name": "选择代理 2",
+        "description": "选择第二个代理"
+      },
+      "select-agent-3": {
+        "name": "选择代理 3",
+        "description": "选择第三个代理"
+      },
+      "select-agent-4": {
+        "name": "选择代理 4",
+        "description": "选择第四个代理"
+      },
+      "select-agent-5": {
+        "name": "选择代理 5",
+        "description": "选择第五个代理"
+      },
+      "select-agent-6": {
+        "name": "选择代理 6",
+        "description": "选择第六个代理"
+      },
+      "select-agent-7": {
+        "name": "选择代理 7",
+        "description": "选择第七个代理"
+      },
+      "select-agent-8": {
+        "name": "选择代理 8",
+        "description": "选择第八个代理"
+      },
+      "select-agent-9": {
+        "name": "选择代理 9",
+        "description": "选择第九个代理"
+      },
+      "delete-selected": {
+        "name": "删除已选",
+        "description": "移除已选择的代理"
+      },
+      "delete-selected-backspace": {
+        "name": "退格删除已选",
+        "description": "移除已选择的代理"
+      },
+      "deselect-all": {
+        "name": "取消全选",
+        "description": "清除代理选择"
+      },
+      "open-terminal": {
+        "name": "打开终端",
+        "description": "为已选代理打开终端"
+      },
+      "dashboard-selector-toggle": {
+        "name": "仪表盘选择器",
+        "description": "启用仪表盘卡片选择器"
+      },
+      "dashboard-vim-left": {
+        "name": "仪表盘向左",
+        "description": "将仪表盘选择器向左移动"
+      },
+      "dashboard-vim-down": {
+        "name": "仪表盘向下",
+        "description": "将仪表盘选择器向下移动"
+      },
+      "dashboard-vim-up": {
+        "name": "仪表盘向上",
+        "description": "将仪表盘选择器向上移动"
+      },
+      "dashboard-vim-right": {
+        "name": "仪表盘向右",
+        "description": "将仪表盘选择器向右移动"
+      },
+      "next-agent": {
+        "name": "下一个代理",
+        "description": "在战场中选择下一个代理"
+      },
+      "prev-agent": {
+        "name": "上一个代理",
+        "description": "在战场中选择上一个代理"
+      },
+      "next-working-agent": {
+        "name": "下一个工作中代理",
+        "description": "在战场中选择下一个工作中代理"
+      },
+      "prev-working-agent": {
+        "name": "上一个工作中代理",
+        "description": "在战场中选择上一个工作中代理"
+      },
+      "next-message": {
+        "name": "下一条消息",
+        "description": "跳到终端下一条消息"
+      },
+      "prev-message": {
+        "name": "上一条消息",
+        "description": "跳到终端上一条消息"
+      },
+      "page-down-messages": {
+        "name": "消息下翻页",
+        "description": "在终端向下跳过 10 条消息"
+      },
+      "page-up-messages": {
+        "name": "消息上翻页",
+        "description": "在终端向上跳过 10 条消息"
+      },
+      "next-agent-terminal": {
+        "name": "终端下一个代理",
+        "description": "在终端切换到下一个代理"
+      },
+      "prev-agent-terminal": {
+        "name": "终端上一个代理",
+        "description": "在终端切换到上一个代理"
+      },
+      "activate-message": {
+        "name": "激活消息",
+        "description": "激活选中消息中的交互元素"
+      },
+      "toggle-file-explorer": {
+        "name": "切换文件浏览器",
+        "description": "打开或关闭文件浏览器"
+      },
+      "file-explorer-close-tab": {
+        "name": "关闭文件标签",
+        "description": "关闭浏览器中的活动文件标签"
+      },
+      "toggle-spotlight": {
+        "name": "切换搜索",
+        "description": "打开或关闭全局搜索"
+      },
+      "toggle-2d-view": {
+        "name": "循环视图模式",
+        "description": "在 3D、2D 和仪表盘视图间切换"
+      },
+      "commander-close": {
+        "name": "关闭指挥官",
+        "description": "关闭指挥官视图"
+      },
+      "commander-vim-left": {
+        "name": "向左导航",
+        "description": "按 Vim H 向左移动焦点"
+      },
+      "commander-vim-down": {
+        "name": "向下导航",
+        "description": "按 Vim J 向下移动焦点"
+      },
+      "commander-vim-up": {
+        "name": "向上导航",
+        "description": "按 Vim K 向上移动焦点"
+      },
+      "commander-vim-right": {
+        "name": "向右导航",
+        "description": "按 Vim L 向右移动焦点"
+      },
+      "commander-expand": {
+        "name": "展开折叠",
+        "description": "切换代理展开状态"
+      },
+      "commander-new-agent": {
+        "name": "新建代理",
+        "description": "在指挥官中打开创建表单"
+      },
+      "commander-next-tab": {
+        "name": "下一个标签",
+        "description": "切换到下一个区域标签"
+      },
+      "commander-prev-tab": {
+        "name": "上一个标签",
+        "description": "切换到上一个区域标签"
+      },
+      "toolbox-close": {
+        "name": "关闭工具箱",
+        "description": "关闭设置面板"
+      }
     }
-  },
-  "toolHistory": {
-    "tools": "工具",
-    "filesSection": "文件",
-    "noToolsYet": "尚未执行工具",
-    "noFileChangesYet": "暂无文件更改",
-    "viewFile": "查看文件"
   },
   "logs": {
     "title": "日志",
@@ -873,19 +955,18 @@
     "spotlight": "搜索",
     "closeMenu": "关闭菜单",
     "openMenu": "打开菜单",
-    "showTerminal": "显示终端",
-    "takeSnapshot": "拍摄快照"
+    "showTerminal": "显示终端"
   },
   "commander": {
     "title": "指挥官视图",
-    "shortcuts": "Tab 切换区域 \u2022 \u2325H/J/K/L 导航 \u2022 \u2325O 展开 \u2022 \u2325N 新建",
+    "shortcuts": "Tab 切换区域 • ⌥H/J/K/L 导航 • ⌥O 展开 • ⌥N 新建",
     "advanced": "高级",
     "simple": "简洁",
     "addAgent": "添加代理",
     "close": "关闭",
-    "noAgentsAll": "尚未部署代理。按 \u2325N 添加代理。",
+    "noAgentsAll": "尚未部署代理。按 ⌥N 添加代理。",
     "noAgentsUnassigned": "没有未分配的代理。",
-    "noAgentsArea": "此区域没有代理。按 \u2325N 添加一个。",
+    "noAgentsArea": "此区域没有代理。按 ⌥N 添加一个。",
     "unassigned": "未分配",
     "page": "第 {{current}} 页，共 {{total}} 页（{{count}} 个代理）",
     "prev": "上一页",
@@ -1035,5 +1116,13 @@
   "content": {
     "clickToViewImage": "点击查看图片",
     "clickToViewFile": "点击查看文件：{{path}}"
+  },
+  "trackingStatus": {
+    "label": "跟踪状态",
+    "need-review": "工作完成，等待审阅",
+    "blocked": "无法继续",
+    "can-clear-context": "已完成 — 可清除上下文",
+    "waiting-subordinates": "等待下级完成工作",
+    "working": "工作中"
   }
 }

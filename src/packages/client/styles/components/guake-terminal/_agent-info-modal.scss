@@ -222,3 +222,134 @@
   font-size: 12px;
   line-height: 1.35;
 }
+
+.agent-info-injected-prompt {
+  .agent-info-injected-prompt-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
+
+    h4 {
+      margin: 0;
+    }
+  }
+
+  .agent-info-injected-prompt-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .agent-info-injected-prompt-length {
+    color: $dracula-comment;
+    font-family: $font-mono;
+    font-size: 10px;
+    letter-spacing: 0.2px;
+    padding: 0 4px;
+    white-space: nowrap;
+    user-select: none;
+  }
+
+  .agent-info-injected-prompt-btn {
+    border: 1px solid rgba($dracula-current, 0.9);
+    border-radius: $radius-sm;
+    background: rgba($dracula-bg-darker, 0.7);
+    color: $dracula-fg;
+    cursor: pointer;
+    font-family: $font-mono;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.35px;
+    padding: 3px 8px;
+    line-height: 1.3;
+    transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+
+    &:hover:not(:disabled) {
+      background: rgba($dracula-cyan, 0.15);
+      border-color: rgba($dracula-cyan, 0.55);
+      color: $dracula-cyan;
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+  }
+
+  .agent-info-injected-prompt-toggle {
+    color: $dracula-purple;
+    border-color: rgba($dracula-purple, 0.55);
+
+    &:hover:not(:disabled) {
+      background: rgba($dracula-purple, 0.15);
+      color: $dracula-purple;
+    }
+  }
+
+  .agent-info-injected-prompt-body {
+    border: 1px solid rgba($dracula-current, 0.75);
+    border-radius: $radius-sm;
+    background: rgba($dracula-bg-darker, 0.45);
+    padding: 10px 12px;
+    max-height: 420px;
+    overflow: auto;
+  }
+
+  .agent-info-injected-prompt-status {
+    color: $dracula-comment;
+    font-family: $font-mono;
+    font-size: 12px;
+
+    &.error {
+      color: $dracula-red;
+    }
+  }
+
+  .agent-info-injected-prompt-content {
+    color: $dracula-fg;
+    font-size: 12px;
+    line-height: 1.5;
+
+    pre,
+    code {
+      font-family: $font-mono;
+      font-size: 11px;
+    }
+
+    pre {
+      padding: 8px;
+      border-radius: $radius-sm;
+      background: rgba($dracula-bg, 0.75);
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    code {
+      background: rgba($dracula-bg, 0.65);
+      padding: 1px 4px;
+      border-radius: 3px;
+    }
+
+    h1, h2, h3, h4, h5 {
+      color: $dracula-purple;
+      font-family: $font-mono;
+      margin: 12px 0 6px;
+    }
+
+    h1 { font-size: 14px; }
+    h2 { font-size: 13px; }
+    h3 { font-size: 12px; }
+
+    a {
+      color: $dracula-cyan;
+    }
+
+    ul, ol {
+      padding-left: 20px;
+      margin: 6px 0;
+    }
+  }
+}

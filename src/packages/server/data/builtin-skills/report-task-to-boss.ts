@@ -5,65 +5,35 @@ export const reportTaskToBoss: BuiltinSkillDefinition = {
   name: 'Report Task to Boss',
   description: 'Notify your boss agent that a delegated task is finished so the boss can review and decide next steps.',
   allowedTools: ['Bash(curl:*)'],
-  content: `# Report Task Completion to Boss
+  content: `# Report Task to Boss (MANDATORY for delegated tasks)
 
-When you finish a task that was delegated to you by a boss agent, use this endpoint to formally report completion. This updates the boss's progress indicator and sends a report message so the boss can review your work and decide if follow-up is needed.
+**If a boss delegated work to you, you MUST call this endpoint before you stop. Notifications do NOT substitute — only report-task closes the delegation. Skipping it hangs the boss's progress indicator forever.**
 
-## When to Use
+## You Owe a Report When
+- The task starts with \`[DELEGATED TASK from boss\`
+- Your agent has a \`bossId\` set
+- The assignment mentions a boss by name or ID
 
-- After completing a task assigned by a boss agent
-- When a delegated task fails and you cannot proceed
-- You received a task prefixed with "[TASK REPORT" or delegated via the boss system
+Treat this as a hard gate before your final tool call.
 
-## Command
+## Endpoint
 
-\`\`\`bash
-curl -s -X POST http://localhost:5174/api/agents/YOUR_AGENT_ID/report-task \\
-  -H "Content-Type: application/json" \\
-  -d @- <<'EOF'
-{"summary": "Brief summary of what was done and the result", "status": "completed"}
-EOF
+\`POST /api/agents/YOUR_AGENT_ID/report-task\`
+
+**Body:**
+\`\`\`json
+{"summary": "What was done and the result", "status": "completed"}
 \`\`\`
 
 ## Parameters
-
-- \`YOUR_AGENT_ID\`: Replace with YOUR own agent ID (the reporting agent, not the boss)
-- \`summary\`: A concise description of what was accomplished or why it failed
-- \`status\`: Either \`"completed"\` (success) or \`"failed"\` (could not finish)
-
-## Examples
-
-**Task completed successfully:**
-\`\`\`bash
-curl -s -X POST http://localhost:5174/api/agents/YOUR_AGENT_ID/report-task \\
-  -H "Content-Type: application/json" \\
-  -d @- <<'EOF'
-{"summary": "Auth module implemented with JWT tokens, all tests passing", "status": "completed"}
-EOF
-\`\`\`
-
-**Task failed:**
-\`\`\`bash
-curl -s -X POST http://localhost:5174/api/agents/YOUR_AGENT_ID/report-task \\
-  -H "Content-Type: application/json" \\
-  -d @- <<'EOF'
-{"summary": "Database migration failed due to missing permissions on production schema", "status": "failed"}
-EOF
-\`\`\`
-
-## What Happens
-
-1. The boss's progress indicator for your task updates to completed/failed
-2. A task report message is sent to the boss agent automatically
-3. The boss reviews the report and may give you follow-up instructions
-4. The delegation tracking is cleared
+- \`YOUR_AGENT_ID\` — YOUR own ID (the reporting agent, not the boss)
+- \`summary\` — concise outcome; for failures explain why
+- \`status\` — \`"completed"\` or \`"failed"\`
 
 ## Rules
-
-- Replace \`YOUR_AGENT_ID\` with your actual agent ID from the system prompt
-- Keep the summary concise but informative (what was done, key outcomes)
-- Use \`"failed"\` status only when the task truly cannot be completed
-- Safe to call even if the active delegation window has expired — the server will still accept the report and forward it to your recorded boss when possible
-- Call this AFTER you have finished all work (not before)
-- You should still send your regular task completion notification separately`,
+- Call AFTER all work is done, never before
+- Trivial tasks still require a report
+- Do not replace it with a chat message or notification — the boss routing system needs the report-task call
+- Send BEFORE the tracking-status update (tracking is always the final curl)
+- Safe to call late if you forgot — send it anyway before ending the turn`,
 };

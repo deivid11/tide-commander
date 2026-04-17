@@ -29,12 +29,13 @@ For near-instant local commands, run them directly with normal shell tools. Exam
 
 Rule of thumb: if it is effectively instant and only used for quick inspection, do not route it through \`/api/exec\`.
 
-## Command Format
+## Endpoint
 
-\`\`\`bash
-curl -s -X POST http://localhost:5174/api/exec \\
-  -H "Content-Type: application/json" \\
-  -d '{"agentId":"YOUR_AGENT_ID","command":"YOUR_COMMAND"}'
+\`POST /api/exec\`
+
+**Body shape:**
+\`\`\`json
+{"agentId":"YOUR_AGENT_ID","command":"YOUR_COMMAND"}
 \`\`\`
 
 ## Parameters
@@ -43,35 +44,12 @@ curl -s -X POST http://localhost:5174/api/exec \\
 - \`command\`: The shell command to execute (required)
 - \`cwd\`: Working directory (optional, defaults to your current directory)
 
-## Examples
+## Examples (body only — wrap with the scaffolding from the API Calling Convention above)
 
-**Build project:**
-\`\`\`bash
-curl -s -X POST http://localhost:5174/api/exec \\
-  -H "Content-Type: application/json" \\
-  -d '{"agentId":"YOUR_AGENT_ID","command":"npm run build"}'
-\`\`\`
-
-**Run tests:**
-\`\`\`bash
-curl -s -X POST http://localhost:5174/api/exec \\
-  -H "Content-Type: application/json" \\
-  -d '{"agentId":"YOUR_AGENT_ID","command":"npm test"}'
-\`\`\`
-
-**Install dependencies:**
-\`\`\`bash
-curl -s -X POST http://localhost:5174/api/exec \\
-  -H "Content-Type: application/json" \\
-  -d '{"agentId":"YOUR_AGENT_ID","command":"npm install"}'
-\`\`\`
-
-**Start dev server (in background):**
-\`\`\`bash
-curl -s -X POST http://localhost:5174/api/exec \\
-  -H "Content-Type: application/json" \\
-  -d '{"agentId":"YOUR_AGENT_ID","command":"timeout 30 npm run dev"}'
-\`\`\`
+- **Build project:** \`{"agentId":"YOUR_AGENT_ID","command":"npm run build"}\`
+- **Run tests:** \`{"agentId":"YOUR_AGENT_ID","command":"npm test"}\`
+- **Install dependencies:** \`{"agentId":"YOUR_AGENT_ID","command":"npm install"}\`
+- **Start dev server (with timeout):** \`{"agentId":"YOUR_AGENT_ID","command":"timeout 30 npm run dev"}\`
 
 ## Response Format
 
@@ -92,10 +70,9 @@ A non-zero exit code (e.g. test failures) is a normal result you should analyze,
 
 ## Important Notes
 
-1. Replace \`YOUR_AGENT_ID\` with your actual agent ID from the system prompt
-2. The user will see streaming output in the terminal "Running Tasks" section
-3. You will receive the final output when the command completes
-4. Use \`timeout\` command wrapper for commands that run indefinitely (like dev servers)
-5. The command runs in your agent's working directory by default
-6. Non-zero exit codes mean the command failed (e.g. test failures), not the API. Always check \`output\` to understand what happened`,
+1. The user will see streaming output in the terminal "Running Tasks" section
+2. You will receive the final output when the command completes
+3. Use \`timeout\` command wrapper for commands that run indefinitely (like dev servers)
+4. The command runs in your agent's working directory by default
+5. Non-zero exit codes mean the command failed (e.g. test failures), not the API. Always check \`output\` to understand what happened`,
 };

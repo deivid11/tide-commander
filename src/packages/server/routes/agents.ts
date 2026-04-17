@@ -685,6 +685,22 @@ router.get('/:id/history', async (req: Request<{ id: string }>, res: Response) =
   }
 });
 
+// GET /api/agents/:id/injected-prompt - Get the full prompt injected into this agent
+router.get('/:id/injected-prompt', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const { buildInjectedPromptForAgent } = await import('../services/prompt-inspection-service.js');
+    const prompt = await buildInjectedPromptForAgent(req.params.id);
+    if (prompt === null) {
+      res.status(404).json({ error: 'Agent not found' });
+      return;
+    }
+    res.json({ prompt });
+  } catch (err: any) {
+    log.error(' Failed to build injected prompt:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/agents/:id/session-history - Get archived session history for an agent
 router.get('/:id/session-history', (_req: Request<{ id: string }>, res: Response) => {
   try {

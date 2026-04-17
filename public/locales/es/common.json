@@ -205,8 +205,6 @@
     "clickToCopy": "Clic para copiar",
     "session": "Sesion",
     "newSession": "Nuevo agente, nueva sesion",
-    "supervisorHistory": "Historial de supervisor",
-    "noSupervisorReports": "Sin reportes de supervisor aun",
     "bossAgent": "Agente jefe",
     "subordinates": "Subordinados",
     "noSubordinates": "No hay subordinados asignados. Use \"Gestionar equipo\" para agregar agentes.",
@@ -248,7 +246,6 @@
     "clickNewAgent": "Haga clic en \"+ Nuevo agente\" para desplegar su primer agente",
     "areasAndAgents": "Areas y agentes",
     "browseFiles": "Explorar archivos",
-    "supervisorStatus": "Estado del supervisor",
     "unassigned": "Sin asignar",
     "total": "total",
     "statusActive": "activo",
@@ -275,14 +272,10 @@
     "selectAgentLogs": "Seleccione un agente para ver registros",
     "logsWillAppear": "Los registros del agente apareceran aqui",
     "logsHint": "Use el panel de depuracion para registros detallados",
-    "selectAgentSnapshots": "Seleccione un agente para ver instantaneas",
-    "snapshotsFor": "Instantaneas de {{name}}",
-    "snapshotsHint": "Guarde instantaneas usando el boton de estrella en la cabecera del terminal",
     "tabs": {
       "details": "Detalles",
       "chat": "Chat",
-      "logs": "Registros",
-      "snapshot": "Instantanea"
+      "logs": "Registros"
     }
   },
   "toast": {
@@ -297,8 +290,7 @@
     "used": "usados",
     "tool": "Herramienta",
     "assignedTask": "Tarea asignada",
-    "lastQuery": "Ultima consulta",
-    "supervisor": "Supervisor"
+    "lastQuery": "Ultima consulta"
   },
   "agentBar": {
     "spawnNewAgent": "Crear nuevo agente",
@@ -316,13 +308,8 @@
   "floatingButtons": {
     "settingsAndTools": "Configuracion y herramientas",
     "commanderView": "Vista del comandante",
-    "viewSnapshots": "Ver instantaneas",
-    "supervisorOverview": "Vista general del supervisor",
     "controls": "Controles",
-    "manageSkills": "Gestionar habilidades",
-    "pipNotSupported": "PiP no soportado en este navegador",
-    "closePip": "Cerrar agentes en modo PiP",
-    "openPip": "Abrir agentes en modo PiP"
+    "manageSkills": "Gestionar habilidades"
   },
   "sidebar": {
     "agentsView": "Agentes",

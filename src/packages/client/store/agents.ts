@@ -299,10 +299,6 @@ export function createAgentActions(
         state.delegationHistories.delete(agentId);
         state.lastDelegationReceived.delete(agentId);
         state.agentTaskProgress.delete(agentId);
-        // Clean up supervisor data
-        state.supervisor.narratives.delete(agentId);
-        state.supervisor.agentHistories.delete(agentId);
-        state.supervisor.historyFetchedForAgents.delete(agentId);
         // Clean up subagents
         state.subagents.delete(agentId);
       });
@@ -330,8 +326,6 @@ export function createAgentActions(
             unseenChanged = true;
           }
         }
-        // Clear snapshot view when selecting a different agent
-        state.currentSnapshot = null;
       });
       if (unseenChanged && saveUnseenAgents) {
         saveUnseenAgents();

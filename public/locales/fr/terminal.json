@@ -4,8 +4,6 @@
     "closeSidebar": "Fermer la barre latérale",
     "showAgentInfo": "Afficher les infos de l'agent",
     "hideAgentInfo": "Masquer les infos de l'agent",
-    "saveSnapshot": "Enregistrer l'instantané",
-    "saveSnapshotDesc": "Capturer cette conversation et tous les fichiers créés/modifiés par cet agent",
     "showOverview": "Afficher l'aperçu de l'agent",
     "hideOverview": "Masquer l'aperçu de l'agent",
     "showDebug": "Afficher le panneau de débogage",
@@ -98,7 +96,16 @@
     "created": "Créé",
     "detached": "Détaché",
     "yes": "Oui",
-    "no": "Non"
+    "no": "Non",
+    "injectedPrompt": "Prompt injecté",
+    "injectedPromptShow": "Afficher",
+    "injectedPromptHide": "Masquer",
+    "injectedPromptCopy": "Copier",
+    "injectedPromptCopied": "Copié",
+    "injectedPromptRefresh": "Actualiser",
+    "injectedPromptLoading": "Chargement du prompt…",
+    "injectedPromptError": "Échec du chargement du prompt : {{error}}",
+    "injectedPromptLength": "{{chars}} caractères · ~{{tokens}} tok"
   },
   "empty": {
     "tapAgent": "Touchez un agent sur le champ de bataille pour voir son terminal",
@@ -432,48 +439,6 @@
     "matchesInFiles": "{{matches}} dans {{files}} fichiers",
     "moreMatches": "et {{count}} correspondances supplémentaires"
   },
-  "snapshot": {
-    "title": "Instantanés",
-    "save": "Enregistrer l'instantané",
-    "load": "Charger l'instantané",
-    "delete": "Supprimer l'instantané",
-    "name": "Nom de l'instantané",
-    "namePlaceholder": "Entrez le nom de l'instantané...",
-    "description": "Description",
-    "descriptionPlaceholder": "Décrivez cet instantané...",
-    "noSnapshots": "Aucun instantané enregistré",
-    "created": "Créé le {{date}}",
-    "restore": "Restaurer cet instantané ?",
-    "deleteConfirm": "Supprimer cet instantané ?",
-    "searchPlaceholder": "Rechercher des instantanés...",
-    "sortDate": "Date",
-    "sortTitle": "Titre",
-    "sortAgent": "Agent",
-    "loadingSnapshots": "Chargement des instantanés...",
-    "noSnapshotsMatch": "Aucun instantané ne correspond à votre recherche",
-    "noSnapshotsYet": "Aucun instantané pour le moment",
-    "snapshotHint": "Cliquez sur le bouton étoile dans l'en-tête du terminal pour enregistrer un instantané",
-    "restoreFiles": "Restaurer les fichiers",
-    "exportSnapshot": "Exporter l'instantané",
-    "deleteSnapshot": "Supprimer l'instantané",
-    "whatWillBeCaptured": "Ce qui sera capturé",
-    "messages": "messages",
-    "files": "fichiers",
-    "createdLabel": "Créé",
-    "modified": "Modifié",
-    "more": "+{{count}} de plus",
-    "noFilesChanged": "Aucun fichier créé ou modifié dans cette conversation",
-    "saving": "Enregistrement...",
-    "enterTitle": "Entrez un titre pour cet instantané",
-    "whatWasAccomplished": "Qu'est-ce qui a été accompli dans cette conversation ?",
-    "viewingSnapshot": "Affichage de l'instantané",
-    "conversationMessages": "Conversation ({{count}} messages)",
-    "noConversation": "Aucune donnée de conversation dans cet instantané",
-    "fileChanges": "Modifications de fichiers",
-    "createdFiles": "Créés ({{count}})",
-    "modifiedFiles": "Modifiés ({{count}})",
-    "noFileChanges": "Aucune modification de fichier dans cet instantané"
-  },
   "database": {
     "title": "Base de données",
     "query": "Requête",
@@ -534,8 +499,8 @@
     "querySuccess": "Requête exécutée avec succès",
     "rowsAffected": "{{count}} ligne(s) affectée(s)",
     "copyAllResults": "Copier tous les résultats sous forme de tableau",
-    "copied": "\u2713 Copié",
-    "copyAll": "\u29C9 Tout copier",
+    "copied": "✓ Copié",
+    "copyAll": "⧉ Tout copier",
     "rowsPerPage": "{{count}} lignes",
     "firstPage": "Première page",
     "previousPage": "Page précédente",
@@ -543,47 +508,12 @@
     "lastPage": "Dernière page",
     "pageInfo": "Page {{current}} sur {{total}}"
   },
-  "supervisor": {
-    "title": "Superviseur",
-    "subordinates": "Subordonnés",
-    "noSubordinates": "Aucun subordonné",
-    "assignTask": "Assigner une tâche",
-    "taskHistory": "Historique des tâches",
-    "startAll": "Démarrer tous les subordonnés",
-    "stopAll": "Arrêter tous les subordonnés",
-    "delegateTo": "Déléguer à...",
-    "overview": "Aperçu du superviseur",
-    "active": "Actif",
-    "paused": "En pause",
-    "auto": "Auto",
-    "manual": "Manuel",
-    "generating": "Génération...",
-    "generatingReport": "Génération du rapport du superviseur...",
-    "noReportYet": "Aucun rapport de superviseur disponible pour le moment.",
-    "generateFirstReport": "Générer le premier rapport",
-    "lastReport": "Dernier rapport : {{time}}",
-    "autoUpdates": "Mise à jour automatique à la fin des tâches",
-    "manualUpdates": "Mises à jour manuelles uniquement",
-    "allSystemsHealthy": "Tous les systèmes sont sains",
-    "attentionNeeded": "Attention requise",
-    "criticalIssues": "Problèmes critiques détectés",
-    "keyInsights": "Points clés",
-    "agentStatus": "Statut des agents",
-    "recommendations": "Recommandations",
-    "claudeApiUsage": "Utilisation de l'API Claude",
-    "noUsageData": "Aucune donnée d'utilisation pour le moment",
-    "fetchUsage": "Récupérer l'utilisation",
-    "fetching": "Récupération...",
-    "session": "Session",
-    "weeklyAll": "Hebdomadaire (Tous)",
-    "weeklySonnet": "Hebdomadaire (Sonnet)",
-    "resets": "Réinitialisation {{time}}",
-    "autoUpdatesOnComplete": "Mise à jour automatique à la fin des tâches",
-    "manualUpdatesOnly": "Mises à jour manuelles uniquement",
+  "team": {
     "manageTeam": "Gérer l'équipe",
-    "assignSubordinates": "Assigner des subordonnés",
+    "selectAgents": "Sélectionnez les agents à assigner comme subordonnés",
     "noAgentsAvailable": "Aucun agent disponible à assigner",
-    "selectAgents": "Sélectionnez les agents à assigner comme subordonnés"
+    "subordinates": "Subordonnés",
+    "saveTeam": "Enregistrer l'équipe"
   },
   "context": {
     "contextWindow": "Fenêtre de contexte : {{name}}",
@@ -679,69 +609,221 @@
       "forward": "Bouton suivant"
     },
     "mouseBindings": {
-      "left-click-select": { "name": "Sélectionner ou cliquer", "description": "Sélectionner des agents et cliquer sur des bâtiments ou des zones" },
-      "left-drag-selection": { "name": "Boîte de sélection", "description": "Glisser pour sélectionner plusieurs agents" },
-      "right-click-context": { "name": "Menu contextuel ou déplacement", "description": "Ouvrir le menu contextuel ou déplacer les agents sélectionnés" },
-      "alt-right-drag-pan": { "name": "Déplacement caméra", "description": "Déplacer la caméra avec Alt + glisser droit" },
-      "middle-drag-orbit": { "name": "Orbite caméra", "description": "Orbiter la caméra avec le glisser molette" },
-      "shift-middle-drag-pan": { "name": "Déplacement caméra alternatif", "description": "Déplacement alternatif avec Maj + glisser molette" },
-      "wheel-zoom": { "name": "Zoom", "description": "Zoomer avec la molette de défilement" }
+      "left-click-select": {
+        "name": "Sélectionner ou cliquer",
+        "description": "Sélectionner des agents et cliquer sur des bâtiments ou des zones"
+      },
+      "left-drag-selection": {
+        "name": "Boîte de sélection",
+        "description": "Glisser pour sélectionner plusieurs agents"
+      },
+      "right-click-context": {
+        "name": "Menu contextuel ou déplacement",
+        "description": "Ouvrir le menu contextuel ou déplacer les agents sélectionnés"
+      },
+      "alt-right-drag-pan": {
+        "name": "Déplacement caméra",
+        "description": "Déplacer la caméra avec Alt + glisser droit"
+      },
+      "middle-drag-orbit": {
+        "name": "Orbite caméra",
+        "description": "Orbiter la caméra avec le glisser molette"
+      },
+      "shift-middle-drag-pan": {
+        "name": "Déplacement caméra alternatif",
+        "description": "Déplacement alternatif avec Maj + glisser molette"
+      },
+      "wheel-zoom": {
+        "name": "Zoom",
+        "description": "Zoomer avec la molette de défilement"
+      }
     },
     "shortcuts": {
-      "toggle-commander": { "name": "Basculer le commandant", "description": "Ouvrir ou fermer la vue commandant" },
-      "toggle-commander-tab": { "name": "Basculer le commandant (Tab)", "description": "Ouvrir ou fermer la vue commandant avec Tab" },
-      "spawn-agent": { "name": "Créer un agent", "description": "Ouvrir la fenêtre de création d'agent" },
-      "select-agent-1": { "name": "Sélectionner l'agent 1", "description": "Sélectionner le premier agent" },
-      "select-agent-2": { "name": "Sélectionner l'agent 2", "description": "Sélectionner le deuxième agent" },
-      "select-agent-3": { "name": "Sélectionner l'agent 3", "description": "Sélectionner le troisième agent" },
-      "select-agent-4": { "name": "Sélectionner l'agent 4", "description": "Sélectionner le quatrième agent" },
-      "select-agent-5": { "name": "Sélectionner l'agent 5", "description": "Sélectionner le cinquième agent" },
-      "select-agent-6": { "name": "Sélectionner l'agent 6", "description": "Sélectionner le sixième agent" },
-      "select-agent-7": { "name": "Sélectionner l'agent 7", "description": "Sélectionner le septième agent" },
-      "select-agent-8": { "name": "Sélectionner l'agent 8", "description": "Sélectionner le huitième agent" },
-      "select-agent-9": { "name": "Sélectionner l'agent 9", "description": "Sélectionner le neuvième agent" },
-      "delete-selected": { "name": "Supprimer la sélection", "description": "Retirer les agents sélectionnés" },
-      "delete-selected-backspace": { "name": "Supprimer la sélection (Retour arrière)", "description": "Retirer les agents sélectionnés" },
-      "deselect-all": { "name": "Tout désélectionner", "description": "Effacer la sélection d'agents" },
-      "open-terminal": { "name": "Ouvrir le terminal", "description": "Ouvrir le terminal de l'agent sélectionné" },
-      "dashboard-selector-toggle": { "name": "Sélecteur du tableau de bord", "description": "Activer le sélecteur de cartes du tableau de bord" },
-      "dashboard-vim-left": { "name": "Tableau de bord gauche", "description": "Déplacer le sélecteur du tableau de bord vers la gauche" },
-      "dashboard-vim-down": { "name": "Tableau de bord bas", "description": "Déplacer le sélecteur du tableau de bord vers le bas" },
-      "dashboard-vim-up": { "name": "Tableau de bord haut", "description": "Déplacer le sélecteur du tableau de bord vers le haut" },
-      "dashboard-vim-right": { "name": "Tableau de bord droite", "description": "Déplacer le sélecteur du tableau de bord vers la droite" },
-      "next-agent": { "name": "Agent suivant", "description": "Sélectionner l'agent suivant sur le champ de bataille" },
-      "prev-agent": { "name": "Agent précédent", "description": "Sélectionner l'agent précédent sur le champ de bataille" },
-      "next-working-agent": { "name": "Agent actif suivant", "description": "Sélectionner l'agent actif suivant sur le champ de bataille" },
-      "prev-working-agent": { "name": "Agent actif précédent", "description": "Sélectionner l'agent actif précédent sur le champ de bataille" },
-      "next-message": { "name": "Message suivant", "description": "Naviguer au message suivant du terminal" },
-      "prev-message": { "name": "Message précédent", "description": "Naviguer au message précédent du terminal" },
-      "page-down-messages": { "name": "Page suivante des messages", "description": "Avancer de 10 messages dans le terminal" },
-      "page-up-messages": { "name": "Page précédente des messages", "description": "Reculer de 10 messages dans le terminal" },
-      "next-agent-terminal": { "name": "Terminal agent suivant", "description": "Passer à l'agent suivant dans le terminal" },
-      "prev-agent-terminal": { "name": "Terminal agent précédent", "description": "Passer à l'agent précédent dans le terminal" },
-      "activate-message": { "name": "Activer le message", "description": "Activer l'élément interactif du message sélectionné" },
-      "toggle-file-explorer": { "name": "Basculer l'explorateur de fichiers", "description": "Ouvrir ou fermer l'explorateur de fichiers" },
-      "file-explorer-close-tab": { "name": "Fermer l'onglet fichier", "description": "Fermer l'onglet de fichier actif dans l'explorateur" },
-      "toggle-spotlight": { "name": "Basculer la recherche globale", "description": "Ouvrir ou fermer la recherche globale" },
-      "toggle-2d-view": { "name": "Changer le mode de vue", "description": "Alterner entre les vues 3D, 2D et Tableau de bord" },
-      "commander-close": { "name": "Fermer le commandant", "description": "Fermer la vue commandant" },
-      "commander-vim-left": { "name": "Naviguer à gauche", "description": "Déplacer le focus vers la gauche Vim H" },
-      "commander-vim-down": { "name": "Naviguer vers le bas", "description": "Déplacer le focus vers le bas Vim J" },
-      "commander-vim-up": { "name": "Naviguer vers le haut", "description": "Déplacer le focus vers le haut Vim K" },
-      "commander-vim-right": { "name": "Naviguer à droite", "description": "Déplacer le focus vers la droite Vim L" },
-      "commander-expand": { "name": "Développer/Réduire", "description": "Basculer le développement de l'agent" },
-      "commander-new-agent": { "name": "Nouvel agent", "description": "Ouvrir le formulaire de création dans le commandant" },
-      "commander-next-tab": { "name": "Onglet suivant", "description": "Passer à l'onglet de zone suivant" },
-      "commander-prev-tab": { "name": "Onglet précédent", "description": "Passer à l'onglet de zone précédent" },
-      "toolbox-close": { "name": "Fermer la boîte à outils", "description": "Fermer le panneau des paramètres" }
+      "toggle-commander": {
+        "name": "Basculer le commandant",
+        "description": "Ouvrir ou fermer la vue commandant"
+      },
+      "toggle-commander-tab": {
+        "name": "Basculer le commandant (Tab)",
+        "description": "Ouvrir ou fermer la vue commandant avec Tab"
+      },
+      "spawn-agent": {
+        "name": "Créer un agent",
+        "description": "Ouvrir la fenêtre de création d'agent"
+      },
+      "select-agent-1": {
+        "name": "Sélectionner l'agent 1",
+        "description": "Sélectionner le premier agent"
+      },
+      "select-agent-2": {
+        "name": "Sélectionner l'agent 2",
+        "description": "Sélectionner le deuxième agent"
+      },
+      "select-agent-3": {
+        "name": "Sélectionner l'agent 3",
+        "description": "Sélectionner le troisième agent"
+      },
+      "select-agent-4": {
+        "name": "Sélectionner l'agent 4",
+        "description": "Sélectionner le quatrième agent"
+      },
+      "select-agent-5": {
+        "name": "Sélectionner l'agent 5",
+        "description": "Sélectionner le cinquième agent"
+      },
+      "select-agent-6": {
+        "name": "Sélectionner l'agent 6",
+        "description": "Sélectionner le sixième agent"
+      },
+      "select-agent-7": {
+        "name": "Sélectionner l'agent 7",
+        "description": "Sélectionner le septième agent"
+      },
+      "select-agent-8": {
+        "name": "Sélectionner l'agent 8",
+        "description": "Sélectionner le huitième agent"
+      },
+      "select-agent-9": {
+        "name": "Sélectionner l'agent 9",
+        "description": "Sélectionner le neuvième agent"
+      },
+      "delete-selected": {
+        "name": "Supprimer la sélection",
+        "description": "Retirer les agents sélectionnés"
+      },
+      "delete-selected-backspace": {
+        "name": "Supprimer la sélection (Retour arrière)",
+        "description": "Retirer les agents sélectionnés"
+      },
+      "deselect-all": {
+        "name": "Tout désélectionner",
+        "description": "Effacer la sélection d'agents"
+      },
+      "open-terminal": {
+        "name": "Ouvrir le terminal",
+        "description": "Ouvrir le terminal de l'agent sélectionné"
+      },
+      "dashboard-selector-toggle": {
+        "name": "Sélecteur du tableau de bord",
+        "description": "Activer le sélecteur de cartes du tableau de bord"
+      },
+      "dashboard-vim-left": {
+        "name": "Tableau de bord gauche",
+        "description": "Déplacer le sélecteur du tableau de bord vers la gauche"
+      },
+      "dashboard-vim-down": {
+        "name": "Tableau de bord bas",
+        "description": "Déplacer le sélecteur du tableau de bord vers le bas"
+      },
+      "dashboard-vim-up": {
+        "name": "Tableau de bord haut",
+        "description": "Déplacer le sélecteur du tableau de bord vers le haut"
+      },
+      "dashboard-vim-right": {
+        "name": "Tableau de bord droite",
+        "description": "Déplacer le sélecteur du tableau de bord vers la droite"
+      },
+      "next-agent": {
+        "name": "Agent suivant",
+        "description": "Sélectionner l'agent suivant sur le champ de bataille"
+      },
+      "prev-agent": {
+        "name": "Agent précédent",
+        "description": "Sélectionner l'agent précédent sur le champ de bataille"
+      },
+      "next-working-agent": {
+        "name": "Agent actif suivant",
+        "description": "Sélectionner l'agent actif suivant sur le champ de bataille"
+      },
+      "prev-working-agent": {
+        "name": "Agent actif précédent",
+        "description": "Sélectionner l'agent actif précédent sur le champ de bataille"
+      },
+      "next-message": {
+        "name": "Message suivant",
+        "description": "Naviguer au message suivant du terminal"
+      },
+      "prev-message": {
+        "name": "Message précédent",
+        "description": "Naviguer au message précédent du terminal"
+      },
+      "page-down-messages": {
+        "name": "Page suivante des messages",
+        "description": "Avancer de 10 messages dans le terminal"
+      },
+      "page-up-messages": {
+        "name": "Page précédente des messages",
+        "description": "Reculer de 10 messages dans le terminal"
+      },
+      "next-agent-terminal": {
+        "name": "Terminal agent suivant",
+        "description": "Passer à l'agent suivant dans le terminal"
+      },
+      "prev-agent-terminal": {
+        "name": "Terminal agent précédent",
+        "description": "Passer à l'agent précédent dans le terminal"
+      },
+      "activate-message": {
+        "name": "Activer le message",
+        "description": "Activer l'élément interactif du message sélectionné"
+      },
+      "toggle-file-explorer": {
+        "name": "Basculer l'explorateur de fichiers",
+        "description": "Ouvrir ou fermer l'explorateur de fichiers"
+      },
+      "file-explorer-close-tab": {
+        "name": "Fermer l'onglet fichier",
+        "description": "Fermer l'onglet de fichier actif dans l'explorateur"
+      },
+      "toggle-spotlight": {
+        "name": "Basculer la recherche globale",
+        "description": "Ouvrir ou fermer la recherche globale"
+      },
+      "toggle-2d-view": {
+        "name": "Changer le mode de vue",
+        "description": "Alterner entre les vues 3D, 2D et Tableau de bord"
+      },
+      "commander-close": {
+        "name": "Fermer le commandant",
+        "description": "Fermer la vue commandant"
+      },
+      "commander-vim-left": {
+        "name": "Naviguer à gauche",
+        "description": "Déplacer le focus vers la gauche Vim H"
+      },
+      "commander-vim-down": {
+        "name": "Naviguer vers le bas",
+        "description": "Déplacer le focus vers le bas Vim J"
+      },
+      "commander-vim-up": {
+        "name": "Naviguer vers le haut",
+        "description": "Déplacer le focus vers le haut Vim K"
+      },
+      "commander-vim-right": {
+        "name": "Naviguer à droite",
+        "description": "Déplacer le focus vers la droite Vim L"
+      },
+      "commander-expand": {
+        "name": "Développer/Réduire",
+        "description": "Basculer le développement de l'agent"
+      },
+      "commander-new-agent": {
+        "name": "Nouvel agent",
+        "description": "Ouvrir le formulaire de création dans le commandant"
+      },
+      "commander-next-tab": {
+        "name": "Onglet suivant",
+        "description": "Passer à l'onglet de zone suivant"
+      },
+      "commander-prev-tab": {
+        "name": "Onglet précédent",
+        "description": "Passer à l'onglet de zone précédent"
+      },
+      "toolbox-close": {
+        "name": "Fermer la boîte à outils",
+        "description": "Fermer le panneau des paramètres"
+      }
     }
-  },
-  "toolHistory": {
-    "tools": "Outils",
-    "filesSection": "Fichiers",
-    "noToolsYet": "Aucun outil exécuté pour le moment",
-    "noFileChangesYet": "Aucune modification de fichier pour le moment",
-    "viewFile": "Voir le fichier"
   },
   "logs": {
     "title": "Logs",
@@ -866,14 +948,14 @@
   },
   "commander": {
     "title": "Vue commandant",
-    "shortcuts": "Tab changer de zone \u2022 \u2325H/J/K/L nav \u2022 \u2325O développer \u2022 \u2325N nouveau",
+    "shortcuts": "Tab changer de zone • ⌥H/J/K/L nav • ⌥O développer • ⌥N nouveau",
     "advanced": "Avancé",
     "simple": "Simple",
     "addAgent": "+ Ajouter un agent",
     "close": "Fermer (Échap)",
-    "noAgentsAll": "Aucun agent déployé. Appuyez sur \u2325N pour ajouter un agent.",
+    "noAgentsAll": "Aucun agent déployé. Appuyez sur ⌥N pour ajouter un agent.",
     "noAgentsUnassigned": "Aucun agent non assigné.",
-    "noAgentsArea": "Aucun agent dans cette zone. Appuyez sur \u2325N pour en ajouter un.",
+    "noAgentsArea": "Aucun agent dans cette zone. Appuyez sur ⌥N pour en ajouter un.",
     "unassigned": "Non assigné",
     "page": "Page {{current}} sur {{total}} ({{count}} agents)",
     "prev": "Préc",
@@ -907,8 +989,7 @@
     "spotlight": "Recherche globale",
     "closeMenu": "Fermer le menu",
     "openMenu": "Ouvrir le menu",
-    "showTerminal": "Afficher le terminal",
-    "takeSnapshot": "Prendre un instantané"
+    "showTerminal": "Afficher le terminal"
   },
   "building": {
     "unitsCount": "{{count}} unités",
@@ -1035,5 +1116,13 @@
   "content": {
     "clickToViewImage": "Cliquer pour voir l'image",
     "clickToViewFile": "Cliquer pour voir le fichier : {{path}}"
+  },
+  "trackingStatus": {
+    "label": "Statut de suivi",
+    "need-review": "Travail terminé en attente de révision",
+    "blocked": "Impossible de continuer",
+    "can-clear-context": "Terminé — contexte prêt à être effacé",
+    "waiting-subordinates": "En attente du travail délégué",
+    "working": "En cours"
   }
 }

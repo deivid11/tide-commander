@@ -1,7 +1,7 @@
 /**
  * Custom hook for managing Spotlight search state including:
  * - Search query and results
- * - Fuse.js fuzzy search across agents, commands, areas, files, and activities
+ * - Fuse.js fuzzy search across agents, commands, areas, files
  * - Result highlighting and selection
  * - Keyboard navigation
  */
@@ -15,7 +15,7 @@ import type { SearchResult, UseSpotlightSearchOptions, SpotlightSearchState } fr
 import { getFileIconFromPath, getAgentIcon } from './utils';
 
 // Category display order - must match SpotlightResults rendering
-const categoryOrder = ['command', 'agent', 'building', 'area', 'modified-file', 'activity'];
+const categoryOrder = ['command', 'agent', 'building', 'area', 'modified-file'];
 
 export function useSpotlightSearch({
   isOpen,
@@ -23,7 +23,6 @@ export function useSpotlightSearch({
   onOpenSpawnModal,
   onOpenCommanderView,
   onOpenToolbox,
-  onOpenSupervisor,
   onOpenFileExplorer,
   onOpenPM2LogsModal,
   onOpenBossLogsModal,
@@ -36,17 +35,6 @@ export function useSpotlightSearch({
   const buildings = useBuildings();
   const fileChanges = useFileChanges();
 
-  // Stable version string for supervisor history — only changes when entry counts change
-  const supervisorHistoriesVersion = useMemo(() => {
-    const histories = store.getState().supervisor.agentHistories;
-    let version = '';
-    for (const [id, entries] of histories) {
-      version += `${id}:${entries.length},`;
-    }
-    return version;
-  // Re-derive when agents change (new agent might have history)
-  }, [agents]);
-
   // Stabilize callback props via refs to remove them from useMemo dependency arrays.
   // Actions inside search results capture these via ref so the data arrays don't
   // recreate when a parent re-render produces new callback identities.
@@ -58,8 +46,6 @@ export function useSpotlightSearch({
   onOpenCommanderViewRef.current = onOpenCommanderView;
   const onOpenToolboxRef = useRef(onOpenToolbox);
   onOpenToolboxRef.current = onOpenToolbox;
-  const onOpenSupervisorRef = useRef(onOpenSupervisor);
-  onOpenSupervisorRef.current = onOpenSupervisor;
   const onOpenFileExplorerRef = useRef(onOpenFileExplorer);
   onOpenFileExplorerRef.current = onOpenFileExplorer;
   const onOpenPM2LogsModalRef = useRef(onOpenPM2LogsModal);
@@ -79,17 +65,8 @@ export function useSpotlightSearch({
     if (isOpen) {
       setQuery('');
       setSelectedIndex(0);
-
-      // Request supervisor history for all agents that haven't had their full history fetched
-      const agentValues = Array.from(agents.values());
-      for (const agent of agentValues) {
-        // Request history if not already fetched and not currently loading
-        if (!store.hasHistoryBeenFetched(agent.id) && !store.isLoadingHistoryForAgent(agent.id)) {
-          store.requestAgentSupervisorHistory(agent.id);
-        }
-      }
     }
-  }, [isOpen, agents]);
+  }, [isOpen]);
 
   // Get shortcuts for display
   const shortcuts = store.getShortcuts();
@@ -136,17 +113,6 @@ export function useSpotlightSearch({
         },
       },
       {
-        id: 'cmd-supervisor',
-        type: 'command',
-        title: 'Supervisor Overview',
-        subtitle: 'View agent analysis',
-        icon: '🎖️',
-        action: () => {
-          onCloseRef.current();
-          onOpenSupervisorRef.current();
-        },
-      },
-      {
         id: 'cmd-monitoring',
         type: 'command',
         title: 'Monitoring & Logs',
@@ -160,21 +126,11 @@ export function useSpotlightSearch({
     ];
   }, [isOpen, shortcuts]);
 
-  // Build agent results with supervisor history, modified files, and user queries included in searchable text
+  // Build agent results with modified files and user queries included in searchable text
   const agentResults: SearchResult[] = useMemo(() => {
     if (!isOpen) return [];
 
     return Array.from(agents.values()).map((agent: Agent) => {
-      // Get ALL supervisor history for this agent (sorted by timestamp, newest first)
-      const history = store.getAgentSupervisorHistory(agent.id);
-      const latestEntry = history.length > 0 ? history[0] : null;
-
-      // Build history entries array for searching (includes all entries)
-      const historyEntries: { text: string; timestamp: number }[] = history.map((entry) => ({
-        text: `${entry.analysis.statusDescription} ${entry.analysis.recentWorkSummary}`,
-        timestamp: entry.timestamp,
-      }));
-
       // Get modified files for this agent
       const agentFiles = (fileChanges || []).filter((fc) => fc.agentId === agent.id).map((fc) => fc.filePath);
       // Get unique file names for search
@@ -190,22 +146,8 @@ export function useSpotlightSearch({
       // Build subtitle with basic info
       const subtitle = `${agent.class} • ${agent.status} • ${agent.cwd}`;
 
-      // Build searchable text including ALL supervisor history, file names, and user queries
+      // Build searchable text including file names and user queries
       let searchableText = `${agent.name} ${subtitle}`;
-      let activityText: string | undefined;
-      let statusDescription: string | undefined;
-      let lastStatusTime: number | undefined;
-
-      // Add ALL history entries to searchable text (newest first for priority)
-      for (const entry of historyEntries) {
-        searchableText += ` ${entry.text}`;
-      }
-
-      if (latestEntry) {
-        activityText = latestEntry.analysis.recentWorkSummary;
-        statusDescription = latestEntry.analysis.statusDescription;
-        lastStatusTime = latestEntry.timestamp;
-      }
 
       // Add file names to searchable text
       if (fileNames.length > 0) {
@@ -237,24 +179,18 @@ export function useSpotlightSearch({
         title: agent.name,
         subtitle,
         lastUserInput,
-        statusDescription,
-        activityText,
-        matchedText: activityText,
         timeAway,
-        lastStatusTime,
         icon: getAgentIcon(agent.class),
-        // Include supervisor text, files, user queries, and history for searching
         _searchText: searchableText,
         _modifiedFiles: uniqueFiles,
         _userQueries: userQueries,
-        _historyEntries: historyEntries,
         action: () => {
           onCloseRef.current();
           store.selectAgent(agent.id);
         },
       };
     });
-  }, [isOpen, agents, supervisorHistoriesVersion, fileChanges]);
+  }, [isOpen, agents, fileChanges]);
 
   // Build area results
   const areaResults: SearchResult[] = useMemo(() => {
@@ -377,47 +313,11 @@ export function useSpotlightSearch({
     return results;
   }, [isOpen, fileChanges]);
 
-  // Build activity results from supervisor history (searchable by status/summary text)
-  const activityResults: SearchResult[] = useMemo(() => {
-    if (!isOpen) return [];
-
-    const results: SearchResult[] = [];
-    const agentValues = Array.from(agents.values());
-
-    for (const agent of agentValues) {
-      const history = store.getAgentSupervisorHistory(agent.id);
-
-      // Only include the most recent entry per agent for activity search
-      if (history.length > 0) {
-        const entry = history[0];
-        const analysis = entry.analysis;
-
-        results.push({
-          id: `activity-${agent.id}-${entry.timestamp}`,
-          type: 'activity',
-          title: agent.name,
-          subtitle: analysis.statusDescription,
-          activityText: analysis.recentWorkSummary,
-          matchedText: analysis.recentWorkSummary,
-          icon: getAgentIcon(agent.class),
-          action: () => {
-            onCloseRef.current();
-            store.selectAgent(agent.id);
-          },
-        });
-      }
-    }
-
-    return results;
-  }, [isOpen, agents, supervisorHistoriesVersion]);
-
   // Create Fuse instances for fuzzy search
-  // ignoreLocation: true allows matching anywhere in the text (not just first 600 chars)
-  // This is important for searching through all supervisor history entries
   const agentFuse = useMemo(
     () =>
       new Fuse(agentResults, {
-        keys: ['title', 'subtitle', '_searchText', 'activityText', 'lastUserInput'],
+        keys: ['title', 'subtitle', '_searchText', 'lastUserInput'],
         threshold: 0.4,
         ignoreLocation: true,
         includeScore: true,
@@ -458,18 +358,6 @@ export function useSpotlightSearch({
         includeMatches: true,
       }),
     [modifiedFileResults]
-  );
-
-  const activityFuse = useMemo(
-    () =>
-      new Fuse(activityResults, {
-        keys: ['title', 'subtitle', 'matchedText', 'activityText'],
-        threshold: 0.4,
-        ignoreLocation: true,
-        includeScore: true,
-        includeMatches: true,
-      }),
-    [activityResults]
   );
 
   const buildingFuse = useMemo(
@@ -523,7 +411,6 @@ export function useSpotlightSearch({
     const matchedCommands = commandFuse.search(query).slice(0, 3);
     const matchedAreas = areaFuse.search(query).slice(0, 2);
     const matchedModifiedFiles = modifiedFileFuse.search(query).slice(0, 3);
-    const matchedActivities = activityFuse.search(query).slice(0, 3);
     const matchedBuildings = buildingFuse
       .search(query)
       .filter((r) => {
@@ -573,30 +460,6 @@ export function useSpotlightSearch({
           }
         }
       }
-      // Find matching history entries (prioritize newest - they come first)
-      if (item._historyEntries && item._historyEntries.length > 0) {
-        const matchingEntry = item._historyEntries.find((entry) =>
-          entry.text.toLowerCase().includes(lowerQuery)
-        );
-        if (matchingEntry) {
-          // Truncate if too long, show context around match
-          const maxLen = 250;
-          if (matchingEntry.text.length > maxLen) {
-            const matchIdx = matchingEntry.text.toLowerCase().indexOf(lowerQuery);
-            const start = Math.max(0, matchIdx - 80);
-            const end = Math.min(matchingEntry.text.length, matchIdx + lowerQuery.length + 120);
-            item.matchedHistory = {
-              text:
-                (start > 0 ? '...' : '') +
-                matchingEntry.text.slice(start, end) +
-                (end < matchingEntry.text.length ? '...' : ''),
-              timestamp: matchingEntry.timestamp,
-            };
-          } else {
-            item.matchedHistory = matchingEntry;
-          }
-        }
-      }
       const lowerTitle = item.title.toLowerCase();
       if (lowerTitle === lowerQuery || lowerTitle.startsWith(lowerQuery)) {
         prioritizedAgents.push(item);
@@ -635,15 +498,6 @@ export function useSpotlightSearch({
       finalResults.push(r.item);
     }
 
-    // Activities (only if not already covered by agents)
-    const agentIdsInResults = new Set(matchedAgents.map((r) => r.item.id));
-    for (const r of matchedActivities) {
-      const activityAgentId = r.item.id.replace('activity-', '').split('-')[0];
-      if (!agentIdsInResults.has(`agent-${activityAgentId}`)) {
-        finalResults.push(r.item);
-      }
-    }
-
     // Sort by categoryOrder so the flat array index matches the visual render order.
     // Stable sort preserves the relative order within each category.
     const categoryIndex: Record<string, number> = {};
@@ -651,7 +505,7 @@ export function useSpotlightSearch({
     finalResults.sort((a, b) => (categoryIndex[a.type] ?? 999) - (categoryIndex[b.type] ?? 999));
 
     return finalResults;
-  }, [query, agentFuse, commandFuse, areaFuse, modifiedFileFuse, activityFuse, commands, agentResults, areaResults]);
+  }, [query, agentFuse, commandFuse, areaFuse, modifiedFileFuse, buildingFuse, commands, agentResults, areaResults, buildingResults]);
 
   // Clamp selected index to valid range
   useEffect(() => {

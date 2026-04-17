@@ -10,12 +10,8 @@ interface MobileFabMenuProps {
   onOpenSidebar: () => void;
   onOpenToolbox: () => void;
   onOpenCommander: () => void;
-  onOpenSupervisor: () => void;
   onOpenControls: () => void;
   onOpenSkills: () => void;
-  onOpenSnapshots: () => void;
-  onTakeSnapshot: () => void;
-  canTakeSnapshot: boolean; // Whether there's an active agent with outputs to snapshot
   mobileView: '3d' | 'terminal';
 }
 
@@ -26,12 +22,8 @@ export const MobileFabMenu = memo(function MobileFabMenu({
   onOpenSidebar,
   onOpenToolbox,
   onOpenCommander,
-  onOpenSupervisor,
   onOpenControls,
   onOpenSkills,
-  onOpenSnapshots,
-  onTakeSnapshot,
-  canTakeSnapshot,
   mobileView,
 }: MobileFabMenuProps) {
   const { t } = useTranslation(['terminal', 'common']);
@@ -86,20 +78,6 @@ export const MobileFabMenu = memo(function MobileFabMenu({
           >
             📋
           </button>
-          {/* Take Snapshot - prominent action when available */}
-          {canTakeSnapshot && (
-            <button
-              className="mobile-fab-option mobile-fab-option--highlight"
-              onClick={() => handleAction(onTakeSnapshot)}
-              onTouchEnd={(e) => {
-                e.preventDefault();
-                handleAction(onTakeSnapshot);
-              }}
-              title={t('terminal:mobileFab.takeSnapshot')}
-            >
-              ⭐
-            </button>
-          )}
           <button
             className="mobile-fab-option"
             onClick={() => handleAction(onOpenToolbox)}
@@ -124,17 +102,6 @@ export const MobileFabMenu = memo(function MobileFabMenu({
           </button>
           <button
             className="mobile-fab-option"
-            onClick={() => handleAction(onOpenSupervisor)}
-            onTouchEnd={(e) => {
-              e.preventDefault();
-              handleAction(onOpenSupervisor);
-            }}
-            title={t('common:floatingButtons.supervisorOverview')}
-          >
-            🎖️
-          </button>
-          <button
-            className="mobile-fab-option"
             onClick={() => handleAction(onOpenControls)}
             onTouchEnd={(e) => {
               e.preventDefault();
@@ -154,17 +121,6 @@ export const MobileFabMenu = memo(function MobileFabMenu({
             title={t('common:floatingButtons.manageSkills')}
           >
             ⭐
-          </button>
-          <button
-            className="mobile-fab-option"
-            onClick={() => handleAction(onOpenSnapshots)}
-            onTouchEnd={(e) => {
-              e.preventDefault();
-              handleAction(onOpenSnapshots);
-            }}
-            title={t('common:floatingButtons.viewSnapshots')}
-          >
-            📸
           </button>
         </div>
       )}

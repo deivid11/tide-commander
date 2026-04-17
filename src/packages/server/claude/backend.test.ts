@@ -2,12 +2,12 @@
  * Tests for ClaudeBackend event parsing and utility functions
  *
  * Covers: parseEvent (all event types), extractSessionId,
- * parseContextOutput, parseUsageOutput, formatStdinInput
+ * parseContextOutput, formatStdinInput
  */
 
 import { describe, it, expect, vi } from 'vitest';
 import * as fs from 'fs';
-import { ClaudeBackend, parseContextOutput, parseUsageOutput } from './backend.js';
+import { ClaudeBackend, parseContextOutput } from './backend.js';
 import type { StandardEvent } from './types.js';
 
 // Mock fs/os to avoid file system side effects from buildArgs
@@ -485,18 +485,6 @@ describe('ClaudeBackend', () => {
         expect(result.contextStatsRaw).toContain('## Context Usage');
       });
 
-      it('parses /usage output from local-command-stdout', () => {
-        const usageOutput = `<local-command-stdout>## Usage
-Current Session</local-command-stdout>`;
-
-        const result = backend.parseEvent({
-          type: 'user',
-          message: { content: usageOutput },
-        }) as StandardEvent;
-
-        expect(result.type).toBe('usage_stats');
-        expect(result.usageStatsRaw).toContain('## Usage');
-      });
     });
 
     it('returns null for unknown event types', () => {
@@ -621,37 +609,5 @@ describe('parseContextOutput', () => {
     expect(result!.contextWindow).toBe(1000000);
     expect(result!.totalTokens).toBe(377300);
     expect(result!.usedPercent).toBe(37.7);
-  });
-});
-
-describe('parseUsageOutput', () => {
-  it('parses full usage output', () => {
-    const content = `## Usage
-
-| Category | % | Reset |
-|---|---|---|
-| Current Session | 45.2% | Jan 25 at 5:00 PM |
-| Current Week (All Models) | 12.3% | Jan 27 at 12:00 AM |
-| Current Week (Sonnet Only) | 8.5% | Jan 27 at 12:00 AM |`;
-
-    const result = parseUsageOutput(content);
-    expect(result).not.toBeNull();
-    expect(result!.session.percentUsed).toBe(45.2);
-    expect(result!.weeklyAllModels.percentUsed).toBe(12.3);
-    expect(result!.weeklySonnet.percentUsed).toBe(8.5);
-    expect(result!.session.resetTime).toBe('Jan 25 at 5:00 PM');
-  });
-
-  it('returns null for incomplete usage output', () => {
-    const content = `## Usage
-| Category | % | Reset |
-|---|---|---|
-| Current Session | 45.2% | Jan 25 |`;
-
-    expect(parseUsageOutput(content)).toBeNull();
-  });
-
-  it('returns null for empty input', () => {
-    expect(parseUsageOutput('')).toBeNull();
   });
 });

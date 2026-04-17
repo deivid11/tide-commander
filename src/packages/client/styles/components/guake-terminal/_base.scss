@@ -21,7 +21,8 @@
   z-index: 200;
   display: flex;
   flex-direction: column;
-  transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  // No width transition: the sidebar slides via transform; the terminal snaps
+  // to its final width so opening guake never shows a horizontal resize.
 
   // When sidebar is collapsed, extend to full width
   .app.sidebar-collapsed & {

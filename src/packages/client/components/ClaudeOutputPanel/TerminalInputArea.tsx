@@ -185,8 +185,6 @@ export interface TerminalInputAreaProps {
   // External refs for input elements (for keyboard navigation focus)
   inputRef?: React.RefObject<HTMLInputElement | null>;
   textareaRef?: React.RefObject<HTMLTextAreaElement | null>;
-  // Whether viewing a snapshot (read-only mode)
-  isSnapshotView?: boolean;
   // Clear loaded history in panel (used by /clear command parity with header action)
   onClearHistory: () => void;
   // Called after a message is sent (used to reset auto-scroll)
@@ -223,7 +221,6 @@ export const TerminalInputArea = memo(function TerminalInputArea({
   onImageClick,
   inputRef: externalInputRef,
   textareaRef: externalTextareaRef,
-  isSnapshotView = false,
   onClearHistory,
   onSendCommand,
   canSwipeClose = false,
@@ -771,7 +768,7 @@ export const TerminalInputArea = memo(function TerminalInputArea({
         </div>
       )}
 
-      <div className={`guake-input-wrapper ${selectedAgent.status === 'working' ? 'has-stop-btn is-working' : ''} ${showCompletion ? 'is-completed' : ''} ${isSnapshotView ? 'is-snapshot-view' : ''}`}>
+      <div className={`guake-input-wrapper ${selectedAgent.status === 'working' ? 'has-stop-btn is-working' : ''} ${showCompletion ? 'is-completed' : ''}`}>
         <div
           className={`guake-input-swipe-shell ${swipeClosePhase !== 'idle' ? 'swipe-close-active' : ''} ${swipeCloseOffset >= MOBILE_SWIPE_CLOSE_THRESHOLD_PX ? 'swipe-close-ready' : ''}`}
           onTouchStart={handleSwipeCloseTouchStart}
@@ -780,7 +777,7 @@ export const TerminalInputArea = memo(function TerminalInputArea({
           onTouchCancel={handleSwipeCloseTouchCancel}
         >
           {/* Mobile context bar - compact context stats above input */}
-          {!isSnapshotView && (() => {
+          {(() => {
             const stats = selectedAgent.contextStats;
             const totalTokens = stats ? stats.totalTokens : (selectedAgent.contextUsed || 0);
             const contextWindow = stats ? stats.contextWindow : (selectedAgent.contextLimit || 200000);

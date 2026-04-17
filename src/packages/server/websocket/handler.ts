@@ -88,12 +88,6 @@ import {
   handleDeleteQueryHistory,
   handleClearQueryHistory,
 } from './handlers/database-handler.js';
-import {
-  handleSetSupervisorConfig,
-  handleRequestSupervisorReport,
-  handleRequestAgentSupervisorHistory,
-  handleRequestGlobalUsage,
-} from './handlers/supervisor-handler.js';
 import { handlePermissionResponse } from './handlers/permission-handler.js';
 import { handleSendNotification } from './handlers/notification-handler.js';
 import { handleSyncAreas, handleSyncBuildings } from './handlers/sync-handler.js';
@@ -249,9 +243,6 @@ const messageHandlers = {
   remove_agent: handleRemoveAgent,
   rename_agent: handleRenameAgent,
   update_agent_properties: handleUpdateAgentProperties,
-  set_supervisor_config: handleSetSupervisorConfig,
-  request_supervisor_report: handleRequestSupervisorReport,
-  request_agent_supervisor_history: handleRequestAgentSupervisorHistory,
   sync_areas: handleSyncAreas,
   sync_buildings: handleSyncBuildings,
   create_building: noopHandler,
@@ -284,7 +275,6 @@ const messageHandlers = {
   pause_work_plan: noopHandler,
   cancel_work_plan: noopHandler,
   request_work_plans: noopHandler,
-  request_global_usage: handleRequestGlobalUsage,
   send_notification: handleSendNotification,
   create_secret: handleCreateSecret,
   update_secret: handleUpdateSecret,
@@ -302,11 +292,6 @@ const messageHandlers = {
   clear_query_history: handleClearQueryHistory,
   get_table_schema: handleGetTableSchema,
   list_tables: handleListTables,
-  request_snapshots: noopHandler,
-  request_snapshot_details: noopHandler,
-  create_snapshot: noopHandler,
-  delete_snapshot: noopHandler,
-  restore_snapshot: noopHandler,
   create_trigger: handleCreateTrigger,
   update_trigger: handleUpdateTrigger,
   delete_trigger: handleDeleteTrigger,

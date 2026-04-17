@@ -120,7 +120,7 @@ function truncate(text: string, maxLen: number): string {
 
 /** Context about why an agent matched a search query (for non-obvious matches) */
 interface SearchMatchContext {
-  type: 'task' | 'history' | 'file';
+  type: 'task' | 'file';
   text: string;
 }
 
@@ -145,15 +145,6 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
   const subagents = useSubagents();
   const areas = useAreas();
   const fileChanges = useFileChanges();
-
-  // Request supervisor history for all agents (enables deep search)
-  useEffect(() => {
-    for (const agent of agents) {
-      if (!store.hasHistoryBeenFetched(agent.id) && !store.isLoadingHistoryForAgent(agent.id)) {
-        store.requestAgentSupervisorHistory(agent.id);
-      }
-    }
-  }, [agents]);
 
   // Load persisted config from localStorage
   const savedConfig = useMemo(() => getStorage<AopConfig>(STORAGE_KEYS.AOP_CONFIG, {
@@ -340,7 +331,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     return map;
   }, [agents, areas]);
 
-  // Filter agents — deep search through supervisor history, file changes, and user tasks
+  // Filter agents — deep search through file changes and user tasks
   const [filteredAgents, searchMatchContexts] = useMemo(() => {
     const activeAreaId = agentToAreaId.get(activeAgentId) ?? null;
     const contexts = new Map<string, SearchMatchContext>();
@@ -371,21 +362,6 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
         if (task.toLowerCase().includes(q)) {
           contexts.set(a.id, { type: 'task', text: task });
           return true;
-        }
-
-        // Supervisor history (status descriptions + work summaries)
-        const history = store.getAgentSupervisorHistory(a.id);
-        for (const entry of history) {
-          const summary = entry.analysis.recentWorkSummary;
-          const desc = entry.analysis.statusDescription;
-          if (summary.toLowerCase().includes(q)) {
-            contexts.set(a.id, { type: 'history', text: summary });
-            return true;
-          }
-          if (desc.toLowerCase().includes(q)) {
-            contexts.set(a.id, { type: 'history', text: desc });
-            return true;
-          }
         }
 
         // File changes
@@ -1340,10 +1316,10 @@ function AgentCard({
         {matchContext && (
           <div className={`aop-match-context aop-match-context--${matchContext.type}`} title={matchContext.text}>
             <span className="match-icon">
-              {matchContext.type === 'history' ? '📜' : matchContext.type === 'file' ? '📄' : '💬'}
+              {matchContext.type === 'file' ? '📄' : '💬'}
             </span>
             <span className="match-label">
-              {matchContext.type === 'history' ? 'history' : matchContext.type === 'file' ? 'file' : 'task'}
+              {matchContext.type === 'file' ? 'file' : 'task'}
             </span>
             <span className="match-text">{truncate(matchContext.text, trunc)}</span>
           </div>

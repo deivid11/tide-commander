@@ -56,8 +56,6 @@ export function getTypeLabel(type: string): string {
       return 'Command';
     case 'area':
       return 'Area';
-    case 'activity':
-      return 'Activity';
     case 'modified-file':
       return 'Changed';
     case 'building':

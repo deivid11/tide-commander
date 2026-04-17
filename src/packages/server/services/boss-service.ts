@@ -7,7 +7,6 @@
 import { spawn } from 'child_process';
 import { StringDecoder } from 'string_decoder';
 import * as agentService from './agent-service.js';
-import * as supervisorService from './supervisor-service.js';
 import type {
   Agent,
   DelegationDecision,
@@ -205,10 +204,6 @@ export async function gatherSubordinateContext(bossId: string): Promise<Subordin
   const subordinates = getSubordinates(bossId);
 
   return Promise.all(subordinates.map(async (sub) => {
-    // Get latest supervisor analysis for this agent
-    const history = supervisorService.getAgentSupervisorHistory(sub.id);
-    const latestEntry = history.entries[0];
-
     // Use contextStats (from /context command) when available, otherwise fallback to basic calculation
     // This matches how the UI calculates context in agentUtils.ts
     let contextPercent: number;
@@ -230,7 +225,6 @@ export async function gatherSubordinateContext(bossId: string): Promise<Subordin
       status: sub.status,
       currentTask: sub.currentTask,
       lastAssignedTask: sub.lastAssignedTask,
-      recentSupervisorSummary: latestEntry?.analysis?.recentWorkSummary,
       contextPercent,
       tokensUsed,
     };
@@ -375,7 +369,6 @@ function buildDelegationPrompt(command: string, contexts: SubordinateContext[]):
     status: ctx.status,
     currentTask: sanitizeUnicode(ctx.currentTask || 'None'),
     lastAssignedTask: ctx.lastAssignedTask ? sanitizeUnicode(truncateOrEmpty(ctx.lastAssignedTask, 200)) : 'None',
-    recentSupervisorSummary: sanitizeUnicode(ctx.recentSupervisorSummary || 'No recent analysis'),
     contextPercent: ctx.contextPercent,
     tokensUsed: ctx.tokensUsed,
   }));

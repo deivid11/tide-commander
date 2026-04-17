@@ -13,6 +13,33 @@
   z-index: 100;
   // No overflow clipping on outer container — tooltips/bubbles need to overflow Y
   overflow: visible;
+
+  // Desktop: auto-hide the bar, reveal when mouse nears the bottom edge.
+  // The ::before pseudo-element is a 24px hover catch zone anchored to the
+  // viewport bottom (it moves with the bar's translateY so it stays on screen).
+  @media (hover: hover) and (pointer: fine) {
+    transform: translateY(calc(100% - 4px));
+    transition: transform 220ms ease;
+    will-change: transform;
+
+    // A slim 4px sliver remains visible as a peek affordance.
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.35);
+
+    &::before {
+      content: '';
+      position: absolute;
+      bottom: 100%;
+      left: 0;
+      right: 0;
+      height: 24px;
+      pointer-events: auto;
+    }
+
+    &:hover,
+    &:focus-within {
+      transform: translateY(0);
+    }
+  }
 }
 
 // Inner scrollable wrapper — scrolls the agent list horizontally
@@ -903,30 +930,6 @@
   line-height: 1.2;
   max-height: 60px;
   overflow-y: auto;
-}
-
-// Divider for supervisor section
-.agent-bar-tooltip-divider {
-  height: 1px;
-  background: $dracula-current;
-  margin: 3px 0;
-}
-
-// Supervisor analysis styles
-.agent-bar-tooltip-supervisor {
-  color: $dracula-cyan;
-  font-size: 9px;
-  word-break: break-word;
-  line-height: 1.2;
-}
-
-// Concerns shown in warning color
-.agent-bar-tooltip-concerns {
-  color: $dracula-orange;
-  font-size: 9px;
-  font-style: italic;
-  word-break: break-word;
-  line-height: 1.2;
 }
 
 // Agent hover popup (battlefield tooltip)

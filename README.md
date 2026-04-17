@@ -113,9 +113,6 @@ Tide Commander introduces several powerful concepts for orchestrating your AI ag
 ### Boss
 The boss agent has context of other agents assigned to him. The boss can delegate tasks. Imagine you have a single boss to talk with, and the boss decides which of the subordinate agents is the most capable of doing the requested task. This saves a lot of time, without having to know which Claude Code terminal has which context. The boss can also give you a summary of the progress of their workers.
 
-### Supervisor
-Like god, the supervisor sees everything on the field, knows when an agent finished, and generates a summary of their last task, appending it to a global, centralized panel.
-
 ### Group Areas
 Help to organize agents in projects and find them quickly. Areas can have assigned folders, enabling the file explorer on those added folders. Completed or inactive areas can be **archived** to hide them from the battlefield without deleting them - they can be restored at any time.
 
@@ -327,7 +324,6 @@ For Mermaid diagrams and deeper design notes, see [`docs/architecture.md`](docs/
 - `skills.json` - Custom skill definitions
 - `custom-agent-classes.json` - Custom agent class definitions
 - `secrets.json` - Encrypted secrets storage
-- `supervisor-history.json` - Agent supervisor history
 - `snapshots/` - Saved conversation snapshots with file captures
 
 **Custom Models** are stored in `~/.tide-commander/custom-models/`

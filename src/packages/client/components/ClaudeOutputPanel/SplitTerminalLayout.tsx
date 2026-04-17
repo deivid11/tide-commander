@@ -32,13 +32,6 @@ interface SplitTerminalLayoutProps {
   viewMode: ViewMode;
   /** Whether the terminal is open */
   isOpen: boolean;
-  /** Whether viewing a snapshot */
-  isSnapshotView: boolean;
-  /** Snapshot data */
-  currentSnapshot: {
-    agentId: string;
-    outputs: Array<{ text: string; timestamp: number; isStreaming?: boolean; isUserPrompt?: boolean }>;
-  } | null;
   /** Modal callbacks from parent */
   onImageClick: (url: string, name: string) => void;
   onFileClick: (path: string, editData?: { oldString?: string; newString?: string; operation?: string; unifiedDiff?: string; highlightRange?: { offset: number; limit: number }; targetLine?: number }) => void;
@@ -51,8 +44,6 @@ interface SplitTerminalLayoutProps {
     keyboardScrollLockRef: React.MutableRefObject<boolean>;
     cleanup: () => void;
   };
-  /** Snapshot save callback */
-  onSaveSnapshot?: () => void;
   /** Mobile swipe close props */
   canSwipeClose?: boolean;
   onSwipeCloseOffsetChange?: (offset: number) => void;
@@ -99,14 +90,11 @@ export const SplitTerminalLayout = memo(function SplitTerminalLayout(props: Spli
     paneRef,
     viewMode,
     isOpen,
-    isSnapshotView,
-    currentSnapshot,
     onImageClick,
     onFileClick,
     onBashClick,
     onViewMarkdown,
     keyboard,
-    onSaveSnapshot,
     canSwipeClose,
     onSwipeCloseOffsetChange,
     onSwipeClose,
@@ -176,14 +164,11 @@ export const SplitTerminalLayout = memo(function SplitTerminalLayout(props: Spli
           agent={activeAgent}
           viewMode={viewMode}
           isOpen={isOpen}
-          isSnapshotView={isSnapshotView}
-          currentSnapshot={currentSnapshot}
           onImageClick={onImageClick}
           onFileClick={onFileClick}
           onBashClick={onBashClick}
           onViewMarkdown={onViewMarkdown}
           keyboard={keyboard}
-          onSaveSnapshot={onSaveSnapshot}
           canSwipeClose={canSwipeClose}
           onSwipeCloseOffsetChange={onSwipeCloseOffsetChange}
           onSwipeClose={onSwipeClose}
@@ -235,8 +220,6 @@ export const SplitTerminalLayout = memo(function SplitTerminalLayout(props: Spli
                   agent={agent}
                   viewMode={viewMode}
                   isOpen={isOpen}
-                  isSnapshotView={false}
-                  currentSnapshot={null}
                   onImageClick={onImageClick}
                   onFileClick={onFileClick}
                   onBashClick={onBashClick}

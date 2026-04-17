@@ -98,6 +98,9 @@
 }
 
 .bash-notify-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
@@ -108,6 +111,15 @@
   border-radius: 4px;
   padding: 1px 6px;
   flex-shrink: 0;
+}
+
+.bash-notify-icon {
+  font-size: 11px;
+  line-height: 1;
+}
+
+.bash-notify-label {
+  letter-spacing: 0.4px;
 }
 
 .bash-notify-title {
@@ -192,6 +204,82 @@
 
 .bash-report-task-summary {
   color: var(--text-primary);
+  font-style: italic;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// Tracking status chip (curl PATCH /api/agents/<id> with trackingStatus)
+.output-tool-param.bash-tracking-param {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.bash-tracking-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  border-radius: 4px;
+  padding: 1px 6px;
+  flex-shrink: 0;
+
+  // Default (unknown status) — neutral slate
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--text-secondary) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-secondary) 32%, transparent);
+
+  &.status-need-review {
+    color: var(--accent-green);
+    background: color-mix(in srgb, var(--accent-green) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-green) 40%, transparent);
+  }
+
+  &.status-blocked {
+    color: var(--accent-red, #ef4444);
+    background: color-mix(in srgb, var(--accent-red, #ef4444) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-red, #ef4444) 40%, transparent);
+  }
+
+  &.status-can-clear-context {
+    color: var(--accent-blue);
+    background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-blue) 40%, transparent);
+  }
+
+  &.status-waiting-subordinates {
+    color: var(--accent-orange, #f59e0b);
+    background: color-mix(in srgb, var(--accent-orange, #f59e0b) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-orange, #f59e0b) 40%, transparent);
+  }
+
+  &.status-working {
+    color: var(--accent-cyan);
+    background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-cyan) 40%, transparent);
+  }
+}
+
+.bash-tracking-icon {
+  font-size: 11px;
+  line-height: 1;
+}
+
+.bash-tracking-status {
+  letter-spacing: 0.4px;
+}
+
+.bash-tracking-detail {
+  color: var(--text-secondary);
   font-style: italic;
   min-width: 0;
   overflow: hidden;

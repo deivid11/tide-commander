@@ -19,7 +19,7 @@ interface OpencodeRawEvent {
   sessionID?: string;
 }
 
-function buildOpencodePrompt(config: BackendConfig): string {
+export function buildOpencodePrompt(config: BackendConfig): string {
   const userPrompt = config.prompt?.trim() || 'Continue the task.';
   const injectedSections: string[] = [];
 

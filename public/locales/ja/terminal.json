@@ -4,8 +4,6 @@
     "closeSidebar": "サイドバーを閉じる",
     "showAgentInfo": "エージェント情報を表示",
     "hideAgentInfo": "エージェント情報を非表示",
-    "saveSnapshot": "スナップショットを保存",
-    "saveSnapshotDesc": "この会話とエージェントが作成/変更したすべてのファイルをキャプチャ",
     "showOverview": "エージェント概要を表示",
     "hideOverview": "エージェント概要を非表示",
     "showDebug": "デバッグパネルを表示",
@@ -98,7 +96,16 @@
     "created": "作成日時",
     "detached": "デタッチ",
     "yes": "はい",
-    "no": "いいえ"
+    "no": "いいえ",
+    "injectedPrompt": "注入プロンプト",
+    "injectedPromptShow": "表示",
+    "injectedPromptHide": "非表示",
+    "injectedPromptCopy": "コピー",
+    "injectedPromptCopied": "コピーしました",
+    "injectedPromptRefresh": "更新",
+    "injectedPromptLoading": "プロンプトを読み込み中…",
+    "injectedPromptError": "プロンプトの読み込みに失敗しました: {{error}}",
+    "injectedPromptLength": "{{chars}} 文字 · ~{{tokens}} トークン"
   },
   "empty": {
     "tapAgent": "フィールド上のエージェントをタップしてターミナルを表示",
@@ -432,48 +439,6 @@
     "matchesInFiles": "{{files}}ファイル中{{matches}}件",
     "moreMatches": "他{{count}}件の一致"
   },
-  "snapshot": {
-    "title": "スナップショット",
-    "save": "スナップショットを保存",
-    "load": "スナップショットを読み込む",
-    "delete": "スナップショットを削除",
-    "name": "スナップショット名",
-    "namePlaceholder": "スナップショット名を入力...",
-    "description": "説明",
-    "descriptionPlaceholder": "このスナップショットの説明...",
-    "noSnapshots": "保存されたスナップショットなし",
-    "created": "{{date}}に作成",
-    "restore": "このスナップショットを復元しますか?",
-    "deleteConfirm": "このスナップショットを削除しますか?",
-    "searchPlaceholder": "スナップショットを検索...",
-    "sortDate": "日付",
-    "sortTitle": "タイトル",
-    "sortAgent": "エージェント",
-    "loadingSnapshots": "スナップショットを読み込み中...",
-    "noSnapshotsMatch": "検索に一致するスナップショットなし",
-    "noSnapshotsYet": "スナップショットはまだありません",
-    "snapshotHint": "ターミナルヘッダーのスターボタンをクリックしてスナップショットを保存",
-    "restoreFiles": "ファイルを復元",
-    "exportSnapshot": "スナップショットをエクスポート",
-    "deleteSnapshot": "スナップショットを削除",
-    "whatWillBeCaptured": "キャプチャされる内容",
-    "messages": "メッセージ",
-    "files": "ファイル",
-    "createdLabel": "作成日時",
-    "modified": "変更済み",
-    "more": "+{{count}}件",
-    "noFilesChanged": "この会話でファイルの作成や変更はありません",
-    "saving": "保存中...",
-    "enterTitle": "このスナップショットのタイトルを入力",
-    "whatWasAccomplished": "この会話で何を達成しましたか?",
-    "viewingSnapshot": "スナップショットを閲覧中",
-    "conversationMessages": "会話 ({{count}}メッセージ)",
-    "noConversation": "このスナップショットには会話データがありません",
-    "fileChanges": "ファイル変更",
-    "createdFiles": "作成 ({{count}})",
-    "modifiedFiles": "変更 ({{count}})",
-    "noFileChanges": "このスナップショットにはファイル変更がありません"
-  },
   "database": {
     "title": "データベース",
     "query": "クエリ",
@@ -543,47 +508,12 @@
     "lastPage": "最後のページ",
     "pageInfo": "{{total}}ページ中{{current}}ページ"
   },
-  "supervisor": {
-    "title": "スーパーバイザー",
-    "subordinates": "部下",
-    "noSubordinates": "部下なし",
-    "assignTask": "タスクを割り当て",
-    "taskHistory": "タスク履歴",
-    "startAll": "すべての部下を開始",
-    "stopAll": "すべての部下を停止",
-    "delegateTo": "委任先...",
-    "overview": "スーパーバイザー概要",
-    "active": "アクティブ",
-    "paused": "一時停止",
-    "auto": "自動",
-    "manual": "手動",
-    "generating": "生成中...",
-    "generatingReport": "スーパーバイザーレポートを生成中...",
-    "noReportYet": "スーパーバイザーレポートはまだ利用できません。",
-    "generateFirstReport": "最初のレポートを生成",
-    "lastReport": "最終レポート: {{time}}",
-    "autoUpdates": "タスク完了時に自動更新",
-    "manualUpdates": "手動更新のみ",
-    "allSystemsHealthy": "全システム正常",
-    "attentionNeeded": "対応が必要",
-    "criticalIssues": "重大な問題を検出",
-    "keyInsights": "主な洞察",
-    "agentStatus": "エージェントステータス",
-    "recommendations": "推奨事項",
-    "claudeApiUsage": "Claude API使用量",
-    "noUsageData": "使用データなし",
-    "fetchUsage": "使用量を取得",
-    "fetching": "取得中...",
-    "session": "セッション",
-    "weeklyAll": "週間 (全体)",
-    "weeklySonnet": "週間 (Sonnet)",
-    "resets": "{{time}}にリセット",
-    "autoUpdatesOnComplete": "タスク完了時に自動更新",
-    "manualUpdatesOnly": "手動更新のみ",
+  "team": {
     "manageTeam": "チーム管理",
-    "assignSubordinates": "部下を割り当て",
+    "selectAgents": "部下として割り当てるエージェントを選択",
     "noAgentsAvailable": "割り当て可能なエージェントがありません",
-    "selectAgents": "部下として割り当てるエージェントを選択"
+    "subordinates": "部下",
+    "saveTeam": "チームを保存"
   },
   "context": {
     "contextWindow": "コンテキストウィンドウ: {{name}}",
@@ -679,69 +609,221 @@
       "forward": "進むボタン"
     },
     "mouseBindings": {
-      "left-click-select": { "name": "選択またはクリック", "description": "エージェント、ビルディング、エリアを選択してクリック" },
-      "left-drag-selection": { "name": "選択ボックス", "description": "ドラッグして複数のエージェントを選択" },
-      "right-click-context": { "name": "コンテキストメニューまたは移動", "description": "コンテキストメニューを開くか選択したエージェントを移動" },
-      "alt-right-drag-pan": { "name": "カメラパン", "description": "Alt + 右ドラッグでカメラをパン" },
-      "middle-drag-orbit": { "name": "カメラオービット", "description": "中ドラッグでカメラを回転" },
-      "shift-middle-drag-pan": { "name": "カメラパン (代替)", "description": "Shift + 中ドラッグで代替パン" },
-      "wheel-zoom": { "name": "ズーム", "description": "スクロールホイールでカメラをズーム" }
+      "left-click-select": {
+        "name": "選択またはクリック",
+        "description": "エージェント、ビルディング、エリアを選択してクリック"
+      },
+      "left-drag-selection": {
+        "name": "選択ボックス",
+        "description": "ドラッグして複数のエージェントを選択"
+      },
+      "right-click-context": {
+        "name": "コンテキストメニューまたは移動",
+        "description": "コンテキストメニューを開くか選択したエージェントを移動"
+      },
+      "alt-right-drag-pan": {
+        "name": "カメラパン",
+        "description": "Alt + 右ドラッグでカメラをパン"
+      },
+      "middle-drag-orbit": {
+        "name": "カメラオービット",
+        "description": "中ドラッグでカメラを回転"
+      },
+      "shift-middle-drag-pan": {
+        "name": "カメラパン (代替)",
+        "description": "Shift + 中ドラッグで代替パン"
+      },
+      "wheel-zoom": {
+        "name": "ズーム",
+        "description": "スクロールホイールでカメラをズーム"
+      }
     },
     "shortcuts": {
-      "toggle-commander": { "name": "コマンダー切り替え", "description": "コマンダービューの開閉" },
-      "toggle-commander-tab": { "name": "コマンダータブ切り替え", "description": "Tabキーでコマンダービューの開閉" },
-      "spawn-agent": { "name": "エージェントをスポーン", "description": "新規エージェントのスポーンモーダルを開く" },
-      "select-agent-1": { "name": "エージェント1を選択", "description": "1番目のエージェントを選択" },
-      "select-agent-2": { "name": "エージェント2を選択", "description": "2番目のエージェントを選択" },
-      "select-agent-3": { "name": "エージェント3を選択", "description": "3番目のエージェントを選択" },
-      "select-agent-4": { "name": "エージェント4を選択", "description": "4番目のエージェントを選択" },
-      "select-agent-5": { "name": "エージェント5を選択", "description": "5番目のエージェントを選択" },
-      "select-agent-6": { "name": "エージェント6を選択", "description": "6番目のエージェントを選択" },
-      "select-agent-7": { "name": "エージェント7を選択", "description": "7番目のエージェントを選択" },
-      "select-agent-8": { "name": "エージェント8を選択", "description": "8番目のエージェントを選択" },
-      "select-agent-9": { "name": "エージェント9を選択", "description": "9番目のエージェントを選択" },
-      "delete-selected": { "name": "選択を削除", "description": "選択したエージェントを削除" },
-      "delete-selected-backspace": { "name": "選択を削除 (Backspace)", "description": "選択したエージェントを削除" },
-      "deselect-all": { "name": "すべて選択解除", "description": "エージェントの選択をクリア" },
-      "open-terminal": { "name": "ターミナルを開く", "description": "選択したエージェントのターミナルを開く" },
-      "dashboard-selector-toggle": { "name": "ダッシュボードセレクター", "description": "ダッシュボードカードセレクターを有効化" },
-      "dashboard-vim-left": { "name": "ダッシュボード左", "description": "ダッシュボードセレクターを左に移動" },
-      "dashboard-vim-down": { "name": "ダッシュボード下", "description": "ダッシュボードセレクターを下に移動" },
-      "dashboard-vim-up": { "name": "ダッシュボード上", "description": "ダッシュボードセレクターを上に移動" },
-      "dashboard-vim-right": { "name": "ダッシュボード右", "description": "ダッシュボードセレクターを右に移動" },
-      "next-agent": { "name": "次のエージェント", "description": "フィールド上の次のエージェントを選択" },
-      "prev-agent": { "name": "前のエージェント", "description": "フィールド上の前のエージェントを選択" },
-      "next-working-agent": { "name": "次の作業中エージェント", "description": "フィールド上の次の作業中エージェントを選択" },
-      "prev-working-agent": { "name": "前の作業中エージェント", "description": "フィールド上の前の作業中エージェントを選択" },
-      "next-message": { "name": "次のメッセージ", "description": "次のターミナルメッセージに移動" },
-      "prev-message": { "name": "前のメッセージ", "description": "前のターミナルメッセージに移動" },
-      "page-down-messages": { "name": "メッセージページダウン", "description": "ターミナルメッセージを10件下に移動" },
-      "page-up-messages": { "name": "メッセージページアップ", "description": "ターミナルメッセージを10件上に移動" },
-      "next-agent-terminal": { "name": "次のエージェントターミナル", "description": "ターミナルで次のエージェントに切り替え" },
-      "prev-agent-terminal": { "name": "前のエージェントターミナル", "description": "ターミナルで前のエージェントに切り替え" },
-      "activate-message": { "name": "メッセージをアクティブ化", "description": "選択したメッセージのインタラクティブ要素をアクティブ化" },
-      "toggle-file-explorer": { "name": "ファイルエクスプローラー切り替え", "description": "ファイルエクスプローラーの開閉" },
-      "file-explorer-close-tab": { "name": "ファイルタブを閉じる", "description": "エクスプローラーのアクティブファイルタブを閉じる" },
-      "toggle-spotlight": { "name": "スポットライト切り替え", "description": "グローバル検索の開閉" },
-      "toggle-2d-view": { "name": "ビューモードを切り替え", "description": "3D、2D、ダッシュボードビューを順に切り替え" },
-      "commander-close": { "name": "コマンダーを閉じる", "description": "コマンダービューを閉じる" },
-      "commander-vim-left": { "name": "左に移動", "description": "フォーカスを左に移動 Vim H" },
-      "commander-vim-down": { "name": "下に移動", "description": "フォーカスを下に移動 Vim J" },
-      "commander-vim-up": { "name": "上に移動", "description": "フォーカスを上に移動 Vim K" },
-      "commander-vim-right": { "name": "右に移動", "description": "フォーカスを右に移動 Vim L" },
-      "commander-expand": { "name": "展開/折りたたみ", "description": "エージェントの展開を切り替え" },
-      "commander-new-agent": { "name": "新規エージェント", "description": "コマンダーでスポーンフォームを開く" },
-      "commander-next-tab": { "name": "次のタブ", "description": "次のエリアタブに切り替え" },
-      "commander-prev-tab": { "name": "前のタブ", "description": "前のエリアタブに切り替え" },
-      "toolbox-close": { "name": "ツールボックスを閉じる", "description": "設定パネルを閉じる" }
+      "toggle-commander": {
+        "name": "コマンダー切り替え",
+        "description": "コマンダービューの開閉"
+      },
+      "toggle-commander-tab": {
+        "name": "コマンダータブ切り替え",
+        "description": "Tabキーでコマンダービューの開閉"
+      },
+      "spawn-agent": {
+        "name": "エージェントをスポーン",
+        "description": "新規エージェントのスポーンモーダルを開く"
+      },
+      "select-agent-1": {
+        "name": "エージェント1を選択",
+        "description": "1番目のエージェントを選択"
+      },
+      "select-agent-2": {
+        "name": "エージェント2を選択",
+        "description": "2番目のエージェントを選択"
+      },
+      "select-agent-3": {
+        "name": "エージェント3を選択",
+        "description": "3番目のエージェントを選択"
+      },
+      "select-agent-4": {
+        "name": "エージェント4を選択",
+        "description": "4番目のエージェントを選択"
+      },
+      "select-agent-5": {
+        "name": "エージェント5を選択",
+        "description": "5番目のエージェントを選択"
+      },
+      "select-agent-6": {
+        "name": "エージェント6を選択",
+        "description": "6番目のエージェントを選択"
+      },
+      "select-agent-7": {
+        "name": "エージェント7を選択",
+        "description": "7番目のエージェントを選択"
+      },
+      "select-agent-8": {
+        "name": "エージェント8を選択",
+        "description": "8番目のエージェントを選択"
+      },
+      "select-agent-9": {
+        "name": "エージェント9を選択",
+        "description": "9番目のエージェントを選択"
+      },
+      "delete-selected": {
+        "name": "選択を削除",
+        "description": "選択したエージェントを削除"
+      },
+      "delete-selected-backspace": {
+        "name": "選択を削除 (Backspace)",
+        "description": "選択したエージェントを削除"
+      },
+      "deselect-all": {
+        "name": "すべて選択解除",
+        "description": "エージェントの選択をクリア"
+      },
+      "open-terminal": {
+        "name": "ターミナルを開く",
+        "description": "選択したエージェントのターミナルを開く"
+      },
+      "dashboard-selector-toggle": {
+        "name": "ダッシュボードセレクター",
+        "description": "ダッシュボードカードセレクターを有効化"
+      },
+      "dashboard-vim-left": {
+        "name": "ダッシュボード左",
+        "description": "ダッシュボードセレクターを左に移動"
+      },
+      "dashboard-vim-down": {
+        "name": "ダッシュボード下",
+        "description": "ダッシュボードセレクターを下に移動"
+      },
+      "dashboard-vim-up": {
+        "name": "ダッシュボード上",
+        "description": "ダッシュボードセレクターを上に移動"
+      },
+      "dashboard-vim-right": {
+        "name": "ダッシュボード右",
+        "description": "ダッシュボードセレクターを右に移動"
+      },
+      "next-agent": {
+        "name": "次のエージェント",
+        "description": "フィールド上の次のエージェントを選択"
+      },
+      "prev-agent": {
+        "name": "前のエージェント",
+        "description": "フィールド上の前のエージェントを選択"
+      },
+      "next-working-agent": {
+        "name": "次の作業中エージェント",
+        "description": "フィールド上の次の作業中エージェントを選択"
+      },
+      "prev-working-agent": {
+        "name": "前の作業中エージェント",
+        "description": "フィールド上の前の作業中エージェントを選択"
+      },
+      "next-message": {
+        "name": "次のメッセージ",
+        "description": "次のターミナルメッセージに移動"
+      },
+      "prev-message": {
+        "name": "前のメッセージ",
+        "description": "前のターミナルメッセージに移動"
+      },
+      "page-down-messages": {
+        "name": "メッセージページダウン",
+        "description": "ターミナルメッセージを10件下に移動"
+      },
+      "page-up-messages": {
+        "name": "メッセージページアップ",
+        "description": "ターミナルメッセージを10件上に移動"
+      },
+      "next-agent-terminal": {
+        "name": "次のエージェントターミナル",
+        "description": "ターミナルで次のエージェントに切り替え"
+      },
+      "prev-agent-terminal": {
+        "name": "前のエージェントターミナル",
+        "description": "ターミナルで前のエージェントに切り替え"
+      },
+      "activate-message": {
+        "name": "メッセージをアクティブ化",
+        "description": "選択したメッセージのインタラクティブ要素をアクティブ化"
+      },
+      "toggle-file-explorer": {
+        "name": "ファイルエクスプローラー切り替え",
+        "description": "ファイルエクスプローラーの開閉"
+      },
+      "file-explorer-close-tab": {
+        "name": "ファイルタブを閉じる",
+        "description": "エクスプローラーのアクティブファイルタブを閉じる"
+      },
+      "toggle-spotlight": {
+        "name": "スポットライト切り替え",
+        "description": "グローバル検索の開閉"
+      },
+      "toggle-2d-view": {
+        "name": "ビューモードを切り替え",
+        "description": "3D、2D、ダッシュボードビューを順に切り替え"
+      },
+      "commander-close": {
+        "name": "コマンダーを閉じる",
+        "description": "コマンダービューを閉じる"
+      },
+      "commander-vim-left": {
+        "name": "左に移動",
+        "description": "フォーカスを左に移動 Vim H"
+      },
+      "commander-vim-down": {
+        "name": "下に移動",
+        "description": "フォーカスを下に移動 Vim J"
+      },
+      "commander-vim-up": {
+        "name": "上に移動",
+        "description": "フォーカスを上に移動 Vim K"
+      },
+      "commander-vim-right": {
+        "name": "右に移動",
+        "description": "フォーカスを右に移動 Vim L"
+      },
+      "commander-expand": {
+        "name": "展開/折りたたみ",
+        "description": "エージェントの展開を切り替え"
+      },
+      "commander-new-agent": {
+        "name": "新規エージェント",
+        "description": "コマンダーでスポーンフォームを開く"
+      },
+      "commander-next-tab": {
+        "name": "次のタブ",
+        "description": "次のエリアタブに切り替え"
+      },
+      "commander-prev-tab": {
+        "name": "前のタブ",
+        "description": "前のエリアタブに切り替え"
+      },
+      "toolbox-close": {
+        "name": "ツールボックスを閉じる",
+        "description": "設定パネルを閉じる"
+      }
     }
-  },
-  "toolHistory": {
-    "tools": "ツール",
-    "filesSection": "ファイル",
-    "noToolsYet": "実行されたツールはまだありません",
-    "noFileChangesYet": "ファイル変更はまだありません",
-    "viewFile": "ファイルを表示"
   },
   "logs": {
     "title": "ログ",
@@ -866,14 +948,14 @@
   },
   "commander": {
     "title": "コマンダービュー",
-    "shortcuts": "Tabでエリア切り替え \u2022 \u2325H/J/K/Lでナビ \u2022 \u2325Oで展開 \u2022 \u2325Nで新規",
+    "shortcuts": "Tabでエリア切り替え • ⌥H/J/K/Lでナビ • ⌥Oで展開 • ⌥Nで新規",
     "advanced": "詳細",
     "simple": "シンプル",
     "addAgent": "+ エージェント追加",
     "close": "閉じる (Esc)",
-    "noAgentsAll": "エージェント未配置。\u2325Nでエージェントを追加。",
+    "noAgentsAll": "エージェント未配置。⌥Nでエージェントを追加。",
     "noAgentsUnassigned": "未割り当てのエージェントはありません。",
-    "noAgentsArea": "このエリアにはエージェントがいません。\u2325Nで追加。",
+    "noAgentsArea": "このエリアにはエージェントがいません。⌥Nで追加。",
     "unassigned": "未割り当て",
     "page": "ページ {{current}} / {{total}} ({{count}}エージェント)",
     "prev": "前へ",
@@ -907,8 +989,7 @@
     "spotlight": "スポットライト",
     "closeMenu": "メニューを閉じる",
     "openMenu": "メニューを開く",
-    "showTerminal": "ターミナルを表示",
-    "takeSnapshot": "スナップショットを撮影"
+    "showTerminal": "ターミナルを表示"
   },
   "building": {
     "unitsCount": "{{count}}ユニット",
@@ -1035,5 +1116,13 @@
   "content": {
     "clickToViewImage": "クリックして画像を表示",
     "clickToViewFile": "クリックしてファイルを表示: {{path}}"
+  },
+  "trackingStatus": {
+    "label": "追跡ステータス",
+    "need-review": "作業完了 — レビュー待ち",
+    "blocked": "続行不可",
+    "can-clear-context": "完全に完了 — コンテキストを消去可能",
+    "waiting-subordinates": "委任した作業を待機中",
+    "working": "作業中"
   }
 }

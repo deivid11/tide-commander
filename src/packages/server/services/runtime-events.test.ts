@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mockGetAgent = vi.hoisted(() => vi.fn());
 const mockGetCodexContextSnapshotFromSession = vi.hoisted(() => vi.fn());
 const mockUpdateAgent = vi.hoisted(() => vi.fn());
-const mockGenerateNarrative = vi.hoisted(() => vi.fn());
 const mockHandleTaskToolStart = vi.hoisted(() => vi.fn(() => true));
 const mockHandleTaskToolResult = vi.hoisted(() => vi.fn());
 const mockClearPendingSilentContextRefresh = vi.hoisted(() => vi.fn());
@@ -14,11 +13,6 @@ vi.mock('./agent-service.js', () => ({
   getAgent: mockGetAgent,
   getCodexContextSnapshotFromSession: mockGetCodexContextSnapshotFromSession,
   updateAgent: mockUpdateAgent,
-}));
-
-vi.mock('./supervisor-service.js', () => ({
-  generateNarrative: mockGenerateNarrative,
-  updateGlobalUsage: vi.fn(),
 }));
 
 vi.mock('./runtime-subagents.js', () => ({
@@ -59,7 +53,6 @@ describe('createRuntimeEventHandlers', () => {
       emitOutput: vi.fn(),
       emitComplete: vi.fn(),
       emitError: vi.fn(),
-      parseUsageOutput: vi.fn(() => null),
       executeCommand: vi.fn(async () => {}),
     });
 
@@ -119,7 +112,6 @@ describe('createRuntimeEventHandlers', () => {
       emitOutput: vi.fn(),
       emitComplete,
       emitError: vi.fn(),
-      parseUsageOutput: vi.fn(() => null),
       executeCommand: vi.fn(async () => {}),
     });
 

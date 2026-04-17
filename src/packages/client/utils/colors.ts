@@ -59,17 +59,6 @@ export const BUILDING_STATUS_COLORS_HEX: Record<BuildingStatus, number> = {
 };
 
 /**
- * Progress indicator colors for supervisor status
- */
-export const PROGRESS_COLORS: Record<string, string> = {
-  on_track: '#4aff9e',   // Green
-  stalled: '#ff9e4a',    // Orange
-  blocked: '#ff4a4a',    // Red
-  completed: '#4a9eff',  // Blue
-  idle: '#888888',       // Gray
-};
-
-/**
  * Color palette for drawing areas
  */
 export const AREA_COLORS: string[] = [

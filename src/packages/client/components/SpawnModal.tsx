@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { store, useAgents, useSkillsArray, useCustomAgentClassesArray, useCustomAgentNames } from '../store';
+import { store, useSkillsArray, useCustomAgentClassesArray, useCustomAgentNames } from '../store';
 import { AGENT_CLASS_CONFIG, BUILTIN_AGENT_NAMES, CHARACTER_MODELS } from '../scene/config';
 import type { AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, ClaudeEffort, CodexModel, AgentProvider, CodexConfig } from '../../shared/types';
 import { PERMISSION_MODES, CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS } from '../../shared/types';
@@ -51,7 +51,6 @@ function getRandomAgentName(usedNames: Set<string>, namesList: string[]): string
 
 export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPosition, spawnAreaId }: SpawnModalProps) {
   const { t } = useTranslation(['terminal', 'common']);
-  const agents = useAgents();
   const skills = useSkillsArray();
   const customClasses = useCustomAgentClassesArray();
   const customAgentNames = useCustomAgentNames();
@@ -283,7 +282,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
     }
 
     // Fall back to the most common cwd among area members
-    const areaAgents = Array.from(agents.values()).filter(
+    const areaAgents = Array.from(store.getState().agents.values()).filter(
       (a) => store.getAreaForAgent(a.id)?.id === spawnAreaId && a.cwd
     );
     if (areaAgents.length === 0) return;
@@ -303,12 +302,12 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
     if (bestCwd) {
       setCwd(bestCwd);
     }
-  }, [isOpen, spawnAreaId, agents]);
+  }, [isOpen, spawnAreaId]);
 
   // Generate a new name when modal opens
   useEffect(() => {
     if (isOpen) {
-      const usedNames = new Set(Array.from(agents.values()).map((a) => a.name));
+      const usedNames = new Set(Array.from(store.getState().agents.values()).map((a) => a.name));
       const baseName = getRandomAgentName(usedNames, effectiveNamesList);
       // If a custom class is selected, prefix the class name
       const customClass = customClasses.find(c => c.id === selectedClass);
@@ -319,12 +318,11 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
         nameInputRef.current.select();
       }
     }
-  }, [isOpen, agents, effectiveNamesList]);
+  }, [isOpen, effectiveNamesList]);
 
   // Update name prefix when custom class changes
   useEffect(() => {
     if (!isOpen) return;
-    const _usedNames = new Set(Array.from(agents.values()).map((a) => a.name));
     const customClass = customClasses.find(c => c.id === selectedClass);
 
     if (customClass) {
@@ -381,7 +379,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
     if (!name.trim()) {
       // Name should be prefilled, but regenerate if somehow empty
       console.log('[SpawnModal] Empty name, regenerating');
-      const usedNames = new Set(Array.from(agents.values()).map((a) => a.name));
+      const usedNames = new Set(Array.from(store.getState().agents.values()).map((a) => a.name));
       setName(getRandomAgentName(usedNames, effectiveNamesList));
       return;
     }

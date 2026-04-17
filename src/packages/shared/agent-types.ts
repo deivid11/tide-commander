@@ -187,30 +187,6 @@ export interface ContextStats {
   lastUpdated: number;
 }
 
-// Global Claude API Usage Stats (from /usage command)
-export interface UsageCategory {
-  percentUsed: number;      // Percentage of limit used (e.g., 45.2)
-  resetTime: string;        // When the limit resets (e.g., "Jan 25 at 5:00 PM")
-}
-
-export interface GlobalUsageStats {
-  // Current session usage
-  session: UsageCategory;
-
-  // Weekly usage - all models combined
-  weeklyAllModels: UsageCategory;
-
-  // Weekly usage - Sonnet only
-  weeklySonnet: UsageCategory;
-
-  // Source agent that provided this data
-  sourceAgentId: string;
-  sourceAgentName: string;
-
-  // Timestamp
-  lastUpdated: number;
-}
-
 // ============================================================================
 // Agent State
 // ============================================================================
@@ -358,7 +334,6 @@ export interface SubordinateContext {
   status: AgentStatus;
   currentTask?: string;
   lastAssignedTask?: string;
-  recentSupervisorSummary?: string;  // Latest supervisor analysis
   contextPercent: number;            // Context usage percentage
   tokensUsed: number;
 }
@@ -463,84 +438,6 @@ export interface AnalysisRequestDraft {
   targetAgent: string;                  // Agent ID
   query: string;
   focus?: string[];
-}
-
-// ============================================================================
-// Supervisor Types
-// ============================================================================
-
-// Activity narrative - human-readable description of agent work
-export interface ActivityNarrative {
-  id: string;
-  agentId: string;
-  timestamp: number;
-  type: 'tool_use' | 'task_start' | 'task_complete' | 'error' | 'thinking' | 'output';
-  narrative: string;
-  toolName?: string;
-}
-
-// Agent status summary for supervisor
-export interface AgentStatusSummary {
-  id: string;
-  name: string;
-  class: AgentClass;
-  status: AgentStatus;
-  currentTask?: string;
-  lastAssignedTask?: string;
-  lastAssignedTaskTime?: number;
-  recentNarratives: ActivityNarrative[];
-  tokensUsed: number;
-  contextUsed: number;
-  contextLimit: number;
-  lastActivityTime: number;
-}
-
-// Agent analysis from Claude
-export interface AgentAnalysis {
-  agentId: string;
-  agentName: string;
-  statusDescription: string;
-  progress: 'on_track' | 'stalled' | 'blocked' | 'completed' | 'idle';
-  recentWorkSummary: string;
-  currentFocus?: string;
-  blockers?: string[];
-  suggestions?: string[];
-  filesModified?: string[];
-  concerns?: string[];
-}
-
-// Supervisor report from Claude
-export interface SupervisorReport {
-  id: string;
-  timestamp: number;
-  agentSummaries: AgentAnalysis[];
-  overallStatus: 'healthy' | 'attention_needed' | 'critical';
-  insights: string[];
-  recommendations: string[];
-  rawResponse?: string;
-}
-
-// Supervisor configuration
-export interface SupervisorConfig {
-  enabled: boolean;
-  intervalMs: number;
-  maxNarrativesPerAgent: number;
-  customPrompt?: string;
-  autoReportOnComplete?: boolean; // Generate report when agent completes task (default: false)
-}
-
-// Agent supervisor history entry - a snapshot of supervisor's analysis for a specific agent
-export interface AgentSupervisorHistoryEntry {
-  id: string;
-  timestamp: number;
-  reportId: string;  // ID of the full SupervisorReport this came from
-  analysis: AgentAnalysis;
-}
-
-// Agent supervisor history - all supervisor analyses for a specific agent
-export interface AgentSupervisorHistory {
-  agentId: string;
-  entries: AgentSupervisorHistoryEntry[];
 }
 
 // ============================================================================

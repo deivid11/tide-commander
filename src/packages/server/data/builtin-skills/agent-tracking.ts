@@ -8,43 +8,35 @@ export const agentTracking: BuiltinSkillDefinition = {
   assignedAgentClasses: ['*'],
   content: `# Agent Tracking Status (MANDATORY)
 
-**IMPORTANT: You MUST update your tracking status after EVERY single task completion. This is not optional.**
+**Every turn MUST end with a tracking-status PATCH curl as your final tool call. No exceptions — not for tiny replies, not for questions, not for refusals. Skipping it leaves the user's board stuck on stale \`working\`.**
 
-## Trigger Conditions (Act Immediately)
-1. **After ANY user request is finished** - No matter how small (even a simple greeting, a one-line answer, or a trivial task), you MUST set a final tracking status
-2. **When you get blocked** - Cannot proceed for any reason
-3. **When your situation changes** - Update immediately so the board stays accurate
+## When to Call
+- After finishing ANY reply (one-word answers included)
+- The moment you get blocked
+- Immediately when your situation changes (e.g. after delegating → \`waiting-subordinates\`)
 
-## Command
-\`\`\`bash
-curl -s -X PATCH -H "X-Auth-Token: abcd" http://localhost:5174/api/agents/YOUR_AGENT_ID -H "Content-Type: application/json" -d '{"trackingStatus":"STATUS","trackingStatusDetail":"SHORT_DESCRIPTION"}'
+## Endpoint
+
+\`PATCH /api/agents/YOUR_AGENT_ID\`
+
+**Body:**
+\`\`\`json
+{"trackingStatus":"STATUS","trackingStatusDetail":"SHORT_DESCRIPTION"}
 \`\`\`
 
-## Available Statuses
-- \`working\` — This is set automatically when you start working. Do not set this manually unless explicitly told to do so.
-- \`need-review\` — Use when you finished work that needs the user to review (code changes, plans, findings)
-- \`blocked\` — Use when you cannot proceed (waiting on another agent, need user input, hit an error you cannot resolve)
-- \`can-clear-context\` — Use when your task is fully complete and your context can be safely cleared
-- \`waiting-subordinates\` — Use when you (as a boss agent) have delegated tasks and are waiting for subordinates to complete their work
+## Statuses
+- \`need-review\` — finished work awaiting user review (describe what)
+- \`blocked\` — cannot proceed (say WHO/WHAT blocks you)
+- \`can-clear-context\` — fully done, context safe to clear
+- \`waiting-subordinates\` — boss agent waiting on delegated work
+- \`working\` — set automatically; do not set manually
 
 ## Rules
-- Replace YOUR_AGENT_ID with your actual agent ID from the system prompt
-- Replace STATUS with one of the status values above
-- Keep trackingStatusDetail under 80 characters
-- Do NOT use exclamation marks in the detail string
-- The system automatically sets \`working\` while you are actively working
-- After finishing work, you MUST set a final status such as \`need-review\` or \`can-clear-context\`
-- When your situation changes, update the tracking status immediately so the board stays accurate
-- When blocked, include WHO or WHAT you are blocked on in the detail
-- When setting need-review, briefly describe what needs review in the detail
-- When setting can-clear-context, briefly describe what is safe to clear
-- Boss agents: after delegating tasks to subordinates, set \`waiting-subordinates\` with a detail describing what you are waiting for
+- Detail ≤ 80 chars
+- Tracking curl is the VERY LAST tool call — all user-facing text comes BEFORE it, nothing after
+- Don't pick \`can-clear-context\` if anything still needs user confirmation — use \`need-review\`
 
-## CRITICAL: Notification Must Be Your ABSOLUTE LAST Action
-- The tracking status curl command must be the VERY LAST thing you do - your final tool call
-- Present ALL findings, summaries, and explanations to the user BEFORE sending the tracking status update
-- Do NOT output any text, commentary, or follow-up messages after updating the tracking status
-- Think of the tracking status update as your "exit" command - nothing comes after it
-- **Correct order**: Do work -> present results to user -> update tracking status (end)
-- **Wrong order**: Do work -> update tracking status -> present results (NEVER do this)`,
+## Final Check Before Ending a Turn
+1. Have I sent the PATCH this turn? If not — send now.
+2. Is it my last tool call with no output after? If not — fix order.`,
 };

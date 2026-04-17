@@ -11,7 +11,7 @@ import {
   useSettings,
   useAgentsWithUnseenOutput,
 } from '../store';
-import type { Agent, DrawingArea, AgentSupervisorHistoryEntry, CustomAgentClass } from '../../shared/types';
+import type { Agent, DrawingArea, CustomAgentClass } from '../../shared/types';
 import { formatIdleTime } from '../utils/formatting';
 import { getClassConfig } from '../utils/classConfig';
 import { getIdleTimerColor, getAgentStatusColor } from '../utils/colors';
@@ -757,11 +757,6 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
         const hoveredLastPrompt = lastPrompts.get(hoveredAgent.id);
         const config = getClassConfig(hoveredAgent.class, customClasses);
 
-        // Get last supervisor analysis for this agent
-        const supervisorHistory = store.getAgentSupervisorHistory(hoveredAgent.id);
-        const lastSupervisorEntry: AgentSupervisorHistoryEntry | undefined =
-          supervisorHistory.length > 0 ? supervisorHistory[supervisorHistory.length - 1] : undefined;
-
         // Format uptime
         const uptimeMs = Date.now() - (hoveredAgent.createdAt || Date.now());
         const uptimeMinutes = Math.floor(uptimeMs / 60000);
@@ -781,18 +776,6 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
         const contextPercent = hoveredAgent.contextLimit > 0
           ? Math.round((hoveredAgent.contextUsed / hoveredAgent.contextLimit) * 100)
           : 0;
-
-        // Get progress color for supervisor status
-        const getProgressColor = (progress: string) => {
-          switch (progress) {
-            case 'on_track': return '#4aff9e';
-            case 'completed': return '#4a9eff';
-            case 'stalled': return '#ff9e4a';
-            case 'blocked': return '#ff4a4a';
-            case 'idle': return '#888888';
-            default: return '#888888';
-          }
-        };
 
         // Position tooltip above the hovered agent element
         const hoveredEl = agentItemRefs.current.get(hoveredAgent.id);
@@ -910,44 +893,6 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
                     {hoveredLastPrompt.text.length > 300 ? '...' : ''}
                   </span>
                 </div>
-              )}
-              {/* Supervisor Analysis Section */}
-              {lastSupervisorEntry && (
-                <>
-                  <div className="agent-bar-tooltip-divider" />
-                  <div className="agent-bar-tooltip-row">
-                    <span className="agent-bar-tooltip-label">{t('common:agentPopup.supervisor')}:</span>
-                    <span
-                      className="agent-bar-tooltip-value"
-                      style={{ color: getProgressColor(lastSupervisorEntry.analysis.progress) }}
-                    >
-                      {lastSupervisorEntry.analysis.progress.replace('_', ' ')}
-                    </span>
-                  </div>
-                  <div className="agent-bar-tooltip-row">
-                    <span className="agent-bar-tooltip-label">{t('common:labels.status')}:</span>
-                    <span className="agent-bar-tooltip-value agent-bar-tooltip-supervisor">
-                      {lastSupervisorEntry.analysis.statusDescription}
-                    </span>
-                  </div>
-                  {lastSupervisorEntry.analysis.recentWorkSummary && (
-                    <div className="agent-bar-tooltip-row">
-                      <span className="agent-bar-tooltip-label">{t('common:labels.summary')}:</span>
-                      <span className="agent-bar-tooltip-value agent-bar-tooltip-supervisor">
-                        {lastSupervisorEntry.analysis.recentWorkSummary.substring(0, 300)}
-                        {lastSupervisorEntry.analysis.recentWorkSummary.length > 300 ? '...' : ''}
-                      </span>
-                    </div>
-                  )}
-                  {lastSupervisorEntry.analysis.concerns && lastSupervisorEntry.analysis.concerns.length > 0 && (
-                    <div className="agent-bar-tooltip-row">
-                      <span className="agent-bar-tooltip-label">{t('common:labels.concerns')}:</span>
-                      <span className="agent-bar-tooltip-value agent-bar-tooltip-concerns">
-                        {lastSupervisorEntry.analysis.concerns.join('; ')}
-                      </span>
-                    </div>
-                  )}
-                </>
               )}
             </div>
           </div>

@@ -2,8 +2,8 @@
  * Spotlight - Main component (orchestrator)
  *
  * A command palette-style modal for quickly searching and navigating:
- * - Agents (with supervisor history, modified files, and user queries)
- * - Commands (spawn, commander view, settings, supervisor)
+ * - Agents (with modified files and user queries)
+ * - Commands (spawn, commander view, settings)
  * - Areas (project groups)
  * - Modified files
  * - Recent activity
@@ -22,7 +22,6 @@ export function Spotlight({
   onOpenSpawnModal,
   onOpenCommanderView,
   onOpenToolbox,
-  onOpenSupervisor,
   onOpenFileExplorer,
   onOpenPM2LogsModal,
   onOpenBossLogsModal,
@@ -40,7 +39,6 @@ export function Spotlight({
       onOpenSpawnModal,
       onOpenCommanderView,
       onOpenToolbox,
-      onOpenSupervisor,
       onOpenFileExplorer,
       onOpenPM2LogsModal,
       onOpenBossLogsModal,

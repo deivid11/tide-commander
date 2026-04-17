@@ -20,7 +20,6 @@ export {
 } from './useModalStack';
 export { useSwipeGesture, type SwipeGestureOptions } from './useSwipeGesture';
 export { useTwoFingerSelector, type TwoFingerSelectorOptions, type TwoFingerSelectorState } from './useTwoFingerSelector';
-export { useDocumentPiP, isDocumentPiPSupported, type DocumentPiPState, type DocumentPiPOptions } from './useDocumentPiP';
 
 // Scene management hooks
 export { useSceneSetup, subscribeToSceneRefresh } from './useSceneSetup';

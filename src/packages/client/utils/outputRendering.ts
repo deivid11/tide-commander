@@ -668,6 +668,75 @@ export interface BashReportTaskCommandInfo {
   status: 'completed' | 'failed';
 }
 
+export type TrackingStatusValue =
+  | 'need-review'
+  | 'blocked'
+  | 'can-clear-context'
+  | 'waiting-subordinates'
+  | 'working'
+  | string;
+
+export interface BashTrackingStatusCommandInfo {
+  shellPrefix?: string;
+  commandBody: string;
+  trackingStatus: TrackingStatusValue;
+  trackingStatusDetail?: string;
+}
+
+/**
+ * Parse Bash commands that update agent tracking status via curl PATCH /api/agents/...
+ * Detects: curl ... -X PATCH .../api/agents/... -d '{"trackingStatus":"...","trackingStatusDetail":"..."}'
+ * Returns null when command does not look like a tracking-status command.
+ */
+export function parseBashTrackingStatusCommand(command: string): BashTrackingStatusCommandInfo | null {
+  const trimmed = command.trim();
+  if (!trimmed) return null;
+
+  let shellPrefix: string | undefined;
+  let commandBody = trimmed;
+
+  const shellWrapped = trimmed.match(/^(\S+)\s+-lc\s+([\s\S]+)$/);
+  if (shellWrapped) {
+    shellPrefix = `${shellWrapped[1]} -lc`;
+    commandBody = stripWrappingQuotes(shellWrapped[2].trim());
+  }
+
+  if (!/\bcurl\b/.test(commandBody)) return null;
+  if (!/PATCH/.test(commandBody)) return null;
+  if (!/\/api\/agents\//.test(commandBody)) return null;
+
+  const payloadMatch = commandBody.match(/-d\s+((['"])([\s\S]*?)\2)/);
+  if (!payloadMatch) return null;
+
+  const rawPayload = stripWrappingQuotes(payloadMatch[1]).replace(/\\"/g, '"');
+  const statusMatch = rawPayload.match(/"trackingStatus"\s*:\s*"([^"]*)"/);
+  if (!statusMatch?.[1]) return null;
+
+  const detailMatch = rawPayload.match(/"trackingStatusDetail"\s*:\s*"([^"]*)"/);
+
+  return {
+    shellPrefix,
+    commandBody,
+    trackingStatus: statusMatch[1],
+    trackingStatusDetail: detailMatch?.[1],
+  };
+}
+
+/**
+ * Resolve an emoji icon for a given tracking status value.
+ * Falls back to a neutral indicator for unknown statuses.
+ */
+export function getTrackingStatusIcon(status: string): string {
+  switch (status) {
+    case 'need-review': return '✅';
+    case 'blocked': return '🚫';
+    case 'can-clear-context': return '🧹';
+    case 'waiting-subordinates': return '⏳';
+    case 'working': return '💻';
+    default: return '📍';
+  }
+}
+
 /**
  * Parse Bash commands that report task completion to boss via curl POST /api/agents/.../report-task
  * Returns null when command does not look like a report-task command.

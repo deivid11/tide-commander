@@ -98,13 +98,6 @@ export interface AgentTerminalPaneProps {
   viewMode: ViewMode;
   /** Whether the terminal is open/visible */
   isOpen: boolean;
-  /** Whether viewing a snapshot */
-  isSnapshotView: boolean;
-  /** Snapshot data (null if not viewing snapshot) */
-  currentSnapshot: {
-    agentId: string;
-    outputs: Array<{ text: string; timestamp: number; isStreaming?: boolean; isUserPrompt?: boolean }>;
-  } | null;
 
   // ── Modal callbacks (parent owns modals) ──
   onImageClick: (url: string, name: string) => void;
@@ -119,9 +112,6 @@ export interface AgentTerminalPaneProps {
     keyboardScrollLockRef: React.MutableRefObject<boolean>;
     cleanup: () => void;
   };
-
-  // ── Snapshot save (for TerminalInputArea) ──
-  onSaveSnapshot?: () => void;
 
   // ── Mobile swipe close (for TerminalInputArea) ──
   canSwipeClose?: boolean;
@@ -178,14 +168,11 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     agent,
     viewMode,
     isOpen,
-    isSnapshotView,
-    currentSnapshot,
     onImageClick,
     onFileClick,
     onBashClick,
     onViewMarkdown,
     keyboard,
-    // onSaveSnapshot - available via props but unused in this pane
     canSwipeClose,
     onSwipeCloseOffsetChange,
     onSwipeClose,
@@ -201,11 +188,11 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   const lastPrompts = useLastPrompts();
   const outputs = useAgentOutputs(agentId);
   const isCompacting = useAgentCompacting(agentId);
-  const hasSessionId = !!agent?.sessionId && !isSnapshotView;
+  const hasSessionId = !!agent?.sessionId;
 
   // Boss agent progress
   const isBoss = agent?.class === 'boss' || agent?.isBoss;
-  const agentTaskProgress = useAgentTaskProgress(!isSnapshotView && isBoss ? agentId : null);
+  const agentTaskProgress = useAgentTaskProgress(isBoss ? agentId : null);
   const activeTaskProgress = useMemo(
     () => Array.from(agentTaskProgress.values()).filter((progress) => progress.status === 'working'),
     [agentTaskProgress]
@@ -219,33 +206,25 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   const [agentProgressCollapsed, setAgentProgressCollapsed] = useState(true);
 
   // Exec tasks & subagents
-  const execTasks = useExecTasks(!isSnapshotView ? agentId : null);
-  const subagents = useSubagentsMapForAgent(!isSnapshotView ? agentId : null);
+  const execTasks = useExecTasks(agentId);
+  const subagents = useSubagentsMapForAgent(agentId);
 
   // Pending permission requests
   const permissionRequests = usePermissionRequests();
   const pendingPermissions = useMemo(() => {
-    if (isSnapshotView || !agentId) return [];
+    if (!agentId) return [];
     return Array.from(permissionRequests.values()).filter(
       (r) => r.agentId === agentId && r.status === 'pending'
     );
-  }, [isSnapshotView, agentId, permissionRequests]);
+  }, [agentId, permissionRequests]);
 
   // ── Refs ──
   const outputScrollRef = useRef<HTMLDivElement>(null);
   const terminalInputRef = useRef<HTMLInputElement>(null);
   const terminalTextareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // ── Display outputs (snapshot vs live) ──
-  const displayOutputs = useMemo(() => {
-    if (!(isSnapshotView && currentSnapshot)) return outputs;
-    return currentSnapshot.outputs.map((output) => ({
-      text: output.text || '',
-      timestamp: output.timestamp,
-      isStreaming: false,
-      isUserPrompt: false,
-    }));
-  }, [isSnapshotView, currentSnapshot, outputs]);
+  // ── Display outputs ──
+  const displayOutputs = outputs;
 
   // ── History loader ──
   const historyLoader = useHistoryLoader({
@@ -467,7 +446,7 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
 
   // ── Boss progress auto-dismiss ──
   useEffect(() => {
-    if (!agentId || !isBoss || isSnapshotView || completedTaskProgressIds.length === 0) {
+    if (!agentId || !isBoss || completedTaskProgressIds.length === 0) {
       return;
     }
     const dismissTimer = window.setTimeout(() => {
@@ -476,7 +455,7 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
       });
     }, 300);
     return () => window.clearTimeout(dismissTimer);
-  }, [agentId, isBoss, isSnapshotView, completedTaskProgressIds]);
+  }, [agentId, isBoss, completedTaskProgressIds]);
 
   // ── Auto-update bash modal state from parent ──
   // (Bash modal is owned by parent; this effect was previously in GuakeOutputPanel.
@@ -896,7 +875,6 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
         onImageClick={onImageClick}
         inputRef={terminalInputRef}
         textareaRef={terminalTextareaRef}
-        isSnapshotView={isSnapshotView}
         onClearHistory={historyLoader.clearHistory}
         onSendCommand={handleSendCommand}
         canSwipeClose={canSwipeClose}

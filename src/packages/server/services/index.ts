@@ -6,7 +6,6 @@
 export * as agentService from './agent-service.js';
 export * as claudeService from './claude-service.js';
 export * as runtimeService from './runtime-service.js';
-export * as supervisorService from './supervisor-service.js';
 export * as permissionService from './permission-service.js';
 export * as bossService from './boss-service.js';
 export * as skillService from './skill-service.js';
@@ -20,6 +19,5 @@ export * as secretsService from './secrets-service.js';
 export * as databaseService from './database-service.js';
 export * as eventRetentionService from './event-retention-service.js';
 export * as triggerService from './trigger-service.js';
-export * as fileTrackerService from './fileTracker.js';
 export * as workflowService from './workflow-service.js';
 export * as workflowChatService from './workflow-chat-service.js';

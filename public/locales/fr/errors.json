@@ -1,8 +1,6 @@
 {
   "toast": {
     "error": "Erreur",
-    "snapshotFailed": "Échec de l'instantané",
-    "snapshotFailedMsg": "Impossible d'enregistrer l'instantané",
     "mergeFailed": "Échec de la fusion",
     "mergeFailedMsg": "Impossible de fusionner les modifications",
     "compareFailed": "Échec de la comparaison",
