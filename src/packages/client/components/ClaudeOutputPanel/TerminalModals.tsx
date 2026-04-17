@@ -5,6 +5,8 @@
  */
 
 import React from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useTranslation } from 'react-i18next';
 import {
   store,
@@ -24,6 +26,7 @@ import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
 import type { Agent } from '../../../shared/types';
 import { useModalClose } from '../../hooks';
 import { ModalPortal } from '../shared/ModalPortal';
+import { fetchAgentInjectedPrompt } from '../../api/agent-prompt';
 
 // Image modal props
 export interface ImageModalProps {
@@ -247,6 +250,130 @@ function formatDateTime(timestamp?: number): string {
   }
 }
 
+interface InjectedPromptSectionProps {
+  agentId: string;
+}
+
+function InjectedPromptSection({ agentId }: InjectedPromptSectionProps) {
+  const { t } = useTranslation(['terminal', 'common']);
+  const [expanded, setExpanded] = React.useState(false);
+  const [prompt, setPrompt] = React.useState<string | null>(null);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [copied, setCopied] = React.useState(false);
+
+  const load = React.useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await fetchAgentInjectedPrompt(agentId);
+      setPrompt(result);
+    } catch (err: any) {
+      setError(err?.message || 'Error');
+    } finally {
+      setLoading(false);
+    }
+  }, [agentId]);
+
+  const handleToggle = () => {
+    const next = !expanded;
+    setExpanded(next);
+    if (next && prompt === null && !loading) {
+      void load();
+    }
+  };
+
+  const handleRefresh = () => {
+    void load();
+  };
+
+  const handleCopy = async () => {
+    if (!prompt) return;
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard denied; ignore silently
+    }
+  };
+
+  const lengthLabel = React.useMemo(() => {
+    if (prompt === null) return null;
+    const chars = prompt.length;
+    // Rough token estimate (~4 chars per token is the standard heuristic)
+    const tokens = Math.max(1, Math.round(chars / 4));
+    return t('terminal:agentInfo.injectedPromptLength', {
+      chars: chars.toLocaleString(),
+      tokens: tokens.toLocaleString(),
+    });
+  }, [prompt, t]);
+
+  return (
+    <section className="agent-info-section agent-info-injected-prompt">
+      <div className="agent-info-injected-prompt-header">
+        <h4>{t('terminal:agentInfo.injectedPrompt')}</h4>
+        <div className="agent-info-injected-prompt-actions">
+          {expanded && prompt !== null && lengthLabel && (
+            <span className="agent-info-injected-prompt-length" title={lengthLabel}>
+              {lengthLabel}
+            </span>
+          )}
+          {expanded && prompt !== null && (
+            <>
+              <button
+                type="button"
+                className="agent-info-injected-prompt-btn"
+                onClick={handleCopy}
+                disabled={loading}
+                title={t('terminal:agentInfo.injectedPromptCopy')}
+              >
+                {copied ? t('terminal:agentInfo.injectedPromptCopied') : t('terminal:agentInfo.injectedPromptCopy')}
+              </button>
+              <button
+                type="button"
+                className="agent-info-injected-prompt-btn"
+                onClick={handleRefresh}
+                disabled={loading}
+                title={t('terminal:agentInfo.injectedPromptRefresh')}
+              >
+                {t('terminal:agentInfo.injectedPromptRefresh')}
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            className="agent-info-injected-prompt-btn agent-info-injected-prompt-toggle"
+            onClick={handleToggle}
+            aria-expanded={expanded}
+          >
+            {expanded ? t('terminal:agentInfo.injectedPromptHide') : t('terminal:agentInfo.injectedPromptShow')}
+          </button>
+        </div>
+      </div>
+      {expanded && (
+        <div className="agent-info-injected-prompt-body">
+          {loading && (
+            <div className="agent-info-injected-prompt-status">
+              {t('terminal:agentInfo.injectedPromptLoading')}
+            </div>
+          )}
+          {!loading && error && (
+            <div className="agent-info-injected-prompt-status error">
+              {t('terminal:agentInfo.injectedPromptError', { error })}
+            </div>
+          )}
+          {!loading && !error && prompt !== null && (
+            <div className="agent-info-injected-prompt-content markdown-content">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{prompt}</ReactMarkdown>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function AgentInfoModal({ agent, isOpen, onClose }: AgentInfoModalProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const { handleMouseDown: handleBackdropMouseDown, handleClick: handleBackdropClick } = useModalClose(onClose);
@@ -358,6 +485,8 @@ export function AgentInfoModal({ agent, isOpen, onClose }: AgentInfoModalProps) 
                 </div>
               )}
             </section>
+
+            <InjectedPromptSection agentId={agent.id} />
 
             <section className="agent-info-section">
               <h4>{t('terminal:agentInfo.diagnostics')}</h4>

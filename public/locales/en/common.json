@@ -205,8 +205,6 @@
     "clickToCopy": "Click to copy",
     "session": "Session",
     "newSession": "New agent, new session",
-    "supervisorHistory": "Supervisor History",
-    "noSupervisorReports": "No supervisor reports yet",
     "bossAgent": "Boss Agent",
     "subordinates": "Subordinates",
     "noSubordinates": "No subordinates assigned. Use \"Manage Team\" to add agents.",
@@ -248,7 +246,6 @@
     "clickNewAgent": "Click \"+ New Agent\" to deploy your first agent",
     "areasAndAgents": "Areas & Agents",
     "browseFiles": "Browse files",
-    "supervisorStatus": "Supervisor Status",
     "unassigned": "Unassigned",
     "total": "total",
     "statusActive": "active",
@@ -275,14 +272,10 @@
     "selectAgentLogs": "Select an agent to view logs",
     "logsWillAppear": "Agent logs will appear here",
     "logsHint": "Use the debug panel for detailed message logs",
-    "selectAgentSnapshots": "Select an agent to view snapshots",
-    "snapshotsFor": "Snapshots for {{name}}",
-    "snapshotsHint": "Save snapshots using the star button in the terminal header",
     "tabs": {
       "details": "Details",
       "chat": "Chat",
-      "logs": "Logs",
-      "snapshot": "Snapshot"
+      "logs": "Logs"
     }
   },
   "toast": {
@@ -297,8 +290,7 @@
     "used": "used",
     "tool": "Tool",
     "assignedTask": "Assigned Task",
-    "lastQuery": "Last Query",
-    "supervisor": "Supervisor"
+    "lastQuery": "Last Query"
   },
   "agentBar": {
     "spawnNewAgent": "Spawn New Agent",
@@ -328,13 +320,8 @@
   "floatingButtons": {
     "settingsAndTools": "Settings & Tools",
     "commanderView": "Commander View",
-    "viewSnapshots": "View Snapshots",
-    "supervisorOverview": "Supervisor Overview",
     "controls": "Controls",
-    "manageSkills": "Manage Skills",
-    "pipNotSupported": "PiP not supported in this browser",
-    "closePip": "Close Agents in PiP Mode",
-    "openPip": "Open Agents in PiP Mode"
+    "manageSkills": "Manage Skills"
   },
   "sidebar": {
     "agentsView": "Agents",

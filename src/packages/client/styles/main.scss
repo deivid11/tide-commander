@@ -10,7 +10,6 @@
 @use 'components/buttons';
 @use 'components/forms';
 @use 'components/unit-panel';
-@use 'components/tool-history';
 @use 'components/sidebar-tracking-board';
 @use 'components/activity-feed';
 @use 'components/modal';
@@ -25,7 +24,6 @@
 @use 'components/agent-bar';
 @use 'components/workspace-switcher';
 @use 'components/bottom-toolbar';
-@use 'components/supervisor-panel';
 @use 'components/spotlight';
 @use 'components/shortcuts-modal';
 @use 'components/mouse-controls-modal';
@@ -35,9 +33,7 @@
 @use 'components/agent-notification';
 @use 'components/agentProgress';
 @use 'components/pwa-install';
-@use 'components/pip';
 @use 'components/tooltip';
-@use 'components/snapshots';
 @use 'components/not-connected';
 @use 'components/onboarding';
 @use 'components/bulk-manage-modal';

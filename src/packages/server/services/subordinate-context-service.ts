@@ -6,7 +6,6 @@
 import type { BuiltInAgentClass, Agent } from '../../shared/types.js';
 import { BUILT_IN_AGENT_CLASSES } from '../../shared/types.js';
 import * as bossService from './boss-service.js';
-import * as supervisorService from './supervisor-service.js';
 import * as skillService from './skill-service.js';
 import * as customClassService from './custom-class-service.js';
 import { loadSession, loadToolHistory } from '../claude/session-loader.js';
@@ -134,51 +133,6 @@ function buildCapabilitiesSection(sub: Agent, agentClass: string): string {
 }
 
 /**
- * Build supervisor status updates section
- */
-function buildSupervisorSection(agentId: string): string {
-  const history = supervisorService.getAgentSupervisorHistory(agentId);
-  if (!history.entries || history.entries.length === 0) return '';
-
-  const updates = history.entries.slice(0, 3).map((entry) => {
-    const analysis = entry.analysis;
-    const timeSince = formatTimeSince(entry.timestamp);
-    const progress = analysis?.progress || 'unknown';
-    const progressEmoji = progress === 'on_track' ? '🟢' :
-                         progress === 'completed' ? '✅' :
-                         progress === 'idle' ? '💤' :
-                         progress === 'stalled' ? '🟡' :
-                         progress === 'blocked' ? '🔴' : '⚪';
-
-    const lines: string[] = [];
-    lines.push(`#### ${progressEmoji} [${timeSince} ago] ${analysis?.statusDescription || 'No status'}`);
-
-    if (analysis?.recentWorkSummary) {
-      lines.push(`> 📝 ${analysis.recentWorkSummary}`);
-    }
-    if (analysis?.currentFocus && analysis.currentFocus !== analysis.statusDescription) {
-      lines.push(`> 🎯 **Focus**: ${analysis.currentFocus}`);
-    }
-    if (analysis?.blockers && analysis.blockers.length > 0) {
-      lines.push(`> 🚧 **Blockers**: ${analysis.blockers.join(', ')}`);
-    }
-    if (analysis?.suggestions && analysis.suggestions.length > 0) {
-      lines.push(`> 💡 **Suggestions**: ${analysis.suggestions.join('; ')}`);
-    }
-    if (analysis?.filesModified && analysis.filesModified.length > 0) {
-      lines.push(`> 📁 **Files**: ${analysis.filesModified.slice(0, 5).join(', ')}`);
-    }
-    if (analysis?.concerns && analysis.concerns.length > 0) {
-      lines.push(`> ⚠️ **Concerns**: ${analysis.concerns.join('; ')}`);
-    }
-
-    return lines.join('\n');
-  });
-
-  return `\n### Supervisor Status Updates:\n${updates.join('\n\n')}`;
-}
-
-/**
  * Build detailed context about boss's subordinates for injection into user message.
  * Returns null if boss has no subordinates.
  */
@@ -190,10 +144,8 @@ export async function buildBossContext(bossId: string): Promise<string | null> {
     return null;
   }
 
-  // Build detailed subordinate info with session history and supervisor analysis
   const subordinateDetails = await Promise.all(contexts.map(async (ctx, i) => {
     const sub = subordinates[i];
-    const history = supervisorService.getAgentSupervisorHistory(ctx.id);
 
     // Get working directory
     const cwd = sub?.cwd || 'Unknown';
@@ -210,23 +162,18 @@ export async function buildBossContext(bossId: string): Promise<string | null> {
     // Calculate idle time
     const idleTime = sub ? formatTimeSince(sub.lastActivity) : 'Unknown';
 
-    // Get latest analysis summary
-    const latestAnalysis = history.entries[0]?.analysis;
-    const statusDesc = latestAnalysis?.statusDescription || ctx.status;
-
     // Build sections
     const conversationSection = sub ? await buildConversationSection(sub) : '';
     const fileChangesSection = sub ? await buildFileChangesSection(sub) : '';
     const capabilitiesSection = sub ? buildCapabilitiesSection(sub, ctx.class) : '';
-    const supervisorSection = buildSupervisorSection(ctx.id);
 
     return `## ${ctx.name} (${ctx.class})
 - **Agent ID**: \`${ctx.id}\`
-- **Status**: ${statusDesc} (${ctx.status})
+- **Status**: ${ctx.status}
 - **Idle Time**: ${idleTime}
 - **Last Assigned Task**: ${lastTaskInfo}
 - **Working Directory**: ${cwd}
-- **Context Usage**: ${ctx.contextPercent}% (${ctx.tokensUsed?.toLocaleString() || 0} tokens)${capabilitiesSection}${fileChangesSection}${conversationSection}${supervisorSection}`;
+- **Context Usage**: ${ctx.contextPercent}% (${ctx.tokensUsed?.toLocaleString() || 0} tokens)${capabilitiesSection}${fileChangesSection}${conversationSection}`;
   }));
 
   // Get recent delegation history for this boss

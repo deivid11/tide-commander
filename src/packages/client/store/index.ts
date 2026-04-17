@@ -18,7 +18,6 @@ import { DEFAULT_SETTINGS } from './types';
 // Import domain actions
 import { createAgentActions, type AgentActions } from './agents';
 import { createOutputActions, type OutputActions } from './outputs';
-import { createSupervisorActions, type SupervisorActions } from './supervisor';
 import { createAreaActions, type AreaActions } from './areas';
 import { createBuildingActions, type BuildingActions } from './buildings';
 import { createPermissionActions, type PermissionActions } from './permissions';
@@ -27,7 +26,6 @@ import { createSkillActions, type SkillActions } from './skills';
 import { createExecTaskActions, type ExecTaskActions } from './execTasks';
 import { createSecretActions, type SecretActions } from './secrets';
 import { createDatabaseActions, type DatabaseActions } from './database';
-import { createSnapshotActions, type SnapshotActions } from './snapshots';
 import { createSubagentActions, type SubagentActions } from './subagents';
 import { createWorkflowActions, type WorkflowActions, DEFAULT_WORKFLOW_STATE } from './workflows';
 
@@ -55,7 +53,6 @@ export type {
   FileChange,
   LastPrompt,
   Settings,
-  SupervisorState,
   Listener,
   AgentTaskProgress,
 } from './types';
@@ -102,11 +99,6 @@ export {
   useBuildings,
   useSelectedBuildingIds,
   useBuildingLogs,
-  useSupervisor,
-  useSupervisorLastReport,
-  useSupervisorEnabled,
-  useSupervisorGeneratingReport,
-  useAgentSupervisorHistory,
   usePermissionRequests,
   useDelegationHistory,
   usePendingDelegation,
@@ -134,8 +126,6 @@ export {
   useCustomAgentClass,
   useReconnectCount,
   useHistoryRefreshTrigger,
-  useGlobalUsage,
-  useRefreshingUsage,
   useMouseControls,
   useCameraSensitivity,
   useTrackpadConfig,
@@ -151,10 +141,6 @@ export {
   useExecutingQuery,
   useDockerContainersList,
   useDockerComposeProjectsList,
-  useSnapshots,
-  useCurrentSnapshot,
-  useSnapshotsLoading,
-  useSnapshotsError,
   useSubagents,
   useSubagentsForAgent,
   useSubagentsMapForAgent,
@@ -176,7 +162,6 @@ class Store
   implements
     AgentActions,
     OutputActions,
-    SupervisorActions,
     AreaActions,
     BuildingActions,
     PermissionActions,
@@ -184,7 +169,6 @@ class Store
     SkillActions,
     ExecTaskActions,
     SecretActions,
-    SnapshotActions,
     SubagentActions
 {
   private state: StoreState;
@@ -194,7 +178,6 @@ class Store
   // Domain actions
   private agentActions: AgentActions;
   private outputActions: OutputActions;
-  private supervisorActions: SupervisorActions;
   private areaActions: AreaActions;
   private buildingActions: BuildingActions;
   private permissionActions: PermissionActions;
@@ -203,7 +186,6 @@ class Store
   private execTaskActions: ExecTaskActions;
   private secretActions: SecretActions;
   private databaseActions: DatabaseActions;
-  private snapshotActions: SnapshotActions;
   private subagentActions: SubagentActions;
   private workflowActions: WorkflowActions;
 
@@ -242,20 +224,6 @@ class Store
       explorerFolderPath: null,
       explorerAreaId: null as string | null,
       contextModalAgentId: null,
-      supervisor: {
-        enabled: true,
-        autoReportOnComplete: false,
-        lastReport: null,
-        narratives: new Map(),
-        lastReportTime: null,
-        nextReportTime: null,
-        agentHistories: new Map(),
-        loadingHistoryForAgent: null,
-        historyFetchedForAgents: new Set(),
-        generatingReport: false,
-        globalUsage: null,
-        refreshingUsage: false,
-      },
       permissionRequests: new Map(),
       delegationHistories: new Map(),
       pendingDelegation: null,
@@ -270,10 +238,6 @@ class Store
       databaseState: new Map(),
       dockerContainersList: [],
       dockerComposeProjectsList: [],
-      snapshots: new Map(),
-      currentSnapshot: null,
-      snapshotsLoading: false,
-      snapshotsError: null,
       lastSelectionViaSwipe: false,
       lastSelectionViaDirectClickAt: null,
       subagents: new Map(),
@@ -303,7 +267,6 @@ class Store
     // Create domain actions
     this.agentActions = createAgentActions(getState, setState, notify, getSendMessage, () => this.saveUnseenAgents());
     this.outputActions = createOutputActions(getState, setState, notify, getListenerCount);
-    this.supervisorActions = createSupervisorActions(getState, setState, notify, getSendMessage);
     this.areaActions = createAreaActions(getState, setState, notify, getSendMessage);
     this.buildingActions = createBuildingActions(getState, setState, notify, getSendMessage);
     this.permissionActions = createPermissionActions(getState, setState, notify, getSendMessage);
@@ -312,7 +275,6 @@ class Store
     this.execTaskActions = createExecTaskActions(getState, setState, notify);
     this.secretActions = createSecretActions(getState, setState, notify, getSendMessage);
     this.databaseActions = createDatabaseActions(getState, setState, notify, getSendMessage);
-    this.snapshotActions = createSnapshotActions(getState, setState, notify);
     this.subagentActions = createSubagentActions(getState, setState, notify);
     this.workflowActions = createWorkflowActions(getState, setState, notify, getSendMessage);
   }
@@ -462,9 +424,7 @@ class Store
     // ClaudeOutputPanel returns null when no agent is selected.
     if (open) {
       this.state.mobileView = 'terminal';
-      // Don't auto-select an agent when viewing a snapshot — let ClaudeOutputPanel
-      // use the virtual snapshotAgent from currentSnapshot instead
-      if (this.state.selectedAgentIds.size === 0 && this.state.agents.size > 0 && !this.state.currentSnapshot) {
+      if (this.state.selectedAgentIds.size === 0 && this.state.agents.size > 0) {
         const firstAgentId = Array.from(this.state.agents.keys())[0];
         this.state.selectedAgentIds = new Set([firstAgentId]);
       }
@@ -562,7 +522,7 @@ class Store
     setStorageString(STORAGE_KEYS.MOBILE_VIEW, view);
     // When switching to terminal view on mobile, ensure an agent is selected
     // Otherwise the terminal component returns null
-    if (view === 'terminal' && this.state.selectedAgentIds.size === 0 && this.state.agents.size > 0 && !this.state.currentSnapshot) {
+    if (view === 'terminal' && this.state.selectedAgentIds.size === 0 && this.state.agents.size > 0) {
       const firstAgentId = Array.from(this.state.agents.keys())[0];
       this.state.selectedAgentIds = new Set([firstAgentId]);
       this.state.terminalOpen = true;
@@ -951,26 +911,6 @@ class Store
   mergeOutputsWithHistory(...args: Parameters<OutputActions['mergeOutputsWithHistory']>) { return this.outputActions.mergeOutputsWithHistory(...args); }
 
   // ============================================================================
-  // Supervisor Actions (delegated)
-  // ============================================================================
-
-  setSupervisorReport(...args: Parameters<SupervisorActions['setSupervisorReport']>) { return this.supervisorActions.setSupervisorReport(...args); }
-  addNarrative(...args: Parameters<SupervisorActions['addNarrative']>) { return this.supervisorActions.addNarrative(...args); }
-  getNarratives(...args: Parameters<SupervisorActions['getNarratives']>) { return this.supervisorActions.getNarratives(...args); }
-  setSupervisorStatus(...args: Parameters<SupervisorActions['setSupervisorStatus']>) { return this.supervisorActions.setSupervisorStatus(...args); }
-  setSupervisorConfig(...args: Parameters<SupervisorActions['setSupervisorConfig']>) { return this.supervisorActions.setSupervisorConfig(...args); }
-  requestSupervisorReport() { return this.supervisorActions.requestSupervisorReport(); }
-  requestAgentSupervisorHistory(...args: Parameters<SupervisorActions['requestAgentSupervisorHistory']>) { return this.supervisorActions.requestAgentSupervisorHistory(...args); }
-  setAgentSupervisorHistory(...args: Parameters<SupervisorActions['setAgentSupervisorHistory']>) { return this.supervisorActions.setAgentSupervisorHistory(...args); }
-  getAgentSupervisorHistory(...args: Parameters<SupervisorActions['getAgentSupervisorHistory']>) { return this.supervisorActions.getAgentSupervisorHistory(...args); }
-  addAgentAnalysis(...args: Parameters<SupervisorActions['addAgentAnalysis']>) { return this.supervisorActions.addAgentAnalysis(...args); }
-  isLoadingHistoryForAgent(...args: Parameters<SupervisorActions['isLoadingHistoryForAgent']>) { return this.supervisorActions.isLoadingHistoryForAgent(...args); }
-  hasHistoryBeenFetched(...args: Parameters<SupervisorActions['hasHistoryBeenFetched']>) { return this.supervisorActions.hasHistoryBeenFetched(...args); }
-  setGlobalUsage(...args: Parameters<SupervisorActions['setGlobalUsage']>) { return this.supervisorActions.setGlobalUsage(...args); }
-  requestGlobalUsage() { return this.supervisorActions.requestGlobalUsage(); }
-  getGlobalUsage() { return this.supervisorActions.getGlobalUsage(); }
-
-  // ============================================================================
   // Area Actions (delegated)
   // ============================================================================
 
@@ -1202,22 +1142,6 @@ class Store
   setActiveDatabase(...args: Parameters<DatabaseActions['setActiveDatabase']>) { return this.databaseActions.setActiveDatabase(...args); }
   getDatabaseState(...args: Parameters<DatabaseActions['getDatabaseState']>) { return this.databaseActions.getDatabaseState(...args); }
   clearDatabaseState(...args: Parameters<DatabaseActions['clearDatabaseState']>) { return this.databaseActions.clearDatabaseState(...args); }
-
-  // ============================================================================
-  // Snapshot Actions (delegated)
-  // ============================================================================
-
-  fetchSnapshots(...args: Parameters<SnapshotActions['fetchSnapshots']>) { return this.snapshotActions.fetchSnapshots(...args); }
-  setSnapshots(...args: Parameters<SnapshotActions['setSnapshots']>) { return this.snapshotActions.setSnapshots(...args); }
-  createSnapshot(...args: Parameters<SnapshotActions['createSnapshot']>) { return this.snapshotActions.createSnapshot(...args); }
-  loadSnapshot(...args: Parameters<SnapshotActions['loadSnapshot']>) { return this.snapshotActions.loadSnapshot(...args); }
-  setCurrentSnapshot(...args: Parameters<SnapshotActions['setCurrentSnapshot']>) { return this.snapshotActions.setCurrentSnapshot(...args); }
-  deleteSnapshot(...args: Parameters<SnapshotActions['deleteSnapshot']>) { return this.snapshotActions.deleteSnapshot(...args); }
-  restoreFiles(...args: Parameters<SnapshotActions['restoreFiles']>) { return this.snapshotActions.restoreFiles(...args); }
-  setLoading(...args: Parameters<SnapshotActions['setLoading']>) { return this.snapshotActions.setLoading(...args); }
-  setError(...args: Parameters<SnapshotActions['setError']>) { return this.snapshotActions.setError(...args); }
-  clearError(...args: Parameters<SnapshotActions['clearError']>) { return this.snapshotActions.clearError(...args); }
-  reset(...args: Parameters<SnapshotActions['reset']>) { return this.snapshotActions.reset(...args); }
 
   // ============================================================================
   // Subagent Actions (delegated)

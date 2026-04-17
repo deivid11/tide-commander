@@ -44,6 +44,7 @@ vi.mock('../../utils/index.js', () => ({
     error: vi.fn(),
     warn: vi.fn(),
   })),
+  getCommanderBaseUrl: vi.fn(() => 'http://localhost:6200'),
 }));
 
 vi.mock('../../auth/index.js', () => ({

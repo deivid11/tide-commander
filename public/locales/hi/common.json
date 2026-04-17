@@ -205,8 +205,6 @@
     "clickToCopy": "कॉपी करने के लिए क्लिक करें",
     "session": "सत्र",
     "newSession": "नया एजेंट, नया सत्र",
-    "supervisorHistory": "पर्यवेक्षक इतिहास",
-    "noSupervisorReports": "अभी तक कोई पर्यवेक्षक रिपोर्ट नहीं",
     "bossAgent": "बॉस एजेंट",
     "subordinates": "अधीनस्थ",
     "noSubordinates": "कोई अधीनस्थ नियुक्त नहीं। एजेंट जोड़ने के लिए \"टीम प्रबंधन\" का उपयोग करें।",
@@ -248,7 +246,6 @@
     "clickNewAgent": "अपना पहला एजेंट तैनात करने के लिए \"+ नया एजेंट\" पर क्लिक करें",
     "areasAndAgents": "क्षेत्र और एजेंट",
     "browseFiles": "फ़ाइलें ब्राउज़ करें",
-    "supervisorStatus": "पर्यवेक्षक स्थिति",
     "unassigned": "अनियुक्त",
     "total": "कुल",
     "statusActive": "सक्रिय",
@@ -275,14 +272,10 @@
     "selectAgentLogs": "लॉग देखने के लिए एजेंट चुनें",
     "logsWillAppear": "एजेंट लॉग यहां दिखाई देंगे",
     "logsHint": "विस्तृत संदेश लॉग के लिए डिबग पैनल का उपयोग करें",
-    "selectAgentSnapshots": "स्नैपशॉट देखने के लिए एजेंट चुनें",
-    "snapshotsFor": "{{name}} के स्नैपशॉट",
-    "snapshotsHint": "टर्मिनल हेडर में स्टार बटन से स्नैपशॉट सहेजें",
     "tabs": {
       "details": "विवरण",
       "chat": "चैट",
-      "logs": "लॉग",
-      "snapshot": "स्नैपशॉट"
+      "logs": "लॉग"
     }
   },
   "toast": {
@@ -297,8 +290,7 @@
     "used": "उपयोग किया",
     "tool": "टूल",
     "assignedTask": "सौंपा गया कार्य",
-    "lastQuery": "अंतिम क्वेरी",
-    "supervisor": "पर्यवेक्षक"
+    "lastQuery": "अंतिम क्वेरी"
   },
   "agentBar": {
     "spawnNewAgent": "नया एजेंट स्पॉन करें",
@@ -316,13 +308,8 @@
   "floatingButtons": {
     "settingsAndTools": "सेटिंग्स और टूल्स",
     "commanderView": "कमांडर व्यू",
-    "viewSnapshots": "स्नैपशॉट देखें",
-    "supervisorOverview": "पर्यवेक्षक अवलोकन",
     "controls": "नियंत्रण",
-    "manageSkills": "स्किल्स प्रबंधित करें",
-    "pipNotSupported": "इस ब्राउज़र में PiP समर्थित नहीं है",
-    "closePip": "PiP मोड में एजेंट्स बंद करें",
-    "openPip": "PiP मोड में एजेंट्स खोलें"
+    "manageSkills": "स्किल्स प्रबंधित करें"
   },
   "sidebar": {
     "agentsView": "एजेंट्स",

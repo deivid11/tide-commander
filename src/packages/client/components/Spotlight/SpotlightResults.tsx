@@ -53,7 +53,6 @@ export const SpotlightResults = forwardRef<HTMLDivElement, SpotlightResultsProps
     building: t('terminal:spotlight.categories.infrastructure'),
     area: t('terminal:spotlight.categories.areas'),
     'modified-file': t('terminal:spotlight.categories.modifiedFiles'),
-    activity: t('terminal:spotlight.categories.recentActivity'),
   };
 
   // Group results by category, preserving the order from the results array.

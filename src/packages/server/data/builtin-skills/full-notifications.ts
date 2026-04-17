@@ -15,37 +15,24 @@ export const fullNotifications: BuiltinSkillDefinition = {
 3. **Blocking Error** - When you cannot proceed
 4. **Awaiting Input** - When you need user decision
 
-## Command Template
-\`\`\`bash
-curl -s -X POST http://localhost:5174/api/notify -H "Content-Type: application/json" -d '{"agentId":"YOUR_AGENT_ID","title":"TITLE","message":"MESSAGE"}'
+## Endpoint
+
+\`POST /api/notify\`
+
+**Body shape:**
+\`\`\`json
+{"agentId":"YOUR_AGENT_ID","title":"TITLE","message":"MESSAGE"}
 \`\`\`
 
-## Examples by Type
+## Examples by Type (body only — wrap with the scaffolding from the API Calling Convention above)
 
-**Task Complete:**
-\`\`\`bash
-curl -s -X POST http://localhost:5174/api/notify -H "Content-Type: application/json" -d '{"agentId":"YOUR_AGENT_ID","title":"Task Complete","message":"Build succeeded"}'
-\`\`\`
-
-**Error/Attention Needed:**
-\`\`\`bash
-curl -s -X POST http://localhost:5174/api/notify -H "Content-Type: application/json" -d '{"agentId":"YOUR_AGENT_ID","title":"Error","message":"Build failed"}'
-\`\`\`
-
-**Plan Ready for Review:**
-\`\`\`bash
-curl -s -X POST http://localhost:5174/api/notify -H "Content-Type: application/json" -d '{"agentId":"YOUR_AGENT_ID","title":"Plan Ready","message":"Review implementation plan"}'
-\`\`\`
-
-**Input Required:**
-\`\`\`bash
-curl -s -X POST http://localhost:5174/api/notify -H "Content-Type: application/json" -d '{"agentId":"YOUR_AGENT_ID","title":"Input Needed","message":"Which database?"}'
-\`\`\`
+- **Task Complete:** \`{"agentId":"YOUR_AGENT_ID","title":"Task Complete","message":"Build succeeded"}\`
+- **Error / Attention Needed:** \`{"agentId":"YOUR_AGENT_ID","title":"Error","message":"Build failed"}\`
+- **Plan Ready for Review:** \`{"agentId":"YOUR_AGENT_ID","title":"Plan Ready","message":"Review implementation plan"}\`
+- **Input Required:** \`{"agentId":"YOUR_AGENT_ID","title":"Input Needed","message":"Which database?"}\`
 
 ## Rules
-- Replace \`YOUR_AGENT_ID\` with your actual agent ID from the system prompt
 - Keep messages under 50 characters
-- **IMPORTANT: Do NOT use exclamation marks (!) in messages** - they cause bash history expansion errors
 - **CRITICAL: Send notification ONLY when YOUR task is 100% done**
   - If you delegated work to another agent, wait for their response/completion BEFORE notifying
   - If you used a tool or spawned a subagent, verify output before notifying

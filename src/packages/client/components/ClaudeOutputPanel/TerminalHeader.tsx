@@ -6,12 +6,12 @@
 
 import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { store, useSupervisor, useSettings, useLastPrompt, useSubagentsForAgent, useAreas } from '../../store';
+import { store, useSettings, useLastPrompt, useSubagentsForAgent, useAreas } from '../../store';
 import { STORAGE_KEYS, setStorageString } from '../../utils/storage';
 import { agentDebugger } from '../../services/agentDebugger';
 import { Tooltip } from '../shared/Tooltip';
 
-import type { Agent, AgentAnalysis } from '../../../shared/types';
+import type { Agent } from '../../../shared/types';
 import type { ViewMode } from './types';
 import { VIEW_MODES } from './types';
 import { themes, getTheme, applyTheme, getSavedTheme, type ThemeId } from '../../utils/themes';
@@ -36,10 +36,6 @@ export interface TerminalHeaderProps {
   setContextConfirm: (action: 'collapse' | 'clear' | 'clear-subordinates' | null) => void;
   onClearContextDirect: () => void;
   headerRef: React.RefObject<HTMLDivElement | null>;
-  /** Whether we're viewing a snapshot (read-only mode) */
-  isSnapshotView?: boolean;
-  /** Callback when user clicks star button to save snapshot */
-  onSaveSnapshot?: () => void;
   /** Agent overview panel open state */
   overviewPanelOpen?: boolean;
   setOverviewPanelOpen?: (open: boolean) => void;
@@ -97,8 +93,6 @@ export const TerminalHeader = memo(function TerminalHeader({
   setContextConfirm,
   onClearContextDirect,
   headerRef,
-  isSnapshotView = false,
-  onSaveSnapshot,
   overviewPanelOpen = false,
   setOverviewPanelOpen,
   agentInfoOpen = false,
@@ -120,7 +114,6 @@ export const TerminalHeader = memo(function TerminalHeader({
   setTrackingBoardVisible,
 }: TerminalHeaderProps) {
   const { t } = useTranslation(['terminal', 'common']);
-  const supervisor = useSupervisor();
   const _settings = useSettings();
   const lastPrompt = useLastPrompt(selectedAgentId);
   const clearContextConfirm = useTwoClickConfirm();
@@ -163,18 +156,6 @@ export const TerminalHeader = memo(function TerminalHeader({
     selectedAgent.lastAssignedTask ||
     lastPrompt?.text;
   const mobileHeaderContext = selectedAgent.taskLabel || lastInput;
-
-  const agentAnalysis = supervisor.lastReport?.agentSummaries.find(
-    (a: AgentAnalysis) => a.agentId === selectedAgent.id || a.agentName === selectedAgent.name
-  );
-
-  const progressColors: Record<string, string> = {
-    on_track: '#4aff9e',
-    stalled: '#ff9e4a',
-    blocked: '#ff4a4a',
-    completed: '#4a9eff',
-    idle: '#888',
-  };
 
   // Check if selected agent is a boss with subordinates
   const isBoss = selectedAgent.class === 'boss' || selectedAgent.isBoss;
@@ -334,19 +315,6 @@ export const TerminalHeader = memo(function TerminalHeader({
           )}
         </div>
         <div className="guake-header-meta">
-          {agentAnalysis && (
-            <span
-              className="guake-status-line"
-              title={`${agentAnalysis.statusDescription}\n${agentAnalysis.recentWorkSummary}`}
-            >
-              <span
-                className="guake-supervisor-badge"
-                style={{ color: progressColors[agentAnalysis.progress] || '#888' }}
-              >
-                {agentAnalysis.progress.replace('_', ' ')}
-              </span>
-            </span>
-          )}
           {subagents.filter(s => s.status === 'spawning' || s.status === 'working').length > 0 && (
             <span className="guake-subagents-indicator">
               {subagents
@@ -368,27 +336,23 @@ export const TerminalHeader = memo(function TerminalHeader({
       <div className="guake-actions">
         {/* Primary actions - always visible on desktop */}
         <div className="guake-action-cluster guake-action-cluster--compact hide-on-mobile">
-          {!isSnapshotView && (
-            <>
-              <button
-                className="guake-icon-action guake-nav-btn"
-                onClick={onNavigateBack}
-                title="Back (Alt+Left)"
-                disabled={!canNavigateBack}
-              >
-                <span className="guake-action-icon">←</span>
-              </button>
-              <button
-                className="guake-icon-action guake-nav-btn"
-                onClick={onNavigateForward}
-                title="Forward (Alt+Right)"
-                disabled={!canNavigateForward}
-              >
-                <span className="guake-action-icon">→</span>
-              </button>
-            </>
-          )}
-          {!isSnapshotView && setOverviewPanelOpen && (
+          <button
+            className="guake-icon-action guake-nav-btn"
+            onClick={onNavigateBack}
+            title="Back (Alt+Left)"
+            disabled={!canNavigateBack}
+          >
+            <span className="guake-action-icon">←</span>
+          </button>
+          <button
+            className="guake-icon-action guake-nav-btn"
+            onClick={onNavigateForward}
+            title="Forward (Alt+Right)"
+            disabled={!canNavigateForward}
+          >
+            <span className="guake-action-icon">→</span>
+          </button>
+          {setOverviewPanelOpen && (
             <button
               className={`guake-icon-action guake-overview-toggle ${overviewPanelOpen ? 'active' : ''}`}
               onClick={() => setOverviewPanelOpen(!overviewPanelOpen)}
@@ -397,7 +361,7 @@ export const TerminalHeader = memo(function TerminalHeader({
               <span className="guake-action-icon">📊</span>
             </button>
           )}
-          {!isSnapshotView && setGitPanelOpen && (
+          {setGitPanelOpen && (
             <button
               className={`guake-icon-action guake-git-toggle ${gitPanelOpen ? 'active' : ''}`}
               onClick={() => setGitPanelOpen(!gitPanelOpen)}
@@ -406,7 +370,7 @@ export const TerminalHeader = memo(function TerminalHeader({
               <span className="guake-action-icon">🌿</span>
             </button>
           )}
-          {!isSnapshotView && hasWorkflow && setWorkflowPanelOpen && (
+          {hasWorkflow && setWorkflowPanelOpen && (
             <button
               className={`guake-icon-action guake-workflow-toggle ${workflowPanelOpen ? 'active' : ''}`}
               onClick={() => setWorkflowPanelOpen(!workflowPanelOpen)}
@@ -415,7 +379,7 @@ export const TerminalHeader = memo(function TerminalHeader({
               <span className="guake-action-icon">🔄</span>
             </button>
           )}
-          {!isSnapshotView && setTrackingBoardVisible && (
+          {setTrackingBoardVisible && (
             <button
               className={`guake-icon-action guake-tracking-board-toggle ${trackingBoardVisible ? 'active' : ''}`}
               onClick={() => setTrackingBoardVisible(!trackingBoardVisible)}
@@ -447,34 +411,24 @@ export const TerminalHeader = memo(function TerminalHeader({
           </button>
         </div>
         {/* Desktop kebab menu - view toggle + context actions + less-used toggles */}
-        {!isSnapshotView && (
-          <div className="guake-desktop-more hide-on-mobile" ref={desktopMenuRef}>
-            <button
-              className={`guake-desktop-more-btn ${desktopMenuOpen ? 'active' : ''}`}
-              onClick={() => setDesktopMenuOpen(!desktopMenuOpen)}
-              title={t('terminal:header.moreActions', 'More actions')}
-            >
-              ⋮
-            </button>
-            {desktopMenuOpen && (
-              <div className="guake-desktop-menu">
-                <button
-                  className="guake-desktop-menu-item"
-                  onClick={() => { handleViewModeToggle(); closeDesktopMenu(); }}
-                >
-                  <span className="guake-desktop-menu-icon">{viewModeIcon}</span>
-                  View: {viewModeLabel}
-                </button>
-                {onSaveSnapshot && outputsLength > 0 && (
-                  <button
-                    className="guake-desktop-menu-item"
-                    onClick={() => { onSaveSnapshot(); closeDesktopMenu(); }}
-                  >
-                    <span className="guake-desktop-menu-icon">⭐</span>
-                    {t('terminal:header.saveSnapshot')}
-                  </button>
-                )}
-                {setBuildingsPanelOpen && (
+        <div className="guake-desktop-more hide-on-mobile" ref={desktopMenuRef}>
+          <button
+            className={`guake-desktop-more-btn ${desktopMenuOpen ? 'active' : ''}`}
+            onClick={() => setDesktopMenuOpen(!desktopMenuOpen)}
+            title={t('terminal:header.moreActions', 'More actions')}
+          >
+            ⋮
+          </button>
+          {desktopMenuOpen && (
+            <div className="guake-desktop-menu">
+              <button
+                className="guake-desktop-menu-item"
+                onClick={() => { handleViewModeToggle(); closeDesktopMenu(); }}
+              >
+                <span className="guake-desktop-menu-icon">{viewModeIcon}</span>
+                View: {viewModeLabel}
+              </button>
+              {setBuildingsPanelOpen && (
                   <button
                     className={`guake-desktop-menu-item ${buildingsPanelOpen ? 'active' : ''}`}
                     onClick={() => { setBuildingsPanelOpen(!buildingsPanelOpen); closeDesktopMenu(); }}
@@ -519,10 +473,8 @@ export const TerminalHeader = memo(function TerminalHeader({
               </div>
             )}
           </div>
-        )}
         {/* Mobile more-actions menu */}
-        {!isSnapshotView && (
-          <div className="guake-mobile-more show-on-mobile" ref={mobileMenuRef}>
+        <div className="guake-mobile-more show-on-mobile" ref={mobileMenuRef}>
             <button
               className={`guake-mobile-more-btn ${mobileMenuOpen ? 'active' : ''}`}
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -568,15 +520,6 @@ export const TerminalHeader = memo(function TerminalHeader({
                   >
                     <span className="guake-mobile-menu-icon">🗑</span>
                     {t('terminal:header.clearOutput')}
-                  </button>
-                )}
-                {onSaveSnapshot && outputsLength > 0 && (
-                  <button
-                    className="guake-mobile-menu-item"
-                    onClick={() => { onSaveSnapshot(); closeMobileMenu(); }}
-                  >
-                    <span className="guake-mobile-menu-icon">⭐</span>
-                    {t('terminal:header.saveSnapshot')}
                   </button>
                 )}
                 <button
@@ -700,7 +643,6 @@ export const TerminalHeader = memo(function TerminalHeader({
               </div>
             )}
           </div>
-        )}
         {/* Mobile close button - switch to 3D view */}
         <button
           className="guake-close-btn show-on-mobile"

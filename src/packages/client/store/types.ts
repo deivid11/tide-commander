@@ -8,15 +8,11 @@ import type {
   Agent,
   DrawingArea,
   DrawingTool,
-  ActivityNarrative,
-  SupervisorReport,
-  AgentSupervisorHistoryEntry,
   Building,
   PermissionRequest,
   DelegationDecision,
   Skill,
   CustomAgentClass,
-  GlobalUsageStats,
   ExecTask,
   Secret,
   QueryResult,
@@ -32,7 +28,6 @@ import type {
 } from '../../shared/types';
 import type { ShortcutConfig } from './shortcuts';
 import type { MouseControlsState } from './mouseControls';
-import type { SnapshotListItem, ConversationSnapshot } from '../../shared/types/snapshot';
 
 // Activity type
 export interface Activity {
@@ -142,28 +137,6 @@ export const DEFAULT_SETTINGS: Settings = {
   tmuxMode: false,
 };
 
-// Supervisor state
-export interface SupervisorState {
-  enabled: boolean;
-  autoReportOnComplete: boolean; // Auto-generate report when agent completes task
-  lastReport: SupervisorReport | null;
-  narratives: Map<string, ActivityNarrative[]>;
-  lastReportTime: number | null;
-  nextReportTime: number | null;
-  // History per agent - loaded on demand when agent is selected
-  agentHistories: Map<string, AgentSupervisorHistoryEntry[]>;
-  // Track which agent's history is currently being loaded
-  loadingHistoryForAgent: string | null;
-  // Track which agents have had their full history fetched from the server
-  historyFetchedForAgents: Set<string>;
-  // Track if a report is being generated
-  generatingReport: boolean;
-  // Global Claude API usage stats (from /usage command)
-  globalUsage: GlobalUsageStats | null;
-  // Track if usage refresh is in progress
-  refreshingUsage: boolean;
-}
-
 // Store state
 export interface StoreState {
   agents: Map<string, Agent>;
@@ -228,8 +201,6 @@ export interface StoreState {
   explorerAreaId: string | null;
   // Context modal agent ID (to open context modal from other components)
   contextModalAgentId: string | null;
-  // Supervisor state
-  supervisor: SupervisorState;
   // Permission requests (interactive permission mode)
   permissionRequests: Map<string, PermissionRequest>;
   // Boss delegation history (per boss agent)
@@ -259,11 +230,6 @@ export interface StoreState {
   // Docker containers list (for "existing" mode selection)
   dockerContainersList: ExistingDockerContainer[];
   dockerComposeProjectsList: ExistingComposeProject[];
-  // Snapshots
-  snapshots: Map<string, SnapshotListItem>;
-  currentSnapshot: ConversationSnapshot | null;
-  snapshotsLoading: boolean;
-  snapshotsError: string | null;
   // Flag to track if last agent selection was via swipe (prevents autofocus on mobile)
   lastSelectionViaSwipe: boolean;
   // Timestamp (ms) for last direct-click agent selection on the bar.

@@ -205,8 +205,6 @@
     "clickToCopy": "Klicken zum Kopieren",
     "session": "Sitzung",
     "newSession": "Neuer Agent, neue Sitzung",
-    "supervisorHistory": "Supervisor-Verlauf",
-    "noSupervisorReports": "Noch keine Supervisor-Berichte",
     "bossAgent": "Boss-Agent",
     "subordinates": "Untergebene",
     "noSubordinates": "Keine Untergebenen zugewiesen. Verwende \"Team verwalten\" um Agenten hinzuzufügen.",
@@ -248,7 +246,6 @@
     "clickNewAgent": "Klicke \"+ Neuer Agent\" um deinen ersten Agenten bereitzustellen",
     "areasAndAgents": "Bereiche & Agenten",
     "browseFiles": "Dateien durchsuchen",
-    "supervisorStatus": "Supervisor-Status",
     "unassigned": "Nicht zugewiesen",
     "total": "gesamt",
     "statusActive": "aktiv",
@@ -275,14 +272,10 @@
     "selectAgentLogs": "Wähle einen Agenten um Logs anzuzeigen",
     "logsWillAppear": "Agenten-Logs erscheinen hier",
     "logsHint": "Verwende das Debug-Panel für detaillierte Nachrichtenprotokolle",
-    "selectAgentSnapshots": "Wähle einen Agenten um Snapshots anzuzeigen",
-    "snapshotsFor": "Snapshots für {{name}}",
-    "snapshotsHint": "Speichere Snapshots über den Stern-Button im Terminal-Header",
     "tabs": {
       "details": "Details",
       "chat": "Chat",
-      "logs": "Logs",
-      "snapshot": "Snapshot"
+      "logs": "Logs"
     }
   },
   "toast": {
@@ -297,8 +290,7 @@
     "used": "verwendet",
     "tool": "Werkzeug",
     "assignedTask": "Zugewiesene Aufgabe",
-    "lastQuery": "Letzte Anfrage",
-    "supervisor": "Supervisor"
+    "lastQuery": "Letzte Anfrage"
   },
   "agentBar": {
     "spawnNewAgent": "Neuen Agenten erzeugen",
@@ -316,13 +308,8 @@
   "floatingButtons": {
     "settingsAndTools": "Einstellungen & Werkzeuge",
     "commanderView": "Kommandanten-Ansicht",
-    "viewSnapshots": "Snapshots anzeigen",
-    "supervisorOverview": "Supervisor-Übersicht",
     "controls": "Steuerung",
-    "manageSkills": "Fähigkeiten verwalten",
-    "pipNotSupported": "PiP wird in diesem Browser nicht unterstützt",
-    "closePip": "Agenten im PiP-Modus schließen",
-    "openPip": "Agenten im PiP-Modus öffnen"
+    "manageSkills": "Fähigkeiten verwalten"
   },
   "sidebar": {
     "agentsView": "Agenten",

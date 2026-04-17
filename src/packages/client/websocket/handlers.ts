@@ -291,47 +291,6 @@ export function handleServerMessage(message: ServerMessage): void {
       break;
     }
 
-    case 'supervisor_report': {
-      const report = message.payload as import('../../shared/types').SupervisorReport;
-      store.setSupervisorReport(report);
-      break;
-    }
-
-    case 'narrative_update': {
-      const { agentId, narrative } = message.payload as {
-        agentId: string;
-        narrative: import('../../shared/types').ActivityNarrative;
-      };
-      store.addNarrative(agentId, narrative);
-      break;
-    }
-
-    case 'supervisor_status': {
-      const status = message.payload as {
-        enabled: boolean;
-        autoReportOnComplete?: boolean;
-        lastReportTime: number | null;
-        nextReportTime: number | null;
-      };
-      store.setSupervisorStatus(status);
-      break;
-    }
-
-    case 'agent_supervisor_history': {
-      const history = message.payload as import('../../shared/types').AgentSupervisorHistory;
-      store.setAgentSupervisorHistory(history);
-      break;
-    }
-
-    case 'agent_analysis': {
-      const { agentId, analysis } = message.payload as {
-        agentId: string;
-        analysis: import('../../shared/types').AgentAnalysis;
-      };
-      store.addAgentAnalysis(agentId, analysis);
-      break;
-    }
-
     case 'areas_update': {
       const areasArray = message.payload as import('../../shared/types').DrawingArea[];
       store.setAreasFromServer(areasArray);
@@ -676,17 +635,6 @@ export function handleServerMessage(message: ServerMessage): void {
       console.log(`[WebSocket] Custom agent class deleted: ${id}`);
       // Update scene with remaining custom classes
       cb.onCustomClassesSync?.(store.getState().customAgentClasses);
-      break;
-    }
-
-    // ========================================================================
-    // Global Usage Messages
-    // ========================================================================
-
-    case 'global_usage': {
-      const usage = message.payload as import('../../shared/types').GlobalUsageStats | null;
-      console.log(`[WebSocket] Global usage update:`, usage);
-      store.setGlobalUsage(usage);
       break;
     }
 

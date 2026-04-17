@@ -1,7 +1,6 @@
 @use 'sass:color';
 @use '../../variables' as *;
 
-// Voice Assistant button - positioned above PiP button (280 + 36 + 6 = 322)
 .voice-assistant-btn {
   position: fixed;
   bottom: 322px;
@@ -112,7 +111,7 @@
 // Floating settings button
 .floating-settings-btn {
   position: fixed;
-  bottom: 70px;
+  top: 56px;
   left: 16px;
   width: 36px;
   height: 36px;
@@ -134,6 +133,46 @@
     background: rgba($accent-blue, 0.1);
   }
 }
+
+// Floating spawn buttons (stacked below skills)
+.fab-spawn-btn {
+  position: fixed;
+  left: 16px;
+  width: 36px;
+  height: 36px;
+  border-radius: $radius-lg;
+  background: linear-gradient(180deg, $dracula-current 0%, $dracula-bg 100%);
+  border: 1px solid $dracula-comment;
+  color: $dracula-fg;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 150;
+  transition: all $transition-fast;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+
+  &:hover {
+    border-color: $dracula-cyan;
+    color: $dracula-cyan;
+    background: linear-gradient(180deg, color.adjust($dracula-current, $lightness: 5%) 0%, $dracula-current 100%);
+  }
+}
+
+.fab-spawn-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.fab-spawn-agent-btn    { top: 224px; }  // 182 + 36 + 6
+.fab-spawn-boss-btn     { top: 266px; }  // 224 + 36 + 6
+.fab-spawn-building-btn { top: 308px; }  // 266 + 36 + 6
+.fab-spawn-area-btn     { top: 350px; }  // 308 + 36 + 6
+
+.fab-spawn-agent-btn:hover   { border-color: $dracula-green;  color: $dracula-green;  }
+.fab-spawn-boss-btn:hover    { border-color: $dracula-yellow; color: $dracula-yellow; }
+.fab-spawn-building-btn:hover{ border-color: $dracula-cyan;   color: $dracula-cyan;   }
+.fab-spawn-area-btn:hover    { border-color: $dracula-purple; color: $dracula-purple; }
 
 .toolbox-backdrop {
   position: fixed;

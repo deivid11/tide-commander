@@ -9,7 +9,7 @@
 import React, { useRef, useEffect, useState, useMemo, useCallback, memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Agent } from '../../../shared/types';
-import { useSupervisorLastReport, useLastPrompt, store, ClaudeOutput } from '../../store';
+import { useLastPrompt, store, ClaudeOutput } from '../../store';
 import { formatTokens } from '../../utils/formatting';
 import { getDisplayContextInfo } from '../../utils/context';
 import { VirtualizedOutputList } from '../ClaudeOutputPanel/VirtualizedOutputList';
@@ -102,7 +102,6 @@ export function AgentPanel({
   onClearHistory,
 }: AgentPanelProps) {
   const { t } = useTranslation(['terminal', 'common']);
-  const lastReport = useSupervisorLastReport();
   const lastPrompt = useLastPrompt(agent.id);
   const outputRef = useRef<HTMLDivElement>(null);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -143,14 +142,6 @@ export function AgentPanel({
 
   // Just use the filtered outputs directly - no dedup
   const filteredOutputs = viewFilteredOutputs;
-
-  // Get supervisor status for this agent
-  const supervisorStatus = useMemo(() => {
-    if (!lastReport?.agentSummaries) return null;
-    return lastReport.agentSummaries.find(
-      s => s.agentId === agent.id || s.agentName === agent.name
-    );
-  }, [lastReport, agent.id, agent.name]);
 
   // Calculate context usage info
   const contextInfo = useMemo(() => {
@@ -429,11 +420,6 @@ export function AgentPanel({
           </button>
         </div>
       </div>
-
-      {/* Supervisor Status */}
-      {supervisorStatus && (
-        <div className="agent-panel-supervisor-status">{supervisorStatus.statusDescription}</div>
-      )}
 
       {/* Output Content - Virtualized scroll rendering */}
       <div className="agent-panel-content" ref={outputRef}>

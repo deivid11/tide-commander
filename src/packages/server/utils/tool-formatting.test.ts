@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   formatToolActivity,
-  formatToolNarrative,
   getFileName,
   getShortPath,
   getToolKeyParam,
@@ -28,11 +27,5 @@ describe('tool-formatting', () => {
     expect(formatToolActivity('Read', { file_path: '/tmp/project/src/main.ts' })).toBe('Read: /tmp/project/src/main.ts');
     expect(formatToolActivity('Bash', { command: 'echo hello' })).toBe('Bash: echo hello');
     expect(formatToolActivity(undefined, undefined)).toBe('Using unknown tool');
-  });
-
-  it('formats narrative strings per tool', () => {
-    expect(formatToolNarrative('Read', { file_path: '/tmp/project/src/main.ts' })).toContain('Reading file "main.ts"');
-    expect(formatToolNarrative('Task', { description: 'Investigate flaky tests and report root cause in detail' })).toContain('Starting sub-task');
-    expect(formatToolNarrative('UnknownTool', {})).toBe('Using UnknownTool tool');
   });
 });

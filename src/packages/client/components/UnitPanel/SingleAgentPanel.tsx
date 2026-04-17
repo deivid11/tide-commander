@@ -1,14 +1,13 @@
 /**
  * SingleAgentPanel - Detailed view for a single selected agent
- * Includes stats, supervisor history, boss management, and action buttons
+ * Includes stats, boss management, and action buttons
  */
 
 import React, { useState, useRef, useEffect, useMemo, memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useStore, store, useCustomAgentClassesArray } from '../../store';
-import { filterCostText } from '../../utils/formatting';
 import { getClassConfig } from '../../utils/classConfig';
-import { PROGRESS_COLORS, AGENT_STATUS_COLORS } from '../../utils/colors';
+import { AGENT_STATUS_COLORS } from '../../utils/colors';
 import { ModelPreview } from '../ModelPreview';
 import { AgentEditModal } from '../AgentEditModal';
 import { ContextViewModal } from '../ContextViewModal';
@@ -32,7 +31,6 @@ import type {
   SingleAgentPanelProps,
   RememberedPattern,
   ContextAction,
-  SupervisorHistoryItemProps,
   BossAgentSectionProps,
   DelegationDecisionItemProps,
   SubordinateBadgeProps,
@@ -74,23 +72,11 @@ export function SingleAgentPanel({
 
   // UI state
   const [, setTick] = useState(0); // For forcing re-render of idle timer
-  const [showHistory, setShowHistory] = useState(true);
   const [showPatterns, setShowPatterns] = useState(false);
   const [rememberedPatterns, setRememberedPatterns] = useState<RememberedPattern[]>([]);
   const [contextConfirm, setContextConfirm] = useState<ContextAction>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showContextModal, setShowContextModal] = useState(false);
-
-  // Get supervisor history for this agent
-  const supervisorHistory = store.getAgentSupervisorHistory(agent.id);
-  const isLoadingHistory = store.isLoadingHistoryForAgent(agent.id);
-
-  // Fetch supervisor history when agent is selected (only if not already fetched/loading)
-  useEffect(() => {
-    if (!store.hasHistoryBeenFetched(agent.id) && !isLoadingHistory) {
-      store.requestAgentSupervisorHistory(agent.id);
-    }
-  }, [agent.id, isLoadingHistory]);
 
   // Update editName when agent changes
   useEffect(() => {
@@ -379,34 +365,6 @@ export function SingleAgentPanel({
 
       {/* Session History */}
       <SessionHistorySection agentId={agent.id} />
-
-      {/* Supervisor History */}
-      <div className="unit-supervisor-history">
-        <div className="unit-supervisor-history-header" onClick={() => setShowHistory(!showHistory)}>
-          <div className="unit-stat-label">{t('unitPanel.supervisorHistory')}</div>
-          <span className="unit-supervisor-history-toggle">
-            {supervisorHistory.length > 0 && (
-              <span className="unit-supervisor-history-count">{supervisorHistory.length}</span>
-            )}
-            {showHistory ? '▼' : '▶'}
-          </span>
-        </div>
-        {showHistory && (
-          <div className="unit-supervisor-history-list">
-            {isLoadingHistory ? (
-              <div className="unit-supervisor-history-loading">{t('status.loading')}</div>
-            ) : supervisorHistory.length === 0 ? (
-              <div className="unit-supervisor-history-empty">{t('unitPanel.noSupervisorReports')}</div>
-            ) : (
-              supervisorHistory
-                .slice(0, 10)
-                .map((entry, index) => (
-                  <SupervisorHistoryItem key={entry.id} entry={entry} defaultExpanded={index === 0} />
-                ))
-            )}
-          </div>
-        )}
-      </div>
 
       {/* Boss-Specific Section */}
       {(agent.isBoss || agent.class === 'boss') && <BossAgentSection agent={agent} />}
@@ -781,79 +739,6 @@ const ContextConfirmModal = memo(function ContextConfirmModal({
 });
 
 // ============================================================================
-// SupervisorHistoryItem Component
-// ============================================================================
-
-const SupervisorHistoryItem = memo(function SupervisorHistoryItem({
-  entry,
-  defaultExpanded = false,
-  agent,
-  onAgentClick,
-}: SupervisorHistoryItemProps) {
-  const { t } = useTranslation(['common']);
-  const [expanded, setExpanded] = useState(defaultExpanded);
-  const state = useStore();
-  const customClasses = useCustomAgentClassesArray();
-  const { analysis } = entry;
-  const hideCost = state.settings.hideCost;
-
-  const statusDescription = filterCostText(analysis.statusDescription, hideCost);
-  const recentWorkSummary = filterCostText(analysis.recentWorkSummary, hideCost);
-  const concerns = analysis.concerns?.map((c) => filterCostText(c, hideCost)).filter((c) => c.length > 0);
-
-  const classConfig = agent ? getClassConfig(agent.class, customClasses) : null;
-
-  const handleAgentClick = (e: React.MouseEvent) => {
-    if (agent && onAgentClick) {
-      e.stopPropagation();
-      onAgentClick(agent.id);
-    }
-  };
-
-  return (
-    <div className="supervisor-history-item">
-      <div className="supervisor-history-item-header" onClick={() => setExpanded(!expanded)}>
-        <span
-          className="supervisor-history-progress-dot"
-          style={{ background: PROGRESS_COLORS[analysis.progress] || '#888' }}
-          title={analysis.progress}
-        />
-        <div className="supervisor-history-item-content">
-          {agent && classConfig && (
-            <div className="supervisor-history-agent-line" onClick={handleAgentClick}>
-              <span className="supervisor-history-agent-icon"><AgentIcon classId={agent.class} size={14} /></span>
-              <span className="supervisor-history-agent-name">{agent.name}</span>
-              <span className="supervisor-history-time">{formatRelativeTime(entry.timestamp)}</span>
-            </div>
-          )}
-          <div className="supervisor-history-status">{statusDescription}</div>
-        </div>
-        {!agent && (
-          <span className="supervisor-history-time">{formatRelativeTime(entry.timestamp)}</span>
-        )}
-      </div>
-      {expanded && (
-        <div className="supervisor-history-item-details">
-          <div className="supervisor-history-summary">
-            <strong>{t('labels.summary')}:</strong> {recentWorkSummary}
-          </div>
-          {concerns && concerns.length > 0 && (
-            <div className="supervisor-history-concerns">
-              <strong>{t('labels.concerns')}:</strong>
-              <ul>
-                {concerns.map((concern, i) => (
-                  <li key={i}>{concern}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-});
-
-// ============================================================================
 // BossAgentSection Component
 // ============================================================================
 
@@ -1150,7 +1035,6 @@ const LinkToBossSection = memo(function LinkToBossSection({ agentId }: LinkToBos
 });
 
 export {
-  SupervisorHistoryItem,
   BossAgentSection,
   DelegationDecisionItem,
   SubordinateBadge,

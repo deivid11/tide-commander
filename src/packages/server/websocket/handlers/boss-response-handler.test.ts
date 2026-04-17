@@ -28,6 +28,7 @@ vi.mock('../../utils/index.js', () => ({
       warn: vi.fn(),
     },
   },
+  getCommanderBaseUrl: vi.fn(() => 'http://localhost:6200'),
 }));
 
 vi.mock('./command-handler.js', () => ({

@@ -57,7 +57,7 @@ A command palette for quick navigation:
 - **Agent search** - Find by name, class, current task, or modified files
 - **Area search** - Jump to project areas
 - **File search** - Find files modified across all agents
-- **Command search** - Quick actions (spawn agent, open settings, toggle supervisor)
+- **Command search** - Quick actions (spawn agent, open settings)
 - Fuzzy matching with keyboard navigation
 
 ## Group Areas

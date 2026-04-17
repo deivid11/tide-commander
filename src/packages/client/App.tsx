@@ -10,20 +10,16 @@ import {
   useSelectedAreaId,
   useActiveTool,
   useSettings,
-  useSupervisorGeneratingReport,
   useMobileView,
   useViewMode,
   useExplorerFolderPath,
   useFileViewerPath,
   useContextModalAgentId,
   useTerminalOpen,
-  useSnapshotsLoading,
-  useSnapshotsError,
 } from './store';
 import { ToastProvider, useToast } from './components/Toast';
 import { AgentNotificationProvider, useAgentNotification } from './components/AgentNotificationToast';
 import { UnitPanel } from './components/UnitPanel';
-import { ToolHistory } from './components/ToolHistory';
 import { TrackingBoard } from './components/ClaudeOutputPanel/TrackingBoard';
 import { type SceneConfig } from './components/toolbox';
 import { GuakeOutputPanel } from './components/ClaudeOutputPanel';
@@ -47,9 +43,7 @@ import { ViewModeToggle } from './components/ViewModeToggle/ViewModeToggle';
 import { MobileFabMenu } from './components/MobileFabMenu';
 import { FloatingActionButtons } from './components/FloatingActionButtons';
 import { AppModals } from './components/AppModals';
-import { PiPWindow, AgentsPiPView } from './components/PiPWindow';
 const IframeModal = React.lazy(() => import('./components/IframeModal').then(m => ({ default: m.IframeModal })));
-const SaveSnapshotModal = React.lazy(() => import('./components/SaveSnapshotModal').then(m => ({ default: m.SaveSnapshotModal })));
 import { NotConnectedOverlay } from './components/NotConnectedOverlay';
 import { OnboardingModal } from './components/OnboardingModal';
 import { profileRender, useRenderCounter } from './utils/profiling';
@@ -67,7 +61,6 @@ import {
   usePowerSaving,
   useKeyboardShortcuts,
   useBackNavigation,
-  useDocumentPiP,
   useBuildingGitStatus,
   useModalClose,
   subscribeToSceneRefresh,
@@ -92,7 +85,6 @@ function AppContent() {
   const toolboxModal = useModalState();
   const commanderModal = useModalState();
   const deleteConfirmModal = useModalState();
-  const supervisorModal = useModalState();
   const spotlightModal = useModalState();
   const controlsModal = useModalState();
   const skillsModal = useModalState();
@@ -102,13 +94,10 @@ function AppContent() {
   const triggerManagerModal = useModalState();
   const buildingModal = useModalState<string | null>();
   const agentEditModal = useModalState<string>();
-  const snapshotsModal = useModalState();
-  const saveSnapshotModal = useModalState();
   const restoreArchivedModal = useModalState<{ x: number; z: number } | null>();
   const explorerModal = useModalStateWithId();
   const explorerFolderPath = useExplorerFolderPath();
   const contextMenu = useContextMenu();
-  const pip = useDocumentPiP(); // Document Picture-in-Picture for agents view
   const [iframeModalUrl, setIframeModalUrl] = useState<string | null>(null);
   const isWorkspaceSwitching = useWorkspaceSwitching();
   const [isOrganizing, setIsOrganizing] = useState(false);
@@ -238,9 +227,6 @@ function AppContent() {
   const selectedAreaId = useSelectedAreaId();
   const activeTool = useActiveTool();
   const settings = useSettings();
-  const supervisorGeneratingReport = useSupervisorGeneratingReport();
-  const snapshotsLoading = useSnapshotsLoading();
-  const snapshotsError = useSnapshotsError();
   const selectedAgentIdsArray = useMemo(() => Array.from(selectedAgentIds), [selectedAgentIds]);
   const deepLinkHandledRef = useRef(false);
 
@@ -331,7 +317,6 @@ function AppContent() {
   useModalStackRegistration('toolbox-modal', toolboxModal.isOpen, toolboxModal.close);
   useModalStackRegistration('commander-modal', commanderModal.isOpen, commanderModal.close);
   useModalStackRegistration('delete-confirm-modal', deleteConfirmModal.isOpen, deleteConfirmModal.close);
-  useModalStackRegistration('supervisor-modal', supervisorModal.isOpen, supervisorModal.close);
   useModalStackRegistration('spotlight-modal', spotlightModal.isOpen, spotlightModal.close);
   useModalStackRegistration('controls-modal', controlsModal.isOpen, controlsModal.close);
   useModalStackRegistration('skills-modal', skillsModal.isOpen, skillsModal.close);
@@ -341,8 +326,6 @@ function AppContent() {
   useModalStackRegistration('trigger-manager-modal', triggerManagerModal.isOpen, triggerManagerModal.close);
   useModalStackRegistration('building-modal', buildingModal.isOpen, buildingModal.close);
   useModalStackRegistration('agent-edit-modal', agentEditModal.isOpen, agentEditModal.close);
-  useModalStackRegistration('snapshots-modal', snapshotsModal.isOpen, snapshotsModal.close);
-  useModalStackRegistration('save-snapshot-modal', saveSnapshotModal.isOpen, saveSnapshotModal.close);
   useModalStackRegistration('explorer-modal', explorerModal.isOpen || explorerFolderPath !== null, () => {
     explorerModal.close();
     store.closeFileExplorer();
@@ -629,7 +612,6 @@ function AppContent() {
   const handleMobileMenuToggle = useCallback(() => setMobileMenuOpen(prev => !prev), []);
   const handleShowTerminal = useCallback(() => store.setMobileView('terminal'), []);
   const handleOpenSidebar = useCallback(() => setSidebarOpen(true), []);
-  const canTakeSnapshot = selectedAgentIdsArray.length === 1 && store.getOutputs(selectedAgentIdsArray[0]).length > 0;
 
   return (
     <div className={`app ${terminalOpen ? 'terminal-open' : ''} ${isDrawingMode ? 'drawing-mode' : ''} ${sidebarCollapsed ? 'sidebar-collapsed' : ''} mobile-view-${mobileView} view-mode-${viewMode}`}>
@@ -853,12 +835,8 @@ function AppContent() {
           onOpenSidebar={handleOpenSidebar}
           onOpenToolbox={toolboxModal.open}
           onOpenCommander={commanderModal.open}
-          onOpenSupervisor={supervisorModal.open}
           onOpenControls={controlsModal.open}
           onOpenSkills={skillsModal.open}
-          onOpenSnapshots={snapshotsModal.open}
-          onTakeSnapshot={saveSnapshotModal.open}
-          canTakeSnapshot={canTakeSnapshot}
           mobileView={mobileView}
         />
 
@@ -959,24 +937,6 @@ function AppContent() {
                 />
               </div>
             </div>
-          ) : selectedAgentIdsArray.length > 0 ? (
-            <>
-              <div className="sidebar-section unit-section">
-                <Profiler id="UnitPanel" onRender={profileRender}>
-                  <UnitPanel
-                    onFocusAgent={handleFocusAgent}
-                    onKillAgent={handleKillAgent}
-                    onCallSubordinates={handleCallSubordinates}
-                    onOpenAreaExplorer={handleOpenAreaExplorer}
-                  />
-                </Profiler>
-              </div>
-              <div className="sidebar-section tool-history-section">
-                <Profiler id="ToolHistory" onRender={profileRender}>
-                  <ToolHistory agentIds={selectedAgentIdsArray} />
-                </Profiler>
-              </div>
-            </>
           ) : (
             <div className="sidebar-section unit-section">
               <Profiler id="UnitPanel" onRender={profileRender}>
@@ -993,7 +953,7 @@ function AppContent() {
 
         {/* Guake-style dropdown terminal */}
         <Profiler id="GuakeOutputPanel" onRender={profileRender}>
-          <GuakeOutputPanel onSaveSnapshot={saveSnapshotModal.open} />
+          <GuakeOutputPanel />
         </Profiler>
       </main>
 
@@ -1001,12 +961,12 @@ function AppContent() {
       <FloatingActionButtons
         onOpenToolbox={toolboxModal.open}
         onOpenCommander={commanderModal.open}
-        onOpenSupervisor={supervisorModal.open}
         onOpenControls={controlsModal.open}
         onOpenSkills={skillsModal.open}
-        onOpenSnapshots={snapshotsModal.open}
-        isGeneratingReport={supervisorGeneratingReport}
-        pip={pip}
+        onSpawnAgent={spawnModal.open}
+        onSpawnBoss={bossSpawnModal.open}
+        onNewBuilding={handleNewBuilding}
+        onNewArea={handleNewArea}
       />
 
       {/* Drawing Mode Indicator */}
@@ -1185,11 +1145,6 @@ function AppContent() {
         );
       })()}
 
-      {/* PiP Window with Agents View */}
-      <PiPWindow pip={pip} title="Tide Commander - Agents">
-        <AgentsPiPView />
-      </PiPWindow>
-
       {/* Iframe Modal for port URLs */}
       <IframeModal
         url={iframeModalUrl || ''}
@@ -1197,51 +1152,6 @@ function AppContent() {
         isOpen={!!iframeModalUrl}
         onClose={handleCloseIframeModal}
       />
-
-      {/* Save Snapshot Modal */}
-      {saveSnapshotModal.isOpen && selectedAgentIdsArray.length === 1 && (() => {
-        const agentId = selectedAgentIdsArray[0];
-        const agent = store.getState().agents.get(agentId);
-        if (!agent) return null;
-        const outputs = store.getOutputs(agentId);
-        return (
-          <SaveSnapshotModal
-            isOpen={saveSnapshotModal.isOpen}
-            onClose={saveSnapshotModal.close}
-            agent={agent}
-            outputCount={outputs.length}
-            onSave={async (request) => {
-              try {
-                // Convert ClaudeOutput objects to snapshot output format
-                const snapshotOutputs = outputs.map((output) => ({
-                  type: 'message',
-                  content: output.text,
-                  timestamp: new Date(output.timestamp).toISOString(),
-                }));
-
-                // Create snapshot with store action
-                await store.createSnapshot(
-                  request.agentId,
-                  agent.name,
-                  request.title,
-                  request.description,
-                  snapshotOutputs,
-                  [] // Files will be captured by backend file tracking service
-                );
-
-                // Close modal and show success
-                saveSnapshotModal.close();
-                showToast('success', t('notifications:toast.snapshotSaved'), t('notifications:toast.snapshotSavedMsg'));
-              } catch (error) {
-                const message = error instanceof Error ? error.message : t('notifications:toast.snapshotFailedMsg');
-                showToast('error', t('notifications:toast.snapshotFailed'), message);
-              }
-            }}
-            isSaving={snapshotsLoading}
-            error={snapshotsError || undefined}
-          />
-        );
-      })()}
 
       {/* Bottom Agent Bar */}
       <AgentBar
@@ -1260,7 +1170,6 @@ function AppContent() {
         toolboxModal={toolboxModal}
         commanderModal={commanderModal}
         deleteConfirmModal={deleteConfirmModal}
-        supervisorModal={supervisorModal}
         spotlightModal={spotlightModal}
         controlsModal={controlsModal}
         skillsModal={skillsModal}
@@ -1271,7 +1180,6 @@ function AppContent() {
         buildingModal={buildingModal}
         buildingInitialPosition={buildingInitialPosition}
         agentEditModal={agentEditModal}
-        snapshotsModal={snapshotsModal}
         restoreArchivedModal={restoreArchivedModal}
         explorerModal={explorerModal}
         contextMenu={contextMenu}

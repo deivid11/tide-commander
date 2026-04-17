@@ -4,8 +4,6 @@
     "closeSidebar": "Fechar barra lateral",
     "showAgentInfo": "Mostrar info do agente",
     "hideAgentInfo": "Ocultar info do agente",
-    "saveSnapshot": "Salvar Snapshot",
-    "saveSnapshotDesc": "Capturar esta conversa e todos os arquivos criados/modificados por este agente",
     "showOverview": "Mostrar Visao Geral do Agente",
     "hideOverview": "Ocultar Visao Geral do Agente",
     "showDebug": "Mostrar Painel de Depuracao",
@@ -98,7 +96,16 @@
     "created": "Criado",
     "detached": "Desanexado",
     "yes": "Sim",
-    "no": "Nao"
+    "no": "Nao",
+    "injectedPrompt": "Prompt injetado",
+    "injectedPromptShow": "Mostrar",
+    "injectedPromptHide": "Ocultar",
+    "injectedPromptCopy": "Copiar",
+    "injectedPromptCopied": "Copiado",
+    "injectedPromptRefresh": "Atualizar",
+    "injectedPromptLoading": "Carregando prompt…",
+    "injectedPromptError": "Falha ao carregar prompt: {{error}}",
+    "injectedPromptLength": "{{chars}} caracteres · ~{{tokens}} tok"
   },
   "empty": {
     "tapAgent": "Toque em um agente no campo de batalha para ver o terminal",
@@ -432,48 +439,6 @@
     "matchesInFiles": "{{matches}} em {{files}} arquivos",
     "moreMatches": "e mais {{count}} correspondencias"
   },
-  "snapshot": {
-    "title": "Snapshots",
-    "save": "Salvar Snapshot",
-    "load": "Carregar Snapshot",
-    "delete": "Excluir Snapshot",
-    "name": "Nome do snapshot",
-    "namePlaceholder": "Digite o nome do snapshot...",
-    "description": "Descricao",
-    "descriptionPlaceholder": "Descreva este snapshot...",
-    "noSnapshots": "Nenhum snapshot salvo",
-    "created": "Criado {{date}}",
-    "restore": "Restaurar este snapshot?",
-    "deleteConfirm": "Excluir este snapshot?",
-    "searchPlaceholder": "Pesquisar snapshots...",
-    "sortDate": "Data",
-    "sortTitle": "Titulo",
-    "sortAgent": "Agente",
-    "loadingSnapshots": "Carregando snapshots...",
-    "noSnapshotsMatch": "Nenhum snapshot corresponde a sua pesquisa",
-    "noSnapshotsYet": "Nenhum snapshot ainda",
-    "snapshotHint": "Clique no botao de estrela no cabecalho do terminal para salvar um snapshot",
-    "restoreFiles": "Restaurar arquivos",
-    "exportSnapshot": "Exportar snapshot",
-    "deleteSnapshot": "Excluir snapshot",
-    "whatWillBeCaptured": "O que sera capturado",
-    "messages": "mensagens",
-    "files": "arquivos",
-    "createdLabel": "Criado",
-    "modified": "Modificado",
-    "more": "+{{count}} mais",
-    "noFilesChanged": "Nenhum arquivo criado ou modificado nesta conversa",
-    "saving": "Salvando...",
-    "enterTitle": "Digite um titulo para este snapshot",
-    "whatWasAccomplished": "O que foi realizado nesta conversa?",
-    "viewingSnapshot": "Visualizando Snapshot",
-    "conversationMessages": "Conversa ({{count}} mensagens)",
-    "noConversation": "Nenhum dado de conversa neste snapshot",
-    "fileChanges": "Alteracoes de Arquivos",
-    "createdFiles": "Criados ({{count}})",
-    "modifiedFiles": "Modificados ({{count}})",
-    "noFileChanges": "Nenhuma alteracao de arquivo neste snapshot"
-  },
   "database": {
     "title": "Banco de Dados",
     "query": "Consulta",
@@ -543,47 +508,12 @@
     "lastPage": "Ultima pagina",
     "pageInfo": "Pagina {{current}} de {{total}}"
   },
-  "supervisor": {
-    "title": "Supervisor",
-    "subordinates": "Subordinados",
-    "noSubordinates": "Sem subordinados",
-    "assignTask": "Atribuir Tarefa",
-    "taskHistory": "Historico de Tarefas",
-    "startAll": "Iniciar todos os subordinados",
-    "stopAll": "Parar todos os subordinados",
-    "delegateTo": "Delegar para...",
-    "overview": "Visao Geral do Supervisor",
-    "active": "Ativo",
-    "paused": "Pausado",
-    "auto": "Automatico",
-    "manual": "Manual",
-    "generating": "Gerando...",
-    "generatingReport": "Gerando relatorio do supervisor...",
-    "noReportYet": "Nenhum relatorio do supervisor disponivel ainda.",
-    "generateFirstReport": "Gerar Primeiro Relatorio",
-    "lastReport": "Ultimo relatorio: {{time}}",
-    "autoUpdates": "Atualizacao automatica ao completar tarefa",
-    "manualUpdates": "Somente atualizacoes manuais",
-    "allSystemsHealthy": "Todos os Sistemas Saudaveis",
-    "attentionNeeded": "Atencao Necessaria",
-    "criticalIssues": "Problemas Criticos Detectados",
-    "keyInsights": "Principais Observacoes",
-    "agentStatus": "Status do Agente",
-    "recommendations": "Recomendacoes",
-    "claudeApiUsage": "Uso da API Claude",
-    "noUsageData": "Nenhum dado de uso ainda",
-    "fetchUsage": "Buscar Uso",
-    "fetching": "Buscando...",
-    "session": "Sessao",
-    "weeklyAll": "Semanal (Todos)",
-    "weeklySonnet": "Semanal (Sonnet)",
-    "resets": "Reseta {{time}}",
-    "autoUpdatesOnComplete": "Atualizacao automatica ao completar tarefa",
-    "manualUpdatesOnly": "Somente atualizacoes manuais",
+  "team": {
     "manageTeam": "Gerenciar Equipe",
-    "assignSubordinates": "Atribuir Subordinados",
+    "selectAgents": "Selecione agentes para atribuir como subordinados",
     "noAgentsAvailable": "Nenhum agente disponivel para atribuicao",
-    "selectAgents": "Selecione agentes para atribuir como subordinados"
+    "subordinates": "Subordinados",
+    "saveTeam": "Salvar Equipe"
   },
   "context": {
     "contextWindow": "Janela de Contexto: {{name}}",
@@ -679,69 +609,221 @@
       "forward": "Botao Avancar"
     },
     "mouseBindings": {
-      "left-click-select": { "name": "Selecionar ou Clicar", "description": "Selecionar agentes e clicar em edificios ou areas" },
-      "left-drag-selection": { "name": "Caixa de Selecao", "description": "Arraste para selecionar multiplos agentes" },
-      "right-click-context": { "name": "Menu de Contexto ou Mover", "description": "Abrir menu de contexto ou mover agentes selecionados" },
-      "alt-right-drag-pan": { "name": "Pan da Camera", "description": "Pan da camera com Alt + arrastar direito" },
-      "middle-drag-orbit": { "name": "Orbita da Camera", "description": "Orbitar camera com arrastar do meio" },
-      "shift-middle-drag-pan": { "name": "Pan Alternativo da Camera", "description": "Pan alternativo com Shift + arrastar do meio" },
-      "wheel-zoom": { "name": "Zoom", "description": "Zoom da camera com roda de rolagem" }
+      "left-click-select": {
+        "name": "Selecionar ou Clicar",
+        "description": "Selecionar agentes e clicar em edificios ou areas"
+      },
+      "left-drag-selection": {
+        "name": "Caixa de Selecao",
+        "description": "Arraste para selecionar multiplos agentes"
+      },
+      "right-click-context": {
+        "name": "Menu de Contexto ou Mover",
+        "description": "Abrir menu de contexto ou mover agentes selecionados"
+      },
+      "alt-right-drag-pan": {
+        "name": "Pan da Camera",
+        "description": "Pan da camera com Alt + arrastar direito"
+      },
+      "middle-drag-orbit": {
+        "name": "Orbita da Camera",
+        "description": "Orbitar camera com arrastar do meio"
+      },
+      "shift-middle-drag-pan": {
+        "name": "Pan Alternativo da Camera",
+        "description": "Pan alternativo com Shift + arrastar do meio"
+      },
+      "wheel-zoom": {
+        "name": "Zoom",
+        "description": "Zoom da camera com roda de rolagem"
+      }
     },
     "shortcuts": {
-      "toggle-commander": { "name": "Alternar Comandante", "description": "Abrir ou fechar a Visao do Comandante" },
-      "toggle-commander-tab": { "name": "Alternar Aba do Comandante", "description": "Abrir ou fechar a Visao do Comandante com Tab" },
-      "spawn-agent": { "name": "Criar Agente", "description": "Abrir modal de criacao de novo agente" },
-      "select-agent-1": { "name": "Selecionar Agente 1", "description": "Selecionar primeiro agente" },
-      "select-agent-2": { "name": "Selecionar Agente 2", "description": "Selecionar segundo agente" },
-      "select-agent-3": { "name": "Selecionar Agente 3", "description": "Selecionar terceiro agente" },
-      "select-agent-4": { "name": "Selecionar Agente 4", "description": "Selecionar quarto agente" },
-      "select-agent-5": { "name": "Selecionar Agente 5", "description": "Selecionar quinto agente" },
-      "select-agent-6": { "name": "Selecionar Agente 6", "description": "Selecionar sexto agente" },
-      "select-agent-7": { "name": "Selecionar Agente 7", "description": "Selecionar setimo agente" },
-      "select-agent-8": { "name": "Selecionar Agente 8", "description": "Selecionar oitavo agente" },
-      "select-agent-9": { "name": "Selecionar Agente 9", "description": "Selecionar nono agente" },
-      "delete-selected": { "name": "Excluir Selecionados", "description": "Remover agentes selecionados" },
-      "delete-selected-backspace": { "name": "Excluir Selecionados Backspace", "description": "Remover agentes selecionados" },
-      "deselect-all": { "name": "Desmarcar Todos", "description": "Limpar selecao de agentes" },
-      "open-terminal": { "name": "Abrir Terminal", "description": "Abrir terminal para o agente selecionado" },
-      "dashboard-selector-toggle": { "name": "Seletor do Painel", "description": "Ativar seletor de cartoes do painel" },
-      "dashboard-vim-left": { "name": "Painel Esquerda", "description": "Mover seletor do painel para a esquerda" },
-      "dashboard-vim-down": { "name": "Painel Baixo", "description": "Mover seletor do painel para baixo" },
-      "dashboard-vim-up": { "name": "Painel Cima", "description": "Mover seletor do painel para cima" },
-      "dashboard-vim-right": { "name": "Painel Direita", "description": "Mover seletor do painel para a direita" },
-      "next-agent": { "name": "Proximo Agente", "description": "Selecionar proximo agente no campo de batalha" },
-      "prev-agent": { "name": "Agente Anterior", "description": "Selecionar agente anterior no campo de batalha" },
-      "next-working-agent": { "name": "Proximo Agente Trabalhando", "description": "Selecionar proximo agente trabalhando no campo de batalha" },
-      "prev-working-agent": { "name": "Agente Trabalhando Anterior", "description": "Selecionar agente trabalhando anterior no campo de batalha" },
-      "next-message": { "name": "Proxima Mensagem", "description": "Navegar para a proxima mensagem do terminal" },
-      "prev-message": { "name": "Mensagem Anterior", "description": "Navegar para a mensagem anterior do terminal" },
-      "page-down-messages": { "name": "Avanco de Pagina Mensagens", "description": "Pular 10 mensagens do terminal para baixo" },
-      "page-up-messages": { "name": "Retorno de Pagina Mensagens", "description": "Pular 10 mensagens do terminal para cima" },
-      "next-agent-terminal": { "name": "Proximo Agente no Terminal", "description": "Mudar para o proximo agente no terminal" },
-      "prev-agent-terminal": { "name": "Agente Anterior no Terminal", "description": "Mudar para o agente anterior no terminal" },
-      "activate-message": { "name": "Ativar Mensagem", "description": "Ativar elemento interativo na mensagem selecionada" },
-      "toggle-file-explorer": { "name": "Alternar Explorador de Arquivos", "description": "Abrir ou fechar explorador de arquivos" },
-      "file-explorer-close-tab": { "name": "Fechar Aba de Arquivo", "description": "Fechar aba ativa no explorador de arquivos" },
-      "toggle-spotlight": { "name": "Alternar Spotlight", "description": "Abrir ou fechar pesquisa global" },
-      "toggle-2d-view": { "name": "Alternar Modo de Visualizacao", "description": "Alternar entre visualizacoes 3D, 2D e Painel" },
-      "commander-close": { "name": "Fechar Comandante", "description": "Fechar a Visao do Comandante" },
-      "commander-vim-left": { "name": "Navegar Esquerda", "description": "Mover foco para a esquerda Vim H" },
-      "commander-vim-down": { "name": "Navegar Baixo", "description": "Mover foco para baixo Vim J" },
-      "commander-vim-up": { "name": "Navegar Cima", "description": "Mover foco para cima Vim K" },
-      "commander-vim-right": { "name": "Navegar Direita", "description": "Mover foco para a direita Vim L" },
-      "commander-expand": { "name": "Expandir Recolher", "description": "Alternar expansao do agente" },
-      "commander-new-agent": { "name": "Novo Agente", "description": "Abrir formulario de criacao no comandante" },
-      "commander-next-tab": { "name": "Proxima Aba", "description": "Mudar para a proxima aba de area" },
-      "commander-prev-tab": { "name": "Aba Anterior", "description": "Mudar para a aba de area anterior" },
-      "toolbox-close": { "name": "Fechar Caixa de Ferramentas", "description": "Fechar painel de configuracoes" }
+      "toggle-commander": {
+        "name": "Alternar Comandante",
+        "description": "Abrir ou fechar a Visao do Comandante"
+      },
+      "toggle-commander-tab": {
+        "name": "Alternar Aba do Comandante",
+        "description": "Abrir ou fechar a Visao do Comandante com Tab"
+      },
+      "spawn-agent": {
+        "name": "Criar Agente",
+        "description": "Abrir modal de criacao de novo agente"
+      },
+      "select-agent-1": {
+        "name": "Selecionar Agente 1",
+        "description": "Selecionar primeiro agente"
+      },
+      "select-agent-2": {
+        "name": "Selecionar Agente 2",
+        "description": "Selecionar segundo agente"
+      },
+      "select-agent-3": {
+        "name": "Selecionar Agente 3",
+        "description": "Selecionar terceiro agente"
+      },
+      "select-agent-4": {
+        "name": "Selecionar Agente 4",
+        "description": "Selecionar quarto agente"
+      },
+      "select-agent-5": {
+        "name": "Selecionar Agente 5",
+        "description": "Selecionar quinto agente"
+      },
+      "select-agent-6": {
+        "name": "Selecionar Agente 6",
+        "description": "Selecionar sexto agente"
+      },
+      "select-agent-7": {
+        "name": "Selecionar Agente 7",
+        "description": "Selecionar setimo agente"
+      },
+      "select-agent-8": {
+        "name": "Selecionar Agente 8",
+        "description": "Selecionar oitavo agente"
+      },
+      "select-agent-9": {
+        "name": "Selecionar Agente 9",
+        "description": "Selecionar nono agente"
+      },
+      "delete-selected": {
+        "name": "Excluir Selecionados",
+        "description": "Remover agentes selecionados"
+      },
+      "delete-selected-backspace": {
+        "name": "Excluir Selecionados Backspace",
+        "description": "Remover agentes selecionados"
+      },
+      "deselect-all": {
+        "name": "Desmarcar Todos",
+        "description": "Limpar selecao de agentes"
+      },
+      "open-terminal": {
+        "name": "Abrir Terminal",
+        "description": "Abrir terminal para o agente selecionado"
+      },
+      "dashboard-selector-toggle": {
+        "name": "Seletor do Painel",
+        "description": "Ativar seletor de cartoes do painel"
+      },
+      "dashboard-vim-left": {
+        "name": "Painel Esquerda",
+        "description": "Mover seletor do painel para a esquerda"
+      },
+      "dashboard-vim-down": {
+        "name": "Painel Baixo",
+        "description": "Mover seletor do painel para baixo"
+      },
+      "dashboard-vim-up": {
+        "name": "Painel Cima",
+        "description": "Mover seletor do painel para cima"
+      },
+      "dashboard-vim-right": {
+        "name": "Painel Direita",
+        "description": "Mover seletor do painel para a direita"
+      },
+      "next-agent": {
+        "name": "Proximo Agente",
+        "description": "Selecionar proximo agente no campo de batalha"
+      },
+      "prev-agent": {
+        "name": "Agente Anterior",
+        "description": "Selecionar agente anterior no campo de batalha"
+      },
+      "next-working-agent": {
+        "name": "Proximo Agente Trabalhando",
+        "description": "Selecionar proximo agente trabalhando no campo de batalha"
+      },
+      "prev-working-agent": {
+        "name": "Agente Trabalhando Anterior",
+        "description": "Selecionar agente trabalhando anterior no campo de batalha"
+      },
+      "next-message": {
+        "name": "Proxima Mensagem",
+        "description": "Navegar para a proxima mensagem do terminal"
+      },
+      "prev-message": {
+        "name": "Mensagem Anterior",
+        "description": "Navegar para a mensagem anterior do terminal"
+      },
+      "page-down-messages": {
+        "name": "Avanco de Pagina Mensagens",
+        "description": "Pular 10 mensagens do terminal para baixo"
+      },
+      "page-up-messages": {
+        "name": "Retorno de Pagina Mensagens",
+        "description": "Pular 10 mensagens do terminal para cima"
+      },
+      "next-agent-terminal": {
+        "name": "Proximo Agente no Terminal",
+        "description": "Mudar para o proximo agente no terminal"
+      },
+      "prev-agent-terminal": {
+        "name": "Agente Anterior no Terminal",
+        "description": "Mudar para o agente anterior no terminal"
+      },
+      "activate-message": {
+        "name": "Ativar Mensagem",
+        "description": "Ativar elemento interativo na mensagem selecionada"
+      },
+      "toggle-file-explorer": {
+        "name": "Alternar Explorador de Arquivos",
+        "description": "Abrir ou fechar explorador de arquivos"
+      },
+      "file-explorer-close-tab": {
+        "name": "Fechar Aba de Arquivo",
+        "description": "Fechar aba ativa no explorador de arquivos"
+      },
+      "toggle-spotlight": {
+        "name": "Alternar Spotlight",
+        "description": "Abrir ou fechar pesquisa global"
+      },
+      "toggle-2d-view": {
+        "name": "Alternar Modo de Visualizacao",
+        "description": "Alternar entre visualizacoes 3D, 2D e Painel"
+      },
+      "commander-close": {
+        "name": "Fechar Comandante",
+        "description": "Fechar a Visao do Comandante"
+      },
+      "commander-vim-left": {
+        "name": "Navegar Esquerda",
+        "description": "Mover foco para a esquerda Vim H"
+      },
+      "commander-vim-down": {
+        "name": "Navegar Baixo",
+        "description": "Mover foco para baixo Vim J"
+      },
+      "commander-vim-up": {
+        "name": "Navegar Cima",
+        "description": "Mover foco para cima Vim K"
+      },
+      "commander-vim-right": {
+        "name": "Navegar Direita",
+        "description": "Mover foco para a direita Vim L"
+      },
+      "commander-expand": {
+        "name": "Expandir Recolher",
+        "description": "Alternar expansao do agente"
+      },
+      "commander-new-agent": {
+        "name": "Novo Agente",
+        "description": "Abrir formulario de criacao no comandante"
+      },
+      "commander-next-tab": {
+        "name": "Proxima Aba",
+        "description": "Mudar para a proxima aba de area"
+      },
+      "commander-prev-tab": {
+        "name": "Aba Anterior",
+        "description": "Mudar para a aba de area anterior"
+      },
+      "toolbox-close": {
+        "name": "Fechar Caixa de Ferramentas",
+        "description": "Fechar painel de configuracoes"
+      }
     }
-  },
-  "toolHistory": {
-    "tools": "Ferramentas",
-    "filesSection": "Arquivos",
-    "noToolsYet": "Nenhuma ferramenta executada ainda",
-    "noFileChangesYet": "Nenhuma alteracao de arquivo ainda",
-    "viewFile": "Ver Arquivo"
   },
   "logs": {
     "title": "Logs",
@@ -866,14 +948,14 @@
   },
   "commander": {
     "title": "Visao do Comandante",
-    "shortcuts": "Tab troca areas \u2022 \u2325H/J/K/L nav \u2022 \u2325O expandir \u2022 \u2325N novo",
+    "shortcuts": "Tab troca areas • ⌥H/J/K/L nav • ⌥O expandir • ⌥N novo",
     "advanced": "Avancado",
     "simple": "Simples",
     "addAgent": "+ Adicionar Agente",
     "close": "Fechar (Esc)",
-    "noAgentsAll": "Nenhum agente implantado. Pressione \u2325N para adicionar um agente.",
+    "noAgentsAll": "Nenhum agente implantado. Pressione ⌥N para adicionar um agente.",
     "noAgentsUnassigned": "Nenhum agente nao atribuido.",
-    "noAgentsArea": "Nenhum agente nesta area. Pressione \u2325N para adicionar um.",
+    "noAgentsArea": "Nenhum agente nesta area. Pressione ⌥N para adicionar um.",
     "unassigned": "Nao atribuido",
     "page": "Pagina {{current}} de {{total}} ({{count}} agentes)",
     "prev": "Anterior",
@@ -907,8 +989,7 @@
     "spotlight": "Spotlight",
     "closeMenu": "Fechar menu",
     "openMenu": "Abrir menu",
-    "showTerminal": "Mostrar Terminal",
-    "takeSnapshot": "Tirar Snapshot"
+    "showTerminal": "Mostrar Terminal"
   },
   "building": {
     "unitsCount": "{{count}} unidades",
@@ -1035,5 +1116,13 @@
   "content": {
     "clickToViewImage": "Clique para ver a imagem",
     "clickToViewFile": "Clique para ver o arquivo: {{path}}"
+  },
+  "trackingStatus": {
+    "label": "Status de rastreamento",
+    "need-review": "Trabalho concluído aguardando revisão",
+    "blocked": "Não pode prosseguir",
+    "can-clear-context": "Totalmente concluído — contexto pode ser limpo",
+    "waiting-subordinates": "Aguardando trabalho delegado",
+    "working": "Trabalhando"
   }
 }

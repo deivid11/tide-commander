@@ -10,7 +10,7 @@ import { createServer as createHttpsServer } from 'https';
 import fs from 'node:fs';
 import type { Socket } from 'node:net';
 import { createApp } from './app.js';
-import { agentService, runtimeService, supervisorService, bossService, skillService, customClassService, secretsService, buildingService, eventRetentionService, triggerService, workflowService } from './services/index.js';
+import { agentService, runtimeService, bossService, skillService, customClassService, secretsService, buildingService, eventRetentionService, triggerService, workflowService } from './services/index.js';
 import * as websocket from './websocket/handler.js';
 import { getDataDir } from './data/index.js';
 import { initEventDb, closeEventDb } from './data/event-db.js';
@@ -73,7 +73,6 @@ async function main(): Promise<void> {
   agentService.initAgents();
   agentService.initSessionHistory();
   runtimeService.init();
-  supervisorService.init();
   bossService.init();
   skillService.initSkills();
   customClassService.initCustomClasses();
@@ -235,7 +234,6 @@ async function main(): Promise<void> {
       triggerService.shutdown();
       workflowService.shutdown();
       await shutdownIntegrations();
-      supervisorService.shutdown();
       bossService.shutdown();
       eventRetentionService.shutdown();
       buildingService.stopPM2StatusPolling();

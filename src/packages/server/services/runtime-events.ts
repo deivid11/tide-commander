@@ -1,9 +1,8 @@
-import type { ContextStats, GlobalUsageStats } from '../../shared/types.js';
+import type { ContextStats } from '../../shared/types.js';
 import type { SessionMessage } from '../claude/session-loader.js';
 import { loadSession } from '../claude/session-loader.js';
 import type { RuntimeEvent } from '../runtime/index.js';
 import * as agentService from './agent-service.js';
-import * as supervisorService from './supervisor-service.js';
 import {
   clearPendingSilentContextRefresh,
   consumeStepCompleteReceived,
@@ -42,7 +41,6 @@ interface RuntimeEventsDeps {
   ) => void;
   emitComplete: (agentId: string, success: boolean) => void;
   emitError: (agentId: string, error: string) => void;
-  parseUsageOutput: (raw: string) => Pick<GlobalUsageStats, 'session' | 'weeklyAllModels' | 'weeklySonnet'> | null;
   executeCommand: (
     agentId: string,
     command: string,
@@ -206,7 +204,6 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
     emitOutput,
     emitComplete,
     emitError,
-    parseUsageOutput,
     executeCommand,
     isAgentProcessActive,
   } = deps;
@@ -461,25 +458,8 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
 
       case 'context_stats':
         break;
-
-      case 'usage_stats':
-        console.log('[Claude] Received usage_stats event');
-        console.log('[Claude] usageStatsRaw:', event.usageStatsRaw?.substring(0, 200));
-        if (event.usageStatsRaw) {
-          const usageStats = parseUsageOutput(event.usageStatsRaw);
-          console.log('[Claude] Parsed usage stats:', usageStats);
-          if (usageStats) {
-            supervisorService.updateGlobalUsage(agentId, agent.name, usageStats);
-          } else {
-            console.log('[Claude] Failed to parse usage stats');
-          }
-        } else {
-          console.log('[Claude] No usageStatsRaw in event');
-        }
-        break;
     }
 
-    supervisorService.generateNarrative(agentId, event);
     emitEvent(agentId, event);
   }
 

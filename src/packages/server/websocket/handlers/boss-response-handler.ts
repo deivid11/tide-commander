@@ -7,7 +7,7 @@ import type { AgentClass, DelegationDecision, ServerMessage } from '../../../sha
 import { BUILT_IN_AGENT_CLASSES } from '../../../shared/agent-types.js';
 import { agentService, runtimeService, bossService, workPlanService } from '../../services/index.js';
 import { getAllCustomClasses } from '../../services/custom-class-service.js';
-import { logger } from '../../utils/index.js';
+import { logger, getCommanderBaseUrl } from '../../utils/index.js';
 import { getLastBossCommand, buildCustomAgentConfig } from './command-handler.js';
 
 const log = logger.ws;
@@ -331,7 +331,8 @@ export function parseBossDelegation(
       // Wrap the task command with boss delegation context so the subordinate knows:
       // - Who delegated the task (boss name + ID)
       // - That it should report back when done using the report-task endpoint
-      const delegatedMessage = `[DELEGATED TASK from boss "${bossName}" (${agentId})]\n\n${decision.userCommand}\n\n---\nThis task was delegated by your boss agent. When you finish, report completion using:\ncurl -s -X POST http://localhost:5174/api/agents/YOUR_AGENT_ID/report-task -H "Content-Type: application/json" -d '{"summary":"Brief result summary","status":"completed"}'`;
+      const baseUrl = getCommanderBaseUrl();
+      const delegatedMessage = `[DELEGATED TASK from boss "${bossName}" (${agentId})]\n\n${decision.userCommand}\n\n---\nThis task was delegated by your boss agent. When you finish, report completion using:\ncurl -s -X POST ${baseUrl}/api/agents/YOUR_AGENT_ID/report-task -H "Content-Type: application/json" -d '{"summary":"Brief result summary","status":"completed"}'`;
 
       runtimeService.sendCommand(decision.selectedAgentId, delegatedMessage, undefined, undefined, customAgentConfig)
         .catch(err => {

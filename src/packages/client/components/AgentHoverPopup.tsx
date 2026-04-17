@@ -1,7 +1,7 @@
 import React, { useMemo, memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { store, useCustomAgentClassesArray } from '../store';
-import type { Agent, AgentSupervisorHistoryEntry } from '../../shared/types';
+import type { Agent } from '../../shared/types';
 import { getClassConfig } from '../utils/classConfig';
 import { getAgentStatusColor } from '../utils/colors';
 import { TOOL_ICONS } from '../utils/outputRendering';
@@ -27,28 +27,12 @@ const formatTokens = (n: number) => {
   return n.toString();
 };
 
-const getProgressColor = (progress: string) => {
-  switch (progress) {
-    case 'on_track': return '#4aff9e';
-    case 'completed': return '#4a9eff';
-    case 'stalled': return '#ff9e4a';
-    case 'blocked': return '#ff4a4a';
-    case 'idle': return '#888888';
-    default: return '#888888';
-  }
-};
-
 export const AgentHoverPopup = memo(function AgentHoverPopup({ agent, screenPos, onClose }: AgentHoverPopupProps) {
   const { t } = useTranslation(['common']);
   const customClasses = useCustomAgentClassesArray();
   const area = store.getAreaForAgent(agent.id);
   const lastPrompt = store.getState().lastPrompts.get(agent.id);
   const config = getClassConfig(agent.class, customClasses);
-
-  // Get last supervisor analysis for this agent
-  const supervisorHistory = store.getAgentSupervisorHistory(agent.id);
-  const lastSupervisorEntry: AgentSupervisorHistoryEntry | undefined =
-    supervisorHistory.length > 0 ? supervisorHistory[supervisorHistory.length - 1] : undefined;
 
   // Format uptime
   const uptimeMs = Date.now() - (agent.createdAt || Date.now());
@@ -189,44 +173,6 @@ export const AgentHoverPopup = memo(function AgentHoverPopup({ agent, screenPos,
               {lastPrompt.text.length > 300 ? '...' : ''}
             </span>
           </div>
-        )}
-        {/* Supervisor Analysis Section */}
-        {lastSupervisorEntry && (
-          <>
-            <div className="agent-bar-tooltip-divider" />
-            <div className="agent-bar-tooltip-row">
-              <span className="agent-bar-tooltip-label">{t('common:agentPopup.supervisor')}:</span>
-              <span
-                className="agent-bar-tooltip-value"
-                style={{ color: getProgressColor(lastSupervisorEntry.analysis.progress) }}
-              >
-                {lastSupervisorEntry.analysis.progress.replace('_', ' ')}
-              </span>
-            </div>
-            <div className="agent-bar-tooltip-row">
-              <span className="agent-bar-tooltip-label">{t('common:labels.status')}:</span>
-              <span className="agent-bar-tooltip-value agent-bar-tooltip-supervisor">
-                {lastSupervisorEntry.analysis.statusDescription}
-              </span>
-            </div>
-            {lastSupervisorEntry.analysis.recentWorkSummary && (
-              <div className="agent-bar-tooltip-row">
-                <span className="agent-bar-tooltip-label">{t('common:labels.summary')}:</span>
-                <span className="agent-bar-tooltip-value agent-bar-tooltip-supervisor">
-                  {lastSupervisorEntry.analysis.recentWorkSummary.substring(0, 300)}
-                  {lastSupervisorEntry.analysis.recentWorkSummary.length > 300 ? '...' : ''}
-                </span>
-              </div>
-            )}
-            {lastSupervisorEntry.analysis.concerns && lastSupervisorEntry.analysis.concerns.length > 0 && (
-              <div className="agent-bar-tooltip-row">
-                <span className="agent-bar-tooltip-label">{t('common:labels.concerns')}:</span>
-                <span className="agent-bar-tooltip-value agent-bar-tooltip-concerns">
-                  {lastSupervisorEntry.analysis.concerns.join('; ')}
-                </span>
-              </div>
-            )}
-          </>
         )}
       </div>
     </div>

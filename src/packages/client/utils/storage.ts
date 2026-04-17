@@ -40,9 +40,6 @@ export const STORAGE_KEYS = {
   LAST_CWD: 'tide-last-cwd',
 
   // UI State
-  GLOBAL_SUPERVISOR_COLLAPSED: 'tide-global-supervisor-collapsed',
-  TOOLS_COLLAPSED: 'tide-tool-history-collapsed',
-  FILES_COLLAPSED: 'tide-file-history-collapsed',
   MOBILE_VIEW: 'tide-mobile-view',
 
   // File Explorer

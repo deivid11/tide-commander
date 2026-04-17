@@ -205,8 +205,6 @@
     "clickToCopy": "Нажмите для копирования",
     "session": "Сессия",
     "newSession": "Новый агент, новая сессия",
-    "supervisorHistory": "История супервизора",
-    "noSupervisorReports": "Отчётов супервизора пока нет",
     "bossAgent": "Босс-агент",
     "subordinates": "Подчинённые",
     "noSubordinates": "Подчинённые не назначены. Используйте \"Управление командой\" для добавления агентов.",
@@ -248,7 +246,6 @@
     "clickNewAgent": "Нажмите \"+ Новый агент\" для развёртывания первого агента",
     "areasAndAgents": "Зоны и агенты",
     "browseFiles": "Обзор файлов",
-    "supervisorStatus": "Статус супервизора",
     "unassigned": "Не назначен",
     "total": "всего",
     "statusActive": "активен",
@@ -275,14 +272,10 @@
     "selectAgentLogs": "Выберите агента для просмотра логов",
     "logsWillAppear": "Логи агента появятся здесь",
     "logsHint": "Используйте панель отладки для детальных логов сообщений",
-    "selectAgentSnapshots": "Выберите агента для просмотра снимков",
-    "snapshotsFor": "Снимки для {{name}}",
-    "snapshotsHint": "Сохраняйте снимки с помощью кнопки-звёздочки в заголовке терминала",
     "tabs": {
       "details": "Детали",
       "chat": "Чат",
-      "logs": "Логи",
-      "snapshot": "Снимок"
+      "logs": "Логи"
     }
   },
   "toast": {
@@ -297,8 +290,7 @@
     "used": "использовано",
     "tool": "Инструмент",
     "assignedTask": "Назначенная задача",
-    "lastQuery": "Последний запрос",
-    "supervisor": "Супервизор"
+    "lastQuery": "Последний запрос"
   },
   "agentBar": {
     "spawnNewAgent": "Создать нового агента",
@@ -316,13 +308,8 @@
   "floatingButtons": {
     "settingsAndTools": "Настройки и инструменты",
     "commanderView": "Вид командира",
-    "viewSnapshots": "Просмотр снимков",
-    "supervisorOverview": "Обзор супервизора",
     "controls": "Управление",
-    "manageSkills": "Управление навыками",
-    "pipNotSupported": "PiP не поддерживается в этом браузере",
-    "closePip": "Закрыть агентов в режиме PiP",
-    "openPip": "Открыть агентов в режиме PiP"
+    "manageSkills": "Управление навыками"
   },
   "sidebar": {
     "agentsView": "Агенты",

@@ -1,8 +1,6 @@
 {
   "toast": {
     "error": "エラー",
-    "snapshotFailed": "スナップショット失敗",
-    "snapshotFailedMsg": "スナップショットの保存に失敗しました",
     "mergeFailed": "マージ失敗",
     "mergeFailedMsg": "変更のマージに失敗しました",
     "compareFailed": "比較失敗",

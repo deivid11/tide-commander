@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.51.0] - 2026-04-17
+
+### Removed
+- **Supervisor feature** - Removed the Supervisor service, UI, API routes, translations, and config entries
+- **Picture-in-Picture window** - Removed the PiP agents view, the FAB entry point, and the `useDocumentPiP` hook
+- **Snapshot system** - Removed the snapshot save/load UI, server routes, store, types, and tests
+- **Tool History panel** - Removed the standalone tool-history component and its styles
+- **fileTracker service** - Removed the unused server-side file tracker
+
+### Added
+- **Commander URL helper** - New `getCommanderBaseUrl()` utility that resolves the commander base URL from `process.env.PORT` at call time, replacing hardcoded `http://localhost:5174` usage in dynamic prompts and skill bodies
+
+### Changed
+- **Boss delegation prompts** - Subordinate task delegation now uses the runtime-resolved commander URL so report-task curls reflect the actual port the commander is listening on
+- **UI surfaces** - Substantial refactor across Spotlight, AgentBar, AppModals, FloatingActionButtons, MobileFabMenu, UnitPanel, ClaudeOutputPanel, and CommanderView alongside the feature removals
+- **Locale strings** - Updated `common`, `errors`, `notifications`, and `terminal` namespaces across all 11 locales to drop removed-feature copy
+- **Documentation** - Updated `README.md`, `docs/asyncapi.yaml`, `docs/views.md`; removed `docs/snapshots.md`
+
+### Fixed
+- **command-handler / boss-response-handler tests** - Added the new `getCommanderBaseUrl` export to the `../../utils/index.js` mocks so the tests can import the handlers without crashing
+
 ## [1.50.0] - 2026-04-16
 
 ### Added

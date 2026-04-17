@@ -349,18 +349,6 @@
   }
 }
 
-// Clickable file items
-.tool-history-item.clickable {
-  cursor: pointer;
-
-  &:hover {
-    background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
-
-    .file-path {
-      color: var(--accent-blue);
-    }
-  }
-}
 
 // Highlight for Edit tool changes
 .file-viewer-highlight {

@@ -111,6 +111,9 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .class-search-input {

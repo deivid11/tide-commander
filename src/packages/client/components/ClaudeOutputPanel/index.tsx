@@ -26,7 +26,6 @@ import {
   store,
   useFileViewerPath,
   useContextModalAgentId,
-  useCurrentSnapshot,
   useOverviewPanelOpen,
   useTrackingBoardVisible,
   useAreas,
@@ -90,7 +89,6 @@ import { useTwoFingerSelector } from '../../hooks/useTwoFingerSelector';
 import { agentDebugger } from '../../services/agentDebugger';
 import { ThemeSelector } from './ThemeSelector';
 import { Tooltip } from '../shared/Tooltip';
-import type { Agent } from '../../../shared/types';
 import TerminalEmbed from '../TerminalEmbed';
 import { TrackingBoard } from './TrackingBoard';
 
@@ -323,12 +321,7 @@ const _BottomTerminalIframe = memo(function BottomTerminalIframe({
   );
 });
 
-export interface GuakeOutputPanelProps {
-  /** Callback when user clicks star button to save snapshot */
-  onSaveSnapshot?: () => void;
-}
-
-export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {}) {
+export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
   const { t } = useTranslation(['terminal', 'common']);
   // Store selectors
   const agents = useAgents();
@@ -338,39 +331,14 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
   const fileViewerPath = useFileViewerPath();
   const contextModalAgentId = useContextModalAgentId();
 
-  // Get current snapshot from store
-  const currentSnapshot = useCurrentSnapshot();
-  const isSnapshotView = !!currentSnapshot;
-
-  // Snapshots should be viewable even when no agent is selected/running.
-  const snapshotAgent = useMemo<Agent | null>(() => {
-    if (!currentSnapshot) return null;
-      return {
-        id: currentSnapshot.agentId,
-        name: currentSnapshot.agentName,
-        class: currentSnapshot.agentClass as Agent['class'],
-        status: 'idle',
-        provider: 'claude',
-      position: { x: 0, y: 0, z: 0 },
-      cwd: currentSnapshot.cwd,
-      permissionMode: 'interactive',
-      tokensUsed: 0,
-      contextUsed: 0,
-      contextLimit: 200000,
-      taskCount: 0,
-      createdAt: currentSnapshot.createdAt,
-      lastActivity: currentSnapshot.createdAt,
-    };
-  }, [currentSnapshot]);
-
   // Get selected agent
   const selectedAgentIdsArray = Array.from(selectedAgentIds);
   const isSingleSelection = selectedAgentIdsArray.length === 1;
   const selectedAgentId = isSingleSelection ? selectedAgentIdsArray[0] : null;
   const selectedAgent = useAgent(selectedAgentId) || null;
 
-  const activeAgent = selectedAgent ?? (isSnapshotView ? snapshotAgent : null);
-  const activeAgentId = selectedAgentId ?? (isSnapshotView ? currentSnapshot?.agentId ?? null : null);
+  const activeAgent = selectedAgent;
+  const activeAgentId = selectedAgentId;
   const trackingBoardVisible = useTrackingBoardVisible();
 
   // Get area folders for the active agent
@@ -1254,17 +1222,6 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     }
   }, [isOpen, selectedAgentId]);
 
-  // Clear snapshot when agent changes
-  const prevSelectedAgentIdRef = useRef<string | null>(null);
-  useLayoutEffect(() => {
-    const prev = prevSelectedAgentIdRef.current;
-    const changed = prev !== null && prev !== selectedAgentId;
-    if (changed && store.getState().currentSnapshot) {
-      store.setCurrentSnapshot(null);
-    }
-    prevSelectedAgentIdRef.current = selectedAgentId;
-  }, [selectedAgentId]);
-
   // Keyboard shortcut to toggle terminal
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1358,7 +1315,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
       // Modals are rendered through portals under document.body.
       // Any modal interaction should never count as an outside click for Guake.
       const isInModal = !!target.closest(
-        '.modal-overlay, .modal, .image-modal-overlay, .image-modal, .bash-modal-overlay, .bash-modal, .agent-info-modal-overlay, .agent-info-modal, .agent-response-modal, .pasted-text-modal-overlay, .pasted-text-modal, .file-viewer-overlay, .file-viewer-modal, .context-view-modal, .guake-context-confirm-overlay, .guake-context-confirm-modal, .pm2-logs-modal-overlay, .pm2-logs-modal, .database-panel-modal, .context-menu, .guake-git-diff-modal-overlay, .guake-git-delete-confirm'
+        '.modal-overlay, .modal, .image-modal-overlay, .image-modal, .bash-modal-overlay, .bash-modal, .agent-info-modal-overlay, .agent-info-modal, .agent-response-modal, .pasted-text-modal-overlay, .pasted-text-modal, .file-viewer-overlay, .file-viewer-modal, .context-view-modal, .guake-context-confirm-overlay, .guake-context-confirm-modal, .pm2-logs-modal-overlay, .pm2-logs-modal, .database-panel-modal, .context-menu, .guake-git-diff-modal-overlay, .guake-git-delete-confirm, .theme-selector-dropdown'
       );
 
       return !!isInTerminal || !!isAgentBar || !!isSidebar || isInModal;
@@ -1512,26 +1469,26 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
       </div>
 
       {/* Debug Panel */}
-      {!isSnapshotView && debugPanelOpen && isOpen && activeAgentId && (
+      {debugPanelOpen && isOpen && activeAgentId && (
         <AgentDebugPanel agentId={activeAgentId} onClose={() => setDebugPanelOpen(false)} />
       )}
 
       {/* Git Panel */}
-      {!isSnapshotView && gitPanelOpen && isOpen && activeAgentId && (
+      {gitPanelOpen && isOpen && activeAgentId && (
         <GuakeGitPanel agentId={activeAgentId} agents={agents} onClose={() => setGitPanelOpen(false)} branchInfoMap={areaBranches} fetchRemote={fetchGitRemote} fetchingDirs={gitFetchingDirs} />
       )}
 
       {/* Area Buildings Panel */}
-      {!isSnapshotView && buildingsPanelOpen && isOpen && activeAgentId && (
+      {buildingsPanelOpen && isOpen && activeAgentId && (
         <AreaBuildingsPanel agentId={activeAgentId} onClose={() => setBuildingsPanelOpen(false)} />
       )}
 
       {/* Workflow Panel */}
-      {!isSnapshotView && workflowPanelOpen && isOpen && activeAgentId && (
+      {workflowPanelOpen && isOpen && activeAgentId && (
         <WorkflowPanel agentId={activeAgentId} onClose={() => setWorkflowPanelOpen(false)} />
       )}
 
-      {!isSnapshotView && trackingBoardVisible && isOpen && activeAgentId && (
+      {trackingBoardVisible && isOpen && activeAgentId && (
         <div className="guake-tracking-board-panel">
           <div className="guake-tracking-board-header">
             <div className="guake-tracking-board-title">
@@ -1560,12 +1517,12 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
       )}
 
       {/* Right-side panel resize handle */}
-      {!isSnapshotView && (debugPanelOpen || gitPanelOpen || buildingsPanelOpen || workflowPanelOpen || trackingBoardVisible) && isOpen && (
+      {(debugPanelOpen || gitPanelOpen || buildingsPanelOpen || workflowPanelOpen || trackingBoardVisible) && isOpen && (
         <div className="guake-side-panel-resize right" onMouseDown={(e) => handleSidePanelResizeStart(e, 'right')} />
       )}
 
       {/* Agent Overview Panel */}
-      {!isSnapshotView && overviewPanelOpen && isOpen && activeAgentId && (
+      {overviewPanelOpen && isOpen && activeAgentId && (
         <AgentOverviewPanel
           activeAgentId={activeAgentId}
           onClose={() => setOverviewPanelOpen(false)}
@@ -1579,12 +1536,12 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
       )}
 
       {/* Overview panel resize handle (left side) */}
-      {!isSnapshotView && overviewPanelOpen && isOpen && activeAgentId && (
+      {overviewPanelOpen && isOpen && activeAgentId && (
         <div className="guake-side-panel-resize left" onMouseDown={(e) => handleSidePanelResizeStart(e, 'left')} />
       )}
 
       {/* Mobile resize handle between overview and terminal */}
-      {!isSnapshotView && overviewPanelOpen && isOpen && activeAgentId && (
+      {overviewPanelOpen && isOpen && activeAgentId && (
         <div
           className="aop-resize-handle"
           onMouseDown={handleOverviewResizeMouseDown}
@@ -1633,8 +1590,6 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
             paneRef.current?.historyLoader.clearHistory();
           }}
           headerRef={swipe.headerRef}
-          onSaveSnapshot={isSnapshotView ? undefined : onSaveSnapshot}
-          isSnapshotView={isSnapshotView}
         />
 
         {/* Swipe container */}
@@ -1671,14 +1626,11 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
             paneRef={paneRef}
             viewMode={viewMode}
             isOpen={isOpen}
-            isSnapshotView={isSnapshotView}
-            currentSnapshot={currentSnapshot}
             onImageClick={handleImageClick}
             onFileClick={handleFileClick}
             onBashClick={handleBashClick}
             onViewMarkdown={handleViewMarkdown}
             keyboard={keyboard}
-            onSaveSnapshot={isSnapshotView ? undefined : onSaveSnapshot}
             canSwipeClose={
               isMobileWidth
               && mobileView === 'terminal'
@@ -1693,7 +1645,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
 
         {/* Agent Status Bar (CWD + Context) */}
         <div className="guake-agent-status-bar">
-          {!isSnapshotView && activeAgent?.isDetached && (
+          {activeAgent?.isDetached && (
             <Tooltip
               content={
                 <>
@@ -1746,7 +1698,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
               </span>
             );
           })}
-          {!isSnapshotView && activeAgent && (() => {
+          {activeAgent && (() => {
             // Use contextStats if available (from /context command), otherwise fallback to basic
             const stats = activeAgent.contextStats;
             const hasData = !!stats;
@@ -2138,7 +2090,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
       <ContextModalFromGuake />
       <FileViewerFromGuake />
       <AgentInfoModal agent={activeAgent} isOpen={agentInfoOpen} onClose={() => setAgentInfoOpen(false)} />
-      {!isSnapshotView && (
+      {(
         <AgentResponseModalWrapper agent={activeAgent} content={responseModalContent} onClose={() => setResponseModalContent(null)} />
       )}
     </div>

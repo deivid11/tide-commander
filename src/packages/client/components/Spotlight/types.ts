@@ -6,7 +6,7 @@
 import type {} from '../../../shared/types';
 
 // Search result types
-export type SearchResultType = 'agent' | 'command' | 'area' | 'activity' | 'modified-file' | 'building';
+export type SearchResultType = 'agent' | 'command' | 'area' | 'modified-file' | 'building';
 
 export interface SearchResult {
   id: string;
@@ -14,21 +14,17 @@ export interface SearchResult {
   title: string;
   subtitle?: string;
   lastUserInput?: string; // Last user input/task for agents (always shown)
-  statusDescription?: string; // Supervisor status description
-  activityText?: string; // Last activity text (recentWorkSummary)
+  activityText?: string; // Last activity text
   matchedText?: string; // The text that matched the search query
   matchedFiles?: string[]; // Files that matched the search query (for agents)
   matchedQuery?: string; // User query that matched the search
-  matchedHistory?: { text: string; timestamp: number }; // Matched supervisor history entry
   timeAway?: number; // Time away in milliseconds (for agents)
-  lastStatusTime?: number; // Timestamp of last status update
   icon: string;
   action: () => void;
   // Internal fields for searching
   _searchText?: string;
   _modifiedFiles?: string[];
   _userQueries?: string[];
-  _historyEntries?: { text: string; timestamp: number }[];
 }
 
 // Props for the main Spotlight component
@@ -38,7 +34,6 @@ export interface SpotlightProps {
   onOpenSpawnModal: () => void;
   onOpenCommanderView: () => void;
   onOpenToolbox: () => void;
-  onOpenSupervisor: () => void;
   onOpenFileExplorer: (areaId: string) => void;
   onOpenPM2LogsModal: (buildingId: string) => void;
   onOpenBossLogsModal: (buildingId: string) => void;
@@ -53,7 +48,6 @@ export interface UseSpotlightSearchOptions {
   onOpenSpawnModal: () => void;
   onOpenCommanderView: () => void;
   onOpenToolbox: () => void;
-  onOpenSupervisor: () => void;
   onOpenFileExplorer: (areaId: string) => void;
   onOpenPM2LogsModal: (buildingId: string) => void;
   onOpenBossLogsModal: (buildingId: string) => void;

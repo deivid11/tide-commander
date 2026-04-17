@@ -4,7 +4,6 @@ import { setupBossListeners } from './boss-listeners.js';
 import { setupPermissionListeners } from './permission-listeners.js';
 import { setupRuntimeListeners } from './runtime-listeners.js';
 import { setupSkillListeners } from './skill-listeners.js';
-import { setupSupervisorListeners } from './supervisor-listeners.js';
 
 interface ServiceListenerContext {
   broadcast: (message: ServerMessage) => void;
@@ -34,7 +33,6 @@ export function setupServiceListeners(ctx: ServiceListenerContext): void {
 
   setupRuntimeListeners(ctx);
   setupPermissionListeners(ctx);
-  setupSupervisorListeners(ctx);
   setupBossListeners(ctx);
   setupSkillListeners(ctx);
 }

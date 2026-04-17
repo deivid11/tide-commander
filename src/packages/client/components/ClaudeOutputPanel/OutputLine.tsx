@@ -6,7 +6,7 @@ import React, { memo, useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useHideCost, useSettings, ClaudeOutput, store } from '../../store';
 import { filterCostText } from '../../utils/formatting';
-import { TOOL_ICONS, extractExecWrappedCommand, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, splitCommandForFileLinks } from '../../utils/outputRendering';
+import { TOOL_ICONS, extractExecWrappedCommand, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, getTrackingStatusIcon, splitCommandForFileLinks } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, DelegatedTaskHeader, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions, parseDelegatedTaskMessage, DelegatedTaskMessage, parseTaskReportMessage, TaskReportHeader, parseSubagentNotification, SubagentNotificationDisplay } from './BossContext';
@@ -677,7 +677,8 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       : undefined;
     const bashSearchCommand = isBashTool && bashCommand ? parseBashSearchCommand(bashCommand) : null;
     const bashNotificationCommand = isBashTool && bashCommand ? parseBashNotificationCommand(bashCommand) : null;
-    const bashTaskLabelCommand = isBashTool && bashCommand ? parseBashTaskLabelCommand(bashCommand) : null;
+    const bashTrackingStatusCommand = isBashTool && bashCommand ? parseBashTrackingStatusCommand(bashCommand) : null;
+    const bashTaskLabelCommand = !bashTrackingStatusCommand && isBashTool && bashCommand ? parseBashTaskLabelCommand(bashCommand) : null;
     const bashReportTaskCommand = isBashTool && bashCommand ? parseBashReportTaskCommand(bashCommand) : null;
 
     const handleParamClick = (e: React.MouseEvent) => {
@@ -738,7 +739,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     return (
       <>
         <div
-          className={`output-line output-tool-use ${isStreaming ? 'output-streaming' : ''} ${isBashTool ? 'bash-clickable' : ''} ${bashNotificationCommand ? 'bash-notify-use' : ''}`}
+          className={`output-line output-tool-use ${isStreaming ? 'output-streaming' : ''} ${isBashTool ? 'bash-clickable' : ''} ${bashNotificationCommand ? 'bash-notify-use' : ''} ${bashTrackingStatusCommand ? 'bash-tracking-use' : ''}`}
           onClick={isBashTool ? handleBashClick : undefined}
           title={isBashTool ? t('tools:display.clickToViewOutput') : undefined}
         >
@@ -749,17 +750,38 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
 
           {/* For Bash tools, show the command inline (more useful than file paths) */}
           {isBashTool && bashCommand && (
-            bashNotificationCommand ? (
+            bashTrackingStatusCommand ? (() => {
+              const status = bashTrackingStatusCommand.trackingStatus;
+              const detail = bashTrackingStatusCommand.trackingStatusDetail;
+              const description = t(`terminal:trackingStatus.${status}`, { defaultValue: '' }) as string;
+              const tooltipParts = [description || t('terminal:trackingStatus.label', { defaultValue: 'Tracking status' }), detail].filter(Boolean) as string[];
+              return (
+                <span
+                  className={`output-tool-param bash-command bash-tracking-param status-${status}`}
+                  onClick={handleBashClick}
+                  title={tooltipParts.join(' — ')}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <span className={`bash-tracking-chip status-${status}`}>
+                    <span className="bash-tracking-icon">{getTrackingStatusIcon(status)}</span>
+                    <span className="bash-tracking-status">{status}</span>
+                  </span>
+                  {detail && (
+                    <span className="bash-tracking-detail">{detail}</span>
+                  )}
+                </span>
+              );
+            })() : bashNotificationCommand ? (
               <span
                 className="output-tool-param bash-command bash-notify-param"
                 onClick={handleBashClick}
                 title={bashNotificationCommand.commandBody}
                 style={{ cursor: 'pointer' }}
               >
-                {bashNotificationCommand.shellPrefix && (
-                  <span className="bash-search-shell">{bashNotificationCommand.shellPrefix}</span>
-                )}
-                <span className="bash-notify-chip">notify</span>
+                <span className="bash-notify-chip">
+                  <span className="bash-notify-icon">🔔</span>
+                  <span className="bash-notify-label">notify</span>
+                </span>
                 {bashNotificationCommand.title && (
                   <span className="bash-notify-title">{bashNotificationCommand.title}</span>
                 )}
