@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.52.0] - 2026-04-18
+
+### Added
+- **Curl card renderer** - New `CurlCard` component and `curlParser` that detect curl commands in agent output and render them as structured cards (method, URL, headers, body) with their own stylesheet
+- **Agent progress indicators in boss context** - Boss "Team Context" panel now shows per-subordinate `AgentProgressIndicator` with inline truncated markdown previews of their latest activity
+
+### Changed
+- **ANSI terminal palette** - Replaced the saturated standard/bright ANSI color table with a Nord-inspired, desaturated palette for better readability in the terminal output
+- **Boss subordinate context percent** - `gatherSubordinateContext` now mirrors the `guake-agent-context` UI calculation byte-for-byte so every TEAM CONTEXT line matches the subordinate's UI bar
+- **Terminal history & tracking board styles** - Substantial SCSS overhaul across `_history.scss`, `_tracking-board.scss`, `_output.scss`, and `_sidebar-tracking-board.scss` for tighter visual alignment
+- **Tracking board selection callback** - Extracted and memoized via `useCallback` in `GuakeOutputPanel` to avoid re-creating the handler on each render
+- **Team Context locale key** - Collapsed the pluralized `teamContext_one` / `teamContext` pair to a single `"Team Context"` string across all 10 locales
+
+### Removed
+- **Unused code** - Dropped the `store` import in `AgentTerminalPane`, the `HTTP_METHODS` constant in `curlParser`, and the `buildCapabilitiesSection` function (plus its now-orphan imports) in `subordinate-context-service`
+
 ## [1.51.0] - 2026-04-17
 
 ### Removed

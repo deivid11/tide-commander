@@ -226,8 +226,7 @@
     "title": "タスクリスト"
   },
   "bossContext": {
-    "teamContext": "チームコンテキスト ({{count}}エージェント)",
-    "teamContext_one": "チームコンテキスト (1エージェント)",
+    "teamContext": "チームコンテキスト",
     "injectedInstructions": "注入されたエージェントインストラクション"
   },
   "delegation": {

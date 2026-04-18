@@ -96,7 +96,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
   const availableSkills = useMemo(() => skills.filter(s => s.enabled), [skills]);
 
   // Default skill slugs that should be pre-selected for new agents
-  const DEFAULT_SKILL_SLUGS = ['full-notifications', 'streaming-exec', 'task-label', 'report-task-to-boss', 'agent-tracking'];
+  const DEFAULT_SKILL_SLUGS = ['full-notifications', 'streaming-exec', 'task-label', 'report-task-to-boss', 'agent-tracking', 'send-message-to-agent'];
 
   // Initialize default skills once per open event
   useEffect(() => {

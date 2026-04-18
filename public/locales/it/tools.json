@@ -226,8 +226,7 @@
     "title": "Lista attivit\u00e0"
   },
   "bossContext": {
-    "teamContext": "Contesto team ({{count}} agenti)",
-    "teamContext_one": "Contesto team (1 agente)",
+    "teamContext": "Contesto team",
     "injectedInstructions": "Istruzioni agente iniettate"
   },
   "delegation": {

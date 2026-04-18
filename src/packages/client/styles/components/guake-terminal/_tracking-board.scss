@@ -234,6 +234,9 @@
   border-radius: $radius-sm;
   background: color-mix(in srgb, var(--bg-primary) 88%, black 12%);
   cursor: pointer;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
 
   &:hover {
@@ -251,6 +254,64 @@
     box-shadow:
       inset 0 0 0 1px color-mix(in srgb, var(--accent-cyan) 22%, transparent),
       0 0 0 1px color-mix(in srgb, var(--accent-cyan) 10%, transparent);
+  }
+}
+
+.tracking-board-column--working .tracking-board-card {
+  border-color: color-mix(in srgb, var(--accent-green) 35%, var(--border-color));
+  background: color-mix(in srgb, var(--accent-green) 10%, var(--bg-secondary));
+  animation: tracking-board-card-breathe 2.4s ease-in-out infinite;
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -52%;
+    width: 52%;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.6;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, var(--accent-green) 22%, transparent),
+      transparent
+    );
+    animation: tracking-board-card-sweep 1.9s ease-in-out infinite;
+  }
+
+  > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  &:hover {
+    border-color: color-mix(in srgb, var(--accent-green) 60%, var(--border-color));
+    background: color-mix(in srgb, var(--accent-green) 16%, var(--bg-secondary));
+  }
+}
+
+@keyframes tracking-board-card-breathe {
+  0%,
+  100% {
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--accent-green) 15%, transparent),
+      0 0 0 0 color-mix(in srgb, var(--accent-green) 0%, transparent);
+  }
+  50% {
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--accent-green) 22%, transparent),
+      0 0 0 2px color-mix(in srgb, var(--accent-green) 14%, transparent);
+  }
+}
+
+@keyframes tracking-board-card-sweep {
+  0% {
+    left: -52%;
+  }
+  100% {
+    left: 108%;
   }
 }
 
@@ -309,6 +370,27 @@
   color: var(--text-primary);
   font-weight: 600;
   font-size: 11.5px;
+}
+
+.tracking-board-card-area {
+  margin-left: 6px;
+  padding: 0 6px;
+  border: 1px solid color-mix(in srgb, var(--text-muted) 40%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-muted) 14%, transparent);
+  color: var(--text-muted);
+  font-family: $font-mono;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  vertical-align: middle;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+  line-height: 1.5;
 }
 
 .tracking-board-card-time {

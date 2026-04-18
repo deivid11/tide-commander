@@ -417,6 +417,12 @@ function AppContent() {
     sceneRef.current?.callSubordinates(bossId);
   }, [sceneRef]);
 
+  const handleTrackingBoardSelectAgent = useCallback((agentId: string) => {
+    store.setLastSelectionViaDirectClick(true);
+    store.selectAgent(agentId);
+    store.setTerminalOpen(true);
+  }, []);
+
   // Handle opening file explorer for an area
   const handleOpenAreaExplorer = useCallback((areaId: string) => {
     explorerModal.open(areaId);
@@ -929,11 +935,7 @@ function AppContent() {
               <div className="sidebar-tracking-body">
                 <TrackingBoard
                   activeAgentId={selectedAgentIdsArray[0] ?? ''}
-                  onSelectAgent={(agentId) => {
-                    store.setLastSelectionViaDirectClick(true);
-                    store.selectAgent(agentId);
-                    store.setTerminalOpen(true);
-                  }}
+                  onSelectAgent={handleTrackingBoardSelectAgent}
                 />
               </div>
             </div>

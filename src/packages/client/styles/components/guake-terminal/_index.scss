@@ -20,6 +20,9 @@
 // Tool display styles (Edit, Read, Bash, Todo, etc.)
 @forward 'tools';
 
+// Structured card for `curl ...` Bash commands
+@forward 'curl-card';
+
 // Permission request UI
 @forward 'permissions';
 

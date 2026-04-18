@@ -1,0 +1,451 @@
+// =============================================================================
+// Guake Terminal - Structured Curl Card
+// =============================================================================
+// Pretty rendering for Bash tool calls whose command starts with `curl`.
+// =============================================================================
+
+@use '../../variables' as *;
+
+.output-tool-param.bash-curl-param {
+  // Break out of the flex row onto its own line so the card can use full width.
+  flex: 1 1 100%;
+  min-width: 0;
+  margin-top: 4px;
+  margin-left: 0;
+  padding: 0;
+
+  &::before {
+    content: none;
+  }
+}
+
+.curl-card {
+  font-family: $font-mono;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--tool-use-text);
+  background: color-mix(in srgb, var(--tool-use-bg) 85%, var(--bg-primary, #111) 15%);
+  border: 1px solid color-mix(in srgb, var(--tool-use-border) 60%, transparent);
+  border-radius: $radius-md;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  transition: border-color 120ms ease, background 120ms ease;
+
+  &:hover {
+    border-color: color-mix(in srgb, var(--accent-blue, #5b9dff) 50%, transparent);
+  }
+}
+
+.curl-card.curl-card-collapsed {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  cursor: pointer;
+  min-height: 24px;
+
+  .curl-card-icon {
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+
+  .curl-method {
+    margin-left: 0;
+    flex-shrink: 0;
+  }
+
+  .curl-collapsed-raw {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--tool-use-text);
+    font-size: 11px;
+    opacity: 0.95;
+  }
+
+  .curl-expand-btn {
+    margin-left: auto;
+  }
+}
+
+.curl-card.curl-card-expanded {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+}
+
+// Specialized variant: POST /api/agents/<id>/message (agent-to-agent send)
+.curl-card.curl-card--agent-message {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-left: 3px solid color-mix(in srgb, #5cc8ff 60%, transparent);
+
+  .curl-agent-message-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: #5cc8ff;
+    padding-bottom: 2px;
+  }
+
+  .curl-agent-message-icon {
+    font-size: 12px;
+    line-height: 1;
+  }
+
+  .curl-agent-message-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .curl-agent-message-label {
+    flex: 0 0 auto;
+    width: 44px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: #5cc8ff;
+    user-select: none;
+  }
+
+  .curl-agent-message-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    flex: 1 1 auto;
+    color: var(--tool-use-text);
+  }
+
+  .curl-agent-message-name-text {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+
+  .curl-agent-message-body {
+    position: relative;
+    margin-top: 2px;
+    padding: 6px 10px 6px 14px;
+    background: color-mix(in srgb, #5cc8ff 8%, transparent);
+    border-left: 2px solid color-mix(in srgb, #5cc8ff 45%, transparent);
+    border-radius: 3px;
+    color: var(--tool-use-text);
+    font-size: 11px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+
+  .curl-agent-message-quote-mark {
+    display: inline-block;
+    margin-right: 4px;
+    color: color-mix(in srgb, #5cc8ff 70%, transparent);
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 16px;
+    line-height: 1;
+    vertical-align: -2px;
+  }
+
+  .curl-agent-message-text {
+    color: var(--tool-use-text);
+  }
+}
+
+// Specialized variant: GET /api/agents/<id>
+.curl-card.curl-card--agent-fetch {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-left: 3px solid color-mix(in srgb, #c19bff 60%, transparent);
+
+  .curl-agent-fetch-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: #c19bff;
+    padding-bottom: 2px;
+  }
+
+  .curl-agent-fetch-icon {
+    font-size: 12px;
+    line-height: 1;
+  }
+
+  .curl-agent-fetch-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .curl-agent-fetch-label {
+    flex: 0 0 auto;
+    width: 44px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--accent-blue, #5b9dff);
+    user-select: none;
+  }
+
+  .curl-agent-fetch-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    flex: 1 1 auto;
+    color: var(--tool-use-text);
+  }
+
+  .curl-agent-fetch-name-text {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+
+  .curl-agent-fetch-id-value {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .curl-agent-fetch-id {
+    font-family: $font-mono;
+    color: var(--text-muted, #aaa);
+    background: color-mix(in srgb, var(--bg-primary, #0c0c0c) 60%, transparent);
+    border: 1px solid color-mix(in srgb, var(--tool-use-border) 25%, transparent);
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-size: 11px;
+    word-break: break-all;
+  }
+}
+
+.curl-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px dashed color-mix(in srgb, var(--tool-use-border) 30%, transparent);
+}
+
+.curl-card-icon {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.curl-card-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-muted, #888);
+}
+
+.curl-expand-btn {
+  appearance: none;
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--tool-use-border) 50%, transparent);
+  border-radius: 3px;
+  color: var(--text-muted, #aaa);
+  font-family: $font-mono;
+  font-size: 9px;
+  line-height: 1;
+  padding: 2px 5px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
+
+  &:hover {
+    color: var(--accent-blue, #5b9dff);
+    border-color: color-mix(in srgb, var(--accent-blue, #5b9dff) 50%, transparent);
+    background: color-mix(in srgb, var(--accent-blue, #5b9dff) 10%, transparent);
+  }
+}
+
+.curl-method {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  margin-left: auto;
+  text-transform: uppercase;
+
+  &.method-get    { color: #7fd3a7; background: color-mix(in srgb, #7fd3a7 15%, transparent); border: 1px solid color-mix(in srgb, #7fd3a7 40%, transparent); }
+  &.method-post   { color: #f0b866; background: color-mix(in srgb, #f0b866 15%, transparent); border: 1px solid color-mix(in srgb, #f0b866 40%, transparent); }
+  &.method-put    { color: #5b9dff; background: color-mix(in srgb, #5b9dff 15%, transparent); border: 1px solid color-mix(in srgb, #5b9dff 40%, transparent); }
+  &.method-patch  { color: #c19bff; background: color-mix(in srgb, #c19bff 15%, transparent); border: 1px solid color-mix(in srgb, #c19bff 40%, transparent); }
+  &.method-delete { color: #ff8080; background: color-mix(in srgb, #ff8080 15%, transparent); border: 1px solid color-mix(in srgb, #ff8080 40%, transparent); }
+  &.method-head,
+  &.method-options,
+  &.method-trace,
+  &.method-connect { color: #aaa; background: color-mix(in srgb, #aaa 15%, transparent); border: 1px solid color-mix(in srgb, #aaa 40%, transparent); }
+}
+
+.curl-card-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.curl-label {
+  flex: 0 0 auto;
+  width: 60px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--accent-blue, #5b9dff);
+  text-transform: uppercase;
+  padding-top: 2px;
+  user-select: none;
+}
+
+.curl-url-value {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.curl-url-text {
+  flex: 1 1 auto;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  color: var(--tool-use-text);
+}
+
+.curl-headers-list {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.curl-header-item {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+
+.curl-header-name {
+  color: #7fc7ff;
+}
+
+.curl-header-sep {
+  color: var(--text-muted, #888);
+}
+
+.curl-header-value {
+  color: var(--tool-use-text);
+  min-width: 0;
+  flex: 1 1 auto;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+
+.curl-body-row {
+  flex-direction: column;
+  gap: 4px;
+}
+
+.curl-body-block {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  background: color-mix(in srgb, var(--bg-primary, #0c0c0c) 60%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tool-use-border) 25%, transparent);
+  border-radius: $radius-sm;
+  padding: 6px 8px;
+  overflow-x: auto;
+}
+
+.curl-body-pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  font-family: $font-mono;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--tool-use-text);
+}
+
+.curl-json-key     { color: #7fc7ff; }
+.curl-json-string  { color: #b5e3a5; }
+.curl-json-number  { color: #f0b866; }
+.curl-json-keyword { color: #c19bff; font-weight: 600; }
+
+.curl-flags-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text-muted, #888);
+  word-break: break-word;
+}
+
+.curl-copy-btn {
+  flex-shrink: 0;
+  align-self: flex-start;
+  appearance: none;
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--tool-use-border) 50%, transparent);
+  border-radius: 3px;
+  color: var(--text-muted, #aaa);
+  font-family: $font-mono;
+  font-size: 11px;
+  line-height: 1;
+  padding: 2px 5px;
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
+
+  &:hover {
+    color: var(--accent-blue, #5b9dff);
+    border-color: color-mix(in srgb, var(--accent-blue, #5b9dff) 50%, transparent);
+    background: color-mix(in srgb, var(--accent-blue, #5b9dff) 10%, transparent);
+  }
+
+  &.copied {
+    color: #7fd3a7;
+    border-color: color-mix(in srgb, #7fd3a7 50%, transparent);
+    background: color-mix(in srgb, #7fd3a7 10%, transparent);
+  }
+}
+
+.curl-body-block > .curl-copy-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+}

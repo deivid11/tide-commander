@@ -11,6 +11,8 @@ import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, DelegatedTaskHeader, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions, parseDelegatedTaskMessage, DelegatedTaskMessage, parseTaskReportMessage, TaskReportHeader, parseSubagentNotification, SubagentNotificationDisplay } from './BossContext';
 import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, ExitPlanModeInput, UnknownToolInput, ToolSearchInput, isToolSearchContent } from './ToolRenderers';
+import { parseCurlCommand, looksLikeCurl } from './curlParser';
+import { CurlCard } from './CurlCard';
 import { renderContentWithImages, renderUserPromptContent } from './contentRendering';
 import { ansiToHtml } from '../../utils/ansiToHtml';
 import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
@@ -411,7 +413,6 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
             agentName={taskReportParsed.agentName}
             agentId={taskReportParsed.agentId}
             status={taskReportParsed.status}
-            originalTask={taskReportParsed.originalTask}
             summary={taskReportParsed.summary}
           />
         </div>
@@ -680,6 +681,17 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     const bashTrackingStatusCommand = isBashTool && bashCommand ? parseBashTrackingStatusCommand(bashCommand) : null;
     const bashTaskLabelCommand = !bashTrackingStatusCommand && isBashTool && bashCommand ? parseBashTaskLabelCommand(bashCommand) : null;
     const bashReportTaskCommand = isBashTool && bashCommand ? parseBashReportTaskCommand(bashCommand) : null;
+    const bashCurlParsed = (
+      isBashTool
+      && bashCommand
+      && !bashTrackingStatusCommand
+      && !bashNotificationCommand
+      && !bashTaskLabelCommand
+      && !bashReportTaskCommand
+      && !bashSearchCommand
+      && !isCurlExecCommand
+      && looksLikeCurl(bashCommand)
+    ) ? (() => { try { return parseCurlCommand(bashCommand); } catch { return null; } })() : null;
 
     const handleParamClick = (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -826,6 +838,10 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
                 <span className="bash-search-chip">search</span>
                 <span className="bash-search-term">{bashSearchCommand.searchTerm}</span>
               </span>
+            ) : bashCurlParsed ? (
+              <div className="output-tool-param bash-curl-param">
+                <CurlCard parsed={bashCurlParsed} rawCommand={bashCommand} />
+              </div>
             ) : (
               <span
                 className="output-tool-param bash-command"
@@ -1147,7 +1163,13 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
             <WorkPlanBlock workPlan={workPlanParsed.workPlan} />
           )}
           {delegationParsed.hasDelegation && delegationParsed.delegations.map((delegation, i) => (
-            <DelegationBlock key={`del-${i}`} delegation={delegation} />
+            <DelegationBlock
+              key={`del-${i}`}
+              delegation={delegation}
+              bossId={agentId}
+              onFileClick={onFileClick}
+              onBashClick={onBashClick}
+            />
           ))}
           <div className="message-action-btns">
             {settings.experimentalTTS && (

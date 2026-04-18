@@ -17,6 +17,8 @@ import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
 import { createMarkdownComponents } from './MarkdownComponents';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions, parseDelegatedTaskMessage, DelegatedTaskMessage, parseTaskReportMessage, TaskReportHeader, parseSubagentNotification, SubagentNotificationDisplay } from './BossContext';
 import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, ExitPlanModeInput, ToolSearchInput, isToolSearchContent } from './ToolRenderers';
+import { parseCurlCommand, looksLikeCurl } from './curlParser';
+import { CurlCard } from './CurlCard';
 import { highlightText, renderContentWithImages, renderUserPromptContent } from './contentRendering';
 import { useTTS } from '../../hooks/useTTS';
 import { ansiToHtml } from '../../utils/ansiToHtml';
@@ -326,6 +328,18 @@ export const HistoryLine = memo(function HistoryLine({
       const bashTrackingStatusCommand = isBashTool && bashCommand ? parseBashTrackingStatusCommand(bashCommand) : null;
       const bashTaskLabelCommand = !bashTrackingStatusCommand && isBashTool && bashCommand ? parseBashTaskLabelCommand(bashCommand) : null;
       const bashReportTaskCommand = isBashTool && bashCommand ? parseBashReportTaskCommand(bashCommand) : null;
+      const isCurlExecCommand = /\bcurl\b[\s\S]*\/api\/exec\b/.test(bashCommand);
+      const bashCurlParsed = (
+        isBashTool
+        && bashCommand
+        && !bashTrackingStatusCommand
+        && !bashNotificationCommand
+        && !bashTaskLabelCommand
+        && !bashReportTaskCommand
+        && !bashSearchCommand
+        && !isCurlExecCommand
+        && looksLikeCurl(bashCommand)
+      ) ? (() => { try { return parseCurlCommand(bashCommand); } catch { return null; } })() : null;
 
       const handleParamClick = () => {
         if (isFileClickable && keyParam) {
@@ -403,7 +417,6 @@ export const HistoryLine = memo(function HistoryLine({
         : (isFileClickable ? t('tools:display.clickToViewFile') : undefined);
 
       // Check if this is a curl exec command and try to parse the exec output
-      const isCurlExecCommand = /\bcurl\b[\s\S]*\/api\/exec\b/.test(bashCommand);
       let execTaskOutput: { output: string[] } | null = null;
 
       if (isCurlExecCommand && _bashOutput) {
@@ -551,6 +564,10 @@ export const HistoryLine = memo(function HistoryLine({
                 <span className="bash-search-chip">search</span>
                 <span className="bash-search-term">{bashSearchCommand.searchTerm}</span>
               </span>
+            ) : isBashTool && bashCurlParsed ? (
+              <div className="output-tool-param bash-curl-param">
+                <CurlCard parsed={bashCurlParsed} rawCommand={bashCommand} />
+              </div>
             ) : (
               keyParam && (
                 <span
@@ -815,7 +832,6 @@ export const HistoryLine = memo(function HistoryLine({
               agentName={taskReportParsed.agentName}
               agentId={taskReportParsed.agentId}
               status={taskReportParsed.status}
-              originalTask={taskReportParsed.originalTask}
               summary={taskReportParsed.summary}
             />
           </span>
@@ -892,7 +908,13 @@ export const HistoryLine = memo(function HistoryLine({
             <WorkPlanBlock workPlan={workPlanParsed.workPlan} />
           )}
           {delegationParsed.hasDelegation && delegationParsed.delegations.map((delegation, i) => (
-            <DelegationBlock key={`del-${i}`} delegation={delegation} />
+            <DelegationBlock
+              key={`del-${i}`}
+              delegation={delegation}
+              bossId={agentId}
+              onFileClick={onFileClick}
+              onBashClick={onBashClick}
+            />
           ))}
         </span>
         <div className="message-action-btns">

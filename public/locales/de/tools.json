@@ -226,8 +226,7 @@
     "title": "Aufgabenliste"
   },
   "bossContext": {
-    "teamContext": "Team-Kontext ({{count}} Agenten)",
-    "teamContext_one": "Team-Kontext (1 Agent)",
+    "teamContext": "Team-Kontext",
     "injectedInstructions": "Injizierte Agenten-Anweisungen"
   },
   "delegation": {

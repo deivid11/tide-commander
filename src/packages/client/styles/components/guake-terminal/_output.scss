@@ -469,6 +469,13 @@
   font-family: $font-mono;
   font-size: 9px;
   color: var(--text-muted);
+
+  // Hide inline debug-hash spans (no class, inline style only).
+  // They remain visible in the timestamp's title tooltip for debugging.
+  > span:not([class]) {
+    display: none;
+  }
+
   background: linear-gradient(
     135deg,
     color-mix(in srgb, var(--bg-primary) 75%, var(--bg-secondary) 25%),

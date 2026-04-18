@@ -229,8 +229,9 @@
   margin-bottom: 8px;
   border-radius: $radius-sm;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--accent-orange) 30%, transparent);
-  background: color-mix(in srgb, var(--bg-primary) 60%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
+  border-left: 2px solid color-mix(in srgb, var(--accent-orange) 55%, transparent);
+  background: color-mix(in srgb, var(--bg-primary) 70%, transparent);
 
   &.collapsed {
     .boss-context-header {
@@ -250,14 +251,14 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 10px;
-  background: color-mix(in srgb, var(--accent-orange) 15%, transparent);
+  padding: 5px 10px;
+  background: color-mix(in srgb, var(--accent-orange) 6%, transparent);
   cursor: pointer;
   user-select: none;
-  transition: all $transition-fast;
+  transition: background $transition-fast;
 
   &:hover {
-    background: color-mix(in srgb, var(--accent-orange) 25%, transparent);
+    background: color-mix(in srgb, var(--accent-orange) 12%, transparent);
   }
 }
 
@@ -272,8 +273,8 @@
   font-size: 11px;
   font-weight: 600;
   color: var(--accent-orange);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.2px;
+  text-transform: none;
 }
 
 .boss-context-toggle {
@@ -290,75 +291,6 @@
   max-height: 300px;
   overflow-y: auto;
   background: color-mix(in srgb, var(--bg-primary) 40%, transparent);
-
-  // Style the markdown content
-  h2 {
-    color: var(--accent-blue);
-    font-size: 12px;
-    font-weight: 600;
-    margin: 12px 0 6px 0;
-    padding-bottom: 4px;
-    border-bottom: 1px solid color-mix(in srgb, var(--accent-blue) 20%, transparent);
-
-    &:first-child {
-      margin-top: 0;
-    }
-  }
-
-  h3 {
-    color: var(--text-primary);
-    font-size: 11px;
-    font-weight: 600;
-    margin: 8px 0 4px 0;
-  }
-
-  h4 {
-    color: var(--accent-orange);
-    font-size: 10px;
-    font-weight: 600;
-    margin: 10px 0 4px 0;
-    padding: 4px 8px;
-    background: color-mix(in srgb, var(--accent-orange) 10%, transparent);
-    border-radius: $radius-sm;
-    border-left: 2px solid var(--accent-orange);
-  }
-
-  blockquote {
-    margin: 4px 0;
-    padding: 4px 8px;
-    background: color-mix(in srgb, var(--bg-tertiary) 50%, transparent);
-    border-left: 2px solid var(--text-muted);
-    color: var(--text-secondary);
-    font-size: 10px;
-
-    strong {
-      color: var(--text-primary);
-    }
-  }
-
-  ul, ol {
-    margin: 4px 0;
-    padding-left: 16px;
-  }
-
-  li {
-    margin: 2px 0;
-    color: var(--text-secondary);
-
-    strong {
-      color: var(--text-primary);
-    }
-  }
-
-  p {
-    margin: 4px 0;
-    line-height: 1.4;
-  }
-
-  // Status colors
-  strong {
-    color: var(--text-primary);
-  }
 
   // Scrollbar styling
   &::-webkit-scrollbar {
@@ -387,17 +319,40 @@
   margin-top: 12px;
   border-radius: $radius-md;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--accent-blue) 40%, transparent);
-  background: linear-gradient(135deg, color-mix(in srgb, var(--bg-primary) 80%, transparent) 0%, color-mix(in srgb, var(--bg-secondary) 60%, transparent) 100%);
+  border: 1px solid color-mix(in srgb, var(--border-color) 60%, transparent);
+  border-left: 2px solid color-mix(in srgb, var(--accent-blue) 55%, transparent);
+  background: color-mix(in srgb, var(--bg-primary) 70%, transparent);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  min-width: 0;
+
+  &[role='button'] {
+    cursor: pointer;
+
+    &:hover {
+      border-color: color-mix(in srgb, var(--border-color) 90%, transparent);
+      border-left-color: var(--accent-blue);
+    }
+  }
+}
+
+.delegation-toggle {
+  font-size: 9px;
+  color: color-mix(in srgb, var(--accent-blue) 70%, transparent);
+  margin-left: 2px;
+  transition: color 0.15s ease;
+
+  .delegation-block[role='button']:hover & {
+    color: var(--accent-blue);
+  }
 }
 
 .delegation-header {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
-  background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
-  border-bottom: 1px solid color-mix(in srgb, var(--accent-blue) 20%, transparent);
+  padding: 6px 10px;
+  background: color-mix(in srgb, var(--accent-blue) 7%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 40%, transparent);
 }
 
 .delegation-icon {
@@ -408,11 +363,11 @@
 .delegation-title {
   flex: 1;
   font-family: $font-mono;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--accent-blue);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.2px;
+  text-transform: none;
 }
 
 .delegation-confidence {
@@ -451,6 +406,16 @@
   flex-shrink: 0;
 }
 
+.delegation-agent-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-right: 2px;
+}
+
 .delegation-agent-name {
   color: var(--accent-green);
   font-weight: 600;
@@ -466,13 +431,105 @@
 
 .delegation-command-text {
   color: var(--accent-blue);
-  font-style: italic;
   line-height: 1.4;
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+
+  &.is-expanded {
+    max-height: 420px;
+    overflow-y: auto;
+
+    &::-webkit-scrollbar { width: 6px; height: 6px; }
+    &::-webkit-scrollbar-track { background: transparent; }
+    &::-webkit-scrollbar-thumb {
+      background: color-mix(in srgb, var(--accent-blue) 30%, transparent);
+      border-radius: 3px;
+      &:hover { background: color-mix(in srgb, var(--accent-blue) 50%, transparent); }
+    }
+  }
 }
 
 .delegation-reason-text {
   color: var(--text-primary);
   line-height: 1.4;
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+// Tighten markdown spacing inside delegation / task-report surfaces.
+// The shared MarkdownComponents factory sets margins via inline styles, which
+// beat class-level CSS without !important. We scope the overrides to these
+// specific surfaces so other markdown-content callers keep their default rhythm.
+.delegated-task-command.markdown-content,
+.delegated-task-message-command.markdown-content,
+.delegation-command-text.markdown-content,
+.delegation-reason-text.markdown-content,
+.task-report-summary.markdown-content,
+.task-report-detail-value.markdown-content,
+.boss-context-content.markdown-content,
+.injected-instructions-content.markdown-content {
+  p {
+    margin: 0.15em 0 !important;
+
+    &:first-child { margin-top: 0 !important; }
+    &:last-child { margin-bottom: 0 !important; }
+  }
+
+  ul, ol {
+    margin: 0.15em 0 !important;
+    padding-left: 1.25em !important;
+
+    &:first-child { margin-top: 0 !important; }
+    &:last-child { margin-bottom: 0 !important; }
+  }
+
+  // Nested lists (loose or tight) sit flush inside their parent item.
+  ul ul, ul ol, ol ul, ol ol {
+    margin: 0.05em 0 !important;
+  }
+
+  li {
+    margin: 0 !important;
+    padding-left: 0.2em !important;
+
+    // Loose lists wrap each item's content in <p>. Strip those paragraph
+    // margins so the <li>'s own rhythm is what drives spacing.
+    > p {
+      margin: 0 !important;
+    }
+
+    > *:first-child { margin-top: 0 !important; }
+    > *:last-child { margin-bottom: 0 !important; }
+
+    // Tiny gap between an item's text and its nested sub-list.
+    > p + ul,
+    > p + ol {
+      margin-top: 0.05em !important;
+    }
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    margin: 0.25em 0 0.1em !important;
+    line-height: 1.25 !important;
+
+    &:first-child { margin-top: 0 !important; }
+  }
+
+  pre {
+    margin: 0.25em 0 !important;
+  }
+
+  blockquote {
+    margin: 0.2em 0 !important;
+  }
+
+  hr {
+    margin: 0.3em 0 !important;
+  }
 }
 
 .delegation-alt-list {
@@ -488,6 +545,12 @@
   background: color-mix(in srgb, var(--bg-primary) 50%, transparent);
   border-radius: $radius-sm;
   border: 1px solid color-mix(in srgb, var(--text-muted) 30%, transparent);
+}
+
+.delegation-subordinate-progress {
+  padding: 8px 12px;
+  border-top: 1px solid color-mix(in srgb, var(--accent-green) 20%, transparent);
+  background: color-mix(in srgb, var(--bg-primary) 40%, transparent);
 }
 
 .delegation-footer {
@@ -580,8 +643,7 @@
 }
 
 .delegated-task-command {
-  font-family: $font-mono;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-primary);
   line-height: 1.4;
   padding: 6px 8px;
@@ -589,6 +651,9 @@
   border-radius: $radius-sm;
   border-left: 2px solid var(--accent-purple);
   margin-top: 4px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
 }
 
 // ============================================================================
@@ -596,19 +661,27 @@
 // ============================================================================
 
 .delegated-task-message {
-  display: inline-flex;
+  display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 6px 10px;
-  border-radius: $radius-sm;
-  background: color-mix(in srgb, var(--accent-purple) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--accent-purple) 25%, transparent);
-  transition: all 0.15s ease;
+  padding: 5px 10px 6px 12px;
+  border-radius: $radius-md;
+  background: color-mix(in srgb, var(--bg-primary) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
+  border-left: 2px solid color-mix(in srgb, var(--accent-purple) 65%, transparent);
+  transition: border-color 0.15s ease;
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
 
-  &.expanded {
-    padding: 8px 12px;
-    background: linear-gradient(135deg, color-mix(in srgb, var(--accent-purple) 14%, transparent) 0%, color-mix(in srgb, var(--accent-purple) 6%, transparent) 100%);
-    border-color: color-mix(in srgb, var(--accent-purple) 35%, transparent);
+  &:hover {
+    border-color: color-mix(in srgb, var(--border-color) 85%, transparent);
+    border-left-color: var(--accent-purple);
+  }
+
+  &[role='button'] {
+    cursor: pointer;
   }
 }
 
@@ -616,24 +689,44 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  cursor: pointer;
   user-select: none;
-
-  &:hover .delegated-task-message-toggle {
-    color: var(--accent-purple);
-  }
+  flex-wrap: wrap;
+  min-height: 20px;
 }
 
 .delegated-task-message-icon {
   font-size: 13px;
   line-height: 1;
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--accent-purple) 40%, transparent));
+  flex-shrink: 0;
+}
+
+.delegated-task-message-chip {
+  font-family: $font-mono;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  line-height: 1.3;
+  padding: 1px 6px;
+  border-radius: 3px;
+  color: color-mix(in srgb, var(--accent-purple) 90%, white);
+  background: color-mix(in srgb, var(--accent-purple) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-purple) 30%, transparent);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .delegated-task-message-label {
   font-family: $font-mono;
   font-size: 11px;
-  color: color-mix(in srgb, var(--accent-purple) 80%, transparent);
+  color: var(--text-secondary, var(--text-primary));
   letter-spacing: 0.3px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 1 1 auto;
+  min-width: 0;
 
   strong {
     color: var(--accent-purple);
@@ -641,41 +734,74 @@
   }
 }
 
+.delegated-task-message-from {
+  color: var(--text-muted, #888);
+  opacity: 0.8;
+}
+
+.delegated-task-message-agent-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+}
+
 .delegated-task-message-id {
   font-family: $font-mono;
   font-size: 9px;
-  color: var(--text-muted);
-  opacity: 0.6;
+  color: var(--text-muted, #aaa);
+  background: color-mix(in srgb, var(--bg-primary, #0c0c0c) 65%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-purple) 20%, transparent);
+  border-radius: 3px;
+  padding: 0 5px;
+  line-height: 14px;
+  letter-spacing: 0.3px;
+  flex-shrink: 0;
+  opacity: 0.85;
 }
 
 .delegated-task-message-toggle {
-  font-size: 8px;
-  color: color-mix(in srgb, var(--accent-purple) 50%, transparent);
-  margin-left: 2px;
+  font-size: 9px;
+  color: color-mix(in srgb, var(--accent-purple) 55%, transparent);
+  margin-left: auto;
   transition: color 0.15s ease;
-}
+  flex-shrink: 0;
 
-.delegated-task-message-preview {
-  font-family: $font-mono;
-  font-size: 11px;
-  color: color-mix(in srgb, var(--text-primary) 70%, transparent);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 500px;
+  .delegated-task-message:hover & {
+    color: var(--accent-purple);
+  }
 }
 
 .delegated-task-message-command {
-  font-family: $font-mono;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-primary);
   line-height: 1.5;
-  padding: 6px 8px;
-  background: color-mix(in srgb, var(--bg-primary) 50%, transparent);
-  border-radius: $radius-sm;
+  padding: 5px 8px;
+  background: color-mix(in srgb, var(--bg-primary, #0c0c0c) 65%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-purple) 15%, transparent);
   border-left: 2px solid var(--accent-purple);
-  margin-top: 4px;
-  white-space: pre-wrap;
+  border-radius: $radius-sm;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
+
+  &.is-expanded {
+    max-height: 420px;
+    overflow-y: auto;
+
+    &::-webkit-scrollbar { width: 6px; height: 6px; }
+    &::-webkit-scrollbar-track { background: transparent; }
+    &::-webkit-scrollbar-thumb {
+      background: color-mix(in srgb, var(--accent-purple) 30%, transparent);
+      border-radius: 3px;
+      &:hover { background: color-mix(in srgb, var(--accent-purple) 50%, transparent); }
+    }
+  }
+
+  &.markdown-content > *:first-child { margin-top: 0; }
+  &.markdown-content > *:last-child { margin-bottom: 0; }
 }
 
 // ============================================================================
@@ -689,24 +815,33 @@
   padding: 6px 10px;
   border-radius: $radius-sm;
   transition: all 0.15s ease;
+  min-width: 0;
+
+  &[role='button'] {
+    cursor: pointer;
+  }
 
   &.status-completed {
-    background: color-mix(in srgb, var(--accent-green) 10%, transparent);
-    border: 1px solid color-mix(in srgb, var(--accent-green) 25%, transparent);
+    background: color-mix(in srgb, var(--bg-primary) 70%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
+    border-left: 2px solid color-mix(in srgb, var(--accent-green) 60%, transparent);
 
     &.expanded {
-      background: linear-gradient(135deg, color-mix(in srgb, var(--accent-green) 14%, transparent) 0%, color-mix(in srgb, var(--accent-green) 6%, transparent) 100%);
-      border-color: color-mix(in srgb, var(--accent-green) 35%, transparent);
+      background: color-mix(in srgb, var(--accent-green) 6%, transparent);
+      border-color: color-mix(in srgb, var(--border-color) 75%, transparent);
+      border-left-color: var(--accent-green);
     }
   }
 
   &.status-failed {
-    background: color-mix(in srgb, var(--accent-red, #ef4444) 10%, transparent);
-    border: 1px solid color-mix(in srgb, var(--accent-red, #ef4444) 25%, transparent);
+    background: color-mix(in srgb, var(--bg-primary) 70%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
+    border-left: 2px solid color-mix(in srgb, var(--accent-red, #ef4444) 60%, transparent);
 
     &.expanded {
-      background: linear-gradient(135deg, color-mix(in srgb, var(--accent-red, #ef4444) 14%, transparent) 0%, color-mix(in srgb, var(--accent-red, #ef4444) 6%, transparent) 100%);
-      border-color: color-mix(in srgb, var(--accent-red, #ef4444) 35%, transparent);
+      background: color-mix(in srgb, var(--accent-red, #ef4444) 6%, transparent);
+      border-color: color-mix(in srgb, var(--border-color) 75%, transparent);
+      border-left-color: var(--accent-red, #ef4444);
     }
   }
 }
@@ -733,6 +868,10 @@
   font-size: 11px;
   color: var(--text-secondary);
   letter-spacing: 0.3px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
 
   strong {
     color: var(--text-primary);
@@ -746,6 +885,15 @@
   .status-failed & {
     strong { color: var(--accent-red, #ef4444); }
   }
+}
+
+.task-report-agent-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
 }
 
 .task-report-id {
@@ -763,35 +911,32 @@
 }
 
 .task-report-summary {
-  font-family: $font-mono;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-primary);
   line-height: 1.4;
   padding: 4px 8px;
   background: color-mix(in srgb, var(--bg-primary) 40%, transparent);
   border-radius: $radius-sm;
   margin-top: 2px;
-}
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
 
-.task-report-details {
-  padding: 6px 8px;
-  margin-top: 4px;
-  background: color-mix(in srgb, var(--bg-primary) 50%, transparent);
-  border-radius: $radius-sm;
-}
+  &.is-expanded {
+    max-height: 420px;
+    overflow-y: auto;
 
-.task-report-detail-label {
-  font-family: $font-mono;
-  font-size: 10px;
-  color: var(--text-muted);
-  margin-right: 6px;
-}
+    &::-webkit-scrollbar { width: 6px; height: 6px; }
+    &::-webkit-scrollbar-track { background: transparent; }
+    &::-webkit-scrollbar-thumb {
+      background: color-mix(in srgb, var(--text-muted) 40%, transparent);
+      border-radius: 3px;
+      &:hover { background: color-mix(in srgb, var(--text-muted) 60%, transparent); }
+    }
+  }
 
-.task-report-detail-value {
-  font-family: $font-mono;
-  font-size: 11px;
-  color: var(--text-secondary);
-  line-height: 1.4;
+  &.markdown-content > *:first-child { margin-top: 0; }
+  &.markdown-content > *:last-child { margin-bottom: 0; }
 }
 
 // ============================================================================

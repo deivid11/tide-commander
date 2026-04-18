@@ -230,8 +230,7 @@
     "title": "Task List"
   },
   "bossContext": {
-    "teamContext": "Team Context ({{count}} agents)",
-    "teamContext_one": "Team Context (1 agent)",
+    "teamContext": "Team Context",
     "injectedInstructions": "Injected Agent Instructions"
   },
   "delegation": {

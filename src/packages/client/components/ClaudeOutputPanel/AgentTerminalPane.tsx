@@ -27,11 +27,9 @@ import {
   useAgentCompacting,
   useReconnectCount,
   useHistoryRefreshTrigger,
-  useAgentTaskProgress,
   useExecTasks,
   useSubagentsMapForAgent,
   usePermissionRequests,
-  store,
   type ClaudeOutput,
 } from '../../store';
 import type { Agent } from '../../../shared/types';
@@ -52,7 +50,6 @@ import { parseBossContext, parseInjectedInstructions } from './BossContext';
 import { SearchBar } from './TerminalHeader';
 import { TerminalInputArea } from './TerminalInputArea';
 import { VirtualizedOutputList } from './VirtualizedOutputList';
-import { AgentProgressIndicator } from './AgentProgressIndicator';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -189,21 +186,6 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   const outputs = useAgentOutputs(agentId);
   const isCompacting = useAgentCompacting(agentId);
   const hasSessionId = !!agent?.sessionId;
-
-  // Boss agent progress
-  const isBoss = agent?.class === 'boss' || agent?.isBoss;
-  const agentTaskProgress = useAgentTaskProgress(isBoss ? agentId : null);
-  const activeTaskProgress = useMemo(
-    () => Array.from(agentTaskProgress.values()).filter((progress) => progress.status === 'working'),
-    [agentTaskProgress]
-  );
-  const completedTaskProgressIds = useMemo(
-    () => Array.from(agentTaskProgress.values())
-      .filter((progress) => progress.status === 'completed' || progress.status === 'failed')
-      .map((progress) => progress.agentId),
-    [agentTaskProgress]
-  );
-  const [agentProgressCollapsed, setAgentProgressCollapsed] = useState(true);
 
   // Exec tasks & subagents
   const execTasks = useExecTasks(agentId);
@@ -443,19 +425,6 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
       if (completionTimerRef.current) clearTimeout(completionTimerRef.current);
     };
   }, [agent?.status]);
-
-  // ── Boss progress auto-dismiss ──
-  useEffect(() => {
-    if (!agentId || !isBoss || completedTaskProgressIds.length === 0) {
-      return;
-    }
-    const dismissTimer = window.setTimeout(() => {
-      completedTaskProgressIds.forEach((subordinateId) => {
-        store.clearAgentTaskProgress(agentId, subordinateId);
-      });
-    }, 300);
-    return () => window.clearTimeout(dismissTimer);
-  }, [agentId, isBoss, completedTaskProgressIds]);
 
   // ── Auto-update bash modal state from parent ──
   // (Bash modal is owned by parent; this effect was previously in GuakeOutputPanel.
@@ -807,44 +776,7 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
               <span className="compacting-label">Compacting context...</span>
             </div>
           )}
-          {/* Boss agent progress indicators */}
-          {!isAgentSwitching && isBoss && activeTaskProgress.length > 0 && (
-            <div className={`agent-progress-container ${agentProgressCollapsed ? 'collapsed' : 'expanded'}`}>
-              <div
-                className="agent-progress-container-header"
-                onClick={() => setAgentProgressCollapsed((previous) => !previous)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    setAgentProgressCollapsed((previous) => !previous);
-                  }
-                }}
-              >
-                <span className="progress-crown">👑</span>
-                <span>{t('terminal:empty.subordinateProgress')}</span>
-                <span className="progress-count">{t('terminal:empty.activeCount', { count: activeTaskProgress.length })}</span>
-                <span className="agent-progress-container-toggle">{agentProgressCollapsed ? '▶' : '▼'}</span>
-              </div>
-              {!agentProgressCollapsed && activeTaskProgress.map((progress) => (
-                <AgentProgressIndicator
-                  key={progress.agentId}
-                  progress={progress}
-                  defaultExpanded={progress.status === 'working'}
-                  onAgentClick={(clickedAgentId) => {
-                    store.selectAgent(clickedAgentId);
-                    store.setTerminalOpen(true);
-                  }}
-                  onDismiss={(subordinateId) => {
-                    store.clearAgentTaskProgress(agentId, subordinateId);
-                  }}
-                  onFileClick={onFileClick}
-                  onBashClick={onBashClick}
-                />
-              ))}
-            </div>
-          )}
+          {/* Subordinate progress indicators now render inline within each DelegationBlock */}
         </div>
       </div>
 

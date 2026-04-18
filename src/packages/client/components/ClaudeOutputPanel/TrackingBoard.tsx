@@ -1,7 +1,7 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { memo, useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Agent, AgentTrackingStatus } from '../../../shared/types';
-import { useAgentsByTrackingStatus, useAgentsWithUnseenOutput, useCustomAgentClassesArray, store } from '../../store';
+import { useAgentsByTrackingStatus, useAgentsWithUnseenOutput, useAreas, useCustomAgentClassesArray, store } from '../../store';
 import { getClassConfig } from '../../utils/classConfig';
 import { formatIdleTime } from '../../utils/formatting';
 import { apiUrl, authFetch } from '../../utils/storage';
@@ -21,6 +21,12 @@ type TrackingColumn = {
   toneClass: string;
 };
 
+type AgentWithArea = {
+  agent: Agent;
+  areaName: string | null;
+  areaColor: string | null;
+};
+
 const TRACKING_COLUMNS: TrackingColumn[] = [
   { key: 'working', title: 'Working', emptyLabel: 'No agents', toneClass: 'working' },
   { key: 'waiting-subordinates', title: 'Waiting Subordinates', emptyLabel: 'No agents', toneClass: 'waiting-subordinates' },
@@ -29,27 +35,36 @@ const TRACKING_COLUMNS: TrackingColumn[] = [
   { key: 'can-clear-context', title: 'Can Clear Context', emptyLabel: 'No agents', toneClass: 'can-clear-context' },
 ];
 
-export function TrackingBoard({ activeAgentId, onSelectAgent }: TrackingBoardProps) {
+export const TrackingBoard = memo(function TrackingBoard({ activeAgentId, onSelectAgent }: TrackingBoardProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const [activeWorkspace] = useWorkspaceFilter();
   const groupedAgents = useAgentsByTrackingStatus();
   const agentsWithUnseenOutput = useAgentsWithUnseenOutput();
+  const areas = useAreas();
   const [clearingAgentIds, setClearingAgentIds] = useState<Set<string>>(new Set());
   const { isPending: isConfirmPending, arm: armConfirm, cancel: clearConfirm } = useTwoClickConfirm();
+  const justNowLabel = t('common:time.justNow', { defaultValue: 'just now' });
 
   const columns = useMemo(() => {
     return TRACKING_COLUMNS.map((column) => {
-      const visibleAgents = groupedAgents[column.key]
-        .filter((agent) => {
-          if (!activeWorkspace) return true;
+      const visibleAgents: AgentWithArea[] = groupedAgents[column.key]
+        .map<AgentWithArea & { areaId: string | null }>((agent) => {
           const area = store.getAreaForAgent(agent.id);
-          return isAgentVisibleInWorkspace(area?.id ?? null);
+          return {
+            agent,
+            areaName: area?.name ?? null,
+            areaColor: area?.color ?? null,
+            areaId: area?.id ?? null,
+          };
         })
-        .sort((a, b) => (b.trackingStatusTimestamp || 0) - (a.trackingStatusTimestamp || 0));
+        .filter(({ areaId }) => activeWorkspace ? isAgentVisibleInWorkspace(areaId) : true)
+        .sort((a, b) => (b.agent.trackingStatusTimestamp || 0) - (a.agent.trackingStatusTimestamp || 0))
+        .map(({ agent, areaName, areaColor }) => ({ agent, areaName, areaColor }));
 
       return { ...column, agents: visibleAgents };
     });
-  }, [activeWorkspace, groupedAgents]);
+    // `areas` is a dep (not used directly) so assignments re-resolve when areas change.
+  }, [activeWorkspace, groupedAgents, areas]);
 
   const clearTrackingStatus = useCallback(async (agentId: string) => {
     try {
@@ -179,7 +194,7 @@ export function TrackingBoard({ activeAgentId, onSelectAgent }: TrackingBoardPro
                     if (isClearing) return;
                     if (isPending) {
                       clearConfirm();
-                      void handleClearContextColumn(column.key, column.agents);
+                      void handleClearContextColumn(column.key, column.agents.map((entry) => entry.agent));
                     } else {
                       armConfirm(confirmId);
                     }
@@ -208,7 +223,7 @@ export function TrackingBoard({ activeAgentId, onSelectAgent }: TrackingBoardPro
                   className="tracking-board-column-action"
                   onClick={() => {
                     if (isClearing) return;
-                    void handleClearColumn(column.key, column.agents);
+                    void handleClearColumn(column.key, column.agents.map((entry) => entry.agent));
                   }}
                   disabled={isClearing}
                   title="Clear status for all agents in this column"
@@ -224,10 +239,12 @@ export function TrackingBoard({ activeAgentId, onSelectAgent }: TrackingBoardPro
             {column.agents.length === 0 ? (
               <div className="tracking-board-empty">{column.emptyLabel}</div>
             ) : (
-              column.agents.map((agent) => (
+              column.agents.map(({ agent, areaName, areaColor }) => (
                 <TrackingBoardCard
                   key={agent.id}
                   agent={agent}
+                  areaName={areaName}
+                  areaColor={areaColor}
                   isActive={agent.id === activeAgentId}
                   isClearing={clearingAgentIds.has(agent.id)}
                   hasPendingRead={agentsWithUnseenOutput.has(agent.id)}
@@ -236,9 +253,9 @@ export function TrackingBoard({ activeAgentId, onSelectAgent }: TrackingBoardPro
                   onSelectAgent={onSelectAgent}
                   onClearStatus={handleClearStatus}
                   onClearContext={handleClearContextAgent}
-                  onArmClearContext={() => armConfirm(`agent-ctx:${agent.id}`)}
+                  onArmClearContext={armConfirm}
                   onCancelClearContextConfirm={clearConfirm}
-                  timeLabel={agent.trackingStatusTimestamp ? formatIdleTime(agent.trackingStatusTimestamp) : t('common:time.justNow', { defaultValue: 'just now' })}
+                  timeLabel={agent.trackingStatusTimestamp ? formatIdleTime(agent.trackingStatusTimestamp) : justNowLabel}
                 />
               ))
             )}
@@ -247,10 +264,12 @@ export function TrackingBoard({ activeAgentId, onSelectAgent }: TrackingBoardPro
       ))}
     </div>
   );
-}
+});
 
 interface TrackingBoardCardProps {
   agent: Agent;
+  areaName: string | null;
+  areaColor: string | null;
   isActive: boolean;
   isClearing: boolean;
   hasPendingRead: boolean;
@@ -259,13 +278,15 @@ interface TrackingBoardCardProps {
   onSelectAgent: (agentId: string) => void;
   onClearStatus: (agent: Agent) => void;
   onClearContext: (agent: Agent) => void;
-  onArmClearContext: () => void;
+  onArmClearContext: (confirmId: string) => void;
   onCancelClearContextConfirm: () => void;
   timeLabel: string;
 }
 
-function TrackingBoardCard({
+const TrackingBoardCard = memo(function TrackingBoardCard({
   agent,
+  areaName,
+  areaColor,
   isActive,
   isClearing,
   hasPendingRead,
@@ -297,7 +318,22 @@ function TrackingBoardCard({
 
       <div className="tracking-board-card-content">
         <div className="tracking-board-card-header">
-          <span className="tracking-board-card-name">{agent.name}</span>
+          <span className="tracking-board-card-name">
+            {agent.name}
+            {areaName && (
+              <span
+                className="tracking-board-card-area"
+                title={areaName}
+                style={areaColor ? {
+                  color: areaColor,
+                  borderColor: `color-mix(in srgb, ${areaColor} 55%, transparent)`,
+                  background: `color-mix(in srgb, ${areaColor} 18%, transparent)`,
+                } : undefined}
+              >
+                {areaName}
+              </span>
+            )}
+          </span>
           {hasPendingRead && (
             <span className="tracking-board-card-pending-read" title="Pending read" aria-label="Unread output">!</span>
           )}
@@ -313,7 +349,7 @@ function TrackingBoardCard({
                   onCancelClearContextConfirm();
                   void onClearContext(agent);
                 } else {
-                  onArmClearContext();
+                  onArmClearContext(`agent-ctx:${agent.id}`);
                 }
               }}
               disabled={isClearing}
@@ -350,4 +386,4 @@ function TrackingBoardCard({
       </div>
     </article>
   );
-}
+});

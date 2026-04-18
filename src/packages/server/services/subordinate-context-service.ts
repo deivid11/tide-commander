@@ -3,11 +3,8 @@
  * Builds detailed context about boss agent's subordinates for injection into messages
  */
 
-import type { BuiltInAgentClass, Agent } from '../../shared/types.js';
-import { BUILT_IN_AGENT_CLASSES } from '../../shared/types.js';
+import type { Agent } from '../../shared/types.js';
 import * as bossService from './boss-service.js';
-import * as skillService from './skill-service.js';
-import * as customClassService from './custom-class-service.js';
 import { loadSession, loadToolHistory } from '../claude/session-loader.js';
 import { truncate } from '../utils/index.js';
 
@@ -96,43 +93,6 @@ async function buildFileChangesSection(sub: Agent): Promise<string> {
 }
 
 /**
- * Build capabilities section for a subordinate
- */
-function buildCapabilitiesSection(sub: Agent, agentClass: string): string {
-  let section = '';
-  const customClass = customClassService.getCustomClass(agentClass);
-  const isBuiltIn = agentClass in BUILT_IN_AGENT_CLASSES;
-
-  if (customClass) {
-    const instructionsSummary = customClass.instructions
-      ? truncate(customClass.instructions.replace(/\n/g, ' ').trim(), 150)
-      : null;
-
-    section = `\n### Capabilities:
-- **Class Type**: Custom Class "${customClass.name}" ${customClass.icon}
-- **Specialization**: ${customClass.description}`;
-
-    if (instructionsSummary) {
-      section += `\n- **Custom Instructions**: ${instructionsSummary}`;
-    }
-  } else if (isBuiltIn) {
-    const builtInConfig = BUILT_IN_AGENT_CLASSES[agentClass as BuiltInAgentClass];
-    section = `\n### Capabilities:
-- **Class Type**: ${builtInConfig.icon} ${agentClass.charAt(0).toUpperCase() + agentClass.slice(1)} (built-in)
-- **Specialization**: ${builtInConfig.description}`;
-  }
-
-  // Get agent skills
-  const agentSkills = skillService.getSkillsForAgent(sub.id, sub.class);
-  if (agentSkills.length > 0) {
-    const skillsList = agentSkills.map(s => s.name).join(', ');
-    section += `\n- **Skills**: ${skillsList}`;
-  }
-
-  return section;
-}
-
-/**
  * Build detailed context about boss's subordinates for injection into user message.
  * Returns null if boss has no subordinates.
  */
@@ -146,9 +106,6 @@ export async function buildBossContext(bossId: string): Promise<string | null> {
 
   const subordinateDetails = await Promise.all(contexts.map(async (ctx, i) => {
     const sub = subordinates[i];
-
-    // Get working directory
-    const cwd = sub?.cwd || 'Unknown';
 
     // Get last assigned task with time
     const lastTask = ctx.lastAssignedTask || sub?.lastAssignedTask;
@@ -165,15 +122,13 @@ export async function buildBossContext(bossId: string): Promise<string | null> {
     // Build sections
     const conversationSection = sub ? await buildConversationSection(sub) : '';
     const fileChangesSection = sub ? await buildFileChangesSection(sub) : '';
-    const capabilitiesSection = sub ? buildCapabilitiesSection(sub, ctx.class) : '';
 
-    return `## ${ctx.name} (${ctx.class})
+    return `## ${ctx.name}
 - **Agent ID**: \`${ctx.id}\`
 - **Status**: ${ctx.status}
 - **Idle Time**: ${idleTime}
 - **Last Assigned Task**: ${lastTaskInfo}
-- **Working Directory**: ${cwd}
-- **Context Usage**: ${ctx.contextPercent}% (${ctx.tokensUsed?.toLocaleString() || 0} tokens)${capabilitiesSection}${fileChangesSection}${conversationSection}`;
+- **Context**: ${ctx.contextPercent}%${fileChangesSection}${conversationSection}`;
   }));
 
   // Get recent delegation history for this boss
@@ -185,7 +140,7 @@ export async function buildBossContext(bossId: string): Promise<string | null> {
       }).join('\n')
     : 'No recent delegations.';
 
-  return `# YOUR TEAM (${contexts.length} agents)
+  return `# TEAM:
 ${subordinateDetails.join('\n\n')}
 
 # RECENT DELEGATION HISTORY

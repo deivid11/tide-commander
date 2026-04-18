@@ -341,6 +341,11 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
   const activeAgentId = selectedAgentId;
   const trackingBoardVisible = useTrackingBoardVisible();
 
+  const handleTrackingBoardSelectAgent = useCallback((agentId: string) => {
+    store.setLastSelectionViaDirectClick(true);
+    store.selectAgent(agentId);
+  }, []);
+
   // Get area folders for the active agent
   const areas = useAreas();
   const buildings = useBuildings();
@@ -1507,10 +1512,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
           <div className="guake-tracking-board-body">
             <TrackingBoard
               activeAgentId={activeAgentId}
-              onSelectAgent={(agentId) => {
-                store.setLastSelectionViaDirectClick(true);
-                store.selectAgent(agentId);
-              }}
+              onSelectAgent={handleTrackingBoardSelectAgent}
             />
           </div>
         </div>
