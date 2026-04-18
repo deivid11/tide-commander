@@ -18,15 +18,18 @@
     flex: 1;
     min-height: 0;
     overflow: hidden;
-    // Default state - no transform
-    transform: translateX(0);
     transition: none;
-    will-change: transform, opacity;
 
-    // When swiping (controlled via inline style)
-    &.is-swiping {
-      // During active swipe - no transition, follows finger
-      transition: none;
+    // `transform` and `will-change: transform` create a containing block for
+    // `position: fixed` descendants, which would break the input wrapper's
+    // viewport-relative positioning. Only apply them when actively swiping.
+    &.is-swiping,
+    &.is-animating,
+    &.swipe-out-left,
+    &.swipe-out-right,
+    &.swipe-in-left,
+    &.swipe-in-right {
+      will-change: transform, opacity;
     }
 
     // When swipe is cancelled or completed - animate back/out (very fast)

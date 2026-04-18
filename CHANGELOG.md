@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.53.0] - 2026-04-18
+
+### Added
+- **Rich notification images** - `AgentNotification`, `POST /api/notify`, and the `SendNotificationMessage` WebSocket payload now accept optional `iconUrl` (round/large icon) and `imageUrl` (expanded big-picture) PNG URLs
+- **Android large-icon / big-picture rendering** - `WebSocketForegroundService` downloads the PNGs asynchronously off the main thread via OkHttp, posts a plain notification immediately for low-latency delivery, then upgrades it in place once the bitmaps arrive (hides the round thumbnail on expand per platform guidance)
+
+### Fixed
+- **Mobile swipe breaking `position: fixed` descendants** - `_mobile-swipe.scss` no longer applies `transform: translateX(0)` or `will-change: transform` at rest, which was establishing a containing block and trapping the input wrapper's viewport-relative positioning. These properties are now only set on the active swipe/animation state classes
+
 ## [1.52.0] - 2026-04-18
 
 ### Added

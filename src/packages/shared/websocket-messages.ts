@@ -649,6 +649,8 @@ export interface SendNotificationMessage extends WSMessage {
     agentId: string;
     title: string;
     message: string;
+    iconUrl?: string;
+    imageUrl?: string;
   };
 }
 

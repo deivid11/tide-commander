@@ -181,6 +181,10 @@ export interface AgentNotification {
   title: string;
   message: string;
   timestamp: number;
+  // Optional PNG URL shown as the round/large icon on Android (and avatar in-app).
+  iconUrl?: string;
+  // Optional PNG URL shown as the expanded big-picture on Android.
+  imageUrl?: string;
 }
 
 // ============================================================================
