@@ -131,14 +131,16 @@ export type ClaudeModel =
   | 'opus'
   | 'haiku'
   | 'claude-opus-4-7'
-  | 'claude-opus-4-6';
+  | 'claude-opus-4-6'
+  | 'opus[1m]';
 
-export const CLAUDE_MODELS: Record<ClaudeModel, { label: string; description: string; icon: string; deprecated?: boolean }> = {
-  sonnet: { label: 'Sonnet', description: 'Balanced performance and cost (recommended)', icon: '⚡' },
-  'claude-opus-4-7': { label: 'Opus 4.7', description: 'Latest Opus — most capable, highest cost', icon: '🧠' },
-  opus: { label: 'Opus (legacy)', description: 'Legacy alias — prefer Opus 4.7', icon: '🧠', deprecated: true },
-  'claude-opus-4-6': { label: 'Opus 4.6', description: 'Previous Opus generation (retained for existing agents)', icon: '🧠', deprecated: true },
-  haiku: { label: 'Haiku', description: 'Fast and economical', icon: '🚀' },
+export const CLAUDE_MODELS: Record<ClaudeModel, { label: string; description: string; icon: string; contextWindow: number; deprecated?: boolean }> = {
+  sonnet: { label: 'Sonnet', description: 'Balanced performance and cost (recommended)', icon: '⚡', contextWindow: 200000 },
+  'opus[1m]': { label: 'Opus [1M]', description: 'Opus with 1M token context window — best for very long tasks', icon: '🧠', contextWindow: 1000000 },
+  'claude-opus-4-7': { label: 'Opus 4.7', description: 'Latest Opus — most capable, highest cost', icon: '🧠', contextWindow: 200000 },
+  opus: { label: 'Opus (legacy)', description: 'Legacy alias — prefer Opus 4.7', icon: '🧠', contextWindow: 200000, deprecated: true },
+  'claude-opus-4-6': { label: 'Opus 4.6', description: 'Previous Opus generation (retained for existing agents)', icon: '🧠', contextWindow: 200000, deprecated: true },
+  haiku: { label: 'Haiku', description: 'Fast and economical', icon: '🚀', contextWindow: 200000 },
 };
 
 // Claude Effort Level - how much reasoning effort Claude puts into responses.

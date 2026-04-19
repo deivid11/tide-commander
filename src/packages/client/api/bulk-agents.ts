@@ -26,10 +26,10 @@ async function postBulkAction(endpoint: string, body: Record<string, unknown>): 
   }
 
   const data = await response.json();
-  // Backend returns { deleted/stopped/cleared/moved: string[], failed: string[] }
+  // Backend returns { deleted/stopped/cleared/moved/changed: string[], failed: string[] }
   // Normalize to a common shape
   const failed: string[] = data.failed || [];
-  const succeeded: string[] = data.deleted || data.stopped || data.cleared || data.moved || [];
+  const succeeded: string[] = data.deleted || data.stopped || data.cleared || data.moved || data.changed || [];
   return { succeeded, failed };
 }
 
@@ -59,4 +59,15 @@ export async function bulkClearContext(agentIds: string[]): Promise<BulkActionRe
  */
 export async function bulkMoveToArea(agentIds: string[], areaId: string | null): Promise<BulkActionResult> {
   return postBulkAction('/api/agents/bulk/move-area', { agentIds, areaId });
+}
+
+/**
+ * Change model for multiple agents. Clears session/context so the new model takes effect.
+ */
+export async function bulkChangeModel(
+  agentIds: string[],
+  provider: 'claude' | 'codex' | 'opencode',
+  model: string
+): Promise<BulkActionResult> {
+  return postBulkAction('/api/agents/bulk/change-model', { agentIds, provider, model });
 }

@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.54.0] - 2026-04-18
+
+### Added
+- **`opus[1m]` model** — new Tide Commander model label representing Opus 4.7 running with the 1M-token context beta; translates to `claude-opus-4-7` in the CLI, with `contextWindow: 1_000_000` in the metadata and correct limit propagation through `agent-service`, `agent-handler`, `llm-matcher-service`, and `backend.ts`
+- **Bulk change-model** — new `POST /api/agents/bulk/change-model` endpoint and matching `bulkChangeModel()` API client let you switch model/provider for multiple selected agents at once; `BulkManageModal` gains a provider + model picker and a "Change Model" confirm step
+- **Mobile bottom menu** — new `MobileBottomMenu` component provides a bottom navigation bar on mobile 3D view with quick-access buttons for Search, Tracking, Spawn, Commander, and Settings
+- **Global search in FAB / mobile menu** — `FloatingActionButtons` and `MobileFabMenu` now expose an "Open Spotlight" (global search) button
+
+### Changed
+- **`CLAUDE_MODELS` metadata** — each entry now carries a `contextWindow` field (200k or 1M) used as the authoritative source for context limit derivation across the server, replacing the previous hardcoded 200k default
+- **`getDefaultContextLimit`** — reads `CLAUDE_MODELS[model].contextWindow` so newly added larger-context models are picked up automatically without code changes
+- **`initAgents`** — re-derives `contextLimit` from model metadata on startup so agents migrated to `opus[1m]` immediately show 1M context instead of the stale persisted 200k
+- **`handleUpdateAgentProperties`** — immediately updates `contextLimit` and drops stale `contextStats` when the model changes, so the UI reflects the correct window size without waiting for the next modelUsage event
+- **`VALID_CLAUDE_MODELS`** — now derived from `Object.keys(CLAUDE_MODELS)` (single source of truth) instead of a manually maintained `Set`
+- **Sidebar closes on agent select** — tapping an agent on mobile now closes the sidebar
+
 ## [1.53.0] - 2026-04-18
 
 ### Added

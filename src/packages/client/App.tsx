@@ -41,6 +41,7 @@ const Scene2DCanvas = React.lazy(() => import('./components/Scene2DCanvas').then
 const DashboardView = React.lazy(() => import('./components/DashboardView').then(m => ({ default: m.DashboardView })));
 import { ViewModeToggle } from './components/ViewModeToggle/ViewModeToggle';
 import { MobileFabMenu } from './components/MobileFabMenu';
+import { MobileBottomMenu } from './components/MobileBottomMenu';
 import { FloatingActionButtons } from './components/FloatingActionButtons';
 import { AppModals } from './components/AppModals';
 const IframeModal = React.lazy(() => import('./components/IframeModal').then(m => ({ default: m.IframeModal })));
@@ -421,6 +422,7 @@ function AppContent() {
     store.setLastSelectionViaDirectClick(true);
     store.selectAgent(agentId);
     store.setTerminalOpen(true);
+    setSidebarOpen(false);
   }, []);
 
   // Handle opening file explorer for an area
@@ -618,6 +620,11 @@ function AppContent() {
   const handleMobileMenuToggle = useCallback(() => setMobileMenuOpen(prev => !prev), []);
   const handleShowTerminal = useCallback(() => store.setMobileView('terminal'), []);
   const handleOpenSidebar = useCallback(() => setSidebarOpen(true), []);
+  const handleOpenTrackingBoard = useCallback(() => {
+    setSidebarView('tracking');
+    localStorage.setItem('tide-commander-sidebar-view', 'tracking');
+    setSidebarOpen(true);
+  }, []);
 
   return (
     <div className={`app ${terminalOpen ? 'terminal-open' : ''} ${isDrawingMode ? 'drawing-mode' : ''} ${sidebarCollapsed ? 'sidebar-collapsed' : ''} mobile-view-${mobileView} view-mode-${viewMode}`}>
@@ -840,6 +847,7 @@ function AppContent() {
           onShowTerminal={handleShowTerminal}
           onOpenSidebar={handleOpenSidebar}
           onOpenToolbox={toolboxModal.open}
+          onOpenSpotlight={spotlightModal.open}
           onOpenCommander={commanderModal.open}
           onOpenControls={controlsModal.open}
           onOpenSkills={skillsModal.open}
@@ -962,6 +970,7 @@ function AppContent() {
       {/* Floating Action Buttons */}
       <FloatingActionButtons
         onOpenToolbox={toolboxModal.open}
+        onOpenSpotlight={spotlightModal.open}
         onOpenCommander={commanderModal.open}
         onOpenControls={controlsModal.open}
         onOpenSkills={skillsModal.open}
@@ -1162,6 +1171,15 @@ function AppContent() {
         onSpawnBossClick={bossSpawnModal.open}
         onNewBuildingClick={handleNewBuilding}
         onNewAreaClick={handleNewArea}
+      />
+
+      {/* Mobile Bottom Menu (below the Agent Bar, only visible on mobile 3D view) */}
+      <MobileBottomMenu
+        onOpenSpotlight={spotlightModal.open}
+        onOpenTrackingBoard={handleOpenTrackingBoard}
+        onOpenCommander={commanderModal.open}
+        onOpenToolbox={toolboxModal.open}
+        onSpawnAgent={spawnModal.open}
       />
 
       {/* All Modals */}

@@ -6,6 +6,7 @@
 import * as fs from 'fs';
 import { spawn } from 'child_process';
 import type { Agent, AgentProvider, CodexConfig, ContextStats } from '../../../shared/types.js';
+import { CLAUDE_MODELS as CLAUDE_MODEL_METADATA } from '../../../shared/agent-types.js';
 import { agentService, runtimeService, skillService, customClassService, bossService, permissionService } from '../../services/index.js';
 import { createLogger } from '../../utils/index.js';
 import { ClaudeBackend, parseContextOutput } from '../../claude/backend.js';
@@ -891,6 +892,20 @@ export async function handleUpdateAgentProperties(
     agentUpdates.model = normalizedUpdatedModel as any;
     if (nextProvider === 'claude' && normalizedUpdatedModel === undefined) {
       ctx.sendActivity(agentId, `Ignored unsupported Claude model "${updates.model}"`);
+    }
+    // Refresh contextLimit from the new model's metadata so the UI reflects
+    // the correct window size immediately (e.g. 1M for opus[1m], 200k for
+    // standard Opus) instead of waiting for the next modelUsage event.
+    if (nextProvider === 'claude' && normalizedUpdatedModel) {
+      const meta = CLAUDE_MODEL_METADATA[normalizedUpdatedModel];
+      if (meta) {
+        agentUpdates.contextLimit = meta.contextWindow;
+        // Drop stale contextStats so the UI doesn't show the old window size
+        // until the new model reports its own.
+        if (agent.contextStats && agent.contextStats.contextWindow !== meta.contextWindow) {
+          agentUpdates.contextStats = undefined;
+        }
+      }
     }
   }
 

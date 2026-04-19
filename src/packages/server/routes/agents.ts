@@ -465,6 +465,80 @@ router.post('/bulk/clear-context', async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/agents/bulk/change-model - Change model for multiple agents (clears sessions)
+router.post('/bulk/change-model', async (req: Request, res: Response) => {
+  try {
+    const { agentIds, provider, model } = req.body as {
+      agentIds?: string[];
+      provider?: 'claude' | 'codex' | 'opencode';
+      model?: string;
+    };
+
+    if (!Array.isArray(agentIds) || agentIds.length === 0) {
+      res.status(400).json({ error: 'agentIds must be a non-empty array of strings' });
+      return;
+    }
+    if (typeof provider !== 'string' || typeof model !== 'string') {
+      res.status(400).json({ error: 'provider and model are required strings' });
+      return;
+    }
+
+    let sanitized: string | undefined;
+    if (provider === 'claude') {
+      sanitized = agentService.sanitizeModelForProvider('claude', model);
+    } else if (provider === 'codex') {
+      sanitized = agentService.sanitizeCodexModel(model);
+    } else if (provider === 'opencode') {
+      sanitized = agentService.sanitizeOpencodeModel(model);
+    }
+
+    if (!sanitized) {
+      res.status(400).json({ error: `Invalid model "${model}" for provider "${provider}"` });
+      return;
+    }
+
+    const changed: string[] = [];
+    const failed: string[] = [];
+
+    for (const agentId of agentIds) {
+      try {
+        const agent = agentService.getAgent(agentId);
+        if (!agent || (agent.provider ?? 'claude') !== provider) {
+          failed.push(agentId);
+          continue;
+        }
+
+        await runtimeService.stopAgent(agentId);
+
+        const modelUpdates: Record<string, unknown> = {
+          status: 'idle',
+          currentTask: undefined,
+          currentTool: undefined,
+          sessionId: undefined,
+          tokensUsed: 0,
+          contextUsed: 0,
+          contextStats: undefined,
+        };
+        if (provider === 'claude') modelUpdates.model = sanitized;
+        else if (provider === 'codex') modelUpdates.codexModel = sanitized;
+        else if (provider === 'opencode') modelUpdates.opencodeModel = sanitized;
+
+        agentService.updateAgent(agentId, modelUpdates);
+        changed.push(agentId);
+      } catch (err) {
+        log.error(` Bulk change-model failed for agent ${agentId}:`, err);
+        failed.push(agentId);
+      }
+    }
+
+    log.log(`Bulk change-model: ${changed.length} changed to ${provider}:${sanitized}, ${failed.length} failed`);
+    res.json({ changed, failed });
+  } catch (err: any) {
+    log.error(' Bulk change-model failed:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/agents/bulk/move-area - Move multiple agents to an area
 router.post('/bulk/move-area', async (req: Request, res: Response) => {
   try {
