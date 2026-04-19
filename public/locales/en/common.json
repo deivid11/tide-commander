@@ -319,6 +319,7 @@
   },
   "floatingButtons": {
     "settingsAndTools": "Settings & Tools",
+    "globalSearch": "Global Search",
     "commanderView": "Commander View",
     "controls": "Controls",
     "manageSkills": "Manage Skills"
@@ -326,5 +327,13 @@
   "sidebar": {
     "agentsView": "Agents",
     "trackingBoard": "Tracking Board"
+  },
+  "mobileBottomMenu": {
+    "label": "Quick actions",
+    "search": "Search",
+    "tracking": "Tracking",
+    "spawn": "Spawn",
+    "commander": "Commander",
+    "settings": "Settings"
   }
 }

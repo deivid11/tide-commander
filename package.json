@@ -1,6 +1,6 @@
 {
   "name": "tide-commander",
-  "version": "1.53.0",
+  "version": "1.54.0",
   "description": "Visual multi-agent orchestrator and manager for Claude Code with 3D/2D interface",
   "repository": {
     "type": "git",
@@ -32,7 +32,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "prepack": "npm run build",
-    "tc": "tsx tools/tc.ts"
+    "tc": "tsx tools/tc.ts",
+    "recover-agents": "tsx scripts/recover-agents.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.81.0",

@@ -143,6 +143,7 @@
   // Hide old standalone buttons on mobile - they're in the FAB menu now
   .mobile-view-toggle-btn,
   .floating-settings-btn,
+  .search-toggle-btn,
   .commander-toggle-btn,
   .shortcuts-toggle-btn,
   .skills-toggle-btn,
@@ -171,12 +172,14 @@
     // CSS custom property for keyboard height - controlled by JavaScript
     --keyboard-height: 0px;
     --keyboard-visible: 0;
-    // Bottom agent toolbar height in terminal view (base bar + safe area inset)
-    --mobile-agent-bar-height: calc(32px + env(safe-area-inset-bottom, 0px));
+    // Bottom menu height (same as 3D view — menu is now visible in terminal view too)
+    --mobile-bottom-menu-height: calc(42px + env(safe-area-inset-bottom, 0px));
+    // Total bottom chrome: agent bar + bottom menu (safe area already in bottom menu height)
+    --mobile-agent-bar-height: calc(32px + var(--mobile-bottom-menu-height));
 
     // Landscape uses a taller mobile agent bar; keep input and content above it.
     @media (orientation: landscape) {
-      --mobile-agent-bar-height: calc(56px + env(safe-area-inset-bottom, 0px));
+      --mobile-agent-bar-height: calc(56px + var(--mobile-bottom-menu-height));
     }
 
     .battlefield-container {
@@ -199,11 +202,12 @@
       }
     }
 
-    // Agent bar at bottom - stays fixed, keyboard naturally pushes viewport
+    // Agent bar at bottom - sits above the mobile bottom menu with a visual gap
     .agent-bar {
       z-index: 160;
       position: fixed;
-      bottom: 0;
+      bottom: var(--mobile-bottom-menu-height);
+      margin-bottom: 10px;
       left: 0;
       right: 0;
     }
@@ -582,6 +586,12 @@
   // This selector targets the FPSMeter component's inline styles
   // We use a wrapper approach instead - handled by adding bottom offset
 
+  // Mobile bottom menu height (used to offset agent bar)
+  // Matches padding (4px + 4px) + icon (18px) + gap (2px) + label (9px) ≈ 37px + safe-area
+  .app {
+    --mobile-bottom-menu-height: calc(42px + env(safe-area-inset-bottom, 0px));
+  }
+
   // Agent bar at bottom - minimal on mobile
   .agent-bar {
     right: 0;
@@ -590,7 +600,8 @@
     min-height: 18px;
     padding: 1px 0;
     position: fixed;
-    bottom: 0;
+    bottom: var(--mobile-bottom-menu-height);
+    margin-bottom: 10px;
     z-index: 150;
     overflow-x: auto;
     overflow-y: hidden;

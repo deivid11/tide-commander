@@ -344,6 +344,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
   const handleTrackingBoardSelectAgent = useCallback((agentId: string) => {
     store.setLastSelectionViaDirectClick(true);
     store.selectAgent(agentId);
+    store.setTrackingBoardVisible(false);
   }, []);
 
   // Get area folders for the active agent

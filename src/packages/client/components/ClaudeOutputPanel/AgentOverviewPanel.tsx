@@ -52,6 +52,9 @@ interface AgentOverviewPanelProps {
 type SortMode = 'name' | 'status' | 'recent';
 type FilterMode = 'all' | 'working' | 'idle' | 'error';
 
+const EMPTY_TOOL_EXECS: ToolExecution[] = [];
+const EMPTY_SUBAGENTS: Subagent[] = [];
+
 const STATUS_ICONS: Record<string, string> = {
   working: '🟢',
   idle: '💤',
@@ -194,6 +197,20 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
 
   // Two-finger state comes from the parent (detected on terminal, applied here)
   const twoFingerSelector = twoFingerState || { isActive: false, hoveredAgentId: null };
+
+  // Ref-wrap the parent callback so each card receives a stable reference — even
+  // if the parent re-creates `onSelectAgent` on every render.
+  const onSelectAgentRef = useRef(onSelectAgent);
+  useEffect(() => { onSelectAgentRef.current = onSelectAgent; }, [onSelectAgent]);
+  const handleCardSelect = useCallback((agentId: string) => {
+    onSelectAgentRef.current(agentId);
+  }, []);
+  const handleCardClearContext = useCallback((agentId: string) => {
+    store.clearContext(agentId);
+  }, []);
+  const handleCardContextMenu = useCallback((agentId: string, position: { x: number; y: number }) => {
+    setAgentContextMenu({ agentId, position });
+  }, []);
 
   // Track mobile breakpoint to enable compact filter controls by default on phones.
   useEffect(() => {
@@ -543,14 +560,13 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
           hasPendingRead={agentsWithUnseenOutput.has(agent.id)}
           isTwoFingerHovered={twoFingerSelector.hoveredAgentId === agent.id}
           showAreaChip={!groupByArea}
-          toolExecs={toolsByAgent.get(agent.id) || []}
-          subagents={subagentsByParent.get(agent.id) || []}
+          toolExecs={toolsByAgent.get(agent.id) || EMPTY_TOOL_EXECS}
+          subagents={subagentsByParent.get(agent.id) || EMPTY_SUBAGENTS}
           areaInfo={agentAreaInfo.get(agent.id)}
           matchContext={searchMatchContexts.get(agent.id)}
-          onToggle={() => toggleAgent(agent.id)}
-          onSelect={() => onSelectAgent(agent.id)}
-          onClearContext={() => store.clearContext(agent.id)}
-          onContextMenu={(position) => setAgentContextMenu({ agentId: agent.id, position })}
+          onSelect={handleCardSelect}
+          onClearContext={handleCardClearContext}
+          onContextMenu={handleCardContextMenu}
         />
       </React.Fragment>
     ));
@@ -558,6 +574,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     t,
     activeAgentId,
     expandedAgents,
+    isMobileViewport,
     agentsWithUnseenOutput,
     twoFingerSelector.hoveredAgentId,
     groupByArea,
@@ -565,7 +582,9 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     subagentsByParent,
     agentAreaInfo,
     searchMatchContexts,
-    onSelectAgent,
+    handleCardSelect,
+    handleCardClearContext,
+    handleCardContextMenu,
   ]);
 
   // Status summary
@@ -1019,10 +1038,9 @@ interface AgentCardProps {
   subagents: Subagent[];
   areaInfo?: { color: string; name: string };
   matchContext?: SearchMatchContext;
-  onToggle: () => void;
-  onSelect: () => void;
-  onClearContext: () => void;
-  onContextMenu: (position: { x: number; y: number }) => void;
+  onSelect: (agentId: string) => void;
+  onClearContext: (agentId: string) => void;
+  onContextMenu: (agentId: string, position: { x: number; y: number }) => void;
 }
 
 /** Unified subagent entry combining live store data and tool execution history */
@@ -1035,7 +1053,7 @@ interface SubagentEntry {
   timestamp: number;
 }
 
-function AgentCard({
+const AgentCard = React.memo(function AgentCard({
   agent,
   isActive,
   isExpanded,
@@ -1047,7 +1065,6 @@ function AgentCard({
   subagents,
   areaInfo,
   matchContext,
-  onToggle: _onToggle,
   onSelect,
   onClearContext,
   onContextMenu,
@@ -1144,8 +1161,8 @@ function AgentCard({
       return;
     }
 
-    onSelect();
-  }, [onSelect, swipeRevealed]);
+    onSelect(agent.id);
+  }, [onSelect, agent.id, swipeRevealed]);
 
   const handleTouchStart = useCallback((event: React.TouchEvent<HTMLDivElement>) => {
     if (!isMobile || event.touches.length !== 1) return;
@@ -1196,11 +1213,11 @@ function AgentCard({
 
   const handleClearContext = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
-    onClearContext();
+    onClearContext(agent.id);
     setSwipeRevealed(false);
     setSwipeOffset(0);
     suppressNextClickRef.current = true;
-  }, [onClearContext]);
+  }, [onClearContext, agent.id]);
 
   return (
     <div className={`aop-agent-swipe${isMobile ? ' swipe-enabled' : ''}${swipeRevealed ? ' revealed' : ''}`}>
@@ -1254,7 +1271,7 @@ function AgentCard({
         <div className="aop-agent-header" onContextMenu={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          onContextMenu({ x: e.clientX, y: e.clientY });
+          onContextMenu(agent.id, { x: e.clientX, y: e.clientY });
         }}>
         <span
           className="aop-agent-name"
@@ -1395,4 +1412,4 @@ function AgentCard({
       </div>
     </div>
   );
-}
+});

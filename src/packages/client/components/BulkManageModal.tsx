@@ -7,9 +7,19 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { ModalPortal } from './shared/ModalPortal';
 import { useAgentsArray, useAreas } from '../store';
-import { bulkDeleteAgents, bulkStopAgents, bulkClearContext, bulkMoveToArea, type BulkActionResult } from '../api/bulk-agents';
+import {
+  bulkDeleteAgents,
+  bulkStopAgents,
+  bulkClearContext,
+  bulkMoveToArea,
+  bulkChangeModel,
+  type BulkActionResult,
+} from '../api/bulk-agents';
 import type { Agent, DrawingArea } from '../../shared/types';
+import { CLAUDE_MODELS, CODEX_MODELS, isDeprecatedClaudeModel, type ClaudeModel, type CodexModel } from '../../shared/agent-types';
 import '../styles/components/bulk-manage-modal.scss';
+
+type ModelProvider = 'claude' | 'codex';
 
 /** Convert areas Map to array */
 function areasToArray(areas: Map<string, DrawingArea>): DrawingArea[] {
@@ -26,7 +36,7 @@ type IdleTimeFilter = 'any' | '>1h' | '>6h' | '>1d' | '>3d' | '>7d' | '>30d';
 type ProviderFilter = 'all' | 'claude' | 'codex' | 'opencode';
 type ModelFilter = 'all' | 'opus' | 'opus-4-7' | 'opus-4-6' | 'sonnet' | 'haiku';
 
-type ConfirmAction = 'delete' | 'clear-context' | null;
+type ConfirmAction = 'delete' | 'clear-context' | 'change-model' | null;
 
 const IDLE_TIME_MS: Record<Exclude<IdleTimeFilter, 'any'>, number> = {
   '>1h': 60 * 60 * 1000,
@@ -71,6 +81,9 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
   // Action state
   const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
   const [moveAreaId, setMoveAreaId] = useState<string>('');
+  const [modelProvider, setModelProvider] = useState<ModelProvider>('claude');
+  const [newClaudeModel, setNewClaudeModel] = useState<ClaudeModel>('sonnet');
+  const [newCodexModel, setNewCodexModel] = useState<CodexModel>('gpt-5.3-codex');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [actionInProgress, setActionInProgress] = useState(false);
@@ -163,10 +176,16 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
     setSelectedIds(new Set());
   }, []);
 
-  const handleAction = useCallback(async (action: string) => {
-    const ids = Array.from(selectedIds);
-    if (ids.length === 0) return;
+  // IDs of selected agents whose provider matches the chosen modelProvider
+  const modelProviderSelectedIds = useMemo(() => {
+    const agentById = new Map(agents.map(a => [a.id, a]));
+    return Array.from(selectedIds).filter(id => {
+      const agent = agentById.get(id);
+      return agent && (agent.provider ?? 'claude') === modelProvider;
+    });
+  }, [agents, selectedIds, modelProvider]);
 
+  const handleAction = useCallback(async (action: string) => {
     setActionInProgress(true);
     setError(null);
     setSuccess(null);
@@ -175,24 +194,42 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
       let result: BulkActionResult | undefined;
       let verb = '';
 
-      switch (action) {
-        case 'delete':
-          result = await bulkDeleteAgents(ids);
-          verb = 'Deleted';
-          if (result.failed.length === 0) setSelectedIds(new Set());
-          break;
-        case 'stop':
-          result = await bulkStopAgents(ids);
-          verb = 'Stopped';
-          break;
-        case 'clear-context':
-          result = await bulkClearContext(ids);
-          verb = 'Cleared context for';
-          break;
-        case 'move-area':
-          result = await bulkMoveToArea(ids, moveAreaId || null);
-          verb = 'Moved';
-          break;
+      if (action === 'change-model') {
+        const ids = modelProviderSelectedIds;
+        if (ids.length === 0) {
+          setActionInProgress(false);
+          setConfirmAction(null);
+          return;
+        }
+        const model = modelProvider === 'claude' ? newClaudeModel : newCodexModel;
+        result = await bulkChangeModel(ids, modelProvider, model);
+        verb = 'Changed model for';
+      } else {
+        const ids = Array.from(selectedIds);
+        if (ids.length === 0) {
+          setActionInProgress(false);
+          setConfirmAction(null);
+          return;
+        }
+        switch (action) {
+          case 'delete':
+            result = await bulkDeleteAgents(ids);
+            verb = 'Deleted';
+            if (result.failed.length === 0) setSelectedIds(new Set());
+            break;
+          case 'stop':
+            result = await bulkStopAgents(ids);
+            verb = 'Stopped';
+            break;
+          case 'clear-context':
+            result = await bulkClearContext(ids);
+            verb = 'Cleared context for';
+            break;
+          case 'move-area':
+            result = await bulkMoveToArea(ids, moveAreaId || null);
+            verb = 'Moved';
+            break;
+        }
       }
 
       if (result) {
@@ -208,7 +245,7 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
       setActionInProgress(false);
       setConfirmAction(null);
     }
-  }, [selectedIds, moveAreaId]);
+  }, [selectedIds, moveAreaId, modelProviderSelectedIds, modelProvider, newClaudeModel, newCodexModel]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
@@ -402,11 +439,33 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
           {confirmAction && (
             <div className="bulk-confirm-overlay">
               <div className="bulk-confirm-box">
-                <p>
-                  {confirmAction === 'delete'
-                    ? `Delete ${selectedIds.size} agent(s)? This cannot be undone.`
-                    : `Clear context for ${selectedIds.size} agent(s)? This will restart their sessions.`}
-                </p>
+                {confirmAction === 'change-model' ? (
+                  <>
+                    <p>
+                      Change model to <strong>
+                        {modelProvider === 'claude'
+                          ? CLAUDE_MODELS[newClaudeModel].label
+                          : CODEX_MODELS[newCodexModel].label}
+                      </strong> for <strong>{modelProviderSelectedIds.length}</strong> {modelProvider} agent(s)?
+                    </p>
+                    {selectedIds.size > modelProviderSelectedIds.length && (
+                      <p style={{ fontSize: 12, color: 'var(--text-muted, #888)' }}>
+                        {selectedIds.size - modelProviderSelectedIds.length} selected agent(s) with a different provider will be skipped.
+                      </p>
+                    )}
+                    <p style={{ color: 'var(--color-danger, #e55)', fontWeight: 600 }}>
+                      ⚠ The current conversation/context will be CLEARED for each affected agent.
+                      Their Claude sessions will be stopped and restarted on the next command
+                      so the new model takes effect.
+                    </p>
+                  </>
+                ) : (
+                  <p>
+                    {confirmAction === 'delete'
+                      ? `Delete ${selectedIds.size} agent(s)? This cannot be undone.`
+                      : `Clear context for ${selectedIds.size} agent(s)? This will restart their sessions.`}
+                  </p>
+                )}
                 <div className="bulk-confirm-actions">
                   <button
                     className="btn btn-secondary"
@@ -418,7 +477,7 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                   <button
                     className="btn btn-danger"
                     onClick={() => handleAction(confirmAction)}
-                    disabled={actionInProgress}
+                    disabled={actionInProgress || (confirmAction === 'change-model' && modelProviderSelectedIds.length === 0)}
                   >
                     {actionInProgress ? 'Working...' : 'Confirm'}
                   </button>
@@ -472,6 +531,65 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                 onClick={() => handleAction('move-area')}
               >
                 Move to Area
+              </button>
+            </div>
+          </div>
+
+          {/* Change Model row */}
+          <div className="modal-footer bulk-footer bulk-change-model-row">
+            <div className="footer-buttons-left">
+              <span className="bulk-change-model-label">Change Model:</span>
+              <select
+                value={modelProvider}
+                onChange={e => setModelProvider(e.target.value as ModelProvider)}
+                className="bulk-filter-select"
+                disabled={actionInProgress}
+              >
+                <option value="claude">Claude</option>
+                <option value="codex">Codex</option>
+              </select>
+
+              {modelProvider === 'claude' ? (
+                <select
+                  value={newClaudeModel}
+                  onChange={e => setNewClaudeModel(e.target.value as ClaudeModel)}
+                  className="bulk-filter-select"
+                  disabled={actionInProgress}
+                >
+                  {(Object.keys(CLAUDE_MODELS) as ClaudeModel[])
+                    .filter(m => !isDeprecatedClaudeModel(m) || newClaudeModel === m)
+                    .map(m => (
+                      <option key={m} value={m}>
+                        {CLAUDE_MODELS[m].icon} {CLAUDE_MODELS[m].label}
+                      </option>
+                    ))}
+                </select>
+              ) : (
+                <select
+                  value={newCodexModel}
+                  onChange={e => setNewCodexModel(e.target.value as CodexModel)}
+                  className="bulk-filter-select"
+                  disabled={actionInProgress}
+                >
+                  {(Object.keys(CODEX_MODELS) as CodexModel[]).map(m => (
+                    <option key={m} value={m}>
+                      {CODEX_MODELS[m].icon} {CODEX_MODELS[m].label}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              <span className="bulk-change-model-count">
+                {modelProviderSelectedIds.length} match
+              </span>
+            </div>
+            <div className="footer-buttons-right">
+              <button
+                className="btn btn-primary"
+                disabled={modelProviderSelectedIds.length === 0 || actionInProgress}
+                onClick={() => setConfirmAction('change-model')}
+              >
+                Change Model
               </button>
             </div>
           </div>

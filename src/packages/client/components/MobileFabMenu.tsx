@@ -9,6 +9,7 @@ interface MobileFabMenuProps {
   onShowTerminal: () => void;
   onOpenSidebar: () => void;
   onOpenToolbox: () => void;
+  onOpenSpotlight: () => void;
   onOpenCommander: () => void;
   onOpenControls: () => void;
   onOpenSkills: () => void;
@@ -21,6 +22,7 @@ export const MobileFabMenu = memo(function MobileFabMenu({
   onShowTerminal,
   onOpenSidebar,
   onOpenToolbox,
+  onOpenSpotlight,
   onOpenCommander,
   onOpenControls,
   onOpenSkills,
@@ -88,6 +90,17 @@ export const MobileFabMenu = memo(function MobileFabMenu({
             title={t('common:floatingButtons.settingsAndTools')}
           >
             ⚙️
+          </button>
+          <button
+            className="mobile-fab-option"
+            onClick={() => handleAction(onOpenSpotlight)}
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              handleAction(onOpenSpotlight);
+            }}
+            title={t('common:floatingButtons.globalSearch')}
+          >
+            🔍
           </button>
           <button
             className="mobile-fab-option"
