@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.54.1] - 2026-04-18
+
+### Fixed
+- **MobileBottomMenu hidden when sidebar is open** — menu now accepts a `sidebarOpen` prop and returns null while the sidebar is visible, preventing it from overlapping the panel; also removed the unused `useMobileView` hook from the component
+
 ## [1.54.0] - 2026-04-18
 
 ### Added

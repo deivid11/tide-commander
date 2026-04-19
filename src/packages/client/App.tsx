@@ -1180,6 +1180,7 @@ function AppContent() {
         onOpenCommander={commanderModal.open}
         onOpenToolbox={toolboxModal.open}
         onSpawnAgent={spawnModal.open}
+        sidebarOpen={sidebarOpen}
       />
 
       {/* All Modals */}

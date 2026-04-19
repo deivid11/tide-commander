@@ -1,6 +1,6 @@
 import React, { memo, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useTrackingBoardVisible, useMobileView } from '../store';
+import { useTrackingBoardVisible } from '../store';
 
 interface MobileBottomMenuProps {
   onOpenSpotlight: () => void;
@@ -8,6 +8,7 @@ interface MobileBottomMenuProps {
   onOpenCommander: () => void;
   onOpenToolbox: () => void;
   onSpawnAgent: () => void;
+  sidebarOpen: boolean;
 }
 
 export const MobileBottomMenu = memo(function MobileBottomMenu({
@@ -16,11 +17,11 @@ export const MobileBottomMenu = memo(function MobileBottomMenu({
   onOpenCommander,
   onOpenToolbox,
   onSpawnAgent,
+  sidebarOpen,
 }: MobileBottomMenuProps) {
   const { t } = useTranslation(['common']);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const trackingBoardVisible = useTrackingBoardVisible();
-  const mobileView = useMobileView();
   // Capture initial viewport height before any keyboard opens
   const initialHeightRef = useRef<number>(
     window.visualViewport ? window.visualViewport.height : window.innerHeight
@@ -44,7 +45,8 @@ export const MobileBottomMenu = memo(function MobileBottomMenu({
   }, []);
 
   if (keyboardOpen) return null;
-  if (trackingBoardVisible && mobileView === 'terminal') return null;
+  if (sidebarOpen) return null;
+  if (trackingBoardVisible) return null;
 
   return (
     <nav className="mobile-bottom-menu" aria-label={t('common:mobileBottomMenu.label', { defaultValue: 'Quick actions' })}>
