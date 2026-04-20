@@ -673,7 +673,7 @@ export async function handleRequestContextStats(
   const isClaudeProvider = (agent.provider ?? 'claude') === 'claude';
   const isCodexProvider = (agent.provider ?? 'claude') === 'codex';
   const isOpencodeProvider = (agent.provider ?? 'claude') === 'opencode';
-  const isCodexLikeProvider = isCodexProvider || isOpencodeProvider;
+  const _isCodexLikeProvider = isCodexProvider || isOpencodeProvider;
 
   // For Claude agents with an active session, fetch real context stats from the CLI
   if (isClaudeProvider && agent.sessionId) {
@@ -707,7 +707,7 @@ export async function handleRequestContextStats(
     }
   }
 
-  if (isCodexLikeProvider && agent.sessionId) {
+  if (isCodexProvider && agent.sessionId) {
     const codexSnapshot = agentService.getCodexContextSnapshotFromSession(agent.sessionId);
     if (codexSnapshot) {
       const contextLimit = Math.max(1, codexSnapshot.contextLimit);
@@ -715,7 +715,7 @@ export async function handleRequestContextStats(
       const usedPercent = Math.min(100, Math.round((contextUsed / contextLimit) * 100));
       const freeTokens = Math.max(0, contextLimit - contextUsed);
       const stats: ContextStats = {
-        model: agent.codexModel || agent.opencodeModel || agent.model || 'codex',
+        model: agent.codexModel || agent.model || 'codex',
         contextWindow: contextLimit,
         totalTokens: contextUsed,
         usedPercent,

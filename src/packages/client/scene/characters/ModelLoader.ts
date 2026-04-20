@@ -96,12 +96,17 @@ export class ModelLoader {
 
     let cloneResult: { mesh: THREE.Group; animations: THREE.AnimationClip[] } | null = null;
 
-    if (modelInfo.isCustomModel && modelInfo.customClassId) {
-      cloneResult = this.characterLoader.cloneCustomModel(modelInfo.customClassId);
-    }
+    try {
+      if (modelInfo.isCustomModel && modelInfo.customClassId) {
+        cloneResult = this.characterLoader.cloneCustomModel(modelInfo.customClassId);
+      }
 
-    if (!cloneResult) {
-      cloneResult = this.characterLoader.cloneByModelFile(modelInfo.file);
+      if (!cloneResult) {
+        cloneResult = this.characterLoader.cloneByModelFile(modelInfo.file);
+      }
+    } catch (err) {
+      console.error(`[ModelLoader] Failed to clone model for class ${agent.class} (agent ${agent.name}):`, err);
+      cloneResult = null;
     }
 
     if (cloneResult) {

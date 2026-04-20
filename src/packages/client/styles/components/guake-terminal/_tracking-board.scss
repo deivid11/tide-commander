@@ -293,9 +293,11 @@
       inset 0 0 0 1px color-mix(in srgb, var(--accent-cyan) 22%, transparent),
       0 0 0 1px color-mix(in srgb, var(--accent-cyan) 10%, transparent);
   }
+
 }
 
-.tracking-board-column--working .tracking-board-card {
+.tracking-board-column--working .tracking-board-card,
+.tracking-board-card.compacting {
   overflow: hidden;
   border-color: color-mix(in srgb, var(--accent-green) 35%, var(--border-color));
   background: color-mix(in srgb, var(--accent-green) 10%, var(--bg-secondary));

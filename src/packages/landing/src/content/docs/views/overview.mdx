@@ -1,0 +1,185 @@
+---
+title: Feature Overview
+description: A visual tour of Tide Commander's views, panels, modals, and agent-interaction surfaces.
+---
+
+import { Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+Tide Commander is a lot of surfaces stitched into one app. This page walks every major feature with a screenshot and one-line description. Deep-dive pages are linked for anything that needs more than two paragraphs.
+
+## View modes
+
+Four ways to look at your team. Cycle with **Alt + 2**.
+
+### 3D Battlefield
+
+The default. An isometric Three.js scene where agents are characters you select, move, and command RTS-style. Buildings occupy tiles with real functionality. Terrain, lighting, and post-processing are configurable.
+
+![Empty 3D scene](/screenshots/01-main-3d-scene-empty.png)
+![Populated 3D scene with four agents](/screenshots/35-main-3d-with-agents.png)
+
+### 2D Canvas
+
+Lightweight top-down rendering for lower-end hardware or when you just want the map without the fireworks. Same RTS controls, same commands.
+
+![2D view with agents](/screenshots/36-main-2d-with-agents.png)
+
+### Dashboard
+
+Status cards, building summaries, and run-time metrics. Good for stand-up screen-shares or always-on displays.
+
+![Dashboard view with agents](/screenshots/37-dashboard-with-agents.png)
+
+### Commander View
+
+Every agent's terminal in a single grid, grouped by area. Read them all at once, type into any one, and send bulk commands to a selection.
+
+![Commander View with four agents](/screenshots/38-commander-view-with-agents.png)
+
+## Agent surfaces
+
+### Agent Inspector
+
+Click any agent to open its inspector. Live conversation stream, tool-call formatting, file-diff peeks, and per-agent controls.
+
+![Agent inspector](/screenshots/39-agent-inspector.png)
+![Agent overview panel](/screenshots/40-agent-overview-panel.png)
+
+### Tracking Board
+
+Per-agent (or global) task board showing tracking-status updates: working, blocked, waiting-subordinates, need-review, can-clear-context.
+
+![Tracking Board](/screenshots/04-tracking-board.png)
+![Agent-scoped Tracking Board](/screenshots/41-agent-tracking-board-view.png)
+
+### Git Changes
+
+Every file the agent touched, grouped by working directory, with inline diff rendering. Click a file to see the full diff without leaving Commander.
+
+![Agent git changes tab](/screenshots/42-agent-git-changes.png)
+
+### Boss Inspector — Team
+
+On a Boss, the Team tab surfaces all subordinates and their current delegations.
+
+![Boss inspector team view](/screenshots/43-boss-inspector-team-view.png)
+
+### Edit Agent
+
+Change name, class, working directory, permission mode, or model for a running agent — no respawn required.
+
+![Edit Agent modal](/screenshots/44-edit-agent-modal.png)
+![Agent row more-actions menu](/screenshots/45-agent-more-actions-menu.png)
+
+## Modals
+
+### Spawn Agent / Spawn Boss
+
+Pick provider, class, working directory, permission mode. Bosses additionally let you attach subordinates at creation time.
+
+![Spawn Agent](/screenshots/07-spawn-agent-modal.png)
+![Spawn Boss](/screenshots/08-spawn-boss-modal.png)
+
+### System Prompt
+
+Global custom prompt editor — applies to every agent automatically. Lives in `~/.local/share/tide-commander/system-prompt.json`.
+
+![System Prompt modal](/screenshots/19-system-prompt-modal.png)
+
+### Create Agent Class
+
+Bundle a 3D model, instructions, and default skills into a reusable class.
+
+![Create Agent Class](/screenshots/29-create-agent-class-modal.png)
+
+### Add Building
+
+Drop a server, database, Docker container, link, or folder onto the map.
+
+![Add Building modal](/screenshots/46-add-building-modal.png)
+
+### Draw Area
+
+Rectangle tool for grouping agents and attaching folders.
+
+![Draw Area mode](/screenshots/47-draw-area-mode.png)
+
+## Global shells
+
+### Spotlight Search
+
+**Ctrl + K** or **Alt + P**. Fuzzy-find agents, files, actions, areas, and settings from anywhere.
+
+![Global search overlay](/screenshots/33-global-search.png)
+
+### Workspaces menu
+
+Jump between workspaces, show/hide archived areas, filter what's on screen.
+
+![Workspaces menu](/screenshots/36-workspaces-menu.png)
+
+### Keyboard / Mouse / Trackpad help
+
+Pull up a cheat sheet for any input device. Bindings are fully customizable.
+
+![Keyboard controls help](/screenshots/30-controls-keyboard.png)
+![Mouse controls help](/screenshots/31-controls-mouse.png)
+![Trackpad controls help](/screenshots/32-controls-trackpad.png)
+
+### Sidebar states
+
+Sidebar open/closed is persistent per-view.
+
+![Sidebar open](/screenshots/05-main-3d-with-sidebar.png)
+![Sidebar collapsed](/screenshots/06-main-3d-sidebar-closed.png)
+
+## Settings surface
+
+Settings live in a long, searchable panel. Every major subsystem has its own section.
+
+| Section | Screenshot |
+| --- | --- |
+| General | `09-settings-general.png` |
+| Agent Names | `10-settings-agent-names.png` |
+| Appearance | `11-settings-appearance.png` |
+| Connection | `12-settings-connection.png` |
+| Scene | `13-settings-scene.png` |
+| Terrain | `14-settings-terrain.png` |
+| Agent Model Style | `15-settings-agent-model-style.png` |
+| Animations | `16-settings-animations.png` |
+| Secrets | `17-settings-secrets.png` |
+| System Prompt | `18-settings-system-prompt.png` |
+| Data | `20-settings-data.png` |
+| Integrations | `21-settings-integrations.png` |
+| Workflows | `22-settings-workflows.png` |
+| Triggers | `23-settings-triggers.png` |
+| Monitoring | `24-settings-monitoring.png` |
+| Experimental | `25-settings-experimental.png` |
+| About | `26-settings-about.png` |
+
+![Settings — General](/screenshots/09-settings-general.png)
+![Settings — Appearance](/screenshots/11-settings-appearance.png)
+![Settings — Scene (expanded)](/screenshots/13-settings-scene-expanded.png)
+![Settings — System Prompt entry](/screenshots/18-settings-system-prompt.png)
+![Settings — Integrations](/screenshots/21-settings-integrations.png)
+![Settings — Triggers](/screenshots/23-settings-triggers.png)
+![Settings — Experimental](/screenshots/25-settings-experimental.png)
+
+## Manage Skills / Classes
+
+One screen, two tabs. Create, edit, and assign built-in or custom skills and classes.
+
+![Manage Skills](/screenshots/27-manage-skills.png)
+![Manage Skills — Classes tab](/screenshots/28-manage-skills-classes-tab.png)
+
+## Next reading
+
+<CardGrid>
+  <LinkCard title="Core Concepts" href="/concepts/overview/" description="The mental model behind agents, bosses, skills, classes, and areas." />
+  <LinkCard title="Quickstart" href="/getting-started/quickstart/" description="Spawn your first agent and send your first command." />
+  <LinkCard title="Configuration" href="/configuration/system-prompt/" description="System prompts, permissions, env vars, HTTPS, shortcuts." />
+</CardGrid>
+
+<Aside type="note" title="Screenshot captures">
+  All screenshots on this page were captured from an isolated demo backend at `http://localhost:9059`. See `src/packages/landing/CAPTURE-NOTES.md` for the full catalogue.
+</Aside>

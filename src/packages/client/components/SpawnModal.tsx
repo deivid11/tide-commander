@@ -5,6 +5,7 @@ import { AGENT_CLASS_CONFIG, BUILTIN_AGENT_NAMES, CHARACTER_MODELS } from '../sc
 import type { AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, ClaudeEffort, CodexModel, AgentProvider, CodexConfig } from '../../shared/types';
 import { PERMISSION_MODES, CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS } from '../../shared/types';
 import { STORAGE_KEYS, getStorageString, setStorageString, apiUrl, authFetch } from '../utils/storage';
+import { BUILT_IN_AGENT_CLASSES } from '../../shared/agent-types';
 import { ModelPreview } from './ModelPreview';
 import { HelpTooltip } from './shared/Tooltip';
 import { FolderInput } from './shared/FolderInput';
@@ -70,7 +71,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [sessionSearch, setSessionSearch] = useState('');
   const [classSearch, setClassSearch] = useState('');
-  const [useChrome, setUseChrome] = useState(true); // Enabled by default
+  const [useChrome, setUseChrome] = useState(false); // Disabled by default
   const [permissionMode, setPermissionMode] = useState<PermissionMode>('bypass'); // Default to permissionless
   const [selectedProvider, setSelectedProvider] = useState<AgentProvider>('claude');
   const [codexConfig, setCodexConfig] = useState<CodexConfig>({
@@ -80,8 +81,8 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
     search: false,
   });
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set());
-  const [selectedModel, setSelectedModel] = useState<ClaudeModel>('claude-opus-4-7'); // Default to latest Opus
-  const [selectedEffort, setSelectedEffort] = useState<ClaudeEffort | undefined>('high'); // Default: high (matches CLI default)
+  const [selectedModel, setSelectedModel] = useState<ClaudeModel>('opus[1m]'); // Default to Opus 1M
+  const [selectedEffort, setSelectedEffort] = useState<ClaudeEffort | undefined>('xHigh'); // Default: xHigh (extra high reasoning)
   const [selectedCodexModel, setSelectedCodexModel] = useState<CodexModel>('gpt-5.3-codex');
   const [opencodeModel, setOpencodeModel] = useState<string>('minimax/MiniMax-M1-80k');
   const [customInstructions, setCustomInstructions] = useState('');
@@ -99,19 +100,32 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
   // Default skill slugs that should be pre-selected for new agents
   const DEFAULT_SKILL_SLUGS = ['full-notifications', 'streaming-exec', 'task-label', 'report-task-to-boss', 'agent-tracking', 'send-message-to-agent'];
 
-  // Initialize default skills once per open event
+  // Initialize default skills and class once per open event
   useEffect(() => {
     const didJustOpen = isOpen && !wasOpenRef.current;
-    if (didJustOpen && availableSkills.length > 0) {
-      const defaultSkillIds = availableSkills
-        .filter(s => DEFAULT_SKILL_SLUGS.includes(s.slug))
-        .map(s => s.id);
-      if (defaultSkillIds.length > 0) {
-        setSelectedSkillIds(new Set(defaultSkillIds));
+    if (didJustOpen) {
+      if (availableSkills.length > 0) {
+        const defaultSkillIds = availableSkills
+          .filter(s => DEFAULT_SKILL_SLUGS.includes(s.slug))
+          .map(s => s.id);
+        if (defaultSkillIds.length > 0) {
+          setSelectedSkillIds(new Set(defaultSkillIds));
+        }
+      }
+
+      const defaultClassPref = getStorageString(STORAGE_KEYS.DEFAULT_AGENT_CLASS);
+      if (defaultClassPref === 'random') {
+        const builtInIds = Object.keys(BUILT_IN_AGENT_CLASSES) as AgentClass[];
+        const allClassIds: AgentClass[] = [...builtInIds, ...customClasses.map(c => c.id)];
+        setSelectedClass(allClassIds[Math.floor(Math.random() * allClassIds.length)]);
+      } else if (defaultClassPref) {
+        setSelectedClass(defaultClassPref);
+      } else {
+        setSelectedClass('scout');
       }
     }
     wasOpenRef.current = isOpen;
-  }, [isOpen, availableSkills]);
+  }, [isOpen, availableSkills, customClasses]);
 
   // Filter skills by search query
   const filteredSkills = useMemo(() => {

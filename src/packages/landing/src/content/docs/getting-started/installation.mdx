@@ -1,0 +1,136 @@
+---
+title: Installation
+description: Install Tide Commander via npm, bunx, or Docker. Prerequisites, HTTPS setup, and CLI reference.
+---
+
+import { Steps, Aside, Tabs, TabItem, Card, CardGrid } from '@astrojs/starlight/components';
+
+Tide Commander runs as a local server you visit in a browser. There's nothing to "install" per se — `bunx` fetches and runs it on demand. This page covers every installation path and the prerequisites for each.
+
+## Prerequisites
+
+- **Node.js 18+** (or Bun 1.0+)
+- At least one supported CLI in your `PATH`:
+
+<CardGrid>
+  <Card title="Claude Code" icon="star">
+    Install from [claude.ai/code](https://claude.ai/code). Authenticate with `claude login` before first use.
+  </Card>
+  <Card title="OpenAI Codex" icon="puzzle">
+    Install the [Codex CLI](https://github.com/openai/codex). Requires an OpenAI API key in `OPENAI_API_KEY`.
+  </Card>
+  <Card title="OpenCode" icon="open-book">
+    Install from [github.com/nicholasgriffintn/opencode](https://github.com/nicholasgriffintn/opencode). Reads `.claude/CLAUDE.md` natively.
+  </Card>
+</CardGrid>
+
+## Install options
+
+<Tabs>
+  <TabItem label="bunx (recommended)">
+    No installation required — bunx fetches the latest version on first run and caches it:
+
+    ```bash
+    bunx tide-commander
+    ```
+
+    Open `http://localhost:5174` when the server reports it is ready.
+  </TabItem>
+  <TabItem label="npm global">
+    ```bash
+    npm i -g tide-commander@latest
+    tide-commander start
+    ```
+  </TabItem>
+  <TabItem label="Docker">
+    ```bash
+    docker run -p 5174:5174 \
+      -v ~/.local/share/tide-commander:/root/.local/share/tide-commander \
+      ghcr.io/deivid11/tide-commander:latest
+    ```
+
+    Agent sessions and configuration are persisted in the host-mounted volume.
+  </TabItem>
+</Tabs>
+
+## CLI commands
+
+Once installed globally, you have a full lifecycle CLI:
+
+```bash
+tide-commander start      # Start in background (default)
+tide-commander stop       # Stop the background server
+tide-commander status     # Check whether the server is running
+tide-commander logs       # Show latest server logs
+tide-commander logs --follow   # Stream logs in real time
+```
+
+Common flags for `start`:
+
+```bash
+tide-commander --foreground            # Run in the foreground (no daemon)
+tide-commander --port 8080             # Custom port (default: 5174)
+tide-commander --host 0.0.0.0          # Bind to all interfaces
+tide-commander --listen-all --port 8080
+```
+
+## HTTPS setup
+
+<Aside type="caution" title="Use HTTPS on shared networks">
+  If Tide Commander is reachable beyond `localhost` — on a LAN, VPN, or remote server — enable HTTPS to encrypt traffic and use an auth token.
+</Aside>
+
+The fastest path uses `mkcert` to generate and trust a local certificate automatically:
+
+```bash
+tide-commander start --install-local-cert --https
+```
+
+With existing cert files:
+
+```bash
+tide-commander start --https \
+  --tls-key ./certs/localhost-key.pem \
+  --tls-cert ./certs/localhost.pem
+```
+
+Auth token options:
+
+```bash
+# Set an explicit token
+tide-commander start --https --auth-token <your-token>
+
+# Generate a random token (printed at startup — save it)
+tide-commander start --https --generate-auth-token
+```
+
+<Aside type="note" title="Where certs are stored">
+  Local certificates are saved to `~/.tide-commander/certs/` when using `--install-local-cert`. If you set `AUTH_TOKEN`, it persists across restarts and is required in the `X-Auth-Token` header for API requests.
+</Aside>
+
+## Data storage
+
+Tide Commander stores all state in `~/.local/share/tide-commander/`:
+
+| File | Contents |
+|------|----------|
+| `agents.json` | Agent configs, positions, session IDs |
+| `areas.json` | Group area definitions |
+| `buildings.json` | Building configs and service definitions |
+| `skills.json` | Custom skill definitions |
+| `custom-agent-classes.json` | Custom class definitions |
+| `secrets.json` | Encrypted credential storage |
+| `snapshots/` | Saved conversation snapshots |
+
+Custom 3D models land in `~/.tide-commander/custom-models/`.
+
+## Next steps
+
+<CardGrid>
+  <Card title="Your First Agent" icon="rocket">
+    [Spawn an agent and send your first command →](/getting-started/first-agent/)
+  </Card>
+  <Card title="Providers" icon="setting">
+    [Configure Claude, Codex, and OpenCode →](/getting-started/providers/)
+  </Card>
+</CardGrid>

@@ -1,0 +1,68 @@
+---
+title: Commander View
+description: Every agent's terminal in one grid — read them all at once, type into any of them, and send bulk commands to a selection.
+---
+
+import { Aside, Card, CardGrid, Steps } from '@astrojs/starlight/components';
+
+**Commander View** is the power-user's battlefield. Drop the map, drop the cards, and see every agent's live terminal laid out in a grid. When you're driving a team through a messy migration or a multi-front investigation, this is where the keyboard never leaves home row.
+
+![Commander View with four agents in parallel](/screenshots/38-commander-view-with-agents.png)
+
+## How to open it
+
+Click **Commander View** from the floating action bar (the rocket icon on the right edge), or press **Alt + 2** to cycle. The dedicated button is always visible so you can snap back from anywhere.
+
+On a fresh install the grid is empty until you spawn an agent.
+
+![Commander View, empty](/screenshots/34-commander-view-empty.png)
+
+## What it gives you
+
+<CardGrid>
+  <Card title="Every terminal, one screen" icon="laptop">
+    One tile per agent. Live stdout streaming with the same tool-call formatting as the inspector. Tiles scale to fit the viewport — fewer agents, bigger tiles.
+  </Card>
+  <Card title="Type into any of them" icon="pencil">
+    Click into a tile's input row and type. Enter dispatches to that agent's CLI process exactly as if you were in its inspector.
+  </Card>
+  <Card title="Bulk commands" icon="rocket">
+    Multi-select tiles with Shift-click, type once, send to all. Every selected agent receives the same prompt in parallel.
+  </Card>
+  <Card title="Grouped by area" icon="seti:folder">
+    Tiles cluster by the area each agent belongs to, so teams working on the same codebase stay visually adjacent.
+  </Card>
+</CardGrid>
+
+## Typical workflow
+
+<Steps>
+1. Spawn three or four agents pointed at the same repo (or different repos).
+2. Open Commander View; the grid is already populated.
+3. Pick the primary agent and use it as your driver.
+4. When a side-question comes up ("check how the old auth code worked"), type it into the tile of the agent best suited to investigate.
+5. When all the tiles' tracking-status pills flip to `need-review`, triage one tile at a time and merge or discard what they produced.
+</Steps>
+
+## Hotkeys that matter
+
+- **Click tile header** — open that agent's full inspector in a side panel.
+- **Shift-click** — multi-select tiles for bulk send.
+- **Ctrl/Cmd + K** — Spotlight search jumps focus directly to any tile by agent name.
+- **Esc** — deselect all tiles; returns to passive viewing.
+
+## Gotchas
+
+<Aside type="caution" title="Bulk send is not reversible">
+  A bulk command dispatches one prompt per selected agent. There's no "undo". If the prompt is wrong, you now have N agents running the wrong thing — press **Stop** on each tile.
+</Aside>
+
+<Aside type="tip" title="Pair with a Boss">
+  Commander View shines with a Boss in the mix: delegate high-level intent to the Boss, watch it fan work out to the team, and use Commander to spot-check each subordinate's terminal in real time.
+</Aside>
+
+## Related
+
+- [3D Battlefield](/views/3d/) — spatial context plus buildings and areas.
+- [Dashboard](/views/dashboard/) — same team, summarised rather than full terminals.
+- [Boss & Subordinates](/concepts/boss-and-subordinates/) — how delegation pairs with this view.

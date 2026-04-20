@@ -1,0 +1,83 @@
+---
+title: Tide Commander
+description: Visual multi-agent orchestrator for Claude Code, Codex, and OpenCode. Deploy, command, and monitor AI coding agents from a single 3D interface.
+template: splash
+hero:
+  tagline: Command your AI team from a single interface. Deploy, control, and monitor multiple Claude Code, Codex, and OpenCode agents in real-time — on an RTS-inspired 3D battlefield, a 2D canvas, or a metrics dashboard.
+  image:
+    file: ../../assets/tc-icon.png
+    alt: Tide Commander
+  actions:
+    - text: Quickstart
+      link: /getting-started/quickstart/
+      icon: rocket
+      variant: primary
+    - text: View on GitHub
+      link: https://github.com/deivid11/tide-commander
+      icon: external
+      variant: secondary
+    - text: Try the Demo
+      link: https://tidecommander.com/app
+      icon: right-arrow
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+<div class="tc-hero-shot">
+  ![Tide Commander 3D battlefield with agents, buildings, and terrain](/screenshots/35-main-3d-with-agents.png)
+</div>
+
+## Why Tide Commander?
+
+Managing multiple Claude Code terminals is painful: you forget which window has context on what, agents finish without you noticing, and two of them can end up editing the same file. Tide Commander replaces that with a single visual UI — every agent, every status, every output, at a glance.
+
+It looks like a game. It's a serious developer tool: file explorer with git diffs, conversation history, permission controls, spotlight search, and a command palette — often enough that an IDE becomes optional.
+
+## Start here
+
+<CardGrid>
+  <LinkCard title="Quickstart" href="/getting-started/quickstart/" description="Install, spawn your first agent, and send your first command in under three minutes." />
+  <LinkCard title="Core Concepts" href="/concepts/overview/" description="Agents, Boss & Subordinates, Classes, Skills, Areas, Delegation — the mental model." />
+  <LinkCard title="Feature Overview" href="/views/overview/" description="A visual tour of the 3D battlefield, Dashboard, Commander View, and everything else." />
+  <LinkCard title="Configuration" href="/configuration/system-prompt/" description="System prompts, permission modes, environment variables, HTTPS, and keyboard shortcuts." />
+</CardGrid>
+
+## Built for
+
+<CardGrid>
+  <Card title="Parallel workflows" icon="random">
+    Assign one agent to investigate a bug while another ships a feature and a third runs the test suite. Watch all three simultaneously.
+  </Card>
+  <Card title="Long-running sessions" icon="laptop">
+    Sessions persist across restarts. Start on desktop, resume from your phone. No context lost.
+  </Card>
+  <Card title="Boss delegation" icon="rocket">
+    Talk to one boss agent. It picks the right subordinate for the job, dispatches, and summarises progress for you.
+  </Card>
+  <Card title="Three CLI providers" icon="puzzle">
+    Claude Code, OpenAI Codex, and OpenCode — all from the same UI, with session resume support for each.
+  </Card>
+</CardGrid>
+
+## Install
+
+Run directly without installing (recommended):
+
+```bash
+bunx tide-commander
+```
+
+Or install globally:
+
+```bash
+npm i -g tide-commander@latest
+tide-commander start
+```
+
+Full install options, prerequisites, and HTTPS setup in the [Installation guide](/getting-started/installation/).
+
+<div class="tc-dual-shot">
+  ![2D canvas view with agents](/screenshots/36-main-2d-with-agents.png)
+  ![Commander view grid of agent terminals](/screenshots/38-commander-view-with-agents.png)
+</div>

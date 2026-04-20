@@ -205,17 +205,94 @@ function JsonViewer({ data }: JsonViewerProps) {
 }
 
 function stripAnsi(text: string): string {
-  return text.replace(/\x1b\[[0-9;]*[mGKHFJA-Za-z]/g, '');
+  // Comprehensive ANSI escape sequence removal:
+  // 1. CSI sequences (ESC [ params intermediate final) — covers colors,
+  //    cursor movement, erase, and private sequences like [?25l
+  // 2. OSC sequences (ESC ] ... BEL or ESC \
+  // 3. nF escape sequences (ESC intermediate final)
+  // 4. Fe escape sequences (ESC final)
+  return text
+    .replace(/\x1b\[[\x30-\x3f]*[\x20-\x2f]*[\x40-\x7e]/g, '')
+    .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)?/g, '')
+    .replace(/\x1b[\x20-\x2f][\x30-\x7e]/g, '')
+    .replace(/\x1b[\x40-\x5f\x60-\x7e]/g, '');
+}
+
+/**
+ * Detect curl /api/exec JSON wrapper responses and extract the actual
+ * command output from the "output" field.
+ */
+function tryExtractExecOutput(text: string): string | null {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith('{')) return null;
+  try {
+    const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+    if (
+      parsed
+      && typeof parsed === 'object'
+      && typeof parsed.output === 'string'
+      && 'taskId' in parsed
+      && 'exitCode' in parsed
+    ) {
+      return parsed.output;
+    }
+  } catch {
+    // ignore parse errors
+  }
+  return null;
 }
 
 function tryParseJson(text: string): { ok: true; data: unknown } | { ok: false } {
-  const trimmed = stripAnsi(text.trim());
-  if (!trimmed || (trimmed[0] !== '{' && trimmed[0] !== '[')) return { ok: false };
-  try {
-    return { ok: true, data: JSON.parse(trimmed) };
-  } catch {
-    return { ok: false };
+  const stripped = stripAnsi(text.trim());
+  if (!stripped) return { ok: false };
+
+  // If this is a curl /api/exec response, try to parse the inner output
+  const execOutput = tryExtractExecOutput(stripped);
+  if (execOutput !== null) {
+    const innerResult = tryParseJson(execOutput);
+    if (innerResult.ok) return innerResult;
   }
+
+  if (stripped[0] !== '{' && stripped[0] !== '[') return { ok: false };
+
+  // Try whole text first
+  try {
+    return { ok: true, data: JSON.parse(stripped) };
+  } catch {
+    // ignore
+  }
+
+  // Try extracting JSON between first brace/bracket and last brace/bracket
+  const firstBrace = stripped.indexOf('{');
+  const firstBracket = stripped.indexOf('[');
+  let start = -1;
+  if (firstBrace !== -1 && firstBracket !== -1) {
+    start = Math.min(firstBrace, firstBracket);
+  } else {
+    start = Math.max(firstBrace, firstBracket);
+  }
+
+  if (start !== -1) {
+    const lastBrace = stripped.lastIndexOf('}');
+    const lastBracket = stripped.lastIndexOf(']');
+    let end = -1;
+    if (lastBrace !== -1 && lastBracket !== -1) {
+      end = Math.max(lastBrace, lastBracket);
+    } else {
+      end = Math.max(lastBrace, lastBracket);
+    }
+
+    if (end > start) {
+      const extracted = stripped.slice(start, end + 1);
+      try {
+        return { ok: true, data: JSON.parse(extracted) };
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  return { ok: false };
 }
 
 // Bash output modal props
@@ -234,9 +311,23 @@ export function BashModal({ state, onClose }: BashModalProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const { handleMouseDown: handleBackdropMouseDown, handleClick: handleBackdropClick } = useModalClose(onClose);
 
-  const jsonResult = React.useMemo(() => {
-    if (state.isLive) return { ok: false as const };
-    return tryParseJson(state.output);
+  const { jsonResult, displayOutput } = React.useMemo(() => {
+    if (state.isLive) {
+      return { jsonResult: { ok: false as const }, displayOutput: state.output };
+    }
+
+    // If this is a curl /api/exec wrapper response, extract the actual command output
+    const execOutput = tryExtractExecOutput(state.output);
+    if (execOutput !== null) {
+      const innerJson = tryParseJson(execOutput);
+      if (innerJson.ok) {
+        return { jsonResult: innerJson, displayOutput: execOutput };
+      }
+      // Inner output is plain text — show it instead of the wrapper JSON
+      return { jsonResult: { ok: false as const }, displayOutput: execOutput };
+    }
+
+    return { jsonResult: tryParseJson(state.output), displayOutput: state.output };
   }, [state.output, state.isLive]);
 
   return (
@@ -259,7 +350,7 @@ export function BashModal({ state, onClose }: BashModalProps) {
               <JsonViewer data={jsonResult.data} />
             ) : (
               <pre className="exec-task-inline-output bash-modal-ansi-output">
-                {state.output.split('\n').map((line, idx) => (
+                {displayOutput.split('\n').map((line, idx) => (
                   <div key={idx} dangerouslySetInnerHTML={{ __html: ansiToHtml(line) }} />
                 ))}
               </pre>

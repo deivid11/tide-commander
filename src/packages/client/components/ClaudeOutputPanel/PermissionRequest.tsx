@@ -99,7 +99,7 @@ export function PermissionRequestInline({ request, onApprove, onDeny }: Permissi
   // Get remember hint text based on tool
   const getRememberHint = (): string => {
     if (request.tool === 'Write' || request.tool === 'Edit') {
-      const filePath = String(request.toolInput.file_path || '');
+      const filePath = String(request.toolInput.file_path || request.toolInput.filePath || '');
       const dir = filePath.split('/').slice(0, -1).join('/');
       return t('tools:permission.rememberAllowDir', { dir });
     }

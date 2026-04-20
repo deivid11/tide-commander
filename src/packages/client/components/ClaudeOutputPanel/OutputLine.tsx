@@ -29,6 +29,11 @@ function getExtFromPath(filePath: string): string {
   return basename.slice(dotIdx).toLowerCase();
 }
 
+/** Extract basename from a path, e.g. '/foo/bar.tsx' → 'bar.tsx' */
+function getBasenameFromPath(filePath: string): string {
+  return filePath.split('/').pop() || filePath;
+}
+
 /** Inline panel showing streamed subagent JSONL content */
 const SubagentStreamPanel = memo(function SubagentStreamPanel({ entries, isWorking }: { entries: SubagentStreamEntry[]; isWorking: boolean }) {
   const [expanded, setExpanded] = useState(false);
@@ -304,7 +309,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       if (pending > 0) parts.push(`${pending} pending`);
       toolKeyParamOrFallback = `${todos.length} items (${parts.join(', ')})`;
     } else {
-      toolKeyParamOrFallback = (input.file_path || input.path || input.notebook_path || input.command || input.pattern || input.url || input.query || input.description) as string;
+      toolKeyParamOrFallback = (input.file_path || input.filePath || input.path || input.notebook_path || input.notebookPath || input.command || input.pattern || input.url || input.query || input.description) as string;
       // Fallback: JSON serialize for any unrecognized tool inputs
       if (!toolKeyParamOrFallback) {
         try {
@@ -604,8 +609,10 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     const payloadFilePath = payloadInputRecord
       ? (
           (typeof payloadInputRecord.file_path === 'string' ? payloadInputRecord.file_path : undefined)
+          || (typeof payloadInputRecord.filePath === 'string' ? payloadInputRecord.filePath : undefined)
           || (typeof payloadInputRecord.path === 'string' ? payloadInputRecord.path : undefined)
           || (typeof payloadInputRecord.notebook_path === 'string' ? payloadInputRecord.notebook_path : undefined)
+          || (typeof payloadInputRecord.notebookPath === 'string' ? payloadInputRecord.notebookPath : undefined)
         )
       : undefined;
 
@@ -860,7 +867,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
             <span
               className={`output-tool-param ${isFileClickable ? 'clickable-path' : ''}`}
               onClick={isFileClickable ? handleParamClick : undefined}
-              title={isFileClickable ? (toolName === 'Edit' && (_editData || editDataFallback) ? t('tools:display.clickToViewDiff') : t('tools:display.clickToViewFile')) : undefined}
+              title={isFileClickable ? (toolName === 'Edit' && (_editData || editDataFallback) ? t('tools:display.clickToViewDiff') : t('tools:display.clickToViewFile')) : toolKeyParamOrFallback}
               style={isFileClickable ? { cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' } : undefined}
             >
               {isFileTool && isFilePath && (() => {
@@ -868,7 +875,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
                 const iconPath = ext ? getIconForExtension(ext) : '';
                 return iconPath ? <img className="output-tool-file-icon" src={iconPath} alt="" /> : null;
               })()}
-              {toolKeyParamOrFallback}
+              {['Read', 'Write', 'Edit', 'NotebookEdit'].includes(toolName) && isFilePath ? getBasenameFromPath(toolKeyParamOrFallback) : toolKeyParamOrFallback}
             </span>
           )}
 

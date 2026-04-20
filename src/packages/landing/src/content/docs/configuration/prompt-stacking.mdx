@@ -1,0 +1,118 @@
+---
+title: Prompt Stacking
+description: How Tide Commander layers multiple prompt sources — base rules, system prompt, class instructions, agent instructions, and skills — into the final context sent to the model.
+---
+
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+
+Every agent in Tide Commander receives a **composite system prompt** assembled from multiple layers. Understanding the stack helps you write instructions that go exactly where you intend them without conflicting with other layers.
+
+## The five-layer stack
+
+Layers are applied top-to-bottom. Earlier layers are always present; later layers are conditional or runtime-generated.
+
+```
+┌─────────────────────────────────────────────────────┐
+│  Layer 1 — Tide Commander Base Rules                │
+│  Always present. File path conventions, skill        │
+│  framework contract, API calling convention.        │
+├─────────────────────────────────────────────────────┤
+│  Layer 2 — System Prompt                            │
+│  Global custom instructions. Applies to ALL agents. │
+│  Set via Settings → System Prompt.                  │
+├─────────────────────────────────────────────────────┤
+│  Layer 3 — Class Instructions                       │
+│  Default rules for the agent's class (Scout,        │
+│  Builder, Boss, etc.). Set in the Classes tab.      │
+├─────────────────────────────────────────────────────┤
+│  Layer 4 — Individual Agent Instructions            │
+│  Agent-specific overrides. Set in Edit Agent.       │
+├─────────────────────────────────────────────────────┤
+│  Layer 5 — Skills & Agent Identity                  │
+│  Built-in and custom skill content: task-label,     │
+│  agent-tracking, notifications, boss instructions.  │
+│  Also includes agent ID, name, and runtime context  │
+│  (boss context, delegated task info).               │
+└─────────────────────────────────────────────────────┘
+```
+
+## Layer-by-layer breakdown
+
+### Layer 1 — Tide Commander base rules
+
+This layer is hard-coded and always present. It sets the conventions every agent must follow:
+
+- Full project-relative file path format (`src/packages/server/foo.ts:42`, never basename-only).
+- API calling convention — base URL, auth header, curl scaffolding.
+- Never add AI attribution trailers to commits.
+- Never leak private information about the Tide Commander system in agent responses.
+
+You cannot modify this layer from the UI. It is the bedrock that keeps all agents consistent.
+
+### Layer 2 — System prompt
+
+The global custom prompt you write in **Settings → System Prompt**. Everything here applies to every agent, regardless of class or individual settings. See [System Prompt](/configuration/system-prompt/) for how to set it.
+
+Examples of what belongs here:
+- Project name, language, framework
+- "Always run `npm test` before marking a task done"
+- "Prefer `pnpm` over `npm`"
+- Coding conventions that apply repo-wide
+
+### Layer 3 — Class instructions
+
+Instructions specific to an agent class — Scout, Builder, Debugger, Architect, Warrior, Support, Boss, or any custom class you define. Set these in the Classes tab of the Manage Skills screen.
+
+Examples:
+- Scout class: "Focus on exploration and reporting. Do not modify files."
+- Builder class: "Prefer small, focused commits. Ask before touching shared utilities."
+- Boss class: includes the full Boss Instructions skill (delegation ruleset, work-plan format).
+
+### Layer 4 — Individual agent instructions
+
+Agent-specific overrides set in the Edit Agent modal. Use this for one-off configuration — a particular agent that should always work in a specific directory, use a different coding style, or speak in a particular tone.
+
+<Aside type="tip">
+  Keep layer 4 minimal. If you find yourself writing the same per-agent instructions repeatedly, promote them to a class or the system prompt.
+</Aside>
+
+### Layer 5 — Skills and agent identity
+
+The final layer, assembled at runtime:
+
+- **Built-in skills** — task-label, agent-tracking, full-notifications, and any other skills assigned to the agent or class.
+- **Custom skills** — any additional skills you have enabled for this agent.
+- **Agent identity** — the agent's name and ID, used by skills to construct API calls.
+- **Runtime context** — if the agent is a subordinate, the boss's delegation context is injected here; if it received a delegated task, the task text and boss ID are included.
+
+## Precedence and conflicts
+
+Later layers do not automatically override earlier ones — all layers are concatenated and the model reads the full combined text. If two layers give contradictory instructions, the model resolves the conflict heuristically (usually favouring specificity).
+
+To win a conflict reliably:
+
+- Put universal rules in **layer 1 or 2** (base rules or system prompt).
+- Put class-specific exceptions in **layer 3**.
+- Put agent-specific exceptions in **layer 4**.
+- Put runtime-conditional rules in **layer 5** (skills).
+
+## Practical guidance
+
+<CardGrid>
+  <Card title="Team-wide conventions" icon="approve-check">
+    Go in the **System Prompt** (layer 2). Every agent sees them without any per-agent setup.
+  </Card>
+  <Card title="Role-specific behaviour" icon="setting">
+    Go in **Class Instructions** (layer 3). Scouts behave differently from Builders by default.
+  </Card>
+  <Card title="One-off overrides" icon="pencil">
+    Go in **Individual Agent Instructions** (layer 4). Keep these short and intentional.
+  </Card>
+  <Card title="Capability extensions" icon="add-document">
+    Go in **Skills** (layer 5). Notifications, inter-agent messaging, and git workflows all live here.
+  </Card>
+</CardGrid>
+
+<Aside type="note">
+  The combined prompt is assembled fresh for each agent start. Changes to any layer take effect the next time an agent is spawned or its context is reset — no server restart required.
+</Aside>

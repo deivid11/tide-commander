@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
-import { useStore, store } from '../../store';
-import { getBackendUrl, setBackendUrl, subscribeBackendUrlChange, STORAGE_KEYS, setStorageString, getAuthToken } from '../../utils/storage';
+import { useStore, store, useCustomAgentClassesArray } from '../../store';
+import { getBackendUrl, setBackendUrl, subscribeBackendUrlChange, STORAGE_KEYS, setStorageString, getStorageString, getAuthToken } from '../../utils/storage';
+import { BUILT_IN_AGENT_CLASSES } from '../../../shared/agent-types';
 import { reconnect } from '../../websocket';
 import { CollapsibleSection } from './CollapsibleSection';
 import { SecretsSection } from './SecretsSection';
@@ -184,6 +185,7 @@ function HighlightText({ text, query }: { text: string; query: string }) {
 const SETTINGS_SECTIONS = [
   { id: 'general', title: 'General', keywords: ['history', 'hide costs', 'grid', 'fps', 'power saving', 'performance', 'limit', 'editor', 'external editor', 'language', 'idioma', '语言', 'vibration', 'haptic', 'intensity', 'tab title', 'tmux', 'process persistence'] },
   { id: 'agentNames', title: 'Agent Names', keywords: ['agent', 'names', 'custom', 'characters', 'rename'] },
+  { id: 'defaultClass', title: 'Default Spawn Class', keywords: ['default', 'class', 'spawn', 'agent', 'scout', 'builder', 'random'] },
   { id: 'appearance', title: 'Appearance', keywords: ['theme', 'appearance', 'color', 'dark', 'light', 'style', 'look'] },
   { id: 'connection', title: 'Connection', keywords: ['backend', 'url', 'auth', 'token', 'reconnect', 'server', 'api', 'connect', 'codex', 'opencode', 'binary', 'path'] },
   { id: 'scene', title: 'Scene', keywords: ['character', 'size', 'indicator', 'scale', 'time', 'dawn', 'day', 'dusk', 'night', 'auto'] },
@@ -218,6 +220,8 @@ const LANGUAGE_OPTIONS: { value: string; label: string; icon: string }[] = [
 export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegrationsModal, onOpenMonitoringModal, onOpenWorkflowEditor, onOpenTriggerManager }: ConfigSectionProps) {
   const { t } = useTranslation(['config', 'common']);
   const state = useStore();
+  const customClasses = useCustomAgentClassesArray();
+  const [defaultSpawnClass, setDefaultSpawnClassState] = useState(() => getStorageString(STORAGE_KEYS.DEFAULT_AGENT_CLASS) || 'scout');
   const [historyLimit, setHistoryLimit] = useState(state.settings.historyLimit);
   const [backendUrl, setBackendUrlState] = useState(() => getBackendUrl());
   const [backendUrlDirty, setBackendUrlDirty] = useState(false);
@@ -474,6 +478,43 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
           {customAgentNames.length > 0 && (
             <button className="config-btn config-btn-link" onClick={handleResetToDefaults}>{t('common:buttons.resetToDefaults')}</button>
           )}
+        </div>
+      </CollapsibleSection>
+      )}
+
+      {shouldShowSection('defaultClass') && (
+      <CollapsibleSection title="Default Spawn Class" storageKey="defaultClass" defaultOpen={false} forceOpen={isSearching && shouldShowSection('defaultClass')}>
+        <div className="config-row config-row-stacked">
+          <span className="config-hint">Class pre-selected when the spawn modal opens. "Random" picks a different class each time.</span>
+          <div className="agent-names-list" style={{ flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
+            <div
+              className={`agent-name-chip${defaultSpawnClass === 'random' ? ' agent-name-chip--selected' : ''}`}
+              style={{ cursor: 'pointer', userSelect: 'none' }}
+              onClick={() => { setDefaultSpawnClassState('random'); setStorageString(STORAGE_KEYS.DEFAULT_AGENT_CLASS, 'random'); }}
+            >
+              <span className="agent-name-text">🎲 Random</span>
+            </div>
+            {Object.entries(BUILT_IN_AGENT_CLASSES).map(([id, cfg]) => (
+              <div
+                key={id}
+                className={`agent-name-chip${defaultSpawnClass === id ? ' agent-name-chip--selected' : ''}`}
+                style={{ cursor: 'pointer', userSelect: 'none' }}
+                onClick={() => { setDefaultSpawnClassState(id); setStorageString(STORAGE_KEYS.DEFAULT_AGENT_CLASS, id); }}
+              >
+                <span className="agent-name-text">{cfg.icon} {id.charAt(0).toUpperCase() + id.slice(1)}</span>
+              </div>
+            ))}
+            {customClasses.map(cls => (
+              <div
+                key={cls.id}
+                className={`agent-name-chip${defaultSpawnClass === cls.id ? ' agent-name-chip--selected' : ''}`}
+                style={{ cursor: 'pointer', userSelect: 'none' }}
+                onClick={() => { setDefaultSpawnClassState(cls.id); setStorageString(STORAGE_KEYS.DEFAULT_AGENT_CLASS, cls.id); }}
+              >
+                <span className="agent-name-text">{cls.icon} {cls.name}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </CollapsibleSection>
       )}

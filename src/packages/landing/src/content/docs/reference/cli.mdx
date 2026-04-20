@@ -1,0 +1,104 @@
+---
+title: CLI Reference
+description: All tide-commander command-line flags, subcommands, and environment variable overrides.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The `tide-commander` CLI manages the server process lifecycle. All commands run against the background daemon unless `--foreground` is passed.
+
+## Installation
+
+```bash
+# Run without installing (recommended for quick starts)
+bunx tide-commander
+
+# Install globally
+npm i -g tide-commander@latest
+```
+
+## Subcommands
+
+### `start`
+
+Start the Tide Commander server (default command — runs when you call `tide-commander` with no subcommand).
+
+```bash
+tide-commander start [flags]
+```
+
+By default the server daemonises into the background. Use `--foreground` to keep it in the terminal.
+
+### `stop`
+
+Stop the background server process.
+
+```bash
+tide-commander stop
+```
+
+### `status`
+
+Check whether the background server is running and show its PID and port.
+
+```bash
+tide-commander status
+```
+
+### `logs`
+
+Print recent server output. Useful for diagnosing startup failures.
+
+```bash
+tide-commander logs [--lines N] [--follow]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--lines N` | `50` | Number of log lines to show |
+| `--follow` | off | Stream logs in real time (like `tail -f`) |
+
+## Flags (for `start`)
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--port N` | `5174` | HTTP port the server listens on |
+| `--host HOST` | `localhost` | Bind address. Use `0.0.0.0` to expose on the network |
+| `--foreground` | off | Run in the foreground instead of daemonising |
+| `--generate-auth-token` | off | Generate a random `AUTH_TOKEN`, print it, and exit |
+
+## Environment variable overrides
+
+All flags can be set in `.env` (loaded from the working directory or `~/.tide-commander/.env`). Environment variables take precedence over config file defaults but are overridden by explicit CLI flags.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | `5174` | Server port |
+| `HOST` | `localhost` | Bind address |
+| `AUTH_TOKEN` | — | Bearer token for API access. Required for network exposure |
+| `HTTPS_CERT` | — | Path to TLS certificate file |
+| `HTTPS_KEY` | — | Path to TLS private key file |
+| `LOG_LEVEL` | `info` | Log verbosity: `debug`, `info`, `warn`, `error` |
+| `DATA_DIR` | `~/.local/share/tide-commander` | Override the data directory |
+
+<Aside type="tip" title="Generating an auth token">
+Run `tide-commander --generate-auth-token` to print a cryptographically random token. Copy it into your `.env` as `AUTH_TOKEN=<value>`.
+</Aside>
+
+## Typical workflows
+
+```bash
+# Start on default port, background mode
+tide-commander start
+
+# Start on a custom port, expose to LAN
+tide-commander start --port 8080 --host 0.0.0.0
+
+# Watch logs while developing
+tide-commander logs --follow
+
+# Stop cleanly
+tide-commander stop
+```
+
+For HTTPS setup (required for cross-origin mobile access and service workers), see [HTTPS & Auth](/configuration/https-and-auth/).

@@ -33,6 +33,11 @@ function getExtFromPath(filePath: string): string {
   return basename.slice(dotIdx).toLowerCase();
 }
 
+/** Extract basename from a path, e.g. '/foo/bar.tsx' → 'bar.tsx' */
+function getBasenameFromPath(filePath: string): string {
+  return filePath.split('/').pop() || filePath;
+}
+
 interface HistoryLineProps {
   message: EnrichedHistoryMessage;
   agentId?: string | null;
@@ -574,7 +579,7 @@ export const HistoryLine = memo(function HistoryLine({
                 <span
                   className={`output-tool-param ${isFileClickable ? 'clickable-path' : ''}`}
                   onClick={isFileClickable ? handleParamClick : undefined}
-                  title={clickTitle}
+                  title={isFileClickable ? clickTitle : keyParam}
                   style={isFileClickable ? { cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' } : undefined}
                 >
                   {isFileTool && isFilePath && (() => {
@@ -582,7 +587,7 @@ export const HistoryLine = memo(function HistoryLine({
                     const iconPath = ext ? getIconForExtension(ext) : '';
                     return iconPath ? <img className="output-tool-file-icon" src={iconPath} alt="" /> : null;
                   })()}
-                  {isBashTool ? renderBashCommandWithFileLinks() : keyParam}
+                  {isBashTool ? renderBashCommandWithFileLinks() : (['Read', 'Write', 'Edit', 'NotebookEdit'].includes(toolName || '') && isFilePath ? getBasenameFromPath(keyParam) : keyParam)}
                 </span>
               )
             )}

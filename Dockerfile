@@ -4,7 +4,8 @@
 FROM node:20-alpine
 
 # System tools: native addon compilation, agent workflows, and installer scripts
-RUN apk add --no-cache python3 make g++ git bash curl unzip
+# su-exec: lightweight tool to drop privileges in entrypoint
+RUN apk add --no-cache python3 make g++ git bash curl unzip su-exec
 
 # Install codex globally via npm (accessible to all users)
 RUN npm install -g @openai/codex
@@ -39,5 +40,9 @@ EXPOSE 9059
 ENV PORT=9059
 ENV HOST=0.0.0.0
 
-ENTRYPOINT []
-CMD ["/home/commander/.bun/bin/bun", "x", "tide-commander@latest", "--foreground"]
+# Switch back to root for entrypoint (needs chown), then drops to commander
+USER root
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]

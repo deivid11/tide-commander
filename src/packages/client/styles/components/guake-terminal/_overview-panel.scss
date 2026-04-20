@@ -672,7 +672,8 @@
     border-left-color: #ffd700;
   }
 
-  &.working {
+  &.working,
+  &.compacting {
     border-left-color: var(--accent-green);
     border-color: color-mix(in srgb, var(--accent-green) 35%, var(--border-color));
     background: color-mix(in srgb, var(--accent-green) 12%, var(--bg-secondary));
@@ -719,6 +720,7 @@
   }
 
   &.active.working,
+  &.active.compacting,
   &.active.idle,
   &.active.unread,
   &.active.error,
@@ -1591,3 +1593,5 @@
     --guake-mobile-overview-height: clamp(170px, 32dvh, 250px);
   }
 }
+
+

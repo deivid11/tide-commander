@@ -1,7 +1,7 @@
 import React, { memo, useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Agent, AgentTrackingStatus } from '../../../shared/types';
-import { useAgentsByTrackingStatus, useAgentsWithUnseenOutput, useAreas, useCustomAgentClassesArray, store } from '../../store';
+import { useAgentsByTrackingStatus, useAgentsWithUnseenOutput, useAreas, useCustomAgentClassesArray, useAgentCompacting, store } from '../../store';
 import { getClassConfig } from '../../utils/classConfig';
 import { formatIdleTime } from '../../utils/formatting';
 import { apiUrl, authFetch } from '../../utils/storage';
@@ -302,11 +302,12 @@ const TrackingBoardCard = memo(function TrackingBoardCard({
 }: TrackingBoardCardProps) {
   const customClasses = useCustomAgentClassesArray();
   const classConfig = getClassConfig(agent.class, customClasses);
+  const isCompacting = useAgentCompacting(agent.id);
   const hasCustomIcon = !!classConfig.iconPath;
 
   return (
     <article
-      className={`tracking-board-card${isActive ? ' active' : ''}${hasPendingRead ? ' unread' : ''}`}
+      className={`tracking-board-card${isActive ? ' active' : ''}${hasPendingRead ? ' unread' : ''}${isCompacting ? ' compacting' : ''}`}
       onClick={() => onSelectAgent(agent.id)}
       title={agent.trackingStatusDetail || agent.taskLabel || agent.name}
     >

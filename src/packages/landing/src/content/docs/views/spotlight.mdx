@@ -1,0 +1,68 @@
+---
+title: Spotlight Search
+description: A command palette for agents, files, actions, areas, and settings — summon it from anywhere with Ctrl/Cmd + K or Alt + P.
+---
+
+import { Aside, Card, CardGrid, Steps } from '@astrojs/starlight/components';
+
+**Spotlight** is Tide Commander's command palette. It's a fuzzy-find overlay that opens over any view and can take you to anything the app knows about — an agent by name, a file in a working directory, a settings section, an area, a building, or a direct action like "Spawn Boss Agent".
+
+![Spotlight search overlay](/screenshots/33-global-search.png)
+
+## How to open it
+
+<Steps>
+1. Press **Ctrl + K** (Windows / Linux) or **Cmd + K** (macOS) from anywhere in the app.
+2. Alternatively press **Alt + P** — same palette, different muscle memory for long-time Claude Code users.
+3. Start typing. Results filter live.
+4. Arrow keys navigate; **Enter** activates; **Esc** dismisses.
+</Steps>
+
+The palette closes itself after a selection, so you can open it, pick a target, and be there in two keypresses.
+
+## What it finds
+
+<CardGrid>
+  <Card title="Agents" icon="seti:default">
+    Any spawned agent by name, ID, or class. Picks open the Agent Inspector.
+  </Card>
+  <Card title="Actions" icon="rocket">
+    "Spawn New Agent", "Draw Area", "Open Settings", "Toggle Sidebar", "Switch to Commander View" — anything in the toolbar.
+  </Card>
+  <Card title="Files" icon="document">
+    Files inside any attached area / agent working directory. Picks open a diff-aware preview.
+  </Card>
+  <Card title="Settings sections" icon="setting">
+    "Scene", "Permissions", "System Prompt", "Secrets" — jump directly to a searchable settings section.
+  </Card>
+  <Card title="Buildings" icon="seti:db">
+    Your server logs, database query editors, Docker containers, and links.
+  </Card>
+  <Card title="Areas" icon="seti:folder">
+    Jump to an area and auto-filter the sidebar to the agents inside it.
+  </Card>
+</CardGrid>
+
+## Why it matters
+
+Spotlight is the closest thing to "global" in a multi-agent UI. Instead of hunting through the sidebar or remembering which view hosts which action, you open the palette and type. For power users it replaces ~80% of the toolbar; for new users it's the fastest way to discover what the app can do.
+
+## Gotchas
+
+<Aside type="note" title="Two shortcuts, one palette">
+  Ctrl/Cmd + K and Alt + P open the same palette. If one of them is swallowed by the OS or a browser extension, the other usually gets through. Rebinding either one lives under **Settings → Keyboard Shortcuts**.
+</Aside>
+
+<Aside type="tip" title="Empty query still works">
+  Opening Spotlight without typing shows a curated set of "Quick Actions" — Spawn Agent, Spawn Boss, Draw Area, Open Settings. Great muscle memory for routines you do ten times a day.
+</Aside>
+
+<Aside type="caution" title="File search scope">
+  Spotlight only searches files inside attached directories (agent `cwd`s and areas with folders attached). It does not index the whole disk — if a file isn't found, check that its parent directory is attached.
+</Aside>
+
+## Related
+
+- [Keyboard Shortcuts](/configuration/keyboard-shortcuts/) — rebind the shortcut, see the full list.
+- [Guake Terminal](/views/guake-terminal/) — a shell overlay, for when you need a terminal rather than navigation.
+- [Feature Overview](/views/overview/) — every surface Spotlight can reach.
