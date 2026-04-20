@@ -1,0 +1,68 @@
+---
+title: 3D Battlefield
+description: The default Three.js isometric scene where agents are characters, buildings are interactive objects, and RTS-style controls move the team around a real terrain.
+---
+
+import { Aside, Card, CardGrid, Steps } from '@astrojs/starlight/components';
+
+The **3D Battlefield** is Tide Commander's default view. Every agent is a live character, every building is a working integration, and the terrain is a drawable playground you can divide into areas. It looks like a game because the mental model of moving pieces around a map is a good mental model for orchestrating a team.
+
+![3D battlefield populated with four agents](/screenshots/35-main-3d-with-agents.png)
+
+## How to open it
+
+Pick **3D** from the top toolbar, or press **Alt + 2** repeatedly to cycle through views until you land on it. The 3D view is the boot default.
+
+![Empty 3D scene, fresh install](/screenshots/01-main-3d-scene-empty.png)
+
+## What you can do
+
+<CardGrid>
+  <Card title="Select & command" icon="cursor">
+    Click an agent to select it, right-click the ground to move it, drag-select to group. Typed commands in the inspector are sent straight to the underlying CLI.
+  </Card>
+  <Card title="Draw areas" icon="pencil">
+    Use **Draw New Area** to rectangle-select a region of the map. Areas group agents visually and can attach a folder for the file explorer.
+  </Card>
+  <Card title="Place buildings" icon="add-document">
+    Add servers, databases, Docker containers, links, and boss nodes. Each one is a live integration — not decoration.
+  </Card>
+  <Card title="Scene controls" icon="setting">
+    Terrain, lighting, post-processing, fog, and agent-model style are all tunable from **Settings → Scene / Terrain / Animations**.
+  </Card>
+</CardGrid>
+
+## Key controls
+
+<Steps>
+1. **Select** — left-click an agent. Drag to box-select multiple.
+2. **Move** — right-click ground tiles to dispatch the selection to that point.
+3. **Inspect** — double-click an agent (or click **Commander View**) to open its conversation panel.
+4. **Pan / zoom** — middle-mouse drag to pan, wheel to zoom. Touchpad users: see the [Controls help](/views/overview/#keyboard--mouse--trackpad-help) cheat sheet.
+5. **Draw an area** — click **Draw New Area**, then click-and-drag on the ground to stamp a rectangle. Escape cancels.
+</Steps>
+
+![Draw Area rectangle tool active](/screenshots/47-draw-area-mode.png)
+
+## Settings that matter here
+
+The Scene section of Settings is where the 3D view earns its performance budget. Shadow quality, post-processing, terrain tiling, and agent model density all live there.
+
+![Settings — Scene section expanded](/screenshots/13-settings-scene-expanded.png)
+![Settings — Terrain](/screenshots/14-settings-terrain.png)
+
+## Gotchas
+
+<Aside type="caution" title="GPU budget">
+  The default scene ships with soft shadows, SSAO, and bloom. On integrated GPUs, drop **Settings → Scene → Post-processing** to **Medium** or switch to the [2D Canvas](/views/2d/) — same controls, far less work for the GPU.
+</Aside>
+
+<Aside type="tip" title="Prefer keys over clicks">
+  Alt + 2 cycles views. Ctrl/Cmd + K opens Spotlight to jump to any agent or action without leaving the 3D view. Both are quicker than the toolbar.
+</Aside>
+
+## Related
+
+- [2D Canvas](/views/2d/) — same controls, lightweight renderer.
+- [Commander View](/views/commander/) — every agent's terminal in a grid.
+- [Custom 3D Models](/advanced/custom-3d-models/) — swap the GLB and animations a class uses.

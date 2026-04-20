@@ -10,6 +10,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as readline from 'readline';
+import Database from 'better-sqlite3';
 import { createLogger } from '../utils/logger.js';
 
 const log = createLogger('Session');
@@ -19,15 +20,101 @@ const CLAUDE_DIR = path.join(os.homedir(), '.claude');
 const PROJECTS_DIR = path.join(CLAUDE_DIR, 'projects');
 const CODEX_DIR = path.join(os.homedir(), '.codex');
 const CODEX_SESSIONS_DIR = path.join(CODEX_DIR, 'sessions');
+// OpenCode storage. Current versions keep session metadata + messages + parts
+// in a SQLite database (opencode.db). Older versions used a filesystem layout
+// (session/<project-id>/ses_<id>.json, message/ses_<id>/..., part/msg_<id>/...)
+// which we still read as a fallback for legacy sessions.
+const OPENCODE_DIR = path.join(os.homedir(), '.local', 'share', 'opencode');
+const OPENCODE_DB_PATH = path.join(OPENCODE_DIR, 'opencode.db');
+const OPENCODE_STORAGE_DIR = path.join(OPENCODE_DIR, 'storage');
+const OPENCODE_SESSION_DIR = path.join(OPENCODE_STORAGE_DIR, 'session');
+const OPENCODE_MESSAGE_DIR = path.join(OPENCODE_STORAGE_DIR, 'message');
+const OPENCODE_PART_DIR = path.join(OPENCODE_STORAGE_DIR, 'part');
+
+// OpenCode uses lowercase tool names on disk; normalize to the capitalized
+// variants the frontend expects. Kept in sync with json-event-parser.ts.
+const OPENCODE_TOOL_NAME_MAP: Record<string, string> = {
+  bash: 'Bash',
+  read: 'Read',
+  write: 'Write',
+  edit: 'Edit',
+  glob: 'Glob',
+  grep: 'Grep',
+  task: 'Task',
+  agent: 'Agent',
+  skill: 'Skill',
+  webfetch: 'WebFetch',
+  websearch: 'WebSearch',
+  todowrite: 'TodoWrite',
+  notebookedit: 'NotebookEdit',
+  askuserquestion: 'AskUserQuestion',
+  askfollowupquestion: 'AskFollowupQuestion',
+  toolsearch: 'ToolSearch',
+  enterplanmode: 'EnterPlanMode',
+  exitplanmode: 'ExitPlanMode',
+};
+
+function normalizeOpencodeToolName(raw: string): string {
+  return OPENCODE_TOOL_NAME_MAP[raw.toLowerCase()] || raw;
+}
 
 type SessionProvider = 'claude' | 'codex' | 'opencode';
 
 interface ResolvedSessionFile {
   provider: SessionProvider;
   filePath: string;
+  // When set, the opencode session lives in the SQLite DB and filePath points
+  // at opencode.db (used only for a stat-based fallback mtime).
+  opencodeDbSessionId?: string;
 }
 
 const codexSessionFileById = new Map<string, string>();
+const opencodeSessionFileById = new Map<string, string>();
+
+let cachedOpencodeDb: Database.Database | null = null;
+let opencodeDbOpenFailed = false;
+
+function getOpencodeDb(): Database.Database | null {
+  if (cachedOpencodeDb) {
+    return cachedOpencodeDb;
+  }
+  if (opencodeDbOpenFailed) {
+    return null;
+  }
+  if (!fs.existsSync(OPENCODE_DB_PATH)) {
+    return null;
+  }
+  try {
+    // Readonly: opencode owns this DB and may have it open in WAL mode.
+    // fileMustExist guards against silent DB creation if the file vanishes.
+    cachedOpencodeDb = new Database(OPENCODE_DB_PATH, { readonly: true, fileMustExist: true });
+    return cachedOpencodeDb;
+  } catch (err) {
+    opencodeDbOpenFailed = true;
+    log.warn(`Failed to open opencode sqlite DB at ${OPENCODE_DB_PATH}: ${String(err)}`);
+    return null;
+  }
+}
+
+interface OpencodeDbSessionRow {
+  id: string;
+  directory: string;
+  time_updated: number;
+}
+
+function findOpencodeDbSession(sessionId: string): OpencodeDbSessionRow | null {
+  const db = getOpencodeDb();
+  if (!db) return null;
+  try {
+    const row = db
+      .prepare('SELECT id, directory, time_updated FROM session WHERE id = ? LIMIT 1')
+      .get(sessionId) as OpencodeDbSessionRow | undefined;
+    return row ?? null;
+  } catch (err) {
+    log.warn(`Opencode DB session lookup failed for ${sessionId}: ${String(err)}`);
+    return null;
+  }
+}
 let hasLoggedTurnAbortedHistoryWarning = false;
 
 // Message types from Claude session files
@@ -321,6 +408,38 @@ function findCodexSessionFile(sessionId: string): string | null {
   return null;
 }
 
+function findOpencodeSessionFile(sessionId: string): string | null {
+  const cached = opencodeSessionFileById.get(sessionId);
+  if (cached && fs.existsSync(cached)) {
+    return cached;
+  }
+
+  if (!fs.existsSync(OPENCODE_SESSION_DIR)) {
+    return null;
+  }
+
+  // Session ids are unique across projects, so scan each project-id directory
+  // for ses_<id>.json. Caches the first hit.
+  let projectDirs: fs.Dirent[];
+  try {
+    projectDirs = fs.readdirSync(OPENCODE_SESSION_DIR, { withFileTypes: true });
+  } catch {
+    return null;
+  }
+
+  const targetFile = `${sessionId}.json`;
+  for (const entry of projectDirs) {
+    if (!entry.isDirectory()) continue;
+    const candidate = path.join(OPENCODE_SESSION_DIR, entry.name, targetFile);
+    if (fs.existsSync(candidate)) {
+      opencodeSessionFileById.set(sessionId, candidate);
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
 function resolveSessionFile(cwd: string, sessionId: string): ResolvedSessionFile | null {
   const claudeFile = path.join(getProjectDir(cwd), `${sessionId}.jsonl`);
   if (fs.existsSync(claudeFile)) {
@@ -330,6 +449,20 @@ function resolveSessionFile(cwd: string, sessionId: string): ResolvedSessionFile
   const codexFile = findCodexSessionFile(sessionId);
   if (codexFile && fs.existsSync(codexFile)) {
     return { provider: 'codex', filePath: codexFile };
+  }
+
+  const opencodeDbRow = findOpencodeDbSession(sessionId);
+  if (opencodeDbRow) {
+    return {
+      provider: 'opencode',
+      filePath: OPENCODE_DB_PATH,
+      opencodeDbSessionId: opencodeDbRow.id,
+    };
+  }
+
+  const opencodeFile = findOpencodeSessionFile(sessionId);
+  if (opencodeFile && fs.existsSync(opencodeFile)) {
+    return { provider: 'opencode', filePath: opencodeFile };
   }
 
   return null;
@@ -820,9 +953,221 @@ function parseCodexEntryMessages(
   });
 }
 
+function safeReadJsonFile(filePath: string): unknown {
+  try {
+    const raw = fs.readFileSync(filePath, 'utf-8');
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+interface OpencodeDbMessageRow {
+  id: string;
+  time_created: number;
+  data: string;
+}
+
+interface OpencodeDbPartRow {
+  id: string;
+  message_id: string;
+  time_created: number;
+  data: string;
+}
+
+function parseOpencodePart(
+  part: Record<string, unknown>,
+  role: 'user' | 'assistant' | null,
+  partId: string,
+  timestamp: string,
+  toolUseIdToName: Map<string, string>,
+  messages: SessionMessage[]
+): void {
+  const partType = part.type;
+
+  if (partType === 'text' && typeof part.text === 'string' && part.text.trim()) {
+    if (role === null) return;
+    messages.push({
+      type: role,
+      content: part.text,
+      timestamp,
+      uuid: partId,
+    });
+    return;
+  }
+
+  if (partType === 'tool') {
+    const rawToolName = typeof part.tool === 'string' ? part.tool : 'unknown';
+    const toolName = normalizeOpencodeToolName(rawToolName);
+    const callId = typeof part.callID === 'string' ? part.callID : undefined;
+    const state = isObject(part.state) ? part.state : null;
+    const rawInput = state && isObject(state.input) ? state.input : {};
+
+    if (callId) {
+      toolUseIdToName.set(callId, toolName);
+    }
+
+    messages.push({
+      type: 'tool_use',
+      content: JSON.stringify(rawInput, null, 2),
+      timestamp,
+      uuid: partId,
+      toolName,
+      toolInput: rawInput,
+      toolUseId: callId,
+    });
+
+    const status = state && typeof state.status === 'string' ? state.status : undefined;
+    if (status === 'completed') {
+      const output = state && typeof state.output === 'string' ? state.output : '';
+      messages.push({
+        type: 'tool_result',
+        content: output,
+        timestamp,
+        uuid: `${partId}-result`,
+        toolName,
+        toolUseId: callId,
+      });
+    }
+    return;
+  }
+
+  // Skip: reasoning, step-start, step-finish, patch (mirrors Claude/Codex history behavior).
+}
+
+async function parseOpencodeDbSessionMessages(
+  sessionId: string
+): Promise<{ messages: SessionMessage[]; lastMessageType: SessionActivityMessageType; lastMessageTimestamp: Date | null }> {
+  const db = getOpencodeDb();
+  if (!db) {
+    return { messages: [], lastMessageType: null, lastMessageTimestamp: null };
+  }
+
+  const messages: SessionMessage[] = [];
+  const toolUseIdToName = new Map<string, string>();
+
+  let messageRows: OpencodeDbMessageRow[];
+  let partRows: OpencodeDbPartRow[];
+  try {
+    messageRows = db
+      .prepare('SELECT id, time_created, data FROM message WHERE session_id = ? ORDER BY time_created ASC, id ASC')
+      .all(sessionId) as OpencodeDbMessageRow[];
+    partRows = db
+      .prepare('SELECT id, message_id, time_created, data FROM part WHERE session_id = ? ORDER BY time_created ASC, id ASC')
+      .all(sessionId) as OpencodeDbPartRow[];
+  } catch (err) {
+    log.warn(`Opencode DB message/part query failed for ${sessionId}: ${String(err)}`);
+    return { messages: [], lastMessageType: null, lastMessageTimestamp: null };
+  }
+
+  const partsByMessageId = new Map<string, OpencodeDbPartRow[]>();
+  for (const part of partRows) {
+    const bucket = partsByMessageId.get(part.message_id);
+    if (bucket) {
+      bucket.push(part);
+    } else {
+      partsByMessageId.set(part.message_id, [part]);
+    }
+  }
+
+  for (const msgRow of messageRows) {
+    const msgJson = safeParseJson(msgRow.data);
+    if (!isObject(msgJson)) continue;
+
+    const role = msgJson.role === 'user' ? 'user' : msgJson.role === 'assistant' ? 'assistant' : null;
+    const createdMs = isObject(msgJson.time) && typeof msgJson.time.created === 'number'
+      ? msgJson.time.created
+      : msgRow.time_created;
+    const timestamp = createdMs > 0 ? new Date(createdMs).toISOString() : new Date(0).toISOString();
+
+    const messageParts = partsByMessageId.get(msgRow.id);
+    if (!messageParts || messageParts.length === 0) continue;
+
+    for (const partRow of messageParts) {
+      const part = safeParseJson(partRow.data);
+      if (!isObject(part)) continue;
+      const partId = partRow.id;
+      parseOpencodePart(part, role, partId, timestamp, toolUseIdToName, messages);
+    }
+  }
+
+  const dedupedMessages = deduplicateSessionMessages(messages);
+  const last = dedupedMessages.length > 0 ? dedupedMessages[dedupedMessages.length - 1] : null;
+  return {
+    messages: dedupedMessages,
+    lastMessageType: last?.type ?? null,
+    lastMessageTimestamp: last?.timestamp ? new Date(last.timestamp) : null,
+  };
+}
+
+async function parseOpencodeSessionMessages(
+  sessionFilePath: string
+): Promise<{ messages: SessionMessage[]; lastMessageType: SessionActivityMessageType; lastMessageTimestamp: Date | null }> {
+  const messages: SessionMessage[] = [];
+  const toolUseIdToName = new Map<string, string>();
+
+  const sessionId = path.basename(sessionFilePath, '.json');
+  const messagesDir = path.join(OPENCODE_MESSAGE_DIR, sessionId);
+
+  if (!fs.existsSync(messagesDir)) {
+    return { messages: [], lastMessageType: null, lastMessageTimestamp: null };
+  }
+
+  let messageFiles: string[];
+  try {
+    messageFiles = fs.readdirSync(messagesDir).filter((f) => f.endsWith('.json')).sort();
+  } catch {
+    return { messages: [], lastMessageType: null, lastMessageTimestamp: null };
+  }
+
+  for (const msgFile of messageFiles) {
+    const msgJson = safeReadJsonFile(path.join(messagesDir, msgFile));
+    if (!isObject(msgJson)) continue;
+
+    const msgId = typeof msgJson.id === 'string' ? msgJson.id : msgFile.replace(/\.json$/, '');
+    const role = msgJson.role === 'user' ? 'user' : msgJson.role === 'assistant' ? 'assistant' : null;
+    const createdMs = isObject(msgJson.time) && typeof msgJson.time.created === 'number'
+      ? msgJson.time.created
+      : 0;
+    const timestamp = createdMs > 0 ? new Date(createdMs).toISOString() : new Date(0).toISOString();
+
+    const partsDir = path.join(OPENCODE_PART_DIR, msgId);
+    if (!fs.existsSync(partsDir)) continue;
+
+    let partFiles: string[];
+    try {
+      partFiles = fs.readdirSync(partsDir).filter((f) => f.endsWith('.json')).sort();
+    } catch {
+      continue;
+    }
+
+    for (const partFile of partFiles) {
+      const part = safeReadJsonFile(path.join(partsDir, partFile));
+      if (!isObject(part)) continue;
+      const partId = typeof part.id === 'string' ? part.id : `${timestamp}-${partFile}`;
+      parseOpencodePart(part, role, partId, timestamp, toolUseIdToName, messages);
+    }
+  }
+
+  const dedupedMessages = deduplicateSessionMessages(messages);
+  const last = dedupedMessages.length > 0 ? dedupedMessages[dedupedMessages.length - 1] : null;
+  return {
+    messages: dedupedMessages,
+    lastMessageType: last?.type ?? null,
+    lastMessageTimestamp: last?.timestamp ? new Date(last.timestamp) : null,
+  };
+}
+
 async function parseSessionMessages(
   resolved: ResolvedSessionFile
 ): Promise<{ messages: SessionMessage[]; lastMessageType: SessionActivityMessageType; lastMessageTimestamp: Date | null }> {
+  if (resolved.provider === 'opencode') {
+    if (resolved.opencodeDbSessionId) {
+      return parseOpencodeDbSessionMessages(resolved.opencodeDbSessionId);
+    }
+    return parseOpencodeSessionMessages(resolved.filePath);
+  }
+
   const messages: SessionMessage[] = [];
   const toolUseIdToName = new Map<string, string>();
 
@@ -874,7 +1219,9 @@ export async function loadSession(
     return null;
   }
 
-  await waitForFileStable(resolved.filePath);
+  if (!resolved.opencodeDbSessionId) {
+    await waitForFileStable(resolved.filePath);
+  }
   const { messages } = await parseSessionMessages(resolved);
 
   const totalCount = messages.length;
@@ -913,7 +1260,9 @@ export async function searchSession(
     return null;
   }
 
-  await waitForFileStable(resolved.filePath);
+  if (!resolved.opencodeDbSessionId) {
+    await waitForFileStable(resolved.filePath);
+  }
   const { messages } = await parseSessionMessages(resolved);
   const queryLower = query.toLowerCase();
   const matches: SessionMessage[] = [];
@@ -1036,6 +1385,60 @@ export interface SessionActivityStatus {
  * @param sessionId - Session ID
  * @param activeThresholdSeconds - Consider active if modified within this many seconds (default 60)
  */
+async function getResolvedSessionLastModified(resolved: ResolvedSessionFile): Promise<Date> {
+  // DB-backed opencode sessions: use the latest part/message/session timestamp
+  // in the SQLite DB. File mtime on opencode.db shifts with any write from any
+  // project, so it's too noisy to gate per-session activity on.
+  if (resolved.provider === 'opencode' && resolved.opencodeDbSessionId) {
+    const db = getOpencodeDb();
+    if (db) {
+      try {
+        const row = db
+          .prepare(
+            `SELECT MAX(latest) AS latest FROM (
+               SELECT time_updated AS latest FROM session WHERE id = ?
+               UNION ALL
+               SELECT MAX(time_created) AS latest FROM message WHERE session_id = ?
+               UNION ALL
+               SELECT MAX(time_created) AS latest FROM part WHERE session_id = ?
+             )`
+          )
+          .get(
+            resolved.opencodeDbSessionId,
+            resolved.opencodeDbSessionId,
+            resolved.opencodeDbSessionId
+          ) as { latest: number | null } | undefined;
+        if (row && typeof row.latest === 'number' && row.latest > 0) {
+          return new Date(row.latest);
+        }
+      } catch (err) {
+        log.warn(`Opencode DB activity timestamp query failed: ${String(err)}`);
+      }
+    }
+    // Fall through to a mtime-based fallback if the DB query fails.
+  }
+
+  const sessionStats = await fs.promises.stat(resolved.filePath);
+  let mtime = sessionStats.mtime;
+
+  // Legacy opencode filesystem layout: fold message dir mtime in since the
+  // session JSON isn't rewritten on every turn.
+  if (resolved.provider === 'opencode' && !resolved.opencodeDbSessionId) {
+    const sessionId = path.basename(resolved.filePath, '.json');
+    const messagesDir = path.join(OPENCODE_MESSAGE_DIR, sessionId);
+    try {
+      const msgStats = await fs.promises.stat(messagesDir);
+      if (msgStats.mtime > mtime) {
+        mtime = msgStats.mtime;
+      }
+    } catch {
+      // Message dir may not exist yet on a brand-new session; ignore.
+    }
+  }
+
+  return mtime;
+}
+
 export async function getSessionActivityStatus(
   cwd: string,
   sessionId: string,
@@ -1046,8 +1449,7 @@ export async function getSessionActivityStatus(
     return null;
   }
 
-  const stats = await fs.promises.stat(resolved.filePath);
-  const lastModified = stats.mtime;
+  const lastModified = await getResolvedSessionLastModified(resolved);
   const now = new Date();
   const secondsSinceModified = (now.getTime() - lastModified.getTime()) / 1000;
   const { lastMessageType, lastMessageTimestamp } = await parseSessionMessages(resolved);
@@ -1325,7 +1727,9 @@ export async function loadToolHistory(
     return { toolExecutions, fileChanges };
   }
 
-  await waitForFileStable(resolved.filePath);
+  if (!resolved.opencodeDbSessionId) {
+    await waitForFileStable(resolved.filePath);
+  }
   const { messages } = await parseSessionMessages(resolved);
 
   for (const msg of messages) {

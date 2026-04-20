@@ -103,7 +103,6 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
-        landing: resolve(__dirname, 'src/packages/landing/index.html'),
       },
       output: {
         // Manual chunk splitting to reduce initial bundle size

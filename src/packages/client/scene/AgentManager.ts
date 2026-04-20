@@ -558,7 +558,15 @@ export class AgentManager {
       this.agentMeshes.delete(agent.id);
     }
 
-    const meshData = this.characterFactory.createAgentMesh(agent);
+    let meshData: AgentMeshData;
+    try {
+      meshData = this.characterFactory.createAgentMesh(agent);
+    } catch (err) {
+      console.error(`[AgentManager] createAgentMesh crashed for ${agent.name} (class ${agent.class}):`, err);
+      this.onToast?.('error', 'Agent Model Error', `Could not render ${agent.name} (${agent.class}), using fallback`);
+      return;
+    }
+
     this.scene.add(meshData.group);
     this.agentMeshes.set(agent.id, meshData);
     console.log(`[AgentManager] Agent ${agent.name} added to scene, total meshes: ${this.agentMeshes.size}`);
@@ -578,9 +586,10 @@ export class AgentManager {
       if (statusBar) {
         // Box3.setFromObject already accounts for the object's current scale
         const box = new THREE.Box3().setFromObject(body);
-        // Use max.y as the top of the model, with smaller padding for bosses
-        // since they're already taller
-        const modelTop = box.max.y;
+        // Box3 can come back empty (Infinity) when geometry hasn't decoded or is degenerate;
+        // falling through with Infinity propagates NaN through the sprite matrix.
+        const rawTop = box.max.y;
+        const modelTop = Number.isFinite(rawTop) ? rawTop : 1.0;
         const padding = isBoss ? 0.2 : 0.3;
         // Cap the height to prevent mana bar going too high
         const maxHeight = isBoss ? 3.0 : 2.2;

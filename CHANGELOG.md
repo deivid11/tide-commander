@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.58.0] - 2026-04-20
+
+### Added
+- **OpenCode SQLite session reading** — session-loader now reads OpenCode sessions directly from `~/.local/share/opencode/opencode.db`, with legacy filesystem layout as fallback
+- **OpenCode reasoning/thinking events** — `OpencodeJsonEventParser` now handles `reasoning` event type; thinking-only turns emit a placeholder instead of appearing to hang
+- **Astro landing page** — new documentation site under `src/packages/landing/` replacing the old static HTML/JS/CSS
+- **Docker entrypoint script** — added `entrypoint.sh` for containerized deployments
+- **Null-activity stale fallback** — agents stuck in `working` with no resolvable session file auto-flip to idle after 30 seconds
+
+### Changed
+- **SpawnModal defaults** — Chrome disabled by default; default model changed to `opus[1m]`; default effort changed to `xHigh`
+- **SpawnModal random class** — respects `DEFAULT_AGENT_CLASS` storage preference for random class pre-selection on open
+- **ANSI stripping** — comprehensive escape sequence removal (CSI, OSC, nF, Fe) replacing the previous partial regex
+- **Terminal JSON viewer** — automatically unwraps curl `/api/exec` wrapper responses to display inner command output as JSON
+- **OpenCode context tracking** — OpenCode agents now mirror Claude behavior: `usage_snapshot` values are preserved across `step_complete`, preventing cumulative inflation
+
+### Fixed
+- **Orphaned OpenCode agents** — agents with unresolvable session files and no live process no longer remain stuck in `working` state indefinitely
+
 ## [1.57.0] - 2026-04-20
 
 ### Added

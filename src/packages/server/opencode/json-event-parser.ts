@@ -74,6 +74,8 @@ function normalizeToolName(raw: string): string {
 export class OpencodeJsonEventParser {
   private lastTextContent: string | undefined;
   private textEventEmittedInTurn = false;
+  private lastThinkingContent: string | undefined;
+  private thinkingEventEmittedInTurn = false;
 
   parseEvent(rawEvent: unknown): StandardEvent[] {
     const event = rawEvent as OpencodeRawEvent;
@@ -88,6 +90,8 @@ export class OpencodeJsonEventParser {
         return this.parseStepStart(event);
       case 'text':
         return this.parseText(event);
+      case 'reasoning':
+        return this.parseReasoning(event);
       case 'tool_use':
         return this.parseToolUse(event);
       case 'step_finish':
@@ -115,6 +119,20 @@ export class OpencodeJsonEventParser {
 
     return [{
       type: 'text',
+      text,
+      isStreaming: false,
+    }];
+  }
+
+  private parseReasoning(event: OpencodeRawEvent): StandardEvent[] {
+    const text = event.part?.text;
+    if (!text) return [];
+
+    this.lastThinkingContent = text;
+    this.thinkingEventEmittedInTurn = true;
+
+    return [{
+      type: 'thinking',
       text,
       isStreaming: false,
     }];
@@ -195,11 +213,28 @@ export class OpencodeJsonEventParser {
       stepComplete.resultText = this.lastTextContent;
     }
 
+    // When the model returns only thinking/reasoning with no text, emit an
+    // "Empty response" indicator so the Guake terminal shows something instead
+    // of appearing to hang or skip the turn.
+    if (!this.lastTextContent && this.lastThinkingContent) {
+      const emptyResponse = {
+        content: [{ type: 'thinking', thinking: this.lastThinkingContent }],
+        stop_reason: part.reason || 'end_turn',
+        usage: {
+          input_tokens: tokens?.input || 0,
+          output_tokens: tokens?.output || 0,
+        },
+      };
+      stepComplete.resultText = `(Empty response: ${JSON.stringify(emptyResponse)})`;
+    }
+
     events.push(stepComplete);
 
-    // Reset text tracking for next turn
+    // Reset tracking for next turn
     this.lastTextContent = undefined;
     this.textEventEmittedInTurn = false;
+    this.lastThinkingContent = undefined;
+    this.thinkingEventEmittedInTurn = false;
 
     return events;
   }

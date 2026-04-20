@@ -1,0 +1,62 @@
+---
+title: Custom 3D Models
+description: Upload your own GLB models with animation mapping to replace the built-in character assets for any agent class.
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+Every agent class can use a custom 3D model in place of the built-in characters. Models are GLB files with optional animation tracks that map to the three agent states: idle, walking, and working.
+
+## Supported format
+
+Custom models must be in **GLB** format — the binary GLTF container. This is the industry-standard exchange format for real-time 3D and is natively exported by:
+
+- **Blender** — File → Export → glTF 2.0, choose GLB.
+- **Mixamo** — Download as FBX, convert to GLB via Blender or an online converter.
+- **Ready Player Me** — Export as `.glb` directly from the avatar editor.
+
+**Maximum file size**: 50 MB. Models are stored locally on the server machine; they are not transmitted to any external service.
+
+## Uploading a model
+
+<Steps>
+1. Open **Settings → Manage Skills → Classes tab**.
+2. Create a new class or open an existing custom class.
+3. In the **Model** section, click **Upload Custom Model** or drag-and-drop a `.glb` file.
+4. The preview panel renders your model in real time. Use this to verify scale and orientation before saving.
+</Steps>
+
+<Aside type="tip" title="Preview orientation">
+If your model faces the wrong direction in the preview, adjust the Y-axis rotation in the **Offset** fields rather than re-exporting. Tide Commander's coordinate system has +Z as forward.
+</Aside>
+
+## Animation mapping
+
+Tide Commander maps three animation states to your model's embedded animation clips:
+
+| State | Triggered when |
+|-------|----------------|
+| **Idle** | Agent is waiting or has no active task |
+| **Walk** | Agent is moving to a new position on the terrain |
+| **Working** | Agent is actively processing a command |
+
+Auto-mapping checks animation clip names against a known list of common names (`idle`, `Idle`, `standing`, `walk`, `Walk`, `run`, `work`, `typing`, `action`). If your model uses non-standard names, override the mapping manually using the dropdowns in the class editor.
+
+If your model contains no animations at all, Tide Commander falls back to procedural motion — a gentle bobbing and rotation loop driven by the agent's status.
+
+## Scale and offset
+
+| Property | Default | Effect |
+|----------|---------|--------|
+| **Scale** | `1.0` | Size multiplier relative to the terrain grid. Boss agents receive an additional 1.5× automatically. |
+| **Offset X / Y / Z** | `0` | Position adjustment in metres. Use to center the model if its origin is not at ground level. |
+
+A typical adjustment for a model with a centered origin: set **Offset Y** to `-0.5` to push it flush with the ground plane.
+
+## Storage
+
+Models are stored at `~/.tide-commander/custom-models/{classId}.glb`. Back up this directory along with `~/.local/share/tide-commander/custom-classes.json` to preserve your custom class configuration across machine migrations.
+
+<Aside type="caution" title="Machine-bound storage">
+Custom model files are not included in the Tide Commander config export. Copy the `~/.tide-commander/custom-models/` directory manually when moving to a new machine.
+</Aside>

@@ -1217,15 +1217,16 @@
   gap: 10px;
   padding: 8px 16px;
   margin: 4px 0;
+  width: 100%;
+  box-sizing: border-box;
   animation: compacting-fade-in 0.3s ease-out;
 
   .compacting-bar {
-    flex: 1;
+    flex: 1 1 auto;
     height: 3px;
     background: rgba(255, 255, 255, 0.08);
     border-radius: 2px;
     overflow: hidden;
-    max-width: 200px;
 
     .compacting-bar-fill {
       height: 100%;

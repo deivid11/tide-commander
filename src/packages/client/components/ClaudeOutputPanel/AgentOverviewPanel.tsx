@@ -16,6 +16,7 @@ import {
   useSubagents,
   useAreas,
   useFileChanges,
+  useAgentCompacting,
   store,
 } from '../../store';
 import { getToolIconName, formatTimestamp } from '../../utils/outputRendering';
@@ -1083,6 +1084,7 @@ const AgentCard = React.memo(function AgentCard({
   const customClasses = useCustomAgentClassesArray();
   const classConfig = getClassConfig(agent.class, customClasses);
   const isBossAgent = agent.isBoss || agent.class === 'boss';
+  const isCompacting = useAgentCompacting(agent.id);
   const _statusIcon = STATUS_ICONS[agent.status] || '❓';
   const _statusLabel = STATUS_LABEL_KEYS[agent.status] ? t(`terminal:${STATUS_LABEL_KEYS[agent.status]}`) : agent.status;
   const recentTools = toolExecs.slice(0, isMobile ? 4 : 8);
@@ -1242,7 +1244,7 @@ const AgentCard = React.memo(function AgentCard({
         </button>
       )}
       <div
-        className={`aop-agent-card ${isBossAgent ? 'boss' : ''} ${isActive ? 'active' : ''} ${agent.status} ${hasPendingRead ? 'unread' : ''}${isTwoFingerHovered ? ' two-finger-hover' : ''}`}
+        className={`aop-agent-card ${isBossAgent ? 'boss' : ''} ${isActive ? 'active' : ''} ${agent.status} ${hasPendingRead ? 'unread' : ''}${isTwoFingerHovered ? ' two-finger-hover' : ''}${isCompacting ? ' compacting' : ''}`}
         data-agent-id={agent.id}
         draggable
         onDragStart={(e) => {

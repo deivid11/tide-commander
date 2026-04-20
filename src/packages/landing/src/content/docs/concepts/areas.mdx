@@ -1,0 +1,38 @@
+---
+title: Areas
+description: Areas are drawn regions on the battlefield that group agents and buildings into named visual clusters.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+An **area** is a named rectangular region drawn on the battlefield. It has no effect on how agents run — it is purely a visual and organisational tool. Areas let you carve the 3D scene into zones: "Frontend Team", "Backend", "Infra", "QA", so you can orient at a glance.
+
+## What an area does
+
+- **Groups** agents and buildings that live inside its bounds.
+- **Labels** that group with a visible name on the terrain.
+- **Hosts a file explorer** when you attach a folder to it — the folder becomes the root of a tree you can browse without leaving the UI.
+
+![Draw New Area mode active on the battlefield](/screenshots/47-draw-area-mode.png)
+
+## Drawing an area
+
+Press **D** (or use the toolbar) to enter Draw mode, then click-drag a rectangle on the terrain. After releasing, you name the area and pick an accent color. The area persists across restarts.
+
+<Aside type="tip" title="Areas don't constrain agents">
+Agents inside an area aren't locked there. You can move any agent freely — the area boundary is cosmetic. Think of it as a desk label, not a fence.
+</Aside>
+
+## Folder attachment
+
+Each area can have one folder attached to it. The attached folder appears as a file tree in the area's panel, letting you browse code, read files, and open them without switching windows. This is especially useful when each area maps to a different repo or service — "Backend" has `/home/user/api/` attached, "Frontend" has `/home/user/app/` attached.
+
+## Areas vs buildings
+
+| | Area | Building |
+|---|---|---|
+| Visual | Flat rectangle on terrain | 3D object on terrain |
+| Purpose | Group & label | Service integration |
+| Interaction | File explorer | Log viewer, query editor, container control |
+
+Areas and buildings work together: you might draw an "Infra" area and place a Server building and a Docker building inside it.

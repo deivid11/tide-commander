@@ -1,0 +1,157 @@
+---
+title: Docker Deployment
+description: Run Tide Commander in a self-contained Docker container with Claude, Codex, and OpenCode pre-installed.
+---
+
+import { Aside, Steps, Tabs, TabItem, Card } from '@astrojs/starlight/components';
+
+Tide Commander ships a production-ready Docker image that bundles all three CLI providers — Claude Code, Codex, and OpenCode — and runs the latest published release via `bunx tide-commander@latest`. No local build required.
+
+## Prerequisites
+
+- Docker 24+ and Docker Compose v2
+- An `ANTHROPIC_API_KEY` (OAuth login does not work in headless containers)
+
+## Quick start
+
+<Steps>
+
+1. **Clone or copy the compose files**
+
+   Grab `docker-compose.yml` and `entrypoint.sh` from the repo root, or create them from the snippets below.
+
+2. **Create a `.env` file**
+
+   ```bash
+   echo "ANTHROPIC_API_KEY=sk-ant-..." > .env
+   ```
+
+   Optionally add `AUTH_TOKEN` to password-protect the UI:
+
+   ```bash
+   echo "AUTH_TOKEN=my-secret-token" >> .env
+   ```
+
+3. **Build and start**
+
+   ```bash
+   docker compose up -d --build
+   ```
+
+4. **Open the UI**
+
+   Navigate to `http://localhost:9059` in your browser.
+
+</Steps>
+
+## docker-compose.yml
+
+```yaml
+services:
+  tide-commander:
+    build: .
+    ports:
+      - "9059:9059"
+    volumes:
+      - tide-data:/home/commander/.local/share/tide-commander
+      - tide-claude-sessions:/home/commander/.claude
+      - tide-projects:/home/projects
+    environment:
+      - PORT=9059
+      - HOST=0.0.0.0
+      - AUTH_TOKEN=${AUTH_TOKEN:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    restart: unless-stopped
+
+volumes:
+  tide-data:
+  tide-claude-sessions:
+  tide-projects:
+```
+
+## Dockerfile overview
+
+The image is based on `node:20-alpine`. Key build stages:
+
+1. **System tools** — `python3 make g++` for native addons, `su-exec` for privilege drop
+2. **Codex** — installed globally via npm (`@openai/codex`)
+3. **Non-root user** — `commander` user created; Claude Code refuses `--dangerously-skip-permissions` as root
+4. **CLI installs** (run as `commander`):
+   - Bun: `curl -fsSL https://bun.sh/install | bash`
+   - Claude Code: `curl -fsSL https://claude.ai/install.sh | bash`
+   - OpenCode: `curl -fsSL https://opencode.ai/install | bash`
+5. **Entrypoint** — fixes named-volume ownership (Docker creates them as root), then drops to `commander` via `su-exec`
+
+## Environment variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `PORT` | `9059` | HTTP port the server listens on |
+| `HOST` | `0.0.0.0` | Bind address |
+| `AUTH_TOKEN` | *(none)* | Enables `X-Auth-Token` authentication on all API requests |
+| `ANTHROPIC_API_KEY` | *(none)* | API key passed to Claude Code agents |
+
+<Aside type="caution" title="API key required">
+  OAuth login is not supported in headless containers. Set `ANTHROPIC_API_KEY` in your `.env` file — Claude Code picks it up automatically from the environment.
+</Aside>
+
+## Named volumes
+
+| Volume | Mount path | Contents |
+|---|---|---|
+| `tide-data` | `/home/commander/.local/share/tide-commander` | Agent DB, config, session data |
+| `tide-claude-sessions` | `/home/commander/.claude` | Claude Code session files |
+| `tide-projects` | `/home/projects` | Agent working directories |
+
+Use `/home/projects` as the working directory when spawning agents — it is writable by the `commander` user and persists across restarts.
+
+<Aside type="note" title="Path typo to avoid">
+  The correct path is `/home/projects`. A common mistake is typing `/home/porojects` — that directory does not exist and will produce `EACCES` errors.
+</Aside>
+
+## Data directory
+
+Inside the container, application data lives at `/home/commander/.local/share/tide-commander/`. This maps to `~/.local/share/tide-commander/` on the host when using bind mounts, or to the `tide-data` named volume when using the default compose configuration.
+
+Key files within the data directory:
+
+```
+tide-commander/
+├── agents.json          # Persisted agent definitions
+├── areas.json           # 3D scene areas
+├── buildings.json       # Scene buildings
+├── skills.json          # Custom skills
+├── system-prompt.json   # Global system prompt (if set)
+└── server.pid           # Running server PID
+```
+
+## Updating to the latest release
+
+Because the image runs `bunx tide-commander@latest`, rebuilding the image picks up the newest release:
+
+```bash
+docker compose pull
+docker compose up -d --build
+```
+
+## Production considerations
+
+<Aside type="tip">
+  Set `AUTH_TOKEN` in production. Any exposed port without authentication gives full API access to all agents.
+</Aside>
+
+- **Reverse proxy** — Put Nginx or Caddy in front for TLS termination. Proxy to `localhost:9059`.
+- **Volume backups** — Back up the `tide-data` volume regularly; it contains your entire agent database.
+- **Resource limits** — Each spawned agent runs a separate subprocess. Set `deploy.resources.limits` in your compose file for CPU/memory caps.
+- **Log retention** — Container logs can grow large with many active agents. Add `logging.options.max-size` to the compose service.
+
+```yaml
+services:
+  tide-commander:
+    # ... other config ...
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+```

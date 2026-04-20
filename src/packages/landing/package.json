@@ -1,0 +1,22 @@
+{
+  "name": "@tide-commander/landing",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "astro dev --host 127.0.0.1 --port 4321",
+    "start": "astro dev --host 127.0.0.1 --port 4321",
+    "build": "astro build",
+    "preview": "astro preview --host 127.0.0.1 --port 4322",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.30.3",
+    "astro": "^5.1.1",
+    "sharp": "^0.33.5"
+  },
+  "overrides": {
+    "zod": "^3.25.76",
+    "@astrojs/sitemap": "3.7.0"
+  }
+}

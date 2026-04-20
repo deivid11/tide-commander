@@ -1,0 +1,141 @@
+---
+title: "Providers: Claude, Codex, OpenCode"
+description: Set up Claude Code, OpenAI Codex, and OpenCode as agent providers. Per-provider configuration, model options, and session semantics.
+---
+
+import { Aside, Tabs, TabItem, Card, CardGrid } from '@astrojs/starlight/components';
+
+Tide Commander supports three AI coding CLI providers. Each agent you spawn is backed by exactly one provider. You can mix providers on the same battlefield — a Claude agent and a Codex agent working in parallel is a normal setup.
+
+## Provider overview
+
+<CardGrid>
+  <Card title="Claude Code" icon="star">
+    **Default and most capable.** Full model selection (Opus, Sonnet, Haiku), configurable reasoning effort, CLAUDE.md support, session resume via `--resume`. Best for complex, long-running tasks.
+  </Card>
+  <Card title="OpenAI Codex" icon="puzzle">
+    **OpenAI's coding agent CLI.** Sandbox isolation, workspace-write mode, and `--full-auto` support. Uses GPT-based models. Good for code generation tasks in isolated environments.
+  </Card>
+  <Card title="OpenCode" icon="open-book">
+    **Open-source coding agent.** Reads `.claude/CLAUDE.md` natively. Session resume via `-s <sessionId>`. A lightweight alternative when you don't need Claude or Codex.
+  </Card>
+</CardGrid>
+
+---
+
+## Claude Code
+
+<Tabs>
+  <TabItem label="Setup">
+    Install Claude Code from [claude.ai/code](https://claude.ai/code), then authenticate:
+
+    ```bash
+    claude login
+    ```
+
+    Verify the CLI is in your PATH:
+
+    ```bash
+    claude --version
+    ```
+  </TabItem>
+  <TabItem label="Models">
+    | Model | Label | Context | Best for |
+    |-------|-------|---------|---------|
+    | `opus[1m]` | Opus \[1M\] | 1M tokens | Very long tasks, large codebases |
+    | `claude-opus-4-7` | Opus 4.7 | 200K tokens | Complex reasoning, flagship quality |
+    | `sonnet` | Sonnet | 200K tokens | Balanced speed and quality |
+    | `haiku` | Haiku | 200K tokens | Fast, lightweight tasks |
+
+    The default selection in the Spawn dialog is **Opus \[1M\]**.
+  </TabItem>
+  <TabItem label="Effort levels">
+    Effort controls how much reasoning Claude applies before responding:
+
+    | Level | Description |
+    |-------|-------------|
+    | Low | Minimal reasoning, fastest output |
+    | Medium | Balanced |
+    | High | Deep reasoning (CLI default) |
+    | **X-High** | Extra reasoning — Tide Commander default |
+    | Max | Extended thinking, longest latency |
+
+    The default selection in the Spawn dialog is **X-High**.
+  </TabItem>
+</Tabs>
+
+<Aside type="note" title="Session resume">
+  Claude sessions are stored in `~/.claude/projects/`. Tide Commander reads these JSONL files to display conversation history and resumes the session with `--resume <sessionId>` when you restart an agent.
+</Aside>
+
+---
+
+## OpenAI Codex
+
+<Tabs>
+  <TabItem label="Setup">
+    Install the Codex CLI and set your API key:
+
+    ```bash
+    npm i -g @openai/codex
+    export OPENAI_API_KEY=sk-...
+    ```
+
+    Verify:
+
+    ```bash
+    codex --version
+    ```
+  </TabItem>
+  <TabItem label="Spawn options">
+    When you select **Codex** as the provider in the Spawn dialog, you get Codex-specific options:
+
+    - **Full Auto** — Runs without pausing for approvals (`--full-auto`)
+    - **Sandbox mode** — Workspace-write isolation (default) or network access
+    - **Approval mode** — `on-request` (prompt when needed) vs `never`
+    - **Search** — Enable web search tool
+
+    The default Codex model is `gpt-5.3-codex`.
+  </TabItem>
+</Tabs>
+
+<Aside type="caution" title="Codex sandboxing">
+  Codex runs in a workspace-write sandbox by default. It can read and write files within your working directory but cannot make network requests unless you enable the search option or change the sandbox mode.
+</Aside>
+
+---
+
+## OpenCode
+
+<Tabs>
+  <TabItem label="Setup">
+    Install OpenCode:
+
+    ```bash
+    npm i -g opencode-ai
+    ```
+
+    Or follow the [opencode install guide](https://github.com/nicholasgriffintn/opencode). OpenCode reads `.claude/CLAUDE.md` natively, so any existing Claude configuration in your project applies automatically.
+  </TabItem>
+  <TabItem label="Models">
+    OpenCode supports multiple model providers. Set the model string in the Spawn dialog (e.g., `minimax/MiniMax-M1-80k`). The default selection is `minimax/MiniMax-M1-80k`.
+
+    Any model string accepted by the OpenCode CLI can be entered here.
+  </TabItem>
+</Tabs>
+
+---
+
+## Mixing providers
+
+You can run agents from different providers simultaneously. A common pattern:
+
+- A **Claude Opus \[1M\]** boss agent that has full context on the project
+- A **Codex** worker agent in a sandboxed environment for safe code generation
+- A **Claude Sonnet** agent for quick file inspection tasks
+
+The Boss can delegate to any subordinate regardless of its provider.
+
+<Aside type="tip" title="Provider vs. model">
+  The **provider** determines which CLI binary runs (`claude`, `codex`, `opencode`). The **model** is a flag passed to that CLI. You change the provider once at spawn time; you can change the model later from the agent edit panel.
+</Aside>

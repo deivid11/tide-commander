@@ -167,7 +167,7 @@ export function extractToolKeyParam(toolName: string, inputJson: string): string
       case 'Write':
       case 'Edit':
       case 'NotebookEdit': {
-        const filePath = input.file_path || input.path || input.notebook_path;
+        const filePath = input.file_path || input.filePath || input.path || input.notebook_path || input.notebookPath;
         if (filePath) {
           return filePath; // Full path, no truncation
         }

@@ -1,0 +1,106 @@
+---
+title: Codex JSON Events
+description: The Codex exec JSON event schema as observed by Tide Commander, with normalization notes for each event type.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+When Tide Commander runs a Codex agent it invokes `codex exec --experimental-json` and parses its stdout line-by-line. Each line is a JSON object. This page documents the observed event schema and how it maps to Tide Commander's internal normalized events.
+
+<Aside type="note" title="Experimental schema">
+The `--experimental-json` flag is a Codex-side feature and its schema may change between Codex releases. Tide Commander's Codex parser is versioned separately from the Claude parser.
+</Aside>
+
+## Top-level event types
+
+Every line has a `type` field:
+
+| `type` | When emitted |
+|--------|-------------|
+| `thread.started` | New execution thread begins |
+| `turn.started` | Model begins a response turn |
+| `item.started` | A sub-item (tool, message, reasoning) begins |
+| `item.completed` | The sub-item finishes |
+| `turn.completed` | The full turn is done; includes token usage |
+
+## Item types
+
+`item.started` and `item.completed` carry an `item` object with an `item.type` field:
+
+### `reasoning`
+
+Internal model reasoning. Not shown in the UI.
+
+```json
+{
+  "type": "item.completed",
+  "item": { "type": "reasoning", "text": "**Preparing web search query**" }
+}
+```
+
+**Normalization**: ignored / dropped.
+
+### `web_search`
+
+A web search tool call.
+
+```json
+{
+  "type": "item.started",
+  "item": {
+    "type": "web_search",
+    "id": "ws_abc123",
+    "action": {
+      "type": "search",
+      "query": "tide commander architecture",
+      "queries": ["tide commander architecture"]
+    }
+  }
+}
+```
+
+Observed `action.type` values: `other` (placeholder state), `search` (with `query` + `queries[]`), `open_page` (with `url`).
+
+**Normalization**: mapped to `tool_start` / `tool_result` pair with `toolName = "web_search"` and `toolInput` from the action fields.
+
+### `agent_message`
+
+The model's text output.
+
+```json
+{
+  "type": "item.completed",
+  "item": { "type": "agent_message", "text": "Here is what I found…" }
+}
+```
+
+Multiple `agent_message` items can appear in a single turn.
+
+**Normalization**: mapped to `text` output events. Text content is captured and emitted as `resultText` in the `step_complete` event (used by boss delegation parsing).
+
+## Turn completion
+
+`turn.completed` includes a `usage` block:
+
+```json
+{
+  "type": "turn.completed",
+  "usage": {
+    "input_tokens": 1024,
+    "cached_input_tokens": 512,
+    "output_tokens": 256
+  }
+}
+```
+
+**Normalization**: mapped to `step_complete` with:
+- `input = input_tokens + cached_input_tokens`
+- `output = output_tokens`
+- `resultText` = accumulated `agent_message` text from the turn
+
+## Parser notes
+
+- Do not assume Claude-style `stream-json` event schema for Codex agents.
+- The Codex parser lives in `src/packages/server/codex/json-event-parser.ts`.
+- Provider-specific metadata (`action.queries`, `action.url`) is preserved in `toolInput` for the tool history log.
+- Boss delegation parsing reads `resultText` from `step_complete` — the Codex parser must populate this from accumulated `agent_message` text for delegation to work correctly.

@@ -1,0 +1,104 @@
+---
+title: System Prompt
+description: Configure a global custom prompt that applies to every agent automatically — stored in ~/.local/share/tide-commander/system-prompt.json.
+---
+
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+The **System Prompt** is a free-form block of instructions that Tide Commander injects into every agent's prompt, regardless of class or individual configuration. It is the right place for team-wide rules, coding conventions, project context, or standing orders that every agent should always know.
+
+![System Prompt modal editor](/screenshots/19-system-prompt-modal.png)
+
+## Setting the system prompt
+
+### Via the UI
+
+<Steps>
+1. Open **Settings** (gear icon or **Alt + ,**).
+2. Scroll to the **System Prompt** section.
+3. Click **Edit System Prompt**.
+4. Type or paste your instructions into the large textarea editor.
+5. Click **Save**.
+</Steps>
+
+![Settings — System Prompt section](/screenshots/18-settings-system-prompt.png)
+
+The modal shows a live character count, tracks unsaved changes with a dirty-state indicator, and requires an explicit Save so you never lose edits accidentally. Press **Escape** to close without saving; you will see a warning if there are unsaved changes.
+
+### Via the REST API
+
+<Tabs>
+  <TabItem label="Read">
+    ```bash
+    curl -s http://localhost:5174/api/agents/system-settings/prompt \
+      -H "X-Auth-Token: TOKEN"
+    ```
+  </TabItem>
+  <TabItem label="Set">
+    ```bash
+    curl -s -X POST http://localhost:5174/api/agents/system-settings/prompt \
+      -H "Content-Type: application/json" -H "X-Auth-Token: TOKEN" \
+      -d '{"content":"Always use TypeScript strict mode. Prefer functional components."}'
+    ```
+  </TabItem>
+  <TabItem label="Clear">
+    ```bash
+    curl -s -X DELETE http://localhost:5174/api/agents/system-settings/prompt \
+      -H "X-Auth-Token: TOKEN"
+    ```
+  </TabItem>
+</Tabs>
+
+## Storage location
+
+The prompt is stored as JSON at:
+
+```
+~/.local/share/tide-commander/system-prompt.json
+```
+
+File format:
+
+```json
+{
+  "content": "Your instructions here.",
+  "updatedAt": 1714000000000,
+  "version": "1.0"
+}
+```
+
+The path respects the `XDG_DATA_HOME` environment variable. If you have it set, the file lives at `$XDG_DATA_HOME/tide-commander/system-prompt.json` instead.
+
+<Aside type="note">
+  The file is read fresh on every agent start. Edits take effect without restarting the Tide Commander server. Already-running agents pick up the new prompt on their next spawn or context reset.
+</Aside>
+
+## What to put in it
+
+Good candidates for the system prompt:
+
+- **Project context** — repo name, primary language, framework, package manager.
+- **Coding conventions** — file naming, import style, test naming, comment policy.
+- **Standing orders** — "never commit directly to `main`", "always run tests before reporting done".
+- **Workflow rules** — which branches to use, how to open PRs, ticket reference format.
+- **Tool restrictions** — "do not install new npm packages without asking first".
+
+Keep it focused. A long, vague system prompt crowds out space for task-specific context and dilutes signal for each agent. A crisp, scannable list outperforms paragraphs of prose.
+
+## Config export / import
+
+The system prompt is included when you export your Tide Commander configuration from **Settings → Data**. Importing that config file on another machine restores it automatically, making it easy to share team conventions across setups.
+
+## Where it sits in the prompt stack
+
+The system prompt is **layer 2** of five:
+
+```
+1. Tide Commander base rules (file path conventions, skill framework)
+2. ► System Prompt  ← this setting
+3. Class instructions (default rules per agent class)
+4. Individual agent instructions
+5. Skills & agent identity (runtime context, task label, tracking)
+```
+
+See [Prompt Stacking](/configuration/prompt-stacking/) for the full hierarchy and how layers interact.

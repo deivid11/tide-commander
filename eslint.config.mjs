@@ -25,6 +25,6 @@ export default [
   },
   {
     // Ignore patterns
-    ignores: ['dist/**', 'node_modules/**', '*.config.*'],
+    ignores: ['dist/**', 'node_modules/**', '*.config.*', 'src/packages/landing/**'],
   },
 ];
