@@ -1616,6 +1616,28 @@
   margin-left: auto;
   font-size: 12px;
   opacity: 0.7;
+
+  &--running {
+    opacity: 1;
+    display: flex;
+    align-items: center;
+  }
+}
+
+@keyframes bash-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.bash-spinner {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border: 2px solid rgba($accent-yellow, 0.25);
+  border-top-color: $accent-yellow;
+  border-radius: 50%;
+  animation: bash-spin 0.7s linear infinite;
+  flex-shrink: 0;
 }
 
 .exec-task-output-container {

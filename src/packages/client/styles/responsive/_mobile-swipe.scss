@@ -12,12 +12,15 @@
 
 @media (max-width: resp.$breakpoint-mobile) {
   // Swipe animation container for guake content
+  // overflow: hidden is intentionally omitted here — guake-content (the parent) already
+  // has overflow: hidden, which clips swipe animations. Keeping overflow: hidden here
+  // would clip position: fixed children (guake-input-wrapper) when transform creates a
+  // containing block during swipe gestures.
   .guake-swipe-container {
     display: flex;
     flex-direction: column;
     flex: 1;
     min-height: 0;
-    overflow: hidden;
     transition: none;
 
     // `transform` and `will-change: transform` create a containing block for

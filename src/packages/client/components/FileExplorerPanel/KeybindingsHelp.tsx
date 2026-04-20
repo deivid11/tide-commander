@@ -7,6 +7,7 @@
 
 import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Icon } from '../Icon';
 
 export interface KeybindingsHelpProps {
   onClose: () => void;
@@ -96,7 +97,7 @@ export const KeybindingsHelp: React.FC<KeybindingsHelpProps> = ({ onClose }) => 
     <div className="keybindings-help-overlay" onClick={handleOverlayClick} onKeyDown={handleKeyDown} tabIndex={0} role="dialog" aria-label={t('terminal:fileExplorer.keybindingsHelp')}>
       <div className="keybindings-help-content">
         <button className="keybindings-help-close" onClick={onClose} aria-label={t('terminal:fileExplorer.closeHelp')} title={t('terminal:fileExplorer.pressEscapeToClose')}>
-          ✕
+          <Icon name="close" size={14} />
         </button>
 
         <h2 className="keybindings-help-title">{t('terminal:fileExplorer.keybindingsHelp')}</h2>

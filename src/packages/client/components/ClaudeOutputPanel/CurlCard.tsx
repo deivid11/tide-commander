@@ -2,6 +2,7 @@ import React, { memo, useCallback, useState } from 'react';
 import { detectAgentFetch, detectAgentMessage, type ParsedCurl } from './curlParser';
 import { useAgent } from '../../store/selectors';
 import { AgentIcon } from '../AgentIcon';
+import { Icon } from '../Icon';
 
 interface CurlCardProps {
   parsed: ParsedCurl;
@@ -60,7 +61,7 @@ function CopyButton({ value, title }: { value: string; title: string }) {
       title={title}
       aria-label={title}
     >
-      {copied ? '✓' : '⧉'}
+      <Icon name={copied ? 'check' : 'copy'} size={12} />
     </button>
   );
 }
@@ -84,7 +85,7 @@ function AgentMessageCard({
   return (
     <div className="curl-card curl-card--agent-message" title={rawCommand}>
       <div className="curl-agent-message-title">
-        <span className="curl-agent-message-icon">✉️</span>
+        <span className="curl-agent-message-icon"><Icon name="envelope-simple" size={14} /></span>
         <span>Sending message to agent</span>
       </div>
       <div className="curl-agent-message-row">
@@ -110,7 +111,7 @@ function AgentFetchCard({ agentId, rawCommand }: { agentId: string; rawCommand?:
   return (
     <div className="curl-card curl-card--agent-fetch" title={rawCommand}>
       <div className="curl-agent-fetch-title">
-        <span className="curl-agent-fetch-icon">🔍</span>
+        <span className="curl-agent-fetch-icon"><Icon name="search" size={14} /></span>
         <span>Fetching agent details</span>
       </div>
       {agent && (
@@ -175,7 +176,7 @@ const GenericCurlCard = memo(function GenericCurlCard({ parsed, rawCommand }: Cu
         role="button"
         tabIndex={0}
       >
-        <span className="curl-card-icon">🌐</span>
+        <span className="curl-card-icon"><Icon name="globe" size={14} /></span>
         <span className={methodClass}>{method}</span>
         <span className="curl-collapsed-raw">{compactRaw}</span>
         <button
@@ -185,7 +186,7 @@ const GenericCurlCard = memo(function GenericCurlCard({ parsed, rawCommand }: Cu
           aria-label="Expand request"
           title="Expand"
         >
-          ▶
+          <Icon name="caret-right" size={12} />
         </button>
       </div>
     );
@@ -194,7 +195,7 @@ const GenericCurlCard = memo(function GenericCurlCard({ parsed, rawCommand }: Cu
   return (
     <div className="curl-card curl-card-expanded" title={rawCommand}>
       <div className="curl-card-header">
-        <span className="curl-card-icon">🌐</span>
+        <span className="curl-card-icon"><Icon name="globe" size={14} /></span>
         <span className="curl-card-title">HTTP Request</span>
         <span className={methodClass}>{method}</span>
         <button
@@ -204,7 +205,7 @@ const GenericCurlCard = memo(function GenericCurlCard({ parsed, rawCommand }: Cu
           aria-label="Collapse request"
           title="Collapse"
         >
-          ▼
+          <Icon name="caret-down" size={12} />
         </button>
       </div>
 

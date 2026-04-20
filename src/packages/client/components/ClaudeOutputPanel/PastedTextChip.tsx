@@ -7,6 +7,7 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useModalClose } from '../../hooks';
+import { Icon } from '../Icon';
 
 interface PastedTextChipProps {
   id: number;
@@ -31,7 +32,7 @@ export function PastedTextChip({ id, lineCount, fullText, onRemove }: PastedText
         onClick={handleClick}
         title={t('tools:pastedText.clickToView')}
       >
-        <span className="pasted-text-chip-icon">📋</span>
+        <span className="pasted-text-chip-icon"><Icon name="clipboard" size={12} /></span>
         <span className="pasted-text-chip-label">{t('tools:pastedText.pastedNumber', { id })}</span>
         <span className="pasted-text-chip-count">{t('tools:pastedText.lineCount', { count: lineCount })}</span>
         <button
@@ -89,7 +90,7 @@ function PastedTextModal({ id, lineCount, content, onClose }: PastedTextModalPro
       <div className="modal pasted-text-modal">
         <div className="pasted-text-modal-header">
           <div className="pasted-text-modal-title">
-            <span className="pasted-text-modal-icon">📋</span>
+            <span className="pasted-text-modal-icon"><Icon name="clipboard" size={14} /></span>
             <span>{t('tools:pastedText.pastedTextTitle', { id })}</span>
             <span className="pasted-text-modal-count">{t('tools:pastedText.lineCountFull', { count: lineCount })}</span>
           </div>
@@ -98,7 +99,7 @@ function PastedTextModal({ id, lineCount, content, onClose }: PastedTextModalPro
               className="btn btn-secondary btn-sm"
               onClick={handleCopy}
             >
-              {copied ? `✓ ${t('common:toast.copied')}` : t('common:buttons.copy')}
+              {copied ? <><Icon name="check" size={12} /> {t('common:toast.copied')}</> : t('common:buttons.copy')}
             </button>
             <button className="pasted-text-modal-close" onClick={onClose}>
               ×

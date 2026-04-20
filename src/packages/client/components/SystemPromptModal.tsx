@@ -9,6 +9,7 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ModalPortal } from './shared/ModalPortal';
 import { fetchSystemPrompt, updateSystemPrompt, clearSystemPrompt } from '../api/system-settings';
+import { Icon } from './Icon';
 import '../styles/components/system-prompt-modal.scss';
 
 export interface SystemPromptModalProps {
@@ -116,7 +117,7 @@ export function SystemPromptModal({ isOpen, onClose }: SystemPromptModalProps) {
           <div className="modal-header">
             <h2>{t('config:systemPrompt.title')}</h2>
             <button className="modal-close" onClick={onClose} aria-label="Close">
-              ✕
+              <Icon name="close" size={16} />
             </button>
           </div>
 
@@ -132,14 +133,14 @@ export function SystemPromptModal({ isOpen, onClose }: SystemPromptModalProps) {
 
                 {error && (
                   <div className="alert alert-error">
-                    <span className="alert-icon">⚠️</span>
+                    <span className="alert-icon"><Icon name="warn" size={14} /></span>
                     {error}
                   </div>
                 )}
 
                 {success && (
                   <div className="alert alert-success">
-                    <span className="alert-icon">✓</span>
+                    <span className="alert-icon"><Icon name="check" size={14} /></span>
                     {success}
                   </div>
                 )}

@@ -244,6 +244,7 @@ export function useSearchHistory({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'f' && isOpen) {
+        if (document.querySelector('.file-viewer-overlay, .guake-git-diff-modal-overlay, .modal-overlay, .image-modal-overlay, .bash-modal-overlay, .agent-info-modal-overlay, .pasted-text-modal-overlay, .guake-context-confirm-overlay, .pm2-logs-modal-overlay')) return;
         e.preventDefault();
         if (searchMode) {
           // If already in search mode, just focus the input

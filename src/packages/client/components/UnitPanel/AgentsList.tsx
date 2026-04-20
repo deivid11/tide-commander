@@ -13,6 +13,7 @@ import { STORAGE_KEYS, getStorageString, setStorageString } from '../../utils/st
 import { formatIdleCompact, calculateContextInfo, getContextBarColor, groupAgentsByArea, sortAreaIds, sortAgentsByActivity } from './agentUtils';
 import type { AgentsListProps, AgentListItemProps } from './types';
 import { AgentIcon } from '../AgentIcon';
+import { Icon } from '../Icon';
 
 // ============================================================================
 // Types
@@ -115,7 +116,7 @@ export function AgentsList({ onOpenAreaExplorer }: AgentsListProps) {
   if (agentsArray.length === 0 && areasArray.length === 0) {
     return (
       <div className="empty-state">
-        <div className="empty-state-icon">⚔️</div>
+        <div className="empty-state-icon"><Icon name="class-warrior" size={32} /></div>
         <div className="empty-state-title">{t('agentsList.noAgentsDeployed')}</div>
         <div className="empty-state-desc">{t('agentsList.clickNewAgent')}</div>
       </div>
@@ -162,7 +163,7 @@ export function AgentsList({ onOpenAreaExplorer }: AgentsListProps) {
 
       {/* Search Bar */}
       <div className="agents-search-bar">
-        <span className="agents-search-icon">🔍</span>
+        <span className="agents-search-icon"><Icon name="search" size={14} /></span>
         <input
           ref={searchInputRef}
           type="text"
@@ -232,7 +233,7 @@ export function AgentsList({ onOpenAreaExplorer }: AgentsListProps) {
                         onClick={() => onOpenAreaExplorer?.(area.id)}
                         title={t('agentsList.browseFiles')}
                       >
-                        📂
+                        <Icon name="folder-open" size={14} />
                       </button>
                     )}
                   </>
@@ -259,7 +260,7 @@ export function AgentsList({ onOpenAreaExplorer }: AgentsListProps) {
         {/* No results */}
         {isFiltering && filteredCount === 0 && (
           <div className="agents-no-results">
-            <span className="agents-no-results-icon">🔎</span>
+            <span className="agents-no-results-icon"><Icon name="search" size={18} /></span>
             <span>{t('agentsList.noResults')}</span>
           </div>
         )}
@@ -352,7 +353,7 @@ const AgentListItem = memo(function AgentListItem({ agent, area: _area, searchQu
           <span className={`agent-item-status-badge ${agent.status}`}>{agent.status}</span>
           {showIdleClock && (
             <span className="agent-item-idle" style={{ color: idleColor }} title={formatIdleTime(agent.lastActivity)}>
-              ⏱ {formatIdleCompact(agent.lastActivity)}
+              <Icon name="status-waiting-input" size={10} /> {formatIdleCompact(agent.lastActivity)}
             </span>
           )}
           {agent.isBoss && (

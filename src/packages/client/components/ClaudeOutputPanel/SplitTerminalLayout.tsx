@@ -18,6 +18,7 @@ import {
 import { AgentTerminalPane, type AgentTerminalPaneHandle } from './AgentTerminalPane';
 import type { ViewMode } from './types';
 import type { Agent } from '../../../shared/types';
+import { Icon } from '../Icon';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -75,7 +76,7 @@ const SplitPaneHeader = memo(function SplitPaneHeader({
         onClick={onClose}
         title={t('overview.close', { defaultValue: 'Close pane' })}
       >
-        ✕
+        <Icon name="close" size={14} />
       </button>
     </div>
   );
@@ -197,7 +198,7 @@ export const SplitTerminalLayout = memo(function SplitTerminalLayout(props: Spli
           }
         >
           <span className={`split-orientation-icon ${isHorizontal ? 'horizontal' : 'vertical'}`}>
-            {isHorizontal ? '⬜⬜' : '⬜\n⬜'}
+            <Icon name={isHorizontal ? 'split-horizontal' : 'split-vertical'} size={14} />
           </span>
         </button>
       </div>

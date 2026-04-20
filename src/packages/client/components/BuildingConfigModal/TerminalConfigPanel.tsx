@@ -1,6 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Building } from '../../../shared/types';
+import { Icon } from '../Icon';
 
 interface TerminalConfigPanelProps {
   terminalShell: string;
@@ -136,16 +137,16 @@ export function TerminalConfigPanel({
           <div className="building-actions" style={{ marginTop: '8px' }}>
             {!isRunning && (
               <button type="button" className="btn btn-sm btn-success" onClick={() => handleCommand('start')}>
-                ▶ Start
+                <Icon name="play" size={12} /> Start
               </button>
             )}
             {isRunning && (
               <>
                 <button type="button" className="btn btn-sm btn-warning" onClick={() => handleCommand('restart')}>
-                  🔄 Restart
+                  <Icon name="refresh" size={12} /> Restart
                 </button>
                 <button type="button" className="btn btn-sm btn-danger" onClick={() => handleCommand('stop')}>
-                  ⏹ Stop
+                  <Icon name="stop" size={12} /> Stop
                 </button>
                 {terminalStatus?.url && (
                   <>
@@ -155,7 +156,7 @@ export function TerminalConfigPanel({
                         className="btn btn-sm btn-primary"
                         onClick={() => onOpenTerminal(terminalStatus.url!)}
                       >
-                        🖥 Modal
+                        <Icon name="desktop" size={12} /> Modal
                       </button>
                     )}
                     {onOpenBelow && building && (
@@ -164,7 +165,7 @@ export function TerminalConfigPanel({
                         className="btn btn-sm btn-primary"
                         onClick={() => onOpenBelow(building.id)}
                       >
-                        ⬇ Below
+                        <Icon name="arrow-down" size={12} /> Below
                       </button>
                     )}
                   </>

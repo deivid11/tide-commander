@@ -27,6 +27,7 @@ import type { Agent } from '../../../shared/types';
 import { useModalClose } from '../../hooks';
 import { ModalPortal } from '../shared/ModalPortal';
 import { fetchAgentInjectedPrompt } from '../../api/agent-prompt';
+import { Icon } from '../Icon';
 
 // Image modal props
 export interface ImageModalProps {
@@ -406,7 +407,7 @@ export function AgentInfoModal({ agent, isOpen, onClose }: AgentInfoModalProps) 
         <div className="agent-info-modal">
           <div className="agent-info-modal-header">
             <div className="agent-info-modal-title">
-              <span className="icon">ℹ️</span>
+              <span className="icon"><Icon name="info" size={14} /></span>
               <span>{t('terminal:agentInfo.title', { name: agent.name })}</span>
             </div>
             <button className="agent-info-modal-close" onClick={onClose}>×</button>

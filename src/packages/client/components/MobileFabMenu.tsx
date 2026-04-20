@@ -2,6 +2,7 @@ import React, { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSettings } from '../store';
 import { VoiceAssistant } from './VoiceAssistant';
+import { Icon } from './Icon';
 
 interface MobileFabMenuProps {
   isOpen: boolean;
@@ -51,7 +52,7 @@ export const MobileFabMenu = memo(function MobileFabMenu({
           onTouchStart={(e) => e.stopPropagation()}
           title={isOpen ? t('terminal:mobileFab.closeMenu') : t('terminal:mobileFab.openMenu')}
         >
-          {isOpen ? '✕' : '☰'}
+          <Icon name={isOpen ? 'close' : 'list'} size={18} />
         </button>
       )}
 
@@ -67,7 +68,7 @@ export const MobileFabMenu = memo(function MobileFabMenu({
             }}
             title={t('terminal:mobileFab.showTerminal')}
           >
-            💬
+            <Icon name="chat" size={18} />
           </button>
           <button
             className="mobile-fab-option"
@@ -78,7 +79,7 @@ export const MobileFabMenu = memo(function MobileFabMenu({
             }}
             title={t('terminal:header.openSidebar')}
           >
-            📋
+            <Icon name="clipboard" size={18} />
           </button>
           <button
             className="mobile-fab-option"
@@ -89,7 +90,7 @@ export const MobileFabMenu = memo(function MobileFabMenu({
             }}
             title={t('common:floatingButtons.settingsAndTools')}
           >
-            ⚙️
+            <Icon name="gear" size={18} />
           </button>
           <button
             className="mobile-fab-option"
@@ -100,7 +101,7 @@ export const MobileFabMenu = memo(function MobileFabMenu({
             }}
             title={t('common:floatingButtons.globalSearch')}
           >
-            🔍
+            <Icon name="search" size={18} />
           </button>
           <button
             className="mobile-fab-option"
@@ -111,7 +112,7 @@ export const MobileFabMenu = memo(function MobileFabMenu({
             }}
             title={t('common:floatingButtons.commanderView')}
           >
-            📊
+            <Icon name="dashboard" size={18} />
           </button>
           <button
             className="mobile-fab-option"
@@ -122,7 +123,7 @@ export const MobileFabMenu = memo(function MobileFabMenu({
             }}
             title={t('common:floatingButtons.controls')}
           >
-            ⌨️
+            <Icon name="keyboard" size={18} />
           </button>
           <button
             className="mobile-fab-option"
@@ -133,7 +134,7 @@ export const MobileFabMenu = memo(function MobileFabMenu({
             }}
             title={t('common:floatingButtons.manageSkills')}
           >
-            ⭐
+            <Icon name="star" size={18} />
           </button>
         </div>
       )}

@@ -6,6 +6,7 @@ import React, { memo, useState, useRef, useEffect, useLayoutEffect } from 'react
 import { useTranslation } from 'react-i18next';
 import { ModalPortal } from '../shared/ModalPortal';
 import { themes, getTheme, applyTheme, getSavedTheme, type ThemeId } from '../../utils/themes';
+import { Icon } from '../Icon';
 
 export const ThemeSelector = memo(function ThemeSelector() {
   const { t } = useTranslation(['terminal']);
@@ -140,9 +141,9 @@ export const ThemeSelector = memo(function ThemeSelector() {
         onKeyDown={handleTriggerKeyDown}
         title={t('terminal:themeSelector.themeTitle', { name: currentThemeData.name })}
       >
-        <span className="theme-selector-icon">🎨</span>
+        <span className="theme-selector-icon"><Icon name="palette" size={14} /></span>
         <span className="theme-selector-name">{currentThemeData.name}</span>
-        <span className="theme-selector-arrow">{isOpen ? '▲' : '▼'}</span>
+        <span className="theme-selector-arrow"><Icon name={isOpen ? 'caret-up' : 'caret-down'} size={11} /></span>
       </button>
 
       {isOpen && dropdownPosition && (
@@ -183,7 +184,7 @@ export const ThemeSelector = memo(function ThemeSelector() {
                     <span className="theme-option-name">{theme.name}</span>
                     <span className="theme-option-desc">{theme.description}</span>
                   </span>
-                  {theme.id === currentTheme && <span className="theme-option-check">✓</span>}
+                  {theme.id === currentTheme && <span className="theme-option-check"><Icon name="check" size={12} /></span>}
                 </button>
               ))}
             </div>

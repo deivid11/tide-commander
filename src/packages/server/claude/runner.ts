@@ -36,6 +36,7 @@ export class ClaudeRunner {
   private activeProcesses: Map<string, ActiveProcess> = new Map();
   private lastStderr: Map<string, string> = new Map();
   private activityCallbacks: Map<string, Array<() => void>> = new Map();
+  private messageQueue: Map<string, string[]> = new Map();
   private autoRestartEnabled = true;
 
   private persistTimer: NodeJS.Timeout | null = null;
@@ -175,6 +176,8 @@ export class ClaudeRunner {
         // Turn completed - process is now waiting for the next stdin message
         activeProcess.turnState = 'waiting_for_input';
         log.log(`🔄 [TURN] Agent ${agentId}: Turn complete, now waiting for input (stdin reuse ready)`);
+        // Drain any messages that were queued while the agent was mid-turn
+        this.drainMessageQueue(agentId, activeProcess);
       } else if (event.type === 'text' || event.type === 'tool_start' || event.type === 'thinking') {
         // Actively processing
         activeProcess.turnState = 'processing';
@@ -342,10 +345,16 @@ export class ClaudeRunner {
     const messageLen = message.length;
 
     if (turnState === 'processing') {
-      // Agent is mid-turn: write to stdin buffer, Claude Code will process after current turn
-      // NOTE: SIGINT kills the process entirely, so we can't interrupt - just queue via stdin
-      log.log(`⚡ [SEND_MESSAGE] Agent ${agentId} is mid-turn (turnState=${turnState}), writing to stdin buffer (${messageLen} chars) - will be processed after current turn`);
-      return this.writeToStdin(agentId, activeProcess, message);
+      // Agent is mid-turn: queue the message for delivery once the current turn completes.
+      // Writing to the OS stdin pipe buffer mid-turn is unreliable — the write callback is
+      // async, and if the process exits or stdin closes before the buffer is read the message
+      // is silently dropped. The queue is drained in the step_complete handler, which fires
+      // after the turn ends and the process is confirmed waiting for input.
+      const queue = this.messageQueue.get(agentId) ?? [];
+      queue.push(message);
+      this.messageQueue.set(agentId, queue);
+      log.log(`📋 [QUEUE] Agent ${agentId} is mid-turn, queued message for post-turn delivery (queue=${queue.length}, ${messageLen} chars)`);
+      return true;
     }
 
     // Agent is waiting for input: send directly via stdin (immediate processing)
@@ -381,6 +390,34 @@ export class ClaudeRunner {
     });
 
     return true;
+  }
+
+  /**
+   * Drain the next queued message (if any) to the process stdin.
+   * Called after step_complete when the process transitions to waiting_for_input.
+   */
+  private drainMessageQueue(agentId: string, activeProcess: ActiveProcess): void {
+    const queue = this.messageQueue.get(agentId);
+    if (!queue || queue.length === 0) return;
+
+    const nextMessage = queue.shift()!;
+    if (queue.length === 0) {
+      this.messageQueue.delete(agentId);
+    }
+
+    log.log(`📤 [QUEUE-DRAIN] Agent ${agentId}: Delivering queued message (${queue.length} remaining, ${nextMessage.length} chars)`);
+
+    if (activeProcess.tmuxSession) {
+      const stdinInput = this.backend.formatStdinInput(nextMessage);
+      const ok = sendToTmux(agentId, stdinInput);
+      if (ok) {
+        activeProcess.turnState = 'processing';
+      } else {
+        log.error(`❌ [QUEUE-DRAIN] Agent ${agentId}: tmux send failed for queued message`);
+      }
+    } else {
+      this.writeToStdin(agentId, activeProcess, nextMessage);
+    }
   }
 
   /**
@@ -434,6 +471,15 @@ export class ClaudeRunner {
   }
 
   async stop(agentId: string): Promise<void> {
+    // Clear any queued messages — an explicit stop means the user wants the agent to halt,
+    // so delivering buffered messages to a new process would be unexpected.
+    if (this.messageQueue.has(agentId)) {
+      const count = this.messageQueue.get(agentId)!.length;
+      this.messageQueue.delete(agentId);
+      if (count > 0) {
+        log.log(`🗑️ [QUEUE] Agent ${agentId}: Discarded ${count} queued message(s) on stop`);
+      }
+    }
     await this.lifecycle.stop(agentId);
   }
 
@@ -448,6 +494,7 @@ export class ClaudeRunner {
       this.watchdogTimer = null;
     }
 
+    this.messageQueue.clear();
     await this.lifecycle.stopAll(killProcesses);
   }
 

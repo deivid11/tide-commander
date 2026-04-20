@@ -162,22 +162,28 @@ export function createRuntimeCommandExecution(deps: RuntimeCommandExecutionDeps)
           }
           agentService.updateAgent(agentId, updateData);
 
-          startStdinWatchdog({
-            agentId,
-            command,
-            systemPrompt,
-            customAgent,
-            runner: getRunnerForAgent(agentId),
-            onRespawn: async (retryAgentId, retryCommand, retrySystemPrompt, retryCustomAgent) => {
-              await executeCommand(
-                retryAgentId,
-                retryCommand,
-                retrySystemPrompt,
-                false,
-                retryCustomAgent as CustomAgentConfig | undefined
-              );
-            },
-          });
+          // Only start the stdin watchdog when the message was written directly to stdin
+          // (i.e. the agent was idle/waiting_for_input). When the agent was mid-turn
+          // (turnState === 'processing'), the runner queues the message and delivers it
+          // via the step_complete handler — no watchdog needed since delivery is guaranteed.
+          if (turnState !== 'processing') {
+            startStdinWatchdog({
+              agentId,
+              command,
+              systemPrompt,
+              customAgent,
+              runner: getRunnerForAgent(agentId),
+              onRespawn: async (retryAgentId, retryCommand, retrySystemPrompt, retryCustomAgent) => {
+                await executeCommand(
+                  retryAgentId,
+                  retryCommand,
+                  retrySystemPrompt,
+                  false,
+                  retryCustomAgent as CustomAgentConfig | undefined
+                );
+              },
+            });
+          }
 
           return;
         }

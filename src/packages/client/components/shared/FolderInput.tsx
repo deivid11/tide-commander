@@ -11,6 +11,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { apiUrl, authFetch } from '../../utils/storage';
+import { Icon } from '../Icon';
 
 interface PathSuggestion {
   name: string;
@@ -229,7 +230,7 @@ export function FolderInput({
                 onMouseEnter={() => setSelectedIndex(index)}
               >
                 <span className="folder-input-suggestion-icon">
-                  {suggestion.isDirectory ? '📁' : '📄'}
+                  <Icon name={suggestion.isDirectory ? 'folder' : 'file-text'} size={12} />
                 </span>
                 <span className="folder-input-suggestion-name">
                   {suggestion.name}

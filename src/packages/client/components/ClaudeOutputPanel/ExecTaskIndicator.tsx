@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import type { ExecTask } from '../../../shared/types';
 import { ansiToHtml } from '../../utils/ansiToHtml';
 import { store } from '../../store';
+import { Icon, type IconName } from '../Icon';
 
 interface ExecTaskIndicatorProps {
   task: ExecTask;
@@ -49,10 +50,10 @@ export function ExecTaskIndicator({
     failed: '#ef4444',
   };
 
-  const statusIcons: Record<string, string> = {
-    running: '⏳',
-    completed: '✅',
-    failed: '❌',
+  const statusIcons: Record<string, IconName> = {
+    running: 'hourglass',
+    completed: 'success',
+    failed: 'failure',
   };
 
   // Truncate command for compact view
@@ -97,13 +98,13 @@ export function ExecTaskIndicator({
     >
       <div className="exec-task-header" onClick={handleToggle}>
         <span className="exec-task-status-icon" style={{ color: statusColors[task.status] }}>
-          {statusIcons[task.status]}
+          <Icon name={statusIcons[task.status]} size={14} />
         </span>
         <span className="exec-task-command" title={task.command}>
           $ {truncatedCommand}
         </span>
         <span className="exec-task-elapsed">{getElapsedTime()}</span>
-        <span className="exec-task-toggle">{isExpanded ? '▼' : '▶'}</span>
+        <span className="exec-task-toggle"><Icon name={isExpanded ? 'caret-down' : 'caret-right'} size={10} /></span>
         {task.status === 'running' ? (
           <button
             className="exec-task-stop"
@@ -111,7 +112,7 @@ export function ExecTaskIndicator({
             title={t('tools:exec.stopTask')}
             disabled={stopping}
           >
-            {stopping ? '...' : '■'}
+            {stopping ? '...' : <Icon name="stop" size={12} />}
           </button>
         ) : (
           <button className="exec-task-close" onClick={handleClose} title={t('tools:exec.dismiss')}>
@@ -177,7 +178,7 @@ export function ExecTasksContainer({
   return (
     <div className="exec-tasks-container">
       <div className="exec-tasks-header">
-        <span className="exec-tasks-icon">🖥️</span>
+        <span className="exec-tasks-icon"><Icon name="desktop" size={14} /></span>
         <span className="exec-tasks-title">{t('tools:exec.runningTasks')}</span>
         {runningCount > 0 && (
           <span className="exec-tasks-count running">({runningCount} {t('tools:exec.running')})</span>

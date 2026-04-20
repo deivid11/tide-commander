@@ -172,6 +172,8 @@ export interface StoreState {
   terminalOpen: boolean;
   // Terminal resizing state (disables battlefield drag selection)
   terminalResizing: boolean;
+  // Counter incremented each time the terminal should expand to max height
+  terminalExpandRequest: number;
   // Mobile view mode
   mobileView: 'terminal' | '3d';
   // Settings

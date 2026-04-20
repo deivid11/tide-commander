@@ -5,7 +5,7 @@
  */
 
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { store } from '../../store';
+import { store, useTerminalExpandRequest } from '../../store';
 import {
   STORAGE_KEYS,
   getStorageNumber,
@@ -34,6 +34,17 @@ export function useTerminalResize(): UseTerminalResizeReturn {
     }
     return DEFAULT_TERMINAL_HEIGHT;
   });
+
+  const terminalExpandRequest = useTerminalExpandRequest();
+  const prevExpandRequestRef = useRef(0);
+
+  useEffect(() => {
+    if (terminalExpandRequest > prevExpandRequestRef.current) {
+      prevExpandRequestRef.current = terminalExpandRequest;
+      setTerminalHeight(MAX_TERMINAL_HEIGHT);
+      setStorageNumber(STORAGE_KEYS.TERMINAL_HEIGHT, MAX_TERMINAL_HEIGHT);
+    }
+  }, [terminalExpandRequest]);
 
   const isResizingRef = useRef(false);
   const resizeStartYRef = useRef(0);

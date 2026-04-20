@@ -10,6 +10,7 @@ import { HelpTooltip } from './shared/Tooltip';
 import { FolderInput } from './shared/FolderInput';
 import { useModalClose } from '../hooks';
 import { AgentIcon } from './AgentIcon';
+import { Icon } from './Icon';
 
 interface ClaudeSession {
   sessionId: string;
@@ -660,7 +661,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                     onClick={() => setSelectedProvider('opencode')}
                     title="Use OpenCode CLI (multi-provider)"
                   >
-                    <span>🟢</span>
+                    <span><Icon name="status-pending" size={12} weight="fill" color="#4ade80" /></span>
                     <span>OpenCode</span>
                   </button>
                 </div>
@@ -683,7 +684,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                       onClick={() => setPermissionMode(mode)}
                       title={PERMISSION_MODES[mode].description}
                     >
-                      <span>{mode === 'bypass' ? '⚡' : '🔐'}</span>
+                      <span><Icon name={mode === 'bypass' ? 'bolt' : 'lock'} size={12} /></span>
                       <span>{PERMISSION_MODES[mode].label}</span>
                     </button>
                   ))}
@@ -779,7 +780,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                       onChange={(e) => setUseChrome(e.target.checked)}
                       disabled={selectedProvider !== 'claude'}
                     />
-                    <span>🌐 {t('terminal:spawn.chromeBrowser')}</span>
+                    <span><Icon name="globe" size={12} /> {t('terminal:spawn.chromeBrowser')}</span>
                     <HelpTooltip
                       text={selectedProvider === 'claude'
                         ? t('terminal:spawn.helpChrome')
@@ -929,7 +930,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                         onClick={() => toggleSkill(skill.id)}
                         title={skill.description}
                       >
-                        {isSelected && <span className="spawn-skill-check">✓</span>}
+                        {isSelected && <span className="spawn-skill-check"><Icon name="check" size={10} /></span>}
                         <span>{skill.name}</span>
                         {skill.builtin && <span className="spawn-skill-builtin">TC</span>}
                       </button>

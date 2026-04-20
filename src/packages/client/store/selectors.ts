@@ -563,6 +563,13 @@ export function useTerminalResizing(): boolean {
 }
 
 /**
+ * Get terminal expand request counter. Increments each time the terminal should maximize.
+ */
+export function useTerminalExpandRequest(): number {
+  return useSelector(useCallback((state: StoreState) => state.terminalExpandRequest, []));
+}
+
+/**
  * Get mobile view mode. Only re-renders when mobile view changes.
  */
 export function useMobileView(): 'terminal' | '3d' {

@@ -22,6 +22,7 @@ import { useFileTree } from '../FileExplorerPanel/useFileTree';
 import { TreeNodeItem } from '../FileExplorerPanel/TreeNodeItem';
 import type { BranchInfo } from './useGitBranch';
 import { ContextMenu, type ContextMenuAction } from '../ContextMenu';
+import { Icon } from '../Icon';
 import { useModalStackRegistration } from '../../hooks/useModalStack';
 
 // ==========================================================================
@@ -118,7 +119,7 @@ function TreeNodeView({ node, depth, expandedDirs, onToggleDir, onFileClick, onC
           onClick={() => onToggleDir(node.path)}
         >
           <span className="guake-git-repo-arrow" style={{ marginRight: 4 }}>
-            {isExpanded ? '▼' : '▶'}
+            <Icon name={isExpanded ? 'caret-down' : 'caret-right'} size={12} />
           </span>
           <img src={folderIconSrc} alt="" className="guake-git-file-icon guake-git-folder-icon" />
           <span className="guake-git-file-name">{node.name}</span>
@@ -165,7 +166,7 @@ function TreeNodeView({ node, depth, expandedDirs, onToggleDir, onFileClick, onC
           title={file.status === 'untracked' || file.status === 'added' ? 'Delete file' : 'Discard changes'}
           onClick={(e) => onDiscard(e, file, repoDir)}
         >
-          ↩
+          <Icon name="revert" size={12} />
         </button>
       )}
     </div>
@@ -626,7 +627,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
     actions.push({
       id: 'view',
       label: hasDiff(file.status) ? 'View Diff' : 'View File',
-      icon: hasDiff(file.status) ? '📊' : '📄',
+      icon: <Icon name={hasDiff(file.status) ? 'git-diff' : 'file-text'} size={14} />,
       onClick: () => handleFileClick(file, repoDir),
     });
 
@@ -636,13 +637,13 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
     actions.push({
       id: 'copy-path',
       label: 'Copy Full Path',
-      icon: '🧷',
+      icon: <Icon name="pin" size={14} />,
       onClick: () => { navigator.clipboard.writeText(fullPath); },
     });
     actions.push({
       id: 'copy-rel',
       label: 'Copy Relative Path',
-      icon: '📋',
+      icon: <Icon name="copy" size={14} />,
       onClick: () => { navigator.clipboard.writeText(file.path); },
     });
 
@@ -652,7 +653,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
       actions.push({
         id: 'open-editor',
         label: 'Open in Editor',
-        icon: '✏️',
+        icon: <Icon name="edit" size={14} />,
         onClick: async () => {
           try {
             await authFetch(apiUrl('/api/files/open-in-editor'), {
@@ -671,7 +672,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
       actions.push({
         id: 'discard',
         label: 'Discard Changes',
-        icon: '↩️',
+        icon: <Icon name="revert" size={14} />,
         danger: true,
         onClick: async () => {
           try {
@@ -697,7 +698,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
       actions.push({
         id: 'delete',
         label: 'Delete File',
-        icon: '🗑️',
+        icon: <Icon name="trash" size={14} />,
         danger: true,
         onClick: () => setPendingDelete({ path: fullPath, name: file.name, status: file.status, repoDir }),
       });
@@ -717,7 +718,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
       actions.push({
         id: 'view',
         label: 'View File',
-        icon: '📄',
+        icon: <Icon name="file-text" size={14} />,
         onClick: () => handleExplorerFileSelect(node),
       });
       actions.push({ id: 'div1', label: '', divider: true, onClick: () => {} });
@@ -727,7 +728,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
     actions.push({
       id: 'copy-path',
       label: 'Copy Full Path',
-      icon: '🧷',
+      icon: <Icon name="pin" size={14} />,
       onClick: () => { navigator.clipboard.writeText(node.path); },
     });
 
@@ -738,7 +739,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
       actions.push({
         id: 'copy-rel',
         label: 'Copy Relative Path',
-        icon: '📋',
+        icon: <Icon name="copy" size={14} />,
         onClick: () => { navigator.clipboard.writeText(relPath); },
       });
     }
@@ -748,7 +749,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
       actions.push({
         id: 'open-editor',
         label: 'Open in Editor',
-        icon: '✏️',
+        icon: <Icon name="edit" size={14} />,
         onClick: async () => {
           try {
             await authFetch(apiUrl('/api/files/open-in-editor'), {
@@ -765,7 +766,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
       actions.push({
         id: 'delete',
         label: 'Delete File',
-        icon: '🗑️',
+        icon: <Icon name="trash" size={14} />,
         danger: true,
         onClick: () => setPendingDelete({ path: node.path, name: node.name, status: (node.gitStatus as GitFileStatusType) || 'untracked', repoDir: explorerFolder || '' }),
       });
@@ -870,7 +871,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                   disabled={currentFileIndex <= 0}
                   title="Previous file"
                 >
-                  ‹
+                  <Icon name="caret-right" size={14} style={{ transform: 'rotate(180deg)' }} />
                 </button>
                 <button
                   className="guake-git-diff-nav-btn"
@@ -878,7 +879,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                   disabled={currentFileIndex < 0 || currentFileIndex >= allChangedFiles.length - 1}
                   title="Next file"
                 >
-                  ›
+                  <Icon name="caret-right" size={14} />
                 </button>
                 {currentFileIndex >= 0 && (
                   <span className="guake-git-diff-nav-counter">
@@ -893,7 +894,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                 <span className="guake-git-content-badge">new file</span>
               )}
             </span>
-            <button className="guake-git-close" onClick={closeModal} title="Close (Esc)">×</button>
+            <button className="guake-git-close" onClick={closeModal} title="Close (Esc)"><Icon name="close" size={14} /></button>
           </div>
           <div className="guake-git-diff-content">
             {modalState.type === 'diff' ? (
@@ -925,14 +926,14 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
               className={`guake-git-tab ${panelMode === 'changes' ? 'active' : ''}`}
               onClick={() => setPanelMode('changes')}
             >
-              🌿 Changes
+              <Icon name="git-branch" size={14} /> Changes
               {totalFiles > 0 && <span className="guake-git-badge">{totalFiles}</span>}
             </button>
             <button
               className={`guake-git-tab ${panelMode === 'explorer' ? 'active' : ''}`}
               onClick={() => setPanelMode('explorer')}
             >
-              📁 Files
+              <Icon name="folder" size={14} /> Files
             </button>
           </div>
         </div>
@@ -943,7 +944,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
             title="Git fetch"
             disabled={fetchingDirs.size > 0}
           >
-            {fetchingDirs.size > 0 ? '⏳' : '⇣'}
+            {fetchingDirs.size > 0 ? <Icon name="status-starting" size={14} /> : <Icon name="arrow-down" size={14} />}
           </button>
           {panelMode === 'changes' && (
             <>
@@ -951,23 +952,23 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                 className={`guake-git-view-toggle ${viewMode === 'flat' ? 'active' : ''}`}
                 onClick={() => setViewMode('flat')}
                 title="Flat view"
-              >☰</button>
+              ><Icon name="list" size={14} /></button>
               <button
                 className={`guake-git-view-toggle ${viewMode === 'tree' ? 'active' : ''}`}
                 onClick={() => setViewMode('tree')}
                 title="Tree view"
-              >🌲</button>
+              ><Icon name="tree" size={14} /></button>
               <button className="guake-git-refresh" onClick={refresh} title="Refresh" disabled={loading}>
-                {loading ? '⏳' : '↻'}
+                {loading ? <Icon name="status-starting" size={14} /> : <Icon name="refresh" size={14} />}
               </button>
             </>
           )}
           {panelMode === 'explorer' && (
             <button className="guake-git-refresh" onClick={() => fileTree.loadTree()} title="Refresh" disabled={fileTree.loading}>
-              {fileTree.loading ? '⏳' : '↻'}
+              {fileTree.loading ? <Icon name="status-starting" size={14} /> : <Icon name="refresh" size={14} />}
             </button>
           )}
-          <button className="guake-git-close" onClick={onClose} title="Close">×</button>
+          <button className="guake-git-close" onClick={onClose} title="Close"><Icon name="close" size={14} /></button>
         </div>
       </div>
 
@@ -991,13 +992,13 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                   className={`guake-git-repo-header ${expandedRepos.has(dir) ? 'expanded' : ''}`}
                   onClick={() => toggleRepo(dir)}
                 >
-                  <span className="guake-git-repo-arrow">{expandedRepos.has(dir) ? '▼' : '▶'}</span>
+                  <span className="guake-git-repo-arrow"><Icon name={expandedRepos.has(dir) ? 'caret-down' : 'caret-right'} size={12} /></span>
                   <span className="guake-git-repo-name">{dirName}</span>
                   {gitStatus.branch && (
-                    <span className="guake-git-repo-branch">⎇ {gitStatus.branch}</span>
+                    <span className="guake-git-repo-branch"><Icon name="git-branch" size={10} /> {gitStatus.branch}</span>
                   )}
-                  {bi && bi.ahead > 0 && <span className="guake-branch-ahead">↑{bi.ahead}</span>}
-                  {bi && bi.behind > 0 && <span className="guake-branch-behind">↓{bi.behind}</span>}
+                  {bi && bi.ahead > 0 && <span className="guake-branch-ahead"><Icon name="arrow-up" size={9} />{bi.ahead}</span>}
+                  {bi && bi.behind > 0 && <span className="guake-branch-behind"><Icon name="arrow-down" size={9} />{bi.behind}</span>}
                   <span className="guake-git-repo-count">{gitStatus.files.length}</span>
                 </div>
 
@@ -1028,7 +1029,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                             title={file.status === 'untracked' || file.status === 'added' ? 'Delete file' : 'Discard changes'}
                             onClick={(e) => handleInlineDiscard(e, file, dir)}
                           >
-                            ↩
+                            <Icon name="revert" size={12} />
                           </button>
                         </div>
                       );
@@ -1075,10 +1076,10 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                       onClick={() => setExplorerFolderIdx(idx)}
                       title={dir}
                     >
-                      📂 {name}
-                      {folderBi && <span className="guake-git-folder-branch"> ⎇ {folderBi.branch}</span>}
-                      {folderBi && folderBi.ahead > 0 && <span className="guake-branch-ahead">↑{folderBi.ahead}</span>}
-                      {folderBi && folderBi.behind > 0 && <span className="guake-branch-behind">↓{folderBi.behind}</span>}
+                      <Icon name="folder-open" size={14} /> {name}
+                      {folderBi && <span className="guake-git-folder-branch"> <Icon name="git-branch" size={10} /> {folderBi.branch}</span>}
+                      {folderBi && folderBi.ahead > 0 && <span className="guake-branch-ahead"><Icon name="arrow-up" size={9} />{folderBi.ahead}</span>}
+                      {folderBi && folderBi.behind > 0 && <span className="guake-branch-behind"><Icon name="arrow-down" size={9} />{folderBi.behind}</span>}
                     </button>
                   );
                 })}

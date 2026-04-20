@@ -52,6 +52,7 @@ import {
 import { ansiToHtml } from '../../utils/ansiToHtml';
 import { ContextMenu } from '../ContextMenu';
 import type { ContextMenuAction } from '../ContextMenu';
+import { Icon } from '../Icon';
 import { ModalPortal } from '../shared/ModalPortal';
 import { DatabasePanelInline } from '../database/DatabasePanelInline';
 
@@ -344,7 +345,9 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
   const handleTrackingBoardSelectAgent = useCallback((agentId: string) => {
     store.setLastSelectionViaDirectClick(true);
     store.selectAgent(agentId);
-    store.setTrackingBoardVisible(false);
+    if (window.innerWidth <= 768) {
+      store.setTrackingBoardVisible(false);
+    }
   }, []);
 
   // Get area folders for the active agent
@@ -1391,7 +1394,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
           <div className="guake-content">
             <div className="guake-output" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6272a4' }}>
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '48px', marginBottom: '16px' }}>👆</div>
+                <div style={{ fontSize: '48px', marginBottom: '16px' }}><Icon name="hand-point" size={48} /></div>
                 <div style={{ fontSize: '16px' }}>{t('terminal:empty.tapAgent')}</div>
                 <div style={{ fontSize: '14px', marginTop: '8px', opacity: 0.7 }}>{t('terminal:empty.switchTo3D')}</div>
               </div>
@@ -1470,7 +1473,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
       {/* Drop overlay */}
       <div className="guake-drop-overlay">
         <div className="drop-border" />
-        <span className="drop-icon">📎</span>
+        <span className="drop-icon"><Icon name="paperclip" size={16} /></span>
         <span className="drop-label">{t('terminal:input.dropToAttach')}</span>
       </div>
 
@@ -1498,7 +1501,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
         <div className="guake-tracking-board-panel">
           <div className="guake-tracking-board-header">
             <div className="guake-tracking-board-title">
-              <span className="guake-tracking-board-icon">▥</span>
+              <span className="guake-tracking-board-icon"><Icon name="list" size={14} /></span>
               <span>Tracking Board</span>
             </div>
             <button
@@ -1507,7 +1510,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
               onClick={() => store.setTrackingBoardVisible(false)}
               title="Close tracking board"
             >
-              ✕
+              <Icon name="close" size={14} />
             </button>
           </div>
           <div className="guake-tracking-board-body">
@@ -1604,12 +1607,12 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
           {swipe.sortedAgents.length > 1 && swipe.swipeOffset !== 0 && (
             <>
               <div className={`swipe-indicator left ${swipe.swipeOffset > 0.3 ? 'visible' : ''}`}>
-                <span className="indicator-icon">←</span>
+                <span className="indicator-icon"><Icon name="arrow-left" size={14} /></span>
                 <span className="indicator-name">{swipe.nextAgent?.name}</span>
               </div>
               <div className={`swipe-indicator right ${swipe.swipeOffset < -0.3 ? 'visible' : ''}`}>
                 <span className="indicator-name">{swipe.prevAgent?.name}</span>
-                <span className="indicator-icon">→</span>
+                <span className="indicator-icon"><Icon name="arrow-right" size={14} /></span>
               </div>
             </>
           )}
@@ -1652,7 +1655,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
             <Tooltip
               content={
                 <>
-                  <div className="tide-tooltip__title">🔄 {t('terminal:empty.reattachingSessionTitle')}</div>
+                  <div className="tide-tooltip__title"><Icon name="refresh" size={14} /> {t('terminal:empty.reattachingSessionTitle')}</div>
                   <div className="tide-tooltip__text">
                     {t('terminal:empty.reattachingSessionDesc')}
                     <br /><br />
@@ -1664,13 +1667,13 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
               className="tide-tooltip--detached"
             >
               <span className="guake-detached-badge" title={t('terminal:empty.reattachingBadge')}>
-                <span className="guake-detached-spinner">🔄</span> {t('terminal:empty.reattaching')}
+                <span className="guake-detached-spinner"><Icon name="refresh" size={12} /></span> {t('terminal:empty.reattaching')}
               </span>
             </Tooltip>
           )}
           {activeAgent?.cwd && (
             <span className="guake-agent-cwd" title={activeAgent.cwd}>
-              📁 {activeAgent.cwd.split('/').filter(Boolean).slice(-2).join('/') || activeAgent.cwd}
+              <Icon name="folder" size={12} /> {activeAgent.cwd.split('/').filter(Boolean).slice(-2).join('/') || activeAgent.cwd}
             </span>
           )}
           {agentAreaDirectories && agentAreaDirectories.map(({ areaId, areaName, dir }) => {
@@ -1683,18 +1686,18 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
                 title={`${areaName}: ${dir}${branchInfo ? ` (${branchInfo.branch}${branchInfo.ahead ? ` ↑${branchInfo.ahead}` : ''}${branchInfo.behind ? ` ↓${branchInfo.behind}` : ''})` : ''}`}
                 onClick={() => store.openFileExplorerForAreaFolder(areaId, dir)}
               >
-                📂 {dir.split('/').filter(Boolean).pop() || dir}
+                <Icon name="folder-open" size={12} /> {dir.split('/').filter(Boolean).pop() || dir}
                 {branchInfo && (
                   <>
-                    <span className="guake-agent-area-branch"> ⎇ {branchInfo.branch}</span>
-                    {branchInfo.ahead > 0 && <span className="guake-branch-ahead" title={`${branchInfo.ahead} ahead`}>↑{branchInfo.ahead}</span>}
-                    {branchInfo.behind > 0 && <span className="guake-branch-behind" title={`${branchInfo.behind} behind`}>↓{branchInfo.behind}</span>}
+                    <span className="guake-agent-area-branch"> <Icon name="git-branch" size={10} /> {branchInfo.branch}</span>
+                    {branchInfo.ahead > 0 && <span className="guake-branch-ahead" title={`${branchInfo.ahead} ahead`}><Icon name="arrow-up" size={9} />{branchInfo.ahead}</span>}
+                    {branchInfo.behind > 0 && <span className="guake-branch-behind" title={`${branchInfo.behind} behind`}><Icon name="arrow-down" size={9} />{branchInfo.behind}</span>}
                     <span
                       className={`guake-area-fetch-btn ${isFetching ? 'fetching' : ''}`}
                       title="Git fetch"
                       onClick={(e) => { e.stopPropagation(); fetchGitRemote(dir); }}
                     >
-                      {isFetching ? '⏳' : '⇣'}
+                      <Icon name={isFetching ? 'hourglass' : 'download'} size={12} />
                     </span>
                   </>
                 )}
@@ -1719,7 +1722,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
                 onClick={() => store.setContextModalAgentId(activeAgentId)}
                 title={hasData ? t('terminal:context.clickToViewStats') : t('terminal:context.clickToFetchStats')}
               >
-                <span className="context-icon">📊</span>
+                <span className="context-icon"><Icon name="dashboard" size={12} /></span>
                 <span className="context-label">{t('terminal:agentInfo.context')}:</span>
                 <span className="context-bar-mini">
                   <span
@@ -1735,7 +1738,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
                 </span>
                 <span className="context-free">({t('terminal:context.percentFree', { percent: freePercent })})</span>
                 {!hasData && (
-                  <span className="context-warning" title={t('terminal:context.clickToFetchStats')}>⚠️</span>
+                  <span className="context-warning" title={t('terminal:context.clickToFetchStats')}><Icon name="warn" size={12} /></span>
                 )}
               </span>
             );
@@ -1771,7 +1774,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
                         }
                       }}
                     >
-                      💻
+                      <Icon name="terminal" size={14} />
                     </button>
                   );
                 })}
@@ -1803,7 +1806,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
                         }
                       }}
                     >
-                      📜
+                      <Icon name="scroll" size={14} />
                     </button>
                   );
                 })}
@@ -1835,7 +1838,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
                         }
                       }}
                     >
-                      🗄️
+                      <Icon name="hard-drives" size={14} />
                     </button>
                   );
                 })}
@@ -1852,20 +1855,20 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
             splitActions.push({
               id: 'open',
               label: 'Open',
-              icon: '⬇',
+              icon: <Icon name="arrow-down" size={14} />,
               onClick: () => openBottomPanel(splitContextMenu.buildingId, splitContextMenu.type),
             });
             if (activeAreaPanels.length > 0) {
               splitActions.push({
                 id: 'split-right',
                 label: 'Split Right',
-                icon: '↔',
+                icon: <Icon name="arrows-horizontal" size={14} />,
                 onClick: () => splitBottomPanel(splitContextMenu.buildingId, splitContextMenu.type, 'horizontal'),
               });
               splitActions.push({
                 id: 'split-below',
                 label: 'Split Below',
-                icon: '↕',
+                icon: <Icon name="arrows-vertical" size={14} />,
                 onClick: () => splitBottomPanel(splitContextMenu.buildingId, splitContextMenu.type, 'vertical'),
               });
             }
@@ -1907,7 +1910,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
                       return (
                         <div key={panel.id} className="guake-bottom-panel" style={{ flex: ratio }}>
                           <div className="guake-bottom-terminal-header">
-                            <span className="guake-bottom-terminal-title">💻 {building.name} (starting...)</span>
+                            <span className="guake-bottom-terminal-title"><Icon name="terminal" size={12} /> {building.name} (starting...)</span>
                             <button className="guake-bottom-terminal-close" onClick={() => closeBottomPanel(panel.id)}>
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -1921,7 +1924,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
                     return (
                       <div key={panel.id} className="guake-bottom-panel" style={{ flex: ratio }}>
                         <div className="guake-bottom-terminal-header">
-                          <span className="guake-bottom-terminal-title">💻 {building.name}</span>
+                          <span className="guake-bottom-terminal-title"><Icon name="terminal" size={12} /> {building.name}</span>
                           <button className="guake-bottom-terminal-close" onClick={() => closeBottomPanel(panel.id)}>
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                               <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -1941,7 +1944,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
                     return (
                       <div key={panel.id} className="guake-bottom-panel" style={{ flex: ratio }}>
                         <div className="guake-bottom-terminal-header">
-                          <span className="guake-bottom-terminal-title">📜 {building.name}</span>
+                          <span className="guake-bottom-terminal-title"><Icon name="scroll" size={12} /> {building.name}</span>
                           <div className="guake-bottom-terminal-controls">
                             <input
                               type="text"
@@ -2017,7 +2020,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
                   return (
                     <div key={panel.id} className="guake-bottom-panel" style={{ flex: ratio }}>
                       <div className="guake-bottom-terminal-header">
-                        <span className="guake-bottom-terminal-title">🗄️ {building.name}</span>
+                        <span className="guake-bottom-terminal-title"><Icon name="hard-drives" size={12} /> {building.name}</span>
                         <button className="guake-bottom-terminal-close" onClick={() => closeBottomPanel(panel.id)}>
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -2073,7 +2076,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
           onDoubleClick={() => { if (!isOpen) store.toggleTerminal(); }}
           style={{ top: isOpen ? `min(${terminalHeight}%, calc(100vh - 72px))` : '0' }}
         >
-          <span className="guake-handle-icon">{isOpen ? '▲' : '▼'}</span>
+          <span className="guake-handle-icon"><Icon name={isOpen ? 'caret-up' : 'caret-down'} size={12} /></span>
           <span className="guake-handle-text">{activeAgent.name}</span>
         </div>
       )}

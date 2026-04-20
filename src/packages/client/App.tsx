@@ -18,6 +18,7 @@ import {
   useTerminalOpen,
 } from './store';
 import { ToastProvider, useToast } from './components/Toast';
+import { Icon } from './components/Icon';
 import { AgentNotificationProvider, useAgentNotification } from './components/AgentNotificationToast';
 import { UnitPanel } from './components/UnitPanel';
 import { TrackingBoard } from './components/ClaudeOutputPanel/TrackingBoard';
@@ -657,7 +658,7 @@ function AppContent() {
               .finally(() => setIsOrganizing(false));
           }}
         >
-          {isOrganizing ? '⏳' : '✨'} Organize
+          <Icon name={isOrganizing ? 'hourglass' : 'sparkle'} size={14} /> Organize
         </button>
       </div>
 
@@ -907,7 +908,7 @@ function AppContent() {
             onClick={() => setSidebarOpen(false)}
             title="Close sidebar"
           >
-            ✕
+            <Icon name="close" size={14} />
           </button>
           <div className="sidebar-view-toggle" role="tablist" aria-label="Sidebar view">
             <button
@@ -934,7 +935,7 @@ function AppContent() {
               }}
               title={t('common:sidebar.trackingBoard', { defaultValue: 'Tracking Board' })}
             >
-              <span className="sidebar-view-toggle-icon">▥</span>
+              <span className="sidebar-view-toggle-icon"><Icon name="list" size={14} /></span>
               {t('common:sidebar.trackingBoard', { defaultValue: 'Tracking Board' })}
             </button>
           </div>

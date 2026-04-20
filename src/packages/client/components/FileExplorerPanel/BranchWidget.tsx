@@ -15,6 +15,7 @@ import { useGitBranches } from './useGitBranches';
 import { apiUrl, authFetch } from '../../utils/storage';
 import { ContextMenu } from '../ContextMenu';
 import type { ContextMenuAction } from '../ContextMenu';
+import { Icon } from '../Icon';
 
 interface BranchWidgetProps {
   currentFolder: string | null;
@@ -222,7 +223,7 @@ export const BranchWidget = memo(function BranchWidget({
       {
         id: 'compare',
         label: t('terminal:fileExplorer.showDiffWith', { branch: contextMenu.branch }),
-        icon: '⇄',
+        icon: <Icon name="arrows-horizontal" size={14} />,
         disabled: !!operationInProgress,
         onClick: () => {
           onCompare?.(contextMenu!.branch);
@@ -245,7 +246,7 @@ export const BranchWidget = memo(function BranchWidget({
       {
         id: 'checkout',
         label: t('terminal:fileExplorer.checkoutBranch', { branch: contextMenu.branch }),
-        icon: '⎇',
+        icon: <Icon name="git-branch" size={14} />,
         disabled: !!operationInProgress,
         onClick: () => {
           const branch = branches.find(b => b.name === contextMenu!.branch);

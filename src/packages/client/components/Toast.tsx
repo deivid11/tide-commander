@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+import { Icon, type IconName } from './Icon';
 
 export type ToastType = 'error' | 'success' | 'warning' | 'info';
 
@@ -16,11 +17,11 @@ interface ToastContextType {
 
 const ToastContext = createContext<ToastContextType | null>(null);
 
-const TOAST_ICONS: Record<ToastType, string> = {
-  error: '❌',
-  success: '✅',
-  warning: '⚠️',
-  info: 'ℹ️',
+const TOAST_ICONS: Record<ToastType, IconName> = {
+  error: 'failure',
+  success: 'success',
+  warning: 'warn',
+  info: 'info',
 };
 
 let toastId = 0;
@@ -90,7 +91,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       <div id="toast-container">
         {currentToast && (
           <div key={currentToast.id} className={`toast ${currentToast.type}`}>
-            <span className="toast-icon">{TOAST_ICONS[currentToast.type]}</span>
+            <span className="toast-icon"><Icon name={TOAST_ICONS[currentToast.type]} size={16} /></span>
             <div className="toast-content">
               <div className="toast-title">{currentToast.title}</div>
               <div className="toast-message">{currentToast.message}</div>

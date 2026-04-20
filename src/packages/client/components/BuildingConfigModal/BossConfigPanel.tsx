@@ -1,13 +1,14 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  BUILDING_TYPES,
   type Building,
 } from '../../../shared/types';
 import { store } from '../../store';
 import { BUILDING_STATUS_COLORS } from '../../utils/colors';
 import { HelpTooltip } from '../shared/Tooltip';
 import { ansiToHtml } from './utils';
+import { Icon } from '../Icon';
+import { getBuildingTypeIcon } from '../DashboardView/utils';
 
 interface BossConfigPanelProps {
   buildings: Map<string, Building>;
@@ -63,7 +64,7 @@ export function BossConfigPanel({
                   }
                 }}
               />
-              <span className="subordinate-building-icon">{BUILDING_TYPES[b.type].icon}</span>
+              <span className="subordinate-building-icon"><Icon name={getBuildingTypeIcon(b.type)} size={14} /></span>
               <span className="subordinate-building-name">{b.name}</span>
               <span
                 className="subordinate-building-status"

@@ -11,6 +11,7 @@ import { store } from '../../store';
 import { createMarkdownComponents, markdownComponents as defaultMarkdownComponents } from './MarkdownComponents';
 import type { ParsedBossContent, ParsedDelegation, ParsedBossResponse, ParsedInjectedInstructions, ParsedWorkPlanResponse, WorkPlan, WorkPlanPhase, WorkPlanTask, EditData } from './types';
 import { AgentIcon } from '../AgentIcon';
+import { Icon, type IconName } from '../Icon';
 import { useAgent, useAgentTaskProgress } from '../../store/selectors';
 import { AgentProgressIndicator } from './AgentProgressIndicator';
 
@@ -346,11 +347,11 @@ export function BossContext({ context, defaultCollapsed = true, onFileClick }: B
   return (
     <div className={`boss-context ${collapsed ? 'collapsed' : 'expanded'}`}>
       <div className="boss-context-header" onClick={() => setCollapsed(!collapsed)}>
-        <span className="boss-context-icon">👑</span>
+        <span className="boss-context-icon"><Icon name="crown" size={14} /></span>
         <span className="boss-context-label">
           {t('tools:bossContext.teamContext')}
         </span>
-        <span className="boss-context-toggle">{collapsed ? '▶' : '▼'}</span>
+        <span className="boss-context-toggle"><Icon name={collapsed ? 'caret-right' : 'caret-down'} size={10} /></span>
       </div>
       {!collapsed && (
         <div className="boss-context-content markdown-content">
@@ -377,9 +378,9 @@ export function InjectedInstructionsBlock({ content, defaultCollapsed = true, on
   return (
     <div className={`injected-instructions ${collapsed ? 'collapsed' : 'expanded'}`}>
       <div className="injected-instructions-header" onClick={() => setCollapsed(!collapsed)}>
-        <span className="injected-instructions-icon">⚙️</span>
+        <span className="injected-instructions-icon"><Icon name="gear" size={14} /></span>
         <span className="injected-instructions-label">{t('tools:bossContext.injectedInstructions')}</span>
-        <span className="injected-instructions-toggle">{collapsed ? '▶' : '▼'}</span>
+        <span className="injected-instructions-toggle"><Icon name={collapsed ? 'caret-right' : 'caret-down'} size={10} /></span>
       </div>
       {!collapsed && (
         <div className="injected-instructions-content markdown-content">
@@ -414,10 +415,10 @@ export function DelegationBlock({ delegation, bossId, onFileClick, onBashClick }
     low: '#ef4444', // red
   };
 
-  const confidenceEmoji: Record<string, string> = {
-    high: '✅',
-    medium: '⚠️',
-    low: '❓',
+  const confidenceIcon: Record<string, IconName> = {
+    high: 'success',
+    medium: 'warn',
+    low: 'question',
   };
 
   const taskPreview = delegation.taskCommand
@@ -449,14 +450,14 @@ export function DelegationBlock({ delegation, bossId, onFileClick, onBashClick }
       tabIndex={canExpand ? 0 : undefined}
     >
       <div className="delegation-header">
-        <span className="delegation-icon">📨</span>
+        <span className="delegation-icon"><Icon name="envelope" size={14} /></span>
         <span className="delegation-title">{t('tools:delegation.taskDelegated')}</span>
         <span className="delegation-confidence" style={{ color: confidenceColors[delegation.confidence] }}>
-          {confidenceEmoji[delegation.confidence]} {delegation.confidence}
+          <Icon name={confidenceIcon[delegation.confidence]} size={12} /> {delegation.confidence}
         </span>
         {canExpand && (
           <span className="delegation-toggle" aria-label={isExpanded ? 'Collapse' : 'Expand'}>
-            {isExpanded ? '▼' : '▶'}
+            <Icon name={isExpanded ? 'caret-down' : 'caret-right'} size={10} />
           </span>
         )}
       </div>
@@ -532,7 +533,7 @@ export function DelegationBlock({ delegation, bossId, onFileClick, onBashClick }
         </div>
       )}
       <div className="delegation-footer">
-        <span className="delegation-auto-forward">↗️ {t('tools:delegation.autoForwarding', { name: delegation.selectedAgentName })}</span>
+        <span className="delegation-auto-forward"><Icon name="send" size={12} /> {t('tools:delegation.autoForwarding', { name: delegation.selectedAgentName })}</span>
       </div>
     </div>
   );
@@ -557,11 +558,11 @@ export function DelegatedTaskHeader({ bossName, taskCommand }: DelegatedTaskHead
   return (
     <div className={`delegated-task-header ${isExpanded ? 'expanded' : 'compact'}`}>
       <div className="delegated-task-badge" onClick={() => setIsExpanded(!isExpanded)}>
-        <span className="delegated-task-icon">👑</span>
+        <span className="delegated-task-icon"><Icon name="crown" size={14} /></span>
         <span className="delegated-task-label">
           {t('tools:delegation.via')} <strong>{bossName}</strong>
         </span>
-        <span className="delegated-task-toggle">{isExpanded ? '▼' : '▶'}</span>
+        <span className="delegated-task-toggle"><Icon name={isExpanded ? 'caret-down' : 'caret-right'} size={10} /></span>
       </div>
       {isExpanded && (
         <div className="delegated-task-command markdown-content">
@@ -612,7 +613,7 @@ export function DelegatedTaskMessage({ bossName, bossId, taskCommand }: Delegate
       tabIndex={isTruncated ? 0 : undefined}
     >
       <div className="delegated-task-message-badge">
-        <span className="delegated-task-message-icon" aria-hidden="true">📨</span>
+        <span className="delegated-task-message-icon" aria-hidden="true"><Icon name="envelope" size={14} /></span>
         <span className="delegated-task-message-chip">Task Delegated</span>
         <span className="delegated-task-message-label">
           <span className="delegated-task-message-from">from</span>
@@ -635,7 +636,7 @@ export function DelegatedTaskMessage({ bossName, bossId, taskCommand }: Delegate
         <span className="delegated-task-message-id" title={bossId}>{bossId.slice(0, 8)}</span>
         {isTruncated && (
           <span className="delegated-task-message-toggle" aria-label={isExpanded ? 'Collapse' : 'Expand'}>
-            {isExpanded ? '▼' : '▶'}
+            <Icon name={isExpanded ? 'caret-down' : 'caret-right'} size={10} />
           </span>
         )}
       </div>
@@ -691,7 +692,7 @@ export function TaskReportHeader({ agentName, agentId, status, summary }: TaskRe
       tabIndex={canExpand ? 0 : undefined}
     >
       <div className="task-report-badge">
-        <span className="task-report-icon">{isCompleted ? '✅' : '❌'}</span>
+        <span className="task-report-icon"><Icon name={isCompleted ? 'success' : 'failure'} size={14} /></span>
         <span className="task-report-label">
           {reporterAgent && (
             <AgentIcon
@@ -712,7 +713,7 @@ export function TaskReportHeader({ agentName, agentId, status, summary }: TaskRe
         <span className="task-report-id">{agentId.slice(0, 8)}</span>
         {canExpand && (
           <span className="task-report-toggle" aria-label={isExpanded ? 'Collapse' : 'Expand'}>
-            {isExpanded ? '▼' : '▶'}
+            <Icon name={isExpanded ? 'caret-down' : 'caret-right'} size={10} />
           </span>
         )}
       </div>
@@ -752,7 +753,7 @@ export function SubagentNotificationDisplay({ agentId, status }: SubagentNotific
   return (
     <div className={`subagent-notification ${isError ? 'subagent-notification--error' : isCompleted ? 'subagent-notification--completed' : 'subagent-notification--info'}`}>
       <span className="subagent-notification__icon">
-        {isError ? '⚠' : isCompleted ? '✓' : '🧬'}
+        <Icon name={isError ? 'warn' : isCompleted ? 'check' : 'dna'} size={12} />
       </span>
       <span className="subagent-notification__label">Subagent</span>
       <span className="subagent-notification__id">{shortAgentId}</span>
@@ -780,10 +781,10 @@ const _priorityColors: Record<string, string> = {
   low: '#22c55e',
 };
 
-const priorityEmoji: Record<string, string> = {
-  high: '🔴',
-  medium: '🟡',
-  low: '🟢',
+const priorityColor: Record<string, string> = {
+  high: '#ef4444',
+  medium: '#f59e0b',
+  low: '#22c55e',
 };
 
 export function WorkPlanBlock({ workPlan }: WorkPlanBlockProps) {
@@ -807,7 +808,7 @@ export function WorkPlanBlock({ workPlan }: WorkPlanBlockProps) {
   return (
     <div className="work-plan-block">
       <div className="work-plan-header">
-        <span className="work-plan-icon">📋</span>
+        <span className="work-plan-icon"><Icon name="task" size={14} /></span>
         <span className="work-plan-title">{workPlan.name}</span>
         <span className="work-plan-stats">
           {t('tools:workPlan.phases', { count: workPlan.phases.length })} · {t('tools:workPlan.tasks', { count: totalTasks })}
@@ -825,7 +826,7 @@ export function WorkPlanBlock({ workPlan }: WorkPlanBlockProps) {
               <span className="work-plan-phase-number">{phaseIndex + 1}</span>
               <span className="work-plan-phase-name">{phase.name}</span>
               <span className={`work-plan-phase-execution ${phase.execution}`}>
-                {phase.execution === 'parallel' ? `⚡ ${t('tools:workPlan.parallel')}` : `→ ${t('tools:workPlan.sequential')}`}
+                {phase.execution === 'parallel' ? <><Icon name="bolt" size={12} /> {t('tools:workPlan.parallel')}</> : <><Icon name="subitem" size={12} /> {t('tools:workPlan.sequential')}</>}
               </span>
               {phase.dependsOn.length > 0 && (
                 <span className="work-plan-phase-depends">
@@ -833,7 +834,7 @@ export function WorkPlanBlock({ workPlan }: WorkPlanBlockProps) {
                 </span>
               )}
               <span className="work-plan-phase-toggle">
-                {expandedPhases.has(phase.id) ? '▼' : '▶'}
+                <Icon name={expandedPhases.has(phase.id) ? 'caret-down' : 'caret-right'} size={10} />
               </span>
             </div>
 
@@ -844,7 +845,7 @@ export function WorkPlanBlock({ workPlan }: WorkPlanBlockProps) {
                     <div className="work-plan-task-header">
                       <span className="work-plan-task-id">{task.id}</span>
                       <span className="work-plan-task-priority" title={`Priority: ${task.priority}`}>
-                        {priorityEmoji[task.priority]}
+                        <Icon name="status-pending" size={10} weight="fill" color={priorityColor[task.priority]} />
                       </span>
                       <span className="work-plan-task-class" title={`Suggested: ${task.suggestedClass}`}>
                         <AgentIcon classId={task.suggestedClass} size={14} /> {task.suggestedClass}
@@ -859,7 +860,7 @@ export function WorkPlanBlock({ workPlan }: WorkPlanBlockProps) {
                     </div>
                     {task.blockedBy.length > 0 && (
                       <div className="work-plan-task-blocked">
-                        ⏳ {t('tools:workPlan.blockedBy')} {task.blockedBy.join(', ')}
+                        <Icon name="status-starting" size={12} /> {t('tools:workPlan.blockedBy')} {task.blockedBy.join(', ')}
                       </div>
                     )}
                   </div>
@@ -872,7 +873,7 @@ export function WorkPlanBlock({ workPlan }: WorkPlanBlockProps) {
 
       <div className="work-plan-footer">
         <span className="work-plan-approval-hint">
-          💡 {t('tools:workPlan.reviewHint')}
+          <Icon name="idea" size={12} /> {t('tools:workPlan.reviewHint')}
         </span>
       </div>
     </div>

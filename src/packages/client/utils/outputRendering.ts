@@ -3,7 +3,10 @@
  * This file contains common functions for displaying Claude output, tool calls, etc.
  */
 
-// Tool icons mapping - used in both Guake terminal and Commander view
+// Tool icons mapping - used in both Guake terminal and Commander view.
+// Emoji variants are kept here because they are rendered inside <canvas> 2D scenes
+// (AgentRenderer, EffectsManager) where JSX isn't an option. For React render sites
+// prefer `TOOL_ICON_NAMES` + `<Icon name={...} />` below.
 export const TOOL_ICONS: Record<string, string> = {
   Read: '📖',
   Write: '✏️',
@@ -30,11 +33,45 @@ export const TOOL_ICONS: Record<string, string> = {
   default: '⚡',
 };
 
+// Semantic Icon name per tool for React-rendered surfaces. Keep in sync with TOOL_ICONS.
+import type { IconName } from '../components/Icon';
+export const TOOL_ICON_NAMES: Record<string, IconName> = {
+  Read: 'eye',
+  Write: 'edit',
+  Edit: 'edit',
+  Bash: 'terminal',
+  Glob: 'search',
+  Grep: 'search',
+  Task: 'list-checks',
+  Agent: 'robot',
+  WebFetch: 'globe',
+  WebSearch: 'globe-hemisphere',
+  TodoWrite: 'list-checks',
+  NotebookEdit: 'edit',
+  AskFollowupQuestion: 'question',
+  AskUserQuestion: 'question',
+  AttemptCompletion: 'sparkle',
+  ListFiles: 'folder-open',
+  SearchFiles: 'search',
+  ExecuteCommand: 'gear',
+  spawn_agent: 'dna',
+  send_input: 'send',
+  wait: 'hourglass',
+  default: 'bolt',
+};
+
 /**
- * Get the icon for a tool, with fallback to default
+ * Get the emoji icon for a tool (for canvas/text renderers).
  */
 export function getToolIcon(toolName: string): string {
   return TOOL_ICONS[toolName] || TOOL_ICONS.default;
+}
+
+/**
+ * Get a semantic Icon name for a tool (for JSX render sites).
+ */
+export function getToolIconName(toolName: string): IconName {
+  return TOOL_ICON_NAMES[toolName] || TOOL_ICON_NAMES.default;
 }
 
 const TOOL_NAME_TRANSLATION_KEYS: Record<string, string> = {

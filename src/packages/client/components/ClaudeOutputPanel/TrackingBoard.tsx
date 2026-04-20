@@ -7,6 +7,7 @@ import { formatIdleTime } from '../../utils/formatting';
 import { apiUrl, authFetch } from '../../utils/storage';
 import { useWorkspaceFilter, isAgentVisibleInWorkspace } from '../WorkspaceSwitcher';
 import { AgentIcon } from '../AgentIcon';
+import { Icon } from '../Icon';
 import { useTwoClickConfirm } from '../../hooks';
 
 interface TrackingBoardProps {
@@ -211,7 +212,7 @@ export const TrackingBoard = memo(function TrackingBoard({ activeAgentId, onSele
                     ? 'Clearing…'
                     : isPending
                       ? 'Confirm?'
-                      : `🧹 Ctx (${column.agents.length})`}
+                      : <><Icon name="clear" size={12} /> Ctx ({column.agents.length})</>}
                 </button>
               );
             })()}
@@ -356,7 +357,7 @@ const TrackingBoardCard = memo(function TrackingBoardCard({
               title={isClearContextConfirming ? 'Click again to confirm' : `Clear context for ${agent.name}`}
               aria-label={`Clear context for ${agent.name}`}
             >
-              {isClearContextConfirming ? '?' : '🧹'}
+              {isClearContextConfirming ? '?' : <Icon name="clear" size={12} />}
             </button>
           )}
           <button
