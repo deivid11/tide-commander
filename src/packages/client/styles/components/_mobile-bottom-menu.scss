@@ -8,10 +8,6 @@
 
 @media (max-width: resp.$breakpoint-mobile) {
   .mobile-bottom-menu {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
     display: flex;
     align-items: stretch;
     justify-content: space-around;
@@ -19,8 +15,6 @@
     padding: 2px 4px calc(2px + env(safe-area-inset-bottom, 0px));
     background: rgba($dracula-bg, 0.98);
     border-top: 1px solid rgba($dracula-purple, 0.5);
-    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.35);
-    z-index: 210; // Above guake terminal (200) and agent-bar (150), below FAB toggle (1000)
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
   }

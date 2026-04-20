@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.55.1] - 2026-04-20
+
+### Fixed
+- **Mobile bottom stack layout** — `AgentBar` and `MobileBottomMenu` are now wrapped in a measured `mobile-bottom-stack` div; a `ResizeObserver` sets `--mobile-bottom-stack-height` so the terminal input sits exactly above the stack instead of overlapping it
+- **Tracking status icons use Icon component** — `getTrackingStatusIcon` replaced with `getTrackingStatusIconName` + `Icon` component in `HistoryLine` and `OutputLine` for consistent icon rendering
+- Mobile responsive style refinements
+
 ## [1.55.0] - 2026-04-19
 
 ### Added

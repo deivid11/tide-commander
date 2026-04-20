@@ -774,6 +774,17 @@ export function getTrackingStatusIcon(status: string): string {
   }
 }
 
+export function getTrackingStatusIconName(status: string): IconName {
+  switch (status) {
+    case 'need-review': return 'success';
+    case 'blocked': return 'warn';
+    case 'can-clear-context': return 'clear';
+    case 'waiting-subordinates': return 'hourglass';
+    case 'working': return 'terminal';
+    default: return 'pin';
+  }
+}
+
 /**
  * Parse Bash commands that report task completion to boss via curl POST /api/agents/.../report-task
  * Returns null when command does not look like a report-task command.
