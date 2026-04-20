@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.55.2] - 2026-04-20
+
+### Fixed
+- **Swipe gesture refactor** — `useSwipeGesture` now applies transforms directly via `containerRef` instead of React state, eliminating re-render jank; swipe direction exposed as `isDragging`/`indicatorDirection` booleans replacing the raw `swipeOffset` float
+- **Terminal header swipe classes** — `TerminalHeader` now receives `isSwipingLeft`/`isSwipingRight` booleans instead of `swipeOffset`, making CSS class application more reliable
+- Runtime command execution minor fix
+
 ## [1.55.1] - 2026-04-20
 
 ### Fixed

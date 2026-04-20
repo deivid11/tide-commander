@@ -1560,7 +1560,8 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
           selectedAgent={activeAgent}
           selectedAgentId={activeAgentId}
           sortedAgents={swipe.sortedAgents}
-          swipeOffset={swipe.swipeOffset}
+          isSwipingLeft={swipe.indicatorDirection === 'left'}
+          isSwipingRight={swipe.indicatorDirection === 'right'}
           viewMode={viewMode}
           setViewMode={setViewMode}
           searchMode={paneRef.current?.search.searchMode ?? false}
@@ -1598,28 +1599,28 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
           headerRef={swipe.headerRef}
         />
 
-        {/* Swipe container */}
+        {/* Swipe container — gesture hook applies transform directly via containerRef */}
         <div
+          ref={swipe.containerRef}
           className={`guake-swipe-container ${swipe.swipeAnimationClass}`}
-          style={swipe.swipeOffset !== 0 ? { transform: `translateX(${swipe.swipeOffset * 40}%)` } : undefined}
         >
-          {/* Swipe indicators */}
-          {swipe.sortedAgents.length > 1 && swipe.swipeOffset !== 0 && (
+          {/* Swipe indicators — only mounted during drag, visible class controls opacity */}
+          {swipe.sortedAgents.length > 1 && swipe.isDragging && (
             <>
-              <div className={`swipe-indicator left ${swipe.swipeOffset > 0.3 ? 'visible' : ''}`}>
+              <div className={`swipe-indicator left ${swipe.indicatorDirection === 'right' ? 'visible' : ''}`}>
                 <span className="indicator-icon"><Icon name="arrow-left" size={14} /></span>
-                <span className="indicator-name">{swipe.nextAgent?.name}</span>
-              </div>
-              <div className={`swipe-indicator right ${swipe.swipeOffset < -0.3 ? 'visible' : ''}`}>
                 <span className="indicator-name">{swipe.prevAgent?.name}</span>
+              </div>
+              <div className={`swipe-indicator right ${swipe.indicatorDirection === 'left' ? 'visible' : ''}`}>
+                <span className="indicator-name">{swipe.nextAgent?.name}</span>
                 <span className="indicator-icon"><Icon name="arrow-right" size={14} /></span>
               </div>
             </>
           )}
 
           {/* Swipe dots */}
-          {swipe.sortedAgents.length > 1 && swipe.sortedAgents.length <= 8 && swipe.swipeOffset !== 0 && (
-            <div className={`swipe-dots ${Math.abs(swipe.swipeOffset) > 0.1 ? 'visible' : ''}`}>
+          {swipe.sortedAgents.length > 1 && swipe.sortedAgents.length <= 8 && swipe.isDragging && (
+            <div className="swipe-dots visible">
               {swipe.sortedAgents.map((agent, index) => (
                 <div key={agent.id} className={`swipe-dot ${index === swipe.currentAgentIndex ? 'active' : ''}`} />
               ))}

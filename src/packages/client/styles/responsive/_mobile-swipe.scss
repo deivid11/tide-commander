@@ -23,66 +23,6 @@
     min-height: 0;
     transition: none;
 
-    // `transform` and `will-change: transform` create a containing block for
-    // `position: fixed` descendants, which would break the input wrapper's
-    // viewport-relative positioning. Only apply them when actively swiping.
-    &.is-swiping,
-    &.is-animating,
-    &.swipe-out-left,
-    &.swipe-out-right,
-    &.swipe-in-left,
-    &.swipe-in-right {
-      will-change: transform, opacity;
-    }
-
-    // When swipe is cancelled or completed - animate back/out (very fast)
-    &.is-animating {
-      transition: transform 0.1s cubic-bezier(0.25, 0.46, 0.45, 0.94),
-                  opacity 0.1s ease-out;
-    }
-
-    // Swipe out animation when switching agents
-    &.swipe-out-left {
-      transform: translateX(-100%);
-      opacity: 0;
-    }
-
-    &.swipe-out-right {
-      transform: translateX(100%);
-      opacity: 0;
-    }
-
-    // Swipe in animation for new agent content (very fast)
-    &.swipe-in-left {
-      animation: swipeInFromRight 0.12s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
-    }
-
-    &.swipe-in-right {
-      animation: swipeInFromLeft 0.12s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
-    }
-  }
-
-  // Keyframes for swipe-in animations (shorter distance for snappier feel)
-  @keyframes swipeInFromRight {
-    from {
-      transform: translateX(20%);
-      opacity: 0.7;
-    }
-    to {
-      transform: translateX(0);
-      opacity: 1;
-    }
-  }
-
-  @keyframes swipeInFromLeft {
-    from {
-      transform: translateX(-20%);
-      opacity: 0.7;
-    }
-    to {
-      transform: translateX(0);
-      opacity: 1;
-    }
   }
 
   // Agent navigation indicator during swipe

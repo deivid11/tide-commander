@@ -75,7 +75,7 @@ export function createRuntimeCommandExecution(deps: RuntimeCommandExecutionDeps)
       throw new Error(`Runtime provider not initialized: ${agent.provider}`);
     }
 
-    if (!silent) {
+    if (!silent && !skipNotify) {
       notifyCommandStarted(agentId, command);
     }
 
@@ -176,12 +176,16 @@ export function createRuntimeCommandExecution(deps: RuntimeCommandExecutionDeps)
               customAgent,
               runner: getRunnerForAgent(agentId),
               onRespawn: async (retryAgentId, retryCommand, retrySystemPrompt, retryCustomAgent) => {
+                // User was already notified via command_started when the message was first sent;
+                // skip re-emitting it to prevent the duplicate message in the UI.
                 await executeCommand(
                   retryAgentId,
                   retryCommand,
                   retrySystemPrompt,
                   false,
-                  retryCustomAgent as CustomAgentConfig | undefined
+                  retryCustomAgent as CustomAgentConfig | undefined,
+                  undefined,
+                  true // skipNotify: command_started already broadcast on initial send
                 );
               },
             });

@@ -23,7 +23,8 @@ export interface TerminalHeaderProps {
   selectedAgent: Agent;
   selectedAgentId: string;
   sortedAgents: Agent[];
-  swipeOffset: number;
+  isSwipingLeft: boolean;
+  isSwipingRight: boolean;
   viewMode: ViewMode;
   setViewMode: (mode: ViewMode) => void;
   searchMode: boolean;
@@ -80,7 +81,8 @@ export const TerminalHeader = memo(function TerminalHeader({
   selectedAgent,
   selectedAgentId,
   sortedAgents,
-  swipeOffset,
+  isSwipingLeft,
+  isSwipingRight,
   viewMode,
   setViewMode,
   searchMode,
@@ -239,7 +241,7 @@ export const TerminalHeader = memo(function TerminalHeader({
 
   return (
     <div
-      className={`guake-header ${sortedAgents.length > 1 ? 'has-multiple-agents' : ''} ${swipeOffset > 0.1 ? 'swiping-right' : ''} ${swipeOffset < -0.1 ? 'swiping-left' : ''}`}
+      className={`guake-header ${sortedAgents.length > 1 ? 'has-multiple-agents' : ''} ${isSwipingRight ? 'swiping-right' : ''} ${isSwipingLeft ? 'swiping-left' : ''}`}
       ref={headerRef}
       style={agentArea ? { borderBottomColor: `color-mix(in srgb, ${agentArea.color} 50%, var(--border-color))` } as React.CSSProperties : undefined}
     >
