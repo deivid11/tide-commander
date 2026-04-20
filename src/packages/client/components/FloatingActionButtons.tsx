@@ -131,7 +131,7 @@ export const FloatingActionButtons = memo(function FloatingActionButtons({
           onClick={onNewArea}
           aria-label={t('common:agentBar.drawNewArea')}
         >
-          <span className="fab-spawn-icon"><Icon name="grid" size={18} /></span>
+          <span className="fab-spawn-icon"><Icon name="class-architect" size={18} /></span>
         </button>
       </Tooltip>
     </>
