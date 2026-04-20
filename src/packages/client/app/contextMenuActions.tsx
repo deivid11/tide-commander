@@ -1,7 +1,9 @@
+import React from 'react';
 import { store } from '../store';
 import type { SceneManager } from '../scene/SceneManager';
 import type { ContextMenuAction } from '../components/ContextMenu';
 import type { ToastType } from '../components/Toast';
+import { Icon } from '../components/Icon';
 import type { Agent, DrawingArea as Area, Building } from '../../shared/types';
 import { organizeArea } from '../api/area-layout';
 import type { OrganizeResult } from '../api/area-layout';
@@ -73,7 +75,7 @@ export function buildContextMenuActions(
       actions.push({
         id: 'select-agent',
         label: `Select ${agent.name}`,
-        icon: '👆',
+        icon: <Icon name="hand-point" size={14} />,
         onClick: () => {
           store.selectAgent(target.id!);
           callbacks.sceneRef.current?.refreshSelectionVisuals();
@@ -82,7 +84,7 @@ export function buildContextMenuActions(
       actions.push({
         id: 'focus-agent',
         label: 'Focus Camera',
-        icon: '🎯',
+        icon: <Icon name="target" size={14} />,
         onClick: () => {
           callbacks.sceneRef.current?.focusAgent(target.id!);
         },
@@ -90,7 +92,7 @@ export function buildContextMenuActions(
       actions.push({
         id: 'open-terminal',
         label: 'Open Terminal',
-        icon: '💬',
+        icon: <Icon name="chat" size={14} />,
         onClick: () => {
           store.selectAgent(target.id!);
           store.setTerminalOpen(true);
@@ -99,7 +101,7 @@ export function buildContextMenuActions(
       actions.push({
         id: 'edit-agent',
         label: 'Edit Agent',
-        icon: '✏️',
+        icon: <Icon name="edit" size={14} />,
         onClick: () => {
           callbacks.openAgentEditModal(target.id!);
         },
@@ -108,7 +110,7 @@ export function buildContextMenuActions(
       actions.push({
         id: 'delete-agent',
         label: `Remove ${agent.name}`,
-        icon: '❌',
+        icon: <Icon name="failure" size={14} />,
         danger: true,
         onClick: () => {
           store.removeAgentFromServer(target.id!);
@@ -127,7 +129,7 @@ export function buildContextMenuActions(
       actions.push({
         id: 'select-area',
         label: `Select "${area.name}"`,
-        icon: '📐',
+        icon: <Icon name="class-architect" size={14} />,
         onClick: () => {
           store.selectArea(target.id!);
           callbacks.openToolboxModal();
@@ -137,7 +139,7 @@ export function buildContextMenuActions(
         actions.push({
           id: 'open-explorer',
           label: 'Open File Explorer',
-          icon: '📁',
+          icon: <Icon name="folder" size={14} />,
           onClick: () => {
             callbacks.openExplorerModal(target.id!);
           },
@@ -146,7 +148,7 @@ export function buildContextMenuActions(
       actions.push({
         id: 'spawn-in-area',
         label: 'Spawn Agent',
-        icon: '🤖',
+        icon: <Icon name="robot" size={14} />,
         onClick: () => {
           window.dispatchEvent(
             new CustomEvent('tide:open-spawn-modal', {
@@ -159,7 +161,7 @@ export function buildContextMenuActions(
       actions.push({
         id: 'bring-to-front',
         label: 'Bring to Front',
-        icon: '⬆️',
+        icon: <Icon name="arrow-up" size={14} />,
         onClick: () => {
           store.bringAreaToFront(target.id!);
           callbacks.sceneRef.current?.syncAreas();
@@ -168,7 +170,7 @@ export function buildContextMenuActions(
       actions.push({
         id: 'send-to-back',
         label: 'Send to Back',
-        icon: '⬇️',
+        icon: <Icon name="arrow-down" size={14} />,
         onClick: () => {
           store.sendAreaToBack(target.id!);
           callbacks.sceneRef.current?.syncAreas();
@@ -179,7 +181,7 @@ export function buildContextMenuActions(
         actions.push({
           id: 'organize-area',
           label: 'Organize Area',
-          icon: '✨',
+          icon: <Icon name="sparkle" size={14} />,
           onClick: () => {
             organizeArea(target.id!)
               .then((result) => {
@@ -197,7 +199,7 @@ export function buildContextMenuActions(
       actions.push({
         id: 'archive-area',
         label: `Archive "${area.name}"`,
-        icon: '📦',
+        icon: <Icon name="package" size={14} />,
         onClick: () => {
           const agentCount = area.assignedAgentIds.length;
           // Use stopAgent instead of killAgent so agents are preserved for restore
@@ -211,7 +213,7 @@ export function buildContextMenuActions(
       actions.push({
         id: 'delete-area',
         label: `Delete "${area.name}"`,
-        icon: '🗑️',
+        icon: <Icon name="trash" size={14} />,
         danger: true,
         onClick: () => {
           store.deleteArea(target.id!);
@@ -230,7 +232,7 @@ export function buildContextMenuActions(
       actions.push({
         id: 'select-building',
         label: `Select "${building.name}"`,
-        icon: '🏢',
+        icon: <Icon name="buildings" size={14} />,
         onClick: () => {
           store.selectBuilding(target.id!);
           callbacks.openToolboxModal();
@@ -239,7 +241,7 @@ export function buildContextMenuActions(
       actions.push({
         id: 'edit-building',
         label: 'Edit Building',
-        icon: '✏️',
+        icon: <Icon name="edit" size={14} />,
         onClick: () => {
           callbacks.openBuildingModal(target.id!);
         },
@@ -247,7 +249,7 @@ export function buildContextMenuActions(
       actions.push({
         id: 'clone-building',
         label: 'Clone Building',
-        icon: '📋',
+        icon: <Icon name="clipboard" size={14} />,
         onClick: () => {
           // Clone the building with offset position
           const cloneData = {
@@ -277,7 +279,7 @@ export function buildContextMenuActions(
         actions.push({
           id: 'open-folder',
           label: 'Open Folder',
-          icon: '📁',
+          icon: <Icon name="folder" size={14} />,
           onClick: () => {
             store.openFileExplorer(building.folderPath!);
           },
@@ -287,7 +289,7 @@ export function buildContextMenuActions(
       actions.push({
         id: 'delete-building',
         label: `Delete "${building.name}"`,
-        icon: '🗑️',
+        icon: <Icon name="trash" size={14} />,
         danger: true,
         onClick: () => {
           callbacks.requestBuildingDelete(target.id!);
@@ -301,7 +303,7 @@ export function buildContextMenuActions(
   actions.push({
     id: 'spawn-agent',
     label: 'Spawn Agent Here',
-    icon: '🤖',
+    icon: <Icon name="robot" size={14} />,
     shortcut: 'N',
     onClick: () => {
       callbacks.setSpawnPosition(worldPos);
@@ -311,7 +313,7 @@ export function buildContextMenuActions(
   actions.push({
     id: 'spawn-boss',
     label: 'Spawn Boss Here',
-    icon: '👑',
+    icon: <Icon name="crown" size={14} />,
     onClick: () => {
       callbacks.setSpawnPosition(worldPos);
       callbacks.openBossSpawnModal();
@@ -321,7 +323,7 @@ export function buildContextMenuActions(
   actions.push({
     id: 'draw-area',
     label: 'Draw Area',
-    icon: '📐',
+    icon: <Icon name="class-architect" size={14} />,
     onClick: () => {
       callbacks.sceneRef.current?.setDrawingTool('rectangle');
       if (typeof window !== 'undefined' && (window as any).__tideScene2D_setDrawingTool) {
@@ -333,7 +335,7 @@ export function buildContextMenuActions(
   actions.push({
     id: 'new-building',
     label: 'Place Building',
-    icon: '🏢',
+    icon: <Icon name="buildings" size={14} />,
     onClick: () => {
       callbacks.openBuildingModal(null);
     },
@@ -344,7 +346,7 @@ export function buildContextMenuActions(
     actions.push({
       id: 'restore-archived',
       label: `Restore Archived Zone (${archivedCount})`,
-      icon: '📦',
+      icon: <Icon name="package" size={14} />,
       onClick: () => {
         callbacks.openRestoreArchivedModal(worldPos);
       },
@@ -354,7 +356,7 @@ export function buildContextMenuActions(
   actions.push({
     id: 'open-settings',
     label: 'Settings',
-    icon: '⚙️',
+    icon: <Icon name="gear" size={14} />,
     onClick: () => {
       callbacks.openToolboxModal();
     },
@@ -362,7 +364,7 @@ export function buildContextMenuActions(
   actions.push({
     id: 'open-commander',
     label: 'Commander View',
-    icon: '📊',
+    icon: <Icon name="dashboard" size={14} />,
     shortcut: '⌘K',
     onClick: () => {
       callbacks.openCommanderModal();

@@ -13,6 +13,7 @@ import { PastedTextChip } from './PastedTextChip';
 import { useSTT } from '../../hooks/useSTT';
 import type { Agent, PermissionRequest } from '../../../shared/types';
 import type { AttachedFile } from './types';
+import { Icon } from '../Icon';
 
 /**
  * Isolated elapsed timer component — owns its own 1-second setInterval so the
@@ -52,7 +53,7 @@ const ElapsedTimer = memo(function ElapsedTimer({
         onClick={() => store.stopAgent(agentId)}
         title={t('terminal:input.stopOperation')}
       >
-        <span className="stop-icon">■</span>
+        <span className="stop-icon"><Icon name="stop" size={12} weight="fill" /></span>
         <span className="stop-label">{t('terminal:input.stop')}</span>
       </button>
     </div>
@@ -831,7 +832,7 @@ export const TerminalInputArea = memo(function TerminalInputArea({
                 onClick={() => fileInputRef.current?.click()}
                 title={t('terminal:input.attachOrPaste')}
               >
-                📎
+                <Icon name="paperclip" size={14} />
               </button>
               {settings.experimentalTTS && (
                 <button
@@ -840,7 +841,7 @@ export const TerminalInputArea = memo(function TerminalInputArea({
                   title={recording ? t('terminal:input.stopRecording') : transcribing ? t('terminal:input.transcribing') : t('terminal:input.voiceInput')}
                   disabled={transcribing}
                 >
-                  {transcribing ? '⏳' : recording ? '🔴' : '🎤'}
+                  <Icon name={transcribing ? 'hourglass' : recording ? 'record' : 'microphone'} size={14} color={recording ? '#ef4444' : undefined} />
                 </button>
               )}
               {useTextarea ? (
@@ -870,7 +871,7 @@ export const TerminalInputArea = memo(function TerminalInputArea({
                 />
               )}
               <button onClick={handleSendCommand} disabled={!command.trim() && attachedFiles.length === 0} title={t('terminal:input.send')}>
-                ➤
+                <Icon name="send" size={14} />
               </button>
             </div>
           </div>

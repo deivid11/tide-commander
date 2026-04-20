@@ -108,6 +108,7 @@ export {
   useCustomAgentNames,
   useShortcuts,
   useTerminalOpen,
+  useTerminalExpandRequest,
   useMobileView,
   useFileViewerPath,
   useFileViewerEditData,
@@ -214,6 +215,7 @@ class Store
       fileChanges: [],
       terminalOpen: false,
       terminalResizing: false,
+      terminalExpandRequest: 0,
       mobileView: this.loadMobileView(),
       settings: this.loadSettings(),
       shortcuts: this.loadShortcuts(),
@@ -449,6 +451,13 @@ class Store
         this.state.mobileView = '3d';
       }
     }
+    this.notify();
+  }
+
+  requestTerminalExpand(): void {
+    this.state.terminalOpen = true;
+    this.state.mobileView = 'terminal';
+    this.state.terminalExpandRequest += 1;
     this.notify();
   }
 

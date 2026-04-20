@@ -60,6 +60,14 @@ export function useSwipeGesture(
   const handleTouchStart = useCallback((e: TouchEvent) => {
     if (e.touches.length !== 1) return;
 
+    // If the touch starts inside a horizontally scrollable element (e.g. code blocks,
+    // long lines), let the browser handle horizontal scroll — don't track for swipe.
+    let el = e.target as Element | null;
+    while (el && el !== ref.current) {
+      if (el.scrollWidth > el.clientWidth) return;
+      el = el.parentElement;
+    }
+
     const touch = e.touches[0];
     touchStateRef.current = {
       startX: touch.clientX,
@@ -68,7 +76,7 @@ export function useSwipeGesture(
       isTracking: true,
       hasMovedEnough: false,
     };
-  }, []);
+  }, [ref]);
 
   const handleTouchMove = useCallback((e: TouchEvent) => {
     if (!touchStateRef.current.isTracking || e.touches.length !== 1) return;

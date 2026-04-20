@@ -8,6 +8,7 @@ import { STORAGE_KEYS, getStorageString, setStorageString, apiUrl } from '../uti
 import { ModelPreview } from './ModelPreview';
 import { FolderInput } from './shared/FolderInput';
 import { AgentIcon } from './AgentIcon';
+import { Icon } from './Icon';
 
 interface BossSpawnModalProps {
   isOpen: boolean;
@@ -480,7 +481,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                     onClick={() => setSelectedProvider('opencode')}
                     title="Use OpenCode CLI (multi-provider)"
                   >
-                    <span>🟢</span>
+                    <span><Icon name="status-pending" size={14} weight="fill" color="#4ade80" /></span>
                     <span>OpenCode</span>
                   </button>
                 </div>
@@ -495,7 +496,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                       onClick={() => setPermissionMode(mode)}
                       title={PERMISSION_MODES[mode].description}
                     >
-                      <span>{mode === 'bypass' ? '⚡' : '🔐'}</span>
+                      <span><Icon name={mode === 'bypass' ? 'bolt' : 'lock'} size={14} /></span>
                       <span>{PERMISSION_MODES[mode].label}</span>
                     </button>
                   ))}
@@ -645,7 +646,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                         onClick={() => toggleSkill(skill.id)}
                         title={skill.description}
                       >
-                        {isSelected && <span className="spawn-skill-check">✓</span>}
+                        {isSelected && <span className="spawn-skill-check"><Icon name="check" size={12} /></span>}
                         <span>{skill.name}</span>
                         {skill.builtin && <span className="spawn-skill-builtin">TC</span>}
                       </button>
@@ -692,7 +693,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                         className={`subordinate-chip ${isSelected ? 'selected' : ''}`}
                         onClick={() => toggleSubordinate(agent.id)}
                       >
-                        {isSelected && <span className="subordinate-check">✓</span>}
+                        {isSelected && <span className="subordinate-check"><Icon name="check" size={12} /></span>}
                         <span className="subordinate-chip-icon" style={{ color: classConfig.color }}>
                           <AgentIcon classId={agent.class} size={16} />
                         </span>

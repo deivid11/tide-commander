@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { fetchSystemPrompt, updateSystemPrompt, clearSystemPrompt } from '../../api/system-settings';
 import '../styles/system-prompt-section.scss';
+import { Icon } from '../Icon';
 
 interface SystemPromptSectionProps {
   searchQuery?: string;
@@ -100,14 +101,14 @@ export const SystemPromptSection: React.FC<SystemPromptSectionProps> = ({ search
         <div className="section-content">
           {error && (
             <div className="alert alert-error">
-              <span className="alert-icon">⚠️</span>
+              <span className="alert-icon"><Icon name="warn" size={14} /></span>
               {error}
             </div>
           )}
 
           {success && (
             <div className="alert alert-success">
-              <span className="alert-icon">✓</span>
+              <span className="alert-icon"><Icon name="check" size={14} /></span>
               {success}
             </div>
           )}

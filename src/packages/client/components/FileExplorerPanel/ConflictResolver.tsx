@@ -8,6 +8,7 @@
 import React, { memo, useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Prism, getLanguageForExtension } from './syntaxHighlighting';
+import { Icon } from '../Icon';
 
 // ============================================================================
 // TYPES
@@ -227,13 +228,13 @@ export const ConflictResolver = memo(function ConflictResolver({
         {totalConflicts > 0 && (
           <div className="conflict-nav">
             <button className="conflict-nav-btn" onClick={handlePrevConflict} title={t('terminal:fileExplorer.prevConflict')}>
-              ▲
+              <Icon name="caret-up" size={10} />
             </button>
             <span className="conflict-nav-counter">
               {activeConflictIdx + 1} / {totalConflicts}
             </span>
             <button className="conflict-nav-btn" onClick={handleNextConflict} title={t('terminal:fileExplorer.nextConflict')}>
-              ▼
+              <Icon name="caret-down" size={10} />
             </button>
           </div>
         )}

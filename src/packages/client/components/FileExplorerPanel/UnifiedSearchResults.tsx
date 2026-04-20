@@ -8,6 +8,7 @@ import React, { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TreeNode, ContentMatch } from './types';
 import { getFileIcon, findMatchIndices } from './fileUtils';
+import { Icon } from '../Icon';
 
 // ============================================================================
 // HIGHLIGHT MATCH COMPONENT
@@ -84,7 +85,7 @@ const FilenameResultItem = memo(function FilenameResultItem({
       onClick={() => onSelect(node)}
     >
       {node.isDirectory ? (
-        <span className="search-result-icon">📁</span>
+        <span className="search-result-icon"><Icon name="folder" size={14} /></span>
       ) : iconPath ? (
         <span
           className="search-result-icon"
@@ -93,7 +94,7 @@ const FilenameResultItem = memo(function FilenameResultItem({
           aria-label="file icon"
         />
       ) : (
-        <span className="search-result-icon">📄</span>
+        <span className="search-result-icon"><Icon name="file-text" size={14} /></span>
       )}
       <div className="search-result-info">
         <span className="search-result-name">
@@ -151,7 +152,7 @@ const ContentResultItem = memo(function ContentResultItem({
             aria-label="file icon"
           />
         ) : (
-          <span className="content-search-icon">📄</span>
+          <span className="content-search-icon"><Icon name="file-text" size={14} /></span>
         )}
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '2px' }}>
           <span className="content-search-name">{filename}</span>
@@ -224,7 +225,7 @@ function UnifiedSearchResultsComponent({
       {hasFilenameResults && (
         <div className="unified-search-section">
           <div className="unified-search-section-header">
-            <span className="unified-search-section-icon">📄</span>
+            <span className="unified-search-section-icon"><Icon name="file-text" size={14} /></span>
             <span className="unified-search-section-title">{t('terminal:fileExplorer.files')}</span>
             <span className="unified-search-section-count">{filenameResults.length}</span>
           </div>
@@ -247,7 +248,7 @@ function UnifiedSearchResultsComponent({
       {hasContentResults && (
         <div className="unified-search-section">
           <div className="unified-search-section-header">
-            <span className="unified-search-section-icon">📝</span>
+            <span className="unified-search-section-icon"><Icon name="edit" size={14} /></span>
             <span className="unified-search-section-title">{t('terminal:fileExplorer.content')}</span>
             <span className="unified-search-section-count">
               {t('terminal:fileExplorer.matchesInFiles', { matches: contentResults.reduce((sum, r) => sum + r.matches.length, 0), files: contentResults.length })}

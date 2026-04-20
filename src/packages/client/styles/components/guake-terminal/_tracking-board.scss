@@ -4,6 +4,42 @@
   .guake-content {
     margin-right: var(--guake-side-panel-width);
   }
+
+  // When tracking board coexists with git/buildings/workflow panels,
+  // shift it to a second column to the left of those panels.
+  &.with-git-panel,
+  &.with-buildings-panel,
+  &.with-workflow-panel {
+    .guake-content {
+      margin-right: calc(2 * var(--guake-side-panel-width));
+    }
+
+    .guake-tracking-board-panel {
+      right: var(--guake-side-panel-width);
+      border-right: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
+    }
+  }
+}
+
+@media (max-width: 768px) {
+  .guake-terminal.with-tracking-board {
+    .guake-content {
+      margin-right: 0;
+    }
+
+    &.with-git-panel,
+    &.with-buildings-panel,
+    &.with-workflow-panel {
+      .guake-content {
+        margin-right: 0;
+      }
+
+      .guake-tracking-board-panel {
+        right: 0;
+        border-right: none;
+      }
+    }
+  }
 }
 
 .guake-tracking-board-panel {
@@ -211,6 +247,7 @@
   gap: 3px;
   padding: 4px;
   min-height: 48px;
+  max-height: clamp(150px, 55vh, 500px);
   overflow-y: auto;
 }
 
@@ -236,7 +273,8 @@
   cursor: pointer;
   position: relative;
   isolation: isolate;
-  overflow: hidden;
+  overflow: visible;
+  min-height: 60px;
   transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
 
   &:hover {
@@ -258,6 +296,7 @@
 }
 
 .tracking-board-column--working .tracking-board-card {
+  overflow: hidden;
   border-color: color-mix(in srgb, var(--accent-green) 35%, var(--border-color));
   background: color-mix(in srgb, var(--accent-green) 10%, var(--bg-secondary));
   animation: tracking-board-card-breathe 2.4s ease-in-out infinite;

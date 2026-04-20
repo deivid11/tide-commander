@@ -14,6 +14,7 @@ import type { EditData } from './types';
 import { useFilteredOutputs } from '../shared/useFilteredOutputs';
 import { createMarkdownComponents } from './MarkdownComponents';
 import { OutputLine } from './OutputLine';
+import { Icon, type IconName } from '../Icon';
 
 interface AgentProgressIndicatorProps {
   progress: AgentTaskProgress;
@@ -58,10 +59,10 @@ export function AgentProgressIndicator({
     failed: '#ef4444',
   };
 
-  const statusIcons: Record<string, string> = {
-    working: '⚙️',
-    completed: '✅',
-    failed: '❌',
+  const statusIcons: Record<string, IconName> = {
+    working: 'gear',
+    completed: 'success',
+    failed: 'failure',
   };
 
   const { t } = useTranslation(['tools']);
@@ -104,7 +105,7 @@ export function AgentProgressIndicator({
     >
       <div className="agent-progress-header" onClick={handleToggle}>
         <span className="agent-progress-status-icon" style={{ color: statusColors[progress.status] }}>
-          {statusIcons[progress.status]}
+          <Icon name={statusIcons[progress.status]} size={14} />
         </span>
         <span
           className="agent-progress-agent-name"
@@ -133,7 +134,7 @@ export function AgentProgressIndicator({
             ×
           </span>
         )}
-        <span className="agent-progress-toggle">{isExpanded ? '▼' : '▶'}</span>
+        <span className="agent-progress-toggle"><Icon name={isExpanded ? 'caret-down' : 'caret-right'} size={10} /></span>
       </div>
       {!isExpanded && <div className="agent-progress-task-preview">{truncatedTask}</div>}
       {isExpanded && (

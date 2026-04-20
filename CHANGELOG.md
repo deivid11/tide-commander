@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.55.0] - 2026-04-19
+
+### Added
+- **Icon component** — new `Icon` component (`src/packages/client/components/Icon.tsx`) providing a unified icon system; built-in agent class icons (scout, builder, debugger, architect, warrior, support, boss) now render via `Icon` instead of emoji fallbacks in `AgentIcon`
+- **New store selectors** — added `src/packages/client/store/selectors.ts` with reusable Redux selectors for agent class lookups
+
+### Changed
+- **Reliable mid-turn message delivery** — messages sent to an agent that is currently processing are now queued and delivered via `drainMessageQueue` once the turn completes, preventing silent drops that occurred when writing to stdin mid-turn
+- **Spotlight and context menu files converted to `.tsx`** — `useSpotlightSearch`, `utils`, and `contextMenuActions` migrated from `.ts` to `.tsx` for JSX support
+
+### Fixed
+- Various UI component refinements across terminal output, tracking board, git panel, and mobile styles
+
 ## [1.54.1] - 2026-04-18
 
 ### Fixed

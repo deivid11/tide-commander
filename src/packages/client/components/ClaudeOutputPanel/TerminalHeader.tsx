@@ -16,6 +16,7 @@ import type { ViewMode } from './types';
 import { VIEW_MODES } from './types';
 import { themes, getTheme, applyTheme, getSavedTheme, type ThemeId } from '../../utils/themes';
 import { AgentIcon } from '../AgentIcon';
+import { Icon } from '../Icon';
 import { useTwoClickConfirm } from '../../hooks';
 
 export interface TerminalHeaderProps {
@@ -187,7 +188,11 @@ export const TerminalHeader = memo(function TerminalHeader({
     : viewMode === 'chat'
       ? t('terminal:header.chatView')
       : t('terminal:header.advancedView');
-  const viewModeIcon = viewMode === 'simple' ? '○' : viewMode === 'chat' ? '◐' : '◉';
+  const viewModeIconEl = viewMode === 'simple'
+    ? <Icon name="status-pending" size={14} />
+    : viewMode === 'chat'
+      ? <Icon name="status-pending" size={14} weight="duotone" />
+      : <Icon name="target" size={14} />;
 
   const closeDesktopMenu = useCallback(() => {
     setDesktopMenuOpen(false);
@@ -244,7 +249,7 @@ export const TerminalHeader = memo(function TerminalHeader({
             <Tooltip
               content={
                 <>
-                  <div className="tide-tooltip__title">🔄 Reattaching Session...</div>
+                  <div className="tide-tooltip__title"><Icon name="refresh" size={14} /> Reattaching Session...</div>
                   <div className="tide-tooltip__text">
                     This agent's Claude process is running independently. Tide Commander is automatically
                     attempting to reattach to the existing session. If reattachment fails, send a new message
@@ -258,7 +263,7 @@ export const TerminalHeader = memo(function TerminalHeader({
               className="tide-tooltip--detached"
             >
               <span className="guake-detached-badge" title="Agent is detached - reattaching...">
-                <span className="guake-detached-spinner">🔄</span>
+                <span className="guake-detached-spinner"><Icon name="refresh" size={12} /></span>
               </span>
             </Tooltip>
           )}
@@ -342,7 +347,7 @@ export const TerminalHeader = memo(function TerminalHeader({
             title="Back (Alt+Left)"
             disabled={!canNavigateBack}
           >
-            <span className="guake-action-icon">←</span>
+            <span className="guake-action-icon"><Icon name="arrow-left" size={14} /></span>
           </button>
           <button
             className="guake-icon-action guake-nav-btn"
@@ -350,7 +355,7 @@ export const TerminalHeader = memo(function TerminalHeader({
             title="Forward (Alt+Right)"
             disabled={!canNavigateForward}
           >
-            <span className="guake-action-icon">→</span>
+            <span className="guake-action-icon"><Icon name="arrow-right" size={14} /></span>
           </button>
           {setOverviewPanelOpen && (
             <button
@@ -358,7 +363,7 @@ export const TerminalHeader = memo(function TerminalHeader({
               onClick={() => setOverviewPanelOpen(!overviewPanelOpen)}
               title={overviewPanelOpen ? t('terminal:header.hideOverview') : t('terminal:header.showOverview')}
             >
-              <span className="guake-action-icon">📊</span>
+              <span className="guake-action-icon"><Icon name="dashboard" size={16} /></span>
             </button>
           )}
           {setGitPanelOpen && (
@@ -367,7 +372,7 @@ export const TerminalHeader = memo(function TerminalHeader({
               onClick={() => setGitPanelOpen(!gitPanelOpen)}
               title={gitPanelOpen ? 'Hide Git Changes' : 'Show Git Changes'}
             >
-              <span className="guake-action-icon">🌿</span>
+              <span className="guake-action-icon"><Icon name="git-branch" size={16} /></span>
             </button>
           )}
           {hasWorkflow && setWorkflowPanelOpen && (
@@ -376,7 +381,7 @@ export const TerminalHeader = memo(function TerminalHeader({
               onClick={() => setWorkflowPanelOpen(!workflowPanelOpen)}
               title={workflowPanelOpen ? 'Hide Workflow' : 'Show Workflow'}
             >
-              <span className="guake-action-icon">🔄</span>
+              <span className="guake-action-icon"><Icon name="refresh" size={16} /></span>
             </button>
           )}
           {setTrackingBoardVisible && (
@@ -385,7 +390,7 @@ export const TerminalHeader = memo(function TerminalHeader({
               onClick={() => setTrackingBoardVisible(!trackingBoardVisible)}
               title={trackingBoardVisible ? 'Hide Tracking Board' : 'Show Tracking Board'}
             >
-              <span className="guake-action-icon">▥</span>
+              <span className="guake-action-icon"><Icon name="list-checks" size={16} /></span>
             </button>
           )}
           <button
@@ -393,21 +398,21 @@ export const TerminalHeader = memo(function TerminalHeader({
             onClick={onToggleFullscreen}
             title={isFullscreen ? t('terminal:header.exitFullscreen') : t('terminal:header.enterFullscreen')}
           >
-            <span className="guake-action-icon">{isFullscreen ? '🗗' : '⛶'}</span>
+            <span className="guake-action-icon"><Icon name={isFullscreen ? 'exit-fullscreen' : 'fullscreen'} size={16} /></span>
           </button>
           <button
             className={`guake-icon-action guake-search-toggle ${searchMode ? 'active' : ''}`}
             onClick={handleSearchToggle}
             title={t('terminal:header.search')}
           >
-            <span className="guake-action-icon">🔍</span>
+            <span className="guake-action-icon"><Icon name="search" size={16} /></span>
           </button>
           <button
             className={`guake-icon-action danger${isClearContextPending ? ' confirm-pending' : ''}`}
             onClick={() => clearContextConfirm.handleClick(clearContextConfirmId, onClearContextDirect)}
             title={isClearContextPending ? t('terminal:header.clearContextConfirm', { defaultValue: 'Click again to confirm' }) : t('terminal:header.clearContext')}
           >
-            <span className="guake-action-icon">{isClearContextPending ? '?' : '🧹'}</span>
+            <span className="guake-action-icon">{isClearContextPending ? <Icon name="question" size={16} /> : <Icon name="clear" size={16} />}</span>
           </button>
         </div>
         {/* Desktop kebab menu - view toggle + context actions + less-used toggles */}
@@ -425,7 +430,7 @@ export const TerminalHeader = memo(function TerminalHeader({
                 className="guake-desktop-menu-item"
                 onClick={() => { handleViewModeToggle(); closeDesktopMenu(); }}
               >
-                <span className="guake-desktop-menu-icon">{viewModeIcon}</span>
+                <span className="guake-desktop-menu-icon">{viewModeIconEl}</span>
                 View: {viewModeLabel}
               </button>
               {setBuildingsPanelOpen && (
@@ -433,7 +438,7 @@ export const TerminalHeader = memo(function TerminalHeader({
                     className={`guake-desktop-menu-item ${buildingsPanelOpen ? 'active' : ''}`}
                     onClick={() => { setBuildingsPanelOpen(!buildingsPanelOpen); closeDesktopMenu(); }}
                   >
-                    <span className="guake-desktop-menu-icon">🏗️</span>
+                    <span className="guake-desktop-menu-icon"><Icon name="package" size={16} /></span>
                     {buildingsPanelOpen ? 'Hide Buildings' : 'Show Buildings'}
                   </button>
                 )}
@@ -441,7 +446,7 @@ export const TerminalHeader = memo(function TerminalHeader({
                   className={`guake-desktop-menu-item ${debugPanelOpen ? 'active' : ''}`}
                   onClick={() => { handleDebugToggle(); closeDesktopMenu(); }}
                 >
-                  <span className="guake-desktop-menu-icon">🐛</span>
+                  <span className="guake-desktop-menu-icon"><Icon name="bug" size={16} /></span>
                   {debugPanelOpen ? t('terminal:header.hideDebug') : t('terminal:header.showDebug')}
                 </button>
                 <div className="guake-desktop-menu-divider" />
@@ -450,7 +455,7 @@ export const TerminalHeader = memo(function TerminalHeader({
                   onClick={() => { setContextConfirm('collapse'); closeDesktopMenu(); }}
                   disabled={selectedAgent.status !== 'idle'}
                 >
-                  <span className="guake-desktop-menu-icon">📦</span>
+                  <span className="guake-desktop-menu-icon"><Icon name="package" size={16} /></span>
                   {t('terminal:header.collapseContext')}
                 </button>
                 {hasSubordinates && (
@@ -458,7 +463,7 @@ export const TerminalHeader = memo(function TerminalHeader({
                     className="guake-desktop-menu-item danger"
                     onClick={() => { setContextConfirm('clear-subordinates'); closeDesktopMenu(); }}
                   >
-                    <span className="guake-desktop-menu-icon">👑</span>
+                    <span className="guake-desktop-menu-icon"><Icon name="crown" size={16} /></span>
                     {t('terminal:header.clearAllSubordinates')}
                   </button>
                 )}
@@ -467,7 +472,7 @@ export const TerminalHeader = memo(function TerminalHeader({
                   className="guake-desktop-menu-item danger"
                   onClick={() => { handleRemoveAgent(); closeDesktopMenu(); }}
                 >
-                  <span className="guake-desktop-menu-icon">❌</span>
+                  <span className="guake-desktop-menu-icon"><Icon name="cross" size={16} /></span>
                   {t('terminal:header.removeAgent')}
                 </button>
               </div>
@@ -489,7 +494,7 @@ export const TerminalHeader = memo(function TerminalHeader({
                   onClick={() => { onNavigateBack?.(); closeMobileMenu(); }}
                   disabled={!canNavigateBack}
                 >
-                  <span className="guake-mobile-menu-icon">←</span>
+                  <span className="guake-mobile-menu-icon"><Icon name="arrow-left" size={16} /></span>
                   Back
                 </button>
                 <button
@@ -497,7 +502,7 @@ export const TerminalHeader = memo(function TerminalHeader({
                   onClick={() => { onNavigateForward?.(); closeMobileMenu(); }}
                   disabled={!canNavigateForward}
                 >
-                  <span className="guake-mobile-menu-icon">→</span>
+                  <span className="guake-mobile-menu-icon"><Icon name="arrow-right" size={16} /></span>
                   Forward
                 </button>
                 <button
@@ -505,7 +510,11 @@ export const TerminalHeader = memo(function TerminalHeader({
                   onClick={() => { handleViewModeToggle(); closeMobileMenu(); }}
                 >
                   <span className="guake-mobile-menu-icon">
-                    {viewMode === 'simple' ? '○' : viewMode === 'chat' ? '◐' : '◉'}
+                    {viewMode === 'simple'
+                      ? <Icon name="status-pending" size={12} />
+                      : viewMode === 'chat'
+                        ? <Icon name="status-pending" size={12} weight="duotone" />
+                        : <Icon name="target" size={12} />}
                   </span>
                   {viewMode === 'simple'
                     ? t('terminal:header.simpleView')
@@ -518,7 +527,7 @@ export const TerminalHeader = memo(function TerminalHeader({
                     className="guake-mobile-menu-item"
                     onClick={() => { store.clearOutputs(selectedAgentId); closeMobileMenu(); }}
                   >
-                    <span className="guake-mobile-menu-icon">🗑</span>
+                    <span className="guake-mobile-menu-icon"><Icon name="trash" size={16} /></span>
                     {t('terminal:header.clearOutput')}
                   </button>
                 )}
@@ -526,14 +535,14 @@ export const TerminalHeader = memo(function TerminalHeader({
                   className={`guake-mobile-menu-item ${isFullscreen ? 'active' : ''}`}
                   onClick={() => { onToggleFullscreen?.(); closeMobileMenu(); }}
                 >
-                  <span className="guake-mobile-menu-icon">{isFullscreen ? '🗗' : '⛶'}</span>
+                  <span className="guake-mobile-menu-icon"><Icon name={isFullscreen ? 'exit-fullscreen' : 'fullscreen'} size={16} /></span>
                   {isFullscreen ? t('terminal:header.exitFullscreen') : t('terminal:header.enterFullscreen')}
                 </button>
                 <button
                   className="guake-mobile-menu-item"
                   onClick={() => { handleSearchToggle(); closeMobileMenu(); }}
                 >
-                  <span className="guake-mobile-menu-icon">{searchMode ? '✕' : '🔍'}</span>
+                  <span className="guake-mobile-menu-icon"><Icon name={searchMode ? 'cross' : 'search'} size={16} /></span>
                   {t('terminal:header.search')}
                 </button>
                 {setOverviewPanelOpen && (
@@ -541,7 +550,7 @@ export const TerminalHeader = memo(function TerminalHeader({
                     className={`guake-mobile-menu-item ${overviewPanelOpen ? 'active' : ''}`}
                     onClick={() => { setOverviewPanelOpen(!overviewPanelOpen); closeMobileMenu(); }}
                   >
-                    <span className="guake-mobile-menu-icon">📊</span>
+                    <span className="guake-mobile-menu-icon"><Icon name="dashboard" size={16} /></span>
                     {overviewPanelOpen ? t('terminal:header.hideOverview') : t('terminal:header.showOverview')}
                   </button>
                 )}
@@ -550,7 +559,7 @@ export const TerminalHeader = memo(function TerminalHeader({
                     className={`guake-mobile-menu-item ${gitPanelOpen ? 'active' : ''}`}
                     onClick={() => { setGitPanelOpen(!gitPanelOpen); closeMobileMenu(); }}
                   >
-                    <span className="guake-mobile-menu-icon">🌿</span>
+                    <span className="guake-mobile-menu-icon"><Icon name="git-branch" size={16} /></span>
                     {gitPanelOpen ? 'Hide Git Changes' : 'Show Git Changes'}
                   </button>
                 )}
@@ -559,7 +568,7 @@ export const TerminalHeader = memo(function TerminalHeader({
                     className={`guake-mobile-menu-item ${workflowPanelOpen ? 'active' : ''}`}
                     onClick={() => { setWorkflowPanelOpen(!workflowPanelOpen); closeMobileMenu(); }}
                   >
-                    <span className="guake-mobile-menu-icon">🔄</span>
+                    <span className="guake-mobile-menu-icon"><Icon name="refresh" size={16} /></span>
                     {workflowPanelOpen ? 'Hide Workflow' : 'Show Workflow'}
                   </button>
                 )}
@@ -568,7 +577,7 @@ export const TerminalHeader = memo(function TerminalHeader({
                     className={`guake-mobile-menu-item ${buildingsPanelOpen ? 'active' : ''}`}
                     onClick={() => { setBuildingsPanelOpen(!buildingsPanelOpen); closeMobileMenu(); }}
                   >
-                    <span className="guake-mobile-menu-icon">🏗️</span>
+                    <span className="guake-mobile-menu-icon"><Icon name="package" size={16} /></span>
                     {buildingsPanelOpen ? 'Hide Buildings' : 'Show Buildings'}
                   </button>
                 )}
@@ -576,16 +585,16 @@ export const TerminalHeader = memo(function TerminalHeader({
                   className={`guake-mobile-menu-item ${debugPanelOpen ? 'active' : ''}`}
                   onClick={() => { handleDebugToggle(); closeMobileMenu(); }}
                 >
-                  <span className="guake-mobile-menu-icon">🐛</span>
+                  <span className="guake-mobile-menu-icon"><Icon name="bug" size={16} /></span>
                   {debugPanelOpen ? t('terminal:header.hideDebug') : t('terminal:header.showDebug')}
                 </button>
                 <button
                   className={`guake-mobile-menu-item ${mobileThemeExpanded ? 'active' : ''}`}
                   onClick={() => setMobileThemeExpanded(!mobileThemeExpanded)}
                 >
-                  <span className="guake-mobile-menu-icon">🎨</span>
+                  <span className="guake-mobile-menu-icon"><Icon name="palette" size={16} /></span>
                   {t('terminal:themeSelector.selectTheme')}
-                  <span className="guake-mobile-theme-arrow">{mobileThemeExpanded ? '▲' : '▼'}</span>
+                  <span className="guake-mobile-theme-arrow"><Icon name={mobileThemeExpanded ? 'caret-up' : 'caret-down'} size={11} /></span>
                 </button>
                 {mobileThemeExpanded && (
                   <div className="guake-mobile-theme-list">
@@ -602,7 +611,7 @@ export const TerminalHeader = memo(function TerminalHeader({
                           }}
                         />
                         <span className="guake-mobile-theme-name">{theme.name}</span>
-                        {theme.id === currentTheme && <span className="guake-mobile-theme-check">✓</span>}
+                        {theme.id === currentTheme && <span className="guake-mobile-theme-check"><Icon name="check" size={14} /></span>}
                       </button>
                     ))}
                   </div>
@@ -613,14 +622,14 @@ export const TerminalHeader = memo(function TerminalHeader({
                   onClick={() => { setContextConfirm('collapse'); closeMobileMenu(); }}
                   disabled={selectedAgent.status !== 'idle'}
                 >
-                  <span className="guake-mobile-menu-icon">📦</span>
+                  <span className="guake-mobile-menu-icon"><Icon name="package" size={16} /></span>
                   {t('terminal:header.collapseContext')}
                 </button>
                 <button
                   className="guake-mobile-menu-item danger"
                   onClick={() => { setContextConfirm('clear'); closeMobileMenu(); }}
                 >
-                  <span className="guake-mobile-menu-icon">🧹</span>
+                  <span className="guake-mobile-menu-icon"><Icon name="clear" size={16} /></span>
                   {t('terminal:header.clearContext')}
                 </button>
                 {hasSubordinates && (
@@ -628,7 +637,7 @@ export const TerminalHeader = memo(function TerminalHeader({
                     className="guake-mobile-menu-item danger"
                     onClick={() => { setContextConfirm('clear-subordinates'); closeMobileMenu(); }}
                   >
-                    <span className="guake-mobile-menu-icon">👑🗑️</span>
+                    <span className="guake-mobile-menu-icon"><Icon name="crown" size={16} /><Icon name="trash" size={16} /></span>
                     {t('terminal:header.clearAllSubordinates')}
                   </button>
                 )}
@@ -637,7 +646,7 @@ export const TerminalHeader = memo(function TerminalHeader({
                   className="guake-mobile-menu-item danger"
                   onClick={() => { handleRemoveAgent(); closeMobileMenu(); }}
                 >
-                  <span className="guake-mobile-menu-icon">❌</span>
+                  <span className="guake-mobile-menu-icon"><Icon name="cross" size={16} /></span>
                   {t('terminal:header.removeAgent')}
                 </button>
               </div>
@@ -649,7 +658,7 @@ export const TerminalHeader = memo(function TerminalHeader({
           onClick={() => store.setMobileView('3d')}
           title={t('terminal:header.closeTerminal')}
         >
-          ✕
+          <Icon name="close" size={16} />
         </button>
       </div>
     </div>
@@ -718,7 +727,7 @@ export function SearchBar({
         disabled={matchCount === 0}
         title="Previous match (Shift+Enter)"
       >
-        ▲
+        <Icon name="caret-up" size={14} />
       </button>
       <button
         className="guake-search-nav"
@@ -726,14 +735,14 @@ export function SearchBar({
         disabled={matchCount === 0}
         title="Next match (Enter)"
       >
-        ▼
+        <Icon name="caret-down" size={14} />
       </button>
       <button
         className="guake-search-close"
         onClick={closeSearch}
         title="Close search (Escape)"
       >
-        ✕
+        <Icon name="close" size={14} />
       </button>
     </div>
   );

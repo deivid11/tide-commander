@@ -10,7 +10,7 @@ import { useHideCost, useSettings } from '../../store';
 import { store } from '../../store';
 import { BOSS_CONTEXT_START } from '../../../shared/types';
 import { filterCostText } from '../../utils/formatting';
-import { TOOL_ICONS, extractToolKeyParam, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, getTrackingStatusIcon, splitCommandForFileLinks } from '../../utils/outputRendering';
+import { getToolIconName, extractToolKeyParam, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, getTrackingStatusIcon, splitCommandForFileLinks } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
@@ -22,6 +22,7 @@ import { CurlCard } from './CurlCard';
 import { highlightText, renderContentWithImages, renderUserPromptContent } from './contentRendering';
 import { useTTS } from '../../hooks/useTTS';
 import { ansiToHtml } from '../../utils/ansiToHtml';
+import { Icon } from '../Icon';
 import type { EnrichedHistoryMessage, EditData } from './types';
 
 /** Extract file extension (with dot) from a path, e.g. '/foo/bar.tsx' → '.tsx' */
@@ -126,9 +127,9 @@ export const HistoryLine = memo(function HistoryLine({
         title={t('terminal:history.clickToExpandCollapse')}
       >
         {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr}</span>}
-        <span className="session-continuation-icon">🔗</span>
+        <span className="session-continuation-icon"><Icon name="link" size={14} /></span>
         <span className="session-continuation-label">{t('tools:display.sessionContinued')}</span>
-        <span className="session-continuation-toggle">{sessionExpanded ? '▼' : '▶'}</span>
+        <span className="session-continuation-toggle"><Icon name={sessionExpanded ? 'caret-down' : 'caret-right'} size={10} /></span>
         {sessionExpanded && (
           <div className="session-continuation-content">
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
@@ -193,7 +194,7 @@ export const HistoryLine = memo(function HistoryLine({
         title={agentId ? t('terminal:history.clickForContextStats') : undefined}
       >
         {timeStr && <span className="output-timestamp context-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span className="context-debug-hash">[{debugHash}]</span></span>}
-        <span className="context-icon">📊</span>
+        <span className="context-icon"><Icon name="dashboard" size={14} /></span>
         <span className="context-label">{t('terminal:history.contextLabel')}</span>
         <div className="context-bar">
           <div
@@ -303,7 +304,7 @@ export const HistoryLine = memo(function HistoryLine({
   };
 
   if (type === 'tool_use') {
-    const icon = TOOL_ICONS[toolName || ''] || TOOL_ICONS.default;
+    const iconName = getToolIconName(toolName || '');
     const displayToolName = toolName ? getLocalizedToolName(toolName, t) : '';
     const toolInputContent = message.toolInput ? JSON.stringify(message.toolInput) : content;
 
@@ -434,7 +435,7 @@ export const HistoryLine = memo(function HistoryLine({
           <div className={`output-line output-tool-use output-tool-simple output-todo-inline`}>
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
-            <span className="output-tool-icon">{icon}</span>
+            <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
             <TodoWriteInput content={toolInputContent} />
           </div>
@@ -455,7 +456,7 @@ export const HistoryLine = memo(function HistoryLine({
             <div className={`output-line output-tool-use output-tool-simple output-ask-question-inline`}>
               {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
               {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
-              <span className="output-tool-icon">{icon}</span>
+              <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
               <span className="output-tool-name">{displayToolName}</span>
               <AskQuestionInput content={toolInputContent} />
             </div>
@@ -469,7 +470,7 @@ export const HistoryLine = memo(function HistoryLine({
           <div className={`output-line output-tool-use output-tool-simple output-plan-inline`}>
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
-            <span className="output-tool-icon">{icon}</span>
+            <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
             <ExitPlanModeInput content={toolInputContent} />
           </div>
@@ -486,7 +487,7 @@ export const HistoryLine = memo(function HistoryLine({
           >
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
-            <span className="output-tool-icon">{icon}</span>
+            <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
             {isBashTool && bashTrackingStatusCommand ? (() => {
               const status = bashTrackingStatusCommand.trackingStatus;
@@ -517,7 +518,7 @@ export const HistoryLine = memo(function HistoryLine({
                 style={{ cursor: 'pointer' }}
               >
                 <span className="bash-notify-chip">
-                  <span className="bash-notify-icon">🔔</span>
+                  <span className="bash-notify-icon"><Icon name="bell" size={12} /></span>
                   <span className="bash-notify-label">notify</span>
                 </span>
                 {bashNotificationCommand.title && (
@@ -534,7 +535,7 @@ export const HistoryLine = memo(function HistoryLine({
                 title={bashTaskLabelCommand.commandBody}
                 style={{ cursor: 'pointer' }}
               >
-                <span className="bash-task-label-chip">📋 task</span>
+                <span className="bash-task-label-chip"><Icon name="task" size={12} /> task</span>
                 <span className="bash-task-label-value">{bashTaskLabelCommand.taskLabel}</span>
               </span>
             ) : isBashTool && bashReportTaskCommand ? (
@@ -545,7 +546,7 @@ export const HistoryLine = memo(function HistoryLine({
                 style={{ cursor: 'pointer' }}
               >
                 <span className={`bash-report-task-chip ${bashReportTaskCommand.status === 'failed' ? 'status-failed' : 'status-completed'}`}>
-                  {bashReportTaskCommand.status === 'failed' ? '❌ report' : '✅ report'}
+                  <Icon name={bashReportTaskCommand.status === 'failed' ? 'failure' : 'success'} size={12} /> report
                 </span>
                 {bashReportTaskCommand.summary && (
                   <span className="bash-report-task-summary">{bashReportTaskCommand.summary}</span>
@@ -615,7 +616,7 @@ export const HistoryLine = memo(function HistoryLine({
                             })
                           }
                         >
-                          <span className="exec-task-toggle-arrow">{isExpanded ? '▼' : '▶'}</span>
+                          <span className="exec-task-toggle-arrow"><Icon name={isExpanded ? 'caret-down' : 'caret-right'} size={10} /></span>
                           <span className="exec-task-toggle-text">
                             {isExpanded ? t('tools:skills.hide') : t('tools:skills.showAll', { count: execTaskOutput.output.length })}
                           </span>
@@ -647,7 +648,7 @@ export const HistoryLine = memo(function HistoryLine({
           <div className="output-line output-tool-use">
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
-            <span className="output-tool-icon">{icon}</span>
+            <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
           </div>
           <div className="output-line output-tool-input">
@@ -664,7 +665,7 @@ export const HistoryLine = memo(function HistoryLine({
           <div className="output-line output-tool-use">
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
-            <span className="output-tool-icon">{icon}</span>
+            <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
           </div>
           <div className="output-line output-tool-input">
@@ -681,7 +682,7 @@ export const HistoryLine = memo(function HistoryLine({
           <div className="output-line output-tool-use">
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
-            <span className="output-tool-icon">{icon}</span>
+            <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
           </div>
           <div className="output-line output-tool-input">
@@ -698,7 +699,7 @@ export const HistoryLine = memo(function HistoryLine({
           <div className="output-line output-tool-use">
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
-            <span className="output-tool-icon">{icon}</span>
+            <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
           </div>
           <div className="output-line output-tool-input">
@@ -715,7 +716,7 @@ export const HistoryLine = memo(function HistoryLine({
           <div className="output-line output-tool-use">
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
-            <span className="output-tool-icon">⚡</span>
+            <span className="output-tool-icon"><Icon name="bolt" size={14} /></span>
             <span className="output-tool-name">ToolSearch</span>
           </div>
           <div className="output-line output-tool-input">
@@ -731,7 +732,7 @@ export const HistoryLine = memo(function HistoryLine({
           <div className="output-line output-tool-use">
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
-            <span className="output-tool-icon">⚡</span>
+            <span className="output-tool-icon"><Icon name="bolt" size={14} /></span>
             <span className="output-tool-name">ToolSearch</span>
           </div>
           <div className="output-line output-tool-input">
@@ -747,7 +748,7 @@ export const HistoryLine = memo(function HistoryLine({
         <div className="output-line output-tool-use">
           {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
           {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
-          <span className="output-tool-icon">{icon}</span>
+          <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
           <span className="output-tool-name">{displayToolName}</span>
         </div>
         {toolInputContent && (
@@ -789,7 +790,7 @@ export const HistoryLine = memo(function HistoryLine({
     return (
       <div className={`output-line output-tool-result ${isError ? 'is-error' : ''}`}>
         {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
-        <span className="output-result-icon">{isError ? '❌' : '✓'}</span>
+        <span className="output-result-icon"><Icon name={isError ? 'failure' : 'check'} size={12} /></span>
         <pre className="output-result-content">{highlightText(content, highlight)}</pre>
       </div>
     );
@@ -924,7 +925,7 @@ export const HistoryLine = memo(function HistoryLine({
               onClick={(e) => { e.stopPropagation(); toggleTTS(content); }}
               title={speaking ? t('terminal:history.stopSpeaking') : t('terminal:history.speakSpanish')}
             >
-              {speaking ? '🔊' : '🔈'}
+              <Icon name={speaking ? 'speaker-on' : 'speaker-off'} size={14} />
             </button>
           )}
           {onViewMarkdown && (
@@ -933,7 +934,7 @@ export const HistoryLine = memo(function HistoryLine({
               onClick={(e) => { e.stopPropagation(); onViewMarkdown(content); }}
               title={t('terminal:history.viewAsMarkdown')}
             >
-              📄
+              <Icon name="file-text" size={14} />
             </button>
           )}
         </div>
@@ -968,7 +969,7 @@ export const HistoryLine = memo(function HistoryLine({
               onClick={(e) => { e.stopPropagation(); toggleTTS(content); }}
               title={speaking ? t('terminal:history.stopSpeaking') : t('terminal:history.speakSpanish')}
             >
-              {speaking ? '🔊' : '🔈'}
+              <Icon name={speaking ? 'speaker-on' : 'speaker-off'} size={14} />
             </button>
           )}
           {onViewMarkdown && (
@@ -977,7 +978,7 @@ export const HistoryLine = memo(function HistoryLine({
               onClick={(e) => { e.stopPropagation(); onViewMarkdown(content); }}
               title={t('terminal:history.viewAsMarkdown')}
             >
-              📄
+              <Icon name="file-text" size={14} />
             </button>
           )}
         </div>

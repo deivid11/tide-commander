@@ -173,7 +173,7 @@
     --keyboard-height: 0px;
     --keyboard-visible: 0;
     // Bottom menu height (same as 3D view — menu is now visible in terminal view too)
-    --mobile-bottom-menu-height: calc(42px + env(safe-area-inset-bottom, 0px));
+    --mobile-bottom-menu-height: calc(34px + env(safe-area-inset-bottom, 0px));
     // Total bottom chrome: agent bar + bottom menu (safe area already in bottom menu height)
     --mobile-agent-bar-height: calc(32px + var(--mobile-bottom-menu-height));
 
@@ -273,8 +273,8 @@
       display: flex;
       flex-direction: column;
       overflow: hidden;
-      // Add padding at bottom for the fixed input
-      padding-bottom: 80px !important;
+      // guake-output already has padding-bottom: 120px for scroll clearance above the fixed input
+      padding-bottom: 0 !important;
       // Override collapsed state - content should always be visible in terminal view
       transform: none !important;
       opacity: 1 !important;
@@ -587,9 +587,9 @@
   // We use a wrapper approach instead - handled by adding bottom offset
 
   // Mobile bottom menu height (used to offset agent bar)
-  // Matches padding (4px + 4px) + icon (18px) + gap (2px) + label (9px) ≈ 37px + safe-area
+  // Matches padding (2px + 2px) + icon (14px) + gap (2px) + label (8px) ≈ 28px + safe-area
   .app {
-    --mobile-bottom-menu-height: calc(42px + env(safe-area-inset-bottom, 0px));
+    --mobile-bottom-menu-height: calc(34px + env(safe-area-inset-bottom, 0px));
   }
 
   // Agent bar at bottom - minimal on mobile

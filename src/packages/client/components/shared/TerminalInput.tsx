@@ -11,6 +11,7 @@
 
 import React, { useRef, useEffect, useCallback } from 'react';
 import type { AttachedFile } from './outputTypes';
+import { Icon } from '../Icon';
 
 interface TerminalInputProps {
   // Input state
@@ -208,7 +209,7 @@ export function TerminalInput({
               className={`${compact ? 'agent-panel-attachment' : 'guake-attachment'} ${file.isImage ? 'is-image' : ''}`}
             >
               <span className={compact ? 'agent-panel-attachment-icon' : 'guake-attachment-icon'}>
-                {file.isImage ? '🖼️' : '📎'}
+                <Icon name={file.isImage ? 'file' : 'paperclip'} size={12} />
               </span>
               <span
                 className={compact ? 'agent-panel-attachment-name' : 'guake-attachment-name'}
@@ -246,7 +247,7 @@ export function TerminalInput({
             onClick={() => fileInputRef.current?.click()}
             title="Attach file (or paste image)"
           >
-            📎
+            <Icon name="paperclip" size={14} />
           </button>
           {useTextarea ? (
             <textarea
@@ -276,7 +277,7 @@ export function TerminalInput({
             disabled={!canSend}
             title="Send"
           >
-            ➤
+            <Icon name="send" size={14} />
           </button>
         </div>
       </div>

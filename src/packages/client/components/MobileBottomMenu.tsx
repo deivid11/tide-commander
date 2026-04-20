@@ -1,6 +1,7 @@
 import React, { memo, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useTrackingBoardVisible } from '../store';
+import { Icon } from './Icon';
 
 interface MobileBottomMenuProps {
   onOpenSpotlight: () => void;
@@ -57,7 +58,7 @@ export const MobileBottomMenu = memo(function MobileBottomMenu({
         title={t('common:floatingButtons.settingsAndTools')}
         aria-label={t('common:floatingButtons.settingsAndTools')}
       >
-        <span className="mobile-bottom-menu__icon">⚙️</span>
+        <span className="mobile-bottom-menu__icon"><Icon name="gear" size={18} /></span>
         <span className="mobile-bottom-menu__label">{t('common:mobileBottomMenu.settings', { defaultValue: 'Settings' })}</span>
       </button>
 
@@ -68,7 +69,7 @@ export const MobileBottomMenu = memo(function MobileBottomMenu({
         title={t('common:floatingButtons.commanderView')}
         aria-label={t('common:floatingButtons.commanderView')}
       >
-        <span className="mobile-bottom-menu__icon">📊</span>
+        <span className="mobile-bottom-menu__icon"><Icon name="dashboard" size={18} /></span>
         <span className="mobile-bottom-menu__label">{t('common:mobileBottomMenu.commander', { defaultValue: 'Commander' })}</span>
       </button>
 
@@ -79,7 +80,7 @@ export const MobileBottomMenu = memo(function MobileBottomMenu({
         title={t('common:mobileBottomMenu.spawn', { defaultValue: 'Spawn Agent' })}
         aria-label={t('common:mobileBottomMenu.spawn', { defaultValue: 'Spawn Agent' })}
       >
-        <span className="mobile-bottom-menu__icon">➕</span>
+        <span className="mobile-bottom-menu__icon"><Icon name="plus" size={18} /></span>
         <span className="mobile-bottom-menu__label">{t('common:mobileBottomMenu.spawn', { defaultValue: 'Spawn' })}</span>
       </button>
 
@@ -90,7 +91,7 @@ export const MobileBottomMenu = memo(function MobileBottomMenu({
         title={t('common:sidebar.trackingBoard')}
         aria-label={t('common:sidebar.trackingBoard')}
       >
-        <span className="mobile-bottom-menu__icon">📋</span>
+        <span className="mobile-bottom-menu__icon"><Icon name="clipboard" size={18} /></span>
         <span className="mobile-bottom-menu__label">{t('common:mobileBottomMenu.tracking', { defaultValue: 'Tracking' })}</span>
       </button>
 
@@ -101,7 +102,7 @@ export const MobileBottomMenu = memo(function MobileBottomMenu({
         title={t('common:floatingButtons.globalSearch')}
         aria-label={t('common:floatingButtons.globalSearch')}
       >
-        <span className="mobile-bottom-menu__icon">🔍</span>
+        <span className="mobile-bottom-menu__icon"><Icon name="search" size={18} /></span>
         <span className="mobile-bottom-menu__label">{t('common:mobileBottomMenu.search', { defaultValue: 'Search' })}</span>
       </button>
     </nav>

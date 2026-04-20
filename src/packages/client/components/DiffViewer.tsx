@@ -5,6 +5,7 @@ import remarkGfm from 'remark-gfm';
 import { highlightCode, ensureLanguageLoaded } from './FileExplorerPanel/syntaxHighlighting';
 import { copyRichContentToClipboard, copyTextToClipboard, inlineStylesForRichCopy } from '../utils/clipboard';
 import { Tooltip } from './shared/Tooltip';
+import { Icon } from './Icon';
 
 interface DiffViewerProps {
   originalContent: string;
@@ -643,7 +644,7 @@ export function DiffViewer({ originalContent, modifiedContent, filename, languag
                   onClick={goToPrevHunk}
                   disabled={currentHunkIndex === 0}
                 >
-                  ↑
+                  <Icon name="caret-up" size={12} />
                 </button>
               </Tooltip>
               <span className="diff-nav-counter">
@@ -655,7 +656,7 @@ export function DiffViewer({ originalContent, modifiedContent, filename, languag
                   onClick={goToNextHunk}
                   disabled={currentHunkIndex === diffHunks.length - 1}
                 >
-                  ↓
+                  <Icon name="caret-down" size={12} />
                 </button>
               </Tooltip>
             </>
@@ -681,7 +682,7 @@ export function DiffViewer({ originalContent, modifiedContent, filename, languag
               className={`diff-copy-btn ${copyStatus}`}
               onClick={handleCopyModified}
             >
-              {copyStatus === 'copied' ? `✓ ${t('terminal:diffViewer.copied')}` : copyStatus === 'error' ? `✗ ${t('terminal:diffViewer.errorCopy')}` : (isMarkdown && viewOnlyModified ? t('terminal:diffViewer.copyRichText') : t('common:buttons.copy'))}
+              {copyStatus === 'copied' ? <><Icon name="check" size={12} /> {t('terminal:diffViewer.copied')}</> : copyStatus === 'error' ? <><Icon name="cross" size={12} /> {t('terminal:diffViewer.errorCopy')}</> : (isMarkdown && viewOnlyModified ? t('terminal:diffViewer.copyRichText') : t('common:buttons.copy'))}
             </button>
           </Tooltip>
           {isMarkdown && viewOnlyModified && (
@@ -690,7 +691,7 @@ export function DiffViewer({ originalContent, modifiedContent, filename, languag
                 className={`diff-copy-btn ${copyHtmlStatus}`}
                 onClick={handleCopyAsHtml}
               >
-                {copyHtmlStatus === 'copied' ? `✓ ${t('terminal:diffViewer.copied')}` : copyHtmlStatus === 'error' ? `✗ ${t('terminal:diffViewer.errorCopy')}` : t('terminal:diffViewer.copyHtml')}
+                {copyHtmlStatus === 'copied' ? <><Icon name="check" size={12} /> {t('terminal:diffViewer.copied')}</> : copyHtmlStatus === 'error' ? <><Icon name="cross" size={12} /> {t('terminal:diffViewer.errorCopy')}</> : t('terminal:diffViewer.copyHtml')}
               </button>
             </Tooltip>
           )}

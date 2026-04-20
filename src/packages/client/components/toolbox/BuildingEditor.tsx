@@ -2,8 +2,10 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useStore, store } from '../../store';
 import type { Building } from '../../../shared/types';
-import { BUILDING_TYPES, BUILDING_STYLES } from '../../../shared/types';
+import { BUILDING_STYLES } from '../../../shared/types';
 import { BUILDING_STATUS_COLORS } from '../../utils/colors';
+import { Icon } from '../Icon';
+import { getBuildingTypeIcon } from '../DashboardView/utils';
 
 interface BuildingEditorProps {
   building: Building;
@@ -15,7 +17,6 @@ export function BuildingEditor({ building, onClose, onOpenModal }: BuildingEdito
   const { t } = useTranslation(['config', 'common']);
   const { buildingLogs: _buildingLogs } = useStore();
   const logs = store.getBuildingLogs(building.id);
-  const typeInfo = BUILDING_TYPES[building.type];
   const styleInfo = BUILDING_STYLES[building.style || 'server-rack'];
 
   const handleCommand = (cmd: 'start' | 'stop' | 'restart' | 'healthCheck' | 'logs') => {
@@ -30,7 +31,7 @@ export function BuildingEditor({ building, onClose, onOpenModal }: BuildingEdito
     <div className="building-editor">
       <div className="building-editor-header">
         <div className="building-editor-title-row">
-          <span className="building-editor-icon">{typeInfo.icon}</span>
+          <span className="building-editor-icon"><Icon name={getBuildingTypeIcon(building.type)} size={18} /></span>
           <span className="building-editor-title">{building.name}</span>
           <span
             className="building-editor-status"
@@ -75,7 +76,7 @@ export function BuildingEditor({ building, onClose, onOpenModal }: BuildingEdito
               disabled={!building.commands?.start || building.status === 'running'}
               title={building.commands?.start || t('config:buildings.noStartCommand')}
             >
-              ▶ {t('common:buttons.start')}
+              <Icon name="play" size={12} /> {t('common:buttons.start')}
             </button>
             <button
               className="building-editor-action-btn stop"
@@ -83,7 +84,7 @@ export function BuildingEditor({ building, onClose, onOpenModal }: BuildingEdito
               disabled={!building.commands?.stop || building.status === 'stopped'}
               title={building.commands?.stop || t('config:buildings.noStopCommand')}
             >
-              ■ {t('common:buttons.stop')}
+              <Icon name="stop" size={12} weight="fill" /> {t('common:buttons.stop')}
             </button>
             <button
               className="building-editor-action-btn restart"
@@ -91,7 +92,7 @@ export function BuildingEditor({ building, onClose, onOpenModal }: BuildingEdito
               disabled={!building.commands?.restart}
               title={building.commands?.restart || t('config:buildings.noRestartCommand')}
             >
-              ⟳ {t('common:buttons.retry')}
+              <Icon name="refresh" size={12} /> {t('common:buttons.retry')}
             </button>
             <button
               className="building-editor-action-btn health"
@@ -99,7 +100,7 @@ export function BuildingEditor({ building, onClose, onOpenModal }: BuildingEdito
               disabled={!building.commands?.healthCheck}
               title={building.commands?.healthCheck || t('config:buildings.noHealthCheck')}
             >
-              ♥ Health
+              <Icon name="heart" size={12} /> Health
             </button>
           </div>
         </div>
@@ -117,7 +118,7 @@ export function BuildingEditor({ building, onClose, onOpenModal }: BuildingEdito
                 onClick={() => openUrl(url.url)}
                 title={url.url}
               >
-                🔗 {url.label || url.url}
+                <Icon name="link" size={12} /> {url.label || url.url}
               </button>
             ))}
           </div>
@@ -148,7 +149,7 @@ export function BuildingEditor({ building, onClose, onOpenModal }: BuildingEdito
       {/* Edit Button */}
       <div className="building-editor-footer">
         <button className="building-editor-edit-btn" onClick={onOpenModal}>
-          ⚙ {t('config:buildings.fullSettings')}
+          <Icon name="gear" size={12} /> {t('config:buildings.fullSettings')}
         </button>
       </div>
     </div>

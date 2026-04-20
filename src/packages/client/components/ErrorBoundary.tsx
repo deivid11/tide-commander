@@ -1,5 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import i18next from 'i18next';
+import { Icon } from './Icon';
 
 interface Props {
   children: ReactNode;
@@ -61,7 +62,7 @@ export class ErrorBoundary extends Component<Props, State> {
               alignItems: 'center',
               gap: '12px',
             }}>
-              <span style={{ fontSize: '32px' }}>💥</span>
+              <Icon name="warn" size={32} color="#ef4444" />
               {i18next.t('errors:crash.title')}
             </h1>
 

@@ -10,6 +10,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { IntegrationInfo } from '../../shared/integration-types.js';
 import { apiUrl, authFetch } from '../utils/storage';
+import { Icon } from './Icon';
 
 interface GmailOAuthSetupProps {
   integration: IntegrationInfo;
@@ -309,7 +310,7 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
                 className={`gmail-auth-method-btn ${authMethod === 'oauth2' ? 'active' : ''}`}
                 onClick={() => { setAuthMethod('oauth2'); setError(null); }}
               >
-                <span className="gmail-auth-method-icon">🔑</span>
+                <span className="gmail-auth-method-icon"><Icon name="key" size={14} /></span>
                 <span className="gmail-auth-method-label">OAuth 2.0</span>
                 <span className="gmail-auth-method-desc">Browser login flow</span>
               </button>
@@ -318,7 +319,7 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
                 className={`gmail-auth-method-btn ${authMethod === 'service_account' ? 'active' : ''}`}
                 onClick={() => { setAuthMethod('service_account'); setError(null); }}
               >
-                <span className="gmail-auth-method-icon">🤖</span>
+                <span className="gmail-auth-method-icon"><Icon name="robot" size={14} /></span>
                 <span className="gmail-auth-method-label">Service Account</span>
                 <span className="gmail-auth-method-desc">Domain-wide delegation</span>
               </button>

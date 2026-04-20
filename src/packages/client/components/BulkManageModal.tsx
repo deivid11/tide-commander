@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { ModalPortal } from './shared/ModalPortal';
+import { Icon } from './Icon';
 import { useAgentsArray, useAreas } from '../store';
 import {
   bulkDeleteAgents,
@@ -454,7 +455,7 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                       </p>
                     )}
                     <p style={{ color: 'var(--color-danger, #e55)', fontWeight: 600 }}>
-                      ⚠ The current conversation/context will be CLEARED for each affected agent.
+                      <Icon name="warn" size={14} /> The current conversation/context will be CLEARED for each affected agent.
                       Their Claude sessions will be stopped and restarted on the next command
                       so the new model takes effect.
                     </p>

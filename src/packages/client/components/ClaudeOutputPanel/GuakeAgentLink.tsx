@@ -6,8 +6,9 @@ import React, { useState, useEffect, memo } from 'react';
 import type { Agent } from '../../../shared/types';
 import { formatIdleTime } from '../../utils/formatting';
 import { getIdleTimerColor, getAgentStatusColor } from '../../utils/colors';
-import { TOOL_ICONS } from '../../utils/outputRendering';
+import { getToolIconName } from '../../utils/outputRendering';
 import { AgentIcon } from '../AgentIcon';
+import { Icon } from '../Icon';
 
 /**
  * Compact idle time format for small spaces (e.g., "2m", "1h", "3d")
@@ -61,7 +62,7 @@ export const GuakeAgentLink = memo(function GuakeAgentLink({ agent, isSelected, 
         </span>
       )}
       {agent.currentTool && (
-        <span className="guake-agent-link-tool">{TOOL_ICONS[agent.currentTool] || TOOL_ICONS.default}</span>
+        <span className="guake-agent-link-tool"><Icon name={getToolIconName(agent.currentTool)} size={14} /></span>
       )}
     </div>
   );

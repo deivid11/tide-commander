@@ -15,6 +15,7 @@ import { ShortcutConfig, formatShortcutString, parseShortcutString, shortcutValu
 import { apiUrl } from '../utils/storage';
 import { useModalClose } from '../hooks';
 import { AgentIcon } from './AgentIcon';
+import { Icon } from './Icon';
 
 interface AgentEditModalProps {
   agent: Agent;
@@ -357,9 +358,9 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
           {selectedCustomClass && (
             <div className="custom-class-notice">
               <div className="custom-class-notice-header" onClick={() => setEditingInstructions(!editingInstructions)} style={{ cursor: 'pointer' }}>
-                <span>📋</span>
+                <span><Icon name="task" size={14} /></span>
                 <span>{selectedCustomClass.instructions ? t('terminal:spawn.hasCustomInstructions') : 'Add custom instructions'}</span>
-                <span style={{ marginLeft: 'auto', fontSize: 11, opacity: 0.6 }}>{editingInstructions ? '▲' : '▼'}</span>
+                <span style={{ marginLeft: 'auto', fontSize: 11, opacity: 0.6 }}><Icon name={editingInstructions ? 'caret-up' : 'caret-down'} size={11} /></span>
               </div>
               {!editingInstructions && selectedCustomClass.instructions && (
                 <div className="custom-class-notice-info">
@@ -428,21 +429,21 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                     className={`spawn-select-btn ${selectedProvider === 'claude' ? 'selected' : ''}`}
                     onClick={() => setSelectedProvider('claude')}
                   >
-                    <span>🧠</span>
+                    <span><Icon name="brain" size={14} /></span>
                     <span>Claude</span>
                   </button>
                   <button
                     className={`spawn-select-btn ${selectedProvider === 'codex' ? 'selected' : ''}`}
                     onClick={() => setSelectedProvider('codex')}
                   >
-                    <span>⚙️</span>
+                    <span><Icon name="gear" size={14} /></span>
                     <span>Codex</span>
                   </button>
                   <button
                     className={`spawn-select-btn spawn-select-btn--opencode ${selectedProvider === 'opencode' ? 'selected' : ''}`}
                     onClick={() => setSelectedProvider('opencode')}
                   >
-                    <span>🟢</span>
+                    <span><Icon name="status-pending" size={14} weight="fill" color="#4ade80" /></span>
                     <span>OpenCode</span>
                   </button>
                 </div>
@@ -457,7 +458,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                       onClick={() => setPermissionMode(mode)}
                       title={PERMISSION_MODES[mode].description}
                     >
-                      <span>{mode === 'bypass' ? '⚡' : '🔐'}</span>
+                      <span><Icon name={mode === 'bypass' ? 'bolt' : 'lock'} size={14} /></span>
                       <span>{PERMISSION_MODES[mode].label}</span>
                     </button>
                   ))}
@@ -684,7 +685,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                         onClick={() => !isClassBased && toggleSkill(skill.id)}
                         title={isClassBased ? t('terminal:spawn.assignedViaClass') : skill.name}
                       >
-                        {isActive && <span className="skill-check">✓</span>}
+                        {isActive && <span className="skill-check"><Icon name="check" size={12} /></span>}
                         <span className="skill-chip-name">{skill.name}</span>
                         {skill.builtin && <span className="skill-chip-badge builtin">TC</span>}
                         {isClassBased && <span className="skill-chip-badge">class</span>}

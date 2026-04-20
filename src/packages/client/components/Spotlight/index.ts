@@ -31,4 +31,4 @@ export {
 } from './utils';
 
 // Export constants
-export { FILE_ICONS } from './types';
+export { FILE_ICON_NAMES } from './types';

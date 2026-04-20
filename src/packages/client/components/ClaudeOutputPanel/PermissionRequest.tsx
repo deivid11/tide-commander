@@ -5,7 +5,8 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { PermissionRequest } from '../../../shared/types';
-import { TOOL_ICONS } from '../../utils/outputRendering';
+import { getToolIconName } from '../../utils/outputRendering';
+import { Icon } from '../Icon';
 
 // ============================================================================
 // Permission Request Card Component (larger display)
@@ -19,7 +20,7 @@ interface PermissionRequestCardProps {
 
 export function PermissionRequestCard({ request, onApprove, onDeny }: PermissionRequestCardProps) {
   const { t } = useTranslation(['tools']);
-  const toolIcon = TOOL_ICONS[request.tool] || TOOL_ICONS.default;
+  const toolIconName = getToolIconName(request.tool);
 
   // Format tool input for display - NO TRUNCATION
   const formatToolInput = (input: Record<string, unknown>): string => {
@@ -44,7 +45,7 @@ export function PermissionRequestCard({ request, onApprove, onDeny }: Permission
   return (
     <div className={`permission-request-card ${request.status}`}>
       <div className="permission-request-header">
-        <span className="permission-request-icon">{toolIcon}</span>
+        <span className="permission-request-icon"><Icon name={toolIconName} size={14} /></span>
         <span className="permission-request-tool">{request.tool}</span>
         {isPending && <span className="permission-request-badge">{t('tools:permission.waitingForApproval')}</span>}
         {isApproved && <span className="permission-request-badge approved">{t('tools:permission.approved')}</span>}
@@ -56,10 +57,10 @@ export function PermissionRequestCard({ request, onApprove, onDeny }: Permission
       {isPending && (
         <div className="permission-request-actions">
           <button className="permission-btn permission-btn-approve" onClick={onApprove}>
-            ✓ {t('tools:permission.allow')}
+            <Icon name="check" size={12} /> {t('tools:permission.allow')}
           </button>
           <button className="permission-btn permission-btn-deny" onClick={onDeny}>
-            ✕ {t('tools:permission.deny')}
+            <Icon name="close" size={12} /> {t('tools:permission.deny')}
           </button>
         </div>
       )}
@@ -79,7 +80,7 @@ interface PermissionRequestInlineProps {
 
 export function PermissionRequestInline({ request, onApprove, onDeny }: PermissionRequestInlineProps) {
   const { t } = useTranslation(['tools']);
-  const toolIcon = TOOL_ICONS[request.tool] || TOOL_ICONS.default;
+  const toolIconName = getToolIconName(request.tool);
 
   // Format tool input for display - NO TRUNCATION
   const formatToolInputCompact = (input: Record<string, unknown>): string => {
@@ -114,7 +115,7 @@ export function PermissionRequestInline({ request, onApprove, onDeny }: Permissi
 
   return (
     <div className="permission-inline">
-      <span className="permission-inline-icon">{toolIcon}</span>
+      <span className="permission-inline-icon"><Icon name={toolIconName} size={14} /></span>
       <span className="permission-inline-tool">{request.tool}</span>
       <span className="permission-inline-target">{formatToolInputCompact(request.toolInput)}</span>
       <button
@@ -122,13 +123,13 @@ export function PermissionRequestInline({ request, onApprove, onDeny }: Permissi
         onClick={() => onApprove(true)}
         title={getRememberHint()}
       >
-        ✓+
+        <Icon name="check" size={12} />+
       </button>
       <button className="permission-inline-btn approve" onClick={() => onApprove(false)} title={t('tools:permission.approveOnce')}>
-        ✓
+        <Icon name="check" size={12} />
       </button>
       <button className="permission-inline-btn deny" onClick={onDeny} title={t('tools:permission.deny')}>
-        ✕
+        <Icon name="close" size={12} />
       </button>
     </div>
   );

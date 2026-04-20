@@ -21,6 +21,7 @@ import type { AgentHistory } from './types';
 import { STATUS_COLORS } from './types';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { useModalStackRegistration } from '../../hooks/useModalStack';
+import { Icon } from '../Icon';
 
 function formatElapsed(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000);
@@ -67,7 +68,7 @@ const ElapsedTimer = memo(function ElapsedTimer({
         onClick={() => store.stopAgent(agentId)}
         title={t('terminal:input.stopOperation')}
       >
-        <span className="stop-icon">■</span>
+        <span className="stop-icon"><Icon name="stop" size={12} weight="fill" /></span>
         <span className="stop-label">{t('terminal:input.stop')}</span>
       </button>
     </div>
@@ -356,7 +357,7 @@ export function AgentPanel({
           />
           <span className="agent-panel-name">
             {(agent.isBoss || agent.class === 'boss') && (
-              <span className="agent-panel-boss-crown">👑</span>
+              <span className="agent-panel-boss-crown"><Icon name="crown" size={14} /></span>
             )}
             {agent.name}
           </span>
@@ -370,7 +371,7 @@ export function AgentPanel({
           </span>
           {agent.taskLabel ? (
             <div className="agent-panel-task agent-panel-task-label" title={agent.taskLabel}>
-              📋 {agent.taskLabel}
+              <Icon name="task" size={12} /> {agent.taskLabel}
             </div>
           ) : agent.currentTask ? (
             <div className="agent-panel-task" title={agent.currentTask}>

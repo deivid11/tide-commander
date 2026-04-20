@@ -1229,7 +1229,7 @@
 
     .compacting-bar-fill {
       height: 100%;
-      width: 40%;
+      width: 100%;
       background: linear-gradient(90deg, transparent, #6366f1, #818cf8, #6366f1, transparent);
       border-radius: 2px;
       animation: compacting-sweep 1.5s ease-in-out infinite;
@@ -1245,8 +1245,8 @@
 }
 
 @keyframes compacting-sweep {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(600%); }
+  0% { width: 0%; }
+  100% { width: 100%; }
 }
 
 @keyframes compacting-fade-in {

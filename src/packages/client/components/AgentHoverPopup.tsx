@@ -4,8 +4,9 @@ import { store, useCustomAgentClassesArray } from '../store';
 import type { Agent } from '../../shared/types';
 import { getClassConfig } from '../utils/classConfig';
 import { getAgentStatusColor } from '../utils/colors';
-import { TOOL_ICONS } from '../utils/outputRendering';
+import { getToolIconName } from '../utils/outputRendering';
 import { AgentIcon } from './AgentIcon';
+import { Icon } from './Icon';
 
 interface AgentHoverPopupProps {
   agent: Agent;
@@ -143,7 +144,7 @@ export const AgentHoverPopup = memo(function AgentHoverPopup({ agent, screenPos,
           <div className="agent-bar-tooltip-row">
             <span className="agent-bar-tooltip-label">{t('common:agentPopup.tool')}:</span>
             <span className="agent-bar-tooltip-value agent-bar-tooltip-tool">
-              {TOOL_ICONS[agent.currentTool] || TOOL_ICONS.default} {agent.currentTool}
+              <Icon name={getToolIconName(agent.currentTool)} size={14} /> {agent.currentTool}
             </span>
           </div>
         )}

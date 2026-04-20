@@ -10,6 +10,7 @@ import { formatNumber } from '../../utils/formatting';
 import type { Agent } from '../../../shared/types';
 import type { MultiAgentPanelProps } from './types';
 import { AgentIcon } from '../AgentIcon';
+import { Icon } from '../Icon';
 
 // ============================================================================
 // MultiAgentPanel Component
@@ -25,7 +26,7 @@ export const MultiAgentPanel = memo(function MultiAgentPanel({ agents }: MultiAg
     <div className="unit-panel">
       <div className="unit-panel-header">
         <div className="unit-class-icon" style={{ background: '#4a9eff20' }}>
-          👥
+          <Icon name="users" size={18} />
         </div>
         <div>
           <div className="unit-name">{t('multiAgent.agentsSelected', { count: agents.length })}</div>

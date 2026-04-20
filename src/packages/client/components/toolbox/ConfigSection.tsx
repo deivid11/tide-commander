@@ -12,6 +12,7 @@ import { IntegrationStatusPanel } from './IntegrationStatusPanel';
 import { SystemPromptModal } from '../SystemPromptModal';
 import { fetchEchoPromptSetting, updateEchoPromptSetting, fetchCodexBinaryPath, updateCodexBinaryPath, fetchTmuxModeSetting, updateTmuxModeSetting } from '../../api/system-settings';
 import { BUILTIN_AGENT_NAMES } from '../../scene/config';
+import { Icon } from '../Icon';
 import type {
   SceneConfig,
   TerrainConfig,
@@ -499,7 +500,7 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
           <span className="config-label"><HighlightText text={t('config:connection.authToken')} query={searchQuery} /></span>
           <div className="config-input-group">
             <input type={showToken ? 'text' : 'password'} className="config-input config-input-full" value={authToken} onChange={(e) => handleAuthTokenChange(e.target.value)} placeholder={t('config:connection.tokenPlaceholder')} onKeyDown={(e) => { if (e.key === 'Enter' && authTokenDirty) { handleAuthTokenSave(); } }} />
-            <button className="config-btn config-btn-sm" onClick={() => setShowToken(!showToken)} title={showToken ? t('config:connection.hideToken') : t('config:connection.showToken')}>{showToken ? '🙈' : '👁️'}</button>
+            <button className="config-btn config-btn-sm" onClick={() => setShowToken(!showToken)} title={showToken ? t('config:connection.hideToken') : t('config:connection.showToken')}><Icon name={showToken ? 'eye-closed' : 'eye'} size={14} /></button>
             {authTokenDirty && (
               <button className="config-btn config-btn-sm" onClick={handleAuthTokenSave} title={t('config:connection.saveAndReconnect')}>{t('common:buttons.apply')}</button>
             )}

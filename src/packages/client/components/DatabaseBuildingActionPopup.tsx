@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { store, useDatabaseState } from '../store';
 import type { Building } from '../../shared/types';
 import { DATABASE_ENGINES } from '../../shared/types';
+import { Icon } from './Icon';
 
 interface DatabaseBuildingActionPopupProps {
   building: Building;
@@ -133,7 +134,7 @@ export const DatabaseBuildingActionPopup = memo(function DatabaseBuildingActionP
         className={`building-popup-header database-header ${isDragging ? 'dragging' : ''}`}
         onMouseDown={handleDragStart}
       >
-        <span className="database-icon">🗄️</span>
+        <span className="database-icon"><Icon name="database" size={14} /></span>
         <span className="building-popup-name">{building.name}</span>
         <span className="connection-count">{t('terminal:building.connCount', { count: connections.length })}</span>
         <button className="building-popup-close" onClick={onClose}>x</button>
@@ -147,7 +148,7 @@ export const DatabaseBuildingActionPopup = memo(function DatabaseBuildingActionP
             return (
               <div key={conn.id} className="database-connection-item">
                 <span className="conn-engine">
-                  {DATABASE_ENGINES[conn.engine]?.icon ?? '🗄️'}
+                  {DATABASE_ENGINES[conn.engine]?.icon ?? <Icon name="database" size={14} />}
                 </span>
                 <span className="conn-name">{conn.name}</span>
                 <span className="conn-host">
@@ -157,7 +158,7 @@ export const DatabaseBuildingActionPopup = memo(function DatabaseBuildingActionP
                 </span>
                 {status && (
                   <span className={`conn-status ${status.connected ? 'connected' : 'disconnected'}`}>
-                    {status.connected ? '●' : '○'}
+                    <Icon name="status-pending" size={10} weight={status.connected ? 'fill' : 'regular'} color={status.connected ? '#4ade80' : undefined} />
                   </span>
                 )}
                 <button
@@ -165,7 +166,7 @@ export const DatabaseBuildingActionPopup = memo(function DatabaseBuildingActionP
                   onClick={() => handleTestConnection(conn.id)}
                   title={t('terminal:building.testConnection')}
                 >
-                  ↻
+                  <Icon name="refresh" size={12} />
                 </button>
               </div>
             );
@@ -186,7 +187,7 @@ export const DatabaseBuildingActionPopup = memo(function DatabaseBuildingActionP
           disabled={connections.length === 0}
           title={t('terminal:building.openDbExplorer')}
         >
-          <span className="icon">⌨</span>
+          <span className="icon"><Icon name="keyboard" size={12} /></span>
           {t('terminal:building.query')}
         </button>
         <button
@@ -195,7 +196,7 @@ export const DatabaseBuildingActionPopup = memo(function DatabaseBuildingActionP
           disabled={connections.length === 0}
           title={t('terminal:building.testAllConnections')}
         >
-          <span className="icon">↻</span>
+          <span className="icon"><Icon name="refresh" size={12} /></span>
           {t('terminal:building.testAll')}
         </button>
       </div>

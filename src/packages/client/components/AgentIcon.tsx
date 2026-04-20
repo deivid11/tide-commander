@@ -2,7 +2,8 @@ import React from 'react';
 import { getClassConfig } from '../utils/classConfig';
 import { useCustomAgentClassesArray } from '../store/selectors';
 import { apiUrl, authUrl } from '../utils/storage';
-import type { CustomAgentClass } from '../../shared/types';
+import { Icon, type IconName } from './Icon';
+import type { CustomAgentClass, BuiltInAgentClass } from '../../shared/types';
 
 interface AgentIconProps {
   agent?: { class: string };
@@ -13,6 +14,16 @@ interface AgentIconProps {
   /** Pre-resolved custom classes array — avoids hook call when used outside React or in lists that already have it */
   customClasses?: CustomAgentClass[];
 }
+
+const BUILTIN_CLASS_ICON: Record<BuiltInAgentClass, IconName> = {
+  scout: 'class-scout',
+  builder: 'class-builder',
+  debugger: 'class-debugger',
+  architect: 'class-architect',
+  warrior: 'class-warrior',
+  support: 'class-support',
+  boss: 'class-boss',
+};
 
 /**
  * Renders an agent class icon — either a custom uploaded image or the emoji fallback.
@@ -47,6 +58,22 @@ export const AgentIcon = React.memo(function AgentIcon({
           height: imgSize,
           ...style,
         }}
+      />
+    );
+  }
+
+  const builtInIcon = BUILTIN_CLASS_ICON[resolvedClass as BuiltInAgentClass];
+  const iconSize = typeof size === 'number' ? size : size;
+
+  if (builtInIcon) {
+    return (
+      <Icon
+        name={builtInIcon}
+        size={iconSize}
+        color={config.color}
+        className={className}
+        style={style}
+        weight="fill"
       />
     );
   }

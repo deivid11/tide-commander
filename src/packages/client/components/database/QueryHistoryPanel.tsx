@@ -8,6 +8,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { QueryHistoryEntry } from '../../../shared/types';
 import { store } from '../../store';
+import { Icon } from '../Icon';
 import './QueryHistoryPanel.scss';
 
 interface QueryHistoryPanelProps {
@@ -133,7 +134,7 @@ export const QueryHistoryPanel: React.FC<QueryHistoryPanelProps> = ({
           >
             <div className="query-history__item-header">
               <span className={`query-history__status ${entry.status === 'success' ? 'query-history__status--success' : 'query-history__status--error'}`}>
-                {entry.status === 'success' ? '✓' : '✗'}
+                <Icon name={entry.status === 'success' ? 'check' : 'cross'} size={12} />
               </span>
               <span className="query-history__database">
                 {entry.database}
@@ -167,14 +168,14 @@ export const QueryHistoryPanel: React.FC<QueryHistoryPanelProps> = ({
                 onClick={(e) => handleToggleFavorite(entry.id, e)}
                 title={entry.favorite ? t('terminal:database.removeFromFavorites') : t('terminal:database.addToFavorites')}
               >
-                {entry.favorite ? '★' : '☆'}
+                <Icon name="star" size={12} weight={entry.favorite ? 'fill' : 'regular'} color={entry.favorite ? '#facc15' : undefined} />
               </button>
               <button
                 className="query-history__delete"
                 onClick={(e) => handleDelete(entry.id, e)}
                 title={t('terminal:database.deleteFromHistory')}
               >
-                🗑
+                <Icon name="trash" size={12} />
               </button>
             </div>
           </div>

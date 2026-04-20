@@ -13,6 +13,7 @@ import { formatShortcut } from '../../store/shortcuts';
 import type { Agent, DrawingArea } from '../../../shared/types';
 import type { SearchResult, UseSpotlightSearchOptions, SpotlightSearchState } from './types';
 import { getFileIconFromPath, getAgentIcon } from './utils';
+import { Icon, type IconName } from '../Icon';
 
 // Category display order - must match SpotlightResults rendering
 const categoryOrder = ['command', 'agent', 'building', 'area', 'modified-file'];
@@ -84,7 +85,7 @@ export function useSpotlightSearch({
         type: 'command',
         title: 'Spawn New Agent',
         subtitle: spawnShortcut ? formatShortcut(spawnShortcut) : 'Alt+N',
-        icon: '➕',
+        icon: <Icon name="plus" size={16} />,
         action: () => {
           onCloseRef.current();
           onOpenSpawnModalRef.current();
@@ -95,7 +96,7 @@ export function useSpotlightSearch({
         type: 'command',
         title: 'Commander View',
         subtitle: commanderShortcut ? formatShortcut(commanderShortcut) : 'Ctrl+K',
-        icon: '📊',
+        icon: <Icon name="dashboard" size={16} />,
         action: () => {
           onCloseRef.current();
           onOpenCommanderViewRef.current();
@@ -106,7 +107,7 @@ export function useSpotlightSearch({
         type: 'command',
         title: 'Settings & Tools',
         subtitle: 'Configure Tide Commander',
-        icon: '⚙️',
+        icon: <Icon name="gear" size={16} />,
         action: () => {
           onCloseRef.current();
           onOpenToolboxRef.current();
@@ -117,7 +118,7 @@ export function useSpotlightSearch({
         type: 'command',
         title: 'Monitoring & Logs',
         subtitle: 'Triggers, workflows, events',
-        icon: '📊',
+        icon: <Icon name="chart-line" size={16} />,
         action: () => {
           onCloseRef.current();
           onOpenMonitoringModalRef.current?.();
@@ -187,6 +188,7 @@ export function useSpotlightSearch({
         action: () => {
           onCloseRef.current();
           store.selectAgent(agent.id);
+          store.requestTerminalExpand();
         },
       };
     });
@@ -201,7 +203,7 @@ export function useSpotlightSearch({
       type: 'area' as const,
       title: area.name,
       subtitle: `${area.assignedAgentIds.length} agents • ${area.directories?.length || 0} folders`,
-      icon: '🗺️',
+      icon: <Icon name="map" size={16} />,
       action: () => {
         onCloseRef.current();
         store.selectArea(area.id);
@@ -216,8 +218,8 @@ export function useSpotlightSearch({
     return Array.from(buildings.values())
       .filter((building) => building.type === 'server' || building.type === 'boss' || building.type === 'database')
       .map((building) => {
-        const statusIcon = building.status === 'running' ? '🟢' : building.status === 'stopped' ? '🔴' : '🟡';
-        const typeIcon = building.type === 'boss' ? '👑' : building.type === 'database' ? '🗄️' : '🖥️';
+        const statusColor = building.status === 'running' ? '#4ade80' : building.status === 'stopped' ? '#f87171' : '#facc15';
+        const typeIconName: IconName = building.type === 'boss' ? 'crown' : building.type === 'database' ? 'database' : 'desktop';
         const typeLabel = building.type === 'boss' ? 'Boss' : building.type === 'database' ? 'Database' : 'Server';
 
         // Build subtitle with connection info for database buildings
@@ -242,7 +244,12 @@ export function useSpotlightSearch({
           type: 'building' as const,
           title: building.name,
           subtitle,
-          icon: `${statusIcon} ${typeIcon}`,
+          icon: (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <Icon name="status-pending" size={10} weight="fill" color={statusColor} />
+              <Icon name={typeIconName} size={16} />
+            </span>
+          ),
           _searchText: searchText,
           action: () => {
             onCloseRef.current();
@@ -287,7 +294,7 @@ export function useSpotlightSearch({
         title: fileName,
         subtitle: `${actionLabel} by ${change.agentName} • ${change.filePath}`,
         matchedText: change.filePath,
-        icon: change.action === 'deleted' ? '🗑️' : getFileIconFromPath(change.filePath),
+        icon: change.action === 'deleted' ? <Icon name="trash" size={16} /> : getFileIconFromPath(change.filePath),
         action: () => {
           onCloseRef.current();
           // Try to find an area that contains this file (read live from store)

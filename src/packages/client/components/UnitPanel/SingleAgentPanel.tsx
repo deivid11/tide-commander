@@ -37,6 +37,7 @@ import type {
   LinkToBossSectionProps,
 } from './types';
 import { AgentIcon } from '../AgentIcon';
+import { Icon } from '../Icon';
 
 // ============================================================================
 // SingleAgentPanel Component
@@ -232,14 +233,14 @@ export function SingleAgentPanel({
         </div>
         <div className="unit-header-actions">
           <button className="unit-action-icon" onClick={() => onFocusAgent(agent.id)} title={t('unitPanel.focusOnAgent')}>
-            🎯
+            <Icon name="target" size={16} />
           </button>
           <button
             className="unit-action-icon"
             onClick={() => setShowEditModal(true)}
             title={t('unitPanel.editProperties')}
           >
-            ✏️
+            <Icon name="edit" size={16} />
           </button>
           {(agent.isBoss || agent.class === 'boss') &&
             agent.subordinateIds &&
@@ -249,7 +250,7 @@ export function SingleAgentPanel({
                 onClick={() => onCallSubordinates?.(agent.id)}
                 title={t('unitPanel.callSubordinates')}
               >
-                📢
+                <Icon name="announce" size={16} />
               </button>
             )}
           <button
@@ -258,17 +259,17 @@ export function SingleAgentPanel({
             title={t('unitPanel.collapseContext')}
             disabled={agent.status !== 'idle'}
           >
-            📦
+            <Icon name="package" size={16} />
           </button>
           <button
             className="unit-action-icon warning"
             onClick={() => setContextConfirm('clear')}
             title={t('unitPanel.clearContext')}
           >
-            🧹
+            <Icon name="clear" size={16} />
           </button>
           <button className="unit-action-icon danger" onClick={handleKill} title={t('unitPanel.killAgent')}>
-            ☠️
+            <Icon name="skull" size={16} />
           </button>
         </div>
       </div>
@@ -296,7 +297,7 @@ export function SingleAgentPanel({
       {/* Task Label */}
       {agent.taskLabel && (
         <div className="unit-task-label">
-          <div className="unit-stat-label">📋 Task</div>
+          <div className="unit-stat-label"><Icon name="task" size={12} /> Task</div>
           <div className="unit-task-label-value">{agent.taskLabel}</div>
         </div>
       )}
@@ -314,7 +315,7 @@ export function SingleAgentPanel({
       <div className="unit-permission-mode">
         <div className="unit-stat-label">{t('unitPanel.permissions')}</div>
         <div className="unit-permission-mode-value" title={PERMISSION_MODES[agent.permissionMode]?.description}>
-          <span className="unit-permission-mode-icon">{agent.permissionMode === 'bypass' ? '⚡' : '🔐'}</span>
+          <span className="unit-permission-mode-icon"><Icon name={agent.permissionMode === 'bypass' ? 'bolt' : 'lock'} size={12} /></span>
           <span className="unit-permission-mode-label">
             {PERMISSION_MODES[agent.permissionMode]?.label || agent.permissionMode}
           </span>
@@ -430,7 +431,7 @@ const OtherAgentsSection = memo(function OtherAgentsSection({ currentAgentId }: 
     <div className="unit-other-agents">
       <div className="unit-other-agents-header" onClick={() => setCollapsed(!collapsed)}>
         <div className="unit-stat-label">{t('unitPanel.otherAgents')} ({otherAgents.length})</div>
-        <span className="unit-other-agents-toggle">{collapsed ? '▶' : '▼'}</span>
+        <span className="unit-other-agents-toggle"><Icon name={collapsed ? 'caret-right' : 'caret-down'} size={10} /></span>
       </div>
       {!collapsed && (
         <div className="unit-other-agents-list">
@@ -490,7 +491,7 @@ const RememberedPatternsSection = memo(function RememberedPatternsSection({
         <div className="unit-stat-label">{t('unitPanel.allowedPatterns')}</div>
         <span className="unit-remembered-patterns-toggle">
           {patterns.length > 0 && <span className="unit-remembered-patterns-count">{patterns.length}</span>}
-          {showPatterns ? '▼' : '▶'}
+          <Icon name={showPatterns ? 'caret-down' : 'caret-right'} size={10} />
         </span>
       </div>
       {showPatterns && (
@@ -512,7 +513,7 @@ const RememberedPatternsSection = memo(function RememberedPatternsSection({
                     onClick={() => onRemovePattern(p.tool, p.pattern)}
                     title={t('unitPanel.removePattern')}
                   >
-                    ×
+                    <Icon name="close" size={12} />
                   </button>
                 </div>
               ))}
@@ -606,7 +607,7 @@ const SessionHistorySection = memo(function SessionHistorySection({ agentId }: S
           {entries.length > 0 && (
             <span className="unit-session-history-count">{entries.length}</span>
           )}
-          {collapsed ? '▶' : '▼'}
+          <Icon name={collapsed ? 'caret-right' : 'caret-down'} size={10} />
         </span>
       </div>
       {!collapsed && (
@@ -620,7 +621,7 @@ const SessionHistorySection = memo(function SessionHistorySection({ agentId }: S
               <div key={entry.sessionId}>
                 <div className={`unit-session-history-item ${previewSessionId === entry.sessionId ? 'active' : ''}`}>
                   {entry.fileExists === false && (
-                    <span className="unit-session-history-missing" title="Session file missing from disk">⚠</span>
+                    <span className="unit-session-history-missing" title="Session file missing from disk"><Icon name="warn" size={12} /></span>
                   )}
                   <div
                     className="unit-session-history-item-info"
@@ -638,7 +639,7 @@ const SessionHistorySection = memo(function SessionHistorySection({ agentId }: S
                     title={t('unitPanel.restoreSession', 'Restore this session')}
                     disabled={entry.fileExists === false}
                   >
-                    ↩
+                    <Icon name="revert" size={12} />
                   </button>
                 </div>
                 {previewSessionId === entry.sessionId && (
@@ -785,7 +786,7 @@ const BossAgentSection = memo(function BossAgentSection({ agent }: BossAgentSect
       <div className="boss-subordinates">
         <div className="boss-subordinates-header" onClick={() => setShowSubordinates(!showSubordinates)}>
           <div className="unit-stat-label">{t('labels.team')} ({subordinates.length})</div>
-          <span className="boss-toggle">{showSubordinates ? '▼' : '▶'}</span>
+          <span className="boss-toggle"><Icon name={showSubordinates ? 'caret-down' : 'caret-right'} size={10} /></span>
         </div>
         {showSubordinates && (
           <div className="boss-subordinates-list">
@@ -836,7 +837,7 @@ const BossAgentSection = memo(function BossAgentSection({ agent }: BossAgentSect
                       }}
                       title={t('unitPanel.unlinkSubordinate')}
                     >
-                      ✕
+                      <Icon name="close" size={12} />
                     </button>
                   </div>
                 );
@@ -853,13 +854,13 @@ const BossAgentSection = memo(function BossAgentSection({ agent }: BossAgentSect
           onClick={() => setShowDelegationHistory(!showDelegationHistory)}
         >
           <div className="unit-stat-label">{t('unitPanel.delegationHistory')} ({delegationHistory.length})</div>
-          <span className="boss-toggle">{showDelegationHistory ? '▼' : '▶'}</span>
+          <span className="boss-toggle"><Icon name={showDelegationHistory ? 'caret-down' : 'caret-right'} size={10} /></span>
         </div>
         {showDelegationHistory && (
           <div className="boss-delegation-history-list">
             {isPendingForThisBoss && (
               <div className="boss-delegation-pending">
-                <span className="delegation-spinner">⏳</span>
+                <span className="delegation-spinner"><Icon name="status-starting" size={12} /></span>
                 {t('unitPanel.analyzingRequest')}
               </div>
             )}
@@ -898,13 +899,13 @@ const DelegationDecisionItem = memo(function DelegationDecisionItem({ decision }
   return (
     <div className="delegation-decision-item">
       <div className="delegation-decision-header" onClick={() => setExpanded(!expanded)}>
-        <span className="delegation-decision-arrow">{expanded ? '▼' : '▶'}</span>
-        {targetClassConfig && (
+        <span className="delegation-decision-arrow"><Icon name={expanded ? 'caret-down' : 'caret-right'} size={10} /></span>
+        {targetClassConfig && targetAgent && (
           <span className="delegation-decision-icon" style={{ color: targetClassConfig.color }}>
-            {targetClassConfig.icon}
+            <AgentIcon agent={targetAgent} size={14} />
           </span>
         )}
-        <span className="delegation-decision-agent">→ {decision.selectedAgentName}</span>
+        <span className="delegation-decision-agent"><Icon name="subitem" size={10} /> {decision.selectedAgentName}</span>
         <span
           className="delegation-decision-confidence"
           style={{ color: confidenceColors[decision.confidence] }}
@@ -963,10 +964,10 @@ const SubordinateBadge = memo(function SubordinateBadge({ agentId, bossId }: Sub
         {t('labels.reportsTo')}: <strong>{boss.name}</strong>
       </span>
       <button className="subordinate-badge-goto" onClick={() => store.selectAgent(bossId)} title={t('unitPanel.goToBoss')}>
-        →
+        <Icon name="subitem" size={12} />
       </button>
       <button className="subordinate-badge-unlink" onClick={handleUnlink} title={t('unitPanel.unlinkFromBoss')}>
-        ✕
+        <Icon name="close" size={12} />
       </button>
     </div>
   );
@@ -1014,7 +1015,7 @@ const LinkToBossSection = memo(function LinkToBossSection({ agentId }: LinkToBos
           <div className="link-to-boss-header">
             <span>{t('unitPanel.selectBoss')}</span>
             <button className="link-to-boss-close" onClick={() => setIsExpanded(false)}>
-              ✕
+              <Icon name="close" size={12} />
             </button>
           </div>
           <div className="link-to-boss-list">

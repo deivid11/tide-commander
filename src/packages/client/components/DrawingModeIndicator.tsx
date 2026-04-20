@@ -7,6 +7,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { DrawingTool } from '../../shared/types';
+import { Icon } from './Icon';
 
 interface DrawingModeIndicatorProps {
   activeTool: DrawingTool;
@@ -21,12 +22,11 @@ export function DrawingModeIndicator({ activeTool, onExit }: DrawingModeIndicato
   const toolLabel = activeTool === 'rectangle'
     ? t('notifications:drawing.rectangleTool')
     : t('notifications:drawing.circleTool');
-  const toolIcon = activeTool === 'rectangle' ? '▭' : '○';
 
   return (
     <div className="drawing-mode-indicator">
       <div className="drawing-mode-content">
-        <span className="drawing-mode-icon">{toolIcon}</span>
+        <span className="drawing-mode-icon"><Icon name={activeTool === 'rectangle' ? 'square' : 'status-pending'} size={14} /></span>
         <div className="drawing-mode-text">
           <span className="drawing-mode-title">{t('terminal:drawingMode.drawingArea')}: {toolLabel}</span>
           <span className="drawing-mode-hint">{t('terminal:drawingMode.clickAndDrag')} • {t('terminal:drawingMode.pressEscape')}</span>
@@ -37,7 +37,7 @@ export function DrawingModeIndicator({ activeTool, onExit }: DrawingModeIndicato
         onClick={onExit}
         title={t('terminal:drawingMode.exitDrawingMode')}
       >
-        ✕
+        <Icon name="close" size={14} />
       </button>
     </div>
   );

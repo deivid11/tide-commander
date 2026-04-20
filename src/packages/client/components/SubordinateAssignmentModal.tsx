@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { store, useAgents, useAgent } from '../store';
 import { AGENT_CLASSES } from '../../shared/types';
 import { AgentIcon } from './AgentIcon';
+import { Icon } from './Icon';
 
 interface SubordinateAssignmentModalProps {
   isOpen: boolean;
@@ -123,7 +124,7 @@ export function SubordinateAssignmentModal({ isOpen, bossId, onClose }: Subordin
                     onClick={() => toggleSubordinate(agent.id)}
                   >
                     <div className="subordinate-checkbox">
-                      {isSelected ? '✓' : ''}
+                      {isSelected ? <Icon name="check" size={12} /> : null}
                     </div>
                     <div
                       className="subordinate-icon"
@@ -150,7 +151,7 @@ export function SubordinateAssignmentModal({ isOpen, bossId, onClose }: Subordin
           <div className="subordinate-assignment-summary">
             {hasChanges ? (
               <span className="summary-changed">
-                {currentSubCount} → {newSubCount} {t('terminal:team.subordinates').toLowerCase()}
+                {currentSubCount} <Icon name="arrow-right" size={11} /> {newSubCount} {t('terminal:team.subordinates').toLowerCase()}
               </span>
             ) : (
               <span className="summary-unchanged">

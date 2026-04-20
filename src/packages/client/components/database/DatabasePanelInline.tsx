@@ -12,6 +12,7 @@ import { ResultsTable } from './ResultsTable';
 import { splitQueries, getQueryAtCursor } from './QueryEditor';
 import Prism from 'prismjs';
 import 'prismjs/components/prism-sql';
+import { Icon } from '../Icon';
 import './DatabasePanelInline.scss';
 
 interface DatabasePanelInlineProps {
@@ -155,7 +156,7 @@ export const DatabasePanelInline: React.FC<DatabasePanelInlineProps> = ({ buildi
   if (connections.length === 0) {
     return (
       <div className="db-inline">
-        <div className="db-inline__empty">🔌 No connections configured</div>
+        <div className="db-inline__empty"><Icon name="plug" size={14} /> No connections configured</div>
       </div>
     );
   }
@@ -220,7 +221,7 @@ export const DatabasePanelInline: React.FC<DatabasePanelInlineProps> = ({ buildi
           disabled={isExecuting || !activeDatabase || !query.trim()}
           title="Execute (Ctrl+Enter)"
         >
-          {isExecuting ? '⏳' : '▶'}
+          <Icon name={isExecuting ? 'hourglass' : 'play'} size={14} />
         </button>
       </div>
 

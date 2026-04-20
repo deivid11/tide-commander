@@ -9,6 +9,7 @@ import React, { useRef, useCallback, KeyboardEvent, useMemo, useEffect, useState
 import { useTranslation } from 'react-i18next';
 import Prism from 'prismjs';
 import 'prismjs/components/prism-sql';
+import { Icon } from '../Icon';
 import './QueryEditor.scss';
 
 export type ExecuteMode = 'all' | 'cursor';
@@ -258,7 +259,7 @@ export const QueryEditor: React.FC<QueryEditorProps> = ({
               </>
             ) : (
               <>
-                <span className="query-editor__play-icon">▶</span>
+                <span className="query-editor__play-icon"><Icon name="play" size={12} /></span>
                 {hasMultipleQueries ? t('terminal:database.runAtCursor') : t('terminal:database.runQuery')}
               </>
             )}
@@ -272,7 +273,7 @@ export const QueryEditor: React.FC<QueryEditorProps> = ({
               disabled={disabled || isExecuting || !query.trim()}
               title={t('terminal:database.executeCursorShortcut')}
             >
-              <span className="query-editor__cursor-icon">▶▶</span>
+              <span className="query-editor__cursor-icon"><Icon name="caret-right" size={10} /><Icon name="caret-right" size={10} /></span>
               {t('terminal:database.runAll')}
             </button>
           )}

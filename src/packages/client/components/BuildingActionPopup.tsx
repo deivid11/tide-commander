@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { store, useStore } from '../store';
 import type { Building } from '../../shared/types';
 import { BUILDING_STATUS_COLORS } from '../utils/colors';
+import { Icon } from './Icon';
 
 interface BuildingActionPopupProps {
   building: Building;
@@ -327,8 +328,8 @@ export const BuildingActionPopup = memo(function BuildingActionPopup({ building,
                 color: building.dockerStatus.health === 'healthy' ? '#4ade80' :
                        building.dockerStatus.health === 'unhealthy' ? '#f87171' : '#fbbf24'
               }}>
-                {building.dockerStatus.health === 'healthy' ? '✓' :
-                 building.dockerStatus.health === 'unhealthy' ? '✗' : '...'}
+                {building.dockerStatus.health === 'healthy' ? <Icon name="check" size={12} /> :
+                 building.dockerStatus.health === 'unhealthy' ? <Icon name="cross" size={12} /> : '...'}
               </span>
             </span>
           )}
