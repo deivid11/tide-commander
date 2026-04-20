@@ -399,16 +399,22 @@ export class AgentManager {
   }
 
   setCustomAgentClasses(classes: Map<string, CustomAgentClass>): void {
-    console.log(`[AgentManager] setCustomAgentClasses called with ${classes.size} classes`);
     this.characterFactory.setCustomClasses(classes);
+
+    // Collect classes actually used by agents currently visible in the scene
+    const state = store.getState();
+    const usedClassIds = new Set<string>();
+    for (const agentId of this.agentMeshes.keys()) {
+      const agent = state.agents.get(agentId);
+      if (agent) usedClassIds.add(agent.class);
+    }
+
+    // Only preload models for classes that have visible agents — addAgent() handles
+    // on-demand loading for any class that appears later
     for (const customClass of classes.values()) {
-      if (customClass.customModelPath) {
-        console.log(`[AgentManager] Preloading custom model for class ${customClass.id}: ${customClass.customModelPath}`);
-        this.characterLoader.loadCustomModel(customClass.id).then(() => {
-          console.log(`[AgentManager] Successfully preloaded custom model for class ${customClass.id}`);
-        }).catch(err => {
+      if (customClass.customModelPath && usedClassIds.has(customClass.id)) {
+        this.characterLoader.loadCustomModel(customClass.id).catch(err => {
           const errorMsg = err instanceof Error ? err.message : String(err);
-          console.error(`[AgentManager] Failed to preload custom model for class ${customClass.id}:`, err);
           this.onToast?.('error', 'Model Load Failed', `Failed to load custom model for ${customClass.name}: ${errorMsg}`);
         });
       }

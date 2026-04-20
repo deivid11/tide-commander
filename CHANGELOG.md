@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.59.0] - 2026-04-20
+
+### Added
+- **Scene simple mode** — new terrain option that renders a dark background with day-level lighting, hiding all decorative elements (sky, trees, clouds, lamps, grass, house); configurable via Settings
+
+### Changed
+- **Agent model preloading** — custom models are now only preloaded for classes that have visible agents in the scene, reducing unnecessary asset loading on startup
+
 ## [1.58.0] - 2026-04-20
 
 ### Added
