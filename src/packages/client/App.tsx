@@ -167,6 +167,20 @@ function AppContent() {
   // Back navigation handling
   const { showBackNavModal, setShowBackNavModal, handleLeave } = useBackNavigation();
 
+  // Bottom stack ref — measured so the terminal input can sit exactly above it
+  const bottomStackRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = bottomStackRef.current;
+    if (!el) return;
+    const appEl = el.closest('.app') as HTMLElement | null;
+    if (!appEl) return;
+    const obs = new ResizeObserver(() => {
+      appEl.style.setProperty('--mobile-bottom-stack-height', `${el.offsetHeight}px`);
+    });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
   // WebSocket connection - runs regardless of 2D/3D view mode
   // This ensures agents are synced on page load even when 2D mode is active
   useWebSocketConnection({
@@ -1165,24 +1179,24 @@ function AppContent() {
         onClose={handleCloseIframeModal}
       />
 
-      {/* Bottom Agent Bar */}
-      <AgentBar
-        onFocusAgent={handleFocusAgent}
-        onSpawnClick={spawnModal.open}
-        onSpawnBossClick={bossSpawnModal.open}
-        onNewBuildingClick={handleNewBuilding}
-        onNewAreaClick={handleNewArea}
-      />
-
-      {/* Mobile Bottom Menu (below the Agent Bar, only visible on mobile 3D view) */}
-      <MobileBottomMenu
-        onOpenSpotlight={spotlightModal.open}
-        onOpenTrackingBoard={handleOpenTrackingBoard}
-        onOpenCommander={commanderModal.open}
-        onOpenToolbox={toolboxModal.open}
-        onSpawnAgent={spawnModal.open}
-        sidebarOpen={sidebarOpen}
-      />
+      {/* Bottom stack: agent bar + mobile nav, measured so input can sit above it */}
+      <div className="mobile-bottom-stack" ref={bottomStackRef}>
+        <AgentBar
+          onFocusAgent={handleFocusAgent}
+          onSpawnClick={spawnModal.open}
+          onSpawnBossClick={bossSpawnModal.open}
+          onNewBuildingClick={handleNewBuilding}
+          onNewAreaClick={handleNewArea}
+        />
+        <MobileBottomMenu
+          onOpenSpotlight={spotlightModal.open}
+          onOpenTrackingBoard={handleOpenTrackingBoard}
+          onOpenCommander={commanderModal.open}
+          onOpenToolbox={toolboxModal.open}
+          onSpawnAgent={spawnModal.open}
+          sidebarOpen={sidebarOpen}
+        />
+      </div>
 
       {/* All Modals */}
       <AppModals

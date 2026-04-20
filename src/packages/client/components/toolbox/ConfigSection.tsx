@@ -393,7 +393,7 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
           <span className="config-value">{config.fpsLimit === 0 ? '∞' : config.fpsLimit}</span>
         </div>
         <div className="config-row">
-          <span className="config-label" title="Experimental: Reduce FPS when idle to save power"><HighlightText text={t('config:general.powerSaving')} query={searchQuery} /> ⚡</span>
+          <span className="config-label" title="Experimental: Reduce FPS when idle to save power"><HighlightText text={t('config:general.powerSaving')} query={searchQuery} /> <Icon name="bolt" size={12} /></span>
           <Toggle checked={state.settings.powerSaving} onChange={(checked) => store.updateSettings({ powerSaving: checked })} />
         </div>
         <div className="config-row">
@@ -727,15 +727,15 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
       {shouldShowSection('experimental') && (
       <CollapsibleSection title={t('config:sections.experimental')} storageKey="experimental" defaultOpen={false} forceOpen={isSearching && shouldShowSection('experimental')}>
         <div className="config-row">
-          <span className="config-label" title="Lightweight 2D top-down view for better performance"><HighlightText text={t('config:experimental.2dView')} query={searchQuery} /> 🗺️</span>
+          <span className="config-label" title="Lightweight 2D top-down view for better performance"><HighlightText text={t('config:experimental.2dView')} query={searchQuery} /> <Icon name="map" size={12} /></span>
           <Toggle checked={state.settings.experimental2DView} onChange={(checked) => store.updateSettings({ experimental2DView: checked })} />
         </div>
         <div className="config-row">
-          <span className="config-label" title="Voice assistant for hands-free agent control"><HighlightText text={t('config:experimental.voiceAssistant')} query={searchQuery} /> 🎤</span>
+          <span className="config-label" title="Voice assistant for hands-free agent control"><HighlightText text={t('config:experimental.voiceAssistant')} query={searchQuery} /> <Icon name="microphone" size={12} /></span>
           <Toggle checked={state.settings.experimentalVoiceAssistant} onChange={(checked) => store.updateSettings({ experimentalVoiceAssistant: checked })} />
         </div>
         <div className="config-row">
-          <span className="config-label" title="Text-to-speech for reading agent responses"><HighlightText text={t('config:experimental.tts')} query={searchQuery} /> 🔊</span>
+          <span className="config-label" title="Text-to-speech for reading agent responses"><HighlightText text={t('config:experimental.tts')} query={searchQuery} /> <Icon name="speaker-on" size={12} /></span>
           <Toggle checked={state.settings.experimentalTTS} onChange={(checked) => store.updateSettings({ experimentalTTS: checked })} />
         </div>
         <div className="config-row">

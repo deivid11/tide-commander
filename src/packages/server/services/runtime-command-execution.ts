@@ -33,7 +33,8 @@ export interface RuntimeCommandExecutionApi {
     systemPrompt?: string,
     forceNewSession?: boolean,
     customAgent?: CustomAgentConfig,
-    silent?: boolean
+    silent?: boolean,
+    skipNotify?: boolean
   ) => Promise<void>;
   sendCommand: (
     agentId: string,
@@ -62,7 +63,8 @@ export function createRuntimeCommandExecution(deps: RuntimeCommandExecutionDeps)
     systemPrompt?: string,
     forceNewSession?: boolean,
     customAgent?: CustomAgentConfig,
-    silent?: boolean
+    silent?: boolean,
+    skipNotify?: boolean
   ): Promise<void> {
     const agent = agentService.getAgent(agentId);
     if (!agent) {
