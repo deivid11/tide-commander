@@ -57,6 +57,163 @@ export function ImageModal({ url, name, onClose }: ImageModalProps) {
   );
 }
 
+// JSON Viewer component for bash modal output
+
+function escapeJsonString(s: string): string {
+  return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t');
+}
+
+interface JsonNodeProps {
+  value: unknown;
+  keyName?: string;
+  depth: number;
+  isLast: boolean;
+}
+
+function JsonNode({ value, keyName, depth, isLast }: JsonNodeProps) {
+  const [collapsed, setCollapsed] = React.useState(depth >= 2);
+
+  const renderKey = () =>
+    keyName !== undefined ? (
+      <>
+        <span className="json-key">&quot;{keyName}&quot;</span>
+        <span className="json-punctuation">: </span>
+      </>
+    ) : null;
+
+  const comma = !isLast ? <span className="json-punctuation">,</span> : null;
+  const indent = depth * 16;
+
+  if (value === null) {
+    return (
+      <div className="json-line" style={{ paddingLeft: indent }}>
+        {renderKey()}<span className="json-null">null</span>{comma}
+      </div>
+    );
+  }
+
+  if (typeof value === 'boolean') {
+    return (
+      <div className="json-line" style={{ paddingLeft: indent }}>
+        {renderKey()}<span className="json-boolean">{value ? 'true' : 'false'}</span>{comma}
+      </div>
+    );
+  }
+
+  if (typeof value === 'number') {
+    return (
+      <div className="json-line" style={{ paddingLeft: indent }}>
+        {renderKey()}<span className="json-number">{value}</span>{comma}
+      </div>
+    );
+  }
+
+  if (typeof value === 'string') {
+    return (
+      <div className="json-line" style={{ paddingLeft: indent }}>
+        {renderKey()}<span className="json-string">&quot;{escapeJsonString(value)}&quot;</span>{comma}
+      </div>
+    );
+  }
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return (
+        <div className="json-line" style={{ paddingLeft: indent }}>
+          {renderKey()}<span className="json-punctuation">[]</span>{comma}
+        </div>
+      );
+    }
+    return (
+      <div className="json-node">
+        <div className="json-line json-collapsible" style={{ paddingLeft: indent }} onClick={() => setCollapsed(!collapsed)}>
+          <span className="json-toggle">{collapsed ? '▶' : '▼'}</span>
+          {renderKey()}<span className="json-punctuation">[</span>
+          {collapsed && (
+            <>
+              <span className="json-collapsed-hint">{value.length} item{value.length !== 1 ? 's' : ''}</span>
+              <span className="json-punctuation">]</span>{comma}
+            </>
+          )}
+        </div>
+        {!collapsed && (
+          <>
+            {value.map((item, i) => (
+              <JsonNode key={i} value={item} depth={depth + 1} isLast={i === value.length - 1} />
+            ))}
+            <div className="json-line" style={{ paddingLeft: indent }}>
+              <span className="json-punctuation">]</span>{comma}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  if (typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>);
+    if (entries.length === 0) {
+      return (
+        <div className="json-line" style={{ paddingLeft: indent }}>
+          {renderKey()}<span className="json-punctuation">{'{}'}</span>{comma}
+        </div>
+      );
+    }
+    return (
+      <div className="json-node">
+        <div className="json-line json-collapsible" style={{ paddingLeft: indent }} onClick={() => setCollapsed(!collapsed)}>
+          <span className="json-toggle">{collapsed ? '▶' : '▼'}</span>
+          {renderKey()}<span className="json-punctuation">{'{'}</span>
+          {collapsed && (
+            <>
+              <span className="json-collapsed-hint">{entries.length} key{entries.length !== 1 ? 's' : ''}</span>
+              <span className="json-punctuation">{'}'}</span>{comma}
+            </>
+          )}
+        </div>
+        {!collapsed && (
+          <>
+            {entries.map(([k, v], i) => (
+              <JsonNode key={k} value={v} keyName={k} depth={depth + 1} isLast={i === entries.length - 1} />
+            ))}
+            <div className="json-line" style={{ paddingLeft: indent }}>
+              <span className="json-punctuation">{'}'}</span>{comma}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="json-line" style={{ paddingLeft: indent }}>
+      {renderKey()}<span className="json-string">{String(value)}</span>{comma}
+    </div>
+  );
+}
+
+interface JsonViewerProps {
+  data: unknown;
+}
+
+function JsonViewer({ data }: JsonViewerProps) {
+  return (
+    <div className="json-viewer">
+      <JsonNode value={data} depth={0} isLast={true} />
+    </div>
+  );
+}
+
+function tryParseJson(text: string): { ok: true; data: unknown } | { ok: false } {
+  const trimmed = text.trim();
+  if (!trimmed || (trimmed[0] !== '{' && trimmed[0] !== '[')) return { ok: false };
+  try {
+    return { ok: true, data: JSON.parse(trimmed) };
+  } catch {
+    return { ok: false };
+  }
+}
+
 // Bash output modal props
 export interface BashModalState {
   command: string;
@@ -72,6 +229,12 @@ export interface BashModalProps {
 export function BashModal({ state, onClose }: BashModalProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const { handleMouseDown: handleBackdropMouseDown, handleClick: handleBackdropClick } = useModalClose(onClose);
+
+  const jsonResult = React.useMemo(() => {
+    if (state.isLive) return { ok: false as const };
+    return tryParseJson(state.output);
+  }, [state.output, state.isLive]);
+
   return (
     <ModalPortal>
       <div className="bash-modal-overlay" onMouseDown={handleBackdropMouseDown} onClick={handleBackdropClick}>
@@ -79,6 +242,7 @@ export function BashModal({ state, onClose }: BashModalProps) {
           <div className="bash-modal-header">
             <span className="bash-modal-icon">$</span>
             <span className="bash-modal-title">{t('terminal:modals.terminalOutput')}</span>
+            {jsonResult.ok && <span className="bash-modal-json-badge">JSON</span>}
             <button className="bash-modal-close" onClick={onClose}>
               ×
             </button>
@@ -86,8 +250,16 @@ export function BashModal({ state, onClose }: BashModalProps) {
           <div className="bash-modal-command">
             <pre dangerouslySetInnerHTML={{ __html: highlightCode(state.command, 'bash') }} />
           </div>
-          <div className={`bash-modal-content ${state.isLive ? 'is-loading' : ''}`}>
-            <pre dangerouslySetInnerHTML={{ __html: ansiToHtml(state.output) }} />
+          <div className={`bash-modal-content ${state.isLive ? 'is-loading' : ''} ${jsonResult.ok ? 'is-json' : ''}`}>
+            {jsonResult.ok ? (
+              <JsonViewer data={jsonResult.data} />
+            ) : (
+              <pre className="exec-task-inline-output bash-modal-ansi-output">
+                {state.output.split('\n').map((line, idx) => (
+                  <div key={idx} dangerouslySetInnerHTML={{ __html: ansiToHtml(line) }} />
+                ))}
+              </pre>
+            )}
           </div>
         </div>
       </div>

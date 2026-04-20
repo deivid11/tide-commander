@@ -49,9 +49,27 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
   const [workdir, setWorkdir] = useState<string>(agent.cwd);
   const [shortcut, setShortcut] = useState<string>(((agent as AgentWithShortcut).shortcut || '').trim());
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set());
+  const [classSearch, setClassSearch] = useState('');
   const [skillSearch, setSkillSearch] = useState('');
   const [editingInstructions, setEditingInstructions] = useState(false);
   const [instructionsText, setInstructionsText] = useState('');
+
+  // Filter classes by search query
+  const filteredCustomClasses = useMemo(() => {
+    if (!classSearch.trim()) return customClasses;
+    const query = classSearch.toLowerCase();
+    return customClasses.filter(c =>
+      c.name.toLowerCase().includes(query) ||
+      c.id.toLowerCase().includes(query)
+    );
+  }, [customClasses, classSearch]);
+
+  const filteredBuiltInClasses = useMemo(() => {
+    const entries = Object.entries(BUILT_IN_AGENT_CLASSES).filter(([key]) => key !== 'boss');
+    if (!classSearch.trim()) return entries;
+    const query = classSearch.toLowerCase();
+    return entries.filter(([key]) => key.toLowerCase().includes(query));
+  }, [classSearch]);
 
   // Get skills currently assigned to this agent
   const _currentAgentSkills = useMemo(() => {
@@ -91,6 +109,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
       setUseChrome(agent.useChrome || false);
       setWorkdir(agent.cwd);
       setShortcut((((agent as AgentWithShortcut).shortcut) || '').trim());
+      setClassSearch('');
       const directlyAssigned = allSkills
         .filter(s => s.assignedAgentIds.includes(agent.id))
         .map(s => s.id);
@@ -325,8 +344,15 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
             </div>
             <div className="spawn-class-section">
               <div className="spawn-class-label">{t('terminal:spawn.agentClass')}</div>
+              <input
+                type="text"
+                className="spawn-input class-search-input"
+                placeholder="Filter classes..."
+                value={classSearch}
+                onChange={(e) => setClassSearch(e.target.value)}
+              />
               <div className="class-selector-inline">
-                {customClasses.map((customClass) => (
+                {filteredCustomClasses.map((customClass) => (
                   <button
                     key={customClass.id}
                     className={`class-chip ${selectedClass === customClass.id ? 'selected' : ''}`}
@@ -337,19 +363,20 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                     <span className="class-chip-name">{customClass.name}</span>
                   </button>
                 ))}
-                {Object.entries(BUILT_IN_AGENT_CLASSES)
-                  .filter(([key]) => key !== 'boss')
-                  .map(([key, config]) => (
-                    <button
-                      key={key}
-                      className={`class-chip ${selectedClass === key ? 'selected' : ''}`}
-                      onClick={() => setSelectedClass(key as AgentClass)}
-                      title={config.description}
-                    >
-                      <AgentIcon classId={key} size={18} className="class-chip-icon" />
-                      <span className="class-chip-name">{key.charAt(0).toUpperCase() + key.slice(1)}</span>
-                    </button>
-                  ))}
+                {filteredBuiltInClasses.map(([key, config]) => (
+                  <button
+                    key={key}
+                    className={`class-chip ${selectedClass === key ? 'selected' : ''}`}
+                    onClick={() => setSelectedClass(key as AgentClass)}
+                    title={config.description}
+                  >
+                    <AgentIcon classId={key} size={18} className="class-chip-icon" />
+                    <span className="class-chip-name">{key.charAt(0).toUpperCase() + key.slice(1)}</span>
+                  </button>
+                ))}
+                {filteredCustomClasses.length === 0 && filteredBuiltInClasses.length === 0 && (
+                  <div className="class-search-empty">No classes match "{classSearch}"</div>
+                )}
               </div>
             </div>
           </div>

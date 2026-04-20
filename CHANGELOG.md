@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.56.0] - 2026-04-20
+
+### Added
+- **JSON viewer in terminal** — bash tool output that is valid JSON is now rendered as a collapsible interactive tree in `TerminalModals`, with syntax-highlighted keys, values, and inline collapse/expand at depth ≥ 2
+- **Class search filter in AgentEditModal** — new text input filters both custom and built-in agent classes by name as you type; clears on modal reset
+
+### Fixed
+- Jira client minor fix
+- Toolbox and terminal tool styles updated
+
 ## [1.55.2] - 2026-04-20
 
 ### Fixed

@@ -204,8 +204,6 @@ export class JiraClient {
     jql: string,
     opts?: { maxResults?: number; startAt?: number; fields?: string[] }
   ): Promise<JiraSearchResult> {
-    // Use POST /rest/api/3/search which returns full issue fields by default
-    // (the newer /search/jql endpoint only returns IDs unless fields are explicit)
     const body: Record<string, unknown> = {
       jql,
       maxResults: opts?.maxResults ?? 25,
@@ -216,7 +214,7 @@ export class JiraClient {
       ],
     };
 
-    return (await this.request('POST', '/rest/api/3/search', body)) as JiraSearchResult;
+    return (await this.request('POST', '/rest/api/3/search/jql', body)) as JiraSearchResult;
   }
 
   // ─── Service Desk (optional) ───
