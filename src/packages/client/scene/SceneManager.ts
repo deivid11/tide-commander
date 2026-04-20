@@ -674,7 +674,7 @@ export class SceneManager {
   setDebugTime(hour: number | null): void { this.battlefield.setDebugTime(hour); }
   setTimeMode(mode: string): void { this.battlefield.setTimeMode(mode); }
 
-  setTerrainConfig(config: { showTrees: boolean; showBushes: boolean; showHouse: boolean; showLamps: boolean; showGrass: boolean; fogDensity: number; brightness?: number; skyColor?: string | null; battlefieldSize?: number }): void {
+  setTerrainConfig(config: { showTrees: boolean; showBushes: boolean; showHouse: boolean; showLamps: boolean; showGrass: boolean; fogDensity: number; brightness?: number; skyColor?: string | null; battlefieldSize?: number; simpleMode?: boolean }): void {
     this.battlefield.setTerrainConfig(config);
     // Propagate brightness to all managers for materials that don't respond to lighting
     if (config.brightness !== undefined) {

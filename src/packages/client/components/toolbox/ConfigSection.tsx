@@ -189,7 +189,7 @@ const SETTINGS_SECTIONS = [
   { id: 'appearance', title: 'Appearance', keywords: ['theme', 'appearance', 'color', 'dark', 'light', 'style', 'look'] },
   { id: 'connection', title: 'Connection', keywords: ['backend', 'url', 'auth', 'token', 'reconnect', 'server', 'api', 'connect', 'codex', 'opencode', 'binary', 'path'] },
   { id: 'scene', title: 'Scene', keywords: ['character', 'size', 'indicator', 'scale', 'time', 'dawn', 'day', 'dusk', 'night', 'auto'] },
-  { id: 'terrain', title: 'Terrain', keywords: ['trees', 'bushes', 'house', 'lamps', 'grass', 'clouds', 'fog', 'brightness', 'floor', 'sky', 'color', 'environment', 'battlefield', 'size', 'grid'] },
+  { id: 'terrain', title: 'Terrain', keywords: ['trees', 'bushes', 'house', 'lamps', 'grass', 'clouds', 'fog', 'brightness', 'floor', 'sky', 'color', 'environment', 'battlefield', 'size', 'grid', 'simple', 'minimal', 'dark', 'clean'] },
   { id: 'modelStyle', title: 'Agent Model Style', keywords: ['saturation', 'roughness', 'metalness', 'glow', 'emissive', 'reflections', 'wireframe', 'color mode', 'material', 'shader'] },
   { id: 'animations', title: 'Animations', keywords: ['idle', 'working', 'animation', 'walk', 'run', 'sprint', 'jump', 'sit', 'crouch'] },
   { id: 'secrets', title: 'Secrets', keywords: ['secrets', 'api', 'key', 'password', 'credentials', 'env', 'environment'] },
@@ -595,7 +595,11 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
 
       {shouldShowSection('terrain') && (
       <CollapsibleSection title={t('config:sections.terrain')} storageKey="terrain" defaultOpen={false} forceOpen={isSearching && shouldShowSection('terrain')}>
-        <div className="terrain-icons">
+        <div className="config-row">
+          <span className="config-label"><HighlightText text={t('config:terrainSettings.simpleMode', { defaultValue: 'Simple Mode' })} query={searchQuery} /></span>
+          <Toggle checked={config.terrain.simpleMode ?? false} onChange={(checked) => updateTerrain({ simpleMode: checked })} />
+        </div>
+        <div className="terrain-icons" style={{ opacity: config.terrain.simpleMode ? 0.4 : 1, pointerEvents: config.terrain.simpleMode ? 'none' : 'auto' }}>
           {tTerrainOpts.map((opt) => (
             <button key={opt.key} className={`terrain-icon-btn ${config.terrain[opt.key] ? 'active' : ''}`} onClick={() => toggleTerrain(opt.key)} title={opt.label}>{opt.icon}</button>
           ))}
